@@ -43,7 +43,8 @@ private:
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
 
-    void render_axis_border(Axes& axes, const Rect& viewport);
+    void render_axis_border(Axes& axes, const Rect& viewport,
+                            uint32_t fig_width, uint32_t fig_height);
     void render_text_labels(Axes& axes, const Rect& viewport,
                            uint32_t fig_width, uint32_t fig_height);
     void render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_height);

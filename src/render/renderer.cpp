@@ -180,9 +180,9 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
-    // Render axis border (box frame around plot area)
+    // Render axis border (uses same data-space projection, drawn before grid)
     if (axes.border_enabled())
-        render_axis_border(axes, viewport);
+        render_axis_border(axes, viewport, fig_width, fig_height);
 
     // Render grid
     render_grid(axes, viewport);
@@ -261,14 +261,28 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     backend_.draw(static_cast<uint32_t>(total_lines * 2));
 }
 
-void Renderer::render_axis_border(Axes& axes, const Rect& viewport) {
-    // Draw border in pixel space to avoid clipping at NDC ±1.0 boundaries.
-    // A half-pixel inset keeps lines fully inside the viewport.
-    float half = 0.5f;
-    float x0 = half;
-    float y0 = half;
-    float x1 = viewport.w - half;
-    float y1 = viewport.h - half;
+void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
+                                   uint32_t /*fig_width*/, uint32_t /*fig_height*/) {
+    // Draw border in data space using the already-bound data-space UBO.
+    // Inset vertices by a tiny fraction of the axis range so they don't
+    // land exactly on the NDC ±1.0 clip boundary (which causes clipping
+    // of the top/right edges on some GPUs).
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+
+    float x_range = xlim.max - xlim.min;
+    float y_range = ylim.max - ylim.min;
+    if (x_range == 0.0f) x_range = 1.0f;
+    if (y_range == 0.0f) y_range = 1.0f;
+
+    // Half-pixel in data space: map 0.5 screen pixels to data units
+    float eps_x = 0.5f * x_range / viewport.w;
+    float eps_y = 0.5f * y_range / viewport.h;
+
+    float x0 = xlim.min + eps_x;
+    float y0 = ylim.min + eps_y;
+    float x1 = xlim.max - eps_x;
+    float y1 = ylim.max - eps_y;
 
     float border_verts[] = {
         // Bottom edge
@@ -291,15 +305,6 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport) {
     }
     backend_.upload_buffer(border_vertex_buffer_, border_verts, byte_size);
 
-    // Temporarily switch to pixel-space projection
-    FrameUBO border_ubo {};
-    build_ortho_projection(0.0f, viewport.w, 0.0f, viewport.h, border_ubo.projection);
-    border_ubo.viewport_width  = viewport.w;
-    border_ubo.viewport_height = viewport.h;
-    border_ubo.time = 0.0f;
-    backend_.upload_buffer(frame_ubo_buffer_, &border_ubo, sizeof(FrameUBO));
-    backend_.bind_buffer(frame_ubo_buffer_, 0);
-
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc {};
@@ -314,17 +319,6 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport) {
 
     backend_.bind_buffer(border_vertex_buffer_, 0);
     backend_.draw(8); // 4 lines × 2 vertices
-
-    // Restore data-space projection for grid and series rendering
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-    FrameUBO data_ubo {};
-    build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, data_ubo.projection);
-    data_ubo.viewport_width  = viewport.w;
-    data_ubo.viewport_height = viewport.h;
-    data_ubo.time = 0.0f;
-    backend_.upload_buffer(frame_ubo_buffer_, &data_ubo, sizeof(FrameUBO));
-    backend_.bind_buffer(frame_ubo_buffer_, 0);
 }
 
 void Renderer::render_series(Series& series, const Rect& /*viewport*/) {

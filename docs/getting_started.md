@@ -162,6 +162,28 @@ cmake --build build
 ./build/bench_render
 ```
 
+## Window Resizing
+
+Plotix supports dynamic window resizing. When you resize a window:
+
+1. The figure dimensions are automatically updated
+2. The Vulkan swapchain is recreated with the new dimensions  
+3. All subplot layouts are recomputed to fit the new size
+4. Axes viewports are scaled proportionally
+
+```cpp
+// Create a resizable window
+plotix::App app;
+auto& fig = app.figure();
+auto& ax = fig.subplot(1, 1, 0);
+
+// ... add your data ...
+
+fig.show();  // Window can be resized by the user
+```
+
+The plot will automatically scale to fill the resized window while maintaining aspect ratios and margins.
+
 ## Architecture Overview
 
 ```

@@ -191,7 +191,17 @@ void App::run() {
         // Handle window resize
         if (needs_resize) {
             needs_resize = false;
+            
+            // Update figure dimensions
+            fig.config_.width = new_width;
+            fig.config_.height = new_height;
+            
+            // Recreate swapchain with new dimensions
             backend_->recreate_swapchain(new_width, new_height);
+            
+            // Recompute layout with new dimensions
+            fig.compute_layout();
+            
             // Update input handler viewport after layout recompute
             if (!fig.axes().empty() && fig.axes()[0]) {
                 auto& vp = fig.axes()[0]->viewport();
@@ -206,10 +216,24 @@ void App::run() {
         }
 #endif
 
-        // Render
+        // Render (skip drawing if swapchain is stale, but keep the loop going)
         if (backend_->begin_frame()) {
             renderer_->render_figure(fig);
             backend_->end_frame();
+        } else {
+#ifdef PLOTIX_USE_GLFW
+            if (glfw) {
+                // Swapchain is out of date — recreate with current framebuffer size
+                uint32_t fb_width, fb_height;
+                glfw->framebuffer_size(fb_width, fb_height);
+                if (fb_width > 0 && fb_height > 0) {
+                    fig.config_.width = fb_width;
+                    fig.config_.height = fb_height;
+                    backend_->recreate_swapchain(fb_width, fb_height);
+                    fig.compute_layout();
+                }
+            }
+#endif
         }
 
 #ifdef PLOTIX_USE_FFMPEG

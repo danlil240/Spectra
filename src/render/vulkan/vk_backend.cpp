@@ -53,6 +53,14 @@ bool VulkanBackend::init(bool headless) {
         vkGetPhysicalDeviceProperties(ctx_.physical_device, &ctx_.properties);
         vkGetPhysicalDeviceMemoryProperties(ctx_.physical_device, &ctx_.memory_properties);
 
+        // Query alignment for dynamic UBO offsets — round up FrameUBO size
+        // to the device's minUniformBufferOffsetAlignment
+        {
+            VkDeviceSize align = ctx_.properties.limits.minUniformBufferOffsetAlignment;
+            if (align == 0) align = 1;
+            ubo_slot_alignment_ = (sizeof(FrameUBO) + align - 1) & ~(align - 1);
+        }
+
         create_command_pool();
         create_descriptor_pool();
 
@@ -202,7 +210,12 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
 }
 
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
-    vkDeviceWaitIdle(ctx_.device);
+    // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
+    if (!in_flight_fences_.empty()) {
+        vkWaitForFences(ctx_.device,
+                        static_cast<uint32_t>(in_flight_fences_.size()),
+                        in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
+    }
 
     auto old_swapchain = swapchain_.swapchain;
     auto old_context = swapchain_;  // Copy the entire context
@@ -340,6 +353,8 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
         case BufferUsage::Uniform:
             vk_usage  = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            // Allocate enough room for UBO_MAX_SLOTS dynamic slots
+            size_bytes = static_cast<size_t>(ubo_slot_alignment_) * UBO_MAX_SLOTS;
             break;
         case BufferUsage::Storage:
             vk_usage  = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -366,8 +381,9 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
     if (usage == BufferUsage::Uniform) {
         entry.descriptor_set = allocate_descriptor_set(frame_desc_layout_);
         if (entry.descriptor_set != VK_NULL_HANDLE) {
+            // Descriptor range = one aligned slot (dynamic offset selects the slot)
             update_ubo_descriptor(entry.descriptor_set, entry.gpu_buffer.buffer(),
-                                  static_cast<VkDeviceSize>(size_bytes));
+                                  ubo_slot_alignment_);
         }
     } else if (usage == BufferUsage::Storage) {
         entry.descriptor_set = allocate_descriptor_set(series_desc_layout_);
@@ -393,7 +409,22 @@ void VulkanBackend::upload_buffer(BufferHandle handle, const void* data, size_t 
     auto it = buffers_.find(handle.id);
     if (it == buffers_.end()) return;
 
-    auto& buf = it->second.gpu_buffer;
+    auto& entry = it->second;
+    auto& buf = entry.gpu_buffer;
+
+    // For dynamic UBO buffers, write to the next aligned slot
+    if (entry.usage == BufferUsage::Uniform) {
+        uint32_t slot_size = static_cast<uint32_t>(ubo_slot_alignment_);
+        if (ubo_next_offset_ + slot_size > slot_size * UBO_MAX_SLOTS) {
+            ubo_next_offset_ = 0;  // wrap around (shouldn't happen with 64 slots)
+        }
+        ubo_bound_offset_ = ubo_next_offset_;
+        buf.upload(data, static_cast<VkDeviceSize>(size_bytes),
+                   static_cast<VkDeviceSize>(ubo_next_offset_));
+        ubo_next_offset_ += slot_size;
+        return;
+    }
+
     // For host-visible buffers, direct upload
     try {
         buf.upload(data, static_cast<VkDeviceSize>(size_bytes), static_cast<VkDeviceSize>(offset));
@@ -614,6 +645,10 @@ void VulkanBackend::destroy_texture(TextureHandle handle) {
 }
 
 bool VulkanBackend::begin_frame() {
+    // Reset dynamic UBO slot allocator for this frame
+    ubo_next_offset_ = 0;
+    ubo_bound_offset_ = 0;
+
     if (headless_) {
         // For offscreen, just allocate a command buffer
         if (command_buffers_.empty()) return false;
@@ -634,7 +669,7 @@ bool VulkanBackend::begin_frame() {
         image_available_semaphores_[current_flight_frame_],
         VK_NULL_HANDLE, &current_image_index_);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         return false;  // Caller should recreate swapchain
     }
 
@@ -688,9 +723,13 @@ void VulkanBackend::end_frame() {
     present.pSwapchains        = &swapchain_.swapchain;
     present.pImageIndices      = &current_image_index_;
 
-    vkQueuePresentKHR(ctx_.present_queue, &present);
-
+    VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
     current_flight_frame_ = (current_flight_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        // Caller should recreate swapchain on next frame
+        // We'll handle it in begin_frame()
+    }
 }
 
 void VulkanBackend::begin_render_pass(const Color& clear_color) {
@@ -737,8 +776,9 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
 
     VkPipelineLayout layout = current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
     if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE) {
+        uint32_t dynamic_offset = ubo_bound_offset_;
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                layout, 0, 1, &entry.descriptor_set, 0, nullptr);
+                                layout, 0, 1, &entry.descriptor_set, 1, &dynamic_offset);
     } else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout, 1, 1, &entry.descriptor_set, 0, nullptr);
@@ -913,7 +953,7 @@ void VulkanBackend::create_sync_objects() {
 
 void VulkanBackend::create_descriptor_pool() {
     VkDescriptorPoolSize pool_sizes[] = {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 64},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 64},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 32},
     };
@@ -957,7 +997,7 @@ void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, 
     write.dstSet          = set;
     write.dstBinding      = 0;
     write.descriptorCount = 1;
-    write.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     write.pBufferInfo     = &buf_info;
 
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);

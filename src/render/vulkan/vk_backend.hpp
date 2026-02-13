@@ -128,8 +128,9 @@ private:
 
     // Dynamic UBO state (per-draw projection slots)
     VkDeviceSize     ubo_slot_alignment_ = 256;  // minUniformBufferOffsetAlignment
-    uint32_t         ubo_current_offset_ = 0;    // current write offset in dynamic UBO
-    static constexpr uint32_t UBO_MAX_SLOTS = 32;
+    uint32_t         ubo_next_offset_    = 0;    // next write offset in dynamic UBO
+    uint32_t         ubo_bound_offset_   = 0;    // offset of last-written slot (for bind)
+    static constexpr uint32_t UBO_MAX_SLOTS = 64;
 
     // Current frame state
     VkCommandBuffer  current_cmd_ = VK_NULL_HANDLE;

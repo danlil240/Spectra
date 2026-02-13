@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/animated_scatter.dir/animated_scatter.cpp.o -o animated_scatter  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

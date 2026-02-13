@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/multi_subplot.dir/multi_subplot.cpp.o -o multi_subplot  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

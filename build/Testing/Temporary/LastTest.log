@@ -1,0 +1,230 @@
+Start testing: Feb 13 08:41 IST
+----------------------------------------------------------
+1/5 Testing: unit_test_transform
+1/5 Test: unit_test_transform
+Command: "/home/daniel/projects/plotix/build/tests/unit_test_transform"
+Directory: /home/daniel/projects/plotix/build/tests
+"unit_test_transform" start time: Feb 13 08:41 IST
+Output:
+----------------------------------------------------------
+Running main() from /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 13 tests from 4 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from OrthoProjection
+[ RUN      ] OrthoProjection.Identity
+[       OK ] OrthoProjection.Identity (0 ms)
+[ RUN      ] OrthoProjection.AsymmetricRange
+[       OK ] OrthoProjection.AsymmetricRange (0 ms)
+[ RUN      ] OrthoProjection.ZeroRangeFallback
+[       OK ] OrthoProjection.ZeroRangeFallback (0 ms)
+[----------] 3 tests from OrthoProjection (0 ms total)
+
+[----------] 5 tests from DataToNdc
+[ RUN      ] DataToNdc.Center
+[       OK ] DataToNdc.Center (0 ms)
+[ RUN      ] DataToNdc.MinCorner
+[       OK ] DataToNdc.MinCorner (0 ms)
+[ RUN      ] DataToNdc.MaxCorner
+[       OK ] DataToNdc.MaxCorner (0 ms)
+[ RUN      ] DataToNdc.NegativeRange
+[       OK ] DataToNdc.NegativeRange (0 ms)
+[ RUN      ] DataToNdc.ZeroRangeFallback
+[       OK ] DataToNdc.ZeroRangeFallback (0 ms)
+[----------] 5 tests from DataToNdc (0 ms total)
+
+[----------] 3 tests from NdcToScreen
+[ RUN      ] NdcToScreen.Center
+[       OK ] NdcToScreen.Center (0 ms)
+[ RUN      ] NdcToScreen.BottomLeft
+[       OK ] NdcToScreen.BottomLeft (0 ms)
+[ RUN      ] NdcToScreen.TopRight
+[       OK ] NdcToScreen.TopRight (0 ms)
+[----------] 3 tests from NdcToScreen (0 ms total)
+
+[----------] 2 tests from DataToScreen
+[ RUN      ] DataToScreen.KnownMapping
+[       OK ] DataToScreen.KnownMapping (0 ms)
+[ RUN      ] DataToScreen.MinCorner
+[       OK ] DataToScreen.MinCorner (0 ms)
+[----------] 2 tests from DataToScreen (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 4 test suites ran. (0 ms total)
+[  PASSED  ] 13 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"unit_test_transform" end time: Feb 13 08:41 IST
+"unit_test_transform" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/5 Testing: unit_test_layout
+2/5 Test: unit_test_layout
+Command: "/home/daniel/projects/plotix/build/tests/unit_test_layout"
+Directory: /home/daniel/projects/plotix/build/tests
+"unit_test_layout" start time: Feb 13 08:41 IST
+Output:
+----------------------------------------------------------
+Running main() from /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from SubplotLayout
+[ RUN      ] SubplotLayout.SingleCell
+[       OK ] SubplotLayout.SingleCell (0 ms)
+[ RUN      ] SubplotLayout.TwoByOneGrid
+[       OK ] SubplotLayout.TwoByOneGrid (0 ms)
+[ RUN      ] SubplotLayout.OneByTwoGrid
+[       OK ] SubplotLayout.OneByTwoGrid (0 ms)
+[ RUN      ] SubplotLayout.TwoByTwoGrid
+[       OK ] SubplotLayout.TwoByTwoGrid (0 ms)
+[ RUN      ] SubplotLayout.CustomMargins
+[       OK ] SubplotLayout.CustomMargins (0 ms)
+[ RUN      ] SubplotLayout.TinyFigureClampsToZero
+[       OK ] SubplotLayout.TinyFigureClampsToZero (0 ms)
+[----------] 6 tests from SubplotLayout (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 6 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"unit_test_layout" end time: Feb 13 08:41 IST
+"unit_test_layout" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/5 Testing: unit_test_timeline
+3/5 Test: unit_test_timeline
+Command: "/home/daniel/projects/plotix/build/tests/unit_test_timeline"
+Directory: /home/daniel/projects/plotix/build/tests
+"unit_test_timeline" start time: Feb 13 08:41 IST
+Output:
+----------------------------------------------------------
+Running main() from /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from Timeline
+[ RUN      ] Timeline.EmptyTimeline
+[       OK ] Timeline.EmptyTimeline (0 ms)
+[ RUN      ] Timeline.SingleFloatKeyframe
+[       OK ] Timeline.SingleFloatKeyframe (0 ms)
+[ RUN      ] Timeline.TwoFloatKeyframesLinear
+[       OK ] Timeline.TwoFloatKeyframesLinear (0 ms)
+[ RUN      ] Timeline.FloatKeyframeBeforeFirst
+[       OK ] Timeline.FloatKeyframeBeforeFirst (0 ms)
+[ RUN      ] Timeline.FloatKeyframeAfterLast
+[       OK ] Timeline.FloatKeyframeAfterLast (0 ms)
+[ RUN      ] Timeline.ThreeFloatKeyframes
+[       OK ] Timeline.ThreeFloatKeyframes (0 ms)
+[ RUN      ] Timeline.ColorKeyframesLinear
+[       OK ] Timeline.ColorKeyframesLinear (0 ms)
+[ RUN      ] Timeline.EaseInKeyframes
+[       OK ] Timeline.EaseInKeyframes (0 ms)
+[ RUN      ] Timeline.Duration
+[       OK ] Timeline.Duration (0 ms)
+[----------] 9 tests from Timeline (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 9 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"unit_test_timeline" end time: Feb 13 08:41 IST
+"unit_test_timeline" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/5 Testing: unit_test_easing
+4/5 Test: unit_test_easing
+Command: "/home/daniel/projects/plotix/build/tests/unit_test_easing"
+Directory: /home/daniel/projects/plotix/build/tests
+"unit_test_easing" start time: Feb 13 08:41 IST
+Output:
+----------------------------------------------------------
+Running main() from /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 13 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 13 tests from Easing
+[ RUN      ] Easing.LinearEndpoints
+[       OK ] Easing.LinearEndpoints (0 ms)
+[ RUN      ] Easing.LinearMidpoint
+[       OK ] Easing.LinearMidpoint (0 ms)
+[ RUN      ] Easing.EaseInEndpoints
+[       OK ] Easing.EaseInEndpoints (0 ms)
+[ RUN      ] Easing.EaseInSlowerStart
+[       OK ] Easing.EaseInSlowerStart (0 ms)
+[ RUN      ] Easing.EaseOutEndpoints
+[       OK ] Easing.EaseOutEndpoints (0 ms)
+[ RUN      ] Easing.EaseOutFasterStart
+[       OK ] Easing.EaseOutFasterStart (0 ms)
+[ RUN      ] Easing.EaseInOutEndpoints
+[       OK ] Easing.EaseInOutEndpoints (0 ms)
+[ RUN      ] Easing.EaseInOutMidpoint
+[       OK ] Easing.EaseInOutMidpoint (0 ms)
+[ RUN      ] Easing.EaseInOutSymmetry
+[       OK ] Easing.EaseInOutSymmetry (0 ms)
+[ RUN      ] Easing.BounceEndpoints
+[       OK ] Easing.BounceEndpoints (0 ms)
+[ RUN      ] Easing.BounceMonotonicallyBounded
+[       OK ] Easing.BounceMonotonicallyBounded (0 ms)
+[ RUN      ] Easing.ElasticEndpoints
+[       OK ] Easing.ElasticEndpoints (0 ms)
+[ RUN      ] Easing.ElasticOscillates
+[       OK ] Easing.ElasticOscillates (0 ms)
+[----------] 13 tests from Easing (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 13 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"unit_test_easing" end time: Feb 13 08:41 IST
+"unit_test_easing" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/5 Testing: unit_test_ring_buffer
+5/5 Test: unit_test_ring_buffer
+Command: "/home/daniel/projects/plotix/build/tests/unit_test_ring_buffer"
+Directory: /home/daniel/projects/plotix/build/tests
+"unit_test_ring_buffer" start time: Feb 13 08:41 IST
+Output:
+----------------------------------------------------------
+Running main() from /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 8 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 8 tests from RingBuffer
+[ RUN      ] RingBuffer.InitiallyEmpty
+[       OK ] RingBuffer.InitiallyEmpty (0 ms)
+[ RUN      ] RingBuffer.PushAndPop
+[       OK ] RingBuffer.PushAndPop (0 ms)
+[ RUN      ] RingBuffer.FillToCapacity
+[       OK ] RingBuffer.FillToCapacity (0 ms)
+[ RUN      ] RingBuffer.FIFO_Order
+[       OK ] RingBuffer.FIFO_Order (0 ms)
+[ RUN      ] RingBuffer.WrapAround
+[       OK ] RingBuffer.WrapAround (0 ms)
+[ RUN      ] RingBuffer.PopFromEmpty
+[       OK ] RingBuffer.PopFromEmpty (0 ms)
+[ RUN      ] RingBuffer.InterleavedPushPop
+[       OK ] RingBuffer.InterleavedPushPop (0 ms)
+[ RUN      ] RingBuffer.SizeTracking
+[       OK ] RingBuffer.SizeTracking (0 ms)
+[----------] 8 tests from RingBuffer (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 8 tests.
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"unit_test_ring_buffer" end time: Feb 13 08:41 IST
+"unit_test_ring_buffer" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Feb 13 08:41 IST

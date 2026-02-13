@@ -24,6 +24,8 @@ int main() {
     ax.ylabel("Y");
 
     fig.save_png("output.png");
+
+    app.run();
     std::cout << "Saved output.png\n";
 
     return 0;

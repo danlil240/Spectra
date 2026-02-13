@@ -22,6 +22,9 @@ Renderer::~Renderer() {
     }
     series_gpu_data_.clear();
 
+    if (grid_vertex_buffer_) {
+        backend_.destroy_buffer(grid_vertex_buffer_);
+    }
     if (frame_ubo_buffer_) {
         backend_.destroy_buffer(frame_ubo_buffer_);
     }
@@ -150,6 +153,9 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
+    // Render axis border (box frame around plot area)
+    render_axis_border(axes, viewport);
+
     // Render grid
     render_grid(axes, viewport);
 
@@ -170,6 +176,46 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
 void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     if (!axes.grid_enabled()) return;
 
+    auto x_ticks = axes.compute_x_ticks();
+    auto y_ticks = axes.compute_y_ticks();
+
+    size_t num_x = x_ticks.positions.size();
+    size_t num_y = y_ticks.positions.size();
+    if (num_x == 0 && num_y == 0) return;
+
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+
+    // Generate line vertices in data space
+    // Each line = 2 endpoints (vec2 each) = 4 floats per line
+    size_t total_lines = num_x + num_y;
+    std::vector<float> verts;
+    verts.reserve(total_lines * 4);
+
+    // Vertical grid lines (at each x tick, from ylim.min to ylim.max)
+    for (size_t i = 0; i < num_x; ++i) {
+        float x = x_ticks.positions[i];
+        verts.push_back(x); verts.push_back(ylim.min);
+        verts.push_back(x); verts.push_back(ylim.max);
+    }
+
+    // Horizontal grid lines (at each y tick, from xlim.min to xlim.max)
+    for (size_t i = 0; i < num_y; ++i) {
+        float y = y_ticks.positions[i];
+        verts.push_back(xlim.min); verts.push_back(y);
+        verts.push_back(xlim.max); verts.push_back(y);
+    }
+
+    // Upload grid vertices
+    size_t byte_size = verts.size() * sizeof(float);
+    if (!grid_vertex_buffer_ || grid_buffer_capacity_ < byte_size) {
+        if (grid_vertex_buffer_) backend_.destroy_buffer(grid_vertex_buffer_);
+        grid_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+        grid_buffer_capacity_ = byte_size * 2;
+    }
+    backend_.upload_buffer(grid_vertex_buffer_, verts.data(), byte_size);
+
+    // Bind grid pipeline and draw
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc {};
@@ -178,21 +224,54 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     pc.color[2] = 0.85f;
     pc.color[3] = 1.0f;
     pc.line_width = 1.0f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    // Grid lines are generated from tick positions
-    auto x_ticks = axes.compute_x_ticks();
-    auto y_ticks = axes.compute_y_ticks();
+    backend_.bind_buffer(grid_vertex_buffer_, 0);
+    backend_.draw(static_cast<uint32_t>(total_lines * 2));
+}
 
-    // Each grid line = 2 vertices (start, end) = 1 line segment
-    // Total vertices = (x_ticks + y_ticks) * 2
-    uint32_t total_lines = static_cast<uint32_t>(x_ticks.positions.size() + y_ticks.positions.size());
-    if (total_lines == 0) return;
+void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
 
-    // TODO: Upload grid line vertices to a buffer and draw
-    // For now, this is a placeholder — grid rendering requires
-    // the grid pipeline to be fully wired with shaders (Agent 3)
-    (void)total_lines;
+    // 4 border lines forming a rectangle around the plot area (in data space)
+    float border_verts[] = {
+        // Bottom edge
+        xlim.min, ylim.min,  xlim.max, ylim.min,
+        // Top edge
+        xlim.min, ylim.max,  xlim.max, ylim.max,
+        // Left edge
+        xlim.min, ylim.min,  xlim.min, ylim.max,
+        // Right edge
+        xlim.max, ylim.min,  xlim.max, ylim.max,
+    };
+
+    size_t byte_size = sizeof(border_verts);
+
+    // Reuse grid buffer if large enough, otherwise use a temporary approach
+    // For simplicity, upload border verts to the grid buffer before grid lines
+    // We'll create a small dedicated buffer if needed
+    BufferHandle border_buf = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+    backend_.upload_buffer(border_buf, border_verts, byte_size);
+
+    backend_.bind_pipeline(grid_pipeline_);
+
+    SeriesPushConstants pc {};
+    pc.color[0] = 0.0f;
+    pc.color[1] = 0.0f;
+    pc.color[2] = 0.0f;
+    pc.color[3] = 1.0f;
+    pc.line_width = 1.0f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
+    backend_.push_constants(pc);
+
+    backend_.bind_buffer(border_buf, 0);
+    backend_.draw(8); // 4 lines × 2 vertices
+
+    backend_.destroy_buffer(border_buf);
 }
 
 void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
@@ -220,9 +299,6 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         // Each line segment = 6 vertices (2 triangles from quad expansion)
         // Total segments = point_count - 1
         uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
-        static bool once = false;
-        if (!once) { std::fprintf(stderr, "[Plotix DBG] draw line: %u segments, %zu pts, width=%.1f, color=(%.2f,%.2f,%.2f)\n",
-            segments, line->point_count(), pc.line_width, pc.color[0], pc.color[1], pc.color[2]); once = true; }
         backend_.draw(segments * 6);
     } else if (scatter) {
         backend_.bind_pipeline(scatter_pipeline_);

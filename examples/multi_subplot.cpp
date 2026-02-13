@@ -38,6 +38,8 @@ int main() {
     ax2.ylim(-2.0f, 2.0f);
 
     fig.show();
+    app.run();
+
 
     return 0;
 }

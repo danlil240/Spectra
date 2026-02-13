@@ -56,10 +56,31 @@ bool VulkanBackend::init(bool headless) {
         create_command_pool();
         create_descriptor_pool();
 
-        // Create descriptor set layouts and pipeline layout
+        // Create descriptor set layouts and pipeline layouts
         frame_desc_layout_  = vk::create_frame_descriptor_layout(ctx_.device);
         series_desc_layout_ = vk::create_series_descriptor_layout(ctx_.device);
         pipeline_layout_    = vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, series_desc_layout_});
+
+        // Texture descriptor set layout (combined image sampler at binding 0)
+        {
+            VkDescriptorSetLayoutBinding sampler_binding {};
+            sampler_binding.binding         = 0;
+            sampler_binding.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            sampler_binding.descriptorCount = 1;
+            sampler_binding.stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+            VkDescriptorSetLayoutCreateInfo layout_info {};
+            layout_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layout_info.bindingCount = 1;
+            layout_info.pBindings    = &sampler_binding;
+
+            if (vkCreateDescriptorSetLayout(ctx_.device, &layout_info, nullptr, &texture_desc_layout_) != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create texture descriptor set layout");
+            }
+        }
+
+        // Text pipeline layout: frame UBO (set 0) + texture sampler (set 1)
+        text_pipeline_layout_ = vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, texture_desc_layout_});
 
         return true;
     } catch (const std::exception& e) {
@@ -100,8 +121,12 @@ void VulkanBackend::shutdown() {
     in_flight_fences_.clear();
 
     // Destroy layouts
+    if (text_pipeline_layout_ != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(ctx_.device, text_pipeline_layout_, nullptr);
     if (pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, pipeline_layout_, nullptr);
+    if (texture_desc_layout_ != VK_NULL_HANDLE)
+        vkDestroyDescriptorSetLayout(ctx_.device, texture_desc_layout_, nullptr);
     if (series_desc_layout_ != VK_NULL_HANDLE)
         vkDestroyDescriptorSetLayout(ctx_.device, series_desc_layout_, nullptr);
     if (frame_desc_layout_ != VK_NULL_HANDLE)
@@ -256,12 +281,20 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.frag_spirv      = shaders::grid_frag;
             cfg.frag_spirv_size = shaders::grid_frag_size;
             cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            // Grid uses vec2 vertex attribute for line endpoints
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
         case PipelineType::Text:
             cfg.vert_spirv      = shaders::text_vert;
             cfg.vert_spirv_size = shaders::text_vert_size;
             cfg.frag_spirv      = shaders::text_frag;
             cfg.frag_spirv_size = shaders::text_frag_size;
+            cfg.pipeline_layout = text_pipeline_layout_;
+            // Text uses vec2 position + vec2 UV per vertex
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 4, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(float) * 2});
             break;
         case PipelineType::Heatmap:
             return VK_NULL_HANDLE; // Not yet implemented
@@ -371,11 +404,198 @@ void VulkanBackend::upload_buffer(BufferHandle handle, const void* data, size_t 
     }
 }
 
-TextureHandle VulkanBackend::create_texture(uint32_t /*width*/, uint32_t /*height*/, const uint8_t* /*rgba_data*/) {
-    // TODO: Implement texture creation for MSDF atlas (Agent 3 dependency)
+TextureHandle VulkanBackend::create_texture(uint32_t width, uint32_t height, const uint8_t* rgba_data) {
     TextureHandle h;
     h.id = next_texture_id_++;
-    textures_[h.id] = {};
+    TextureEntry tex {};
+
+    VkDeviceSize image_size = static_cast<VkDeviceSize>(width) * height * 4;
+
+    // Create VkImage
+    VkImageCreateInfo image_info {};
+    image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType     = VK_IMAGE_TYPE_2D;
+    image_info.format        = VK_FORMAT_R8G8B8A8_UNORM;
+    image_info.extent        = {width, height, 1};
+    image_info.mipLevels     = 1;
+    image_info.arrayLayers   = 1;
+    image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (vkCreateImage(ctx_.device, &image_info, nullptr, &tex.image) != VK_SUCCESS) {
+        textures_[h.id] = {};
+        return h;
+    }
+
+    // Allocate device memory for the image
+    VkMemoryRequirements mem_reqs;
+    vkGetImageMemoryRequirements(ctx_.device, tex.image, &mem_reqs);
+
+    uint32_t mem_type_idx = UINT32_MAX;
+    for (uint32_t i = 0; i < ctx_.memory_properties.memoryTypeCount; ++i) {
+        if ((mem_reqs.memoryTypeBits & (1 << i)) &&
+            (ctx_.memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+            mem_type_idx = i;
+            break;
+        }
+    }
+    if (mem_type_idx == UINT32_MAX) {
+        vkDestroyImage(ctx_.device, tex.image, nullptr);
+        textures_[h.id] = {};
+        return h;
+    }
+
+    VkMemoryAllocateInfo alloc_info {};
+    alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize  = mem_reqs.size;
+    alloc_info.memoryTypeIndex = mem_type_idx;
+
+    if (vkAllocateMemory(ctx_.device, &alloc_info, nullptr, &tex.memory) != VK_SUCCESS) {
+        vkDestroyImage(ctx_.device, tex.image, nullptr);
+        textures_[h.id] = {};
+        return h;
+    }
+    vkBindImageMemory(ctx_.device, tex.image, tex.memory, 0);
+
+    // Upload pixel data via staging buffer
+    if (rgba_data) {
+        auto staging = vk::GpuBuffer::create(
+            ctx_.device, ctx_.physical_device, image_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        staging.upload(rgba_data, image_size);
+
+        // One-shot command buffer for layout transition + copy
+        VkCommandBufferAllocateInfo cmd_alloc {};
+        cmd_alloc.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmd_alloc.commandPool        = command_pool_;
+        cmd_alloc.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmd_alloc.commandBufferCount = 1;
+
+        VkCommandBuffer cmd = VK_NULL_HANDLE;
+        vkAllocateCommandBuffers(ctx_.device, &cmd_alloc, &cmd);
+
+        VkCommandBufferBeginInfo begin {};
+        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmd, &begin);
+
+        // Transition: UNDEFINED → TRANSFER_DST_OPTIMAL
+        VkImageMemoryBarrier barrier {};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = tex.image;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel   = 0;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = 1;
+        barrier.srcAccessMask                   = 0;
+        barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        vkCmdPipelineBarrier(cmd,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        // Copy buffer to image
+        VkBufferImageCopy region {};
+        region.bufferOffset      = 0;
+        region.bufferRowLength   = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource  = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageOffset       = {0, 0, 0};
+        region.imageExtent       = {width, height, 1};
+
+        vkCmdCopyBufferToImage(cmd, staging.buffer(), tex.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+        // Transition: TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
+        barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(cmd,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        vkEndCommandBuffer(cmd);
+
+        VkSubmitInfo submit {};
+        submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers    = &cmd;
+        vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
+        vkQueueWaitIdle(ctx_.graphics_queue);
+
+        vkFreeCommandBuffers(ctx_.device, command_pool_, 1, &cmd);
+        staging.destroy();
+    }
+
+    // Create image view
+    VkImageViewCreateInfo view_info {};
+    view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image                           = tex.image;
+    view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format                          = VK_FORMAT_R8G8B8A8_UNORM;
+    view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    view_info.subresourceRange.baseMipLevel   = 0;
+    view_info.subresourceRange.levelCount     = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount     = 1;
+
+    if (vkCreateImageView(ctx_.device, &view_info, nullptr, &tex.view) != VK_SUCCESS) {
+        vkFreeMemory(ctx_.device, tex.memory, nullptr);
+        vkDestroyImage(ctx_.device, tex.image, nullptr);
+        textures_[h.id] = {};
+        return h;
+    }
+
+    // Create sampler
+    VkSamplerCreateInfo sampler_info {};
+    sampler_info.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter    = VK_FILTER_LINEAR;
+    sampler_info.minFilter    = VK_FILTER_LINEAR;
+    sampler_info.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.maxLod       = 1.0f;
+
+    if (vkCreateSampler(ctx_.device, &sampler_info, nullptr, &tex.sampler) != VK_SUCCESS) {
+        vkDestroyImageView(ctx_.device, tex.view, nullptr);
+        vkFreeMemory(ctx_.device, tex.memory, nullptr);
+        vkDestroyImage(ctx_.device, tex.image, nullptr);
+        textures_[h.id] = {};
+        return h;
+    }
+
+    // Allocate and update descriptor set for this texture
+    tex.descriptor_set = allocate_descriptor_set(texture_desc_layout_);
+    if (tex.descriptor_set != VK_NULL_HANDLE) {
+        VkDescriptorImageInfo img_info {};
+        img_info.sampler     = tex.sampler;
+        img_info.imageView   = tex.view;
+        img_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write {};
+        write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet          = tex.descriptor_set;
+        write.dstBinding      = 0;
+        write.descriptorCount = 1;
+        write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo      = &img_info;
+
+        vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
+    }
+
+    textures_[h.id] = tex;
     return h;
 }
 
@@ -501,9 +721,6 @@ void VulkanBackend::bind_pipeline(PipelineHandle handle) {
     auto it = pipelines_.find(handle.id);
     if (it != pipelines_.end() && it->second != VK_NULL_HANDLE) {
         vkCmdBindPipeline(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
-    } else {
-        static bool once = false;
-        if (!once) { std::cerr << "[Plotix DBG] bind_pipeline: id=" << handle.id << " NOT FOUND or NULL\n"; once = true; }
     }
 }
 
@@ -513,25 +730,28 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
 
     auto& entry = it->second;
 
-    static bool dbg_once = false;
     if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipeline_layout_, 0, 1, &entry.descriptor_set, 0, nullptr);
-        if (!dbg_once) { std::cerr << "[Plotix DBG] bind UBO desc set=" << entry.descriptor_set << " layout=" << pipeline_layout_ << "\n"; }
     } else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipeline_layout_, 1, 1, &entry.descriptor_set, 0, nullptr);
-        if (!dbg_once) { std::cerr << "[Plotix DBG] bind SSBO desc set=" << entry.descriptor_set << " buf=" << entry.gpu_buffer.buffer() << " size=" << entry.gpu_buffer.size() << "\n"; dbg_once = true; }
     } else {
         VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(current_cmd_, binding, 1, bufs, offsets);
-        if (!dbg_once) { std::cerr << "[Plotix DBG] bind as vertex buffer (fallback) usage=" << (int)entry.usage << " desc=" << entry.descriptor_set << "\n"; dbg_once = true; }
     }
 }
 
-void VulkanBackend::bind_texture(TextureHandle /*handle*/, uint32_t /*binding*/) {
-    // TODO: Update descriptor set with texture sampler
+void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/) {
+    auto it = textures_.find(handle.id);
+    if (it == textures_.end()) return;
+
+    auto& tex = it->second;
+    if (tex.descriptor_set != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                text_pipeline_layout_, 1, 1, &tex.descriptor_set, 0, nullptr);
+    }
 }
 
 void VulkanBackend::push_constants(const SeriesPushConstants& pc) {

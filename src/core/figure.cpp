@@ -80,8 +80,8 @@ void Figure::show() {
     compute_layout();
 }
 
-void Figure::save_png(const std::string& /*path*/) {
-    // Driven by ImageExporter (Agent 5). Compute layout first.
+void Figure::save_png(const std::string& path) {
+    png_export_path_ = path;
     compute_layout();
 }
 

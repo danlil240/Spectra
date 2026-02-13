@@ -93,7 +93,9 @@ private:
     VkDescriptorPool      descriptor_pool_        = VK_NULL_HANDLE;
     VkDescriptorSetLayout frame_desc_layout_      = VK_NULL_HANDLE;
     VkDescriptorSetLayout series_desc_layout_     = VK_NULL_HANDLE;
+    VkDescriptorSetLayout texture_desc_layout_    = VK_NULL_HANDLE;
     VkPipelineLayout      pipeline_layout_        = VK_NULL_HANDLE;
+    VkPipelineLayout      text_pipeline_layout_   = VK_NULL_HANDLE;
 
     // Resource tracking
     uint64_t next_buffer_id_   = 1;
@@ -115,10 +117,11 @@ private:
     void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
 
     struct TextureEntry {
-        VkImage        image  = VK_NULL_HANDLE;
-        VkDeviceMemory memory = VK_NULL_HANDLE;
-        VkImageView    view   = VK_NULL_HANDLE;
-        VkSampler      sampler = VK_NULL_HANDLE;
+        VkImage         image          = VK_NULL_HANDLE;
+        VkDeviceMemory  memory         = VK_NULL_HANDLE;
+        VkImageView     view           = VK_NULL_HANDLE;
+        VkSampler       sampler        = VK_NULL_HANDLE;
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
     std::unordered_map<uint64_t, TextureEntry> textures_;
 

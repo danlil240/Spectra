@@ -41,6 +41,8 @@ private:
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
 
+    void render_axis_border(Axes& axes, const Rect& viewport);
+
     Backend& backend_;
 
     PipelineHandle line_pipeline_;
@@ -49,6 +51,8 @@ private:
     PipelineHandle text_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
+    BufferHandle grid_vertex_buffer_;
+    size_t       grid_buffer_capacity_ = 0;
 
     // Per-series GPU buffers (keyed by series pointer address)
     struct SeriesGpuData {

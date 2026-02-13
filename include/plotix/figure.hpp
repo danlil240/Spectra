@@ -67,6 +67,9 @@ private:
     int grid_rows_ = 1;
     int grid_cols_ = 1;
 
+    // Pending PNG export path (set by save_png, executed after render)
+    std::string png_export_path_;
+
     // Animation state (set by AnimationBuilder)
     float   anim_fps_      = 60.0f;
     float   anim_duration_ = 0.0f;

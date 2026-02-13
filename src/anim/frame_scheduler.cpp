@@ -36,6 +36,7 @@ void FrameScheduler::begin_frame() {
     if (first_frame_) {
         first_frame_ = false;
         start_time_ = frame_start_;
+        last_frame_start_ = frame_start_;
         last_frame_end_ = frame_start_;
         frame_.dt = 0.0f;
         frame_.elapsed_sec = 0.0f;
@@ -44,7 +45,8 @@ void FrameScheduler::begin_frame() {
     }
 
     Duration elapsed_since_start = frame_start_ - start_time_;
-    Duration dt_duration = frame_start_ - last_frame_end_;
+    Duration dt_duration = frame_start_ - last_frame_start_;
+    last_frame_start_ = frame_start_;
 
     float raw_dt = static_cast<float>(dt_duration.count());
 

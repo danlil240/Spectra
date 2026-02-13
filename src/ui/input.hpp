@@ -63,7 +63,7 @@ public:
     Axes* active_axes() const { return active_axes_; }
 
     // Mouse button event: begin/end drag or box zoom
-    void on_mouse_button(int button, int action, double x, double y);
+    void on_mouse_button(int button, int action, int mods, double x, double y);
 
     // Mouse move event: pan if dragging, update cursor readout
     void on_mouse_move(double x, double y);

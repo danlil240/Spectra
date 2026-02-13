@@ -74,7 +74,7 @@ TEST_F(InputHandlerTest, PanMovesLimits) {
     handler_.set_tool_mode(ToolMode::Pan);
     
     // Press left button at center
-    handler_.on_mouse_button(0, 1, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Drag right by 10% of viewport width
@@ -82,7 +82,7 @@ TEST_F(InputHandlerTest, PanMovesLimits) {
     handler_.on_mouse_move(drag_x, cy);
 
     // Release
-    handler_.on_mouse_button(0, 0, drag_x, cy);
+    handler_.on_mouse_button(0, 0, 0, drag_x, cy);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
 
     // X limits should have shifted left (dragging right = panning left in data space)
@@ -146,7 +146,7 @@ TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
     // Right-click press at 25% from top-left
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Drag to 75% from top-left
@@ -155,7 +155,7 @@ TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
     handler_.on_mouse_move(x1, y1);
 
     // Release
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
 
     // Limits should now be approximately [2.5, 7.5] × [2.5, 7.5]
@@ -175,7 +175,7 @@ TEST_F(InputHandlerTest, BoxZoomCancelledByEscape) {
     
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Press Escape
@@ -190,15 +190,16 @@ TEST_F(InputHandlerTest, BoxZoomCancelledByEscape) {
 
 TEST_F(InputHandlerTest, BoxZoomTooSmallIgnored) {
     auto& vp = axes().viewport();
+    handler_.set_tool_mode(ToolMode::BoxZoom);
 
-    // Right-click press
+    // Left-click press in BoxZoom mode
     double x0 = vp.x + vp.w * 0.5;
     double y0 = vp.y + vp.h * 0.5;
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
 
     // Drag only 2 pixels (below MIN_SELECTION_PIXELS threshold)
     handler_.on_mouse_move(x0 + 2.0, y0 + 2.0);
-    handler_.on_mouse_button(1, 0, x0 + 2.0, y0 + 2.0);
+    handler_.on_mouse_button(0, 0, 0, x0 + 2.0, y0 + 2.0);
 
     // Limits should be unchanged
     auto xlim = axes().x_limits();
@@ -286,14 +287,14 @@ TEST_F(MultiAxesInputTest, ClickSelectsCorrectAxes) {
     auto& vp2 = ax2.viewport();
 
     // Click in center of first axes
-    handler_.on_mouse_button(0, 1, vp1.x + vp1.w / 2.0, vp1.y + vp1.h / 2.0);
+    handler_.on_mouse_button(0, 1, 0, vp1.x + vp1.w / 2.0, vp1.y + vp1.h / 2.0);
     EXPECT_EQ(handler_.active_axes(), &ax1);
-    handler_.on_mouse_button(0, 0, vp1.x + vp1.w / 2.0, vp1.y + vp1.h / 2.0);
+    handler_.on_mouse_button(0, 0, 0, vp1.x + vp1.w / 2.0, vp1.y + vp1.h / 2.0);
 
     // Click in center of second axes
-    handler_.on_mouse_button(0, 1, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
+    handler_.on_mouse_button(0, 1, 0, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
     EXPECT_EQ(handler_.active_axes(), &ax2);
-    handler_.on_mouse_button(0, 0, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
+    handler_.on_mouse_button(0, 0, 0, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
 }
 
 TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes) {

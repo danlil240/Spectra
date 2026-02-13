@@ -116,12 +116,12 @@ void GlfwAdapter::cursor_pos_callback(GLFWwindow* window, double x, double y) {
     }
 }
 
-void GlfwAdapter::mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/) {
+void GlfwAdapter::mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
     if (adapter && adapter->callbacks_.on_mouse_button) {
         double x, y;
         glfwGetCursorPos(window, &x, &y);
-        adapter->callbacks_.on_mouse_button(button, action, x, y);
+        adapter->callbacks_.on_mouse_button(button, action, mods, x, y);
     }
 }
 

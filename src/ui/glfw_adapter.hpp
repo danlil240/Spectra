@@ -15,7 +15,7 @@ class Axes;
 // Callback types for input events
 struct InputCallbacks {
     std::function<void(double x, double y)>                  on_mouse_move;
-    std::function<void(int button, int action, double x, double y)> on_mouse_button;
+    std::function<void(int button, int action, int mods, double x, double y)> on_mouse_button;
     std::function<void(double x_offset, double y_offset)>    on_scroll;
     std::function<void(int width, int height)>               on_resize;
     std::function<void(int key, int action, int mods)>       on_key;

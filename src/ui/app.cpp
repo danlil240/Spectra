@@ -247,14 +247,14 @@ void App::run() {
 #ifdef PLOTIX_USE_IMGUI
                 , &imgui_ui
 #endif
-            ](int button, int action, double x, double y) {
+            ](int button, int action, int mods, double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui && imgui_ui->wants_capture_mouse()) {
                     PLOTIX_LOG_DEBUG("input", "Mouse button ignored - ImGui wants capture");
                     return;
                 }
 #endif
-                input_handler.on_mouse_button(button, action, x, y);
+                input_handler.on_mouse_button(button, action, mods, x, y);
             };
             callbacks.on_scroll = [&input_handler, &glfw
 #ifdef PLOTIX_USE_IMGUI

@@ -47,7 +47,7 @@ TEST_F(BoxZoomTest, BoxZoomRectActivatesOnRightClickInBoxZoomMode) {
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
-    handler_.on_mouse_button(1, 1, x0, y0); // right press
+    handler_.on_mouse_button(0, 1, 0, x0, y0); // left press in BoxZoom mode
     EXPECT_TRUE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 }
@@ -60,7 +60,7 @@ TEST_F(BoxZoomTest, BoxZoomRectUpdatesOnMouseMove) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
 
     const auto& bz = handler_.box_zoom_rect();
@@ -78,9 +78,9 @@ TEST_F(BoxZoomTest, BoxZoomRectDeactivatesOnRelease) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     EXPECT_FALSE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
@@ -99,9 +99,9 @@ TEST_F(BoxZoomTest, BoxZoomSetsLimitsCorrectly) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     // Without animation controller, limits are set instantly
     auto xlim = axes().x_limits();
@@ -118,9 +118,9 @@ TEST_F(BoxZoomTest, BoxZoomTooSmallIgnored) {
     double x0 = vp.x + vp.w * 0.5;
     double y0 = vp.y + vp.h * 0.5;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x0 + 2.0, y0 + 2.0); // < 5px threshold
-    handler_.on_mouse_button(1, 0, x0 + 2.0, y0 + 2.0);
+    handler_.on_mouse_button(0, 0, 0, x0 + 2.0, y0 + 2.0);
 
     auto xlim = axes().x_limits();
     EXPECT_NEAR(xlim.min, 0.0f, 0.01f);
@@ -133,7 +133,7 @@ TEST_F(BoxZoomTest, BoxZoomCancelledByEscape) {
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     handler_.on_key(256, 1, 0); // KEY_ESCAPE
@@ -155,10 +155,8 @@ TEST_F(BoxZoomTest, CtrlLeftDragStartsBoxZoomInPanMode) {
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
-    // Simulate Ctrl held via on_key (MOD_CONTROL = 0x0002)
-    handler_.on_key(341, 1, 0x0002); // KEY_LEFT_CONTROL press with ctrl mod
-
-    handler_.on_mouse_button(0, 1, x0, y0); // left press
+    // Pass Ctrl modifier directly via mods parameter
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0); // left press with Ctrl
     EXPECT_TRUE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 }
@@ -171,8 +169,7 @@ TEST_F(BoxZoomTest, CtrlLeftDragUpdatesBoxZoomRect) {
     double x1 = vp.x + vp.w * 0.8;
     double y1 = vp.y + vp.h * 0.8;
 
-    handler_.on_key(341, 1, 0x0002);
-    handler_.on_mouse_button(0, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);
     handler_.on_mouse_move(x1, y1);
 
     const auto& bz = handler_.box_zoom_rect();
@@ -188,10 +185,9 @@ TEST_F(BoxZoomTest, CtrlLeftDragAppliesBoxZoomOnRelease) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_key(341, 1, 0x0002);
-    handler_.on_mouse_button(0, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(0, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     EXPECT_FALSE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
@@ -210,8 +206,7 @@ TEST_F(BoxZoomTest, CtrlLeftDragCancelledByEscape) {
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
-    handler_.on_key(341, 1, 0x0002);
-    handler_.on_mouse_button(0, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);
     EXPECT_TRUE(handler_.box_zoom_rect().active);
 
     handler_.on_key(256, 1, 0); // Escape
@@ -230,12 +225,12 @@ TEST_F(BoxZoomTest, NormalLeftDragStillPansWithoutCtrl) {
     double cy = vp.y + vp.h * 0.5;
 
     // No Ctrl key — should pan, not box zoom
-    handler_.on_mouse_button(0, 1, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
     EXPECT_FALSE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     handler_.on_mouse_move(cx + vp.w * 0.1, cy);
-    handler_.on_mouse_button(0, 0, cx + vp.w * 0.1, cy);
+    handler_.on_mouse_button(0, 0, 0, cx + vp.w * 0.1, cy);
 
     // X limits should have shifted (panned)
     auto xlim = axes().x_limits();
@@ -257,9 +252,9 @@ TEST_F(BoxZoomTest, AnimatedBoxZoomWithAnimController) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     // Animation should be active
     EXPECT_TRUE(anim_ctrl.has_active_animations());
@@ -290,9 +285,9 @@ TEST_F(BoxZoomTest, TransitionEnginePreferredOverAnimController) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     // TransitionEngine should have the animation, not AnimationController
     EXPECT_TRUE(trans_engine.has_active_animations());
@@ -317,10 +312,9 @@ TEST_F(BoxZoomTest, TransitionEngineUsedForCtrlDragBoxZoom) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_key(341, 1, 0x0002); // Ctrl
-    handler_.on_mouse_button(0, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0); // Ctrl
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(0, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     EXPECT_TRUE(trans_engine.has_active_animations());
     trans_engine.update(0.5f);
@@ -350,11 +344,11 @@ TEST_F(BoxZoomTest, DoubleClickAutoFitWithAnimController) {
     double cy = vp.y + vp.h * 0.5;
 
     // First click
-    handler_.on_mouse_button(0, 1, cx, cy);
-    handler_.on_mouse_button(0, 0, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
+    handler_.on_mouse_button(0, 0, 0, cx, cy);
 
     // Second click (double-click) — immediately after
-    handler_.on_mouse_button(0, 1, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
 
     // Animation should be active (auto-fit)
     EXPECT_TRUE(anim_ctrl.has_active_animations());
@@ -384,11 +378,11 @@ TEST_F(BoxZoomTest, DoubleClickAutoFitWithTransitionEngine) {
     double cy = vp.y + vp.h * 0.5;
 
     // First click
-    handler_.on_mouse_button(0, 1, cx, cy);
-    handler_.on_mouse_button(0, 0, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
+    handler_.on_mouse_button(0, 0, 0, cx, cy);
 
     // Second click (double-click)
-    handler_.on_mouse_button(0, 1, cx, cy);
+    handler_.on_mouse_button(0, 1, 0, cx, cy);
 
     // TransitionEngine should have the animation
     EXPECT_TRUE(trans_engine.has_active_animations());
@@ -536,9 +530,9 @@ TEST_F(BoxZoomTest, BoxZoomWithReversedDrag) {
     double x1 = vp.x + vp.w * 0.25;
     double y1 = vp.y + vp.h * 0.25;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     // Should still zoom to the correct region (min/max normalized)
     auto xlim = axes().x_limits();
@@ -555,7 +549,7 @@ TEST_F(BoxZoomTest, BoxZoomWithNoActiveAxesIsNoop) {
     handler_.set_active_axes(nullptr);
     handler_.set_tool_mode(ToolMode::BoxZoom);
 
-    handler_.on_mouse_button(1, 1, 100.0, 100.0);
+    handler_.on_mouse_button(0, 1, 0, 100.0, 100.0);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
     EXPECT_FALSE(handler_.box_zoom_rect().active);
 }
@@ -570,8 +564,7 @@ TEST_F(BoxZoomTest, CtrlDragBoxZoomDoesNotPan) {
 
     auto xlim_before = axes().x_limits();
 
-    handler_.on_key(341, 1, 0x0002); // Ctrl
-    handler_.on_mouse_button(0, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0); // Ctrl
     handler_.on_mouse_move(x1, y1);
 
     // During Ctrl+drag, limits should NOT have changed (no panning)
@@ -579,7 +572,7 @@ TEST_F(BoxZoomTest, CtrlDragBoxZoomDoesNotPan) {
     EXPECT_FLOAT_EQ(xlim_during.min, xlim_before.min);
     EXPECT_FLOAT_EQ(xlim_during.max, xlim_before.max);
 
-    handler_.on_mouse_button(0, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     // After release, limits should have changed (box zoom applied)
     auto xlim_after = axes().x_limits();
@@ -599,9 +592,9 @@ TEST_F(BoxZoomTest, TransitionEngineFallbackToAnimController) {
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(1, 1, x0, y0);
+    handler_.on_mouse_button(0, 1, 0, x0, y0);
     handler_.on_mouse_move(x1, y1);
-    handler_.on_mouse_button(1, 0, x1, y1);
+    handler_.on_mouse_button(0, 0, 0, x1, y1);
 
     EXPECT_TRUE(anim_ctrl.has_active_animations());
     anim_ctrl.update(0.5f);

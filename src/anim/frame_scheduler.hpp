@@ -58,6 +58,7 @@ private:
     // Timing
     TimePoint start_time_;
     TimePoint frame_start_;
+    TimePoint last_frame_start_;
     TimePoint last_frame_end_;
     bool      first_frame_ = true;
 

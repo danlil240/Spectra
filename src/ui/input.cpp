@@ -54,9 +54,13 @@ InputHandler::~InputHandler() = default;
 
 // ─── Mouse button ───────────────────────────────────────────────────────────
 
-void InputHandler::on_mouse_button(int button, int action, double x, double y) {
+void InputHandler::on_mouse_button(int button, int action, int mods, double x, double y) {
+    // Update modifier state from the authoritative GLFW mods bitmask
+    mods_ = mods;
+
     PLOTIX_LOG_DEBUG("input", "Mouse button event - button: " + std::to_string(button) + 
                       ", action: " + std::to_string(action) + 
+                      ", mods: " + std::to_string(mods) +
                       ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
     
     // Hit-test to find which axes the cursor is over
@@ -88,6 +92,31 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
             return;
         }
 
+        // BoxZoom tool mode: left-click to draw box zoom rectangle
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::BoxZoom && active_axes_) {
+            // Cancel any running animations on this axes
+            if (transition_engine_) {
+                transition_engine_->cancel_for_axes(active_axes_);
+            } else if (anim_ctrl_) {
+                anim_ctrl_->cancel_for_axes(active_axes_);
+            }
+            PLOTIX_LOG_DEBUG("input", "Starting box zoom (BoxZoom tool)");
+            mode_ = InteractionMode::Dragging;
+            box_zoom_.active = true;
+            box_zoom_.x0 = x;
+            box_zoom_.y0 = y;
+            box_zoom_.x1 = x;
+            box_zoom_.y1 = y;
+            return;
+        }
+
+        if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::BoxZoom) {
+            PLOTIX_LOG_DEBUG("input", "Ending box zoom (BoxZoom tool)");
+            apply_box_zoom();
+            mode_ = InteractionMode::Idle;
+            return;
+        }
+
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::Pan) {
             // Cancel any running animations on this axes (new input overrides)
             if (transition_engine_) {
@@ -97,7 +126,7 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
             }
 
             // Ctrl+left-click in Pan mode → begin box zoom
-            if (mods_ & MOD_CONTROL) {
+            if (mods & MOD_CONTROL) {
                 PLOTIX_LOG_DEBUG("input", "Ctrl+left-click — starting box zoom in Pan mode");
                 mode_ = InteractionMode::Dragging;
                 ctrl_box_zoom_active_ = true;
@@ -201,27 +230,6 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
                     }
                 }
             }
-        }
-    } else if (button == MOUSE_BUTTON_RIGHT) {
-        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::BoxZoom && active_axes_) {
-            // Cancel any running animations on this axes
-            if (transition_engine_) {
-                transition_engine_->cancel_for_axes(active_axes_);
-            } else if (anim_ctrl_) {
-                anim_ctrl_->cancel_for_axes(active_axes_);
-            }
-            // Begin box zoom
-            PLOTIX_LOG_DEBUG("input", "Starting box zoom");
-            mode_ = InteractionMode::Dragging;
-            box_zoom_.active = true;
-            box_zoom_.x0 = x;
-            box_zoom_.y0 = y;
-            box_zoom_.x1 = x;
-            box_zoom_.y1 = y;
-        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::BoxZoom) {
-            PLOTIX_LOG_DEBUG("input", "Ending box zoom");
-            apply_box_zoom();
-            mode_ = InteractionMode::Idle;
         }
     }
 }

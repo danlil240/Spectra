@@ -182,14 +182,23 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
     static int debug_count = 0;
-    if (debug_count < 3) {
+    if (debug_count < 1) {
         std::fprintf(stderr, "[DEBUG] render_axes: viewport=(%.1f, %.1f, %.1f, %.1f) "
-                     "xlim=(%.3f, %.3f) ylim=(%.3f, %.3f) fig=(%u, %u)\n",
+                     "xlim=(%.3f, %.3f) ylim=(%.3f, %.3f)\n",
                      viewport.x, viewport.y, viewport.w, viewport.h,
-                     xlim.min, xlim.max, ylim.min, ylim.max,
-                     fig_width, fig_height);
-        std::fprintf(stderr, "[DEBUG] proj: m[0]=%.6f m[5]=%.6f m[12]=%.6f m[13]=%.6f\n",
-                     ubo.projection[0], ubo.projection[5], ubo.projection[12], ubo.projection[13]);
+                     xlim.min, xlim.max, ylim.min, ylim.max);
+        std::fprintf(stderr, "[DEBUG] proj row0: [%.6f, %.6f, %.6f, %.6f]\n",
+                     ubo.projection[0], ubo.projection[4], ubo.projection[8], ubo.projection[12]);
+        std::fprintf(stderr, "[DEBUG] proj row1: [%.6f, %.6f, %.6f, %.6f]\n",
+                     ubo.projection[1], ubo.projection[5], ubo.projection[9], ubo.projection[13]);
+        std::fprintf(stderr, "[DEBUG] proj row2: [%.6f, %.6f, %.6f, %.6f]\n",
+                     ubo.projection[2], ubo.projection[6], ubo.projection[10], ubo.projection[14]);
+        std::fprintf(stderr, "[DEBUG] proj row3: [%.6f, %.6f, %.6f, %.6f]\n",
+                     ubo.projection[3], ubo.projection[7], ubo.projection[11], ubo.projection[15]);
+        std::fprintf(stderr, "[DEBUG] pipeline handles: grid=%lu line=%lu scatter=%lu text=%lu\n",
+                     grid_pipeline_.id, line_pipeline_.id, scatter_pipeline_.id, text_pipeline_.id);
+        std::fprintf(stderr, "[DEBUG] ubo_buffer=%lu font_tex=%lu\n",
+                     frame_ubo_buffer_.id, font_texture_.id);
         debug_count++;
     }
 
@@ -341,6 +350,12 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         // Each line segment = 6 vertices (2 triangles from quad expansion)
         // Total segments = point_count - 1
         uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
+        static int line_dbg = 0;
+        if (line_dbg < 3) {
+            std::fprintf(stderr, "[DEBUG] draw line: points=%zu segments=%u draw_verts=%u\n",
+                         line->point_count(), segments, segments * 6);
+            line_dbg++;
+        }
         backend_.draw(segments * 6);
     } else if (scatter) {
         backend_.bind_pipeline(scatter_pipeline_);

@@ -142,7 +142,9 @@ jobs:
             libxcursor-dev \
             libxi-dev \
             libxkbcommon-dev \
-            glslang-tools
+            glslang-tools \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev
 
       - name: Configure with sanitizer
         run: |

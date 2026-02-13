@@ -15,8 +15,8 @@ TEST(FontAtlas, LoadEmbedded) {
 TEST(FontAtlas, AtlasDimensions) {
     FontAtlas atlas;
     atlas.load_embedded();
-    EXPECT_EQ(atlas.atlas_width(), 512);
-    EXPECT_EQ(atlas.atlas_height(), 512);
+    EXPECT_EQ(atlas.atlas_width(), 1024);
+    EXPECT_EQ(atlas.atlas_height(), 1024);
 }
 
 TEST(FontAtlas, PixelDataNotNull) {

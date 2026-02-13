@@ -6,6 +6,18 @@ std::vector<Rect> compute_subplot_layout(
     float figure_width, float figure_height,
     int rows, int cols,
     const Margins& margins) {
+    return compute_subplot_layout(
+        figure_width, figure_height,
+        rows, cols,
+        margins,
+        0.0f, 0.0f);
+}
+
+std::vector<Rect> compute_subplot_layout(
+    float figure_width, float figure_height,
+    int rows, int cols,
+    const Margins& margins,
+    float origin_x, float origin_y) {
 
     std::vector<Rect> rects;
     rects.reserve(static_cast<size_t>(rows * cols));
@@ -24,8 +36,8 @@ std::vector<Rect> compute_subplot_layout(
             float cell_y = static_cast<float>(r) * cell_height;
 
             Rect plot_area;
-            plot_area.x = cell_x + margins.left;
-            plot_area.y = cell_y + margins.top;
+            plot_area.x = origin_x + cell_x + margins.left;
+            plot_area.y = origin_y + cell_y + margins.top;
             plot_area.w = cell_width  - margins.left - margins.right;
             plot_area.h = cell_height - margins.top  - margins.bottom;
 

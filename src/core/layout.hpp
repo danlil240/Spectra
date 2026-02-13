@@ -22,4 +22,12 @@ std::vector<Rect> compute_subplot_layout(
     int rows, int cols,
     const Margins& margins = {});
 
+// Chrome-aware overload: computes subplot rects inside a content region starting
+// at (origin_x, origin_y) in window coordinates.
+std::vector<Rect> compute_subplot_layout(
+    float figure_width, float figure_height,
+    int rows, int cols,
+    const Margins& margins,
+    float origin_x, float origin_y);
+
 } // namespace plotix

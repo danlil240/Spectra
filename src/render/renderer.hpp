@@ -24,8 +24,14 @@ public:
     // Initialize pipelines for all series types
     bool init();
 
-    // Render a complete figure
+    // Render a complete figure (starts and ends its own render pass)
     void render_figure(Figure& figure);
+
+    // Split render pass management: call begin, then render_figure_content,
+    // then optionally render ImGui, then end.
+    void begin_render_pass();
+    void render_figure_content(Figure& figure);
+    void end_render_pass();
 
     // Update frame UBO (projection, viewport, time)
     void update_frame_ubo(uint32_t width, uint32_t height, float time);

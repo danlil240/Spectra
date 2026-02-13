@@ -179,12 +179,23 @@ bool VulkanBackend::create_surface(void* native_window) {
         return false;
     }
 
-    // Now that we have a surface, re-query present support
-    ctx_.queue_families = vk::find_queue_families(ctx_.physical_device, surface_);
-    if (ctx_.queue_families.has_present()) {
+    // Re-query present support for the created surface, but keep device-created queue
+    // family indices stable. The logical device was created before surface creation,
+    // so it may not contain a separately discovered present family index.
+    const auto surface_families = vk::find_queue_families(ctx_.physical_device, surface_);
+    if (surface_families.has_present() &&
+        surface_families.present.value() == ctx_.queue_families.graphics.value()) {
+        ctx_.queue_families.present = ctx_.queue_families.graphics;
         vkGetDeviceQueue(ctx_.device, ctx_.queue_families.present.value(), 0, &ctx_.present_queue);
+    } else {
+        if (surface_families.has_present()) {
+            PLOTIX_LOG_WARN("vulkan", "Surface present queue family differs from device queue family; falling back to graphics queue for present operations");
+        }
+        ctx_.queue_families.present = ctx_.queue_families.graphics;
+        ctx_.present_queue = ctx_.graphics_queue;
     }
-    // Always ensure present_queue is valid — fallback to graphics queue
+
+    // Ensure present queue is always valid.
     if (ctx_.present_queue == VK_NULL_HANDLE) {
         ctx_.present_queue = ctx_.graphics_queue;
     }

@@ -6,6 +6,7 @@
 #include <plotix/logger.hpp>
 
 #include "../anim/frame_scheduler.hpp"
+#include "../core/layout.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
 #include "command_queue.hpp"
@@ -17,6 +18,7 @@
 
 #ifdef PLOTIX_USE_IMGUI
 #include "imgui_integration.hpp"
+#include "tab_bar.hpp"
 #include <imgui.h>
 #endif
 
@@ -90,20 +92,45 @@ void App::run() {
         return;
     }
 
-    // For now, drive the first figure
-    Figure& fig = *figures_[0];
+    // Multi-figure support - track active figure
+    size_t active_figure_index = 0;
+    Figure* active_figure = figures_[active_figure_index].get();
 
     CommandQueue cmd_queue;
-    FrameScheduler scheduler(fig.anim_fps_);
+    FrameScheduler scheduler(active_figure->anim_fps_);
     Animator animator;
 
-    bool has_animation = static_cast<bool>(fig.anim_on_frame_);
+    bool has_animation = static_cast<bool>(active_figure->anim_on_frame_);
     bool running = true;
 
+    auto switch_active_figure = [&](size_t new_index
+#ifdef PLOTIX_USE_GLFW
+                                    , InputHandler* input_handler
+#endif
+    ) {
+        if (new_index >= figures_.size()) {
+            return;
+        }
+        active_figure_index = new_index;
+        active_figure = figures_[active_figure_index].get();
+        scheduler.set_target_fps(active_figure->anim_fps_);
+        has_animation = static_cast<bool>(active_figure->anim_on_frame_);
+#ifdef PLOTIX_USE_GLFW
+        if (input_handler) {
+            input_handler->set_figure(active_figure);
+            if (!active_figure->axes().empty() && active_figure->axes()[0]) {
+                input_handler->set_active_axes(active_figure->axes()[0].get());
+                const auto& vp = active_figure->axes()[0]->viewport();
+                input_handler->set_viewport(vp.x, vp.y, vp.w, vp.h);
+            }
+        }
+#endif
+    };
+
 #ifdef PLOTIX_USE_FFMPEG
-    bool is_recording = !fig.video_record_path_.empty();
+    bool is_recording = !active_figure->video_record_path_.empty();
 #else
-    if (!fig.video_record_path_.empty()) {
+    if (!active_figure->video_record_path_.empty()) {
         std::cerr << "[plotix] Video recording requested but PLOTIX_USE_FFMPEG is not enabled\n";
     }
 #endif
@@ -113,18 +140,18 @@ void App::run() {
     std::vector<uint8_t> video_frame_pixels;
     if (is_recording) {
         VideoExporter::Config vcfg;
-        vcfg.output_path = fig.video_record_path_;
-        vcfg.width  = fig.width();
-        vcfg.height = fig.height();
-        vcfg.fps    = fig.anim_fps_;
+        vcfg.output_path = active_figure->video_record_path_;
+        vcfg.width  = active_figure->width();
+        vcfg.height = active_figure->height();
+        vcfg.fps    = active_figure->anim_fps_;
         video_exporter = std::make_unique<VideoExporter>(vcfg);
         if (!video_exporter->is_open()) {
             std::cerr << "[plotix] Failed to open video exporter for: "
-                      << fig.video_record_path_ << "\n";
+                      << active_figure->video_record_path_ << "\n";
             video_exporter.reset();
         } else {
             video_frame_pixels.resize(
-                static_cast<size_t>(fig.width()) * fig.height() * 4);
+                static_cast<size_t>(active_figure->width()) * active_figure->height() * 4);
         }
         // Recording always runs headless
         if (!config_.headless) {
@@ -135,33 +162,37 @@ void App::run() {
 
 #ifdef PLOTIX_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
+    std::unique_ptr<TabBar> figure_tabs;
+    size_t pending_tab_switch = SIZE_MAX;
+    size_t pending_tab_close = SIZE_MAX;
+    bool pending_tab_add = false;
 #endif
 
 #ifdef PLOTIX_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
     InputHandler input_handler;
     bool needs_resize = false;
-    uint32_t new_width = fig.width();
-    uint32_t new_height = fig.height();
+    uint32_t new_width = active_figure->width();
+    uint32_t new_height = active_figure->height();
     bool is_resizing = false;
     int resize_frame_counter = 0;
     static constexpr int RESIZE_SKIP_FRAMES = 1;  // Skip frames during rapid resize
 
     if (!config_.headless) {
         glfw = std::make_unique<GlfwAdapter>();
-        if (!glfw->init(fig.width(), fig.height(), "Plotix")) {
+        if (!glfw->init(active_figure->width(), active_figure->height(), "Plotix")) {
             std::cerr << "[plotix] Failed to create GLFW window\n";
             glfw.reset();
         } else {
             // Create Vulkan surface from GLFW window
             backend_->create_surface(glfw->native_window());
-            backend_->create_swapchain(fig.width(), fig.height());
+            backend_->create_swapchain(active_figure->width(), active_figure->height());
 
-            // Wire input handler — set figure for multi-axes hit-testing
-            input_handler.set_figure(&fig);
-            if (!fig.axes().empty() && fig.axes()[0]) {
-                input_handler.set_active_axes(fig.axes()[0].get());
-                auto& vp = fig.axes()[0]->viewport();
+            // Wire input handler — set active figure for multi-axes hit-testing
+            input_handler.set_figure(active_figure);
+            if (!active_figure->axes().empty() && active_figure->axes()[0]) {
+                input_handler.set_active_axes(active_figure->axes()[0].get());
+                auto& vp = active_figure->axes()[0]->viewport();
                 input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
             }
 
@@ -173,7 +204,10 @@ void App::run() {
 #endif
             ](double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) {
+                    PLOTIX_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
+                    return;
+                }
 #endif
                 input_handler.on_mouse_move(x, y);
             };
@@ -183,7 +217,10 @@ void App::run() {
 #endif
             ](int button, int action, double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) {
+                    PLOTIX_LOG_DEBUG("input", "Mouse button ignored - ImGui wants capture");
+                    return;
+                }
 #endif
                 input_handler.on_mouse_button(button, action, x, y);
             };
@@ -193,7 +230,10 @@ void App::run() {
 #endif
             ](double x_offset, double y_offset) {
 #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) {
+                    PLOTIX_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
+                    return;
+                }
 #endif
                 double cx = 0.0, cy = 0.0;
                 if (glfw) {
@@ -255,11 +295,29 @@ void App::run() {
 #ifdef PLOTIX_USE_IMGUI
     if (!config_.headless && glfw) {
         imgui_ui = std::make_unique<ImGuiIntegration>();
+        figure_tabs = std::make_unique<TabBar>();
+
+        // Synchronize tab labels with existing figures.
+        figure_tabs->set_tab_title(0, "Figure 1");
+        for (size_t i = 1; i < figures_.size(); ++i) {
+            figure_tabs->add_tab("Figure " + std::to_string(i + 1));
+        }
+        figure_tabs->set_active_tab(active_figure_index);
+
+        figure_tabs->set_tab_change_callback([&pending_tab_switch](size_t new_index) {
+            pending_tab_switch = new_index;
+        });
+        figure_tabs->set_tab_close_callback([&pending_tab_close](size_t index) {
+            pending_tab_close = index;
+        });
+        figure_tabs->set_tab_add_callback([&pending_tab_add]() {
+            pending_tab_add = true;
+        });
     }
 #endif
 
     if (config_.headless) {
-        backend_->create_offscreen_framebuffer(fig.width(), fig.height());
+        backend_->create_offscreen_framebuffer(active_figure->width(), active_figure->height());
     }
 
     // Now that render pass exists, create real Vulkan pipelines from SPIR-V
@@ -345,39 +403,44 @@ void App::run() {
         animator.evaluate(scheduler.elapsed_seconds());
 
         // Call user on_frame callback
-        if (has_animation && fig.anim_on_frame_) {
+        if (has_animation && active_figure->anim_on_frame_) {
             Frame frame = scheduler.current_frame();
-            fig.anim_on_frame_(frame);
+            active_figure->anim_on_frame_(frame);
         }
+
+        // Update ImGui layout manager BEFORE computing subplot layout so
+        // canvas_rect() reflects the current window size.
+        bool imgui_frame_started = false;
+#ifdef PLOTIX_USE_IMGUI
+        bool should_update_imgui = !is_resizing || (resize_frame_counter % 6 == 0);
+        if (imgui_ui && should_update_imgui) {
+            imgui_ui->new_frame();  // updates layout manager with current window size
+            imgui_frame_started = true;
+        }
+#endif
 
         // Compute layout (skip during active resize for better performance)
         if (!is_resizing) {
 #ifdef PLOTIX_USE_IMGUI
-            // Account for menu bar height in figure layout
-            float menubar_offset = 0.0f;
+            // UI-aware layout: place subplots inside canvas content region.
             if (imgui_ui) {
-                menubar_offset = 52.0f + 12.0f; // menubar_height + margin
-            }
-            
-            // Temporarily adjust figure height for layout computation
-            auto original_height = fig.config_.height;
-            fig.config_.height = static_cast<uint32_t>(std::max(1.0f, static_cast<float>(original_height) - menubar_offset));
-            
-            fig.compute_layout();
-            
-            // Restore original height
-            fig.config_.height = original_height;
-            
-            // Adjust all axes viewports to account for menu bar offset
-            for (auto& ax : fig.axes_mut()) {
-                if (ax) {
-                    auto vp = ax->viewport();
-                    vp.y += menubar_offset;
-                    ax->set_viewport(vp);
+                const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                const auto rects = compute_subplot_layout(
+                    canvas.w, canvas.h,
+                    active_figure->grid_rows_, active_figure->grid_cols_,
+                    {},
+                    canvas.x, canvas.y);
+
+                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                    if (active_figure->axes_mut()[i]) {
+                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                    }
                 }
+            } else {
+                active_figure->compute_layout();
             }
 #else
-            fig.compute_layout();
+            active_figure->compute_layout();
 #endif
         }
 
@@ -408,9 +471,9 @@ void App::run() {
                 
                 // Sync figure dimensions from actual swapchain extent
                 // (may differ from callback values due to surface capabilities)
-                fig.config_.width = backend_->swapchain_width();
-                fig.config_.height = backend_->swapchain_height();
-                PLOTIX_LOG_INFO("resize", "Swapchain recreated, actual extent: " + std::to_string(fig.config_.width) + "x" + std::to_string(fig.config_.height));
+                active_figure->config_.width = backend_->swapchain_width();
+                active_figure->config_.height = backend_->swapchain_height();
+                PLOTIX_LOG_INFO("resize", "Swapchain recreated, actual extent: " + std::to_string(active_figure->config_.width) + "x" + std::to_string(active_figure->config_.height));
 
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui) {
@@ -420,11 +483,32 @@ void App::run() {
 #endif
                 
                 // Recompute layout with new dimensions
-                fig.compute_layout();
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui) {
+                    // Update layout manager with new window size before recomputing
+                    imgui_ui->update_layout(
+                        static_cast<float>(active_figure->config_.width),
+                        static_cast<float>(active_figure->config_.height));
+                    const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                    const auto rects = compute_subplot_layout(
+                        canvas.w, canvas.h,
+                        active_figure->grid_rows_, active_figure->grid_cols_,
+                        {},
+                        canvas.x, canvas.y);
+                    for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                        if (active_figure->axes_mut()[i]) {
+                            active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                        }
+                    }
+                } else
+#endif
+                {
+                    active_figure->compute_layout();
+                }
                 
                 // Update input handler viewport after layout recompute
-                if (!fig.axes().empty() && fig.axes()[0]) {
-                    auto& vp = fig.axes()[0]->viewport();
+                if (!active_figure->axes().empty() && active_figure->axes()[0]) {
+                    auto& vp = active_figure->axes()[0]->viewport();
                     input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
                 }
             }
@@ -436,26 +520,43 @@ void App::run() {
         }
 
         // Update input handler with current active axes viewport
-        if (glfw && !fig.axes().empty() && fig.axes()[0]) {
-            auto& vp = fig.axes()[0]->viewport();
+        if (glfw && !active_figure->axes().empty() && active_figure->axes()[0]) {
+            auto& vp = active_figure->axes()[0]->viewport();
             input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
         }
 #endif
 
-        bool imgui_frame_started = false;
-        
 #ifdef PLOTIX_USE_IMGUI
-        // Start ImGui frame before rendering (skip during active resize for better performance)
-        // Also reduce ImGui update frequency during resize
-        bool should_update_imgui = !is_resizing || (resize_frame_counter % 6 == 0);
-        if (imgui_ui && should_update_imgui) {
-            imgui_ui->new_frame();
-            imgui_ui->build_ui(fig);
+        // Build ImGui UI (new_frame was already called above before layout computation)
+        if (imgui_ui && imgui_frame_started) {
+            imgui_ui->build_ui(*active_figure);
+
+            if (figure_tabs) {
+                Rect canvas_bounds = imgui_ui->get_layout_manager().canvas_rect();
+                Rect tab_bounds{canvas_bounds.x, canvas_bounds.y, canvas_bounds.w, 36.0f};
+
+                ImGui::SetNextWindowPos(ImVec2(tab_bounds.x, tab_bounds.y));
+                ImGui::SetNextWindowSize(ImVec2(tab_bounds.w, tab_bounds.h));
+                ImGuiWindowFlags tab_flags = ImGuiWindowFlags_NoDecoration |
+                                             ImGuiWindowFlags_NoMove |
+                                             ImGuiWindowFlags_NoSavedSettings |
+                                             ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                             ImGuiWindowFlags_NoFocusOnAppearing;
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+                if (ImGui::Begin("##figure_tabs", nullptr, tab_flags)) {
+                    figure_tabs->draw(tab_bounds);
+                }
+                ImGui::End();
+                ImGui::PopStyleColor();
+                ImGui::PopStyleVar(2);
+            }
             
             // Handle interaction state from UI
             if (imgui_ui->should_reset_view()) {
                 // Reset all axes to auto-fit
-                for (auto& ax : fig.axes_mut()) {
+                for (auto& ax : active_figure->axes_mut()) {
                     if (ax) {
                         ax->auto_fit();
                     }
@@ -463,10 +564,46 @@ void App::run() {
                 imgui_ui->clear_reset_view();
             }
             
-            // Update input handler mode
-            input_handler.set_mode(imgui_ui->get_interaction_mode());
-            
-            imgui_frame_started = true;
+            // Update input handler tool mode
+            input_handler.set_tool_mode(imgui_ui->get_interaction_mode());
+        }
+#endif
+
+#ifdef PLOTIX_USE_IMGUI
+        if (pending_tab_add) {
+            FigureConfig cfg = active_figure->config_;
+            figures_.push_back(std::make_unique<Figure>(cfg));
+            size_t new_index = figures_.size() - 1;
+            if (figure_tabs) {
+                figure_tabs->set_tab_title(new_index, "Figure " + std::to_string(new_index + 1));
+            }
+            pending_tab_switch = new_index;
+            pending_tab_add = false;
+        }
+
+        if (pending_tab_close != SIZE_MAX && figures_.size() > 1 && pending_tab_close < figures_.size()) {
+            figures_.erase(figures_.begin() + static_cast<std::ptrdiff_t>(pending_tab_close));
+            if (active_figure_index >= figures_.size()) {
+                active_figure_index = figures_.size() - 1;
+            } else if (active_figure_index > pending_tab_close) {
+                --active_figure_index;
+            }
+            switch_active_figure(active_figure_index
+#ifdef PLOTIX_USE_GLFW
+                                 , glfw ? &input_handler : nullptr
+#endif
+            );
+            pending_tab_close = SIZE_MAX;
+            pending_tab_switch = active_figure_index;
+        }
+
+        if (pending_tab_switch != SIZE_MAX && pending_tab_switch < figures_.size()) {
+            switch_active_figure(pending_tab_switch
+#ifdef PLOTIX_USE_GLFW
+                                 , glfw ? &input_handler : nullptr
+#endif
+            );
+            pending_tab_switch = SIZE_MAX;
         }
 #endif
 
@@ -478,14 +615,19 @@ void App::run() {
         
         if (should_render && (already_begun_frame || backend_->begin_frame())) {
             PLOTIX_LOG_TRACE("resize", "begin_frame succeeded, rendering frame");
-            renderer_->render_figure(fig);
+
+            // Use split render pass so ImGui can render inside the same pass
+            renderer_->begin_render_pass();
+            renderer_->render_figure_content(*active_figure);
 
 #ifdef PLOTIX_USE_IMGUI
-            // Render ImGui overlay (inside the render pass, after plot content)
+            // Render ImGui overlay inside the same render pass, after plot content
             if (imgui_ui && imgui_frame_started) {
                 imgui_ui->render(*static_cast<VulkanBackend*>(backend_.get()));
             }
 #endif
+
+            renderer_->end_render_pass();
 
             if (!already_begun_frame) {
                 backend_->end_frame();
@@ -511,16 +653,36 @@ void App::run() {
                     auto fallback_duration = std::chrono::duration_cast<std::chrono::milliseconds>(fallback_end - fallback_start);
                     PLOTIX_LOG_INFO("resize", "Fallback swapchain recreation completed in " + std::to_string(fallback_duration.count()) + "ms");
                     // Sync figure dimensions from actual swapchain extent
-                    fig.config_.width = backend_->swapchain_width();
-                    fig.config_.height = backend_->swapchain_height();
-                    PLOTIX_LOG_INFO("resize", "Fallback recreation complete, actual extent: " + std::to_string(fig.config_.width) + "x" + std::to_string(fig.config_.height));
+                    active_figure->config_.width = backend_->swapchain_width();
+                    active_figure->config_.height = backend_->swapchain_height();
+                    PLOTIX_LOG_INFO("resize", "Fallback recreation complete, actual extent: " + std::to_string(active_figure->config_.width) + "x" + std::to_string(active_figure->config_.height));
 #ifdef PLOTIX_USE_IMGUI
                     if (imgui_ui) {
                         imgui_ui->on_swapchain_recreated(
                             *static_cast<VulkanBackend*>(backend_.get()));
                     }
 #endif
-                    fig.compute_layout();
+#ifdef PLOTIX_USE_IMGUI
+                    if (imgui_ui) {
+                        imgui_ui->update_layout(
+                            static_cast<float>(active_figure->config_.width),
+                            static_cast<float>(active_figure->config_.height));
+                        const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                        const auto rects = compute_subplot_layout(
+                            canvas.w, canvas.h,
+                            active_figure->grid_rows_, active_figure->grid_cols_,
+                            {},
+                            canvas.x, canvas.y);
+                        for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                            if (active_figure->axes_mut()[i]) {
+                                active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                            }
+                        }
+                    } else
+#endif
+                    {
+                        active_figure->compute_layout();
+                    }
                     // Clear resize flags to prevent redundant double recreation
                     needs_resize = false;
                     resize_frame_counter = 0;
@@ -534,7 +696,7 @@ void App::run() {
         // Capture frame for video recording
         if (video_exporter && video_exporter->is_open()) {
             if (backend_->readback_framebuffer(video_frame_pixels.data(),
-                                                fig.width(), fig.height())) {
+                                                active_figure->width(), active_figure->height())) {
                 video_exporter->write_frame(video_frame_pixels.data());
             }
         }
@@ -543,9 +705,9 @@ void App::run() {
         scheduler.end_frame();
 
         // Check termination conditions
-        if (fig.anim_duration_ > 0.0f &&
-            scheduler.elapsed_seconds() >= fig.anim_duration_ &&
-            !fig.anim_loop_) {
+        if (active_figure->anim_duration_ > 0.0f &&
+            scheduler.elapsed_seconds() >= active_figure->anim_duration_ &&
+            !active_figure->anim_loop_) {
             running = false;
         }
 
@@ -590,7 +752,7 @@ void App::run() {
             uint32_t export_h = f.png_export_height_ > 0 ? f.png_export_height_ : f.height();
 
             // Render this figure into an offscreen framebuffer at the target resolution
-            bool needs_render = (&f != &fig) ||
+            bool needs_render = (&f != active_figure) ||
                                 (export_w != f.width()) ||
                                 (export_h != f.height());
 

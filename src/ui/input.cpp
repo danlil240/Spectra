@@ -1,4 +1,5 @@
 #include "input.hpp"
+#include <plotix/logger.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -44,18 +45,24 @@ const Rect& InputHandler::viewport_for_axes(const Axes* axes) const {
 // ─── Mouse button ───────────────────────────────────────────────────────────
 
 void InputHandler::on_mouse_button(int button, int action, double x, double y) {
+    PLOTIX_LOG_DEBUG("input", "Mouse button event - button: " + std::to_string(button) + 
+                      ", action: " + std::to_string(action) + 
+                      ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+    
     // Hit-test to find which axes the cursor is over
     Axes* hit = hit_test_axes(x, y);
     if (hit) {
+        PLOTIX_LOG_DEBUG("input", "Mouse hit axes - setting active axes");
         active_axes_ = hit;
     }
 
     if (!active_axes_) return;
 
     if (button == MOUSE_BUTTON_LEFT) {
-        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle) {
-            // Begin pan
-            mode_ = InteractionMode::Pan;
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::Pan) {
+            // Begin pan drag
+            PLOTIX_LOG_DEBUG("input", "Starting pan drag");
+            mode_ = InteractionMode::Dragging;
             drag_start_x_ = x;
             drag_start_y_ = y;
 
@@ -65,19 +72,22 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
             drag_start_xlim_max_ = xlim.max;
             drag_start_ylim_min_ = ylim.min;
             drag_start_ylim_max_ = ylim.max;
-        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Pan) {
+        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging) {
+            PLOTIX_LOG_DEBUG("input", "Ending pan drag");
             mode_ = InteractionMode::Idle;
         }
     } else if (button == MOUSE_BUTTON_RIGHT) {
-        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle) {
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::BoxZoom) {
             // Begin box zoom
-            mode_ = InteractionMode::BoxZoom;
+            PLOTIX_LOG_DEBUG("input", "Starting box zoom");
+            mode_ = InteractionMode::Dragging;
             box_zoom_.active = true;
             box_zoom_.x0 = x;
             box_zoom_.y0 = y;
             box_zoom_.x1 = x;
             box_zoom_.y1 = y;
-        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::BoxZoom) {
+        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::BoxZoom) {
+            PLOTIX_LOG_DEBUG("input", "Ending box zoom");
             apply_box_zoom();
             mode_ = InteractionMode::Idle;
         }
@@ -87,9 +97,12 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
 // ─── Mouse move ─────────────────────────────────────────────────────────────
 
 void InputHandler::on_mouse_move(double x, double y) {
+    PLOTIX_LOG_TRACE("input", "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+    
     // Update cursor readout regardless of mode
     Axes* hit = hit_test_axes(x, y);
     if (hit) {
+        PLOTIX_LOG_TRACE("input", "Mouse move hit axes");
         // Temporarily use hit axes for screen_to_data conversion
         Axes* prev = active_axes_;
         active_axes_ = hit;
@@ -104,13 +117,15 @@ void InputHandler::on_mouse_move(double x, double y) {
         screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
         // Restore if we were in a drag with a different axes
-        if (mode_ == InteractionMode::Pan || mode_ == InteractionMode::BoxZoom) {
+        if (mode_ == InteractionMode::Dragging) {
             active_axes_ = prev;
             vp_x_ = saved_vp_x; vp_y_ = saved_vp_y;
             vp_w_ = saved_vp_w; vp_h_ = saved_vp_h;
         } else {
             // In idle mode, update active axes to hovered one
-            // Keep viewport in sync
+            active_axes_ = hit;
+            // Keep viewport in sync with the new active axes
+            vp_x_ = vp.x; vp_y_ = vp.y; vp_w_ = vp.w; vp_h_ = vp.h;
         }
     } else {
         cursor_readout_.valid = false;
@@ -118,27 +133,31 @@ void InputHandler::on_mouse_move(double x, double y) {
 
     if (!active_axes_) return;
 
-    if (mode_ == InteractionMode::Pan) {
-        const auto& vp = viewport_for_axes(active_axes_);
+    if (mode_ == InteractionMode::Dragging) {
+        if (tool_mode_ == ToolMode::Pan) {
+            // Pan logic
+            const auto& vp = viewport_for_axes(active_axes_);
 
-        // Compute drag delta in screen pixels
-        double dx_screen = x - drag_start_x_;
-        double dy_screen = y - drag_start_y_;
+            // Compute drag delta in screen pixels
+            double dx_screen = x - drag_start_x_;
+            double dy_screen = y - drag_start_y_;
 
-        // Convert pixel delta to data-space delta
-        float x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
-        float y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
+            // Convert pixel delta to data-space delta
+            float x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
+            float y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
 
-        float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
-        float dy_data =  static_cast<float>(dy_screen) * y_range / vp.h;
+            float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
+            float dy_data =  static_cast<float>(dy_screen) * y_range / vp.h;
 
-        active_axes_->xlim(drag_start_xlim_min_ + dx_data,
-                           drag_start_xlim_max_ + dx_data);
-        active_axes_->ylim(drag_start_ylim_min_ + dy_data,
-                           drag_start_ylim_max_ + dy_data);
-    } else if (mode_ == InteractionMode::BoxZoom) {
-        box_zoom_.x1 = x;
-        box_zoom_.y1 = y;
+            active_axes_->xlim(drag_start_xlim_min_ + dx_data,
+                               drag_start_xlim_max_ + dx_data);
+            active_axes_->ylim(drag_start_ylim_min_ + dy_data,
+                               drag_start_ylim_max_ + dy_data);
+        } else if (tool_mode_ == ToolMode::BoxZoom) {
+            // Box zoom logic
+            box_zoom_.x1 = x;
+            box_zoom_.y1 = y;
+        }
     }
 }
 
@@ -274,7 +293,7 @@ void InputHandler::apply_box_zoom() {
 }
 
 void InputHandler::cancel_box_zoom() {
-    if (mode_ == InteractionMode::BoxZoom) {
+    if (mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::BoxZoom) {
         mode_ = InteractionMode::Idle;
     }
     box_zoom_.active = false;

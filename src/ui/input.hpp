@@ -7,11 +7,16 @@
 
 namespace plotix {
 
-// Interaction mode for the input handler
+// Tool mode (selected by toolbar buttons)
+enum class ToolMode {
+    Pan,       // Pan tool - left click and drag to pan
+    BoxZoom,   // Box zoom tool - right click and drag to zoom
+};
+
+// Interaction state for the input handler (dragging state)
 enum class InteractionMode {
     Idle,
-    Pan,       // Left-drag: pan the view
-    BoxZoom,   // Right-drag: select a region to zoom into
+    Dragging,  // Currently dragging (either pan or box zoom)
 };
 
 // Cursor readout data (updated every mouse move)
@@ -63,9 +68,13 @@ public:
     // Set the viewport rect for coordinate mapping (single-axes fallback)
     void set_viewport(float vp_x, float vp_y, float vp_w, float vp_h);
 
-    // Current interaction mode
+    // Current interaction state (dragging)
     InteractionMode mode() const { return mode_; }
     void set_mode(InteractionMode new_mode) { mode_ = new_mode; }
+    
+    // Current tool mode (selected by toolbar)
+    ToolMode tool_mode() const { return tool_mode_; }
+    void set_tool_mode(ToolMode new_tool) { tool_mode_ = new_tool; }
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }
@@ -97,6 +106,7 @@ private:
     Axes*   active_axes_  = nullptr;
 
     InteractionMode mode_ = InteractionMode::Idle;
+    ToolMode tool_mode_ = ToolMode::Pan;  // Default tool mode
 
     // Pan drag state
     double drag_start_x_ = 0.0;

@@ -32,6 +32,15 @@ file(GLOB PLOTIX_UI_SOURCES src/ui/app.cpp)
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/input.cpp)
     list(APPEND PLOTIX_UI_SOURCES src/ui/input.cpp)
 endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/layout_manager.cpp)
+    list(APPEND PLOTIX_UI_SOURCES src/ui/layout_manager.cpp)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dock_node.cpp)
+    list(APPEND PLOTIX_UI_SOURCES src/ui/dock_node.cpp)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/tab_bar.cpp)
+    list(APPEND PLOTIX_UI_SOURCES src/ui/tab_bar.cpp)
+endif()
 
 # Core library (headless-capable)
 add_library(plotix STATIC
@@ -107,6 +116,8 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+        src/ui/theme.cpp
+        src/ui/icons.cpp
         src/ui/imgui_integration.cpp
     )
     target_include_directories(plotix PRIVATE

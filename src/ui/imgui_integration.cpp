@@ -1,10 +1,14 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "imgui_integration.hpp"
+#include "theme.hpp"
+#include "design_tokens.hpp"
+#include "icons.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
+#include <plotix/logger.hpp>
 
 #include "../render/vulkan/vk_backend.hpp"
 
@@ -18,42 +22,15 @@
 // Compressed Inter font data
 #include "../../third_party/inter_font.hpp"
 
+// Embedded icon font data (PUA codepoints U+E001-U+E062)
+#include "../../third_party/icon_font_data.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
 
 namespace plotix {
-
-// ─── Design constants ───────────────────────────────────────────────────────
-static constexpr float kIconBarWidth  = 56.0f;
-static constexpr float kPanelWidth    = 300.0f;
-static constexpr float kIconSize      = 36.0f;
-static constexpr float kCornerRadius  = 16.0f;
-static constexpr float kMargin        = 12.0f;
-static constexpr float kMenubarHeight = 52.0f;
-
-// Enhanced 2026 color palette with better contrast and modern feel
-static constexpr ImVec4 kBgSidebar    {0.97f, 0.98f, 1.00f, 0.98f};
-static constexpr ImVec4 kBgPanel      {1.00f, 1.00f, 1.00f, 0.98f};
-static constexpr ImVec4 kBgMenubar    {0.99f, 0.99f, 1.00f, 0.96f};
-static constexpr ImVec4 kTextPrimary  {0.08f, 0.08f, 0.12f, 1.00f};
-static constexpr ImVec4 kTextSecondary{0.42f, 0.43f, 0.48f, 1.00f};
-static constexpr ImVec4 kTextMenubar  {0.22f, 0.22f, 0.26f, 1.00f};
-static constexpr ImVec4 kAccent       {0.12f, 0.38f, 0.78f, 1.00f};
-static constexpr ImVec4 kAccentLight  {0.12f, 0.38f, 0.78f, 0.15f};
-static constexpr ImVec4 kAccentHover  {0.12f, 0.38f, 0.78f, 0.10f};
-static constexpr ImVec4 kDivider      {0.84f, 0.85f, 0.89f, 1.00f};
-static constexpr ImVec4 kFrameBg      {0.93f, 0.94f, 0.97f, 1.00f};
-static constexpr ImVec4 kFrameHover   {0.87f, 0.88f, 0.92f, 1.00f};
-static constexpr ImVec4 kBtnBg        {0.93f, 0.94f, 0.97f, 1.00f};
-static constexpr ImVec4 kBtnHover     {0.86f, 0.87f, 0.91f, 1.00f};
-static constexpr ImVec4 kTransparent  {0.0f, 0.0f, 0.0f, 0.0f};
-static constexpr ImVec4 kMenubarBorder{0.82f, 0.83f, 0.87f, 1.00f};
-static constexpr ImVec4 kShadow       {0.0f, 0.0f, 0.0f, 0.08f};
-static constexpr ImVec4 kSuccess      {0.12f, 0.68f, 0.42f, 1.00f};
-static constexpr ImVec4 kWarning      {0.92f, 0.58f, 0.12f, 1.00f};
-static constexpr ImVec4 kError        {0.92f, 0.23f, 0.23f, 1.00f};
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -63,12 +40,20 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window) {
     if (initialized_) return true;
     if (!window) return false;
 
+    layout_manager_ = std::make_unique<LayoutManager>();
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
+
+    // Initialize theme system
+    ui::ThemeManager::instance();
+    
+    // Initialize icon font system
+    ui::IconFont::instance().initialize();
 
     load_fonts();
     apply_modern_style();
@@ -99,6 +84,7 @@ void ImGuiIntegration::shutdown() {
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    layout_manager_.reset();
     initialized_ = false;
 }
 
@@ -107,24 +93,46 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend) {
     ImGui_ImplVulkan_SetMinImageCount(backend.min_image_count());
 }
 
+void ImGuiIntegration::update_layout(float window_width, float window_height) {
+    if (layout_manager_) {
+        layout_manager_->update(window_width, window_height);
+    }
+}
+
 void ImGuiIntegration::new_frame() {
     if (!initialized_) return;
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    
+    // Update layout with current window size
+    ImGuiIO& io = ImGui::GetIO();
+    update_layout(io.DisplaySize.x, io.DisplaySize.y);
 }
 
 void ImGuiIntegration::build_ui(Figure& figure) {
-    if (!initialized_) return;
+    if (!initialized_) {
+        PLOTIX_LOG_WARN("ui", "build_ui called but ImGui is not initialized");
+        return;
+    }
+    
+    PLOTIX_LOG_TRACE("ui", "Building UI for figure");
 
     float dt = ImGui::GetIO().DeltaTime;
+    ui::ThemeManager::instance().update(dt);
     float target = panel_open_ ? 1.0f : 0.0f;
     panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
     if (std::abs(panel_anim_ - target) < 0.002f) panel_anim_ = target;
 
-    draw_menubar();
-    draw_icon_bar();
-    if (panel_anim_ > 0.002f) draw_panel(figure);
+    // Draw all zones using layout manager
+    draw_command_bar();
+    draw_nav_rail();
+    draw_canvas(figure);
+    if (layout_manager_->is_inspector_visible()) {
+        draw_inspector(figure);
+    }
+    draw_status_bar();
+    draw_floating_toolbar();
 }
 
 void ImGuiIntegration::render(VulkanBackend& backend) {
@@ -135,7 +143,21 @@ void ImGuiIntegration::render(VulkanBackend& backend) {
 }
 
 bool ImGuiIntegration::wants_capture_mouse() const {
-    return initialized_ && ImGui::GetIO().WantCaptureMouse;
+    if (!initialized_) return false;
+    
+    bool wants_capture = ImGui::GetIO().WantCaptureMouse;
+    bool any_window_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+    bool any_item_hovered = ImGui::IsAnyItemHovered();
+    bool any_item_active = ImGui::IsAnyItemActive();
+    
+    PLOTIX_LOG_TRACE("input", "ImGui mouse capture state - wants_capture: " + std::string(wants_capture ? "true" : "false") + 
+                      ", window_hovered: " + std::string(any_window_hovered ? "true" : "false") + 
+                      ", item_hovered: " + std::string(any_item_hovered ? "true" : "false") + 
+                      ", item_active: " + std::string(any_item_active ? "true" : "false"));
+    
+    // Only capture mouse if we're actually interacting with UI elements
+    // Not just because ImGui exists
+    return wants_capture && (any_window_hovered || any_item_hovered || any_item_active);
 }
 bool ImGuiIntegration::wants_capture_keyboard() const {
     return initialized_ && ImGui::GetIO().WantCaptureKeyboard;
@@ -146,24 +168,48 @@ bool ImGuiIntegration::wants_capture_keyboard() const {
 void ImGuiIntegration::load_fonts() {
     ImGuiIO& io = ImGui::GetIO();
 
+    // Icon font glyph range: PUA U+E001 - U+E063
+    static const ImWchar icon_ranges[] = { 0xE001, 0xE063, 0 };
+
     ImFontConfig cfg;
     cfg.FontDataOwnedByAtlas = false;  // we own the static data
 
+    ImFontConfig icon_cfg;
+    icon_cfg.FontDataOwnedByAtlas = false;
+    icon_cfg.MergeMode = true;           // merge into previous font
+    icon_cfg.GlyphMinAdvanceX = 0.0f;
+    icon_cfg.PixelSnapH = true;
+
+    // Body font (16px) + icon merge
     cfg.SizePixels = 0;
     font_body_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 16.0f, &cfg);
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)PlotixIcons_data, PlotixIcons_size, 16.0f, &icon_cfg, icon_ranges);
 
+    // Heading font (12.5px) + icon merge
     font_heading_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 12.5f, &cfg);
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)PlotixIcons_data, PlotixIcons_size, 12.5f, &icon_cfg, icon_ranges);
 
+    // Icon font (20px) — primary icon font with Inter merged in
     font_icon_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 20.0f, &cfg);
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)PlotixIcons_data, PlotixIcons_size, 20.0f, &icon_cfg, icon_ranges);
 
+    // Title font (18px) + icon merge
     font_title_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 18.0f, &cfg);
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)PlotixIcons_data, PlotixIcons_size, 18.0f, &icon_cfg, icon_ranges);
 
+    // Menubar font (15px) + icon merge
     font_menubar_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 15.0f, &cfg);
+    io.Fonts->AddFontFromMemoryTTF(
+        (void*)PlotixIcons_data, PlotixIcons_size, 15.0f, &icon_cfg, icon_ranges);
 
     io.FontDefault = font_body_;
 }
@@ -171,86 +217,35 @@ void ImGuiIntegration::load_fonts() {
 // ─── Style ──────────────────────────────────────────────────────────────────
 
 void ImGuiIntegration::apply_modern_style() {
-    ImGuiStyle& s = ImGui::GetStyle();
-
-    s.WindowPadding     = ImVec2(18, 16);
-    s.FramePadding      = ImVec2(12, 8);
-    s.ItemSpacing       = ImVec2(12, 8);
-    s.ItemInnerSpacing  = ImVec2(10, 6);
-    s.ScrollbarSize     = 10.0f;
-    s.GrabMinSize       = 10.0f;
-
-    s.WindowRounding    = kCornerRadius;
-    s.ChildRounding     = 12.0f;
-    s.FrameRounding     = 10.0f;
-    s.PopupRounding     = 12.0f;
-    s.ScrollbarRounding = 6.0f;
-    s.GrabRounding      = 6.0f;
-    s.TabRounding       = 10.0f;
-
-    s.WindowBorderSize  = 1.0f;
-    s.FrameBorderSize   = 1.0f;
-    s.PopupBorderSize   = 1.0f;
-
-    ImVec4* c = s.Colors;
-    c[ImGuiCol_WindowBg]             = kBgPanel;
-    c[ImGuiCol_PopupBg]              = kBgPanel;
-    c[ImGuiCol_Border]               = kDivider;
-
-    c[ImGuiCol_FrameBg]              = kFrameBg;
-    c[ImGuiCol_FrameBgHovered]       = kFrameHover;
-    c[ImGuiCol_FrameBgActive]        = {0.86f, 0.87f, 0.90f, 1.0f};
-
-    c[ImGuiCol_Header]               = kAccentLight;
-    c[ImGuiCol_HeaderHovered]        = kAccentHover;
-    c[ImGuiCol_HeaderActive]         = kAccentLight;
-
-    c[ImGuiCol_Button]               = kBtnBg;
-    c[ImGuiCol_ButtonHovered]        = kBtnHover;
-    c[ImGuiCol_ButtonActive]         = {0.82f, 0.83f, 0.87f, 1.0f};
-
-    c[ImGuiCol_SliderGrab]           = kAccent;
-    c[ImGuiCol_SliderGrabActive]     = {0.20f, 0.42f, 0.78f, 1.0f};
-
-    c[ImGuiCol_CheckMark]            = kAccent;
-
-    c[ImGuiCol_ScrollbarBg]          = kTransparent;
-    c[ImGuiCol_ScrollbarGrab]        = {0.80f, 0.81f, 0.84f, 1.0f};
-    c[ImGuiCol_ScrollbarGrabHovered] = {0.70f, 0.71f, 0.74f, 1.0f};
-    c[ImGuiCol_ScrollbarGrabActive]  = kAccent;
-
-    c[ImGuiCol_Separator]            = kDivider;
-    c[ImGuiCol_Text]                 = kTextPrimary;
-    c[ImGuiCol_TextDisabled]         = kTextSecondary;
-
-    c[ImGuiCol_Tab]                  = kTransparent;
-    c[ImGuiCol_TabHovered]           = kAccentHover;
-    c[ImGuiCol_TabSelected]          = kAccentLight;
-    c[ImGuiCol_TabSelectedOverline]  = kAccent;
+    // Apply theme colors through ThemeManager
+    ui::ThemeManager::instance().apply_to_imgui();
 }
 
 // ─── Icon sidebar ───────────────────────────────────────────────────────────
 
 // Helper: draw a clickable icon button with enhanced visual feedback
 static bool icon_button(const char* label, bool active, ImFont* font,
-                        float size, const ImVec4& accent) {
+                        float size) {
+    using namespace ui;
+    
+    const auto& colors = theme();
     ImGui::PushFont(font);
 
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x, accent.y, accent.z, 0.15f));
-        ImGui::PushStyleColor(ImGuiCol_Text, accent);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, colors.accent_muted.a));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, accent);
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
-        ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, colors.text_secondary.a));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, kTransparent);
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.12f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accent.x, accent.y, accent.z, 0.20f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, colors.accent_subtle.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, colors.accent_muted.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
 
     bool clicked = ImGui::Button(label, ImVec2(size, size));
 
@@ -260,183 +255,40 @@ static bool icon_button(const char* label, bool active, ImFont* font,
     return clicked;
 }
 
-void ImGuiIntegration::draw_icon_bar() {
-    ImGuiIO& io = ImGui::GetIO();
-    float bar_y = kMenubarHeight + kMargin;
-    float bar_h = io.DisplaySize.y - bar_y - kMargin;
+// ─── Legacy Methods (To be removed after migration) ───────────────────────────
 
-    ImGui::SetNextWindowPos(ImVec2(kMargin, bar_y));
-    ImGui::SetNextWindowSize(ImVec2(kIconBarWidth, bar_h));
-
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 20));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 8));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgSidebar);
-    ImGui::PushStyleColor(ImGuiCol_Border, kDivider);
-
-    if (ImGui::Begin("##iconbar", nullptr, flags)) {
-        // Section icons
-        auto section_btn = [&](const char* icon, Section sec) {
-            bool active = panel_open_ && (active_section_ == sec);
-            if (icon_button(icon, active, font_icon_, kIconSize, kAccent)) {
-                if (panel_open_ && active_section_ == sec)
-                    panel_open_ = false;
-                else {
-                    panel_open_ = true;
-                    active_section_ = sec;
-                }
-            }
-        };
-
-        // Using simple ASCII labels that look clean with Inter
-        section_btn("Fig", Section::Figure);
-        section_btn("Ser", Section::Series);
-        section_btn("Ax",  Section::Axes);
-
-        // Push remaining icons to bottom
-        float bottom_y = ImGui::GetWindowHeight() - kIconSize - ImGui::GetStyle().WindowPadding.y;
-        if (ImGui::GetCursorPosY() < bottom_y) {
-            ImGui::SetCursorPosY(bottom_y);
-        }
-
-        // FPS at bottom of icon bar
-        ImGui::PushFont(font_heading_);
-        ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
-        char fps[16];
-        std::snprintf(fps, sizeof(fps), "%d", static_cast<int>(io.Framerate));
-        float tw = ImGui::CalcTextSize(fps).x;
-        ImGui::SetCursorPosX((kIconBarWidth - tw) * 0.5f - ImGui::GetStyle().WindowPadding.x * 0.5f);
-        ImGui::TextUnformatted(fps);
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
-    }
-    ImGui::End();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
-}
-
-// ─── Modern Menubar ───────────────────────────────────────────────────────────
+// These methods are kept temporarily for compatibility but will be removed
+// once Agent C implements the proper inspector system
 
 void ImGuiIntegration::draw_menubar() {
-    ImGuiIO& io = ImGui::GetIO();
-    float menubar_width = io.DisplaySize.x - kMargin * 2;
-    
-    ImGui::SetNextWindowPos(ImVec2(kMargin, kMargin));
-    ImGui::SetNextWindowSize(ImVec2(menubar_width, kMenubarHeight));
-    
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
-    
-    // Enhanced styling for 2026 modern look
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(28, 16));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(32, 0));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgMenubar);
-    ImGui::PushStyleColor(ImGuiCol_Border, kMenubarBorder);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    
-    if (ImGui::Begin("##menubar", nullptr, flags)) {
-        // App title/brand on the left with enhanced accent and icon
-        ImGui::PushFont(font_title_);
-        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
-        ImGui::TextUnformatted("Plotix");
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
-        
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(130.0f); // Fixed position after title
-        
-        // Home button to reset view
-        draw_toolbar_button("H", [this]() { reset_view_ = true; }, "Reset View (Home)");
-        
-        ImGui::SameLine();
-        
-        // Mouse mode buttons
-        draw_toolbar_button("P", [this]() { interaction_mode_ = InteractionMode::Pan; }, "Pan Mode");
-        
-        ImGui::SameLine();
-        
-        draw_toolbar_button("Z", [this]() { interaction_mode_ = InteractionMode::BoxZoom; }, "Box Zoom Mode");
-        
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(280.0f); // Position after toolbar buttons
-        
-        // Subtle separator
-        ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(300.0f); // Fixed position after separator
-        
-        // File menu with enhanced icons and better descriptions
-        draw_menubar_menu("File", {
-            MenuItem("Export PNG", []() { /* TODO: Export functionality */ }),
-            MenuItem("Export SVG", []() { /* TODO: Export functionality */ }),
-            MenuItem("Export Video", []() { /* TODO: Video export functionality */ }),
-            MenuItem("", nullptr), // Separator
-            MenuItem("Exit", []() { /* TODO: Exit functionality */ })
-        });
-        
-        ImGui::SameLine();
-        
-        // View menu with better options
-        draw_menubar_menu("View", {
-            MenuItem("Toggle Panel", [this]() { panel_open_ = !panel_open_; }),
-            MenuItem("Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
-            MenuItem("Reset View", []() { /* TODO: Reset view functionality */ }),
-            MenuItem("Toggle Grid", []() { /* TODO: Grid toggle functionality */ })
-        });
-        
-        ImGui::SameLine();
-        
-        // Tools menu with enhanced functionality
-        draw_menubar_menu("Tools", {
-            MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
-            MenuItem("Performance Monitor", []() { /* TODO: Performance monitor */ }),
-            MenuItem("Theme Settings", []() { /* TODO: Theme settings */ }),
-            MenuItem("Preferences", []() { /* TODO: Preferences dialog */ })
-        });
-        
-        // Push status info to the right with enhanced formatting
-        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
-        
-        // Enhanced status info with better icons and formatting
-        ImGui::PushFont(font_menubar_);
-        ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
-        
-        char status[128];
-        std::snprintf(status, sizeof(status), "Display: %dx%d | FPS: %.0f | GPU", 
-                     static_cast<int>(io.DisplaySize.x), 
-                     static_cast<int>(io.DisplaySize.y), 
-                     io.Framerate);
-        ImGui::TextUnformatted(status);
-        
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
-    }
-    ImGui::End();
-    ImGui::PopStyleVar(4);
-    ImGui::PopStyleColor(2);
+    // Legacy method - replaced by draw_command_bar()
+    draw_command_bar();
 }
+
+void ImGuiIntegration::draw_icon_bar() {
+    // Legacy method - replaced by draw_nav_rail()
+    draw_nav_rail();
+}
+
+void ImGuiIntegration::draw_panel(Figure& figure) {
+    // Legacy method - replaced by draw_inspector()
+    draw_inspector(figure);
+}
+
+// ─── Legacy Panel Drawing Methods (To be removed after Agent C migration) ───
 
 // Helper for drawing dropdown menus
 void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items) {
     ImGui::PushFont(font_menubar_);
-    ImGui::PushStyleColor(ImGuiCol_Text, kTextMenubar);
-    ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccentHover);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccentLight);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 8));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
     
     if (ImGui::Button(label)) {
+        PLOTIX_LOG_DEBUG("ui_button", "Menu button clicked: " + std::string(label));
         ImGui::OpenPopup(label);
     }
     
@@ -445,23 +297,30 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
-        ImGui::PushStyleColor(ImGuiCol_PopupBg, kBgPanel);
-        ImGui::PushStyleColor(ImGuiCol_Border, kMenubarBorder);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
         
         for (const auto& item : items) {
             if (item.label.empty()) {
-                ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
                 ImGui::Separator();
                 ImGui::PopStyleColor();
             } else {
                 // Enhanced menu item styling
-                ImGui::PushStyleColor(ImGuiCol_Text, kTextPrimary);
-                ImGui::PushStyleColor(ImGuiCol_Header, kTransparent);
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, kAccentHover);
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive, kAccentLight);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
                 
                 if (ImGui::MenuItem(item.label.c_str())) {
-                    if (item.callback) item.callback();
+                    PLOTIX_LOG_DEBUG("ui_button", "Menu item clicked: " + item.label);
+                    if (item.callback) {
+                        PLOTIX_LOG_DEBUG("ui_button", "Executing menu item callback: " + item.label);
+                        item.callback();
+                        PLOTIX_LOG_DEBUG("ui_button", "Menu item callback completed: " + item.label);
+                    } else {
+                        PLOTIX_LOG_WARN("ui_button", "Menu item clicked but callback is null: " + item.label);
+                    }
                 }
                 
                 ImGui::PopStyleColor(4);
@@ -479,31 +338,31 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 }
 
 // Helper for drawing toolbar buttons with tooltips
-void ImGuiIntegration::draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip) {
-    ImGui::PushFont(font_icon_);
-    
-    // Button styling with mode-aware appearance
-    bool is_active = false;
-    if (std::string(icon) == "P" && interaction_mode_ == InteractionMode::Pan) {
-        is_active = true;
-    } else if (std::string(icon) == "Z" && interaction_mode_ == InteractionMode::BoxZoom) {
-        is_active = true;
-    }
+void ImGuiIntegration::draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active) {
+    ImFont* icon_font = ui::icon_font(ui::tokens::ICON_MD);
+    ImGui::PushFont(icon_font ? icon_font : font_icon_);
     
     if (is_active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, kAccentLight);
-        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
-        ImGui::PushStyleColor(ImGuiCol_Text, kTextMenubar);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccentHover);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccentLight);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 6));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
     
     if (ImGui::Button(icon)) {
-        if (callback) callback();
+        PLOTIX_LOG_DEBUG("ui_button", "Toolbar button clicked: " + std::string(icon));
+        if (callback) {
+            PLOTIX_LOG_DEBUG("ui_button", "Executing callback for button: " + std::string(icon));
+            callback();
+            PLOTIX_LOG_DEBUG("ui_button", "Callback executed successfully for: " + std::string(icon));
+        } else {
+            PLOTIX_LOG_WARN("ui_button", "Button clicked but callback is null: " + std::string(icon));
+        }
     }
     
     if (ImGui::IsItemHovered() && tooltip) {
@@ -515,68 +374,16 @@ void ImGuiIntegration::draw_toolbar_button(const char* icon, std::function<void(
     ImGui::PopFont();
 }
 
-// ─── Expandable panel ───────────────────────────────────────────────────────
+// ─── Section Drawing Methods (Legacy - to be replaced by Agent C) ─────────────
 
 static void section_header(const char* text, ImFont* font) {
     ImGui::PushFont(font);
-    ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
     ImGui::TextUnformatted(text);
     ImGui::PopStyleColor();
     ImGui::PopFont();
     ImGui::Spacing();
     ImGui::Spacing();
-}
-
-void ImGuiIntegration::draw_panel(Figure& figure) {
-    ImGuiIO& io = ImGui::GetIO();
-    float panel_y = kMenubarHeight + kMargin;
-    float panel_h = io.DisplaySize.y - panel_y - kMargin;
-
-    // Enhanced slide animation with easing
-    float final_x = kMargin + kIconBarWidth + 8.0f;
-    float start_x = final_x - kPanelWidth * 0.4f;
-    float eased_anim = panel_anim_ * panel_anim_ * (3.0f - 2.0f * panel_anim_); // Smooth step
-    float cur_x = start_x + (final_x - start_x) * eased_anim;
-
-    ImGui::SetNextWindowPos(ImVec2(cur_x, panel_y));
-    ImGui::SetNextWindowSize(ImVec2(kPanelWidth, panel_h));
-
-    // Enhanced fade effects
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgPanel);
-    ImGui::PushStyleColor(ImGuiCol_Border, kDivider);
-
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing;
-
-    if (ImGui::Begin("##panel", nullptr, flags)) {
-        // Enhanced title with subtle accent
-        const char* titles[] = {"Figure", "Series", "Axes"};
-        ImGui::PushFont(font_title_);
-        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
-        ImGui::TextUnformatted(titles[static_cast<int>(active_section_)]);
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
-
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
-
-        // Content
-        switch (active_section_) {
-            case Section::Figure: draw_section_figure(figure); break;
-            case Section::Series: draw_section_series(figure); break;
-            case Section::Axes:   draw_section_axes(figure);   break;
-        }
-    }
-    ImGui::End();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
 }
 
 // ─── Figure section ─────────────────────────────────────────────────────────
@@ -612,22 +419,22 @@ void ImGuiIntegration::draw_section_figure(Figure& figure) {
     ImGui::PushItemWidth(-1);
     
     // Top margin
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
     ImGui::DragFloat("##mt", &sty.margin_top, 0.5f, 0.0f, 200.0f, "Top  %.0fpx");
     ImGui::PopStyleColor();
     
     // Bottom margin  
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
     ImGui::DragFloat("##mb", &sty.margin_bottom, 0.5f, 0.0f, 200.0f, "Bottom  %.0fpx");
     ImGui::PopStyleColor();
     
     // Left margin
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
     ImGui::DragFloat("##ml", &sty.margin_left, 0.5f, 0.0f, 200.0f, "Left  %.0fpx");
     ImGui::PopStyleColor();
     
     // Right margin
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
     ImGui::DragFloat("##mr", &sty.margin_right, 0.5f, 0.0f, 200.0f, "Right  %.0fpx");
     ImGui::PopStyleColor();
     
@@ -643,8 +450,8 @@ void ImGuiIntegration::draw_section_figure(Figure& figure) {
     
     // Custom checkbox with better styling
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
-    ImGui::PushStyleColor(ImGuiCol_CheckMark, kAccent);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
     if (ImGui::Checkbox("Show Legend", &leg.visible)) {
         // Legend visibility changed
     }
@@ -677,11 +484,12 @@ void ImGuiIntegration::draw_section_figure(Figure& figure) {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
     
     // Reset to defaults button
-    ImGui::PushStyleColor(ImGuiCol_Button, kBtnBg);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kBtnHover);
-    ImGui::PushStyleColor(ImGuiCol_Text, kTextPrimary);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
     
     if (ImGui::Button("Reset to Defaults", ImVec2(-1, 0))) {
+        PLOTIX_LOG_DEBUG("ui_button", "Reset to Defaults button clicked");
         // Reset figure style to defaults
         sty.background = Color{1.0f, 1.0f, 1.0f, 1.0f};
         sty.margin_top = 40.0f;
@@ -690,6 +498,7 @@ void ImGuiIntegration::draw_section_figure(Figure& figure) {
         sty.margin_right = 20.0f;
         leg.visible = true;
         leg.position = LegendPosition::TopRight;
+        PLOTIX_LOG_DEBUG("ui_button", "Figure style reset to defaults completed");
     }
     
     ImGui::PopStyleColor(3);
@@ -779,8 +588,11 @@ void ImGuiIntegration::draw_section_axes(Figure& figure) {
             ax->ylim(yr[0], yr[1]);
         ImGui::PopItemWidth();
 
-        if (ImGui::Button("Auto-fit", ImVec2(-1, 0)))
+        if (ImGui::Button("Auto-fit", ImVec2(-1, 0))) {
+            PLOTIX_LOG_DEBUG("ui_button", "Auto-fit button clicked for axis " + std::to_string(idx));
             ax->auto_fit();
+            PLOTIX_LOG_DEBUG("ui_button", "Auto-fit completed for axis " + std::to_string(idx));
+        }
 
         const char* modes[] = {"Fit", "Tight", "Padded", "Manual"};
         int mode = static_cast<int>(ax->get_autoscale_mode());
@@ -801,6 +613,366 @@ void ImGuiIntegration::draw_section_axes(Figure& figure) {
         ImGui::PopID();
         idx++;
     }
+}
+
+// ─── New Layout-Based Drawing Methods ─────────────────────────────────────────
+
+void ImGuiIntegration::draw_command_bar() {
+    if (!layout_manager_) {
+        PLOTIX_LOG_WARN("ui", "draw_command_bar called but layout_manager_ is null");
+        return;
+    }
+    
+    PLOTIX_LOG_TRACE("ui", "Drawing command bar");
+    
+    Rect bounds = layout_manager_->command_bar_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+    
+    // Enhanced styling for 2026 modern look
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(28, 16));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(32, 0));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    
+    if (ImGui::Begin("##commandbar", nullptr, flags)) {
+        PLOTIX_LOG_TRACE("ui", "Command bar window began successfully");
+        // App title/brand on the left
+        ImGui::PushFont(font_title_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
+        ImGui::TextUnformatted("Plotix");
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        
+        ImGui::SameLine();
+        
+        // Home button to reset view
+        draw_toolbar_button(ui::icon_str(ui::Icon::Menu), [this]() {
+            PLOTIX_LOG_DEBUG("ui_button", "Menu button clicked - toggling nav rail");
+            layout_manager_->set_nav_rail_expanded(!layout_manager_->is_nav_rail_expanded());
+            PLOTIX_LOG_DEBUG("ui_button", "Nav rail expanded state: " + std::string(layout_manager_->is_nav_rail_expanded() ? "true" : "false"));
+        }, "Toggle Navigation Rail");
+
+        ImGui::SameLine();
+
+        draw_toolbar_button(ui::icon_str(ui::Icon::Home), [this]() { 
+            PLOTIX_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
+            reset_view_ = true; 
+            PLOTIX_LOG_DEBUG("ui_button", "Reset view flag set successfully");
+        }, "Reset View (Home)");
+
+        ImGui::SameLine();
+        
+        // Mouse mode buttons
+        draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() { 
+            PLOTIX_LOG_DEBUG("ui_button", "Pan mode button clicked");
+            interaction_mode_ = ToolMode::Pan; 
+            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to Pan");
+        }, "Pan Mode", interaction_mode_ == ToolMode::Pan);
+        
+        ImGui::SameLine();
+        
+        draw_toolbar_button(ui::icon_str(ui::Icon::ZoomIn), [this]() { 
+            PLOTIX_LOG_DEBUG("ui_button", "Box zoom mode button clicked");
+            interaction_mode_ = ToolMode::BoxZoom; 
+            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to BoxZoom");
+        }, "Box Zoom Mode", interaction_mode_ == ToolMode::BoxZoom);
+        
+        ImGui::SameLine();
+        
+        // Subtle separator
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        
+        // File menu
+        draw_menubar_menu("File", {
+            MenuItem("Export PNG", []() { /* TODO: Export functionality */ }),
+            MenuItem("Export SVG", []() { /* TODO: Export functionality */ }),
+            MenuItem("Export Video", []() { /* TODO: Video export functionality */ }),
+            MenuItem("", nullptr), // Separator
+            MenuItem("Exit", []() { /* TODO: Exit functionality */ })
+        });
+        
+        ImGui::SameLine();
+        
+        // View menu
+        draw_menubar_menu("View", {
+            MenuItem("Toggle Inspector", [this]() { 
+                layout_manager_->set_inspector_visible(!layout_manager_->is_inspector_visible()); 
+            }),
+            MenuItem("Toggle Navigation Rail", [this]() {
+                layout_manager_->set_nav_rail_expanded(!layout_manager_->is_nav_rail_expanded());
+            }),
+            MenuItem("Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
+            MenuItem("Reset View", []() { /* TODO: Reset view functionality */ }),
+            MenuItem("Toggle Grid", []() { /* TODO: Grid toggle functionality */ })
+        });
+        
+        ImGui::SameLine();
+        
+        // Tools menu
+        draw_menubar_menu("Tools", {
+            MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
+            MenuItem("Performance Monitor", []() { /* TODO: Performance monitor */ }),
+            MenuItem("Theme Settings", []() { /* TODO: Theme settings */ }),
+            MenuItem("Preferences", []() { /* TODO: Preferences dialog */ })
+        });
+        
+        // Push status info to the right
+        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
+        
+        // Status info
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::PushFont(font_menubar_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
+        
+        char status[128];
+        std::snprintf(status, sizeof(status), "Display: %dx%d | FPS: %.0f | GPU", 
+                     static_cast<int>(io.DisplaySize.x), 
+                     static_cast<int>(io.DisplaySize.y), 
+                     io.Framerate);
+        ImGui::TextUnformatted(status);
+        
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleColor(2);
+}
+
+void ImGuiIntegration::draw_nav_rail() {
+    if (!layout_manager_) return;
+    
+    Rect bounds = layout_manager_->nav_rail_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, ui::tokens::SPACE_2));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::ThemeManager::instance().current().opacity_panel));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+
+    if (ImGui::Begin("##navrail", nullptr, flags)) {
+        // Navigation icons (simplified for now)
+        auto nav_btn = [&](ui::Icon icon, const char* tooltip, Section section) {
+            bool is_active = panel_open_ && active_section_ == section;
+            if (icon_button(ui::icon_str(icon), is_active, font_icon_, ui::tokens::ICON_LG)) {
+                if (is_active) {
+                    panel_open_ = false;
+                } else {
+                    active_section_ = section;
+                    panel_open_ = true;
+                }
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", tooltip);
+            }
+        };
+
+        nav_btn(ui::Icon::ScatterChart, "Figures", Section::Figure);
+        nav_btn(ui::Icon::ChartLine, "Series", Section::Series);
+        nav_btn(ui::Icon::Axes, "Axes", Section::Axes);
+        nav_btn(ui::Icon::Wrench, "Tools", Section::Axes);
+
+        // Push remaining icons to bottom
+        float bottom_y = ImGui::GetWindowHeight() - ui::tokens::ICON_LG - ImGui::GetStyle().WindowPadding.y;
+        if (ImGui::GetCursorPosY() < bottom_y) {
+            ImGui::SetCursorPosY(bottom_y);
+        }
+
+        // Settings at bottom
+        icon_button(ui::icon_str(ui::Icon::Settings), false, font_icon_, ui::tokens::ICON_LG);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", "Settings");
+        }
+        icon_button(ui::icon_str(ui::Icon::Help), false, font_icon_, ui::tokens::ICON_LG);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", "Help");
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+}
+
+void ImGuiIntegration::draw_canvas(Figure& figure) {
+    if (!layout_manager_) return;
+    
+    Rect bounds = layout_manager_->canvas_rect();
+    
+    // Canvas is primarily handled by the Vulkan renderer
+    // We just set up the viewport here for ImGui coordination
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs;
+    
+    // Transparent window for canvas area
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+    
+    if (ImGui::Begin("##canvas", nullptr, flags)) {
+        // Canvas content is rendered by Vulkan, not ImGui
+        // This window is just for input handling coordination
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+}
+
+void ImGuiIntegration::draw_inspector(Figure& figure) {
+    if (!layout_manager_) return;
+    
+    Rect bounds = layout_manager_->inspector_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+
+    if (ImGui::Begin("##inspector", nullptr, flags)) {
+        ImGui::SetCursorScreenPos(ImVec2(bounds.x - 3.0f, bounds.y));
+        ImGui::InvisibleButton("##inspector_resize", ImVec2(6.0f, bounds.h));
+        if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+        }
+        if (ImGui::IsItemActive()) {
+            float right_edge = bounds.x + bounds.w;
+            float new_width = right_edge - ImGui::GetIO().MousePos.x;
+            layout_manager_->set_inspector_width(new_width);
+        }
+
+        // Inspector header
+        ImGui::PushFont(font_title_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+        ImGui::TextUnformatted("Inspector");
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        
+        ImGui::Separator();
+        
+        // For now, use the legacy panel drawing logic
+        // This will be replaced by Agent C's inspector system
+        if (panel_open_) {
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
+            
+            switch (active_section_) {
+                case Section::Figure:
+                    draw_section_figure(figure);
+                    break;
+                case Section::Series:
+                    draw_section_series(figure);
+                    break;
+                case Section::Axes:
+                    draw_section_axes(figure);
+                    break;
+            }
+            
+            ImGui::PopStyleVar();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+}
+
+void ImGuiIntegration::draw_status_bar() {
+    if (!layout_manager_) return;
+    
+    Rect bounds = layout_manager_->status_bar_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+    
+    if (ImGui::Begin("##statusbar", nullptr, flags)) {
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::PushFont(font_heading_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
+        
+        // Left side: cursor coordinates (placeholder)
+        ImGui::TextUnformatted("X: 0.000  Y: 0.000");
+        
+        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 100.0f);
+        
+        // Right side: performance info
+        char fps[16];
+        std::snprintf(fps, sizeof(fps), "%d fps", static_cast<int>(io.Framerate));
+        ImGui::TextUnformatted(fps);
+        
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+}
+
+void ImGuiIntegration::draw_floating_toolbar() {
+    if (!layout_manager_) return;
+    
+    Rect bounds = layout_manager_->floating_toolbar_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+    
+    // Frosted glass effect
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, ui::ThemeManager::instance().current().opacity_panel));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+    
+    if (ImGui::Begin("##floatingtoolbar", nullptr, flags)) {
+        // Quick access tools
+        draw_toolbar_button(ui::icon_str(ui::Icon::ZoomIn), [this]() { interaction_mode_ = ToolMode::BoxZoom; }, "Zoom", interaction_mode_ == ToolMode::BoxZoom);
+        ImGui::SameLine();
+        draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() { interaction_mode_ = ToolMode::Pan; }, "Pan", interaction_mode_ == ToolMode::Pan);
+        ImGui::SameLine();
+        draw_toolbar_button(ui::icon_str(ui::Icon::Ruler), []() { /* TODO: Measure mode */ }, "Measure");
+        ImGui::SameLine();
+        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), []() { /* TODO: Crosshair */ }, "Crosshair");
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
 }
 
 } // namespace plotix

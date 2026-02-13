@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "../ui/theme.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
@@ -67,14 +68,16 @@ bool Renderer::init() {
     return true;
 }
 
-void Renderer::render_figure(Figure& figure) {
+void Renderer::begin_render_pass() {
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    Color bg_color = Color(theme_colors.bg_primary.r, theme_colors.bg_primary.g,
+                          theme_colors.bg_primary.b, theme_colors.bg_primary.a);
+    backend_.begin_render_pass(bg_color);
+}
+
+void Renderer::render_figure_content(Figure& figure) {
     uint32_t w = figure.width();
     uint32_t h = figure.height();
-
-    // NOTE: begin_frame()/end_frame() are managed by App, not the renderer.
-    // The renderer only records drawing commands within an active frame.
-
-    backend_.begin_render_pass(colors::white);
 
     // Set full-figure viewport and scissor
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
@@ -91,8 +94,20 @@ void Renderer::render_figure(Figure& figure) {
 
     // Render legend (drawn over the full figure, after all axes)
     render_legend(figure, w, h);
+}
 
+void Renderer::end_render_pass() {
     backend_.end_render_pass();
+}
+
+void Renderer::render_figure(Figure& figure) {
+    // Convenience: starts render pass, draws content, ends render pass.
+    // Use begin_render_pass / render_figure_content / end_render_pass
+    // separately when ImGui or other overlays need to render inside the
+    // same render pass.
+    begin_render_pass();
+    render_figure_content(figure);
+    end_render_pass();
 }
 
 void Renderer::update_frame_ubo(uint32_t width, uint32_t height, float time) {
@@ -248,10 +263,11 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc {};
-    pc.color[0] = 0.85f;
-    pc.color[1] = 0.85f;
-    pc.color[2] = 0.85f;
-    pc.color[3] = 1.0f;
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0] = theme_colors.grid_line.r;
+    pc.color[1] = theme_colors.grid_line.g;
+    pc.color[2] = theme_colors.grid_line.b;
+    pc.color[3] = theme_colors.grid_line.a;
     pc.line_width = 1.0f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;
@@ -315,10 +331,11 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc {};
-    pc.color[0] = 0.0f;
-    pc.color[1] = 0.0f;
-    pc.color[2] = 0.0f;
-    pc.color[3] = 1.0f;
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0] = theme_colors.axis_line.r;
+    pc.color[1] = theme_colors.axis_line.g;
+    pc.color[2] = theme_colors.axis_line.b;
+    pc.color[3] = theme_colors.axis_line.a;
     pc.line_width = 1.0f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;
@@ -540,7 +557,10 @@ void Renderer::render_text_labels(Axes& axes, const Rect& viewport,
     }
 
     // Draw the accumulated text batch
-    draw_text_batch(all_verts, all_indices, colors::black);
+    draw_text_batch(all_verts, all_indices, Color(ui::ThemeManager::instance().colors().tick_label.r,
+                                                 ui::ThemeManager::instance().colors().tick_label.g,
+                                                 ui::ThemeManager::instance().colors().tick_label.b,
+                                                 ui::ThemeManager::instance().colors().tick_label.a));
 
     // Restore axes-specific viewport and scissor for subsequent rendering
     backend_.set_scissor(
@@ -645,7 +665,10 @@ void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_he
         std::vector<uint32_t>   idx;
         text_renderer_.generate_quads_indexed(entries[i].label, text_x, text_y,
                                               legend_font_size, v, idx);
-        draw_text_batch(v, idx, colors::black);
+        draw_text_batch(v, idx, Color(ui::ThemeManager::instance().colors().tick_label.r,
+                                 ui::ThemeManager::instance().colors().tick_label.g,
+                                 ui::ThemeManager::instance().colors().tick_label.b,
+                                 ui::ThemeManager::instance().colors().tick_label.a));
     }
 }
 

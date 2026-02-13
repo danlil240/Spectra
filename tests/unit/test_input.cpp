@@ -70,9 +70,12 @@ TEST_F(InputHandlerTest, PanMovesLimits) {
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
 
+    // Set pan tool mode
+    handler_.set_tool_mode(ToolMode::Pan);
+    
     // Press left button at center
     handler_.on_mouse_button(0, 1, cx, cy);
-    EXPECT_EQ(handler_.mode(), InteractionMode::Pan);
+    EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Drag right by 10% of viewport width
     float drag_x = cx + vp.w * 0.1f;
@@ -137,11 +140,14 @@ TEST_F(InputHandlerTest, ScrollZoomOut) {
 TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
     auto& vp = axes().viewport();
 
+    // Set box zoom tool mode
+    handler_.set_tool_mode(ToolMode::BoxZoom);
+    
     // Right-click press at 25% from top-left
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     handler_.on_mouse_button(1, 1, x0, y0);
-    EXPECT_EQ(handler_.mode(), InteractionMode::BoxZoom);
+    EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Drag to 75% from top-left
     double x1 = vp.x + vp.w * 0.75;
@@ -164,10 +170,13 @@ TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
 TEST_F(InputHandlerTest, BoxZoomCancelledByEscape) {
     auto& vp = axes().viewport();
 
+    // Set box zoom tool mode
+    handler_.set_tool_mode(ToolMode::BoxZoom);
+    
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     handler_.on_mouse_button(1, 1, x0, y0);
-    EXPECT_EQ(handler_.mode(), InteractionMode::BoxZoom);
+    EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Press Escape
     handler_.on_key(256, 1, 0);  // KEY_ESCAPE = 256

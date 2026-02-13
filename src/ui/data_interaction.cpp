@@ -6,17 +6,33 @@
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
 
+#include <imgui.h>
 #include <cmath>
 #include <limits>
 
 namespace plotix {
 
-void DataInteraction::set_fonts(ImFont* body, ImFont* heading) {
+void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon) {
     tooltip_.set_fonts(body, heading);
+    region_.set_fonts(body, heading);
+    legend_.set_fonts(body, icon);
+}
+
+void DataInteraction::set_transition_engine(TransitionEngine* te) {
+    region_.set_transition_engine(te);
+    legend_.set_transition_engine(te);
 }
 
 void DataInteraction::update(const CursorReadout& cursor, Figure& figure) {
     last_cursor_ = cursor;
+    last_figure_ = &figure;
+
+    // Update legend animation state
+    float dt = 0.016f; // fallback
+#ifdef PLOTIX_USE_IMGUI
+    dt = ImGui::GetIO().DeltaTime;
+#endif
+    legend_.update(dt, figure);
 
     // Determine which axes the cursor is over by hit-testing viewports
     active_axes_ = nullptr;
@@ -43,14 +59,34 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure) {
 }
 
 void DataInteraction::draw_overlays(float window_width, float window_height) {
+    // Draw legend interaction for each axes
+    if (last_figure_) {
+        size_t idx = 0;
+        for (auto& axes_ptr : last_figure_->axes_mut()) {
+            if (axes_ptr) {
+                legend_.draw(*axes_ptr, axes_ptr->viewport(), idx);
+            }
+            ++idx;
+        }
+    }
+
     // Draw markers for all axes that have them
     if (active_axes_) {
         markers_.draw(active_viewport_,
                       xlim_min_, xlim_max_, ylim_min_, ylim_max_);
     }
 
-    // Draw crosshair using the raw (unsnapped) cursor position
+    // Draw region selection overlay
     if (active_axes_) {
+        region_.draw(active_viewport_,
+                     xlim_min_, xlim_max_, ylim_min_, ylim_max_,
+                     window_width, window_height);
+    }
+
+    // Draw crosshair: use multi-axes mode if figure has multiple axes
+    if (last_figure_ && last_figure_->axes().size() > 1) {
+        crosshair_.draw_all_axes(last_cursor_, *last_figure_);
+    } else if (active_axes_) {
         crosshair_.draw(last_cursor_, active_viewport_,
                         xlim_min_, xlim_max_, ylim_min_, ylim_max_);
     }
@@ -96,6 +132,28 @@ void DataInteraction::clear_markers() {
 
 void DataInteraction::set_snap_radius(float px) {
     tooltip_.set_snap_radius(px);
+}
+
+// ─── Region selection ───────────────────────────────────────────────────────
+
+void DataInteraction::begin_region_select(double screen_x, double screen_y) {
+    if (!active_axes_) return;
+    region_.begin(screen_x, screen_y, active_viewport_,
+                  xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+}
+
+void DataInteraction::update_region_drag(double screen_x, double screen_y) {
+    if (!active_axes_) return;
+    region_.update_drag(screen_x, screen_y, active_viewport_,
+                        xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+}
+
+void DataInteraction::finish_region_select() {
+    region_.finish(active_axes_);
+}
+
+void DataInteraction::dismiss_region_select() {
+    region_.dismiss();
 }
 
 NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Figure& figure) const {

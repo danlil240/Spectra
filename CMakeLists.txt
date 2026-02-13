@@ -28,25 +28,23 @@ file(GLOB_RECURSE PLOTIX_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE PLOTIX_IO_SOURCES     src/io/*.cpp)
 file(GLOB_RECURSE PLOTIX_DATA_SOURCES  src/data/*.cpp)
 
+# UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
+# app.cpp is always present; others are included only if they exist on disk.
 file(GLOB PLOTIX_UI_SOURCES src/ui/app.cpp)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/input.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/input.cpp)
-endif()
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/layout_manager.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/layout_manager.cpp)
-endif()
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/dock_node.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/dock_node.cpp)
-endif()
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/tab_bar.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/tab_bar.cpp)
-endif()
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/animation_controller.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/animation_controller.cpp)
-endif()
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/gesture_recognizer.cpp)
-    list(APPEND PLOTIX_UI_SOURCES src/ui/gesture_recognizer.cpp)
-endif()
+foreach(_ui_src
+    src/ui/input.cpp
+    src/ui/layout_manager.cpp
+    src/ui/dock_node.cpp
+    src/ui/tab_bar.cpp
+    src/ui/animation_controller.cpp
+    src/ui/gesture_recognizer.cpp
+    src/ui/transition_engine.cpp
+    src/ui/figure_manager.cpp
+)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
+        list(APPEND PLOTIX_UI_SOURCES ${_ui_src})
+    endif()
+endforeach()
 
 # Core library (headless-capable)
 add_library(plotix STATIC
@@ -114,6 +112,7 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
     )
     FetchContent_MakeAvailable(imgui)
 
+    # ImGui core (always present when ImGui is enabled)
     target_sources(plotix PRIVATE
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_demo.cpp
@@ -122,16 +121,32 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+        src/ui/imgui_integration.cpp
+    )
+
+    # ImGui-dependent UI sources — guarded so parallel agents don't break the build.
+    # When adding a new .cpp that depends on ImGui, add an if(EXISTS) block here.
+    foreach(_imgui_src
         src/ui/theme.cpp
         src/ui/icons.cpp
         src/ui/widgets.cpp
         src/ui/inspector.cpp
-        src/ui/imgui_integration.cpp
         src/ui/tooltip.cpp
         src/ui/crosshair.cpp
         src/ui/data_marker.cpp
         src/ui/data_interaction.cpp
+        src/ui/region_select.cpp
+        src/ui/legend_interaction.cpp
+        src/ui/command_palette.cpp
+        src/ui/command_registry.cpp
+        src/ui/shortcut_manager.cpp
+        src/ui/undo_manager.cpp
+        src/ui/workspace.cpp
     )
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
+            target_sources(plotix PRIVATE ${_imgui_src})
+        endif()
+    endforeach()
     target_include_directories(plotix PRIVATE
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends

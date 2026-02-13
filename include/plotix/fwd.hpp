@@ -19,12 +19,22 @@ class TextRenderer;
 class FontAtlas;
 
 class Animator;
-class AnimationController;
 class Timeline;
+class AnimationController;
+class TransitionEngine;
+class RegionSelect;
+class LegendInteraction;
 struct Frame;
 class FrameScheduler;
 class AnimationBuilder;
 class GestureRecognizer;
+
+class CommandRegistry;
+class CommandPalette;
+class ShortcutManager;
+class UndoManager;
+class FigureManager;
+struct FigureState;
 
 class ImageExporter;
 class SvgExporter;

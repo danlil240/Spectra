@@ -5,6 +5,8 @@
 #include "tooltip.hpp"
 #include "crosshair.hpp"
 #include "data_marker.hpp"
+#include "region_select.hpp"
+#include "legend_interaction.hpp"
 #include "input.hpp"
 
 #include <plotix/figure.hpp>
@@ -22,8 +24,8 @@ class DataInteraction {
 public:
     DataInteraction() = default;
 
-    // Set fonts for tooltip rendering
-    void set_fonts(ImFont* body, ImFont* heading);
+    // Set fonts for tooltip/legend/region rendering
+    void set_fonts(ImFont* body, ImFont* heading, ImFont* icon = nullptr);
 
     // Main update: run nearest-point query and update internal state.
     // Call once per frame after input handling.
@@ -55,6 +57,22 @@ public:
     // Returns true if the click was consumed by the data interaction layer.
     bool on_mouse_click(int button, double screen_x, double screen_y);
 
+    // Region selection (shift-drag)
+    void begin_region_select(double screen_x, double screen_y);
+    void update_region_drag(double screen_x, double screen_y);
+    void finish_region_select();
+    void dismiss_region_select();
+    bool is_region_dragging() const { return region_.is_dragging(); }
+    bool has_region_selection() const { return region_.has_selection(); }
+    const RegionStatistics& region_statistics() const { return region_.statistics(); }
+
+    // Legend interaction
+    LegendInteraction& legend() { return legend_; }
+    const LegendInteraction& legend() const { return legend_; }
+
+    // Set the transition engine for animated markers/regions
+    void set_transition_engine(class TransitionEngine* te);
+
     // Set snap radius for nearest-point detection (in pixels)
     void set_snap_radius(float px);
     float snap_radius() const { return tooltip_.snap_radius(); }
@@ -67,9 +85,12 @@ private:
     Tooltip tooltip_;
     Crosshair crosshair_;
     DataMarkerManager markers_;
+    RegionSelect region_;
+    LegendInteraction legend_;
 
     // Cached state for drawing
     CursorReadout last_cursor_;
+    Figure* last_figure_ = nullptr;
     Axes* active_axes_ = nullptr;
     Rect active_viewport_;
     float xlim_min_ = 0.0f, xlim_max_ = 1.0f;

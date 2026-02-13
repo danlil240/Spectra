@@ -28,6 +28,10 @@ private:
     void draw_axes_properties(Axes& ax, int index);
     void draw_series_properties(Series& s, int index);
     void draw_series_statistics(const Series& s);
+    void draw_series_sparkline(const Series& s);
+
+    // Draw axes-level statistics (aggregate across all series)
+    void draw_axes_statistics(const Axes& ax);
 
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
@@ -46,6 +50,8 @@ private:
     bool sec_style_      = true;
     bool sec_stats_      = true;
     bool sec_quick_      = false;
+    bool sec_preview_    = true;   // Sparkline preview
+    bool sec_axes_stats_ = true;   // Per-axes aggregate stats
 
     // Fonts
     ImFont* font_body_    = nullptr;

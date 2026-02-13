@@ -17,6 +17,8 @@
 7. [Multi-Agent Execution Plan](#7-multi-agent-execution-plan)
 8. [90-Day Phased Roadmap](#8-90-day-phased-roadmap)
 9. [Technical Risks & Mitigation](#9-technical-risks--mitigation)
+10. [Roadmap Update Protocol (MANDATORY)](#10-roadmap-update-protocol-mandatory)
+11. [Build Coordination Protocol (MANDATORY)](#11-build-coordination-protocol-mandatory)
  
 ---
  
@@ -1141,3 +1143,159 @@ End Week 2: Layout zones stable? → Proceed with interaction work
 End Week 4: Animation system working? → Proceed with command palette
 End Week 8: All Phase 2 features passing tests? → Proceed to Phase 3
 End Week 11: Core features complete? → Final optimization and documentation
+
+---
+
+## 10. Roadmap Update Protocol (MANDATORY)
+
+**File:** `plans/ROADMAP.md`
+
+> **EVERY AGENT MUST update `plans/ROADMAP.md` at the END of their work session.**  
+> This is a non-negotiable requirement. The roadmap is the single source of truth for project progress.
+
+### What to Update
+
+1. **Deliverable status** — In the relevant week's table, change your deliverables:
+   - `⏳ Not Started` → `🔄 In Progress` → `✅ Done`
+   - Add the actual file paths if they differ from what was planned.
+
+2. **File Inventory** — Add any new files you created to the inventory table. Include: file path, your agent letter, week number, and whether it's in `CMakeLists.txt`.
+
+3. **Test table** — Update test counts and pass/fail status for any tests you added or modified.
+
+4. **Known Issues** — Log any bugs found, workarounds applied, or technical debt introduced.
+
+5. **Phase progress** — Update the overall phase completion percentage in the Phase Overview table at the top.
+
+6. **Exit criteria** — Check off `[x]` any criteria that are now satisfied.
+
+7. **Last Updated date** — Update the date at the top of `ROADMAP.md`.
+
+### Status Icons
+| Icon | Meaning |
+|------|---------|
+| `⏳ Not Started` | Work has not begun |
+| `🔄 In Progress` | Actively being worked on |
+| `✅ Done` | Complete and tested |
+| `⚠️ Blocked` | Cannot proceed (explain in Issues table) |
+| `🔴 Reverted` | Was done but rolled back |
+
+### Why This Matters
+- Agents starting new weeks rely on the roadmap to know what's ready and what's blocked.
+- The decision gates (End Week 2, 4, 8, 11) are evaluated from roadmap status.
+- Without updates, parallel agents may duplicate work or build on incomplete foundations.
+
+---
+
+## 11. Build Coordination Protocol (MANDATORY)
+
+> **Problem:** Parallel agents break each other's builds by adding files to `CMakeLists.txt` that reference code another agent hasn't finished yet, or by compiling the full project while another agent's work is incomplete.
+
+### Rule 1 — All source files use `if(EXISTS)` guards in CMake
+
+Both `CMakeLists.txt` and `tests/CMakeLists.txt` use **`if(EXISTS)`-guarded loops** for all UI sources and test files. This means:
+
+- **A missing `.cpp` file will NOT break the build.** CMake silently skips it.
+- When you create a new `.cpp` file, add its name to the appropriate `foreach()` list in `CMakeLists.txt`. It will be picked up automatically once the file exists on disk.
+- **NEVER use a bare `target_sources()` or `add_plotix_test()` call without an `if(EXISTS)` guard** for files that another agent might not have created yet.
+
+**Main CMakeLists.txt pattern (non-ImGui UI sources):**
+```cmake
+foreach(_ui_src
+    src/ui/input.cpp
+    src/ui/your_new_file.cpp   # ← just add here
+)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
+        list(APPEND PLOTIX_UI_SOURCES ${_ui_src})
+    endif()
+endforeach()
+```
+
+**Main CMakeLists.txt pattern (ImGui-dependent sources):**
+```cmake
+foreach(_imgui_src
+    src/ui/theme.cpp
+    src/ui/your_new_file.cpp   # ← just add here
+)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
+        target_sources(plotix PRIVATE ${_imgui_src})
+    endif()
+endforeach()
+```
+
+**tests/CMakeLists.txt pattern:**
+```cmake
+set(PLOTIX_UNIT_TESTS
+    test_transform
+    test_your_new_test          # ← just add here
+)
+
+foreach(_test ${PLOTIX_UNIT_TESTS})
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
+        add_plotix_test(unit ${_test})
+    endif()
+endforeach()
+```
+
+### Rule 2 — New headers must compile standalone
+
+Every new `.hpp` file you create must be **self-contained**: it must compile when included on its own. This means:
+- Include all dependencies at the top (no implicit includes from other headers).
+- Use forward declarations where possible to minimize coupling.
+- Use `#ifdef PLOTIX_USE_IMGUI` guards if the header depends on ImGui types.
+
+This prevents Agent X's header from failing to compile because Agent Y's header (which it transitively included) references a type that Agent Z hasn't defined yet.
+
+### Rule 3 — Compile only your own targets during development
+
+While working on your deliverables, **do NOT build the entire project**. Instead:
+
+```bash
+# Build only your specific test target
+cmake --build build --target unit_test_your_feature
+
+# Build only the plotix library (to check your .cpp compiles)
+cmake --build build --target plotix
+
+# Do NOT run 'cmake --build build' (builds everything including other agents' tests)
+# Do NOT run 'ctest' (runs all tests including ones that depend on other agents' work)
+```
+
+**At the end of your session**, after all your files are committed, you may run the full build to verify no regressions. If the full build fails due to another agent's incomplete work, **do not fix their files** — just note it in `plans/ROADMAP.md` under Known Issues.
+
+### Rule 4 — Guard cross-agent includes with `#ifdef`
+
+If your code optionally uses another agent's module that may not exist yet:
+
+```cpp
+// Good: guarded include
+#ifdef PLOTIX_HAS_TRANSITION_ENGINE
+#include "ui/transition_engine.hpp"
+#endif
+
+// Good: null-check pointer (existing pattern)
+if (transition_engine_) {
+    transition_engine_->animate(...);
+} else {
+    // fallback behavior
+}
+```
+
+The existing codebase already follows this pattern (e.g., `InputHandler` falls back when `TransitionEngine*` is null). **Continue this pattern for all cross-agent dependencies.**
+
+### Rule 5 — Never modify another agent's in-progress files
+
+If you need to modify a file that another parallel agent is also working on:
+1. Check `plans/ROADMAP.md` to see if the file is marked `🔄 In Progress` by another agent.
+2. If yes, **do not modify it**. Instead, create a separate integration file or defer the change.
+3. If you must touch a shared file (e.g., `app.cpp`), coordinate by noting it in the Known Issues table and keeping your changes minimal and additive (append-only).
+
+### Summary
+
+| Rule | What | Why |
+|------|------|-----|
+| 1 | `if(EXISTS)` guards in CMake | Missing files don't break build |
+| 2 | Headers compile standalone | No transitive include failures |
+| 3 | Build only your targets | Don't trigger other agents' compile errors |
+| 4 | `#ifdef` / null-check cross-agent deps | Graceful degradation when modules are absent |
+| 5 | Don't modify other agents' in-progress files | Avoid merge conflicts and broken state |

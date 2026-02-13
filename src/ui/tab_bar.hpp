@@ -33,6 +33,10 @@ public:
     using TabCloseCallback = std::function<void(size_t index)>;
     using TabAddCallback = std::function<void()>;
     using TabReorderCallback = std::function<void(size_t old_index, size_t new_index)>;
+    using TabDuplicateCallback = std::function<void(size_t index)>;
+    using TabCloseAllExceptCallback = std::function<void(size_t index)>;
+    using TabCloseToRightCallback = std::function<void(size_t index)>;
+    using TabRenameCallback = std::function<void(size_t index, const std::string& new_title)>;
 
     TabBar();
     ~TabBar() = default;
@@ -58,6 +62,10 @@ public:
     void set_tab_close_callback(TabCloseCallback callback) { on_tab_close_ = callback; }
     void set_tab_add_callback(TabAddCallback callback) { on_tab_add_ = callback; }
     void set_tab_reorder_callback(TabReorderCallback callback) { on_tab_reorder_ = callback; }
+    void set_tab_duplicate_callback(TabDuplicateCallback callback) { on_tab_duplicate_ = callback; }
+    void set_tab_close_all_except_callback(TabCloseAllExceptCallback callback) { on_tab_close_all_except_ = callback; }
+    void set_tab_close_to_right_callback(TabCloseToRightCallback callback) { on_tab_close_to_right_ = callback; }
+    void set_tab_rename_callback(TabRenameCallback callback) { on_tab_rename_ = callback; }
 
     // Rendering
     void draw(const Rect& bounds);
@@ -65,6 +73,10 @@ public:
     // Interaction state
     bool is_tab_hovered(size_t index) const;
     bool is_close_button_hovered(size_t index) const;
+
+    // Modified indicator
+    void set_tab_modified(size_t index, bool modified);
+    bool is_tab_modified(size_t index) const;
 
 private:
     std::vector<TabInfo> tabs_;
@@ -82,6 +94,10 @@ private:
     TabCloseCallback on_tab_close_;
     TabAddCallback on_tab_add_;
     TabReorderCallback on_tab_reorder_;
+    TabDuplicateCallback on_tab_duplicate_;
+    TabCloseAllExceptCallback on_tab_close_all_except_;
+    TabCloseToRightCallback on_tab_close_to_right_;
+    TabRenameCallback on_tab_rename_;
     
     // Layout constants
     static constexpr float TAB_HEIGHT = 32.0f;
@@ -91,10 +107,18 @@ private:
     static constexpr float CLOSE_BUTTON_SIZE = 16.0f;
     static constexpr float ADD_BUTTON_WIDTH = 32.0f;
     
+    // Context menu state
+    size_t context_menu_tab_ = SIZE_MAX;
+    bool context_menu_open_ = false;
+    bool renaming_tab_ = false;
+    size_t rename_tab_index_ = SIZE_MAX;
+    char rename_buffer_[256] = {};
+
     // Internal helpers
     void handle_input(const Rect& bounds);
     void draw_tabs(const Rect& bounds);
     void draw_add_button(const Rect& bounds);
+    void draw_context_menu();
     
     struct TabLayout {
         Rect bounds;

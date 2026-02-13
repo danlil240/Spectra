@@ -17,7 +17,11 @@ struct ImFont;
 
 namespace plotix {
 
+class CommandPalette;
+class CommandRegistry;
 class DataInteraction;
+class ShortcutManager;
+class UndoManager;
 class VulkanBackend;
 
 class ImGuiIntegration {
@@ -65,6 +69,16 @@ public:
     void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
 
+    // Command palette & productivity (Agent F, owned externally by App)
+    void set_command_palette(CommandPalette* cp) { command_palette_ = cp; }
+    void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
+    void set_shortcut_manager(ShortcutManager* sm) { shortcut_manager_ = sm; }
+    void set_undo_manager(UndoManager* um) { undo_manager_ = um; }
+    CommandPalette* command_palette() const { return command_palette_; }
+    CommandRegistry* command_registry() const { return command_registry_; }
+    ShortcutManager* shortcut_manager() const { return shortcut_manager_; }
+    UndoManager* undo_manager() const { return undo_manager_; }
+
 private:
     void apply_modern_style();
     void load_fonts();
@@ -75,6 +89,7 @@ private:
     void draw_inspector(Figure& figure);
     void draw_status_bar();
     void draw_floating_toolbar();
+    void draw_theme_settings();
     
     void draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active = false);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
@@ -117,6 +132,15 @@ private:
 
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
+
+    // Command palette & productivity (Agent F, not owned)
+    CommandPalette* command_palette_ = nullptr;
+    CommandRegistry* command_registry_ = nullptr;
+    ShortcutManager* shortcut_manager_ = nullptr;
+    UndoManager* undo_manager_ = nullptr;
+    
+    // Theme settings window state
+    bool show_theme_settings_ = false;
 };
 
 } // namespace plotix

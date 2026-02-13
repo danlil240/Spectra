@@ -11,11 +11,13 @@ namespace plotix {
 class AnimationController;
 class DataInteraction;
 class GestureRecognizer;
+class ShortcutManager;
 
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode {
     Pan,       // Pan tool - left click and drag to pan
     BoxZoom,   // Box zoom tool - right click and drag to zoom
+    Select,    // Select tool - left click and drag to region-select data points
 };
 
 // Interaction state for the input handler (dragging state)
@@ -82,6 +84,10 @@ public:
     // Set the data interaction layer (owned externally)
     void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
+
+    // Set the shortcut manager (owned externally by App)
+    void set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
+    ShortcutManager* shortcut_manager() const { return shortcut_mgr_; }
 
     // Key event: keyboard shortcuts
     void on_key(int key, int action, int mods);
@@ -164,6 +170,15 @@ private:
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
 
+    // Shortcut manager (not owned)
+    ShortcutManager* shortcut_mgr_ = nullptr;
+
+    // Modifier key tracking (updated from on_key)
+    int mods_ = 0;
+
+    // Region selection drag state
+    bool region_dragging_ = false;
+
     // Inertial pan tracking: velocity in screen px/sec at drag release
     double last_move_x_ = 0.0;
     double last_move_y_ = 0.0;
@@ -193,6 +208,7 @@ private:
     static constexpr int KEY_C      = 67;
     static constexpr int KEY_A      = 65;
     static constexpr int KEY_ESCAPE = 256;
+    static constexpr int MOD_SHIFT   = 0x0001;
     static constexpr int MOD_CONTROL = 0x0002;
 };
 

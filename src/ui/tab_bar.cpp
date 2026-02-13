@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace plotix {
 
@@ -23,11 +24,6 @@ size_t TabBar::add_tab(const std::string& title, bool can_close) {
     
     // Auto-activate the new tab
     set_active_tab(new_index);
-    
-    // Notify callback
-    if (on_tab_add_) {
-        on_tab_add_();
-    }
     
     return new_index;
 }
@@ -111,8 +107,23 @@ void TabBar::draw(const Rect& bounds) {
         draw_scroll_buttons(bounds);
     }
     
+    // Draw context menu (must be outside clip rect)
     ImGui::PopClipRect();
+    draw_context_menu();
 #endif
+}
+
+void TabBar::set_tab_modified(size_t index, bool modified) {
+    if (index < tabs_.size()) {
+        tabs_[index].is_modified = modified;
+    }
+}
+
+bool TabBar::is_tab_modified(size_t index) const {
+    if (index < tabs_.size()) {
+        return tabs_[index].is_modified;
+    }
+    return false;
 }
 
 bool TabBar::is_tab_hovered(size_t index) const {
@@ -151,6 +162,15 @@ void TabBar::handle_input(const Rect& bounds) {
             // Tab clicked
             set_active_tab(hovered_tab_);
             start_drag(hovered_tab_, mouse_pos.x);
+        }
+    }
+    
+    // Handle right-click context menu
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        if (hovered_tab_ < tabs_.size()) {
+            context_menu_tab_ = hovered_tab_;
+            context_menu_open_ = true;
+            ImGui::OpenPopup("##tab_context_menu");
         }
     }
     
@@ -312,7 +332,9 @@ void TabBar::draw_add_button(const Rect& bounds) {
     draw_list->AddLine(ImVec2(center.x, center.y - sz), ImVec2(center.x, center.y + sz), plus_color, 1.5f);
     
     if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        add_tab("Figure " + std::to_string(tabs_.size() + 1));
+        if (on_tab_add_) {
+            on_tab_add_();
+        }
     }
 #endif
 }
@@ -495,6 +517,93 @@ void TabBar::draw_scroll_buttons(const Rect& bounds) {
     }
 #else
     (void)bounds;
+#endif
+}
+
+void TabBar::draw_context_menu() {
+#ifdef PLOTIX_USE_IMGUI
+    if (ImGui::BeginPopup("##tab_context_menu")) {
+        if (context_menu_tab_ < tabs_.size()) {
+            const auto& tab = tabs_[context_menu_tab_];
+
+            // Rename
+            if (ImGui::MenuItem("Rename...")) {
+                renaming_tab_ = true;
+                rename_tab_index_ = context_menu_tab_;
+                strncpy(rename_buffer_, tab.title.c_str(), sizeof(rename_buffer_) - 1);
+                rename_buffer_[sizeof(rename_buffer_) - 1] = '\0';
+            }
+
+            // Duplicate
+            if (ImGui::MenuItem("Duplicate")) {
+                if (on_tab_duplicate_) {
+                    on_tab_duplicate_(context_menu_tab_);
+                }
+            }
+
+            ImGui::Separator();
+
+            // Close
+            if (tab.can_close && tabs_.size() > 1) {
+                if (ImGui::MenuItem("Close")) {
+                    remove_tab(context_menu_tab_);
+                }
+            }
+
+            // Close Others
+            if (tabs_.size() > 1) {
+                if (ImGui::MenuItem("Close Others")) {
+                    if (on_tab_close_all_except_) {
+                        on_tab_close_all_except_(context_menu_tab_);
+                    }
+                }
+            }
+
+            // Close to the Right
+            if (context_menu_tab_ + 1 < tabs_.size()) {
+                if (ImGui::MenuItem("Close to the Right")) {
+                    if (on_tab_close_to_right_) {
+                        on_tab_close_to_right_(context_menu_tab_);
+                    }
+                }
+            }
+        }
+        ImGui::EndPopup();
+    } else {
+        context_menu_open_ = false;
+        context_menu_tab_ = SIZE_MAX;
+    }
+
+    // Rename popup
+    if (renaming_tab_ && rename_tab_index_ < tabs_.size()) {
+        ImGui::OpenPopup("##tab_rename_popup");
+        renaming_tab_ = false;
+    }
+    if (ImGui::BeginPopup("##tab_rename_popup")) {
+        ImGui::Text("Rename tab:");
+        bool enter_pressed = ImGui::InputText("##rename_input", rename_buffer_,
+            sizeof(rename_buffer_), ImGuiInputTextFlags_EnterReturnsTrue);
+        if (ImGui::IsWindowAppearing()) {
+            ImGui::SetKeyboardFocusHere(-1);
+        }
+        if (enter_pressed || ImGui::Button("OK")) {
+            std::string new_title(rename_buffer_);
+            if (!new_title.empty() && rename_tab_index_ < tabs_.size()) {
+                tabs_[rename_tab_index_].title = new_title;
+                if (on_tab_rename_) {
+                    on_tab_rename_(rename_tab_index_, new_title);
+                }
+            }
+            rename_tab_index_ = SIZE_MAX;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            rename_tab_index_ = SIZE_MAX;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 #endif
 }
 

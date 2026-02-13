@@ -70,18 +70,17 @@ int main() {
 
 | Dependency | Required | Notes |
 |---|---|---|
-| **Vulkan SDK 1.2+** | Yes | Runtime + headers |
-| **CMake 3.20+** | Yes | Build system |
 | **C++20 compiler** | Yes | GCC 12+, Clang 15+, MSVC 2022+ |
-| GLFW 3.3+ | Optional | Windowing (auto-fetched if missing) |
-| ffmpeg | Optional | Video export |
-| Eigen 3 | Optional | Vector adapters |
+| **CMake 3.20+** | Yes | Build system |
+| **Vulkan drivers** | Yes | Usually installed with graphics drivers |
+| **Vulkan SDK** | Optional | Only needed for development/debugging |
 
-> **Bundled:** [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) (Vulkan Memory Allocator) and [stb_image_write](https://github.com/nothings/stb) are included in `third_party/`.
+> **Note:** Most modern systems already have Vulkan drivers. The full Vulkan SDK is only needed if you want to debug or develop Vulkan features.
 
-### Build
+### Quick Install
 
 ```bash
+# Clone and build
 git clone https://github.com/danlil240/plotix.git
 cd plotix
 mkdir build && cd build
@@ -89,20 +88,59 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-### CMake Options
+That's it! The build system will automatically fetch any missing dependencies.
 
-| Option | Default | Description |
+### Platform-Specific Tips
+
+**Linux:**
+```bash
+# Install build tools (Ubuntu/Debian)
+sudo apt install build-essential cmake git
+
+# Install Vulkan drivers if missing
+sudo apt install vulkan-tools libvulkan-dev
+```
+
+**macOS:**
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Install dependencies with Homebrew
+brew install cmake git
+```
+
+**Windows:**
+- Install Visual Studio 2022 with C++ development tools
+- Install CMake from cmake.org or via Visual Studio Installer
+
+### Optional Features
+
+| Feature | How to enable |
 |---|---|---|
-| `PLOTIX_USE_GLFW` | `ON` | Enable GLFW windowing adapter |
-| `PLOTIX_USE_FFMPEG` | `OFF` | Enable video export via ffmpeg pipe |
-| `PLOTIX_USE_EIGEN` | `OFF` | Enable Eigen vector adapters |
-| `PLOTIX_BUILD_EXAMPLES` | `ON` | Build example programs |
-| `PLOTIX_BUILD_TESTS` | `ON` | Build unit tests |
+| Video export | Install `ffmpeg` and rebuild with `-DPLOTIX_USE_FFMPEG=ON` |
+| Eigen support | Install `eigen3` and rebuild with `-DPLOTIX_USE_EIGEN=ON` |
+| Debug tools | Install Vulkan SDK and rebuild with debug flags |
 
 ### Run an Example
 
 ```bash
+# Linux/macOS
 ./build/examples/basic_line
+
+# Windows
+./build/examples/Release/basic_line.exe
+```
+
+### Verify Installation
+
+```bash
+# Run tests to verify everything works
+cd build
+ctest --output-on-failure
+
+# Check Vulkan support
+vulkaninfo --summary
 ```
 
 ---

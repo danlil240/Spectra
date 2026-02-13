@@ -6,6 +6,7 @@
 
 namespace plotix {
 
+class Figure;
 struct CursorReadout;
 
 // Crosshair overlay: renders dashed horizontal and vertical lines
@@ -23,6 +24,11 @@ public:
     // viewport is the axes Rect in screen coordinates.
     void draw(const CursorReadout& cursor, const Rect& viewport,
               float xlim_min, float xlim_max, float ylim_min, float ylim_max);
+
+    // Draw crosshair across ALL subplots in the figure.
+    // The vertical line is drawn at the same data-X on every axes;
+    // the horizontal line is only drawn on the axes the cursor is over.
+    void draw_all_axes(const CursorReadout& cursor, Figure& figure);
 
     // Configuration
     void set_dash_length(float px) { dash_length_ = px; }

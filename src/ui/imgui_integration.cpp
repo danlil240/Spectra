@@ -1,10 +1,12 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "imgui_integration.hpp"
+#include "command_palette.hpp"
 #include "data_interaction.hpp"
 #include "theme.hpp"
 #include "design_tokens.hpp"
 #include "icons.hpp"
+#include "widgets.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
@@ -124,6 +126,7 @@ void ImGuiIntegration::build_ui(Figure& figure) {
 
     float dt = ImGui::GetIO().DeltaTime;
     ui::ThemeManager::instance().update(dt);
+    ui::widgets::update_section_animations(dt);
     float target = panel_open_ ? 1.0f : 0.0f;
     panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
     if (std::abs(panel_anim_ - target) < 0.002f) panel_anim_ = target;
@@ -142,6 +145,17 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     if (data_interaction_) {
         ImGuiIO& io = ImGui::GetIO();
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y);
+    }
+    
+    // Draw theme settings window if open
+    if (show_theme_settings_) {
+        draw_theme_settings();
+    }
+
+    // Draw command palette overlay (Agent F) — must be last to render on top
+    if (command_palette_) {
+        ImGuiIO& io = ImGui::GetIO();
+        command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
     }
 }
 
@@ -455,6 +469,14 @@ void ImGuiIntegration::draw_command_bar() {
         
         ImGui::SameLine();
         
+        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), [this]() { 
+            PLOTIX_LOG_DEBUG("ui_button", "Select mode button clicked");
+            interaction_mode_ = ToolMode::Select; 
+            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to Select");
+        }, "Select Mode", interaction_mode_ == ToolMode::Select);
+        
+        ImGui::SameLine();
+        
         // Subtle separator
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
         ImGui::Separator();
@@ -493,7 +515,7 @@ void ImGuiIntegration::draw_command_bar() {
         draw_menubar_menu("Tools", {
             MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
             MenuItem("Performance Monitor", []() { /* TODO: Performance monitor */ }),
-            MenuItem("Theme Settings", []() { /* TODO: Theme settings */ }),
+            MenuItem("Theme Settings", [this]() { show_theme_settings_ = !show_theme_settings_; }),
             MenuItem("Preferences", []() { /* TODO: Preferences dialog */ })
         });
         
@@ -779,6 +801,7 @@ void ImGuiIntegration::draw_status_bar() {
             switch (interaction_mode_) {
                 case ToolMode::Pan:     mode_label = "Pan";      mode_color = ui::theme().accent; break;
                 case ToolMode::BoxZoom: mode_label = "Box Zoom"; mode_color = ui::theme().warning; break;
+                case ToolMode::Select:  mode_label = "Select";   mode_color = ui::theme().info; break;
                 default: break;
             }
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(mode_color.r, mode_color.g, mode_color.b, mode_color.a));
@@ -860,13 +883,115 @@ void ImGuiIntegration::draw_floating_toolbar() {
         ImGui::SameLine();
         draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() { interaction_mode_ = ToolMode::Pan; }, "Pan", interaction_mode_ == ToolMode::Pan);
         ImGui::SameLine();
-        draw_toolbar_button(ui::icon_str(ui::Icon::Ruler), []() { /* TODO: Measure mode */ }, "Measure");
+        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), [this]() { interaction_mode_ = ToolMode::Select; }, "Select", interaction_mode_ == ToolMode::Select);
         ImGui::SameLine();
-        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), []() { /* TODO: Crosshair */ }, "Crosshair");
+        draw_toolbar_button(ui::icon_str(ui::Icon::Ruler), []() { /* TODO: Measure mode */ }, "Measure");
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
+}
+
+void ImGuiIntegration::draw_theme_settings() {
+    // Center the modal window
+    ImGuiIO& io = ImGui::GetIO();
+    float window_width = 400.0f;
+    float window_height = 300.0f;
+    ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - window_width) * 0.5f, (io.DisplaySize.y - window_height) * 0.5f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
+    
+    // Get available themes
+    auto& theme_manager = ui::ThemeManager::instance();
+    static std::vector<std::string> available_themes;
+    if (available_themes.empty()) {
+        // This is a simple way to get theme names - in a real implementation
+        // we might add a get_available_themes() method to ThemeManager
+        available_themes = {"dark", "light", "high_contrast"};
+    }
+    
+    ImGuiWindowFlags flags = 
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    
+    // Modern modal styling
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, theme_manager.current().opacity_panel));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+    
+    bool is_open = true;
+    if (ImGui::Begin("Theme Settings", &is_open, flags)) {
+        ImGui::PushFont(font_heading_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+        ImGui::TextUnformatted("Select Theme");
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        
+        // Theme selection buttons
+        for (const auto& theme_name : available_themes) {
+            bool is_current = (theme_manager.current_theme_name() == theme_name);
+            
+            if (is_current) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+            }
+            
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
+            
+            // Capitalize first letter for display
+            std::string display_name = theme_name;
+            if (!display_name.empty()) {
+                display_name[0] = std::toupper(display_name[0]);
+                // Replace underscores with spaces
+                size_t pos = 0;
+                while ((pos = display_name.find('_', pos)) != std::string::npos) {
+                    display_name.replace(pos, 1, " ");
+                    if (pos + 1 < display_name.length()) {
+                        display_name[pos + 1] = std::toupper(display_name[pos + 1]);
+                    }
+                    pos += 1;
+                }
+            }
+            
+            if (ImGui::Button(display_name.c_str(), ImVec2(-1, 0))) {
+                theme_manager.set_theme(theme_name);
+                PLOTIX_LOG_DEBUG("ui", "Theme changed to: " + theme_name);
+            }
+            
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(4);
+            
+            ImGui::Spacing();
+        }
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        
+        // Close button
+        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - 80.0f);
+        if (ImGui::Button("Close", ImVec2(80.0f, 0))) {
+            is_open = false;
+        }
+    }
+    
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+    
+    if (!is_open) {
+        show_theme_settings_ = false;
+    }
 }
 
 } // namespace plotix

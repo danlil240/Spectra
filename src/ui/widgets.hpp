@@ -4,15 +4,39 @@
 
 #include <plotix/color.hpp>
 #include "theme.hpp"
+#include <span>
 #include <string>
+#include <unordered_map>
 
 struct ImFont;
 
 namespace plotix::ui::widgets {
 
+// ─── Section Animation State ─────────────────────────────────────────────────
+// Tracks per-section animation progress for smooth collapse/expand.
+
+struct SectionAnimState {
+    float anim_t = 1.0f;   // 0 = collapsed, 1 = expanded
+    bool  target_open = true;
+    bool  was_open = true;  // Previous frame's open state
+};
+
+// Global section animation registry (keyed by section label pointer or ID).
+// Call update_section_animations() once per frame to advance all animations.
+void update_section_animations(float dt);
+SectionAnimState& get_section_anim(const char* id);
+
 // Section header with collapsible state and smooth chevron animation.
-// Returns true if the section is open.
+// Returns true if the section is open (content should be drawn).
+// When animated=true, content fades in/out with smooth height clipping.
 bool section_header(const char* label, bool* open, ImFont* font = nullptr);
+
+// Begin/end animated section content. Call after section_header returns true.
+// begin_animated_section returns false if the section is fully collapsed
+// (caller can skip drawing). end_animated_section must always be called if
+// begin returned true.
+bool begin_animated_section(const char* id);
+void end_animated_section();
 
 // Horizontal separator with theme-aware color
 void separator();
@@ -67,6 +91,32 @@ void color_swatch(const plotix::Color& color, float size = 14.0f);
 // Spacing helpers
 void small_spacing();
 void section_spacing();
+
+// ─── New Widgets (Week 6) ────────────────────────────────────────────────────
+
+// Sparkline: inline mini line chart for data preview
+void sparkline(const char* id, std::span<const float> values, float width = -1.0f,
+               float height = 32.0f, const plotix::Color& color = {});
+
+// Progress bar with label
+void progress_bar(const char* label, float fraction, const char* overlay = nullptr);
+
+// Badge / tag (small colored pill with text)
+void badge(const char* text, const plotix::Color& bg = {}, const plotix::Color& fg = {});
+
+// Labeled separator (centered text in a horizontal line)
+void separator_label(const char* label, ImFont* font = nullptr);
+
+// Integer drag field
+bool int_drag_field(const char* label, int& value, int speed = 1,
+                    int min = 0, int max = 0, const char* fmt = "%d");
+
+// Stat row: label + value + optional unit, with monospace value
+void stat_row(const char* label, const char* value, const char* unit = nullptr);
+
+// Stat row with color indicator dot
+void stat_row_colored(const char* label, const char* value,
+                      const plotix::Color& dot_color, const char* unit = nullptr);
 
 } // namespace plotix::ui::widgets
 

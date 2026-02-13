@@ -19,9 +19,17 @@
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
+#include "command_palette.hpp"
+#include "command_registry.hpp"
 #include "data_interaction.hpp"
+#include "figure_manager.hpp"
+#include "icons.hpp"
 #include "imgui_integration.hpp"
+#include "shortcut_manager.hpp"
 #include "tab_bar.hpp"
+#include "theme.hpp"
+#include "undo_manager.hpp"
+#include "workspace.hpp"
 #include <imgui.h>
 #endif
 
@@ -169,9 +177,18 @@ void App::run() {
     std::unique_ptr<ImGuiIntegration> imgui_ui;
     std::unique_ptr<DataInteraction> data_interaction;
     std::unique_ptr<TabBar> figure_tabs;
-    size_t pending_tab_switch = SIZE_MAX;
-    size_t pending_tab_close = SIZE_MAX;
-    bool pending_tab_add = false;
+
+    // Agent A Week 6: FigureManager for multi-figure lifecycle
+    FigureManager fig_mgr(figures_);
+
+    // Agent F: Command palette & productivity
+    CommandRegistry cmd_registry;
+    ShortcutManager shortcut_mgr;
+    UndoManager undo_mgr;
+    CommandPalette cmd_palette;
+    shortcut_mgr.set_command_registry(&cmd_registry);
+    cmd_palette.set_command_registry(&cmd_registry);
+    cmd_palette.set_shortcut_manager(&shortcut_mgr);
 #endif
 
 #ifdef PLOTIX_USE_GLFW
@@ -307,21 +324,30 @@ void App::run() {
         imgui_ui = std::make_unique<ImGuiIntegration>();
         figure_tabs = std::make_unique<TabBar>();
 
-        // Synchronize tab labels with existing figures.
-        figure_tabs->set_tab_title(0, "Figure 1");
-        for (size_t i = 1; i < figures_.size(); ++i) {
-            figure_tabs->add_tab("Figure " + std::to_string(i + 1));
-        }
-        figure_tabs->set_active_tab(active_figure_index);
+        // Wire FigureManager to TabBar
+        fig_mgr.set_tab_bar(figure_tabs.get());
 
-        figure_tabs->set_tab_change_callback([&pending_tab_switch](size_t new_index) {
-            pending_tab_switch = new_index;
+        // TabBar callbacks → FigureManager queued operations
+        figure_tabs->set_tab_change_callback([&fig_mgr](size_t new_index) {
+            fig_mgr.queue_switch(new_index);
         });
-        figure_tabs->set_tab_close_callback([&pending_tab_close](size_t index) {
-            pending_tab_close = index;
+        figure_tabs->set_tab_close_callback([&fig_mgr](size_t index) {
+            fig_mgr.queue_close(index);
         });
-        figure_tabs->set_tab_add_callback([&pending_tab_add]() {
-            pending_tab_add = true;
+        figure_tabs->set_tab_add_callback([&fig_mgr]() {
+            fig_mgr.queue_create();
+        });
+        figure_tabs->set_tab_duplicate_callback([&fig_mgr](size_t index) {
+            fig_mgr.duplicate_figure(index);
+        });
+        figure_tabs->set_tab_close_all_except_callback([&fig_mgr](size_t index) {
+            fig_mgr.close_all_except(index);
+        });
+        figure_tabs->set_tab_close_to_right_callback([&fig_mgr](size_t index) {
+            fig_mgr.close_to_right(index);
+        });
+        figure_tabs->set_tab_rename_callback([&fig_mgr](size_t index, const std::string& title) {
+            fig_mgr.set_title(index, title);
         });
     }
 #endif
@@ -343,6 +369,245 @@ void App::run() {
         data_interaction = std::make_unique<DataInteraction>();
         imgui_ui->set_data_interaction(data_interaction.get());
         input_handler.set_data_interaction(data_interaction.get());
+        input_handler.set_shortcut_manager(&shortcut_mgr);
+
+        // Wire Agent F: command palette & productivity
+        imgui_ui->set_command_palette(&cmd_palette);
+        imgui_ui->set_command_registry(&cmd_registry);
+        imgui_ui->set_shortcut_manager(&shortcut_mgr);
+        imgui_ui->set_undo_manager(&undo_mgr);
+        cmd_palette.set_body_font(nullptr);   // Will use ImGui default
+        cmd_palette.set_heading_font(nullptr);
+
+        // ─── Register 30+ commands ──────────────────────────────────────
+        // View commands
+        cmd_registry.register_command("view.reset", "Reset View", [&]() {
+            for (auto& ax : active_figure->axes_mut()) {
+                if (ax) {
+                    auto old_xlim = ax->x_limits();
+                    auto old_ylim = ax->y_limits();
+                    ax->auto_fit();
+                    AxisLimits target_x = ax->x_limits();
+                    AxisLimits target_y = ax->y_limits();
+                    ax->xlim(old_xlim.min, old_xlim.max);
+                    ax->ylim(old_ylim.min, old_ylim.max);
+                    anim_controller.animate_axis_limits(
+                        *ax, target_x, target_y, 0.25f, ease::ease_out);
+                }
+            }
+        }, "R", "View", static_cast<uint16_t>(ui::Icon::Home));
+
+        cmd_registry.register_command("view.autofit", "Auto-Fit Active Axes", [&]() {
+            if (input_handler.active_axes()) {
+                input_handler.active_axes()->auto_fit();
+            }
+        }, "A", "View");
+
+        cmd_registry.register_command("view.toggle_grid", "Toggle Grid", [&]() {
+            for (auto& ax : active_figure->axes_mut()) {
+                if (ax) ax->set_grid_enabled(!ax->grid_enabled());
+            }
+        }, "G", "View", static_cast<uint16_t>(ui::Icon::Grid));
+
+        cmd_registry.register_command("view.toggle_crosshair", "Toggle Crosshair", [&]() {
+            if (data_interaction) data_interaction->toggle_crosshair();
+        }, "C", "View", static_cast<uint16_t>(ui::Icon::Crosshair));
+
+        cmd_registry.register_command("view.toggle_legend", "Toggle Legend", [&]() {
+            auto& leg = active_figure->legend();
+            leg.visible = !leg.visible;
+        }, "L", "View", static_cast<uint16_t>(ui::Icon::Eye));
+
+        cmd_registry.register_command("view.toggle_border", "Toggle Border", [&]() {
+            for (auto& ax : active_figure->axes_mut()) {
+                if (ax) ax->set_border_enabled(!ax->border_enabled());
+            }
+        }, "B", "View");
+
+        cmd_registry.register_command("view.fullscreen", "Toggle Fullscreen Canvas", [&]() {
+            if (imgui_ui) {
+                auto& lm = imgui_ui->get_layout_manager();
+                bool all_hidden = !lm.is_inspector_visible() && !lm.is_nav_rail_expanded();
+                lm.set_inspector_visible(!all_hidden ? false : true);
+                lm.set_nav_rail_expanded(!all_hidden ? false : true);
+            }
+        }, "F", "View", static_cast<uint16_t>(ui::Icon::Fullscreen));
+
+        cmd_registry.register_command("view.home", "Home (Reset All Views)", [&]() {
+            for (auto& ax : active_figure->axes_mut()) {
+                if (ax) ax->auto_fit();
+            }
+        }, "Home", "View", static_cast<uint16_t>(ui::Icon::Home));
+
+        cmd_registry.register_command("view.zoom_in", "Zoom In", [&]() {
+            // Zoom in 25% on active axes
+            if (auto* ax = input_handler.active_axes()) {
+                auto xl = ax->x_limits();
+                auto yl = ax->y_limits();
+                float xc = (xl.min + xl.max) * 0.5f, xr = (xl.max - xl.min) * 0.375f;
+                float yc = (yl.min + yl.max) * 0.5f, yr = (yl.max - yl.min) * 0.375f;
+                ax->xlim(xc - xr, xc + xr);
+                ax->ylim(yc - yr, yc + yr);
+            }
+        }, "", "View", static_cast<uint16_t>(ui::Icon::ZoomIn));
+
+        cmd_registry.register_command("view.zoom_out", "Zoom Out", [&]() {
+            if (auto* ax = input_handler.active_axes()) {
+                auto xl = ax->x_limits();
+                auto yl = ax->y_limits();
+                float xc = (xl.min + xl.max) * 0.5f, xr = (xl.max - xl.min) * 0.625f;
+                float yc = (yl.min + yl.max) * 0.5f, yr = (yl.max - yl.min) * 0.625f;
+                ax->xlim(xc - xr, xc + xr);
+                ax->ylim(yc - yr, yc + yr);
+            }
+        }, "", "View");
+
+        // Command palette
+        cmd_registry.register_command("app.command_palette", "Command Palette", [&]() {
+            cmd_palette.toggle();
+        }, "Ctrl+K", "App", static_cast<uint16_t>(ui::Icon::Search));
+
+        cmd_registry.register_command("app.cancel", "Cancel / Close", [&]() {
+            if (cmd_palette.is_open()) {
+                cmd_palette.close();
+            }
+        }, "Escape", "App");
+
+        // File operations
+        cmd_registry.register_command("file.export_png", "Export PNG", [&]() {
+            active_figure->save_png("plotix_export.png");
+        }, "Ctrl+S", "File", static_cast<uint16_t>(ui::Icon::Export));
+
+        cmd_registry.register_command("file.export_svg", "Export SVG", [&]() {
+            active_figure->save_svg("plotix_export.svg");
+        }, "Ctrl+Shift+S", "File", static_cast<uint16_t>(ui::Icon::Export));
+
+        cmd_registry.register_command("file.save_workspace", "Save Workspace", [&]() {
+            std::vector<Figure*> figs;
+            for (auto& f : figures_) figs.push_back(f.get());
+            auto data = Workspace::capture(figs, active_figure_index,
+                ui::ThemeManager::instance().current_theme_name(),
+                imgui_ui->get_layout_manager().is_inspector_visible(),
+                imgui_ui->get_layout_manager().inspector_width(),
+                imgui_ui->get_layout_manager().is_nav_rail_expanded());
+            Workspace::save(Workspace::default_path(), data);
+        }, "", "File", static_cast<uint16_t>(ui::Icon::Save));
+
+        cmd_registry.register_command("file.load_workspace", "Load Workspace", [&]() {
+            WorkspaceData data;
+            if (Workspace::load(Workspace::default_path(), data)) {
+                std::vector<Figure*> figs;
+                for (auto& f : figures_) figs.push_back(f.get());
+                Workspace::apply(data, figs);
+            }
+        }, "", "File", static_cast<uint16_t>(ui::Icon::FolderOpen));
+
+        // Edit commands (undo/redo)
+        cmd_registry.register_command("edit.undo", "Undo", [&]() {
+            undo_mgr.undo();
+        }, "Ctrl+Z", "Edit", static_cast<uint16_t>(ui::Icon::Undo));
+
+        cmd_registry.register_command("edit.redo", "Redo", [&]() {
+            undo_mgr.redo();
+        }, "Ctrl+Shift+Z", "Edit", static_cast<uint16_t>(ui::Icon::Redo));
+
+        // Figure management
+        cmd_registry.register_command("figure.new", "New Figure", [&]() {
+            fig_mgr.queue_create();
+        }, "Ctrl+T", "Figure", static_cast<uint16_t>(ui::Icon::Plus));
+
+        cmd_registry.register_command("figure.close", "Close Figure", [&]() {
+            if (figures_.size() > 1) {
+                fig_mgr.queue_close(fig_mgr.active_index());
+            }
+        }, "Ctrl+W", "Figure", static_cast<uint16_t>(ui::Icon::Close));
+
+        // Tab switching (1-9)
+        for (int i = 0; i < 9; ++i) {
+            cmd_registry.register_command(
+                "figure.tab_" + std::to_string(i + 1),
+                "Switch to Figure " + std::to_string(i + 1),
+                [&fig_mgr, i]() { fig_mgr.queue_switch(static_cast<size_t>(i)); },
+                std::to_string(i + 1), "Figure");
+        }
+
+        // Ctrl+Tab / Ctrl+Shift+Tab for cycling figures
+        cmd_registry.register_command("figure.next_tab", "Next Figure Tab", [&fig_mgr]() {
+            fig_mgr.switch_to_next();
+        }, "Ctrl+Tab", "Figure");
+
+        cmd_registry.register_command("figure.prev_tab", "Previous Figure Tab", [&fig_mgr]() {
+            fig_mgr.switch_to_previous();
+        }, "Ctrl+Shift+Tab", "Figure");
+
+        // Series commands
+        cmd_registry.register_command("series.cycle_selection", "Cycle Series Selection", [&]() {
+            // Placeholder for series cycling
+        }, "Tab", "Series");
+
+        // Animation commands
+        cmd_registry.register_command("anim.toggle_play", "Toggle Play/Pause", [&]() {
+            // Placeholder for animation play/pause
+        }, "Space", "Animation", static_cast<uint16_t>(ui::Icon::Play));
+
+        cmd_registry.register_command("anim.step_back", "Step Frame Back", [&]() {
+            // Placeholder
+        }, "[", "Animation", static_cast<uint16_t>(ui::Icon::StepBackward));
+
+        cmd_registry.register_command("anim.step_forward", "Step Frame Forward", [&]() {
+            // Placeholder
+        }, "]", "Animation", static_cast<uint16_t>(ui::Icon::StepForward));
+
+        // Theme commands
+        cmd_registry.register_command("theme.dark", "Switch to Dark Theme", [&]() {
+            ui::ThemeManager::instance().set_theme("dark");
+            ui::ThemeManager::instance().apply_to_imgui();
+        }, "", "Theme", static_cast<uint16_t>(ui::Icon::Moon));
+
+        cmd_registry.register_command("theme.light", "Switch to Light Theme", [&]() {
+            ui::ThemeManager::instance().set_theme("light");
+            ui::ThemeManager::instance().apply_to_imgui();
+        }, "", "Theme", static_cast<uint16_t>(ui::Icon::Sun));
+
+        cmd_registry.register_command("theme.toggle", "Toggle Dark/Light Theme", [&]() {
+            auto& tm = ui::ThemeManager::instance();
+            if (tm.current_theme_name() == "dark") {
+                tm.set_theme("light");
+            } else {
+                tm.set_theme("dark");
+            }
+            tm.apply_to_imgui();
+        }, "", "Theme", static_cast<uint16_t>(ui::Icon::Contrast));
+
+        // Panel commands
+        cmd_registry.register_command("panel.toggle_inspector", "Toggle Inspector Panel", [&]() {
+            if (imgui_ui) {
+                auto& lm = imgui_ui->get_layout_manager();
+                lm.set_inspector_visible(!lm.is_inspector_visible());
+            }
+        }, "", "Panel");
+
+        cmd_registry.register_command("panel.toggle_nav_rail", "Toggle Navigation Rail", [&]() {
+            if (imgui_ui) {
+                auto& lm = imgui_ui->get_layout_manager();
+                lm.set_nav_rail_expanded(!lm.is_nav_rail_expanded());
+            }
+        }, "", "Panel", static_cast<uint16_t>(ui::Icon::Menu));
+
+        // Tool mode commands
+        cmd_registry.register_command("tool.pan", "Pan Tool", [&]() {
+            input_handler.set_tool_mode(ToolMode::Pan);
+        }, "", "Tools", static_cast<uint16_t>(ui::Icon::Hand));
+
+        cmd_registry.register_command("tool.box_zoom", "Box Zoom Tool", [&]() {
+            input_handler.set_tool_mode(ToolMode::BoxZoom);
+        }, "", "Tools", static_cast<uint16_t>(ui::Icon::ZoomIn));
+
+        // Register default shortcut bindings
+        shortcut_mgr.register_defaults();
+
+        PLOTIX_LOG_INFO("app", "Registered " + std::to_string(cmd_registry.count()) + " commands, " +
+                        std::to_string(shortcut_mgr.count()) + " shortcuts");
     }
 #endif
 
@@ -612,40 +877,14 @@ void App::run() {
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
-        if (pending_tab_add) {
-            FigureConfig cfg = active_figure->config_;
-            figures_.push_back(std::make_unique<Figure>(cfg));
-            size_t new_index = figures_.size() - 1;
-            if (figure_tabs) {
-                figure_tabs->set_tab_title(new_index, "Figure " + std::to_string(new_index + 1));
-            }
-            pending_tab_switch = new_index;
-            pending_tab_add = false;
-        }
-
-        if (pending_tab_close != SIZE_MAX && figures_.size() > 1 && pending_tab_close < figures_.size()) {
-            figures_.erase(figures_.begin() + static_cast<std::ptrdiff_t>(pending_tab_close));
-            if (active_figure_index >= figures_.size()) {
-                active_figure_index = figures_.size() - 1;
-            } else if (active_figure_index > pending_tab_close) {
-                --active_figure_index;
-            }
+        // Process queued figure operations (create, close, switch)
+        if (fig_mgr.process_pending()) {
+            active_figure_index = fig_mgr.active_index();
             switch_active_figure(active_figure_index
 #ifdef PLOTIX_USE_GLFW
                                  , glfw ? &input_handler : nullptr
 #endif
             );
-            pending_tab_close = SIZE_MAX;
-            pending_tab_switch = active_figure_index;
-        }
-
-        if (pending_tab_switch != SIZE_MAX && pending_tab_switch < figures_.size()) {
-            switch_active_figure(pending_tab_switch
-#ifdef PLOTIX_USE_GLFW
-                                 , glfw ? &input_handler : nullptr
-#endif
-            );
-            pending_tab_switch = SIZE_MAX;
         }
 #endif
 

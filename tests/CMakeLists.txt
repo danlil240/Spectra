@@ -34,28 +34,49 @@ function(add_plotix_test subdir name)
     add_test(NAME ${target_name} COMMAND ${target_name})
 endfunction()
 
-# Unit tests
-add_plotix_test(unit test_transform)
-add_plotix_test(unit test_layout)
-add_plotix_test(unit test_timeline)
-add_plotix_test(unit test_easing)
-add_plotix_test(unit test_ring_buffer)
-add_plotix_test(unit test_input)
-add_plotix_test(unit test_series_data)
-add_plotix_test(unit test_command_queue)
-add_plotix_test(unit test_decimation)
-add_plotix_test(unit test_filters)
-add_plotix_test(unit test_tick_generation)
-add_plotix_test(unit test_series_visibility)
-add_plotix_test(unit test_font_atlas)
-add_plotix_test(unit test_ui_icons)
-add_plotix_test(unit test_svg_export)
-add_plotix_test(unit test_resize_layout)
-add_plotix_test(unit test_layout_manager)
-add_plotix_test(unit test_inspector)
-add_plotix_test(unit test_animation_controller)
-add_plotix_test(unit test_gesture_recognizer)
-add_plotix_test(unit test_data_interaction)
+# Unit tests — guarded by if(EXISTS) so parallel agents don't break each other's builds.
+# When adding a new test, just append the name to this list.
+set(PLOTIX_UNIT_TESTS
+    test_transform
+    test_layout
+    test_timeline
+    test_easing
+    test_ring_buffer
+    test_input
+    test_series_data
+    test_command_queue
+    test_decimation
+    test_filters
+    test_tick_generation
+    test_series_visibility
+    test_font_atlas
+    test_ui_icons
+    test_svg_export
+    test_resize_layout
+    test_layout_manager
+    test_inspector
+    test_animation_controller
+    test_gesture_recognizer
+    test_data_interaction
+    test_transition_engine
+    test_theme
+    test_command_registry
+    test_undo_manager
+    test_command_palette_registry
+    test_shortcut_manager
+    test_undo_redo
+    test_workspace
+    test_region_select
+    test_legend_interaction
+    test_figure_manager
+    test_inspector_stats
+)
+
+foreach(_test ${PLOTIX_UNIT_TESTS})
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
+        add_plotix_test(unit ${_test})
+    endif()
+endforeach()
 
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(PLOTIX_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
@@ -84,4 +105,5 @@ if(PLOTIX_BUILD_BENCHMARKS)
 
     add_plotix_bench(bench_decimation)
     add_plotix_bench(bench_render)
+    add_plotix_bench(bench_ui)
 endif()

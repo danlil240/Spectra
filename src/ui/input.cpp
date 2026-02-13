@@ -2,6 +2,7 @@
 #include "animation_controller.hpp"
 #include "data_interaction.hpp"
 #include "gesture_recognizer.hpp"
+#include "shortcut_manager.hpp"
 #include <plotix/logger.hpp>
 
 #include <algorithm>
@@ -67,6 +68,25 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
     if (!active_axes_) return;
 
     if (button == MOUSE_BUTTON_LEFT) {
+        // Select mode: left-drag for region selection
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::Select) {
+            if (data_interaction_) {
+                PLOTIX_LOG_DEBUG("input", "Starting region selection (Select mode)");
+                data_interaction_->begin_region_select(x, y);
+                region_dragging_ = true;
+                return;
+            }
+        }
+
+        if (action == ACTION_RELEASE && region_dragging_ && tool_mode_ == ToolMode::Select) {
+            if (data_interaction_) {
+                PLOTIX_LOG_DEBUG("input", "Finishing region selection");
+                data_interaction_->finish_region_select();
+            }
+            region_dragging_ = false;
+            return;
+        }
+
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::Pan) {
             // Cancel any running animations on this axes (new input overrides)
             if (anim_ctrl_) {
@@ -207,6 +227,12 @@ void InputHandler::on_mouse_move(double x, double y) {
 
     if (!active_axes_) return;
 
+    // Update region selection drag (Select mode)
+    if (region_dragging_ && tool_mode_ == ToolMode::Select && data_interaction_) {
+        data_interaction_->update_region_drag(x, y);
+        return;
+    }
+
     if (mode_ == InteractionMode::Dragging) {
         if (tool_mode_ == ToolMode::Pan) {
             // Track velocity for inertial pan
@@ -291,11 +317,23 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
 // ─── Keyboard ───────────────────────────────────────────────────────────────
 
 void InputHandler::on_key(int key, int action, int mods) {
+    // Track modifier state for use in mouse callbacks
+    mods_ = mods;
+
+    // Delegate to ShortcutManager first — if it handles the key, we're done
+    if (shortcut_mgr_ && shortcut_mgr_->on_key(key, action, mods)) {
+        return;
+    }
+
     if (action != ACTION_PRESS) return;
 
     if (key == KEY_ESCAPE) {
         // Cancel box zoom if active
         cancel_box_zoom();
+        // Dismiss region selection if active
+        if (data_interaction_ && data_interaction_->has_region_selection()) {
+            data_interaction_->dismiss_region_select();
+        }
         return;
     }
 

@@ -26,26 +26,34 @@
 namespace plotix {
 
 // ─── Design constants ───────────────────────────────────────────────────────
-static constexpr float kIconBarWidth  = 52.0f;
-static constexpr float kPanelWidth    = 280.0f;
-static constexpr float kIconSize      = 32.0f;
-static constexpr float kCornerRadius  = 14.0f;
-static constexpr float kMargin        = 10.0f;
+static constexpr float kIconBarWidth  = 56.0f;
+static constexpr float kPanelWidth    = 300.0f;
+static constexpr float kIconSize      = 36.0f;
+static constexpr float kCornerRadius  = 16.0f;
+static constexpr float kMargin        = 12.0f;
+static constexpr float kMenubarHeight = 52.0f;
 
-// Light/neutral palette inspired by the reference
-static constexpr ImVec4 kBgSidebar    {0.96f, 0.96f, 0.97f, 0.97f};
-static constexpr ImVec4 kBgPanel      {1.00f, 1.00f, 1.00f, 0.97f};
-static constexpr ImVec4 kTextPrimary  {0.12f, 0.12f, 0.14f, 1.00f};
-static constexpr ImVec4 kTextSecondary{0.45f, 0.46f, 0.50f, 1.00f};
-static constexpr ImVec4 kAccent       {0.25f, 0.48f, 0.85f, 1.00f};
-static constexpr ImVec4 kAccentLight  {0.25f, 0.48f, 0.85f, 0.12f};
-static constexpr ImVec4 kAccentHover  {0.25f, 0.48f, 0.85f, 0.08f};
-static constexpr ImVec4 kDivider      {0.88f, 0.89f, 0.91f, 1.00f};
-static constexpr ImVec4 kFrameBg      {0.94f, 0.94f, 0.96f, 1.00f};
-static constexpr ImVec4 kFrameHover   {0.90f, 0.91f, 0.93f, 1.00f};
-static constexpr ImVec4 kBtnBg        {0.94f, 0.94f, 0.96f, 1.00f};
-static constexpr ImVec4 kBtnHover     {0.88f, 0.89f, 0.92f, 1.00f};
+// Enhanced 2026 color palette with better contrast and modern feel
+static constexpr ImVec4 kBgSidebar    {0.97f, 0.98f, 1.00f, 0.98f};
+static constexpr ImVec4 kBgPanel      {1.00f, 1.00f, 1.00f, 0.98f};
+static constexpr ImVec4 kBgMenubar    {0.99f, 0.99f, 1.00f, 0.96f};
+static constexpr ImVec4 kTextPrimary  {0.08f, 0.08f, 0.12f, 1.00f};
+static constexpr ImVec4 kTextSecondary{0.42f, 0.43f, 0.48f, 1.00f};
+static constexpr ImVec4 kTextMenubar  {0.22f, 0.22f, 0.26f, 1.00f};
+static constexpr ImVec4 kAccent       {0.12f, 0.38f, 0.78f, 1.00f};
+static constexpr ImVec4 kAccentLight  {0.12f, 0.38f, 0.78f, 0.15f};
+static constexpr ImVec4 kAccentHover  {0.12f, 0.38f, 0.78f, 0.10f};
+static constexpr ImVec4 kDivider      {0.84f, 0.85f, 0.89f, 1.00f};
+static constexpr ImVec4 kFrameBg      {0.93f, 0.94f, 0.97f, 1.00f};
+static constexpr ImVec4 kFrameHover   {0.87f, 0.88f, 0.92f, 1.00f};
+static constexpr ImVec4 kBtnBg        {0.93f, 0.94f, 0.97f, 1.00f};
+static constexpr ImVec4 kBtnHover     {0.86f, 0.87f, 0.91f, 1.00f};
 static constexpr ImVec4 kTransparent  {0.0f, 0.0f, 0.0f, 0.0f};
+static constexpr ImVec4 kMenubarBorder{0.82f, 0.83f, 0.87f, 1.00f};
+static constexpr ImVec4 kShadow       {0.0f, 0.0f, 0.0f, 0.08f};
+static constexpr ImVec4 kSuccess      {0.12f, 0.68f, 0.42f, 1.00f};
+static constexpr ImVec4 kWarning      {0.92f, 0.58f, 0.12f, 1.00f};
+static constexpr ImVec4 kError        {0.92f, 0.23f, 0.23f, 1.00f};
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -114,6 +122,7 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
     if (std::abs(panel_anim_ - target) < 0.002f) panel_anim_ = target;
 
+    draw_menubar();
     draw_icon_bar();
     if (panel_anim_ > 0.002f) draw_panel(figure);
 }
@@ -142,16 +151,19 @@ void ImGuiIntegration::load_fonts() {
 
     cfg.SizePixels = 0;
     font_body_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 15.0f, &cfg);
+        InterFont_compressed_data, InterFont_compressed_size, 16.0f, &cfg);
 
     font_heading_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 11.5f, &cfg);
+        InterFont_compressed_data, InterFont_compressed_size, 12.5f, &cfg);
 
     font_icon_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 18.0f, &cfg);
+        InterFont_compressed_data, InterFont_compressed_size, 20.0f, &cfg);
 
     font_title_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 17.0f, &cfg);
+        InterFont_compressed_data, InterFont_compressed_size, 18.0f, &cfg);
+
+    font_menubar_ = io.Fonts->AddFontFromMemoryCompressedTTF(
+        InterFont_compressed_data, InterFont_compressed_size, 15.0f, &cfg);
 
     io.FontDefault = font_body_;
 }
@@ -161,24 +173,24 @@ void ImGuiIntegration::load_fonts() {
 void ImGuiIntegration::apply_modern_style() {
     ImGuiStyle& s = ImGui::GetStyle();
 
-    s.WindowPadding     = ImVec2(16, 14);
-    s.FramePadding      = ImVec2(10, 7);
-    s.ItemSpacing       = ImVec2(10, 7);
-    s.ItemInnerSpacing  = ImVec2(8, 4);
-    s.ScrollbarSize     = 8.0f;
-    s.GrabMinSize       = 8.0f;
+    s.WindowPadding     = ImVec2(18, 16);
+    s.FramePadding      = ImVec2(12, 8);
+    s.ItemSpacing       = ImVec2(12, 8);
+    s.ItemInnerSpacing  = ImVec2(10, 6);
+    s.ScrollbarSize     = 10.0f;
+    s.GrabMinSize       = 10.0f;
 
     s.WindowRounding    = kCornerRadius;
-    s.ChildRounding     = 10.0f;
-    s.FrameRounding     = 8.0f;
-    s.PopupRounding     = 10.0f;
-    s.ScrollbarRounding = 4.0f;
-    s.GrabRounding      = 4.0f;
-    s.TabRounding       = 8.0f;
+    s.ChildRounding     = 12.0f;
+    s.FrameRounding     = 10.0f;
+    s.PopupRounding     = 12.0f;
+    s.ScrollbarRounding = 6.0f;
+    s.GrabRounding      = 6.0f;
+    s.TabRounding       = 10.0f;
 
-    s.WindowBorderSize  = 0.0f;
-    s.FrameBorderSize   = 0.0f;
-    s.PopupBorderSize   = 0.0f;
+    s.WindowBorderSize  = 1.0f;
+    s.FrameBorderSize   = 1.0f;
+    s.PopupBorderSize   = 1.0f;
 
     ImVec4* c = s.Colors;
     c[ImGuiCol_WindowBg]             = kBgPanel;
@@ -219,35 +231,41 @@ void ImGuiIntegration::apply_modern_style() {
 
 // ─── Icon sidebar ───────────────────────────────────────────────────────────
 
-// Helper: draw a clickable icon button, return true if clicked
+// Helper: draw a clickable icon button with enhanced visual feedback
 static bool icon_button(const char* label, bool active, ImFont* font,
                         float size, const ImVec4& accent) {
     ImGui::PushFont(font);
 
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x, accent.y, accent.z, 0.12f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x, accent.y, accent.z, 0.15f));
         ImGui::PushStyleColor(ImGuiCol_Text, accent);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Border, accent);
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
         ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Border, kTransparent);
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.08f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accent.x, accent.y, accent.z, 0.16f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.12f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accent.x, accent.y, accent.z, 0.20f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
 
     bool clicked = ImGui::Button(label, ImVec2(size, size));
 
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(5);
     ImGui::PopFont();
     return clicked;
 }
 
 void ImGuiIntegration::draw_icon_bar() {
     ImGuiIO& io = ImGui::GetIO();
-    float bar_h = io.DisplaySize.y - kMargin * 2;
+    float bar_y = kMenubarHeight + kMargin;
+    float bar_h = io.DisplaySize.y - bar_y - kMargin;
 
-    ImGui::SetNextWindowPos(ImVec2(kMargin, kMargin));
+    ImGui::SetNextWindowPos(ImVec2(kMargin, bar_y));
     ImGui::SetNextWindowSize(ImVec2(kIconBarWidth, bar_h));
 
     ImGuiWindowFlags flags =
@@ -255,10 +273,11 @@ void ImGuiIntegration::draw_icon_bar() {
         ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 16));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 20));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 8));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgSidebar);
+    ImGui::PushStyleColor(ImGuiCol_Border, kDivider);
 
     if (ImGui::Begin("##iconbar", nullptr, flags)) {
         // Section icons
@@ -297,8 +316,151 @@ void ImGuiIntegration::draw_icon_bar() {
         ImGui::PopFont();
     }
     ImGui::End();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
+}
+
+// ─── Modern Menubar ───────────────────────────────────────────────────────────
+
+void ImGuiIntegration::draw_menubar() {
+    ImGuiIO& io = ImGui::GetIO();
+    float menubar_width = io.DisplaySize.x - kMargin * 2;
+    
+    ImGui::SetNextWindowPos(ImVec2(kMargin, kMargin));
+    ImGui::SetNextWindowSize(ImVec2(menubar_width, kMenubarHeight));
+    
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+    
+    // Enhanced styling for 2026 modern look
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(28, 16));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(32, 0));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgMenubar);
+    ImGui::PushStyleColor(ImGuiCol_Border, kMenubarBorder);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    
+    if (ImGui::Begin("##menubar", nullptr, flags)) {
+        // App title/brand on the left with enhanced accent and icon
+        ImGui::PushFont(font_title_);
+        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
+        ImGui::TextUnformatted("◆ Plotix");
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(130.0f); // Fixed position after title
+        
+        // Subtle separator
+        ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(150.0f); // Fixed position after separator
+        
+        // File menu with enhanced icons and better descriptions
+        draw_menubar_menu("File", {
+            MenuItem("� Export PNG", []() { /* TODO: Export functionality */ }),
+            MenuItem("� Export SVG", []() { /* TODO: Export functionality */ }),
+            MenuItem("🎬 Export Video", []() { /* TODO: Video export functionality */ }),
+            MenuItem("", nullptr), // Separator
+            MenuItem("🚪 Exit", []() { /* TODO: Exit functionality */ })
+        });
+        
+        ImGui::SameLine();
+        
+        // View menu with better options
+        draw_menubar_menu("View", {
+            MenuItem("🎛️ Toggle Panel", [this]() { panel_open_ = !panel_open_; }),
+            MenuItem("� Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
+            MenuItem("�� Reset View", []() { /* TODO: Reset view functionality */ }),
+            MenuItem("📐 Toggle Grid", []() { /* TODO: Grid toggle functionality */ })
+        });
+        
+        ImGui::SameLine();
+        
+        // Tools menu with enhanced functionality
+        draw_menubar_menu("Tools", {
+            MenuItem("📸 Screenshot", []() { /* TODO: Screenshot functionality */ }),
+            MenuItem("⚡ Performance Monitor", []() { /* TODO: Performance monitor */ }),
+            MenuItem("🎨 Theme Settings", []() { /* TODO: Theme settings */ }),
+            MenuItem("🔧 Preferences", []() { /* TODO: Preferences dialog */ })
+        });
+        
+        // Push status info to the right with enhanced formatting
+        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
+        
+        // Enhanced status info with better icons and formatting
+        ImGui::PushFont(font_menubar_);
+        ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
+        
+        char status[128];
+        std::snprintf(status, sizeof(status), "🖥️ %d×%d | ⚡ %.0f FPS | 📊 GPU", 
+                     static_cast<int>(io.DisplaySize.x), 
+                     static_cast<int>(io.DisplaySize.y), 
+                     io.Framerate);
+        ImGui::TextUnformatted(status);
+        
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleColor(2);
+}
+
+// Helper for drawing dropdown menus
+void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items) {
+    ImGui::PushFont(font_menubar_);
+    ImGui::PushStyleColor(ImGuiCol_Text, kTextMenubar);
+    ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccentHover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccentLight);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    
+    if (ImGui::Button(label)) {
+        ImGui::OpenPopup(label);
+    }
+    
+    // Enhanced popup styling for modern look
+    if (ImGui::BeginPopup(label)) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, kBgPanel);
+        ImGui::PushStyleColor(ImGuiCol_Border, kMenubarBorder);
+        
+        for (const auto& item : items) {
+            if (item.label.empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+            } else {
+                // Enhanced menu item styling
+                ImGui::PushStyleColor(ImGuiCol_Text, kTextPrimary);
+                ImGui::PushStyleColor(ImGuiCol_Header, kTransparent);
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, kAccentHover);
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, kAccentLight);
+                
+                if (ImGui::MenuItem(item.label.c_str())) {
+                    if (item.callback) item.callback();
+                }
+                
+                ImGui::PopStyleColor(4);
+            }
+        }
+        
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(3);
+        ImGui::EndPopup();
+    }
+    
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+    ImGui::PopFont();
 }
 
 // ─── Expandable panel ───────────────────────────────────────────────────────
@@ -310,37 +472,41 @@ static void section_header(const char* text, ImFont* font) {
     ImGui::PopStyleColor();
     ImGui::PopFont();
     ImGui::Spacing();
+    ImGui::Spacing();
 }
 
 void ImGuiIntegration::draw_panel(Figure& figure) {
     ImGuiIO& io = ImGui::GetIO();
-    float panel_h = io.DisplaySize.y - kMargin * 2;
+    float panel_y = kMenubarHeight + kMargin;
+    float panel_h = io.DisplaySize.y - panel_y - kMargin;
 
-    float slide_x = kPanelWidth * (1.0f - panel_anim_);
-    float x = kMargin + kIconBarWidth + 6.0f - slide_x * 0.0f;
-    // Slide: start off-screen to the left, end at final position
-    float final_x = kMargin + kIconBarWidth + 6.0f;
-    float start_x = final_x - kPanelWidth * 0.3f;
-    float cur_x = start_x + (final_x - start_x) * panel_anim_;
+    // Enhanced slide animation with easing
+    float final_x = kMargin + kIconBarWidth + 8.0f;
+    float start_x = final_x - kPanelWidth * 0.4f;
+    float eased_anim = panel_anim_ * panel_anim_ * (3.0f - 2.0f * panel_anim_); // Smooth step
+    float cur_x = start_x + (final_x - start_x) * eased_anim;
 
-    ImGui::SetNextWindowPos(ImVec2(cur_x, kMargin));
+    ImGui::SetNextWindowPos(ImVec2(cur_x, panel_y));
     ImGui::SetNextWindowSize(ImVec2(kPanelWidth, panel_h));
 
-    // Fade in
+    // Enhanced fade effects
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18, 18));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, kCornerRadius);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kBgPanel);
+    ImGui::PushStyleColor(ImGuiCol_Border, kDivider);
 
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing;
 
     if (ImGui::Begin("##panel", nullptr, flags)) {
-        // Title
+        // Enhanced title with subtle accent
         const char* titles[] = {"Figure", "Series", "Axes"};
         ImGui::PushFont(font_title_);
+        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
         ImGui::TextUnformatted(titles[static_cast<int>(active_section_)]);
+        ImGui::PopStyleColor();
         ImGui::PopFont();
 
         ImGui::Spacing();
@@ -357,7 +523,7 @@ void ImGuiIntegration::draw_panel(Figure& figure) {
         }
     }
     ImGui::End();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
 }
 
@@ -368,40 +534,114 @@ void ImGuiIntegration::draw_section_figure(Figure& figure) {
 
     section_header("BACKGROUND", font_heading_);
 
+    // Enhanced color picker with better layout
     float bg[4] = {sty.background.r, sty.background.g, sty.background.b, sty.background.a};
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12, 8));
+    
     if (ImGui::ColorEdit4("##bg", bg,
             ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
-            ImGuiColorEditFlags_AlphaBar)) {
+            ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_DisplayHSV)) {
         sty.background = Color{bg[0], bg[1], bg[2], bg[3]};
     }
     ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Background Color");
+    
+    ImGui::PopStyleVar(2);
 
     ImGui::Spacing();
     ImGui::Spacing();
     section_header("MARGINS", font_heading_);
 
+    // Enhanced margin controls with better visual feedback
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 6.0f);
     ImGui::PushItemWidth(-1);
-    ImGui::DragFloat("##mt", &sty.margin_top,    0.5f, 0.0f, 200.0f, "Top  %.0f");
-    ImGui::DragFloat("##mb", &sty.margin_bottom, 0.5f, 0.0f, 200.0f, "Bottom  %.0f");
-    ImGui::DragFloat("##ml", &sty.margin_left,   0.5f, 0.0f, 200.0f, "Left  %.0f");
-    ImGui::DragFloat("##mr", &sty.margin_right,  0.5f, 0.0f, 200.0f, "Right  %.0f");
+    
+    // Top margin
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::DragFloat("##mt", &sty.margin_top, 0.5f, 0.0f, 200.0f, "Top  %.0fpx");
+    ImGui::PopStyleColor();
+    
+    // Bottom margin  
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::DragFloat("##mb", &sty.margin_bottom, 0.5f, 0.0f, 200.0f, "Bottom  %.0fpx");
+    ImGui::PopStyleColor();
+    
+    // Left margin
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::DragFloat("##ml", &sty.margin_left, 0.5f, 0.0f, 200.0f, "Left  %.0fpx");
+    ImGui::PopStyleColor();
+    
+    // Right margin
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::DragFloat("##mr", &sty.margin_right, 0.5f, 0.0f, 200.0f, "Right  %.0fpx");
+    ImGui::PopStyleColor();
+    
     ImGui::PopItemWidth();
+    ImGui::PopStyleVar(2);
 
     ImGui::Spacing();
     ImGui::Spacing();
     section_header("LEGEND", font_heading_);
 
+    // Enhanced legend controls
     auto& leg = figure.legend();
-    ImGui::Checkbox("Show Legend", &leg.visible);
+    
+    // Custom checkbox with better styling
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kFrameBg);
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, kAccent);
+    if (ImGui::Checkbox("Show Legend", &leg.visible)) {
+        // Legend visibility changed
+    }
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
 
+    ImGui::Spacing();
+    
+    // Enhanced position selector
     const char* positions[] = {"Top Right", "Top Left", "Bottom Right", "Bottom Left", "Hidden"};
     int pos = static_cast<int>(leg.position);
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
     ImGui::PushItemWidth(-1);
+    
     if (ImGui::Combo("##legpos", &pos, positions, 5)) {
         leg.position = static_cast<LegendPosition>(pos);
     }
+    
     ImGui::PopItemWidth();
+    ImGui::PopStyleVar(2);
+    
+    // Quick action buttons
+    ImGui::Spacing();
+    ImGui::Spacing();
+    section_header("QUICK ACTIONS", font_heading_);
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
+    
+    // Reset to defaults button
+    ImGui::PushStyleColor(ImGuiCol_Button, kBtnBg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kBtnHover);
+    ImGui::PushStyleColor(ImGuiCol_Text, kTextPrimary);
+    
+    if (ImGui::Button("Reset to Defaults", ImVec2(-1, 0))) {
+        // Reset figure style to defaults
+        sty.background = Color{1.0f, 1.0f, 1.0f, 1.0f};
+        sty.margin_top = 40.0f;
+        sty.margin_bottom = 40.0f;
+        sty.margin_left = 60.0f;
+        sty.margin_right = 20.0f;
+        leg.visible = true;
+        leg.position = LegendPosition::TopRight;
+    }
+    
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
 }
 
 // ─── Series section ─────────────────────────────────────────────────────────

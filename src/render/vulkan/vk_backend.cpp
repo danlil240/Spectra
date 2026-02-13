@@ -1,22 +1,16 @@
 #include "vk_backend.hpp"
 
 #include "shader_spirv.hpp"
+#include <plotix/logger.hpp>
 
 #ifdef PLOTIX_USE_GLFW
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #endif
 
-#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
-
-#ifndef NDEBUG
-#define PLOTIX_RESIZE_LOG(fmt, ...) std::cerr << "[Plotix Resize] " << fmt << "\n"
-#else
-#define PLOTIX_RESIZE_LOG(fmt, ...) ((void)0)
-#endif
 
 namespace plotix {
 
@@ -28,17 +22,22 @@ VulkanBackend::~VulkanBackend() {
 
 bool VulkanBackend::init(bool headless) {
     headless_ = headless;
+    
+    PLOTIX_LOG_INFO("vulkan", "Initializing Vulkan backend (headless: " + std::string(headless ? "true" : "false") + ")");
 
     try {
 #ifdef NDEBUG
         bool enable_validation = false;
 #else
-        bool enable_validation = true;
+        bool enable_validation = true; 
 #endif
+        PLOTIX_LOG_DEBUG("vulkan", "Validation layers: " + std::string(enable_validation ? "true" : "false"));
+        
         ctx_.instance = vk::create_instance(enable_validation);
 
         if (enable_validation) {
             ctx_.debug_messenger = vk::create_debug_messenger(ctx_.instance);
+            PLOTIX_LOG_DEBUG("vulkan", "Debug messenger created");
         }
 
         // For headless, pick device without surface
@@ -217,18 +216,26 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
 }
 
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
-    PLOTIX_RESIZE_LOG("recreate_swapchain START " + std::to_string(width) + "x" + std::to_string(height));
+    PLOTIX_LOG_INFO("vulkan", "recreate_swapchain called: " + std::to_string(width) + "x" + std::to_string(height));
+    
+    // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
+    if (!in_flight_fences_.empty()) {
+        PLOTIX_LOG_DEBUG("vulkan", "Waiting for " + std::to_string(in_flight_fences_.size()) + " in-flight fences before swapchain recreation");
+        auto wait_start = std::chrono::high_resolution_clock::now();
+        vkWaitForFences(ctx_.device,
+                        static_cast<uint32_t>(in_flight_fences_.size()),
+                        in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
+        auto wait_end = std::chrono::high_resolution_clock::now();
+        auto wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(wait_end - wait_start);
+        PLOTIX_LOG_DEBUG("vulkan", "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
+    }
 
-    // Must wait for ALL GPU work to finish before destroying swapchain resources.
-    // Using vkDeviceWaitIdle is the safest approach — prevents GPU hangs from
-    // destroying framebuffers/render pass that are still referenced by in-flight
-    // command buffers or the presentation engine.
-    vkDeviceWaitIdle(ctx_.device);
-
+    PLOTIX_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
     auto old_swapchain = swapchain_.swapchain;
     auto old_context = swapchain_;  // Copy the entire context
     
     try {
+        PLOTIX_LOG_DEBUG("vulkan", "Creating new swapchain...");
         swapchain_ = vk::create_swapchain(
             ctx_.device, ctx_.physical_device, surface_,
             width, height,
@@ -236,42 +243,19 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
             old_swapchain
         );
-
-        // Destroy old swapchain resources (framebuffers, render pass, image views, swapchain)
-        // AFTER new swapchain is created successfully.
+        PLOTIX_LOG_INFO("vulkan", "New swapchain created: " + std::to_string(swapchain_.extent.width) + "x" + std::to_string(swapchain_.extent.height));
+        
+        // Destroy the old swapchain context after the new one is created successfully
+        PLOTIX_LOG_DEBUG("vulkan", "Destroying old swapchain...");
         vk::destroy_swapchain(ctx_.device, old_context);
-
-        // Reallocate command buffers for the new swapchain
+        
+        PLOTIX_LOG_DEBUG("vulkan", "Recreating command buffers...");
         create_command_buffers();
-
-        // CRITICAL: Pipelines reference the old VkRenderPass which was just destroyed.
-        // The new swapchain has a new render pass — we must recreate all pipelines.
-        recreate_all_pipelines();
-
-        // Reset flight frame index to avoid indexing into stale state
-        current_flight_frame_ = 0;
-
-        // Reset all fences to signaled state so begin_frame() doesn't deadlock
-        for (auto fence : in_flight_fences_) {
-            vkResetFences(ctx_.device, 1, &fence);
-            // Re-signal by waiting (they were reset above) — actually just recreate as signaled
-        }
-        // Simpler: destroy and recreate sync objects to guarantee clean state
-        for (auto sem : image_available_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
-        for (auto sem : render_finished_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
-        for (auto fence : in_flight_fences_)         vkDestroyFence(ctx_.device, fence, nullptr);
-        image_available_semaphores_.clear();
-        render_finished_semaphores_.clear();
-        in_flight_fences_.clear();
-        create_sync_objects();
-
-        swapchain_dirty_ = false;
-
-        PLOTIX_RESIZE_LOG("recreate_swapchain END ok, extent=" +
-            std::to_string(swapchain_.extent.width) + "x" + std::to_string(swapchain_.extent.height));
+        
+        PLOTIX_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "[Plotix] Swapchain recreation failed: " << e.what() << "\n";
+        PLOTIX_LOG_ERROR("vulkan", "Swapchain recreation failed: " + std::string(e.what()));
         return false;
     }
 }
@@ -371,29 +355,6 @@ void VulkanBackend::ensure_pipelines() {
                 pipeline_layouts_[id] = (it->second == PipelineType::Text)
                     ? text_pipeline_layout_ : pipeline_layout_;
             }
-        }
-    }
-}
-
-void VulkanBackend::recreate_all_pipelines() {
-    VkRenderPass rp = render_pass();
-    if (rp == VK_NULL_HANDLE) return;
-
-    PLOTIX_RESIZE_LOG("recreating all pipelines for new render pass");
-
-    for (auto& [id, pipeline] : pipelines_) {
-        // Destroy old pipeline (already safe — vkDeviceWaitIdle was called)
-        if (pipeline != VK_NULL_HANDLE) {
-            vkDestroyPipeline(ctx_.device, pipeline, nullptr);
-            pipeline = VK_NULL_HANDLE;
-        }
-
-        // Recreate with new render pass
-        auto type_it = pipeline_types_.find(id);
-        if (type_it != pipeline_types_.end()) {
-            pipeline = create_pipeline_for_type(type_it->second, rp);
-            pipeline_layouts_[id] = (type_it->second == PipelineType::Text)
-                ? text_pipeline_layout_ : pipeline_layout_;
         }
     }
 }
@@ -712,7 +673,10 @@ bool VulkanBackend::begin_frame() {
 
     if (headless_) {
         // For offscreen, just allocate a command buffer
-        if (command_buffers_.empty()) return false;
+        if (command_buffers_.empty()) {
+            PLOTIX_LOG_ERROR("vulkan", "begin_frame: no command buffers for headless");
+            return false;
+        }
         current_cmd_ = command_buffers_[0];
 
         VkCommandBufferBeginInfo begin_info {};
@@ -722,60 +686,64 @@ bool VulkanBackend::begin_frame() {
         return true;
     }
 
-    // Bail out if swapchain extent is 0x0 (window minimized)
-    if (swapchain_.extent.width == 0 || swapchain_.extent.height == 0) {
-        return false;
+    // Windowed mode
+    PLOTIX_LOG_TRACE("vulkan", "begin_frame: waiting for fence " + std::to_string(current_flight_frame_));
+    auto fence_wait_start = std::chrono::high_resolution_clock::now();
+    
+    // Check if fence is already signaled before waiting
+    VkResult fence_status = vkGetFenceStatus(ctx_.device, in_flight_fences_[current_flight_frame_]);
+    if (fence_status == VK_SUCCESS) {
+        PLOTIX_LOG_TRACE("vulkan", "Fence " + std::to_string(current_flight_frame_) + " already signaled");
+    } else if (fence_status == VK_NOT_READY) {
+        PLOTIX_LOG_DEBUG("vulkan", "Fence " + std::to_string(current_flight_frame_) + " not ready, waiting...");
+        vkWaitForFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
+    } else if (fence_status == VK_ERROR_DEVICE_LOST) {
+        PLOTIX_LOG_CRITICAL("vulkan", "DEVICE LOST! Fence " + std::to_string(current_flight_frame_) + 
+                           " failed with VK_ERROR_DEVICE_LOST. The GPU device has been lost.");
+        
+        // Try to get more diagnostic information
+        VkResult device_status = vkDeviceWaitIdle(ctx_.device);
+        if (device_status == VK_ERROR_DEVICE_LOST) {
+            PLOTIX_LOG_CRITICAL("vulkan", "Confirmed: Device is lost (vkDeviceWaitIdle also returns VK_ERROR_DEVICE_LOST)");
+        }
+        
+        PLOTIX_LOG_ERROR("vulkan", "Possible causes of device loss:");
+        PLOTIX_LOG_ERROR("vulkan", "  1. GPU driver crash or reset");
+        PLOTIX_LOG_ERROR("vulkan", "  2. GPU memory exhaustion");
+        PLOTIX_LOG_ERROR("vulkan", "  3. Invalid Vulkan operations or resources");
+        PLOTIX_LOG_ERROR("vulkan", "  4. GPU hardware issues (overheating, failure)");
+        PLOTIX_LOG_ERROR("vulkan", "  5. Power management or display driver conflicts");
+        
+        throw std::runtime_error("Vulkan device lost - cannot continue rendering");
+    } else {
+        PLOTIX_LOG_ERROR("vulkan", "Fence status error: " + std::to_string(fence_status));
+        throw std::runtime_error("Unexpected fence error: " + std::to_string(fence_status));
+    }
+    
+    auto fence_wait_end = std::chrono::high_resolution_clock::now();
+    auto fence_wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(fence_wait_end - fence_wait_start);
+    if (fence_wait_duration.count() > 16) { // Log if wait takes longer than one frame at 60fps
+        PLOTIX_LOG_WARN("vulkan", "Long fence wait: " + std::to_string(fence_wait_duration.count()) + "ms for fence " + std::to_string(current_flight_frame_));
     }
 
-    // Bail out if swapchain is known to be stale (present returned OUT_OF_DATE)
-    if (swapchain_dirty_) {
-        return false;
-    }
-
-    // Windowed mode: wait for the in-flight fence with timeout monitoring
-#ifndef NDEBUG
-    auto fence_start = std::chrono::steady_clock::now();
-#endif
-    VkResult fence_result = vkWaitForFences(ctx_.device, 1,
-        &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
-#ifndef NDEBUG
-    auto fence_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - fence_start).count();
-    if (fence_ms > 200) {
-        std::cerr << "[Plotix Resize] WARNING: fence wait took " << fence_ms << "ms (frame "
-                  << current_flight_frame_ << ")\n";
-    }
-#endif
-    if (fence_result != VK_SUCCESS) {
-        std::cerr << "[Plotix] Fence wait failed: " << fence_result << "\n";
-        return false;
-    }
-
+    auto acquire_start = std::chrono::high_resolution_clock::now();
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device, swapchain_.swapchain, UINT64_MAX,
         image_available_semaphores_[current_flight_frame_],
         VK_NULL_HANDLE, &current_image_index_);
-
-#ifndef NDEBUG
-    if (result != VK_SUCCESS) {
-        PLOTIX_RESIZE_LOG("acquire returned " + std::to_string(static_cast<int>(result)));
+    auto acquire_end = std::chrono::high_resolution_clock::now();
+    auto acquire_duration = std::chrono::duration_cast<std::chrono::milliseconds>(acquire_end - acquire_start);
+    if (acquire_duration.count() > 16) {
+        PLOTIX_LOG_WARN("vulkan", "Long image acquire: " + std::to_string(acquire_duration.count()) + "ms");
     }
-#endif
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        // Swapchain is stale — caller must recreate. Do NOT reset fence.
-        swapchain_dirty_ = true;
-        return false;
+        PLOTIX_LOG_INFO("vulkan", "begin_frame: VK_ERROR_OUT_OF_DATE_KHR");
+        return false;  // Caller should recreate swapchain
     }
-    // SUBOPTIMAL: we can still present, but mark for recreation after this frame
     if (result == VK_SUBOPTIMAL_KHR) {
-        swapchain_dirty_ = true;
-        // Fall through — the acquired image is still usable
-    }
-
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        std::cerr << "[Plotix] vkAcquireNextImageKHR failed: " << result << "\n";
-        return false;
+        PLOTIX_LOG_INFO("vulkan", "begin_frame: VK_SUBOPTIMAL_KHR");
+        return false;  // Caller should recreate swapchain
     }
 
     vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
@@ -830,18 +798,18 @@ void VulkanBackend::end_frame() {
 
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
 
-#ifndef NDEBUG
-    if (result != VK_SUCCESS) {
-        PLOTIX_RESIZE_LOG("present returned " + std::to_string(static_cast<int>(result)));
-    }
-#endif
-
     current_flight_frame_ = (current_flight_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        // Signal that swapchain needs recreation. begin_frame() will return false
-        // and the app loop will trigger recreate_swapchain().
-        swapchain_dirty_ = true;
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        PLOTIX_LOG_INFO("vulkan", "end_frame: present returned VK_ERROR_OUT_OF_DATE_KHR");
+        // Caller should recreate swapchain on next frame
+        // We'll handle it in begin_frame()
+    } else if (result == VK_SUBOPTIMAL_KHR) {
+        PLOTIX_LOG_INFO("vulkan", "end_frame: present returned VK_SUBOPTIMAL_KHR");
+        // Caller should recreate swapchain on next frame
+        // We'll handle it in begin_frame()
+    } else if (result != VK_SUCCESS) {
+        PLOTIX_LOG_ERROR("vulkan", "end_frame: present failed with result " + std::to_string(static_cast<int>(result)));
     }
 }
 

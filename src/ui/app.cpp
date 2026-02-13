@@ -3,6 +3,7 @@
 #include <plotix/export.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/frame.hpp>
+#include <plotix/logger.hpp>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../render/renderer.hpp"
@@ -12,8 +13,6 @@
 
 #ifdef PLOTIX_USE_GLFW
 #include "glfw_adapter.hpp"
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
@@ -23,12 +22,7 @@
 
 #include <iostream>
 #include <memory>
-
-#ifndef NDEBUG
-#define PLOTIX_APP_LOG(msg) std::cerr << "[Plotix App] " << msg << "\n"
-#else
-#define PLOTIX_APP_LOG(msg) ((void)0)
-#endif
+#include <filesystem>
 
 namespace plotix {
 
@@ -37,19 +31,40 @@ namespace plotix {
 App::App(const AppConfig& config)
     : config_(config)
 {
+    // Initialize logger for debugging
+    // Set to Trace for maximum debugging, Debug for normal debugging, Info for production
+    auto& logger = plotix::Logger::instance();
+    logger.set_level(plotix::LogLevel::Debug);  // Change to Trace to see all frame-by-frame logs
+    
+    // Add console sink with timestamps
+    logger.add_sink(plotix::sinks::console_sink());
+    
+    // Add file sink in temp directory with error handling
+    try {
+        std::string log_path = std::filesystem::temp_directory_path() / "plotix_app.log";
+        logger.add_sink(plotix::sinks::file_sink(log_path));
+        PLOTIX_LOG_INFO("app", "Log file: " + log_path);
+    } catch (const std::exception& e) {
+        PLOTIX_LOG_WARN("app", "Failed to create log file: " + std::string(e.what()));
+    }
+    
+    PLOTIX_LOG_INFO("app", "Initializing Plotix application (headless: " + std::string(config_.headless ? "true" : "false") + ")");
+    
     // Create Vulkan backend
     backend_ = std::make_unique<VulkanBackend>();
     if (!backend_->init(config_.headless)) {
-        std::cerr << "[plotix] Failed to initialize Vulkan backend\n";
+        PLOTIX_LOG_ERROR("app", "Failed to initialize Vulkan backend");
         return;
     }
 
     // Create renderer
     renderer_ = std::make_unique<Renderer>(*backend_);
     if (!renderer_->init()) {
-        std::cerr << "[plotix] Failed to initialize renderer\n";
+        PLOTIX_LOG_ERROR("app", "Failed to initialize renderer");
         return;
     }
+    
+    PLOTIX_LOG_INFO("app", "Plotix application initialized successfully");
 }
 
 App::~App() {
@@ -125,7 +140,12 @@ void App::run() {
 #ifdef PLOTIX_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
     InputHandler input_handler;
-    bool framebuffer_resized = false;
+    bool needs_resize = false;
+    uint32_t new_width = fig.width();
+    uint32_t new_height = fig.height();
+    bool is_resizing = false;
+    int resize_frame_counter = 0;
+    static constexpr int RESIZE_SKIP_FRAMES = 1;  // Skip frames during rapid resize
 
     if (!config_.headless) {
         glfw = std::make_unique<GlfwAdapter>();
@@ -191,11 +211,41 @@ void App::run() {
 #endif
                 input_handler.on_key(key, action, mods);
             };
-            callbacks.on_resize = [&framebuffer_resized](int w, int h) {
-                // Callback only sets the flag — swapchain recreation happens
-                // in the render loop at a safe synchronization point.
-                (void)w; (void)h;
-                framebuffer_resized = true;
+            callbacks.on_resize = [&needs_resize, &new_width, &new_height, &is_resizing](int w, int h) {
+                static int call_count = 0;
+                static bool ignore_resizes = false;
+                call_count++;
+                auto now = std::chrono::steady_clock::now();
+                static auto last_call = now;
+                auto time_since_last = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call);
+                
+                // After 10 resize events, start ignoring them to test stability
+                if (call_count > 10 && !ignore_resizes) {
+                    PLOTIX_LOG_WARN("resize", "Too many resize events (" + std::to_string(call_count) + 
+                                   "). Ignoring future resize events for testing.");
+                    ignore_resizes = true;
+                }
+                
+                if (ignore_resizes) {
+                    PLOTIX_LOG_DEBUG("resize", "Ignoring resize callback #" + std::to_string(call_count) + 
+                                    ": " + std::to_string(w) + "x" + std::to_string(h));
+                    return;
+                }
+                
+                PLOTIX_LOG_DEBUG("resize", "GLFW resize callback #" + std::to_string(call_count) + 
+                                ": " + std::to_string(w) + "x" + std::to_string(h) + 
+                                " (+" + std::to_string(time_since_last.count()) + "ms since last)");
+                
+                if (w > 0 && h > 0) {
+                    needs_resize = true;
+                    new_width = static_cast<uint32_t>(w);
+                    new_height = static_cast<uint32_t>(h);
+                    is_resizing = true;
+                    PLOTIX_LOG_DEBUG("resize", "Set resize pending: " + std::to_string(new_width) + "x" + std::to_string(new_height));
+                } else {
+                    PLOTIX_LOG_WARN("resize", "Invalid resize dimensions: " + std::to_string(w) + "x" + std::to_string(h));
+                }
+                last_call = now;
             };
             glfw->set_callbacks(callbacks);
         }
@@ -224,12 +274,72 @@ void App::run() {
 #endif
 
     scheduler.reset();
+    
+    // Add heartbeat tracking and resize loop detection
+    auto last_heartbeat = std::chrono::steady_clock::now();
+    const auto heartbeat_interval = std::chrono::seconds(5);
+    int resize_count = 0;
+    auto last_resize_time = std::chrono::steady_clock::now();
+    const auto resize_burst_threshold = std::chrono::milliseconds(200); // Reduced to 200ms
+    const int max_resizes_in_burst = 3; // Reduced to 3 resizes
+    int total_recreations = 0;
+    const int max_total_recreations = 20; // Hard limit to prevent infinite loops
 
     while (running) {
-        scheduler.begin_frame();
+        PLOTIX_LOG_TRACE("main_loop", "Starting frame iteration, running=" + std::string(running ? "true" : "false"));
+        
+        // Check for heartbeat logging and resize loop detection
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_heartbeat >= heartbeat_interval) {
+            PLOTIX_LOG_INFO("heartbeat", "App is still running, frame " + std::to_string(scheduler.current_frame().number) + 
+                           ", elapsed " + std::to_string(scheduler.elapsed_seconds()) + "s" + 
+                           (is_resizing ? ", RESIZING" : ""));
+            last_heartbeat = now;
+        }
+        
+        // Detect resize loops and add hard limit
+        if (needs_resize) {
+            resize_count++;
+            total_recreations++;
+            
+            auto time_since_last_resize = now - last_resize_time;
+            if (time_since_last_resize < resize_burst_threshold) {
+                if (resize_count > max_resizes_in_burst) {
+                    PLOTIX_LOG_WARN("resize", "Detected resize loop! " + std::to_string(resize_count) + 
+                                   " resizes in " + std::to_string(time_since_last_resize.count()) + "ms. "
+                                   "Throttling resize processing.");
+                    // Skip this resize to break the loop
+                    needs_resize = false;
+                    resize_count = 0;
+                }
+            } else {
+                resize_count = 1; // Reset count if enough time has passed
+            }
+            
+            // Hard limit to prevent infinite loops
+            if (total_recreations > max_total_recreations) {
+                PLOTIX_LOG_ERROR("resize", "Hard limit reached: " + std::to_string(total_recreations) + 
+                                " swapchain recreations. Terminating to prevent infinite loop.");
+                running = false;
+                break;
+            }
+            
+            last_resize_time = now;
+        }
+        
+        try {
+            scheduler.begin_frame();
+        } catch (const std::exception& e) {
+            PLOTIX_LOG_CRITICAL("main_loop", "Frame scheduler failed: " + std::string(e.what()));
+            running = false;
+            break;
+        }
 
         // Drain command queue (apply app-thread mutations)
-        cmd_queue.drain();
+        size_t commands_processed = cmd_queue.drain();
+        if (commands_processed > 0) {
+            PLOTIX_LOG_TRACE("main_loop", "Processed " + std::to_string(commands_processed) + " commands");
+        }
 
         // Evaluate keyframe animations
         animator.evaluate(scheduler.elapsed_seconds());
@@ -240,51 +350,63 @@ void App::run() {
             fig.anim_on_frame_(frame);
         }
 
-        // Compute layout every frame
-        fig.compute_layout();
-
-#ifdef PLOTIX_USE_GLFW
-        // ── Handle minimized window (0×0 framebuffer) ──
-        if (glfw) {
-            uint32_t fb_w = 0, fb_h = 0;
-            glfw->framebuffer_size(fb_w, fb_h);
-            while (fb_w == 0 || fb_h == 0) {
-                // Window is minimized — pause rendering and wait for events
-                glfwWaitEvents();
-                if (glfw->should_close()) { running = false; break; }
-                glfw->framebuffer_size(fb_w, fb_h);
-            }
-            if (!running) break;
+        // Compute layout (skip during active resize for better performance)
+        if (!is_resizing) {
+            fig.compute_layout();
         }
 
-        // ── Handle resize: recreate swapchain at a safe point ──
-        auto* vk_backend = static_cast<VulkanBackend*>(backend_.get());
-        bool need_swapchain_recreate = framebuffer_resized || vk_backend->swapchain_needs_recreation();
-
-        if (need_swapchain_recreate && glfw) {
-            framebuffer_resized = false;
-            vk_backend->clear_swapchain_dirty();
-
-            uint32_t fb_w = 0, fb_h = 0;
-            glfw->framebuffer_size(fb_w, fb_h);
-
-            if (fb_w > 0 && fb_h > 0) {
-                PLOTIX_APP_LOG("resize: recreating swapchain " + std::to_string(fb_w) + "x" + std::to_string(fb_h));
-                backend_->recreate_swapchain(fb_w, fb_h);
-
+#ifdef PLOTIX_USE_GLFW
+        // Handle window resize with debouncing and frame skipping
+        // Note: We only process resize when begin_frame succeeds to avoid duplicate recreation
+        // The fallback path handles resize when begin_frame fails
+        if (needs_resize && backend_->begin_frame()) {
+            resize_frame_counter++;
+            PLOTIX_LOG_DEBUG("resize", "Processing resize with successful begin_frame: frame_counter=" + std::to_string(resize_frame_counter) + 
+                            ", target=" + std::to_string(new_width) + "x" + std::to_string(new_height));
+            
+            // Only process resize after a few frames to debounce rapid resize events
+            if (resize_frame_counter > RESIZE_SKIP_FRAMES) {
+                PLOTIX_LOG_DEBUG("resize", "Debounce threshold reached (counter=" + std::to_string(resize_frame_counter) + ")");
+                PLOTIX_LOG_INFO("resize", "Recreating swapchain: " + std::to_string(new_width) + "x" + std::to_string(new_height) + 
+                               " (recreation #" + std::to_string(total_recreations) + ")");
+                needs_resize = false;
+                resize_frame_counter = 0;
+                is_resizing = false;
+                
+                // Recreate swapchain with new dimensions
+                auto swapchain_start = std::chrono::high_resolution_clock::now();
+                backend_->recreate_swapchain(new_width, new_height);
+                auto swapchain_end = std::chrono::high_resolution_clock::now();
+                auto swapchain_duration = std::chrono::duration_cast<std::chrono::milliseconds>(swapchain_end - swapchain_start);
+                PLOTIX_LOG_INFO("resize", "Swapchain recreation completed in " + std::to_string(swapchain_duration.count()) + "ms");
+                
                 // Sync figure dimensions from actual swapchain extent
+                // (may differ from callback values due to surface capabilities)
                 fig.config_.width = backend_->swapchain_width();
                 fig.config_.height = backend_->swapchain_height();
+                PLOTIX_LOG_INFO("resize", "Swapchain recreated, actual extent: " + std::to_string(fig.config_.width) + "x" + std::to_string(fig.config_.height));
 
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui) {
-                    imgui_ui->on_swapchain_recreated(*vk_backend);
+                    imgui_ui->on_swapchain_recreated(
+                        *static_cast<VulkanBackend*>(backend_.get()));
                 }
 #endif
-
+                
                 // Recompute layout with new dimensions
                 fig.compute_layout();
+                
+                // Update input handler viewport after layout recompute
+                if (!fig.axes().empty() && fig.axes()[0]) {
+                    auto& vp = fig.axes()[0]->viewport();
+                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+                }
             }
+            
+            // End the frame we started for resize checking
+            backend_->end_frame();
+        } else if (!needs_resize) {
+            resize_frame_counter = 0;
         }
 
         // Update input handler with current active axes viewport
@@ -294,18 +416,27 @@ void App::run() {
         }
 #endif
 
-bool imgui_frame_started = false;
+        bool imgui_frame_started = false;
         
 #ifdef PLOTIX_USE_IMGUI
-        if (imgui_ui) {
+        // Start ImGui frame before rendering (skip during active resize for better performance)
+        // Also reduce ImGui update frequency during resize
+        bool should_update_imgui = !is_resizing || (resize_frame_counter % 6 == 0);
+        if (imgui_ui && should_update_imgui) {
             imgui_ui->new_frame();
             imgui_ui->build_ui(fig);
             imgui_frame_started = true;
         }
 #endif
 
-        // Render frame — begin_frame returns false if swapchain is stale or minimized
-        if (backend_->begin_frame()) {
+        // Render (skip drawing if swapchain is stale, but keep the loop going)
+        // During active resize, only render every few frames to maintain responsiveness
+        // Note: begin_frame might have been called already in resize processing above
+        bool already_begun_frame = (needs_resize && resize_frame_counter > 0);
+        bool should_render = !is_resizing || (resize_frame_counter % 3 == 0);
+        
+        if (should_render && (already_begun_frame || backend_->begin_frame())) {
+            PLOTIX_LOG_TRACE("resize", "begin_frame succeeded, rendering frame");
             renderer_->render_figure(fig);
 
 #ifdef PLOTIX_USE_IMGUI
@@ -315,17 +446,47 @@ bool imgui_frame_started = false;
             }
 #endif
 
-            backend_->end_frame();
+            if (!already_begun_frame) {
+                backend_->end_frame();
+            }
         } else {
+            PLOTIX_LOG_DEBUG("resize", "begin_frame failed or should_render=false");
 #ifdef PLOTIX_USE_IMGUI
-            // If render was skipped, we still need to end the ImGui frame properly
+            // If render failed, we still need to end the ImGui frame properly
             if (imgui_frame_started) {
                 ImGui::EndFrame();
             }
 #endif
-            // begin_frame() returned false — swapchain may be stale.
-            // The swapchain_dirty flag and framebuffer_resized flag will trigger
-            // recreation at the top of the next loop iteration.
+#ifdef PLOTIX_USE_GLFW
+            if (glfw) {
+                // Swapchain is out of date — recreate with current framebuffer size
+                uint32_t fb_width, fb_height;
+                glfw->framebuffer_size(fb_width, fb_height);
+                PLOTIX_LOG_INFO("resize", "begin_frame failed, recreating from fallback: " + std::to_string(fb_width) + "x" + std::to_string(fb_height));
+                if (fb_width > 0 && fb_height > 0) {
+                    auto fallback_start = std::chrono::high_resolution_clock::now();
+                    backend_->recreate_swapchain(fb_width, fb_height);
+                    auto fallback_end = std::chrono::high_resolution_clock::now();
+                    auto fallback_duration = std::chrono::duration_cast<std::chrono::milliseconds>(fallback_end - fallback_start);
+                    PLOTIX_LOG_INFO("resize", "Fallback swapchain recreation completed in " + std::to_string(fallback_duration.count()) + "ms");
+                    // Sync figure dimensions from actual swapchain extent
+                    fig.config_.width = backend_->swapchain_width();
+                    fig.config_.height = backend_->swapchain_height();
+                    PLOTIX_LOG_INFO("resize", "Fallback recreation complete, actual extent: " + std::to_string(fig.config_.width) + "x" + std::to_string(fig.config_.height));
+#ifdef PLOTIX_USE_IMGUI
+                    if (imgui_ui) {
+                        imgui_ui->on_swapchain_recreated(
+                            *static_cast<VulkanBackend*>(backend_.get()));
+                    }
+#endif
+                    fig.compute_layout();
+                    // Clear resize flags to prevent redundant double recreation
+                    needs_resize = false;
+                    resize_frame_counter = 0;
+                    is_resizing = false;
+                }
+            }
+#endif
         }
 
 #ifdef PLOTIX_USE_FFMPEG
@@ -349,18 +510,25 @@ bool imgui_frame_started = false;
 
         // Headless without animation: render one frame and stop
         if (config_.headless && !has_animation) {
+            PLOTIX_LOG_INFO("main_loop", "Headless single frame mode, exiting loop");
             running = false;
         }
 
 #ifdef PLOTIX_USE_GLFW
         if (glfw) {
+            PLOTIX_LOG_TRACE("main_loop", "Polling GLFW events");
             glfw->poll_events();
             if (glfw->should_close()) {
+                PLOTIX_LOG_INFO("main_loop", "GLFW window should close, exiting loop");
                 running = false;
             }
         }
 #endif
+        
+        PLOTIX_LOG_TRACE("main_loop", "Frame iteration completed");
     }
+    
+    PLOTIX_LOG_INFO("main_loop", "Exited main render loop");
 
 #ifdef PLOTIX_USE_FFMPEG
     // Finalize video recording

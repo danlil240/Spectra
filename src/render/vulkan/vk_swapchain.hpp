@@ -38,9 +38,10 @@ SwapchainContext create_swapchain(VkDevice device,
                                   uint32_t width, uint32_t height,
                                   uint32_t graphics_family,
                                   uint32_t present_family,
-                                  VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
+                                  VkSwapchainKHR old_swapchain = VK_NULL_HANDLE,
+                                  VkRenderPass reuse_render_pass = VK_NULL_HANDLE);
 
-void destroy_swapchain(VkDevice device, SwapchainContext& ctx);
+void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_pass = false);
 
 // Offscreen framebuffer for headless rendering
 struct OffscreenContext {

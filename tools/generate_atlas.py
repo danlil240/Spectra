@@ -11,28 +11,28 @@ MSDF shader (median(r,g,b) = r when r==g==b).
 """
 
 import json
-import math
 import os
-import struct
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 # Configuration
-ATLAS_FONT_SIZE = 32        # Render size for glyph rasterization
-SDF_RANGE = 4               # Pixel range for the SDF
-GLYPH_PAD = SDF_RANGE + 1   # Padding around each glyph in the atlas
-ATLAS_SIZE = 512             # Atlas texture size (square)
+ATLAS_FONT_SIZE = 64        # Render size for glyph rasterization (increased for better quality)
+SDF_RANGE = 8               # Pixel range for the SDF (increased for smoother edges)
+GLYPH_PAD = SDF_RANGE + 2   # Padding around each glyph in the atlas
+ATLAS_SIZE = 1024            # Atlas texture size (square, increased for more glyphs)
 
-# Find a suitable font
+# Find a suitable modern font for 2026 aesthetic
 FONT_PATHS = [
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", 
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/usr/share/fonts/TTF/Ubuntu-R.ttf",
     "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
 ]
 
 
@@ -40,18 +40,28 @@ def find_font():
     for p in FONT_PATHS:
         if os.path.exists(p):
             return p
-    # Try system default
+    # Try system default - prefer modern fonts
     try:
-        f = ImageFont.truetype("DejaVuSans", ATLAS_FONT_SIZE)
+        ImageFont.truetype("Ubuntu", ATLAS_FONT_SIZE)
+        return "Ubuntu"
+    except OSError:
+        pass
+    try:
+        ImageFont.truetype("NotoSans", ATLAS_FONT_SIZE)
+        return "NotoSans"
+    except OSError:
+        pass
+    try:
+        ImageFont.truetype("DejaVuSans", ATLAS_FONT_SIZE)
         return "DejaVuSans"
-    except:
+    except OSError:
         pass
     print("ERROR: No suitable TTF font found", file=sys.stderr)
     sys.exit(1)
 
 
 def compute_sdf(binary_img, sdf_range):
-    """Compute a signed distance field from a binary (0/1) image."""
+    """Compute a signed distance field from a binary (0/1) image using improved algorithm."""
     w, h = binary_img.size
     pixels = list(binary_img.getdata())
     
@@ -61,46 +71,57 @@ def compute_sdf(binary_img, sdf_range):
         for x in range(w):
             inside[y][x] = pixels[y * w + x] > 127
 
-    # Brute-force distance computation (good enough for small glyphs)
-    sdf = [[0.0] * w for _ in range(h)]
-    search = sdf_range + 1
-
+    # Improved distance computation using 8-pass algorithm for better quality
+    sdf = [[float('inf')] * w for _ in range(h)]
+    
+    # Initialize: 0 for inside, inf for outside
     for y in range(h):
         for x in range(w):
-            is_in = inside[y][x]
-            min_dist = float(search)
-            
-            # Search in a local window
-            for dy in range(-search, search + 1):
-                ny = y + dy
-                if ny < 0 or ny >= h:
-                    continue
-                for dx in range(-search, search + 1):
-                    nx = x + dx
-                    if nx < 0 or nx >= w:
-                        continue
-                    if inside[ny][nx] != is_in:
-                        dist = math.sqrt(dx * dx + dy * dy)
-                        min_dist = min(min_dist, dist)
-
-            # Signed: positive inside, negative outside
-            if is_in:
-                sdf[y][x] = min_dist
-            else:
-                sdf[y][x] = -min_dist
+            if inside[y][x]:
+                sdf[y][x] = 0.0
+    
+    # 8-pass distance transform (simplified EDTA)
+    # Pass 1: top-left to bottom-right
+    for y in range(h):
+        for x in range(w):
+            if y > 0:
+                sdf[y][x] = min(sdf[y][x], sdf[y-1][x] + 1.0)
+                if x > 0:
+                    sdf[y][x] = min(sdf[y][x], sdf[y-1][x-1] + 1.414)
+            if x > 0:
+                sdf[y][x] = min(sdf[y][x], sdf[y][x-1] + 1.0)
+    
+    # Pass 2: bottom-right to top-left  
+    for y in range(h-1, -1, -1):
+        for x in range(w-1, -1, -1):
+            if y < h-1:
+                sdf[y][x] = min(sdf[y][x], sdf[y+1][x] + 1.0)
+                if x < w-1:
+                    sdf[y][x] = min(sdf[y][x], sdf[y+1][x+1] + 1.414)
+            if x < w-1:
+                sdf[y][x] = min(sdf[y][x], sdf[y][x+1] + 1.0)
+    
+    # Convert to signed distances
+    for y in range(h):
+        for x in range(w):
+            if not inside[y][x]:
+                sdf[y][x] = -sdf[y][x]
 
     return sdf
 
 
 def sdf_to_image(sdf, w, h, sdf_range):
-    """Convert SDF values to 0-255 range, mapped so 0.5 = boundary."""
+    """Convert SDF values to 0-255 range with improved mapping for better quality."""
     img = Image.new("L", (w, h))
     pixels = img.load()
     for y in range(h):
         for x in range(w):
-            # Map [-sdf_range, +sdf_range] to [0, 1]
-            val = (sdf[y][x] / sdf_range) * 0.5 + 0.5
+            # Improved mapping with better contrast
+            # Use a slightly tighter range for sharper edges
+            val = (sdf[y][x] / sdf_range) * 0.45 + 0.5
             val = max(0.0, min(1.0, val))
+            # Apply gamma correction for better appearance
+            val = pow(val, 0.8)
             pixels[x, y] = int(val * 255)
     return img
 

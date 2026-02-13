@@ -7,7 +7,7 @@ int main() {
     
     // Create a figure with some sample data
     auto& fig = app.figure();
-    auto& ax = fig.subplot(1, 1, 0);
+    auto& ax = fig.subplot(1, 1, 1);  // 1-based indexing
     
     // Generate sample data
     std::vector<float> x, y;
@@ -30,7 +30,7 @@ int main() {
     ax.ylabel("Amplitude");
     
     // Show the window - try resizing it!
-    fig.show();
+    app.run();
     
     return 0;
 }

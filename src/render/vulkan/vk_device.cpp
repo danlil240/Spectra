@@ -1,4 +1,5 @@
 #include "vk_device.hpp"
+#include "plotix/logger.hpp"
 
 #ifdef PLOTIX_USE_GLFW
 #define GLFW_INCLUDE_VULKAN
@@ -224,7 +225,7 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface)
 
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(best, &props);
-    std::cout << "[Plotix] Using GPU: " << props.deviceName << "\n";
+    Logger::instance().log(LogLevel::Info, "vulkan", "Using GPU: " + std::string(props.deviceName));
 
     return best;
 }

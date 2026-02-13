@@ -1,5 +1,6 @@
 #include "frame_scheduler.hpp"
 
+#include <plotix/logger.hpp>
 #include <thread>
 
 namespace plotix {
@@ -29,6 +30,7 @@ void FrameScheduler::clear_fixed_timestep() {
 }
 
 void FrameScheduler::begin_frame() {
+    PLOTIX_LOG_TRACE("scheduler", "begin_frame called");
     frame_start_ = Clock::now();
 
     if (first_frame_) {
@@ -63,6 +65,7 @@ void FrameScheduler::begin_frame() {
 }
 
 void FrameScheduler::end_frame() {
+    PLOTIX_LOG_TRACE("scheduler", "end_frame called");
     last_frame_end_ = Clock::now();
 
     if (mode_ == Mode::TargetFPS && target_fps_ > 0.0f) {
@@ -81,8 +84,14 @@ void FrameScheduler::end_frame() {
             }
 
             // Spin-wait for the rest (precision)
+            auto spin_start = Clock::now();
             while (Clock::now() - frame_start_ < std::chrono::duration_cast<Clock::duration>(target_frame_time)) {
                 // Busy wait
+                auto spin_duration = Clock::now() - spin_start;
+                if (spin_duration.count() > 0.01) { // Log if spinning for more than 10ms
+                    // This could indicate a problem with timing or high CPU load
+                    break;
+                }
             }
         }
 

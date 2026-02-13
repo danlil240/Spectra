@@ -3,6 +3,9 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include <plotix/fwd.hpp>
+#include <functional>
+#include <vector>
+#include <string>
 
 struct GLFWwindow;
 struct ImFont;
@@ -13,6 +16,13 @@ class VulkanBackend;
 
 class ImGuiIntegration {
 public:
+    struct MenuItem {
+        std::string label;
+        std::function<void()> callback;
+        MenuItem(const std::string& l, std::function<void()> cb = nullptr) 
+            : label(l), callback(cb) {}
+    };
+
     ImGuiIntegration() = default;
     ~ImGuiIntegration();
 
@@ -36,6 +46,8 @@ private:
     void load_fonts();
 
     void draw_icon_bar();
+    void draw_menubar();
+    void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
     void draw_panel(Figure& figure);
     void draw_section_figure(Figure& figure);
     void draw_section_series(Figure& figure);
@@ -54,6 +66,10 @@ private:
     ImFont* font_heading_ = nullptr;  // 13px — section headers (uppercase)
     ImFont* font_icon_    = nullptr;  // 20px — icon bar symbols
     ImFont* font_title_   = nullptr;  // 18px — panel title
+    ImFont* font_menubar_ = nullptr;  // 14px — menubar items
+    
+    // Menubar state
+    float menubar_height_ = 48.0f;
 };
 
 } // namespace plotix

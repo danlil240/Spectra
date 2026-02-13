@@ -61,6 +61,9 @@ public:
     bool swapchain_needs_recreation() const { return swapchain_dirty_; }
     void clear_swapchain_dirty() { swapchain_dirty_ = false; }
 
+    // Returns true if the Vulkan device has been lost (unrecoverable)
+    bool is_device_lost() const { return device_lost_; }
+
     // Vulkan-specific accessors
     VkDevice         device()          const { return ctx_.device; }
     VkPhysicalDevice physical_device() const { return ctx_.physical_device; }
@@ -80,7 +83,6 @@ private:
     void create_sync_objects();
     void create_descriptor_pool();
     VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
-    void recreate_all_pipelines();
 public:
     void ensure_pipelines();
 private:
@@ -91,6 +93,7 @@ private:
     vk::OffscreenContext  offscreen_;
     bool                  headless_       = false;
     bool                  swapchain_dirty_ = false;  // set when present returns OUT_OF_DATE/SUBOPTIMAL
+    bool                  device_lost_     = false;  // set on VK_ERROR_DEVICE_LOST — unrecoverable
 
     VkCommandPool                command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;

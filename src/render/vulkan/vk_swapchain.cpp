@@ -104,7 +104,8 @@ SwapchainContext create_swapchain(VkDevice device,
                                   uint32_t width, uint32_t height,
                                   uint32_t graphics_family,
                                   uint32_t present_family,
-                                  VkSwapchainKHR old_swapchain) {
+                                  VkSwapchainKHR old_swapchain,
+                                  VkRenderPass reuse_render_pass) {
     auto support = query_swapchain_support(physical_device, surface);
     auto format  = choose_surface_format(support.formats);
     auto mode    = choose_present_mode(support.present_modes);
@@ -173,8 +174,13 @@ SwapchainContext create_swapchain(VkDevice device,
         }
     }
 
-    // Create render pass
-    ctx.render_pass = create_render_pass(device, ctx.image_format);
+    // Reuse existing render pass if provided (during resize — format doesn't change,
+    // so the old render pass is compatible). This avoids invalidating all pipelines.
+    if (reuse_render_pass != VK_NULL_HANDLE) {
+        ctx.render_pass = reuse_render_pass;
+    } else {
+        ctx.render_pass = create_render_pass(device, ctx.image_format);
+    }
 
     // Create framebuffers
     ctx.framebuffers.resize(image_count);
@@ -196,12 +202,12 @@ SwapchainContext create_swapchain(VkDevice device,
     return ctx;
 }
 
-void destroy_swapchain(VkDevice device, SwapchainContext& ctx) {
+void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_pass) {
     for (auto fb : ctx.framebuffers)
         vkDestroyFramebuffer(device, fb, nullptr);
     ctx.framebuffers.clear();
 
-    if (ctx.render_pass != VK_NULL_HANDLE)
+    if (!skip_render_pass && ctx.render_pass != VK_NULL_HANDLE)
         vkDestroyRenderPass(device, ctx.render_pass, nullptr);
     ctx.render_pass = VK_NULL_HANDLE;
 

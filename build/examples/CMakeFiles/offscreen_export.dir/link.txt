@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/offscreen_export.dir/offscreen_export.cpp.o -o offscreen_export  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

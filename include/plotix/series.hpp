@@ -38,6 +38,8 @@ public:
 
     bool is_dirty() const    { return dirty_; }
     void clear_dirty()       { dirty_ = false; }
+    void mark_dirty()        { dirty_ = true; }
+    void set_color(const Color& c) { color_ = c; dirty_ = true; }
 
     virtual void record_commands(Renderer& renderer) = 0;
 

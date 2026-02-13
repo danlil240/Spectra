@@ -37,9 +37,10 @@ VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& 
 }
 
 VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes) {
-    for (auto mode : modes) {
-        if (mode == VK_PRESENT_MODE_MAILBOX_KHR) return mode;
-    }
+    // Use FIFO (VSync) for stability. MAILBOX can cause excessive frame queuing
+    // during rapid drag-resize, contributing to GPU hangs and display stalls.
+    // FIFO is the only mode guaranteed by the Vulkan spec.
+    (void)modes;
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 

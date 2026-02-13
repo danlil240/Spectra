@@ -12,10 +12,23 @@
 
 #ifdef PLOTIX_USE_GLFW
 #include "glfw_adapter.hpp"
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#endif
+
+#ifdef PLOTIX_USE_IMGUI
+#include "imgui_integration.hpp"
+#include <imgui.h>
 #endif
 
 #include <iostream>
 #include <memory>
+
+#ifndef NDEBUG
+#define PLOTIX_APP_LOG(msg) std::cerr << "[Plotix App] " << msg << "\n"
+#else
+#define PLOTIX_APP_LOG(msg) ((void)0)
+#endif
 
 namespace plotix {
 
@@ -105,12 +118,14 @@ void App::run() {
     }
 #endif
 
+#ifdef PLOTIX_USE_IMGUI
+    std::unique_ptr<ImGuiIntegration> imgui_ui;
+#endif
+
 #ifdef PLOTIX_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
     InputHandler input_handler;
-    bool needs_resize = false;
-    uint32_t new_width = fig.width();
-    uint32_t new_height = fig.height();
+    bool framebuffer_resized = false;
 
     if (!config_.headless) {
         glfw = std::make_unique<GlfwAdapter>();
@@ -132,31 +147,64 @@ void App::run() {
 
             // Set GLFW callbacks for input
             InputCallbacks callbacks;
-            callbacks.on_mouse_move = [&input_handler](double x, double y) {
+            callbacks.on_mouse_move = [&input_handler
+#ifdef PLOTIX_USE_IMGUI
+                , &imgui_ui
+#endif
+            ](double x, double y) {
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+#endif
                 input_handler.on_mouse_move(x, y);
             };
-            callbacks.on_mouse_button = [&input_handler](int button, int action, double x, double y) {
+            callbacks.on_mouse_button = [&input_handler
+#ifdef PLOTIX_USE_IMGUI
+                , &imgui_ui
+#endif
+            ](int button, int action, double x, double y) {
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+#endif
                 input_handler.on_mouse_button(button, action, x, y);
             };
-            callbacks.on_scroll = [&input_handler, &glfw](double x_offset, double y_offset) {
+            callbacks.on_scroll = [&input_handler, &glfw
+#ifdef PLOTIX_USE_IMGUI
+                , &imgui_ui
+#endif
+            ](double x_offset, double y_offset) {
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui && imgui_ui->wants_capture_mouse()) return;
+#endif
                 double cx = 0.0, cy = 0.0;
                 if (glfw) {
                     glfw->mouse_position(cx, cy);
                 }
                 input_handler.on_scroll(x_offset, y_offset, cx, cy);
             };
-            callbacks.on_key = [&input_handler](int key, int action, int mods) {
+            callbacks.on_key = [&input_handler
+#ifdef PLOTIX_USE_IMGUI
+                , &imgui_ui
+#endif
+            ](int key, int action, int mods) {
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui && imgui_ui->wants_capture_keyboard()) return;
+#endif
                 input_handler.on_key(key, action, mods);
             };
-            callbacks.on_resize = [&needs_resize, &new_width, &new_height](int w, int h) {
-                if (w > 0 && h > 0) {
-                    needs_resize = true;
-                    new_width = static_cast<uint32_t>(w);
-                    new_height = static_cast<uint32_t>(h);
-                }
+            callbacks.on_resize = [&framebuffer_resized](int w, int h) {
+                // Callback only sets the flag — swapchain recreation happens
+                // in the render loop at a safe synchronization point.
+                (void)w; (void)h;
+                framebuffer_resized = true;
             };
             glfw->set_callbacks(callbacks);
         }
+    }
+#endif
+
+#ifdef PLOTIX_USE_IMGUI
+    if (!config_.headless && glfw) {
+        imgui_ui = std::make_unique<ImGuiIntegration>();
     }
 #endif
 
@@ -166,6 +214,14 @@ void App::run() {
 
     // Now that render pass exists, create real Vulkan pipelines from SPIR-V
     static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+
+#ifdef PLOTIX_USE_IMGUI
+    if (imgui_ui && glfw) {
+        auto* vk = static_cast<VulkanBackend*>(backend_.get());
+        auto* glfw_window = static_cast<GLFWwindow*>(glfw->native_window());
+        imgui_ui->init(*vk, glfw_window);
+    }
+#endif
 
     scheduler.reset();
 
@@ -184,28 +240,50 @@ void App::run() {
             fig.anim_on_frame_(frame);
         }
 
-        // Compute layout
+        // Compute layout every frame
         fig.compute_layout();
 
 #ifdef PLOTIX_USE_GLFW
-        // Handle window resize
-        if (needs_resize) {
-            needs_resize = false;
-            
-            // Update figure dimensions
-            fig.config_.width = new_width;
-            fig.config_.height = new_height;
-            
-            // Recreate swapchain with new dimensions
-            backend_->recreate_swapchain(new_width, new_height);
-            
-            // Recompute layout with new dimensions
-            fig.compute_layout();
-            
-            // Update input handler viewport after layout recompute
-            if (!fig.axes().empty() && fig.axes()[0]) {
-                auto& vp = fig.axes()[0]->viewport();
-                input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+        // ── Handle minimized window (0×0 framebuffer) ──
+        if (glfw) {
+            uint32_t fb_w = 0, fb_h = 0;
+            glfw->framebuffer_size(fb_w, fb_h);
+            while (fb_w == 0 || fb_h == 0) {
+                // Window is minimized — pause rendering and wait for events
+                glfwWaitEvents();
+                if (glfw->should_close()) { running = false; break; }
+                glfw->framebuffer_size(fb_w, fb_h);
+            }
+            if (!running) break;
+        }
+
+        // ── Handle resize: recreate swapchain at a safe point ──
+        auto* vk_backend = static_cast<VulkanBackend*>(backend_.get());
+        bool need_swapchain_recreate = framebuffer_resized || vk_backend->swapchain_needs_recreation();
+
+        if (need_swapchain_recreate && glfw) {
+            framebuffer_resized = false;
+            vk_backend->clear_swapchain_dirty();
+
+            uint32_t fb_w = 0, fb_h = 0;
+            glfw->framebuffer_size(fb_w, fb_h);
+
+            if (fb_w > 0 && fb_h > 0) {
+                PLOTIX_APP_LOG("resize: recreating swapchain " + std::to_string(fb_w) + "x" + std::to_string(fb_h));
+                backend_->recreate_swapchain(fb_w, fb_h);
+
+                // Sync figure dimensions from actual swapchain extent
+                fig.config_.width = backend_->swapchain_width();
+                fig.config_.height = backend_->swapchain_height();
+
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui) {
+                    imgui_ui->on_swapchain_recreated(*vk_backend);
+                }
+#endif
+
+                // Recompute layout with new dimensions
+                fig.compute_layout();
             }
         }
 
@@ -216,24 +294,38 @@ void App::run() {
         }
 #endif
 
-        // Render (skip drawing if swapchain is stale, but keep the loop going)
+bool imgui_frame_started = false;
+        
+#ifdef PLOTIX_USE_IMGUI
+        if (imgui_ui) {
+            imgui_ui->new_frame();
+            imgui_ui->build_ui(fig);
+            imgui_frame_started = true;
+        }
+#endif
+
+        // Render frame — begin_frame returns false if swapchain is stale or minimized
         if (backend_->begin_frame()) {
             renderer_->render_figure(fig);
-            backend_->end_frame();
-        } else {
-#ifdef PLOTIX_USE_GLFW
-            if (glfw) {
-                // Swapchain is out of date — recreate with current framebuffer size
-                uint32_t fb_width, fb_height;
-                glfw->framebuffer_size(fb_width, fb_height);
-                if (fb_width > 0 && fb_height > 0) {
-                    fig.config_.width = fb_width;
-                    fig.config_.height = fb_height;
-                    backend_->recreate_swapchain(fb_width, fb_height);
-                    fig.compute_layout();
-                }
+
+#ifdef PLOTIX_USE_IMGUI
+            // Render ImGui overlay (inside the render pass, after plot content)
+            if (imgui_ui && imgui_frame_started) {
+                imgui_ui->render(*static_cast<VulkanBackend*>(backend_.get()));
             }
 #endif
+
+            backend_->end_frame();
+        } else {
+#ifdef PLOTIX_USE_IMGUI
+            // If render was skipped, we still need to end the ImGui frame properly
+            if (imgui_frame_started) {
+                ImGui::EndFrame();
+            }
+#endif
+            // begin_frame() returned false — swapchain may be stale.
+            // The swapchain_dirty flag and framebuffer_resized flag will trigger
+            // recreation at the top of the next loop iteration.
         }
 
 #ifdef PLOTIX_USE_FFMPEG

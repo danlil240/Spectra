@@ -125,6 +125,20 @@ const char* find_char(const char* p, char c) {
     return *p ? p : nullptr;
 }
 
+// Find the matching closing brace for an opening '{' at *p,
+// correctly handling nested braces.
+const char* find_matching_brace(const char* p) {
+    if (!p || *p != '{') return nullptr;
+    int depth = 1;
+    ++p;
+    while (*p && depth > 0) {
+        if (*p == '{') ++depth;
+        else if (*p == '}') --depth;
+        ++p;
+    }
+    return (depth == 0) ? (p - 1) : nullptr;  // points at the matching '}'
+}
+
 } // anonymous namespace
 
 bool FontAtlas::parse_metrics_json(const char* json) {
@@ -170,8 +184,8 @@ bool FontAtlas::parse_metrics_json(const char* json) {
         p = find_char(p, '{');
         if (!p) break;
 
-        // Find the end of this glyph object
-        const char* obj_end = find_char(p, '}');
+        // Find the end of this glyph object (must handle nested braces)
+        const char* obj_end = find_matching_brace(p);
         if (!obj_end) break;
 
         // Extract unicode
@@ -201,7 +215,11 @@ bool FontAtlas::parse_metrics_json(const char* json) {
             float plane_top = pt ? static_cast<float>(parse_number(pt)) : 0.0f;
 
             gm.bearing_x = plane_left;
-            gm.bearing_y = plane_top;
+            // Convert from top-origin to baseline-relative:
+            // plane_top is negative (distance below top of em square)
+            // ascender_ is distance from top to baseline
+            // bearing_y = distance from baseline to glyph top = ascender_ + plane_top
+            gm.bearing_y = ascender_ + plane_top;
             gm.width  = (plane_right - plane_left) * atlas_font_size_;
             gm.height = (plane_top - plane_bottom) * atlas_font_size_;
         }

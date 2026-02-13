@@ -49,6 +49,7 @@ add_plotix_test(unit test_tick_generation)
 add_plotix_test(unit test_series_visibility)
 add_plotix_test(unit test_font_atlas)
 add_plotix_test(unit test_svg_export)
+add_plotix_test(unit test_resize_layout)
 
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(PLOTIX_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)

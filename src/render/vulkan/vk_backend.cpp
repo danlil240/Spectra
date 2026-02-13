@@ -7,9 +7,16 @@
 #include <GLFW/glfw3.h>
 #endif
 
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+
+#ifndef NDEBUG
+#define PLOTIX_RESIZE_LOG(fmt, ...) std::cerr << "[Plotix Resize] " << fmt << "\n"
+#else
+#define PLOTIX_RESIZE_LOG(fmt, ...) ((void)0)
+#endif
 
 namespace plotix {
 
@@ -210,12 +217,13 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
 }
 
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
-    // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
-    if (!in_flight_fences_.empty()) {
-        vkWaitForFences(ctx_.device,
-                        static_cast<uint32_t>(in_flight_fences_.size()),
-                        in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
-    }
+    PLOTIX_RESIZE_LOG("recreate_swapchain START " + std::to_string(width) + "x" + std::to_string(height));
+
+    // Must wait for ALL GPU work to finish before destroying swapchain resources.
+    // Using vkDeviceWaitIdle is the safest approach — prevents GPU hangs from
+    // destroying framebuffers/render pass that are still referenced by in-flight
+    // command buffers or the presentation engine.
+    vkDeviceWaitIdle(ctx_.device);
 
     auto old_swapchain = swapchain_.swapchain;
     auto old_context = swapchain_;  // Copy the entire context
@@ -228,9 +236,39 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
             old_swapchain
         );
-        // Destroy the old swapchain context after the new one is created successfully
+
+        // Destroy old swapchain resources (framebuffers, render pass, image views, swapchain)
+        // AFTER new swapchain is created successfully.
         vk::destroy_swapchain(ctx_.device, old_context);
+
+        // Reallocate command buffers for the new swapchain
         create_command_buffers();
+
+        // CRITICAL: Pipelines reference the old VkRenderPass which was just destroyed.
+        // The new swapchain has a new render pass — we must recreate all pipelines.
+        recreate_all_pipelines();
+
+        // Reset flight frame index to avoid indexing into stale state
+        current_flight_frame_ = 0;
+
+        // Reset all fences to signaled state so begin_frame() doesn't deadlock
+        for (auto fence : in_flight_fences_) {
+            vkResetFences(ctx_.device, 1, &fence);
+            // Re-signal by waiting (they were reset above) — actually just recreate as signaled
+        }
+        // Simpler: destroy and recreate sync objects to guarantee clean state
+        for (auto sem : image_available_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto sem : render_finished_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto fence : in_flight_fences_)         vkDestroyFence(ctx_.device, fence, nullptr);
+        image_available_semaphores_.clear();
+        render_finished_semaphores_.clear();
+        in_flight_fences_.clear();
+        create_sync_objects();
+
+        swapchain_dirty_ = false;
+
+        PLOTIX_RESIZE_LOG("recreate_swapchain END ok, extent=" +
+            std::to_string(swapchain_.extent.width) + "x" + std::to_string(swapchain_.extent.height));
         return true;
     } catch (const std::exception& e) {
         std::cerr << "[Plotix] Swapchain recreation failed: " << e.what() << "\n";
@@ -333,6 +371,29 @@ void VulkanBackend::ensure_pipelines() {
                 pipeline_layouts_[id] = (it->second == PipelineType::Text)
                     ? text_pipeline_layout_ : pipeline_layout_;
             }
+        }
+    }
+}
+
+void VulkanBackend::recreate_all_pipelines() {
+    VkRenderPass rp = render_pass();
+    if (rp == VK_NULL_HANDLE) return;
+
+    PLOTIX_RESIZE_LOG("recreating all pipelines for new render pass");
+
+    for (auto& [id, pipeline] : pipelines_) {
+        // Destroy old pipeline (already safe — vkDeviceWaitIdle was called)
+        if (pipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(ctx_.device, pipeline, nullptr);
+            pipeline = VK_NULL_HANDLE;
+        }
+
+        // Recreate with new render pass
+        auto type_it = pipeline_types_.find(id);
+        if (type_it != pipeline_types_.end()) {
+            pipeline = create_pipeline_for_type(type_it->second, rp);
+            pipeline_layouts_[id] = (type_it->second == PipelineType::Text)
+                ? text_pipeline_layout_ : pipeline_layout_;
         }
     }
 }
@@ -661,16 +722,60 @@ bool VulkanBackend::begin_frame() {
         return true;
     }
 
-    // Windowed mode
-    vkWaitForFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
+    // Bail out if swapchain extent is 0x0 (window minimized)
+    if (swapchain_.extent.width == 0 || swapchain_.extent.height == 0) {
+        return false;
+    }
+
+    // Bail out if swapchain is known to be stale (present returned OUT_OF_DATE)
+    if (swapchain_dirty_) {
+        return false;
+    }
+
+    // Windowed mode: wait for the in-flight fence with timeout monitoring
+#ifndef NDEBUG
+    auto fence_start = std::chrono::steady_clock::now();
+#endif
+    VkResult fence_result = vkWaitForFences(ctx_.device, 1,
+        &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
+#ifndef NDEBUG
+    auto fence_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - fence_start).count();
+    if (fence_ms > 200) {
+        std::cerr << "[Plotix Resize] WARNING: fence wait took " << fence_ms << "ms (frame "
+                  << current_flight_frame_ << ")\n";
+    }
+#endif
+    if (fence_result != VK_SUCCESS) {
+        std::cerr << "[Plotix] Fence wait failed: " << fence_result << "\n";
+        return false;
+    }
 
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device, swapchain_.swapchain, UINT64_MAX,
         image_available_semaphores_[current_flight_frame_],
         VK_NULL_HANDLE, &current_image_index_);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        return false;  // Caller should recreate swapchain
+#ifndef NDEBUG
+    if (result != VK_SUCCESS) {
+        PLOTIX_RESIZE_LOG("acquire returned " + std::to_string(static_cast<int>(result)));
+    }
+#endif
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // Swapchain is stale — caller must recreate. Do NOT reset fence.
+        swapchain_dirty_ = true;
+        return false;
+    }
+    // SUBOPTIMAL: we can still present, but mark for recreation after this frame
+    if (result == VK_SUBOPTIMAL_KHR) {
+        swapchain_dirty_ = true;
+        // Fall through — the acquired image is still usable
+    }
+
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        std::cerr << "[Plotix] vkAcquireNextImageKHR failed: " << result << "\n";
+        return false;
     }
 
     vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
@@ -724,11 +829,19 @@ void VulkanBackend::end_frame() {
     present.pImageIndices      = &current_image_index_;
 
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
+
+#ifndef NDEBUG
+    if (result != VK_SUCCESS) {
+        PLOTIX_RESIZE_LOG("present returned " + std::to_string(static_cast<int>(result)));
+    }
+#endif
+
     current_flight_frame_ = (current_flight_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        // Caller should recreate swapchain on next frame
-        // We'll handle it in begin_frame()
+        // Signal that swapchain needs recreation. begin_frame() will return false
+        // and the app loop will trigger recreate_swapchain().
+        swapchain_dirty_ = true;
     }
 }
 
@@ -914,6 +1027,13 @@ void VulkanBackend::create_command_pool() {
 }
 
 void VulkanBackend::create_command_buffers() {
+    // Free existing command buffers before allocating new ones (prevents leak on resize)
+    if (!command_buffers_.empty() && command_pool_ != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(ctx_.device, command_pool_,
+                             static_cast<uint32_t>(command_buffers_.size()),
+                             command_buffers_.data());
+    }
+
     uint32_t count = headless_ ? 1 : MAX_FRAMES_IN_FLIGHT;
     command_buffers_.resize(count);
 

@@ -79,6 +79,13 @@ public:
 
     // Access series
     const std::vector<std::unique_ptr<Series>>& series() const { return series_; }
+    std::vector<std::unique_ptr<Series>>& series_mut() { return series_; }
+
+    // Mutable accessors for UI settings
+    void set_grid_enabled(bool e) { grid_enabled_ = e; }
+    void set_border_enabled(bool e) { border_enabled_ = e; }
+    AxisStyle& axis_style() { return axis_style_; }
+    const AxisStyle& axis_style() const { return axis_style_; }
 
     // Viewport rect (set by layout engine)
     void set_viewport(const Rect& r) { viewport_ = r; }
@@ -96,6 +103,7 @@ private:
     bool grid_enabled_   = true;
     bool border_enabled_  = true;
     AutoscaleMode autoscale_mode_ = AutoscaleMode::Padded;
+    AxisStyle axis_style_;
 
     Rect viewport_;
 };

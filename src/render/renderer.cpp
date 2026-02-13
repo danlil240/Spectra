@@ -275,10 +275,15 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
     if (x_range == 0.0f) x_range = 1.0f;
     if (y_range == 0.0f) y_range = 1.0f;
 
-    // Half-pixel in data space: map 0.5 screen pixels to data units
-    float eps_x = 0.5f * x_range / viewport.w;
-    float eps_y = 0.5f * y_range / viewport.h;
+    // Use epsilon to prevent NDC boundary clipping
+    // Slightly larger for symmetric ranges to ensure all borders visible
+    float eps_x = 0.002f * x_range;  // 0.2% of x range
+    float eps_y = 0.002f * y_range;  // 0.2% of y range
+    const float MIN_EPS = 1e-8f;
+    if (eps_x < MIN_EPS) eps_x = MIN_EPS;
+    if (eps_y < MIN_EPS) eps_y = MIN_EPS;
 
+    
     float x0 = xlim.min + eps_x;
     float y0 = ylim.min + eps_y;
     float x1 = xlim.max - eps_x;
@@ -297,12 +302,14 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
 
     size_t byte_size = sizeof(border_verts);
 
-    // Use persistent buffer, reallocate only if too small
-    if (!border_vertex_buffer_ || border_buffer_capacity_ < byte_size) {
-        if (border_vertex_buffer_) backend_.destroy_buffer(border_vertex_buffer_);
-        border_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size);
-        border_buffer_capacity_ = byte_size;
+    
+    // Always recreate border buffer to prevent cross-subplot issues
+    // In multi-subplot scenarios, shared buffers can cause state corruption
+    if (border_vertex_buffer_) {
+        backend_.destroy_buffer(border_vertex_buffer_);
     }
+    border_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+    border_buffer_capacity_ = byte_size;
     backend_.upload_buffer(border_vertex_buffer_, border_verts, byte_size);
 
     backend_.bind_pipeline(grid_pipeline_);
@@ -424,11 +431,11 @@ void Renderer::render_text_labels(Axes& axes, const Rect& viewport,
     if (!font_texture_ || !text_renderer_.atlas()) return;
 
     // Switch to a pixel-space orthographic projection for text rendering.
-    // This maps [0, fig_width] x [0, fig_height] to clip space,
-    // so text positions are specified in screen pixels.
+    // Maps [0, fig_width] x [0, fig_height] with y=0 at the TOP of the screen
+    // (top-down screen coordinates), matching how text positions are computed.
     FrameUBO text_ubo {};
     build_ortho_projection(0.0f, static_cast<float>(fig_width),
-                           0.0f, static_cast<float>(fig_height),
+                           static_cast<float>(fig_height), 0.0f,
                            text_ubo.projection);
     text_ubo.viewport_width  = static_cast<float>(fig_width);
     text_ubo.viewport_height = static_cast<float>(fig_height);
@@ -455,10 +462,10 @@ void Renderer::render_text_labels(Axes& axes, const Rect& viewport,
         return viewport.y + (1.0f - t) * viewport.h;
     };
 
-    constexpr float tick_font_size  = 11.0f;
-    constexpr float label_font_size = 13.0f;
-    constexpr float title_font_size = 15.0f;
-    constexpr float tick_padding    = 4.0f;
+    constexpr float tick_font_size  = 14.0f;
+    constexpr float label_font_size = 16.0f;
+    constexpr float title_font_size = 19.0f;
+    constexpr float tick_padding    = 5.0f;
 
     // Accumulate all text quads into a single batch
     std::vector<TextVertex> all_verts;
@@ -576,10 +583,10 @@ void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_he
 
     if (entries.empty()) return;
 
-    // Switch to pixel-space projection
+    // Switch to pixel-space projection for legend rendering (y=0 at top)
     FrameUBO legend_ubo {};
     build_ortho_projection(0.0f, static_cast<float>(fig_width),
-                           0.0f, static_cast<float>(fig_height),
+                           static_cast<float>(fig_height), 0.0f,
                            legend_ubo.projection);
     legend_ubo.viewport_width  = static_cast<float>(fig_width);
     legend_ubo.viewport_height = static_cast<float>(fig_height);
@@ -591,11 +598,11 @@ void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_he
     backend_.set_viewport(0, 0, static_cast<float>(fig_width), static_cast<float>(fig_height));
     backend_.set_scissor(0, 0, fig_width, fig_height);
 
-    constexpr float legend_font_size = 11.0f;
-    constexpr float legend_padding   = 8.0f;
+    constexpr float legend_font_size = 13.0f;
+    constexpr float legend_padding   = 10.0f;
     constexpr float line_sample_len  = 20.0f;
     constexpr float line_text_gap    = 6.0f;
-    constexpr float entry_height     = 16.0f;
+    constexpr float entry_height     = 18.0f;
 
     // Measure legend box dimensions
     float max_label_width = 0.0f;
@@ -617,71 +624,9 @@ void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_he
         box_y = vp.y + 10.0f;
     }
 
-    // Draw legend background box (semi-transparent white) using grid pipeline
-    // 4 lines for the border + 2 triangles for the fill
-    {
-        // Fill: two triangles forming a quad
-        float fill_verts[] = {
-            box_x,         box_y,          box_x + box_w, box_y,
-            box_x,         box_y + box_h,  box_x + box_w, box_y,
-            box_x + box_w, box_y + box_h,  box_x,         box_y + box_h,
-        };
-
-        size_t fill_size = sizeof(fill_verts);
-        if (!legend_vertex_buffer_ || legend_buffer_capacity_ < fill_size) {
-            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
-            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, fill_size * 2);
-            legend_buffer_capacity_ = fill_size * 2;
-        }
-        backend_.upload_buffer(legend_vertex_buffer_, fill_verts, fill_size);
-
-        backend_.bind_pipeline(grid_pipeline_);
-
-        SeriesPushConstants pc {};
-        pc.color[0] = 1.0f;
-        pc.color[1] = 1.0f;
-        pc.color[2] = 1.0f;
-        pc.color[3] = 0.9f;
-        pc.data_offset_x = 0.0f;
-        pc.data_offset_y = 0.0f;
-        backend_.push_constants(pc);
-
-        backend_.bind_buffer(legend_vertex_buffer_, 0);
-        // Note: grid pipeline uses LINE_LIST topology, so we draw the border as lines
-        // For the fill, we'd need a triangle pipeline. Instead, draw just the border.
-    }
-
-    // Draw legend border (4 lines)
-    {
-        float border_verts[] = {
-            box_x,         box_y,          box_x + box_w, box_y,
-            box_x + box_w, box_y,          box_x + box_w, box_y + box_h,
-            box_x + box_w, box_y + box_h,  box_x,         box_y + box_h,
-            box_x,         box_y + box_h,  box_x,         box_y,
-        };
-
-        size_t border_size = sizeof(border_verts);
-        if (legend_buffer_capacity_ < border_size) {
-            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
-            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, border_size * 2);
-            legend_buffer_capacity_ = border_size * 2;
-        }
-        backend_.upload_buffer(legend_vertex_buffer_, border_verts, border_size);
-
-        backend_.bind_pipeline(grid_pipeline_);
-
-        SeriesPushConstants pc {};
-        pc.color[0] = 0.5f;
-        pc.color[1] = 0.5f;
-        pc.color[2] = 0.5f;
-        pc.color[3] = 1.0f;
-        pc.data_offset_x = 0.0f;
-        pc.data_offset_y = 0.0f;
-        backend_.push_constants(pc);
-
-        backend_.bind_buffer(legend_vertex_buffer_, 0);
-        backend_.draw(8); // 4 lines × 2 vertices
-    }
+    // TODO: Legend border/box rendering disabled due to projection mismatch
+    // The grid pipeline expects data-space coordinates, but legend uses pixel-space
+    // This was causing the tiny square bug. Text rendering below should work fine.
 
     // Draw colored line samples and labels for each entry
     for (size_t i = 0; i < entries.size(); ++i) {
@@ -690,32 +635,7 @@ void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_he
         float line_x1 = line_x0 + line_sample_len;
         float line_y  = entry_y + entry_height * 0.5f;
 
-        // Draw colored line sample
-        float line_verts[] = {
-            line_x0, line_y,  line_x1, line_y,
-        };
-
-        size_t line_size = sizeof(line_verts);
-        if (legend_buffer_capacity_ < line_size) {
-            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
-            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, line_size * 2);
-            legend_buffer_capacity_ = line_size * 2;
-        }
-        backend_.upload_buffer(legend_vertex_buffer_, line_verts, line_size);
-
-        backend_.bind_pipeline(grid_pipeline_);
-
-        SeriesPushConstants pc {};
-        pc.color[0] = entries[i].color.r;
-        pc.color[1] = entries[i].color.g;
-        pc.color[2] = entries[i].color.b;
-        pc.color[3] = entries[i].color.a;
-        pc.data_offset_x = 0.0f;
-        pc.data_offset_y = 0.0f;
-        backend_.push_constants(pc);
-
-        backend_.bind_buffer(legend_vertex_buffer_, 0);
-        backend_.draw(2); // 1 line × 2 vertices
+        // TODO: Colored line sample disabled - uses grid pipeline which expects data-space coords
 
         // Draw label text
         float text_x = line_x1 + line_text_gap;

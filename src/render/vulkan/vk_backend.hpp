@@ -57,11 +57,22 @@ public:
     uint32_t swapchain_width() const override;
     uint32_t swapchain_height() const override;
 
+    // Returns true if swapchain needs recreation (set by present OUT_OF_DATE)
+    bool swapchain_needs_recreation() const { return swapchain_dirty_; }
+    void clear_swapchain_dirty() { swapchain_dirty_ = false; }
+
     // Vulkan-specific accessors
     VkDevice         device()          const { return ctx_.device; }
     VkPhysicalDevice physical_device() const { return ctx_.physical_device; }
+    VkInstance       instance()        const { return ctx_.instance; }
+    VkQueue          graphics_queue()  const { return ctx_.graphics_queue; }
+    uint32_t         graphics_queue_family() const { return ctx_.queue_families.graphics.value_or(0); }
     VkRenderPass     render_pass()     const;
     VkCommandPool    command_pool()    const { return command_pool_; }
+    VkDescriptorPool descriptor_pool() const { return descriptor_pool_; }
+    uint32_t         image_count()     const { return headless_ ? 1 : static_cast<uint32_t>(swapchain_.images.size()); }
+    uint32_t         min_image_count() const { return headless_ ? 1 : 2; }
+    VkCommandBuffer  current_command_buffer() const { return current_cmd_; }
 
 private:
     void create_command_pool();
@@ -69,6 +80,7 @@ private:
     void create_sync_objects();
     void create_descriptor_pool();
     VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
+    void recreate_all_pipelines();
 public:
     void ensure_pipelines();
 private:
@@ -77,7 +89,8 @@ private:
     VkSurfaceKHR          surface_    = VK_NULL_HANDLE;
     vk::SwapchainContext  swapchain_;
     vk::OffscreenContext  offscreen_;
-    bool                  headless_   = false;
+    bool                  headless_       = false;
+    bool                  swapchain_dirty_ = false;  // set when present returns OUT_OF_DATE/SUBOPTIMAL
 
     VkCommandPool                command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;

@@ -79,6 +79,12 @@ public:
     uint32_t height() const { return config_.height; }
 
     const std::vector<std::unique_ptr<Axes>>& axes() const { return axes_; }
+    std::vector<std::unique_ptr<Axes>>& axes_mut() { return axes_; }
+
+    FigureStyle& style() { return style_; }
+    const FigureStyle& style() const { return style_; }
+    LegendConfig& legend() { return legend_; }
+    const LegendConfig& legend() const { return legend_; }
 
     // Layout: called by renderer before drawing
     void compute_layout();
@@ -92,6 +98,8 @@ private:
     friend class App;
 
     FigureConfig config_;
+    FigureStyle style_;
+    LegendConfig legend_;
     std::vector<std::unique_ptr<Axes>> axes_;
     int grid_rows_ = 1;
     int grid_cols_ = 1;

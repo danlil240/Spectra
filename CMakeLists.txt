@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Feature flags
 option(PLOTIX_USE_GLFW    "Enable GLFW windowing adapter"       ON)
+option(PLOTIX_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
 option(PLOTIX_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
 option(PLOTIX_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
 option(PLOTIX_BUILD_EXAMPLES "Build example programs"            ON)
@@ -86,6 +87,33 @@ if(PLOTIX_USE_GLFW)
     target_sources(plotix PRIVATE src/ui/glfw_adapter.cpp)
     target_link_libraries(plotix PUBLIC glfw)
     target_compile_definitions(plotix PUBLIC PLOTIX_USE_GLFW)
+endif()
+
+# Dear ImGui (optional — requires GLFW)
+if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
+    include(FetchContent)
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG        v1.91.8
+    )
+    FetchContent_MakeAvailable(imgui)
+
+    target_sources(plotix PRIVATE
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_demo.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+        src/ui/imgui_integration.cpp
+    )
+    target_include_directories(plotix PRIVATE
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+    )
+    target_compile_definitions(plotix PUBLIC PLOTIX_USE_IMGUI)
 endif()
 
 # Eigen adapter (optional)

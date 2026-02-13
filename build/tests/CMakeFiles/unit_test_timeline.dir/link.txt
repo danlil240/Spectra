@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/unit_test_timeline.dir/unit/test_timeline.cpp.o -o unit_test_timeline  ../libplotix.a ../lib/libgtest_main.a /usr/lib/x86_64-linux-gnu/libvulkan.so ../lib/libgtest.a 

@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/unit_test_ring_buffer.dir/unit/test_ring_buffer.cpp.o -o unit_test_ring_buffer  ../libplotix.a ../lib/libgtest_main.a /usr/lib/x86_64-linux-gnu/libvulkan.so ../lib/libgtest.a 

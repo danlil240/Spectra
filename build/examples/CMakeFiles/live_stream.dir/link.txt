@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/live_stream.dir/live_stream.cpp.o -o live_stream  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

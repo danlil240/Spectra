@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/video_record.dir/video_record.cpp.o -o video_record  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/unit_test_transform.dir/unit/test_transform.cpp.o -o unit_test_transform  ../libplotix.a ../lib/libgtest_main.a /usr/lib/x86_64-linux-gnu/libvulkan.so ../lib/libgtest.a 

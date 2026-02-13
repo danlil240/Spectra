@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/basic_line.dir/basic_line.cpp.o -o basic_line  ../libplotix.a /usr/lib/x86_64-linux-gnu/libvulkan.so 

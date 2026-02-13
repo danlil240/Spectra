@@ -1,0 +1,184 @@
+#include <plotix/axes.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace plotix {
+
+// --- Series creation ---
+
+LineSeries& Axes::line(std::span<const float> x, std::span<const float> y) {
+    auto s = std::make_unique<LineSeries>(x, y);
+    auto& ref = *s;
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+LineSeries& Axes::line() {
+    auto s = std::make_unique<LineSeries>();
+    auto& ref = *s;
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y) {
+    auto s = std::make_unique<ScatterSeries>(x, y);
+    auto& ref = *s;
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+ScatterSeries& Axes::scatter() {
+    auto s = std::make_unique<ScatterSeries>();
+    auto& ref = *s;
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+// --- Axis configuration ---
+
+void Axes::xlim(float min, float max) {
+    xlim_ = AxisLimits{min, max};
+}
+
+void Axes::ylim(float min, float max) {
+    ylim_ = AxisLimits{min, max};
+}
+
+void Axes::title(const std::string& t) {
+    title_ = t;
+}
+
+void Axes::xlabel(const std::string& lbl) {
+    xlabel_ = lbl;
+}
+
+void Axes::ylabel(const std::string& lbl) {
+    ylabel_ = lbl;
+}
+
+void Axes::grid(bool enabled) {
+    grid_enabled_ = enabled;
+}
+
+// --- Limits ---
+
+// Compute data extent across all series
+static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
+                        float& x_min, float& x_max,
+                        float& y_min, float& y_max) {
+    x_min =  std::numeric_limits<float>::max();
+    x_max = -std::numeric_limits<float>::max();
+    y_min =  std::numeric_limits<float>::max();
+    y_max = -std::numeric_limits<float>::max();
+
+    for (const auto& s : series) {
+        // Try LineSeries
+        if (auto* ls = dynamic_cast<const LineSeries*>(s.get())) {
+            for (auto v : ls->x_data()) { x_min = std::min(x_min, v); x_max = std::max(x_max, v); }
+            for (auto v : ls->y_data()) { y_min = std::min(y_min, v); y_max = std::max(y_max, v); }
+        }
+        // Try ScatterSeries
+        if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get())) {
+            for (auto v : ss->x_data()) { x_min = std::min(x_min, v); x_max = std::max(x_max, v); }
+            for (auto v : ss->y_data()) { y_min = std::min(y_min, v); y_max = std::max(y_max, v); }
+        }
+    }
+
+    // Fallback if no data
+    if (x_min > x_max) { x_min = 0.0f; x_max = 1.0f; }
+    if (y_min > y_max) { y_min = 0.0f; y_max = 1.0f; }
+
+    // Add 5% padding
+    float x_pad = (x_max - x_min) * 0.05f;
+    float y_pad = (y_max - y_min) * 0.05f;
+    if (x_pad == 0.0f) x_pad = 0.5f;
+    if (y_pad == 0.0f) y_pad = 0.5f;
+    x_min -= x_pad;
+    x_max += x_pad;
+    y_min -= y_pad;
+    y_max += y_pad;
+}
+
+AxisLimits Axes::x_limits() const {
+    if (xlim_.has_value()) return *xlim_;
+    float xmin, xmax, ymin, ymax;
+    data_extent(series_, xmin, xmax, ymin, ymax);
+    return {xmin, xmax};
+}
+
+AxisLimits Axes::y_limits() const {
+    if (ylim_.has_value()) return *ylim_;
+    float xmin, xmax, ymin, ymax;
+    data_extent(series_, xmin, xmax, ymin, ymax);
+    return {ymin, ymax};
+}
+
+void Axes::auto_fit() {
+    xlim_.reset();
+    ylim_.reset();
+}
+
+// --- Tick generation ---
+// Simple "nice numbers" algorithm: pick tick spacing as 1, 2, or 5 × 10^n
+// to produce roughly 5–10 ticks in the given range.
+
+static float nice_ceil(float x, bool round_flag) {
+    float exp_v = std::floor(std::log10(x));
+    float frac  = x / std::pow(10.0f, exp_v);
+    float nice;
+    if (round_flag) {
+        if (frac < 1.5f)      nice = 1.0f;
+        else if (frac < 3.0f) nice = 2.0f;
+        else if (frac < 7.0f) nice = 5.0f;
+        else                   nice = 10.0f;
+    } else {
+        if (frac <= 1.0f)      nice = 1.0f;
+        else if (frac <= 2.0f) nice = 2.0f;
+        else if (frac <= 5.0f) nice = 5.0f;
+        else                    nice = 10.0f;
+    }
+    return nice * std::pow(10.0f, exp_v);
+}
+
+static TickResult generate_ticks(float range_min, float range_max, int target_ticks = 7) {
+    TickResult result;
+
+    float range = range_max - range_min;
+    if (range <= 0.0f) {
+        result.positions.push_back(range_min);
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(range_min));
+        result.labels.emplace_back(buf);
+        return result;
+    }
+
+    float nice_range = nice_ceil(range, false);
+    float spacing    = nice_ceil(nice_range / static_cast<float>(target_ticks - 1), true);
+    float nice_min   = std::floor(range_min / spacing) * spacing;
+    float nice_max   = std::ceil(range_max / spacing) * spacing;
+
+    for (float v = nice_min; v <= nice_max + spacing * 0.5f; v += spacing) {
+        if (v >= range_min - spacing * 0.01f && v <= range_max + spacing * 0.01f) {
+            result.positions.push_back(v);
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(v));
+            result.labels.emplace_back(buf);
+        }
+    }
+
+    return result;
+}
+
+TickResult Axes::compute_x_ticks() const {
+    auto lim = x_limits();
+    return generate_ticks(lim.min, lim.max);
+}
+
+TickResult Axes::compute_y_ticks() const {
+    auto lim = y_limits();
+    return generate_ticks(lim.min, lim.max);
+}
+
+} // namespace plotix

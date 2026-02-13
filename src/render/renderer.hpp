@@ -1,0 +1,61 @@
+#pragma once
+
+#include <plotix/fwd.hpp>
+#include <plotix/series.hpp>
+
+#include "backend.hpp"
+
+#include <cstdint>
+#include <memory>
+#include <unordered_map>
+
+namespace plotix {
+
+class Renderer {
+public:
+    explicit Renderer(Backend& backend);
+    ~Renderer();
+
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+
+    // Initialize pipelines for all series types
+    bool init();
+
+    // Render a complete figure
+    void render_figure(Figure& figure);
+
+    // Update frame UBO (projection, viewport, time)
+    void update_frame_ubo(uint32_t width, uint32_t height, float time);
+
+    // Upload series data to GPU if dirty
+    void upload_series_data(Series& series);
+
+    Backend& backend() { return backend_; }
+
+private:
+    void render_axes(Axes& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
+    void render_grid(Axes& axes, const Rect& viewport);
+    void render_series(Series& series, const Rect& viewport);
+
+    // Build orthographic projection matrix for given axis limits
+    void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
+
+    Backend& backend_;
+
+    PipelineHandle line_pipeline_;
+    PipelineHandle scatter_pipeline_;
+    PipelineHandle grid_pipeline_;
+    PipelineHandle text_pipeline_;
+
+    BufferHandle frame_ubo_buffer_;
+
+    // Per-series GPU buffers (keyed by series pointer address)
+    struct SeriesGpuData {
+        BufferHandle ssbo;
+        size_t       uploaded_count = 0;
+    };
+    std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+};
+
+} // namespace plotix

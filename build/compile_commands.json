@@ -1,0 +1,192 @@
+[
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/core/axes.cpp.o -c /home/daniel/projects/plotix/src/core/axes.cpp",
+  "file": "/home/daniel/projects/plotix/src/core/axes.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/core/figure.cpp.o -c /home/daniel/projects/plotix/src/core/figure.cpp",
+  "file": "/home/daniel/projects/plotix/src/core/figure.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/core/layout.cpp.o -c /home/daniel/projects/plotix/src/core/layout.cpp",
+  "file": "/home/daniel/projects/plotix/src/core/layout.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/core/series.cpp.o -c /home/daniel/projects/plotix/src/core/series.cpp",
+  "file": "/home/daniel/projects/plotix/src/core/series.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/core/transform.cpp.o -c /home/daniel/projects/plotix/src/core/transform.cpp",
+  "file": "/home/daniel/projects/plotix/src/core/transform.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/renderer.cpp.o -c /home/daniel/projects/plotix/src/render/renderer.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/renderer.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/vulkan/vk_backend.cpp.o -c /home/daniel/projects/plotix/src/render/vulkan/vk_backend.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/vulkan/vk_backend.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/vulkan/vk_buffer.cpp.o -c /home/daniel/projects/plotix/src/render/vulkan/vk_buffer.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/vulkan/vk_buffer.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/vulkan/vk_device.cpp.o -c /home/daniel/projects/plotix/src/render/vulkan/vk_device.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/vulkan/vk_device.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/vulkan/vk_pipeline.cpp.o -c /home/daniel/projects/plotix/src/render/vulkan/vk_pipeline.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/vulkan/vk_pipeline.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/render/vulkan/vk_swapchain.cpp.o -c /home/daniel/projects/plotix/src/render/vulkan/vk_swapchain.cpp",
+  "file": "/home/daniel/projects/plotix/src/render/vulkan/vk_swapchain.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/text/embedded_font.cpp.o -c /home/daniel/projects/plotix/src/text/embedded_font.cpp",
+  "file": "/home/daniel/projects/plotix/src/text/embedded_font.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/text/font_atlas.cpp.o -c /home/daniel/projects/plotix/src/text/font_atlas.cpp",
+  "file": "/home/daniel/projects/plotix/src/text/font_atlas.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/text/text_renderer.cpp.o -c /home/daniel/projects/plotix/src/text/text_renderer.cpp",
+  "file": "/home/daniel/projects/plotix/src/text/text_renderer.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/anim/animator.cpp.o -c /home/daniel/projects/plotix/src/anim/animator.cpp",
+  "file": "/home/daniel/projects/plotix/src/anim/animator.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/anim/easing.cpp.o -c /home/daniel/projects/plotix/src/anim/easing.cpp",
+  "file": "/home/daniel/projects/plotix/src/anim/easing.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/anim/frame_scheduler.cpp.o -c /home/daniel/projects/plotix/src/anim/frame_scheduler.cpp",
+  "file": "/home/daniel/projects/plotix/src/anim/frame_scheduler.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/anim/timeline.cpp.o -c /home/daniel/projects/plotix/src/anim/timeline.cpp",
+  "file": "/home/daniel/projects/plotix/src/anim/timeline.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/io/png_export.cpp.o -c /home/daniel/projects/plotix/src/io/png_export.cpp",
+  "file": "/home/daniel/projects/plotix/src/io/png_export.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/io/svg_export.cpp.o -c /home/daniel/projects/plotix/src/io/svg_export.cpp",
+  "file": "/home/daniel/projects/plotix/src/io/svg_export.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/io/video_export.cpp.o -c /home/daniel/projects/plotix/src/io/video_export.cpp",
+  "file": "/home/daniel/projects/plotix/src/io/video_export.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/ui/app.cpp.o -c /home/daniel/projects/plotix/src/ui/app.cpp",
+  "file": "/home/daniel/projects/plotix/src/ui/app.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/third_party/stb -I/home/daniel/projects/plotix/third_party/vma -I/home/daniel/projects/plotix/build/generated -std=c++20 -o CMakeFiles/plotix.dir/src/ui/input.cpp.o -c /home/daniel/projects/plotix/src/ui/input.cpp",
+  "file": "/home/daniel/projects/plotix/src/ui/input.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/basic_line.dir/basic_line.cpp.o -c /home/daniel/projects/plotix/examples/basic_line.cpp",
+  "file": "/home/daniel/projects/plotix/examples/basic_line.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/live_stream.dir/live_stream.cpp.o -c /home/daniel/projects/plotix/examples/live_stream.cpp",
+  "file": "/home/daniel/projects/plotix/examples/live_stream.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/animated_scatter.dir/animated_scatter.cpp.o -c /home/daniel/projects/plotix/examples/animated_scatter.cpp",
+  "file": "/home/daniel/projects/plotix/examples/animated_scatter.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/multi_subplot.dir/multi_subplot.cpp.o -c /home/daniel/projects/plotix/examples/multi_subplot.cpp",
+  "file": "/home/daniel/projects/plotix/examples/multi_subplot.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/offscreen_export.dir/offscreen_export.cpp.o -c /home/daniel/projects/plotix/examples/offscreen_export.cpp",
+  "file": "/home/daniel/projects/plotix/examples/offscreen_export.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/examples",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/include -std=c++20 -o CMakeFiles/video_record.dir/video_record.cpp.o -c /home/daniel/projects/plotix/examples/video_record.cpp",
+  "file": "/home/daniel/projects/plotix/examples/video_record.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/tests",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -std=c++20 -o CMakeFiles/unit_test_transform.dir/unit/test_transform.cpp.o -c /home/daniel/projects/plotix/tests/unit/test_transform.cpp",
+  "file": "/home/daniel/projects/plotix/tests/unit/test_transform.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/tests",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -std=c++20 -o CMakeFiles/unit_test_layout.dir/unit/test_layout.cpp.o -c /home/daniel/projects/plotix/tests/unit/test_layout.cpp",
+  "file": "/home/daniel/projects/plotix/tests/unit/test_layout.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/tests",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -std=c++20 -o CMakeFiles/unit_test_timeline.dir/unit/test_timeline.cpp.o -c /home/daniel/projects/plotix/tests/unit/test_timeline.cpp",
+  "file": "/home/daniel/projects/plotix/tests/unit/test_timeline.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/tests",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -std=c++20 -o CMakeFiles/unit_test_easing.dir/unit/test_easing.cpp.o -c /home/daniel/projects/plotix/tests/unit/test_easing.cpp",
+  "file": "/home/daniel/projects/plotix/tests/unit/test_easing.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/tests",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/src -I/home/daniel/projects/plotix/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -std=c++20 -o CMakeFiles/unit_test_ring_buffer.dir/unit/test_ring_buffer.cpp.o -c /home/daniel/projects/plotix/tests/unit/test_ring_buffer.cpp",
+  "file": "/home/daniel/projects/plotix/tests/unit/test_ring_buffer.cpp"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/include -I/home/daniel/projects/plotix/build/_deps/googletest-src/googlemock -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -std=c++20 -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c /home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "file": "/home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/src/gmock-all.cc"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googlemock -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -std=c++20 -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c /home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "file": "/home/daniel/projects/plotix/build/_deps/googletest-src/googlemock/src/gmock_main.cc"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -I/home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -I/home/daniel/projects/plotix/build/_deps/googletest-src/googletest -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -std=c++20 -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "file": "/home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest-all.cc"
+},
+{
+  "directory": "/home/daniel/projects/plotix/build/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/plotix/build/_deps/googletest-src/googletest -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -std=c++20 -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c /home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "file": "/home/daniel/projects/plotix/build/_deps/googletest-src/googletest/src/gtest_main.cc"
+}
+]

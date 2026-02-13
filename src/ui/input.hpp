@@ -12,6 +12,7 @@ class AnimationController;
 class DataInteraction;
 class GestureRecognizer;
 class ShortcutManager;
+class TransitionEngine;
 
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode {
@@ -84,6 +85,11 @@ public:
     // Set the data interaction layer (owned externally)
     void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
+
+    // Set the transition engine (owned externally by App)
+    // When set, preferred over AnimationController for all animations.
+    void set_transition_engine(TransitionEngine* te) { transition_engine_ = te; }
+    TransitionEngine* transition_engine() const { return transition_engine_; }
 
     // Set the shortcut manager (owned externally by App)
     void set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
@@ -170,6 +176,9 @@ private:
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
 
+    // Transition engine (not owned) — preferred over anim_ctrl_ when available
+    TransitionEngine* transition_engine_ = nullptr;
+
     // Shortcut manager (not owned)
     ShortcutManager* shortcut_mgr_ = nullptr;
 
@@ -178,6 +187,9 @@ private:
 
     // Region selection drag state
     bool region_dragging_ = false;
+
+    // Ctrl+drag box zoom state (allows box zoom in Pan mode via modifier)
+    bool ctrl_box_zoom_active_ = false;
 
     // Inertial pan tracking: velocity in screen px/sec at drag release
     double last_move_x_ = 0.0;

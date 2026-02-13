@@ -4,11 +4,8 @@
 #include <plotix/series.hpp>
 
 #include "backend.hpp"
-#include "../text/font_atlas.hpp"
-#include "../text/text_renderer.hpp"
 
 #include <cstdint>
-#include <memory>
 #include <unordered_map>
 
 namespace plotix {
@@ -51,24 +48,11 @@ private:
 
     void render_axis_border(Axes& axes, const Rect& viewport,
                             uint32_t fig_width, uint32_t fig_height);
-    void render_text_labels(Axes& axes, const Rect& viewport,
-                           uint32_t fig_width, uint32_t fig_height);
-    void render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_height);
-
-    // Upload text quads and issue draw call; text_color applied via push constants
-    void draw_text_batch(const std::vector<TextVertex>& verts,
-                         const std::vector<uint32_t>& indices,
-                         const Color& text_color);
-
     Backend& backend_;
-    FontAtlas     font_atlas_;
-    TextRenderer  text_renderer_;
-    TextureHandle font_texture_;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
-    PipelineHandle text_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
     BufferHandle grid_vertex_buffer_;
@@ -76,14 +60,6 @@ private:
 
     BufferHandle border_vertex_buffer_;
     size_t       border_buffer_capacity_ = 0;
-
-    BufferHandle text_vertex_buffer_;
-    size_t       text_buffer_capacity_ = 0;
-    BufferHandle text_index_buffer_;
-    size_t       text_index_capacity_ = 0;
-
-    BufferHandle legend_vertex_buffer_;
-    size_t       legend_buffer_capacity_ = 0;
 
     // Per-series GPU buffers (keyed by series pointer address)
     struct SeriesGpuData {

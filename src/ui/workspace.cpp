@@ -4,6 +4,7 @@
 #include <plotix/axes.hpp>
 #include <plotix/series.hpp>
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -57,6 +58,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
         os << "      \"height\": " << fig.height << ",\n";
         os << "      \"grid_rows\": " << fig.grid_rows << ",\n";
         os << "      \"grid_cols\": " << fig.grid_cols << ",\n";
+        os << "      \"is_modified\": " << (fig.is_modified ? "true" : "false") << ",\n";
+        os << "      \"custom_tab_title\": \"" << escape_json(fig.custom_tab_title) << "\",\n";
 
         // Axes
         os << "      \"axes\": [\n";
@@ -92,7 +95,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
             os << "          \"line_width\": " << s.line_width << ",\n";
             os << "          \"marker_size\": " << s.marker_size << ",\n";
             os << "          \"visible\": " << (s.visible ? "true" : "false") << ",\n";
-            os << "          \"point_count\": " << s.point_count << "\n";
+            os << "          \"point_count\": " << s.point_count << ",\n";
+            os << "          \"opacity\": " << s.opacity << "\n";
             os << "        }";
             if (si + 1 < fig.series.size()) os << ",";
             os << "\n";
@@ -103,7 +107,30 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
         if (fi + 1 < data.figures.size()) os << ",";
         os << "\n";
     }
-    os << "  ]\n";
+    os << "  ],\n";
+
+    // Interaction state
+    os << "  \"interaction\": {\n";
+    os << "    \"crosshair_enabled\": " << (data.interaction.crosshair_enabled ? "true" : "false") << ",\n";
+    os << "    \"tooltip_enabled\": " << (data.interaction.tooltip_enabled ? "true" : "false") << ",\n";
+    os << "    \"markers\": [\n";
+    for (size_t mi = 0; mi < data.interaction.markers.size(); ++mi) {
+        const auto& m = data.interaction.markers[mi];
+        os << "      {\n";
+        os << "        \"data_x\": " << m.data_x << ",\n";
+        os << "        \"data_y\": " << m.data_y << ",\n";
+        os << "        \"series_label\": \"" << escape_json(m.series_label) << "\",\n";
+        os << "        \"point_index\": " << m.point_index << "\n";
+        os << "      }";
+        if (mi + 1 < data.interaction.markers.size()) os << ",";
+        os << "\n";
+    }
+    os << "    ]\n";
+    os << "  },\n";
+
+    // Undo metadata
+    os << "  \"undo_count\": " << data.undo_count << ",\n";
+    os << "  \"redo_count\": " << data.redo_count << "\n";
     os << "}\n";
 
     return os.str();
@@ -232,6 +259,12 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
         fig.grid_rows = static_cast<int>(read_number_value(fig_json, "grid_rows", 1));
         fig.grid_cols = static_cast<int>(read_number_value(fig_json, "grid_cols", 1));
 
+        // v2 fields (graceful defaults for v1 files)
+        if (data.version >= 2) {
+            fig.is_modified = read_bool_value(fig_json, "is_modified", false);
+            fig.custom_tab_title = read_string_value(fig_json, "custom_tab_title");
+        }
+
         // Axes
         auto ax_objects = parse_json_array(fig_json, "axes");
         for (const auto& ax_json : ax_objects) {
@@ -262,10 +295,46 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
             s.visible = read_bool_value(ser_json, "visible", true);
             s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
+            // v2 field
+            s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             fig.series.push_back(std::move(s));
         }
 
         data.figures.push_back(std::move(fig));
+    }
+
+    // v2: Interaction state
+    if (data.version >= 2) {
+        data.interaction.crosshair_enabled = read_bool_value(json, "crosshair_enabled", false);
+        data.interaction.tooltip_enabled = read_bool_value(json, "tooltip_enabled", true);
+
+        // Parse markers array from interaction object
+        auto interaction_pos = json.find("\"interaction\"");
+        if (interaction_pos != std::string::npos) {
+            // Extract the interaction object substring
+            auto brace = json.find('{', interaction_pos);
+            if (brace != std::string::npos) {
+                int depth = 0;
+                size_t end = brace;
+                for (size_t i = brace; i < json.size(); ++i) {
+                    if (json[i] == '{') ++depth;
+                    else if (json[i] == '}') { --depth; if (depth == 0) { end = i; break; } }
+                }
+                std::string interaction_json = json.substr(brace, end - brace + 1);
+                auto marker_objects = parse_json_array(interaction_json, "markers");
+                for (const auto& m_json : marker_objects) {
+                    WorkspaceData::InteractionState::MarkerEntry m;
+                    m.data_x = static_cast<float>(read_number_value(m_json, "data_x", 0));
+                    m.data_y = static_cast<float>(read_number_value(m_json, "data_y", 0));
+                    m.series_label = read_string_value(m_json, "series_label");
+                    m.point_index = static_cast<size_t>(read_number_value(m_json, "point_index", 0));
+                    data.interaction.markers.push_back(std::move(m));
+                }
+            }
+        }
+
+        data.undo_count = static_cast<size_t>(read_number_value(json, "undo_count", 0));
+        data.redo_count = static_cast<size_t>(read_number_value(json, "redo_count", 0));
     }
 
     return true;
@@ -327,6 +396,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
             as.x_max = xlim.max;
             as.y_min = ylim.min;
             as.y_max = ylim.max;
+            as.auto_fit = false;  // If we're capturing, user has explicit limits
             as.grid_visible = ax->grid_enabled();
             as.x_label = ax->get_xlabel();
             as.y_label = ax->get_ylabel();
@@ -368,7 +438,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
 
 bool Workspace::apply(const WorkspaceData& data,
                        std::vector<Figure*>& figures) {
-    // Apply axis limits from workspace data to matching figures
+    // Apply axis limits and grid state from workspace data to matching figures
     for (size_t fi = 0; fi < data.figures.size() && fi < figures.size(); ++fi) {
         const auto& fs = data.figures[fi];
         auto* fig = figures[fi];
@@ -381,6 +451,18 @@ bool Workspace::apply(const WorkspaceData& data,
 
             ax->xlim(as.x_min, as.x_max);
             ax->ylim(as.y_min, as.y_max);
+            ax->set_grid_enabled(as.grid_visible);
+        }
+
+        // Apply series visibility from workspace data
+        size_t si = 0;
+        for (const auto& ax : fig->axes()) {
+            if (!ax) continue;
+            for (auto& s : ax->series_mut()) {
+                if (!s || si >= fs.series.size()) continue;
+                s->visible(fs.series[si].visible);
+                ++si;
+            }
         }
     }
     return true;
@@ -404,6 +486,34 @@ std::string Workspace::autosave_path() {
         return tmp.string();
     } catch (...) {
         return "plotix_autosave.plotix";
+    }
+}
+
+// ─── Autosave ─────────────────────────────────────────────────────────────────
+
+bool Workspace::maybe_autosave(const WorkspaceData& data, float interval_seconds) {
+    static auto last_autosave = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    float elapsed = std::chrono::duration<float>(now - last_autosave).count();
+    if (elapsed < interval_seconds) return false;
+
+    last_autosave = now;
+    return save(autosave_path(), data);
+}
+
+bool Workspace::has_autosave() {
+    try {
+        return std::filesystem::exists(autosave_path());
+    } catch (...) {
+        return false;
+    }
+}
+
+void Workspace::clear_autosave() {
+    try {
+        std::filesystem::remove(autosave_path());
+    } catch (...) {
+        // Ignore errors
     }
 }
 

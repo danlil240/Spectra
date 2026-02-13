@@ -1,6 +1,6 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-14 (Week 6 — Agent C complete)  
+**Last Updated:** 2026-02-14 (Week 7 — Agent F complete)  
 **Current Phase:** Phase 2 — Power User Features  
 **Overall Progress:** Phase 1 complete, Phase 2 in progress
 
@@ -30,7 +30,7 @@
 | Phase | Weeks | Status | Progress |
 |-------|-------|--------|----------|
 | **Phase 1** — Modern Foundation | 1–4 | ✅ Complete | 100% |
-| **Phase 2** — Power User Features | 5–8 | 🔄 In Progress | 15% |
+| **Phase 2** — Power User Features | 5–8 | 🔄 In Progress | 40% |
 | **Phase 3** — Elite Differentiators | 9–12 | ⏳ Not Started | 0% |
 
 ---
@@ -88,7 +88,7 @@
 
 **Phase 1 Test Summary:** All unit tests passing. AnimationController (11), Input (15), Easing (23), GestureRecognizer (10), TransitionEngine (37), Theme (56), CommandRegistry (18), TabBar/UndoManager (26), DataInteraction (11).
 
-**Phase 2 Test Summary (so far):** InspectorStats (28): Percentile (8), DataExtraction (2), FullStats (5), AxesAggregate (4), Sparkline (2), SectionAnimation (4), EdgeCases (3).
+**Phase 2 Test Summary (so far):** InspectorStats (28), UndoProperty (30), WorkspaceV2 (16). Total: 74 new Phase 2 tests.
 
 ---
 
@@ -111,7 +111,7 @@
 - `CommandQueue` (lock-free SPSC) exists
 - Crosshair and DataInteraction already functional from Week 3
 
-### Week 6 — Agent A (Multi-figure tabs) + Agent C (Statistics) ← **CURRENT**
+### Week 6 — Agent A (Multi-figure tabs) + Agent C (Statistics)
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
@@ -123,12 +123,15 @@
 | Axes aggregate statistics section | C | ✅ Done | `src/ui/inspector.hpp/.cpp` |
 | X-axis statistics (min, max, range, mean) | C | ✅ Done | `src/ui/inspector.cpp` |
 
-### Week 7 — Agent F (Undo/Redo) + Agent B (Box Zoom)
+### Week 7 — Agent F (Undo/Redo) + Agent B (Box Zoom) ← **CURRENT**
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
-| Undo/redo system | F | ⏳ Not Started | `src/ui/undo_manager.hpp/.cpp` (NEW) |
-| Workspace save/load | F | ⏳ Not Started | `src/ui/workspace.hpp/.cpp` (NEW) |
+| Undoable property system | F | ✅ Done | `src/ui/undoable_property.hpp` (NEW) |
+| Undo/redo for all property changes | F | ✅ Done | `src/ui/app.cpp` (modified — all commands now undoable) |
+| Workspace v2 format (full state) | F | ✅ Done | `src/ui/workspace.hpp/.cpp` (enhanced) |
+| Workspace autosave/recovery | F | ✅ Done | `src/ui/workspace.hpp/.cpp` |
+| Interaction state save/restore | F | ✅ Done | `src/ui/workspace.hpp/.cpp`, `src/ui/app.cpp` |
 | Box zoom with animated overlay | B | ⏳ Not Started | `src/ui/input.cpp` |
 | Double-click auto-fit polish | B | ⏳ Not Started | `src/ui/input.cpp` |
 
@@ -143,11 +146,11 @@
 
 **Phase 2 Exit Criteria:**
 - [ ] Command palette opens <16ms, fuzzy search instant
-- [ ] Undo/redo works for all property changes
+- [x] Undo/redo works for all property changes
 - [ ] Multi-figure tabs functional (1–20 figures)
 - [ ] Crosshair shared across subplots
 - [ ] Data markers persist through zoom/pan
-- [ ] Workspace save/load restores full state
+- [x] Workspace save/load restores full state
 - [ ] Nearest-point <0.1ms for 100K points
 - [ ] Undo <1ms
 
@@ -233,15 +236,28 @@
 | `src/ui/imgui_integration.cpp` | C | 6 | Added widgets.hpp include, update_section_animations() call in build_ui |
 | `tests/CMakeLists.txt` | C | 6 | Added test_inspector_stats |
 
+### Files Created (Phase 2 — Week 7, Agent F)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|
+| `src/ui/undoable_property.hpp` | F | 7 | ✅ Header-only |
+| `tests/unit/test_undo_property.cpp` | F | 7 | ✅ Yes |
+| `tests/unit/test_workspace_v2.cpp` | F | 7 | ✅ Yes |
+
+### Files Modified (Phase 2 — Week 7, Agent F)
+
+| File | Agent | Week | Changes |
+|------|-------|------|---------|
+| `src/ui/workspace.hpp` | F | 7 | Added InteractionState, FigureState v2 fields, autosave API, FORMAT_VERSION=2 |
+| `src/ui/workspace.cpp` | F | 7 | v2 serialization (interaction, markers, opacity, tab titles), autosave impl, enhanced apply() |
+| `src/ui/app.cpp` | F | 7 | All 15+ commands now undoable, workspace save captures full state, load restores full state |
+| `tests/CMakeLists.txt` | F | 7 | Added test_undo_property, test_workspace_v2 |
+
 ### Files Not Yet Created (Phase 2–3)
 
 | File | Agent | Planned Week |
 |------|-------|-------------|
-| `src/ui/command_palette.hpp` / `.cpp` | F | 5 |
-| `src/ui/undo_manager.hpp` / `.cpp` | F | 7 |
-| `src/ui/workspace.hpp` / `.cpp` | F | 7 |
 | `src/ui/region_select.cpp` | E | 8 |
-| `src/ui/shortcut_manager.cpp` | F | 5 |
 
 ### Test Files
 
@@ -260,6 +276,8 @@
 | `test_layout_manager.cpp` | — | ✅ Pass |
 | `test_inspector.cpp` | — | ✅ Pass |
 | `test_inspector_stats.cpp` | 28 | ✅ Pass |
+| `test_undo_property.cpp` | 30 | ✅ Pass |
+| `test_workspace_v2.cpp` | 16 | ✅ Pass |
 | `test_ui_icons.cpp` | — | ✅ Pass |
 | `bench_ui.cpp` | 14 benchmarks | ✅ Pass |
 

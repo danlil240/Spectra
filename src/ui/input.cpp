@@ -3,6 +3,7 @@
 #include "data_interaction.hpp"
 #include "gesture_recognizer.hpp"
 #include "shortcut_manager.hpp"
+#include "transition_engine.hpp"
 #include <plotix/logger.hpp>
 
 #include <algorithm>
@@ -89,14 +90,29 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
 
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::Pan) {
             // Cancel any running animations on this axes (new input overrides)
-            if (anim_ctrl_) {
+            if (transition_engine_) {
+                transition_engine_->cancel_for_axes(active_axes_);
+            } else if (anim_ctrl_) {
                 anim_ctrl_->cancel_for_axes(active_axes_);
+            }
+
+            // Ctrl+left-click in Pan mode → begin box zoom
+            if (mods_ & MOD_CONTROL) {
+                PLOTIX_LOG_DEBUG("input", "Ctrl+left-click — starting box zoom in Pan mode");
+                mode_ = InteractionMode::Dragging;
+                ctrl_box_zoom_active_ = true;
+                box_zoom_.active = true;
+                box_zoom_.x0 = x;
+                box_zoom_.y0 = y;
+                box_zoom_.x1 = x;
+                box_zoom_.y1 = y;
+                return;
             }
 
             // Double-click detection: auto-fit with animated transition
             if (gesture_) {
                 bool is_double = gesture_->on_click(x, y);
-                if (is_double && anim_ctrl_) {
+                if (is_double && (transition_engine_ || anim_ctrl_)) {
                     PLOTIX_LOG_DEBUG("input", "Double-click detected — animated auto-fit");
                     // Compute auto-fit target limits
                     auto old_xlim = active_axes_->x_limits();
@@ -107,9 +123,15 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
                     // Restore current limits so animation can interpolate
                     active_axes_->xlim(old_xlim.min, old_xlim.max);
                     active_axes_->ylim(old_ylim.min, old_ylim.max);
-                    anim_ctrl_->animate_axis_limits(
-                        *active_axes_, target_x, target_y,
-                        AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    if (transition_engine_) {
+                        transition_engine_->animate_limits(
+                            *active_axes_, target_x, target_y,
+                            AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    } else {
+                        anim_ctrl_->animate_axis_limits(
+                            *active_axes_, target_x, target_y,
+                            AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    }
                     return; // Don't start a pan drag on double-click
                 }
             }
@@ -131,11 +153,20 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
             drag_start_ylim_min_ = ylim.min;
             drag_start_ylim_max_ = ylim.max;
         } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::Pan) {
+            // Check if this was a Ctrl+drag box zoom
+            if (ctrl_box_zoom_active_) {
+                PLOTIX_LOG_DEBUG("input", "Ending Ctrl+drag box zoom");
+                apply_box_zoom();
+                mode_ = InteractionMode::Idle;
+                ctrl_box_zoom_active_ = false;
+                return;
+            }
+
             PLOTIX_LOG_DEBUG("input", "Ending pan drag");
             mode_ = InteractionMode::Idle;
 
             // Compute release velocity for inertial pan
-            if (anim_ctrl_ && active_axes_) {
+            if ((transition_engine_ || anim_ctrl_) && active_axes_) {
                 auto now = Clock::now();
                 float dt_sec = std::chrono::duration<float>(now - last_move_time_).count();
                 float drag_total = std::chrono::duration<float>(now - drag_start_time_).count();
@@ -160,16 +191,23 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
                     if (speed > MIN_INERTIA_VELOCITY) {
                         PLOTIX_LOG_DEBUG("input", "Inertial pan: v=(" +
                             std::to_string(vx_data) + ", " + std::to_string(vy_data) + ")");
-                        anim_ctrl_->animate_inertial_pan(
-                            *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                        if (transition_engine_) {
+                            transition_engine_->animate_inertial_pan(
+                                *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                        } else if (anim_ctrl_) {
+                            anim_ctrl_->animate_inertial_pan(
+                                *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                        }
                     }
                 }
             }
         }
     } else if (button == MOUSE_BUTTON_RIGHT) {
-        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::BoxZoom) {
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::BoxZoom && active_axes_) {
             // Cancel any running animations on this axes
-            if (anim_ctrl_) {
+            if (transition_engine_) {
+                transition_engine_->cancel_for_axes(active_axes_);
+            } else if (anim_ctrl_) {
                 anim_ctrl_->cancel_for_axes(active_axes_);
             }
             // Begin box zoom
@@ -234,6 +272,13 @@ void InputHandler::on_mouse_move(double x, double y) {
     }
 
     if (mode_ == InteractionMode::Dragging) {
+        // Ctrl+drag box zoom in Pan mode: update box rect
+        if (ctrl_box_zoom_active_) {
+            box_zoom_.x1 = x;
+            box_zoom_.y1 = y;
+            return;
+        }
+
         if (tool_mode_ == ToolMode::Pan) {
             // Track velocity for inertial pan
             last_move_x_ = x;
@@ -280,7 +325,9 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
     const auto& vp = viewport_for_axes(active_axes_);
 
     // Cancel any running animations — new scroll input takes priority
-    if (anim_ctrl_) {
+    if (transition_engine_) {
+        transition_engine_->cancel_for_axes(active_axes_);
+    } else if (anim_ctrl_) {
         anim_ctrl_->cancel_for_axes(active_axes_);
     }
 
@@ -341,7 +388,7 @@ void InputHandler::on_key(int key, int action, int mods) {
         // Reset view: animated auto-fit all axes in the figure
         if (figure_) {
             for (auto& axes_ptr : figure_->axes()) {
-                if (axes_ptr && anim_ctrl_) {
+                if (axes_ptr && (transition_engine_ || anim_ctrl_)) {
                     auto old_xlim = axes_ptr->x_limits();
                     auto old_ylim = axes_ptr->y_limits();
                     axes_ptr->auto_fit();
@@ -349,15 +396,32 @@ void InputHandler::on_key(int key, int action, int mods) {
                     AxisLimits target_y = axes_ptr->y_limits();
                     axes_ptr->xlim(old_xlim.min, old_xlim.max);
                     axes_ptr->ylim(old_ylim.min, old_ylim.max);
-                    anim_ctrl_->animate_axis_limits(
-                        *axes_ptr, target_x, target_y,
-                        AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    if (transition_engine_) {
+                        transition_engine_->animate_limits(
+                            *axes_ptr, target_x, target_y,
+                            AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    } else {
+                        anim_ctrl_->animate_axis_limits(
+                            *axes_ptr, target_x, target_y,
+                            AUTOFIT_ANIM_DURATION, ease::ease_out);
+                    }
                 } else if (axes_ptr) {
                     axes_ptr->auto_fit();
                 }
             }
         } else if (active_axes_) {
-            if (anim_ctrl_) {
+            if (transition_engine_) {
+                auto old_xlim = active_axes_->x_limits();
+                auto old_ylim = active_axes_->y_limits();
+                active_axes_->auto_fit();
+                AxisLimits target_x = active_axes_->x_limits();
+                AxisLimits target_y = active_axes_->y_limits();
+                active_axes_->xlim(old_xlim.min, old_xlim.max);
+                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                transition_engine_->animate_limits(
+                    *active_axes_, target_x, target_y,
+                    AUTOFIT_ANIM_DURATION, ease::ease_out);
+            } else if (anim_ctrl_) {
                 auto old_xlim = active_axes_->x_limits();
                 auto old_ylim = active_axes_->y_limits();
                 active_axes_->auto_fit();
@@ -404,7 +468,18 @@ void InputHandler::on_key(int key, int action, int mods) {
     if (key == KEY_A && !(mods & MOD_CONTROL)) {
         // Animated auto-fit active axes only
         if (active_axes_) {
-            if (anim_ctrl_) {
+            if (transition_engine_) {
+                auto old_xlim = active_axes_->x_limits();
+                auto old_ylim = active_axes_->y_limits();
+                active_axes_->auto_fit();
+                AxisLimits target_x = active_axes_->x_limits();
+                AxisLimits target_y = active_axes_->y_limits();
+                active_axes_->xlim(old_xlim.min, old_xlim.max);
+                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                transition_engine_->animate_limits(
+                    *active_axes_, target_x, target_y,
+                    AUTOFIT_ANIM_DURATION, ease::ease_out);
+            } else if (anim_ctrl_) {
                 auto old_xlim = active_axes_->x_limits();
                 auto old_ylim = active_axes_->y_limits();
                 active_axes_->auto_fit();
@@ -458,9 +533,13 @@ void InputHandler::apply_box_zoom() {
 
     if (dx_screen > MIN_SELECTION_PIXELS && dy_screen > MIN_SELECTION_PIXELS) {
         // Animated box zoom transition
-        if (anim_ctrl_) {
-            AxisLimits target_x{xmin, xmax};
-            AxisLimits target_y{ymin, ymax};
+        AxisLimits target_x{xmin, xmax};
+        AxisLimits target_y{ymin, ymax};
+        if (transition_engine_) {
+            transition_engine_->animate_limits(
+                *active_axes_, target_x, target_y,
+                ZOOM_ANIM_DURATION, ease::ease_out);
+        } else if (anim_ctrl_) {
             anim_ctrl_->animate_axis_limits(
                 *active_axes_, target_x, target_y,
                 ZOOM_ANIM_DURATION, ease::ease_out);
@@ -474,10 +553,12 @@ void InputHandler::apply_box_zoom() {
 }
 
 void InputHandler::cancel_box_zoom() {
-    if (mode_ == InteractionMode::Dragging && tool_mode_ == ToolMode::BoxZoom) {
+    if (mode_ == InteractionMode::Dragging &&
+        (tool_mode_ == ToolMode::BoxZoom || ctrl_box_zoom_active_)) {
         mode_ = InteractionMode::Idle;
     }
     box_zoom_.active = false;
+    ctrl_box_zoom_active_ = false;
 }
 
 // ─── Viewport ───────────────────────────────────────────────────────────────
@@ -515,6 +596,9 @@ void InputHandler::screen_to_data(double screen_x, double screen_y,
 // ─── Per-frame update ───────────────────────────────────────────────────────
 
 void InputHandler::update(float dt) {
+    if (transition_engine_) {
+        transition_engine_->update(dt);
+    }
     if (anim_ctrl_) {
         anim_ctrl_->update(dt);
     }
@@ -523,6 +607,7 @@ void InputHandler::update(float dt) {
 // ─── Animation query ────────────────────────────────────────────────────────
 
 bool InputHandler::has_active_animations() const {
+    if (transition_engine_ && transition_engine_->has_active_animations()) return true;
     return anim_ctrl_ && anim_ctrl_->has_active_animations();
 }
 

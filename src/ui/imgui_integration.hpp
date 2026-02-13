@@ -17,6 +17,7 @@ struct ImFont;
 
 namespace plotix {
 
+class BoxZoomOverlay;
 class CommandPalette;
 class CommandRegistry;
 class DataInteraction;
@@ -69,6 +70,10 @@ public:
     void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
 
+    // Box zoom overlay (Agent B Week 7, owned externally by App)
+    void set_box_zoom_overlay(BoxZoomOverlay* bzo) { box_zoom_overlay_ = bzo; }
+    BoxZoomOverlay* box_zoom_overlay() const { return box_zoom_overlay_; }
+
     // Command palette & productivity (Agent F, owned externally by App)
     void set_command_palette(CommandPalette* cp) { command_palette_ = cp; }
     void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
@@ -91,6 +96,7 @@ private:
     void draw_floating_toolbar();
     void draw_theme_settings();
     
+    void draw_plot_text(Figure& figure);
     void draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active = false);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
     // Legacy methods (to be removed after full migration)
@@ -132,6 +138,9 @@ private:
 
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
+
+    // Box zoom overlay (Agent B Week 7, not owned)
+    BoxZoomOverlay* box_zoom_overlay_ = nullptr;
 
     // Command palette & productivity (Agent F, not owned)
     CommandPalette* command_palette_ = nullptr;

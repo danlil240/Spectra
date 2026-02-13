@@ -15,9 +15,6 @@ class Backend;
 class GpuBuffer;
 class RingBuffer;
 
-class TextRenderer;
-class FontAtlas;
-
 class Animator;
 class Timeline;
 class AnimationController;
@@ -29,6 +26,7 @@ class FrameScheduler;
 class AnimationBuilder;
 class GestureRecognizer;
 
+class BoxZoomOverlay;
 class CommandRegistry;
 class CommandPalette;
 class ShortcutManager;

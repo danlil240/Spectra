@@ -19,6 +19,7 @@
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
+#include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
 #include "command_registry.hpp"
 #include "data_interaction.hpp"
@@ -29,6 +30,7 @@
 #include "tab_bar.hpp"
 #include "theme.hpp"
 #include "undo_manager.hpp"
+#include "undoable_property.hpp"
 #include "workspace.hpp"
 #include <imgui.h>
 #endif
@@ -177,6 +179,9 @@ void App::run() {
     std::unique_ptr<ImGuiIntegration> imgui_ui;
     std::unique_ptr<DataInteraction> data_interaction;
     std::unique_ptr<TabBar> figure_tabs;
+
+    // Agent B Week 7: Box zoom overlay
+    BoxZoomOverlay box_zoom_overlay;
 
     // Agent A Week 6: FigureManager for multi-figure lifecycle
     FigureManager fig_mgr(figures_);
@@ -371,6 +376,10 @@ void App::run() {
         input_handler.set_data_interaction(data_interaction.get());
         input_handler.set_shortcut_manager(&shortcut_mgr);
 
+        // Wire Agent B Week 7: Box zoom overlay
+        box_zoom_overlay.set_input_handler(&input_handler);
+        imgui_ui->set_box_zoom_overlay(&box_zoom_overlay);
+
         // Wire Agent F: command palette & productivity
         imgui_ui->set_command_palette(&cmd_palette);
         imgui_ui->set_command_registry(&cmd_registry);
@@ -382,6 +391,7 @@ void App::run() {
         // ─── Register 30+ commands ──────────────────────────────────────
         // View commands
         cmd_registry.register_command("view.reset", "Reset View", [&]() {
+            auto before = capture_figure_axes(*active_figure);
             for (auto& ax : active_figure->axes_mut()) {
                 if (ax) {
                     auto old_xlim = ax->x_limits();
@@ -395,70 +405,109 @@ void App::run() {
                         *ax, target_x, target_y, 0.25f, ease::ease_out);
                 }
             }
+            auto after = capture_figure_axes(*active_figure);
+            // Push undo with the target (post-animation) limits
+            undo_mgr.push(UndoAction{
+                "Reset view",
+                [before]() { restore_figure_axes(before); },
+                [after]()  { restore_figure_axes(after); }
+            });
         }, "R", "View", static_cast<uint16_t>(ui::Icon::Home));
 
         cmd_registry.register_command("view.autofit", "Auto-Fit Active Axes", [&]() {
-            if (input_handler.active_axes()) {
-                input_handler.active_axes()->auto_fit();
+            if (auto* ax = input_handler.active_axes()) {
+                auto old_x = ax->x_limits();
+                auto old_y = ax->y_limits();
+                ax->auto_fit();
+                auto new_x = ax->x_limits();
+                auto new_y = ax->y_limits();
+                undo_mgr.push(UndoAction{
+                    "Auto-fit axes",
+                    [ax, old_x, old_y]() { ax->xlim(old_x.min, old_x.max); ax->ylim(old_y.min, old_y.max); },
+                    [ax, new_x, new_y]() { ax->xlim(new_x.min, new_x.max); ax->ylim(new_y.min, new_y.max); }
+                });
             }
         }, "A", "View");
 
         cmd_registry.register_command("view.toggle_grid", "Toggle Grid", [&]() {
-            for (auto& ax : active_figure->axes_mut()) {
-                if (ax) ax->set_grid_enabled(!ax->grid_enabled());
-            }
+            undoable_toggle_grid_all(&undo_mgr, *active_figure);
         }, "G", "View", static_cast<uint16_t>(ui::Icon::Grid));
 
         cmd_registry.register_command("view.toggle_crosshair", "Toggle Crosshair", [&]() {
-            if (data_interaction) data_interaction->toggle_crosshair();
+            if (data_interaction) {
+                bool old_val = data_interaction->crosshair_active();
+                data_interaction->toggle_crosshair();
+                bool new_val = data_interaction->crosshair_active();
+                undo_mgr.push(UndoAction{
+                    new_val ? "Show crosshair" : "Hide crosshair",
+                    [&data_interaction, old_val]() { if (data_interaction) data_interaction->set_crosshair(old_val); },
+                    [&data_interaction, new_val]() { if (data_interaction) data_interaction->set_crosshair(new_val); }
+                });
+            }
         }, "C", "View", static_cast<uint16_t>(ui::Icon::Crosshair));
 
         cmd_registry.register_command("view.toggle_legend", "Toggle Legend", [&]() {
-            auto& leg = active_figure->legend();
-            leg.visible = !leg.visible;
+            undoable_toggle_legend(&undo_mgr, *active_figure);
         }, "L", "View", static_cast<uint16_t>(ui::Icon::Eye));
 
         cmd_registry.register_command("view.toggle_border", "Toggle Border", [&]() {
-            for (auto& ax : active_figure->axes_mut()) {
-                if (ax) ax->set_border_enabled(!ax->border_enabled());
-            }
+            undoable_toggle_border_all(&undo_mgr, *active_figure);
         }, "B", "View");
 
         cmd_registry.register_command("view.fullscreen", "Toggle Fullscreen Canvas", [&]() {
             if (imgui_ui) {
                 auto& lm = imgui_ui->get_layout_manager();
-                bool all_hidden = !lm.is_inspector_visible() && !lm.is_nav_rail_expanded();
-                lm.set_inspector_visible(!all_hidden ? false : true);
-                lm.set_nav_rail_expanded(!all_hidden ? false : true);
+                bool old_inspector = lm.is_inspector_visible();
+                bool old_nav = lm.is_nav_rail_expanded();
+                bool all_hidden = !old_inspector && !old_nav;
+                bool new_inspector = all_hidden;
+                bool new_nav = all_hidden;
+                lm.set_inspector_visible(new_inspector);
+                lm.set_nav_rail_expanded(new_nav);
+                undo_mgr.push(UndoAction{
+                    "Toggle fullscreen",
+                    [&imgui_ui, old_inspector, old_nav]() {
+                        if (imgui_ui) {
+                            imgui_ui->get_layout_manager().set_inspector_visible(old_inspector);
+                            imgui_ui->get_layout_manager().set_nav_rail_expanded(old_nav);
+                        }
+                    },
+                    [&imgui_ui, new_inspector, new_nav]() {
+                        if (imgui_ui) {
+                            imgui_ui->get_layout_manager().set_inspector_visible(new_inspector);
+                            imgui_ui->get_layout_manager().set_nav_rail_expanded(new_nav);
+                        }
+                    }
+                });
             }
         }, "F", "View", static_cast<uint16_t>(ui::Icon::Fullscreen));
 
         cmd_registry.register_command("view.home", "Home (Reset All Views)", [&]() {
-            for (auto& ax : active_figure->axes_mut()) {
-                if (ax) ax->auto_fit();
-            }
+            undoable_reset_view(&undo_mgr, *active_figure);
         }, "Home", "View", static_cast<uint16_t>(ui::Icon::Home));
 
         cmd_registry.register_command("view.zoom_in", "Zoom In", [&]() {
             // Zoom in 25% on active axes
             if (auto* ax = input_handler.active_axes()) {
-                auto xl = ax->x_limits();
-                auto yl = ax->y_limits();
-                float xc = (xl.min + xl.max) * 0.5f, xr = (xl.max - xl.min) * 0.375f;
-                float yc = (yl.min + yl.max) * 0.5f, yr = (yl.max - yl.min) * 0.375f;
-                ax->xlim(xc - xr, xc + xr);
-                ax->ylim(yc - yr, yc + yr);
+                auto old_x = ax->x_limits();
+                auto old_y = ax->y_limits();
+                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.375f;
+                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.375f;
+                AxisLimits new_x{xc - xr, xc + xr};
+                AxisLimits new_y{yc - yr, yc + yr};
+                undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
             }
         }, "", "View", static_cast<uint16_t>(ui::Icon::ZoomIn));
 
         cmd_registry.register_command("view.zoom_out", "Zoom Out", [&]() {
             if (auto* ax = input_handler.active_axes()) {
-                auto xl = ax->x_limits();
-                auto yl = ax->y_limits();
-                float xc = (xl.min + xl.max) * 0.5f, xr = (xl.max - xl.min) * 0.625f;
-                float yc = (yl.min + yl.max) * 0.5f, yr = (yl.max - yl.min) * 0.625f;
-                ax->xlim(xc - xr, xc + xr);
-                ax->ylim(yc - yr, yc + yr);
+                auto old_x = ax->x_limits();
+                auto old_y = ax->y_limits();
+                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.625f;
+                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.625f;
+                AxisLimits new_x{xc - xr, xc + xr};
+                AxisLimits new_y{yc - yr, yc + yr};
+                undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
             }
         }, "", "View");
 
@@ -490,15 +539,70 @@ void App::run() {
                 imgui_ui->get_layout_manager().is_inspector_visible(),
                 imgui_ui->get_layout_manager().inspector_width(),
                 imgui_ui->get_layout_manager().is_nav_rail_expanded());
+            // Capture interaction state
+            if (data_interaction) {
+                data.interaction.crosshair_enabled = data_interaction->crosshair_active();
+                data.interaction.tooltip_enabled = data_interaction->tooltip_active();
+                for (const auto& m : data_interaction->markers()) {
+                    WorkspaceData::InteractionState::MarkerEntry me;
+                    me.data_x = m.data_x;
+                    me.data_y = m.data_y;
+                    me.series_label = m.series ? m.series->label() : "";
+                    me.point_index = m.point_index;
+                    data.interaction.markers.push_back(std::move(me));
+                }
+            }
+            // Capture tab titles from FigureManager
+            for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i) {
+                data.figures[i].custom_tab_title = fig_mgr.get_title(i);
+                data.figures[i].is_modified = fig_mgr.is_modified(i);
+            }
+            // Capture undo metadata
+            data.undo_count = undo_mgr.undo_count();
+            data.redo_count = undo_mgr.redo_count();
             Workspace::save(Workspace::default_path(), data);
         }, "", "File", static_cast<uint16_t>(ui::Icon::Save));
 
         cmd_registry.register_command("file.load_workspace", "Load Workspace", [&]() {
             WorkspaceData data;
             if (Workspace::load(Workspace::default_path(), data)) {
+                // Capture before-state for undo
+                auto before_snap = capture_figure_axes(*active_figure);
                 std::vector<Figure*> figs;
                 for (auto& f : figures_) figs.push_back(f.get());
                 Workspace::apply(data, figs);
+                auto after_snap = capture_figure_axes(*active_figure);
+                undo_mgr.push(UndoAction{
+                    "Load workspace",
+                    [before_snap]() { restore_figure_axes(before_snap); },
+                    [after_snap]()  { restore_figure_axes(after_snap); }
+                });
+                // Restore interaction state
+                if (data_interaction) {
+                    data_interaction->set_crosshair(data.interaction.crosshair_enabled);
+                    data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+                }
+                // Restore tab titles
+                for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i) {
+                    if (!data.figures[i].custom_tab_title.empty()) {
+                        fig_mgr.set_title(i, data.figures[i].custom_tab_title);
+                    }
+                }
+                // Switch to saved active figure
+                if (data.active_figure_index < fig_mgr.count()) {
+                    fig_mgr.queue_switch(data.active_figure_index);
+                }
+                // Restore theme
+                if (!data.theme_name.empty()) {
+                    ui::ThemeManager::instance().set_theme(data.theme_name);
+                    ui::ThemeManager::instance().apply_to_imgui();
+                }
+                // Restore panel state
+                if (imgui_ui) {
+                    auto& lm = imgui_ui->get_layout_manager();
+                    lm.set_inspector_visible(data.panels.inspector_visible);
+                    lm.set_nav_rail_expanded(data.panels.nav_rail_expanded);
+                }
             }
         }, "", "File", static_cast<uint16_t>(ui::Icon::FolderOpen));
 
@@ -558,39 +662,68 @@ void App::run() {
             // Placeholder
         }, "]", "Animation", static_cast<uint16_t>(ui::Icon::StepForward));
 
-        // Theme commands
+        // Theme commands (undoable)
         cmd_registry.register_command("theme.dark", "Switch to Dark Theme", [&]() {
-            ui::ThemeManager::instance().set_theme("dark");
-            ui::ThemeManager::instance().apply_to_imgui();
+            auto& tm = ui::ThemeManager::instance();
+            std::string old_theme = tm.current_theme_name();
+            tm.set_theme("dark");
+            tm.apply_to_imgui();
+            undo_mgr.push(UndoAction{
+                "Switch to dark theme",
+                [old_theme]() { auto& t = ui::ThemeManager::instance(); t.set_theme(old_theme); t.apply_to_imgui(); },
+                []()          { auto& t = ui::ThemeManager::instance(); t.set_theme("dark"); t.apply_to_imgui(); }
+            });
         }, "", "Theme", static_cast<uint16_t>(ui::Icon::Moon));
 
         cmd_registry.register_command("theme.light", "Switch to Light Theme", [&]() {
-            ui::ThemeManager::instance().set_theme("light");
-            ui::ThemeManager::instance().apply_to_imgui();
+            auto& tm = ui::ThemeManager::instance();
+            std::string old_theme = tm.current_theme_name();
+            tm.set_theme("light");
+            tm.apply_to_imgui();
+            undo_mgr.push(UndoAction{
+                "Switch to light theme",
+                [old_theme]() { auto& t = ui::ThemeManager::instance(); t.set_theme(old_theme); t.apply_to_imgui(); },
+                []()          { auto& t = ui::ThemeManager::instance(); t.set_theme("light"); t.apply_to_imgui(); }
+            });
         }, "", "Theme", static_cast<uint16_t>(ui::Icon::Sun));
 
         cmd_registry.register_command("theme.toggle", "Toggle Dark/Light Theme", [&]() {
             auto& tm = ui::ThemeManager::instance();
-            if (tm.current_theme_name() == "dark") {
-                tm.set_theme("light");
-            } else {
-                tm.set_theme("dark");
-            }
+            std::string old_theme = tm.current_theme_name();
+            std::string new_theme = (old_theme == "dark") ? "light" : "dark";
+            tm.set_theme(new_theme);
             tm.apply_to_imgui();
+            undo_mgr.push(UndoAction{
+                "Toggle theme",
+                [old_theme]() { auto& t = ui::ThemeManager::instance(); t.set_theme(old_theme); t.apply_to_imgui(); },
+                [new_theme]() { auto& t = ui::ThemeManager::instance(); t.set_theme(new_theme); t.apply_to_imgui(); }
+            });
         }, "", "Theme", static_cast<uint16_t>(ui::Icon::Contrast));
 
-        // Panel commands
+        // Panel commands (undoable)
         cmd_registry.register_command("panel.toggle_inspector", "Toggle Inspector Panel", [&]() {
             if (imgui_ui) {
                 auto& lm = imgui_ui->get_layout_manager();
-                lm.set_inspector_visible(!lm.is_inspector_visible());
+                bool old_val = lm.is_inspector_visible();
+                lm.set_inspector_visible(!old_val);
+                undo_mgr.push(UndoAction{
+                    old_val ? "Hide inspector" : "Show inspector",
+                    [&imgui_ui, old_val]() { if (imgui_ui) imgui_ui->get_layout_manager().set_inspector_visible(old_val); },
+                    [&imgui_ui, old_val]() { if (imgui_ui) imgui_ui->get_layout_manager().set_inspector_visible(!old_val); }
+                });
             }
         }, "", "Panel");
 
         cmd_registry.register_command("panel.toggle_nav_rail", "Toggle Navigation Rail", [&]() {
             if (imgui_ui) {
                 auto& lm = imgui_ui->get_layout_manager();
-                lm.set_nav_rail_expanded(!lm.is_nav_rail_expanded());
+                bool old_val = lm.is_nav_rail_expanded();
+                lm.set_nav_rail_expanded(!old_val);
+                undo_mgr.push(UndoAction{
+                    old_val ? "Collapse nav rail" : "Expand nav rail",
+                    [&imgui_ui, old_val]() { if (imgui_ui) imgui_ui->get_layout_manager().set_nav_rail_expanded(old_val); },
+                    [&imgui_ui, old_val]() { if (imgui_ui) imgui_ui->get_layout_manager().set_nav_rail_expanded(!old_val); }
+                });
             }
         }, "", "Panel", static_cast<uint16_t>(ui::Icon::Menu));
 

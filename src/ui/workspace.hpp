@@ -13,7 +13,7 @@ class Figure;
 // Format: JSON text file with .plotix extension.
 struct WorkspaceData {
     // File format version for migration support
-    static constexpr uint32_t FORMAT_VERSION = 1;
+    static constexpr uint32_t FORMAT_VERSION = 2;
 
     struct AxisState {
         float x_min = 0.0f, x_max = 1.0f;
@@ -34,6 +34,8 @@ struct WorkspaceData {
         bool visible = true;
         // Data is NOT saved (too large); only metadata
         size_t point_count = 0;
+        // Series-level opacity (for legend interaction fade)
+        float opacity = 1.0f;
     };
 
     struct FigureState {
@@ -42,6 +44,8 @@ struct WorkspaceData {
         uint32_t height = 720;
         int grid_rows = 1;
         int grid_cols = 1;
+        bool is_modified = false;
+        std::string custom_tab_title;  // Tab title from FigureManager
         std::vector<AxisState> axes;
         std::vector<SeriesState> series;
     };
@@ -52,11 +56,29 @@ struct WorkspaceData {
         bool nav_rail_expanded = false;
     };
 
+    struct InteractionState {
+        bool crosshair_enabled = false;
+        bool tooltip_enabled = true;
+        // Persistent data markers (screen-independent, stored in data coords)
+        struct MarkerEntry {
+            float data_x = 0.0f;
+            float data_y = 0.0f;
+            std::string series_label;
+            size_t point_index = 0;
+        };
+        std::vector<MarkerEntry> markers;
+    };
+
     uint32_t version = FORMAT_VERSION;
     std::string theme_name = "dark";
     size_t active_figure_index = 0;
     PanelState panels;
+    InteractionState interaction;
     std::vector<FigureState> figures;
+
+    // Undo history metadata (not the actual actions — just count for UI display)
+    size_t undo_count = 0;
+    size_t redo_count = 0;
 };
 
 // Workspace save/load operations.
@@ -88,6 +110,17 @@ public:
 
     // Auto-save path (for crash recovery).
     static std::string autosave_path();
+
+    // Autosave: save workspace to autosave_path() if enough time has elapsed.
+    // Returns true if an autosave was performed.
+    // interval_seconds: minimum seconds between autosaves (default 60).
+    static bool maybe_autosave(const WorkspaceData& data, float interval_seconds = 60.0f);
+
+    // Check if an autosave file exists (for crash recovery prompt).
+    static bool has_autosave();
+
+    // Delete the autosave file.
+    static void clear_autosave();
 
 private:
     // JSON serialization helpers (minimal, no external dependency)

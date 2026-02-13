@@ -49,7 +49,6 @@ set(PLOTIX_UNIT_TESTS
     test_filters
     test_tick_generation
     test_series_visibility
-    test_font_atlas
     test_ui_icons
     test_svg_export
     test_resize_layout
@@ -70,6 +69,9 @@ set(PLOTIX_UNIT_TESTS
     test_legend_interaction
     test_figure_manager
     test_inspector_stats
+    test_box_zoom_overlay
+    test_undo_property
+    test_workspace_v2
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})

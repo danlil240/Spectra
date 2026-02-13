@@ -22,7 +22,6 @@ enum class PipelineType {
     Line,
     Scatter,
     Grid,
-    Text,
     Heatmap,
 };
 

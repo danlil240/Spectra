@@ -111,7 +111,6 @@ private:
     VkDescriptorSetLayout series_desc_layout_     = VK_NULL_HANDLE;
     VkDescriptorSetLayout texture_desc_layout_    = VK_NULL_HANDLE;
     VkPipelineLayout      pipeline_layout_        = VK_NULL_HANDLE;
-    VkPipelineLayout      text_pipeline_layout_   = VK_NULL_HANDLE;
 
     // Resource tracking
     uint64_t next_buffer_id_   = 1;

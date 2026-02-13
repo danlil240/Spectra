@@ -23,7 +23,6 @@ include(cmake/CompileShaders.cmake)
 # Collect source files
 file(GLOB_RECURSE PLOTIX_CORE_SOURCES   src/core/*.cpp)
 file(GLOB_RECURSE PLOTIX_RENDER_SOURCES src/render/*.cpp)
-file(GLOB_RECURSE PLOTIX_TEXT_SOURCES   src/text/*.cpp)
 file(GLOB_RECURSE PLOTIX_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE PLOTIX_IO_SOURCES     src/io/*.cpp)
 file(GLOB_RECURSE PLOTIX_DATA_SOURCES  src/data/*.cpp)
@@ -50,7 +49,6 @@ endforeach()
 add_library(plotix STATIC
     ${PLOTIX_CORE_SOURCES}
     ${PLOTIX_RENDER_SOURCES}
-    ${PLOTIX_TEXT_SOURCES}
     ${PLOTIX_ANIM_SOURCES}
     ${PLOTIX_IO_SOURCES}
     ${PLOTIX_DATA_SOURCES}
@@ -137,6 +135,7 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         src/ui/data_interaction.cpp
         src/ui/region_select.cpp
         src/ui/legend_interaction.cpp
+        src/ui/box_zoom_overlay.cpp
         src/ui/command_palette.cpp
         src/ui/command_registry.cpp
         src/ui/shortcut_manager.cpp

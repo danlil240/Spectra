@@ -93,9 +93,6 @@ bool VulkanBackend::init(bool headless) {
             }
         }
 
-        // Text pipeline layout: frame UBO (set 0) + texture sampler (set 1)
-        text_pipeline_layout_ = vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, texture_desc_layout_});
-
         return true;
     } catch (const std::exception& e) {
         std::cerr << "[Plotix] Backend init failed: " << e.what() << "\n";
@@ -135,8 +132,6 @@ void VulkanBackend::shutdown() {
     in_flight_fences_.clear();
 
     // Destroy layouts
-    if (text_pipeline_layout_ != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(ctx_.device, text_pipeline_layout_, nullptr);
     if (pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, pipeline_layout_, nullptr);
     if (texture_desc_layout_ != VK_NULL_HANDLE)
@@ -297,7 +292,7 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type) {
     }
 
     pipelines_[h.id] = create_pipeline_for_type(type, rp);
-    pipeline_layouts_[h.id] = (type == PipelineType::Text) ? text_pipeline_layout_ : pipeline_layout_;
+    pipeline_layouts_[h.id] = pipeline_layout_;
     return h;
 }
 
@@ -331,17 +326,6 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
-        case PipelineType::Text:
-            cfg.vert_spirv      = shaders::text_vert;
-            cfg.vert_spirv_size = shaders::text_vert_size;
-            cfg.frag_spirv      = shaders::text_frag;
-            cfg.frag_spirv_size = shaders::text_frag_size;
-            cfg.pipeline_layout = text_pipeline_layout_;
-            // Text uses vec2 position + vec2 UV per vertex
-            cfg.vertex_bindings.push_back({0, sizeof(float) * 4, VK_VERTEX_INPUT_RATE_VERTEX});
-            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
-            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(float) * 2});
-            break;
         case PipelineType::Heatmap:
             return VK_NULL_HANDLE; // Not yet implemented
     }
@@ -363,8 +347,7 @@ void VulkanBackend::ensure_pipelines() {
             auto it = pipeline_types_.find(id);
             if (it != pipeline_types_.end()) {
                 pipeline = create_pipeline_for_type(it->second, rp);
-                pipeline_layouts_[id] = (it->second == PipelineType::Text)
-                    ? text_pipeline_layout_ : pipeline_layout_;
+                pipeline_layouts_[id] = pipeline_layout_;
             }
         }
     }
@@ -887,8 +870,9 @@ void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/) {
 
     auto& tex = it->second;
     if (tex.descriptor_set != VK_NULL_HANDLE) {
+        VkPipelineLayout layout = current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                text_pipeline_layout_, 1, 1, &tex.descriptor_set, 0, nullptr);
+                                layout, 1, 1, &tex.descriptor_set, 0, nullptr);
     }
 }
 

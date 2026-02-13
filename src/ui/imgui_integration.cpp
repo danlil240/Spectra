@@ -1,6 +1,7 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "imgui_integration.hpp"
+#include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
 #include "data_interaction.hpp"
 #include "theme.hpp"
@@ -135,6 +136,7 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     draw_command_bar();
     draw_nav_rail();
     draw_canvas(figure);
+    draw_plot_text(figure);
     if (layout_manager_->is_inspector_visible()) {
         draw_inspector(figure);
     }
@@ -145,6 +147,13 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     if (data_interaction_) {
         ImGuiIO& io = ImGui::GetIO();
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y);
+    }
+
+    // Draw box zoom overlay (Agent B Week 7) — on top of data overlays
+    if (box_zoom_overlay_) {
+        box_zoom_overlay_->update(dt);
+        ImGuiIO& io = ImGui::GetIO();
+        box_zoom_overlay_->draw(io.DisplaySize.x, io.DisplaySize.y);
     }
     
     // Draw theme settings window if open
@@ -890,6 +899,110 @@ void ImGuiIntegration::draw_floating_toolbar() {
     ImGui::End();
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
+}
+
+void ImGuiIntegration::draw_plot_text(Figure& figure) {
+    if (!layout_manager_) return;
+
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    const auto& colors = ui::ThemeManager::instance().colors();
+    ImU32 tick_col = IM_COL32(
+        static_cast<uint8_t>(colors.tick_label.r * 255),
+        static_cast<uint8_t>(colors.tick_label.g * 255),
+        static_cast<uint8_t>(colors.tick_label.b * 255),
+        static_cast<uint8_t>(colors.tick_label.a * 255));
+    ImU32 label_col = IM_COL32(
+        static_cast<uint8_t>(colors.text_primary.r * 255),
+        static_cast<uint8_t>(colors.text_primary.g * 255),
+        static_cast<uint8_t>(colors.text_primary.b * 255),
+        static_cast<uint8_t>(colors.text_primary.a * 255));
+    ImU32 title_col = label_col;
+
+    constexpr float tick_padding = 5.0f;
+
+    for (auto& axes_ptr : figure.axes()) {
+        if (!axes_ptr) continue;
+        auto& axes = *axes_ptr;
+        const auto& vp = axes.viewport();
+        auto xlim = axes.x_limits();
+        auto ylim = axes.y_limits();
+
+        float x_range = xlim.max - xlim.min;
+        float y_range = ylim.max - ylim.min;
+        if (x_range == 0.0f) x_range = 1.0f;
+        if (y_range == 0.0f) y_range = 1.0f;
+
+        auto data_to_px_x = [&](float dx) -> float {
+            return vp.x + (dx - xlim.min) / x_range * vp.w;
+        };
+        auto data_to_px_y = [&](float dy) -> float {
+            return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h;
+        };
+
+        // --- X tick labels ---
+        ImGui::PushFont(font_body_);
+        auto x_ticks = axes.compute_x_ticks();
+        for (size_t i = 0; i < x_ticks.positions.size(); ++i) {
+            float px = data_to_px_x(x_ticks.positions[i]);
+            const char* txt = x_ticks.labels[i].c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            dl->AddText(ImVec2(px - sz.x * 0.5f, vp.y + vp.h + tick_padding), tick_col, txt);
+        }
+
+        // --- Y tick labels ---
+        auto y_ticks = axes.compute_y_ticks();
+        for (size_t i = 0; i < y_ticks.positions.size(); ++i) {
+            float py = data_to_px_y(y_ticks.positions[i]);
+            const char* txt = y_ticks.labels[i].c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            dl->AddText(ImVec2(vp.x - tick_padding - sz.x, py - sz.y * 0.5f), tick_col, txt);
+        }
+        ImGui::PopFont();
+
+        // --- X axis label ---
+        if (!axes.get_xlabel().empty()) {
+            ImGui::PushFont(font_menubar_);
+            const char* txt = axes.get_xlabel().c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            float cx = vp.x + vp.w * 0.5f;
+            float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
+            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), label_col, txt);
+            ImGui::PopFont();
+        }
+
+        // --- Y axis label (vertical, character-by-character) ---
+        if (!axes.get_ylabel().empty()) {
+            ImGui::PushFont(font_menubar_);
+            const auto& ylabel = axes.get_ylabel();
+            float total_h = static_cast<float>(ylabel.size()) * 16.0f * 1.1f;
+            float center_y = vp.y + vp.h * 0.5f;
+            float start_y = center_y - total_h * 0.5f;
+            float px = vp.x - tick_padding * 2.0f - 40.0f;
+
+            float char_y = start_y;
+            for (size_t i = 0; i < ylabel.size(); ++i) {
+                char ch[2] = { ylabel[i], '\0' };
+                ImVec2 csz = ImGui::CalcTextSize(ch);
+                dl->AddText(ImVec2(px + (16.0f - csz.x) * 0.5f, char_y), label_col, ch);
+                char_y += 16.0f * 1.1f;
+            }
+            ImGui::PopFont();
+        }
+
+        // --- Title ---
+        if (!axes.get_title().empty()) {
+            ImGui::PushFont(font_title_);
+            const char* txt = axes.get_title().c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            float cx = vp.x + vp.w * 0.5f;
+            float py = vp.y - sz.y - tick_padding;
+            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
+            ImGui::PopFont();
+        }
+    }
+
+    // Legend is drawn by LegendInteraction (in data_interaction.cpp) which
+    // supports click-to-toggle visibility and drag-to-reposition.
 }
 
 void ImGuiIntegration::draw_theme_settings() {

@@ -1,5 +1,12 @@
 #include "vk_backend.hpp"
 
+#include "shader_spirv.hpp"
+
+#ifdef PLOTIX_USE_GLFW
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#endif
+
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -31,6 +38,11 @@ bool VulkanBackend::init(bool headless) {
         ctx_.physical_device = vk::pick_physical_device(ctx_.instance, surface_);
         ctx_.queue_families  = vk::find_queue_families(ctx_.physical_device, surface_);
 
+        // When not headless, force swapchain extension even though surface doesn't exist yet
+        // (surface is created later by GLFW adapter, but device needs the extension at creation time)
+        if (!headless_) {
+            ctx_.queue_families.present = ctx_.queue_families.graphics;
+        }
         ctx_.device = vk::create_logical_device(ctx_.physical_device, ctx_.queue_families, enable_validation);
 
         vkGetDeviceQueue(ctx_.device, ctx_.queue_families.graphics.value(), 0, &ctx_.graphics_queue);
@@ -67,7 +79,7 @@ void VulkanBackend::shutdown() {
     }
     pipelines_.clear();
 
-    // Destroy buffers
+    // Destroy buffers (GpuBuffer destructors handle Vulkan cleanup)
     buffers_.clear();
 
     // Destroy textures
@@ -118,11 +130,31 @@ void VulkanBackend::shutdown() {
 }
 
 bool VulkanBackend::create_surface(void* native_window) {
+    if (!native_window) return false;
+
+#ifdef PLOTIX_USE_GLFW
+    auto* glfw_window = static_cast<GLFWwindow*>(native_window);
+    VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &surface_);
+    if (result != VK_SUCCESS) {
+        std::cerr << "[Plotix] Failed to create Vulkan surface (VkResult=" << result << ")\n";
+        return false;
+    }
+
+    // Now that we have a surface, re-query present support
+    ctx_.queue_families = vk::find_queue_families(ctx_.physical_device, surface_);
+    if (ctx_.queue_families.has_present()) {
+        vkGetDeviceQueue(ctx_.device, ctx_.queue_families.present.value(), 0, &ctx_.present_queue);
+    }
+    // Always ensure present_queue is valid — fallback to graphics queue
+    if (ctx_.present_queue == VK_NULL_HANDLE) {
+        ctx_.present_queue = ctx_.graphics_queue;
+    }
+
+    return true;
+#else
     (void)native_window;
-    // Surface creation is handled by GLFW adapter via glfwCreateWindowSurface.
-    // This method is called after GLFW creates the surface and passes it in.
-    // For now, surface_ is set externally before init or via GLFW adapter.
-    return surface_ != VK_NULL_HANDLE;
+    return false;
+#endif
 }
 
 bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
@@ -182,14 +214,79 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
     }
 }
 
-PipelineHandle VulkanBackend::create_pipeline(PipelineType /*type*/) {
-    // Pipeline creation requires compiled SPIR-V shaders.
-    // This will be fully wired once shaders are compiled (Agent 3).
-    // For now, return a placeholder handle.
+PipelineHandle VulkanBackend::create_pipeline(PipelineType type) {
     PipelineHandle h;
     h.id = next_pipeline_id_++;
-    pipelines_[h.id] = VK_NULL_HANDLE;  // placeholder
+
+    VkRenderPass rp = render_pass();
+    if (rp == VK_NULL_HANDLE) {
+        // Render pass not yet available — store placeholder, will be created lazily
+        pipelines_[h.id] = VK_NULL_HANDLE;
+        pipeline_types_[h.id] = type;
+        return h;
+    }
+
+    pipelines_[h.id] = create_pipeline_for_type(type, rp);
     return h;
+}
+
+VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPass rp) {
+    vk::PipelineConfig cfg;
+    cfg.render_pass     = rp;
+    cfg.pipeline_layout = pipeline_layout_;
+    cfg.enable_blending = true;
+    cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    switch (type) {
+        case PipelineType::Line:
+            cfg.vert_spirv      = shaders::line_vert;
+            cfg.vert_spirv_size = shaders::line_vert_size;
+            cfg.frag_spirv      = shaders::line_frag;
+            cfg.frag_spirv_size = shaders::line_frag_size;
+            break;
+        case PipelineType::Scatter:
+            cfg.vert_spirv      = shaders::scatter_vert;
+            cfg.vert_spirv_size = shaders::scatter_vert_size;
+            cfg.frag_spirv      = shaders::scatter_frag;
+            cfg.frag_spirv_size = shaders::scatter_frag_size;
+            break;
+        case PipelineType::Grid:
+            cfg.vert_spirv      = shaders::grid_vert;
+            cfg.vert_spirv_size = shaders::grid_vert_size;
+            cfg.frag_spirv      = shaders::grid_frag;
+            cfg.frag_spirv_size = shaders::grid_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            break;
+        case PipelineType::Text:
+            cfg.vert_spirv      = shaders::text_vert;
+            cfg.vert_spirv_size = shaders::text_vert_size;
+            cfg.frag_spirv      = shaders::text_frag;
+            cfg.frag_spirv_size = shaders::text_frag_size;
+            break;
+        case PipelineType::Heatmap:
+            return VK_NULL_HANDLE; // Not yet implemented
+    }
+
+    try {
+        return vk::create_graphics_pipeline(ctx_.device, cfg);
+    } catch (const std::exception& e) {
+        std::cerr << "[Plotix] Pipeline creation failed: " << e.what() << "\n";
+        return VK_NULL_HANDLE;
+    }
+}
+
+void VulkanBackend::ensure_pipelines() {
+    VkRenderPass rp = render_pass();
+    if (rp == VK_NULL_HANDLE) return;
+
+    for (auto& [id, pipeline] : pipelines_) {
+        if (pipeline == VK_NULL_HANDLE) {
+            auto it = pipeline_types_.find(id);
+            if (it != pipeline_types_.end()) {
+                pipeline = create_pipeline_for_type(it->second, rp);
+            }
+        }
+    }
 }
 
 BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) {
@@ -211,7 +308,7 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
             break;
         case BufferUsage::Storage:
             vk_usage  = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Staging:
             vk_usage  = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -225,13 +322,34 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
 
     BufferHandle h;
     h.id = next_buffer_id_++;
-    buffers_.emplace(h.id, std::move(buf));
+
+    BufferEntry entry;
+    entry.gpu_buffer = std::move(buf);
+    entry.usage = usage;
+
+    // Allocate descriptor set for UBO or SSBO buffers
+    if (usage == BufferUsage::Uniform) {
+        entry.descriptor_set = allocate_descriptor_set(frame_desc_layout_);
+        if (entry.descriptor_set != VK_NULL_HANDLE) {
+            update_ubo_descriptor(entry.descriptor_set, entry.gpu_buffer.buffer(),
+                                  static_cast<VkDeviceSize>(size_bytes));
+        }
+    } else if (usage == BufferUsage::Storage) {
+        entry.descriptor_set = allocate_descriptor_set(series_desc_layout_);
+        if (entry.descriptor_set != VK_NULL_HANDLE) {
+            update_ssbo_descriptor(entry.descriptor_set, entry.gpu_buffer.buffer(),
+                                   static_cast<VkDeviceSize>(size_bytes));
+        }
+    }
+
+    buffers_.emplace(h.id, std::move(entry));
     return h;
 }
 
 void VulkanBackend::destroy_buffer(BufferHandle handle) {
     auto it = buffers_.find(handle.id);
     if (it != buffers_.end()) {
+        // Descriptor sets are freed when the pool is destroyed/reset
         buffers_.erase(it);
     }
 }
@@ -240,7 +358,7 @@ void VulkanBackend::upload_buffer(BufferHandle handle, const void* data, size_t 
     auto it = buffers_.find(handle.id);
     if (it == buffers_.end()) return;
 
-    auto& buf = it->second;
+    auto& buf = it->second.gpu_buffer;
     // For host-visible buffers, direct upload
     try {
         buf.upload(data, static_cast<VkDeviceSize>(size_bytes), static_cast<VkDeviceSize>(offset));
@@ -383,17 +501,33 @@ void VulkanBackend::bind_pipeline(PipelineHandle handle) {
     auto it = pipelines_.find(handle.id);
     if (it != pipelines_.end() && it->second != VK_NULL_HANDLE) {
         vkCmdBindPipeline(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+    } else {
+        static bool once = false;
+        if (!once) { std::cerr << "[Plotix DBG] bind_pipeline: id=" << handle.id << " NOT FOUND or NULL\n"; once = true; }
     }
 }
 
-void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t /*binding*/) {
+void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
     auto it = buffers_.find(handle.id);
     if (it == buffers_.end()) return;
-    // TODO: Bind as SSBO via descriptor set update, or as vertex buffer
-    // For now, bind as vertex buffer at binding 0
-    VkBuffer bufs[] = {it->second.buffer()};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(current_cmd_, 0, 1, bufs, offsets);
+
+    auto& entry = it->second;
+
+    static bool dbg_once = false;
+    if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline_layout_, 0, 1, &entry.descriptor_set, 0, nullptr);
+        if (!dbg_once) { std::cerr << "[Plotix DBG] bind UBO desc set=" << entry.descriptor_set << " layout=" << pipeline_layout_ << "\n"; }
+    } else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline_layout_, 1, 1, &entry.descriptor_set, 0, nullptr);
+        if (!dbg_once) { std::cerr << "[Plotix DBG] bind SSBO desc set=" << entry.descriptor_set << " buf=" << entry.gpu_buffer.buffer() << " size=" << entry.gpu_buffer.size() << "\n"; dbg_once = true; }
+    } else {
+        VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(current_cmd_, binding, 1, bufs, offsets);
+        if (!dbg_once) { std::cerr << "[Plotix DBG] bind as vertex buffer (fallback) usage=" << (int)entry.usage << " desc=" << entry.descriptor_set << "\n"; dbg_once = true; }
+    }
 }
 
 void VulkanBackend::bind_texture(TextureHandle /*handle*/, uint32_t /*binding*/) {
@@ -567,6 +701,56 @@ void VulkanBackend::create_descriptor_pool() {
     if (vkCreateDescriptorPool(ctx_.device, &info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor pool");
     }
+}
+
+VkDescriptorSet VulkanBackend::allocate_descriptor_set(VkDescriptorSetLayout layout) {
+    if (descriptor_pool_ == VK_NULL_HANDLE || layout == VK_NULL_HANDLE) return VK_NULL_HANDLE;
+
+    VkDescriptorSetAllocateInfo alloc_info {};
+    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool     = descriptor_pool_;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts        = &layout;
+
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    if (vkAllocateDescriptorSets(ctx_.device, &alloc_info, &set) != VK_SUCCESS) {
+        return VK_NULL_HANDLE;
+    }
+    return set;
+}
+
+void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) {
+    VkDescriptorBufferInfo buf_info {};
+    buf_info.buffer = buffer;
+    buf_info.offset = 0;
+    buf_info.range  = size;
+
+    VkWriteDescriptorSet write {};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = set;
+    write.dstBinding      = 0;
+    write.descriptorCount = 1;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write.pBufferInfo     = &buf_info;
+
+    vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
+}
+
+void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) {
+    VkDescriptorBufferInfo buf_info {};
+    buf_info.buffer = buffer;
+    buf_info.offset = 0;
+    buf_info.range  = size;
+
+    VkWriteDescriptorSet write {};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = set;
+    write.dstBinding      = 0;
+    write.descriptorCount = 1;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo     = &buf_info;
+
+    vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
 }
 
 } // namespace plotix

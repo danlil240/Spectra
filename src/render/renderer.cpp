@@ -148,6 +148,7 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     ubo.time = 0.0f;
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
 
     // Render grid
     render_grid(axes, viewport);
@@ -219,6 +220,9 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         // Each line segment = 6 vertices (2 triangles from quad expansion)
         // Total segments = point_count - 1
         uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
+        static bool once = false;
+        if (!once) { std::fprintf(stderr, "[Plotix DBG] draw line: %u segments, %zu pts, width=%.1f, color=(%.2f,%.2f,%.2f)\n",
+            segments, line->point_count(), pc.line_width, pc.color[0], pc.color[1], pc.color[2]); once = true; }
         backend_.draw(segments * 6);
     } else if (scatter) {
         backend_.bind_pipeline(scatter_pipeline_);
@@ -242,10 +246,10 @@ void Renderer::build_ortho_projection(float left, float right, float bottom, flo
     if (tb == 0.0f) tb = 1.0f;
 
     m[0]  =  2.0f / rl;
-    m[5]  =  2.0f / tb;
+    m[5]  = -2.0f / tb;   // Negate for Vulkan Y-down clip space
     m[10] = -1.0f;
     m[12] = -(right + left) / rl;
-    m[13] = -(top + bottom) / tb;
+    m[13] =  (top + bottom) / tb;  // Flip sign for Vulkan
     m[15] =  1.0f;
 }
 

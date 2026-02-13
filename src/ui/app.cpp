@@ -89,6 +89,9 @@ void App::run() {
         backend_->create_offscreen_framebuffer(fig.width(), fig.height());
     }
 
+    // Now that render pass exists, create real Vulkan pipelines from SPIR-V
+    static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+
     scheduler.reset();
 
     while (running) {

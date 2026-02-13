@@ -26,10 +26,13 @@ layout(location = 1) out float v_line_length;
 layout(location = 2) out float v_along_line;
 
 void main() {
-    // Each line segment produces 4 vertices (2 triangles = 1 quad).
-    // gl_VertexIndex: segment_index * 4 + corner (0..3)
-    int segment_index = gl_VertexIndex / 4;
-    int corner = gl_VertexIndex % 4;
+    // Each line segment produces 6 vertices (2 triangles = 1 quad, triangle list).
+    // gl_VertexIndex: segment_index * 6 + tri_vert (0..5)
+    // Triangle 0: corners 0,1,2  Triangle 1: corners 2,1,3
+    int segment_index = gl_VertexIndex / 6;
+    int tri_vert = gl_VertexIndex % 6;
+    int corner_map[6] = int[6](0, 1, 2, 2, 1, 3);
+    int corner = corner_map[tri_vert];
 
     // Fetch the two endpoints of this segment
     vec2 p0 = points[segment_index]     + data_offset;

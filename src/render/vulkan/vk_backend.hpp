@@ -126,6 +126,11 @@ private:
     };
     std::unordered_map<uint64_t, TextureEntry> textures_;
 
+    // Dynamic UBO state (per-draw projection slots)
+    VkDeviceSize     ubo_slot_alignment_ = 256;  // minUniformBufferOffsetAlignment
+    uint32_t         ubo_current_offset_ = 0;    // current write offset in dynamic UBO
+    static constexpr uint32_t UBO_MAX_SLOTS = 32;
+
     // Current frame state
     VkCommandBuffer  current_cmd_ = VK_NULL_HANDLE;
     uint32_t         current_image_index_ = 0;

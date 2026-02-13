@@ -121,7 +121,7 @@ VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& confi
 VkDescriptorSetLayout create_frame_descriptor_layout(VkDevice device) {
     VkDescriptorSetLayoutBinding ubo_binding {};
     ubo_binding.binding         = 0;
-    ubo_binding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ubo_binding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     ubo_binding.descriptorCount = 1;
     ubo_binding.stageFlags      = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 

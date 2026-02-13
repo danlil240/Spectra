@@ -4,7 +4,6 @@
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
 
-#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -181,27 +180,6 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
-    static int debug_count = 0;
-    if (debug_count < 1) {
-        std::fprintf(stderr, "[DEBUG] render_axes: viewport=(%.1f, %.1f, %.1f, %.1f) "
-                     "xlim=(%.3f, %.3f) ylim=(%.3f, %.3f)\n",
-                     viewport.x, viewport.y, viewport.w, viewport.h,
-                     xlim.min, xlim.max, ylim.min, ylim.max);
-        std::fprintf(stderr, "[DEBUG] proj row0: [%.6f, %.6f, %.6f, %.6f]\n",
-                     ubo.projection[0], ubo.projection[4], ubo.projection[8], ubo.projection[12]);
-        std::fprintf(stderr, "[DEBUG] proj row1: [%.6f, %.6f, %.6f, %.6f]\n",
-                     ubo.projection[1], ubo.projection[5], ubo.projection[9], ubo.projection[13]);
-        std::fprintf(stderr, "[DEBUG] proj row2: [%.6f, %.6f, %.6f, %.6f]\n",
-                     ubo.projection[2], ubo.projection[6], ubo.projection[10], ubo.projection[14]);
-        std::fprintf(stderr, "[DEBUG] proj row3: [%.6f, %.6f, %.6f, %.6f]\n",
-                     ubo.projection[3], ubo.projection[7], ubo.projection[11], ubo.projection[15]);
-        std::fprintf(stderr, "[DEBUG] pipeline handles: grid=%lu line=%lu scatter=%lu text=%lu\n",
-                     grid_pipeline_.id, line_pipeline_.id, scatter_pipeline_.id, text_pipeline_.id);
-        std::fprintf(stderr, "[DEBUG] ubo_buffer=%lu font_tex=%lu\n",
-                     frame_ubo_buffer_.id, font_texture_.id);
-        debug_count++;
-    }
-
     // Render axis border (box frame around plot area)
     if (axes.border_enabled())
         render_axis_border(axes, viewport);
@@ -283,20 +261,24 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     backend_.draw(static_cast<uint32_t>(total_lines * 2));
 }
 
-void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
+void Renderer::render_axis_border(Axes& axes, const Rect& viewport) {
+    // Draw border in pixel space to avoid clipping at NDC ±1.0 boundaries.
+    // A half-pixel inset keeps lines fully inside the viewport.
+    float half = 0.5f;
+    float x0 = half;
+    float y0 = half;
+    float x1 = viewport.w - half;
+    float y1 = viewport.h - half;
 
-    // 4 border lines forming a rectangle around the plot area (in data space)
     float border_verts[] = {
         // Bottom edge
-        xlim.min, ylim.min,  xlim.max, ylim.min,
+        x0, y0,  x1, y0,
         // Top edge
-        xlim.min, ylim.max,  xlim.max, ylim.max,
+        x0, y1,  x1, y1,
         // Left edge
-        xlim.min, ylim.min,  xlim.min, ylim.max,
+        x0, y0,  x0, y1,
         // Right edge
-        xlim.max, ylim.min,  xlim.max, ylim.max,
+        x1, y0,  x1, y1,
     };
 
     size_t byte_size = sizeof(border_verts);
@@ -308,6 +290,15 @@ void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
         border_buffer_capacity_ = byte_size;
     }
     backend_.upload_buffer(border_vertex_buffer_, border_verts, byte_size);
+
+    // Temporarily switch to pixel-space projection
+    FrameUBO border_ubo {};
+    build_ortho_projection(0.0f, viewport.w, 0.0f, viewport.h, border_ubo.projection);
+    border_ubo.viewport_width  = viewport.w;
+    border_ubo.viewport_height = viewport.h;
+    border_ubo.time = 0.0f;
+    backend_.upload_buffer(frame_ubo_buffer_, &border_ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
 
     backend_.bind_pipeline(grid_pipeline_);
 
@@ -323,6 +314,17 @@ void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
 
     backend_.bind_buffer(border_vertex_buffer_, 0);
     backend_.draw(8); // 4 lines × 2 vertices
+
+    // Restore data-space projection for grid and series rendering
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    FrameUBO data_ubo {};
+    build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, data_ubo.projection);
+    data_ubo.viewport_width  = viewport.w;
+    data_ubo.viewport_height = viewport.h;
+    data_ubo.time = 0.0f;
+    backend_.upload_buffer(frame_ubo_buffer_, &data_ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
 }
 
 void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
@@ -350,12 +352,6 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         // Each line segment = 6 vertices (2 triangles from quad expansion)
         // Total segments = point_count - 1
         uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
-        static int line_dbg = 0;
-        if (line_dbg < 3) {
-            std::fprintf(stderr, "[DEBUG] draw line: points=%zu segments=%u draw_verts=%u\n",
-                         line->point_count(), segments, segments * 6);
-            line_dbg++;
-        }
         backend_.draw(segments * 6);
     } else if (scatter) {
         backend_.bind_pipeline(scatter_pipeline_);

@@ -394,17 +394,6 @@ void VulkanBackend::upload_buffer(BufferHandle handle, const void* data, size_t 
     if (it == buffers_.end()) return;
 
     auto& buf = it->second.gpu_buffer;
-
-    static int upload_dbg = 0;
-    if (upload_dbg < 3 && it->second.usage == BufferUsage::Uniform) {
-        const float* fdata = static_cast<const float*>(data);
-        std::fprintf(stderr, "[DEBUG] upload UBO id=%lu size=%zu mapped=%p buf=%p: "
-                     "m[0]=%.6f m[5]=%.6f m[12]=%.6f m[15]=%.6f\n",
-                     handle.id, size_bytes, buf.mapped_data(), (void*)buf.buffer(),
-                     fdata[0], fdata[5], fdata[12], fdata[15]);
-        upload_dbg++;
-    }
-
     // For host-visible buffers, direct upload
     try {
         buf.upload(data, static_cast<VkDeviceSize>(size_bytes), static_cast<VkDeviceSize>(offset));
@@ -414,15 +403,6 @@ void VulkanBackend::upload_buffer(BufferHandle handle, const void* data, size_t 
                            ctx_.graphics_queue, buf.buffer(),
                            data, static_cast<VkDeviceSize>(size_bytes),
                            static_cast<VkDeviceSize>(offset));
-    }
-
-    if (it->second.usage == BufferUsage::Uniform && upload_dbg <= 3) {
-        // Read back to verify
-        const float* mapped = static_cast<const float*>(buf.mapped_data());
-        if (mapped) {
-            std::fprintf(stderr, "[DEBUG] verify UBO: m[0]=%.6f m[5]=%.6f m[12]=%.6f m[15]=%.6f\n",
-                         mapped[0], mapped[5], mapped[12], mapped[15]);
-        }
     }
 }
 
@@ -756,22 +736,6 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
     auto& entry = it->second;
 
     VkPipelineLayout layout = current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
-    static int bind_dbg = 0;
-    if (bind_dbg < 5) {
-        const char* usage_str = "?";
-        switch (entry.usage) {
-            case BufferUsage::Uniform: usage_str = "UBO"; break;
-            case BufferUsage::Storage: usage_str = "SSBO"; break;
-            case BufferUsage::Vertex:  usage_str = "VTX"; break;
-            case BufferUsage::Index:   usage_str = "IDX"; break;
-            case BufferUsage::Staging: usage_str = "STG"; break;
-        }
-        std::fprintf(stderr, "[DEBUG] bind_buffer: id=%lu usage=%s desc_set=%p layout=%p (cur=%p pipe=%p)\n",
-                     handle.id, usage_str,
-                     (void*)entry.descriptor_set, (void*)layout,
-                     (void*)current_pipeline_layout_, (void*)pipeline_layout_);
-        bind_dbg++;
-    }
     if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout, 0, 1, &entry.descriptor_set, 0, nullptr);

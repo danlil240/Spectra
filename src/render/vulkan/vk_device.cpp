@@ -1,5 +1,10 @@
 #include "vk_device.hpp"
 
+#ifdef PLOTIX_USE_GLFW
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#endif
+
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -72,22 +77,25 @@ VkInstance create_instance(bool enable_validation) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    // Surface extensions will be added by GLFW when windowed
+#ifdef PLOTIX_USE_GLFW
+    // GLFW must be initialized before querying required extensions
+    if (!glfwInit()) {
+        std::cerr << "[Plotix] Warning: glfwInit failed during instance creation\n";
+    }
+    {
+        uint32_t glfw_ext_count = 0;
+        const char** glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
+        if (glfw_exts) {
+            for (uint32_t i = 0; i < glfw_ext_count; ++i) {
+                extensions.push_back(glfw_exts[i]);
+            }
+        }
+    }
+#else
+    // Headless: add surface extensions manually if available
     if (has_ext(VK_KHR_SURFACE_EXTENSION_NAME)) {
         extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     }
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-    if (has_ext(VK_KHR_XCB_SURFACE_EXTENSION_NAME))
-        extensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-    if (has_ext(VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
-        extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-#endif
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-    if (has_ext(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
-        extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 
     VkInstanceCreateInfo create_info {};

@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+// shader_spirv.hpp included in .cpp
+
 namespace plotix {
 
 class VulkanBackend : public Backend {
@@ -66,6 +68,10 @@ private:
     void create_command_buffers();
     void create_sync_objects();
     void create_descriptor_pool();
+    VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
+public:
+    void ensure_pipelines();
+private:
 
     vk::DeviceContext     ctx_;
     VkSurfaceKHR          surface_    = VK_NULL_HANDLE;
@@ -94,8 +100,19 @@ private:
     uint64_t next_pipeline_id_ = 1;
     uint64_t next_texture_id_  = 1;
 
-    std::unordered_map<uint64_t, vk::GpuBuffer> buffers_;
+    struct BufferEntry {
+        vk::GpuBuffer   gpu_buffer;
+        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        BufferUsage     usage = BufferUsage::Vertex;
+    };
+    std::unordered_map<uint64_t, BufferEntry> buffers_;
     std::unordered_map<uint64_t, VkPipeline>     pipelines_;
+    std::unordered_map<uint64_t, PipelineType>    pipeline_types_;
+
+    VkDescriptorSet frame_desc_set_ = VK_NULL_HANDLE;
+    VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
+    void update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
+    void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
 
     struct TextureEntry {
         VkImage        image  = VK_NULL_HANDLE;

@@ -23,7 +23,7 @@ int main() {
     ax.xlabel("X Axis");
     ax.ylabel("Y Axis");
 
-    fig.show();
+    app.run();
 
     return 0;
 }

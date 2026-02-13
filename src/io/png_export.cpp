@@ -1,6 +1,6 @@
 #include <plotix/export.hpp>
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+// stb_image_write header-only (implementation in src/io/stb_impl.cpp)
 #include "stb_image_write.h"
 
 namespace plotix {

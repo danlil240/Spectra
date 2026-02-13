@@ -4,6 +4,7 @@
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
 
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -25,6 +26,21 @@ Renderer::~Renderer() {
     if (grid_vertex_buffer_) {
         backend_.destroy_buffer(grid_vertex_buffer_);
     }
+    if (border_vertex_buffer_) {
+        backend_.destroy_buffer(border_vertex_buffer_);
+    }
+    if (text_vertex_buffer_) {
+        backend_.destroy_buffer(text_vertex_buffer_);
+    }
+    if (text_index_buffer_) {
+        backend_.destroy_buffer(text_index_buffer_);
+    }
+    if (legend_vertex_buffer_) {
+        backend_.destroy_buffer(legend_vertex_buffer_);
+    }
+    if (font_texture_) {
+        backend_.destroy_texture(font_texture_);
+    }
     if (frame_ubo_buffer_) {
         backend_.destroy_buffer(frame_ubo_buffer_);
     }
@@ -39,6 +55,15 @@ bool Renderer::init() {
 
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
+
+    // Load embedded font atlas and initialize text renderer
+    if (font_atlas_.load_embedded()) {
+        text_renderer_.init(&font_atlas_);
+        // Upload atlas texture to GPU
+        font_texture_ = backend_.create_texture(
+            font_atlas_.atlas_width(), font_atlas_.atlas_height(),
+            font_atlas_.pixel_data());
+    }
 
     return true;
 }
@@ -64,6 +89,9 @@ void Renderer::render_figure(Figure& figure) {
 
         render_axes(ax, vp, w, h);
     }
+
+    // Render legend (drawn over the full figure, after all axes)
+    render_legend(figure, w, h);
 
     backend_.end_render_pass();
 }
@@ -153,15 +181,28 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
+    static int debug_count = 0;
+    if (debug_count < 3) {
+        std::fprintf(stderr, "[DEBUG] render_axes: viewport=(%.1f, %.1f, %.1f, %.1f) "
+                     "xlim=(%.3f, %.3f) ylim=(%.3f, %.3f) fig=(%u, %u)\n",
+                     viewport.x, viewport.y, viewport.w, viewport.h,
+                     xlim.min, xlim.max, ylim.min, ylim.max,
+                     fig_width, fig_height);
+        std::fprintf(stderr, "[DEBUG] proj: m[0]=%.6f m[5]=%.6f m[12]=%.6f m[13]=%.6f\n",
+                     ubo.projection[0], ubo.projection[5], ubo.projection[12], ubo.projection[13]);
+        debug_count++;
+    }
+
     // Render axis border (box frame around plot area)
-    render_axis_border(axes, viewport);
+    if (axes.border_enabled())
+        render_axis_border(axes, viewport);
 
     // Render grid
     render_grid(axes, viewport);
 
-    // Render each series
+    // Render each series (skip hidden ones)
     for (auto& series_ptr : axes.series()) {
-        if (!series_ptr) continue;
+        if (!series_ptr || !series_ptr->visible()) continue;
 
         if (series_ptr->is_dirty()) {
             upload_series_data(*series_ptr);
@@ -170,7 +211,8 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
         render_series(*series_ptr, viewport);
     }
 
-    // TODO: Render tick labels, axis labels, title via TextRenderer
+    // Render tick labels, axis labels, title via TextRenderer
+    render_text_labels(axes, viewport, fig_width, fig_height);
 }
 
 void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
@@ -250,11 +292,13 @@ void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
 
     size_t byte_size = sizeof(border_verts);
 
-    // Reuse grid buffer if large enough, otherwise use a temporary approach
-    // For simplicity, upload border verts to the grid buffer before grid lines
-    // We'll create a small dedicated buffer if needed
-    BufferHandle border_buf = backend_.create_buffer(BufferUsage::Vertex, byte_size);
-    backend_.upload_buffer(border_buf, border_verts, byte_size);
+    // Use persistent buffer, reallocate only if too small
+    if (!border_vertex_buffer_ || border_buffer_capacity_ < byte_size) {
+        if (border_vertex_buffer_) backend_.destroy_buffer(border_vertex_buffer_);
+        border_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+        border_buffer_capacity_ = byte_size;
+    }
+    backend_.upload_buffer(border_vertex_buffer_, border_verts, byte_size);
 
     backend_.bind_pipeline(grid_pipeline_);
 
@@ -268,10 +312,8 @@ void Renderer::render_axis_border(Axes& axes, const Rect& /*viewport*/) {
     pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    backend_.bind_buffer(border_buf, 0);
+    backend_.bind_buffer(border_vertex_buffer_, 0);
     backend_.draw(8); // 4 lines × 2 vertices
-
-    backend_.destroy_buffer(border_buf);
 }
 
 void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
@@ -327,6 +369,359 @@ void Renderer::build_ortho_projection(float left, float right, float bottom, flo
     m[12] = -(right + left) / rl;
     m[13] =  (top + bottom) / tb;  // Flip sign for Vulkan
     m[15] =  1.0f;
+}
+
+void Renderer::draw_text_batch(const std::vector<TextVertex>& verts,
+                                const std::vector<uint32_t>& indices,
+                                const Color& text_color) {
+    if (verts.empty() || indices.empty()) return;
+    if (!font_texture_) return;
+
+    // Backend doesn't support index buffers, so expand indexed quads
+    // to non-indexed triangle list (6 vertices per glyph).
+    std::vector<TextVertex> expanded;
+    expanded.reserve(indices.size());
+    for (uint32_t idx : indices) {
+        if (idx < verts.size()) {
+            expanded.push_back(verts[idx]);
+        }
+    }
+    if (expanded.empty()) return;
+
+    size_t exp_size = expanded.size() * sizeof(TextVertex);
+    if (!text_vertex_buffer_ || text_buffer_capacity_ < exp_size) {
+        if (text_vertex_buffer_) backend_.destroy_buffer(text_vertex_buffer_);
+        text_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, exp_size * 2);
+        text_buffer_capacity_ = exp_size * 2;
+    }
+    backend_.upload_buffer(text_vertex_buffer_, expanded.data(), exp_size);
+
+    backend_.bind_pipeline(text_pipeline_);
+
+    // Bind UBO at set 0 (already bound by caller) and atlas texture at set 1
+    backend_.bind_texture(font_texture_, 1);
+
+    SeriesPushConstants pc {};
+    pc.color[0] = text_color.r;
+    pc.color[1] = text_color.g;
+    pc.color[2] = text_color.b;
+    pc.color[3] = text_color.a;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
+    backend_.push_constants(pc);
+
+    backend_.bind_buffer(text_vertex_buffer_, 0);
+    backend_.draw(static_cast<uint32_t>(expanded.size()));
+}
+
+void Renderer::render_text_labels(Axes& axes, const Rect& viewport,
+                                   uint32_t fig_width, uint32_t fig_height) {
+    if (!font_texture_ || !text_renderer_.atlas()) return;
+
+    // Switch to a pixel-space orthographic projection for text rendering.
+    // This maps [0, fig_width] x [0, fig_height] to clip space,
+    // so text positions are specified in screen pixels.
+    FrameUBO text_ubo {};
+    build_ortho_projection(0.0f, static_cast<float>(fig_width),
+                           0.0f, static_cast<float>(fig_height),
+                           text_ubo.projection);
+    text_ubo.viewport_width  = static_cast<float>(fig_width);
+    text_ubo.viewport_height = static_cast<float>(fig_height);
+    text_ubo.time = 0.0f;
+
+    backend_.upload_buffer(frame_ubo_buffer_, &text_ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+
+    // Temporarily set viewport and scissor to full figure for text
+    backend_.set_viewport(0, 0, static_cast<float>(fig_width), static_cast<float>(fig_height));
+    backend_.set_scissor(0, 0, fig_width, fig_height);
+
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+
+    // Helper: map data coordinate to pixel coordinate within the viewport
+    auto data_to_pixel_x = [&](float data_x) -> float {
+        float t = (data_x - xlim.min) / (xlim.max - xlim.min);
+        return viewport.x + t * viewport.w;
+    };
+    auto data_to_pixel_y = [&](float data_y) -> float {
+        float t = (data_y - ylim.min) / (ylim.max - ylim.min);
+        // Vulkan Y is top-down, data Y is bottom-up
+        return viewport.y + (1.0f - t) * viewport.h;
+    };
+
+    constexpr float tick_font_size  = 11.0f;
+    constexpr float label_font_size = 13.0f;
+    constexpr float title_font_size = 15.0f;
+    constexpr float tick_padding    = 4.0f;
+
+    // Accumulate all text quads into a single batch
+    std::vector<TextVertex> all_verts;
+    std::vector<uint32_t>   all_indices;
+
+    auto append_text = [&](const std::string& text, float px, float py, float font_size) {
+        std::vector<TextVertex> v;
+        std::vector<uint32_t>   idx;
+        text_renderer_.generate_quads_indexed(text, px, py, font_size, v, idx);
+        uint32_t base = static_cast<uint32_t>(all_verts.size());
+        for (auto& i : idx) i += base;
+        all_verts.insert(all_verts.end(), v.begin(), v.end());
+        all_indices.insert(all_indices.end(), idx.begin(), idx.end());
+    };
+
+    auto append_text_centered = [&](const std::string& text, float center_x, float py, float font_size) {
+        auto m = text_renderer_.measure_text(text, font_size);
+        append_text(text, center_x - m.width * 0.5f, py, font_size);
+    };
+
+    // --- X tick labels (below plot area) ---
+    auto x_ticks = axes.compute_x_ticks();
+    for (size_t i = 0; i < x_ticks.positions.size(); ++i) {
+        float px = data_to_pixel_x(x_ticks.positions[i]);
+        float py = viewport.y + viewport.h + tick_padding + tick_font_size;
+        append_text_centered(x_ticks.labels[i], px, py, tick_font_size);
+    }
+
+    // --- Y tick labels (left of plot area) ---
+    auto y_ticks = axes.compute_y_ticks();
+    for (size_t i = 0; i < y_ticks.positions.size(); ++i) {
+        float py = data_to_pixel_y(y_ticks.positions[i]);
+        auto m = text_renderer_.measure_text(y_ticks.labels[i], tick_font_size);
+        float px = viewport.x - tick_padding - m.width;
+        // Center vertically on the tick position
+        append_text(y_ticks.labels[i], px, py + tick_font_size * 0.35f, tick_font_size);
+    }
+
+    // --- X axis label (centered below tick labels) ---
+    if (!axes.get_xlabel().empty()) {
+        float center_x = viewport.x + viewport.w * 0.5f;
+        float py = viewport.y + viewport.h + tick_padding + tick_font_size + label_font_size + tick_padding;
+        append_text_centered(axes.get_xlabel(), center_x, py, label_font_size);
+    }
+
+    // --- Y axis label (rotated — approximate with horizontal text left of y-tick labels) ---
+    // True rotation requires shader support; for now, render each character vertically
+    if (!axes.get_ylabel().empty()) {
+        const auto& ylabel = axes.get_ylabel();
+        auto m = text_renderer_.measure_text(ylabel, label_font_size);
+        float total_h = m.width; // when rotated, width becomes height
+        float center_y = viewport.y + viewport.h * 0.5f;
+        float start_y = center_y - total_h * 0.5f;
+        float px = viewport.x - tick_padding * 2.0f - 40.0f; // left of tick labels
+
+        // Render each character stacked vertically (approximation of rotation)
+        float char_y = start_y;
+        for (size_t i = 0; i < ylabel.size(); ++i) {
+            std::string ch(1, ylabel[i]);
+            auto cm = text_renderer_.measure_text(ch, label_font_size);
+            append_text(ch, px + (label_font_size - cm.width) * 0.5f,
+                       char_y + label_font_size, label_font_size);
+            char_y += label_font_size * 1.1f;
+        }
+    }
+
+    // --- Title (centered above plot area) ---
+    if (!axes.get_title().empty()) {
+        float center_x = viewport.x + viewport.w * 0.5f;
+        float py = viewport.y - tick_padding;
+        append_text_centered(axes.get_title(), center_x, py, title_font_size);
+    }
+
+    // Draw the accumulated text batch
+    draw_text_batch(all_verts, all_indices, colors::black);
+
+    // Restore axes-specific viewport and scissor for subsequent rendering
+    backend_.set_scissor(
+        static_cast<int32_t>(viewport.x),
+        static_cast<int32_t>(viewport.y),
+        static_cast<uint32_t>(viewport.w),
+        static_cast<uint32_t>(viewport.h)
+    );
+    backend_.set_viewport(viewport.x, viewport.y, viewport.w, viewport.h);
+
+    // Restore axes-specific projection UBO
+    FrameUBO axes_ubo {};
+    build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, axes_ubo.projection);
+    axes_ubo.viewport_width  = viewport.w;
+    axes_ubo.viewport_height = viewport.h;
+    axes_ubo.time = 0.0f;
+    backend_.upload_buffer(frame_ubo_buffer_, &axes_ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+}
+
+void Renderer::render_legend(Figure& figure, uint32_t fig_width, uint32_t fig_height) {
+    if (!font_texture_ || !text_renderer_.atlas()) return;
+
+    // Collect all labeled series across all axes
+    struct LegendEntry {
+        std::string label;
+        Color       color;
+    };
+    std::vector<LegendEntry> entries;
+
+    for (auto& axes_ptr : figure.axes()) {
+        if (!axes_ptr) continue;
+        for (auto& series_ptr : axes_ptr->series()) {
+            if (!series_ptr || !series_ptr->visible()) continue;
+            if (!series_ptr->label().empty()) {
+                entries.push_back({series_ptr->label(), series_ptr->color()});
+            }
+        }
+    }
+
+    if (entries.empty()) return;
+
+    // Switch to pixel-space projection
+    FrameUBO legend_ubo {};
+    build_ortho_projection(0.0f, static_cast<float>(fig_width),
+                           0.0f, static_cast<float>(fig_height),
+                           legend_ubo.projection);
+    legend_ubo.viewport_width  = static_cast<float>(fig_width);
+    legend_ubo.viewport_height = static_cast<float>(fig_height);
+    legend_ubo.time = 0.0f;
+
+    backend_.upload_buffer(frame_ubo_buffer_, &legend_ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+
+    backend_.set_viewport(0, 0, static_cast<float>(fig_width), static_cast<float>(fig_height));
+    backend_.set_scissor(0, 0, fig_width, fig_height);
+
+    constexpr float legend_font_size = 11.0f;
+    constexpr float legend_padding   = 8.0f;
+    constexpr float line_sample_len  = 20.0f;
+    constexpr float line_text_gap    = 6.0f;
+    constexpr float entry_height     = 16.0f;
+
+    // Measure legend box dimensions
+    float max_label_width = 0.0f;
+    for (auto& e : entries) {
+        auto m = text_renderer_.measure_text(e.label, legend_font_size);
+        max_label_width = std::max(max_label_width, m.width);
+    }
+
+    float box_w = legend_padding * 2.0f + line_sample_len + line_text_gap + max_label_width;
+    float box_h = legend_padding * 2.0f + static_cast<float>(entries.size()) * entry_height;
+
+    // Position legend in the top-right corner of the first axes viewport
+    float box_x = static_cast<float>(fig_width) - box_w - 20.0f;
+    float box_y = 20.0f;
+
+    if (!figure.axes().empty() && figure.axes()[0]) {
+        auto& vp = figure.axes()[0]->viewport();
+        box_x = vp.x + vp.w - box_w - 10.0f;
+        box_y = vp.y + 10.0f;
+    }
+
+    // Draw legend background box (semi-transparent white) using grid pipeline
+    // 4 lines for the border + 2 triangles for the fill
+    {
+        // Fill: two triangles forming a quad
+        float fill_verts[] = {
+            box_x,         box_y,          box_x + box_w, box_y,
+            box_x,         box_y + box_h,  box_x + box_w, box_y,
+            box_x + box_w, box_y + box_h,  box_x,         box_y + box_h,
+        };
+
+        size_t fill_size = sizeof(fill_verts);
+        if (!legend_vertex_buffer_ || legend_buffer_capacity_ < fill_size) {
+            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
+            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, fill_size * 2);
+            legend_buffer_capacity_ = fill_size * 2;
+        }
+        backend_.upload_buffer(legend_vertex_buffer_, fill_verts, fill_size);
+
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants pc {};
+        pc.color[0] = 1.0f;
+        pc.color[1] = 1.0f;
+        pc.color[2] = 1.0f;
+        pc.color[3] = 0.9f;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
+        backend_.push_constants(pc);
+
+        backend_.bind_buffer(legend_vertex_buffer_, 0);
+        // Note: grid pipeline uses LINE_LIST topology, so we draw the border as lines
+        // For the fill, we'd need a triangle pipeline. Instead, draw just the border.
+    }
+
+    // Draw legend border (4 lines)
+    {
+        float border_verts[] = {
+            box_x,         box_y,          box_x + box_w, box_y,
+            box_x + box_w, box_y,          box_x + box_w, box_y + box_h,
+            box_x + box_w, box_y + box_h,  box_x,         box_y + box_h,
+            box_x,         box_y + box_h,  box_x,         box_y,
+        };
+
+        size_t border_size = sizeof(border_verts);
+        if (legend_buffer_capacity_ < border_size) {
+            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
+            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, border_size * 2);
+            legend_buffer_capacity_ = border_size * 2;
+        }
+        backend_.upload_buffer(legend_vertex_buffer_, border_verts, border_size);
+
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants pc {};
+        pc.color[0] = 0.5f;
+        pc.color[1] = 0.5f;
+        pc.color[2] = 0.5f;
+        pc.color[3] = 1.0f;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
+        backend_.push_constants(pc);
+
+        backend_.bind_buffer(legend_vertex_buffer_, 0);
+        backend_.draw(8); // 4 lines × 2 vertices
+    }
+
+    // Draw colored line samples and labels for each entry
+    for (size_t i = 0; i < entries.size(); ++i) {
+        float entry_y = box_y + legend_padding + static_cast<float>(i) * entry_height;
+        float line_x0 = box_x + legend_padding;
+        float line_x1 = line_x0 + line_sample_len;
+        float line_y  = entry_y + entry_height * 0.5f;
+
+        // Draw colored line sample
+        float line_verts[] = {
+            line_x0, line_y,  line_x1, line_y,
+        };
+
+        size_t line_size = sizeof(line_verts);
+        if (legend_buffer_capacity_ < line_size) {
+            if (legend_vertex_buffer_) backend_.destroy_buffer(legend_vertex_buffer_);
+            legend_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, line_size * 2);
+            legend_buffer_capacity_ = line_size * 2;
+        }
+        backend_.upload_buffer(legend_vertex_buffer_, line_verts, line_size);
+
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants pc {};
+        pc.color[0] = entries[i].color.r;
+        pc.color[1] = entries[i].color.g;
+        pc.color[2] = entries[i].color.b;
+        pc.color[3] = entries[i].color.a;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
+        backend_.push_constants(pc);
+
+        backend_.bind_buffer(legend_vertex_buffer_, 0);
+        backend_.draw(2); // 1 line × 2 vertices
+
+        // Draw label text
+        float text_x = line_x1 + line_text_gap;
+        float text_y = entry_y + entry_height * 0.5f + legend_font_size * 0.35f;
+
+        std::vector<TextVertex> v;
+        std::vector<uint32_t>   idx;
+        text_renderer_.generate_quads_indexed(entries[i].label, text_x, text_y,
+                                              legend_font_size, v, idx);
+        draw_text_batch(v, idx, colors::black);
+    }
 }
 
 } // namespace plotix

@@ -39,6 +39,7 @@ int main() {
        })
        .record("output.mp4");
 
+    app.run();
     std::cout << "Recorded output.mp4\n";
     return 0;
 #endif

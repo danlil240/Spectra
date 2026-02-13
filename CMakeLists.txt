@@ -25,6 +25,7 @@ file(GLOB_RECURSE PLOTIX_RENDER_SOURCES src/render/*.cpp)
 file(GLOB_RECURSE PLOTIX_TEXT_SOURCES   src/text/*.cpp)
 file(GLOB_RECURSE PLOTIX_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE PLOTIX_IO_SOURCES     src/io/*.cpp)
+file(GLOB_RECURSE PLOTIX_DATA_SOURCES  src/data/*.cpp)
 
 file(GLOB PLOTIX_UI_SOURCES src/ui/app.cpp)
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/input.cpp)
@@ -38,6 +39,7 @@ add_library(plotix STATIC
     ${PLOTIX_TEXT_SOURCES}
     ${PLOTIX_ANIM_SOURCES}
     ${PLOTIX_IO_SOURCES}
+    ${PLOTIX_DATA_SOURCES}
     ${PLOTIX_UI_SOURCES}
 )
 

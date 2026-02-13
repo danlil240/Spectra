@@ -204,20 +204,19 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
     vkDeviceWaitIdle(ctx_.device);
 
-    auto old = swapchain_.swapchain;
-    vk::destroy_swapchain(ctx_.device, swapchain_);
-
+    auto old_swapchain = swapchain_.swapchain;
+    auto old_context = swapchain_;  // Copy the entire context
+    
     try {
         swapchain_ = vk::create_swapchain(
             ctx_.device, ctx_.physical_device, surface_,
             width, height,
             ctx_.queue_families.graphics.value(),
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
-            old
+            old_swapchain
         );
-        if (old != VK_NULL_HANDLE) {
-            vkDestroySwapchainKHR(ctx_.device, old, nullptr);
-        }
+        // Destroy the old swapchain context after the new one is created successfully
+        vk::destroy_swapchain(ctx_.device, old_context);
         create_command_buffers();
         return true;
     } catch (const std::exception& e) {
@@ -252,6 +251,7 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type) {
     }
 
     pipelines_[h.id] = create_pipeline_for_type(type, rp);
+    pipeline_layouts_[h.id] = (type == PipelineType::Text) ? text_pipeline_layout_ : pipeline_layout_;
     return h;
 }
 
@@ -317,6 +317,8 @@ void VulkanBackend::ensure_pipelines() {
             auto it = pipeline_types_.find(id);
             if (it != pipeline_types_.end()) {
                 pipeline = create_pipeline_for_type(it->second, rp);
+                pipeline_layouts_[id] = (it->second == PipelineType::Text)
+                    ? text_pipeline_layout_ : pipeline_layout_;
             }
         }
     }
@@ -328,12 +330,12 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
 
     switch (usage) {
         case BufferUsage::Vertex:
-            vk_usage  = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            vk_usage  = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+            mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Index:
-            vk_usage  = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            mem_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            vk_usage  = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+            mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Uniform:
             vk_usage  = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
@@ -721,6 +723,9 @@ void VulkanBackend::bind_pipeline(PipelineHandle handle) {
     auto it = pipelines_.find(handle.id);
     if (it != pipelines_.end() && it->second != VK_NULL_HANDLE) {
         vkCmdBindPipeline(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+        auto layout_it = pipeline_layouts_.find(handle.id);
+        current_pipeline_layout_ = (layout_it != pipeline_layouts_.end())
+            ? layout_it->second : pipeline_layout_;
     }
 }
 
@@ -730,12 +735,13 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
 
     auto& entry = it->second;
 
+    VkPipelineLayout layout = current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
     if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 0, 1, &entry.descriptor_set, 0, nullptr);
+                                layout, 0, 1, &entry.descriptor_set, 0, nullptr);
     } else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_layout_, 1, 1, &entry.descriptor_set, 0, nullptr);
+                                layout, 1, 1, &entry.descriptor_set, 0, nullptr);
     } else {
         VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
         VkDeviceSize offsets[] = {0};
@@ -755,7 +761,8 @@ void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/) {
 }
 
 void VulkanBackend::push_constants(const SeriesPushConstants& pc) {
-    vkCmdPushConstants(current_cmd_, pipeline_layout_,
+    VkPipelineLayout layout = current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
+    vkCmdPushConstants(current_cmd_, layout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(SeriesPushConstants), &pc);
 }

@@ -5,9 +5,7 @@
 #include <fstream>
 #include <sstream>
 
-// Use stb_image for PNG decoding (read-only, header-only)
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_ONLY_PNG
+// stb_image header-only (implementation in src/io/stb_impl.cpp)
 #include "stb_image.h"
 
 namespace plotix {

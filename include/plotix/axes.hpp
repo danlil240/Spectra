@@ -12,6 +12,23 @@
 
 namespace plotix {
 
+enum class AutoscaleMode {
+    Fit,       // Fit to data range exactly
+    Tight,     // Fit with no padding
+    Padded,    // Fit with small padding (default)
+    Manual,    // User-specified limits only
+};
+
+struct AxisStyle {
+    Color  tick_color   = colors::black;
+    Color  label_color  = colors::black;
+    Color  grid_color   = {0.85f, 0.85f, 0.85f, 1.0f};
+    float  tick_length  = 5.0f;
+    float  label_size   = 14.0f;
+    float  title_size   = 16.0f;
+    float  grid_width   = 1.0f;
+};
+
 struct AxisLimits {
     float min = 0.0f;
     float max = 1.0f;
@@ -40,6 +57,8 @@ public:
     void xlabel(const std::string& lbl);
     void ylabel(const std::string& lbl);
     void grid(bool enabled);
+    void show_border(bool enabled);
+    void autoscale_mode(AutoscaleMode mode);
 
     // Accessors
     AxisLimits x_limits() const;
@@ -48,6 +67,8 @@ public:
     const std::string& get_xlabel() const { return xlabel_; }
     const std::string& get_ylabel() const { return ylabel_; }
     bool grid_enabled() const             { return grid_enabled_; }
+    bool border_enabled() const            { return border_enabled_; }
+    AutoscaleMode get_autoscale_mode() const { return autoscale_mode_; }
 
     // Tick computation
     TickResult compute_x_ticks() const;
@@ -72,7 +93,9 @@ private:
     std::string title_;
     std::string xlabel_;
     std::string ylabel_;
-    bool grid_enabled_ = true;
+    bool grid_enabled_   = true;
+    bool border_enabled_  = true;
+    AutoscaleMode autoscale_mode_ = AutoscaleMode::Padded;
 
     Rect viewport_;
 };

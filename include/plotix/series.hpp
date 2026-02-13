@@ -10,6 +10,13 @@
 
 namespace plotix {
 
+struct SeriesStyle {
+    Color  color      = colors::blue;
+    float  line_width = 2.0f;
+    float  point_size = 4.0f;
+    float  opacity    = 1.0f;
+};
+
 struct Rect {
     float x = 0.0f;
     float y = 0.0f;
@@ -23,9 +30,11 @@ public:
 
     Series& label(const std::string& lbl) { label_ = lbl; return *this; }
     Series& color(const Color& c)         { color_ = c; dirty_ = true; return *this; }
+    Series& visible(bool v)               { visible_ = v; return *this; }
 
     const std::string& label() const { return label_; }
     const Color& color() const       { return color_; }
+    bool visible() const             { return visible_; }
 
     bool is_dirty() const    { return dirty_; }
     void clear_dirty()       { dirty_ = false; }
@@ -35,6 +44,7 @@ public:
 protected:
     std::string label_;
     Color       color_ = colors::blue;
+    bool        visible_ = true;
     bool        dirty_ = true;
 };
 

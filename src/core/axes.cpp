@@ -62,6 +62,14 @@ void Axes::grid(bool enabled) {
     grid_enabled_ = enabled;
 }
 
+void Axes::show_border(bool enabled) {
+    border_enabled_ = enabled;
+}
+
+void Axes::autoscale_mode(AutoscaleMode mode) {
+    autoscale_mode_ = mode;
+}
+
 // --- Limits ---
 
 // Compute data extent across all series
@@ -101,17 +109,53 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
     y_max += y_pad;
 }
 
+static void data_extent_with_mode(
+    const std::vector<std::unique_ptr<Series>>& series,
+    AutoscaleMode mode,
+    float& x_min, float& x_max,
+    float& y_min, float& y_max)
+{
+    // Compute raw extent
+    data_extent(series, x_min, x_max, y_min, y_max);
+
+    if (mode == AutoscaleMode::Tight) {
+        // Re-compute without padding (data_extent adds 5% padding)
+        x_min =  std::numeric_limits<float>::max();
+        x_max = -std::numeric_limits<float>::max();
+        y_min =  std::numeric_limits<float>::max();
+        y_max = -std::numeric_limits<float>::max();
+        for (const auto& s : series) {
+            if (auto* ls = dynamic_cast<const LineSeries*>(s.get())) {
+                for (auto v : ls->x_data()) { x_min = std::min(x_min, v); x_max = std::max(x_max, v); }
+                for (auto v : ls->y_data()) { y_min = std::min(y_min, v); y_max = std::max(y_max, v); }
+            }
+            if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get())) {
+                for (auto v : ss->x_data()) { x_min = std::min(x_min, v); x_max = std::max(x_max, v); }
+                for (auto v : ss->y_data()) { y_min = std::min(y_min, v); y_max = std::max(y_max, v); }
+            }
+        }
+        if (x_min > x_max) { x_min = 0.0f; x_max = 1.0f; }
+        if (y_min > y_max) { y_min = 0.0f; y_max = 1.0f; }
+        // Handle zero range
+        if (x_max == x_min) { x_min -= 0.5f; x_max += 0.5f; }
+        if (y_max == y_min) { y_min -= 0.5f; y_max += 0.5f; }
+    }
+    // Fit and Padded use the default data_extent behavior (with padding)
+}
+
 AxisLimits Axes::x_limits() const {
-    if (xlim_.has_value()) return *xlim_;
+    if (xlim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
+        return xlim_.value_or(AxisLimits{0.0f, 1.0f});
     float xmin, xmax, ymin, ymax;
-    data_extent(series_, xmin, xmax, ymin, ymax);
+    data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {xmin, xmax};
 }
 
 AxisLimits Axes::y_limits() const {
-    if (ylim_.has_value()) return *ylim_;
+    if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
+        return ylim_.value_or(AxisLimits{0.0f, 1.0f});
     float xmin, xmax, ymin, ymax;
-    data_extent(series_, xmin, xmax, ymin, ymax);
+    data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {ymin, ymax};
 }
 
@@ -146,7 +190,16 @@ static TickResult generate_ticks(float range_min, float range_max, int target_ti
     TickResult result;
 
     float range = range_max - range_min;
+
+    // Edge case: zero or negative range
     if (range <= 0.0f) {
+        // If range is exactly zero, center a tick on the value
+        if (range == 0.0f && range_min != 0.0f) {
+            // Expand around the single value
+            float half = std::abs(range_min) * 0.1f;
+            if (half == 0.0f) half = 0.5f;
+            return generate_ticks(range_min - half, range_min + half, target_ticks);
+        }
         result.positions.push_back(range_min);
         char buf[32];
         std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(range_min));
@@ -154,13 +207,38 @@ static TickResult generate_ticks(float range_min, float range_max, int target_ti
         return result;
     }
 
+    // Edge case: very small range (< 1e-10) — avoid log10 of near-zero
+    if (range < 1e-10f) {
+        float mid = (range_min + range_max) * 0.5f;
+        result.positions.push_back(mid);
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(mid));
+        result.labels.emplace_back(buf);
+        return result;
+    }
+
     float nice_range = nice_ceil(range, false);
     float spacing    = nice_ceil(nice_range / static_cast<float>(target_ticks - 1), true);
+
+    // Guard against degenerate spacing
+    if (spacing <= 0.0f || !std::isfinite(spacing)) {
+        result.positions.push_back(range_min);
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(range_min));
+        result.labels.emplace_back(buf);
+        return result;
+    }
+
     float nice_min   = std::floor(range_min / spacing) * spacing;
     float nice_max   = std::ceil(range_max / spacing) * spacing;
 
-    for (float v = nice_min; v <= nice_max + spacing * 0.5f; v += spacing) {
+    // Safety: cap iterations to avoid infinite loops
+    int max_iters = target_ticks * 3;
+    int iters = 0;
+    for (float v = nice_min; v <= nice_max + spacing * 0.5f && iters < max_iters; v += spacing, ++iters) {
         if (v >= range_min - spacing * 0.01f && v <= range_max + spacing * 0.01f) {
+            // Snap near-zero values to exactly zero to avoid "-0" labels
+            if (std::abs(v) < spacing * 1e-6f) v = 0.0f;
             result.positions.push_back(v);
             char buf[32];
             std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(v));

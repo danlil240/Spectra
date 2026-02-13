@@ -108,8 +108,9 @@ private:
         BufferUsage     usage = BufferUsage::Vertex;
     };
     std::unordered_map<uint64_t, BufferEntry> buffers_;
-    std::unordered_map<uint64_t, VkPipeline>     pipelines_;
-    std::unordered_map<uint64_t, PipelineType>    pipeline_types_;
+    std::unordered_map<uint64_t, VkPipeline>        pipelines_;
+    std::unordered_map<uint64_t, PipelineType>     pipeline_types_;
+    std::unordered_map<uint64_t, VkPipelineLayout> pipeline_layouts_;
 
     VkDescriptorSet frame_desc_set_ = VK_NULL_HANDLE;
     VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
@@ -126,8 +127,9 @@ private:
     std::unordered_map<uint64_t, TextureEntry> textures_;
 
     // Current frame state
-    VkCommandBuffer current_cmd_ = VK_NULL_HANDLE;
-    uint32_t        current_image_index_ = 0;
+    VkCommandBuffer  current_cmd_ = VK_NULL_HANDLE;
+    uint32_t         current_image_index_ = 0;
+    VkPipelineLayout current_pipeline_layout_ = VK_NULL_HANDLE;
 };
 
 } // namespace plotix

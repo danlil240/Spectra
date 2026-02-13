@@ -43,3 +43,10 @@
 
 build
 .cache
+
+# Golden image test output (actual renders + diff images — not baselines)
+tests/golden/output/*.raw
+!tests/golden/output/.gitkeep
+
+# Doxygen generated docs
+docs/api/

@@ -7,17 +7,55 @@ namespace plotix {
 
 // Mouse button constants (matching GLFW)
 namespace {
-    constexpr int MOUSE_BUTTON_LEFT = 0;
+    constexpr int MOUSE_BUTTON_LEFT  = 0;
+    constexpr int MOUSE_BUTTON_RIGHT = 1;
     constexpr int ACTION_PRESS   = 1;
     constexpr int ACTION_RELEASE = 0;
 } // anonymous namespace
 
+// ─── Hit-testing ────────────────────────────────────────────────────────────
+
+Axes* InputHandler::hit_test_axes(double screen_x, double screen_y) const {
+    if (!figure_) return nullptr;
+
+    for (auto& axes_ptr : figure_->axes()) {
+        if (!axes_ptr) continue;
+        const auto& vp = axes_ptr->viewport();
+        if (static_cast<float>(screen_x) >= vp.x &&
+            static_cast<float>(screen_x) <= vp.x + vp.w &&
+            static_cast<float>(screen_y) >= vp.y &&
+            static_cast<float>(screen_y) <= vp.y + vp.h) {
+            return axes_ptr.get();
+        }
+    }
+    return nullptr;
+}
+
+const Rect& InputHandler::viewport_for_axes(const Axes* axes) const {
+    if (axes) {
+        return axes->viewport();
+    }
+    // Fallback: return a static rect built from stored viewport values
+    static Rect fallback;
+    fallback = {vp_x_, vp_y_, vp_w_, vp_h_};
+    return fallback;
+}
+
+// ─── Mouse button ───────────────────────────────────────────────────────────
+
 void InputHandler::on_mouse_button(int button, int action, double x, double y) {
+    // Hit-test to find which axes the cursor is over
+    Axes* hit = hit_test_axes(x, y);
+    if (hit) {
+        active_axes_ = hit;
+    }
+
     if (!active_axes_) return;
 
     if (button == MOUSE_BUTTON_LEFT) {
-        if (action == ACTION_PRESS) {
-            dragging_ = true;
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle) {
+            // Begin pan
+            mode_ = InteractionMode::Pan;
             drag_start_x_ = x;
             drag_start_y_ = y;
 
@@ -27,42 +65,108 @@ void InputHandler::on_mouse_button(int button, int action, double x, double y) {
             drag_start_xlim_max_ = xlim.max;
             drag_start_ylim_min_ = ylim.min;
             drag_start_ylim_max_ = ylim.max;
-        } else if (action == ACTION_RELEASE) {
-            dragging_ = false;
+        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::Pan) {
+            mode_ = InteractionMode::Idle;
+        }
+    } else if (button == MOUSE_BUTTON_RIGHT) {
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle) {
+            // Begin box zoom
+            mode_ = InteractionMode::BoxZoom;
+            box_zoom_.active = true;
+            box_zoom_.x0 = x;
+            box_zoom_.y0 = y;
+            box_zoom_.x1 = x;
+            box_zoom_.y1 = y;
+        } else if (action == ACTION_RELEASE && mode_ == InteractionMode::BoxZoom) {
+            apply_box_zoom();
+            mode_ = InteractionMode::Idle;
         }
     }
 }
 
+// ─── Mouse move ─────────────────────────────────────────────────────────────
+
 void InputHandler::on_mouse_move(double x, double y) {
-    if (!active_axes_ || !dragging_) return;
+    // Update cursor readout regardless of mode
+    Axes* hit = hit_test_axes(x, y);
+    if (hit) {
+        // Temporarily use hit axes for screen_to_data conversion
+        Axes* prev = active_axes_;
+        active_axes_ = hit;
+        const auto& vp = viewport_for_axes(hit);
+        float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
+        float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
+        vp_x_ = vp.x; vp_y_ = vp.y; vp_w_ = vp.w; vp_h_ = vp.h;
 
-    // Compute drag delta in screen pixels
-    double dx_screen = x - drag_start_x_;
-    double dy_screen = y - drag_start_y_;
+        cursor_readout_.valid = true;
+        cursor_readout_.screen_x = x;
+        cursor_readout_.screen_y = y;
+        screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
-    // Convert pixel delta to data-space delta
-    float x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
-    float y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
+        // Restore if we were in a drag with a different axes
+        if (mode_ == InteractionMode::Pan || mode_ == InteractionMode::BoxZoom) {
+            active_axes_ = prev;
+            vp_x_ = saved_vp_x; vp_y_ = saved_vp_y;
+            vp_w_ = saved_vp_w; vp_h_ = saved_vp_h;
+        } else {
+            // In idle mode, update active axes to hovered one
+            // Keep viewport in sync
+        }
+    } else {
+        cursor_readout_.valid = false;
+    }
 
-    float dx_data = -static_cast<float>(dx_screen) * x_range / vp_w_;
-    float dy_data =  static_cast<float>(dy_screen) * y_range / vp_h_; // Y is inverted (screen Y goes down)
+    if (!active_axes_) return;
 
-    active_axes_->xlim(drag_start_xlim_min_ + dx_data,
-                       drag_start_xlim_max_ + dx_data);
-    active_axes_->ylim(drag_start_ylim_min_ + dy_data,
-                       drag_start_ylim_max_ + dy_data);
+    if (mode_ == InteractionMode::Pan) {
+        const auto& vp = viewport_for_axes(active_axes_);
+
+        // Compute drag delta in screen pixels
+        double dx_screen = x - drag_start_x_;
+        double dy_screen = y - drag_start_y_;
+
+        // Convert pixel delta to data-space delta
+        float x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
+        float y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
+
+        float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
+        float dy_data =  static_cast<float>(dy_screen) * y_range / vp.h;
+
+        active_axes_->xlim(drag_start_xlim_min_ + dx_data,
+                           drag_start_xlim_max_ + dx_data);
+        active_axes_->ylim(drag_start_ylim_min_ + dy_data,
+                           drag_start_ylim_max_ + dy_data);
+    } else if (mode_ == InteractionMode::BoxZoom) {
+        box_zoom_.x1 = x;
+        box_zoom_.y1 = y;
+    }
 }
+
+// ─── Scroll ─────────────────────────────────────────────────────────────────
 
 void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
                               double cursor_x, double cursor_y) {
+    // Hit-test to zoom the axes under cursor
+    Axes* hit = hit_test_axes(cursor_x, cursor_y);
+    if (hit) {
+        active_axes_ = hit;
+    }
     if (!active_axes_) return;
 
+    const auto& vp = viewport_for_axes(active_axes_);
     auto xlim = active_axes_->x_limits();
     auto ylim = active_axes_->y_limits();
 
     // Compute cursor position in data space
+    float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
+    float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
+    vp_x_ = vp.x; vp_y_ = vp.y; vp_w_ = vp.w; vp_h_ = vp.h;
+
     float data_x, data_y;
     screen_to_data(cursor_x, cursor_y, data_x, data_y);
+
+    vp_x_ = saved_vp_x; vp_y_ = saved_vp_y;
+    vp_w_ = saved_vp_w; vp_h_ = saved_vp_h;
 
     // Zoom factor: scroll up = zoom in (shrink range), scroll down = zoom out
     float factor = 1.0f - static_cast<float>(y_offset) * ZOOM_FACTOR;
@@ -77,6 +181,106 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
     active_axes_->xlim(new_xmin, new_xmax);
     active_axes_->ylim(new_ymin, new_ymax);
 }
+
+// ─── Keyboard ───────────────────────────────────────────────────────────────
+
+void InputHandler::on_key(int key, int action, int mods) {
+    if (action != ACTION_PRESS) return;
+
+    if (key == KEY_ESCAPE) {
+        // Cancel box zoom if active
+        cancel_box_zoom();
+        return;
+    }
+
+    if (key == KEY_R && !(mods & MOD_CONTROL)) {
+        // Reset view: auto-fit all axes in the figure
+        if (figure_) {
+            for (auto& axes_ptr : figure_->axes()) {
+                if (axes_ptr) {
+                    axes_ptr->auto_fit();
+                }
+            }
+        } else if (active_axes_) {
+            active_axes_->auto_fit();
+        }
+        return;
+    }
+
+    if (key == KEY_G && !(mods & MOD_CONTROL)) {
+        // Toggle grid on active axes
+        if (active_axes_) {
+            active_axes_->grid(!active_axes_->grid_enabled());
+        }
+        return;
+    }
+
+    if (key == KEY_S && (mods & MOD_CONTROL)) {
+        // Ctrl+S: save PNG
+        if (save_callback_) {
+            save_callback_();
+        }
+        return;
+    }
+
+    if (key == KEY_A && !(mods & MOD_CONTROL)) {
+        // Auto-fit active axes only
+        if (active_axes_) {
+            active_axes_->auto_fit();
+        }
+        return;
+    }
+}
+
+// ─── Box zoom ───────────────────────────────────────────────────────────────
+
+void InputHandler::apply_box_zoom() {
+    if (!active_axes_ || !box_zoom_.active) {
+        cancel_box_zoom();
+        return;
+    }
+
+    const auto& vp = viewport_for_axes(active_axes_);
+
+    // Convert box corners from screen to data space
+    float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
+    float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
+    vp_x_ = vp.x; vp_y_ = vp.y; vp_w_ = vp.w; vp_h_ = vp.h;
+
+    float d_x0, d_y0, d_x1, d_y1;
+    screen_to_data(box_zoom_.x0, box_zoom_.y0, d_x0, d_y0);
+    screen_to_data(box_zoom_.x1, box_zoom_.y1, d_x1, d_y1);
+
+    vp_x_ = saved_vp_x; vp_y_ = saved_vp_y;
+    vp_w_ = saved_vp_w; vp_h_ = saved_vp_h;
+
+    // Ensure min < max
+    float xmin = std::min(d_x0, d_x1);
+    float xmax = std::max(d_x0, d_x1);
+    float ymin = std::min(d_y0, d_y1);
+    float ymax = std::max(d_y0, d_y1);
+
+    // Only apply if the selection is large enough (avoid accidental clicks)
+    constexpr float MIN_SELECTION_PIXELS = 5.0f;
+    float dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
+    float dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
+
+    if (dx_screen > MIN_SELECTION_PIXELS && dy_screen > MIN_SELECTION_PIXELS) {
+        active_axes_->xlim(xmin, xmax);
+        active_axes_->ylim(ymin, ymax);
+    }
+
+    box_zoom_.active = false;
+}
+
+void InputHandler::cancel_box_zoom() {
+    if (mode_ == InteractionMode::BoxZoom) {
+        mode_ = InteractionMode::Idle;
+    }
+    box_zoom_.active = false;
+}
+
+// ─── Viewport ───────────────────────────────────────────────────────────────
 
 void InputHandler::set_viewport(float vp_x, float vp_y, float vp_w, float vp_h) {
     vp_x_ = vp_x;

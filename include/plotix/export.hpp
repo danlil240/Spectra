@@ -1,10 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <span>
 #include <string>
 
 namespace plotix {
+
+// Forward declarations for SVG export
+class Figure;
 
 class ImageExporter {
 public:
@@ -12,6 +14,16 @@ public:
                           const uint8_t* rgba_data,
                           uint32_t width,
                           uint32_t height);
+};
+
+class SvgExporter {
+public:
+    // Write a Figure to an SVG file. Traverses Figure→Axes→Series hierarchy
+    // and emits SVG elements directly, bypassing the GPU pipeline.
+    static bool write_svg(const std::string& path, const Figure& figure);
+
+    // Write SVG to a string instead of a file.
+    static std::string to_string(const Figure& figure);
 };
 
 #ifdef PLOTIX_USE_FFMPEG

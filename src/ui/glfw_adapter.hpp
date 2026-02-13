@@ -18,6 +18,7 @@ struct InputCallbacks {
     std::function<void(int button, int action, double x, double y)> on_mouse_button;
     std::function<void(double x_offset, double y_offset)>    on_scroll;
     std::function<void(int width, int height)>               on_resize;
+    std::function<void(int key, int action, int mods)>       on_key;
 };
 
 class GlfwAdapter {
@@ -64,6 +65,7 @@ private:
     static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
     static void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
     static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+    static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 };
 
 } // namespace plotix

@@ -25,9 +25,15 @@ class FrameScheduler;
 class AnimationBuilder;
 
 class ImageExporter;
+class SvgExporter;
 class VideoExporter;
 
 struct Color;
 struct Rect;
+
+struct AxisStyle;
+struct SeriesStyle;
+struct LegendConfig;
+struct FigureStyle;
 
 } // namespace plotix

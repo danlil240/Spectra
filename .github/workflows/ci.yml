@@ -1,0 +1,166 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ─── Build + Unit Tests ──────────────────────────────────────────────────
+  build-and-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+          - compiler: clang
+            cc: clang-17
+            cxx: clang++-17
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            vulkan-tools \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            mesa-vulkan-drivers \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            glslang-tools
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DPLOTIX_BUILD_TESTS=ON \
+            -DPLOTIX_BUILD_EXAMPLES=ON \
+            -DPLOTIX_BUILD_GOLDEN_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure -L "!golden" -j$(nproc)
+
+  # ─── Golden Image Tests (lavapipe software Vulkan) ───────────────────────
+  golden-tests:
+    runs-on: ubuntu-24.04
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies + lavapipe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            vulkan-tools \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            mesa-vulkan-drivers \
+            mesa-utils \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            glslang-tools
+
+      - name: Verify lavapipe
+        run: |
+          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+          vulkaninfo --summary || echo "vulkaninfo not available, continuing..."
+
+      - name: Configure + Build
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DPLOTIX_BUILD_TESTS=ON \
+            -DPLOTIX_BUILD_GOLDEN_TESTS=ON \
+            -DPLOTIX_BUILD_EXAMPLES=OFF \
+            -DPLOTIX_USE_GLFW=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Run golden image tests
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          PLOTIX_UPDATE_BASELINES: "0"
+        run: |
+          cd build
+          ctest --output-on-failure -L golden -j1
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-test-output
+          path: tests/golden/output/
+          retention-days: 14
+
+  # ─── Sanitizers (ASan + UBSan) ──────────────────────────────────────────
+  sanitizers:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        sanitizer: [address, undefined]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            vulkan-tools \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            mesa-vulkan-drivers \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            glslang-tools
+
+      - name: Configure with sanitizer
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer -g" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=${{ matrix.sanitizer }}" \
+            -DPLOTIX_BUILD_TESTS=ON \
+            -DPLOTIX_BUILD_GOLDEN_TESTS=OFF \
+            -DPLOTIX_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build --config Debug -j$(nproc)
+
+      - name: Run tests under sanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cd build
+          ctest --output-on-failure -j$(nproc)

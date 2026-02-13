@@ -1,0 +1,44 @@
+# Doxyfile for Plotix API documentation
+# Run: doxygen docs/Doxyfile
+
+PROJECT_NAME           = "Plotix"
+PROJECT_NUMBER         = "0.1.0"
+PROJECT_BRIEF          = "GPU-accelerated plotting library for C++20"
+OUTPUT_DIRECTORY       = docs/api
+
+# Input
+INPUT                  = include/plotix
+FILE_PATTERNS          = *.hpp
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+
+# Source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = YES
+
+# Output formats
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+HTML_COLORSTYLE        = LIGHT
+
+# Diagrams
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+
+# Warnings
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+PREDEFINED             = PLOTIX_USE_GLFW \
+                         PLOTIX_USE_FFMPEG
+
+# Markdown
+USE_MDFILE_AS_MAINPAGE = README.md

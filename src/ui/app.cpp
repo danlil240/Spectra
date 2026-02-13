@@ -352,7 +352,33 @@ void App::run() {
 
         // Compute layout (skip during active resize for better performance)
         if (!is_resizing) {
+#ifdef PLOTIX_USE_IMGUI
+            // Account for menu bar height in figure layout
+            float menubar_offset = 0.0f;
+            if (imgui_ui) {
+                menubar_offset = 52.0f + 12.0f; // menubar_height + margin
+            }
+            
+            // Temporarily adjust figure height for layout computation
+            auto original_height = fig.config_.height;
+            fig.config_.height = static_cast<uint32_t>(std::max(1.0f, static_cast<float>(original_height) - menubar_offset));
+            
             fig.compute_layout();
+            
+            // Restore original height
+            fig.config_.height = original_height;
+            
+            // Adjust all axes viewports to account for menu bar offset
+            for (auto& ax : fig.axes_mut()) {
+                if (ax) {
+                    auto vp = ax->viewport();
+                    vp.y += menubar_offset;
+                    ax->set_viewport(vp);
+                }
+            }
+#else
+            fig.compute_layout();
+#endif
         }
 
 #ifdef PLOTIX_USE_GLFW
@@ -425,6 +451,21 @@ void App::run() {
         if (imgui_ui && should_update_imgui) {
             imgui_ui->new_frame();
             imgui_ui->build_ui(fig);
+            
+            // Handle interaction state from UI
+            if (imgui_ui->should_reset_view()) {
+                // Reset all axes to auto-fit
+                for (auto& ax : fig.axes_mut()) {
+                    if (ax) {
+                        ax->auto_fit();
+                    }
+                }
+                imgui_ui->clear_reset_view();
+            }
+            
+            // Update input handler mode
+            input_handler.set_mode(imgui_ui->get_interaction_mode());
+            
             imgui_frame_started = true;
         }
 #endif

@@ -346,47 +346,62 @@ void ImGuiIntegration::draw_menubar() {
         // App title/brand on the left with enhanced accent and icon
         ImGui::PushFont(font_title_);
         ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
-        ImGui::TextUnformatted("◆ Plotix");
+        ImGui::TextUnformatted("Plotix");
         ImGui::PopStyleColor();
         ImGui::PopFont();
         
         ImGui::SameLine();
         ImGui::SetCursorPosX(130.0f); // Fixed position after title
         
+        // Home button to reset view
+        draw_toolbar_button("H", [this]() { reset_view_ = true; }, "Reset View (Home)");
+        
+        ImGui::SameLine();
+        
+        // Mouse mode buttons
+        draw_toolbar_button("P", [this]() { interaction_mode_ = InteractionMode::Pan; }, "Pan Mode");
+        
+        ImGui::SameLine();
+        
+        draw_toolbar_button("Z", [this]() { interaction_mode_ = InteractionMode::BoxZoom; }, "Box Zoom Mode");
+        
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(280.0f); // Position after toolbar buttons
+        
         // Subtle separator
         ImGui::PushStyleColor(ImGuiCol_Separator, kDivider);
         ImGui::Separator();
         ImGui::PopStyleColor();
         ImGui::SameLine();
-        ImGui::SetCursorPosX(150.0f); // Fixed position after separator
+        ImGui::SetCursorPosX(300.0f); // Fixed position after separator
         
         // File menu with enhanced icons and better descriptions
         draw_menubar_menu("File", {
-            MenuItem("� Export PNG", []() { /* TODO: Export functionality */ }),
-            MenuItem("� Export SVG", []() { /* TODO: Export functionality */ }),
-            MenuItem("🎬 Export Video", []() { /* TODO: Video export functionality */ }),
+            MenuItem("Export PNG", []() { /* TODO: Export functionality */ }),
+            MenuItem("Export SVG", []() { /* TODO: Export functionality */ }),
+            MenuItem("Export Video", []() { /* TODO: Video export functionality */ }),
             MenuItem("", nullptr), // Separator
-            MenuItem("🚪 Exit", []() { /* TODO: Exit functionality */ })
+            MenuItem("Exit", []() { /* TODO: Exit functionality */ })
         });
         
         ImGui::SameLine();
         
         // View menu with better options
         draw_menubar_menu("View", {
-            MenuItem("🎛️ Toggle Panel", [this]() { panel_open_ = !panel_open_; }),
-            MenuItem("� Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
-            MenuItem("�� Reset View", []() { /* TODO: Reset view functionality */ }),
-            MenuItem("📐 Toggle Grid", []() { /* TODO: Grid toggle functionality */ })
+            MenuItem("Toggle Panel", [this]() { panel_open_ = !panel_open_; }),
+            MenuItem("Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
+            MenuItem("Reset View", []() { /* TODO: Reset view functionality */ }),
+            MenuItem("Toggle Grid", []() { /* TODO: Grid toggle functionality */ })
         });
         
         ImGui::SameLine();
         
         // Tools menu with enhanced functionality
         draw_menubar_menu("Tools", {
-            MenuItem("📸 Screenshot", []() { /* TODO: Screenshot functionality */ }),
-            MenuItem("⚡ Performance Monitor", []() { /* TODO: Performance monitor */ }),
-            MenuItem("🎨 Theme Settings", []() { /* TODO: Theme settings */ }),
-            MenuItem("🔧 Preferences", []() { /* TODO: Preferences dialog */ })
+            MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
+            MenuItem("Performance Monitor", []() { /* TODO: Performance monitor */ }),
+            MenuItem("Theme Settings", []() { /* TODO: Theme settings */ }),
+            MenuItem("Preferences", []() { /* TODO: Preferences dialog */ })
         });
         
         // Push status info to the right with enhanced formatting
@@ -397,7 +412,7 @@ void ImGuiIntegration::draw_menubar() {
         ImGui::PushStyleColor(ImGuiCol_Text, kTextSecondary);
         
         char status[128];
-        std::snprintf(status, sizeof(status), "🖥️ %d×%d | ⚡ %.0f FPS | 📊 GPU", 
+        std::snprintf(status, sizeof(status), "Display: %dx%d | FPS: %.0f | GPU", 
                      static_cast<int>(io.DisplaySize.x), 
                      static_cast<int>(io.DisplaySize.y), 
                      io.Framerate);
@@ -456,6 +471,43 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(3);
         ImGui::EndPopup();
+    }
+    
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+    ImGui::PopFont();
+}
+
+// Helper for drawing toolbar buttons with tooltips
+void ImGuiIntegration::draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip) {
+    ImGui::PushFont(font_icon_);
+    
+    // Button styling with mode-aware appearance
+    bool is_active = false;
+    if (std::string(icon) == "P" && interaction_mode_ == InteractionMode::Pan) {
+        is_active = true;
+    } else if (std::string(icon) == "Z" && interaction_mode_ == InteractionMode::BoxZoom) {
+        is_active = true;
+    }
+    
+    if (is_active) {
+        ImGui::PushStyleColor(ImGuiCol_Button, kAccentLight);
+        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, kTransparent);
+        ImGui::PushStyleColor(ImGuiCol_Text, kTextMenubar);
+    }
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kAccentHover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kAccentLight);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    
+    if (ImGui::Button(icon)) {
+        if (callback) callback();
+    }
+    
+    if (ImGui::IsItemHovered() && tooltip) {
+        ImGui::SetTooltip("%s", tooltip);
     }
     
     ImGui::PopStyleVar(2);

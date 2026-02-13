@@ -65,6 +65,7 @@ public:
 
     // Current interaction mode
     InteractionMode mode() const { return mode_; }
+    void set_mode(InteractionMode new_mode) { mode_ = new_mode; }
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }

@@ -3,6 +3,7 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include <plotix/fwd.hpp>
+#include "input.hpp"
 #include <functional>
 #include <vector>
 #include <string>
@@ -40,6 +41,11 @@ public:
 
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
+    
+    // Interaction state getters
+    bool should_reset_view() const { return reset_view_; }
+    void clear_reset_view() { reset_view_ = false; }
+    InteractionMode get_interaction_mode() const { return interaction_mode_; }
 
 private:
     void apply_modern_style();
@@ -48,6 +54,7 @@ private:
     void draw_icon_bar();
     void draw_menubar();
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
+    void draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip);
     void draw_panel(Figure& figure);
     void draw_section_figure(Figure& figure);
     void draw_section_series(Figure& figure);
@@ -62,14 +69,18 @@ private:
     float panel_anim_ = 0.0f;
 
     // Fonts at different sizes
-    ImFont* font_body_    = nullptr;  // 15px — body text, controls
-    ImFont* font_heading_ = nullptr;  // 13px — section headers (uppercase)
+    ImFont* font_body_    = nullptr;  // 16px — body text, controls
+    ImFont* font_heading_ = nullptr;  // 12.5px — section headers (uppercase)
     ImFont* font_icon_    = nullptr;  // 20px — icon bar symbols
     ImFont* font_title_   = nullptr;  // 18px — panel title
-    ImFont* font_menubar_ = nullptr;  // 14px — menubar items
+    ImFont* font_menubar_ = nullptr;  // 15px — menubar items
     
     // Menubar state
-    float menubar_height_ = 48.0f;
+    float menubar_height_ = 52.0f;
+    
+    // Interaction state
+    bool reset_view_ = false;
+    InteractionMode interaction_mode_ = InteractionMode::Pan;
 };
 
 } // namespace plotix

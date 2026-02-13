@@ -41,6 +41,12 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/tab_bar.cpp)
     list(APPEND PLOTIX_UI_SOURCES src/ui/tab_bar.cpp)
 endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/animation_controller.cpp)
+    list(APPEND PLOTIX_UI_SOURCES src/ui/animation_controller.cpp)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/gesture_recognizer.cpp)
+    list(APPEND PLOTIX_UI_SOURCES src/ui/gesture_recognizer.cpp)
+endif()
 
 # Core library (headless-capable)
 add_library(plotix STATIC
@@ -118,7 +124,13 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
         src/ui/theme.cpp
         src/ui/icons.cpp
+        src/ui/widgets.cpp
+        src/ui/inspector.cpp
         src/ui/imgui_integration.cpp
+        src/ui/tooltip.cpp
+        src/ui/crosshair.cpp
+        src/ui/data_marker.cpp
+        src/ui/data_interaction.cpp
     )
     target_include_directories(plotix PRIVATE
         ${imgui_SOURCE_DIR}

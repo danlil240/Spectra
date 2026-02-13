@@ -5,151 +5,145 @@
 namespace plotix {
 
 LayoutManager::LayoutManager() {
-    // Initialize with default window size
     compute_zones();
 }
 
-void LayoutManager::update(float window_width, float window_height) {
-    // Early exit if size hasn't changed
-    if (std::abs(window_width_ - window_width) < 1.0f && 
-        std::abs(window_height_ - window_height) < 1.0f) {
-        return;
-    }
+float LayoutManager::smooth_toward(float current, float target, float speed, float dt) {
+    if (dt <= 0.0f) return target;  // No dt → snap instantly
+    float diff = target - current;
+    if (std::abs(diff) < 0.5f) return target;  // Close enough → snap
+    return current + diff * std::min(1.0f, speed * dt);
+}
 
+void LayoutManager::update(float window_width, float window_height, float dt) {
     window_width_ = window_width;
     window_height_ = window_height;
+
+    // Compute animation targets
+    float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
+    float nav_rail_target = nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
+
+    // Animate toward targets
+    inspector_anim_width_ = smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
+    nav_rail_anim_width_  = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
+
     compute_zones();
 }
 
 void LayoutManager::compute_zones() {
-    command_bar_rect_ = compute_command_bar();
-    nav_rail_rect_ = compute_nav_rail();
-    inspector_rect_ = compute_inspector();
-    status_bar_rect_ = compute_status_bar();
-    canvas_rect_ = compute_canvas();
+    command_bar_rect_      = compute_command_bar();
+    nav_rail_rect_         = compute_nav_rail();
+    inspector_rect_        = compute_inspector();
+    status_bar_rect_       = compute_status_bar();
+    tab_bar_rect_          = compute_tab_bar();
+    canvas_rect_           = compute_canvas();
     floating_toolbar_rect_ = compute_floating_toolbar();
 }
 
 Rect LayoutManager::compute_command_bar() const {
-    return Rect{
-        0.0f,                                    // x
-        0.0f,                                    // y
-        window_width_,                           // width
-        COMMAND_BAR_HEIGHT                       // height
-    };
+    return Rect{0.0f, 0.0f, window_width_, COMMAND_BAR_HEIGHT};
 }
 
 Rect LayoutManager::compute_nav_rail() const {
-    return Rect{
-        0.0f,                                    // x
-        COMMAND_BAR_HEIGHT,                      // y (below command bar)
-        nav_rail_width(),                        // width
-        window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT  // height
-    };
+    float content_h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+    return Rect{0.0f, COMMAND_BAR_HEIGHT, nav_rail_anim_width_, std::max(0.0f, content_h)};
 }
 
 Rect LayoutManager::compute_inspector() const {
-    if (!inspector_visible_) {
-        return Rect{window_width_, 0.0f, 0.0f, 0.0f};  // Hidden
+    if (inspector_anim_width_ < 1.0f) {
+        return Rect{window_width_, COMMAND_BAR_HEIGHT, 0.0f, 0.0f};
     }
-
+    float content_h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
     return Rect{
-        window_width_ - inspector_width_,        // x (right side)
-        COMMAND_BAR_HEIGHT,                      // y (below command bar)
-        inspector_width_,                        // width
-        window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT  // height
+        window_width_ - inspector_anim_width_,
+        COMMAND_BAR_HEIGHT,
+        inspector_anim_width_,
+        std::max(0.0f, content_h)
     };
 }
 
 Rect LayoutManager::compute_status_bar() const {
-    return Rect{
-        0.0f,                                    // x
-        window_height_ - STATUS_BAR_HEIGHT,      // y (bottom)
-        window_width_,                           // width
-        STATUS_BAR_HEIGHT                        // height
-    };
+    return Rect{0.0f, window_height_ - STATUS_BAR_HEIGHT, window_width_, STATUS_BAR_HEIGHT};
+}
+
+Rect LayoutManager::compute_tab_bar() const {
+    if (!tab_bar_visible_) {
+        return Rect{0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    float x = nav_rail_anim_width_;
+    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
+    return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }
 
 Rect LayoutManager::compute_canvas() const {
-    // Canvas occupies the remaining space between nav rail and inspector
-    float canvas_x = nav_rail_width();
-    float canvas_width = window_width_ - nav_rail_width();
-    
-    if (inspector_visible_) {
-        canvas_width -= inspector_width_;
+    float x = nav_rail_anim_width_;
+    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
+    float y = COMMAND_BAR_HEIGHT;
+    float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+
+    // Offset canvas below tab bar when visible
+    if (tab_bar_visible_) {
+        y += TAB_BAR_HEIGHT;
+        h -= TAB_BAR_HEIGHT;
     }
 
-    return Rect{
-        canvas_x,                                // x
-        COMMAND_BAR_HEIGHT,                      // y (below command bar)
-        std::max(0.0f, canvas_width),           // width
-        window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT  // height
-    };
+    return Rect{x, y, std::max(0.0f, w), std::max(0.0f, h)};
 }
 
 Rect LayoutManager::compute_floating_toolbar() const {
-    // Centered at bottom of canvas area
-    const Rect& canvas = canvas_rect();
-    float toolbar_x = canvas.x + (canvas.w - FLOATING_TOOLBAR_WIDTH) * 0.5f;
-    float toolbar_y = canvas.y + canvas.h - FLOATING_TOOLBAR_HEIGHT - 20.0f;  // 20px padding from bottom
-
-    return Rect{
-        toolbar_x,                               // x
-        toolbar_y,                               // y
-        FLOATING_TOOLBAR_WIDTH,                  // width
-        FLOATING_TOOLBAR_HEIGHT                  // height
-    };
+    float toolbar_x = canvas_rect_.x + (canvas_rect_.w - FLOATING_TOOLBAR_WIDTH) * 0.5f;
+    float toolbar_y = canvas_rect_.y + canvas_rect_.h - FLOATING_TOOLBAR_HEIGHT - 20.0f;
+    return Rect{toolbar_x, toolbar_y, FLOATING_TOOLBAR_WIDTH, FLOATING_TOOLBAR_HEIGHT};
 }
 
 // Zone rectangle getters
-Rect LayoutManager::command_bar_rect() const {
-    return command_bar_rect_;
+Rect LayoutManager::command_bar_rect() const { return command_bar_rect_; }
+Rect LayoutManager::nav_rail_rect() const { return nav_rail_rect_; }
+Rect LayoutManager::canvas_rect() const { return canvas_rect_; }
+Rect LayoutManager::inspector_rect() const { return inspector_rect_; }
+Rect LayoutManager::status_bar_rect() const { return status_bar_rect_; }
+Rect LayoutManager::floating_toolbar_rect() const { return floating_toolbar_rect_; }
+Rect LayoutManager::tab_bar_rect() const { return tab_bar_rect_; }
+
+float LayoutManager::nav_rail_width() const {
+    return nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
 }
 
-Rect LayoutManager::nav_rail_rect() const {
-    return nav_rail_rect_;
-}
-
-Rect LayoutManager::canvas_rect() const {
-    return canvas_rect_;
-}
-
-Rect LayoutManager::inspector_rect() const {
-    return inspector_rect_;
-}
-
-Rect LayoutManager::status_bar_rect() const {
-    return status_bar_rect_;
-}
-
-Rect LayoutManager::floating_toolbar_rect() const {
-    return floating_toolbar_rect_;
+bool LayoutManager::is_animating() const {
+    float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
+    float nav_target = nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
+    return std::abs(inspector_anim_width_ - inspector_target) > 0.5f ||
+           std::abs(nav_rail_anim_width_ - nav_target) > 0.5f;
 }
 
 // Configuration methods
 void LayoutManager::set_inspector_visible(bool visible) {
-    if (inspector_visible_ != visible) {
-        inspector_visible_ = visible;
+    inspector_visible_ = visible;
+}
+
+void LayoutManager::set_inspector_width(float width) {
+    inspector_width_ = std::clamp(width, INSPECTOR_MIN_WIDTH, INSPECTOR_MAX_WIDTH);
+    // During active drag, snap the animated width to avoid lag
+    if (inspector_resize_active_ && inspector_visible_) {
+        inspector_anim_width_ = inspector_width_;
         compute_zones();
     }
 }
 
-void LayoutManager::set_inspector_width(float width) {
-    // Clamp to valid range
-    inspector_width_ = std::clamp(width, INSPECTOR_MIN_WIDTH, INSPECTOR_MAX_WIDTH);
-    compute_zones();
+void LayoutManager::reset_inspector_width() {
+    inspector_width_ = INSPECTOR_DEFAULT_WIDTH;
 }
 
 void LayoutManager::set_nav_rail_width(float width) {
     nav_rail_expanded_width_ = std::max(width, NAV_RAIL_COLLAPSED_WIDTH);
-    compute_zones();
 }
 
 void LayoutManager::set_nav_rail_expanded(bool expanded) {
-    if (nav_rail_expanded_ != expanded) {
-        nav_rail_expanded_ = expanded;
-        compute_zones();
-    }
+    nav_rail_expanded_ = expanded;
+}
+
+void LayoutManager::set_tab_bar_visible(bool visible) {
+    tab_bar_visible_ = visible;
 }
 
 } // namespace plotix

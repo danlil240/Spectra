@@ -84,3 +84,80 @@ TEST(Easing, ElasticOscillates) {
     }
     EXPECT_TRUE(overshoots) << "Elastic easing should overshoot 1.0";
 }
+
+// ─── Spring easing ──────────────────────────────────────────────────────────
+
+TEST(Easing, SpringEndpoints) {
+    EXPECT_FLOAT_EQ(ease::spring(0.0f), 0.0f);
+    EXPECT_FLOAT_EQ(ease::spring(1.0f), 1.0f);
+}
+
+TEST(Easing, SpringOvershoots) {
+    // Damped spring should overshoot 1.0 at some point
+    bool overshoots = false;
+    for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
+        if (ease::spring(t) > 1.0f) {
+            overshoots = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(overshoots) << "Spring easing should overshoot 1.0";
+}
+
+TEST(Easing, SpringSettlesNearOne) {
+    // At t=0.9, spring should be very close to 1.0
+    EXPECT_NEAR(ease::spring(0.9f), 1.0f, 0.05f);
+}
+
+// ─── Decelerate easing ──────────────────────────────────────────────────────
+
+TEST(Easing, DecelerateEndpoints) {
+    EXPECT_FLOAT_EQ(ease::decelerate(0.0f), 0.0f);
+    EXPECT_FLOAT_EQ(ease::decelerate(1.0f), 1.0f);
+}
+
+TEST(Easing, DecelerateFasterStart) {
+    // Quadratic deceleration: at t=0.5, value = 1 - 0.25 = 0.75
+    EXPECT_FLOAT_EQ(ease::decelerate(0.5f), 0.75f);
+}
+
+TEST(Easing, DecelerateMonotonic) {
+    float prev = 0.0f;
+    for (float t = 0.01f; t <= 1.0f; t += 0.01f) {
+        float v = ease::decelerate(t);
+        EXPECT_GE(v, prev) << "at t=" << t;
+        prev = v;
+    }
+}
+
+// ─── CubicBezier easing ────────────────────────────────────────────────────
+
+TEST(Easing, CubicBezierEndpoints) {
+    ease::CubicBezier cb{0.25f, 0.1f, 0.25f, 1.0f};
+    EXPECT_NEAR(cb(0.0f), 0.0f, 1e-5f);
+    EXPECT_NEAR(cb(1.0f), 1.0f, 1e-5f);
+}
+
+TEST(Easing, CubicBezierLinearApprox) {
+    // A linear bezier (0,0,1,1) should approximate linear
+    ease::CubicBezier linear_cb{0.0f, 0.0f, 1.0f, 1.0f};
+    for (float t = 0.0f; t <= 1.0f; t += 0.1f) {
+        EXPECT_NEAR(linear_cb(t), t, 0.02f) << "at t=" << t;
+    }
+}
+
+TEST(Easing, CubicBezierEaseOutPreset) {
+    // ease_out_cubic preset should be fast start, slow end
+    float mid = ease::ease_out_cubic(0.5f);
+    EXPECT_GT(mid, 0.5f) << "ease-out should be past midpoint at t=0.5";
+}
+
+TEST(Easing, CubicBezierMonotonic) {
+    ease::CubicBezier cb{0.25f, 0.1f, 0.25f, 1.0f};
+    float prev = 0.0f;
+    for (float t = 0.01f; t <= 1.0f; t += 0.01f) {
+        float v = cb(t);
+        EXPECT_GE(v, prev - 0.001f) << "at t=" << t;
+        prev = v;
+    }
+}

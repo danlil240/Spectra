@@ -85,7 +85,7 @@ void ThemeManager::apply_to_imgui() {
     style.WindowPadding = ImVec2(tokens::SPACE_4, tokens::SPACE_4);
     style.WindowRounding = tokens::RADIUS_MD;
     style.WindowBorderSize = current_theme_->border_width;
-    style.WindowMinSize = ImVec2(200, 100);
+    style.WindowMinSize = ImVec2(32, 32);
     
     // Frame styling
     style.FramePadding = ImVec2(tokens::SPACE_3, tokens::SPACE_2);

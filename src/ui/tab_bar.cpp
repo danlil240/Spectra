@@ -1,4 +1,6 @@
 #include "tab_bar.hpp"
+#include "theme.hpp"
+#include "design_tokens.hpp"
 
 #ifdef PLOTIX_USE_IMGUI
 #include <imgui.h>
@@ -164,41 +166,63 @@ void TabBar::handle_input(const Rect& bounds) {
 #endif
 }
 
+static ImU32 to_imcol(const ui::Color& c, float alpha_override = -1.0f) {
+    float a = alpha_override >= 0.0f ? alpha_override : c.a;
+    return IM_COL32(uint8_t(c.r*255), uint8_t(c.g*255), uint8_t(c.b*255), uint8_t(a*255));
+}
+
 void TabBar::draw_tabs(const Rect& bounds) {
 #ifdef PLOTIX_USE_IMGUI
     auto layouts = compute_tab_layouts(bounds);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const auto& colors = ui::theme();
+    
+    // Bottom border line across the full tab bar
+    draw_list->AddLine(
+        ImVec2(bounds.x, bounds.y + bounds.h - 1),
+        ImVec2(bounds.x + bounds.w, bounds.y + bounds.h - 1),
+        to_imcol(colors.border_subtle), 1.0f);
     
     for (size_t i = 0; i < layouts.size(); ++i) {
         const auto& layout = layouts[i];
-        if (!layout.is_visible || layout.is_clipped) {
+        if (!layout.is_visible) {
             continue;
         }
         
         const auto& tab = tabs_[i];
+        bool is_active = (i == active_tab_);
+        bool is_hovered = (i == hovered_tab_);
+        bool is_dragged = (is_dragging_ && i == dragged_tab_);
         
-        // Tab background
+        // Tab background color from theme
         ImU32 bg_color;
-        if (i == active_tab_) {
-            bg_color = IM_COL32(45, 45, 48, 255);  // Active tab background
-        } else if (i == hovered_tab_) {
-            bg_color = IM_COL32(60, 60, 65, 255);  // Hovered tab background
+        if (is_active) {
+            bg_color = to_imcol(colors.bg_tertiary);
+        } else if (is_hovered) {
+            bg_color = to_imcol(colors.accent_subtle);
         } else {
-            bg_color = IM_COL32(35, 35, 38, 255);  // Normal tab background
+            bg_color = to_imcol(colors.bg_secondary);
         }
         
-        // Draw tab background with rounded top corners
-        draw_list->AddRectFilled(
-            ImVec2(layout.bounds.x + 2, layout.bounds.y + 2),
-            ImVec2(layout.bounds.x + layout.bounds.w - 2, layout.bounds.y + layout.bounds.h),
-            bg_color, 4.0f, ImDrawFlags_RoundCornersTop);
+        // Dragged tab gets elevated look
+        if (is_dragged) {
+            bg_color = to_imcol(colors.bg_elevated);
+        }
         
-        // Tab border
-        ImU32 border_color = IM_COL32(80, 80, 85, 255);
-        draw_list->AddRect(
-            ImVec2(layout.bounds.x + 2, layout.bounds.y + 2),
-            ImVec2(layout.bounds.x + layout.bounds.w - 2, layout.bounds.y + layout.bounds.h),
-            border_color, 4.0f, ImDrawFlags_RoundCornersTop, 1.0f);
+        float inset = 1.0f;
+        ImVec2 tl(layout.bounds.x + inset, layout.bounds.y + 4);
+        ImVec2 br(layout.bounds.x + layout.bounds.w - inset, layout.bounds.y + layout.bounds.h);
+        
+        // Draw tab background with rounded top corners
+        draw_list->AddRectFilled(tl, br, bg_color, ui::tokens::RADIUS_SM, ImDrawFlags_RoundCornersTop);
+        
+        // Active tab: accent underline instead of border
+        if (is_active) {
+            draw_list->AddLine(
+                ImVec2(tl.x + 4, br.y - 1),
+                ImVec2(br.x - 4, br.y - 1),
+                to_imcol(colors.accent), 2.0f);
+        }
         
         // Tab title
         ImVec2 text_size = ImGui::CalcTextSize(tab.title.c_str());
@@ -207,34 +231,43 @@ void TabBar::draw_tabs(const Rect& bounds) {
             layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f
         );
         
-        draw_list->AddText(text_pos, IM_COL32(255, 255, 255, 255), tab.title.c_str());
+        ImU32 text_color = is_active ? to_imcol(colors.text_primary) : to_imcol(colors.text_secondary);
+        draw_list->AddText(text_pos, text_color, tab.title.c_str());
         
-        // Close button (if enabled)
-        if (tab.can_close) {
-            ImU32 close_color = (i == hovered_close_) ? 
-                IM_COL32(255, 100, 100, 255) : IM_COL32(180, 180, 180, 255);
+        // Close button (if enabled, only show on hover or active)
+        if (tab.can_close && (is_active || is_hovered)) {
+            bool close_hovered = (i == hovered_close_);
+            ImU32 close_color = close_hovered
+                ? to_imcol(colors.error)
+                : to_imcol(colors.text_tertiary);
             
             ImVec2 close_center(
                 layout.close_bounds.x + layout.close_bounds.w * 0.5f,
                 layout.close_bounds.y + layout.close_bounds.h * 0.5f
             );
             
-            // Draw 'X' for close button
-            float size = CLOSE_BUTTON_SIZE * 0.4f;
+            // Close button hover background
+            if (close_hovered) {
+                draw_list->AddCircleFilled(close_center, CLOSE_BUTTON_SIZE * 0.5f,
+                    to_imcol(colors.error, 0.15f));
+            }
+            
+            // Draw 'X'
+            float sz = CLOSE_BUTTON_SIZE * 0.3f;
             draw_list->AddLine(
-                ImVec2(close_center.x - size, close_center.y - size),
-                ImVec2(close_center.x + size, close_center.y + size),
-                close_color, 2.0f);
+                ImVec2(close_center.x - sz, close_center.y - sz),
+                ImVec2(close_center.x + sz, close_center.y + sz),
+                close_color, 1.5f);
             draw_list->AddLine(
-                ImVec2(close_center.x - size, close_center.y + size),
-                ImVec2(close_center.x + size, close_center.y - size),
-                close_color, 2.0f);
+                ImVec2(close_center.x - sz, close_center.y + sz),
+                ImVec2(close_center.x + sz, close_center.y - sz),
+                close_color, 1.5f);
         }
         
-        // Modified indicator (future)
+        // Modified indicator dot
         if (tab.is_modified) {
-            ImVec2 dot_pos(layout.bounds.x + 6, layout.bounds.y + layout.bounds.h - 6);
-            draw_list->AddCircleFilled(dot_pos, 3.0f, IM_COL32(255, 200, 100, 255));
+            ImVec2 dot_pos(layout.bounds.x + 8, layout.bounds.y + 10);
+            draw_list->AddCircleFilled(dot_pos, 3.0f, to_imcol(colors.warning));
         }
     }
 #endif
@@ -242,38 +275,43 @@ void TabBar::draw_tabs(const Rect& bounds) {
 
 void TabBar::draw_add_button(const Rect& bounds) {
 #ifdef PLOTIX_USE_IMGUI
-    // Position add button at the right edge
-    ImVec2 button_pos(bounds.x + bounds.w - ADD_BUTTON_WIDTH - 4, bounds.y + 4);
-    ImVec2 button_size(ADD_BUTTON_WIDTH - 8, bounds.h - 8);
+    const auto& colors = ui::theme();
+    auto layouts = compute_tab_layouts(bounds);
+    
+    // Position add button after the last tab
+    float last_tab_end = bounds.x;
+    if (!layouts.empty()) {
+        auto& last = layouts.back();
+        last_tab_end = last.bounds.x + last.bounds.w;
+    }
+    
+    float btn_x = last_tab_end + 4.0f;
+    float btn_y = bounds.y + 4.0f;
+    float btn_w = ADD_BUTTON_WIDTH - 8.0f;
+    float btn_h = bounds.h - 8.0f;
+    
+    // Don't draw if it would overflow
+    if (btn_x + btn_w > bounds.x + bounds.w - 4.0f) return;
     
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+    bool hovered = (mouse_pos.x >= btn_x && mouse_pos.x < btn_x + btn_w &&
+                    mouse_pos.y >= btn_y && mouse_pos.y < btn_y + btn_h);
     
-    // Button background
-    ImU32 bg_color = IM_COL32(60, 60, 65, 255);
+    ImU32 bg_color = hovered ? to_imcol(colors.accent_subtle) : to_imcol(colors.bg_secondary, 0.0f);
     draw_list->AddRectFilled(
-        button_pos,
-        ImVec2(button_pos.x + button_size.x, button_pos.y + button_size.y),
-        bg_color, 4.0f);
+        ImVec2(btn_x, btn_y),
+        ImVec2(btn_x + btn_w, btn_y + btn_h),
+        bg_color, ui::tokens::RADIUS_SM);
     
     // Plus sign
-    ImVec2 center(button_pos.x + button_size.x * 0.5f, button_pos.y + button_size.y * 0.5f);
-    ImU32 plus_color = IM_COL32(200, 200, 200, 255);
-    float size = 8.0f;
+    ImVec2 center(btn_x + btn_w * 0.5f, btn_y + btn_h * 0.5f);
+    ImU32 plus_color = hovered ? to_imcol(colors.accent) : to_imcol(colors.text_tertiary);
+    float sz = 6.0f;
+    draw_list->AddLine(ImVec2(center.x - sz, center.y), ImVec2(center.x + sz, center.y), plus_color, 1.5f);
+    draw_list->AddLine(ImVec2(center.x, center.y - sz), ImVec2(center.x, center.y + sz), plus_color, 1.5f);
     
-    draw_list->AddLine(
-        ImVec2(center.x - size, center.y),
-        ImVec2(center.x + size, center.y),
-        plus_color, 2.0f);
-    draw_list->AddLine(
-        ImVec2(center.x, center.y - size),
-        ImVec2(center.x, center.y + size),
-        plus_color, 2.0f);
-    
-    // Handle click
-    ImVec2 mouse_pos = ImGui::GetMousePos();
-    if (mouse_pos.x >= button_pos.x && mouse_pos.x < button_pos.x + button_size.x &&
-        mouse_pos.y >= button_pos.y && mouse_pos.y < button_pos.y + button_size.y &&
-        ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         add_tab("Figure " + std::to_string(tabs_.size() + 1));
     }
 #endif
@@ -362,13 +400,34 @@ void TabBar::start_drag(size_t tab_index, float mouse_x) {
 }
 
 void TabBar::update_drag(float mouse_x) {
-    // TODO: Implement visual tab reordering during drag
-    // This is a placeholder for the drag feedback
+#ifdef PLOTIX_USE_IMGUI
+    if (dragged_tab_ >= tabs_.size()) return;
+    
+    float delta = mouse_x - drag_offset_x_;
+    if (std::abs(delta) < 5.0f) return;  // Dead zone
+    
+    // Check if we should swap with adjacent tab
+    if (delta > 30.0f && dragged_tab_ + 1 < tabs_.size()) {
+        std::swap(tabs_[dragged_tab_], tabs_[dragged_tab_ + 1]);
+        if (active_tab_ == dragged_tab_) active_tab_++;
+        else if (active_tab_ == dragged_tab_ + 1) active_tab_--;
+        if (on_tab_reorder_) on_tab_reorder_(dragged_tab_, dragged_tab_ + 1);
+        dragged_tab_++;
+        drag_offset_x_ = mouse_x;
+    } else if (delta < -30.0f && dragged_tab_ > 0) {
+        std::swap(tabs_[dragged_tab_], tabs_[dragged_tab_ - 1]);
+        if (active_tab_ == dragged_tab_) active_tab_--;
+        else if (active_tab_ == dragged_tab_ - 1) active_tab_++;
+        if (on_tab_reorder_) on_tab_reorder_(dragged_tab_, dragged_tab_ - 1);
+        dragged_tab_--;
+        drag_offset_x_ = mouse_x;
+    }
+#else
     (void)mouse_x;
+#endif
 }
 
 void TabBar::end_drag() {
-    // TODO: Implement actual tab reordering logic
     is_dragging_ = false;
     dragged_tab_ = SIZE_MAX;
 }
@@ -388,13 +447,74 @@ bool TabBar::needs_scroll_buttons(const Rect& bounds) const {
 }
 
 void TabBar::draw_scroll_buttons(const Rect& bounds) {
-    // TODO: Implement scroll buttons for tab overflow
+#ifdef PLOTIX_USE_IMGUI
+    const auto& colors = ui::theme();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    float btn_w = 20.0f;
+    float btn_h = bounds.h - 4.0f;
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+    
+    // Left scroll button
+    if (scroll_offset_ < 0.0f) {
+        float lx = bounds.x;
+        float ly = bounds.y + 2.0f;
+        bool lhov = (mouse_pos.x >= lx && mouse_pos.x < lx + btn_w &&
+                     mouse_pos.y >= ly && mouse_pos.y < ly + btn_h);
+        draw_list->AddRectFilled(ImVec2(lx, ly), ImVec2(lx + btn_w, ly + btn_h),
+            lhov ? to_imcol(colors.accent_subtle) : to_imcol(colors.bg_elevated),
+            ui::tokens::RADIUS_SM);
+        ImVec2 arrow_center(lx + btn_w * 0.5f, ly + btn_h * 0.5f);
+        draw_list->AddTriangleFilled(
+            ImVec2(arrow_center.x + 4, arrow_center.y - 5),
+            ImVec2(arrow_center.x + 4, arrow_center.y + 5),
+            ImVec2(arrow_center.x - 4, arrow_center.y),
+            to_imcol(lhov ? colors.accent : colors.text_secondary));
+        if (lhov && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            scroll_offset_ = std::min(scroll_offset_ + 100.0f, 0.0f);
+        }
+    }
+    
+    // Right scroll button
+    {
+        float rx = bounds.x + bounds.w - btn_w;
+        float ry = bounds.y + 2.0f;
+        bool rhov = (mouse_pos.x >= rx && mouse_pos.x < rx + btn_w &&
+                     mouse_pos.y >= ry && mouse_pos.y < ry + btn_h);
+        draw_list->AddRectFilled(ImVec2(rx, ry), ImVec2(rx + btn_w, ry + btn_h),
+            rhov ? to_imcol(colors.accent_subtle) : to_imcol(colors.bg_elevated),
+            ui::tokens::RADIUS_SM);
+        ImVec2 arrow_center(rx + btn_w * 0.5f, ry + btn_h * 0.5f);
+        draw_list->AddTriangleFilled(
+            ImVec2(arrow_center.x - 4, arrow_center.y - 5),
+            ImVec2(arrow_center.x - 4, arrow_center.y + 5),
+            ImVec2(arrow_center.x + 4, arrow_center.y),
+            to_imcol(rhov ? colors.accent : colors.text_secondary));
+        if (rhov && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            scroll_offset_ -= 100.0f;
+        }
+    }
+#else
     (void)bounds;
+#endif
 }
 
 void TabBar::scroll_to_tab(size_t index) {
-    // TODO: Implement auto-scroll to make tab visible
+#ifdef PLOTIX_USE_IMGUI
+    if (index >= tabs_.size()) return;
+    // Compute approximate position of the target tab
+    float x = 0.0f;
+    for (size_t i = 0; i < index; ++i) {
+        ImVec2 ts = ImGui::CalcTextSize(tabs_[i].title.c_str());
+        float tw = std::clamp(
+            ts.x + TAB_PADDING * 2 + (tabs_[i].can_close ? CLOSE_BUTTON_SIZE : 0),
+            TAB_MIN_WIDTH, TAB_MAX_WIDTH);
+        x += tw;
+    }
+    // Adjust scroll so the tab is visible
+    scroll_offset_ = -std::max(0.0f, x - 50.0f);
+#else
     (void)index;
+#endif
 }
 
 } // namespace plotix

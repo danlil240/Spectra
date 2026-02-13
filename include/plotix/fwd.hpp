@@ -19,10 +19,12 @@ class TextRenderer;
 class FontAtlas;
 
 class Animator;
+class AnimationController;
 class Timeline;
 struct Frame;
 class FrameScheduler;
 class AnimationBuilder;
+class GestureRecognizer;
 
 class ImageExporter;
 class SvgExporter;

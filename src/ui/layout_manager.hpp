@@ -9,6 +9,7 @@ namespace plotix {
  * 
  * Replaces hardcoded pixel positions with a responsive zone system.
  * All UI components query their layout rectangles from this manager.
+ * Supports smooth animated transitions for panel open/close/resize.
  */
 class LayoutManager {
 public:
@@ -20,10 +21,10 @@ public:
     LayoutManager& operator=(const LayoutManager&) = delete;
 
     /**
-     * Update all zone rectangles based on current window size.
-     * Call this once per frame when window size changes.
+     * Update all zone rectangles based on current window size and delta time.
+     * Call this once per frame. Drives animated transitions.
      */
-    void update(float window_width, float window_height);
+    void update(float window_width, float window_height, float dt = 0.0f);
 
     // Zone rectangle queries
     Rect command_bar_rect() const;
@@ -32,21 +33,34 @@ public:
     Rect inspector_rect() const;
     Rect status_bar_rect() const;
     Rect floating_toolbar_rect() const;
+    Rect tab_bar_rect() const;
 
     // Configuration
     void set_inspector_visible(bool visible);
     void set_inspector_width(float width);
     void set_nav_rail_width(float width);
     void set_nav_rail_expanded(bool expanded);
+    void set_tab_bar_visible(bool visible);
+    void reset_inspector_width();
 
     // State queries
     bool is_inspector_visible() const { return inspector_visible_; }
     float inspector_width() const { return inspector_width_; }
+    float inspector_animated_width() const { return inspector_anim_width_; }
     bool is_nav_rail_expanded() const { return nav_rail_expanded_; }
-    float nav_rail_width() const { return nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_; }
+    float nav_rail_width() const;
+    float nav_rail_animated_width() const { return nav_rail_anim_width_; }
+    bool is_tab_bar_visible() const { return tab_bar_visible_; }
+    bool is_animating() const;
+
+    // Inspector resize interaction helpers
+    bool is_inspector_resize_hovered() const { return inspector_resize_hovered_; }
+    void set_inspector_resize_hovered(bool hovered) { inspector_resize_hovered_ = hovered; }
+    bool is_inspector_resize_active() const { return inspector_resize_active_; }
+    void set_inspector_resize_active(bool active) { inspector_resize_active_ = active; }
 
     // Layout constants (matching the design spec)
-    static constexpr float COMMAND_BAR_HEIGHT = 40.0f;
+    static constexpr float COMMAND_BAR_HEIGHT = 48.0f;
     static constexpr float STATUS_BAR_HEIGHT = 28.0f;
     static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 48.0f;
     static constexpr float NAV_RAIL_EXPANDED_WIDTH = 200.0f;
@@ -54,7 +68,10 @@ public:
     static constexpr float INSPECTOR_MIN_WIDTH = 240.0f;
     static constexpr float INSPECTOR_MAX_WIDTH = 480.0f;
     static constexpr float FLOATING_TOOLBAR_HEIGHT = 40.0f;
-    static constexpr float FLOATING_TOOLBAR_WIDTH = 200.0f;
+    static constexpr float FLOATING_TOOLBAR_WIDTH = 220.0f;
+    static constexpr float TAB_BAR_HEIGHT = 36.0f;
+    static constexpr float RESIZE_HANDLE_WIDTH = 6.0f;
+    static constexpr float ANIM_SPEED = 12.0f;
 
 private:
     // Window dimensions
@@ -68,13 +85,26 @@ private:
     Rect inspector_rect_;
     Rect status_bar_rect_;
     Rect floating_toolbar_rect_;
+    Rect tab_bar_rect_;
 
     // Configuration state
-    bool inspector_visible_ = true;
+    bool inspector_visible_ = false;
     float inspector_width_ = INSPECTOR_DEFAULT_WIDTH;
     bool nav_rail_expanded_ = false;
     float nav_rail_collapsed_width_ = NAV_RAIL_COLLAPSED_WIDTH;
     float nav_rail_expanded_width_ = NAV_RAIL_EXPANDED_WIDTH;
+    bool tab_bar_visible_ = false;
+
+    // Animated state (smoothly interpolated toward targets)
+    float inspector_anim_width_ = 0.0f;   // 0 when hidden
+    float nav_rail_anim_width_ = NAV_RAIL_COLLAPSED_WIDTH;
+
+    // Inspector resize interaction state
+    bool inspector_resize_hovered_ = false;
+    bool inspector_resize_active_ = false;
+
+    // Helper: exponential smoothing toward target
+    static float smooth_toward(float current, float target, float speed, float dt);
 
     // Helper methods
     void compute_zones();
@@ -84,6 +114,7 @@ private:
     Rect compute_inspector() const;
     Rect compute_status_bar() const;
     Rect compute_floating_toolbar() const;
+    Rect compute_tab_bar() const;
 };
 
 } // namespace plotix

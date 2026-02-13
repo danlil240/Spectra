@@ -50,3 +50,5 @@ tests/golden/output/*.raw
 
 # Doxygen generated docs
 docs/api/
+
+.windsurf

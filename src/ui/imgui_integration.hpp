@@ -5,6 +5,8 @@
 #include <plotix/fwd.hpp>
 #include "input.hpp"
 #include "layout_manager.hpp"
+#include "inspector.hpp"
+#include "selection_context.hpp"
 #include <functional>
 #include <vector>
 #include <string>
@@ -15,6 +17,7 @@ struct ImFont;
 
 namespace plotix {
 
+class DataInteraction;
 class VulkanBackend;
 
 class ImGuiIntegration {
@@ -43,7 +46,7 @@ public:
     
     // Layout management
     LayoutManager& get_layout_manager() { return *layout_manager_; }
-    void update_layout(float window_width, float window_height);
+    void update_layout(float window_width, float window_height, float dt = 0.0f);
 
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
@@ -52,6 +55,15 @@ public:
     bool should_reset_view() const { return reset_view_; }
     void clear_reset_view() { reset_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
+    
+    // Status bar data setters (called by app loop with real data)
+    void set_cursor_data(float x, float y) { cursor_data_x_ = x; cursor_data_y_ = y; }
+    void set_zoom_level(float zoom) { zoom_level_ = zoom; }
+    void set_gpu_time(float ms) { gpu_time_ms_ = ms; }
+
+    // Data interaction layer (owned externally by App)
+    void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
+    DataInteraction* data_interaction() const { return data_interaction_; }
 
 private:
     void apply_modern_style();
@@ -66,11 +78,7 @@ private:
     
     void draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active = false);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
-    void draw_section_figure(Figure& figure);
-    void draw_section_series(Figure& figure);
-    void draw_section_axes(Figure& figure);
-    
-    // Legacy methods (to be removed after Agent C migration)
+    // Legacy methods (to be removed after full migration)
     void draw_menubar();
     void draw_icon_bar();
     void draw_panel(Figure& figure);
@@ -78,7 +86,11 @@ private:
     bool initialized_ = false;
     std::unique_ptr<LayoutManager> layout_manager_;
 
-    // Panel state (legacy, will be replaced by inspector)
+    // Inspector system (Agent C)
+    ui::Inspector inspector_;
+    ui::SelectionContext selection_ctx_;
+
+    // Panel state
     bool panel_open_   = false;
 
     enum class Section { Figure, Series, Axes };
@@ -96,6 +108,15 @@ private:
     // Interaction state
     bool reset_view_ = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
+    
+    // Status bar data
+    float cursor_data_x_ = 0.0f;
+    float cursor_data_y_ = 0.0f;
+    float zoom_level_ = 1.0f;
+    float gpu_time_ms_ = 0.0f;
+
+    // Data interaction layer (not owned)
+    DataInteraction* data_interaction_ = nullptr;
 };
 
 } // namespace plotix

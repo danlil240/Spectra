@@ -3,9 +3,14 @@
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
 
+#include <chrono>
 #include <functional>
 
 namespace plotix {
+
+class AnimationController;
+class DataInteraction;
+class GestureRecognizer;
 
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode {
@@ -44,7 +49,8 @@ using SavePngCallback = std::function<void()>;
 // box zoom, keyboard shortcuts, and multi-axes hit-testing.
 class InputHandler {
 public:
-    InputHandler() = default;
+    InputHandler();
+    ~InputHandler();
 
     // Set the figure for multi-axes hit-testing
     void set_figure(Figure* fig) { figure_ = fig; }
@@ -59,8 +65,23 @@ public:
     // Mouse move event: pan if dragging, update cursor readout
     void on_mouse_move(double x, double y);
 
-    // Scroll event: zoom around cursor position
+    // Scroll event: zoom around cursor position (animated)
     void on_scroll(double x_offset, double y_offset, double cursor_x, double cursor_y);
+
+    // Per-frame update: advances animations and inertial pan. dt in seconds.
+    void update(float dt);
+
+    // Set the animation controller (owned externally, e.g. by App)
+    void set_animation_controller(AnimationController* ctrl) { anim_ctrl_ = ctrl; }
+    AnimationController* animation_controller() const { return anim_ctrl_; }
+
+    // Set the gesture recognizer (owned externally)
+    void set_gesture_recognizer(GestureRecognizer* gr) { gesture_ = gr; }
+    GestureRecognizer* gesture_recognizer() const { return gesture_; }
+
+    // Set the data interaction layer (owned externally)
+    void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
+    DataInteraction* data_interaction() const { return data_interaction_; }
 
     // Key event: keyboard shortcuts
     void on_key(int key, int action, int mods);
@@ -81,6 +102,9 @@ public:
 
     // Box zoom rectangle (for overlay rendering)
     const BoxZoomRect& box_zoom_rect() const { return box_zoom_; }
+
+    // True if any interaction animation is running (zoom, pan inertia, auto-fit)
+    bool has_active_animations() const;
 
     // Register callback for Ctrl+S save
     void set_save_callback(SavePngCallback cb) { save_callback_ = std::move(cb); }
@@ -131,13 +155,42 @@ private:
     // Callbacks
     SavePngCallback save_callback_;
 
-    // Zoom factor per scroll tick
-    static constexpr float ZOOM_FACTOR = 0.1f;
+    // Animation controller (not owned)
+    AnimationController* anim_ctrl_ = nullptr;
+
+    // Gesture recognizer (not owned)
+    GestureRecognizer* gesture_ = nullptr;
+
+    // Data interaction layer (not owned)
+    DataInteraction* data_interaction_ = nullptr;
+
+    // Inertial pan tracking: velocity in screen px/sec at drag release
+    double last_move_x_ = 0.0;
+    double last_move_y_ = 0.0;
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point last_move_time_{};
+    Clock::time_point drag_start_time_{};
+
+    // Zoom factor per scroll tick (0.25 = 25% range change per tick)
+    static constexpr float ZOOM_FACTOR = 0.25f;
+
+    // Animated zoom duration (seconds)
+    static constexpr float ZOOM_ANIM_DURATION = 0.15f;
+
+    // Inertial pan duration (seconds)
+    static constexpr float PAN_INERTIA_DURATION = 0.3f;
+
+    // Auto-fit animation duration (seconds)
+    static constexpr float AUTOFIT_ANIM_DURATION = 0.25f;
+
+    // Minimum velocity (data-space units/sec) to trigger inertial pan
+    static constexpr float MIN_INERTIA_VELOCITY = 0.01f;
 
     // GLFW key constants (to avoid including GLFW in header)
     static constexpr int KEY_R      = 82;
     static constexpr int KEY_G      = 71;
     static constexpr int KEY_S      = 83;
+    static constexpr int KEY_C      = 67;
     static constexpr int KEY_A      = 65;
     static constexpr int KEY_ESCAPE = 256;
     static constexpr int MOD_CONTROL = 0x0002;

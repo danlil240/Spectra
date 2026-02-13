@@ -9,7 +9,9 @@
 #include "../core/layout.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
+#include "animation_controller.hpp"
 #include "command_queue.hpp"
+#include "gesture_recognizer.hpp"
 #include "input.hpp"
 
 #ifdef PLOTIX_USE_GLFW
@@ -17,14 +19,17 @@
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
+#include "data_interaction.hpp"
 #include "imgui_integration.hpp"
 #include "tab_bar.hpp"
 #include <imgui.h>
 #endif
 
+#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <filesystem>
+#include <span>
 
 namespace plotix {
 
@@ -162,6 +167,7 @@ void App::run() {
 
 #ifdef PLOTIX_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
+    std::unique_ptr<DataInteraction> data_interaction;
     std::unique_ptr<TabBar> figure_tabs;
     size_t pending_tab_switch = SIZE_MAX;
     size_t pending_tab_close = SIZE_MAX;
@@ -170,7 +176,11 @@ void App::run() {
 
 #ifdef PLOTIX_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
+    AnimationController anim_controller;
+    GestureRecognizer gesture;
     InputHandler input_handler;
+    input_handler.set_animation_controller(&anim_controller);
+    input_handler.set_gesture_recognizer(&gesture);
     bool needs_resize = false;
     uint32_t new_width = active_figure->width();
     uint32_t new_height = active_figure->height();
@@ -328,6 +338,11 @@ void App::run() {
         auto* vk = static_cast<VulkanBackend*>(backend_.get());
         auto* glfw_window = static_cast<GLFWwindow*>(glfw->native_window());
         imgui_ui->init(*vk, glfw_window);
+
+        // Create and wire DataInteraction layer (Agent E)
+        data_interaction = std::make_unique<DataInteraction>();
+        imgui_ui->set_data_interaction(data_interaction.get());
+        input_handler.set_data_interaction(data_interaction.get());
     }
 #endif
 
@@ -402,14 +417,20 @@ void App::run() {
         // Evaluate keyframe animations
         animator.evaluate(scheduler.elapsed_seconds());
 
+#ifdef PLOTIX_USE_GLFW
+        // Update interaction animations (animated zoom, inertial pan, auto-fit)
+        if (glfw) {
+            input_handler.update(scheduler.dt());
+        }
+#endif
+
         // Call user on_frame callback
         if (has_animation && active_figure->anim_on_frame_) {
             Frame frame = scheduler.current_frame();
             active_figure->anim_on_frame_(frame);
         }
 
-        // Update ImGui layout manager BEFORE computing subplot layout so
-        // canvas_rect() reflects the current window size.
+        // Start ImGui frame (updates layout manager with current window size).
         bool imgui_frame_started = false;
 #ifdef PLOTIX_USE_IMGUI
         bool should_update_imgui = !is_resizing || (resize_frame_counter % 6 == 0);
@@ -418,31 +439,6 @@ void App::run() {
             imgui_frame_started = true;
         }
 #endif
-
-        // Compute layout (skip during active resize for better performance)
-        if (!is_resizing) {
-#ifdef PLOTIX_USE_IMGUI
-            // UI-aware layout: place subplots inside canvas content region.
-            if (imgui_ui) {
-                const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-                const auto rects = compute_subplot_layout(
-                    canvas.w, canvas.h,
-                    active_figure->grid_rows_, active_figure->grid_cols_,
-                    {},
-                    canvas.x, canvas.y);
-
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
-                    if (active_figure->axes_mut()[i]) {
-                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
-            } else {
-                active_figure->compute_layout();
-            }
-#else
-            active_figure->compute_layout();
-#endif
-        }
 
 #ifdef PLOTIX_USE_GLFW
         // Handle window resize with debouncing and frame skipping
@@ -555,10 +551,18 @@ void App::run() {
             
             // Handle interaction state from UI
             if (imgui_ui->should_reset_view()) {
-                // Reset all axes to auto-fit
+                // Animated auto-fit all axes
                 for (auto& ax : active_figure->axes_mut()) {
                     if (ax) {
+                        auto old_xlim = ax->x_limits();
+                        auto old_ylim = ax->y_limits();
                         ax->auto_fit();
+                        AxisLimits target_x = ax->x_limits();
+                        AxisLimits target_y = ax->y_limits();
+                        ax->xlim(old_xlim.min, old_xlim.max);
+                        ax->ylim(old_ylim.min, old_ylim.max);
+                        anim_controller.animate_axis_limits(
+                            *ax, target_x, target_y, 0.25f, ease::ease_out);
                     }
                 }
                 imgui_ui->clear_reset_view();
@@ -566,6 +570,44 @@ void App::run() {
             
             // Update input handler tool mode
             input_handler.set_tool_mode(imgui_ui->get_interaction_mode());
+            
+            // Feed cursor data to status bar
+            auto readout = input_handler.cursor_readout();
+            imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
+
+            // Update data interaction layer (nearest-point query, tooltip state)
+            if (data_interaction) {
+                data_interaction->update(readout, *active_figure);
+            }
+            
+            // Feed zoom level (approximate: based on data bounds vs view)
+            if (!active_figure->axes().empty() && active_figure->axes()[0]) {
+                auto& ax = active_figure->axes()[0];
+                auto xlim = ax->x_limits();
+                float view_range = xlim.max - xlim.min;
+                // Estimate data range from series x_data spans
+                float data_min = xlim.max, data_max = xlim.min;
+                for (auto& s : ax->series()) {
+                    if (!s) continue;
+                    std::span<const float> xd;
+                    if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
+                        xd = ls->x_data();
+                    else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
+                        xd = sc->x_data();
+                    if (!xd.empty()) {
+                        auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
+                        data_min = std::min(data_min, *it_min);
+                        data_max = std::max(data_max, *it_max);
+                    }
+                }
+                float data_range = data_max - data_min;
+                if (view_range > 0.0f && data_range > 0.0f) {
+                    imgui_ui->set_zoom_level(data_range / view_range);
+                }
+            }
+            
+            // Show tab bar when multiple figures exist
+            imgui_ui->get_layout_manager().set_tab_bar_visible(figures_.size() > 1);
         }
 #endif
 
@@ -606,6 +648,31 @@ void App::run() {
             pending_tab_switch = SIZE_MAX;
         }
 #endif
+
+        // Compute subplot layout AFTER build_ui() so that nav rail / inspector
+        // toggles from the current frame are immediately reflected.
+        if (!is_resizing) {
+#ifdef PLOTIX_USE_IMGUI
+            if (imgui_ui) {
+                const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                const auto rects = compute_subplot_layout(
+                    canvas.w, canvas.h,
+                    active_figure->grid_rows_, active_figure->grid_cols_,
+                    {},
+                    canvas.x, canvas.y);
+
+                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                    if (active_figure->axes_mut()[i]) {
+                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                    }
+                }
+            } else {
+                active_figure->compute_layout();
+            }
+#else
+            active_figure->compute_layout();
+#endif
+        }
 
         // Render (skip drawing if swapchain is stale, but keep the loop going)
         // During active resize, only render every few frames to maintain responsiveness

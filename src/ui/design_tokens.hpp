@@ -33,7 +33,7 @@ constexpr float FONT_2XL   = 20.0f;  // Page titles
 constexpr float FONT_MONO  = 13.0f;  // Data readout, coordinates
 
 // Layout Constants
-constexpr float COMMAND_BAR_HEIGHT   = 40.0f;
+constexpr float COMMAND_BAR_HEIGHT   = 48.0f;
 constexpr float NAV_RAIL_WIDTH       = 48.0f;
 constexpr float NAV_RAIL_WIDTH_EXPANDED = 200.0f;
 constexpr float INSPECTOR_WIDTH      = 320.0f;

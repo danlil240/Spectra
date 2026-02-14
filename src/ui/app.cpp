@@ -926,8 +926,7 @@ void App::run() {
             imgui_ui->build_ui(*active_figure);
 
             if (figure_tabs) {
-                Rect canvas_bounds = imgui_ui->get_layout_manager().canvas_rect();
-                Rect tab_bounds{canvas_bounds.x, canvas_bounds.y, canvas_bounds.w, 36.0f};
+                Rect tab_bounds = imgui_ui->get_layout_manager().tab_bar_rect();
 
                 ImGui::SetNextWindowPos(ImVec2(tab_bounds.x, tab_bounds.y));
                 ImGui::SetNextWindowSize(ImVec2(tab_bounds.w, tab_bounds.h));

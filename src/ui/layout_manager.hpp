@@ -32,7 +32,9 @@ public:
     Rect canvas_rect() const;
     Rect inspector_rect() const;
     Rect status_bar_rect() const;
+#if PLOTIX_FLOATING_TOOLBAR
     Rect floating_toolbar_rect() const;
+#endif
     Rect tab_bar_rect() const;
 
     // Configuration
@@ -42,6 +44,17 @@ public:
     void set_nav_rail_expanded(bool expanded);
     void set_tab_bar_visible(bool visible);
     void reset_inspector_width();
+
+#if PLOTIX_FLOATING_TOOLBAR
+    // Floating toolbar
+    void set_floating_toolbar_visible(bool visible);
+    void toggle_floating_toolbar();
+    bool is_floating_toolbar_visible() const { return floating_toolbar_visible_; }
+    float floating_toolbar_opacity() const { return floating_toolbar_opacity_; }
+    void set_floating_toolbar_drag_offset(float dx, float dy);
+    void reset_floating_toolbar_position();
+    void notify_toolbar_activity();
+#endif
 
     // State queries
     bool is_inspector_visible() const { return inspector_visible_; }
@@ -64,11 +77,15 @@ public:
     static constexpr float STATUS_BAR_HEIGHT = 28.0f;
     static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 48.0f;
     static constexpr float NAV_RAIL_EXPANDED_WIDTH = 200.0f;
+    static constexpr float NAV_TOOLBAR_INSET = 68.0f;  // Space reserved for floating nav toolbar (margin + toolbar + gap)
+    static constexpr float PLOT_LEFT_MARGIN = 100.0f;  // Default plot left margin (matches Margins::left) for tab alignment
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
     static constexpr float INSPECTOR_MIN_WIDTH = 240.0f;
     static constexpr float INSPECTOR_MAX_WIDTH = 480.0f;
+#if PLOTIX_FLOATING_TOOLBAR
     static constexpr float FLOATING_TOOLBAR_HEIGHT = 40.0f;
     static constexpr float FLOATING_TOOLBAR_WIDTH = 220.0f;
+#endif
     static constexpr float TAB_BAR_HEIGHT = 36.0f;
     static constexpr float RESIZE_HANDLE_WIDTH = 6.0f;
     static constexpr float ANIM_SPEED = 12.0f;
@@ -84,7 +101,9 @@ private:
     Rect canvas_rect_;
     Rect inspector_rect_;
     Rect status_bar_rect_;
+#if PLOTIX_FLOATING_TOOLBAR
     Rect floating_toolbar_rect_;
+#endif
     Rect tab_bar_rect_;
 
     // Configuration state
@@ -103,6 +122,18 @@ private:
     bool inspector_resize_hovered_ = false;
     bool inspector_resize_active_ = false;
 
+#if PLOTIX_FLOATING_TOOLBAR
+    // Floating toolbar state
+    bool floating_toolbar_visible_ = true;
+    float floating_toolbar_opacity_ = 1.0f;
+    float floating_toolbar_idle_timer_ = 0.0f;
+    bool floating_toolbar_has_custom_pos_ = false;
+    float floating_toolbar_offset_x_ = 0.0f;
+    float floating_toolbar_offset_y_ = 0.0f;
+    static constexpr float TOOLBAR_FADE_SPEED = 6.0f;
+    static constexpr float TOOLBAR_AUTO_HIDE_DELAY = 3.0f;
+#endif
+
     // Helper: exponential smoothing toward target
     static float smooth_toward(float current, float target, float speed, float dt);
 
@@ -113,7 +144,9 @@ private:
     Rect compute_canvas() const;
     Rect compute_inspector() const;
     Rect compute_status_bar() const;
+#if PLOTIX_FLOATING_TOOLBAR
     Rect compute_floating_toolbar() const;
+#endif
     Rect compute_tab_bar() const;
 };
 

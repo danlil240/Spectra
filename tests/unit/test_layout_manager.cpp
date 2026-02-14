@@ -37,11 +37,11 @@ TEST(LayoutManager, DefaultZonesAt1280x720) {
     auto insp = lm.inspector_rect();
     EXPECT_FLOAT_EQ(insp.w, 0.0f);
 
-    // Canvas fills remaining space
+    // Canvas starts after nav toolbar inset
     auto cv = lm.canvas_rect();
-    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
     EXPECT_FLOAT_EQ(cv.y, LayoutManager::COMMAND_BAR_HEIGHT);
-    EXPECT_FLOAT_EQ(cv.w, 1280.0f - LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+    EXPECT_FLOAT_EQ(cv.w, 1280.0f - LayoutManager::NAV_TOOLBAR_INSET);
     EXPECT_FLOAT_EQ(cv.h, content_h);
 }
 
@@ -57,7 +57,7 @@ TEST(LayoutManager, InspectorOpenReducesCanvas) {
     EXPECT_FLOAT_EQ(insp.w, LayoutManager::INSPECTOR_DEFAULT_WIDTH);
 
     auto cv = lm.canvas_rect();
-    float expected_canvas_w = 1280.0f - LayoutManager::NAV_RAIL_COLLAPSED_WIDTH - LayoutManager::INSPECTOR_DEFAULT_WIDTH;
+    float expected_canvas_w = 1280.0f - LayoutManager::NAV_TOOLBAR_INSET - LayoutManager::INSPECTOR_DEFAULT_WIDTH;
     EXPECT_FLOAT_EQ(cv.w, expected_canvas_w);
 
     // Inspector is on the right edge
@@ -73,7 +73,7 @@ TEST(LayoutManager, InspectorCloseExpandsCanvas) {
     lm.update(1280.0f, 720.0f);  // snap closed (dt=0)
 
     auto cv = lm.canvas_rect();
-    float expected_w = 1280.0f - LayoutManager::NAV_RAIL_COLLAPSED_WIDTH;
+    float expected_w = 1280.0f - LayoutManager::NAV_TOOLBAR_INSET;
     EXPECT_FLOAT_EQ(cv.w, expected_w);
 }
 
@@ -131,9 +131,9 @@ TEST(LayoutManager, NavRailExpandedWidth) {
     auto nr = lm.nav_rail_rect();
     EXPECT_FLOAT_EQ(nr.w, LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
 
-    // Canvas should shrink
+    // Canvas starts after nav toolbar inset (nav rail doesn't push further)
     auto cv = lm.canvas_rect();
-    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
+    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
 }
 
 TEST(LayoutManager, NavRailCustomWidth) {
@@ -241,6 +241,7 @@ TEST(LayoutManager, SmallWindowClampsToZero) {
     EXPECT_GE(cv.h, 0.0f);
 }
 
+#if PLOTIX_FLOATING_TOOLBAR
 // ─── Floating Toolbar ───────────────────────────────────────────────────────
 
 TEST(LayoutManager, FloatingToolbarCenteredInCanvas) {
@@ -254,10 +255,11 @@ TEST(LayoutManager, FloatingToolbarCenteredInCanvas) {
     float expected_x = cv.x + (cv.w - LayoutManager::FLOATING_TOOLBAR_WIDTH) * 0.5f;
     EXPECT_FLOAT_EQ(ft.x, expected_x);
 
-    // Near bottom of canvas
-    float expected_y = cv.y + cv.h - LayoutManager::FLOATING_TOOLBAR_HEIGHT - 20.0f;
+    // Near bottom of canvas (floating on top, 16px margin)
+    float expected_y = cv.y + cv.h - LayoutManager::FLOATING_TOOLBAR_HEIGHT - 16.0f;
     EXPECT_FLOAT_EQ(ft.y, expected_y);
 }
+#endif
 
 // ─── Combined State ─────────────────────────────────────────────────────────
 
@@ -273,14 +275,15 @@ TEST(LayoutManager, AllZonesOpenSimultaneously) {
     auto insp = lm.inspector_rect();
     auto tb = lm.tab_bar_rect();
 
-    // Nav rail + canvas + inspector should span the width
-    EXPECT_NEAR(nr.w + cv.w + insp.w, 1920.0f, 1.0f);
+    // Canvas + inspector + nav toolbar inset should span the width
+    EXPECT_NEAR(LayoutManager::NAV_TOOLBAR_INSET + cv.w + insp.w, 1920.0f, 1.0f);
 
-    // Tab bar width should match canvas width
-    EXPECT_FLOAT_EQ(tb.w, cv.w);
+    // Tab bar starts at plot grid (canvas + left margin) and is narrower
+    EXPECT_FLOAT_EQ(tb.x, LayoutManager::NAV_TOOLBAR_INSET + LayoutManager::PLOT_LEFT_MARGIN);
+    EXPECT_FLOAT_EQ(tb.w, cv.w - LayoutManager::PLOT_LEFT_MARGIN);
 
-    // Canvas starts after nav rail
-    EXPECT_FLOAT_EQ(cv.x, nr.w);
+    // Canvas starts after nav toolbar inset
+    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
 
     // Canvas starts below tab bar
     EXPECT_FLOAT_EQ(cv.y, LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::TAB_BAR_HEIGHT);

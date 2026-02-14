@@ -213,6 +213,11 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                     float vx_screen = static_cast<float>(x - last_move_x_) / dt_sec;
                     float vy_screen = static_cast<float>(y - last_move_y_) / dt_sec;
 
+                    // Clamp screen velocity to prevent infinity from tiny dt
+                    constexpr float MAX_SCREEN_VEL = 4000.0f; // px/sec
+                    vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
+                    vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
+
                     float vx_data = -vx_screen * x_range / vp.w;
                     float vy_data =  vy_screen * y_range / vp.h;
 

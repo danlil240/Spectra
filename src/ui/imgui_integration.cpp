@@ -34,6 +34,10 @@
 #include <cstdio>
 #include <string>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace plotix {
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -141,7 +145,9 @@ void ImGuiIntegration::build_ui(Figure& figure) {
         draw_inspector(figure);
     }
     draw_status_bar();
+#if PLOTIX_FLOATING_TOOLBAR
     draw_floating_toolbar();
+#endif
 
     // Draw data interaction overlays (tooltip, crosshair, markers) on top of everything
     if (data_interaction_) {
@@ -461,37 +467,6 @@ void ImGuiIntegration::draw_command_bar() {
 
         ImGui::SameLine();
         
-        // Mouse mode buttons
-        draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() { 
-            PLOTIX_LOG_DEBUG("ui_button", "Pan mode button clicked");
-            interaction_mode_ = ToolMode::Pan; 
-            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to Pan");
-        }, "Pan Mode", interaction_mode_ == ToolMode::Pan);
-        
-        ImGui::SameLine();
-        
-        draw_toolbar_button(ui::icon_str(ui::Icon::ZoomIn), [this]() { 
-            PLOTIX_LOG_DEBUG("ui_button", "Box zoom mode button clicked");
-            interaction_mode_ = ToolMode::BoxZoom; 
-            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to BoxZoom");
-        }, "Box Zoom Mode", interaction_mode_ == ToolMode::BoxZoom);
-        
-        ImGui::SameLine();
-        
-        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), [this]() { 
-            PLOTIX_LOG_DEBUG("ui_button", "Select mode button clicked");
-            interaction_mode_ = ToolMode::Select; 
-            PLOTIX_LOG_DEBUG("ui_button", "Tool mode set to Select");
-        }, "Select Mode", interaction_mode_ == ToolMode::Select);
-        
-        ImGui::SameLine();
-        
-        // Subtle separator
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::SameLine();
-        
         // File menu
         draw_menubar_menu("File", {
             MenuItem("Export PNG", []() { /* TODO: Export functionality */ }),
@@ -562,27 +537,56 @@ void ImGuiIntegration::draw_nav_rail() {
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing |
         ImGuiWindowFlags_NoScrollbar;
 
-    float rail_w = bounds.w;
     float btn_size = 32.0f;
+    float spacing = ui::tokens::SPACE_2;
+    float margin = ui::tokens::SPACE_3;
+    float toolbar_w = btn_size + margin * 2.0f;
 
-    // Use minimal padding so ImGui doesn't inflate the window beyond bounds.w
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, ui::tokens::SPACE_3));
+    // Compute floating toolbar height: 3 nav + separator + 4 tools + separator + 1 settings
+    float section_gap = ui::tokens::SPACE_4;
+    float nav_section_h = btn_size * 3.0f + spacing * 2.0f;
+    float tool_section_h = btn_size * 4.0f + spacing * 3.0f;
+    float settings_section_h = btn_size;
+    // Each separator: 2× Dummy of (section_gap - spacing)*0.5 + implicit item spacing around them
+    float separator_h = section_gap + spacing;
+    float total_content_h = nav_section_h + separator_h + tool_section_h + separator_h + settings_section_h;
+    float vert_pad = ui::tokens::SPACE_4;  // generous top/bottom padding
+    float toolbar_h = total_content_h + vert_pad * 2.0f;
+
+    // Position: floating with a left margin, vertically centered in the content area
+    float left_margin = ui::tokens::SPACE_3;
+    float float_x = left_margin;
+    float float_y = bounds.y + (bounds.h - toolbar_h) * 0.5f;
+    // Clamp within content area
+    float_y = std::clamp(float_y, bounds.y + ui::tokens::SPACE_3, bounds.y + bounds.h - toolbar_h - ui::tokens::SPACE_3);
+
+    // Floating elevated style with rounded corners and subtle shadow
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(margin, vert_pad));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, spacing));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, 0.95f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, 0.5f));
 
-    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h), ImGuiCond_Always);
+    // Draw shadow behind the toolbar via background draw list
+    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+    float shadow_offset = 4.0f;
+    float shadow_radius = ui::tokens::RADIUS_LG + 2.0f;
+    bg_dl->AddRectFilled(
+        ImVec2(float_x + shadow_offset, float_y + shadow_offset),
+        ImVec2(float_x + toolbar_w + shadow_offset, float_y + toolbar_h + shadow_offset),
+        IM_COL32(0, 0, 0, 40), shadow_radius);
+
+    ImGui::SetNextWindowPos(ImVec2(float_x, float_y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(toolbar_w, toolbar_h), ImGuiCond_Always);
 
     if (ImGui::Begin("##navrail", nullptr, flags)) {
-        // Manually center icons: offset cursor to center the button in the rail
-        float pad_x = std::max(0.0f, (rail_w - btn_size) * 0.5f);
-        float pad_y = ui::tokens::SPACE_3;
+        float pad_x = std::max(0.0f, (toolbar_w - margin * 2.0f - btn_size) * 0.5f);
 
+        // ── Inspector section buttons ──
         auto nav_btn = [&](ui::Icon icon, const char* tooltip, Section section) {
-            ImGui::SetCursorPosX(pad_x);
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
             bool is_active = panel_open_ && active_section_ == section;
             if (icon_button(ui::icon_str(icon), is_active, font_icon_, btn_size)) {
                 if (is_active) {
@@ -599,28 +603,69 @@ void ImGuiIntegration::draw_nav_rail() {
             }
         };
 
-        ImGui::SetCursorPosY(pad_y);
         nav_btn(ui::Icon::ScatterChart, "Figures", Section::Figure);
         nav_btn(ui::Icon::ChartLine, "Series", Section::Series);
         nav_btn(ui::Icon::Axes, "Axes", Section::Axes);
 
-        // Push bottom icons: reserve space for 2 buttons + spacing
-        float bottom_space = btn_size * 2.0f + ui::tokens::SPACE_3;
-        float bottom_y = ImGui::GetWindowHeight() - bottom_space - pad_y;
-        if (ImGui::GetCursorPosY() < bottom_y) {
-            ImGui::SetCursorPosY(bottom_y);
+        // ── Separator ──
+        ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
+        {
+            float sep_pad = 6.0f;
+            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_pad, ImGui::GetCursorScreenPos().y);
+            ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + toolbar_w - sep_pad, p0.y);
+            ImGui::GetWindowDrawList()->AddLine(p0, p1,
+                IM_COL32(ui::theme().border_default.r * 255, ui::theme().border_default.g * 255,
+                         ui::theme().border_default.b * 255, 80), 1.0f);
+        }
+        ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
+
+        // ── Tool mode buttons (from floating toolbar) ──
+        auto tool_btn = [&](ui::Icon icon, const char* tooltip, ToolMode mode) {
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
+            bool is_active = (interaction_mode_ == mode);
+            if (icon_button(ui::icon_str(icon), is_active, font_icon_, btn_size)) {
+                interaction_mode_ = mode;
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", tooltip);
+            }
+        };
+
+        tool_btn(ui::Icon::Hand, "Pan (P)", ToolMode::Pan);
+        tool_btn(ui::Icon::ZoomIn, "Box Zoom (Z)", ToolMode::BoxZoom);
+        tool_btn(ui::Icon::Crosshair, "Select (S)", ToolMode::Select);
+
+        // Measure button (no tool mode, standalone action)
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
+        icon_button(ui::icon_str(ui::Icon::Ruler), false, font_icon_, btn_size);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", "Measure");
         }
 
-        // Settings at bottom
-        ImGui::SetCursorPosX(pad_x);
-        icon_button(ui::icon_str(ui::Icon::Settings), false, font_icon_, btn_size);
+        // ── Separator ──
+        ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
+        {
+            float sep_pad = 6.0f;
+            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_pad, ImGui::GetCursorScreenPos().y);
+            ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + toolbar_w - sep_pad, p0.y);
+            ImGui::GetWindowDrawList()->AddLine(p0, p1,
+                IM_COL32(ui::theme().border_default.r * 255, ui::theme().border_default.g * 255,
+                         ui::theme().border_default.b * 255, 80), 1.0f);
+        }
+        ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
+
+        // ── Settings at bottom ──
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
+        if (icon_button(ui::icon_str(ui::Icon::Settings), show_theme_settings_, font_icon_, btn_size)) {
+            show_theme_settings_ = !show_theme_settings_;
+        }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("%s", "Settings");
         }
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(4);
+    ImGui::PopStyleVar(5);
 }
 
 void ImGuiIntegration::draw_canvas(Figure& figure) {
@@ -865,39 +910,97 @@ void ImGuiIntegration::draw_status_bar() {
     ImGui::PopStyleVar(3);
 }
 
+#if PLOTIX_FLOATING_TOOLBAR
 void ImGuiIntegration::draw_floating_toolbar() {
     if (!layout_manager_) return;
-    
+
+    float opacity = layout_manager_->floating_toolbar_opacity();
+    if (opacity < 0.01f) return;  // Fully hidden, skip drawing
+
     Rect bounds = layout_manager_->floating_toolbar_rect();
-    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+
+    // Check if mouse is hovering near the toolbar — reveal on hover
+    ImVec2 mouse = ImGui::GetIO().MousePos;
+    float hover_margin = 30.0f;
+    bool mouse_near = (mouse.x >= bounds.x - hover_margin &&
+                       mouse.x <= bounds.x + bounds.w + hover_margin &&
+                       mouse.y >= bounds.y - hover_margin &&
+                       mouse.y <= bounds.y + bounds.h + hover_margin);
+    if (mouse_near) {
+        layout_manager_->notify_toolbar_activity();
+        opacity = layout_manager_->floating_toolbar_opacity();
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
-    
+
     ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
-    
-    // Solid elevated background with rounded pill shape
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollWithMouse |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav;
+
+    // Apply opacity to all toolbar colors
+    float bg_alpha = 0.95f * opacity;
+    float border_alpha = 0.6f * opacity;
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 4));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, 0.98f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, 0.6f));
-    
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, bg_alpha));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, border_alpha));
+
     if (ImGui::Begin("##floatingtoolbar", nullptr, flags)) {
+        // Handle dragging — drag on empty area of the toolbar to reposition
+        if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f)) {
+            if (!toolbar_dragging_) {
+                // Check we're not clicking a button (only drag from empty space)
+                if (!ImGui::IsAnyItemHovered()) {
+                    toolbar_dragging_ = true;
+                }
+            }
+        }
+        if (toolbar_dragging_) {
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 delta = ImGui::GetIO().MouseDelta;
+                layout_manager_->set_floating_toolbar_drag_offset(bounds.x + delta.x, bounds.y + delta.y);
+                layout_manager_->notify_toolbar_activity();
+            }
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                toolbar_dragging_ = false;
+            }
+        }
+
         // Quick access tools
-        draw_toolbar_button(ui::icon_str(ui::Icon::ZoomIn), [this]() { interaction_mode_ = ToolMode::BoxZoom; }, "Zoom", interaction_mode_ == ToolMode::BoxZoom);
+        draw_toolbar_button(ui::icon_str(ui::Icon::ZoomIn), [this]() {
+            interaction_mode_ = ToolMode::BoxZoom;
+            layout_manager_->notify_toolbar_activity();
+        }, "Zoom", interaction_mode_ == ToolMode::BoxZoom);
         ImGui::SameLine();
-        draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() { interaction_mode_ = ToolMode::Pan; }, "Pan", interaction_mode_ == ToolMode::Pan);
+        draw_toolbar_button(ui::icon_str(ui::Icon::Hand), [this]() {
+            interaction_mode_ = ToolMode::Pan;
+            layout_manager_->notify_toolbar_activity();
+        }, "Pan", interaction_mode_ == ToolMode::Pan);
         ImGui::SameLine();
-        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), [this]() { interaction_mode_ = ToolMode::Select; }, "Select", interaction_mode_ == ToolMode::Select);
+        draw_toolbar_button(ui::icon_str(ui::Icon::Crosshair), [this]() {
+            interaction_mode_ = ToolMode::Select;
+            layout_manager_->notify_toolbar_activity();
+        }, "Select", interaction_mode_ == ToolMode::Select);
         ImGui::SameLine();
-        draw_toolbar_button(ui::icon_str(ui::Icon::Ruler), []() { /* TODO: Measure mode */ }, "Measure");
+        draw_toolbar_button(ui::icon_str(ui::Icon::Ruler), [this]() {
+            layout_manager_->notify_toolbar_activity();
+        }, "Measure");
+
+        // Double-click to reset position
+        if (ImGui::IsWindowHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered()) {
+            layout_manager_->reset_floating_toolbar_position();
+        }
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar(4);
 }
+#endif
 
 void ImGuiIntegration::draw_plot_text(Figure& figure) {
     if (!layout_manager_) return;
@@ -968,22 +1071,37 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
             ImGui::PopFont();
         }
 
-        // --- Y axis label (vertical, character-by-character) ---
+        // --- Y axis label (rotated -90°) ---
         if (!axes.get_ylabel().empty()) {
             ImGui::PushFont(font_menubar_);
-            const auto& ylabel = axes.get_ylabel();
-            float total_h = static_cast<float>(ylabel.size()) * 16.0f * 1.1f;
-            float center_y = vp.y + vp.h * 0.5f;
-            float start_y = center_y - total_h * 0.5f;
-            float px = vp.x - tick_padding * 2.0f - 40.0f;
+            const char* txt = axes.get_ylabel().c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
 
-            float char_y = start_y;
-            for (size_t i = 0; i < ylabel.size(); ++i) {
-                char ch[2] = { ylabel[i], '\0' };
-                ImVec2 csz = ImGui::CalcTextSize(ch);
-                dl->AddText(ImVec2(px + (16.0f - csz.x) * 0.5f, char_y), label_col, ch);
-                char_y += 16.0f * 1.1f;
+            // Where the rotated label should be centered
+            float center_x = vp.x - tick_padding * 2.0f - 20.0f;
+            float center_y = vp.y + vp.h * 0.5f;
+
+            ImDrawList* dl = ImGui::GetForegroundDrawList();
+
+            // Render text at origin, then rotate the emitted vertices -90°
+            // Place text so its center lands at (0,0) before rotation
+            ImVec2 text_pos(center_x - sz.x * 0.5f, center_y - sz.y * 0.5f);
+
+            int vtx_begin = dl->VtxBuffer.Size;
+            dl->AddText(text_pos, label_col, txt);
+            int vtx_end = dl->VtxBuffer.Size;
+
+            // Rotate all new vertices -90° around (center_x, center_y)
+            float cos_a = 0.0f;   // cos(-90°)
+            float sin_a = -1.0f;  // sin(-90°)
+            for (int i = vtx_begin; i < vtx_end; ++i) {
+                ImDrawVert& v = dl->VtxBuffer[i];
+                float dx = v.pos.x - center_x;
+                float dy = v.pos.y - center_y;
+                v.pos.x = center_x + dx * cos_a - dy * sin_a;
+                v.pos.y = center_y + dx * sin_a + dy * cos_a;
             }
+
             ImGui::PopFont();
         }
 

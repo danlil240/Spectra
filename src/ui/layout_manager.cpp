@@ -27,6 +27,27 @@ void LayoutManager::update(float window_width, float window_height, float dt) {
     inspector_anim_width_ = smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
     nav_rail_anim_width_  = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
 
+#if PLOTIX_FLOATING_TOOLBAR
+    // Floating toolbar auto-hide: fade out after inactivity
+    if (floating_toolbar_visible_ && dt > 0.0f) {
+        floating_toolbar_idle_timer_ += dt;
+        float opacity_target = (floating_toolbar_idle_timer_ < TOOLBAR_AUTO_HIDE_DELAY) ? 1.0f : 0.15f;
+        float diff = opacity_target - floating_toolbar_opacity_;
+        if (std::abs(diff) < 0.01f) {
+            floating_toolbar_opacity_ = opacity_target;
+        } else {
+            floating_toolbar_opacity_ += diff * std::min(1.0f, TOOLBAR_FADE_SPEED * dt);
+        }
+    } else if (!floating_toolbar_visible_) {
+        float diff = 0.0f - floating_toolbar_opacity_;
+        if (std::abs(diff) < 0.01f) {
+            floating_toolbar_opacity_ = 0.0f;
+        } else {
+            floating_toolbar_opacity_ += diff * std::min(1.0f, TOOLBAR_FADE_SPEED * dt);
+        }
+    }
+#endif
+
     compute_zones();
 }
 
@@ -37,7 +58,9 @@ void LayoutManager::compute_zones() {
     status_bar_rect_       = compute_status_bar();
     tab_bar_rect_          = compute_tab_bar();
     canvas_rect_           = compute_canvas();
+#if PLOTIX_FLOATING_TOOLBAR
     floating_toolbar_rect_ = compute_floating_toolbar();
+#endif
 }
 
 Rect LayoutManager::compute_command_bar() const {
@@ -70,15 +93,16 @@ Rect LayoutManager::compute_tab_bar() const {
     if (!tab_bar_visible_) {
         return Rect{0.0f, 0.0f, 0.0f, 0.0f};
     }
-    float x = nav_rail_anim_width_;
-    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
+    float x = NAV_TOOLBAR_INSET;
+    float w = window_width_ - x - inspector_anim_width_;
     return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }
 
 Rect LayoutManager::compute_canvas() const {
-    float x = nav_rail_anim_width_;
-    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
+    float x = NAV_TOOLBAR_INSET;
+    float w = window_width_ - NAV_TOOLBAR_INSET - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;
+    
     float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
 
     // Offset canvas below tab bar when visible
@@ -90,11 +114,22 @@ Rect LayoutManager::compute_canvas() const {
     return Rect{x, y, std::max(0.0f, w), std::max(0.0f, h)};
 }
 
+#if PLOTIX_FLOATING_TOOLBAR
 Rect LayoutManager::compute_floating_toolbar() const {
-    float toolbar_x = canvas_rect_.x + (canvas_rect_.w - FLOATING_TOOLBAR_WIDTH) * 0.5f;
-    float toolbar_y = canvas_rect_.y + canvas_rect_.h - FLOATING_TOOLBAR_HEIGHT - 20.0f;
+    // Default position: centered horizontally, near bottom of canvas (floating on top)
+    float default_x = canvas_rect_.x + (canvas_rect_.w - FLOATING_TOOLBAR_WIDTH) * 0.5f;
+    float default_y = canvas_rect_.y + canvas_rect_.h - FLOATING_TOOLBAR_HEIGHT - 60.0f;
+
+    float toolbar_x = floating_toolbar_has_custom_pos_ ? floating_toolbar_offset_x_ : default_x;
+    float toolbar_y = floating_toolbar_has_custom_pos_ ? floating_toolbar_offset_y_ : default_y;
+
+    // Clamp to stay within canvas bounds
+    toolbar_x = std::clamp(toolbar_x, canvas_rect_.x, canvas_rect_.x + canvas_rect_.w - FLOATING_TOOLBAR_WIDTH);
+    toolbar_y = std::clamp(toolbar_y, canvas_rect_.y, canvas_rect_.y + canvas_rect_.h - FLOATING_TOOLBAR_HEIGHT);
+
     return Rect{toolbar_x, toolbar_y, FLOATING_TOOLBAR_WIDTH, FLOATING_TOOLBAR_HEIGHT};
 }
+#endif
 
 // Zone rectangle getters
 Rect LayoutManager::command_bar_rect() const { return command_bar_rect_; }
@@ -102,7 +137,9 @@ Rect LayoutManager::nav_rail_rect() const { return nav_rail_rect_; }
 Rect LayoutManager::canvas_rect() const { return canvas_rect_; }
 Rect LayoutManager::inspector_rect() const { return inspector_rect_; }
 Rect LayoutManager::status_bar_rect() const { return status_bar_rect_; }
+#if PLOTIX_FLOATING_TOOLBAR
 Rect LayoutManager::floating_toolbar_rect() const { return floating_toolbar_rect_; }
+#endif
 Rect LayoutManager::tab_bar_rect() const { return tab_bar_rect_; }
 
 float LayoutManager::nav_rail_width() const {
@@ -145,5 +182,39 @@ void LayoutManager::set_nav_rail_expanded(bool expanded) {
 void LayoutManager::set_tab_bar_visible(bool visible) {
     tab_bar_visible_ = visible;
 }
+
+#if PLOTIX_FLOATING_TOOLBAR
+void LayoutManager::set_floating_toolbar_visible(bool visible) {
+    floating_toolbar_visible_ = visible;
+    if (visible) {
+        floating_toolbar_idle_timer_ = 0.0f;
+    }
+}
+
+void LayoutManager::toggle_floating_toolbar() {
+    set_floating_toolbar_visible(!floating_toolbar_visible_);
+}
+
+void LayoutManager::set_floating_toolbar_drag_offset(float dx, float dy) {
+    floating_toolbar_offset_x_ = dx;
+    floating_toolbar_offset_y_ = dy;
+    floating_toolbar_has_custom_pos_ = true;
+    compute_zones();
+}
+
+void LayoutManager::reset_floating_toolbar_position() {
+    floating_toolbar_has_custom_pos_ = false;
+    floating_toolbar_offset_x_ = 0.0f;
+    floating_toolbar_offset_y_ = 0.0f;
+    compute_zones();
+}
+
+void LayoutManager::notify_toolbar_activity() {
+    floating_toolbar_idle_timer_ = 0.0f;
+    if (floating_toolbar_visible_) {
+        floating_toolbar_opacity_ = 1.0f;
+    }
+}
+#endif
 
 } // namespace plotix

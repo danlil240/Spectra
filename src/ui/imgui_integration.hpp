@@ -93,7 +93,9 @@ private:
     void draw_canvas(Figure& figure);
     void draw_inspector(Figure& figure);
     void draw_status_bar();
+#if PLOTIX_FLOATING_TOOLBAR
     void draw_floating_toolbar();
+#endif
     void draw_theme_settings();
     
     void draw_plot_text(Figure& figure);
@@ -150,6 +152,11 @@ private:
     
     // Theme settings window state
     bool show_theme_settings_ = false;
+    
+#if PLOTIX_FLOATING_TOOLBAR
+    // Floating toolbar drag state
+    bool toolbar_dragging_ = false;
+#endif
 };
 
 } // namespace plotix

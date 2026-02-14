@@ -745,10 +745,8 @@ void ImGuiIntegration::draw_inspector(Figure& figure) {
                     selection_ctx_.select_figure(&figure);
                     break;
                 case Section::Series:
-                    // Keep existing series selection if valid, else default to figure
-                    if (selection_ctx_.type != ui::SelectionType::Series) {
-                        selection_ctx_.select_figure(&figure);
-                    }
+                    // For Series section, show only series browser (no figure properties)
+                    selection_ctx_.select_series_browser(&figure);
                     break;
                 case Section::Axes:
                     if (selection_ctx_.type != ui::SelectionType::Axes && !figure.axes().empty()) {

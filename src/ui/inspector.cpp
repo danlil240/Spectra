@@ -50,6 +50,11 @@ void Inspector::draw(Figure& figure) {
             draw_series_browser(figure);
             break;
 
+        case SelectionType::SeriesBrowser:
+            // Show only series browser (no figure properties)
+            draw_series_browser(figure);
+            break;
+
         case SelectionType::Axes:
             if (ctx_.axes) {
                 draw_axes_properties(*ctx_.axes, ctx_.axes_index);

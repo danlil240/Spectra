@@ -4,7 +4,7 @@
 
 namespace plotix::ui {
 
-enum class SelectionType { None, Figure, Axes, Series };
+enum class SelectionType { None, Figure, Axes, Series, SeriesBrowser };
 
 struct SelectionContext {
     SelectionType type = SelectionType::None;
@@ -35,6 +35,12 @@ struct SelectionContext {
         figure = fig;
         axes = ax;
         axes_index = idx;
+    }
+
+    void select_series_browser(Figure* fig) {
+        clear();
+        type = SelectionType::SeriesBrowser;
+        figure = fig;
     }
 
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx) {

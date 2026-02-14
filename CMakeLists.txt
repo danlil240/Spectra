@@ -41,6 +41,8 @@ foreach(_ui_src
     src/ui/figure_manager.cpp
     src/ui/timeline_editor.cpp
     src/ui/recording_export.cpp
+    src/ui/split_view.cpp
+    src/ui/dock_system.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND PLOTIX_UI_SOURCES ${_ui_src})

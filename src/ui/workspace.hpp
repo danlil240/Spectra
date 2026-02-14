@@ -36,6 +36,9 @@ struct WorkspaceData {
         size_t point_count = 0;
         // Series-level opacity (for legend interaction fade)
         float opacity = 1.0f;
+        // Plot style (line style + marker style)
+        int line_style = 1;    // LineStyle enum value (default Solid)
+        int marker_style = 0;  // MarkerStyle enum value (default None)
     };
 
     struct FigureState {
@@ -79,6 +82,9 @@ struct WorkspaceData {
     // Undo history metadata (not the actual actions — just count for UI display)
     size_t undo_count = 0;
     size_t redo_count = 0;
+
+    // Dock/split view state (serialized JSON from DockSystem)
+    std::string dock_state;
 };
 
 // Workspace save/load operations.

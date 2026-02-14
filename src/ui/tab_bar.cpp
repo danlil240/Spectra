@@ -416,15 +416,42 @@ size_t TabBar::get_close_button_at_position(const ImVec2& pos, const std::vector
 }
 
 void TabBar::start_drag(size_t tab_index, float mouse_x) {
+#ifdef PLOTIX_USE_IMGUI
     is_dragging_ = true;
     dragged_tab_ = tab_index;
     drag_offset_x_ = mouse_x;
+    drag_start_y_ = ImGui::GetMousePos().y;
+    is_dock_dragging_ = false;
+#else
+    (void)tab_index; (void)mouse_x;
+#endif
 }
 
 void TabBar::update_drag(float mouse_x) {
 #ifdef PLOTIX_USE_IMGUI
     if (dragged_tab_ >= tabs_.size()) return;
-    
+
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+    float delta_y = mouse_pos.y - drag_start_y_;
+
+    // If dragged far enough vertically, switch to dock-drag mode
+    if (!is_dock_dragging_ && std::abs(delta_y) > 30.0f) {
+        is_dock_dragging_ = true;
+        if (on_tab_drag_out_) {
+            on_tab_drag_out_(dragged_tab_, mouse_pos.x, mouse_pos.y);
+        }
+        return;
+    }
+
+    if (is_dock_dragging_) {
+        // In dock-drag mode — forward position updates
+        if (on_tab_drag_update_) {
+            on_tab_drag_update_(dragged_tab_, mouse_pos.x, mouse_pos.y);
+        }
+        return;
+    }
+
+    // Normal horizontal reorder drag
     float delta = mouse_x - drag_offset_x_;
     if (std::abs(delta) < 5.0f) return;  // Dead zone
     
@@ -450,7 +477,16 @@ void TabBar::update_drag(float mouse_x) {
 }
 
 void TabBar::end_drag() {
+#ifdef PLOTIX_USE_IMGUI
+    if (is_dock_dragging_ && dragged_tab_ < tabs_.size()) {
+        ImVec2 mouse_pos = ImGui::GetMousePos();
+        if (on_tab_drag_end_) {
+            on_tab_drag_end_(dragged_tab_, mouse_pos.x, mouse_pos.y);
+        }
+    }
+#endif
     is_dragging_ = false;
+    is_dock_dragging_ = false;
     dragged_tab_ = SIZE_MAX;
 }
 

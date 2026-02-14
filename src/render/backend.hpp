@@ -54,6 +54,16 @@ struct SeriesPushConstants {
     float point_size   = 4.0f;
     float data_offset_x = 0.0f;
     float data_offset_y = 0.0f;
+    // Plot style fields (line dash pattern + marker shape)
+    uint32_t line_style  = 1;  // 0=None, 1=Solid, 2=Dashed, 3=Dotted, 4=DashDot, 5=DashDotDot
+    uint32_t marker_type = 0;  // 0=None, 1=Point, 2=Circle, ... (matches MarkerStyle enum)
+    float marker_size    = 6.0f;
+    float opacity        = 1.0f;
+    // Dash pattern (up to 4 on/off pairs)
+    float dash_pattern[8] {};
+    float dash_total     = 0.0f;
+    int   dash_count     = 0;
+    float _pad2[2]       {};   // alignment padding
 };
 
 class Backend {

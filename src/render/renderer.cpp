@@ -336,26 +336,58 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
     pc.color[0] = c.r;
     pc.color[1] = c.g;
     pc.color[2] = c.b;
-    pc.color[3] = c.a;
+    pc.color[3] = c.a * series.opacity();
+
+    // Populate style fields from PlotStyle
+    const auto& style = series.plot_style();
+    pc.line_style  = static_cast<uint32_t>(style.line_style);
+    pc.marker_type = static_cast<uint32_t>(style.marker_style);
+    pc.marker_size = style.marker_size;
+    pc.opacity     = style.opacity;
+
+    // Populate dash pattern for non-solid line styles
+    if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None) {
+        auto* line = dynamic_cast<LineSeries*>(&series);
+        float lw = line ? line->width() : 2.0f;
+        DashPattern dp = get_dash_pattern(style.line_style, lw);
+        for (int i = 0; i < dp.count && i < 8; ++i)
+            pc.dash_pattern[i] = dp.segments[i];
+        pc.dash_total = dp.total;
+        pc.dash_count = dp.count;
+    }
 
     auto* line = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
 
     if (line) {
-        backend_.bind_pipeline(line_pipeline_);
-        pc.line_width = line->width();
-        backend_.push_constants(pc);
-        backend_.bind_buffer(gpu.ssbo, 0);
-        // Each line segment = 6 vertices (2 triangles from quad expansion)
-        // Total segments = point_count - 1
-        uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
-        backend_.draw(segments * 6);
+        // Draw line segments if line style is not None
+        if (style.has_line() && line->point_count() > 1) {
+            backend_.bind_pipeline(line_pipeline_);
+            pc.line_width = line->width();
+            backend_.push_constants(pc);
+            backend_.bind_buffer(gpu.ssbo, 0);
+            uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
+            backend_.draw(segments * 6);
+        }
+
+        // Draw markers at each data point if marker style is not None
+        if (style.has_marker()) {
+            backend_.bind_pipeline(scatter_pipeline_);
+            pc.point_size = style.marker_size;
+            backend_.push_constants(pc);
+            backend_.bind_buffer(gpu.ssbo, 0);
+            backend_.draw_instanced(6, static_cast<uint32_t>(line->point_count()));
+        }
     } else if (scatter) {
         backend_.bind_pipeline(scatter_pipeline_);
         pc.point_size = scatter->size();
+        pc.marker_type = static_cast<uint32_t>(style.marker_style);
+        if (pc.marker_type == 0) {
+            // ScatterSeries defaults to Circle if no marker explicitly set
+            pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+        }
         backend_.push_constants(pc);
         backend_.bind_buffer(gpu.ssbo, 0);
-        // Each point = 6 vertices (quad), instanced
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
     }
 }

@@ -173,6 +173,66 @@ inline void undoable_set_marker_size(UndoManager* mgr, ScatterSeries& sc, float 
     }
 }
 
+// ─── Line style ──────────────────────────────────────────────────────────────
+
+inline void undoable_set_line_style(UndoManager* mgr, Series& s, LineStyle new_style) {
+    LineStyle old_style = s.line_style();
+    s.line_style(new_style);
+    if (mgr) {
+        Series* ptr = &s;
+        mgr->push(UndoAction{
+            "Change line style",
+            [ptr, old_style]() { ptr->line_style(old_style); },
+            [ptr, new_style]() { ptr->line_style(new_style); }
+        });
+    }
+}
+
+// ─── Marker style ────────────────────────────────────────────────────────────
+
+inline void undoable_set_marker_style(UndoManager* mgr, Series& s, MarkerStyle new_style) {
+    MarkerStyle old_style = s.marker_style();
+    s.marker_style(new_style);
+    if (mgr) {
+        Series* ptr = &s;
+        mgr->push(UndoAction{
+            "Change marker style",
+            [ptr, old_style]() { ptr->marker_style(old_style); },
+            [ptr, new_style]() { ptr->marker_style(new_style); }
+        });
+    }
+}
+
+// ─── Series marker size (on base Series) ─────────────────────────────────────
+
+inline void undoable_set_series_marker_size(UndoManager* mgr, Series& s, float new_size) {
+    float old_size = s.marker_size();
+    s.marker_size(new_size);
+    if (mgr) {
+        Series* ptr = &s;
+        mgr->push(UndoAction{
+            "Change marker size",
+            [ptr, old_size]() { ptr->marker_size(old_size); },
+            [ptr, new_size]() { ptr->marker_size(new_size); }
+        });
+    }
+}
+
+// ─── Series opacity ──────────────────────────────────────────────────────────
+
+inline void undoable_set_opacity(UndoManager* mgr, Series& s, float new_opacity) {
+    float old_opacity = s.opacity();
+    s.opacity(new_opacity);
+    if (mgr) {
+        Series* ptr = &s;
+        mgr->push(UndoAction{
+            "Change opacity",
+            [ptr, old_opacity]() { ptr->opacity(old_opacity); },
+            [ptr, new_opacity]() { ptr->opacity(new_opacity); }
+        });
+    }
+}
+
 // ─── Legend visibility ───────────────────────────────────────────────────────
 
 inline void undoable_toggle_legend(UndoManager* mgr, Figure& fig) {

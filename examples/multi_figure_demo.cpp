@@ -95,12 +95,35 @@ int main() {
     ax4.ylabel("Amplitude");
     ax4.title("10K Point Performance Test");
     ax4.grid(true);
+
+
+
+        // Figure 4: Performance test with many points
+    auto& fig5 = app.figure({.width = 1280, .height = 720});
+    auto& ax5 = fig5.subplot(1, 1, 1);
+    
+    // Generate large dataset
+    std::vector<float> x_5, y_5;
+    const int N5 = 200;
+    for (int i = 0; i < N5; ++i) {
+        float t = i * 0.01f;
+        x_5.push_back(t);
+        y_5.push_back(std::sin(t * 0.5f) + std::sin(t * 1.3f) * 0.3f + std::sin(t * 2.7f) * 0.1f);
+    }
+    
+    ax5.line(x_5, y_5).label("Colored Line");
+    ax5.line(x_5, y_5).label("Colored Line");
+    ax5.xlabel("Time (s)");
+    ax5.ylabel("Amplitude");
+    ax5.title("200 Point Performance Test");
+    ax5.grid(true);
     
     // Show all figures
     fig1.show();
     fig2.show();
     fig3.show();
     fig4.show();
+    fig5.show();
     
     // Run the application
     app.run();

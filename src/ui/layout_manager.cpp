@@ -93,7 +93,7 @@ Rect LayoutManager::compute_tab_bar() const {
     if (!tab_bar_visible_) {
         return Rect{0.0f, 0.0f, 0.0f, 0.0f};
     }
-    float x = NAV_TOOLBAR_INSET;
+    float x = NAV_TOOLBAR_INSET + PLOT_LEFT_MARGIN;
     float w = window_width_ - x - inspector_anim_width_;
     return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }

@@ -76,6 +76,9 @@ set(PLOTIX_UNIT_TESTS
     test_recording_export
     test_theme_colorblind
     test_phase2_integration
+    test_split_view
+    test_dock_system
+    test_plot_style
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})

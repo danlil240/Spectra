@@ -405,6 +405,47 @@ void Inspector::draw_series_properties(Series& s, int index) {
                 s.visible(vis);
             }
 
+            // Line style dropdown (all series types)
+            {
+                static const char* line_style_names[] = {
+                    "None", "Solid", "Dashed", "Dotted", "Dash-Dot", "Dash-Dot-Dot"
+                };
+                int ls_idx = static_cast<int>(s.line_style());
+                if (widgets::combo_field("Line Style", ls_idx, line_style_names, 6)) {
+                    s.line_style(static_cast<plotix::LineStyle>(ls_idx));
+                }
+            }
+
+            // Marker style dropdown (all series types)
+            {
+                static const char* marker_style_names[] = {
+                    "None", "Point", "Circle", "Plus", "Cross", "Star",
+                    "Square", "Diamond", "Triangle Up", "Triangle Down",
+                    "Triangle Left", "Triangle Right", "Pentagon", "Hexagon",
+                    "Filled Circle", "Filled Square", "Filled Diamond", "Filled Triangle Up"
+                };
+                int ms_idx = static_cast<int>(s.marker_style());
+                if (widgets::combo_field("Marker", ms_idx, marker_style_names, 18)) {
+                    s.marker_style(static_cast<plotix::MarkerStyle>(ms_idx));
+                }
+            }
+
+            // Marker size (shown when marker is not None)
+            if (s.marker_style() != plotix::MarkerStyle::None) {
+                float msz = s.marker_size();
+                if (widgets::slider_field("Marker Size", msz, 1.0f, 30.0f, "%.1f px")) {
+                    s.marker_size(msz);
+                }
+            }
+
+            // Opacity
+            {
+                float op = s.opacity();
+                if (widgets::slider_field("Opacity", op, 0.0f, 1.0f, "%.2f")) {
+                    s.opacity(op);
+                }
+            }
+
             // Type-specific controls
             if (auto* line = dynamic_cast<LineSeries*>(&s)) {
                 float w = line->width();

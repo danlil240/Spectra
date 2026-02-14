@@ -4,6 +4,7 @@
 #include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
 #include "data_interaction.hpp"
+#include "dock_system.hpp"
 #include "theme.hpp"
 #include "design_tokens.hpp"
 #include "icons.hpp"
@@ -145,6 +146,8 @@ void ImGuiIntegration::build_ui(Figure& figure) {
         draw_inspector(figure);
     }
     draw_status_bar();
+    draw_pane_tab_headers();      // Must run before splitters so pane_tab_hovered_ is set
+    draw_split_view_splitters();
 #if PLOTIX_FLOATING_TOOLBAR
     draw_floating_toolbar();
 #endif
@@ -908,6 +911,636 @@ void ImGuiIntegration::draw_status_bar() {
     ImGui::End();
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
+}
+
+void ImGuiIntegration::draw_split_view_splitters() {
+    if (!dock_system_) return;
+
+    auto* draw_list = ImGui::GetForegroundDrawList();
+    auto& theme = ui::theme();
+    ImVec2 mouse = ImGui::GetMousePos();
+
+    // ── Non-split drag-to-split overlay ──────────────────────────────────
+    // When NOT split and a tab is being dock-dragged, show edge zone
+    // highlights to suggest splitting (like VSCode).
+    if (!dock_system_->is_split() && dock_system_->is_dragging()) {
+        auto target = dock_system_->current_drop_target();
+        // Only show edge zones (Left/Right/Top/Bottom), not Center
+        if (target.zone != DropZone::None && target.zone != DropZone::Center) {
+            Rect hr = target.highlight_rect;
+            ImU32 highlight_color = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 40);
+            ImU32 highlight_border = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 160);
+
+            draw_list->AddRectFilled(
+                ImVec2(hr.x, hr.y),
+                ImVec2(hr.x + hr.w, hr.y + hr.h),
+                highlight_color, 4.0f);
+            draw_list->AddRect(
+                ImVec2(hr.x, hr.y),
+                ImVec2(hr.x + hr.w, hr.y + hr.h),
+                highlight_border, 4.0f, 0, 2.0f);
+
+            // Draw a label indicating the split direction
+            const char* label = nullptr;
+            switch (target.zone) {
+                case DropZone::Left:   label = "Split Left";   break;
+                case DropZone::Right:  label = "Split Right";  break;
+                case DropZone::Top:    label = "Split Up";     break;
+                case DropZone::Bottom: label = "Split Down";   break;
+                default: break;
+            }
+            if (label) {
+                ImVec2 lsz = ImGui::CalcTextSize(label);
+                float lx = hr.x + (hr.w - lsz.x) * 0.5f;
+                float ly = hr.y + (hr.h - lsz.y) * 0.5f;
+                draw_list->AddText(ImVec2(lx, ly),
+                    IM_COL32(static_cast<int>(theme.accent.r * 255),
+                             static_cast<int>(theme.accent.g * 255),
+                             static_cast<int>(theme.accent.b * 255), 200),
+                    label);
+            }
+        }
+        return;  // No splitters to draw in non-split mode
+    }
+
+    if (!dock_system_->is_split()) return;
+
+    // Handle pane activation on mouse click in canvas area
+    // (skip if mouse is over a pane tab header — that's handled by draw_pane_tab_headers)
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::GetIO().WantCaptureMouse
+        && !pane_tab_hovered_) {
+        dock_system_->activate_pane_at(mouse.x, mouse.y);
+    }
+
+    // Handle splitter interaction
+    if (dock_system_->is_over_splitter(mouse.x, mouse.y)) {
+        auto dir = dock_system_->splitter_direction_at(mouse.x, mouse.y);
+        ImGui::SetMouseCursor(dir == SplitDirection::Horizontal
+                              ? ImGuiMouseCursor_ResizeEW
+                              : ImGuiMouseCursor_ResizeNS);
+
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            dock_system_->begin_splitter_drag(mouse.x, mouse.y);
+        }
+    }
+
+    if (dock_system_->is_dragging_splitter()) {
+        auto* sp = dock_system_->split_view().dragging_splitter();
+        if (sp) {
+            float pos = (sp->split_direction() == SplitDirection::Horizontal)
+                        ? mouse.x : mouse.y;
+            dock_system_->update_splitter_drag(pos);
+            ImGui::SetMouseCursor(sp->split_direction() == SplitDirection::Horizontal
+                                  ? ImGuiMouseCursor_ResizeEW
+                                  : ImGuiMouseCursor_ResizeNS);
+        }
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            dock_system_->end_splitter_drag();
+        }
+    }
+
+    // Draw splitter handles for all internal nodes
+    auto pane_infos = dock_system_->get_pane_infos();
+
+    // Walk the split tree to find internal nodes and draw their splitters
+    std::function<void(SplitPane*)> draw_splitters = [&](SplitPane* node) {
+        if (!node || node->is_leaf()) return;
+
+        Rect sr = node->splitter_rect();
+        bool is_dragging = dock_system_->is_dragging_splitter() &&
+                           dock_system_->split_view().dragging_splitter() == node;
+
+        // Splitter background
+        ImU32 splitter_color;
+        if (is_dragging) {
+            splitter_color = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 200);
+        } else {
+            splitter_color = IM_COL32(
+                static_cast<int>(theme.border_default.r * 255),
+                static_cast<int>(theme.border_default.g * 255),
+                static_cast<int>(theme.border_default.b * 255), 120);
+        }
+
+        draw_list->AddRectFilled(
+            ImVec2(sr.x, sr.y),
+            ImVec2(sr.x + sr.w, sr.y + sr.h),
+            splitter_color);
+
+        // Draw a subtle grip indicator in the center of the splitter
+        float cx = sr.x + sr.w * 0.5f;
+        float cy = sr.y + sr.h * 0.5f;
+        ImU32 grip_color = IM_COL32(
+            static_cast<int>(theme.text_tertiary.r * 255),
+            static_cast<int>(theme.text_tertiary.g * 255),
+            static_cast<int>(theme.text_tertiary.b * 255), 150);
+
+        if (node->split_direction() == SplitDirection::Horizontal) {
+            // Vertical splitter — draw horizontal grip dots
+            for (int i = -2; i <= 2; ++i) {
+                draw_list->AddCircleFilled(ImVec2(cx, cy + i * 6.0f), 1.5f, grip_color);
+            }
+        } else {
+            // Horizontal splitter — draw vertical grip dots
+            for (int i = -2; i <= 2; ++i) {
+                draw_list->AddCircleFilled(ImVec2(cx + i * 6.0f, cy), 1.5f, grip_color);
+            }
+        }
+
+        // Recurse into children
+        draw_splitters(node->first());
+        draw_splitters(node->second());
+    };
+
+    draw_splitters(dock_system_->split_view().root());
+
+    // Draw active pane border highlight
+    for (const auto& info : pane_infos) {
+        if (info.is_active && pane_infos.size() > 1) {
+            ImU32 border_color = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 180);
+            draw_list->AddRect(
+                ImVec2(info.bounds.x, info.bounds.y),
+                ImVec2(info.bounds.x + info.bounds.w, info.bounds.y + info.bounds.h),
+                border_color, 0.0f, 0, 2.0f);
+        }
+    }
+
+    // Draw drop zone highlight during drag-to-dock
+    if (dock_system_->is_dragging()) {
+        auto target = dock_system_->current_drop_target();
+        if (target.zone != DropZone::None) {
+            Rect hr = target.highlight_rect;
+            ImU32 highlight_color = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 60);
+            ImU32 highlight_border = IM_COL32(
+                static_cast<int>(theme.accent.r * 255),
+                static_cast<int>(theme.accent.g * 255),
+                static_cast<int>(theme.accent.b * 255), 180);
+
+            draw_list->AddRectFilled(
+                ImVec2(hr.x, hr.y),
+                ImVec2(hr.x + hr.w, hr.y + hr.h),
+                highlight_color);
+            draw_list->AddRect(
+                ImVec2(hr.x, hr.y),
+                ImVec2(hr.x + hr.w, hr.y + hr.h),
+                highlight_border, 0.0f, 0, 2.0f);
+        }
+    }
+}
+
+// ─── Per-pane tab headers ────────────────────────────────────────────────────
+// Draws a compact tab bar above each split pane leaf. Supports:
+//  - Click to switch active figure within a pane
+//  - Drag tabs between panes (cross-pane drag)
+//  - Smooth animated tab positions and drag ghost
+
+void ImGuiIntegration::draw_pane_tab_headers() {
+    if (!dock_system_) return;
+
+    auto* draw_list = ImGui::GetForegroundDrawList();
+    auto& theme = ui::theme();
+    float dt = ImGui::GetIO().DeltaTime;
+    ImVec2 mouse = ImGui::GetMousePos();
+
+    constexpr float TAB_H = SplitPane::PANE_TAB_HEIGHT;
+    constexpr float TAB_PAD = 8.0f;
+    constexpr float TAB_MIN_W = 60.0f;
+    constexpr float TAB_MAX_W = 150.0f;
+    constexpr float CLOSE_SZ = 12.0f;
+    constexpr float ANIM_SPEED = 14.0f;
+    constexpr float DRAG_THRESHOLD = 5.0f;
+
+    auto panes = dock_system_->split_view().all_panes();
+    (void)dock_system_->active_figure_index();  // Available if needed
+
+    // Helper: get figure title
+    auto fig_title = [&](size_t fig_idx) -> std::string {
+        if (get_figure_title_) return get_figure_title_(fig_idx);
+        return "Figure " + std::to_string(fig_idx + 1);
+    };
+
+    // Helper: ImU32 from theme color
+    auto to_col = [](const ui::Color& c, float a = -1.0f) -> ImU32 {
+        float alpha = a >= 0.0f ? a : c.a;
+        return IM_COL32(uint8_t(c.r*255), uint8_t(c.g*255), uint8_t(c.b*255), uint8_t(alpha*255));
+    };
+
+    // ── Phase 1: Compute tab layouts per pane ────────────────────────────
+
+    struct TabRect {
+        size_t figure_index;
+        float x, y, w, h;
+        bool is_active;
+        bool is_hovered;
+    };
+
+    struct PaneHeader {
+        SplitPane* pane;
+        Rect header_rect;
+        std::vector<TabRect> tabs;
+    };
+
+    std::vector<PaneHeader> headers;
+    headers.reserve(panes.size());
+
+    // Compute insertion gap: when dragging a tab over a pane header,
+    // determine which position the tab would be inserted at
+    constexpr float GAP_WIDTH = 60.0f;  // Width of the insertion gap
+    bool has_active_gap = false;
+    uint32_t gap_pane_id = 0;
+    size_t gap_insert_after = SIZE_MAX;  // Insert after this local index
+
+    if (pane_tab_drag_.dragging && pane_tab_drag_.dragged_figure_index != SIZE_MAX) {
+        for (auto* pane_const : panes) {
+            auto* pane = const_cast<SplitPane*>(pane_const);
+            if (!pane->is_leaf()) continue;
+            Rect b = pane->bounds();
+            Rect hr{b.x, b.y, b.w, TAB_H};
+            if (mouse.x >= hr.x && mouse.x < hr.x + hr.w &&
+                mouse.y >= hr.y - 10 && mouse.y < hr.y + hr.h + 10) {
+                // Mouse is over this pane's header — compute insertion index
+                if (pane->id() != pane_tab_drag_.source_pane_id ||
+                    pane->figure_count() > 1) {
+                    gap_pane_id = pane->id();
+                    has_active_gap = true;
+                    gap_insert_after = SIZE_MAX;  // Before first tab by default
+                    const auto& figs = pane->figure_indices();
+                    float cx = hr.x + 2.0f;
+                    for (size_t li = 0; li < figs.size(); ++li) {
+                        if (figs[li] == pane_tab_drag_.dragged_figure_index) {
+                            cx += 0;  // Skip the dragged tab's width
+                            continue;
+                        }
+                        std::string t = fig_title(figs[li]);
+                        ImVec2 tsz = ImGui::CalcTextSize(t.c_str());
+                        float w = std::clamp(tsz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+                        if (mouse.x > cx + w * 0.5f) {
+                            gap_insert_after = li;
+                        }
+                        cx += w + 1.0f;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Update insertion gap animation
+    float lerp_t_gap = std::min(1.0f, ANIM_SPEED * dt);
+    if (has_active_gap) {
+        insertion_gap_.target_pane_id = gap_pane_id;
+        insertion_gap_.insert_after_idx = gap_insert_after;
+        insertion_gap_.target_gap = GAP_WIDTH;
+    } else {
+        insertion_gap_.target_gap = 0.0f;
+    }
+    insertion_gap_.current_gap += (insertion_gap_.target_gap - insertion_gap_.current_gap) * lerp_t_gap;
+    if (insertion_gap_.current_gap < 0.5f && insertion_gap_.target_gap == 0.0f) {
+        insertion_gap_.current_gap = 0.0f;
+        insertion_gap_.target_pane_id = 0;
+        insertion_gap_.insert_after_idx = SIZE_MAX;
+    }
+
+    for (auto* pane_const : panes) {
+        auto* pane = const_cast<SplitPane*>(pane_const);
+        if (!pane->is_leaf()) continue;
+
+        Rect b = pane->bounds();
+        Rect hr{b.x, b.y, b.w, TAB_H};
+
+        PaneHeader ph;
+        ph.pane = pane;
+        ph.header_rect = hr;
+
+        const auto& figs = pane->figure_indices();
+        float cur_x = hr.x + 2.0f;
+
+        // Check if this pane has an active insertion gap
+        bool pane_has_gap = (insertion_gap_.current_gap > 0.1f &&
+                             pane->id() == insertion_gap_.target_pane_id);
+
+        for (size_t li = 0; li < figs.size(); ++li) {
+            size_t fig_idx = figs[li];
+            std::string title = fig_title(fig_idx);
+
+            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+            float tw = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+
+            // Add insertion gap before this tab if needed
+            if (pane_has_gap && insertion_gap_.insert_after_idx == SIZE_MAX && li == 0) {
+                cur_x += insertion_gap_.current_gap;
+            } else if (pane_has_gap && li > 0 && (li - 1) == insertion_gap_.insert_after_idx) {
+                cur_x += insertion_gap_.current_gap;
+            }
+
+            // Animate position (keyed by pane+figure to avoid cross-pane interference)
+            auto& anim = pane_tab_anims_[{ph.pane->id(), fig_idx}];
+            anim.target_x = cur_x;
+            if (anim.current_x == 0.0f && anim.target_x != 0.0f) {
+                anim.current_x = anim.target_x;  // First frame: snap
+            }
+            float lerp_t = std::min(1.0f, ANIM_SPEED * dt);
+            anim.current_x += (anim.target_x - anim.current_x) * lerp_t;
+            anim.opacity += (anim.target_opacity - anim.opacity) * lerp_t;
+
+            float draw_x = anim.current_x;
+
+            bool is_active_local = (li == pane->active_local_index());
+            bool hovered = (mouse.x >= draw_x && mouse.x < draw_x + tw &&
+                            mouse.y >= hr.y && mouse.y < hr.y + TAB_H);
+
+            TabRect tr;
+            tr.figure_index = fig_idx;
+            tr.x = draw_x;
+            tr.y = hr.y;
+            tr.w = tw;
+            tr.h = TAB_H;
+            tr.is_active = is_active_local;
+            tr.is_hovered = hovered;
+            ph.tabs.push_back(tr);
+
+            cur_x += tw + 1.0f;
+        }
+
+        headers.push_back(std::move(ph));
+    }
+
+    // ── Phase 2: Input handling ──────────────────────────────────────────
+
+    pane_tab_hovered_ = false;
+
+    for (auto& ph : headers) {
+        // Draw header background
+        Rect hr = ph.header_rect;
+        draw_list->AddRectFilled(
+            ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h),
+            to_col(theme.bg_secondary));
+        draw_list->AddLine(
+            ImVec2(hr.x, hr.y + hr.h - 1), ImVec2(hr.x + hr.w, hr.y + hr.h - 1),
+            to_col(theme.border_subtle), 1.0f);
+
+        for (auto& tr : ph.tabs) {
+            bool is_being_dragged = pane_tab_drag_.dragging &&
+                                    pane_tab_drag_.dragged_figure_index == tr.figure_index;
+
+            // Skip drawing the tab in its original position if it's being dragged cross-pane
+            if (is_being_dragged && pane_tab_drag_.cross_pane) continue;
+
+            // Tab background
+            ImU32 bg;
+            if (is_being_dragged) {
+                bg = to_col(theme.bg_elevated);
+            } else if (tr.is_active) {
+                bg = to_col(theme.bg_tertiary);
+            } else if (tr.is_hovered) {
+                bg = to_col(theme.accent_subtle);
+            } else {
+                bg = to_col(theme.bg_secondary, 0.0f);
+            }
+
+            float inset_y = 3.0f;
+            ImVec2 tl(tr.x, tr.y + inset_y);
+            ImVec2 br(tr.x + tr.w, tr.y + tr.h);
+            draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
+
+            // Active underline
+            if (tr.is_active) {
+                draw_list->AddLine(
+                    ImVec2(tl.x + 3, br.y - 1), ImVec2(br.x - 3, br.y - 1),
+                    to_col(theme.accent), 2.0f);
+            }
+
+            // Title text
+            std::string title = fig_title(tr.figure_index);
+            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+            ImVec2 text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
+
+            draw_list->PushClipRect(ImVec2(tr.x, tr.y), ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h), true);
+            draw_list->AddText(text_pos,
+                tr.is_active ? to_col(theme.text_primary) : to_col(theme.text_secondary),
+                title.c_str());
+            draw_list->PopClipRect();
+
+            // Close button (show on hover or active, only if pane has >1 figure)
+            if ((tr.is_active || tr.is_hovered) && ph.pane->figure_count() > 1) {
+                float cx = tr.x + tr.w - CLOSE_SZ * 0.5f - 4.0f;
+                float cy = tr.y + tr.h * 0.5f;
+                float sz = 3.5f;
+
+                bool close_hovered = (std::abs(mouse.x - cx) < CLOSE_SZ * 0.5f &&
+                                      std::abs(mouse.y - cy) < CLOSE_SZ * 0.5f);
+                if (close_hovered) {
+                    draw_list->AddCircleFilled(ImVec2(cx, cy), CLOSE_SZ * 0.5f,
+                        to_col(theme.error, 0.15f));
+                }
+                ImU32 x_col = close_hovered ? to_col(theme.error) : to_col(theme.text_tertiary);
+                draw_list->AddLine(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), x_col, 1.5f);
+                draw_list->AddLine(ImVec2(cx - sz, cy + sz), ImVec2(cx + sz, cy - sz), x_col, 1.5f);
+
+                // Close click
+                if (close_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    ph.pane->remove_figure(tr.figure_index);
+                    pane_tab_hovered_ = true;
+                    continue;
+                }
+            }
+
+            // Click / drag handling
+            if (tr.is_hovered) {
+                pane_tab_hovered_ = true;
+
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    // Activate this tab
+                    for (size_t li = 0; li < ph.pane->figure_indices().size(); ++li) {
+                        if (ph.pane->figure_indices()[li] == tr.figure_index) {
+                            dock_system_->activate_local_tab(ph.pane->id(), li);
+                            break;
+                        }
+                    }
+                    // Start potential drag
+                    pane_tab_drag_.dragging = false;  // Will become true after threshold
+                    pane_tab_drag_.source_pane_id = ph.pane->id();
+                    pane_tab_drag_.dragged_figure_index = tr.figure_index;
+                    pane_tab_drag_.drag_start_x = mouse.x;
+                    pane_tab_drag_.drag_start_y = mouse.y;
+                    pane_tab_drag_.cross_pane = false;
+                    pane_tab_drag_.dock_dragging = false;
+                }
+            }
+        }
+    }
+
+    // ── Phase 3: Drag update ─────────────────────────────────────────────
+
+    constexpr float DOCK_DRAG_THRESHOLD = 30.0f;  // Vertical distance to trigger dock drag
+
+    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX &&
+        ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+
+        float dx = mouse.x - pane_tab_drag_.drag_start_x;
+        float dy = mouse.y - pane_tab_drag_.drag_start_y;
+        float dist = std::sqrt(dx * dx + dy * dy);
+
+        if (!pane_tab_drag_.dragging && dist > DRAG_THRESHOLD) {
+            pane_tab_drag_.dragging = true;
+        }
+
+        if (pane_tab_drag_.dragging) {
+            // Check if dragged far enough vertically to enter dock-drag mode
+            // (triggers split suggestion overlay via dock system)
+            if (!pane_tab_drag_.dock_dragging && std::abs(dy) > DOCK_DRAG_THRESHOLD) {
+                // Only enter dock drag if there are multiple figures
+                // (need at least 2 to split)
+                bool over_any_header = false;
+                for (auto& ph : headers) {
+                    Rect hr = ph.header_rect;
+                    if (mouse.x >= hr.x && mouse.x < hr.x + hr.w &&
+                        mouse.y >= hr.y - 10 && mouse.y < hr.y + hr.h + 10) {
+                        over_any_header = true;
+                        break;
+                    }
+                }
+                if (!over_any_header) {
+                    pane_tab_drag_.dock_dragging = true;
+                    dock_system_->begin_drag(pane_tab_drag_.dragged_figure_index,
+                                             mouse.x, mouse.y);
+                }
+            }
+
+            // If in dock-drag mode, forward to dock system
+            if (pane_tab_drag_.dock_dragging) {
+                dock_system_->update_drag(mouse.x, mouse.y);
+            }
+
+            // Check if mouse is over a different pane's header
+            bool over_source = false;
+            for (auto& ph : headers) {
+                Rect hr = ph.header_rect;
+                if (mouse.x >= hr.x && mouse.x < hr.x + hr.w &&
+                    mouse.y >= hr.y && mouse.y < hr.y + hr.h) {
+                    if (ph.pane->id() == pane_tab_drag_.source_pane_id) {
+                        over_source = true;
+                    } else {
+                        pane_tab_drag_.cross_pane = true;
+                    }
+                    break;
+                }
+            }
+            if (!over_source && !pane_tab_drag_.dock_dragging) {
+                pane_tab_drag_.cross_pane = true;
+            }
+
+            // Draw drag ghost tab
+            std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
+            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+            float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            float ghost_h = TAB_H;
+            float ghost_x = mouse.x - ghost_w * 0.5f;
+            float ghost_y = mouse.y - ghost_h * 0.5f;
+
+            // Ghost shadow
+            draw_list->AddRectFilled(
+                ImVec2(ghost_x + 2, ghost_y + 2),
+                ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
+                IM_COL32(0, 0, 0, 40), 6.0f);
+
+            // Ghost background
+            draw_list->AddRectFilled(
+                ImVec2(ghost_x, ghost_y),
+                ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                to_col(theme.bg_elevated), 6.0f);
+            draw_list->AddRect(
+                ImVec2(ghost_x, ghost_y),
+                ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                to_col(theme.accent, 0.6f), 6.0f, 0, 1.5f);
+
+            // Ghost text
+            ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
+            draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
+
+            // Draw drop indicator on target pane header
+            for (auto& ph : headers) {
+                if (ph.pane->id() == pane_tab_drag_.source_pane_id &&
+                    ph.pane->figure_count() <= 1) continue;
+
+                Rect hr = ph.header_rect;
+                if (mouse.x >= hr.x && mouse.x < hr.x + hr.w &&
+                    mouse.y >= hr.y - 10 && mouse.y < hr.y + hr.h + 10) {
+                    // Highlight target header
+                    draw_list->AddRectFilled(
+                        ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h),
+                        to_col(theme.accent, 0.08f));
+
+                    // Draw insertion line
+                    float insert_x = hr.x + 4.0f;
+                    for (auto& tr : ph.tabs) {
+                        if (mouse.x > tr.x + tr.w * 0.5f) {
+                            insert_x = tr.x + tr.w + 1.0f;
+                        }
+                    }
+                    draw_list->AddLine(
+                        ImVec2(insert_x, hr.y + 4), ImVec2(insert_x, hr.y + hr.h - 4),
+                        to_col(theme.accent), 2.0f);
+                }
+            }
+        }
+    }
+
+    // ── Phase 4: Drag end (drop) ─────────────────────────────────────────
+
+    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX &&
+        ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+
+        if (pane_tab_drag_.dragging && pane_tab_drag_.dock_dragging) {
+            // Dock-drag mode: let dock system handle the split
+            dock_system_->end_drag(mouse.x, mouse.y);
+        } else if (pane_tab_drag_.dragging && pane_tab_drag_.cross_pane) {
+            // Cross-pane tab move: find target pane under mouse
+            for (auto& ph : headers) {
+                Rect hr = ph.header_rect;
+                if (mouse.x >= hr.x && mouse.x < hr.x + hr.w &&
+                    mouse.y >= hr.y - 10 && mouse.y < hr.y + hr.h + 10) {
+                    if (ph.pane->id() != pane_tab_drag_.source_pane_id) {
+                        dock_system_->move_figure_to_pane(
+                            pane_tab_drag_.dragged_figure_index, ph.pane->id());
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Reset drag state
+        pane_tab_drag_.dragging = false;
+        pane_tab_drag_.dragged_figure_index = SIZE_MAX;
+        pane_tab_drag_.cross_pane = false;
+        pane_tab_drag_.dock_dragging = false;
+    }
+
+    // Cancel drag on escape
+    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX &&
+        ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        if (pane_tab_drag_.dock_dragging) {
+            dock_system_->cancel_drag();
+        }
+        pane_tab_drag_.dragging = false;
+        pane_tab_drag_.dragged_figure_index = SIZE_MAX;
+        pane_tab_drag_.cross_pane = false;
+        pane_tab_drag_.dock_dragging = false;
+    }
 }
 
 #if PLOTIX_FLOATING_TOOLBAR

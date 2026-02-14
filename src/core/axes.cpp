@@ -11,6 +11,7 @@ namespace plotix {
 LineSeries& Axes::line(std::span<const float> x, std::span<const float> y) {
     auto s = std::make_unique<LineSeries>(x, y);
     auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
     return ref;
 }
@@ -18,6 +19,7 @@ LineSeries& Axes::line(std::span<const float> x, std::span<const float> y) {
 LineSeries& Axes::line() {
     auto s = std::make_unique<LineSeries>();
     auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
     return ref;
 }
@@ -25,6 +27,7 @@ LineSeries& Axes::line() {
 ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y) {
     auto s = std::make_unique<ScatterSeries>(x, y);
     auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
     return ref;
 }
@@ -32,7 +35,24 @@ ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 ScatterSeries& Axes::scatter() {
     auto s = std::make_unique<ScatterSeries>();
     auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
+    return ref;
+}
+
+// --- MATLAB-style plot ---
+
+LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y,
+                       std::string_view fmt) {
+    auto& ref = line(x, y);
+    ref.format(fmt);
+    return ref;
+}
+
+LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y,
+                       const PlotStyle& style) {
+    auto& ref = line(x, y);
+    ref.plot_style(style);
     return ref;
 }
 

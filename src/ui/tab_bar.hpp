@@ -37,6 +37,10 @@ public:
     using TabCloseAllExceptCallback = std::function<void(size_t index)>;
     using TabCloseToRightCallback = std::function<void(size_t index)>;
     using TabRenameCallback = std::function<void(size_t index, const std::string& new_title)>;
+    using TabDragOutCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
+    using TabDragUpdateCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
+    using TabDragEndCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
+    using TabDragCancelCallback = std::function<void(size_t index)>;
 
     TabBar();
     ~TabBar() = default;
@@ -66,6 +70,10 @@ public:
     void set_tab_close_all_except_callback(TabCloseAllExceptCallback callback) { on_tab_close_all_except_ = callback; }
     void set_tab_close_to_right_callback(TabCloseToRightCallback callback) { on_tab_close_to_right_ = callback; }
     void set_tab_rename_callback(TabRenameCallback callback) { on_tab_rename_ = callback; }
+    void set_tab_drag_out_callback(TabDragOutCallback callback) { on_tab_drag_out_ = callback; }
+    void set_tab_drag_update_callback(TabDragUpdateCallback callback) { on_tab_drag_update_ = callback; }
+    void set_tab_drag_end_callback(TabDragEndCallback callback) { on_tab_drag_end_ = callback; }
+    void set_tab_drag_cancel_callback(TabDragCancelCallback callback) { on_tab_drag_cancel_ = callback; }
 
     // Rendering
     void draw(const Rect& bounds);
@@ -88,6 +96,8 @@ private:
     bool is_dragging_ = false;
     size_t dragged_tab_ = SIZE_MAX;
     float drag_offset_x_ = 0.0f;
+    float drag_start_y_ = 0.0f;
+    bool is_dock_dragging_ = false;  // Tab has been dragged out of bar → dock mode
     
     // Callbacks
     TabChangeCallback on_tab_change_;
@@ -98,6 +108,10 @@ private:
     TabCloseAllExceptCallback on_tab_close_all_except_;
     TabCloseToRightCallback on_tab_close_to_right_;
     TabRenameCallback on_tab_rename_;
+    TabDragOutCallback on_tab_drag_out_;
+    TabDragUpdateCallback on_tab_drag_update_;
+    TabDragEndCallback on_tab_drag_end_;
+    TabDragCancelCallback on_tab_drag_cancel_;
     
     // Layout constants
     static constexpr float TAB_HEIGHT = 32.0f;

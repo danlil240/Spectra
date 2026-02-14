@@ -50,6 +50,13 @@ public:
     ScatterSeries& scatter(std::span<const float> x, std::span<const float> y);
     ScatterSeries& scatter();
 
+    // MATLAB-style plot: plot(x, y, "r--o") creates a line series with the
+    // given format string applied. See parse_format_string() in plot_style.hpp.
+    LineSeries& plot(std::span<const float> x, std::span<const float> y,
+                     std::string_view fmt = "-");
+    LineSeries& plot(std::span<const float> x, std::span<const float> y,
+                     const PlotStyle& style);
+
     // Axis configuration
     void xlim(float min, float max);
     void ylim(float min, float max);

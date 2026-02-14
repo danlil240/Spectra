@@ -4,6 +4,17 @@
 
 namespace plotix {
 
+// --- Series (base) ---
+
+Series& Series::plot_style(const PlotStyle& ps) {
+    style_ = ps;
+    if (ps.color.has_value()) {
+        color_ = *ps.color;
+    }
+    dirty_ = true;
+    return *this;
+}
+
 // --- LineSeries ---
 
 LineSeries::LineSeries(std::span<const float> x, std::span<const float> y)
@@ -30,6 +41,17 @@ void LineSeries::append(float x, float y) {
     x_.push_back(x);
     y_.push_back(y);
     dirty_ = true;
+}
+
+LineSeries& LineSeries::format(std::string_view fmt) {
+    PlotStyle ps = parse_format_string(fmt);
+    style_.line_style = ps.line_style;
+    style_.marker_style = ps.marker_style;
+    if (ps.color.has_value()) {
+        color_ = *ps.color;
+    }
+    dirty_ = true;
+    return *this;
 }
 
 void LineSeries::record_commands(Renderer& /*renderer*/) {
@@ -63,6 +85,17 @@ void ScatterSeries::append(float x, float y) {
     x_.push_back(x);
     y_.push_back(y);
     dirty_ = true;
+}
+
+ScatterSeries& ScatterSeries::format(std::string_view fmt) {
+    PlotStyle ps = parse_format_string(fmt);
+    style_.line_style = ps.line_style;
+    style_.marker_style = ps.marker_style;
+    if (ps.color.has_value()) {
+        color_ = *ps.color;
+    }
+    dirty_ = true;
+    return *this;
 }
 
 void ScatterSeries::record_commands(Renderer& /*renderer*/) {

@@ -7,10 +7,12 @@
 #include "layout_manager.hpp"
 #include "inspector.hpp"
 #include "selection_context.hpp"
+#include "dock_system.hpp"
 #include <functional>
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
 
 struct GLFWwindow;
 struct ImFont;
@@ -21,6 +23,7 @@ class BoxZoomOverlay;
 class CommandPalette;
 class CommandRegistry;
 class DataInteraction;
+class DockSystem;
 class ShortcutManager;
 class UndoManager;
 class VulkanBackend;
@@ -55,6 +58,7 @@ public:
 
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
+    bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
     
     // Interaction state getters
     bool should_reset_view() const { return reset_view_; }
@@ -84,6 +88,10 @@ public:
     ShortcutManager* shortcut_manager() const { return shortcut_manager_; }
     UndoManager* undo_manager() const { return undo_manager_; }
 
+    // Dock system (Agent A Week 9, owned externally by App)
+    void set_dock_system(DockSystem* ds) { dock_system_ = ds; }
+    DockSystem* dock_system() const { return dock_system_; }
+
 private:
     void apply_modern_style();
     void load_fonts();
@@ -93,6 +101,8 @@ private:
     void draw_canvas(Figure& figure);
     void draw_inspector(Figure& figure);
     void draw_status_bar();
+    void draw_split_view_splitters();
+    void draw_pane_tab_headers();
 #if PLOTIX_FLOATING_TOOLBAR
     void draw_floating_toolbar();
 #endif
@@ -149,6 +159,68 @@ private:
     CommandRegistry* command_registry_ = nullptr;
     ShortcutManager* shortcut_manager_ = nullptr;
     UndoManager* undo_manager_ = nullptr;
+
+    // Dock system (Agent A Week 9, not owned)
+    DockSystem* dock_system_ = nullptr;
+
+    // Per-pane tab drag state
+    struct PaneTabDragState {
+        bool dragging = false;
+        uint32_t source_pane_id = 0;
+        size_t dragged_figure_index = SIZE_MAX;
+        float drag_start_x = 0.0f;
+        float drag_start_y = 0.0f;
+        bool cross_pane = false;    // Dragged outside source pane header
+        bool dock_dragging = false; // Dragged far enough vertically → dock system handles split
+    };
+    PaneTabDragState pane_tab_drag_;
+    bool pane_tab_hovered_ = false;  // True when mouse is over a pane tab header
+
+    // Animated tab positions: keyed by (pane_id, figure_index) so each
+    // pane gets independent animation state (prevents shaking after splits)
+    struct PaneTabAnim {
+        float current_x = 0.0f;
+        float target_x = 0.0f;
+        float opacity = 1.0f;
+        float target_opacity = 1.0f;
+    };
+    struct PaneTabAnimKey {
+        uint32_t pane_id;
+        size_t fig_idx;
+        bool operator==(const PaneTabAnimKey& o) const {
+            return pane_id == o.pane_id && fig_idx == o.fig_idx;
+        }
+    };
+    struct PaneTabAnimKeyHash {
+        size_t operator()(const PaneTabAnimKey& k) const {
+            return std::hash<uint64_t>()(
+                (static_cast<uint64_t>(k.pane_id) << 32) | (k.fig_idx & 0xFFFFFFFF));
+        }
+    };
+    std::unordered_map<PaneTabAnimKey, PaneTabAnim, PaneTabAnimKeyHash> pane_tab_anims_;
+
+    // Tab insertion gap animation state (for drag-between-tabs)
+    struct InsertionGap {
+        uint32_t target_pane_id = 0;   // Pane where the gap is shown
+        size_t insert_after_idx = SIZE_MAX;  // Insert after this tab index (SIZE_MAX = before first)
+        float current_gap = 0.0f;      // Animated gap width
+        float target_gap = 0.0f;       // Target gap width
+    };
+    InsertionGap insertion_gap_;
+
+    // Non-split drag-to-split state
+    struct TabDragSplitState {
+        bool active = false;           // True when a main tab bar tab is being dock-dragged
+        DropZone suggested_zone = DropZone::None;
+        float overlay_opacity = 0.0f;  // Animated overlay opacity
+    };
+    TabDragSplitState tab_drag_split_;
+
+    // Figure title lookup callback (set by App)
+    std::function<std::string(size_t)> get_figure_title_;
+public:
+    void set_figure_title_callback(std::function<std::string(size_t)> cb) { get_figure_title_ = std::move(cb); }
+private:
     
     // Theme settings window state
     bool show_theme_settings_ = false;

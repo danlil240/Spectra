@@ -1,7 +1,7 @@
 #include "shortcut_manager.hpp"
 #include "command_registry.hpp"
+#include <plotix/logger.hpp>
 
-#include <algorithm>
 #include <cctype>
 #include <sstream>
 
@@ -280,6 +280,12 @@ void ShortcutManager::register_defaults() {
     // Undo/redo
     bind({KEY_Z, KeyMod::Control}, "edit.undo");
     bind({KEY_Z, KeyMod::Control | KeyMod::Shift}, "edit.redo");
+    
+    // Split view (KEY_SLASH for non-US layouts, KEY_BACKSLASH for US layouts)
+    bind({KEY_SLASH, KeyMod::Control}, "view.split_right");
+    bind({KEY_SLASH, KeyMod::Control | KeyMod::Shift}, "view.split_down");
+    bind({KEY_BACKSLASH, KeyMod::Control}, "view.split_right");
+    bind({KEY_BACKSLASH, KeyMod::Control | KeyMod::Shift}, "view.split_down");
 
     // Animation
     bind({KEY_SPACE, KeyMod::None},          "anim.toggle_play");

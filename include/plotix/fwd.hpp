@@ -35,6 +35,9 @@ class FigureManager;
 struct FigureState;
 class TimelineEditor;
 class RecordingSession;
+class SplitPane;
+class SplitViewManager;
+class DockSystem;
 
 class ImageExporter;
 class SvgExporter;

@@ -23,6 +23,7 @@
 #include "command_palette.hpp"
 #include "command_registry.hpp"
 #include "data_interaction.hpp"
+#include "dock_system.hpp"
 #include "figure_manager.hpp"
 #include "icons.hpp"
 #include "imgui_integration.hpp"
@@ -186,6 +187,10 @@ void App::run() {
     // Agent A Week 6: FigureManager for multi-figure lifecycle
     FigureManager fig_mgr(figures_);
 
+    // Agent A Week 9: Dock system for split views
+    DockSystem dock_system;
+    bool dock_tab_sync_guard = false;  // Prevent circular tab↔dock updates
+
     // Agent F: Command palette & productivity
     CommandRegistry cmd_registry;
     ShortcutManager shortcut_mgr;
@@ -236,7 +241,7 @@ void App::run() {
 #endif
             ](double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_mouse()) {
+                if (imgui_ui && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting())) {
                     PLOTIX_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
                     return;
                 }
@@ -249,7 +254,7 @@ void App::run() {
 #endif
             ](int button, int action, int mods, double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_mouse()) {
+                if (imgui_ui && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting())) {
                     PLOTIX_LOG_DEBUG("input", "Mouse button ignored - ImGui wants capture");
                     return;
                 }
@@ -332,9 +337,13 @@ void App::run() {
         // Wire FigureManager to TabBar
         fig_mgr.set_tab_bar(figure_tabs.get());
 
-        // TabBar callbacks → FigureManager queued operations
-        figure_tabs->set_tab_change_callback([&fig_mgr](size_t new_index) {
+        // TabBar callbacks → FigureManager queued operations + dock sync
+        figure_tabs->set_tab_change_callback([&fig_mgr, &dock_system, &dock_tab_sync_guard](size_t new_index) {
+            if (dock_tab_sync_guard) return;
+            dock_tab_sync_guard = true;
             fig_mgr.queue_switch(new_index);
+            dock_system.set_active_figure_index(new_index);
+            dock_tab_sync_guard = false;
         });
         figure_tabs->set_tab_close_callback([&fig_mgr](size_t index) {
             fig_mgr.queue_close(index);
@@ -353,6 +362,21 @@ void App::run() {
         });
         figure_tabs->set_tab_rename_callback([&fig_mgr](size_t index, const std::string& title) {
             fig_mgr.set_title(index, title);
+        });
+
+        // Tab drag-to-dock: when a tab is dragged vertically out of the tab bar,
+        // initiate a dock drag operation to split the view
+        figure_tabs->set_tab_drag_out_callback([&dock_system](size_t index, float mx, float my) {
+            dock_system.begin_drag(index, mx, my);
+        });
+        figure_tabs->set_tab_drag_update_callback([&dock_system](size_t /*index*/, float mx, float my) {
+            dock_system.update_drag(mx, my);
+        });
+        figure_tabs->set_tab_drag_end_callback([&dock_system](size_t /*index*/, float mx, float my) {
+            dock_system.end_drag(mx, my);
+        });
+        figure_tabs->set_tab_drag_cancel_callback([&dock_system](size_t /*index*/) {
+            dock_system.cancel_drag();
         });
     }
 #endif
@@ -379,6 +403,29 @@ void App::run() {
         // Wire Agent B Week 7: Box zoom overlay
         box_zoom_overlay.set_input_handler(&input_handler);
         imgui_ui->set_box_zoom_overlay(&box_zoom_overlay);
+
+        // Wire Agent A Week 9: Dock system
+        imgui_ui->set_dock_system(&dock_system);
+
+        // Figure title lookup for per-pane tab headers
+        imgui_ui->set_figure_title_callback([&figure_tabs](size_t fig_idx) -> std::string {
+            if (figure_tabs && fig_idx < figure_tabs->get_tab_count()) {
+                return figure_tabs->get_tab_title(fig_idx);
+            }
+            return "Figure " + std::to_string(fig_idx + 1);
+        });
+
+        // Dock system → tab bar sync: when a pane is clicked, update tab selection
+        dock_system.split_view().set_on_active_changed(
+            [&figure_tabs, &fig_mgr, &dock_tab_sync_guard](size_t figure_index) {
+                if (dock_tab_sync_guard) return;
+                dock_tab_sync_guard = true;
+                if (figure_tabs && figure_index < figure_tabs->get_tab_count()) {
+                    figure_tabs->set_active_tab(figure_index);
+                }
+                fig_mgr.queue_switch(figure_index);
+                dock_tab_sync_guard = false;
+            });
 
         // Wire Agent F: command palette & productivity
         imgui_ui->set_command_palette(&cmd_palette);
@@ -560,6 +607,8 @@ void App::run() {
             // Capture undo metadata
             data.undo_count = undo_mgr.undo_count();
             data.redo_count = undo_mgr.redo_count();
+            // Capture dock/split view state
+            data.dock_state = dock_system.serialize();
             Workspace::save(Workspace::default_path(), data);
         }, "", "File", static_cast<uint16_t>(ui::Icon::Save));
 
@@ -602,6 +651,10 @@ void App::run() {
                     auto& lm = imgui_ui->get_layout_manager();
                     lm.set_inspector_visible(data.panels.inspector_visible);
                     lm.set_nav_rail_expanded(data.panels.nav_rail_expanded);
+                }
+                // Restore dock/split view state
+                if (!data.dock_state.empty()) {
+                    dock_system.deserialize(data.dock_state);
                 }
             }
         }, "", "File", static_cast<uint16_t>(ui::Icon::FolderOpen));
@@ -726,6 +779,106 @@ void App::run() {
                 });
             }
         }, "", "Panel", static_cast<uint16_t>(ui::Icon::Menu));
+
+        // Split view commands (Agent A Week 9)
+        // Splitting never creates new empty figures. Instead it redistributes
+        // existing figure tabs between panes:
+        //   First split:  all tabs → first pane, one tab moves → second pane
+        //   Further splits: take a tab from the active pane → new pane
+        auto do_split = [&](SplitDirection dir) {
+            if (dock_system.is_split()) {
+                // Already split — take a non-active tab from the active pane
+                SplitPane* active_pane = dock_system.split_view().active_pane();
+                if (!active_pane || active_pane->figure_count() < 2) return;
+
+                // Pick a figure to move: the one after the active, or the first non-active
+                size_t active_local = active_pane->active_local_index();
+                size_t move_local = (active_local + 1) % active_pane->figure_count();
+                size_t move_fig = active_pane->figure_indices()[move_local];
+
+                // Remove from current pane before splitting
+                active_pane->remove_figure(move_fig);
+
+                // Split the active pane, putting the moved figure in the new pane
+                size_t active_fig = active_pane->figure_index();
+                SplitPane* new_pane = nullptr;
+                if (dir == SplitDirection::Horizontal)
+                    new_pane = dock_system.split_figure_right(active_fig, move_fig);
+                else
+                    new_pane = dock_system.split_figure_down(active_fig, move_fig);
+
+                (void)new_pane;
+            } else {
+                // Going from single view to split:
+                // Need at least 2 figures to split without creating new ones
+                if (figures_.size() < 2) return;
+
+                size_t orig_active = fig_mgr.active_index();
+
+                // Pick a figure to move to the second pane (first non-active)
+                size_t move_fig = SIZE_MAX;
+                for (size_t i = 0; i < figures_.size(); ++i) {
+                    if (i != orig_active) { move_fig = i; break; }
+                }
+                if (move_fig == SIZE_MAX) return;
+
+                // Split: orig_active stays in first pane, move_fig goes to second
+                SplitPane* new_pane = nullptr;
+                if (dir == SplitDirection::Horizontal)
+                    new_pane = dock_system.split_figure_right(orig_active, move_fig);
+                else
+                    new_pane = dock_system.split_figure_down(orig_active, move_fig);
+
+                // Fix up pane contents after split:
+                // split() copies ALL figure_indices_ to first child, so move_fig
+                // ends up in both panes. Remove it from the first pane, and ensure
+                // all remaining figures are in the first pane.
+                if (new_pane) {
+                    SplitPane* root = dock_system.split_view().root();
+                    SplitPane* first_pane = root ? root->first() : nullptr;
+                    if (first_pane && first_pane->is_leaf()) {
+                        // Remove move_fig from first pane (it belongs in second only)
+                        if (first_pane->has_figure(move_fig)) {
+                            first_pane->remove_figure(move_fig);
+                        }
+                        // Add any remaining figures not yet in first pane
+                        for (size_t i = 0; i < figures_.size(); ++i) {
+                            if (i == move_fig) continue;
+                            if (!first_pane->has_figure(i)) {
+                                first_pane->add_figure(i);
+                            }
+                        }
+                        // Restore the originally active figure as the active tab
+                        for (size_t li = 0; li < first_pane->figure_indices().size(); ++li) {
+                            if (first_pane->figure_indices()[li] == orig_active) {
+                                first_pane->set_active_local_index(li);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                dock_system.set_active_figure_index(orig_active);
+            }
+        };
+
+        cmd_registry.register_command("view.split_right", "Split Right", [&, do_split]() {
+            do_split(SplitDirection::Horizontal);
+        }, "Ctrl+\\", "View");
+
+        cmd_registry.register_command("view.split_down", "Split Down", [&, do_split]() {
+            do_split(SplitDirection::Vertical);
+        }, "Ctrl+Shift+\\", "View");
+
+        cmd_registry.register_command("view.close_split", "Close Split Pane", [&]() {
+            if (dock_system.is_split()) {
+                dock_system.close_split(dock_system.active_figure_index());
+            }
+        }, "", "View");
+
+        cmd_registry.register_command("view.reset_splits", "Reset All Splits", [&]() {
+            dock_system.reset_splits();
+        }, "", "View");
 
         // Tool mode commands
         cmd_registry.register_command("tool.pan", "Pan Tool", [&]() {
@@ -925,26 +1078,11 @@ void App::run() {
         if (imgui_ui && imgui_frame_started) {
             imgui_ui->build_ui(*active_figure);
 
-            if (figure_tabs) {
-                Rect tab_bounds = imgui_ui->get_layout_manager().tab_bar_rect();
-
-                ImGui::SetNextWindowPos(ImVec2(tab_bounds.x, tab_bounds.y));
-                ImGui::SetNextWindowSize(ImVec2(tab_bounds.w, tab_bounds.h));
-                ImGuiWindowFlags tab_flags = ImGuiWindowFlags_NoDecoration |
-                                             ImGuiWindowFlags_NoMove |
-                                             ImGuiWindowFlags_NoSavedSettings |
-                                             ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                             ImGuiWindowFlags_NoFocusOnAppearing;
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-                ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-                if (ImGui::Begin("##figure_tabs", nullptr, tab_flags)) {
-                    figure_tabs->draw(tab_bounds);
-                }
-                ImGui::End();
-                ImGui::PopStyleColor();
-                ImGui::PopStyleVar(2);
-            }
+            // Old TabBar is replaced by unified pane tab headers
+            // (drawn by draw_pane_tab_headers in ImGuiIntegration)
+            // Always hide the layout manager's tab bar zone so canvas
+            // extends into that space — pane headers draw in the canvas area.
+            imgui_ui->get_layout_manager().set_tab_bar_visible(false);
             
             // Handle interaction state from UI
             if (imgui_ui->should_reset_view()) {
@@ -1003,8 +1141,8 @@ void App::run() {
                 }
             }
             
-            // Show tab bar when multiple figures exist
-            imgui_ui->get_layout_manager().set_tab_bar_visible(figures_.size() > 1);
+            // Always hide old tab bar — unified pane tab headers handle all tabs
+            imgui_ui->get_layout_manager().set_tab_bar_visible(false);
         }
 #endif
 
@@ -1018,6 +1156,40 @@ void App::run() {
 #endif
             );
         }
+
+        // Sync root pane's figure_indices_ with actual figures when not split.
+        // The unified pane tab headers always read from the root pane.
+        if (!dock_system.is_split()) {
+            SplitPane* root = dock_system.split_view().root();
+            if (root && root->is_leaf()) {
+                // Ensure root has exactly the right figures
+                const auto& current = root->figure_indices();
+                bool needs_sync = (current.size() != figures_.size());
+                if (!needs_sync) {
+                    for (size_t i = 0; i < figures_.size(); ++i) {
+                        if (!root->has_figure(i)) { needs_sync = true; break; }
+                    }
+                }
+                if (needs_sync) {
+                    // Rebuild figure_indices_ to match actual figures
+                    while (root->figure_count() > 0) {
+                        root->remove_figure(root->figure_indices().back());
+                    }
+                    for (size_t i = 0; i < figures_.size(); ++i) {
+                        root->add_figure(i);
+                    }
+                }
+                // Sync active tab
+                size_t active = fig_mgr.active_index();
+                dock_system.set_active_figure_index(active);
+                for (size_t li = 0; li < root->figure_indices().size(); ++li) {
+                    if (root->figure_indices()[li] == active) {
+                        root->set_active_local_index(li);
+                        break;
+                    }
+                }
+            }
+        }
 #endif
 
         // Compute subplot layout AFTER build_ui() so that nav rail / inspector
@@ -1026,15 +1198,57 @@ void App::run() {
 #ifdef PLOTIX_USE_IMGUI
             if (imgui_ui) {
                 const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-                const auto rects = compute_subplot_layout(
-                    canvas.w, canvas.h,
-                    active_figure->grid_rows_, active_figure->grid_cols_,
-                    {},
-                    canvas.x, canvas.y);
 
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
-                    if (active_figure->axes_mut()[i]) {
-                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                // Update dock system layout with current canvas bounds
+                dock_system.update_layout(canvas);
+
+                if (dock_system.is_split()) {
+                    // Per-pane layout: each pane renders its own figure
+                    // Use explicit margins to guarantee space for axis labels
+                    auto pane_infos = dock_system.get_pane_infos();
+                    for (const auto& pinfo : pane_infos) {
+                        if (pinfo.figure_index < figures_.size()) {
+                            auto* fig = figures_[pinfo.figure_index].get();
+                            if (!fig) continue;
+                            // Ensure each pane has adequate margins for Y-axis
+                            // labels (left) and X-axis labels (bottom), scaled
+                            // to pane size but with guaranteed minimums.
+                            Margins pane_margins;
+                            pane_margins.left   = std::min(60.0f, pinfo.bounds.w * 0.15f);
+                            pane_margins.left   = std::max(pane_margins.left, 40.0f);
+                            pane_margins.right  = std::min(30.0f, pinfo.bounds.w * 0.08f);
+                            pane_margins.right  = std::max(pane_margins.right, 15.0f);
+                            pane_margins.bottom = std::min(50.0f, pinfo.bounds.h * 0.15f);
+                            pane_margins.bottom = std::max(pane_margins.bottom, 35.0f);
+                            pane_margins.top    = std::min(35.0f, pinfo.bounds.h * 0.08f);
+                            pane_margins.top    = std::max(pane_margins.top, 15.0f);
+                            const auto rects = compute_subplot_layout(
+                                pinfo.bounds.w, pinfo.bounds.h,
+                                fig->grid_rows_, fig->grid_cols_,
+                                pane_margins,
+                                pinfo.bounds.x, pinfo.bounds.y);
+                            for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i) {
+                                if (fig->axes_mut()[i]) {
+                                    fig->axes_mut()[i]->set_viewport(rects[i]);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Single pane — use root pane's content_bounds() to
+                    // account for the unified tab header
+                    SplitPane* root = dock_system.split_view().root();
+                    Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
+                    const auto rects = compute_subplot_layout(
+                        cb.w, cb.h,
+                        active_figure->grid_rows_, active_figure->grid_cols_,
+                        {},
+                        cb.x, cb.y);
+
+                    for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                        if (active_figure->axes_mut()[i]) {
+                            active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                        }
                     }
                 }
             } else {
@@ -1056,7 +1270,22 @@ void App::run() {
 
             // Use split render pass so ImGui can render inside the same pass
             renderer_->begin_render_pass();
+
+#ifdef PLOTIX_USE_IMGUI
+            if (dock_system.is_split()) {
+                // Render all visible figures in their respective panes
+                auto pane_infos = dock_system.get_pane_infos();
+                for (const auto& pinfo : pane_infos) {
+                    if (pinfo.figure_index < figures_.size() && figures_[pinfo.figure_index]) {
+                        renderer_->render_figure_content(*figures_[pinfo.figure_index]);
+                    }
+                }
+            } else {
+                renderer_->render_figure_content(*active_figure);
+            }
+#else
             renderer_->render_figure_content(*active_figure);
+#endif
 
 #ifdef PLOTIX_USE_IMGUI
             // Render ImGui overlay inside the same render pass, after plot content

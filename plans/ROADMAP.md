@@ -1,6 +1,6 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-14 (Week 7 — Agent F complete)  
+**Last Updated:** 2026-02-14 (Week 8 — Agent D complete)  
 **Current Phase:** Phase 2 — Power User Features  
 **Overall Progress:** Phase 1 complete, Phase 2 in progress
 
@@ -30,7 +30,7 @@
 | Phase | Weeks | Status | Progress |
 |-------|-------|--------|----------|
 | **Phase 1** — Modern Foundation | 1–4 | ✅ Complete | 100% |
-| **Phase 2** — Power User Features | 5–8 | 🔄 In Progress | 40% |
+| **Phase 2** — Power User Features | 5–8 | 🔄 In Progress | 70% |
 | **Phase 3** — Elite Differentiators | 9–12 | ⏳ Not Started | 0% |
 
 ---
@@ -88,7 +88,7 @@
 
 **Phase 1 Test Summary:** All unit tests passing. AnimationController (11), Input (15), Easing (23), GestureRecognizer (10), TransitionEngine (37), Theme (56), CommandRegistry (18), TabBar/UndoManager (26), DataInteraction (11).
 
-**Phase 2 Test Summary (so far):** InspectorStats (28), UndoProperty (30), WorkspaceV2 (16). Total: 74 new Phase 2 tests.
+**Phase 2 Test Summary (so far):** InspectorStats (28), UndoProperty (30), WorkspaceV2 (16), Phase2Integration (28), TimelineEditor (66), RecordingExport (30), ThemeColorblind (70). Total: 268 new Phase 2 tests.
 
 ---
 
@@ -123,7 +123,7 @@
 | Axes aggregate statistics section | C | ✅ Done | `src/ui/inspector.hpp/.cpp` |
 | X-axis statistics (min, max, range, mean) | C | ✅ Done | `src/ui/inspector.cpp` |
 
-### Week 7 — Agent F (Undo/Redo) + Agent B (Box Zoom) ← **CURRENT**
+### Week 7 — Agent F (Undo/Redo) + Agent B (Box Zoom)
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
@@ -139,10 +139,18 @@
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
-| Colorblind-safe palette | D | ⏳ Not Started | `src/ui/theme.cpp` |
+| Colorblind-safe palette (8 palettes: Okabe-Ito, Tol Bright/Muted, IBM, Wong, Viridis, Monochrome) | D | ✅ Done | `src/ui/theme.hpp`, `src/ui/theme.cpp` |
+| Theme export/import (JSON serialization) | D | ✅ Done | `src/ui/theme.cpp` |
+| Color utility methods (luminance, contrast_ratio, sRGB↔linear, HSL) | D | ✅ Done | `src/ui/theme.hpp` |
+| CVD simulation (Protanopia, Deuteranopia, Tritanopia, Achromatopsia) | D | ✅ Done | `src/ui/theme.hpp`, `src/ui/theme.cpp` |
+| Animated palette transitions | D | ✅ Done | `src/ui/theme.hpp`, `src/ui/theme.cpp` |
+| ThemeManager::update() mutation bug fix | D | ✅ Done | `src/ui/theme.cpp` |
 | Region selection + mini-toolbar | E | ⏳ Not Started | `src/ui/region_select.hpp` (extend, add .cpp) |
-| Golden image tests | H | ⏳ Not Started | `tests/golden/` |
-| Phase 2 benchmarks | H | ⏳ Not Started | `tests/bench/` |
+| Golden image tests (10 scenes + 4 framework) | H | ✅ Done | `tests/golden/golden_test_phase2.cpp` (NEW) |
+| Phase 2 benchmarks (38 benchmarks) | H | ✅ Done | `tests/bench/bench_phase2.cpp` (NEW) |
+| Phase 2 integration tests (28 tests) | H | ✅ Done | `tests/unit/test_phase2_integration.cpp` (NEW) |
+| Timeline editor (playhead, tracks, keyframes, scrub, snap) | G | ✅ Done | `src/ui/timeline_editor.hpp/.cpp` (NEW) |
+| Recording export (PNG seq, GIF, MP4) | G | ✅ Done | `src/ui/recording_export.hpp/.cpp` (NEW) |
 
 **Phase 2 Exit Criteria:**
 - [ ] Command palette opens <16ms, fuzzy search instant
@@ -177,9 +185,9 @@
 
 | Deliverable | Agent | Status |
 |-------------|-------|--------|
-| Timeline editor | G | ⏳ Not Started |
-| Recording export (MP4/GIF) | G | ⏳ Not Started |
-| Theme export/import (JSON) | F | ⏳ Not Started |
+| Timeline editor | G | ✅ Done (pulled to Week 8) |
+| Recording export (MP4/GIF) | G | ✅ Done (pulled to Week 8) |
+| Theme export/import (JSON) | D | ✅ Done (pulled to Week 8) |
 
 ### Week 12 — Agent H (Final Polish)
 
@@ -253,10 +261,55 @@
 | `src/ui/app.cpp` | F | 7 | All 15+ commands now undoable, workspace save captures full state, load restores full state |
 | `tests/CMakeLists.txt` | F | 7 | Added test_undo_property, test_workspace_v2 |
 
+### Files Created (Phase 2 — Week 8, Agent H)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|
+| `tests/golden/golden_test_phase2.cpp` | H | 8 | ✅ Yes (golden target) |
+| `tests/bench/bench_phase2.cpp` | H | 8 | ✅ Yes (bench target) |
+| `tests/unit/test_phase2_integration.cpp` | H | 8 | ✅ Yes |
+
+### Files Created (Phase 2 — Week 8, Agent G)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|
+| `src/ui/timeline_editor.hpp` / `.cpp` | G | 8 | ✅ Yes (UI sources) |
+| `src/ui/recording_export.hpp` / `.cpp` | G | 8 | ✅ Yes (UI sources) |
+| `tests/unit/test_timeline_editor.cpp` | G | 8 | ✅ Yes |
+| `tests/unit/test_recording_export.cpp` | G | 8 | ✅ Yes |
+
+### Files Modified (Phase 2 — Week 8, Agent G)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `CMakeLists.txt` | G | 8 | Added timeline_editor.cpp, recording_export.cpp to UI sources |
+| `tests/CMakeLists.txt` | G | 8 | Added test_timeline_editor, test_recording_export |
+| `include/plotix/fwd.hpp` | G | 8 | Added TimelineEditor, RecordingSession forward declarations |
+
+### Files Modified (Phase 2 — Week 8, Agent D)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `src/ui/theme.hpp` | D | 8 | Added Color utility methods (luminance, contrast_ratio, to_linear, to_srgb, to_hsl, from_hsl, ==, !=), CVDType enum, DataPalette metadata (description, safe_for, operator[], is_safe_for), simulate_cvd(), register_data_palette(), transition_palette(), display_colors_ for non-mutating transitions, palette transition state |
+| `src/ui/theme.cpp` | D | 8 | Fixed update() mutation bug (uses display_colors_ instead of mutating stored theme), added 6 new colorblind palettes (Tol Bright/Muted, IBM, Wong, Viridis, Monochrome), implemented export_theme/import_theme/save_current_as_default/load_default with JSON serialization, CVD simulation, animated palette transitions |
+| `tests/CMakeLists.txt` | D | 8 | Added test_theme_colorblind |
+
+### Files Created (Phase 2 — Week 8, Agent D)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|----------|
+| `tests/unit/test_theme_colorblind.cpp` | D | 8 | ✅ Yes |
+
+### Files Modified (Phase 2 — Week 8, Agent H)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `tests/CMakeLists.txt` | H | 8 | Added test_phase2_integration, golden_image_tests_phase2, bench_phase2 |
+
 ### Files Not Yet Created (Phase 2–3)
 
 | File | Agent | Planned Week |
-|------|-------|-------------|
+|------|-------|--------------|
 | `src/ui/region_select.cpp` | E | 8 |
 
 ### Test Files
@@ -278,8 +331,14 @@
 | `test_inspector_stats.cpp` | 28 | ✅ Pass |
 | `test_undo_property.cpp` | 30 | ✅ Pass |
 | `test_workspace_v2.cpp` | 16 | ✅ Pass |
+| `test_phase2_integration.cpp` | 28 | ✅ Pass |
 | `test_ui_icons.cpp` | — | ✅ Pass |
 | `bench_ui.cpp` | 14 benchmarks | ✅ Pass |
+| `bench_phase2.cpp` | 38 benchmarks | ✅ Pass |
+| `golden_test_phase2.cpp` | 14 (10 scenes + 4 framework) | ✅ Pass |
+| `test_timeline_editor.cpp` | 66 | ✅ Pass |
+| `test_recording_export.cpp` | 30 | ✅ Pass |
+| `test_theme_colorblind.cpp` | 70 | ✅ Pass |
 
 ---
 
@@ -287,8 +346,8 @@
 
 | Issue | Severity | Owner | Notes |
 |-------|----------|-------|-------|
-| `ThemeManager::update()` mutates `current_theme_->colors` in-place during transitions | 🟡 Medium | D | Corrupts stored theme data; test workaround in place |
-| `load_default()`, `export_theme()`, `import_theme()` declared but not implemented | 🟡 Medium | D | Stubs in `theme.hpp`, removed from `theme.cpp` |
+| ~~`ThemeManager::update()` mutates `current_theme_->colors` in-place during transitions~~ | ✅ Fixed | D | Fixed: transitions now use `display_colors_` — stored themes are never mutated |
+| ~~`load_default()`, `export_theme()`, `import_theme()` declared but not implemented~~ | ✅ Fixed | D | Implemented with JSON serialization in `theme.cpp` |
 | `shortcut_manager.hpp` has no `.cpp` implementation | 🟡 Medium | F | Header exists with types; needs implementation in Week 5 |
 | `region_select.hpp` has no `.cpp` implementation | 🟢 Low | E | Header with structs; `.cpp` planned for Week 8 |
 | `command_registry.cpp` not in `PLOTIX_UI_SOURCES` (only in ImGui block) | 🟢 Low | — | Works when ImGui is enabled |

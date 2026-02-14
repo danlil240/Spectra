@@ -72,6 +72,10 @@ set(PLOTIX_UNIT_TESTS
     test_box_zoom_overlay
     test_undo_property
     test_workspace_v2
+    test_timeline_editor
+    test_recording_export
+    test_theme_colorblind
+    test_phase2_integration
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})
@@ -94,6 +98,19 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
 
     # Label golden tests so CI can run them separately
     set_tests_properties(golden_image_tests PROPERTIES LABELS "golden")
+
+    # Phase 2 golden image tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_phase2.cpp)
+        add_executable(golden_image_tests_phase2 golden/golden_test_phase2.cpp)
+        target_link_libraries(golden_image_tests_phase2 PRIVATE plotix GTest::gtest_main)
+        target_compile_features(golden_image_tests_phase2 PRIVATE cxx_std_20)
+        target_include_directories(golden_image_tests_phase2 PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/golden
+        )
+        add_test(NAME golden_image_tests_phase2 COMMAND golden_image_tests_phase2)
+        set_tests_properties(golden_image_tests_phase2 PROPERTIES LABELS "golden")
+    endif()
 endif()
 
 # Benchmarks
@@ -108,4 +125,8 @@ if(PLOTIX_BUILD_BENCHMARKS)
     add_plotix_bench(bench_decimation)
     add_plotix_bench(bench_render)
     add_plotix_bench(bench_ui)
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_phase2.cpp)
+        add_plotix_bench(bench_phase2)
+    endif()
 endif()

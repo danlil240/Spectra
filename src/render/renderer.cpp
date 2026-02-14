@@ -23,12 +23,13 @@ Renderer::~Renderer() {
     }
     series_gpu_data_.clear();
 
-    if (grid_vertex_buffer_) {
-        backend_.destroy_buffer(grid_vertex_buffer_);
+    // Clean up per-axes GPU data (grid + border buffers)
+    for (auto& [ptr, data] : axes_gpu_data_) {
+        if (data.grid_buffer)   backend_.destroy_buffer(data.grid_buffer);
+        if (data.border_buffer) backend_.destroy_buffer(data.border_buffer);
     }
-    if (border_vertex_buffer_) {
-        backend_.destroy_buffer(border_vertex_buffer_);
-    }
+    axes_gpu_data_.clear();
+
     if (frame_ubo_buffer_) {
         backend_.destroy_buffer(frame_ubo_buffer_);
     }
@@ -225,14 +226,15 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
         verts.push_back(xlim.max); verts.push_back(y);
     }
 
-    // Upload grid vertices
+    // Upload grid vertices to per-axes buffer
+    auto& gpu = axes_gpu_data_[&axes];
     size_t byte_size = verts.size() * sizeof(float);
-    if (!grid_vertex_buffer_ || grid_buffer_capacity_ < byte_size) {
-        if (grid_vertex_buffer_) backend_.destroy_buffer(grid_vertex_buffer_);
-        grid_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-        grid_buffer_capacity_ = byte_size * 2;
+    if (!gpu.grid_buffer || gpu.grid_capacity < byte_size) {
+        if (gpu.grid_buffer) backend_.destroy_buffer(gpu.grid_buffer);
+        gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+        gpu.grid_capacity = byte_size * 2;
     }
-    backend_.upload_buffer(grid_vertex_buffer_, verts.data(), byte_size);
+    backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
 
     // Bind grid pipeline and draw
     backend_.bind_pipeline(grid_pipeline_);
@@ -248,7 +250,7 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    backend_.bind_buffer(grid_vertex_buffer_, 0);
+    backend_.bind_buffer(gpu.grid_buffer, 0);
     backend_.draw(static_cast<uint32_t>(total_lines * 2));
 }
 
@@ -293,15 +295,17 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
 
     size_t byte_size = sizeof(border_verts);
 
-    
-    // Always recreate border buffer to prevent cross-subplot issues
-    // In multi-subplot scenarios, shared buffers can cause state corruption
-    if (border_vertex_buffer_) {
-        backend_.destroy_buffer(border_vertex_buffer_);
+    // Use per-axes border buffer so multi-subplot draws don't overwrite
+    // each other within the same command buffer.
+    auto& gpu = axes_gpu_data_[&axes];
+    if (!gpu.border_buffer || gpu.border_capacity < byte_size) {
+        if (gpu.border_buffer) {
+            backend_.destroy_buffer(gpu.border_buffer);
+        }
+        gpu.border_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+        gpu.border_capacity = byte_size;
     }
-    border_vertex_buffer_ = backend_.create_buffer(BufferUsage::Vertex, byte_size);
-    border_buffer_capacity_ = byte_size;
-    backend_.upload_buffer(border_vertex_buffer_, border_verts, byte_size);
+    backend_.upload_buffer(gpu.border_buffer, border_verts, byte_size);
 
     backend_.bind_pipeline(grid_pipeline_);
 
@@ -316,7 +320,7 @@ void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
     pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    backend_.bind_buffer(border_vertex_buffer_, 0);
+    backend_.bind_buffer(gpu.border_buffer, 0);
     backend_.draw(8); // 4 lines × 2 vertices
 }
 

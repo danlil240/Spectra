@@ -55,11 +55,17 @@ private:
     PipelineHandle grid_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
-    BufferHandle grid_vertex_buffer_;
-    size_t       grid_buffer_capacity_ = 0;
-
-    BufferHandle border_vertex_buffer_;
-    size_t       border_buffer_capacity_ = 0;
+    // Per-axes GPU buffers for grid and border vertices.
+    // A single shared buffer is unsafe because all subplot draws are recorded
+    // into one command buffer — the host-visible upload for subplot N overwrites
+    // the data that subplot N-1's draw command still references.
+    struct AxesGpuData {
+        BufferHandle grid_buffer;
+        size_t       grid_capacity = 0;
+        BufferHandle border_buffer;
+        size_t       border_capacity = 0;
+    };
+    std::unordered_map<const Axes*, AxesGpuData> axes_gpu_data_;
 
     // Per-series GPU buffers (keyed by series pointer address)
     struct SeriesGpuData {

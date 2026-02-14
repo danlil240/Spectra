@@ -33,6 +33,8 @@ class ShortcutManager;
 class UndoManager;
 class FigureManager;
 struct FigureState;
+class TimelineEditor;
+class RecordingSession;
 
 class ImageExporter;
 class SvgExporter;

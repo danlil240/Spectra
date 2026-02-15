@@ -1,8 +1,8 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-14 (Week 12 — Agent H Final Polish complete)  
-**Current Phase:** Phase 3 — Elite Differentiators  
-**Overall Progress:** Phase 1 complete, Phase 2 complete, Phase 3 complete
+**Last Updated:** 2026-02-15 (All UI Redesign Phases Complete + 3D Phases 1 & 2 (partial) Complete)  
+**Current Phase:** 3D Visualization — Phase 2 In Progress  
+**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 6 ✅
 
 ---
 
@@ -90,22 +90,27 @@
 
 **Phase 2 Test Summary:** InspectorStats (28), UndoProperty (30), WorkspaceV2 (16), Phase2Integration (28), TimelineEditor (66), RecordingExport (30), ThemeColorblind (70). Total: 268 Phase 2 tests.
 
-**Phase 3 Test Summary (so far):** PlotStyle (86), SplitView (55), DockSystem (39). Total: 180 new Phase 3 tests.
+**Phase 3 Test Summary:** PlotStyle (86), SplitView (55), DockSystem (39), AxisLink (51), SharedCursor (20), DataTransform (64), ShortcutConfig (26), PluginAPI (31), WorkspaceV3 (16), KeyframeInterpolator (82), Phase3Integration (36), FigureManager (48), RegionSelect (15), LegendInteraction (13), CommandPaletteRegistry (30), ShortcutManager (25), UndoRedo (25), Workspace (12). Total: ~674 Phase 3 tests.
+
+**Overall Test Count:** ~1,200+ unit tests across all phases, 30+ golden image tests, 100+ benchmarks.
 
 ---
 
-## Phase 2 — Power User Features (Weeks 5–8) 🔄
+## Phase 2 — Power User Features (Weeks 5–8) ✅
 
-### Week 5 — Agent F (Command Palette) + Agent E (Crosshair/Markers)
+### Week 5 — Agent F (Command Palette) + Agent E (Data Interaction)
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
-| Command palette UI (Ctrl+K) | F | ⏳ Not Started | `src/ui/command_palette.hpp/.cpp` (NEW) |
-| 30+ registered commands | F | ⏳ Not Started | `src/ui/command_registry.cpp` (extend) |
-| Configurable shortcuts | F | ⏳ Not Started | `src/ui/shortcut_manager.hpp` (extend, add .cpp) |
-| Crosshair shared across subplots | E | ⏳ Not Started | `src/ui/crosshair.cpp` (extend) |
-| Legend click-to-toggle | E | ⏳ Not Started | `src/ui/data_interaction.cpp` (extend) |
-| Legend drag-to-reposition | E | ⏳ Not Started | `src/ui/data_interaction.cpp` (extend) |
+| Command palette UI (Ctrl+K) | F | ✅ Done | `src/ui/command_palette.hpp/.cpp` |
+| CommandRegistry (register/search/execute) | F | ✅ Done | `src/ui/command_registry.hpp/.cpp` |
+| ShortcutManager (configurable keybindings) | F | ✅ Done | `src/ui/shortcut_manager.hpp/.cpp` |
+| UndoManager (push/undo/redo stack) | F | ✅ Done | `src/ui/undo_manager.hpp/.cpp` |
+| Workspace save/load | F | ✅ Done | `src/ui/workspace.hpp/.cpp` |
+| Region selection + mini-toolbar | E | ✅ Done | `src/ui/region_select.hpp/.cpp` |
+| Legend click-to-toggle visibility | E | ✅ Done | `src/ui/legend_interaction.hpp/.cpp` |
+| Legend drag-to-reposition | E | ✅ Done | `src/ui/legend_interaction.hpp/.cpp` |
+| Crosshair shared across subplots | E | ✅ Done | `src/ui/crosshair.cpp` (draw_all_axes)
 
 **Pre-existing foundations for Week 5:**
 - `CommandRegistry` class exists with register/search/execute API
@@ -117,7 +122,10 @@
 
 | Deliverable | Agent | Status | Files |
 |-------------|-------|--------|-------|
-| Multi-figure tab switching | A | ⏳ Not Started | `src/ui/app.cpp`, `src/ui/tab_bar.cpp` |
+| FigureManager (multi-figure lifecycle) | A | ✅ Done | `src/ui/figure_manager.hpp/.cpp` |
+| Multi-figure tab switching | A | ✅ Done | `src/ui/app.cpp`, `src/ui/tab_bar.cpp` |
+| Tab context menu (rename, duplicate, close) | A | ✅ Done | `src/ui/tab_bar.cpp` |
+| Per-figure state preservation | A | ✅ Done | `src/ui/figure_manager.cpp` |
 | Series statistics display (min, max, mean, median, std, percentiles, count) | C | ✅ Done | `src/ui/inspector.hpp/.cpp` |
 | Collapsible inspector sections with smooth animation | C | ✅ Done | `src/ui/widgets.hpp/.cpp`, `src/ui/inspector.cpp` |
 | Sparkline data preview in inspector | C | ✅ Done | `src/ui/inspector.cpp`, `src/ui/widgets.hpp/.cpp` |
@@ -134,8 +142,9 @@
 | Workspace v2 format (full state) | F | ✅ Done | `src/ui/workspace.hpp/.cpp` (enhanced) |
 | Workspace autosave/recovery | F | ✅ Done | `src/ui/workspace.hpp/.cpp` |
 | Interaction state save/restore | F | ✅ Done | `src/ui/workspace.hpp/.cpp`, `src/ui/app.cpp` |
-| Box zoom with animated overlay | B | ⏳ Not Started | `src/ui/input.cpp` |
-| Double-click auto-fit polish | B | ⏳ Not Started | `src/ui/input.cpp` |
+| Box zoom with animated overlay | B | ✅ Done | `src/ui/input.cpp` |
+| Box zoom Ctrl key fix (mods parameter) | B | ✅ Done | `src/ui/input.cpp`, `src/ui/glfw_adapter.cpp` |
+| Double-click auto-fit | B | ✅ Done | `src/ui/input.cpp` |
 
 ### Week 8 — Agent D (Colorblind) + Agent E (Region Select) + Agent H (Tests)
 
@@ -147,7 +156,7 @@
 | CVD simulation (Protanopia, Deuteranopia, Tritanopia, Achromatopsia) | D | ✅ Done | `src/ui/theme.hpp`, `src/ui/theme.cpp` |
 | Animated palette transitions | D | ✅ Done | `src/ui/theme.hpp`, `src/ui/theme.cpp` |
 | ThemeManager::update() mutation bug fix | D | ✅ Done | `src/ui/theme.cpp` |
-| Region selection + mini-toolbar | E | ⏳ Not Started | `src/ui/region_select.hpp` (extend, add .cpp) |
+| Region selection + mini-toolbar | E | ✅ Done | `src/ui/region_select.hpp/.cpp` |
 | Golden image tests (10 scenes + 4 framework) | H | ✅ Done | `tests/golden/golden_test_phase2.cpp` (NEW) |
 | Phase 2 benchmarks (38 benchmarks) | H | ✅ Done | `tests/bench/bench_phase2.cpp` (NEW) |
 | Phase 2 integration tests (28 tests) | H | ✅ Done | `tests/unit/test_phase2_integration.cpp` (NEW) |
@@ -166,7 +175,7 @@
 
 ---
 
-## Phase 3 — Elite Differentiators (Weeks 9–12) ⏳
+## Phase 3 — Elite Differentiators (Weeks 9–12) ✅
 
 ### Week 9 — Agent A (Docking) + Plot Customization System
 
@@ -316,6 +325,24 @@
 | `tests/CMakeLists.txt` | G | 8 | Added test_timeline_editor, test_recording_export |
 | `include/plotix/fwd.hpp` | G | 8 | Added TimelineEditor, RecordingSession forward declarations |
 
+### Files Created (Phase 3 — Week 12, Agent 6 - 3D Animation)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|  
+| `src/ui/camera_animator.hpp` / `.cpp` | 6 | 12 | ✅ Yes (UI sources) |
+| `tests/unit/test_camera_animator.cpp` | 6 | 12 | ✅ Yes |
+
+### Files Modified (Phase 3 — Week 12, Agent 6 - 3D Animation)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `src/ui/transition_engine.hpp` / `.cpp` | 6 | 12 | Added animate_camera() |
+| `src/ui/keyframe_interpolator.hpp` / `.cpp` | 6 | 12 | Added bind_camera() for parameter channels |
+| `src/ui/timeline_editor.hpp` / `.cpp` | 6 | 12 | Added set_camera_animator() |
+| `include/plotix/fwd.hpp` | 6 | 12 | Added CameraAnimator forward decl |
+| `CMakeLists.txt` | 6 | 12 | Added camera_animator.cpp |
+| `tests/CMakeLists.txt` | 6 | 12 | Added test_camera_animator |
+
 ### Files Modified (Phase 2 — Week 8, Agent D)
 
 | File | Agent | Week | Changes |
@@ -329,6 +356,36 @@
 | File | Agent | Week | In Build? |
 |------|-------|------|----------|
 | `tests/unit/test_theme_colorblind.cpp` | D | 8 | ✅ Yes |
+
+### Files Created (Phase 2 — Week 5, Agent F)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|  
+| `src/ui/command_palette.hpp` / `.cpp` | F | 5 | ✅ Yes (ImGui sources) |
+| `src/ui/command_registry.hpp` / `.cpp` | F | 5 | ✅ Yes (ImGui sources) |
+| `src/ui/shortcut_manager.hpp` / `.cpp` | F | 5 | ✅ Yes (ImGui sources) |
+| `src/ui/undo_manager.hpp` / `.cpp` | F | 5 | ✅ Yes (ImGui sources) |
+| `src/ui/workspace.hpp` / `.cpp` | F | 5 | ✅ Yes (UI sources) |
+| `tests/unit/test_command_palette_registry.cpp` | F | 5 | ✅ Yes |
+| `tests/unit/test_shortcut_manager.cpp` | F | 5 | ✅ Yes |
+| `tests/unit/test_undo_redo.cpp` | F | 5 | ✅ Yes |
+| `tests/unit/test_workspace.cpp` | F | 5 | ✅ Yes |
+
+### Files Created (Phase 2 — Week 5, Agent E)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|  
+| `src/ui/region_select.hpp` / `.cpp` | E | 5 | ✅ Yes (UI sources) |
+| `src/ui/legend_interaction.hpp` / `.cpp` | E | 5 | ✅ Yes (UI sources) |
+| `tests/unit/test_region_select.cpp` | E | 5 | ✅ Yes |
+| `tests/unit/test_legend_interaction.cpp` | E | 5 | ✅ Yes |
+
+### Files Created (Phase 2 — Week 6, Agent A)
+
+| File | Agent | Week | In Build? |
+|------|-------|------|-----------|  
+| `src/ui/figure_manager.hpp` / `.cpp` | A | 6 | ✅ Yes (UI sources) |
+| `tests/unit/test_figure_manager.cpp` | A | 6 | ✅ Yes |
 
 ### Files Modified (Phase 2 — Week 8, Agent H)
 
@@ -403,11 +460,34 @@
 | `CMakeLists.txt` | F | 11 | Added shortcut_config.cpp, plugin_api.cpp to ImGui-dependent UI sources |
 | `tests/CMakeLists.txt` | F | 11 | Added test_shortcut_config, test_plugin_api, test_workspace_v3 |
 
-### Files Not Yet Created (Phase 3)
+### Files Modified (Phase 3 — Week 9, Agent A)
 
-| File | Agent | Planned Week |
-|------|-------|--------------|
-| `src/ui/region_select.cpp` | E | 10 |
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `src/ui/imgui_integration.hpp` | A | 9 | Added DockSystem pointer, draw_split_view_splitters() |
+| `src/ui/imgui_integration.cpp` | A | 9 | Splitter handles, active pane highlight, drop zone overlay |
+| `src/ui/app.cpp` | A | 9 | DockSystem instantiation, split commands, per-pane layout, workspace dock_state |
+| `src/ui/workspace.hpp` | A | 9 | Added dock_state field |
+
+### Files Modified (Phase 3 — Week 10, Agent E)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `src/ui/axis_link.hpp` | E | 10 | Added SharedCursor struct, update_shared_cursor(), shared_cursor_for() |
+| `src/ui/axis_link.cpp` | E | 10 | Implemented shared cursor methods |
+| `src/ui/crosshair.hpp` | E | 10 | Updated draw_all_axes() signature for AxisLinkManager |
+| `src/ui/crosshair.cpp` | E | 10 | Enhanced draw_all_axes() with Y interpolation from series data |
+| `src/ui/data_interaction.hpp` | E | 10 | Added AxisLinkManager pointer, setter/getter |
+| `src/ui/data_interaction.cpp` | E | 10 | Broadcasts SharedCursor, passes link_mgr to crosshair |
+
+### Files Modified (Phase 3 — Week 11, Agent G)
+
+| File | Agent | Week | Changes |
+|------|-------|------|--------|
+| `src/ui/timeline_editor.hpp` | G | 11 | Added KeyframeInterpolator integration, evaluate_at_playhead(), serialize |
+| `src/ui/timeline_editor.cpp` | G | 11 | Auto-evaluates interpolator on advance(), serialization |
+| `src/ui/recording_export.hpp` | G | 11 | Added multi-pane support (PaneRect, begin_multi_pane) |
+| `src/ui/recording_export.cpp` | G | 11 | Composite render callback, auto-grid layout |
 
 ### Test Files
 
@@ -449,6 +529,67 @@
 | `test_phase3_integration.cpp` | 36 | ✅ Pass |
 | `bench_phase3.cpp` | ~50 benchmarks | ✅ Pass |
 | `golden_test_phase3.cpp` | 8 scenes | ✅ Pass |
+| `test_figure_manager.cpp` | 48 | ✅ Pass |
+| `test_region_select.cpp` | 15 | ✅ Pass |
+| `test_legend_interaction.cpp` | 13 | ✅ Pass |
+| `test_command_palette_registry.cpp` | 30 | ✅ Pass |
+| `test_shortcut_manager.cpp` | 25 | ✅ Pass |
+| `test_undo_redo.cpp` | 25 | ✅ Pass |
+| `test_workspace.cpp` | 12 | ✅ Pass |
+| `test_math3d.cpp` | 60 | ✅ Pass |
+
+---
+
+## 3D Visualization Architecture (Separate Track)
+
+**Status:** Phase 1 — Agent 1 Complete ✅  
+**Reference:** See [`plans/3D_ARCHITECTURE_PLAN.md`](3D_ARCHITECTURE_PLAN.md) for full 7-agent plan
+
+### Agent 1 — Core Transform Refactor & Math Utilities ✅ Complete
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| Header-only math library (vec3, vec4, mat4, quat) | ✅ Done | `include/plotix/math3d.hpp` (~350 LOC) |
+| FrameUBO expansion (view, model, camera_pos, near/far, light_dir) | ✅ Done | `src/render/backend.hpp` |
+| Depth buffer support (SwapchainContext + OffscreenContext) | ✅ Done | `src/render/vulkan/vk_swapchain.hpp/.cpp` |
+| PipelineConfig extension (depth test/write, cull, msaa) | ✅ Done | `src/render/vulkan/vk_pipeline.hpp/.cpp` |
+| PipelineType enum expansion (Line3D, Scatter3D, Mesh3D, Surface3D, Grid3D) | ✅ Done | `src/render/backend.hpp` |
+| Backend::draw_indexed() for mesh rendering | ✅ Done | `src/render/vulkan/vk_backend.hpp/.cpp` |
+| All 6 shaders updated to use MVP (projection * view * model) | ✅ Done | `src/gpu/shaders/*.vert` |
+| 2D backward compatibility (view=model=identity) | ✅ Done | `src/render/renderer.cpp` |
+| Math3D unit tests (60 tests, 7 suites) | ✅ Done | `tests/unit/test_math3d.cpp` |
+
+**Key achievements:**
+- Zero 2D regressions: All existing tests pass (130/130 targets build, 51/51 ctest pass)
+- Depth buffer always created, depth testing only enabled for 3D pipelines via PipelineConfig
+- Column-major matrices matching GLSL/Vulkan convention
+- No GLM dependency — self-contained math library
+- FrameUBO std140 compatible with proper padding
+
+### Next: Agent 2 — Camera & 3D Interaction (In Progress)
+
+**Planned deliverables:**
+- Camera class (position, target, up, orbit, pan, zoom, projection modes)
+- Arcball orbit controls (quaternion-based)
+- Input integration (dynamic_cast<Axes3D*> routing)
+- Camera serialization/deserialization
+- 40+ camera unit tests
+
+**Depends on:** Agent 1 (math3d.hpp) ✅
+
+### Future Agents (Planned)
+
+| Agent | Scope | Status | Depends On |
+|-------|-------|--------|------------|
+| Agent 3 | Axes3D, grid planes, tick labels | Planned | Agent 1, 2 |
+| Agent 4 | 3D pipelines & shaders (10 new shaders) | Planned | Agent 1 |
+| Agent 5 | 3D series (ScatterSeries3D, LineSeries3D, SurfaceSeries, MeshSeries) | ✅ Done | Agent 3, 4 |
+| Agent 6 | Camera animation, keyframe interpolation, timeline integration | Planned | Agent 2, 5 |
+| Agent 7 | Testing, golden images, benchmarks, validation | Planned | All agents |
+
+**3D Phase 1 Target (Weeks 1–4):** 3D scatter plot with orbit camera, depth tested, exportable to PNG  
+**3D Phase 2 Target (Weeks 5–8):** Surface plots, 3D lines, 3D axes grid, camera animation  
+**3D Phase 3 Target (Weeks 9–12):** Lighting, transparency, MSAA, polish
 
 ---
 
@@ -458,9 +599,9 @@
 |-------|----------|-------|-------|
 | ~~`ThemeManager::update()` mutates `current_theme_->colors` in-place during transitions~~ | ✅ Fixed | D | Fixed: transitions now use `display_colors_` — stored themes are never mutated |
 | ~~`load_default()`, `export_theme()`, `import_theme()` declared but not implemented~~ | ✅ Fixed | D | Implemented with JSON serialization in `theme.cpp` |
-| `shortcut_manager.hpp` has no `.cpp` implementation | 🟡 Medium | F | Header exists with types; needs implementation in Week 5 |
-| `region_select.hpp` has no `.cpp` implementation | 🟢 Low | E | Header with structs; `.cpp` planned for Week 8 |
-| `command_registry.cpp` not in `PLOTIX_UI_SOURCES` (only in ImGui block) | 🟢 Low | — | Works when ImGui is enabled |
+| ~~`shortcut_manager.hpp` has no `.cpp` implementation~~ | ✅ Fixed | F | Implemented in Week 5 with full keybinding system |
+| ~~`region_select.hpp` has no `.cpp` implementation~~ | ✅ Fixed | E | Implemented in Week 5 with statistics mini-toolbar |
+| ~~`command_registry.cpp` not in `PLOTIX_UI_SOURCES`~~ | ✅ Fixed | F | Added to ImGui sources block, works correctly |
 
 ---
 

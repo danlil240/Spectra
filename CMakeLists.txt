@@ -46,6 +46,7 @@ foreach(_ui_src
     src/ui/axis_link.cpp
     src/ui/data_transform.cpp
     src/ui/keyframe_interpolator.cpp
+    src/ui/camera_animator.cpp
     src/ui/animation_curve_editor.cpp
     src/ui/camera.cpp
     src/ui/axes3d_renderer.cpp

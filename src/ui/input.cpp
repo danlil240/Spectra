@@ -38,7 +38,7 @@ Axes* InputHandler::hit_test_axes(double screen_x, double screen_y) const {
     return nullptr;
 }
 
-const Rect& InputHandler::viewport_for_axes(const Axes* axes) const {
+const Rect& InputHandler::viewport_for_axes(const AxesBase* axes) const {
     if (axes) {
         return axes->viewport();
     }
@@ -46,6 +46,22 @@ const Rect& InputHandler::viewport_for_axes(const Axes* axes) const {
     static Rect fallback;
     fallback = {vp_x_, vp_y_, vp_w_, vp_h_};
     return fallback;
+}
+
+AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) const {
+    if (!figure_) return nullptr;
+
+    for (auto& axes_ptr : figure_->all_axes()) {
+        if (!axes_ptr) continue;
+        const auto& vp = axes_ptr->viewport();
+        if (static_cast<float>(screen_x) >= vp.x &&
+            static_cast<float>(screen_x) <= vp.x + vp.w &&
+            static_cast<float>(screen_y) >= vp.y &&
+            static_cast<float>(screen_y) <= vp.y + vp.h) {
+            return axes_ptr.get();
+        }
+    }
+    return nullptr;
 }
 
 // ─── Constructor / Destructor ────────────────────────────────────────────────
@@ -64,11 +80,61 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                       ", mods: " + std::to_string(mods) +
                       ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
     
-    // Hit-test to find which axes the cursor is over
+    // Hit-test all axes (including 3D) first
+    AxesBase* hit_base = hit_test_all_axes(x, y);
+    if (hit_base) {
+        active_axes_base_ = hit_base;
+        active_axes_ = dynamic_cast<Axes*>(hit_base);
+    }
+
+    // Handle 3D axes camera interaction
+    if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_)) {
+        auto& cam = axes3d->camera();
+        if (button == MOUSE_BUTTON_LEFT && action == ACTION_PRESS) {
+            is_3d_orbit_drag_ = true;
+            drag_start_x_ = x;
+            drag_start_y_ = y;
+            mode_ = InteractionMode::Dragging;
+            return;
+        }
+        if (button == MOUSE_BUTTON_LEFT && action == ACTION_RELEASE && is_3d_orbit_drag_) {
+            is_3d_orbit_drag_ = false;
+            mode_ = InteractionMode::Idle;
+            return;
+        }
+        if (button == MOUSE_BUTTON_RIGHT && action == ACTION_PRESS) {
+            is_3d_pan_drag_ = true;
+            drag_start_x_ = x;
+            drag_start_y_ = y;
+            mode_ = InteractionMode::Dragging;
+            return;
+        }
+        if (button == MOUSE_BUTTON_RIGHT && action == ACTION_RELEASE && is_3d_pan_drag_) {
+            is_3d_pan_drag_ = false;
+            mode_ = InteractionMode::Idle;
+            return;
+        }
+        if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_PRESS) {
+            is_3d_pan_drag_ = true;
+            drag_start_x_ = x;
+            drag_start_y_ = y;
+            mode_ = InteractionMode::Dragging;
+            return;
+        }
+        if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_RELEASE && is_3d_pan_drag_) {
+            is_3d_pan_drag_ = false;
+            mode_ = InteractionMode::Idle;
+            return;
+        }
+        return; // 3D axes don't support other interactions
+    }
+
+    // 2D hit-test (fallback for callers that need Axes*)
     Axes* hit = hit_test_axes(x, y);
     if (hit) {
         PLOTIX_LOG_DEBUG("input", "Mouse hit axes - setting active axes");
         active_axes_ = hit;
+        active_axes_base_ = hit;
     }
 
     if (!active_axes_) return;
@@ -282,6 +348,26 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 void InputHandler::on_mouse_move(double x, double y) {
     PLOTIX_LOG_TRACE("input", "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
     
+    // Handle 3D camera drag (orbit or pan)
+    if (is_3d_orbit_drag_ || is_3d_pan_drag_) {
+        if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_)) {
+            auto& cam = axes3d->camera();
+            float dx = static_cast<float>(x - drag_start_x_);
+            float dy = static_cast<float>(y - drag_start_y_);
+            
+            if (is_3d_orbit_drag_) {
+                cam.orbit(dx * ORBIT_SENSITIVITY, -dy * ORBIT_SENSITIVITY);
+            } else if (is_3d_pan_drag_) {
+                const auto& vp = viewport_for_axes(axes3d);
+                cam.pan(dx, dy, vp.w, vp.h);
+            }
+            
+            drag_start_x_ = x;
+            drag_start_y_ = y;
+        }
+        return;
+    }
+
     // Update cursor readout regardless of mode
     Axes* hit = hit_test_axes(x, y);
     if (hit) {
@@ -372,7 +458,21 @@ void InputHandler::on_mouse_move(double x, double y) {
 
 void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
                               double cursor_x, double cursor_y) {
-    // Hit-test to zoom the axes under cursor
+    // Hit-test all axes (including 3D) for scroll zoom
+    AxesBase* hit_base = hit_test_all_axes(cursor_x, cursor_y);
+    if (hit_base) {
+        active_axes_base_ = hit_base;
+        active_axes_ = dynamic_cast<Axes*>(hit_base);
+    }
+
+    // Handle 3D zoom via camera
+    if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_)) {
+        float factor = (y_offset > 0) ? (1.0f - ZOOM_3D_FACTOR) : (1.0f + ZOOM_3D_FACTOR);
+        axes3d->camera().zoom(factor);
+        return;
+    }
+
+    // 2D hit-test fallback
     Axes* hit = hit_test_axes(cursor_x, cursor_y);
     if (hit) {
         active_axes_ = hit;

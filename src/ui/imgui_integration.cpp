@@ -16,7 +16,10 @@
 #include "widgets.hpp"
 
 #include <plotix/axes.hpp>
+#include <plotix/axes3d.hpp>
+#include <plotix/camera.hpp>
 #include <plotix/figure.hpp>
+#include <plotix/math3d.hpp>
 #include <plotix/series.hpp>
 #include <plotix/logger.hpp>
 
@@ -1943,6 +1946,137 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         if (!axes.get_title().empty()) {
             ImGui::PushFont(font_title_);
             const char* txt = axes.get_title().c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            float cx = vp.x + vp.w * 0.5f;
+            float py = vp.y - sz.y - tick_padding;
+            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
+            ImGui::PopFont();
+        }
+    }
+
+    // ─── 3D Axes: billboarded tick labels, axis labels, title ────────────
+    for (auto& axes_ptr : figure.all_axes()) {
+        if (!axes_ptr) continue;
+        auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
+        if (!axes3d) continue;
+
+        const auto& vp = axes3d->viewport();
+        const auto& cam = axes3d->camera();
+
+        // Build MVP matrix: projection * view (model is identity)
+        float aspect = vp.w / std::max(vp.h, 1.0f);
+        mat4 proj = cam.projection_matrix(aspect);
+        mat4 view = cam.view_matrix();
+        mat4 mvp = mat4_mul(proj, view);
+
+        // Helper: project a 3D world point to screen coords within the viewport
+        auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy) -> bool {
+            // Multiply by MVP
+            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y + mvp.m[8]  * world_pos.z + mvp.m[12];
+            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y + mvp.m[9]  * world_pos.z + mvp.m[13];
+            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y + mvp.m[11] * world_pos.z + mvp.m[15];
+
+            // Behind camera
+            if (clip_w <= 0.001f) return false;
+
+            // NDC
+            float ndc_x = clip_x / clip_w;
+            float ndc_y = clip_y / clip_w;
+
+            // NDC to screen (Vulkan Y-down: ndc_y=-1 is top, +1 is bottom)
+            sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
+            sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
+
+            // Cull if far outside viewport (with generous margin for labels)
+            float margin = 50.0f;
+            if (sx < vp.x - margin || sx > vp.x + vp.w + margin ||
+                sy < vp.y - margin || sy > vp.y + vp.h + margin)
+                return false;
+
+            return true;
+        };
+
+        auto xlim = axes3d->x_limits();
+        auto ylim = axes3d->y_limits();
+        auto zlim = axes3d->z_limits();
+
+        float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
+
+        // Tick offset: slightly beyond the tick mark end
+        float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
+        float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
+        float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
+
+        // --- X-axis tick labels (along y=y0, z=z0 edge) ---
+        ImGui::PushFont(font_body_);
+        auto x_ticks = axes3d->compute_x_ticks();
+        for (size_t i = 0; i < x_ticks.positions.size(); ++i) {
+            float sx, sy;
+            vec3 pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
+            if (!world_to_screen(pos, sx, sy)) continue;
+            const char* txt = x_ticks.labels[i].c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), tick_col, txt);
+        }
+
+        // --- Y-axis tick labels (along x=x0, z=z0 edge) ---
+        auto y_ticks = axes3d->compute_y_ticks();
+        for (size_t i = 0; i < y_ticks.positions.size(); ++i) {
+            float sx, sy;
+            vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
+            if (!world_to_screen(pos, sx, sy)) continue;
+            const char* txt = y_ticks.labels[i].c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            dl->AddText(ImVec2(sx - sz.x, sy - sz.y * 0.5f), tick_col, txt);
+        }
+
+        // --- Z-axis tick labels (along x=x0, y=y0 edge) ---
+        auto z_ticks = axes3d->compute_z_ticks();
+        for (size_t i = 0; i < z_ticks.positions.size(); ++i) {
+            float sx, sy;
+            vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
+            if (!world_to_screen(pos, sx, sy)) continue;
+            const char* txt = z_ticks.labels[i].c_str();
+            ImVec2 sz = ImGui::CalcTextSize(txt);
+            dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), tick_col, txt);
+        }
+        ImGui::PopFont();
+
+        // --- Axis labels (xlabel, ylabel, zlabel) ---
+        ImGui::PushFont(font_menubar_);
+        if (!axes3d->get_xlabel().empty()) {
+            float sx, sy;
+            vec3 mid = {(xlim.min + xlim.max) * 0.5f, y0 - x_tick_offset * 3.0f, z0};
+            if (world_to_screen(mid, sx, sy)) {
+                const char* txt = axes3d->get_xlabel().c_str();
+                ImVec2 sz = ImGui::CalcTextSize(txt);
+                dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), label_col, txt);
+            }
+        }
+        if (!axes3d->get_ylabel().empty()) {
+            float sx, sy;
+            vec3 mid = {x0 - y_tick_offset * 3.0f, (ylim.min + ylim.max) * 0.5f, z0};
+            if (world_to_screen(mid, sx, sy)) {
+                const char* txt = axes3d->get_ylabel().c_str();
+                ImVec2 sz = ImGui::CalcTextSize(txt);
+                dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), label_col, txt);
+            }
+        }
+        if (!axes3d->get_zlabel().empty()) {
+            float sx, sy;
+            vec3 mid = {x0 - z_tick_offset * 3.0f, y0, (zlim.min + zlim.max) * 0.5f};
+            if (world_to_screen(mid, sx, sy)) {
+                const char* txt = axes3d->get_zlabel().c_str();
+                ImVec2 sz = ImGui::CalcTextSize(txt);
+                dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), label_col, txt);
+            }
+        }
+        ImGui::PopFont();
+
+        // --- 3D Title ---
+        if (!axes3d->get_title().empty()) {
+            ImGui::PushFont(font_title_);
+            const char* txt = axes3d->get_title().c_str();
             ImVec2 sz = ImGui::CalcTextSize(txt);
             float cx = vp.x + vp.w * 0.5f;
             float py = vp.y - sz.y - tick_padding;

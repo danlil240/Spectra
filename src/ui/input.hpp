@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plotix/axes.hpp>
+#include <plotix/axes3d.hpp>
 #include <plotix/figure.hpp>
 
 #include <chrono>
@@ -60,8 +61,10 @@ public:
     void set_figure(Figure* fig) { figure_ = fig; }
 
     // Set the active axes that input events will affect
-    void set_active_axes(Axes* axes) { active_axes_ = axes; }
+    void set_active_axes(Axes* axes) { active_axes_ = axes; active_axes_base_ = axes; }
+    void set_active_axes_base(AxesBase* axes) { active_axes_base_ = axes; active_axes_ = dynamic_cast<Axes*>(axes); }
     Axes* active_axes() const { return active_axes_; }
+    AxesBase* active_axes_base() const { return active_axes_base_; }
 
     // Mouse button event: begin/end drag or box zoom
     void on_mouse_button(int button, int action, int mods, double x, double y);
@@ -133,9 +136,12 @@ public:
     // Hit-test: find which Axes the cursor is over (public for context menu)
     Axes* hit_test_axes(double screen_x, double screen_y) const;
 
+    // Hit-test all axes (including 3D) — returns AxesBase*
+    AxesBase* hit_test_all_axes(double screen_x, double screen_y) const;
+
 private:
     // Get viewport for a given axes (from figure layout)
-    const Rect& viewport_for_axes(const Axes* axes) const;
+    const Rect& viewport_for_axes(const AxesBase* axes) const;
 
     // Apply box zoom: set limits from selection rectangle
     void apply_box_zoom();
@@ -145,6 +151,14 @@ private:
 
     Figure* figure_       = nullptr;
     Axes*   active_axes_  = nullptr;
+    AxesBase* active_axes_base_ = nullptr;
+
+    // 3D orbit drag state
+    bool is_3d_orbit_drag_ = false;
+    bool is_3d_pan_drag_ = false;
+    static constexpr int MOUSE_BUTTON_MIDDLE = 2;
+    static constexpr float ORBIT_SENSITIVITY = 0.3f;
+    static constexpr float ZOOM_3D_FACTOR = 0.1f;
 
     InteractionMode mode_ = InteractionMode::Idle;
     ToolMode tool_mode_ = ToolMode::Pan;  // Default tool mode

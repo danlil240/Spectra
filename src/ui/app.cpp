@@ -1575,6 +1575,11 @@ void App::run() {
         glfw->shutdown();
     }
 #endif
+
+    // Ensure all GPU work is complete before destructors clean up resources
+    if (backend_) {
+        backend_->wait_idle();
+    }
 }
 
 } // namespace plotix

@@ -29,6 +29,7 @@ enum class PipelineType {
     Mesh3D,
     Surface3D,
     Grid3D,
+    GridOverlay3D,  // Same as Grid3D but no depth test — for grid lines rendered after series
 };
 
 struct BufferHandle {
@@ -86,6 +87,7 @@ public:
     // Lifecycle
     virtual bool init(bool headless) = 0;
     virtual void shutdown() = 0;
+    virtual void wait_idle() = 0;
 
     // Surface / swapchain (windowed mode)
     virtual bool create_surface(void* native_window) = 0;
@@ -118,6 +120,7 @@ public:
     // Drawing
     virtual void bind_pipeline(PipelineHandle handle) = 0;
     virtual void bind_buffer(BufferHandle handle, uint32_t binding) = 0;
+    virtual void bind_index_buffer(BufferHandle handle) = 0;
     virtual void bind_texture(TextureHandle handle, uint32_t binding) = 0;
     virtual void push_constants(const SeriesPushConstants& pc) = 0;
     virtual void set_viewport(float x, float y, float width, float height) = 0;

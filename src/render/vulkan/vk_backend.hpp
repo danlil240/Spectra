@@ -21,6 +21,7 @@ public:
     // Backend interface
     bool init(bool headless) override;
     void shutdown() override;
+    void wait_idle() override;
 
     bool create_surface(void* native_window) override;
     bool create_swapchain(uint32_t width, uint32_t height) override;
@@ -45,6 +46,7 @@ public:
 
     void bind_pipeline(PipelineHandle handle) override;
     void bind_buffer(BufferHandle handle, uint32_t binding) override;
+    void bind_index_buffer(BufferHandle handle) override;
     void bind_texture(TextureHandle handle, uint32_t binding) override;
     void push_constants(const SeriesPushConstants& pc) override;
     void set_viewport(float x, float y, float width, float height) override;
@@ -99,10 +101,12 @@ private:
     VkCommandPool                command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;
 
-    // Sync objects (per frame-in-flight)
+    // Sync objects
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
-    std::vector<VkSemaphore> image_available_semaphores_;
-    std::vector<VkSemaphore> render_finished_semaphores_;
+    // Per-swapchain-image semaphores (fixes semaphore reuse during present)
+    std::vector<VkSemaphore> image_available_semaphores_;  // indexed by swapchain image
+    std::vector<VkSemaphore> render_finished_semaphores_;  // indexed by swapchain image
+    // Per-frame-in-flight fences
     std::vector<VkFence>     in_flight_fences_;
     uint32_t                 current_flight_frame_ = 0;
 

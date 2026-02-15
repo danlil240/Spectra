@@ -1,4 +1,6 @@
 #include <plotix/series3d.hpp>
+#include <plotix/axes3d.hpp>
+#include <plotix/figure.hpp>
 #include <plotix/math3d.hpp>
 
 #include <gtest/gtest.h>
@@ -113,6 +115,55 @@ TEST(LineSeries3D, FluentInterface) {
     EXPECT_EQ(&result, &series);
 }
 
+TEST(LineSeries3D, DirtyFlagOnConstruction) {
+    std::vector<float> x = {1.0f}, y = {2.0f}, z = {3.0f};
+    LineSeries3D series(x, y, z);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(LineSeries3D, DirtyFlagOnSetData) {
+    LineSeries3D series;
+    series.clear_dirty();
+    EXPECT_FALSE(series.is_dirty());
+    
+    std::vector<float> x = {1.0f};
+    series.set_x(x);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(LineSeries3D, DirtyFlagOnAppend) {
+    LineSeries3D series;
+    series.clear_dirty();
+    series.append(1.0f, 2.0f, 3.0f);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(LineSeries3D, DirtyFlagOnWidthChange) {
+    LineSeries3D series;
+    series.clear_dirty();
+    series.width(5.0f);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(LineSeries3D, VisibilityDefault) {
+    LineSeries3D series;
+    EXPECT_TRUE(series.visible());
+}
+
+TEST(LineSeries3D, VisibilityToggle) {
+    LineSeries3D series;
+    series.visible(false);
+    EXPECT_FALSE(series.visible());
+    series.visible(true);
+    EXPECT_TRUE(series.visible());
+}
+
+TEST(LineSeries3D, LabelProperty) {
+    LineSeries3D series;
+    series.label("3D trajectory");
+    EXPECT_EQ(series.label(), "3D trajectory");
+}
+
 // ─── ScatterSeries3D Tests ───────────────────────────────────────────────────
 
 TEST(ScatterSeries3D, DefaultConstruction) {
@@ -193,6 +244,21 @@ TEST(ScatterSeries3D, LargeDataset) {
     
     ScatterSeries3D series(x, y, z);
     EXPECT_EQ(series.point_count(), 10000);
+}
+
+TEST(ScatterSeries3D, FluentChaining) {
+    ScatterSeries3D series;
+    auto& result = series.size(10.0f).color(colors::green).opacity(0.5f).label("scatter");
+    EXPECT_EQ(&result, &series);
+    EXPECT_FLOAT_EQ(series.size(), 10.0f);
+    EXPECT_EQ(series.label(), "scatter");
+}
+
+TEST(ScatterSeries3D, DirtyFlagOnSizeChange) {
+    ScatterSeries3D series;
+    series.clear_dirty();
+    series.size(12.0f);
+    EXPECT_TRUE(series.is_dirty());
 }
 
 // ─── SurfaceSeries Tests ─────────────────────────────────────────────────────
@@ -348,6 +414,77 @@ TEST(SurfaceSeries, NormalComputation) {
     }
 }
 
+TEST(SurfaceSeries, NormalPointsUpForFlatSurface) {
+    // For a flat z=0 surface, interior normals should point in +z or -z
+    std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y = {0.0f, 1.0f, 2.0f};
+    std::vector<float> z(9, 0.0f);
+    
+    SurfaceSeries series(x, y, z);
+    series.generate_mesh();
+    
+    const auto& mesh = series.mesh();
+    // Center vertex (index 4) should have a well-defined normal
+    float nz = mesh.vertices[4 * 6 + 5];
+    EXPECT_NEAR(std::fabs(nz), 1.0f, 1e-5f);
+}
+
+TEST(SurfaceSeries, MeshVertexPositions) {
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {10.0f, 20.0f, 30.0f, 40.0f};
+    
+    SurfaceSeries series(x, y, z);
+    series.generate_mesh();
+    
+    const auto& mesh = series.mesh();
+    // First vertex: (x=0, y=0, z=10)
+    EXPECT_FLOAT_EQ(mesh.vertices[0], 0.0f);
+    EXPECT_FLOAT_EQ(mesh.vertices[1], 0.0f);
+    EXPECT_FLOAT_EQ(mesh.vertices[2], 10.0f);
+    // Second vertex: (x=1, y=0, z=20)
+    EXPECT_FLOAT_EQ(mesh.vertices[6], 1.0f);
+    EXPECT_FLOAT_EQ(mesh.vertices[7], 0.0f);
+    EXPECT_FLOAT_EQ(mesh.vertices[8], 20.0f);
+}
+
+TEST(SurfaceSeries, MeshIndexTopology) {
+    // 2×2 grid should produce 2 triangles sharing the diagonal
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f, 2.0f, 3.0f};
+    
+    SurfaceSeries series(x, y, z);
+    series.generate_mesh();
+    
+    const auto& mesh = series.mesh();
+    // All indices should be in range [0, vertex_count)
+    for (auto idx : mesh.indices) {
+        EXPECT_LT(idx, mesh.vertex_count);
+    }
+    // Should have exactly 6 indices (2 triangles)
+    EXPECT_EQ(mesh.indices.size(), 6u);
+}
+
+TEST(SurfaceSeries, RegenerateMeshAfterSetData) {
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f, 2.0f, 3.0f};
+    
+    SurfaceSeries series(x, y, z);
+    series.generate_mesh();
+    EXPECT_TRUE(series.is_mesh_generated());
+    
+    // Update data — mesh should be invalidated
+    std::vector<float> z2 = {10.0f, 20.0f, 30.0f, 40.0f};
+    series.set_data(x, y, z2);
+    // After set_data, mesh_generated_ should be reset
+    // generate_mesh again
+    series.generate_mesh();
+    EXPECT_TRUE(series.is_mesh_generated());
+    EXPECT_FLOAT_EQ(series.mesh().vertices[2], 10.0f);  // z of first vertex
+}
+
 // ─── MeshSeries Tests ────────────────────────────────────────────────────────
 
 TEST(MeshSeries, DefaultConstruction) {
@@ -454,6 +591,306 @@ TEST(MeshSeries, ComplexMesh) {
     EXPECT_EQ(series.triangle_count(), 4);
 }
 
+TEST(MeshSeries, DirtyFlagOnSetVertices) {
+    MeshSeries series;
+    series.clear_dirty();
+    std::vector<float> verts = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    series.set_vertices(verts);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(MeshSeries, DirtyFlagOnSetIndices) {
+    MeshSeries series;
+    series.clear_dirty();
+    std::vector<uint32_t> indices = {0, 1, 2};
+    series.set_indices(indices);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+TEST(MeshSeries, FluentChaining) {
+    MeshSeries series;
+    auto& result = series.label("mesh").color(colors::red).opacity(0.7f);
+    EXPECT_EQ(&result, &series);
+    EXPECT_EQ(series.label(), "mesh");
+}
+
+// ─── Colormap Tests ──────────────────────────────────────────────────────────
+
+TEST(Colormap, DefaultIsNone) {
+    SurfaceSeries series;
+    EXPECT_EQ(series.colormap_type(), ColormapType::None);
+}
+
+TEST(Colormap, SetByEnum) {
+    SurfaceSeries series;
+    series.colormap(ColormapType::Viridis);
+    EXPECT_EQ(series.colormap_type(), ColormapType::Viridis);
+}
+
+TEST(Colormap, SetByString) {
+    SurfaceSeries series;
+    series.colormap("jet");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Jet);
+}
+
+TEST(Colormap, SetByStringAllTypes) {
+    SurfaceSeries series;
+    
+    series.colormap("viridis");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Viridis);
+    series.colormap("plasma");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Plasma);
+    series.colormap("inferno");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Inferno);
+    series.colormap("magma");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Magma);
+    series.colormap("coolwarm");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Coolwarm);
+    series.colormap("grayscale");
+    EXPECT_EQ(series.colormap_type(), ColormapType::Grayscale);
+}
+
+TEST(Colormap, UnknownStringDefaultsToNone) {
+    SurfaceSeries series;
+    series.colormap("nonexistent");
+    EXPECT_EQ(series.colormap_type(), ColormapType::None);
+}
+
+TEST(Colormap, ColormapRange) {
+    SurfaceSeries series;
+    series.set_colormap_range(-5.0f, 5.0f);
+    EXPECT_FLOAT_EQ(series.colormap_min(), -5.0f);
+    EXPECT_FLOAT_EQ(series.colormap_max(), 5.0f);
+}
+
+TEST(Colormap, SampleGrayscale) {
+    Color c0 = SurfaceSeries::sample_colormap(ColormapType::Grayscale, 0.0f);
+    EXPECT_FLOAT_EQ(c0.r, 0.0f);
+    EXPECT_FLOAT_EQ(c0.g, 0.0f);
+    EXPECT_FLOAT_EQ(c0.b, 0.0f);
+    
+    Color c1 = SurfaceSeries::sample_colormap(ColormapType::Grayscale, 1.0f);
+    EXPECT_FLOAT_EQ(c1.r, 1.0f);
+    EXPECT_FLOAT_EQ(c1.g, 1.0f);
+    EXPECT_FLOAT_EQ(c1.b, 1.0f);
+    
+    Color c5 = SurfaceSeries::sample_colormap(ColormapType::Grayscale, 0.5f);
+    EXPECT_FLOAT_EQ(c5.r, 0.5f);
+}
+
+TEST(Colormap, SampleClampsInput) {
+    Color c_neg = SurfaceSeries::sample_colormap(ColormapType::Grayscale, -1.0f);
+    EXPECT_FLOAT_EQ(c_neg.r, 0.0f);
+    
+    Color c_over = SurfaceSeries::sample_colormap(ColormapType::Grayscale, 2.0f);
+    EXPECT_FLOAT_EQ(c_over.r, 1.0f);
+}
+
+TEST(Colormap, SampleViridisEndpoints) {
+    Color c0 = SurfaceSeries::sample_colormap(ColormapType::Viridis, 0.0f);
+    Color c1 = SurfaceSeries::sample_colormap(ColormapType::Viridis, 1.0f);
+    // Viridis goes from dark to bright — c1 should be brighter
+    float lum0 = c0.r * 0.299f + c0.g * 0.587f + c0.b * 0.114f;
+    float lum1 = c1.r * 0.299f + c1.g * 0.587f + c1.b * 0.114f;
+    EXPECT_GT(lum1, lum0);
+}
+
+TEST(Colormap, SampleJetEndpoints) {
+    Color c0 = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.0f);
+    Color c1 = SurfaceSeries::sample_colormap(ColormapType::Jet, 1.0f);
+    // Jet: t=0 should be blue-ish, t=1 should be red-ish
+    EXPECT_GT(c0.b, c0.r);
+    EXPECT_GT(c1.r, c1.b);
+}
+
+TEST(Colormap, SampleNoneReturnsGray) {
+    Color c = SurfaceSeries::sample_colormap(ColormapType::None, 0.5f);
+    EXPECT_FLOAT_EQ(c.r, 0.5f);
+    EXPECT_FLOAT_EQ(c.g, 0.5f);
+    EXPECT_FLOAT_EQ(c.b, 0.5f);
+}
+
+TEST(Colormap, AllColormapsReturnValidColors) {
+    ColormapType types[] = {
+        ColormapType::Viridis, ColormapType::Plasma, ColormapType::Inferno,
+        ColormapType::Magma, ColormapType::Jet, ColormapType::Coolwarm,
+        ColormapType::Grayscale
+    };
+    for (auto cm : types) {
+        for (float t = 0.0f; t <= 1.0f; t += 0.1f) {
+            Color c = SurfaceSeries::sample_colormap(cm, t);
+            EXPECT_GE(c.r, 0.0f);
+            EXPECT_LE(c.r, 1.0f);
+            EXPECT_GE(c.g, 0.0f);
+            EXPECT_LE(c.g, 1.0f);
+            EXPECT_GE(c.b, 0.0f);
+            EXPECT_LE(c.b, 1.0f);
+            EXPECT_FLOAT_EQ(c.a, 1.0f);
+        }
+    }
+}
+
+TEST(Colormap, ColormapMarksDirty) {
+    SurfaceSeries series;
+    series.clear_dirty();
+    series.colormap(ColormapType::Jet);
+    EXPECT_TRUE(series.is_dirty());
+}
+
+// ─── Axes3D Integration Tests ────────────────────────────────────────────────
+
+TEST(Axes3DIntegration, Line3dFactory) {
+    Axes3D axes;
+    std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y = {0.0f, 1.0f, 2.0f};
+    std::vector<float> z = {0.0f, 1.0f, 2.0f};
+    
+    auto& series = axes.line3d(x, y, z);
+    EXPECT_EQ(series.point_count(), 3);
+    EXPECT_EQ(axes.series().size(), 1);
+}
+
+TEST(Axes3DIntegration, Scatter3dFactory) {
+    Axes3D axes;
+    std::vector<float> x = {1.0f, 2.0f};
+    std::vector<float> y = {3.0f, 4.0f};
+    std::vector<float> z = {5.0f, 6.0f};
+    
+    auto& series = axes.scatter3d(x, y, z);
+    EXPECT_EQ(series.point_count(), 2);
+    EXPECT_EQ(axes.series().size(), 1);
+}
+
+TEST(Axes3DIntegration, SurfaceFactory) {
+    Axes3D axes;
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f, 2.0f, 3.0f};
+    
+    auto& series = axes.surface(x, y, z);
+    EXPECT_EQ(series.rows(), 2);
+    EXPECT_EQ(series.cols(), 2);
+    EXPECT_EQ(axes.series().size(), 1);
+}
+
+TEST(Axes3DIntegration, MeshFactory) {
+    Axes3D axes;
+    std::vector<float> verts = {
+        0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f
+    };
+    std::vector<uint32_t> indices = {0, 1, 2};
+    
+    auto& series = axes.mesh(verts, indices);
+    EXPECT_EQ(series.vertex_count(), 3);
+    EXPECT_EQ(series.triangle_count(), 1);
+    EXPECT_EQ(axes.series().size(), 1);
+}
+
+TEST(Axes3DIntegration, MultipleSeries) {
+    Axes3D axes;
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f};
+    
+    axes.line3d(x, y, z);
+    axes.scatter3d(x, y, z);
+    
+    EXPECT_EQ(axes.series().size(), 2);
+}
+
+TEST(Axes3DIntegration, AutoFitWithLine3D) {
+    Axes3D axes;
+    std::vector<float> x = {-5.0f, 5.0f};
+    std::vector<float> y = {-10.0f, 10.0f};
+    std::vector<float> z = {-1.0f, 1.0f};
+    
+    axes.line3d(x, y, z);
+    axes.auto_fit();
+    
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    auto zlim = axes.z_limits();
+    
+    // After auto_fit with 5% padding, limits should encompass the data
+    EXPECT_LE(xlim.min, -5.0f);
+    EXPECT_GE(xlim.max, 5.0f);
+    EXPECT_LE(ylim.min, -10.0f);
+    EXPECT_GE(ylim.max, 10.0f);
+    EXPECT_LE(zlim.min, -1.0f);
+    EXPECT_GE(zlim.max, 1.0f);
+}
+
+TEST(Axes3DIntegration, AutoFitWithSurface) {
+    Axes3D axes;
+    std::vector<float> x = {0.0f, 10.0f};
+    std::vector<float> y = {0.0f, 20.0f};
+    std::vector<float> z = {-5.0f, 5.0f, -5.0f, 5.0f};
+    
+    axes.surface(x, y, z);
+    axes.auto_fit();
+    
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    auto zlim = axes.z_limits();
+    
+    EXPECT_LE(xlim.min, 0.0f);
+    EXPECT_GE(xlim.max, 10.0f);
+    EXPECT_LE(ylim.min, 0.0f);
+    EXPECT_GE(ylim.max, 20.0f);
+    EXPECT_LE(zlim.min, -5.0f);
+    EXPECT_GE(zlim.max, 5.0f);
+}
+
+TEST(Axes3DIntegration, AutoFitEmpty) {
+    Axes3D axes;
+    axes.auto_fit();
+    
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    auto zlim = axes.z_limits();
+    
+    EXPECT_FLOAT_EQ(xlim.min, -1.0f);
+    EXPECT_FLOAT_EQ(xlim.max, 1.0f);
+}
+
+TEST(Axes3DIntegration, FactoryReturnsFluent) {
+    Axes3D axes;
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f};
+    
+    auto& line = axes.line3d(x, y, z).width(3.0f).color(colors::red).label("line");
+    EXPECT_FLOAT_EQ(line.width(), 3.0f);
+    EXPECT_EQ(line.label(), "line");
+    
+    auto& scatter = axes.scatter3d(x, y, z).size(10.0f).color(colors::blue);
+    EXPECT_FLOAT_EQ(scatter.size(), 10.0f);
+}
+
+// ─── Figure + Axes3D Integration ─────────────────────────────────────────────
+
+TEST(FigureIntegration, Subplot3dCreation) {
+    Figure fig;
+    auto& ax = fig.subplot3d(1, 1, 1);
+    
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f};
+    
+    ax.scatter3d(x, y, z);
+    EXPECT_EQ(ax.series().size(), 1);
+    EXPECT_EQ(fig.all_axes().size(), 1);
+}
+
+TEST(FigureIntegration, Subplot3dOutOfRange) {
+    Figure fig;
+    EXPECT_THROW(fig.subplot3d(1, 1, 0), std::out_of_range);
+    EXPECT_THROW(fig.subplot3d(1, 1, 2), std::out_of_range);
+    EXPECT_THROW(fig.subplot3d(0, 1, 1), std::out_of_range);
+}
+
 // ─── Edge Cases and Stress Tests ─────────────────────────────────────────────
 
 TEST(Series3D, MismatchedArraySizes) {
@@ -526,4 +963,53 @@ TEST(Series3D, VeryLargeSurface) {
     EXPECT_TRUE(series.is_mesh_generated());
     EXPECT_EQ(series.mesh().vertex_count, size * size);
     EXPECT_EQ(series.mesh().triangle_count, (size - 1) * (size - 1) * 2);
+}
+
+TEST(Series3D, LargeScatter3DPerformance) {
+    // 100k points should be handled without issues
+    const size_t N = 100000;
+    std::vector<float> x(N), y(N), z(N);
+    for (size_t i = 0; i < N; ++i) {
+        x[i] = static_cast<float>(i) * 0.01f;
+        y[i] = std::sin(x[i]);
+        z[i] = std::cos(x[i]);
+    }
+    
+    ScatterSeries3D series(x, y, z);
+    EXPECT_EQ(series.point_count(), N);
+    
+    vec3 centroid = series.compute_centroid();
+    EXPECT_NE(centroid.x, 0.0f);  // Non-trivial centroid
+}
+
+TEST(Series3D, LargeLine3DPerformance) {
+    const size_t N = 50000;
+    std::vector<float> x(N), y(N), z(N);
+    for (size_t i = 0; i < N; ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(N);
+        x[i] = std::cos(t * 20.0f);
+        y[i] = std::sin(t * 20.0f);
+        z[i] = t * 10.0f;
+    }
+    
+    LineSeries3D series(x, y, z);
+    EXPECT_EQ(series.point_count(), N);
+    
+    vec3 min_b, max_b;
+    series.get_bounds(min_b, max_b);
+    EXPECT_LE(min_b.x, -0.9f);
+    EXPECT_GE(max_b.x, 0.9f);
+}
+
+TEST(Series3D, SurfaceNonUniformGrid) {
+    // Non-uniform spacing in x and y
+    std::vector<float> x = {0.0f, 0.1f, 1.0f};
+    std::vector<float> y = {0.0f, 0.5f, 10.0f};
+    std::vector<float> z(9, 0.0f);
+    
+    SurfaceSeries series(x, y, z);
+    series.generate_mesh();
+    
+    EXPECT_TRUE(series.is_mesh_generated());
+    EXPECT_EQ(series.mesh().vertex_count, 9);
 }

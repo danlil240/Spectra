@@ -31,7 +31,8 @@ int main() {
     ax1.zlabel("Z");
     ax1.camera().azimuth = 45.0f;
     ax1.camera().elevation = 30.0f;
-    ax1.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY));
+    ax1.camera().update_position_from_orbit();
+    ax1.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
 
     // --- Subplot 2: 3D Line Plot (Helix) ---
     auto& ax2 = fig.subplot3d(2, 2, 2);
@@ -57,6 +58,7 @@ int main() {
     ax2.zlabel("Z");
     ax2.camera().azimuth = 60.0f;
     ax2.camera().elevation = 20.0f;
+    ax2.camera().update_position_from_orbit();
     ax2.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
 
     // --- Subplot 3: Surface Plot (Mathematical Function) ---
@@ -94,6 +96,8 @@ int main() {
     ax3.camera().azimuth = 30.0f;
     ax3.camera().elevation = 45.0f;
     ax3.camera().distance = 8.0f;
+    ax3.camera().update_position_from_orbit();
+    ax3.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
 
     // --- Subplot 4: Multiple 3D Series (Combined) ---
     auto& ax4 = fig.subplot3d(2, 2, 4);
@@ -136,7 +140,8 @@ int main() {
     ax4.zlabel("Z");
     ax4.camera().azimuth = 45.0f;
     ax4.camera().elevation = 30.0f;
-    ax4.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
+    ax4.camera().update_position_from_orbit();
+    ax4.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
     fig.show();
     app.run();
     return 0;

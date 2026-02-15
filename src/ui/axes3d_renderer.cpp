@@ -31,7 +31,6 @@ void Axes3DRenderer::BoundingBoxData::generate(vec3 min_corner, vec3 max_corner)
 }
 
 void Axes3DRenderer::GridPlaneData::generate_xy_plane(vec3 min_corner, vec3 max_corner, float z_pos, int grid_divisions) {
-    vertices.clear();
     
     float x_step = (max_corner.x - min_corner.x) / grid_divisions;
     float y_step = (max_corner.y - min_corner.y) / grid_divisions;
@@ -50,7 +49,6 @@ void Axes3DRenderer::GridPlaneData::generate_xy_plane(vec3 min_corner, vec3 max_
 }
 
 void Axes3DRenderer::GridPlaneData::generate_xz_plane(vec3 min_corner, vec3 max_corner, float y_pos, int grid_divisions) {
-    vertices.clear();
     
     float x_step = (max_corner.x - min_corner.x) / grid_divisions;
     float z_step = (max_corner.z - min_corner.z) / grid_divisions;
@@ -69,7 +67,6 @@ void Axes3DRenderer::GridPlaneData::generate_xz_plane(vec3 min_corner, vec3 max_
 }
 
 void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3 min_corner, vec3 max_corner, float x_pos, int grid_divisions) {
-    vertices.clear();
     
     float y_step = (max_corner.y - min_corner.y) / grid_divisions;
     float z_step = (max_corner.z - min_corner.z) / grid_divisions;
@@ -139,6 +136,7 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& renderer) {
     }
     
     if (axes.grid_enabled()) {
+        grid_data_.vertices.clear();
         int grid_planes = axes.grid_planes();
         
         if (grid_planes & static_cast<int>(Axes3D::GridPlane::XY)) {

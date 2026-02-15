@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plotix/animator.hpp>
+#include <plotix/camera.hpp>
 #include <plotix/color.hpp>
 #include <plotix/fwd.hpp>
 
@@ -170,6 +171,15 @@ struct PropertyBinding {
     float           offset = 0.0f;   // Offset added after scale
 };
 
+// Camera binding: connects 4 channels to camera parameters.
+struct CameraBinding {
+    Camera*  target_camera;
+    uint32_t azimuth_id   = 0;
+    uint32_t elevation_id = 0;
+    uint32_t distance_id  = 0;
+    uint32_t fov_id       = 0;
+};
+
 // KeyframeInterpolator — manages multiple animation channels and property bindings.
 //
 // This is the core system that bridges TimelineEditor keyframes with actual
@@ -215,6 +225,14 @@ public:
     void bind_callback(uint32_t channel_id, const std::string& prop_name,
                        std::function<void(float)> callback,
                        float scale = 1.0f, float offset = 0.0f);
+
+    // Bind channels to a Camera target.
+    // Pass 0 for any channel you don't want to bind.
+    void bind_camera(Camera* cam, uint32_t az_ch, uint32_t el_ch,
+                     uint32_t dist_ch, uint32_t fov_ch);
+
+    // Remove camera binding.
+    void unbind_camera(Camera* cam);
 
     // Remove all bindings for a channel.
     void unbind(uint32_t channel_id);
@@ -264,6 +282,7 @@ private:
 
     std::vector<std::pair<uint32_t, AnimationChannel>> channels_;
     std::vector<PropertyBinding> bindings_;
+    std::vector<CameraBinding>   camera_bindings_;
     uint32_t next_channel_id_ = 1;
 
     AnimationChannel* find_channel_unlocked(uint32_t id);

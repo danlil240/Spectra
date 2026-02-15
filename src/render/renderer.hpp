@@ -5,6 +5,9 @@
 
 #include "backend.hpp"
 
+// Forward declarations
+namespace plotix { class Axes3D; }
+
 #include <cstdint>
 #include <unordered_map>
 
@@ -39,14 +42,16 @@ public:
     Backend& backend() { return backend_; }
 
 private:
-    void render_axes(Axes& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
-    void render_grid(Axes& axes, const Rect& viewport);
+    void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
+    void render_grid(AxesBase& axes, const Rect& viewport);
+    void render_bounding_box(Axes3D& axes, const Rect& viewport);
+    void render_tick_marks(Axes3D& axes, const Rect& viewport);
     void render_series(Series& series, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
 
-    void render_axis_border(Axes& axes, const Rect& viewport,
+    void render_axis_border(AxesBase& axes, const Rect& viewport,
                             uint32_t fig_width, uint32_t fig_height);
     Backend& backend_;
 
@@ -60,6 +65,7 @@ private:
     PipelineHandle mesh3d_pipeline_;
     PipelineHandle surface3d_pipeline_;
     PipelineHandle grid3d_pipeline_;
+    PipelineHandle grid_overlay3d_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
     // Per-axes GPU buffers for grid and border vertices.
@@ -71,13 +77,21 @@ private:
         size_t       grid_capacity = 0;
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
+        // 3D bounding box edges (12 lines = 24 vec3 vertices)
+        BufferHandle bbox_buffer;
+        size_t       bbox_capacity = 0;
+        // 3D tick mark lines
+        BufferHandle tick_buffer;
+        size_t       tick_capacity = 0;
     };
-    std::unordered_map<const Axes*, AxesGpuData> axes_gpu_data_;
+    std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
 
     // Per-series GPU buffers (keyed by series pointer address)
     struct SeriesGpuData {
         BufferHandle ssbo;
         size_t       uploaded_count = 0;
+        BufferHandle index_buffer;
+        size_t       index_count = 0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 };

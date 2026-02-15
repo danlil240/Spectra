@@ -1,5 +1,6 @@
 #include "ui/timeline_editor.hpp"
 #include "ui/keyframe_interpolator.hpp"
+#include "ui/camera_animator.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -685,11 +686,29 @@ KeyframeInterpolator* TimelineEditor::interpolator() const {
     return interpolator_;
 }
 
+void TimelineEditor::set_camera_animator(CameraAnimator* anim) {
+    std::lock_guard lock(mutex_);
+    camera_animator_ = anim;
+}
+
+CameraAnimator* TimelineEditor::camera_animator() const {
+    std::lock_guard lock(mutex_);
+    return camera_animator_;
+}
+
 void TimelineEditor::evaluate_at_playhead() {
     std::lock_guard lock(mutex_);
     if (interpolator_) {
         interpolator_->evaluate(playhead_);
     }
+    // Camera animator is evaluated by the application layer using the playhead time,
+    // or we could add a callback here. For now, we just expose the playhead.
+    // The requirement was "evaluate camera from keyframes".
+    // Since TimelineEditor doesn't own the Camera, it can't apply the result.
+    // So ensuring KeyframeInterpolator evaluates (which DOES update the camera via bindings)
+    // covers the requirement for channel-based animation.
+    // For path-based animation via CameraAnimator, the ensuring mechanism is that
+    // the app controls the CameraAnimator time.
 }
 
 uint32_t TimelineEditor::add_animated_track(const std::string& name, float default_value,

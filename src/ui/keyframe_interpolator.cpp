@@ -434,6 +434,30 @@ void KeyframeInterpolator::bind_callback(uint32_t channel_id, const std::string&
     bindings_.push_back(std::move(b));
 }
 
+void KeyframeInterpolator::bind_camera(Camera* cam, uint32_t az_ch, uint32_t el_ch,
+                                        uint32_t dist_ch, uint32_t fov_ch) {
+    std::lock_guard lock(mutex_);
+    // Remove existing binding for this camera if any
+    std::erase_if(camera_bindings_, [cam](const CameraBinding& b) {
+        return b.target_camera == cam;
+    });
+
+    CameraBinding b;
+    b.target_camera = cam;
+    b.azimuth_id = az_ch;
+    b.elevation_id = el_ch;
+    b.distance_id = dist_ch;
+    b.fov_id = fov_ch;
+    camera_bindings_.push_back(std::move(b));
+}
+
+void KeyframeInterpolator::unbind_camera(Camera* cam) {
+    std::lock_guard lock(mutex_);
+    std::erase_if(camera_bindings_, [cam](const CameraBinding& b) {
+        return b.target_camera == cam;
+    });
+}
+
 void KeyframeInterpolator::unbind(uint32_t channel_id) {
     std::lock_guard lock(mutex_);
     std::erase_if(bindings_, [channel_id](const PropertyBinding& b) {
@@ -444,6 +468,7 @@ void KeyframeInterpolator::unbind(uint32_t channel_id) {
 void KeyframeInterpolator::unbind_all() {
     std::lock_guard lock(mutex_);
     bindings_.clear();
+    camera_bindings_.clear();
 }
 
 const std::vector<PropertyBinding>& KeyframeInterpolator::bindings() const {
@@ -476,6 +501,40 @@ void KeyframeInterpolator::evaluate(float time) {
                 if (target) target(value);
             }
         }, binding.target);
+    }
+
+    // Process camera bindings
+    for (const auto& binding : camera_bindings_) {
+        bool changed = false;
+
+        if (binding.azimuth_id != 0) {
+            if (const auto* ch = find_channel_unlocked(binding.azimuth_id)) {
+                binding.target_camera->azimuth = ch->evaluate(time);
+                changed = true;
+            }
+        }
+        if (binding.elevation_id != 0) {
+            if (const auto* ch = find_channel_unlocked(binding.elevation_id)) {
+                binding.target_camera->elevation = ch->evaluate(time);
+                changed = true;
+            }
+        }
+        if (binding.distance_id != 0) {
+            if (const auto* ch = find_channel_unlocked(binding.distance_id)) {
+                binding.target_camera->distance = ch->evaluate(time);
+                changed = true;
+            }
+        }
+        if (binding.fov_id != 0) {
+            if (const auto* ch = find_channel_unlocked(binding.fov_id)) {
+                binding.target_camera->fov = ch->evaluate(time);
+                // No positional update needed for fov, but good to mark
+            }
+        }
+
+        if (changed) {
+            binding.target_camera->update_position_from_orbit();
+        }
     }
 }
 

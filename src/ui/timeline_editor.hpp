@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plotix/animator.hpp>
+#include <plotix/fwd.hpp>
 #include <plotix/color.hpp>
 #include <plotix/fwd.hpp>
 #include <plotix/timeline.hpp>
@@ -230,6 +231,10 @@ public:
     // Called automatically during advance() when an interpolator is set.
     void evaluate_at_playhead();
 
+    // Camera animator integration
+    void set_camera_animator(CameraAnimator* anim);
+    CameraAnimator* camera_animator() const;
+
     // Create a track and a matching interpolator channel, linked by track_id.
     // Returns the track_id (which also serves as the channel_id).
     uint32_t add_animated_track(const std::string& name, float default_value = 0.0f,
@@ -283,6 +288,7 @@ private:
 
     // KeyframeInterpolator (optional, not owned)
     KeyframeInterpolator* interpolator_ = nullptr;
+    CameraAnimator*       camera_animator_ = nullptr;
 
     // Callbacks
     PlaybackCallback  on_playback_change_;

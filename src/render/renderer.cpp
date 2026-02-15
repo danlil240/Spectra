@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "../ui/theme.hpp"
+#include "../ui/axes3d_renderer.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/axes3d.hpp>
@@ -18,18 +19,26 @@ Renderer::Renderer(Backend& backend)
 {}
 
 Renderer::~Renderer() {
+    // Wait for GPU to finish using all resources before destroying them
+    backend_.wait_idle();
+    
     // Clean up per-series GPU data
     for (auto& [ptr, data] : series_gpu_data_) {
         if (data.ssbo) {
             backend_.destroy_buffer(data.ssbo);
         }
+        if (data.index_buffer) {
+            backend_.destroy_buffer(data.index_buffer);
+        }
     }
     series_gpu_data_.clear();
 
-    // Clean up per-axes GPU data (grid + border buffers)
+    // Clean up per-axes GPU data (grid + border + bbox + tick buffers)
     for (auto& [ptr, data] : axes_gpu_data_) {
         if (data.grid_buffer)   backend_.destroy_buffer(data.grid_buffer);
         if (data.border_buffer) backend_.destroy_buffer(data.border_buffer);
+        if (data.bbox_buffer)   backend_.destroy_buffer(data.bbox_buffer);
+        if (data.tick_buffer)   backend_.destroy_buffer(data.tick_buffer);
     }
     axes_gpu_data_.clear();
 
@@ -50,6 +59,7 @@ bool Renderer::init() {
     mesh3d_pipeline_    = backend_.create_pipeline(PipelineType::Mesh3D);
     surface3d_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D);
     grid3d_pipeline_    = backend_.create_pipeline(PipelineType::Grid3D);
+    grid_overlay3d_pipeline_ = backend_.create_pipeline(PipelineType::GridOverlay3D);
     
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
@@ -72,8 +82,17 @@ void Renderer::render_figure_content(Figure& figure) {
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
     backend_.set_scissor(0, 0, w, h);
 
-    // Render each axes
+    // Render each 2D axes
     for (auto& axes_ptr : figure.axes()) {
+        if (!axes_ptr) continue;
+        auto& ax = *axes_ptr;
+        const auto& vp = ax.viewport();
+
+        render_axes(ax, vp, w, h);
+    }
+
+    // Render each 3D axes (stored in all_axes_)
+    for (auto& axes_ptr : figure.all_axes()) {
         if (!axes_ptr) continue;
         auto& ax = *axes_ptr;
         const auto& vp = ax.viewport();
@@ -215,6 +234,9 @@ void Renderer::upload_series_data(Series& series) {
     }
     // Handle surface (vertex buffer + index buffer)
     else if (surface) {
+        if (!surface->is_mesh_generated()) {
+            surface->generate_mesh();
+        }
         if (!surface->is_mesh_generated()) return;
         
         const auto& surf_mesh = surface->mesh();
@@ -223,13 +245,22 @@ void Renderer::upload_series_data(Series& series) {
         size_t vert_byte_size = surf_mesh.vertices.size() * sizeof(float);
         size_t idx_byte_size = surf_mesh.indices.size() * sizeof(uint32_t);
 
+        // Vertex buffer
         if (!gpu.ssbo || gpu.uploaded_count < surf_mesh.vertex_count) {
             if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
             gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
         }
-
         backend_.upload_buffer(gpu.ssbo, surf_mesh.vertices.data(), vert_byte_size);
         gpu.uploaded_count = surf_mesh.vertex_count;
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < surf_mesh.indices.size()) {
+            if (gpu.index_buffer) backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, surf_mesh.indices.data(), idx_byte_size);
+        gpu.index_count = surf_mesh.indices.size();
+
         series.clear_dirty();
     }
     // Handle mesh (vertex buffer + index buffer)
@@ -239,18 +270,27 @@ void Renderer::upload_series_data(Series& series) {
         size_t vert_byte_size = mesh->vertices().size() * sizeof(float);
         size_t idx_byte_size = mesh->indices().size() * sizeof(uint32_t);
 
+        // Vertex buffer
         if (!gpu.ssbo || gpu.uploaded_count < mesh->vertex_count()) {
             if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
             gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
         }
-
         backend_.upload_buffer(gpu.ssbo, mesh->vertices().data(), vert_byte_size);
         gpu.uploaded_count = mesh->vertex_count();
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < mesh->indices().size()) {
+            if (gpu.index_buffer) backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, mesh->indices().data(), idx_byte_size);
+        gpu.index_count = mesh->indices().size();
+
         series.clear_dirty();
     }
 }
 
-void Renderer::render_axes(Axes& axes, const Rect& viewport,
+void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
                             uint32_t fig_width, uint32_t fig_height) {
     // Set scissor to axes viewport
     backend_.set_scissor(
@@ -313,10 +353,10 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
         ubo.light_dir[0] = 1.0f;
         ubo.light_dir[1] = 1.0f;
         ubo.light_dir[2] = 1.0f;
-    } else {
+    } else if (auto* axes2d = dynamic_cast<Axes*>(&axes)) {
         // 2D orthographic projection
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        auto xlim = axes2d->x_limits();
+        auto ylim = axes2d->y_limits();
         
         build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
         // Identity view matrix (2D)
@@ -349,7 +389,13 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     if (axes.border_enabled() && !dynamic_cast<Axes3D*>(&axes))
         render_axis_border(axes, viewport, fig_width, fig_height);
 
-    // Render grid
+    // Render 3D bounding box and tick marks
+    if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
+        render_bounding_box(*axes3d, viewport);
+        render_tick_marks(*axes3d, viewport);
+    }
+
+    // Render grid BEFORE series so series appears on top (for 3D)
     render_grid(axes, viewport);
 
     // Render each series (skip hidden ones)
@@ -366,7 +412,7 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     // Tick labels, axis labels, and titles are now rendered by ImGui
 }
 
-void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
+void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/) {
     // Check if this is a 3D axes
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
         if (!axes3d->grid_enabled()) return;
@@ -383,44 +429,36 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
         auto ylim = axes3d->y_limits();
         auto zlim = axes3d->z_limits();
         
-        // Generate 3D grid vertices (vec3 each = 3 floats per vertex)
-        std::vector<float> verts;
+        // Generate 3D grid vertices using Axes3DRenderer helper
+        Axes3DRenderer::GridPlaneData grid_gen;
+        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
         int grid_planes = axes3d->grid_planes();
         
         // XY plane grid (z = zlim.min)
         if (grid_planes & static_cast<int>(Axes3D::GridPlane::XY)) {
-            for (size_t i = 0; i < num_x; ++i) {
-                float x = x_ticks.positions[i];
-                verts.insert(verts.end(), {x, ylim.min, zlim.min, x, ylim.max, zlim.min});
-            }
-            for (size_t i = 0; i < num_y; ++i) {
-                float y = y_ticks.positions[i];
-                verts.insert(verts.end(), {xlim.min, y, zlim.min, xlim.max, y, zlim.min});
-            }
+            grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
         }
         
         // XZ plane grid (y = ylim.min)
         if (grid_planes & static_cast<int>(Axes3D::GridPlane::XZ)) {
-            for (size_t i = 0; i < num_x; ++i) {
-                float x = x_ticks.positions[i];
-                verts.insert(verts.end(), {x, ylim.min, zlim.min, x, ylim.min, zlim.max});
-            }
-            for (size_t i = 0; i < num_z; ++i) {
-                float z = z_ticks.positions[i];
-                verts.insert(verts.end(), {xlim.min, ylim.min, z, xlim.max, ylim.min, z});
-            }
+            grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
         }
         
         // YZ plane grid (x = xlim.min)
         if (grid_planes & static_cast<int>(Axes3D::GridPlane::YZ)) {
-            for (size_t i = 0; i < num_y; ++i) {
-                float y = y_ticks.positions[i];
-                verts.insert(verts.end(), {xlim.min, y, zlim.min, xlim.min, y, zlim.max});
-            }
-            for (size_t i = 0; i < num_z; ++i) {
-                float z = z_ticks.positions[i];
-                verts.insert(verts.end(), {xlim.min, ylim.min, z, xlim.min, ylim.max, z});
-            }
+            grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
+        }
+
+        if (grid_gen.vertices.empty()) return;
+
+        // Convert vec3 vertices to float array
+        std::vector<float> verts;
+        verts.reserve(grid_gen.vertices.size() * 3);
+        for (const auto& v : grid_gen.vertices) {
+            verts.push_back(v.x);
+            verts.push_back(v.y);
+            verts.push_back(v.z);
         }
         
         if (verts.empty()) return;
@@ -435,15 +473,17 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
         }
         backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
         
-        // Draw 3D grid
-        backend_.bind_pipeline(grid3d_pipeline_);
+        // Draw 3D grid as overlay (no depth test so it's always visible)
+        backend_.bind_pipeline(grid_overlay3d_pipeline_);
         
         SeriesPushConstants pc {};
         const auto& theme_colors = ui::ThemeManager::instance().colors();
-        pc.color[0] = theme_colors.grid_line.r;
-        pc.color[1] = theme_colors.grid_line.g;
-        pc.color[2] = theme_colors.grid_line.b;
-        pc.color[3] = theme_colors.grid_line.a * 0.5f; // Semi-transparent 3D grid
+        // Blend grid color toward lighter gray for visibility on dark background
+        float blend = 0.3f;
+        pc.color[0] = theme_colors.grid_line.r * (1.0f - blend) + blend;
+        pc.color[1] = theme_colors.grid_line.g * (1.0f - blend) + blend;
+        pc.color[2] = theme_colors.grid_line.b * (1.0f - blend) + blend;
+        pc.color[3] = 0.35f;  // Semi-transparent overlay
         pc.line_width = 1.0f;
         pc.data_offset_x = 0.0f;
         pc.data_offset_y = 0.0f;
@@ -452,19 +492,19 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
         backend_.bind_buffer(gpu.grid_buffer, 0);
         backend_.draw(static_cast<uint32_t>(verts.size() / 3)); // 3 floats per vertex
         
-    } else {
+    } else if (auto* axes2d = dynamic_cast<Axes*>(&axes)) {
         // 2D grid rendering (original implementation)
-        if (!axes.grid_enabled()) return;
+        if (!axes2d->grid_enabled()) return;
 
-        auto x_ticks = axes.compute_x_ticks();
-        auto y_ticks = axes.compute_y_ticks();
+        auto x_ticks = axes2d->compute_x_ticks();
+        auto y_ticks = axes2d->compute_y_ticks();
 
         size_t num_x = x_ticks.positions.size();
         size_t num_y = y_ticks.positions.size();
         if (num_x == 0 && num_y == 0) return;
 
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        auto xlim = axes2d->x_limits();
+        auto ylim = axes2d->y_limits();
 
         // Generate line vertices in data space
         // Each line = 2 endpoints (vec2 each) = 4 floats per line
@@ -515,14 +555,173 @@ void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
     }
 }
 
-void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
+void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/) {
+    if (!axes.show_bounding_box()) return;
+
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    auto zlim = axes.z_limits();
+
+    vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+    vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+
+    Axes3DRenderer::BoundingBoxData bbox;
+    bbox.generate(min_corner, max_corner);
+
+    if (bbox.edge_vertices.empty()) return;
+
+    // Convert vec3 vertices to float array
+    std::vector<float> verts;
+    verts.reserve(bbox.edge_vertices.size() * 3);
+    for (const auto& v : bbox.edge_vertices) {
+        verts.push_back(v.x);
+        verts.push_back(v.y);
+        verts.push_back(v.z);
+    }
+
+    auto& gpu = axes_gpu_data_[&axes];
+    size_t byte_size = verts.size() * sizeof(float);
+    if (!gpu.bbox_buffer || gpu.bbox_capacity < byte_size) {
+        if (gpu.bbox_buffer) backend_.destroy_buffer(gpu.bbox_buffer);
+        gpu.bbox_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+        gpu.bbox_capacity = byte_size;
+    }
+    backend_.upload_buffer(gpu.bbox_buffer, verts.data(), byte_size);
+
+    backend_.bind_pipeline(grid3d_pipeline_);
+
+    SeriesPushConstants pc {};
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0] = theme_colors.grid_line.r * 0.7f;
+    pc.color[1] = theme_colors.grid_line.g * 0.7f;
+    pc.color[2] = theme_colors.grid_line.b * 0.7f;
+    pc.color[3] = theme_colors.grid_line.a * 0.8f;
+    pc.line_width = 1.5f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
+    backend_.push_constants(pc);
+
+    backend_.bind_buffer(gpu.bbox_buffer, 0);
+    backend_.draw(static_cast<uint32_t>(bbox.edge_vertices.size()));
+}
+
+void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/) {
+    auto xlim = axes.x_limits();
+    auto ylim = axes.y_limits();
+    auto zlim = axes.z_limits();
+
+    vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+    vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+
+    Axes3DRenderer::TickMarkData tick_gen;
+    tick_gen.generate_x_ticks(axes, min_corner, max_corner);
+    tick_gen.generate_y_ticks(axes, min_corner, max_corner);
+    tick_gen.generate_z_ticks(axes, min_corner, max_corner);
+
+    if (tick_gen.positions.empty()) return;
+
+    // TickMarkData.positions contains the start points of ticks.
+    // The previous implementation generated LINE SEGMENTS.
+    // Axes3DRenderer::TickMarkData seems to only generate POSITIONS (start points)?
+    // Let's check Axes3DRenderer implementation.
+    // ...
+    // Ah, wait. Axes3DRenderer only generates POSITIONS and LABELS.
+    // It does NOT generate the tick line geometry?
+    // Let's check src/ui/axes3d_renderer.cpp again.
+    // 
+    // Yes: 
+    // void Axes3DRenderer::TickMarkData::generate_x_ticks(...) {
+    //     positions.push_back({x, min_corner.y, min_corner.z});
+    //     labels.push_back(tick_result.labels[i]);
+    // }
+    //
+    // It only generates the position for the label/tick start. Not the line itself?
+    // The previous Renderer implementation generated LINES:
+    // {x, y0, z0, x, y0 - len, z0}
+    //
+    // So Axes3DRenderer is INCOMPLETE for tick lines?
+    // It seems so.
+    // I should EXTEND Axes3DRenderer to generate tick LINES as well, or keep logic here.
+    // 
+    // Plan: I will use Axes3DRenderer for POSITIONS (which I need for labels anyway),
+    // but I still need to generate lines here, OR I should update Axes3DRenderer to generate lines.
+    // Updating Axes3DRenderer is better for separation.
+    //
+    // For now, to proceed with refactoring without changing Axes3DRenderer too much,
+    // I will iterate the generated positions and extend them into lines.
+    
+    // Tick length: ~2% of axis range
+    float x1 = xlim.max, x0 = xlim.min;
+    float y1 = ylim.max, y0 = ylim.min;
+    float x_tick_len = (y1 - y0) * 0.02f;
+    float y_tick_len = (x1 - x0) * 0.02f;
+    float z_tick_len = (x1 - x0) * 0.02f;
+
+    std::vector<float> verts;
+
+    // Re-generate using helper separately to distinguish axes?
+    // The helper mixes them if I call all 3? No, TickMarkData accumulates them if I call all 3.
+    // But I need to know which axis they belong to to know the tick direction!
+    //
+    // So I should call them intimately.
+    
+    Axes3DRenderer::TickMarkData x_data;
+    x_data.generate_x_ticks(axes, min_corner, max_corner);
+    for (const auto& pos : x_data.positions) {
+        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x, pos.y - x_tick_len, pos.z});
+    }
+
+    Axes3DRenderer::TickMarkData y_data;
+    y_data.generate_y_ticks(axes, min_corner, max_corner);
+    for (const auto& pos : y_data.positions) {
+        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x - y_tick_len, pos.y, pos.z});
+    }
+
+    Axes3DRenderer::TickMarkData z_data;
+    z_data.generate_z_ticks(axes, min_corner, max_corner);
+    for (const auto& pos : z_data.positions) {
+        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x - z_tick_len, pos.y, pos.z});
+    }
+
+    if (verts.empty()) return;
+
+    auto& gpu = axes_gpu_data_[&axes];
+    size_t byte_size = verts.size() * sizeof(float);
+    if (!gpu.tick_buffer || gpu.tick_capacity < byte_size) {
+        if (gpu.tick_buffer) backend_.destroy_buffer(gpu.tick_buffer);
+        gpu.tick_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+        gpu.tick_capacity = byte_size * 2;
+    }
+    backend_.upload_buffer(gpu.tick_buffer, verts.data(), byte_size);
+
+    backend_.bind_pipeline(grid3d_pipeline_);
+
+    SeriesPushConstants pc {};
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0] = theme_colors.grid_line.r * 0.6f;
+    pc.color[1] = theme_colors.grid_line.g * 0.6f;
+    pc.color[2] = theme_colors.grid_line.b * 0.6f;
+    pc.color[3] = theme_colors.grid_line.a;
+    pc.line_width = 1.5f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
+    backend_.push_constants(pc);
+
+    backend_.bind_buffer(gpu.tick_buffer, 0);
+    uint32_t vertex_count = static_cast<uint32_t>(verts.size() / 3);
+    backend_.draw(vertex_count);
+}
+
+void Renderer::render_axis_border(AxesBase& axes, const Rect& viewport,
                                    uint32_t /*fig_width*/, uint32_t /*fig_height*/) {
     // Draw border in data space using the already-bound data-space UBO.
     // Inset vertices by a tiny fraction of the axis range so they don't
     // land exactly on the NDC ±1.0 clip boundary (which causes clipping
     // of the top/right edges on some GPUs).
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
+    auto* axes2d = dynamic_cast<Axes*>(&axes);
+    if (!axes2d) return;  // Border only for 2D axes
+    auto xlim = axes2d->x_limits();
+    auto ylim = axes2d->y_limits();
 
     float x_range = xlim.max - xlim.min;
     float y_range = ylim.max - ylim.min;
@@ -676,18 +875,22 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         backend_.bind_buffer(gpu.ssbo, 0);
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
     } else if (surface) {
-        if (surface->is_mesh_generated()) {
+        if (surface->is_mesh_generated() && gpu.index_buffer) {
             const auto& surf_mesh = surface->mesh();
             backend_.bind_pipeline(surface3d_pipeline_);
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
+            backend_.bind_index_buffer(gpu.index_buffer);
             backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
         }
     } else if (mesh) {
-        backend_.bind_pipeline(mesh3d_pipeline_);
-        backend_.push_constants(pc);
-        backend_.bind_buffer(gpu.ssbo, 0);
-        backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
+        if (gpu.index_buffer) {
+            backend_.bind_pipeline(mesh3d_pipeline_);
+            backend_.push_constants(pc);
+            backend_.bind_buffer(gpu.ssbo, 0);
+            backend_.bind_index_buffer(gpu.index_buffer);
+            backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
+        }
     }
 }
 

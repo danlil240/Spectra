@@ -12,6 +12,17 @@
 
 namespace plotix {
 
+enum class ColormapType {
+    None = 0,
+    Viridis,
+    Plasma,
+    Inferno,
+    Magma,
+    Jet,
+    Coolwarm,
+    Grayscale,
+};
+
 class LineSeries3D : public Series {
 public:
     LineSeries3D() = default;
@@ -133,6 +144,16 @@ public:
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
 
+    SurfaceSeries& colormap(ColormapType cm) { colormap_ = cm; dirty_ = true; return *this; }
+    SurfaceSeries& colormap(const std::string& name);
+    ColormapType colormap_type() const { return colormap_; }
+
+    void set_colormap_range(float min_val, float max_val) { cmap_min_ = min_val; cmap_max_ = max_val; }
+    float colormap_min() const { return cmap_min_; }
+    float colormap_max() const { return cmap_max_; }
+
+    static Color sample_colormap(ColormapType cm, float t);
+
     using Series::label;
     using Series::color;
     using Series::opacity;
@@ -150,6 +171,10 @@ private:
 
     SurfaceMesh mesh_;
     bool mesh_generated_ = false;
+
+    ColormapType colormap_ = ColormapType::None;
+    float cmap_min_ = 0.0f;
+    float cmap_max_ = 1.0f;
 };
 
 class MeshSeries : public Series {

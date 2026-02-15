@@ -31,9 +31,10 @@ int main() {
         }
     }
     
-    // Create surface plot
+    // Create surface plot with colormap
     ax.surface(x_grid, y_grid, z_values)
-        .color(colors::cyan);
+        .colormap(ColormapType::Viridis)
+        .opacity(0.9f);
     
     ax.auto_fit();
     
@@ -47,6 +48,7 @@ int main() {
     ax.camera().elevation = 35.0f;
     ax.camera().distance = 6.0f;
     
+    fig.show();
     app.run();
     return 0;
 }

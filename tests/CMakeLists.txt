@@ -83,6 +83,7 @@ set(PLOTIX_UNIT_TESTS
     test_data_transform
     test_shared_cursor
     test_keyframe_interpolator
+    test_camera_animator
     test_shortcut_config
     test_plugin_api
     test_workspace_v3

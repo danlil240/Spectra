@@ -2,6 +2,7 @@
 
 #include <plotix/axes.hpp>
 #include <plotix/animator.hpp>
+#include <plotix/camera.hpp>
 #include <plotix/color.hpp>
 
 #include <cstdint>
@@ -51,6 +52,13 @@ public:
 
     // ─── Animate inertial pan ───────────────────────────────────────────
     // Applies a decelerating velocity to axis limits (for drag release).
+    // ─── Animate Camera ─────────────────────────────────────────────
+    // Smoothly transitions a Camera from its current state to `target`
+    // over `duration` seconds. Interpolates azimuth, elevation, distance,
+    // fov, and ortho_size, then calls update_position_from_orbit().
+    AnimId animate_camera(Camera& cam, Camera target, float duration,
+                          EasingFunc easing = ease::ease_out);
+
     AnimId animate_inertial_pan(Axes& axes,
                                 float vx_data, float vy_data,
                                 float duration);
@@ -61,6 +69,9 @@ public:
 
     // Cancel all animations targeting a specific Axes.
     void cancel_for_axes(Axes* axes);
+
+    // Cancel all animations targeting a specific Camera.
+    void cancel_for_camera(Camera* cam);
 
     // Cancel all active animations.
     void cancel_all();
@@ -126,12 +137,24 @@ private:
         bool   finished = false;
     };
 
+    struct CameraAnim {
+        AnimId     id;
+        Camera*    cam;
+        Camera     start;
+        Camera     end;
+        float      elapsed  = 0.0f;
+        float      duration = 0.3f;
+        EasingFunc easing;
+        bool       finished = false;
+    };
+
     AnimId next_id_ = 1;
 
     std::vector<FloatAnim>       float_anims_;
     std::vector<ColorAnim>       color_anims_;
     std::vector<LimitAnim>       limit_anims_;
     std::vector<InertialPanAnim> inertial_anims_;
+    std::vector<CameraAnim>      camera_anims_;
 
     mutable std::mutex mutex_;
 

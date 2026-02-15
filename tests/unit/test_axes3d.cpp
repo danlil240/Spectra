@@ -1,5 +1,7 @@
 #include "../../src/core/axes3d.hpp"
 #include "../../src/ui/camera.hpp"
+#include "../../src/ui/axes3d_renderer.hpp"
+#include <plotix/math3d.hpp>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -228,6 +230,94 @@ void test_axes3d_series_storage() {
     std::cout << "✓ test_axes3d_series_storage passed\n";
 }
 
+void test_axes3d_bounding_box_vertices() {
+    // Test that BoundingBoxData::generate produces 24 vertices (12 edges × 2 endpoints)
+    Axes3DRenderer::BoundingBoxData bbox;
+    vec3 min_corner = {-1.0f, -2.0f, -3.0f};
+    vec3 max_corner = {1.0f, 2.0f, 3.0f};
+    bbox.generate(min_corner, max_corner);
+
+    assert(bbox.edge_vertices.size() == 24);
+
+    // Verify all vertices are at corners (each coordinate should be min or max)
+    for (const auto& v : bbox.edge_vertices) {
+        assert(v.x == min_corner.x || v.x == max_corner.x);
+        assert(v.y == min_corner.y || v.y == max_corner.y);
+        assert(v.z == min_corner.z || v.z == max_corner.z);
+    }
+
+    std::cout << "✓ test_axes3d_bounding_box_vertices passed\n";
+}
+
+void test_axes3d_tick_mark_positions() {
+    // Test that TickMarkData generates correct positions
+    Axes3D axes;
+    axes.xlim(0.0f, 10.0f);
+    axes.ylim(-5.0f, 5.0f);
+    axes.zlim(0.0f, 100.0f);
+
+    Axes3DRenderer::TickMarkData tick_data;
+    vec3 min_corner = {0.0f, -5.0f, 0.0f};
+    vec3 max_corner = {10.0f, 5.0f, 100.0f};
+
+    tick_data.generate_x_ticks(axes, min_corner, max_corner);
+    auto x_ticks = axes.compute_x_ticks();
+    assert(tick_data.positions.size() == x_ticks.positions.size());
+    assert(tick_data.labels.size() == x_ticks.labels.size());
+
+    // X tick positions should be at y=y_min, z=z_min
+    for (size_t i = 0; i < tick_data.positions.size(); ++i) {
+        assert(tick_data.positions[i].x == x_ticks.positions[i]);
+        assert(tick_data.positions[i].y == min_corner.y);
+        assert(tick_data.positions[i].z == min_corner.z);
+    }
+
+    tick_data.generate_y_ticks(axes, min_corner, max_corner);
+    auto y_ticks = axes.compute_y_ticks();
+    assert(tick_data.positions.size() == y_ticks.positions.size());
+
+    tick_data.generate_z_ticks(axes, min_corner, max_corner);
+    auto z_ticks = axes.compute_z_ticks();
+    assert(tick_data.positions.size() == z_ticks.positions.size());
+
+    std::cout << "✓ test_axes3d_tick_mark_positions passed\n";
+}
+
+void test_axes3d_world_to_screen_projection() {
+    // Test that Camera MVP projection produces sensible screen coordinates
+    Camera cam;
+    cam.reset();
+    cam.update_position_from_orbit();
+
+    float aspect = 16.0f / 9.0f;
+    mat4 proj = cam.projection_matrix(aspect);
+    mat4 view = cam.view_matrix();
+    mat4 mvp = mat4_mul(proj, view);
+
+    // Project the camera target (origin) — should map to roughly center of NDC
+    vec3 origin = {0.0f, 0.0f, 0.0f};
+    float clip_x = mvp.m[0] * origin.x + mvp.m[4] * origin.y + mvp.m[8]  * origin.z + mvp.m[12];
+    float clip_y = mvp.m[1] * origin.x + mvp.m[5] * origin.y + mvp.m[9]  * origin.z + mvp.m[13];
+    float clip_w = mvp.m[3] * origin.x + mvp.m[7] * origin.y + mvp.m[11] * origin.z + mvp.m[15];
+
+    assert(clip_w > 0.0f);  // Should be in front of camera
+
+    float ndc_x = clip_x / clip_w;
+    float ndc_y = clip_y / clip_w;
+
+    // Origin (camera target) should be close to NDC center (0,0)
+    assert(std::abs(ndc_x) < 0.5f);
+    assert(std::abs(ndc_y) < 0.5f);
+
+    // Project a point behind the camera — should have negative or near-zero w
+    vec3 behind = cam.position + (cam.position - cam.target) * 2.0f;
+    float behind_w = mvp.m[3] * behind.x + mvp.m[7] * behind.y + mvp.m[11] * behind.z + mvp.m[15];
+    // Behind should have w <= 0 or very small
+    assert(behind_w <= 0.1f);
+
+    std::cout << "✓ test_axes3d_world_to_screen_projection passed\n";
+}
+
 int main() {
     std::cout << "Running Axes3D unit tests...\n\n";
     
@@ -245,6 +335,9 @@ int main() {
     test_axes3d_tick_range_edge_cases();
     test_axes3d_camera_target_update();
     test_axes3d_series_storage();
+    test_axes3d_bounding_box_vertices();
+    test_axes3d_tick_mark_positions();
+    test_axes3d_world_to_screen_projection();
     
     std::cout << "\n✅ All Axes3D tests passed!\n";
     return 0;

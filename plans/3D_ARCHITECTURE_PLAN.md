@@ -1,8 +1,8 @@
 # Plotix 3D Architecture Plan
 
 **Author:** Senior Graphics Architect  
-**Date:** 2026-02-14  
-**Status:** Design Phase — No Code Changes  
+**Date:** 2026-02-15  
+**Status:** Implementation Phase — Agent 1, Agent 2, Agent 3, Agent 6 Complete  
 **Scope:** True 3D plotting, camera system, 3D animation, multi-agent execution
 
 ---
@@ -471,7 +471,7 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 
 ---
 
-### Agent 3 — Axes3D, Grid Planes & Tick Labels
+### Agent 3 — Axes3D, Grid Planes & Tick Labels (Complete)
 
 **Scope:** 3D axes class, bounding box, grid planes, 3-axis ticks, label billboarding.
 
@@ -590,15 +590,15 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 - `src/ui/keyframe_interpolator.hpp/.cpp` — Add `CameraPropertyBinding` variant to support camera parameter channels (azimuth, elevation, distance, fov).
 - `src/ui/timeline_editor.hpp/.cpp` — Add camera track type. `evaluate_at_playhead()` updates camera from keyframes.
 - `include/plotix/fwd.hpp` — Add CameraAnimator.
-- `CMakeLists.txt` — Add camera_animator.cpp.
+- `CMakeLists.txt` — Add camera_animator.cpp to UI sources.
 - `tests/CMakeLists.txt` — Add test_camera_animator.
 
 **Acceptance criteria:**
-- Camera smoothly interpolates between keyframes (no snapping).
-- Orbit animation produces smooth rotation path.
-- Timeline scrubbing updates camera in real-time.
-- Recording export captures camera animation frame-by-frame.
-- 2D animation paths unaffected.
+- [x] Camera smoothly interpolates between keyframes (no snapping).
+- [x] Orbit animation produces smooth rotation path.
+- [x] Timeline scrubbing updates camera in real-time.
+- [x] Recording export captures camera animation frame-by-frame.
+- [x] 2D animation paths unaffected.
 
 **Risks:**
 - Slerp discontinuities at 180° rotation. Mitigate by checking dot product sign and negating quaternion.
@@ -732,28 +732,99 @@ Agent 1 (Transform Refactor)
 
 ---
 
-## 6. First 10 Implementation Tasks
+## 6. Agent Coordination Guidelines
+
+### 6.1 Roadmap Updates
+
+**MANDATORY:** Each agent MUST update the roadmap at the END of their session:
+
+1. Update `plans/ROADMAP.md`:
+   - Mark completed deliverables with ✅ Done
+   - Update phase progress percentages
+   - Add file inventory entries for new files
+   - Update test summary counts
+   - Set last-updated date
+
+2. Update this 3D Architecture Plan:
+   - Mark completed tasks in the "First 10 Implementation Tasks" table
+   - Update acceptance criteria status
+   - Note any deviations from the plan
+
+3. Create/update memory entries:
+   - Summarize key changes made
+   - Note any breaking changes or regressions
+   - Record performance benchmarks
+
+### 6.2 Compilation Guidelines
+
+**IMPORTANT:** Agents MUST NOT compile the entire project when another agent is actively working:
+
+1. **Check for active work:** Before running `cmake --build .`, check:
+   - Recent git activity in last 30 minutes
+   - Running build processes (`ps aux | grep cmake`)
+   - Locked files in build directory
+
+2. **Selective compilation:** Use target-specific builds:
+   ```bash
+   # Build only your new tests
+   cmake --build . --target test_math3d
+   
+   # Build only specific components
+   cmake --build . --target plotix_core
+   
+   # Avoid full rebuild unless necessary
+   # DON'T: cmake --build .  # Builds everything
+   ```
+
+3. **Communication:** 
+   - Announce in session when planning to build
+   - Note estimated build time
+   - Report any build conflicts
+
+### 6.3 Example Updates
+
+**REQUIRED:** Each feature MUST be demonstrated in existing examples:
+
+1. **Update existing examples:** 
+   - `examples/advanced_animation_demo.cpp` - Add 3D camera animation
+   - `examples/animated_scatter.cpp` - Add 3D scatter variant
+   - Create new examples when no existing one fits
+
+2. **Example requirements:**
+   - Show the feature in action
+   - Include keyboard/mouse controls
+   - Export to PNG/video to verify output
+   - Include performance metrics for large datasets
+
+3. **Testing via examples:**
+   - Examples serve as integration tests
+   - Must compile and run without errors
+   - Include README with usage instructions
+
+---
+
+## 7. First 10 Implementation Tasks
 
 These are the first 10 ordered tasks to begin the 3D work. Each is atomic and testable.
 
-| # | Task | Agent | Est. Hours | Test |
-|---|------|-------|------------|------|
-| 1 | Create `include/plotix/math3d.hpp` with vec3, mat4, quat, all math ops. Write `test_math3d.cpp` with 50+ unit tests. | 1 | 8h | `ctest -R test_math3d` |
-| 2 | Expand `FrameUBO` with `view`, `model`, `camera_pos`, `near_plane`, `far_plane`, `light_dir`. Set view=model=identity in renderer. | 1 | 4h | All existing tests pass |
-| 3 | Update all 6 existing shaders to use `projection * view * model * vec4(pos, z, 1.0)`. Z=0 for 2D. | 1 | 3h | Golden image diff = 0 |
-| 4 | Add depth image/view to `SwapchainContext` and `OffscreenContext`. Update render pass with depth attachment. Clear depth in `begin_render_pass()`. | 1 | 6h | No validation errors |
-| 5 | Extend `PipelineConfig` with depth/cull/msaa fields. Update `create_graphics_pipeline()`. Existing 2D pipelines: depth off. | 1 | 4h | All existing tests pass |
-| 6 | Add `draw_indexed()` to Backend interface + VulkanBackend implementation. | 1 | 2h | Unit test draws indexed quad |
-| 7 | Create `Camera` class with orbit/pan/zoom/fit, view/projection matrix generation. Write `test_camera.cpp`. | 2 | 10h | `ctest -R test_camera` |
-| 8 | Create `line3d.vert/frag`, `scatter3d.vert/frag`, `grid3d.vert/frag` shaders. Add to CompileShaders.cmake. | 4 | 8h | Shaders compile to SPIR-V |
-| 9 | Add `PipelineType::Line3D/Scatter3D/Grid3D` and create pipelines in Backend with depth enabled. | 4 | 4h | Pipeline creation succeeds |
-| 10 | Create `ScatterSeries3D` class with xyz data, vec4 SSBO upload, instanced draw through Scatter3D pipeline. | 5 | 6h | 1000 points render with depth |
+| # | Task | Agent | Est. Hours | Test | Example Update |
+|---|------|-------|------------|------|----------------|
+| 1 | Create `include/plotix/math3d.hpp` with vec3, mat4, quat, all math ops. Write `test_math3d.cpp` with 50+ unit tests. | 1 | 8h | `ctest -R test_math3d` | Add math3d usage to `examples/advanced_animation_demo.cpp` |
+| 2 | Expand `FrameUBO` with `view`, `model`, `camera_pos`, `near_plane`, `far_plane`, `light_dir`. Set view=model=identity in renderer. | 1 | 4h | All existing tests pass | No visible change (verify existing examples work) |
+| 3 | Update all 6 existing shaders to use `projection * view * model * vec4(pos, z, 1.0)`. Z=0 for 2D. | 1 | 3h | Golden image diff = 0 | Verify all existing examples render identically |
+| 4 | Add depth image/view to `SwapchainContext` and `OffscreenContext`. Update render pass with depth attachment. Clear depth in `begin_render_pass()`. | 1 | 6h | No validation errors | No visible change (verify existing examples work) |
+| 5 | Extend `PipelineConfig` with depth/cull/msaa fields. Update `create_graphics_pipeline()`. Existing 2D pipelines: depth off. | 1 | 4h | All existing tests pass | No visible change (verify existing examples work) |
+| 6 | Add `draw_indexed()` to Backend interface + VulkanBackend implementation. | 1 | 2h | Unit test draws indexed quad | No visible change (infrastructure) |
+| 7 | Create `Camera` class with orbit/pan/zoom/fit, view/projection matrix generation. Write `test_camera.cpp`. | 2 | 10h | `ctest -R test_camera` | Create `examples/camera_demo.cpp` showing orbit controls |
+| 8 | Create `line3d.vert/frag`, `scatter3d.vert/frag`, `grid3d.vert/frag` shaders. Add to CompileShaders.cmake. | 4 | 8h | Shaders compile to SPIR-V | No visible change (infrastructure) |
+| 9 | Add `PipelineType::Line3D/Scatter3D/Grid3D` and create pipelines in Backend with depth enabled. | 4 | 4h | Pipeline creation succeeds | No visible change (infrastructure) |
+| 10 | Create `ScatterSeries3D` class with xyz data, vec4 SSBO upload, instanced draw through Scatter3D pipeline. | 5 | 6h | 1000 points render with depth | Update `examples/animated_scatter.cpp` with 3D scatter mode |
 
 **Total estimated: ~55 hours for first 10 tasks (foundations complete).**
 
 ---
 
-## 7. Risk Assessment
+## 8. Risk Assessment
 
 ### High Risk
 
@@ -791,7 +862,7 @@ These are the first 10 ordered tasks to begin the 3D work. Each is atomic and te
 
 ---
 
-## Appendix A: File Inventory (Expected Final State)
+## 9. Appendix A: File Inventory (Expected Final State)
 
 ### New Files (~25 files)
 
@@ -857,7 +928,7 @@ These are the first 10 ordered tasks to begin the 3D work. Each is atomic and te
 
 ---
 
-## Appendix B: API Examples (Target User Experience)
+## 10. Appendix B: API Examples (Target User Experience)
 
 ### Basic 3D Scatter
 ```cpp
@@ -894,3 +965,21 @@ ax2d.line(x, y).color(colors::red);
 auto& ax3d = fig.subplot3d(1, 2, 2);
 ax3d.scatter3d(x, y, z).color(colors::blue);
 ```
+
+---
+
+## 11. Session Checklist for Agents
+
+Before ending your session, ensure you have:
+
+☐ **Updated Roadmap**: `plans/ROADMAP.md` marked with completions
+☐ **Updated Architecture Plan**: Marked completed tasks, noted deviations
+☐ **Created Memory Entry**: Summarized your changes
+☐ **Updated Examples**: Added feature demonstration to existing examples
+☐ **Verified Examples**: All examples compile and run
+☐ **Ran Selective Tests**: Only your specific targets, not full build
+☐ **Checked for Conflicts**: No other agent actively building
+☐ **Documented Performance**: Any benchmarks or metrics
+☐ **Noted Breaking Changes**: Any API changes or regressions
+
+**Remember:** The next agent depends on your clean handoff!

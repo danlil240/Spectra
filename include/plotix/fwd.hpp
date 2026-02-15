@@ -57,6 +57,7 @@ class TransformRegistry;
 class ShortcutConfig;
 class PluginManager;
 struct PluginEntry;
+class CameraAnimator;
 
 class ImageExporter;
 class SvgExporter;

@@ -349,4 +349,73 @@ void MeshSeries::record_commands(Renderer& renderer) {
     renderer.upload_series_data(*this);
 }
 
+// ─── Colormap Support ─────────────────────────────────────────────────────────
+
+SurfaceSeries& SurfaceSeries::colormap(const std::string& name) {
+    if (name == "viridis")    colormap_ = ColormapType::Viridis;
+    else if (name == "plasma")    colormap_ = ColormapType::Plasma;
+    else if (name == "inferno")   colormap_ = ColormapType::Inferno;
+    else if (name == "magma")     colormap_ = ColormapType::Magma;
+    else if (name == "jet")       colormap_ = ColormapType::Jet;
+    else if (name == "coolwarm")  colormap_ = ColormapType::Coolwarm;
+    else if (name == "grayscale") colormap_ = ColormapType::Grayscale;
+    else                          colormap_ = ColormapType::None;
+    dirty_ = true;
+    return *this;
+}
+
+Color SurfaceSeries::sample_colormap(ColormapType cm, float t) {
+    t = std::fmax(0.0f, std::fmin(1.0f, t));
+
+    switch (cm) {
+    case ColormapType::Viridis: {
+        // Simplified viridis: dark purple → teal → yellow
+        float r = std::fmax(0.0f, std::fmin(1.0f, -0.35f + 1.7f * t - 0.9f * t * t + 0.55f * t * t * t));
+        float g = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 0.7f * t + 0.3f * t * t));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 0.33f + 0.7f * t - 1.6f * t * t + 0.6f * t * t * t));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Plasma: {
+        // Simplified plasma: dark blue → magenta → yellow
+        float r = std::fmax(0.0f, std::fmin(1.0f, 0.05f + 2.2f * t - 1.3f * t * t));
+        float g = std::fmax(0.0f, std::fmin(1.0f, -0.2f + 1.2f * t));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 0.53f + 0.5f * t - 2.0f * t * t + 1.0f * t * t * t));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Inferno: {
+        // Simplified inferno: black → red → yellow
+        float r = std::fmax(0.0f, std::fmin(1.0f, -0.1f + 2.5f * t - 1.5f * t * t));
+        float g = std::fmax(0.0f, std::fmin(1.0f, -0.3f + 1.5f * t));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 0.1f + 2.0f * t - 3.5f * t * t + 1.5f * t * t * t));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Magma: {
+        // Simplified magma: black → purple → orange → white
+        float r = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 2.0f * t - 0.8f * t * t));
+        float g = std::fmax(0.0f, std::fmin(1.0f, -0.3f + 1.3f * t + 0.1f * t * t));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 0.15f + 1.5f * t - 2.5f * t * t + 1.5f * t * t * t));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Jet: {
+        // Classic jet: blue → cyan → green → yellow → red
+        float r = std::fmax(0.0f, std::fmin(1.0f, 1.5f - std::fabs(t - 0.75f) * 4.0f));
+        float g = std::fmax(0.0f, std::fmin(1.0f, 1.5f - std::fabs(t - 0.5f) * 4.0f));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 1.5f - std::fabs(t - 0.25f) * 4.0f));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Coolwarm: {
+        // Cool (blue) to warm (red) diverging
+        float r = std::fmax(0.0f, std::fmin(1.0f, 0.23f + 1.5f * t - 0.7f * t * t));
+        float g = std::fmax(0.0f, std::fmin(1.0f, 0.3f + 1.2f * t - 1.5f * t * t));
+        float b = std::fmax(0.0f, std::fmin(1.0f, 0.75f - 0.5f * t - 0.2f * t * t));
+        return {r, g, b, 1.0f};
+    }
+    case ColormapType::Grayscale:
+        return {t, t, t, 1.0f};
+    case ColormapType::None:
+    default:
+        return {0.5f, 0.5f, 0.5f, 1.0f};
+    }
+}
+
 } // namespace plotix

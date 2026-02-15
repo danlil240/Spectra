@@ -100,6 +100,12 @@ bool VulkanBackend::init(bool headless) {
     }
 }
 
+void VulkanBackend::wait_idle() {
+    if (ctx_.device != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(ctx_.device);
+    }
+}
+
 void VulkanBackend::shutdown() {
     if (ctx_.device == VK_NULL_HANDLE) return;
 
@@ -255,8 +261,18 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
         PLOTIX_LOG_DEBUG("vulkan", "Destroying old swapchain...");
         vk::destroy_swapchain(ctx_.device, old_context);
         
-        PLOTIX_LOG_DEBUG("vulkan", "Recreating command buffers...");
+        PLOTIX_LOG_DEBUG("vulkan", "Recreating command buffers and sync objects...");
         create_command_buffers();
+        
+        // Destroy old sync objects and recreate for new swapchain image count
+        for (auto sem : image_available_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto sem : render_finished_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto fence : in_flight_fences_)         vkDestroyFence(ctx_.device, fence, nullptr);
+        image_available_semaphores_.clear();
+        render_finished_semaphores_.clear();
+        in_flight_fences_.clear();
+        create_sync_objects();
+        current_flight_frame_ = 0;
         
         PLOTIX_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
         return true;
@@ -357,10 +373,47 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             break;
-        case PipelineType::Mesh3D:
+        case PipelineType::GridOverlay3D:
+            cfg.vert_spirv      = shaders::grid3d_vert;
+            cfg.vert_spirv_size = shaders::grid3d_vert_size;
+            cfg.frag_spirv      = shaders::grid3d_frag;
+            cfg.frag_spirv_size = shaders::grid3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = false;
+            cfg.enable_depth_write = false;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            break;
         case PipelineType::Surface3D:
+            cfg.vert_spirv      = shaders::surface3d_vert;
+            cfg.vert_spirv_size = shaders::surface3d_vert_size;
+            cfg.frag_spirv      = shaders::surface3d_frag;
+            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // Surface vertex: {x,y,z, nx,ny,nz} = 6 floats per vertex, 2 attributes
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});                          // position
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)}); // normal
+            break;
+        case PipelineType::Mesh3D:
+            cfg.vert_spirv      = shaders::surface3d_vert;
+            cfg.vert_spirv_size = shaders::surface3d_vert_size;
+            cfg.frag_spirv      = shaders::surface3d_frag;
+            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // Mesh vertex: same layout as surface {x,y,z, nx,ny,nz}
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});                          // position
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)}); // normal
+            break;
         case PipelineType::Heatmap:
-            return VK_NULL_HANDLE; // Not yet implemented (Phase 2)
+            return VK_NULL_HANDLE; // Not yet implemented
     }
 
     try {
@@ -713,67 +766,23 @@ bool VulkanBackend::begin_frame() {
         return true;
     }
 
-    // Windowed mode
-    PLOTIX_LOG_TRACE("vulkan", "begin_frame: waiting for fence " + std::to_string(current_flight_frame_));
-    auto fence_wait_start = std::chrono::high_resolution_clock::now();
-    
-    // Check if fence is already signaled before waiting
-    VkResult fence_status = vkGetFenceStatus(ctx_.device, in_flight_fences_[current_flight_frame_]);
-    if (fence_status == VK_SUCCESS) {
-        PLOTIX_LOG_TRACE("vulkan", "Fence " + std::to_string(current_flight_frame_) + " already signaled");
-    } else if (fence_status == VK_NOT_READY) {
-        PLOTIX_LOG_DEBUG("vulkan", "Fence " + std::to_string(current_flight_frame_) + " not ready, waiting...");
-        vkWaitForFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
-    } else if (fence_status == VK_ERROR_DEVICE_LOST) {
-        PLOTIX_LOG_CRITICAL("vulkan", "DEVICE LOST! Fence " + std::to_string(current_flight_frame_) + 
-                           " failed with VK_ERROR_DEVICE_LOST. The GPU device has been lost.");
-        
-        // Try to get more diagnostic information
-        VkResult device_status = vkDeviceWaitIdle(ctx_.device);
-        if (device_status == VK_ERROR_DEVICE_LOST) {
-            PLOTIX_LOG_CRITICAL("vulkan", "Confirmed: Device is lost (vkDeviceWaitIdle also returns VK_ERROR_DEVICE_LOST)");
-        }
-        
-        PLOTIX_LOG_ERROR("vulkan", "Possible causes of device loss:");
-        PLOTIX_LOG_ERROR("vulkan", "  1. GPU driver crash or reset");
-        PLOTIX_LOG_ERROR("vulkan", "  2. GPU memory exhaustion");
-        PLOTIX_LOG_ERROR("vulkan", "  3. Invalid Vulkan operations or resources");
-        PLOTIX_LOG_ERROR("vulkan", "  4. GPU hardware issues (overheating, failure)");
-        PLOTIX_LOG_ERROR("vulkan", "  5. Power management or display driver conflicts");
-        
+    // Windowed mode — wait for this slot's previous work to finish
+    VkResult fence_status = vkWaitForFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
+    if (fence_status == VK_ERROR_DEVICE_LOST) {
+        device_lost_ = true;
         throw std::runtime_error("Vulkan device lost - cannot continue rendering");
-    } else {
-        PLOTIX_LOG_ERROR("vulkan", "Fence status error: " + std::to_string(fence_status));
-        throw std::runtime_error("Unexpected fence error: " + std::to_string(fence_status));
     }
-    
-    auto fence_wait_end = std::chrono::high_resolution_clock::now();
-    auto fence_wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(fence_wait_end - fence_wait_start);
-    if (fence_wait_duration.count() > 16) { // Log if wait takes longer than one frame at 60fps
-        PLOTIX_LOG_WARN("vulkan", "Long fence wait: " + std::to_string(fence_wait_duration.count()) + "ms for fence " + std::to_string(current_flight_frame_));
-    }
+    vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
 
-    auto acquire_start = std::chrono::high_resolution_clock::now();
+    // Acquire next swapchain image
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device, swapchain_.swapchain, UINT64_MAX,
         image_available_semaphores_[current_flight_frame_],
         VK_NULL_HANDLE, &current_image_index_);
-    auto acquire_end = std::chrono::high_resolution_clock::now();
-    auto acquire_duration = std::chrono::duration_cast<std::chrono::milliseconds>(acquire_end - acquire_start);
-    if (acquire_duration.count() > 16) {
-        PLOTIX_LOG_WARN("vulkan", "Long image acquire: " + std::to_string(acquire_duration.count()) + "ms");
-    }
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        PLOTIX_LOG_INFO("vulkan", "begin_frame: VK_ERROR_OUT_OF_DATE_KHR");
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         return false;  // Caller should recreate swapchain
     }
-    if (result == VK_SUBOPTIMAL_KHR) {
-        PLOTIX_LOG_INFO("vulkan", "begin_frame: VK_SUBOPTIMAL_KHR");
-        return false;  // Caller should recreate swapchain
-    }
-
-    vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
 
     current_cmd_ = command_buffers_[current_flight_frame_];
     vkResetCommandBuffer(current_cmd_, 0);
@@ -799,8 +808,11 @@ void VulkanBackend::end_frame() {
     }
 
     // Windowed submit
+    // image_available: indexed by current_flight_frame_ (matches acquire)
+    // render_finished: indexed by current_image_index_ (tied to swapchain image lifecycle —
+    //   only reused when that image is re-acquired, guaranteeing the previous present completed)
     VkSemaphore wait_semaphores[]   = {image_available_semaphores_[current_flight_frame_]};
-    VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_flight_frame_]};
+    VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_image_index_]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submit {};
@@ -825,7 +837,7 @@ void VulkanBackend::end_frame() {
 
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
 
-    current_flight_frame_ = (current_flight_frame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+    current_flight_frame_ = (current_flight_frame_ + 1) % static_cast<uint32_t>(in_flight_fences_.size());
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         PLOTIX_LOG_INFO("vulkan", "end_frame: present returned VK_ERROR_OUT_OF_DATE_KHR");
@@ -896,6 +908,14 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(current_cmd_, binding, 1, bufs, offsets);
     }
+}
+
+void VulkanBackend::bind_index_buffer(BufferHandle handle) {
+    auto it = buffers_.find(handle.id);
+    if (it == buffers_.end()) return;
+
+    auto& entry = it->second;
+    vkCmdBindIndexBuffer(current_cmd_, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
 void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/) {
@@ -1035,7 +1055,7 @@ void VulkanBackend::create_command_buffers() {
                              command_buffers_.data());
     }
 
-    uint32_t count = headless_ ? 1 : MAX_FRAMES_IN_FLIGHT;
+    uint32_t count = headless_ ? 1 : static_cast<uint32_t>(swapchain_.images.size());
     command_buffers_.resize(count);
 
     VkCommandBufferAllocateInfo info {};
@@ -1052,9 +1072,12 @@ void VulkanBackend::create_command_buffers() {
 void VulkanBackend::create_sync_objects() {
     if (headless_) return;
 
-    image_available_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
-    render_finished_semaphores_.resize(MAX_FRAMES_IN_FLIGHT);
-    in_flight_fences_.resize(MAX_FRAMES_IN_FLIGHT);
+    // Use one set of sync objects per swapchain image to prevent
+    // semaphore reuse while the presentation engine still holds them.
+    uint32_t count = static_cast<uint32_t>(swapchain_.images.size());
+    image_available_semaphores_.resize(count);
+    render_finished_semaphores_.resize(count);
+    in_flight_fences_.resize(count);
 
     VkSemaphoreCreateInfo sem_info {};
     sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1063,7 +1086,7 @@ void VulkanBackend::create_sync_objects() {
     fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+    for (uint32_t i = 0; i < count; ++i) {
         if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &image_available_semaphores_[i]) != VK_SUCCESS ||
             vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &render_finished_semaphores_[i]) != VK_SUCCESS ||
             vkCreateFence(ctx_.device, &fence_info, nullptr, &in_flight_fences_[i]) != VK_SUCCESS) {

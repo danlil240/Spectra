@@ -1,0 +1,352 @@
+#include <plotix/series3d.hpp>
+#include "../render/renderer.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+namespace plotix {
+
+// ─── LineSeries3D ────────────────────────────────────────────────────────────
+
+LineSeries3D::LineSeries3D(std::span<const float> x, std::span<const float> y, std::span<const float> z) {
+    set_x(x);
+    set_y(y);
+    set_z(z);
+}
+
+LineSeries3D& LineSeries3D::set_x(std::span<const float> x) {
+    x_.assign(x.begin(), x.end());
+    dirty_ = true;
+    return *this;
+}
+
+LineSeries3D& LineSeries3D::set_y(std::span<const float> y) {
+    y_.assign(y.begin(), y.end());
+    dirty_ = true;
+    return *this;
+}
+
+LineSeries3D& LineSeries3D::set_z(std::span<const float> z) {
+    z_.assign(z.begin(), z.end());
+    dirty_ = true;
+    return *this;
+}
+
+void LineSeries3D::append(float x, float y, float z) {
+    x_.push_back(x);
+    y_.push_back(y);
+    z_.push_back(z);
+    dirty_ = true;
+}
+
+vec3 LineSeries3D::compute_centroid() const {
+    if (x_.empty()) return {0.0f, 0.0f, 0.0f};
+    
+    vec3 sum{0.0f, 0.0f, 0.0f};
+    size_t n = std::min({x_.size(), y_.size(), z_.size()});
+    for (size_t i = 0; i < n; ++i) {
+        sum.x += x_[i];
+        sum.y += y_[i];
+        sum.z += z_[i];
+    }
+    return sum / static_cast<float>(n);
+}
+
+void LineSeries3D::get_bounds(vec3& min_out, vec3& max_out) const {
+    if (x_.empty()) {
+        min_out = max_out = {0.0f, 0.0f, 0.0f};
+        return;
+    }
+
+    size_t n = std::min({x_.size(), y_.size(), z_.size()});
+    min_out = {x_[0], y_[0], z_[0]};
+    max_out = min_out;
+
+    for (size_t i = 1; i < n; ++i) {
+        min_out.x = std::fmin(min_out.x, x_[i]);
+        min_out.y = std::fmin(min_out.y, y_[i]);
+        min_out.z = std::fmin(min_out.z, z_[i]);
+        max_out.x = std::fmax(max_out.x, x_[i]);
+        max_out.y = std::fmax(max_out.y, y_[i]);
+        max_out.z = std::fmax(max_out.z, z_[i]);
+    }
+}
+
+void LineSeries3D::record_commands(Renderer& renderer) {
+    if (!visible_) return;
+    renderer.upload_series_data(*this);
+}
+
+// ─── ScatterSeries3D ─────────────────────────────────────────────────────────
+
+ScatterSeries3D::ScatterSeries3D(std::span<const float> x, std::span<const float> y, std::span<const float> z) {
+    set_x(x);
+    set_y(y);
+    set_z(z);
+}
+
+ScatterSeries3D& ScatterSeries3D::set_x(std::span<const float> x) {
+    x_.assign(x.begin(), x.end());
+    dirty_ = true;
+    return *this;
+}
+
+ScatterSeries3D& ScatterSeries3D::set_y(std::span<const float> y) {
+    y_.assign(y.begin(), y.end());
+    dirty_ = true;
+    return *this;
+}
+
+ScatterSeries3D& ScatterSeries3D::set_z(std::span<const float> z) {
+    z_.assign(z.begin(), z.end());
+    dirty_ = true;
+    return *this;
+}
+
+void ScatterSeries3D::append(float x, float y, float z) {
+    x_.push_back(x);
+    y_.push_back(y);
+    z_.push_back(z);
+    dirty_ = true;
+}
+
+vec3 ScatterSeries3D::compute_centroid() const {
+    if (x_.empty()) return {0.0f, 0.0f, 0.0f};
+    
+    vec3 sum{0.0f, 0.0f, 0.0f};
+    size_t n = std::min({x_.size(), y_.size(), z_.size()});
+    for (size_t i = 0; i < n; ++i) {
+        sum.x += x_[i];
+        sum.y += y_[i];
+        sum.z += z_[i];
+    }
+    return sum / static_cast<float>(n);
+}
+
+void ScatterSeries3D::get_bounds(vec3& min_out, vec3& max_out) const {
+    if (x_.empty()) {
+        min_out = max_out = {0.0f, 0.0f, 0.0f};
+        return;
+    }
+
+    size_t n = std::min({x_.size(), y_.size(), z_.size()});
+    min_out = {x_[0], y_[0], z_[0]};
+    max_out = min_out;
+
+    for (size_t i = 1; i < n; ++i) {
+        min_out.x = std::fmin(min_out.x, x_[i]);
+        min_out.y = std::fmin(min_out.y, y_[i]);
+        min_out.z = std::fmin(min_out.z, z_[i]);
+        max_out.x = std::fmax(max_out.x, x_[i]);
+        max_out.y = std::fmax(max_out.y, y_[i]);
+        max_out.z = std::fmax(max_out.z, z_[i]);
+    }
+}
+
+void ScatterSeries3D::record_commands(Renderer& renderer) {
+    if (!visible_) return;
+    renderer.upload_series_data(*this);
+}
+
+// ─── SurfaceSeries ───────────────────────────────────────────────────────────
+
+SurfaceSeries::SurfaceSeries(std::span<const float> x_grid, std::span<const float> y_grid,
+                             std::span<const float> z_values) {
+    set_data(x_grid, y_grid, z_values);
+}
+
+void SurfaceSeries::set_data(std::span<const float> x_grid, std::span<const float> y_grid,
+                             std::span<const float> z_values) {
+    x_grid_.assign(x_grid.begin(), x_grid.end());
+    y_grid_.assign(y_grid.begin(), y_grid.end());
+    z_values_.assign(z_values.begin(), z_values.end());
+    
+    cols_ = static_cast<int>(x_grid_.size());
+    rows_ = static_cast<int>(y_grid_.size());
+    
+    mesh_generated_ = false;
+    dirty_ = true;
+}
+
+void SurfaceSeries::generate_mesh() {
+    if (cols_ < 2 || rows_ < 2) {
+        mesh_generated_ = false;
+        return;
+    }
+
+    mesh_.vertices.clear();
+    mesh_.indices.clear();
+
+    size_t expected_z_count = static_cast<size_t>(rows_) * static_cast<size_t>(cols_);
+    if (z_values_.size() != expected_z_count) {
+        mesh_generated_ = false;
+        return;
+    }
+
+    mesh_.vertex_count = rows_ * cols_;
+    mesh_.vertices.reserve(mesh_.vertex_count * 6);
+
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = 0; j < cols_; ++j) {
+            float x = x_grid_[j];
+            float y = y_grid_[i];
+            float z = z_values_[i * cols_ + j];
+
+            vec3 normal{0.0f, 0.0f, 1.0f};
+            
+            if (i > 0 && i < rows_ - 1 && j > 0 && j < cols_ - 1) {
+                float z_left  = z_values_[i * cols_ + (j - 1)];
+                float z_right = z_values_[i * cols_ + (j + 1)];
+                float z_down  = z_values_[(i - 1) * cols_ + j];
+                float z_up    = z_values_[(i + 1) * cols_ + j];
+
+                float dx_left  = x_grid_[j] - x_grid_[j - 1];
+                float dx_right = x_grid_[j + 1] - x_grid_[j];
+                float dy_down  = y_grid_[i] - y_grid_[i - 1];
+                float dy_up    = y_grid_[i + 1] - y_grid_[i];
+
+                float dz_dx = (z_right - z_left) / (dx_left + dx_right);
+                float dz_dy = (z_up - z_down) / (dy_down + dy_up);
+
+                vec3 tangent_x{1.0f, 0.0f, dz_dx};
+                vec3 tangent_y{0.0f, 1.0f, dz_dy};
+                normal = vec3_normalize(vec3_cross(tangent_x, tangent_y));
+            }
+
+            mesh_.vertices.push_back(x);
+            mesh_.vertices.push_back(y);
+            mesh_.vertices.push_back(z);
+            mesh_.vertices.push_back(normal.x);
+            mesh_.vertices.push_back(normal.y);
+            mesh_.vertices.push_back(normal.z);
+        }
+    }
+
+    mesh_.triangle_count = (rows_ - 1) * (cols_ - 1) * 2;
+    mesh_.indices.reserve(mesh_.triangle_count * 3);
+
+    for (int i = 0; i < rows_ - 1; ++i) {
+        for (int j = 0; j < cols_ - 1; ++j) {
+            uint32_t idx0 = i * cols_ + j;
+            uint32_t idx1 = i * cols_ + (j + 1);
+            uint32_t idx2 = (i + 1) * cols_ + j;
+            uint32_t idx3 = (i + 1) * cols_ + (j + 1);
+
+            mesh_.indices.push_back(idx0);
+            mesh_.indices.push_back(idx2);
+            mesh_.indices.push_back(idx1);
+
+            mesh_.indices.push_back(idx1);
+            mesh_.indices.push_back(idx2);
+            mesh_.indices.push_back(idx3);
+        }
+    }
+
+    mesh_generated_ = true;
+}
+
+vec3 SurfaceSeries::compute_centroid() const {
+    if (x_grid_.empty() || y_grid_.empty() || z_values_.empty()) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+
+    float x_sum = 0.0f, y_sum = 0.0f, z_sum = 0.0f;
+    for (float x : x_grid_) x_sum += x;
+    for (float y : y_grid_) y_sum += y;
+    for (float z : z_values_) z_sum += z;
+
+    return {
+        x_sum / static_cast<float>(x_grid_.size()),
+        y_sum / static_cast<float>(y_grid_.size()),
+        z_sum / static_cast<float>(z_values_.size())
+    };
+}
+
+void SurfaceSeries::get_bounds(vec3& min_out, vec3& max_out) const {
+    if (x_grid_.empty() || y_grid_.empty() || z_values_.empty()) {
+        min_out = max_out = {0.0f, 0.0f, 0.0f};
+        return;
+    }
+
+    auto [x_min, x_max] = std::minmax_element(x_grid_.begin(), x_grid_.end());
+    auto [y_min, y_max] = std::minmax_element(y_grid_.begin(), y_grid_.end());
+    auto [z_min, z_max] = std::minmax_element(z_values_.begin(), z_values_.end());
+
+    min_out = {*x_min, *y_min, *z_min};
+    max_out = {*x_max, *y_max, *z_max};
+}
+
+void SurfaceSeries::record_commands(Renderer& renderer) {
+    if (!visible_) return;
+    
+    if (!mesh_generated_) {
+        generate_mesh();
+    }
+    
+    if (mesh_generated_) {
+        renderer.upload_series_data(*this);
+    }
+}
+
+// ─── MeshSeries ──────────────────────────────────────────────────────────────
+
+MeshSeries::MeshSeries(std::span<const float> vertices, std::span<const uint32_t> indices) {
+    set_vertices(vertices);
+    set_indices(indices);
+}
+
+void MeshSeries::set_vertices(std::span<const float> vertices) {
+    vertices_.assign(vertices.begin(), vertices.end());
+    dirty_ = true;
+}
+
+void MeshSeries::set_indices(std::span<const uint32_t> indices) {
+    indices_.assign(indices.begin(), indices.end());
+    dirty_ = true;
+}
+
+vec3 MeshSeries::compute_centroid() const {
+    if (vertices_.empty()) return {0.0f, 0.0f, 0.0f};
+
+    vec3 sum{0.0f, 0.0f, 0.0f};
+    size_t vertex_count = vertices_.size() / 6;
+    
+    for (size_t i = 0; i < vertex_count; ++i) {
+        sum.x += vertices_[i * 6 + 0];
+        sum.y += vertices_[i * 6 + 1];
+        sum.z += vertices_[i * 6 + 2];
+    }
+    
+    return sum / static_cast<float>(vertex_count);
+}
+
+void MeshSeries::get_bounds(vec3& min_out, vec3& max_out) const {
+    if (vertices_.empty()) {
+        min_out = max_out = {0.0f, 0.0f, 0.0f};
+        return;
+    }
+
+    min_out = {vertices_[0], vertices_[1], vertices_[2]};
+    max_out = min_out;
+
+    size_t vertex_count = vertices_.size() / 6;
+    for (size_t i = 1; i < vertex_count; ++i) {
+        float x = vertices_[i * 6 + 0];
+        float y = vertices_[i * 6 + 1];
+        float z = vertices_[i * 6 + 2];
+        
+        min_out.x = std::fmin(min_out.x, x);
+        min_out.y = std::fmin(min_out.y, y);
+        min_out.z = std::fmin(min_out.z, z);
+        max_out.x = std::fmax(max_out.x, x);
+        max_out.y = std::fmax(max_out.y, y);
+        max_out.z = std::fmax(max_out.z, z);
+    }
+}
+
+void MeshSeries::record_commands(Renderer& renderer) {
+    if (!visible_) return;
+    renderer.upload_series_data(*this);
+}
+
+} // namespace plotix

@@ -1,6 +1,7 @@
 #include <plotix/figure.hpp>
 
 #include "layout.hpp"
+#include "axes3d.hpp"
 
 #include <cassert>
 #include <stdexcept>
@@ -75,6 +76,26 @@ Axes& Figure::subplot(int rows, int cols, int index) {
     return *axes_[idx];
 }
 
+Axes3D& Figure::subplot3d(int rows, int cols, int index) {
+    if (rows <= 0 || cols <= 0 || index < 1 || index > rows * cols) {
+        throw std::out_of_range("subplot3d index out of range");
+    }
+
+    if (rows > grid_rows_) grid_rows_ = rows;
+    if (cols > grid_cols_) grid_cols_ = cols;
+
+    size_t idx = static_cast<size_t>(index - 1);
+    if (idx >= all_axes_.size()) {
+        all_axes_.resize(idx + 1);
+    }
+
+    if (!all_axes_[idx]) {
+        all_axes_[idx] = std::make_unique<Axes3D>();
+    }
+
+    return *static_cast<Axes3D*>(all_axes_[idx].get());
+}
+
 void Figure::show() {
     // Driven by App (Agent 4). This is a placeholder that computes layout.
     compute_layout();
@@ -109,10 +130,17 @@ void Figure::compute_layout() {
         static_cast<float>(config_.height),
         grid_rows_, grid_cols_);
 
-    // Assign viewport rects to each axes
+    // Assign viewport rects to 2D axes
     for (size_t i = 0; i < axes_.size() && i < rects.size(); ++i) {
         if (axes_[i]) {
             axes_[i]->set_viewport(rects[i]);
+        }
+    }
+
+    // Assign viewport rects to all axes (including 3D)
+    for (size_t i = 0; i < all_axes_.size() && i < rects.size(); ++i) {
+        if (all_axes_[i]) {
+            all_axes_[i]->set_viewport(rects[i]);
         }
     }
 

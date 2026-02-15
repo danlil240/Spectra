@@ -88,6 +88,12 @@ set(PLOTIX_UNIT_TESTS
     test_workspace_v3
     test_phase3_integration
     test_math3d
+    test_3d_pipelines
+    test_camera
+    test_axes3d
+    test_series3d
+    test_depth_buffer
+    test_3d_integration
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})
@@ -136,6 +142,19 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
         add_test(NAME golden_image_tests_phase3 COMMAND golden_image_tests_phase3)
         set_tests_properties(golden_image_tests_phase3 PROPERTIES LABELS "golden")
     endif()
+
+    # 3D golden image tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d.cpp)
+        add_executable(golden_image_tests_3d golden/golden_test_3d.cpp)
+        target_link_libraries(golden_image_tests_3d PRIVATE plotix GTest::gtest_main)
+        target_compile_features(golden_image_tests_3d PRIVATE cxx_std_20)
+        target_include_directories(golden_image_tests_3d PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/golden
+        )
+        add_test(NAME golden_image_tests_3d COMMAND golden_image_tests_3d)
+        set_tests_properties(golden_image_tests_3d PROPERTIES LABELS "golden")
+    endif()
 endif()
 
 # Benchmarks
@@ -157,5 +176,9 @@ if(PLOTIX_BUILD_BENCHMARKS)
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_phase3.cpp)
         add_plotix_bench(bench_phase3)
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_3d.cpp)
+        add_plotix_bench(bench_3d)
     endif()
 endif()

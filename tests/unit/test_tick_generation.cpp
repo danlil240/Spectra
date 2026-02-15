@@ -3,15 +3,16 @@
 #include <plotix/axes.hpp>
 
 #include <cmath>
+#include <memory>
 
 using namespace plotix;
 
 // Helper: create axes with a single line series spanning [xmin,xmax] x [ymin,ymax]
-static Axes make_axes(float xmin, float xmax, float ymin, float ymax) {
-    Axes ax;
+static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float ymax) {
+    auto ax = std::make_unique<Axes>();
     float xs[] = {xmin, xmax};
     float ys[] = {ymin, ymax};
-    ax.line(std::span<const float>(xs, 2), std::span<const float>(ys, 2));
+    ax->line(std::span<const float>(xs, 2), std::span<const float>(ys, 2));
     return ax;
 }
 

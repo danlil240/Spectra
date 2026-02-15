@@ -67,6 +67,7 @@ public:
     explicit Figure(const FigureConfig& config = {});
 
     Axes& subplot(int rows, int cols, int index);
+    Axes3D& subplot3d(int rows, int cols, int index);
 
     void show();
     void save_png(const std::string& path);
@@ -80,6 +81,9 @@ public:
 
     const std::vector<std::unique_ptr<Axes>>& axes() const { return axes_; }
     std::vector<std::unique_ptr<Axes>>& axes_mut() { return axes_; }
+    
+    const std::vector<std::unique_ptr<AxesBase>>& all_axes() const { return all_axes_; }
+    std::vector<std::unique_ptr<AxesBase>>& all_axes_mut() { return all_axes_; }
 
     FigureStyle& style() { return style_; }
     const FigureStyle& style() const { return style_; }
@@ -101,6 +105,7 @@ private:
     FigureStyle style_;
     LegendConfig legend_;
     std::vector<std::unique_ptr<Axes>> axes_;
+    std::vector<std::unique_ptr<AxesBase>> all_axes_;
     int grid_rows_ = 1;
     int grid_cols_ = 1;
 

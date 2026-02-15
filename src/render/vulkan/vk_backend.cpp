@@ -326,13 +326,41 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
-        case PipelineType::Heatmap:
         case PipelineType::Line3D:
+            cfg.vert_spirv      = shaders::line3d_vert;
+            cfg.vert_spirv_size = shaders::line3d_vert_size;
+            cfg.frag_spirv      = shaders::line3d_frag;
+            cfg.frag_spirv_size = shaders::line3d_frag_size;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            break;
         case PipelineType::Scatter3D:
+            cfg.vert_spirv      = shaders::scatter3d_vert;
+            cfg.vert_spirv_size = shaders::scatter3d_vert_size;
+            cfg.frag_spirv      = shaders::scatter3d_frag;
+            cfg.frag_spirv_size = shaders::scatter3d_frag_size;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            break;
+        case PipelineType::Grid3D:
+            cfg.vert_spirv      = shaders::grid3d_vert;
+            cfg.vert_spirv_size = shaders::grid3d_vert_size;
+            cfg.frag_spirv      = shaders::grid3d_frag;
+            cfg.frag_spirv_size = shaders::grid3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // Grid3D uses vec3 vertex attribute for line endpoints
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            break;
         case PipelineType::Mesh3D:
         case PipelineType::Surface3D:
-        case PipelineType::Grid3D:
-            return VK_NULL_HANDLE; // Not yet implemented
+        case PipelineType::Heatmap:
+            return VK_NULL_HANDLE; // Not yet implemented (Phase 2)
     }
 
     try {

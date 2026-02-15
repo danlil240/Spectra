@@ -53,6 +53,13 @@ private:
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
+    
+    // 3D pipelines
+    PipelineHandle line3d_pipeline_;
+    PipelineHandle scatter3d_pipeline_;
+    PipelineHandle mesh3d_pipeline_;
+    PipelineHandle surface3d_pipeline_;
+    PipelineHandle grid3d_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
     // Per-axes GPU buffers for grid and border vertices.

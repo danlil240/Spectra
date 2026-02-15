@@ -39,7 +39,43 @@ struct TickResult {
     std::vector<std::string> labels;
 };
 
-class Axes {
+class AxesBase {
+public:
+    virtual ~AxesBase() = default;
+
+    virtual void auto_fit() = 0;
+
+    const std::vector<std::unique_ptr<Series>>& series() const { return series_; }
+    std::vector<std::unique_ptr<Series>>& series_mut() { return series_; }
+
+    void set_viewport(const Rect& r) { viewport_ = r; }
+    const Rect& viewport() const { return viewport_; }
+
+    const std::string& get_title() const { return title_; }
+    void title(const std::string& t) { title_ = t; }
+
+    bool grid_enabled() const { return grid_enabled_; }
+    void grid(bool enabled) { grid_enabled_ = enabled; }
+
+    bool border_enabled() const { return border_enabled_; }
+    void show_border(bool enabled) { border_enabled_ = enabled; }
+
+    AxisStyle& axis_style() { return axis_style_; }
+    const AxisStyle& axis_style() const { return axis_style_; }
+
+    void set_grid_enabled(bool e) { grid_enabled_ = e; }
+    void set_border_enabled(bool e) { border_enabled_ = e; }
+
+protected:
+    std::vector<std::unique_ptr<Series>> series_;
+    std::string title_;
+    bool grid_enabled_ = true;
+    bool border_enabled_ = true;
+    AxisStyle axis_style_;
+    Rect viewport_;
+};
+
+class Axes : public AxesBase {
 public:
     Axes() = default;
 
@@ -82,37 +118,15 @@ public:
     TickResult compute_y_ticks() const;
 
     // Auto-fit limits to data
-    void auto_fit();
-
-    // Access series
-    const std::vector<std::unique_ptr<Series>>& series() const { return series_; }
-    std::vector<std::unique_ptr<Series>>& series_mut() { return series_; }
-
-    // Mutable accessors for UI settings
-    void set_grid_enabled(bool e) { grid_enabled_ = e; }
-    void set_border_enabled(bool e) { border_enabled_ = e; }
-    AxisStyle& axis_style() { return axis_style_; }
-    const AxisStyle& axis_style() const { return axis_style_; }
-
-    // Viewport rect (set by layout engine)
-    void set_viewport(const Rect& r) { viewport_ = r; }
-    const Rect& viewport() const     { return viewport_; }
+    void auto_fit() override;
 
 private:
-    std::vector<std::unique_ptr<Series>> series_;
-
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
 
-    std::string title_;
     std::string xlabel_;
     std::string ylabel_;
-    bool grid_enabled_   = true;
-    bool border_enabled_  = true;
     AutoscaleMode autoscale_mode_ = AutoscaleMode::Padded;
-    AxisStyle axis_style_;
-
-    Rect viewport_;
 };
 
 } // namespace plotix

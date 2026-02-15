@@ -20,9 +20,11 @@
 #include <plotix/series.hpp>
 #include <plotix/plot_style.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,9 +32,9 @@ using namespace plotix;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-static Figure make_figure_with_styled_data() {
-    Figure fig;
-    auto& ax = fig.subplot(1, 1, 1);
+static std::unique_ptr<Figure> make_figure_with_styled_data() {
+    auto fig = std::make_unique<Figure>();
+    auto& ax = fig->subplot(1, 1, 1);
     static float x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     static float y[] = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
     ax.line(x, y).label("styled_line").color(colors::blue);
@@ -52,10 +54,9 @@ class DockAxisLinkIntegration : public ::testing::Test {
 protected:
     DockSystem dock;
     AxisLinkManager link_mgr;
-    std::vector<Axes> axes_pool;
+    std::array<Axes, 4> axes_pool{};
 
     void SetUp() override {
-        axes_pool.resize(4);
         for (auto& ax : axes_pool) {
             ax.xlim(0.0f, 10.0f);
             ax.ylim(0.0f, 10.0f);

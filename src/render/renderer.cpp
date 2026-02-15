@@ -2,8 +2,11 @@
 #include "../ui/theme.hpp"
 
 #include <plotix/axes.hpp>
+#include <plotix/axes3d.hpp>
+#include <plotix/camera.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
+#include <plotix/series3d.hpp>
 
 #include <cstring>
 #include <vector>
@@ -40,6 +43,14 @@ bool Renderer::init() {
     line_pipeline_    = backend_.create_pipeline(PipelineType::Line);
     scatter_pipeline_ = backend_.create_pipeline(PipelineType::Scatter);
     grid_pipeline_    = backend_.create_pipeline(PipelineType::Grid);
+    
+    // Create 3D pipelines
+    line3d_pipeline_    = backend_.create_pipeline(PipelineType::Line3D);
+    scatter3d_pipeline_ = backend_.create_pipeline(PipelineType::Scatter3D);
+    mesh3d_pipeline_    = backend_.create_pipeline(PipelineType::Mesh3D);
+    surface3d_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D);
+    grid3d_pipeline_    = backend_.create_pipeline(PipelineType::Grid3D);
+    
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
 
@@ -115,48 +126,128 @@ void Renderer::update_frame_ubo(uint32_t width, uint32_t height, float time) {
 }
 
 void Renderer::upload_series_data(Series& series) {
+    // Try 2D series first
     auto* line = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
-
-    const float* x_data = nullptr;
-    const float* y_data = nullptr;
-    size_t count = 0;
-
-    if (line) {
-        x_data = line->x_data().data();
-        y_data = line->y_data().data();
-        count  = line->point_count();
-    } else if (scatter) {
-        x_data = scatter->x_data().data();
-        y_data = scatter->y_data().data();
-        count  = scatter->point_count();
-    }
-
-    if (count == 0) return;
+    
+    // Try 3D series
+    auto* line3d = dynamic_cast<LineSeries3D*>(&series);
+    auto* scatter3d = dynamic_cast<ScatterSeries3D*>(&series);
+    auto* surface = dynamic_cast<SurfaceSeries*>(&series);
+    auto* mesh = dynamic_cast<MeshSeries*>(&series);
 
     auto& gpu = series_gpu_data_[&series];
 
-    // Interleave x,y into vec2 array
-    size_t byte_size = count * 2 * sizeof(float);
+    // Handle 2D line/scatter (vec2 interleaved)
+    if (line || scatter) {
+        const float* x_data = nullptr;
+        const float* y_data = nullptr;
+        size_t count = 0;
 
-    // Reallocate if needed
-    if (!gpu.ssbo || gpu.uploaded_count < count) {
-        if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
-        // Allocate with some headroom for streaming appends
-        size_t alloc_size = byte_size * 2;  // 2x headroom
-        gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        if (line) {
+            x_data = line->x_data().data();
+            y_data = line->y_data().data();
+            count  = line->point_count();
+        } else if (scatter) {
+            x_data = scatter->x_data().data();
+            y_data = scatter->y_data().data();
+            count  = scatter->point_count();
+        }
+
+        if (count == 0) return;
+
+        size_t byte_size = count * 2 * sizeof(float);
+        if (!gpu.ssbo || gpu.uploaded_count < count) {
+            if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
+            size_t alloc_size = byte_size * 2;
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        }
+
+        std::vector<float> interleaved(count * 2);
+        for (size_t i = 0; i < count; ++i) {
+            interleaved[i * 2]     = x_data[i];
+            interleaved[i * 2 + 1] = y_data[i];
+        }
+
+        backend_.upload_buffer(gpu.ssbo, interleaved.data(), byte_size);
+        gpu.uploaded_count = count;
+        series.clear_dirty();
     }
+    // Handle 3D line/scatter (vec4 interleaved: x,y,z,pad)
+    else if (line3d || scatter3d) {
+        const float* x_data = nullptr;
+        const float* y_data = nullptr;
+        const float* z_data = nullptr;
+        size_t count = 0;
 
-    // Interleave and upload
-    std::vector<float> interleaved(count * 2);
-    for (size_t i = 0; i < count; ++i) {
-        interleaved[i * 2]     = x_data[i];
-        interleaved[i * 2 + 1] = y_data[i];
+        if (line3d) {
+            x_data = line3d->x_data().data();
+            y_data = line3d->y_data().data();
+            z_data = line3d->z_data().data();
+            count  = line3d->point_count();
+        } else if (scatter3d) {
+            x_data = scatter3d->x_data().data();
+            y_data = scatter3d->y_data().data();
+            z_data = scatter3d->z_data().data();
+            count  = scatter3d->point_count();
+        }
+
+        if (count == 0) return;
+
+        size_t byte_size = count * 4 * sizeof(float);
+        if (!gpu.ssbo || gpu.uploaded_count < count) {
+            if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
+            size_t alloc_size = byte_size * 2;
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        }
+
+        std::vector<float> interleaved(count * 4);
+        for (size_t i = 0; i < count; ++i) {
+            interleaved[i * 4]     = x_data[i];
+            interleaved[i * 4 + 1] = y_data[i];
+            interleaved[i * 4 + 2] = z_data[i];
+            interleaved[i * 4 + 3] = 0.0f;  // padding
+        }
+
+        backend_.upload_buffer(gpu.ssbo, interleaved.data(), byte_size);
+        gpu.uploaded_count = count;
+        series.clear_dirty();
     }
+    // Handle surface (vertex buffer + index buffer)
+    else if (surface) {
+        if (!surface->is_mesh_generated()) return;
+        
+        const auto& surf_mesh = surface->mesh();
+        if (surf_mesh.vertices.empty() || surf_mesh.indices.empty()) return;
 
-    backend_.upload_buffer(gpu.ssbo, interleaved.data(), byte_size);
-    gpu.uploaded_count = count;
-    series.clear_dirty();
+        size_t vert_byte_size = surf_mesh.vertices.size() * sizeof(float);
+        size_t idx_byte_size = surf_mesh.indices.size() * sizeof(uint32_t);
+
+        if (!gpu.ssbo || gpu.uploaded_count < surf_mesh.vertex_count) {
+            if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+
+        backend_.upload_buffer(gpu.ssbo, surf_mesh.vertices.data(), vert_byte_size);
+        gpu.uploaded_count = surf_mesh.vertex_count;
+        series.clear_dirty();
+    }
+    // Handle mesh (vertex buffer + index buffer)
+    else if (mesh) {
+        if (mesh->vertices().empty() || mesh->indices().empty()) return;
+
+        size_t vert_byte_size = mesh->vertices().size() * sizeof(float);
+        size_t idx_byte_size = mesh->indices().size() * sizeof(uint32_t);
+
+        if (!gpu.ssbo || gpu.uploaded_count < mesh->vertex_count()) {
+            if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+
+        backend_.upload_buffer(gpu.ssbo, mesh->vertices().data(), vert_byte_size);
+        gpu.uploaded_count = mesh->vertex_count();
+        series.clear_dirty();
+    }
 }
 
 void Renderer::render_axes(Axes& axes, const Rect& viewport,
@@ -172,29 +263,90 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
     // Set viewport
     backend_.set_viewport(viewport.x, viewport.y, viewport.w, viewport.h);
 
-    // Update frame UBO with axes-specific projection
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-
     FrameUBO ubo {};
-    build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
-    // Identity view matrix (2D)
-    ubo.view[0]  = 1.0f; ubo.view[5]  = 1.0f;
-    ubo.view[10] = 1.0f; ubo.view[15] = 1.0f;
-    // Identity model matrix (2D)
-    ubo.model[0]  = 1.0f; ubo.model[5]  = 1.0f;
-    ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
+    
+    // Check if this is a 3D axes
+    if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
+        // 3D projection with camera
+        auto xlim = axes3d->x_limits();
+        auto ylim = axes3d->y_limits();
+        auto zlim = axes3d->z_limits();
+        
+        // Build perspective projection
+        float aspect = viewport.w / viewport.h;
+        const auto& cam = axes3d->camera();
+        
+        if (cam.projection_mode == Camera::ProjectionMode::Perspective) {
+            // Perspective projection matrix
+            float fov_rad = cam.fov * 3.14159265f / 180.0f;
+            float f = 1.0f / tanf(fov_rad * 0.5f);
+            std::memset(ubo.projection, 0, 16 * sizeof(float));
+            ubo.projection[0] = f / aspect;
+            ubo.projection[5] = -f;  // Negative for Vulkan Y-down
+            ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
+            ubo.projection[11] = -1.0f;
+            ubo.projection[14] = (cam.far_clip * cam.near_clip) / (cam.near_clip - cam.far_clip);
+        } else {
+            // Orthographic projection
+            float half_w = cam.ortho_size * aspect * 0.5f;
+            float half_h = cam.ortho_size * 0.5f;
+            build_ortho_projection(-half_w, half_w, -half_h, half_h, ubo.projection);
+        }
+        
+        // Camera view matrix
+        const mat4& view = cam.view_matrix();
+        std::memcpy(ubo.view, view.m, 16 * sizeof(float));
+        
+        // Identity model matrix for now
+        ubo.model[0] = 1.0f; ubo.model[5] = 1.0f;
+        ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
+        
+        ubo.near_plane = cam.near_clip;
+        ubo.far_plane = cam.far_clip;
+        
+        // Camera position for lighting
+        ubo.camera_pos[0] = cam.position.x;
+        ubo.camera_pos[1] = cam.position.y;
+        ubo.camera_pos[2] = cam.position.z;
+        
+        // Default light direction (from top-right)
+        ubo.light_dir[0] = 1.0f;
+        ubo.light_dir[1] = 1.0f;
+        ubo.light_dir[2] = 1.0f;
+    } else {
+        // 2D orthographic projection
+        auto xlim = axes.x_limits();
+        auto ylim = axes.y_limits();
+        
+        build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
+        // Identity view matrix (2D)
+        ubo.view[0]  = 1.0f; ubo.view[5]  = 1.0f;
+        ubo.view[10] = 1.0f; ubo.view[15] = 1.0f;
+        // Identity model matrix (2D)
+        ubo.model[0]  = 1.0f; ubo.model[5]  = 1.0f;
+        ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
+        
+        ubo.near_plane = 0.01f;
+        ubo.far_plane = 1000.0f;
+        
+        // Default camera position and light for 2D
+        ubo.camera_pos[0] = 0.0f;
+        ubo.camera_pos[1] = 0.0f;
+        ubo.camera_pos[2] = 1.0f;
+        ubo.light_dir[0] = 0.0f;
+        ubo.light_dir[1] = 0.0f;
+        ubo.light_dir[2] = 1.0f;
+    }
+    
     ubo.viewport_width  = viewport.w;
     ubo.viewport_height = viewport.h;
     ubo.time = 0.0f;
-    ubo.near_plane = 0.01f;
-    ubo.far_plane  = 1000.0f;
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
-    // Render axis border (uses same data-space projection, drawn before grid)
-    if (axes.border_enabled())
+    // Render axis border (2D only)
+    if (axes.border_enabled() && !dynamic_cast<Axes3D*>(&axes))
         render_axis_border(axes, viewport, fig_width, fig_height);
 
     // Render grid
@@ -215,64 +367,152 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
 }
 
 void Renderer::render_grid(Axes& axes, const Rect& /*viewport*/) {
-    if (!axes.grid_enabled()) return;
+    // Check if this is a 3D axes
+    if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
+        if (!axes3d->grid_enabled()) return;
+        
+        auto x_ticks = axes3d->compute_x_ticks();
+        auto y_ticks = axes3d->compute_y_ticks();
+        auto z_ticks = axes3d->compute_z_ticks();
+        
+        size_t num_x = x_ticks.positions.size();
+        size_t num_y = y_ticks.positions.size();
+        size_t num_z = z_ticks.positions.size();
+        
+        auto xlim = axes3d->x_limits();
+        auto ylim = axes3d->y_limits();
+        auto zlim = axes3d->z_limits();
+        
+        // Generate 3D grid vertices (vec3 each = 3 floats per vertex)
+        std::vector<float> verts;
+        int grid_planes = axes3d->grid_planes();
+        
+        // XY plane grid (z = zlim.min)
+        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XY)) {
+            for (size_t i = 0; i < num_x; ++i) {
+                float x = x_ticks.positions[i];
+                verts.insert(verts.end(), {x, ylim.min, zlim.min, x, ylim.max, zlim.min});
+            }
+            for (size_t i = 0; i < num_y; ++i) {
+                float y = y_ticks.positions[i];
+                verts.insert(verts.end(), {xlim.min, y, zlim.min, xlim.max, y, zlim.min});
+            }
+        }
+        
+        // XZ plane grid (y = ylim.min)
+        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XZ)) {
+            for (size_t i = 0; i < num_x; ++i) {
+                float x = x_ticks.positions[i];
+                verts.insert(verts.end(), {x, ylim.min, zlim.min, x, ylim.min, zlim.max});
+            }
+            for (size_t i = 0; i < num_z; ++i) {
+                float z = z_ticks.positions[i];
+                verts.insert(verts.end(), {xlim.min, ylim.min, z, xlim.max, ylim.min, z});
+            }
+        }
+        
+        // YZ plane grid (x = xlim.min)
+        if (grid_planes & static_cast<int>(Axes3D::GridPlane::YZ)) {
+            for (size_t i = 0; i < num_y; ++i) {
+                float y = y_ticks.positions[i];
+                verts.insert(verts.end(), {xlim.min, y, zlim.min, xlim.min, y, zlim.max});
+            }
+            for (size_t i = 0; i < num_z; ++i) {
+                float z = z_ticks.positions[i];
+                verts.insert(verts.end(), {xlim.min, ylim.min, z, xlim.min, ylim.max, z});
+            }
+        }
+        
+        if (verts.empty()) return;
+        
+        // Upload 3D grid vertices
+        auto& gpu = axes_gpu_data_[&axes];
+        size_t byte_size = verts.size() * sizeof(float);
+        if (!gpu.grid_buffer || gpu.grid_capacity < byte_size) {
+            if (gpu.grid_buffer) backend_.destroy_buffer(gpu.grid_buffer);
+            gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+            gpu.grid_capacity = byte_size * 2;
+        }
+        backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
+        
+        // Draw 3D grid
+        backend_.bind_pipeline(grid3d_pipeline_);
+        
+        SeriesPushConstants pc {};
+        const auto& theme_colors = ui::ThemeManager::instance().colors();
+        pc.color[0] = theme_colors.grid_line.r;
+        pc.color[1] = theme_colors.grid_line.g;
+        pc.color[2] = theme_colors.grid_line.b;
+        pc.color[3] = theme_colors.grid_line.a * 0.5f; // Semi-transparent 3D grid
+        pc.line_width = 1.0f;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
+        backend_.push_constants(pc);
+        
+        backend_.bind_buffer(gpu.grid_buffer, 0);
+        backend_.draw(static_cast<uint32_t>(verts.size() / 3)); // 3 floats per vertex
+        
+    } else {
+        // 2D grid rendering (original implementation)
+        if (!axes.grid_enabled()) return;
 
-    auto x_ticks = axes.compute_x_ticks();
-    auto y_ticks = axes.compute_y_ticks();
+        auto x_ticks = axes.compute_x_ticks();
+        auto y_ticks = axes.compute_y_ticks();
 
-    size_t num_x = x_ticks.positions.size();
-    size_t num_y = y_ticks.positions.size();
-    if (num_x == 0 && num_y == 0) return;
+        size_t num_x = x_ticks.positions.size();
+        size_t num_y = y_ticks.positions.size();
+        if (num_x == 0 && num_y == 0) return;
 
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
+        auto xlim = axes.x_limits();
+        auto ylim = axes.y_limits();
 
-    // Generate line vertices in data space
-    // Each line = 2 endpoints (vec2 each) = 4 floats per line
-    size_t total_lines = num_x + num_y;
-    std::vector<float> verts;
-    verts.reserve(total_lines * 4);
+        // Generate line vertices in data space
+        // Each line = 2 endpoints (vec2 each) = 4 floats per line
+        size_t total_lines = num_x + num_y;
+        std::vector<float> verts;
+        verts.reserve(total_lines * 4);
 
-    // Vertical grid lines (at each x tick, from ylim.min to ylim.max)
-    for (size_t i = 0; i < num_x; ++i) {
-        float x = x_ticks.positions[i];
-        verts.push_back(x); verts.push_back(ylim.min);
-        verts.push_back(x); verts.push_back(ylim.max);
+        // Vertical grid lines (at each x tick, from ylim.min to ylim.max)
+        for (size_t i = 0; i < num_x; ++i) {
+            float x = x_ticks.positions[i];
+            verts.push_back(x); verts.push_back(ylim.min);
+            verts.push_back(x); verts.push_back(ylim.max);
+        }
+
+        // Horizontal grid lines (at each y tick, from xlim.min to xlim.max)
+        for (size_t i = 0; i < num_y; ++i) {
+            float y = y_ticks.positions[i];
+            verts.push_back(xlim.min); verts.push_back(y);
+            verts.push_back(xlim.max); verts.push_back(y);
+        }
+
+        // Upload grid vertices to per-axes buffer
+        auto& gpu = axes_gpu_data_[&axes];
+        size_t byte_size = verts.size() * sizeof(float);
+        if (!gpu.grid_buffer || gpu.grid_capacity < byte_size) {
+            if (gpu.grid_buffer) backend_.destroy_buffer(gpu.grid_buffer);
+            gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+            gpu.grid_capacity = byte_size * 2;
+        }
+        backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
+
+        // Bind grid pipeline and draw
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants pc {};
+        const auto& theme_colors = ui::ThemeManager::instance().colors();
+        pc.color[0] = theme_colors.grid_line.r;
+        pc.color[1] = theme_colors.grid_line.g;
+        pc.color[2] = theme_colors.grid_line.b;
+        pc.color[3] = theme_colors.grid_line.a;
+        pc.line_width = 1.0f;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
+        backend_.push_constants(pc);
+
+        backend_.bind_buffer(gpu.grid_buffer, 0);
+        backend_.draw(static_cast<uint32_t>(total_lines * 2));
     }
-
-    // Horizontal grid lines (at each y tick, from xlim.min to xlim.max)
-    for (size_t i = 0; i < num_y; ++i) {
-        float y = y_ticks.positions[i];
-        verts.push_back(xlim.min); verts.push_back(y);
-        verts.push_back(xlim.max); verts.push_back(y);
-    }
-
-    // Upload grid vertices to per-axes buffer
-    auto& gpu = axes_gpu_data_[&axes];
-    size_t byte_size = verts.size() * sizeof(float);
-    if (!gpu.grid_buffer || gpu.grid_capacity < byte_size) {
-        if (gpu.grid_buffer) backend_.destroy_buffer(gpu.grid_buffer);
-        gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-        gpu.grid_capacity = byte_size * 2;
-    }
-    backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
-
-    // Bind grid pipeline and draw
-    backend_.bind_pipeline(grid_pipeline_);
-
-    SeriesPushConstants pc {};
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0] = theme_colors.grid_line.r;
-    pc.color[1] = theme_colors.grid_line.g;
-    pc.color[2] = theme_colors.grid_line.b;
-    pc.color[3] = theme_colors.grid_line.a;
-    pc.line_width = 1.0f;
-    pc.data_offset_x = 0.0f;
-    pc.data_offset_y = 0.0f;
-    backend_.push_constants(pc);
-
-    backend_.bind_buffer(gpu.grid_buffer, 0);
-    backend_.draw(static_cast<uint32_t>(total_lines * 2));
 }
 
 void Renderer::render_axis_border(Axes& axes, const Rect& viewport,
@@ -377,8 +617,15 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         pc.dash_count = dp.count;
     }
 
+    // Try 2D series
     auto* line = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
+    
+    // Try 3D series
+    auto* line3d = dynamic_cast<LineSeries3D*>(&series);
+    auto* scatter3d = dynamic_cast<ScatterSeries3D*>(&series);
+    auto* surface = dynamic_cast<SurfaceSeries*>(&series);
+    auto* mesh = dynamic_cast<MeshSeries*>(&series);
 
     if (line) {
         // Draw line segments if line style is not None
@@ -410,6 +657,37 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         backend_.push_constants(pc);
         backend_.bind_buffer(gpu.ssbo, 0);
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
+    }
+    // 3D series rendering
+    else if (line3d) {
+        if (line3d->point_count() > 1) {
+            backend_.bind_pipeline(line3d_pipeline_);
+            pc.line_width = line3d->width();
+            backend_.push_constants(pc);
+            backend_.bind_buffer(gpu.ssbo, 0);
+            uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
+            backend_.draw(segments * 6);
+        }
+    } else if (scatter3d) {
+        backend_.bind_pipeline(scatter3d_pipeline_);
+        pc.point_size = scatter3d->size();
+        pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+        backend_.push_constants(pc);
+        backend_.bind_buffer(gpu.ssbo, 0);
+        backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
+    } else if (surface) {
+        if (surface->is_mesh_generated()) {
+            const auto& surf_mesh = surface->mesh();
+            backend_.bind_pipeline(surface3d_pipeline_);
+            backend_.push_constants(pc);
+            backend_.bind_buffer(gpu.ssbo, 0);
+            backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
+        }
+    } else if (mesh) {
+        backend_.bind_pipeline(mesh3d_pipeline_);
+        backend_.push_constants(pc);
+        backend_.bind_buffer(gpu.ssbo, 0);
+        backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
     }
 }
 

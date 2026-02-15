@@ -8,6 +8,8 @@
 
 namespace plotix {
 
+class Camera;
+
 // Manages active UI animations (zoom transitions, pan inertia, auto-fit).
 // Called once per frame from the main loop. All animations are cancelable
 // by new user input — no animation queue buildup.
@@ -27,6 +29,11 @@ public:
     AnimId animate_inertial_pan(Axes& axes,
                                 float vx_data, float vy_data,
                                 float duration_sec);
+
+    // Animate camera from current state to target over duration_sec.
+    AnimId animate_camera(Camera& camera,
+                         const Camera& target,
+                         float duration_sec, EasingFn easing);
 
     // Cancel a specific animation by ID.
     void cancel(AnimId id);
@@ -73,10 +80,24 @@ private:
         bool   finished = false;
     };
 
+    struct CameraAnim {
+        AnimId   id;
+        Camera*  camera;
+        float    start_azimuth, start_elevation, start_distance;
+        float    start_fov, start_ortho_size;
+        float    target_azimuth, target_elevation, target_distance;
+        float    target_fov, target_ortho_size;
+        float    elapsed  = 0.0f;
+        float    duration = 0.5f;
+        EasingFn easing   = ease::ease_out;
+        bool     finished = false;
+    };
+
     AnimId next_id_ = 1;
 
     std::vector<LimitAnim>       limit_anims_;
     std::vector<InertialPanAnim> inertial_anims_;
+    std::vector<CameraAnim>      camera_anims_;
 
     void gc();  // Remove finished animations
 };

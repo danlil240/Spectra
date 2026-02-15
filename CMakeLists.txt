@@ -47,6 +47,8 @@ foreach(_ui_src
     src/ui/data_transform.cpp
     src/ui/keyframe_interpolator.cpp
     src/ui/animation_curve_editor.cpp
+    src/ui/camera.cpp
+    src/ui/axes3d_renderer.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND PLOTIX_UI_SOURCES ${_ui_src})

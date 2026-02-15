@@ -5,10 +5,16 @@ namespace plotix {
 class App;
 class Figure;
 class Axes;
+class AxesBase;
+class Axes3D;
 
 class Series;
 class LineSeries;
 class ScatterSeries;
+class LineSeries3D;
+class ScatterSeries3D;
+class SurfaceSeries;
+class MeshSeries;
 
 class Renderer;
 class Backend;
@@ -25,6 +31,8 @@ struct Frame;
 class FrameScheduler;
 class AnimationBuilder;
 class GestureRecognizer;
+class Camera;
+class Axes3DRenderer;
 
 class BoxZoomOverlay;
 class CommandRegistry;

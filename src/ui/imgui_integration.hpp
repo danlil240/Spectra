@@ -19,12 +19,16 @@ struct ImFont;
 
 namespace plotix {
 
+class AnimationCurveEditor;
+class AxisLinkManager;
 class BoxZoomOverlay;
 class CommandPalette;
 class CommandRegistry;
 class DataInteraction;
 class DockSystem;
+class KeyframeInterpolator;
 class ShortcutManager;
+class TimelineEditor;
 class UndoManager;
 class VulkanBackend;
 
@@ -92,6 +96,35 @@ public:
     void set_dock_system(DockSystem* ds) { dock_system_ = ds; }
     DockSystem* dock_system() const { return dock_system_; }
 
+    // Axis link manager (Agent B Week 10, owned externally by App)
+    void set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
+    AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
+
+    // Input handler (for right-click context menu hit-testing)
+    void set_input_handler(InputHandler* ih) { input_handler_ = ih; }
+    InputHandler* input_handler() const { return input_handler_; }
+
+    // Timeline editor (Agent G, owned externally by App)
+    void set_timeline_editor(TimelineEditor* te) { timeline_editor_ = te; }
+    TimelineEditor* timeline_editor() const { return timeline_editor_; }
+
+    // Keyframe interpolator (Agent G, owned externally by App)
+    void set_keyframe_interpolator(KeyframeInterpolator* ki) { keyframe_interpolator_ = ki; }
+    KeyframeInterpolator* keyframe_interpolator() const { return keyframe_interpolator_; }
+
+    // Animation curve editor (Agent G, owned externally by App)
+    void set_curve_editor(AnimationCurveEditor* ce) { curve_editor_ = ce; }
+    AnimationCurveEditor* curve_editor() const { return curve_editor_; }
+
+    // Panel visibility toggles
+    bool is_timeline_visible() const { return show_timeline_; }
+    void set_timeline_visible(bool v) { show_timeline_ = v; }
+    bool is_curve_editor_visible() const { return show_curve_editor_; }
+    void set_curve_editor_visible(bool v) { show_curve_editor_ = v; }
+
+    // Series selection from canvas click (updates inspector context)
+    void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
+
 private:
     void apply_modern_style();
     void load_fonts();
@@ -103,6 +136,10 @@ private:
     void draw_status_bar();
     void draw_split_view_splitters();
     void draw_pane_tab_headers();
+    void draw_axes_context_menu(Figure& figure);
+    void draw_axis_link_indicators(Figure& figure);
+    void draw_timeline_panel();
+    void draw_curve_editor_panel();
 #if PLOTIX_FLOATING_TOOLBAR
     void draw_floating_toolbar();
 #endif
@@ -162,6 +199,26 @@ private:
 
     // Dock system (Agent A Week 9, not owned)
     DockSystem* dock_system_ = nullptr;
+
+    // Axis link manager (Agent B Week 10, not owned)
+    AxisLinkManager* axis_link_mgr_ = nullptr;
+
+    // Input handler (not owned)
+    InputHandler* input_handler_ = nullptr;
+
+    // Timeline & animation (not owned)
+    TimelineEditor* timeline_editor_ = nullptr;
+    KeyframeInterpolator* keyframe_interpolator_ = nullptr;
+    AnimationCurveEditor* curve_editor_ = nullptr;
+    bool show_timeline_ = false;
+    bool show_curve_editor_ = false;
+
+    // Current figure pointer (set each frame in build_ui for menu callbacks)
+    Figure* current_figure_ = nullptr;
+
+    // Axes context menu state (right-click on canvas)
+    Axes* context_menu_axes_ = nullptr;  // Which axes was right-clicked
+    bool context_menu_open_ = false;
 
     // Per-pane tab drag state
     struct PaneTabDragState {
@@ -224,6 +281,10 @@ private:
     
     // Theme settings window state
     bool show_theme_settings_ = false;
+
+    // Menubar hover-switch state: tracks which menu popup is currently open
+    // so hovering another menu button auto-opens it
+    std::string open_menu_label_;  // label of currently open menu ("" = none)
     
 #if PLOTIX_FLOATING_TOOLBAR
     // Floating toolbar drag state

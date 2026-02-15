@@ -13,7 +13,7 @@ class Figure;
 // Format: JSON text file with .plotix extension.
 struct WorkspaceData {
     // File format version for migration support
-    static constexpr uint32_t FORMAT_VERSION = 2;
+    static constexpr uint32_t FORMAT_VERSION = 3;
 
     struct AxisState {
         float x_min = 0.0f, x_max = 1.0f;
@@ -39,6 +39,8 @@ struct WorkspaceData {
         // Plot style (line style + marker style)
         int line_style = 1;    // LineStyle enum value (default Solid)
         int marker_style = 0;  // MarkerStyle enum value (default None)
+        // v3: dash pattern
+        std::vector<float> dash_pattern;
     };
 
     struct FigureState {
@@ -85,6 +87,48 @@ struct WorkspaceData {
 
     // Dock/split view state (serialized JSON from DockSystem)
     std::string dock_state;
+
+    // v3: Axis link groups (serialized JSON from AxisLinkManager)
+    std::string axis_link_state;
+
+    // v3: Data transform pipeline presets per-axes
+    struct TransformState {
+        size_t figure_index = 0;
+        size_t axes_index = 0;
+        struct Step {
+            int type = 0;       // DataTransform::Type enum value
+            float param = 0.0f; // Scale/offset/clamp parameter
+            bool enabled = true;
+        };
+        std::vector<Step> steps;
+    };
+    std::vector<TransformState> transforms;
+
+    // v3: Shortcut overrides (user keybinding customizations)
+    struct ShortcutOverride {
+        std::string command_id;
+        std::string shortcut_str;  // "" means unbound
+        bool removed = false;
+    };
+    std::vector<ShortcutOverride> shortcut_overrides;
+
+    // v3: Timeline editor state
+    struct TimelineState {
+        float playhead = 0.0f;
+        float duration = 10.0f;
+        float fps = 30.0f;
+        int loop_mode = 0;     // 0=None, 1=Loop, 2=PingPong
+        float loop_start = 0.0f;
+        float loop_end = 0.0f;
+        bool playing = false;
+    };
+    TimelineState timeline;
+
+    // v3: Plugin enabled/disabled state
+    std::string plugin_state;
+
+    // v3: Active data palette name
+    std::string data_palette_name;
 };
 
 // Workspace save/load operations.

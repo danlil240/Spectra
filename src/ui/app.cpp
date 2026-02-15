@@ -19,6 +19,8 @@
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
+#include "animation_curve_editor.hpp"
+#include "axis_link.hpp"
 #include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
 #include "command_registry.hpp"
@@ -27,9 +29,11 @@
 #include "figure_manager.hpp"
 #include "icons.hpp"
 #include "imgui_integration.hpp"
+#include "keyframe_interpolator.hpp"
 #include "shortcut_manager.hpp"
 #include "tab_bar.hpp"
 #include "theme.hpp"
+#include "timeline_editor.hpp"
 #include "undo_manager.hpp"
 #include "undoable_property.hpp"
 #include "workspace.hpp"
@@ -191,6 +195,16 @@ void App::run() {
     DockSystem dock_system;
     bool dock_tab_sync_guard = false;  // Prevent circular tab↔dock updates
 
+    // Agent B Week 10: Axis link manager for multi-axis linking
+    AxisLinkManager axis_link_mgr;
+
+    // Agent G: Timeline editor, keyframe interpolator, curve editor
+    TimelineEditor timeline_editor;
+    KeyframeInterpolator keyframe_interpolator;
+    AnimationCurveEditor curve_editor;
+    timeline_editor.set_interpolator(&keyframe_interpolator);
+    curve_editor.set_interpolator(&keyframe_interpolator);
+
     // Agent F: Command palette & productivity
     CommandRegistry cmd_registry;
     ShortcutManager shortcut_mgr;
@@ -237,7 +251,7 @@ void App::run() {
             InputCallbacks callbacks;
             callbacks.on_mouse_move = [&input_handler
 #ifdef PLOTIX_USE_IMGUI
-                , &imgui_ui
+                , &imgui_ui, &dock_system, this
 #endif
             ](double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
@@ -245,30 +259,60 @@ void App::run() {
                     PLOTIX_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
                     return;
                 }
+                // In split mode, route to the figure under the cursor
+                if (dock_system.is_split()) {
+                    SplitPane* root = dock_system.split_view().root();
+                    if (root) {
+                        SplitPane* pane = root->find_at_point(static_cast<float>(x), static_cast<float>(y));
+                        if (pane && pane->is_leaf()) {
+                            size_t fi = pane->figure_index();
+                            if (fi < figures_.size() && figures_[fi])
+                                input_handler.set_figure(figures_[fi].get());
+                        }
+                    }
+                }
 #endif
                 input_handler.on_mouse_move(x, y);
             };
             callbacks.on_mouse_button = [&input_handler
 #ifdef PLOTIX_USE_IMGUI
-                , &imgui_ui
+                , &imgui_ui, &dock_system, this
 #endif
             ](int button, int action, int mods, double x, double y) {
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting())) {
-                    PLOTIX_LOG_DEBUG("input", "Mouse button ignored - ImGui wants capture");
+                    // Always forward RELEASE events so InputHandler can exit
+                    // Dragging mode. Without this, starting a drag on the canvas
+                    // and releasing over a UI element (menu, tab bar) leaves the
+                    // handler stuck in Dragging — causing phantom panning.
+                    constexpr int GLFW_RELEASE = 0;
+                    if (action == GLFW_RELEASE) {
+                        input_handler.on_mouse_button(button, action, mods, x, y);
+                    }
                     return;
+                }
+                if (dock_system.is_split()) {
+                    SplitPane* root = dock_system.split_view().root();
+                    if (root) {
+                        SplitPane* pane = root->find_at_point(static_cast<float>(x), static_cast<float>(y));
+                        if (pane && pane->is_leaf()) {
+                            size_t fi = pane->figure_index();
+                            if (fi < figures_.size() && figures_[fi])
+                                input_handler.set_figure(figures_[fi].get());
+                        }
+                    }
                 }
 #endif
                 input_handler.on_mouse_button(button, action, mods, x, y);
             };
             callbacks.on_scroll = [&input_handler, &glfw
 #ifdef PLOTIX_USE_IMGUI
-                , &imgui_ui
+                , &imgui_ui, &dock_system, this
 #endif
             ](double x_offset, double y_offset) {
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui && imgui_ui->wants_capture_mouse()) {
-                    PLOTIX_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
+                    // PLOTIX_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
                     return;
                 }
 #endif
@@ -276,6 +320,19 @@ void App::run() {
                 if (glfw) {
                     glfw->mouse_position(cx, cy);
                 }
+#ifdef PLOTIX_USE_IMGUI
+                if (dock_system.is_split()) {
+                    SplitPane* root = dock_system.split_view().root();
+                    if (root) {
+                        SplitPane* pane = root->find_at_point(static_cast<float>(cx), static_cast<float>(cy));
+                        if (pane && pane->is_leaf()) {
+                            size_t fi = pane->figure_index();
+                            if (fi < figures_.size() && figures_[fi])
+                                input_handler.set_figure(figures_[fi].get());
+                        }
+                    }
+                }
+#endif
                 input_handler.on_scroll(x_offset, y_offset, cx, cy);
             };
             callbacks.on_key = [&input_handler
@@ -400,6 +457,20 @@ void App::run() {
         input_handler.set_data_interaction(data_interaction.get());
         input_handler.set_shortcut_manager(&shortcut_mgr);
 
+        // Wire series click-to-select: clicking a series on the canvas
+        // updates the inspector's selection context and opens the inspector.
+        data_interaction->set_on_series_selected(
+            [&imgui_ui](Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx) {
+                if (!imgui_ui) return;
+                imgui_ui->select_series(fig, ax, ax_idx, s, s_idx);
+            });
+
+        // Wire Agent B Week 10: Axis link manager
+        input_handler.set_axis_link_manager(&axis_link_mgr);
+        data_interaction->set_axis_link_manager(&axis_link_mgr);
+        imgui_ui->set_axis_link_manager(&axis_link_mgr);
+        imgui_ui->set_input_handler(&input_handler);
+
         // Wire Agent B Week 7: Box zoom overlay
         box_zoom_overlay.set_input_handler(&input_handler);
         imgui_ui->set_box_zoom_overlay(&box_zoom_overlay);
@@ -426,6 +497,11 @@ void App::run() {
                 fig_mgr.queue_switch(figure_index);
                 dock_tab_sync_guard = false;
             });
+
+        // Wire Agent G: Timeline editor, keyframe interpolator, curve editor
+        imgui_ui->set_timeline_editor(&timeline_editor);
+        imgui_ui->set_keyframe_interpolator(&keyframe_interpolator);
+        imgui_ui->set_curve_editor(&curve_editor);
 
         // Wire Agent F: command palette & productivity
         imgui_ui->set_command_palette(&cmd_palette);
@@ -702,18 +778,43 @@ void App::run() {
             // Placeholder for series cycling
         }, "Tab", "Series");
 
-        // Animation commands
+        // Animation commands — wired to TimelineEditor
         cmd_registry.register_command("anim.toggle_play", "Toggle Play/Pause", [&]() {
-            // Placeholder for animation play/pause
+            timeline_editor.toggle_play();
         }, "Space", "Animation", static_cast<uint16_t>(ui::Icon::Play));
 
         cmd_registry.register_command("anim.step_back", "Step Frame Back", [&]() {
-            // Placeholder
+            timeline_editor.step_backward();
         }, "[", "Animation", static_cast<uint16_t>(ui::Icon::StepBackward));
 
         cmd_registry.register_command("anim.step_forward", "Step Frame Forward", [&]() {
-            // Placeholder
+            timeline_editor.step_forward();
         }, "]", "Animation", static_cast<uint16_t>(ui::Icon::StepForward));
+
+        cmd_registry.register_command("anim.stop", "Stop Playback", [&]() {
+            timeline_editor.stop();
+        }, "", "Animation");
+
+        cmd_registry.register_command("anim.go_to_start", "Go to Start", [&]() {
+            timeline_editor.set_playhead(0.0f);
+        }, "", "Animation");
+
+        cmd_registry.register_command("anim.go_to_end", "Go to End", [&]() {
+            timeline_editor.set_playhead(timeline_editor.duration());
+        }, "", "Animation");
+
+        // Panel toggle commands for timeline & curve editor
+        cmd_registry.register_command("panel.toggle_timeline", "Toggle Timeline Panel", [&]() {
+            if (imgui_ui) {
+                imgui_ui->set_timeline_visible(!imgui_ui->is_timeline_visible());
+            }
+        }, "T", "Panel", static_cast<uint16_t>(ui::Icon::Play));
+
+        cmd_registry.register_command("panel.toggle_curve_editor", "Toggle Curve Editor", [&]() {
+            if (imgui_ui) {
+                imgui_ui->set_curve_editor_visible(!imgui_ui->is_curve_editor_visible());
+            }
+        }, "", "Panel");
 
         // Theme commands (undoable)
         cmd_registry.register_command("theme.dark", "Switch to Dark Theme", [&]() {
@@ -967,6 +1068,11 @@ void App::run() {
 
         // Evaluate keyframe animations
         animator.evaluate(scheduler.elapsed_seconds());
+
+#ifdef PLOTIX_USE_IMGUI
+        // Advance timeline editor (drives playback + interpolator evaluation)
+        timeline_editor.advance(scheduler.dt());
+#endif
 
 #ifdef PLOTIX_USE_GLFW
         // Update interaction animations (animated zoom, inertial pan, auto-fit)

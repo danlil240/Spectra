@@ -174,13 +174,19 @@ bool CommandPalette::draw(float window_width, float window_height) {
         ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b,
                opacity_ * 0.8f));
 
-    // Shadow effect via a slightly larger background rect
+    // Layered shadow for depth — modern frosted glass feel
     ImDrawList* bg_draw = ImGui::GetBackgroundDrawList();
-    float shadow_offset = 8.0f;
+    // Outer soft shadow
     bg_draw->AddRectFilled(
-        ImVec2(palette_x - 2, palette_y - 2),
-        ImVec2(palette_x + palette_w + 2, palette_y + palette_h + shadow_offset),
-        IM_COL32(0, 0, 0, static_cast<int>(60 * opacity_)),
+        ImVec2(palette_x - 4, palette_y - 2),
+        ImVec2(palette_x + palette_w + 4, palette_y + palette_h + 12),
+        IM_COL32(0, 0, 0, static_cast<int>(25 * opacity_)),
+        ui::tokens::RADIUS_LG + 6);
+    // Inner crisp shadow
+    bg_draw->AddRectFilled(
+        ImVec2(palette_x - 1, palette_y),
+        ImVec2(palette_x + palette_w + 1, palette_y + palette_h + 4),
+        IM_COL32(0, 0, 0, static_cast<int>(45 * opacity_)),
         ui::tokens::RADIUS_LG + 2);
 
     ImGuiWindowFlags palette_flags =
@@ -261,17 +267,17 @@ bool CommandPalette::draw(float window_width, float window_height) {
                 ImVec2 item_pos = ImGui::GetCursorScreenPos();
                 float item_w = ImGui::GetContentRegionAvail().x;
 
-                // Highlight selected item
+                // Highlight selected item — subtle rounded highlight
                 if (is_selected) {
                     ImGui::GetWindowDrawList()->AddRectFilled(
-                        item_pos,
-                        ImVec2(item_pos.x + item_w, item_pos.y + RESULT_ITEM_HEIGHT),
+                        ImVec2(item_pos.x + 3, item_pos.y + 1),
+                        ImVec2(item_pos.x + item_w - 3, item_pos.y + RESULT_ITEM_HEIGHT - 1),
                         IM_COL32(
                             static_cast<int>(colors.accent_muted.r * 255),
                             static_cast<int>(colors.accent_muted.g * 255),
                             static_cast<int>(colors.accent_muted.b * 255),
-                            80),
-                        ui::tokens::RADIUS_SM);
+                            60),
+                        ui::tokens::RADIUS_MD);
                 }
 
                 // Invisible button for click handling
@@ -311,17 +317,17 @@ bool CommandPalette::draw(float window_width, float window_height) {
                     float badge_x = item_pos.x + item_w - shortcut_size.x - ui::tokens::SPACE_4;
                     float badge_y = text_pos.y;
 
-                    // Badge background
+                    // Badge background — pill-shaped
                     ImGui::GetWindowDrawList()->AddRectFilled(
-                        ImVec2(badge_x - ui::tokens::SPACE_1, badge_y - 2),
-                        ImVec2(badge_x + shortcut_size.x + ui::tokens::SPACE_1,
-                               badge_y + shortcut_size.y + 2),
+                        ImVec2(badge_x - ui::tokens::SPACE_2, badge_y - 3),
+                        ImVec2(badge_x + shortcut_size.x + ui::tokens::SPACE_2,
+                               badge_y + shortcut_size.y + 3),
                         IM_COL32(
                             static_cast<int>(colors.bg_tertiary.r * 255),
                             static_cast<int>(colors.bg_tertiary.g * 255),
                             static_cast<int>(colors.bg_tertiary.b * 255),
-                            200),
-                        ui::tokens::RADIUS_SM);
+                            180),
+                        ui::tokens::RADIUS_PILL);
 
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2(badge_x, badge_y),

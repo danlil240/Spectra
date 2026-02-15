@@ -94,9 +94,22 @@ void Renderer::update_frame_ubo(uint32_t width, uint32_t height, float time) {
     ubo.projection[5]  = 1.0f;
     ubo.projection[10] = 1.0f;
     ubo.projection[15] = 1.0f;
+    // Identity view matrix (2D default)
+    ubo.view[0]  = 1.0f;
+    ubo.view[5]  = 1.0f;
+    ubo.view[10] = 1.0f;
+    ubo.view[15] = 1.0f;
+    // Identity model matrix (2D default)
+    ubo.model[0]  = 1.0f;
+    ubo.model[5]  = 1.0f;
+    ubo.model[10] = 1.0f;
+    ubo.model[15] = 1.0f;
     ubo.viewport_width  = static_cast<float>(width);
     ubo.viewport_height = static_cast<float>(height);
     ubo.time = time;
+    // 3D defaults (unused in 2D, but must be initialized)
+    ubo.near_plane = 0.01f;
+    ubo.far_plane  = 1000.0f;
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
 }
@@ -165,9 +178,17 @@ void Renderer::render_axes(Axes& axes, const Rect& viewport,
 
     FrameUBO ubo {};
     build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
+    // Identity view matrix (2D)
+    ubo.view[0]  = 1.0f; ubo.view[5]  = 1.0f;
+    ubo.view[10] = 1.0f; ubo.view[15] = 1.0f;
+    // Identity model matrix (2D)
+    ubo.model[0]  = 1.0f; ubo.model[5]  = 1.0f;
+    ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
     ubo.viewport_width  = viewport.w;
     ubo.viewport_height = viewport.h;
     ubo.time = 0.0f;
+    ubo.near_plane = 0.01f;
+    ubo.far_plane  = 1000.0f;
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);

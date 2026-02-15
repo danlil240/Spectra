@@ -96,7 +96,15 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
             os << "          \"marker_size\": " << s.marker_size << ",\n";
             os << "          \"visible\": " << (s.visible ? "true" : "false") << ",\n";
             os << "          \"point_count\": " << s.point_count << ",\n";
-            os << "          \"opacity\": " << s.opacity << "\n";
+            os << "          \"opacity\": " << s.opacity << ",\n";
+            os << "          \"line_style\": " << s.line_style << ",\n";
+            os << "          \"marker_style\": " << s.marker_style << ",\n";
+            os << "          \"dash_pattern\": [";
+            for (size_t di = 0; di < s.dash_pattern.size(); ++di) {
+                if (di > 0) os << ", ";
+                os << s.dash_pattern[di];
+            }
+            os << "]\n";
             os << "        }";
             if (si + 1 < fig.series.size()) os << ",";
             os << "\n";
@@ -130,7 +138,62 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
 
     // Undo metadata
     os << "  \"undo_count\": " << data.undo_count << ",\n";
-    os << "  \"redo_count\": " << data.redo_count << "\n";
+    os << "  \"redo_count\": " << data.redo_count << ",\n";
+
+    // v3: Axis link state
+    os << "  \"axis_link_state\": \"" << escape_json(data.axis_link_state) << "\",\n";
+
+    // v3: Data transform pipelines
+    os << "  \"transforms\": [\n";
+    for (size_t ti = 0; ti < data.transforms.size(); ++ti) {
+        const auto& t = data.transforms[ti];
+        os << "    {\n";
+        os << "      \"figure_index\": " << t.figure_index << ",\n";
+        os << "      \"axes_index\": " << t.axes_index << ",\n";
+        os << "      \"steps\": [\n";
+        for (size_t si = 0; si < t.steps.size(); ++si) {
+            const auto& s = t.steps[si];
+            os << "        {\"type\": " << s.type
+               << ", \"param\": " << s.param
+               << ", \"enabled\": " << (s.enabled ? "true" : "false") << "}";
+            if (si + 1 < t.steps.size()) os << ",";
+            os << "\n";
+        }
+        os << "      ]\n";
+        os << "    }";
+        if (ti + 1 < data.transforms.size()) os << ",";
+        os << "\n";
+    }
+    os << "  ],\n";
+
+    // v3: Shortcut overrides
+    os << "  \"shortcut_overrides\": [\n";
+    for (size_t si = 0; si < data.shortcut_overrides.size(); ++si) {
+        const auto& o = data.shortcut_overrides[si];
+        os << "    {\"command\": \"" << escape_json(o.command_id)
+           << "\", \"shortcut\": \"" << escape_json(o.shortcut_str)
+           << "\", \"removed\": " << (o.removed ? "true" : "false") << "}";
+        if (si + 1 < data.shortcut_overrides.size()) os << ",";
+        os << "\n";
+    }
+    os << "  ],\n";
+
+    // v3: Timeline state
+    os << "  \"timeline\": {\n";
+    os << "    \"playhead\": " << data.timeline.playhead << ",\n";
+    os << "    \"duration\": " << data.timeline.duration << ",\n";
+    os << "    \"fps\": " << data.timeline.fps << ",\n";
+    os << "    \"loop_mode\": " << data.timeline.loop_mode << ",\n";
+    os << "    \"loop_start\": " << data.timeline.loop_start << ",\n";
+    os << "    \"loop_end\": " << data.timeline.loop_end << ",\n";
+    os << "    \"playing\": " << (data.timeline.playing ? "true" : "false") << "\n";
+    os << "  },\n";
+
+    // v3: Plugin state
+    os << "  \"plugin_state\": \"" << escape_json(data.plugin_state) << "\",\n";
+
+    // v3: Data palette name
+    os << "  \"data_palette_name\": \"" << escape_json(data.data_palette_name) << "\"\n";
     os << "}\n";
 
     return os.str();
@@ -297,6 +360,31 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
             s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
+            // v3 fields
+            if (data.version >= 3) {
+                s.line_style = static_cast<int>(read_number_value(ser_json, "line_style", 1));
+                s.marker_style = static_cast<int>(read_number_value(ser_json, "marker_style", 0));
+                // Parse dash_pattern array
+                auto dp_pos = ser_json.find("\"dash_pattern\"");
+                if (dp_pos != std::string::npos) {
+                    auto bracket = ser_json.find('[', dp_pos);
+                    auto end_bracket = ser_json.find(']', bracket);
+                    if (bracket != std::string::npos && end_bracket != std::string::npos) {
+                        std::string dp_str = ser_json.substr(bracket + 1, end_bracket - bracket - 1);
+                        size_t p = 0;
+                        while (p < dp_str.size()) {
+                            while (p < dp_str.size() && (dp_str[p] == ' ' || dp_str[p] == ',')) ++p;
+                            if (p >= dp_str.size()) break;
+                            char* endp = nullptr;
+                            float v = std::strtof(dp_str.c_str() + p, &endp);
+                            if (endp != dp_str.c_str() + p) {
+                                s.dash_pattern.push_back(v);
+                                p = static_cast<size_t>(endp - dp_str.c_str());
+                            } else break;
+                        }
+                    }
+                }
+            }
             fig.series.push_back(std::move(s));
         }
 
@@ -335,6 +423,64 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
 
         data.undo_count = static_cast<size_t>(read_number_value(json, "undo_count", 0));
         data.redo_count = static_cast<size_t>(read_number_value(json, "redo_count", 0));
+    }
+
+    // v3 fields
+    if (data.version >= 3) {
+        data.axis_link_state = read_string_value(json, "axis_link_state");
+        data.data_palette_name = read_string_value(json, "data_palette_name");
+        data.plugin_state = read_string_value(json, "plugin_state");
+
+        // Parse transforms array
+        auto transform_objects = parse_json_array(json, "transforms");
+        for (const auto& t_json : transform_objects) {
+            WorkspaceData::TransformState ts;
+            ts.figure_index = static_cast<size_t>(read_number_value(t_json, "figure_index", 0));
+            ts.axes_index = static_cast<size_t>(read_number_value(t_json, "axes_index", 0));
+            auto step_objects = parse_json_array(t_json, "steps");
+            for (const auto& s_json : step_objects) {
+                WorkspaceData::TransformState::Step step;
+                step.type = static_cast<int>(read_number_value(s_json, "type", 0));
+                step.param = static_cast<float>(read_number_value(s_json, "param", 0));
+                step.enabled = read_bool_value(s_json, "enabled", true);
+                ts.steps.push_back(std::move(step));
+            }
+            data.transforms.push_back(std::move(ts));
+        }
+
+        // Parse shortcut overrides
+        auto override_objects = parse_json_array(json, "shortcut_overrides");
+        for (const auto& o_json : override_objects) {
+            WorkspaceData::ShortcutOverride so;
+            so.command_id = read_string_value(o_json, "command");
+            so.shortcut_str = read_string_value(o_json, "shortcut");
+            so.removed = read_bool_value(o_json, "removed", false);
+            if (!so.command_id.empty()) {
+                data.shortcut_overrides.push_back(std::move(so));
+            }
+        }
+
+        // Parse timeline state
+        auto tl_pos = json.find("\"timeline\"");
+        if (tl_pos != std::string::npos) {
+            auto brace = json.find('{', tl_pos);
+            if (brace != std::string::npos) {
+                int depth = 0;
+                size_t end = brace;
+                for (size_t i = brace; i < json.size(); ++i) {
+                    if (json[i] == '{') ++depth;
+                    else if (json[i] == '}') { --depth; if (depth == 0) { end = i; break; } }
+                }
+                std::string tl_json = json.substr(brace, end - brace + 1);
+                data.timeline.playhead = static_cast<float>(read_number_value(tl_json, "playhead", 0));
+                data.timeline.duration = static_cast<float>(read_number_value(tl_json, "duration", 10));
+                data.timeline.fps = static_cast<float>(read_number_value(tl_json, "fps", 30));
+                data.timeline.loop_mode = static_cast<int>(read_number_value(tl_json, "loop_mode", 0));
+                data.timeline.loop_start = static_cast<float>(read_number_value(tl_json, "loop_start", 0));
+                data.timeline.loop_end = static_cast<float>(read_number_value(tl_json, "loop_end", 0));
+                data.timeline.playing = read_bool_value(tl_json, "playing", false);
+            }
+        }
     }
 
     return true;

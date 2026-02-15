@@ -1,6 +1,7 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "data_interaction.hpp"
+#include "axis_link.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
@@ -54,6 +55,20 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure) {
         }
     }
 
+    // Broadcast shared cursor to linked axes
+    if (axis_link_mgr_ && active_axes_ && cursor.valid) {
+        SharedCursor sc;
+        sc.valid = true;
+        sc.data_x = xlim_min_ + (static_cast<float>(cursor.screen_x) - active_viewport_.x) / active_viewport_.w * (xlim_max_ - xlim_min_);
+        sc.data_y = ylim_max_ - (static_cast<float>(cursor.screen_y) - active_viewport_.y) / active_viewport_.h * (ylim_max_ - ylim_min_);
+        sc.screen_x = cursor.screen_x;
+        sc.screen_y = cursor.screen_y;
+        sc.source_axes = active_axes_;
+        axis_link_mgr_->update_shared_cursor(sc);
+    } else if (axis_link_mgr_) {
+        axis_link_mgr_->clear_shared_cursor();
+    }
+
     // Run nearest-point query
     nearest_ = find_nearest(cursor, figure);
 }
@@ -85,7 +100,7 @@ void DataInteraction::draw_overlays(float window_width, float window_height) {
 
     // Draw crosshair: use multi-axes mode if figure has multiple axes
     if (last_figure_ && last_figure_->axes().size() > 1) {
-        crosshair_.draw_all_axes(last_cursor_, *last_figure_);
+        crosshair_.draw_all_axes(last_cursor_, *last_figure_, axis_link_mgr_);
     } else if (active_axes_) {
         crosshair_.draw(last_cursor_, active_viewport_,
                         xlim_min_, xlim_max_, ylim_min_, ylim_max_);
@@ -96,12 +111,30 @@ void DataInteraction::draw_overlays(float window_width, float window_height) {
 }
 
 bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_y) {
-    if (!active_axes_) return false;
+    if (!active_axes_ || !last_figure_) return false;
 
-    // Left click: pin a marker at the nearest point
-    if (button == 0 && nearest_.found && nearest_.distance_px <= tooltip_.snap_radius()) {
-        markers_.add(nearest_.data_x, nearest_.data_y, nearest_.series, nearest_.point_index);
-        return true;
+    // Left click: select the nearest series (for inspector editing)
+    if (button == 0 && nearest_.found) {
+        // Use a generous snap radius for series selection — the user is clicking
+        // on lines/curves, not individual data points.  30px feels natural.
+        constexpr float SELECT_SNAP_PX = 30.0f;
+        if (nearest_.distance_px <= SELECT_SNAP_PX && on_series_selected_) {
+            // Find axes index and series index for the callback
+            int ax_idx = 0;
+            for (auto& axes_ptr : last_figure_->axes()) {
+                if (!axes_ptr) { ax_idx++; continue; }
+                int s_idx = 0;
+                for (auto& series_ptr : axes_ptr->series()) {
+                    if (series_ptr.get() == nearest_.series) {
+                        on_series_selected_(last_figure_, axes_ptr.get(),
+                                            ax_idx, series_ptr.get(), s_idx);
+                        return true;
+                    }
+                    s_idx++;
+                }
+                ax_idx++;
+            }
+        }
     }
 
     // Right click: remove a marker if clicking near one

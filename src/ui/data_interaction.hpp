@@ -9,7 +9,11 @@
 #include "legend_interaction.hpp"
 #include "input.hpp"
 
+#include <plotix/fwd.hpp>
+
 #include <plotix/figure.hpp>
+
+#include <functional>
 
 struct ImFont;
 
@@ -73,9 +77,18 @@ public:
     // Set the transition engine for animated markers/regions
     void set_transition_engine(class TransitionEngine* te);
 
+    // Set the axis link manager for shared cursor across subplots
+    void set_axis_link_manager(class AxisLinkManager* alm) { axis_link_mgr_ = alm; }
+    AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
+
     // Set snap radius for nearest-point detection (in pixels)
     void set_snap_radius(float px);
     float snap_radius() const { return tooltip_.snap_radius(); }
+
+    // Series selection callback: fired when user clicks near a series.
+    // Args: (Figure*, Axes*, int axes_index, Series*, int series_index)
+    using SeriesSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int)>;
+    void set_on_series_selected(SeriesSelectedCallback cb) { on_series_selected_ = std::move(cb); }
 
 private:
     // Perform nearest-point spatial query across all visible series in the active axes.
@@ -87,6 +100,12 @@ private:
     DataMarkerManager markers_;
     RegionSelect region_;
     LegendInteraction legend_;
+
+    // Axis link manager for shared cursor
+    AxisLinkManager* axis_link_mgr_ = nullptr;
+
+    // Series selection callback
+    SeriesSelectedCallback on_series_selected_;
 
     // Cached state for drawing
     CursorReadout last_cursor_;

@@ -129,43 +129,63 @@ void ThemeManager::apply_to_imgui() {
     auto& style = ImGui::GetStyle();
     const auto& colors = current_theme_->colors;
     
-    // Window styling
+    // ── Modern 2026 styling ──────────────────────────────────────────────
+    style.AntiAliasedLines = true;
+    style.AntiAliasedFill = true;
+    style.AntiAliasedLinesUseTex = true;
+
+    // Window styling — generous rounding, subtle borders
     style.WindowPadding = ImVec2(tokens::SPACE_4, tokens::SPACE_4);
-    style.WindowRounding = tokens::RADIUS_MD;
-    style.WindowBorderSize = current_theme_->border_width;
+    style.WindowRounding = tokens::RADIUS_LG;
+    style.WindowBorderSize = 0.5f;
     style.WindowMinSize = ImVec2(32, 32);
+    style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
     
-    // Frame styling
-    style.FramePadding = ImVec2(tokens::SPACE_3, tokens::SPACE_2);
-    style.FrameRounding = tokens::RADIUS_SM;
+    // Frame styling — pill-like inputs and controls
+    style.FramePadding = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
+    style.FrameRounding = tokens::RADIUS_MD;
     style.FrameBorderSize = 0.0f;
     
-    // Item spacing
-    style.ItemSpacing = ImVec2(tokens::SPACE_3, tokens::SPACE_3);
+    // Item spacing — breathing room
+    style.ItemSpacing = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
     style.ItemInnerSpacing = ImVec2(tokens::SPACE_2, tokens::SPACE_2);
     
     // Indent and separator
     style.IndentSpacing = tokens::SPACE_6;
-    style.SeparatorTextBorderSize = current_theme_->border_width;
+    style.SeparatorTextBorderSize = 0.5f;
     style.SeparatorTextAlign = ImVec2(0.5f, 0.5f);
-    style.SeparatorTextPadding = ImVec2(tokens::SPACE_4, tokens::SPACE_2);
+    style.SeparatorTextPadding = ImVec2(tokens::SPACE_5, tokens::SPACE_2);
     
-    // Scrollbar
-    style.ScrollbarSize = tokens::SPACE_3;
+    // Scrollbar — thin, pill-shaped, modern
+    style.ScrollbarSize = 6.0f;
     style.ScrollbarRounding = tokens::RADIUS_PILL;
     
-    // Grab
-    style.GrabMinSize = tokens::SPACE_3;
-    style.GrabRounding = tokens::RADIUS_SM;
+    // Grab — rounded slider handles
+    style.GrabMinSize = tokens::SPACE_4;
+    style.GrabRounding = tokens::RADIUS_PILL;
     
-    // Tab
-    style.TabRounding = tokens::RADIUS_SM;
-    style.TabBorderSize = current_theme_->border_width;
+    // Tab — rounded top corners
+    style.TabRounding = tokens::RADIUS_MD;
+    style.TabBorderSize = 0.0f;
     style.TabMinWidthForCloseButton = 0.0f;
+    style.TabBarBorderSize = 0.5f;
+    
+    // Popup — elevated, rounded
+    style.PopupRounding = tokens::RADIUS_LG;
+    style.PopupBorderSize = 0.5f;
+    
+    // Child window
+    style.ChildRounding = tokens::RADIUS_MD;
+    style.ChildBorderSize = 0.0f;
     
     // Button
     style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
     style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+    
+    // Tooltip — modern rounded
+    style.HoverStationaryDelay = 0.3f;
+    style.HoverDelayShort = 0.15f;
+    style.HoverDelayNormal = 0.4f;
     
     // Display safe area padding
     style.DisplaySafeAreaPadding = ImVec2(0.0f, 0.0f);

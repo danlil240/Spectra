@@ -51,6 +51,7 @@ public:
     void set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height) override;
     void draw(uint32_t vertex_count, uint32_t first_vertex) override;
     void draw_instanced(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex) override;
+    void draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset) override;
 
     bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) override;
 

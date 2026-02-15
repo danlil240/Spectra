@@ -45,6 +45,10 @@ public:
     void set_tab_bar_visible(bool visible);
     void reset_inspector_width();
 
+    // Bottom panel (timeline)
+    void set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
+    float bottom_panel_height() const { return bottom_panel_height_; }
+
 #if PLOTIX_FLOATING_TOOLBAR
     // Floating toolbar
     void set_floating_toolbar_visible(bool visible);
@@ -113,6 +117,7 @@ private:
     float nav_rail_collapsed_width_ = NAV_RAIL_COLLAPSED_WIDTH;
     float nav_rail_expanded_width_ = NAV_RAIL_EXPANDED_WIDTH;
     bool tab_bar_visible_ = false;
+    float bottom_panel_height_ = 0.0f;  // Timeline panel height (0 when hidden)
 
     // Animated state (smoothly interpolated toward targets)
     float inspector_anim_width_ = 0.0f;   // 0 when hidden

@@ -97,7 +97,7 @@ TEST_F(WorkspaceV2Test, V2RoundTrip) {
     WorkspaceData loaded;
     ASSERT_TRUE(Workspace::load(tmp_path, loaded));
 
-    EXPECT_EQ(loaded.version, 2u);
+    EXPECT_EQ(loaded.version, WorkspaceData::FORMAT_VERSION);
     EXPECT_EQ(loaded.theme_name, "dark");
     EXPECT_EQ(loaded.active_figure_index, 0u);
 

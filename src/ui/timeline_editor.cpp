@@ -1,7 +1,9 @@
 #include "ui/timeline_editor.hpp"
+#include "ui/keyframe_interpolator.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 
 #ifdef PLOTIX_USE_IMGUI
 #include "imgui.h"
@@ -103,6 +105,7 @@ bool TimelineEditor::advance(float dt) {
             ping_pong_dir_ = 1;
         }
         clamp_playhead();
+        if (interpolator_) interpolator_->evaluate(playhead_);
         return true;
     }
 
@@ -113,15 +116,18 @@ bool TimelineEditor::advance(float dt) {
             float overshoot = playhead_ - loop_end;
             playhead_ = loop_start + std::fmod(overshoot, loop_end - loop_start);
             clamp_playhead();
+            if (interpolator_) interpolator_->evaluate(playhead_);
             return true;
         }
         // LoopMode::None — stop at end
         playhead_ = loop_end;
+        if (interpolator_) interpolator_->evaluate(playhead_);
         state_ = PlaybackState::Stopped;
         fire_playback_change();
         return false;
     }
 
+    if (interpolator_) interpolator_->evaluate(playhead_);
     return true;
 }
 
@@ -665,6 +671,200 @@ KeyframeMarker* TimelineEditor::find_keyframe(uint32_t track_id, float time, flo
         }
     }
     return nullptr;
+}
+
+// ─── KeyframeInterpolator integration (Week 11) ─────────────────────────────
+
+void TimelineEditor::set_interpolator(KeyframeInterpolator* interp) {
+    std::lock_guard lock(mutex_);
+    interpolator_ = interp;
+}
+
+KeyframeInterpolator* TimelineEditor::interpolator() const {
+    std::lock_guard lock(mutex_);
+    return interpolator_;
+}
+
+void TimelineEditor::evaluate_at_playhead() {
+    std::lock_guard lock(mutex_);
+    if (interpolator_) {
+        interpolator_->evaluate(playhead_);
+    }
+}
+
+uint32_t TimelineEditor::add_animated_track(const std::string& name, float default_value,
+                                             Color color) {
+    std::lock_guard lock(mutex_);
+
+    // Add the visual track
+    uint32_t id = next_track_id_++;
+    TimelineTrack track;
+    track.id = id;
+    track.name = name;
+    track.color = color;
+    tracks_.push_back(std::move(track));
+
+    // Add a matching interpolator channel with the same ID
+    if (interpolator_) {
+        // We need to ensure the channel ID matches the track ID.
+        // The interpolator assigns IDs sequentially, so we add and track the mapping.
+        // For simplicity, we use add_channel which returns its own ID.
+        // The track_id and channel_id may differ — we store the mapping in the track name.
+        interpolator_->add_channel(name, default_value);
+    }
+
+    return id;
+}
+
+void TimelineEditor::add_animated_keyframe(uint32_t track_id, float time, float value,
+                                            int interp_mode) {
+    std::lock_guard lock(mutex_);
+
+    // Add visual keyframe marker to the track
+    for (auto& t : tracks_) {
+        if (t.id == track_id) {
+            if (t.locked) return;
+
+            // Check for duplicate
+            for (const auto& kf : t.keyframes) {
+                if (std::abs(kf.time - time) < 0.001f) {
+                    // Update existing — just update the interpolator channel
+                    if (interpolator_) {
+                        TypedKeyframe tkf(time, value,
+                                          static_cast<InterpMode>(interp_mode));
+                        interpolator_->add_keyframe(track_id, tkf);
+                    }
+                    return;
+                }
+            }
+
+            KeyframeMarker kf;
+            kf.time = time;
+            kf.track_id = track_id;
+            t.keyframes.push_back(kf);
+
+            std::sort(t.keyframes.begin(), t.keyframes.end(),
+                      [](const KeyframeMarker& a, const KeyframeMarker& b) {
+                          return a.time < b.time;
+                      });
+
+            if (on_keyframe_added_) {
+                on_keyframe_added_(track_id, time);
+            }
+            break;
+        }
+    }
+
+    // Add typed keyframe to the interpolator channel
+    if (interpolator_) {
+        TypedKeyframe tkf(time, value, static_cast<InterpMode>(interp_mode));
+        interpolator_->add_keyframe(track_id, tkf);
+    }
+}
+
+std::string TimelineEditor::serialize() const {
+    std::lock_guard lock(mutex_);
+    std::ostringstream ss;
+    ss << "{\"duration\":" << duration_
+       << ",\"fps\":" << fps_
+       << ",\"loop_mode\":" << static_cast<int>(loop_mode_)
+       << ",\"snap_mode\":" << static_cast<int>(snap_mode_)
+       << ",\"snap_interval\":" << snap_interval_;
+
+    if (has_loop_region_) {
+        ss << ",\"loop_in\":" << loop_in_
+           << ",\"loop_out\":" << loop_out_;
+    }
+
+    // Serialize tracks
+    ss << ",\"tracks\":[";
+    for (size_t i = 0; i < tracks_.size(); ++i) {
+        if (i > 0) ss << ",";
+        const auto& t = tracks_[i];
+        ss << "{\"id\":" << t.id
+           << ",\"name\":\"" << t.name << "\""
+           << ",\"color\":[" << t.color.r << "," << t.color.g << ","
+                             << t.color.b << "," << t.color.a << "]"
+           << ",\"visible\":" << (t.visible ? "true" : "false")
+           << ",\"locked\":" << (t.locked ? "true" : "false")
+           << ",\"keyframes\":[";
+        for (size_t k = 0; k < t.keyframes.size(); ++k) {
+            if (k > 0) ss << ",";
+            ss << "{\"t\":" << t.keyframes[k].time << "}";
+        }
+        ss << "]}";
+    }
+    ss << "]";
+
+    // Include interpolator data if present
+    if (interpolator_) {
+        ss << ",\"interpolator\":" << interpolator_->serialize();
+    }
+
+    ss << "}";
+    return ss.str();
+}
+
+bool TimelineEditor::deserialize(const std::string& json) {
+    std::lock_guard lock(mutex_);
+
+    // Minimal parsing — extract key fields
+    auto extract_float = [&](const std::string& key, float def) -> float {
+        std::string search = "\"" + key + "\":";
+        auto pos = json.find(search);
+        if (pos == std::string::npos) return def;
+        pos += search.size();
+        try { return std::stof(json.substr(pos)); }
+        catch (...) { return def; }
+    };
+
+    auto extract_int = [&](const std::string& key, int def) -> int {
+        std::string search = "\"" + key + "\":";
+        auto pos = json.find(search);
+        if (pos == std::string::npos) return def;
+        pos += search.size();
+        try { return std::stoi(json.substr(pos)); }
+        catch (...) { return def; }
+    };
+
+    duration_ = extract_float("duration", 10.0f);
+    fps_ = extract_float("fps", 60.0f);
+    loop_mode_ = static_cast<LoopMode>(extract_int("loop_mode", 0));
+    snap_mode_ = static_cast<SnapMode>(extract_int("snap_mode", 1));
+    snap_interval_ = extract_float("snap_interval", 0.1f);
+
+    float li = extract_float("loop_in", -1.0f);
+    float lo = extract_float("loop_out", -1.0f);
+    if (li >= 0.0f && lo > li) {
+        loop_in_ = li;
+        loop_out_ = lo;
+        has_loop_region_ = true;
+    }
+
+    view_end_ = duration_;
+
+    // Deserialize interpolator data if present
+    if (interpolator_) {
+        auto interp_pos = json.find("\"interpolator\":");
+        if (interp_pos != std::string::npos) {
+            interp_pos += 16; // skip "interpolator":
+            // Find matching closing brace
+            int depth = 0;
+            size_t start = interp_pos;
+            for (size_t i = interp_pos; i < json.size(); ++i) {
+                if (json[i] == '{') depth++;
+                else if (json[i] == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        interpolator_->deserialize(json.substr(start, i - start + 1));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 // ─── ImGui Drawing ───────────────────────────────────────────────────────────

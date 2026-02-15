@@ -13,6 +13,8 @@
 
 namespace plotix {
 
+class KeyframeInterpolator;
+
 // Playback state for the timeline editor.
 enum class PlaybackState {
     Stopped,
@@ -217,6 +219,33 @@ public:
     void set_on_keyframe_removed(KeyframeCallback cb);
     void set_on_selection_change(SelectionCallback cb);
 
+    // ─── KeyframeInterpolator integration (Week 11) ────────────────────
+
+    // Set the KeyframeInterpolator to drive property animation.
+    // When set, advance() will also evaluate the interpolator at the playhead.
+    void set_interpolator(KeyframeInterpolator* interp);
+    KeyframeInterpolator* interpolator() const;
+
+    // Evaluate the interpolator at the current playhead time.
+    // Called automatically during advance() when an interpolator is set.
+    void evaluate_at_playhead();
+
+    // Create a track and a matching interpolator channel, linked by track_id.
+    // Returns the track_id (which also serves as the channel_id).
+    uint32_t add_animated_track(const std::string& name, float default_value = 0.0f,
+                                 Color color = colors::cyan);
+
+    // Add a keyframe to both the track (visual marker) and the interpolator channel.
+    // interp_mode: 0=Step, 1=Linear, 2=CubicBezier, 3=Spring, 4=EaseIn, 5=EaseOut, 6=EaseInOut
+    void add_animated_keyframe(uint32_t track_id, float time, float value,
+                                int interp_mode = 1);
+
+    // Serialize timeline state + interpolator to a JSON string.
+    std::string serialize() const;
+
+    // Deserialize timeline state + interpolator from a JSON string.
+    bool deserialize(const std::string& json);
+
     // ─── ImGui Drawing ───────────────────────────────────────────────────
 #ifdef PLOTIX_USE_IMGUI
     // Draw the timeline editor panel. Call once per frame.
@@ -251,6 +280,9 @@ private:
     float view_start_ = 0.0f;
     float view_end_   = 10.0f;
     float zoom_       = 100.0f;  // pixels per second
+
+    // KeyframeInterpolator (optional, not owned)
+    KeyframeInterpolator* interpolator_ = nullptr;
 
     // Callbacks
     PlaybackCallback  on_playback_change_;

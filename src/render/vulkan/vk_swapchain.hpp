@@ -16,6 +16,11 @@ struct SwapchainContext {
     VkRenderPass             render_pass  = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> framebuffers;
     uint32_t                 current_image_index = 0;
+    // Depth buffer (shared across all framebuffers)
+    VkImage        depth_image  = VK_NULL_HANDLE;
+    VkDeviceMemory depth_memory = VK_NULL_HANDLE;
+    VkImageView    depth_view   = VK_NULL_HANDLE;
+    VkFormat       depth_format = VK_FORMAT_D32_SFLOAT;
 };
 
 struct SwapchainSupportDetails {
@@ -30,7 +35,8 @@ VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& 
 VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes);
 VkExtent2D choose_extent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t width, uint32_t height);
 
-VkRenderPass create_render_pass(VkDevice device, VkFormat color_format);
+VkRenderPass create_render_pass(VkDevice device, VkFormat color_format,
+                                VkFormat depth_format = VK_FORMAT_D32_SFLOAT);
 
 SwapchainContext create_swapchain(VkDevice device,
                                   VkPhysicalDevice physical_device,
@@ -52,6 +58,11 @@ struct OffscreenContext {
     VkFramebuffer  framebuffer  = VK_NULL_HANDLE;
     VkFormat       format       = VK_FORMAT_R8G8B8A8_UNORM;
     VkExtent2D     extent       = {0, 0};
+    // Depth buffer
+    VkImage        depth_image  = VK_NULL_HANDLE;
+    VkDeviceMemory depth_memory = VK_NULL_HANDLE;
+    VkImageView    depth_view   = VK_NULL_HANDLE;
+    VkFormat       depth_format = VK_FORMAT_D32_SFLOAT;
 };
 
 OffscreenContext create_offscreen_framebuffer(VkDevice device,
@@ -59,5 +70,8 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
                                               uint32_t width, uint32_t height);
 
 void destroy_offscreen(VkDevice device, OffscreenContext& ctx);
+
+// Find a suitable depth format supported by the physical device
+VkFormat find_depth_format(VkPhysicalDevice physical_device);
 
 } // namespace plotix::vk

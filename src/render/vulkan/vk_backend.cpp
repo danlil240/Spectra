@@ -327,6 +327,11 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
         case PipelineType::Heatmap:
+        case PipelineType::Line3D:
+        case PipelineType::Scatter3D:
+        case PipelineType::Mesh3D:
+        case PipelineType::Surface3D:
+        case PipelineType::Grid3D:
             return VK_NULL_HANDLE; // Not yet implemented
     }
 
@@ -808,13 +813,14 @@ void VulkanBackend::end_frame() {
 }
 
 void VulkanBackend::begin_render_pass(const Color& clear_color) {
-    VkClearValue clear_value {};
-    clear_value.color = {{clear_color.r, clear_color.g, clear_color.b, clear_color.a}};
+    VkClearValue clear_values[2] {};
+    clear_values[0].color = {{clear_color.r, clear_color.g, clear_color.b, clear_color.a}};
+    clear_values[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo info {};
     info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    info.clearValueCount = 1;
-    info.pClearValues    = &clear_value;
+    info.clearValueCount = 2;
+    info.pClearValues    = clear_values;
 
     if (headless_) {
         info.renderPass  = offscreen_.render_pass;
@@ -907,6 +913,10 @@ void VulkanBackend::draw(uint32_t vertex_count, uint32_t first_vertex) {
 
 void VulkanBackend::draw_instanced(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex) {
     vkCmdDraw(current_cmd_, vertex_count, instance_count, first_vertex, 0);
+}
+
+void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset) {
+    vkCmdDrawIndexed(current_cmd_, index_count, 1, first_index, vertex_offset, 0);
 }
 
 bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) {

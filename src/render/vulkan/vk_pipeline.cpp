@@ -65,12 +65,12 @@ VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& confi
     rasterizer.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth   = 1.0f;
-    rasterizer.cullMode    = VK_CULL_MODE_NONE;
+    rasterizer.cullMode    = config.enable_backface_cull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
     rasterizer.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo multisampling {};
     multisampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = config.msaa_samples;
 
     VkPipelineColorBlendAttachmentState blend_attachment {};
     blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
@@ -90,6 +90,14 @@ VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& confi
     color_blending.attachmentCount = 1;
     color_blending.pAttachments    = &blend_attachment;
 
+    VkPipelineDepthStencilStateCreateInfo depth_stencil {};
+    depth_stencil.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil.depthTestEnable       = config.enable_depth_test  ? VK_TRUE : VK_FALSE;
+    depth_stencil.depthWriteEnable      = config.enable_depth_write ? VK_TRUE : VK_FALSE;
+    depth_stencil.depthCompareOp        = config.depth_compare_op;
+    depth_stencil.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil.stencilTestEnable     = VK_FALSE;
+
     VkGraphicsPipelineCreateInfo pipeline_info {};
     pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_info.stageCount          = 2;
@@ -99,6 +107,7 @@ VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& confi
     pipeline_info.pViewportState      = &viewport_state;
     pipeline_info.pRasterizationState = &rasterizer;
     pipeline_info.pMultisampleState   = &multisampling;
+    pipeline_info.pDepthStencilState  = &depth_stencil;
     pipeline_info.pColorBlendState    = &color_blending;
     pipeline_info.pDynamicState       = &dynamic_state;
     pipeline_info.layout              = config.pipeline_layout;

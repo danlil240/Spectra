@@ -9,6 +9,7 @@
 namespace plotix {
 
 class AnimationController;
+class AxisLinkManager;
 class DataInteraction;
 class GestureRecognizer;
 class ShortcutManager;
@@ -95,6 +96,10 @@ public:
     void set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
     ShortcutManager* shortcut_manager() const { return shortcut_mgr_; }
 
+    // Set the axis link manager (owned externally by App)
+    void set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
+    AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
+
     // Key event: keyboard shortcuts
     void on_key(int key, int action, int mods);
 
@@ -125,10 +130,10 @@ public:
     void screen_to_data(double screen_x, double screen_y,
                         float& data_x, float& data_y) const;
 
-private:
-    // Hit-test: find which Axes the cursor is over
+    // Hit-test: find which Axes the cursor is over (public for context menu)
     Axes* hit_test_axes(double screen_x, double screen_y) const;
 
+private:
     // Get viewport for a given axes (from figure layout)
     const Rect& viewport_for_axes(const Axes* axes) const;
 
@@ -181,6 +186,9 @@ private:
 
     // Shortcut manager (not owned)
     ShortcutManager* shortcut_mgr_ = nullptr;
+
+    // Axis link manager (not owned)
+    AxisLinkManager* axis_link_mgr_ = nullptr;
 
     // Modifier key tracking (updated from on_key)
     int mods_ = 0;

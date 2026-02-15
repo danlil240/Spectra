@@ -214,8 +214,8 @@ bool slider_field(const char* label, float& value, float min, float max,
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
-    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
     ImGui::PushItemWidth(-1);
@@ -240,7 +240,7 @@ bool drag_field(const char* label, float& value, float speed,
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
@@ -264,7 +264,7 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed,
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
@@ -288,7 +288,7 @@ bool checkbox_field(const char* label, bool& value) {
     const auto& c = theme();
     ImGui::PushID(label);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
 
@@ -347,8 +347,8 @@ bool combo_field(const char* label, int& current, const char* const* items, int 
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
-    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, tokens::RADIUS_LG);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
@@ -371,7 +371,7 @@ bool text_field(const char* label, std::string& value) {
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
@@ -396,10 +396,10 @@ bool text_field(const char* label, std::string& value) {
 bool button_field(const char* label) {
     const auto& c = theme();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, c.accent_subtle.a));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.6f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, 0.7f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
 
     bool clicked = ImGui::Button(label, ImVec2(-1, 0));
@@ -415,14 +415,14 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active) {
     const auto& c = theme();
 
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, 0.4f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, c.accent_subtle.a));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
 
     ImFont* f = icon_font(tokens::ICON_SM);
@@ -434,8 +434,14 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active) {
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(3);
 
-    if (tooltip && ImGui::IsItemHovered()) {
+    if (tooltip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_MD);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
         ImGui::SetTooltip("%s", tooltip);
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
     }
 
     return clicked;
@@ -459,7 +465,7 @@ void color_swatch(const plotix::Color& color, float size) {
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(color.r, color.g, color.b, color.a));
-    draw->AddRectFilled(pos, ImVec2(pos.x + size, pos.y + size), col, 3.0f);
+    draw->AddRectFilled(pos, ImVec2(pos.x + size, pos.y + size), col, tokens::RADIUS_SM);
     ImGui::Dummy(ImVec2(size, size));
 }
 

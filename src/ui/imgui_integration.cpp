@@ -1,11 +1,16 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "imgui_integration.hpp"
+#include "animation_curve_editor.hpp"
+#include "axis_link.hpp"
 #include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
 #include "data_interaction.hpp"
+#include "data_transform.hpp"
 #include "dock_system.hpp"
+#include "keyframe_interpolator.hpp"
 #include "theme.hpp"
+#include "timeline_editor.hpp"
 #include "design_tokens.hpp"
 #include "icons.hpp"
 #include "widgets.hpp"
@@ -129,6 +134,7 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     }
     
     PLOTIX_LOG_TRACE("ui", "Building UI for figure");
+    current_figure_ = &figure;
 
     float dt = ImGui::GetIO().DeltaTime;
     ui::ThemeManager::instance().update(dt);
@@ -137,11 +143,22 @@ void ImGuiIntegration::build_ui(Figure& figure) {
     panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
     if (std::abs(panel_anim_ - target) < 0.002f) panel_anim_ = target;
 
+    // Update bottom panel height so canvas shrinks when timeline is open
+    if (layout_manager_) {
+        float target_h = (show_timeline_ && timeline_editor_) ? 200.0f : 0.0f;
+        float cur_h = layout_manager_->bottom_panel_height();
+        float new_h = cur_h + (target_h - cur_h) * std::min(1.0f, 12.0f * dt);
+        if (std::abs(new_h - target_h) < 0.5f) new_h = target_h;
+        layout_manager_->set_bottom_panel_height(new_h);
+    }
+
     // Draw all zones using layout manager
     draw_command_bar();
     draw_nav_rail();
     draw_canvas(figure);
     draw_plot_text(figure);
+    draw_axis_link_indicators(figure);
+    draw_axes_context_menu(figure);
     if (layout_manager_->is_inspector_visible()) {
         draw_inspector(figure);
     }
@@ -151,6 +168,16 @@ void ImGuiIntegration::build_ui(Figure& figure) {
 #if PLOTIX_FLOATING_TOOLBAR
     draw_floating_toolbar();
 #endif
+
+    // Draw timeline panel (Agent G — bottom dock)
+    if (show_timeline_ && timeline_editor_) {
+        draw_timeline_panel();
+    }
+
+    // Draw curve editor window (Agent G — floating)
+    if (show_curve_editor_ && curve_editor_) {
+        draw_curve_editor_panel();
+    }
 
     // Draw data interaction overlays (tooltip, crosshair, markers) on top of everything
     if (data_interaction_) {
@@ -197,8 +224,27 @@ bool ImGuiIntegration::wants_capture_mouse() const {
                       ", item_hovered: " + std::string(any_item_hovered ? "true" : "false") + 
                       ", item_active: " + std::string(any_item_active ? "true" : "false"));
     
-    // Original logic: capture if ImGui wants it AND we're over any window/item
-    return wants_capture && (any_window_hovered || any_item_hovered || any_item_active);
+    // If an ImGui item is actively being interacted with (e.g. dragging a slider),
+    // always capture — regardless of cursor position.
+    if (any_item_active) return true;
+
+    // If the cursor is inside the canvas area, let mouse events pass through to
+    // InputHandler even when ImGui windows overlap (floating toolbar, status bar
+    // edges, etc.).  The canvas ##window has NoInputs so it shouldn't capture,
+    // but adjacent/overlapping windows cause false positives.
+    if (layout_manager_) {
+        Rect canvas = layout_manager_->canvas_rect();
+        ImVec2 mouse = ImGui::GetIO().MousePos;
+        if (mouse.x >= canvas.x && mouse.x <= canvas.x + canvas.w &&
+            mouse.y >= canvas.y && mouse.y <= canvas.y + canvas.h) {
+            // Only capture if an actual interactive item (button, slider, etc.)
+            // is hovered — not just a passive window background.
+            return any_item_hovered;
+        }
+    }
+
+    // Outside canvas: original logic
+    return wants_capture && (any_window_hovered || any_item_hovered);
 }
 bool ImGuiIntegration::wants_capture_keyboard() const {
     return initialized_ && ImGui::GetIO().WantCaptureKeyboard;
@@ -264,34 +310,31 @@ void ImGuiIntegration::apply_modern_style() {
 
 // ─── Icon sidebar ───────────────────────────────────────────────────────────
 
-// Helper: draw a clickable icon button with enhanced visual feedback
+// Helper: draw a clickable icon button with modern visual feedback — no hard borders
 static bool icon_button(const char* label, bool active, ImFont* font,
                         float size) {
     using namespace ui;
-    
+
     const auto& colors = theme();
     ImGui::PushFont(font);
 
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, colors.accent_muted.a));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.4f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, colors.text_secondary.a));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, colors.accent_subtle.a));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, colors.accent_muted.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.6f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
     bool clicked = ImGui::Button(label, ImVec2(size, size));
 
     ImGui::PopStyleVar(3);
-    ImGui::PopStyleColor(5);
+    ImGui::PopStyleColor(4);
     ImGui::PopFont();
     return clicked;
 }
@@ -318,98 +361,156 @@ void ImGuiIntegration::draw_panel(Figure& figure) {
 
 // ─── Legacy Panel Drawing Methods (To be removed after Agent C migration) ───
 
-// Helper for drawing dropdown menus
+// Helper for drawing dropdown menus — modern 2026 style with:
+//   • auto-close on mouse leave
+//   • hover-switch between adjacent menus
+//   • popup anchored to button's bottom-left corner
 void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items) {
+    const auto& colors = ui::theme();
+
     ImGui::PushFont(font_menubar_);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, colors.text_secondary.a));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 8));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-    
-    if (ImGui::Button(label)) {
-        PLOTIX_LOG_DEBUG("ui_button", "Menu button clicked: " + std::string(label));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.6f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, colors.accent_muted.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(14, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+
+    // Remember button rect for popup positioning and auto-close
+    ImVec2 btn_pos = ImGui::GetCursorScreenPos();
+    bool clicked = ImGui::Button(label);
+    ImVec2 btn_size = ImGui::GetItemRectSize();
+    ImVec2 btn_max = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
+    bool btn_hovered = ImGui::IsItemHovered();
+
+    // Click opens this menu
+    if (clicked) {
         ImGui::OpenPopup(label);
+        open_menu_label_ = label;
     }
-    
-    // Enhanced popup styling for modern look
+
+    // Hover-switch: if another menu is open and user hovers this button, switch
+    if (btn_hovered && !open_menu_label_.empty() && open_menu_label_ != label) {
+        ImGui::OpenPopup(label);
+        open_menu_label_ = label;
+    }
+
+    // Anchor popup at button's bottom-left corner (not at mouse position)
+    ImGui::SetNextWindowPos(ImVec2(btn_pos.x, btn_max.y + 2.0f));
+
+    // Modern popup styling
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 2));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));
+
     if (ImGui::BeginPopup(label)) {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
-        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(ui::theme().bg_secondary.r, ui::theme().bg_secondary.g, ui::theme().bg_secondary.b, ui::theme().bg_secondary.a));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
-        
+        // Track that this menu is the open one
+        open_menu_label_ = label;
+
+        // ── Auto-close: dismiss when mouse moves away from button + popup ──
+        ImVec2 mouse = ImGui::GetIO().MousePos;
+        ImVec2 popup_pos = ImGui::GetWindowPos();
+        ImVec2 popup_size = ImGui::GetWindowSize();
+        float margin = 20.0f;
+
+        // Combined rect of button + popup + margin
+        float combined_min_x = std::min(btn_pos.x, popup_pos.x) - margin;
+        float combined_min_y = std::min(btn_pos.y, popup_pos.y) - margin;
+        float combined_max_x = std::max(btn_max.x, popup_pos.x + popup_size.x) + margin;
+        float combined_max_y = std::max(btn_max.y, popup_pos.y + popup_size.y) + margin;
+
+        bool mouse_in_zone = (mouse.x >= combined_min_x && mouse.x <= combined_max_x &&
+                              mouse.y >= combined_min_y && mouse.y <= combined_max_y);
+
+        if (!mouse_in_zone && !ImGui::IsAnyItemActive()) {
+            ImGui::CloseCurrentPopup();
+            open_menu_label_.clear();
+        }
+
+        // Draw shadow behind popup
+        ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+        bg_dl->AddRectFilled(
+            ImVec2(popup_pos.x + 2, popup_pos.y + 3),
+            ImVec2(popup_pos.x + popup_size.x + 2, popup_pos.y + popup_size.y + 5),
+            IM_COL32(0, 0, 0, 30), ui::tokens::RADIUS_LG + 2);
+
         for (const auto& item : items) {
             if (item.label.empty()) {
-                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
                 ImGui::Separator();
                 ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
             } else {
-                // Enhanced menu item styling
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, colors.text_primary.a));
                 ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
-                
-                if (ImGui::MenuItem(item.label.c_str())) {
-                    PLOTIX_LOG_DEBUG("ui_button", "Menu item clicked: " + item.label);
-                    if (item.callback) {
-                        PLOTIX_LOG_DEBUG("ui_button", "Executing menu item callback: " + item.label);
-                        item.callback();
-                        PLOTIX_LOG_DEBUG("ui_button", "Menu item callback completed: " + item.label);
-                    } else {
-                        PLOTIX_LOG_WARN("ui_button", "Menu item clicked but callback is null: " + item.label);
-                    }
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
+                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+
+                float item_h = ImGui::GetTextLineHeight() + 10.0f;
+                if (ImGui::Selectable(item.label.c_str(), false, ImGuiSelectableFlags_None, ImVec2(0, item_h))) {
+                    if (item.callback) item.callback();
+                    open_menu_label_.clear();
                 }
-                
+
+                ImGui::PopStyleVar();
                 ImGui::PopStyleColor(4);
             }
         }
-        
-        ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(3);
+
         ImGui::EndPopup();
+    } else {
+        // Popup closed (e.g. by clicking outside) — clear tracking if this was the open one
+        if (open_menu_label_ == label) {
+            open_menu_label_.clear();
+        }
     }
-    
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(4);
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(4);
     ImGui::PopFont();
 }
 
-// Helper for drawing toolbar buttons with tooltips
+// Helper for drawing toolbar buttons with modern hover styling and themed tooltips
 void ImGuiIntegration::draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active) {
+    const auto& colors = ui::theme();
     ImFont* icon_font = ui::icon_font(ui::tokens::ICON_MD);
     ImGui::PushFont(icon_font ? icon_font : font_icon_);
-    
+
     if (is_active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_secondary.r, ui::theme().text_secondary.g, ui::theme().text_secondary.b, ui::theme().text_secondary.a));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, colors.text_secondary.a));
     }
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 6));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+
     if (ImGui::Button(icon)) {
-        PLOTIX_LOG_DEBUG("ui_button", "Toolbar button clicked: " + std::string(icon));
-        if (callback) {
-            PLOTIX_LOG_DEBUG("ui_button", "Executing callback for button: " + std::string(icon));
-            callback();
-            PLOTIX_LOG_DEBUG("ui_button", "Callback executed successfully for: " + std::string(icon));
-        } else {
-            PLOTIX_LOG_WARN("ui_button", "Button clicked but callback is null: " + std::string(icon));
-        }
+        if (callback) callback();
     }
-    
-    if (ImGui::IsItemHovered() && tooltip) {
+
+    // Modern themed tooltip
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && tooltip) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.95f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, colors.text_primary.a));
         ImGui::SetTooltip("%s", tooltip);
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
     }
-    
+
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(4);
     ImGui::PopFont();
@@ -498,6 +599,94 @@ void ImGuiIntegration::draw_command_bar() {
         
         ImGui::SameLine();
         
+        // Axes menu — link/unlink axes across subplots
+        {
+            std::vector<MenuItem> axes_items;
+
+            axes_items.emplace_back("Link X Axes", [this]() {
+                if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2) return;
+                auto gid = axis_link_mgr_->create_group("X Link", LinkAxis::X);
+                for (auto& ax : current_figure_->axes_mut()) {
+                    if (ax) axis_link_mgr_->add_to_group(gid, ax.get());
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked all axes on X");
+            });
+            axes_items.emplace_back("Link Y Axes", [this]() {
+                if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2) return;
+                auto gid = axis_link_mgr_->create_group("Y Link", LinkAxis::Y);
+                for (auto& ax : current_figure_->axes_mut()) {
+                    if (ax) axis_link_mgr_->add_to_group(gid, ax.get());
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked all axes on Y");
+            });
+            axes_items.emplace_back("Link All Axes", [this]() {
+                if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2) return;
+                auto gid = axis_link_mgr_->create_group("XY Link", LinkAxis::Both);
+                for (auto& ax : current_figure_->axes_mut()) {
+                    if (ax) axis_link_mgr_->add_to_group(gid, ax.get());
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked all axes on X+Y");
+            });
+            axes_items.emplace_back("", nullptr); // separator
+            axes_items.emplace_back("Unlink All", [this]() {
+                if (!axis_link_mgr_) return;
+                // Collect group IDs first (can't modify while iterating)
+                std::vector<LinkGroupId> ids;
+                for (auto& [id, group] : axis_link_mgr_->groups()) {
+                    ids.push_back(id);
+                }
+                for (auto id : ids) {
+                    axis_link_mgr_->remove_group(id);
+                }
+                axis_link_mgr_->clear_shared_cursor();
+                PLOTIX_LOG_INFO("axes_link", "Unlinked all axes");
+            });
+
+            draw_menubar_menu("Axes", axes_items);
+        }
+
+        ImGui::SameLine();
+
+        // Transforms menu — apply data transforms to series
+        {
+            std::vector<MenuItem> xform_items;
+            auto& registry = TransformRegistry::instance();
+            auto names = registry.available_transforms();
+
+            // Built-in transforms
+            for (const auto& name : names) {
+                xform_items.emplace_back(name, [this, name]() {
+                    if (!current_figure_) return;
+                    DataTransform xform;
+                    if (!TransformRegistry::instance().get_transform(name, xform)) return;
+
+                    // Apply to all visible series in all axes
+                    for (auto& ax : current_figure_->axes_mut()) {
+                        if (!ax) continue;
+                        for (auto& series_ptr : ax->series_mut()) {
+                            if (!series_ptr || !series_ptr->visible()) continue;
+
+                            if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get())) {
+                                std::vector<float> rx, ry;
+                                xform.apply_y(ls->x_data(), ls->y_data(), rx, ry);
+                                ls->set_x(rx).set_y(ry);
+                            } else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get())) {
+                                std::vector<float> rx, ry;
+                                xform.apply_y(sc->x_data(), sc->y_data(), rx, ry);
+                                sc->set_x(rx).set_y(ry);
+                            }
+                        }
+                        ax->auto_fit();
+                    }
+                    PLOTIX_LOG_INFO("transform", "Applied transform: " + name);
+                });
+            }
+
+            draw_menubar_menu("Transforms", xform_items);
+        }
+
+        ImGui::SameLine();
+
         // Tools menu
         draw_menubar_menu("Tools", {
             MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
@@ -588,6 +777,20 @@ void ImGuiIntegration::draw_nav_rail() {
         float pad_x = std::max(0.0f, (toolbar_w - margin * 2.0f - btn_size) * 0.5f);
 
         // ── Inspector section buttons ──
+        // Modern tooltip helper for nav rail
+        auto modern_tooltip = [&](const char* tip) {
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+                ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, 0.95f));
+                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_subtle.r, ui::theme().border_subtle.g, ui::theme().border_subtle.b, 0.3f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, 1.0f));
+                ImGui::SetTooltip("%s", tip);
+                ImGui::PopStyleColor(3);
+                ImGui::PopStyleVar(2);
+            }
+        };
+
         auto nav_btn = [&](ui::Icon icon, const char* tooltip, Section section) {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
             bool is_active = panel_open_ && active_section_ == section;
@@ -601,9 +804,7 @@ void ImGuiIntegration::draw_nav_rail() {
                     layout_manager_->set_inspector_visible(true);
                 }
             }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%s", tooltip);
-            }
+            modern_tooltip(tooltip);
         };
 
         nav_btn(ui::Icon::ScatterChart, "Figures", Section::Figure);
@@ -629,9 +830,7 @@ void ImGuiIntegration::draw_nav_rail() {
             if (icon_button(ui::icon_str(icon), is_active, font_icon_, btn_size)) {
                 interaction_mode_ = mode;
             }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%s", tooltip);
-            }
+            modern_tooltip(tooltip);
         };
 
         tool_btn(ui::Icon::Hand, "Pan (P)", ToolMode::Pan);
@@ -641,9 +840,7 @@ void ImGuiIntegration::draw_nav_rail() {
         // Measure button (no tool mode, standalone action)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
         icon_button(ui::icon_str(ui::Icon::Ruler), false, font_icon_, btn_size);
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", "Measure");
-        }
+        modern_tooltip("Measure");
 
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
@@ -662,9 +859,7 @@ void ImGuiIntegration::draw_nav_rail() {
         if (icon_button(ui::icon_str(ui::Icon::Settings), show_theme_settings_, font_icon_, btn_size)) {
             show_theme_settings_ = !show_theme_settings_;
         }
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", "Settings");
-        }
+        modern_tooltip("Settings");
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
@@ -1111,7 +1306,13 @@ void ImGuiIntegration::draw_split_view_splitters() {
 void ImGuiIntegration::draw_pane_tab_headers() {
     if (!dock_system_) return;
 
-    auto* draw_list = ImGui::GetForegroundDrawList();
+    // Normally use GetForegroundDrawList() so tab headers render on top of the
+    // canvas and other UI. But when any popup is open (menus, context menus),
+    // fall back to GetBackgroundDrawList() so the popup renders on top of tabs.
+    bool any_popup = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    auto* draw_list = any_popup ? ImGui::GetBackgroundDrawList()
+                                : ImGui::GetForegroundDrawList();
+
     auto& theme = ui::theme();
     float dt = ImGui::GetIO().DeltaTime;
     ImVec2 mouse = ImGui::GetMousePos();
@@ -1754,105 +1955,626 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
     // supports click-to-toggle visibility and drag-to-reposition.
 }
 
+// ─── Timeline Panel ──────────────────────────────────────────────────────────
+
+// Helper: transport icon button with modern styling
+static bool transport_button(const char* icon_label, bool active, bool accent,
+                             ImFont* font, float size, const ui::ThemeColors& colors) {
+    ImGui::PushFont(font);
+
+    ImVec4 bg, bg_hover, bg_active, text_col;
+    if (accent) {
+        bg        = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.9f);
+        bg_hover  = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+        bg_active = ImVec4(colors.accent.r * 0.8f, colors.accent.g * 0.8f, colors.accent.b * 0.8f, 1.0f);
+        text_col  = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    } else if (active) {
+        bg        = ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.35f);
+        bg_hover  = ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f);
+        bg_active = ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.6f);
+        text_col  = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+    } else {
+        bg        = ImVec4(0, 0, 0, 0);
+        bg_hover  = ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.1f);
+        bg_active = ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.2f);
+        text_col  = ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.85f);
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Button, bg);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_hover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_active);
+    ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+    bool clicked = ImGui::Button(icon_label, ImVec2(size, size));
+
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(4);
+    ImGui::PopFont();
+    return clicked;
+}
+
+void ImGuiIntegration::draw_timeline_panel() {
+    if (!timeline_editor_) return;
+
+    const auto& colors = ui::theme();
+    ImGuiIO& io = ImGui::GetIO();
+
+    float panel_height = layout_manager_ ? layout_manager_->bottom_panel_height() : 200.0f;
+    if (panel_height < 1.0f) return;  // Animating closed
+
+    float status_bar_h = LayoutManager::STATUS_BAR_HEIGHT;
+    float panel_y = io.DisplaySize.y - status_bar_h - panel_height;
+    float nav_w = layout_manager_ ? layout_manager_->nav_rail_animated_width() : 48.0f;
+    float inspector_w = (layout_manager_ && layout_manager_->is_inspector_visible())
+                            ? layout_manager_->inspector_animated_width() : 0.0f;
+    float panel_x = nav_w;
+    float panel_w = io.DisplaySize.x - nav_w - inspector_w;
+
+    // Draw top-border accent line via background draw list
+    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+    ImU32 accent_col = IM_COL32(
+        static_cast<int>(colors.accent.r * 255),
+        static_cast<int>(colors.accent.g * 255),
+        static_cast<int>(colors.accent.b * 255), 180);
+    bg_dl->AddRectFilled(
+        ImVec2(panel_x, panel_y - 1.0f),
+        ImVec2(panel_x + panel_w, panel_y + 1.0f),
+        accent_col);
+
+    ImGui::SetNextWindowPos(ImVec2(panel_x, panel_y));
+    ImGui::SetNextWindowSize(ImVec2(panel_w, panel_height));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.3f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+    if (ImGui::Begin("##timeline_panel", nullptr, flags)) {
+        float btn_sz = 28.0f;
+        float btn_gap = 4.0f;
+
+        // ── Header row: transport controls (left) + time display (right) ──
+        auto pb_state = timeline_editor_->playback_state();
+        bool is_playing = (pb_state == PlaybackState::Playing);
+        bool is_paused  = (pb_state == PlaybackState::Paused);
+
+        // Step backward
+        if (font_icon_) {
+            if (transport_button(ui::icon_str(ui::Icon::StepBackward), false, false, font_icon_, btn_sz, colors)) {
+                timeline_editor_->step_backward();
+            }
+            ImGui::SameLine(0, btn_gap);
+
+            // Stop
+            if (transport_button(ui::icon_str(ui::Icon::Stop), false, false, font_icon_, btn_sz, colors)) {
+                timeline_editor_->stop();
+            }
+            ImGui::SameLine(0, btn_gap);
+
+            // Play/Pause — accent filled when playing
+            const char* play_icon = is_playing ? ui::icon_str(ui::Icon::Pause) : ui::icon_str(ui::Icon::Play);
+            if (transport_button(play_icon, is_paused, is_playing, font_icon_, btn_sz, colors)) {
+                timeline_editor_->toggle_play();
+            }
+            ImGui::SameLine(0, btn_gap);
+
+            // Step forward
+            if (transport_button(ui::icon_str(ui::Icon::StepForward), false, false, font_icon_, btn_sz, colors)) {
+                timeline_editor_->step_forward();
+            }
+        }
+
+        // Time display — right-aligned
+        {
+            char time_buf[64];
+            snprintf(time_buf, sizeof(time_buf), "%.2f / %.2f",
+                     timeline_editor_->playhead(), timeline_editor_->duration());
+            float time_w = ImGui::CalcTextSize(time_buf).x;
+            float avail_w = ImGui::GetContentRegionAvail().x;
+            ImGui::SameLine(0, 0);
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail_w - time_w - 8.0f);
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.6f));
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("%s", time_buf);
+            ImGui::PopStyleColor();
+        }
+
+        // Subtle separator
+        ImGui::Spacing();
+        {
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            float w = ImGui::GetContentRegionAvail().x;
+            ImGui::GetWindowDrawList()->AddLine(
+                ImVec2(p.x, p.y), ImVec2(p.x + w, p.y),
+                IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
+                         static_cast<int>(colors.border_subtle.g * 255),
+                         static_cast<int>(colors.border_subtle.b * 255), 40));
+            ImGui::Dummy(ImVec2(0, 1));
+        }
+
+        // Draw the timeline editor's ImGui content
+        float remaining_h = ImGui::GetContentRegionAvail().y;
+        timeline_editor_->draw(panel_w - 32, remaining_h);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+}
+
+// ─── Curve Editor Panel ──────────────────────────────────────────────────────
+
+void ImGuiIntegration::draw_curve_editor_panel() {
+    if (!curve_editor_) return;
+
+    const auto& colors = ui::theme();
+    ImGuiIO& io = ImGui::GetIO();
+
+    float win_w = 560.0f;
+    float win_h = 380.0f;
+    float center_x = io.DisplaySize.x * 0.5f - win_w * 0.5f;
+    float center_y = io.DisplaySize.y * 0.4f - win_h * 0.5f;
+
+    ImGui::SetNextWindowPos(ImVec2(center_x, center_y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(win_w, win_h), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(400, 280), ImVec2(io.DisplaySize.x * 0.8f, io.DisplaySize.y * 0.8f));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
+
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(colors.accent.r * 0.15f + colors.bg_tertiary.r * 0.85f,
+                                                          colors.accent.g * 0.15f + colors.bg_tertiary.g * 0.85f,
+                                                          colors.accent.b * 0.15f + colors.bg_tertiary.b * 0.85f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+
+    bool still_open = show_curve_editor_;
+    if (ImGui::Begin("Curve Editor", &still_open, flags)) {
+        float btn_sz = 24.0f;
+        float btn_gap = 4.0f;
+
+        // Toolbar row with icon buttons
+        if (font_icon_) {
+            if (transport_button(ui::icon_str(ui::Icon::Fullscreen), false, false, font_icon_, btn_sz, colors)) {
+                curve_editor_->fit_view();
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Fit View");
+            ImGui::SameLine(0, btn_gap);
+
+            if (transport_button(ui::icon_str(ui::Icon::Home), false, false, font_icon_, btn_sz, colors)) {
+                curve_editor_->reset_view();
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reset View");
+            ImGui::SameLine(0, 16.0f);
+        }
+
+        // Toggle buttons with modern pill style
+        bool show_grid = curve_editor_->show_grid();
+        bool show_tangents = curve_editor_->show_tangents();
+
+        auto toggle_pill = [&](const char* label, bool* value) {
+            ImVec4 bg = *value
+                ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.15f)
+                : ImVec4(0, 0, 0, 0);
+            ImVec4 text = *value
+                ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)
+                : ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.7f);
+
+            ImGui::PushStyleColor(ImGuiCol_Button, bg);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.3f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.4f));
+            ImGui::PushStyleColor(ImGuiCol_Text, text);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 3));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, *value ? 0.0f : 1.0f);
+            if (!*value) {
+                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+            }
+
+            if (ImGui::Button(label)) {
+                *value = !*value;
+            }
+
+            if (!*value) ImGui::PopStyleColor();
+            ImGui::PopStyleVar(3);
+            ImGui::PopStyleColor(4);
+        };
+
+        toggle_pill("Grid", &show_grid);
+        ImGui::SameLine(0, btn_gap);
+        toggle_pill("Tangents", &show_tangents);
+
+        curve_editor_->set_show_grid(show_grid);
+        curve_editor_->set_show_tangents(show_tangents);
+
+        // Subtle separator
+        ImGui::Spacing();
+        {
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            float w = ImGui::GetContentRegionAvail().x;
+            ImGui::GetWindowDrawList()->AddLine(
+                ImVec2(p.x, p.y), ImVec2(p.x + w, p.y),
+                IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
+                         static_cast<int>(colors.border_subtle.g * 255),
+                         static_cast<int>(colors.border_subtle.b * 255), 40));
+            ImGui::Dummy(ImVec2(0, 1));
+        }
+
+        // Sync playhead from timeline
+        if (timeline_editor_) {
+            curve_editor_->set_playhead_time(timeline_editor_->playhead());
+        }
+
+        // Draw the curve editor
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        curve_editor_->draw(avail.x, avail.y);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(3);
+
+    show_curve_editor_ = still_open;
+}
+
+void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx) {
+    selection_ctx_.select_series(fig, ax, ax_idx, s, s_idx);
+    // Ensure inspector is visible so the user can edit the selected series
+    if (layout_manager_ && !layout_manager_->is_inspector_visible()) {
+        layout_manager_->set_inspector_visible(true);
+    }
+    PLOTIX_LOG_INFO("ui", "Series selected from canvas: " + s->label());
+}
+
 void ImGuiIntegration::draw_theme_settings() {
+    const auto& colors = ui::theme();
+    auto& theme_manager = ui::ThemeManager::instance();
+
     // Center the modal window
     ImGuiIO& io = ImGui::GetIO();
-    float window_width = 400.0f;
-    float window_height = 300.0f;
-    ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - window_width) * 0.5f, (io.DisplaySize.y - window_height) * 0.5f), ImGuiCond_Always);
+    float window_width = 360.0f;
+    float window_height = 320.0f;
+    float wx = (io.DisplaySize.x - window_width) * 0.5f;
+    float wy = (io.DisplaySize.y - window_height) * 0.5f;
+    ImGui::SetNextWindowPos(ImVec2(wx, wy), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
-    
-    // Get available themes
-    auto& theme_manager = ui::ThemeManager::instance();
-    static std::vector<std::string> available_themes;
-    if (available_themes.empty()) {
-        // This is a simple way to get theme names - in a real implementation
-        // we might add a get_available_themes() method to ThemeManager
-        available_themes = {"dark", "light", "high_contrast"};
-    }
-    
-    ImGuiWindowFlags flags = 
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-    
+
+    static std::vector<std::string> available_themes = {"dark", "light", "high_contrast"};
+
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoCollapse;
+
+    // Draw shadow behind dialog
+    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+    bg_dl->AddRectFilled(
+        ImVec2(wx - 4, wy - 2),
+        ImVec2(wx + window_width + 4, wy + window_height + 10),
+        IM_COL32(0, 0, 0, 35), ui::tokens::RADIUS_LG + 6);
+
     // Modern modal styling
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(24, 20));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(ui::theme().bg_elevated.r, ui::theme().bg_elevated.g, ui::theme().bg_elevated.b, theme_manager.current().opacity_panel));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(ui::theme().border_default.r, ui::theme().border_default.g, ui::theme().border_default.b, ui::theme().border_default.a));
-    
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
+
     bool is_open = true;
     if (ImGui::Begin("Theme Settings", &is_open, flags)) {
         ImGui::PushFont(font_heading_);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
-        ImGui::TextUnformatted("Select Theme");
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f));
+        ImGui::TextUnformatted("Appearance");
         ImGui::PopStyleColor();
         ImGui::PopFont();
-        
-        ImGui::Spacing();
+
+        ImGui::Dummy(ImVec2(0, 4));
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
         ImGui::Separator();
-        ImGui::Spacing();
-        
-        // Theme selection buttons
+        ImGui::PopStyleColor();
+        ImGui::Dummy(ImVec2(0, 8));
+
+        // Theme selection buttons — card-like
         for (const auto& theme_name : available_themes) {
             bool is_current = (theme_manager.current_theme_name() == theme_name);
-            
+
             if (is_current) {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().accent.r, ui::theme().accent.g, ui::theme().accent.b, ui::theme().accent.a));
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.35f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
             } else {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ui::theme().bg_tertiary.r, ui::theme().bg_tertiary.g, ui::theme().bg_tertiary.b, ui::theme().bg_tertiary.a));
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ui::theme().text_primary.r, ui::theme().text_primary.g, ui::theme().text_primary.b, ui::theme().text_primary.a));
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.6f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f));
             }
-            
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ui::theme().accent_subtle.r, ui::theme().accent_subtle.g, ui::theme().accent_subtle.b, ui::theme().accent_subtle.a));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ui::theme().accent_muted.r, ui::theme().accent_muted.g, ui::theme().accent_muted.b, ui::theme().accent_muted.a));
+
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.6f));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
-            
-            // Capitalize first letter for display
+
+            // Capitalize + prettify name
             std::string display_name = theme_name;
             if (!display_name.empty()) {
-                display_name[0] = std::toupper(display_name[0]);
-                // Replace underscores with spaces
+                display_name[0] = static_cast<char>(std::toupper(display_name[0]));
                 size_t pos = 0;
                 while ((pos = display_name.find('_', pos)) != std::string::npos) {
                     display_name.replace(pos, 1, " ");
-                    if (pos + 1 < display_name.length()) {
-                        display_name[pos + 1] = std::toupper(display_name[pos + 1]);
-                    }
+                    if (pos + 1 < display_name.length())
+                        display_name[pos + 1] = static_cast<char>(std::toupper(display_name[pos + 1]));
                     pos += 1;
                 }
             }
-            
-            if (ImGui::Button(display_name.c_str(), ImVec2(-1, 0))) {
+
+            // Prepend checkmark for current theme
+            std::string label = is_current ? std::string("  ") + display_name : std::string("    ") + display_name;
+
+            if (ImGui::Button(label.c_str(), ImVec2(-1, 0))) {
                 theme_manager.set_theme(theme_name);
-                PLOTIX_LOG_DEBUG("ui", "Theme changed to: " + theme_name);
             }
-            
+
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(4);
-            
-            ImGui::Spacing();
+            ImGui::Dummy(ImVec2(0, 2));
         }
-        
-        ImGui::Spacing();
+
+        ImGui::Dummy(ImVec2(0, 8));
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
         ImGui::Separator();
-        ImGui::Spacing();
-        
-        // Close button
-        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - 80.0f);
-        if (ImGui::Button("Close", ImVec2(80.0f, 0))) {
+        ImGui::PopStyleColor();
+        ImGui::Dummy(ImVec2(0, 4));
+
+        // Close button — right-aligned, pill-shaped
+        float close_w = 90.0f;
+        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - close_w + ImGui::GetCursorPosX());
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_PILL);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(20, 6));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+        if (ImGui::Button("Close", ImVec2(close_w, 0))) {
             is_open = false;
         }
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
     }
-    
+
     ImGui::End();
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(3);
-    
+
     if (!is_open) {
         show_theme_settings_ = false;
+    }
+}
+
+// ─── Axes Right-Click Context Menu (Axis Linking) ────────────────────────────
+
+void ImGuiIntegration::draw_axes_context_menu(Figure& figure) {
+    if (!input_handler_ || !axis_link_mgr_) return;
+
+    // Detect right-click on canvas (not captured by ImGui)
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !io.WantCaptureMouse) {
+        // Hit-test which axes was right-clicked
+        Axes* hit = input_handler_->hit_test_axes(
+            static_cast<double>(io.MousePos.x),
+            static_cast<double>(io.MousePos.y));
+        if (hit) {
+            context_menu_axes_ = hit;
+            ImGui::OpenPopup("##axes_context_menu");
+        }
+    }
+
+    const auto& colors = ui::theme();
+
+    // Popup styling
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));
+
+    if (ImGui::BeginPopup("##axes_context_menu")) {
+        Axes* ax = context_menu_axes_;
+        if (!ax) {
+            ImGui::EndPopup();
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(4);
+            return;
+        }
+
+        // Find axes index for display
+        int axes_idx = -1;
+        for (size_t i = 0; i < figure.axes().size(); ++i) {
+            if (figure.axes()[i].get() == ax) { axes_idx = static_cast<int>(i); break; }
+        }
+        std::string axes_label = (axes_idx >= 0)
+            ? "Subplot " + std::to_string(axes_idx + 1)
+            : "Axes";
+
+        // Header
+        ImGui::PushFont(font_heading_);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.7f));
+        ImGui::TextUnformatted(axes_label.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        ImGui::Dummy(ImVec2(0, 2));
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+        ImGui::Dummy(ImVec2(0, 2));
+
+        // Style for menu items
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+        ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+
+        bool is_linked = axis_link_mgr_->is_linked(ax);
+        bool has_multi = figure.axes().size() > 1;
+
+        if (has_multi) {
+            // "Link X to all" — link this axes' X to all other axes
+            std::string link_x_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link X-Axis";
+            if (ImGui::Selectable(link_x_label.c_str(), false, 0, ImVec2(200, 24))) {
+                for (auto& other : figure.axes_mut()) {
+                    if (other && other.get() != ax) {
+                        axis_link_mgr_->link(ax, other.get(), LinkAxis::X);
+                    }
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
+            }
+
+            // "Link Y to all"
+            std::string link_y_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Y-Axis";
+            if (ImGui::Selectable(link_y_label.c_str(), false, 0, ImVec2(200, 24))) {
+                for (auto& other : figure.axes_mut()) {
+                    if (other && other.get() != ax) {
+                        axis_link_mgr_->link(ax, other.get(), LinkAxis::Y);
+                    }
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
+            }
+
+            // "Link Both to all"
+            std::string link_both_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Both Axes";
+            if (ImGui::Selectable(link_both_label.c_str(), false, 0, ImVec2(200, 24))) {
+                for (auto& other : figure.axes_mut()) {
+                    if (other && other.get() != ax) {
+                        axis_link_mgr_->link(ax, other.get(), LinkAxis::Both);
+                    }
+                }
+                PLOTIX_LOG_INFO("axes_link", "Linked both axes of subplot " + std::to_string(axes_idx + 1));
+            }
+        }
+
+        if (is_linked) {
+            if (has_multi) {
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
+            }
+
+            // Show which groups this axes belongs to
+            auto group_ids = axis_link_mgr_->groups_for(ax);
+            for (auto gid : group_ids) {
+                const auto* grp = axis_link_mgr_->group(gid);
+                if (!grp) continue;
+                std::string axis_str = (grp->axis == LinkAxis::X) ? "X" :
+                                       (grp->axis == LinkAxis::Y) ? "Y" : "XY";
+                ImU32 grp_col = IM_COL32(
+                    static_cast<uint8_t>(grp->color.r * 255),
+                    static_cast<uint8_t>(grp->color.g * 255),
+                    static_cast<uint8_t>(grp->color.b * 255), 255);
+
+                // Colored dot + group info
+                ImVec2 cursor = ImGui::GetCursorScreenPos();
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                dl->AddCircleFilled(ImVec2(cursor.x + 8, cursor.y + 10), 5.0f, grp_col);
+                ImGui::Dummy(ImVec2(20, 0));
+                ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.8f));
+                ImGui::Text("%s (%s, %zu axes)", grp->name.c_str(), axis_str.c_str(), grp->members.size());
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+
+            // "Unlink this axes"
+            std::string unlink_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE")) + "  Unlink This Subplot";
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+            if (ImGui::Selectable(unlink_label.c_str(), false, 0, ImVec2(200, 24))) {
+                axis_link_mgr_->unlink(ax);
+                PLOTIX_LOG_INFO("axes_link", "Unlinked subplot " + std::to_string(axes_idx + 1));
+            }
+            ImGui::PopStyleColor();
+
+            // "Unlink All"
+            std::string unlink_all_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE")) + "  Unlink All";
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+            if (ImGui::Selectable(unlink_all_label.c_str(), false, 0, ImVec2(200, 24))) {
+                auto groups_copy = axis_link_mgr_->groups();
+                for (auto& [id, grp] : groups_copy) {
+                    axis_link_mgr_->remove_group(id);
+                }
+                axis_link_mgr_->clear_shared_cursor();
+                PLOTIX_LOG_INFO("axes_link", "Unlinked all axes");
+            }
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::PopStyleVar();   // SelectableTextAlign
+        ImGui::PopStyleColor(2); // Header, HeaderHovered
+
+        ImGui::EndPopup();
+    }
+
+    ImGui::PopStyleColor(2); // PopupBg, Border
+    ImGui::PopStyleVar(4);   // WindowPadding, PopupRounding, PopupBorderSize, ItemSpacing
+}
+
+// ─── Axis Link Indicators (colored chain icon on linked axes) ────────────────
+
+void ImGuiIntegration::draw_axis_link_indicators(Figure& figure) {
+    if (!axis_link_mgr_ || axis_link_mgr_->group_count() == 0) return;
+
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+
+    for (auto& axes_ptr : figure.axes()) {
+        if (!axes_ptr) continue;
+        Axes* ax = axes_ptr.get();
+        if (!axis_link_mgr_->is_linked(ax)) continue;
+
+        const auto& vp = ax->viewport();
+        auto group_ids = axis_link_mgr_->groups_for(ax);
+        if (group_ids.empty()) continue;
+
+        // Draw one indicator per group in the top-right corner of the axes
+        float icon_x = vp.x + vp.w - 8.0f;
+        float icon_y = vp.y + 8.0f;
+
+        for (size_t gi = 0; gi < group_ids.size(); ++gi) {
+            const auto* grp = axis_link_mgr_->group(group_ids[gi]);
+            if (!grp) continue;
+
+            ImU32 col = IM_COL32(
+                static_cast<uint8_t>(grp->color.r * 255),
+                static_cast<uint8_t>(grp->color.g * 255),
+                static_cast<uint8_t>(grp->color.b * 255), 200);
+            ImU32 bg_col = IM_COL32(0, 0, 0, 100);
+
+            float cx = icon_x - gi * 22.0f;
+            float cy = icon_y;
+
+            // Background pill
+            dl->AddRectFilled(
+                ImVec2(cx - 10, cy - 8),
+                ImVec2(cx + 10, cy + 8),
+                bg_col, 6.0f);
+
+            // Chain link icon (two interlocking circles)
+            dl->AddCircle(ImVec2(cx - 2.5f, cy), 4.5f, col, 0, 1.8f);
+            dl->AddCircle(ImVec2(cx + 2.5f, cy), 4.5f, col, 0, 1.8f);
+
+            // Axis label below
+            std::string axis_str = (grp->axis == LinkAxis::X) ? "X" :
+                                   (grp->axis == LinkAxis::Y) ? "Y" : "XY";
+            ImVec2 sz = ImGui::CalcTextSize(axis_str.c_str());
+            dl->AddText(ImVec2(cx - sz.x * 0.5f, cy + 10), col, axis_str.c_str());
+        }
     }
 }
 

@@ -7,6 +7,7 @@
 namespace plotix {
 
 class Figure;
+class AxisLinkManager;
 struct CursorReadout;
 
 // Crosshair overlay: renders dashed horizontal and vertical lines
@@ -28,7 +29,10 @@ public:
     // Draw crosshair across ALL subplots in the figure.
     // The vertical line is drawn at the same data-X on every axes;
     // the horizontal line is only drawn on the axes the cursor is over.
-    void draw_all_axes(const CursorReadout& cursor, Figure& figure);
+    // If an AxisLinkManager is provided, the shared cursor is used to
+    // draw horizontal lines on linked non-hovered axes as well.
+    void draw_all_axes(const CursorReadout& cursor, Figure& figure,
+                       AxisLinkManager* link_mgr = nullptr);
 
     // Configuration
     void set_dash_length(float px) { dash_length_ = px; }

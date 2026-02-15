@@ -1,11 +1,13 @@
 #ifdef PLOTIX_USE_IMGUI
 
 #include "crosshair.hpp"
+#include "axis_link.hpp"
 #include "input.hpp"
 #include "theme.hpp"
 
 #include <plotix/axes.hpp>
 #include <plotix/figure.hpp>
+#include <plotix/series.hpp>
 
 #include <imgui.h>
 #include <cmath>
@@ -122,7 +124,8 @@ void Crosshair::draw(const CursorReadout& cursor, const Rect& viewport,
     }
 }
 
-void Crosshair::draw_all_axes(const CursorReadout& cursor, Figure& figure) {
+void Crosshair::draw_all_axes(const CursorReadout& cursor, Figure& figure,
+                               AxisLinkManager* link_mgr) {
     // Animate opacity (shared across all axes)
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
     float dt = ImGui::GetIO().DeltaTime;
@@ -208,7 +211,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor, Figure& figure) {
                         ImVec2(lx, ly + label_pad), label_text, x_label);
         }
 
-        // Horizontal line only on the hovered axes
+        // Horizontal line on the hovered axes (at cursor Y)
         if (axes_ptr.get() == hovered_axes) {
             if (cy >= vy0 && cy <= vy1) {
                 draw_dashed_line(fg, ImVec2(vx0, cy), ImVec2(vx1, cy),
@@ -231,6 +234,93 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor, Figure& figure) {
                     label_bg, 3.0f);
                 fg->AddText(font, font->FontSize * 0.85f,
                             ImVec2(lx2 + label_pad, ly2), label_text, y_label);
+            }
+        }
+        // Shared cursor: draw horizontal line on non-hovered linked axes
+        // by interpolating Y from the nearest series at data_x.
+        else if (link_mgr && link_mgr->is_linked(axes_ptr.get())) {
+            auto sc = link_mgr->shared_cursor_for(axes_ptr.get());
+            if (sc.valid) {
+                // Find the Y value at data_x by interpolating the first visible series
+                float interp_y = 0.0f;
+                bool found_y = false;
+                for (const auto& series_ptr : axes_ptr->series()) {
+                    if (!series_ptr || !series_ptr->visible()) continue;
+
+                    const float* x_data = nullptr;
+                    const float* y_data = nullptr;
+                    size_t count = 0;
+
+                    if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get())) {
+                        x_data = ls->x_data().data();
+                        y_data = ls->y_data().data();
+                        count = ls->point_count();
+                    } else if (auto* sc_s = dynamic_cast<ScatterSeries*>(series_ptr.get())) {
+                        x_data = sc_s->x_data().data();
+                        y_data = sc_s->y_data().data();
+                        count = sc_s->point_count();
+                    }
+
+                    if (!x_data || !y_data || count == 0) continue;
+
+                    // Binary search for the interval containing data_x
+                    // (assumes x_data is sorted)
+                    if (data_x < x_data[0] || data_x > x_data[count - 1]) continue;
+
+                    size_t lo = 0, hi = count - 1;
+                    while (lo + 1 < hi) {
+                        size_t mid = (lo + hi) / 2;
+                        if (x_data[mid] <= data_x) lo = mid;
+                        else hi = mid;
+                    }
+
+                    // Linear interpolation between lo and hi
+                    float dx = x_data[hi] - x_data[lo];
+                    if (dx > 0.0f) {
+                        float t = (data_x - x_data[lo]) / dx;
+                        interp_y = y_data[lo] + t * (y_data[hi] - y_data[lo]);
+                    } else {
+                        interp_y = y_data[lo];
+                    }
+                    found_y = true;
+                    break;  // Use first visible series
+                }
+
+                if (found_y) {
+                    // Convert interp_y to screen coordinates
+                    float norm_iy = (interp_y - ylim.min) / y_range;
+                    float sy = vy0 + (1.0f - norm_iy) * vp.h;
+
+                    if (sy >= vy0 && sy <= vy1) {
+                        // Dimmer line for non-hovered axes
+                        ImU32 dim_color = ImGui::ColorConvertFloat4ToU32(ImVec4(
+                            colors.crosshair.r, colors.crosshair.g, colors.crosshair.b,
+                            colors.crosshair.a * opacity_ * 0.6f));
+
+                        draw_dashed_line(fg, ImVec2(vx0, sy), ImVec2(vx1, sy),
+                                         dim_color, dash_length_, gap_length_, 1.0f);
+
+                        // Y label at left
+                        char y_label[32];
+                        std::snprintf(y_label, sizeof(y_label), "%.4g", interp_y);
+                        ImVec2 sz = font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
+                        float lx2 = vx0 - sz.x - label_pad * 2.0f - 2.0f;
+                        float ly2 = sy - sz.y * 0.5f;
+                        if (ly2 < vy0) ly2 = vy0;
+                        if (ly2 + sz.y + label_pad * 2.0f > vy1) ly2 = vy1 - sz.y - label_pad * 2.0f;
+
+                        ImU32 dim_label_text = ImGui::ColorConvertFloat4ToU32(ImVec4(
+                            colors.text_primary.r, colors.text_primary.g, colors.text_primary.b,
+                            opacity_ * 0.6f));
+
+                        fg->AddRectFilled(
+                            ImVec2(lx2, ly2 - label_pad),
+                            ImVec2(lx2 + sz.x + label_pad * 2.0f, ly2 + sz.y + label_pad),
+                            label_bg, 3.0f);
+                        fg->AddText(font, font->FontSize * 0.85f,
+                                    ImVec2(lx2 + label_pad, ly2), dim_label_text, y_label);
+                    }
+                }
             }
         }
     }

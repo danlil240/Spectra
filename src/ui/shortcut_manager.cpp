@@ -292,6 +292,10 @@ void ShortcutManager::register_defaults() {
     bind({KEY_LEFT_BRACKET, KeyMod::None},   "anim.step_back");
     bind({KEY_RIGHT_BRACKET, KeyMod::None},  "anim.step_forward");
 
+    // Timeline & curve editor panels
+    bind({KEY_T, KeyMod::None},              "panel.toggle_timeline");
+    bind({KEY_T, KeyMod::Shift},             "panel.toggle_curve_editor");
+
     // Tab switching (1-9)
     for (int i = 0; i < 9; ++i) {
         bind({KEY_0 + 1 + i, KeyMod::None}, "figure.tab_" + std::to_string(i + 1));

@@ -47,6 +47,20 @@ struct RecordingConfig {
     std::string codec   = "libx264";
     std::string pix_fmt = "yuv420p";
     int         crf     = 23;  // Constant rate factor (lower = better quality)
+
+    // Multi-pane recording (Week 11 enhancement)
+    // When pane_count > 1, the render callback is called once per pane per frame.
+    // Panes are composited into the final frame buffer according to the layout.
+    uint32_t pane_count = 1;
+
+    // Pane layout: each pane has normalized [0,1] rect within the output frame.
+    struct PaneRect {
+        float x = 0.0f;
+        float y = 0.0f;
+        float w = 1.0f;
+        float h = 1.0f;
+    };
+    std::vector<PaneRect> pane_rects;  // If empty and pane_count>1, auto-grid layout
 };
 
 // Progress information for recording callbacks.
@@ -76,6 +90,12 @@ using FrameRenderCallback = std::function<bool(uint32_t frame_index, float time,
                                                 uint8_t* rgba_buffer,
                                                 uint32_t width, uint32_t height)>;
 
+// Multi-pane render callback: receives pane_index in addition to frame info.
+using PaneRenderCallback = std::function<bool(uint32_t pane_index,
+                                               uint32_t frame_index, float time,
+                                               uint8_t* rgba_buffer,
+                                               uint32_t width, uint32_t height)>;
+
 // RecordingSession — Orchestrates frame-by-frame recording and export.
 //
 // Usage:
@@ -101,6 +121,10 @@ public:
 
     // Begin a recording session. Returns false if config is invalid.
     bool begin(const RecordingConfig& config, FrameRenderCallback render_cb);
+
+    // Begin a multi-pane recording session. Each pane is rendered separately
+    // and composited into the final frame buffer.
+    bool begin_multi_pane(const RecordingConfig& config, PaneRenderCallback pane_cb);
 
     // Advance one frame. Returns true if more frames remain.
     bool advance();
@@ -167,8 +191,14 @@ private:
     std::string     error_;
 
     FrameRenderCallback render_cb_;
+    PaneRenderCallback  pane_render_cb_;
     ProgressCallback    on_progress_;
     std::function<void(bool)> on_complete_;
+
+    // Multi-pane state
+    bool     multi_pane_ = false;
+    std::vector<uint8_t> pane_buffer_;  // Temp buffer for individual pane rendering
+    std::vector<RecordingConfig::PaneRect> resolved_pane_rects_;
 
     uint32_t total_frames_  = 0;
     uint32_t current_frame_ = 0;

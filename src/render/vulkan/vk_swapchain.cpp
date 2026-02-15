@@ -54,7 +54,13 @@ VkExtent2D choose_extent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t 
     return extent;
 }
 
-VkRenderPass create_render_pass(VkDevice device, VkFormat color_format) {
+// Forward declarations for helpers used by create_swapchain
+static uint32_t find_memory_type(VkPhysicalDevice physical_device,
+                                  uint32_t type_filter,
+                                  VkMemoryPropertyFlags properties);
+
+VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat depth_format) {
+    // Attachment 0: color
     VkAttachmentDescription color_attachment {};
     color_attachment.format         = color_format;
     color_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
@@ -65,27 +71,48 @@ VkRenderPass create_render_pass(VkDevice device, VkFormat color_format) {
     color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    // Attachment 1: depth
+    VkAttachmentDescription depth_attachment {};
+    depth_attachment.format         = depth_format;
+    depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentDescription attachments[] = {color_attachment, depth_attachment};
+
     VkAttachmentReference color_ref {};
     color_ref.attachment = 0;
     color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference depth_ref {};
+    depth_ref.attachment = 1;
+    depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass {};
-    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &color_ref;
+    subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount    = 1;
+    subpass.pColorAttachments       = &color_ref;
+    subpass.pDepthStencilAttachment = &depth_ref;
 
     VkSubpassDependency dependency {};
     dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass    = 0;
-    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                             | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                             | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                             | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo info {};
     info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    info.attachmentCount = 1;
-    info.pAttachments    = &color_attachment;
+    info.attachmentCount = 2;
+    info.pAttachments    = attachments;
     info.subpassCount    = 1;
     info.pSubpasses      = &subpass;
     info.dependencyCount = 1;
@@ -174,22 +201,76 @@ SwapchainContext create_swapchain(VkDevice device,
         }
     }
 
+    // Find supported depth format
+    ctx.depth_format = find_depth_format(physical_device);
+
     // Reuse existing render pass if provided (during resize — format doesn't change,
     // so the old render pass is compatible). This avoids invalidating all pipelines.
     if (reuse_render_pass != VK_NULL_HANDLE) {
         ctx.render_pass = reuse_render_pass;
     } else {
-        ctx.render_pass = create_render_pass(device, ctx.image_format);
+        ctx.render_pass = create_render_pass(device, ctx.image_format, ctx.depth_format);
     }
 
-    // Create framebuffers
+    // Create depth image (shared across all framebuffers)
+    {
+        VkImageCreateInfo depth_img_info {};
+        depth_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        depth_img_info.imageType     = VK_IMAGE_TYPE_2D;
+        depth_img_info.format        = ctx.depth_format;
+        depth_img_info.extent        = {extent.width, extent.height, 1};
+        depth_img_info.mipLevels     = 1;
+        depth_img_info.arrayLayers   = 1;
+        depth_img_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+        depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+        depth_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        if (vkCreateImage(device, &depth_img_info, nullptr, &ctx.depth_image) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image");
+        }
+
+        VkMemoryRequirements mem_reqs;
+        vkGetImageMemoryRequirements(device, ctx.depth_image, &mem_reqs);
+
+        VkMemoryAllocateInfo alloc_info {};
+        alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize  = mem_reqs.size;
+        alloc_info.memoryTypeIndex = find_memory_type(physical_device, mem_reqs.memoryTypeBits,
+                                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.depth_memory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate depth image memory");
+        }
+        vkBindImageMemory(device, ctx.depth_image, ctx.depth_memory, 0);
+
+        VkImageViewCreateInfo depth_view_info {};
+        depth_view_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depth_view_info.image    = ctx.depth_image;
+        depth_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depth_view_info.format   = ctx.depth_format;
+        depth_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depth_view_info.subresourceRange.baseMipLevel   = 0;
+        depth_view_info.subresourceRange.levelCount     = 1;
+        depth_view_info.subresourceRange.baseArrayLayer = 0;
+        depth_view_info.subresourceRange.layerCount     = 1;
+
+        if (vkCreateImageView(device, &depth_view_info, nullptr, &ctx.depth_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image view");
+        }
+    }
+
+    // Create framebuffers (color + depth attachments)
     ctx.framebuffers.resize(image_count);
     for (uint32_t i = 0; i < image_count; ++i) {
+        VkImageView fb_attachments[] = {ctx.image_views[i], ctx.depth_view};
+
         VkFramebufferCreateInfo fb_info {};
         fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fb_info.renderPass      = ctx.render_pass;
-        fb_info.attachmentCount = 1;
-        fb_info.pAttachments    = &ctx.image_views[i];
+        fb_info.attachmentCount = 2;
+        fb_info.pAttachments    = fb_attachments;
         fb_info.width           = extent.width;
         fb_info.height          = extent.height;
         fb_info.layers          = 1;
@@ -206,6 +287,17 @@ void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_
     for (auto fb : ctx.framebuffers)
         vkDestroyFramebuffer(device, fb, nullptr);
     ctx.framebuffers.clear();
+
+    // Destroy depth resources
+    if (ctx.depth_view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, ctx.depth_view, nullptr);
+    ctx.depth_view = VK_NULL_HANDLE;
+    if (ctx.depth_image != VK_NULL_HANDLE)
+        vkDestroyImage(device, ctx.depth_image, nullptr);
+    ctx.depth_image = VK_NULL_HANDLE;
+    if (ctx.depth_memory != VK_NULL_HANDLE)
+        vkFreeMemory(device, ctx.depth_memory, nullptr);
+    ctx.depth_memory = VK_NULL_HANDLE;
 
     if (!skip_render_pass && ctx.render_pass != VK_NULL_HANDLE)
         vkDestroyRenderPass(device, ctx.render_pass, nullptr);
@@ -235,6 +327,9 @@ static uint32_t find_memory_type(VkPhysicalDevice physical_device,
     }
     throw std::runtime_error("Failed to find suitable memory type");
 }
+
+// Forward declare find_depth_format (defined at end of file)
+VkFormat find_depth_format(VkPhysicalDevice physical_device);
 
 OffscreenContext create_offscreen_framebuffer(VkDevice device,
                                               VkPhysicalDevice physical_device,
@@ -291,49 +386,122 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
         throw std::runtime_error("Failed to create offscreen image view");
     }
 
-    // Create render pass (final layout is TRANSFER_SRC for readback)
-    VkAttachmentDescription attachment {};
-    attachment.format         = ctx.format;
-    attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachment.finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    // Create depth image for offscreen
+    ctx.depth_format = find_depth_format(physical_device);
+    {
+        VkImageCreateInfo depth_img_info {};
+        depth_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        depth_img_info.imageType     = VK_IMAGE_TYPE_2D;
+        depth_img_info.format        = ctx.depth_format;
+        depth_img_info.extent        = {width, height, 1};
+        depth_img_info.mipLevels     = 1;
+        depth_img_info.arrayLayers   = 1;
+        depth_img_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+        depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+        depth_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    VkAttachmentReference color_ref {};
-    color_ref.attachment = 0;
-    color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (vkCreateImage(device, &depth_img_info, nullptr, &ctx.depth_image) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen depth image");
+        }
 
-    VkSubpassDescription subpass {};
-    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &color_ref;
+        VkMemoryRequirements depth_mem_reqs;
+        vkGetImageMemoryRequirements(device, ctx.depth_image, &depth_mem_reqs);
 
-    VkRenderPassCreateInfo rp_info {};
-    rp_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    rp_info.attachmentCount = 1;
-    rp_info.pAttachments    = &attachment;
-    rp_info.subpassCount    = 1;
-    rp_info.pSubpasses      = &subpass;
+        VkMemoryAllocateInfo depth_alloc_info {};
+        depth_alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        depth_alloc_info.allocationSize  = depth_mem_reqs.size;
+        depth_alloc_info.memoryTypeIndex = find_memory_type(physical_device, depth_mem_reqs.memoryTypeBits,
+                                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create offscreen render pass");
+        if (vkAllocateMemory(device, &depth_alloc_info, nullptr, &ctx.depth_memory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate offscreen depth image memory");
+        }
+        vkBindImageMemory(device, ctx.depth_image, ctx.depth_memory, 0);
+
+        VkImageViewCreateInfo depth_view_info {};
+        depth_view_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depth_view_info.image    = ctx.depth_image;
+        depth_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depth_view_info.format   = ctx.depth_format;
+        depth_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depth_view_info.subresourceRange.baseMipLevel   = 0;
+        depth_view_info.subresourceRange.levelCount     = 1;
+        depth_view_info.subresourceRange.baseArrayLayer = 0;
+        depth_view_info.subresourceRange.layerCount     = 1;
+
+        if (vkCreateImageView(device, &depth_view_info, nullptr, &ctx.depth_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen depth image view");
+        }
     }
 
-    // Create framebuffer
-    VkFramebufferCreateInfo fb_info {};
-    fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    fb_info.renderPass      = ctx.render_pass;
-    fb_info.attachmentCount = 1;
-    fb_info.pAttachments    = &ctx.color_view;
-    fb_info.width           = width;
-    fb_info.height          = height;
-    fb_info.layers          = 1;
+    // Create render pass (final layout is TRANSFER_SRC for readback)
+    {
+        VkAttachmentDescription color_att {};
+        color_att.format         = ctx.format;
+        color_att.samples        = VK_SAMPLE_COUNT_1_BIT;
+        color_att.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_att.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+        color_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        color_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        color_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        color_att.finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
-    if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create offscreen framebuffer");
+        VkAttachmentDescription depth_att {};
+        depth_att.format         = ctx.depth_format;
+        depth_att.samples        = VK_SAMPLE_COUNT_1_BIT;
+        depth_att.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_att.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depth_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_att.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription rp_attachments[] = {color_att, depth_att};
+
+        VkAttachmentReference color_ref {};
+        color_ref.attachment = 0;
+        color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depth_ref {};
+        depth_ref.attachment = 1;
+        depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass {};
+        subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount    = 1;
+        subpass.pColorAttachments       = &color_ref;
+        subpass.pDepthStencilAttachment = &depth_ref;
+
+        VkRenderPassCreateInfo rp_info {};
+        rp_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rp_info.attachmentCount = 2;
+        rp_info.pAttachments    = rp_attachments;
+        rp_info.subpassCount    = 1;
+        rp_info.pSubpasses      = &subpass;
+
+        if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen render pass");
+        }
+    }
+
+    // Create framebuffer (color + depth)
+    {
+        VkImageView fb_attachments[] = {ctx.color_view, ctx.depth_view};
+
+        VkFramebufferCreateInfo fb_info {};
+        fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb_info.renderPass      = ctx.render_pass;
+        fb_info.attachmentCount = 2;
+        fb_info.pAttachments    = fb_attachments;
+        fb_info.width           = width;
+        fb_info.height          = height;
+        fb_info.layers          = 1;
+
+        if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen framebuffer");
+        }
     }
 
     return ctx;
@@ -344,6 +512,14 @@ void destroy_offscreen(VkDevice device, OffscreenContext& ctx) {
         vkDestroyFramebuffer(device, ctx.framebuffer, nullptr);
     if (ctx.render_pass != VK_NULL_HANDLE)
         vkDestroyRenderPass(device, ctx.render_pass, nullptr);
+    // Destroy depth resources
+    if (ctx.depth_view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, ctx.depth_view, nullptr);
+    if (ctx.depth_image != VK_NULL_HANDLE)
+        vkDestroyImage(device, ctx.depth_image, nullptr);
+    if (ctx.depth_memory != VK_NULL_HANDLE)
+        vkFreeMemory(device, ctx.depth_memory, nullptr);
+    // Destroy color resources
     if (ctx.color_view != VK_NULL_HANDLE)
         vkDestroyImageView(device, ctx.color_view, nullptr);
     if (ctx.color_image != VK_NULL_HANDLE)
@@ -351,6 +527,26 @@ void destroy_offscreen(VkDevice device, OffscreenContext& ctx) {
     if (ctx.color_memory != VK_NULL_HANDLE)
         vkFreeMemory(device, ctx.color_memory, nullptr);
     ctx = {};
+}
+
+VkFormat find_depth_format(VkPhysicalDevice physical_device) {
+    // Prefer D32_SFLOAT, fallback to D32_SFLOAT_S8_UINT, then D24_UNORM_S8_UINT
+    VkFormat candidates[] = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+    };
+
+    for (auto format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(physical_device, format, &props);
+        if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+            return format;
+        }
+    }
+
+    // Fallback — D32_SFLOAT should be universally supported
+    return VK_FORMAT_D32_SFLOAT;
 }
 
 } // namespace plotix::vk

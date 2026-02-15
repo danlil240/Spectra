@@ -19,6 +19,12 @@ struct PipelineConfig {
     bool                     enable_blending = true;
     std::vector<VkVertexInputBindingDescription>   vertex_bindings;
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    // 3D pipeline extensions (defaults preserve existing 2D behavior)
+    bool                     enable_depth_test   = false;
+    bool                     enable_depth_write  = false;
+    VkCompareOp              depth_compare_op    = VK_COMPARE_OP_LESS;
+    bool                     enable_backface_cull = false;
+    VkSampleCountFlagBits    msaa_samples        = VK_SAMPLE_COUNT_1_BIT;
 };
 
 VkShaderModule create_shader_module(VkDevice device, const uint8_t* spirv, size_t size);

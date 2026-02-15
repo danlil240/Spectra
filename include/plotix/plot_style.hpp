@@ -174,37 +174,40 @@ inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f) {
     switch (style) {
         case LineStyle::Solid:
         case LineStyle::None:
-            // No pattern — solid or invisible
             break;
         case LineStyle::Dashed:
-            p.segments[0] = 6.0f * w;  // dash
-            p.segments[1] = 3.0f * w;  // gap
+            // Clean dashes: 8x width on, 4x width off
+            p.segments[0] = 8.0f * w;  // dash
+            p.segments[1] = 4.0f * w;  // gap
             p.count = 2;
-            p.total = 9.0f * w;
+            p.total = 12.0f * w;
             break;
         case LineStyle::Dotted:
-            p.segments[0] = 1.5f * w;  // dot
-            p.segments[1] = 2.0f * w;  // gap
+            // Round dots: 2x width on (appears as dot with round caps), 4x gap
+            p.segments[0] = 2.0f * w;  // dot
+            p.segments[1] = 4.0f * w;  // gap
             p.count = 2;
-            p.total = 3.5f * w;
+            p.total = 6.0f * w;
             break;
         case LineStyle::DashDot:
-            p.segments[0] = 6.0f * w;  // dash
-            p.segments[1] = 2.0f * w;  // gap
-            p.segments[2] = 1.5f * w;  // dot
-            p.segments[3] = 2.0f * w;  // gap
+            // Dash-dot: 8x dash, 3.5x gap, 2x dot, 3.5x gap
+            p.segments[0] = 8.0f * w;   // dash
+            p.segments[1] = 3.5f * w;   // gap
+            p.segments[2] = 2.0f * w;   // dot
+            p.segments[3] = 3.5f * w;   // gap
             p.count = 4;
-            p.total = 11.5f * w;
+            p.total = 17.0f * w;
             break;
         case LineStyle::DashDotDot:
-            p.segments[0] = 6.0f * w;  // dash
-            p.segments[1] = 2.0f * w;  // gap
-            p.segments[2] = 1.5f * w;  // dot
-            p.segments[3] = 1.5f * w;  // gap
-            p.segments[4] = 1.5f * w;  // dot
-            p.segments[5] = 2.0f * w;  // gap
+            // Dash-dot-dot: 8x dash, 3x gap, 2x dot, 3x gap, 2x dot, 3x gap
+            p.segments[0] = 8.0f * w;   // dash
+            p.segments[1] = 3.0f * w;   // gap
+            p.segments[2] = 2.0f * w;   // dot
+            p.segments[3] = 3.0f * w;   // gap
+            p.segments[4] = 2.0f * w;   // dot
+            p.segments[5] = 3.0f * w;   // gap
             p.count = 6;
-            p.total = 14.5f * w;
+            p.total = 21.0f * w;
             break;
     }
     return p;

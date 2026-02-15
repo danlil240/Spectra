@@ -558,49 +558,78 @@ void TabBar::draw_scroll_buttons(const Rect& bounds) {
 
 void TabBar::draw_context_menu() {
 #ifdef PLOTIX_USE_IMGUI
+    const auto& colors = ui::theme();
+
+    // Modern popup styling
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 2));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));
+
     if (ImGui::BeginPopup("##tab_context_menu")) {
+        // Auto-close on mouse leave
+        ImVec2 mouse = ImGui::GetIO().MousePos;
+        ImVec2 popup_pos = ImGui::GetWindowPos();
+        ImVec2 popup_size = ImGui::GetWindowSize();
+        float margin = 20.0f;
+        bool mouse_in_zone = (mouse.x >= popup_pos.x - margin && mouse.x <= popup_pos.x + popup_size.x + margin &&
+                              mouse.y >= popup_pos.y - margin && mouse.y <= popup_pos.y + popup_size.y + margin);
+        if (!mouse_in_zone && !ImGui::IsAnyItemActive()) {
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Draw shadow
+        ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+        bg_dl->AddRectFilled(
+            ImVec2(popup_pos.x + 2, popup_pos.y + 3),
+            ImVec2(popup_pos.x + popup_size.x + 2, popup_pos.y + popup_size.y + 5),
+            IM_COL32(0, 0, 0, 30), ui::tokens::RADIUS_LG + 2);
+
         if (context_menu_tab_ < tabs_.size()) {
             const auto& tab = tabs_[context_menu_tab_];
 
-            // Rename
-            if (ImGui::MenuItem("Rename...")) {
+            auto menu_item = [&](const char* label) -> bool {
+                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
+                float item_h = ImGui::GetTextLineHeight() + 8.0f;
+                bool clicked = ImGui::Selectable(label, false, ImGuiSelectableFlags_None, ImVec2(0, item_h));
+                ImGui::PopStyleColor(3);
+                return clicked;
+            };
+
+            if (menu_item("Rename...")) {
                 renaming_tab_ = true;
                 rename_tab_index_ = context_menu_tab_;
                 strncpy(rename_buffer_, tab.title.c_str(), sizeof(rename_buffer_) - 1);
                 rename_buffer_[sizeof(rename_buffer_) - 1] = '\0';
             }
 
-            // Duplicate
-            if (ImGui::MenuItem("Duplicate")) {
-                if (on_tab_duplicate_) {
-                    on_tab_duplicate_(context_menu_tab_);
-                }
+            if (menu_item("Duplicate")) {
+                if (on_tab_duplicate_) on_tab_duplicate_(context_menu_tab_);
             }
 
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
             ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
 
-            // Close
             if (tab.can_close && tabs_.size() > 1) {
-                if (ImGui::MenuItem("Close")) {
-                    remove_tab(context_menu_tab_);
-                }
+                if (menu_item("Close")) remove_tab(context_menu_tab_);
             }
 
-            // Close Others
             if (tabs_.size() > 1) {
-                if (ImGui::MenuItem("Close Others")) {
-                    if (on_tab_close_all_except_) {
-                        on_tab_close_all_except_(context_menu_tab_);
-                    }
+                if (menu_item("Close Others")) {
+                    if (on_tab_close_all_except_) on_tab_close_all_except_(context_menu_tab_);
                 }
             }
 
-            // Close to the Right
             if (context_menu_tab_ + 1 < tabs_.size()) {
-                if (ImGui::MenuItem("Close to the Right")) {
-                    if (on_tab_close_to_right_) {
-                        on_tab_close_to_right_(context_menu_tab_);
-                    }
+                if (menu_item("Close to the Right")) {
+                    if (on_tab_close_to_right_) on_tab_close_to_right_(context_menu_tab_);
                 }
             }
         }
@@ -610,25 +639,36 @@ void TabBar::draw_context_menu() {
         context_menu_tab_ = SIZE_MAX;
     }
 
-    // Rename popup
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(4);
+
+    // Rename popup — modern styling
     if (renaming_tab_ && rename_tab_index_ < tabs_.size()) {
         ImGui::OpenPopup("##tab_rename_popup");
         renaming_tab_ = false;
     }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+
     if (ImGui::BeginPopup("##tab_rename_popup")) {
-        ImGui::Text("Rename tab:");
+        ImGui::TextUnformatted("Rename tab");
+        ImGui::Spacing();
         bool enter_pressed = ImGui::InputText("##rename_input", rename_buffer_,
             sizeof(rename_buffer_), ImGuiInputTextFlags_EnterReturnsTrue);
         if (ImGui::IsWindowAppearing()) {
             ImGui::SetKeyboardFocusHere(-1);
         }
+        ImGui::Spacing();
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
         if (enter_pressed || ImGui::Button("OK")) {
             std::string new_title(rename_buffer_);
             if (!new_title.empty() && rename_tab_index_ < tabs_.size()) {
                 tabs_[rename_tab_index_].title = new_title;
-                if (on_tab_rename_) {
-                    on_tab_rename_(rename_tab_index_, new_title);
-                }
+                if (on_tab_rename_) on_tab_rename_(rename_tab_index_, new_title);
             }
             rename_tab_index_ = SIZE_MAX;
             ImGui::CloseCurrentPopup();
@@ -638,8 +678,12 @@ void TabBar::draw_context_menu() {
             rename_tab_index_ = SIZE_MAX;
             ImGui::CloseCurrentPopup();
         }
+        ImGui::PopStyleVar();
         ImGui::EndPopup();
     }
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
 #endif
 }
 

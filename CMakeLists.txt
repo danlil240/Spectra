@@ -43,6 +43,10 @@ foreach(_ui_src
     src/ui/recording_export.cpp
     src/ui/split_view.cpp
     src/ui/dock_system.cpp
+    src/ui/axis_link.cpp
+    src/ui/data_transform.cpp
+    src/ui/keyframe_interpolator.cpp
+    src/ui/animation_curve_editor.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND PLOTIX_UI_SOURCES ${_ui_src})
@@ -145,6 +149,8 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         src/ui/shortcut_manager.cpp
         src/ui/undo_manager.cpp
         src/ui/workspace.cpp
+        src/ui/shortcut_config.cpp
+        src/ui/plugin_api.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(plotix PRIVATE ${_imgui_src})

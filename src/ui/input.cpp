@@ -1,5 +1,6 @@
 #include "input.hpp"
 #include "animation_controller.hpp"
+#include "axis_link.hpp"
 #include "data_interaction.hpp"
 #include "gesture_recognizer.hpp"
 #include "shortcut_manager.hpp"
@@ -161,6 +162,10 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                             *active_axes_, target_x, target_y,
                             AUTOFIT_ANIM_DURATION, ease::ease_out);
                     }
+                    // Propagate auto-fit to linked axes
+                    if (axis_link_mgr_) {
+                        axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
+                    }
                     return; // Don't start a pan drag on double-click
                 }
             }
@@ -194,6 +199,25 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             PLOTIX_LOG_DEBUG("input", "Ending pan drag");
             mode_ = InteractionMode::Idle;
 
+            // Detect click-without-drag: if the mouse barely moved, treat as a
+            // click for series selection rather than a pan gesture.
+            {
+                float dx_px = static_cast<float>(x - drag_start_x_);
+                float dy_px = static_cast<float>(y - drag_start_y_);
+                float move_dist = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                constexpr float CLICK_THRESHOLD_PX = 5.0f;
+                if (move_dist < CLICK_THRESHOLD_PX && data_interaction_) {
+                    // Undo the tiny pan that occurred during the drag
+                    if (active_axes_) {
+                        active_axes_->xlim(drag_start_xlim_min_, drag_start_xlim_max_);
+                        active_axes_->ylim(drag_start_ylim_min_, drag_start_ylim_max_);
+                    }
+                    if (data_interaction_->on_mouse_click(0, x, y)) {
+                        return; // Click consumed by data interaction (series selected)
+                    }
+                }
+            }
+
             // Compute release velocity for inertial pan
             if ((transition_engine_ || anim_ctrl_) && active_axes_) {
                 auto now = Clock::now();
@@ -202,35 +226,49 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
                 // Only apply inertia if the drag was short and recent movement exists
                 if (dt_sec < 0.1f && dt_sec > 0.0f && drag_total > 0.05f) {
-                    const auto& vp = viewport_for_axes(active_axes_);
-                    auto xlim = active_axes_->x_limits();
-                    auto ylim = active_axes_->y_limits();
+                    // Skip inertia if mouse barely moved — prevents spurious
+                    // acceleration from sub-pixel or 1-2 px jitter on release
+                    float dx_px = static_cast<float>(x - last_move_x_);
+                    float dy_px = static_cast<float>(y - last_move_y_);
+                    float dist_px = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                    constexpr float MIN_RELEASE_DIST_PX = 2.0f;
 
-                    float x_range = xlim.max - xlim.min;
-                    float y_range = ylim.max - ylim.min;
+                    if (dist_px >= MIN_RELEASE_DIST_PX) {
+                        const auto& vp = viewport_for_axes(active_axes_);
+                        auto xlim = active_axes_->x_limits();
+                        auto ylim = active_axes_->y_limits();
 
-                    // Screen velocity → data velocity
-                    float vx_screen = static_cast<float>(x - last_move_x_) / dt_sec;
-                    float vy_screen = static_cast<float>(y - last_move_y_) / dt_sec;
+                        float x_range = xlim.max - xlim.min;
+                        float y_range = ylim.max - ylim.min;
 
-                    // Clamp screen velocity to prevent infinity from tiny dt
-                    constexpr float MAX_SCREEN_VEL = 4000.0f; // px/sec
-                    vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
-                    vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
+                        // Use a minimum dt floor to prevent velocity blow-up from
+                        // sub-millisecond intervals between last move and release
+                        constexpr float MIN_DT_SEC = 0.008f; // 8ms floor
+                        float effective_dt = std::max(dt_sec, MIN_DT_SEC);
 
-                    float vx_data = -vx_screen * x_range / vp.w;
-                    float vy_data =  vy_screen * y_range / vp.h;
+                        // Screen velocity → data velocity
+                        float vx_screen = dx_px / effective_dt;
+                        float vy_screen = dy_px / effective_dt;
 
-                    float speed = std::sqrt(vx_data * vx_data + vy_data * vy_data);
-                    if (speed > MIN_INERTIA_VELOCITY) {
-                        PLOTIX_LOG_DEBUG("input", "Inertial pan: v=(" +
-                            std::to_string(vx_data) + ", " + std::to_string(vy_data) + ")");
-                        if (transition_engine_) {
-                            transition_engine_->animate_inertial_pan(
-                                *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
-                        } else if (anim_ctrl_) {
-                            anim_ctrl_->animate_inertial_pan(
-                                *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                        // Clamp screen velocity as a safety net
+                        constexpr float MAX_SCREEN_VEL = 3000.0f; // px/sec
+                        vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
+                        vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
+
+                        float vx_data = -vx_screen * x_range / vp.w;
+                        float vy_data =  vy_screen * y_range / vp.h;
+
+                        float speed = std::sqrt(vx_data * vx_data + vy_data * vy_data);
+                        if (speed > MIN_INERTIA_VELOCITY) {
+                            PLOTIX_LOG_DEBUG("input", "Inertial pan: v=(" +
+                                std::to_string(vx_data) + ", " + std::to_string(vy_data) + ")");
+                            if (transition_engine_) {
+                                transition_engine_->animate_inertial_pan(
+                                    *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                            } else if (anim_ctrl_) {
+                                anim_ctrl_->animate_inertial_pan(
+                                    *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                            }
                         }
                     }
                 }
@@ -316,6 +354,12 @@ void InputHandler::on_mouse_move(double x, double y) {
                                drag_start_xlim_max_ + dx_data);
             active_axes_->ylim(drag_start_ylim_min_ + dy_data,
                                drag_start_ylim_max_ + dy_data);
+
+            // Propagate pan to linked axes
+            if (axis_link_mgr_) {
+                axis_link_mgr_->propagate_limits(active_axes_,
+                    active_axes_->x_limits(), active_axes_->y_limits());
+            }
         } else if (tool_mode_ == ToolMode::BoxZoom) {
             // Box zoom logic
             box_zoom_.x1 = x;
@@ -372,6 +416,11 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
 
     active_axes_->xlim(new_xmin, new_xmax);
     active_axes_->ylim(new_ymin, new_ymax);
+
+    // Propagate zoom to linked axes
+    if (axis_link_mgr_) {
+        axis_link_mgr_->propagate_zoom(active_axes_, data_x, data_y, factor);
+    }
 }
 
 // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -559,6 +608,11 @@ void InputHandler::apply_box_zoom() {
         } else {
             active_axes_->xlim(xmin, xmax);
             active_axes_->ylim(ymin, ymax);
+        }
+
+        // Propagate box zoom to linked axes
+        if (axis_link_mgr_) {
+            axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
         }
     }
 

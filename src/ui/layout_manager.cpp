@@ -103,7 +103,7 @@ Rect LayoutManager::compute_canvas() const {
     float w = window_width_ - NAV_TOOLBAR_INSET - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;
     
-    float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+    float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT - bottom_panel_height_;
 
     // Offset canvas below tab bar when visible
     if (tab_bar_visible_) {

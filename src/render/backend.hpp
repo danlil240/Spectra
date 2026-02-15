@@ -23,6 +23,12 @@ enum class PipelineType {
     Scatter,
     Grid,
     Heatmap,
+    // 3D pipeline types
+    Line3D,
+    Scatter3D,
+    Mesh3D,
+    Surface3D,
+    Grid3D,
 };
 
 struct BufferHandle {
@@ -41,11 +47,18 @@ struct TextureHandle {
 };
 
 struct FrameUBO {
-    float projection[16] {};  // mat4 — orthographic
+    float projection[16] {};  // mat4 — orthographic (2D) or perspective/ortho (3D)
+    float view[16]       {};  // mat4 — identity (2D) or camera view matrix (3D)
+    float model[16]      {};  // mat4 — identity (2D) or per-series transform (3D)
     float viewport_width  = 0.0f;
     float viewport_height = 0.0f;
     float time            = 0.0f;
-    float _pad            = 0.0f;
+    float _pad0           = 0.0f;
+    // 3D-specific fields (std140 aligned)
+    float camera_pos[3]   {};  // Eye position (for lighting)
+    float near_plane      = 0.01f;
+    float light_dir[3]    {};  // Directional light (Phase 3)
+    float far_plane       = 1000.0f;
 };
 
 struct SeriesPushConstants {
@@ -111,6 +124,7 @@ public:
     virtual void set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height) = 0;
     virtual void draw(uint32_t vertex_count, uint32_t first_vertex = 0) = 0;
     virtual void draw_instanced(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex = 0) = 0;
+    virtual void draw_indexed(uint32_t index_count, uint32_t first_index = 0, int32_t vertex_offset = 0) = 0;
 
     // Readback (for offscreen/export)
     virtual bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) = 0;

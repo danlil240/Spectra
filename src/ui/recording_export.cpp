@@ -99,6 +99,125 @@ bool RecordingSession::begin(const RecordingConfig& config, FrameRenderCallback 
     return true;
 }
 
+bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRenderCallback pane_cb) {
+    std::lock_guard lock(mutex_);
+
+    if (state_ == RecordingState::Recording || state_ == RecordingState::Encoding) {
+        set_error("Recording already in progress");
+        return false;
+    }
+
+    config_ = config;
+    pane_render_cb_ = std::move(pane_cb);
+    multi_pane_ = true;
+    error_.clear();
+    current_frame_ = 0;
+    start_wall_time_ = get_wall_time();
+
+    if (!pane_render_cb_) {
+        set_error("No pane render callback provided");
+        state_ = RecordingState::Failed;
+        return false;
+    }
+
+    if (config_.pane_count < 1) config_.pane_count = 1;
+
+    // Resolve pane rects: use provided rects or auto-grid
+    resolved_pane_rects_.clear();
+    if (!config_.pane_rects.empty()) {
+        resolved_pane_rects_ = config_.pane_rects;
+    } else if (config_.pane_count > 1) {
+        // Auto-grid layout: compute rows/cols
+        uint32_t cols = static_cast<uint32_t>(std::ceil(std::sqrt(
+            static_cast<float>(config_.pane_count))));
+        uint32_t rows = (config_.pane_count + cols - 1) / cols;
+        float pw = 1.0f / static_cast<float>(cols);
+        float ph = 1.0f / static_cast<float>(rows);
+        for (uint32_t i = 0; i < config_.pane_count; ++i) {
+            RecordingConfig::PaneRect r;
+            r.x = static_cast<float>(i % cols) * pw;
+            r.y = static_cast<float>(i / cols) * ph;
+            r.w = pw;
+            r.h = ph;
+            resolved_pane_rects_.push_back(r);
+        }
+    } else {
+        resolved_pane_rects_.push_back({0.0f, 0.0f, 1.0f, 1.0f});
+    }
+
+    // Create a wrapper FrameRenderCallback that composites panes
+    render_cb_ = [this](uint32_t frame_index, float time,
+                        uint8_t* rgba_buffer, uint32_t w, uint32_t h) -> bool {
+        // Clear the composite buffer
+        std::memset(rgba_buffer, 0, static_cast<size_t>(w) * h * 4);
+
+        for (uint32_t pi = 0; pi < config_.pane_count; ++pi) {
+            const auto& rect = resolved_pane_rects_[pi];
+            uint32_t pane_w = static_cast<uint32_t>(rect.w * static_cast<float>(w));
+            uint32_t pane_h = static_cast<uint32_t>(rect.h * static_cast<float>(h));
+            if (pane_w == 0 || pane_h == 0) continue;
+
+            // Resize pane buffer if needed
+            size_t pane_bytes = static_cast<size_t>(pane_w) * pane_h * 4;
+            if (pane_buffer_.size() < pane_bytes) {
+                pane_buffer_.resize(pane_bytes);
+            }
+
+            // Render this pane
+            bool ok = pane_render_cb_(pi, frame_index, time,
+                                       pane_buffer_.data(), pane_w, pane_h);
+            if (!ok) return false;
+
+            // Blit pane into composite buffer
+            uint32_t dst_x = static_cast<uint32_t>(rect.x * static_cast<float>(w));
+            uint32_t dst_y = static_cast<uint32_t>(rect.y * static_cast<float>(h));
+
+            for (uint32_t row = 0; row < pane_h && (dst_y + row) < h; ++row) {
+                uint32_t src_offset = row * pane_w * 4;
+                uint32_t dst_offset = ((dst_y + row) * w + dst_x) * 4;
+                uint32_t copy_w = std::min(pane_w, w - dst_x);
+                std::memcpy(rgba_buffer + dst_offset,
+                            pane_buffer_.data() + src_offset,
+                            static_cast<size_t>(copy_w) * 4);
+            }
+        }
+        return true;
+    };
+
+    if (!validate_config()) {
+        state_ = RecordingState::Failed;
+        return false;
+    }
+
+    // Compute total frames
+    float duration = config_.end_time - config_.start_time;
+    if (duration <= 0.0f) {
+        set_error("Invalid time range (end <= start)");
+        state_ = RecordingState::Failed;
+        return false;
+    }
+    total_frames_ = static_cast<uint32_t>(std::ceil(duration * config_.fps));
+    if (total_frames_ == 0) total_frames_ = 1;
+
+    png_frame_digits_ = 1;
+    uint32_t n = total_frames_;
+    while (n >= 10) { n /= 10; png_frame_digits_++; }
+    if (png_frame_digits_ < 4) png_frame_digits_ = 4;
+
+    frame_buffer_.resize(
+        static_cast<size_t>(config_.width) * config_.height * 4, 0);
+
+    state_ = RecordingState::Preparing;
+
+    if (!prepare_output()) {
+        state_ = RecordingState::Failed;
+        return false;
+    }
+
+    state_ = RecordingState::Recording;
+    return true;
+}
+
 bool RecordingSession::advance() {
     std::lock_guard lock(mutex_);
 

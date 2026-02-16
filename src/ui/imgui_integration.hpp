@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include <functional>
     #include <memory>
@@ -136,9 +136,9 @@ class ImGuiIntegration
     TabBar* tab_bar() const { return tab_bar_; }
 
     // Pane tab context menu callbacks (wired by App)
-    using PaneTabCallback = std::function<void(size_t figure_index)>;
-    using PaneTabDetachCallback = std::function<void(size_t figure_index, float screen_x, float screen_y)>;
-    using PaneTabRenameCallback = std::function<void(size_t figure_index, const std::string& new_title)>;
+    using PaneTabCallback = std::function<void(FigureId figure_id)>;
+    using PaneTabDetachCallback = std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
+    using PaneTabRenameCallback = std::function<void(FigureId figure_id, const std::string& new_title)>;
 
     void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
     void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
@@ -172,7 +172,7 @@ class ImGuiIntegration
     void draw_axis_link_indicators(Figure& figure);
     void draw_timeline_panel();
     void draw_curve_editor_panel();
-    #if PLOTIX_FLOATING_TOOLBAR
+    #if SPECTRA_FLOATING_TOOLBAR
     void draw_floating_toolbar();
     #endif
     void draw_theme_settings();
@@ -269,12 +269,12 @@ class ImGuiIntegration
     PaneTabRenameCallback pane_tab_rename_cb_;
 
     // Pane tab context menu state
-    size_t pane_ctx_menu_fig_ = SIZE_MAX;  // Figure index of right-clicked tab
+    FigureId pane_ctx_menu_fig_ = INVALID_FIGURE_ID;  // Figure id of right-clicked tab
     bool pane_ctx_menu_open_ = false;
 
     // Pane tab rename state
     bool pane_tab_renaming_ = false;
-    size_t pane_tab_rename_fig_ = SIZE_MAX;
+    FigureId pane_tab_rename_fig_ = INVALID_FIGURE_ID;
     char pane_tab_rename_buf_[256] = {};
 
     // Current figure pointer (set each frame in build_ui for menu callbacks)
@@ -289,7 +289,7 @@ class ImGuiIntegration
     {
         bool dragging = false;
         uint32_t source_pane_id = 0;
-        size_t dragged_figure_index = SIZE_MAX;
+        FigureId dragged_figure_index = INVALID_FIGURE_ID;
         float drag_start_x = 0.0f;
         float drag_start_y = 0.0f;
         bool cross_pane = false;     // Dragged outside source pane header
@@ -310,7 +310,7 @@ class ImGuiIntegration
     struct PaneTabAnimKey
     {
         uint32_t pane_id;
-        size_t fig_idx;
+        FigureId fig_idx;
         bool operator==(const PaneTabAnimKey& o) const
         {
             return pane_id == o.pane_id && fig_idx == o.fig_idx;
@@ -347,10 +347,10 @@ class ImGuiIntegration
     TabDragSplitState tab_drag_split_;
 
     // Figure title lookup callback (set by App)
-    std::function<std::string(size_t)> get_figure_title_;
+    std::function<std::string(FigureId)> get_figure_title_;
 
    public:
-    void set_figure_title_callback(std::function<std::string(size_t)> cb)
+    void set_figure_title_callback(std::function<std::string(FigureId)> cb)
     {
         get_figure_title_ = std::move(cb);
     }
@@ -366,7 +366,7 @@ class ImGuiIntegration
     // Deferred tooltip rendering to ensure tooltips appear above all UI elements
     const char* deferred_tooltip_ = nullptr;
 
-    #if PLOTIX_FLOATING_TOOLBAR
+    #if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar drag state
     bool toolbar_dragging_ = false;
     #endif
@@ -374,4 +374,4 @@ class ImGuiIntegration
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

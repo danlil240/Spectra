@@ -258,7 +258,7 @@ TEST(LayoutManager, SmallWindowClampsToZero)
     EXPECT_GE(cv.h, 0.0f);
 }
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
 // ─── Floating Toolbar ───────────────────────────────────────────────────────
 
 TEST(LayoutManager, FloatingToolbarCenteredInCanvas)

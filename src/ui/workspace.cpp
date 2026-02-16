@@ -1062,12 +1062,12 @@ std::string Workspace::autosave_path()
 {
     try
     {
-        auto tmp = std::filesystem::temp_directory_path() / "plotix_autosave.spectra";
+        auto tmp = std::filesystem::temp_directory_path() / "spectra_autosave.spectra";
         return tmp.string();
     }
     catch (...)
     {
-        return "plotix_autosave.spectra";
+        return "spectra_autosave.spectra";
     }
 }
 

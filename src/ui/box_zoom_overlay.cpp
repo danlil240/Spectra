@@ -1,6 +1,6 @@
 #include "box_zoom_overlay.hpp"
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include <algorithm>
     #include <cmath>
@@ -240,4 +240,4 @@ void BoxZoomOverlay::draw_zoom_crosshair_impl(float x0,
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

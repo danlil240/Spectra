@@ -95,7 +95,7 @@ using CurveValueChangeCallback =
 // - Multi-channel overlay with per-channel colors
 // - Hit-testing for interactive editing
 //
-// The ImGui drawing code is behind PLOTIX_USE_IMGUI guards.
+// The ImGui drawing code is behind SPECTRA_USE_IMGUI guards.
 // Pure logic (hit-testing, view transforms, curve sampling) is always available.
 class AnimationCurveEditor
 {
@@ -200,7 +200,7 @@ class AnimationCurveEditor
     void set_on_tangent_changed(CurveEditCallback cb);
 
     // ─── ImGui Drawing ───────────────────────────────────────────────
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     void draw(float width, float height);
 #endif
 

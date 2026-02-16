@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 struct ImVec2;
 #endif
 

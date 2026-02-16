@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "command_palette.hpp"
 
@@ -682,4 +682,4 @@ bool CommandPalette::draw(float window_width, float window_height)
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

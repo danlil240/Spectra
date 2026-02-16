@@ -7,12 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Feature flags
-option(PLOTIX_USE_GLFW    "Enable GLFW windowing adapter"       ON)
-option(PLOTIX_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
-option(PLOTIX_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
-option(PLOTIX_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
-option(PLOTIX_BUILD_EXAMPLES "Build example programs"            ON)
-option(PLOTIX_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
+option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
+option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
+option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
+option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
+option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
+option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -21,15 +21,15 @@ find_package(Vulkan REQUIRED)
 include(cmake/CompileShaders.cmake)
 
 # Collect source files
-file(GLOB_RECURSE PLOTIX_CORE_SOURCES   src/core/*.cpp)
-file(GLOB_RECURSE PLOTIX_RENDER_SOURCES src/render/*.cpp)
-file(GLOB_RECURSE PLOTIX_ANIM_SOURCES   src/anim/*.cpp)
-file(GLOB_RECURSE PLOTIX_IO_SOURCES     src/io/*.cpp)
-file(GLOB_RECURSE PLOTIX_DATA_SOURCES  src/data/*.cpp)
+file(GLOB_RECURSE SPECTRA_CORE_SOURCES   src/core/*.cpp)
+file(GLOB_RECURSE SPECTRA_RENDER_SOURCES src/render/*.cpp)
+file(GLOB_RECURSE SPECTRA_ANIM_SOURCES   src/anim/*.cpp)
+file(GLOB_RECURSE SPECTRA_IO_SOURCES     src/io/*.cpp)
+file(GLOB_RECURSE SPECTRA_DATA_SOURCES  src/data/*.cpp)
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
-file(GLOB PLOTIX_UI_SOURCES src/ui/app.cpp)
+file(GLOB SPECTRA_UI_SOURCES src/ui/app.cpp)
 foreach(_ui_src
     src/ui/input.cpp
     src/ui/layout_manager.cpp
@@ -53,18 +53,18 @@ foreach(_ui_src
     src/ui/axes3d_renderer.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
-        list(APPEND PLOTIX_UI_SOURCES ${_ui_src})
+        list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
     endif()
 endforeach()
 
 # Core library (headless-capable)
 add_library(spectra STATIC
-    ${PLOTIX_CORE_SOURCES}
-    ${PLOTIX_RENDER_SOURCES}
-    ${PLOTIX_ANIM_SOURCES}
-    ${PLOTIX_IO_SOURCES}
-    ${PLOTIX_DATA_SOURCES}
-    ${PLOTIX_UI_SOURCES}
+    ${SPECTRA_CORE_SOURCES}
+    ${SPECTRA_RENDER_SOURCES}
+    ${SPECTRA_ANIM_SOURCES}
+    ${SPECTRA_IO_SOURCES}
+    ${SPECTRA_DATA_SOURCES}
+    ${SPECTRA_UI_SOURCES}
 )
 
 target_include_directories(spectra PUBLIC
@@ -82,17 +82,17 @@ target_include_directories(spectra PRIVATE
 target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 
 target_compile_definitions(spectra PRIVATE
-    $<$<BOOL:${PLOTIX_USE_FFMPEG}>:PLOTIX_USE_FFMPEG>
-    $<$<BOOL:${PLOTIX_USE_EIGEN}>:PLOTIX_USE_EIGEN>
+    $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+    $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
 
 # Ensure shaders are compiled before the library
-if(TARGET plotix_shaders)
-    add_dependencies(spectra plotix_shaders)
+if(TARGET spectra_shaders)
+    add_dependencies(spectra spectra_shaders)
 endif()
 
 # GLFW adapter (optional)
-if(PLOTIX_USE_GLFW)
+if(SPECTRA_USE_GLFW)
     find_package(glfw3 3.3 QUIET)
     if(NOT glfw3_FOUND)
         include(FetchContent)
@@ -109,11 +109,11 @@ if(PLOTIX_USE_GLFW)
 
     target_sources(spectra PRIVATE src/ui/glfw_adapter.cpp)
     target_link_libraries(spectra PUBLIC glfw)
-    target_compile_definitions(spectra PUBLIC PLOTIX_USE_GLFW)
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
 
 # Dear ImGui (optional — requires GLFW)
-if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
+if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     include(FetchContent)
     FetchContent_Declare(
         imgui
@@ -164,23 +164,23 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
     )
-    target_compile_definitions(spectra PUBLIC PLOTIX_USE_IMGUI)
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
 endif()
 
 # Eigen adapter (optional)
-if(PLOTIX_USE_EIGEN)
+if(SPECTRA_USE_EIGEN)
     find_package(Eigen3 REQUIRED)
     target_link_libraries(spectra PUBLIC Eigen3::Eigen)
-    target_compile_definitions(spectra PUBLIC PLOTIX_USE_EIGEN)
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
 endif()
 
 # Examples
-if(PLOTIX_BUILD_EXAMPLES)
+if(SPECTRA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 # Tests
-if(PLOTIX_BUILD_TESTS)
+if(SPECTRA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

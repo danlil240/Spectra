@@ -775,7 +775,7 @@ Agent 1 (Transform Refactor)
    cmake --build . --target test_math3d
    
    # Build only specific components
-   cmake --build . --target plotix_core
+   cmake --build . --target spectra_core
    
    # Avoid full rebuild unless necessary
    # DON'T: cmake --build .  # Builds everything

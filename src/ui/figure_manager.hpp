@@ -49,8 +49,8 @@ struct FigureState
 class FigureManager
 {
    public:
-    using FigureChangeCallback = std::function<void(size_t new_index, Figure* fig)>;
-    using FigureCloseCallback = std::function<void(size_t index)>;
+    using FigureChangeCallback = std::function<void(FigureId new_id, Figure* fig)>;
+    using FigureCloseCallback = std::function<void(FigureId id)>;
 
     explicit FigureManager(std::vector<std::unique_ptr<Figure>>& figures);
     ~FigureManager() = default;
@@ -64,34 +64,34 @@ class FigureManager
     TabBar* tab_bar() const { return tab_bar_; }
 
     // Figure lifecycle
-    size_t create_figure(const FigureConfig& config = {});
-    bool close_figure(size_t index);
-    bool close_all_except(size_t index);
-    bool close_to_right(size_t index);
-    size_t duplicate_figure(size_t index);
+    FigureId create_figure(const FigureConfig& config = {});
+    bool close_figure(FigureId index);
+    bool close_all_except(FigureId index);
+    bool close_to_right(FigureId index);
+    FigureId duplicate_figure(FigureId index);
 
     // Navigation
-    void switch_to(size_t index);
+    void switch_to(FigureId index);
     void switch_to_next();
     void switch_to_previous();
-    void move_tab(size_t from_index, size_t to_index);
+    void move_tab(FigureId from_index, FigureId to_index);
 
     // State queries
-    size_t active_index() const { return active_index_; }
+    FigureId active_index() const { return active_index_; }
     Figure* active_figure() const;
     size_t count() const { return figures_.size(); }
-    bool can_close(size_t index) const;
+    bool can_close(FigureId index) const;
 
     // Per-figure state
-    FigureState& state(size_t index);
-    const FigureState& state(size_t index) const;
+    FigureState& state(FigureId index);
+    const FigureState& state(FigureId index) const;
     FigureState& active_state();
 
     // Title management
-    std::string get_title(size_t index) const;
-    void set_title(size_t index, const std::string& title);
-    void mark_modified(size_t index, bool modified = true);
-    bool is_modified(size_t index) const;
+    std::string get_title(FigureId index) const;
+    void set_title(FigureId index, const std::string& title);
+    void mark_modified(FigureId index, bool modified = true);
+    bool is_modified(FigureId index) const;
 
     // Callbacks
     void set_on_figure_changed(FigureChangeCallback cb) { on_figure_changed_ = std::move(cb); }
@@ -103,25 +103,25 @@ class FigureManager
 
     // Queue operations (safe to call from callbacks)
     void queue_create();
-    void queue_close(size_t index);
-    void queue_switch(size_t index);
+    void queue_close(FigureId index);
+    void queue_switch(FigureId index);
 
     // Save/restore axis state for the current figure
     void save_active_state();
-    void restore_state(size_t index);
+    void restore_state(FigureId index);
 
     // Generate default title for a figure
-    static std::string default_title(size_t index);
+    static std::string default_title(FigureId index);
 
    private:
     std::vector<std::unique_ptr<Figure>>& figures_;
     std::vector<FigureState> states_;
-    size_t active_index_ = 0;
+    FigureId active_index_ = 0;
     TabBar* tab_bar_ = nullptr;
 
     // Pending operations (processed in process_pending())
-    size_t pending_switch_ = SIZE_MAX;
-    size_t pending_close_ = SIZE_MAX;
+    FigureId pending_switch_ = INVALID_FIGURE_ID;
+    FigureId pending_close_ = INVALID_FIGURE_ID;
     bool pending_create_ = false;
 
     // Callbacks

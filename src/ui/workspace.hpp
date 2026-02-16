@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
 
@@ -104,7 +105,7 @@ struct WorkspaceData
 
     uint32_t version = FORMAT_VERSION;
     std::string theme_name = "dark";
-    size_t active_figure_index = 0;
+    FigureId active_figure_index = 0;
     PanelState panels;
     InteractionState interaction;
     std::vector<FigureState> figures;
@@ -122,7 +123,7 @@ struct WorkspaceData
     // v3: Data transform pipeline presets per-axes
     struct TransformState
     {
-        size_t figure_index = 0;
+        FigureId figure_index = 0;
         size_t axes_index = 0;
         struct Step
         {

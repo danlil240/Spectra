@@ -150,7 +150,7 @@ def analyze_targets():
             if t in seen_dirs:
                 used_targets.add(t)
             # Handle potential sanitization of target names by CMake
-            # e.g. "plotix_test" -> "plotix_test"
+            # e.g. "spectra_test" -> "spectra_test"
             # But sometimes dots/slashes are replaced? Usually not for simple targets.
                 
     unused_targets = defined_targets - used_targets

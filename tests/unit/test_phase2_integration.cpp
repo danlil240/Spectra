@@ -142,7 +142,7 @@ class UndoWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_undo_ws.spectra").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "spectra_int_undo_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -265,7 +265,7 @@ class FigureManagerWorkspaceIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_figmgr_ws.spectra").string();
+            (std::filesystem::temp_directory_path() / "spectra_int_figmgr_ws.spectra").string();
         figures.push_back(std::make_unique<Figure>());
         mgr = std::make_unique<FigureManager>(figures);
     }
@@ -579,7 +579,7 @@ class WorkspaceInteractionIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_ws_interact.spectra").string();
+            (std::filesystem::temp_directory_path() / "spectra_int_ws_interact.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }

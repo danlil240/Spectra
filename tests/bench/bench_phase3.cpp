@@ -771,7 +771,7 @@ static WorkspaceData make_phase3_workspace(int num_figures, int series_per_fig)
 static void BM_WorkspaceV3_SaveSmall(benchmark::State& state)
 {
     auto data = make_phase3_workspace(1, 3);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws3_small.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws3_small.spectra";
 
     for (auto _ : state)
     {
@@ -784,7 +784,7 @@ BENCHMARK(BM_WorkspaceV3_SaveSmall)->Unit(benchmark::kMicrosecond);
 static void BM_WorkspaceV3_SaveLarge(benchmark::State& state)
 {
     auto data = make_phase3_workspace(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws3_large.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws3_large.spectra";
 
     for (auto _ : state)
     {
@@ -797,7 +797,7 @@ BENCHMARK(BM_WorkspaceV3_SaveLarge)->Unit(benchmark::kMicrosecond);
 static void BM_WorkspaceV3_LoadSmall(benchmark::State& state)
 {
     auto data = make_phase3_workspace(1, 3);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws3_load_small.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws3_load_small.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)
@@ -813,7 +813,7 @@ BENCHMARK(BM_WorkspaceV3_LoadSmall)->Unit(benchmark::kMicrosecond);
 static void BM_WorkspaceV3_LoadLarge(benchmark::State& state)
 {
     auto data = make_phase3_workspace(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws3_load_large.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws3_load_large.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)

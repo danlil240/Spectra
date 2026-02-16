@@ -71,7 +71,7 @@ using SelectionCallback = std::function<void(const std::vector<KeyframeMarker*>&
 //
 // Manages playhead position, playback state, keyframe tracks, selection,
 // scrubbing, and snap. The ImGui drawing code (if enabled) is in the .cpp
-// behind PLOTIX_USE_IMGUI guards; the pure logic is always available.
+// behind SPECTRA_USE_IMGUI guards; the pure logic is always available.
 //
 // Thread-safe: all public methods lock an internal mutex.
 class TimelineEditor
@@ -257,7 +257,7 @@ class TimelineEditor
     bool deserialize(const std::string& json);
 
     // ─── ImGui Drawing ───────────────────────────────────────────────────
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     // Draw the timeline editor panel. Call once per frame.
     void draw(float width, float height);
 #endif

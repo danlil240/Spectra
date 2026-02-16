@@ -34,7 +34,7 @@ class LayoutManager
     Rect canvas_rect() const;
     Rect inspector_rect() const;
     Rect status_bar_rect() const;
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     Rect floating_toolbar_rect() const;
 #endif
     Rect tab_bar_rect() const;
@@ -57,7 +57,7 @@ class LayoutManager
         return bottom_panel_height_;
     }
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar
     void set_floating_toolbar_visible(bool visible);
     void toggle_floating_toolbar();
@@ -132,7 +132,7 @@ class LayoutManager
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
     static constexpr float INSPECTOR_MIN_WIDTH = 240.0f;
     static constexpr float INSPECTOR_MAX_WIDTH = 480.0f;
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     static constexpr float FLOATING_TOOLBAR_HEIGHT = 40.0f;
     static constexpr float FLOATING_TOOLBAR_WIDTH = 220.0f;
 #endif
@@ -151,7 +151,7 @@ class LayoutManager
     Rect canvas_rect_;
     Rect inspector_rect_;
     Rect status_bar_rect_;
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     Rect floating_toolbar_rect_;
 #endif
     Rect tab_bar_rect_;
@@ -173,7 +173,7 @@ class LayoutManager
     bool inspector_resize_hovered_ = false;
     bool inspector_resize_active_ = false;
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar state
     bool floating_toolbar_visible_ = true;
     float floating_toolbar_opacity_ = 1.0f;
@@ -195,7 +195,7 @@ class LayoutManager
     Rect compute_canvas() const;
     Rect compute_inspector() const;
     Rect compute_status_bar() const;
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     Rect compute_floating_toolbar() const;
 #endif
     Rect compute_tab_bar() const;

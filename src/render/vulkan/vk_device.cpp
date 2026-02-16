@@ -2,7 +2,7 @@
 
 #include "spectra/logger.hpp"
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
@@ -88,7 +88,7 @@ VkInstance create_instance(bool enable_validation)
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     // GLFW must be initialized before querying required extensions
     if (!glfwInit())
     {

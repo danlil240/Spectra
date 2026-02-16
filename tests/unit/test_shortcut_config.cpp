@@ -239,7 +239,7 @@ TEST(ShortcutConfigSerialize, SpecialCharacters)
 
 TEST(ShortcutConfigFile, SaveAndLoad)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_keybindings.json";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_keybindings.json";
     auto path_str = path.string();
 
     // Cleanup

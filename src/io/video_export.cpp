@@ -1,6 +1,6 @@
 #include <spectra/export.hpp>
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
 
     #include <cstdio>
     #include <sstream>
@@ -56,4 +56,4 @@ void VideoExporter::finish()
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_FFMPEG
+#endif  // SPECTRA_USE_FFMPEG

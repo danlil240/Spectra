@@ -29,7 +29,7 @@ class SvgExporter
     static std::string to_string(const Figure& figure);
 };
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
 class VideoExporter
 {
    public:
@@ -58,6 +58,6 @@ class VideoExporter
     Config config_;
     FILE* pipe_ = nullptr;
 };
-#endif  // PLOTIX_USE_FFMPEG
+#endif  // SPECTRA_USE_FFMPEG
 
 }  // namespace spectra

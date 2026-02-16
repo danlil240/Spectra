@@ -59,4 +59,4 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_target(plotix_shaders DEPENDS ${SHADER_HEADER} ${SPIRV_OUTPUTS})
+add_custom_target(spectra_shaders DEPENDS ${SHADER_HEADER} ${SPIRV_OUTPUTS})

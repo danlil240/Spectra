@@ -35,7 +35,7 @@ void LayoutManager::update(float window_width, float window_height, float dt)
     inspector_anim_width_ = smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
     nav_rail_anim_width_ = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar auto-hide: fade out after inactivity
     if (floating_toolbar_visible_ && dt > 0.0f)
     {
@@ -77,7 +77,7 @@ void LayoutManager::compute_zones()
     status_bar_rect_ = compute_status_bar();
     tab_bar_rect_ = compute_tab_bar();
     canvas_rect_ = compute_canvas();
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
     floating_toolbar_rect_ = compute_floating_toolbar();
 #endif
 }
@@ -140,7 +140,7 @@ Rect LayoutManager::compute_canvas() const
     return Rect{x, y, std::max(0.0f, w), std::max(0.0f, h)};
 }
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
 Rect LayoutManager::compute_floating_toolbar() const
 {
     // Default position: centered horizontally, near bottom of canvas (floating on top)
@@ -181,7 +181,7 @@ Rect LayoutManager::status_bar_rect() const
 {
     return status_bar_rect_;
 }
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
 Rect LayoutManager::floating_toolbar_rect() const
 {
     return floating_toolbar_rect_;
@@ -242,7 +242,7 @@ void LayoutManager::set_tab_bar_visible(bool visible)
     tab_bar_visible_ = visible;
 }
 
-#if PLOTIX_FLOATING_TOOLBAR
+#if SPECTRA_FLOATING_TOOLBAR
 void LayoutManager::set_floating_toolbar_visible(bool visible)
 {
     floating_toolbar_visible_ = visible;

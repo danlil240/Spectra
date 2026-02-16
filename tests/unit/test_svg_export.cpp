@@ -155,7 +155,7 @@ TEST(SvgExport, ContainsClipPath)
 TEST(SvgExport, WriteToFile)
 {
     auto fig = make_line_figure();
-    std::string path = "/tmp/plotix_test_export.svg";
+    std::string path = "/tmp/spectra_test_export.svg";
 
     bool ok = SvgExporter::write_svg(path, fig);
     EXPECT_TRUE(ok);

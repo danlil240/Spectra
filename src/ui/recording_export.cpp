@@ -50,7 +50,7 @@ static float get_wall_time()
 // ─── RecordingSession ────────────────────────────────────────────────────────
 
 RecordingSession::RecordingSession()
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     : ffmpeg_pipe_(nullptr)
 #endif
 {
@@ -60,7 +60,7 @@ RecordingSession::~RecordingSession()
 {
     // Ensure cleanup
     std::lock_guard lock(mutex_);
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     // Only close if we actually opened an MP4 pipe
     if (config_.format == RecordingFormat::MP4 && ffmpeg_pipe_ != nullptr)
     {
@@ -416,7 +416,7 @@ void RecordingSession::cancel()
     if (state_ == RecordingState::Recording || state_ == RecordingState::Encoding)
     {
         state_ = RecordingState::Cancelled;
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
         if (ffmpeg_pipe_)
         {
             pclose(ffmpeg_pipe_);
@@ -739,8 +739,8 @@ bool RecordingSession::validate_config() const
     }
     if (config_.format == RecordingFormat::MP4)
     {
-#ifndef PLOTIX_USE_FFMPEG
-        const_cast<RecordingSession*>(this)->set_error("MP4 export requires PLOTIX_USE_FFMPEG");
+#ifndef SPECTRA_USE_FFMPEG
+        const_cast<RecordingSession*>(this)->set_error("MP4 export requires SPECTRA_USE_FFMPEG");
         return false;
 #endif
     }
@@ -780,7 +780,7 @@ bool RecordingSession::prepare_output()
         }
         case RecordingFormat::MP4:
         {
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
             // Build ffmpeg command
             std::ostringstream cmd;
             cmd << "ffmpeg -y"
@@ -800,7 +800,7 @@ bool RecordingSession::prepare_output()
             }
             return true;
 #else
-            set_error("MP4 export requires PLOTIX_USE_FFMPEG");
+            set_error("MP4 export requires SPECTRA_USE_FFMPEG");
             return false;
 #endif
         }
@@ -1088,7 +1088,7 @@ bool RecordingSession::write_gif()
 bool RecordingSession::write_mp4_frame()
 {
     // Caller must hold mutex_
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     if (!ffmpeg_pipe_)
     {
         set_error("ffmpeg pipe not open");
@@ -1104,7 +1104,7 @@ bool RecordingSession::write_mp4_frame()
     }
     return true;
 #else
-    set_error("MP4 export requires PLOTIX_USE_FFMPEG");
+    set_error("MP4 export requires SPECTRA_USE_FFMPEG");
     return false;
 #endif
 }
@@ -1112,7 +1112,7 @@ bool RecordingSession::write_mp4_frame()
 bool RecordingSession::finalize_mp4()
 {
     // Caller must hold mutex_
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     if (ffmpeg_pipe_)
     {
         int result = pclose(ffmpeg_pipe_);

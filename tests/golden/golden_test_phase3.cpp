@@ -20,7 +20,7 @@ namespace spectra::test
 
 static fs::path baseline_dir()
 {
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_BASELINE_DIR"))
+    if (const char* env = std::getenv("SPECTRA_GOLDEN_BASELINE_DIR"))
     {
         return fs::path(env);
     }
@@ -29,7 +29,7 @@ static fs::path baseline_dir()
 
 static fs::path output_dir()
 {
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_OUTPUT_DIR"))
+    if (const char* env = std::getenv("SPECTRA_GOLDEN_OUTPUT_DIR"))
     {
         return fs::path(env);
     }
@@ -38,7 +38,7 @@ static fs::path output_dir()
 
 static bool update_baselines()
 {
-    const char* env = std::getenv("PLOTIX_UPDATE_BASELINES");
+    const char* env = std::getenv("SPECTRA_UPDATE_BASELINES");
     return env && std::string(env) == "1";
 }
 
@@ -94,7 +94,7 @@ static void run_golden_test(const std::string& scene_name,
     if (!fs::exists(baseline_path))
     {
         GTEST_SKIP() << "Baseline not found: " << baseline_path
-                     << " (run with PLOTIX_UPDATE_BASELINES=1 to generate)";
+                     << " (run with SPECTRA_UPDATE_BASELINES=1 to generate)";
         return;
     }
 

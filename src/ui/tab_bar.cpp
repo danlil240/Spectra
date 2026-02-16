@@ -3,7 +3,7 @@
 #include "design_tokens.hpp"
 #include "theme.hpp"
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include <imgui_internal.h>
 #endif
@@ -98,7 +98,7 @@ void TabBar::set_active_tab(size_t index)
 
 void TabBar::draw(const Rect& bounds)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (tabs_.empty())
     {
         return;
@@ -162,7 +162,7 @@ bool TabBar::is_close_button_hovered(size_t index) const
 
 void TabBar::handle_input(const Rect& bounds)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     ImVec2 mouse_pos = ImGui::GetMousePos();
     bool mouse_in_bounds = (mouse_pos.x >= bounds.x && mouse_pos.x < bounds.x + bounds.w
                             && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
@@ -232,7 +232,7 @@ static ImU32 to_imcol(const ui::Color& c, float alpha_override = -1.0f)
 
 void TabBar::draw_tabs(const Rect& bounds)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     auto layouts = compute_tab_layouts(bounds);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const auto& colors = ui::theme();
@@ -344,7 +344,7 @@ void TabBar::draw_tabs(const Rect& bounds)
 
 void TabBar::draw_add_button(const Rect& bounds)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     const auto& colors = ui::theme();
     auto layouts = compute_tab_layouts(bounds);
 
@@ -484,7 +484,7 @@ size_t TabBar::get_close_button_at_position(const ImVec2& pos,
 
 void TabBar::start_drag(size_t tab_index, float mouse_x)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     is_dragging_ = true;
     dragged_tab_ = tab_index;
     drag_offset_x_ = mouse_x;
@@ -498,7 +498,7 @@ void TabBar::start_drag(size_t tab_index, float mouse_x)
 
 void TabBar::update_drag(float mouse_x)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (dragged_tab_ >= tabs_.size())
         return;
 
@@ -563,7 +563,7 @@ void TabBar::update_drag(float mouse_x)
 
 void TabBar::end_drag()
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (is_dock_dragging_ && dragged_tab_ < tabs_.size())
     {
         ImVec2 mouse_pos = ImGui::GetMousePos();
@@ -611,7 +611,7 @@ bool TabBar::needs_scroll_buttons(const Rect& bounds) const
 
 void TabBar::draw_scroll_buttons(const Rect& bounds)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     const auto& colors = ui::theme();
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     float btn_w = 20.0f;
@@ -669,7 +669,7 @@ void TabBar::draw_scroll_buttons(const Rect& bounds)
 
 void TabBar::draw_context_menu()
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     const auto& colors = ui::theme();
 
     // Modern popup styling
@@ -878,7 +878,7 @@ void TabBar::draw_context_menu()
 
 void TabBar::scroll_to_tab(size_t index)
 {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (index >= tabs_.size())
         return;
     // Compute approximate position of the target tab

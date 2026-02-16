@@ -34,7 +34,7 @@ void FrameScheduler::clear_fixed_timestep()
 
 void FrameScheduler::begin_frame()
 {
-    PLOTIX_LOG_TRACE("scheduler", "begin_frame called");
+    SPECTRA_LOG_TRACE("scheduler", "begin_frame called");
     frame_start_ = Clock::now();
 
     if (first_frame_)
@@ -77,7 +77,7 @@ void FrameScheduler::begin_frame()
 
 void FrameScheduler::end_frame()
 {
-    PLOTIX_LOG_TRACE("scheduler", "end_frame called");
+    SPECTRA_LOG_TRACE("scheduler", "end_frame called");
     last_frame_end_ = Clock::now();
 
     if (mode_ == Mode::TargetFPS && target_fps_ > 0.0f)

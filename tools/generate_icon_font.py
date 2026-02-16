@@ -1244,7 +1244,7 @@ def build_font():
     
     fb.setupHorizontalHeader(ascent=ASCENT, descent=DESCENT)
     fb.setupNameTable({
-        "familyName": "PlotixIcons",
+        "familyName": "SpectraIcons",
         "styleName": "Regular",
     })
     fb.setupOS2(
@@ -1266,8 +1266,8 @@ def generate_cpp_header(font_data: bytes, output_path: Path):
     lines.append(f"// Font size: {len(font_data)} bytes")
     lines.append("// Codepoint range: U+E001 - U+E062 (Private Use Area)")
     lines.append("")
-    lines.append(f"static const unsigned int PlotixIcons_size = {len(font_data)};")
-    lines.append(f"static const unsigned char PlotixIcons_data[{len(font_data)}] = {{")
+    lines.append(f"static const unsigned int SpectraIcons_size = {len(font_data)};")
+    lines.append(f"static const unsigned char SpectraIcons_data[{len(font_data)}] = {{")
     
     for i in range(0, len(font_data), 16):
         chunk = font_data[i:i+16]
@@ -1290,7 +1290,7 @@ def main():
     
     # Save TTF for debugging
     out_dir = Path(__file__).parent.parent / "third_party"
-    ttf_path = out_dir / "PlotixIcons.ttf"
+    ttf_path = out_dir / "SpectraIcons.ttf"
     font.save(str(ttf_path))
     print(f"Font saved to: {ttf_path}")
     

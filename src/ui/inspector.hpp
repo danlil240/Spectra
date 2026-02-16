@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include <spectra/fwd.hpp>
 
@@ -64,4 +64,4 @@ class Inspector
 
 }  // namespace spectra::ui
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

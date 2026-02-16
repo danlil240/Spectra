@@ -4,7 +4,7 @@
 
 #include "shader_spirv.hpp"
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
@@ -28,7 +28,7 @@ bool VulkanBackend::init(bool headless)
 {
     headless_ = headless;
 
-    PLOTIX_LOG_INFO(
+    SPECTRA_LOG_INFO(
         "vulkan",
         "Initializing Vulkan backend (headless: " + std::string(headless ? "true" : "false") + ")");
 
@@ -39,7 +39,7 @@ bool VulkanBackend::init(bool headless)
 #else
         bool enable_validation = true;
 #endif
-        PLOTIX_LOG_DEBUG("vulkan",
+        SPECTRA_LOG_DEBUG("vulkan",
                          "Validation layers: " + std::string(enable_validation ? "true" : "false"));
 
         ctx_.instance = vk::create_instance(enable_validation);
@@ -47,7 +47,7 @@ bool VulkanBackend::init(bool headless)
         if (enable_validation)
         {
             ctx_.debug_messenger = vk::create_debug_messenger(ctx_.instance);
-            PLOTIX_LOG_DEBUG("vulkan", "Debug messenger created");
+            SPECTRA_LOG_DEBUG("vulkan", "Debug messenger created");
         }
 
         // For headless, pick device without surface
@@ -210,7 +210,7 @@ bool VulkanBackend::create_surface(void* native_window)
     if (!native_window)
         return false;
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     auto* glfw_window = static_cast<GLFWwindow*>(native_window);
     VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &surface_);
     if (result != VK_SUCCESS)
@@ -233,7 +233,7 @@ bool VulkanBackend::create_surface(void* native_window)
     {
         if (surface_families.has_present())
         {
-            PLOTIX_LOG_WARN("vulkan",
+            SPECTRA_LOG_WARN("vulkan",
                             "Surface present queue family differs from device queue family; "
                             "falling back to graphics queue for present operations");
         }
@@ -286,14 +286,14 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
 
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
 {
-    PLOTIX_LOG_INFO(
+    SPECTRA_LOG_INFO(
         "vulkan",
         "recreate_swapchain called: " + std::to_string(width) + "x" + std::to_string(height));
 
     // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
     if (!in_flight_fences_.empty())
     {
-        PLOTIX_LOG_DEBUG("vulkan",
+        SPECTRA_LOG_DEBUG("vulkan",
                          "Waiting for " + std::to_string(in_flight_fences_.size())
                              + " in-flight fences before swapchain recreation");
         auto wait_start = std::chrono::high_resolution_clock::now();
@@ -305,18 +305,18 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         auto wait_end = std::chrono::high_resolution_clock::now();
         auto wait_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(wait_end - wait_start);
-        PLOTIX_LOG_DEBUG("vulkan",
+        SPECTRA_LOG_DEBUG("vulkan",
                          "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
     }
 
-    PLOTIX_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
+    SPECTRA_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
     auto old_swapchain = swapchain_.swapchain;
     auto old_context = swapchain_;                    // Copy the entire context
     VkRenderPass reuse_rp = old_context.render_pass;  // Reuse — format doesn't change
 
     try
     {
-        PLOTIX_LOG_DEBUG("vulkan", "Creating new swapchain...");
+        SPECTRA_LOG_DEBUG("vulkan", "Creating new swapchain...");
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         swapchain_ = vk::create_swapchain(
             ctx_.device,
@@ -329,18 +329,18 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             old_swapchain,
             reuse_rp,
             vk_msaa);
-        PLOTIX_LOG_INFO("vulkan",
+        SPECTRA_LOG_INFO("vulkan",
                         "New swapchain created: " + std::to_string(swapchain_.extent.width) + "x"
                             + std::to_string(swapchain_.extent.height));
 
         // Destroy the old swapchain context (skip render pass — we reused it)
-        PLOTIX_LOG_DEBUG("vulkan", "Destroying old swapchain...");
+        SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
         vk::destroy_swapchain(ctx_.device, old_context, /*skip_render_pass=*/true);
 
         // Recreate sync objects only if image count changed (rare during resize)
         if (swapchain_.images.size() != old_context.images.size())
         {
-            PLOTIX_LOG_DEBUG("vulkan",
+            SPECTRA_LOG_DEBUG("vulkan",
                              "Image count changed " + std::to_string(old_context.images.size())
                                  + " -> " + std::to_string(swapchain_.images.size())
                                  + ", recreating sync objects");
@@ -357,12 +357,12 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         }
         current_flight_frame_ = 0;
 
-        PLOTIX_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
+        SPECTRA_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
         return true;
     }
     catch (const std::exception& e)
     {
-        PLOTIX_LOG_ERROR("vulkan", "Swapchain recreation failed: " + std::string(e.what()));
+        SPECTRA_LOG_ERROR("vulkan", "Swapchain recreation failed: " + std::string(e.what()));
         return false;
     }
 }
@@ -1012,7 +1012,7 @@ bool VulkanBackend::begin_frame()
         // For offscreen, just allocate a command buffer
         if (command_buffers_.empty())
         {
-            PLOTIX_LOG_ERROR("vulkan", "begin_frame: no command buffers for headless");
+            SPECTRA_LOG_ERROR("vulkan", "begin_frame: no command buffers for headless");
             return false;
         }
         current_cmd_ = command_buffers_[0];
@@ -1117,14 +1117,14 @@ void VulkanBackend::end_frame()
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
         swapchain_dirty_ = true;
-        PLOTIX_LOG_DEBUG(
+        SPECTRA_LOG_DEBUG(
             "vulkan",
             "end_frame: present returned "
                 + std::string(result == VK_ERROR_OUT_OF_DATE_KHR ? "OUT_OF_DATE" : "SUBOPTIMAL"));
     }
     else if (result != VK_SUCCESS)
     {
-        PLOTIX_LOG_ERROR(
+        SPECTRA_LOG_ERROR(
             "vulkan",
             "end_frame: present failed with result " + std::to_string(static_cast<int>(result)));
     }

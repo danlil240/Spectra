@@ -317,7 +317,7 @@ class PlotStyleWorkspaceIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_p3_style_ws.spectra").string();
+            (std::filesystem::temp_directory_path() / "spectra_int_p3_style_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -491,7 +491,7 @@ TEST_F(ShortcutConfigCommandIntegration, OverrideSavedInWorkspaceV3)
     so.shortcut_str = "Ctrl+P";
     data.shortcut_overrides.push_back(so);
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_sc_ws.spectra").string();
+    auto path = (std::filesystem::temp_directory_path() / "spectra_int_sc_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -514,7 +514,7 @@ class SplitViewWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_split_ws.spectra").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "spectra_int_split_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -599,7 +599,7 @@ TEST(TransformWorkspaceIntegration, TransformPipelineSavedInWorkspace)
     ts.steps.push_back({static_cast<int>(TransformType::Offset), -1.0f, false});
     data.transforms.push_back(ts);
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_ws.spectra").string();
+    auto path = (std::filesystem::temp_directory_path() / "spectra_int_tf_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -629,7 +629,7 @@ TEST(TransformWorkspaceIntegration, MultipleAxesTransforms)
         data.transforms.push_back(ts);
     }
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_multi.spectra").string();
+    auto path = (std::filesystem::temp_directory_path() / "spectra_int_tf_multi.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -655,7 +655,7 @@ TEST(TimelineWorkspaceIntegration, TimelineStateSavedInWorkspace)
     data.timeline.loop_end = 8.0f;
     data.timeline.playing = true;
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tl_ws.spectra").string();
+    auto path = (std::filesystem::temp_directory_path() / "spectra_int_tl_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -681,7 +681,7 @@ TEST(PluginCommandIntegration, CABIRegisterAndExecuteCommand)
     CommandRegistry reg;
     int call_count = 0;
 
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = "plugin.hello";
     desc.label = "Hello World";
     desc.category = "Plugin";
@@ -689,19 +689,19 @@ TEST(PluginCommandIntegration, CABIRegisterAndExecuteCommand)
     desc.callback = [](void* data) { ++(*static_cast<int*>(data)); };
     desc.user_data = &call_count;
 
-    int result = plotix_register_command(static_cast<PlotixCommandRegistry>(&reg), &desc);
+    int result = spectra_register_command(static_cast<SpectraCommandRegistry>(&reg), &desc);
     EXPECT_EQ(result, 0);
 
-    result = plotix_execute_command(static_cast<PlotixCommandRegistry>(&reg), "plugin.hello");
+    result = spectra_execute_command(static_cast<SpectraCommandRegistry>(&reg), "plugin.hello");
     EXPECT_EQ(result, 0);
     EXPECT_EQ(call_count, 1);
 
     // Unregister
-    result = plotix_unregister_command(static_cast<PlotixCommandRegistry>(&reg), "plugin.hello");
+    result = spectra_unregister_command(static_cast<SpectraCommandRegistry>(&reg), "plugin.hello");
     EXPECT_EQ(result, 0);
 
     // Execute should fail now
-    result = plotix_execute_command(static_cast<PlotixCommandRegistry>(&reg), "plugin.hello");
+    result = spectra_execute_command(static_cast<SpectraCommandRegistry>(&reg), "plugin.hello");
     EXPECT_NE(result, 0);
 }
 
@@ -720,8 +720,8 @@ TEST(PluginCommandIntegration, CABIPushUndo)
     auto undo_fn = [](void* data) { --(*static_cast<int*>(data)); };
     auto redo_fn = [](void* data) { ++(*static_cast<int*>(data)); };
 
-    int result = plotix_push_undo(
-        static_cast<PlotixUndoManager>(&undo), "Test undo", undo_fn, &val, redo_fn, &val);
+    int result = spectra_push_undo(
+        static_cast<SpectraUndoManager>(&undo), "Test undo", undo_fn, &val, redo_fn, &val);
     EXPECT_EQ(result, 0);
     EXPECT_EQ(undo.undo_count(), 1u);
 
@@ -745,7 +745,7 @@ TEST(RecordingTimelineIntegration, ConfigValidation)
     config.fps = 30.0f;
     config.start_time = 0.0f;
     config.end_time = 2.0f;
-    config.output_path = (std::filesystem::temp_directory_path() / "plotix_rec_test").string();
+    config.output_path = (std::filesystem::temp_directory_path() / "spectra_rec_test").string();
 
     RecordingSession session;
     // Begin should validate config
@@ -767,7 +767,7 @@ TEST(RecordingTimelineIntegration, MultiPaneConfig)
     config.end_time = 1.0f;
     config.pane_count = 4;
     // Auto-grid: should compute 2x2 layout
-    config.output_path = (std::filesystem::temp_directory_path() / "plotix_rec_multi").string();
+    config.output_path = (std::filesystem::temp_directory_path() / "spectra_rec_multi").string();
 
     EXPECT_EQ(config.pane_count, 4u);
     EXPECT_TRUE(config.pane_rects.empty());  // Auto-grid when empty
@@ -779,7 +779,7 @@ TEST(RecordingTimelineIntegration, MultiPaneConfig)
 
 TEST(FullPhase3WorkspaceIntegration, ComprehensiveRoundTrip)
 {
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_p3_full.spectra").string();
+    auto path = (std::filesystem::temp_directory_path() / "spectra_int_p3_full.spectra").string();
 
     WorkspaceData data;
     data.theme_name = "dark";

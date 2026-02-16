@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
 #endif
 
@@ -616,7 +616,7 @@ AnimationCurveEditor::ChannelDisplay& AnimationCurveEditor::ensure_display(uint3
 
 // ─── ImGui Drawing ───────────────────────────────────────────────────────────
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
 void AnimationCurveEditor::draw(float width, float height)
 {
@@ -799,6 +799,6 @@ void AnimationCurveEditor::draw(float width, float height)
     ImGui::PopStyleVar();
 }
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI
 
 }  // namespace spectra

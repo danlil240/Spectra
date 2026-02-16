@@ -327,7 +327,7 @@ static WorkspaceData make_workspace_data(int num_figures, int series_per_fig)
 static void BM_Workspace_SaveSmall(benchmark::State& state)
 {
     auto data = make_workspace_data(1, 2);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_small.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws_small.spectra";
 
     for (auto _ : state)
     {
@@ -341,7 +341,7 @@ BENCHMARK(BM_Workspace_SaveSmall)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_SaveLarge(benchmark::State& state)
 {
     auto data = make_workspace_data(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_large.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws_large.spectra";
 
     for (auto _ : state)
     {
@@ -355,7 +355,7 @@ BENCHMARK(BM_Workspace_SaveLarge)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_LoadSmall(benchmark::State& state)
 {
     auto data = make_workspace_data(1, 2);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_small.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws_load_small.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)
@@ -372,7 +372,7 @@ BENCHMARK(BM_Workspace_LoadSmall)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_LoadLarge(benchmark::State& state)
 {
     auto data = make_workspace_data(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_large.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws_load_large.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)
@@ -389,7 +389,7 @@ BENCHMARK(BM_Workspace_LoadLarge)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_RoundTrip(benchmark::State& state)
 {
     auto data = make_workspace_data(5, 3);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_rt.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_bench_ws_rt.spectra";
 
     for (auto _ : state)
     {

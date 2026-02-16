@@ -913,7 +913,7 @@ TEST(MultiPaneRecording, BeginWithNullCallback)
 {
     RecordingSession rs;
     RecordingConfig config;
-    config.output_path = "/tmp/plotix_test_multipane";
+    config.output_path = "/tmp/spectra_test_multipane";
     config.start_time = 0.0f;
     config.end_time = 1.0f;
     config.pane_count = 2;
@@ -925,7 +925,7 @@ TEST(MultiPaneRecording, AutoGridLayout2Panes)
 {
     RecordingSession rs;
     RecordingConfig config;
-    config.output_path = "/tmp/plotix_test_multipane_grid";
+    config.output_path = "/tmp/spectra_test_multipane_grid";
     config.start_time = 0.0f;
     config.end_time = 0.5f;
     config.fps = 10.0f;
@@ -968,7 +968,7 @@ TEST(MultiPaneRecording, CustomPaneRects)
 {
     RecordingSession rs;
     RecordingConfig config;
-    config.output_path = "/tmp/plotix_test_multipane_custom";
+    config.output_path = "/tmp/spectra_test_multipane_custom";
     config.start_time = 0.0f;
     config.end_time = 0.1f;
     config.fps = 10.0f;
@@ -1003,7 +1003,7 @@ TEST(MultiPaneRecording, SinglePaneFallback)
 {
     RecordingSession rs;
     RecordingConfig config;
-    config.output_path = "/tmp/plotix_test_multipane_single";
+    config.output_path = "/tmp/spectra_test_multipane_single";
     config.start_time = 0.0f;
     config.end_time = 0.1f;
     config.fps = 10.0f;

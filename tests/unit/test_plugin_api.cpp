@@ -15,7 +15,7 @@ TEST(PluginCAPI, RegisterCommand)
     CommandRegistry registry;
 
     bool called = false;
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = "plugin.test";
     desc.label = "Test Command";
     desc.category = "Plugin";
@@ -23,7 +23,7 @@ TEST(PluginCAPI, RegisterCommand)
     desc.callback = [](void* ud) { *static_cast<bool*>(ud) = true; };
     desc.user_data = &called;
 
-    int result = plotix_register_command(&registry, &desc);
+    int result = spectra_register_command(&registry, &desc);
     EXPECT_EQ(result, 0);
 
     auto* cmd = registry.find("plugin.test");
@@ -37,25 +37,25 @@ TEST(PluginCAPI, RegisterCommand)
 
 TEST(PluginCAPI, RegisterCommandNullRegistry)
 {
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = "test";
     desc.label = "Test";
-    EXPECT_EQ(plotix_register_command(nullptr, &desc), -1);
+    EXPECT_EQ(spectra_register_command(nullptr, &desc), -1);
 }
 
 TEST(PluginCAPI, RegisterCommandNullDesc)
 {
     CommandRegistry registry;
-    EXPECT_EQ(plotix_register_command(&registry, nullptr), -1);
+    EXPECT_EQ(spectra_register_command(&registry, nullptr), -1);
 }
 
 TEST(PluginCAPI, RegisterCommandNullId)
 {
     CommandRegistry registry;
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = nullptr;
     desc.label = "Test";
-    EXPECT_EQ(plotix_register_command(&registry, &desc), -1);
+    EXPECT_EQ(spectra_register_command(&registry, &desc), -1);
 }
 
 TEST(PluginCAPI, UnregisterCommand)
@@ -64,16 +64,16 @@ TEST(PluginCAPI, UnregisterCommand)
     registry.register_command("plugin.test", "Test", []() {});
     EXPECT_NE(registry.find("plugin.test"), nullptr);
 
-    int result = plotix_unregister_command(&registry, "plugin.test");
+    int result = spectra_unregister_command(&registry, "plugin.test");
     EXPECT_EQ(result, 0);
     EXPECT_EQ(registry.find("plugin.test"), nullptr);
 }
 
 TEST(PluginCAPI, UnregisterCommandNull)
 {
-    EXPECT_EQ(plotix_unregister_command(nullptr, "test"), -1);
+    EXPECT_EQ(spectra_unregister_command(nullptr, "test"), -1);
     CommandRegistry registry;
-    EXPECT_EQ(plotix_unregister_command(&registry, nullptr), -1);
+    EXPECT_EQ(spectra_unregister_command(&registry, nullptr), -1);
 }
 
 TEST(PluginCAPI, ExecuteCommand)
@@ -82,7 +82,7 @@ TEST(PluginCAPI, ExecuteCommand)
     bool called = false;
     registry.register_command("plugin.test", "Test", [&]() { called = true; });
 
-    int result = plotix_execute_command(&registry, "plugin.test");
+    int result = spectra_execute_command(&registry, "plugin.test");
     EXPECT_EQ(result, 0);
     EXPECT_TRUE(called);
 }
@@ -90,20 +90,20 @@ TEST(PluginCAPI, ExecuteCommand)
 TEST(PluginCAPI, ExecuteCommandNotFound)
 {
     CommandRegistry registry;
-    EXPECT_EQ(plotix_execute_command(&registry, "nonexistent"), -1);
+    EXPECT_EQ(spectra_execute_command(&registry, "nonexistent"), -1);
 }
 
 TEST(PluginCAPI, ExecuteCommandNull)
 {
-    EXPECT_EQ(plotix_execute_command(nullptr, "test"), -1);
+    EXPECT_EQ(spectra_execute_command(nullptr, "test"), -1);
     CommandRegistry registry;
-    EXPECT_EQ(plotix_execute_command(&registry, nullptr), -1);
+    EXPECT_EQ(spectra_execute_command(&registry, nullptr), -1);
 }
 
 TEST(PluginCAPI, BindShortcut)
 {
     ShortcutManager mgr;
-    int result = plotix_bind_shortcut(&mgr, "Ctrl+T", "test.cmd");
+    int result = spectra_bind_shortcut(&mgr, "Ctrl+T", "test.cmd");
     EXPECT_EQ(result, 0);
     EXPECT_EQ(mgr.command_for_shortcut(Shortcut::from_string("Ctrl+T")), "test.cmd");
 }
@@ -111,15 +111,15 @@ TEST(PluginCAPI, BindShortcut)
 TEST(PluginCAPI, BindShortcutInvalid)
 {
     ShortcutManager mgr;
-    EXPECT_EQ(plotix_bind_shortcut(&mgr, "", "test.cmd"), -1);
+    EXPECT_EQ(spectra_bind_shortcut(&mgr, "", "test.cmd"), -1);
 }
 
 TEST(PluginCAPI, BindShortcutNull)
 {
-    EXPECT_EQ(plotix_bind_shortcut(nullptr, "Ctrl+T", "test"), -1);
+    EXPECT_EQ(spectra_bind_shortcut(nullptr, "Ctrl+T", "test"), -1);
     ShortcutManager mgr;
-    EXPECT_EQ(plotix_bind_shortcut(&mgr, nullptr, "test"), -1);
-    EXPECT_EQ(plotix_bind_shortcut(&mgr, "Ctrl+T", nullptr), -1);
+    EXPECT_EQ(spectra_bind_shortcut(&mgr, nullptr, "test"), -1);
+    EXPECT_EQ(spectra_bind_shortcut(&mgr, "Ctrl+T", nullptr), -1);
 }
 
 TEST(PluginCAPI, PushUndo)
@@ -127,7 +127,7 @@ TEST(PluginCAPI, PushUndo)
     UndoManager undo;
     int value = 0;
 
-    int result = plotix_push_undo(
+    int result = spectra_push_undo(
         &undo,
         "Set value",
         [](void* ud) { *static_cast<int*>(ud) = 0; },
@@ -147,9 +147,9 @@ TEST(PluginCAPI, PushUndo)
 
 TEST(PluginCAPI, PushUndoNull)
 {
-    EXPECT_EQ(plotix_push_undo(nullptr, "test", nullptr, nullptr, nullptr, nullptr), -1);
+    EXPECT_EQ(spectra_push_undo(nullptr, "test", nullptr, nullptr, nullptr, nullptr), -1);
     UndoManager undo;
-    EXPECT_EQ(plotix_push_undo(&undo, nullptr, nullptr, nullptr, nullptr, nullptr), -1);
+    EXPECT_EQ(spectra_push_undo(&undo, nullptr, nullptr, nullptr, nullptr, nullptr), -1);
 }
 
 // ─── PluginManager ───────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ TEST(PluginManagerTest, DiscoverNonexistentDir)
 
 TEST(PluginManagerTest, DiscoverEmptyDir)
 {
-    auto tmp = std::filesystem::temp_directory_path() / "plotix_test_plugins_empty";
+    auto tmp = std::filesystem::temp_directory_path() / "spectra_test_plugins_empty";
     std::filesystem::create_directories(tmp);
 
     PluginManager mgr;
@@ -247,15 +247,15 @@ TEST(PluginEntryTest, DefaultValues)
 
 TEST(PluginContextTest, VersionConstants)
 {
-    EXPECT_EQ(PLOTIX_PLUGIN_API_VERSION_MAJOR, 1u);
-    EXPECT_EQ(PLOTIX_PLUGIN_API_VERSION_MINOR, 0u);
+    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MAJOR, 1u);
+    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MINOR, 0u);
 }
 
 TEST(PluginContextTest, ContextStruct)
 {
-    PlotixPluginContext ctx{};
-    ctx.api_version_major = PLOTIX_PLUGIN_API_VERSION_MAJOR;
-    ctx.api_version_minor = PLOTIX_PLUGIN_API_VERSION_MINOR;
+    SpectraPluginContext ctx{};
+    ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+    ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
     EXPECT_EQ(ctx.api_version_major, 1u);
     EXPECT_EQ(ctx.api_version_minor, 0u);
     EXPECT_EQ(ctx.command_registry, nullptr);
@@ -265,13 +265,13 @@ TEST(PluginContextTest, ContextStruct)
 
 TEST(PluginContextTest, InfoStruct)
 {
-    PlotixPluginInfo info{};
+    SpectraPluginInfo info{};
     info.name = "TestPlugin";
     info.version = "1.0.0";
     info.author = "Test Author";
     info.description = "A test plugin";
-    info.api_version_major = PLOTIX_PLUGIN_API_VERSION_MAJOR;
-    info.api_version_minor = PLOTIX_PLUGIN_API_VERSION_MINOR;
+    info.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+    info.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
     EXPECT_STREQ(info.name, "TestPlugin");
     EXPECT_STREQ(info.version, "1.0.0");
@@ -295,14 +295,14 @@ TEST(PluginCAPI, RegisterCommandDefaultCategory)
 {
     CommandRegistry registry;
 
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = "plugin.nocategory";
     desc.label = "No Category";
     desc.category = nullptr;  // Should default to "Plugin"
     desc.callback = nullptr;
     desc.user_data = nullptr;
 
-    int result = plotix_register_command(&registry, &desc);
+    int result = spectra_register_command(&registry, &desc);
     EXPECT_EQ(result, 0);
 
     auto* cmd = registry.find("plugin.nocategory");
@@ -314,12 +314,12 @@ TEST(PluginCAPI, RegisterCommandNoCallback)
 {
     CommandRegistry registry;
 
-    PlotixCommandDesc desc{};
+    SpectraCommandDesc desc{};
     desc.id = "plugin.nocb";
     desc.label = "No Callback";
     desc.callback = nullptr;
 
-    int result = plotix_register_command(&registry, &desc);
+    int result = spectra_register_command(&registry, &desc);
     EXPECT_EQ(result, 0);
 
     // Execute should fail (no callback)

@@ -124,7 +124,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     // Update modifier state from the authoritative GLFW mods bitmask
     mods_ = mods;
 
-    // PLOTIX_LOG_DEBUG("input",
+    // SPECTRA_LOG_DEBUG("input",
     //                  "Mouse button event - button: " + std::to_string(button)
     //                      + ", action: " + std::to_string(action) + ", mods: " + std::to_string(mods)
     //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
@@ -240,14 +240,14 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             if (measure_click_state_ == 1)
             {
                 // Second click: finalize measurement at this point
-                PLOTIX_LOG_DEBUG("input", "Measure: second click placed");
+                SPECTRA_LOG_DEBUG("input", "Measure: second click placed");
                 screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
                 measure_click_state_ = 2;
                 return;
             }
 
             // First press: start measurement (could be drag or first click)
-            PLOTIX_LOG_DEBUG("input", "Starting measure (press)");
+            SPECTRA_LOG_DEBUG("input", "Starting measure (press)");
             measure_dragging_ = true;
             measure_click_state_ = 0;
             measure_start_screen_x_ = x;
@@ -272,13 +272,13 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             if (move_dist < CLICK_THRESHOLD_PX)
             {
                 // This was a click, not a drag — enter two-click mode
-                PLOTIX_LOG_DEBUG("input", "Measure: first click placed (two-click mode)");
+                SPECTRA_LOG_DEBUG("input", "Measure: first click placed (two-click mode)");
                 measure_click_state_ = 1;
             }
             else
             {
                 // This was a drag — measurement is complete
-                PLOTIX_LOG_DEBUG("input", "Finishing measure drag");
+                SPECTRA_LOG_DEBUG("input", "Finishing measure drag");
                 measure_click_state_ = 2;
             }
             return;
@@ -294,7 +294,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         {
             if (data_interaction_)
             {
-                PLOTIX_LOG_DEBUG("input", "Starting region selection (Select mode)");
+                SPECTRA_LOG_DEBUG("input", "Starting region selection (Select mode)");
                 data_interaction_->begin_region_select(x, y);
                 region_dragging_ = true;
                 return;
@@ -305,7 +305,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         {
             if (data_interaction_)
             {
-                PLOTIX_LOG_DEBUG("input", "Finishing region selection");
+                SPECTRA_LOG_DEBUG("input", "Finishing region selection");
                 data_interaction_->finish_region_select();
             }
             region_dragging_ = false;
@@ -325,7 +325,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             {
                 anim_ctrl_->cancel_for_axes(active_axes_);
             }
-            PLOTIX_LOG_DEBUG("input", "Starting box zoom (BoxZoom tool)");
+            SPECTRA_LOG_DEBUG("input", "Starting box zoom (BoxZoom tool)");
             mode_ = InteractionMode::Dragging;
             box_zoom_.active = true;
             box_zoom_.x0 = x;
@@ -338,7 +338,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging
             && tool_mode_ == ToolMode::BoxZoom)
         {
-            PLOTIX_LOG_DEBUG("input", "Ending box zoom (BoxZoom tool)");
+            SPECTRA_LOG_DEBUG("input", "Ending box zoom (BoxZoom tool)");
             apply_box_zoom();
             mode_ = InteractionMode::Idle;
             return;
@@ -359,7 +359,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             // Ctrl+left-click in Pan mode → begin box zoom
             if (mods & MOD_CONTROL)
             {
-                PLOTIX_LOG_DEBUG("input", "Ctrl+left-click — starting box zoom in Pan mode");
+                SPECTRA_LOG_DEBUG("input", "Ctrl+left-click — starting box zoom in Pan mode");
                 mode_ = InteractionMode::Dragging;
                 ctrl_box_zoom_active_ = true;
                 box_zoom_.active = true;
@@ -376,7 +376,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 bool is_double = gesture_->on_click(x, y);
                 if (is_double && (transition_engine_ || anim_ctrl_))
                 {
-                    PLOTIX_LOG_DEBUG("input", "Double-click detected — animated auto-fit");
+                    SPECTRA_LOG_DEBUG("input", "Double-click detected — animated auto-fit");
                     // Compute auto-fit target limits
                     auto old_xlim = active_axes_->x_limits();
                     auto old_ylim = active_axes_->y_limits();
@@ -412,7 +412,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             }
 
             // Begin pan drag
-            PLOTIX_LOG_DEBUG("input", "Starting pan drag");
+            SPECTRA_LOG_DEBUG("input", "Starting pan drag");
             mode_ = InteractionMode::Dragging;
             drag_start_x_ = x;
             drag_start_y_ = y;
@@ -434,14 +434,14 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             // Check if this was a Ctrl+drag box zoom
             if (ctrl_box_zoom_active_)
             {
-                PLOTIX_LOG_DEBUG("input", "Ending Ctrl+drag box zoom");
+                SPECTRA_LOG_DEBUG("input", "Ending Ctrl+drag box zoom");
                 apply_box_zoom();
                 mode_ = InteractionMode::Idle;
                 ctrl_box_zoom_active_ = false;
                 return;
             }
 
-            PLOTIX_LOG_DEBUG("input", "Ending pan drag");
+            SPECTRA_LOG_DEBUG("input", "Ending pan drag");
             mode_ = InteractionMode::Idle;
 
             // Detect click-without-drag: if the mouse barely moved, treat as a
@@ -512,7 +512,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         float speed = std::sqrt(vx_data * vx_data + vy_data * vy_data);
                         if (speed > MIN_INERTIA_VELOCITY)
                         {
-                            PLOTIX_LOG_DEBUG("input",
+                            SPECTRA_LOG_DEBUG("input",
                                              "Inertial pan: v=(" + std::to_string(vx_data) + ", "
                                                  + std::to_string(vy_data) + ")");
                             if (transition_engine_)
@@ -537,7 +537,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
 void InputHandler::on_mouse_move(double x, double y)
 {
-    PLOTIX_LOG_TRACE(
+    SPECTRA_LOG_TRACE(
         "input", "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
     // Handle 3D camera drag (orbit or pan)
@@ -575,7 +575,7 @@ void InputHandler::on_mouse_move(double x, double y)
     Axes* hit = hit_test_axes(x, y);
     if (hit)
     {
-        PLOTIX_LOG_TRACE("input", "Mouse move hit axes");
+        SPECTRA_LOG_TRACE("input", "Mouse move hit axes");
         // Temporarily use hit axes for screen_to_data conversion
         Axes* prev = active_axes_;
         active_axes_ = hit;
@@ -913,7 +913,7 @@ void InputHandler::on_key(int key, int action, int mods)
         if (data_interaction_)
         {
             data_interaction_->toggle_crosshair();
-            PLOTIX_LOG_DEBUG(
+            SPECTRA_LOG_DEBUG(
                 "input",
                 "Crosshair toggled: "
                     + std::string(data_interaction_->crosshair_active() ? "ON" : "OFF"));

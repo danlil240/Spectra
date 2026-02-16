@@ -30,8 +30,8 @@ class SplitPane
    public:
     using PaneId = uint32_t;
 
-    // Create a leaf pane bound to a figure index
-    explicit SplitPane(size_t figure_index = 0);
+    // Create a leaf pane bound to a figure id
+    explicit SplitPane(FigureId figure_id = 0);
     ~SplitPane() = default;
 
     // Non-copyable, movable
@@ -44,9 +44,9 @@ class SplitPane
 
     // Split this leaf pane into two children. Returns pointer to the new
     // (second) child pane. The original figure_index moves to the first child.
-    // new_figure_index is assigned to the second child.
+    // new_figure_id is assigned to the second child.
     // Returns nullptr if this pane is already split.
-    SplitPane* split(SplitDirection direction, size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split(SplitDirection direction, FigureId new_figure_id, float ratio = 0.5f);
 
     // Unsplit: collapse this internal node back to a leaf, keeping the
     // child identified by keep_first (true = first child, false = second).
@@ -59,17 +59,17 @@ class SplitPane
     bool is_split() const { return first_ && second_; }
 
     PaneId id() const { return id_; }
-    size_t figure_index() const { return figure_index_; }
-    void set_figure_index(size_t idx) { figure_index_ = idx; }
+    FigureId figure_index() const { return figure_index_; }
+    void set_figure_index(FigureId idx) { figure_index_ = idx; }
 
     // ── Multi-figure per pane (per-pane tab bar) ────────────────────────
 
-    const std::vector<size_t>& figure_indices() const { return figure_indices_; }
+    const std::vector<FigureId>& figure_indices() const { return figure_indices_; }
     size_t active_local_index() const { return active_local_; }
     void set_active_local_index(size_t local_idx);
-    void add_figure(size_t fig_idx);
-    void remove_figure(size_t fig_idx);
-    bool has_figure(size_t fig_idx) const;
+    void add_figure(FigureId fig_id);
+    void remove_figure(FigureId fig_id);
+    bool has_figure(FigureId fig_id) const;
     size_t figure_count() const { return figure_indices_.size(); }
     void swap_contents(SplitPane& other);
 
@@ -102,9 +102,9 @@ class SplitPane
     void collect_leaves(std::vector<SplitPane*>& out);
     void collect_leaves(std::vector<const SplitPane*>& out) const;
 
-    // Find the leaf pane containing the given figure index (nullptr if not found)
-    SplitPane* find_by_figure(size_t figure_index);
-    const SplitPane* find_by_figure(size_t figure_index) const;
+    // Find the leaf pane containing the given figure id (nullptr if not found)
+    SplitPane* find_by_figure(FigureId figure_id);
+    const SplitPane* find_by_figure(FigureId figure_id) const;
 
     // Find the leaf pane whose bounds contain the given point
     SplitPane* find_at_point(float x, float y);
@@ -130,8 +130,8 @@ class SplitPane
 
    private:
     PaneId id_;
-    size_t figure_index_ = 0;
-    std::vector<size_t> figure_indices_;  // All figures in this pane
+    FigureId figure_index_ = 0;
+    std::vector<FigureId> figure_indices_;  // All figures in this pane
     size_t active_local_ = 0;             // Index into figure_indices_
 
     SplitDirection split_direction_ = SplitDirection::Horizontal;
@@ -155,7 +155,7 @@ class SplitViewManager
 {
    public:
     using SplitCallback = std::function<void(SplitPane* pane)>;
-    using PaneChangeCallback = std::function<void(size_t figure_index)>;
+    using PaneChangeCallback = std::function<void(FigureId figure_id)>;
 
     SplitViewManager();
     ~SplitViewManager() = default;
@@ -168,24 +168,24 @@ class SplitViewManager
 
     // Split the pane containing figure_index. Returns the new pane, or
     // nullptr if the figure is not found or max splits reached.
-    SplitPane* split_pane(size_t figure_index,
+    SplitPane* split_pane(FigureId figure_id,
                           SplitDirection direction,
-                          size_t new_figure_index,
+                          FigureId new_figure_id,
                           float ratio = 0.5f);
 
     // Split the active pane (convenience)
-    SplitPane* split_active(SplitDirection direction, size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_active(SplitDirection direction, FigureId new_figure_id, float ratio = 0.5f);
 
     // Close a split pane (unsplit its parent, keeping the sibling)
-    bool close_pane(size_t figure_index);
+    bool close_pane(FigureId figure_id);
 
     // Unsplit all — collapse back to single pane
     void unsplit_all();
 
     // ── Active pane ─────────────────────────────────────────────────────
 
-    size_t active_figure_index() const;
-    void set_active_figure_index(size_t idx);
+    FigureId active_figure_index() const;
+    void set_active_figure_index(FigureId idx);
     SplitPane* active_pane();
     const SplitPane* active_pane() const;
 
@@ -206,10 +206,10 @@ class SplitViewManager
     SplitPane* pane_at_point(float x, float y);
 
     // Get the pane for a figure
-    SplitPane* pane_for_figure(size_t figure_index);
+    SplitPane* pane_for_figure(FigureId figure_id);
 
     // Check if a figure is visible in any pane
-    bool is_figure_visible(size_t figure_index) const;
+    bool is_figure_visible(FigureId figure_id) const;
 
     // ── Splitter interaction ────────────────────────────────────────────
 
@@ -246,7 +246,7 @@ class SplitViewManager
 
    private:
     std::unique_ptr<SplitPane> root_;
-    size_t active_figure_index_ = 0;
+    FigureId active_figure_index_ = 0;
     Rect canvas_bounds_{};
     mutable std::mutex mutex_;
 

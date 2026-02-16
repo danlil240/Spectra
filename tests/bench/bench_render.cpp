@@ -173,7 +173,7 @@ static void BM_HeadlessExport_PNG(benchmark::State& state)
         ax.line(x, y).label("bench");
         ax.xlim(0.0f, 100.0f);
         ax.ylim(-1.5f, 1.5f);
-        fig.save_png("/tmp/plotix_bench_output.png");
+        fig.save_png("/tmp/spectra_bench_output.png");
         app.run();
     }
 }

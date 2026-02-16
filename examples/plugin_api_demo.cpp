@@ -48,15 +48,15 @@ void demo_plugin_api_concepts()
     std::cout << "#include \"plugin_api.h\"\n";
     std::cout << "\n";
     std::cout << "// Plugin entry point\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT int plotix_plugin_init(PluginContext* ctx) {\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT int spectra_plugin_init(PluginContext* ctx) {\n";
     std::cout << "    // Register a custom command\n";
     std::cout << "    ctx->register_command(ctx, \"example.hello\", \"Say Hello\", \n";
     std::cout << "                           hello_callback, \"Ctrl+H\", \"Examples\");\n";
     std::cout << "    \n";
-    std::cout << "    return PLOTIX_PLUGIN_SUCCESS;\n";
+    std::cout << "    return SPECTRA_PLUGIN_SUCCESS;\n";
     std::cout << "}\n";
     std::cout << "\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT void plotix_plugin_shutdown(PluginContext* ctx) {\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT void spectra_plugin_shutdown(PluginContext* ctx) {\n";
     std::cout << "    // Cleanup resources\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
@@ -97,7 +97,7 @@ void demo_plugin_api_concepts()
 
     std::cout << "Example 4: Plugin Configuration\n";
     std::cout << "```c\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT int plotix_plugin_init(PluginContext* ctx) {\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT int spectra_plugin_init(PluginContext* ctx) {\n";
     std::cout << "    // Get plugin configuration\n";
     std::cout << "    const char* config = ctx->get_plugin_config(ctx);\n";
     std::cout << "    \n";
@@ -109,7 +109,7 @@ void demo_plugin_api_concepts()
     std::cout << "        register_advanced_commands(ctx);\n";
     std::cout << "    }\n";
     std::cout << "    \n";
-    std::cout << "    return PLOTIX_PLUGIN_SUCCESS;\n";
+    std::cout << "    return SPECTRA_PLUGIN_SUCCESS;\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
 
@@ -161,15 +161,15 @@ void demo_plugin_api_concepts()
     std::cout << "Plugins are shared libraries (.so, .dll, .dylib) with specific exports:\n";
     std::cout << "```c\n";
     std::cout << "// Required exports\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_name();\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_version();\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_author();\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT int plotix_plugin_init(PluginContext* ctx);\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT void plotix_plugin_shutdown(PluginContext* ctx);\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT const char* spectra_plugin_name();\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT const char* spectra_plugin_version();\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT const char* spectra_plugin_author();\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT int spectra_plugin_init(PluginContext* ctx);\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT void spectra_plugin_shutdown(PluginContext* ctx);\n";
     std::cout << "\n";
     std::cout << "// Optional exports\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_description();\n";
-    std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_dependencies();\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT const char* spectra_plugin_description();\n";
+    std::cout << "SPECTRA_PLUGIN_EXPORT const char* spectra_plugin_dependencies();\n";
     std::cout << "```\n\n";
 
     std::cout << "⚡ ADVANCED FEATURES\n\n";

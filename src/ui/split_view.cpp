@@ -17,9 +17,9 @@ SplitPane::PaneId SplitPane::next_id()
     return s_next_pane_id.fetch_add(1, std::memory_order_relaxed);
 }
 
-SplitPane::SplitPane(size_t figure_index) : id_(next_id()), figure_index_(figure_index)
+SplitPane::SplitPane(FigureId figure_id) : id_(next_id()), figure_index_(figure_id)
 {
-    figure_indices_.push_back(figure_index);
+    figure_indices_.push_back(figure_id);
     active_local_ = 0;
 }
 
@@ -32,7 +32,7 @@ void SplitPane::set_active_local_index(size_t local_idx)
     }
 }
 
-void SplitPane::add_figure(size_t fig_idx)
+void SplitPane::add_figure(FigureId fig_idx)
 {
     if (!has_figure(fig_idx))
     {
@@ -43,7 +43,7 @@ void SplitPane::add_figure(size_t fig_idx)
     }
 }
 
-void SplitPane::remove_figure(size_t fig_idx)
+void SplitPane::remove_figure(FigureId fig_idx)
 {
     auto it = std::find(figure_indices_.begin(), figure_indices_.end(), fig_idx);
     if (it == figure_indices_.end())
@@ -52,7 +52,7 @@ void SplitPane::remove_figure(size_t fig_idx)
     figure_indices_.erase(it);
     if (figure_indices_.empty())
     {
-        figure_index_ = SIZE_MAX;
+        figure_index_ = INVALID_FIGURE_ID;
         active_local_ = 0;
         return;
     }
@@ -67,7 +67,7 @@ void SplitPane::remove_figure(size_t fig_idx)
     figure_index_ = figure_indices_[active_local_];
 }
 
-bool SplitPane::has_figure(size_t fig_idx) const
+bool SplitPane::has_figure(FigureId fig_idx) const
 {
     return std::find(figure_indices_.begin(), figure_indices_.end(), fig_idx)
            != figure_indices_.end();
@@ -95,7 +95,7 @@ Rect SplitPane::content_bounds() const
     return bounds_;
 }
 
-SplitPane* SplitPane::split(SplitDirection direction, size_t new_figure_index, float ratio)
+SplitPane* SplitPane::split(SplitDirection direction, FigureId new_figure_index, float ratio)
 {
     if (is_split())
     {
@@ -123,7 +123,7 @@ SplitPane* SplitPane::split(SplitDirection direction, size_t new_figure_index, f
     second_ = std::move(second_child);
 
     // This node is now internal — clear leaf state
-    figure_index_ = SIZE_MAX;
+    figure_index_ = INVALID_FIGURE_ID;
     figure_indices_.clear();
     active_local_ = 0;
 
@@ -294,7 +294,7 @@ void SplitPane::collect_leaves(std::vector<const SplitPane*>& out) const
         second_->collect_leaves(out);
 }
 
-SplitPane* SplitPane::find_by_figure(size_t figure_index)
+SplitPane* SplitPane::find_by_figure(FigureId figure_index)
 {
     if (is_leaf() && has_figure(figure_index))
     {
@@ -313,7 +313,7 @@ SplitPane* SplitPane::find_by_figure(size_t figure_index)
     return nullptr;
 }
 
-const SplitPane* SplitPane::find_by_figure(size_t figure_index) const
+const SplitPane* SplitPane::find_by_figure(FigureId figure_index) const
 {
     if (is_leaf() && has_figure(figure_index))
     {
@@ -478,11 +478,11 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
 
     if (is_leaf)
     {
-        size_t fig_idx = 0;
+        FigureId fig_idx = 0;
         std::string fig_str = find_value("figure");
         if (!fig_str.empty())
         {
-            fig_idx = static_cast<size_t>(std::stoul(fig_str));
+            fig_idx = static_cast<FigureId>(std::stoul(fig_str));
         }
         return std::make_unique<SplitPane>(fig_idx);
     }
@@ -508,10 +508,10 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
         return nullptr;
 
     // Build internal node: create a dummy pane, then manually set children
-    auto node = std::make_unique<SplitPane>(SIZE_MAX);
+    auto node = std::make_unique<SplitPane>(INVALID_FIGURE_ID);
     node->split_direction_ = dir;
     node->split_ratio_ = ratio;
-    node->figure_index_ = SIZE_MAX;
+    node->figure_index_ = INVALID_FIGURE_ID;
 
     first_child->parent_ = node.get();
     second_child->parent_ = node.get();
@@ -526,9 +526,9 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
 
 SplitViewManager::SplitViewManager() : root_(std::make_unique<SplitPane>(0)) {}
 
-SplitPane* SplitViewManager::split_pane(size_t figure_index,
+SplitPane* SplitViewManager::split_pane(FigureId figure_index,
                                         SplitDirection direction,
-                                        size_t new_figure_index,
+                                        FigureId new_figure_index,
                                         float ratio)
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -555,13 +555,13 @@ SplitPane* SplitViewManager::split_pane(size_t figure_index,
 }
 
 SplitPane* SplitViewManager::split_active(SplitDirection direction,
-                                          size_t new_figure_index,
+                                          FigureId new_figure_index,
                                           float ratio)
 {
     return split_pane(active_figure_index_, direction, new_figure_index, ratio);
 }
 
-bool SplitViewManager::close_pane(size_t figure_index)
+bool SplitViewManager::close_pane(FigureId figure_index)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -588,7 +588,7 @@ bool SplitViewManager::close_pane(size_t figure_index)
 
     // Get the figure index of the kept pane (for active pane update)
     SplitPane* kept = keep_first ? parent->first() : parent->second();
-    size_t kept_figure = SIZE_MAX;
+    FigureId kept_figure = INVALID_FIGURE_ID;
     if (kept && kept->is_leaf())
     {
         kept_figure = kept->figure_index();
@@ -610,7 +610,7 @@ bool SplitViewManager::close_pane(size_t figure_index)
     parent->unsplit(keep_first);
 
     // Update active figure if the closed pane was active
-    if (active_figure_index_ == figure_index && kept_figure != SIZE_MAX)
+    if (active_figure_index_ == figure_index && kept_figure != INVALID_FIGURE_ID)
     {
         active_figure_index_ = kept_figure;
         if (on_active_changed_)
@@ -630,13 +630,13 @@ void SplitViewManager::unsplit_all()
     recompute_layout();
 }
 
-size_t SplitViewManager::active_figure_index() const
+FigureId SplitViewManager::active_figure_index() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return active_figure_index_;
 }
 
-void SplitViewManager::set_active_figure_index(size_t idx)
+void SplitViewManager::set_active_figure_index(FigureId idx)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (idx != active_figure_index_)
@@ -709,13 +709,13 @@ SplitPane* SplitViewManager::pane_at_point(float x, float y)
     return root_ ? root_->find_at_point(x, y) : nullptr;
 }
 
-SplitPane* SplitViewManager::pane_for_figure(size_t figure_index)
+SplitPane* SplitViewManager::pane_for_figure(FigureId figure_index)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return root_ ? root_->find_by_figure(figure_index) : nullptr;
 }
 
-bool SplitViewManager::is_figure_visible(size_t figure_index) const
+bool SplitViewManager::is_figure_visible(FigureId figure_index) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return root_ && root_->find_by_figure(figure_index) != nullptr;

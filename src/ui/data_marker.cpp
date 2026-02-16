@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "data_marker.hpp"
 
@@ -156,4 +156,4 @@ int DataMarkerManager::hit_test(float screen_x,
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

@@ -16,7 +16,7 @@ class UndoManager;
 // ─── Stable C ABI for plugins ────────────────────────────────────────────────
 //
 // Plugins are shared libraries (.so / .dll / .dylib) that export a single
-// entry point: plotix_plugin_init(). The host calls this with a PluginContext
+// entry point: spectra_plugin_init(). The host calls this with a PluginContext
 // that provides access to command registration, shortcuts, and undo.
 //
 // The C ABI ensures binary compatibility across compiler versions.
@@ -24,26 +24,26 @@ class UndoManager;
 extern "C"
 {
 // Plugin API version — bump major on breaking changes.
-#define PLOTIX_PLUGIN_API_VERSION_MAJOR 1
-#define PLOTIX_PLUGIN_API_VERSION_MINOR 0
+#define SPECTRA_PLUGIN_API_VERSION_MAJOR 1
+#define SPECTRA_PLUGIN_API_VERSION_MINOR 0
 
     // Opaque handles (pointers cast to void* for C ABI stability)
-    typedef void* PlotixCommandRegistry;
-    typedef void* PlotixShortcutManager;
-    typedef void* PlotixUndoManager;
+    typedef void* SpectraCommandRegistry;
+    typedef void* SpectraShortcutManager;
+    typedef void* SpectraUndoManager;
 
     // Plugin context passed to plugin_init.
-    struct PlotixPluginContext
+    struct SpectraPluginContext
     {
         uint32_t api_version_major;
         uint32_t api_version_minor;
-        PlotixCommandRegistry command_registry;
-        PlotixShortcutManager shortcut_manager;
-        PlotixUndoManager undo_manager;
+        SpectraCommandRegistry command_registry;
+        SpectraShortcutManager shortcut_manager;
+        SpectraUndoManager undo_manager;
     };
 
     // Plugin info returned by plugin_init.
-    struct PlotixPluginInfo
+    struct SpectraPluginInfo
     {
         const char* name;            // Human-readable plugin name
         const char* version;         // Plugin version string
@@ -54,47 +54,47 @@ extern "C"
     };
 
     // C ABI functions for command registration
-    typedef void (*PlotixCommandCallback)(void* user_data);
+    typedef void (*SpectraCommandCallback)(void* user_data);
 
-    struct PlotixCommandDesc
+    struct SpectraCommandDesc
     {
         const char* id;
         const char* label;
         const char* category;
         const char* shortcut_hint;
-        PlotixCommandCallback callback;
+        SpectraCommandCallback callback;
         void* user_data;
     };
 
     // Plugin entry point signature.
     // Returns 0 on success, non-zero on failure.
-    typedef int (*PlotixPluginInitFn)(const PlotixPluginContext* ctx, PlotixPluginInfo* info_out);
+    typedef int (*SpectraPluginInitFn)(const SpectraPluginContext* ctx, SpectraPluginInfo* info_out);
 
     // Plugin cleanup signature (optional).
-    typedef void (*PlotixPluginShutdownFn)(void);
+    typedef void (*SpectraPluginShutdownFn)(void);
 
     // ─── C ABI host functions (called by plugins) ────────────────────────────────
 
     // Register a command via C ABI.
-    int plotix_register_command(PlotixCommandRegistry registry, const PlotixCommandDesc* desc);
+    int spectra_register_command(SpectraCommandRegistry registry, const SpectraCommandDesc* desc);
 
     // Unregister a command via C ABI.
-    int plotix_unregister_command(PlotixCommandRegistry registry, const char* command_id);
+    int spectra_unregister_command(SpectraCommandRegistry registry, const char* command_id);
 
     // Execute a command via C ABI.
-    int plotix_execute_command(PlotixCommandRegistry registry, const char* command_id);
+    int spectra_execute_command(SpectraCommandRegistry registry, const char* command_id);
 
     // Bind a shortcut via C ABI.
-    int plotix_bind_shortcut(PlotixShortcutManager manager,
+    int spectra_bind_shortcut(SpectraShortcutManager manager,
                              const char* shortcut_str,
                              const char* command_id);
 
     // Push an undo action via C ABI.
-    int plotix_push_undo(PlotixUndoManager manager,
+    int spectra_push_undo(SpectraUndoManager manager,
                          const char* description,
-                         PlotixCommandCallback undo_fn,
+                         SpectraCommandCallback undo_fn,
                          void* undo_data,
-                         PlotixCommandCallback redo_fn,
+                         SpectraCommandCallback redo_fn,
                          void* redo_data);
 
 }  // extern "C"
@@ -112,7 +112,7 @@ struct PluginEntry
     bool loaded = false;
     bool enabled = true;
     void* handle = nullptr;  // dlopen/LoadLibrary handle
-    PlotixPluginShutdownFn shutdown_fn = nullptr;
+    SpectraPluginShutdownFn shutdown_fn = nullptr;
     std::vector<std::string> registered_commands;  // Commands registered by this plugin
 };
 
@@ -173,7 +173,7 @@ class PluginManager
     mutable std::mutex mutex_;
     std::vector<PluginEntry> plugins_;
 
-    PlotixPluginContext make_context() const;
+    SpectraPluginContext make_context() const;
 };
 
 }  // namespace spectra

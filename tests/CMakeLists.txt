@@ -12,8 +12,8 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 # Google Benchmark (optional)
-option(PLOTIX_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
-if(PLOTIX_BUILD_BENCHMARKS)
+option(SPECTRA_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
+if(SPECTRA_BUILD_BENCHMARKS)
     FetchContent_Declare(
         googlebenchmark
         GIT_REPOSITORY https://github.com/google/benchmark.git
@@ -24,23 +24,27 @@ if(PLOTIX_BUILD_BENCHMARKS)
 endif()
 
 # Helper function
-function(add_plotix_test subdir name)
+function(add_spectra_test subdir name)
     string(REPLACE "/" "_" target_name "${subdir}_${name}")
     add_executable(${target_name} ${subdir}/${name}.cpp)
     target_link_libraries(${target_name} PRIVATE spectra GTest::gtest_main)
     target_compile_features(${target_name} PRIVATE cxx_std_20)
     # Tests need access to internal src/ headers (e.g. core/transform.hpp)
-    target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    # and shared test utilities (tests/util/)
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/util
+    )
     # Propagate feature flags to tests for conditional compilation
     target_compile_definitions(${target_name} PRIVATE
-        $<$<BOOL:${PLOTIX_USE_FFMPEG}>:PLOTIX_USE_FFMPEG>
+        $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
     )
     add_test(NAME ${target_name} COMMAND ${target_name})
 endfunction()
 
 # Unit tests — guarded by if(EXISTS) so parallel agents don't break each other's builds.
 # When adding a new test, just append the name to this list.
-set(PLOTIX_UNIT_TESTS
+set(SPECTRA_UNIT_TESTS
     test_transform
     test_layout
     test_timeline
@@ -103,17 +107,19 @@ set(PLOTIX_UNIT_TESTS
     test_mode_transition
     test_workspace_3d
     test_3d_regression
+    test_multi_window
+    test_figure_registry
 )
 
-foreach(_test ${PLOTIX_UNIT_TESTS})
+foreach(_test ${SPECTRA_UNIT_TESTS})
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
-        add_plotix_test(unit ${_test})
+        add_spectra_test(unit ${_test})
     endif()
 endforeach()
 
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
-option(PLOTIX_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
-if(PLOTIX_BUILD_GOLDEN_TESTS)
+option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
+if(SPECTRA_BUILD_GOLDEN_TESTS)
     add_executable(golden_image_tests golden/golden_test.cpp)
     target_link_libraries(golden_image_tests PRIVATE spectra GTest::gtest_main)
     target_compile_features(golden_image_tests PRIVATE cxx_std_20)
@@ -180,31 +186,38 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
 endif()
 
 # Benchmarks
-if(PLOTIX_BUILD_BENCHMARKS)
-    function(add_plotix_bench name)
+if(SPECTRA_BUILD_BENCHMARKS)
+    function(add_spectra_bench name)
         add_executable(${name} bench/${name}.cpp)
         target_link_libraries(${name} PRIVATE spectra benchmark::benchmark benchmark::benchmark_main)
         target_compile_features(${name} PRIVATE cxx_std_20)
-        target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+        target_include_directories(${name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
     endfunction()
 
-    add_plotix_bench(bench_decimation)
-    add_plotix_bench(bench_render)
-    add_plotix_bench(bench_ui)
+    add_spectra_bench(bench_decimation)
+    add_spectra_bench(bench_render)
+    add_spectra_bench(bench_ui)
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_phase2.cpp)
-        add_plotix_bench(bench_phase2)
+        add_spectra_bench(bench_phase2)
     endif()
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_phase3.cpp)
-        add_plotix_bench(bench_phase3)
+        add_spectra_bench(bench_phase3)
     endif()
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_3d.cpp)
-        add_plotix_bench(bench_3d)
+        add_spectra_bench(bench_3d)
     endif()
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_3d_phase3.cpp)
-        add_plotix_bench(bench_3d_phase3)
+        add_spectra_bench(bench_3d_phase3)
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_multi_window.cpp)
+        add_spectra_bench(bench_multi_window)
     endif()
 endif()

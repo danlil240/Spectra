@@ -17,7 +17,7 @@ class WorkspaceV2Test : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_test_ws_v2.spectra").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "spectra_test_ws_v2.spectra").string();
     }
 
     void TearDown() override

@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "imgui_integration.hpp"
 
@@ -154,11 +154,11 @@ void ImGuiIntegration::build_ui(Figure& figure)
 {
     if (!initialized_)
     {
-        PLOTIX_LOG_WARN("ui", "build_ui called but ImGui is not initialized");
+        SPECTRA_LOG_WARN("ui", "build_ui called but ImGui is not initialized");
         return;
     }
 
-    PLOTIX_LOG_TRACE("ui", "Building UI for figure");
+    SPECTRA_LOG_TRACE("ui", "Building UI for figure");
     current_figure_ = &figure;
 
     float dt = ImGui::GetIO().DeltaTime;
@@ -194,7 +194,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     draw_status_bar();
     draw_pane_tab_headers();  // Must run before splitters so pane_tab_hovered_ is set
     draw_split_view_splitters();
-    #if PLOTIX_FLOATING_TOOLBAR
+    #if SPECTRA_FLOATING_TOOLBAR
     draw_floating_toolbar();
     #endif
 
@@ -369,7 +369,7 @@ bool ImGuiIntegration::wants_capture_mouse() const
     bool any_item_hovered = ImGui::IsAnyItemHovered();
     bool any_item_active = ImGui::IsAnyItemActive();
 
-    PLOTIX_LOG_TRACE("input",
+    SPECTRA_LOG_TRACE("input",
                      "ImGui mouse capture state - wants_capture: "
                          + std::string(wants_capture ? "true" : "false")
                          + ", window_hovered: " + std::string(any_window_hovered ? "true" : "false")
@@ -429,31 +429,31 @@ void ImGuiIntegration::load_fonts()
     font_body_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 16.0f, &cfg);
     io.Fonts->AddFontFromMemoryTTF(
-        (void*)PlotixIcons_data, PlotixIcons_size, 16.0f, &icon_cfg, icon_ranges);
+        (void*)SpectraIcons_data, SpectraIcons_size, 16.0f, &icon_cfg, icon_ranges);
 
     // Heading font (12.5px) + icon merge
     font_heading_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 12.5f, &cfg);
     io.Fonts->AddFontFromMemoryTTF(
-        (void*)PlotixIcons_data, PlotixIcons_size, 12.5f, &icon_cfg, icon_ranges);
+        (void*)SpectraIcons_data, SpectraIcons_size, 12.5f, &icon_cfg, icon_ranges);
 
     // Icon font (20px) — primary icon font with Inter merged in
     font_icon_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 20.0f, &cfg);
     io.Fonts->AddFontFromMemoryTTF(
-        (void*)PlotixIcons_data, PlotixIcons_size, 20.0f, &icon_cfg, icon_ranges);
+        (void*)SpectraIcons_data, SpectraIcons_size, 20.0f, &icon_cfg, icon_ranges);
 
     // Title font (18px) + icon merge
     font_title_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 18.0f, &cfg);
     io.Fonts->AddFontFromMemoryTTF(
-        (void*)PlotixIcons_data, PlotixIcons_size, 18.0f, &icon_cfg, icon_ranges);
+        (void*)SpectraIcons_data, SpectraIcons_size, 18.0f, &icon_cfg, icon_ranges);
 
     // Menubar font (15px) + icon merge
     font_menubar_ = io.Fonts->AddFontFromMemoryCompressedTTF(
         InterFont_compressed_data, InterFont_compressed_size, 15.0f, &cfg);
     io.Fonts->AddFontFromMemoryTTF(
-        (void*)PlotixIcons_data, PlotixIcons_size, 15.0f, &icon_cfg, icon_ranges);
+        (void*)SpectraIcons_data, SpectraIcons_size, 15.0f, &icon_cfg, icon_ranges);
 
     io.FontDefault = font_body_;
 }
@@ -574,7 +574,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     // Click opens this menu
     if (clicked)
     {
-        PLOTIX_LOG_DEBUG("menu", "Click open: " + std::string(label));
+        SPECTRA_LOG_DEBUG("menu", "Click open: " + std::string(label));
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
     }
@@ -582,7 +582,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     // Hover-switch: if another menu is open and user hovers this button, switch
     if (btn_hovered && !open_menu_label_.empty() && open_menu_label_ != label)
     {
-        PLOTIX_LOG_DEBUG("menu", "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
+        SPECTRA_LOG_DEBUG("menu", "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
     }
@@ -624,7 +624,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 
         if (!mouse_in_zone && !ImGui::IsAnyItemActive())
         {
-            PLOTIX_LOG_DEBUG("menu", "Auto-close: " + std::string(label));
+            SPECTRA_LOG_DEBUG("menu", "Auto-close: " + std::string(label));
             ImGui::CloseCurrentPopup();
             open_menu_label_.clear();
         }
@@ -761,11 +761,11 @@ void ImGuiIntegration::draw_command_bar()
 {
     if (!layout_manager_)
     {
-        PLOTIX_LOG_WARN("ui", "draw_command_bar called but layout_manager_ is null");
+        SPECTRA_LOG_WARN("ui", "draw_command_bar called but layout_manager_ is null");
         return;
     }
 
-    PLOTIX_LOG_TRACE("ui", "Drawing command bar");
+    SPECTRA_LOG_TRACE("ui", "Drawing command bar");
 
     Rect bounds = layout_manager_->command_bar_rect();
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
@@ -794,7 +794,7 @@ void ImGuiIntegration::draw_command_bar()
 
     if (ImGui::Begin("##commandbar", nullptr, flags))
     {
-        PLOTIX_LOG_TRACE("ui", "Command bar window began successfully");
+        SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
         // App title/brand on the left
         ImGui::PushFont(font_title_);
         ImGui::PushStyleColor(ImGuiCol_Text,
@@ -812,9 +812,9 @@ void ImGuiIntegration::draw_command_bar()
             ui::icon_str(ui::Icon::Home),
             [this]()
             {
-                PLOTIX_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
+                SPECTRA_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
                 reset_view_ = true;
-                PLOTIX_LOG_DEBUG("ui_button", "Reset view flag set successfully");
+                SPECTRA_LOG_DEBUG("ui_button", "Reset view flag set successfully");
             },
             "Reset View (Home)");
 
@@ -936,7 +936,7 @@ void ImGuiIntegration::draw_command_bar()
                         if (ax)
                             axis_link_mgr_->add_to_group(gid, ax.get());
                     }
-                    PLOTIX_LOG_INFO("axes_link", "Linked all axes on X");
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X");
                 });
             axes_items.emplace_back(
                 "Link Y Axes",
@@ -950,7 +950,7 @@ void ImGuiIntegration::draw_command_bar()
                         if (ax)
                             axis_link_mgr_->add_to_group(gid, ax.get());
                     }
-                    PLOTIX_LOG_INFO("axes_link", "Linked all axes on Y");
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
                 });
             axes_items.emplace_back(
                 "Link All Axes",
@@ -964,7 +964,7 @@ void ImGuiIntegration::draw_command_bar()
                         if (ax)
                             axis_link_mgr_->add_to_group(gid, ax.get());
                     }
-                    PLOTIX_LOG_INFO("axes_link", "Linked all axes on X+Y");
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y");
                 });
             axes_items.emplace_back("", nullptr);  // separator
             axes_items.emplace_back("Unlink All",
@@ -983,7 +983,7 @@ void ImGuiIntegration::draw_command_bar()
                                             axis_link_mgr_->remove_group(id);
                                         }
                                         axis_link_mgr_->clear_shared_cursor();
-                                        PLOTIX_LOG_INFO("axes_link", "Unlinked all axes");
+                                        SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
                                     });
 
             draw_menubar_menu("Axes", axes_items);
@@ -1035,7 +1035,7 @@ void ImGuiIntegration::draw_command_bar()
                             }
                             ax->auto_fit();
                         }
-                        PLOTIX_LOG_INFO("transform", "Applied transform: " + name);
+                        SPECTRA_LOG_INFO("transform", "Applied transform: " + name);
                     });
             }
 
@@ -1133,7 +1133,7 @@ void ImGuiIntegration::draw_tab_bar()
                                  ui::theme().bg_secondary.b,
                                  ui::theme().bg_secondary.a));
 
-    if (ImGui::Begin("##plotix_tab_bar", nullptr, flags))
+    if (ImGui::Begin("##spectra_tab_bar", nullptr, flags))
     {
         // Let the TabBar handle all input, drawing, and context menus
         tab_bar_->draw(bounds);
@@ -2632,7 +2632,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     }  // Phase 5 scope
 }
 
-    #if PLOTIX_FLOATING_TOOLBAR
+    #if SPECTRA_FLOATING_TOOLBAR
 void ImGuiIntegration::draw_floating_toolbar()
 {
     if (!layout_manager_)
@@ -3482,7 +3482,7 @@ void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* 
     {
         layout_manager_->set_inspector_visible(true);
     }
-    PLOTIX_LOG_INFO("ui", "Series selected from canvas: " + s->label());
+    SPECTRA_LOG_INFO("ui", "Series selected from canvas: " + s->label());
 }
 
 void ImGuiIntegration::draw_theme_settings()
@@ -3751,7 +3751,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                         axis_link_mgr_->link(ax, other.get(), LinkAxis::X);
                     }
                 }
-                PLOTIX_LOG_INFO("axes_link",
+                SPECTRA_LOG_INFO("axes_link",
                                 "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
@@ -3767,7 +3767,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                         axis_link_mgr_->link(ax, other.get(), LinkAxis::Y);
                     }
                 }
-                PLOTIX_LOG_INFO("axes_link",
+                SPECTRA_LOG_INFO("axes_link",
                                 "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
@@ -3783,7 +3783,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                         axis_link_mgr_->link(ax, other.get(), LinkAxis::Both);
                     }
                 }
-                PLOTIX_LOG_INFO("axes_link",
+                SPECTRA_LOG_INFO("axes_link",
                                 "Linked both axes of subplot " + std::to_string(axes_idx + 1));
             }
         }
@@ -3850,7 +3850,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             if (ImGui::Selectable(unlink_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 axis_link_mgr_->unlink(ax);
-                PLOTIX_LOG_INFO("axes_link", "Unlinked subplot " + std::to_string(axes_idx + 1));
+                SPECTRA_LOG_INFO("axes_link", "Unlinked subplot " + std::to_string(axes_idx + 1));
             }
             ImGui::PopStyleColor();
 
@@ -3866,7 +3866,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     axis_link_mgr_->remove_group(id);
                 }
                 axis_link_mgr_->clear_shared_cursor();
-                PLOTIX_LOG_INFO("axes_link", "Unlinked all axes");
+                SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
             }
             ImGui::PopStyleColor();
         }
@@ -3941,4 +3941,4 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

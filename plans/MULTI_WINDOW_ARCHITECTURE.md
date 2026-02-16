@@ -711,7 +711,504 @@ while (window_manager.any_window_open()) {
 
 ---
 
-## 7. DEFINITION OF DONE
+## 7. AGENT SYNCHRONIZATION PLAN
+
+### 7.1 Dependency Graph
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AGENT DEPENDENCIES                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│                        Agent A                               │
+│                  (Core Window Refactor)                      │
+│                   WindowContext struct                       │
+│                   VulkanBackend refactor                     │
+│                   GLFW lifecycle split                       │
+│                          │                                   │
+│                          │ BLOCKS                            │
+│                          ▼                                   │
+│              ┌───────────┴───────────┐                       │
+│              │                       │                       │
+│         Agent B                 Agent C (partial)            │
+│    (Multi-Swapchain)         (FigureId typedef)             │
+│    WindowManager             FigureId = size_t              │
+│    Per-window rendering                │                    │
+│              │                          │                    │
+│              │ BLOCKS                   │ ENABLES            │
+│              ▼                          ▼                    │
+│         Agent C (full)              Agent D                  │
+│      (Figure Ownership)          (Tear-Off UX)              │
+│      FigureRegistry              draw_pane_tab_headers      │
+│      move_figure()               detach callback            │
+│              │                          │                    │
+│              └──────────┬───────────────┘                    │
+│                         │ VALIDATES                          │
+│                         ▼                                    │
+│                    Agent E                                   │
+│              (Stability & Validation)                        │
+│              Tests, benchmarks, edge cases                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Critical Path
+
+**Sequential dependencies (must be strictly ordered):**
+
+1. **Agent A completes** → `WindowContext` struct exists, `VulkanBackend` refactored
+2. **Agent B starts** → uses `WindowContext`, implements `WindowManager`
+3. **Agent C (partial) starts in parallel with Agent A** → introduces `FigureId` typedef
+4. **Agent B completes** → multi-window rendering works
+5. **Agent C (full) starts** → upgrades `FigureId` to stable IDs, implements `FigureRegistry`
+6. **Agent D starts** → uses `FigureRegistry` + `WindowManager` for tear-off
+7. **Agent E runs continuously** → validates each phase
+
+**Parallel work opportunities:**
+
+- **Agent A + Agent C (partial)**: Agent C can introduce `FigureId = size_t` typedef while Agent A refactors backend
+- **Agent E**: Writes test scaffolding in parallel with all agents, runs validation after each merge
+
+### 7.3 Handoff Protocols
+
+#### Agent A → Agent B Handoff
+
+**Deliverables from Agent A:**
+- `src/render/vulkan/window_context.hpp` — complete struct definition
+- `VulkanBackend::set_active_window(WindowContext*)` — implemented and tested
+- `GlfwAdapter` — `glfwTerminate()` moved out of `shutdown()`
+- Single window still renders correctly
+- All 65/66 tests pass
+
+**Acceptance checklist for Agent B:**
+- [ ] `WindowContext` struct has all fields documented in Section 2.2
+- [ ] `VulkanBackend::begin_frame()` operates on active `WindowContext`
+- [ ] `VulkanBackend::end_frame()` operates on active `WindowContext`
+- [ ] Frame UBO buffer is per-`WindowContext`
+- [ ] Command buffers are per-`WindowContext`
+- [ ] Sync objects (fences, semaphores) are per-`WindowContext`
+- [ ] `GlfwAdapter::shutdown()` does NOT call `glfwTerminate()`
+- [ ] Vulkan validation layers produce zero errors
+
+**Handoff meeting agenda:**
+1. Agent A demos single window rendering with new `WindowContext`
+2. Agent A walks through `set_active_window()` implementation
+3. Agent B confirms understanding of per-window vs shared resources (Table 2.4)
+4. Agent B asks clarifying questions on command pool sharing strategy
+
+---
+
+#### Agent B → Agent C Handoff
+
+**Deliverables from Agent B:**
+- `src/ui/window_manager.hpp/.cpp` — `WindowManager` class implemented
+- `WindowManager::create_window()` — creates GLFW window + surface + swapchain
+- Per-window render loop in `App::run()` — iterates over all windows
+- Two windows render simultaneously (hardcoded test)
+- Per-window resize handling works
+
+**Acceptance checklist for Agent C:**
+- [ ] `WindowManager::create_window(w, h, title)` returns `WindowContext*`
+- [ ] `WindowManager::destroy_window(id)` waits for GPU idle before cleanup
+- [ ] `WindowManager::windows()` returns all active windows
+- [ ] `WindowManager::poll_events()` calls `glfwPollEvents()` once
+- [ ] Main loop iterates: `for (auto* wctx : window_manager.windows())`
+- [ ] Each window has independent resize debouncing
+- [ ] Closing one window does not affect others
+- [ ] No GPU hangs, no validation errors
+
+**Handoff meeting agenda:**
+1. Agent B demos two windows rendering different content
+2. Agent B explains per-window fence/semaphore synchronization
+3. Agent C confirms `WindowContext::figure_ids` is ready for `FigureId` upgrade
+4. Agent C asks about window lifetime guarantees (when is `WindowContext*` invalidated?)
+
+---
+
+#### Agent C → Agent D Handoff
+
+**Deliverables from Agent C:**
+- `src/ui/figure_registry.hpp/.cpp` — `FigureRegistry` class implemented
+- `FigureId` is now `uint64_t` (not `size_t`)
+- `DockSystem`/`SplitPane` use `FigureId` instead of indices
+- `WindowManager::move_figure(id, from, to)` implemented
+- Programmatic figure move works (test: move figure 2 to window 2)
+
+**Acceptance checklist for Agent D:**
+- [ ] `FigureRegistry::register_figure()` returns stable `FigureId`
+- [ ] `FigureRegistry::get(FigureId)` returns `Figure*` or nullptr
+- [ ] `WindowContext::figure_ids` is `vector<FigureId>`
+- [ ] `move_figure()` removes from source, adds to target, no GPU buffer recreation
+- [ ] Series GPU buffers (`series_gpu_data_`) survive move (keyed by `Series*`)
+- [ ] Closing source window after move does not crash target window
+- [ ] `FigureManager` uses `FigureId` throughout
+
+**Handoff meeting agenda:**
+1. Agent C demos programmatic figure move between windows
+2. Agent C explains `FigureRegistry` ownership model (who owns `unique_ptr<Figure>`?)
+3. Agent D confirms `draw_pane_tab_headers()` can access `FigureId` from drag state
+4. Agent D asks about edge case: detaching last figure in a window
+
+---
+
+#### All Agents → Agent E Handoff (Continuous)
+
+**Agent E responsibilities:**
+- Write test scaffolding during Phase 1 (before Agent A completes)
+- Run validation after each agent's merge
+- Maintain regression test suite
+- Report issues back to responsible agent
+
+**Validation checkpoints:**
+- **After Agent A merge:** Single window regression tests
+- **After Agent B merge:** Multi-window rendering tests
+- **After Agent C merge:** Figure move tests
+- **After Agent D merge:** Tear-off UX tests
+- **Final:** Full stability validation (Section 7.8)
+
+---
+
+### 7.4 Merge Strategy
+
+#### Branching Model
+
+```
+main
+ │
+ ├─── feature/agent-a-window-context
+ │     └─── (Agent A work)
+ │
+ ├─── feature/agent-b-multi-swapchain  (branches from agent-a after merge)
+ │     └─── (Agent B work)
+ │
+ ├─── feature/agent-c-figure-id-typedef  (branches from main, parallel with A)
+ │     └─── (Agent C partial work)
+ │
+ ├─── feature/agent-c-figure-registry  (branches from agent-b after merge)
+ │     └─── (Agent C full work)
+ │
+ ├─── feature/agent-d-tear-off  (branches from agent-c after merge)
+ │     └─── (Agent D work)
+ │
+ └─── feature/agent-e-tests  (branches from main, merges into each feature branch)
+      └─── (Agent E test scaffolding)
+```
+
+#### Merge Order
+
+1. **Agent C (partial)** → `main` — `FigureId` typedef, minimal changes
+2. **Agent A** → `main` — `WindowContext` refactor
+3. **Agent B** → `main` — `WindowManager` + multi-window rendering
+4. **Agent C (full)** → `main` — `FigureRegistry` + stable IDs
+5. **Agent D** → `main` — Tear-off UX
+6. **Agent E** → `main` — Final test suite + benchmarks
+
+#### Merge Criteria (All agents)
+
+**Before merge, ALL must be true:**
+- [ ] Clean compile (zero warnings with `-Wall -Wextra`)
+- [ ] All existing tests pass (65/66 minimum, or 66/66 if inspector_stats fixed)
+- [ ] New tests written for new functionality (Agent E reviews)
+- [ ] Vulkan validation layers produce zero errors
+- [ ] No GPU hang under stress test (Agent E runs)
+- [ ] Code review approved by at least one other agent
+- [ ] Documentation updated (inline comments + this plan if needed)
+
+---
+
+### 7.5 Conflict Resolution
+
+#### File Ownership Matrix
+
+| File | Agent A | Agent B | Agent C | Agent D | Agent E |
+|------|---------|---------|---------|---------|---------|
+| `vk_backend.hpp/cpp` | **Owner** | Modify | Read | Read | Test |
+| `window_context.hpp` | **Create** | Modify | Read | Read | Test |
+| `window_manager.hpp/cpp` | - | **Create** | Modify | Modify | Test |
+| `figure_registry.hpp/cpp` | - | - | **Create** | Read | Test |
+| `app.cpp` | Wire | **Refactor** | Modify | Wire | Test |
+| `imgui_integration.hpp/cpp` | Read | Modify | Read | **Modify** | Test |
+| `dock_system.hpp/cpp` | Read | Read | **Modify** | Read | Test |
+| `split_view.hpp/cpp` | Read | Read | **Modify** | Read | Test |
+| `figure_manager.hpp/cpp` | Read | Read | **Modify** | Read | Test |
+
+**Legend:**
+- **Owner/Create**: Primary author, makes all design decisions
+- **Modify**: Can make changes, must coordinate with owner
+- **Read**: Read-only, can reference but not modify
+- **Test**: Writes tests, reports issues
+
+#### Conflict Scenarios
+
+**Scenario 1: Agent B and Agent C both need to modify `app.cpp`**
+
+- **Resolution:** Agent B merges first (sequential dependency). Agent C rebases onto Agent B's merge.
+- **Coordination:** Agent B leaves clear TODO comments for Agent C: `// TODO(Agent C): Replace size_t with FigureId here`
+
+**Scenario 2: Agent A changes `VulkanBackend` API, breaks Agent B's WIP code**
+
+- **Resolution:** Agent B rebases onto Agent A's merge, updates calls to new API.
+- **Prevention:** Agent A documents API changes in handoff meeting (Section 7.3).
+
+**Scenario 3: Agent E finds critical bug in Agent B's merged code**
+
+- **Resolution:** Agent E files issue, Agent B creates hotfix branch from `main`, merges fix.
+- **Escalation:** If Agent B unavailable, Agent E can fix (with approval from Agent B in async review).
+
+**Scenario 4: Two agents disagree on design decision (e.g., one ImGui context vs multi-context)**
+
+- **Resolution:** Refer to Section 2 (Target Architecture) as source of truth. If not covered, escalate to Principal Graphics Architect (plan author).
+- **Decision log:** Document decision in this plan under new subsection (e.g., 7.6 Design Decisions).
+
+---
+
+### 7.6 Communication Channels
+
+#### Daily Standups (Async)
+
+Each agent posts daily update in shared channel:
+
+**Template:**
+```
+Agent [A/B/C/D/E] — Day [N] Update
+✅ Completed: [list of tasks]
+🚧 In Progress: [current task]
+🚫 Blocked: [blockers, if any]
+📅 Next: [tomorrow's goal]
+❓ Questions: [for other agents]
+```
+
+**Example:**
+```
+Agent A — Day 3 Update
+✅ Completed: Moved command buffers into WindowContext
+🚧 In Progress: Refactoring begin_frame() to use active WindowContext
+🚫 Blocked: None
+📅 Next: Move sync objects, test single window rendering
+❓ Questions: @Agent-B — Do you need WindowContext::current_flight_frame exposed?
+```
+
+#### Handoff Meetings (Synchronous)
+
+- **Frequency:** At each agent transition (5 meetings total)
+- **Duration:** 30 minutes
+- **Attendees:** Outgoing agent, incoming agent, Agent E (observer)
+- **Agenda:** See Section 7.3 handoff protocols
+- **Output:** Handoff checklist signed off, questions answered
+
+#### Code Review Protocol
+
+- **Reviewer assignment:** Next agent in sequence reviews previous agent's PR
+  - Agent B reviews Agent A
+  - Agent C reviews Agent B
+  - Agent D reviews Agent C
+  - Agent E reviews all (from testing perspective)
+- **Review SLA:** 24 hours for approval or request changes
+- **Approval criteria:** Merge criteria (Section 7.4) + no design concerns
+
+#### Issue Tracking
+
+**Labels:**
+- `agent-a`, `agent-b`, `agent-c`, `agent-d`, `agent-e` — ownership
+- `blocking` — blocks another agent's work
+- `bug` — regression or new bug
+- `design-question` — needs architectural decision
+
+**Priority:**
+- **P0 (Blocking):** Blocks another agent, must fix within 4 hours
+- **P1 (High):** Breaks tests or validation, fix within 1 day
+- **P2 (Medium):** Non-critical bug, fix within 1 week
+- **P3 (Low):** Nice-to-have, fix if time permits
+
+---
+
+### 7.7 Shared State Management
+
+#### Shared Resources (Read by All, Modified by One)
+
+| Resource | Owner | Modification Protocol |
+|----------|-------|----------------------|
+| `VkDevice` | Agent A | Create once, never modified |
+| `VkCommandPool` | Agent A | Create once, Agent B allocates from it |
+| `VkDescriptorPool` | Agent A | Create once, may need resize (Agent B monitors) |
+| `VkPipeline` map | Agent A | Create once, shared read-only |
+| `FigureRegistry` | Agent C | Agent C creates, Agent D uses `get()`/`move_figure()` |
+| `WindowManager` | Agent B | Agent B creates, Agent C/D call methods |
+
+#### State Synchronization Points
+
+**After Agent A merge:**
+- `WindowContext` struct is frozen (no new fields without team approval)
+- `VulkanBackend` API is stable (no breaking changes)
+
+**After Agent B merge:**
+- `WindowManager` API is stable
+- Per-window rendering loop pattern is established
+
+**After Agent C merge:**
+- `FigureId` type is frozen (`uint64_t`, never changes)
+- `FigureRegistry` API is stable
+
+**After Agent D merge:**
+- All APIs frozen, only bug fixes allowed
+
+---
+
+### 7.8 Testing Coordination
+
+#### Test Ownership
+
+| Test Suite | Owner | Runs After |
+|------------|-------|------------|
+| Single window regression | Agent E | Agent A merge |
+| Multi-window rendering | Agent E | Agent B merge |
+| Figure move | Agent E | Agent C merge |
+| Tear-off UX | Agent E | Agent D merge |
+| Validation layers | Agent E | Every merge |
+| Resize torture | Agent E | Agent B, D merges |
+| Animation callbacks | Agent E | Agent C merge |
+| GPU hang detection | Agent E | Every merge |
+
+#### Continuous Integration
+
+**On every commit to feature branch:**
+- [ ] Build (debug + release)
+- [ ] Unit tests (existing suite)
+- [ ] Vulkan validation (if GPU available)
+
+**On PR to main:**
+- [ ] Full test suite (unit + integration + golden)
+- [ ] Benchmarks (compare to baseline)
+- [ ] Validation layers (strict mode)
+- [ ] Memory leak check (Valgrind or ASAN)
+- [ ] Agent E manual review
+
+#### Test Data Sharing
+
+**Baseline captures (Agent E maintains):**
+- `tests/golden/baseline_single_window.png` — pre-refactor
+- `tests/golden/baseline_two_windows.png` — post Agent B
+- `tests/bench/baseline_frame_times.json` — performance baseline
+
+**Shared test utilities (Agent E provides):**
+- `tests/util/multi_window_fixture.hpp` — creates N windows for testing
+- `tests/util/validation_guard.hpp` — RAII wrapper for validation layer checks
+- `tests/util/gpu_hang_detector.hpp` — timeout-based hang detection
+
+---
+
+### 7.9 Rollback Plan
+
+#### If Agent A merge breaks main
+
+1. **Immediate:** Revert Agent A's merge commit
+2. **Root cause:** Agent A investigates, fixes in feature branch
+3. **Re-merge:** After fix validated by Agent E
+
+#### If Agent B merge breaks main
+
+1. **Assess:** Can Agent C proceed on old main? If yes, Agent C continues.
+2. **Fix-forward:** Agent B creates hotfix branch, merges fix within 24h
+3. **If fix-forward fails:** Revert Agent B, Agent B re-implements
+
+#### If critical bug found in production (post-merge)
+
+1. **Triage:** Agent E identifies which agent's code introduced bug
+2. **Hotfix:** Responsible agent creates `hotfix/issue-NNN` branch from `main`
+3. **Fast-track:** Hotfix reviewed by Agent E only (skip full review)
+4. **Merge:** Hotfix merged to `main`, all feature branches rebase
+
+---
+
+### 7.10 Success Metrics
+
+#### Per-Agent Metrics
+
+| Agent | Metric | Target |
+|-------|--------|--------|
+| Agent A | Merge within 7 days | ✅ |
+| Agent A | Zero validation errors after merge | ✅ |
+| Agent B | Two windows render within 7 days | ✅ |
+| Agent B | Frame time overhead < 10% per window | ✅ |
+| Agent C | Figure move works within 5 days | ✅ |
+| Agent C | Zero GPU buffer recreations on move | ✅ |
+| Agent D | Tear-off UX works within 5 days | ✅ |
+| Agent D | New window spawns within 1 frame | ✅ |
+| Agent E | Test coverage > 80% for new code | ✅ |
+| Agent E | Zero regressions in existing tests | ✅ |
+
+#### Overall Project Metrics
+
+- **Timeline:** 14 days (2 weeks) for Phases 1-2, 14 days for Phases 3-4
+- **Quality:** Zero critical bugs in production
+- **Performance:** Frame time scales linearly with window count (not quadratic)
+- **Stability:** 100 rapid window create/destroy cycles without crash
+
+---
+
+## 8. AGENT ACTIVATION TABLE
+
+| Agent | Start When | Prerequisites | Duration | Deliverable |
+|-------|-----------|---------------|----------|-------------|
+| **Agent E** | **Day 0** | None (starts immediately) | Continuous | Test scaffolding, validation suite |
+| **Agent C (partial)** | **Day 0** | None (parallel with Agent A) | 2 days | `FigureId` typedef introduced |
+| **Agent A** | **Day 1** | Agent E test scaffolding ready | 7 days | `WindowContext` struct, refactored backend |
+| **Agent B** | **Day 8** | ✅ Agent A merged to main | 7 days | `WindowManager`, multi-window rendering |
+| **Agent C (full)** | **Day 15** | ✅ Agent B merged to main | 5 days | `FigureRegistry`, stable IDs, `move_figure()` |
+| **Agent D** | **Day 20** | ✅ Agent C merged to main | 5 days | Tab tear-off UX, detach callback |
+| **Agent E (final)** | **Day 25** | ✅ Agent D merged to main | 3 days | Full validation, benchmarks, stress tests |
+
+### Quick Start Commands
+
+```bash
+# Day 0: Initialize project
+git checkout -b feature/agent-e-tests main
+git checkout -b feature/agent-c-figure-id-typedef main
+git checkout -b feature/agent-a-window-context main
+
+# Day 8: After Agent A merge
+git checkout -b feature/agent-b-multi-swapchain main
+
+# Day 15: After Agent B merge
+git checkout -b feature/agent-c-figure-registry main
+
+# Day 20: After Agent C merge
+git checkout -b feature/agent-d-tear-off main
+```
+
+### Activation Checklist
+
+**Before activating Agent A:**
+- [ ] Agent E has created test fixture templates
+- [ ] Baseline golden images captured
+- [ ] Validation layer wrapper ready
+
+**Before activating Agent B:**
+- [ ] Agent A's PR merged to main
+- [ ] `WindowContext` struct exists and documented
+- [ ] Single window regression tests pass
+- [ ] Handoff meeting completed (Section 7.3)
+
+**Before activating Agent C (full):**
+- [ ] Agent B's PR merged to main
+- [ ] Two windows render simultaneously
+- [ ] Multi-window tests pass
+- [ ] Handoff meeting completed (Section 7.3)
+
+**Before activating Agent D:**
+- [ ] Agent C's PR merged to main
+- [ ] `FigureRegistry` API stable
+- [ ] Figure move test passes
+- [ ] Handoff meeting completed (Section 7.3)
+
+**Before final Agent E validation:**
+- [ ] Agent D's PR merged to main
+- [ ] All phases 1-4 complete
+- [ ] No known critical bugs
+
+---
+
+## 9. DEFINITION OF DONE
 
 The multi-window system is complete when ALL of the following are true:
 

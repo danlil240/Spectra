@@ -10,7 +10,7 @@ namespace spectra
 
 DockSystem::DockSystem() = default;
 
-SplitPane* DockSystem::split_right(size_t new_figure_index, float ratio)
+SplitPane* DockSystem::split_right(FigureId new_figure_index, float ratio)
 {
     auto* result = split_view_.split_active(SplitDirection::Horizontal, new_figure_index, ratio);
     if (result && on_layout_changed_)
@@ -18,7 +18,7 @@ SplitPane* DockSystem::split_right(size_t new_figure_index, float ratio)
     return result;
 }
 
-SplitPane* DockSystem::split_down(size_t new_figure_index, float ratio)
+SplitPane* DockSystem::split_down(FigureId new_figure_index, float ratio)
 {
     auto* result = split_view_.split_active(SplitDirection::Vertical, new_figure_index, ratio);
     if (result && on_layout_changed_)
@@ -26,7 +26,7 @@ SplitPane* DockSystem::split_down(size_t new_figure_index, float ratio)
     return result;
 }
 
-SplitPane* DockSystem::split_figure_right(size_t figure_index, size_t new_figure_index, float ratio)
+SplitPane* DockSystem::split_figure_right(FigureId figure_index, FigureId new_figure_index, float ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Horizontal, new_figure_index, ratio);
@@ -35,7 +35,7 @@ SplitPane* DockSystem::split_figure_right(size_t figure_index, size_t new_figure
     return result;
 }
 
-SplitPane* DockSystem::split_figure_down(size_t figure_index, size_t new_figure_index, float ratio)
+SplitPane* DockSystem::split_figure_down(FigureId figure_index, FigureId new_figure_index, float ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Vertical, new_figure_index, ratio);
@@ -44,7 +44,7 @@ SplitPane* DockSystem::split_figure_down(size_t figure_index, size_t new_figure_
     return result;
 }
 
-bool DockSystem::close_split(size_t figure_index)
+bool DockSystem::close_split(FigureId figure_index)
 {
     bool result = split_view_.close_pane(figure_index);
     if (result && on_layout_changed_)
@@ -61,7 +61,7 @@ void DockSystem::reset_splits()
 
 // ─── Drag-to-dock ────────────────────────────────────────────────────────────
 
-void DockSystem::begin_drag(size_t figure_index, float mouse_x, float mouse_y)
+void DockSystem::begin_drag(FigureId figure_index, float mouse_x, float mouse_y)
 {
     is_dragging_ = true;
     dragging_figure_index_ = figure_index;
@@ -102,7 +102,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
         return false;
     }
 
-    size_t target_figure = target.target_pane->figure_index();
+    FigureId target_figure = target.target_pane->figure_index();
 
     // Don't dock onto self if the target pane only has one figure
     // (splitting a single-figure pane onto itself makes no sense).
@@ -191,7 +191,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
         all_leaves = split_view_.all_panes();
         for (auto* leaf : all_leaves)
         {
-            if (leaf->figure_count() == 0 && leaf->figure_index() == SIZE_MAX)
+            if (leaf->figure_count() == 0 && leaf->figure_index() == INVALID_FIGURE_ID)
             {
                 auto* p = leaf->parent();
                 if (p)
@@ -232,7 +232,7 @@ std::vector<DockSystem::PaneInfo> DockSystem::get_pane_infos() const
 {
     std::vector<PaneInfo> result;
     auto panes = split_view_.all_panes();
-    size_t active = split_view_.active_figure_index();
+    FigureId active = split_view_.active_figure_index();
 
     for (const auto* pane : panes)
     {
@@ -297,7 +297,7 @@ void DockSystem::activate_pane_at(float x, float y)
     }
 }
 
-bool DockSystem::move_figure_to_pane(size_t figure_index, SplitPane::PaneId target_pane_id)
+bool DockSystem::move_figure_to_pane(FigureId figure_index, SplitPane::PaneId target_pane_id)
 {
     auto* root = split_view_.root();
     if (!root)

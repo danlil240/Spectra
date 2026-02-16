@@ -32,7 +32,7 @@ You are Agent 1 — Scaffold + Vulkan Core. You own these directories exclusivel
 
 Your tasks IN ORDER:
 1. Create the full directory structure from plan.md section D.
-2. Create CMakeLists.txt with C++20, feature flags (PLOTIX_USE_GLFW, PLOTIX_USE_FFMPEG, PLOTIX_USE_EIGEN), find Vulkan SDK, subdirectories.
+2. Create CMakeLists.txt with C++20, feature flags (SPECTRA_USE_GLFW, SPECTRA_USE_FFMPEG, SPECTRA_USE_EIGEN), find Vulkan SDK, subdirectories.
 3. Create cmake/CompileShaders.cmake — find glslangValidator, add custom command to compile src/gpu/shaders/*.vert/*.frag to SPIR-V, generate src/gpu/shader_spirv.hpp with embedded constexpr arrays.
 4. Create ALL public headers in include/spectra/ with forward declarations, class skeletons, and the interfaces other agents depend on:
    - fwd.hpp (forward decls for all core types)
@@ -148,7 +148,7 @@ ANIMATION:
 
 UI:
 5. src/ui/app.cpp — App class (headless core): creates Backend (VulkanBackend), owns Renderer, FrameScheduler. figure() creates Figure. run() drives the main loop: drain commands → evaluate animations → user callback → render → present. Headless mode: no window, render to offscreen.
-6. src/ui/glfw_adapter.cpp — GlfwAdapter (behind PLOTIX_USE_GLFW): GLFW window creation, Vulkan surface creation, input polling, swapchain integration. Wraps glfwPollEvents in the frame loop.
+6. src/ui/glfw_adapter.cpp — GlfwAdapter (behind SPECTRA_USE_GLFW): GLFW window creation, Vulkan surface creation, input polling, swapchain integration. Wraps glfwPollEvents in the frame loop.
 7. src/ui/input.cpp — Input handler: mouse pan (click-drag translates axis limits), mouse scroll zoom (scale axis limits around cursor position). Maps GLFW callbacks to axis limit mutations.
 
 Key design:
@@ -178,7 +178,7 @@ Wait until include/spectra/ headers exist (Agent 1 creates them). Then implement
 
 EXPORT:
 1. src/io/png_export.cpp — ImageExporter: takes raw RGBA pixel data (from Vulkan readback), writes PNG via stb_image_write. figure.save_png("path") interface.
-2. src/io/video_export.cpp — VideoExporter (behind PLOTIX_USE_FFMPEG): opens ffmpeg subprocess via popen(), pipes raw RGBA frames to stdin. Supports MP4/GIF output. Configurable fps, codec. figure.animate().record("output.mp4") interface.
+2. src/io/video_export.cpp — VideoExporter (behind SPECTRA_USE_FFMPEG): opens ffmpeg subprocess via popen(), pipes raw RGBA frames to stdin. Supports MP4/GIF output. Configurable fps, codec. figure.animate().record("output.mp4") interface.
 3. src/io/svg_export.cpp — Placeholder/stub for Phase 2. Define the interface but implement as TODO.
 
 EXAMPLES (each should be a standalone main() that demonstrates the API):

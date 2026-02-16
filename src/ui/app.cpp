@@ -14,11 +14,11 @@
 #include "gesture_recognizer.hpp"
 #include "input.hpp"
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     #include "glfw_adapter.hpp"
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
     #include "animation_curve_editor.hpp"
@@ -71,16 +71,16 @@ App::App(const AppConfig& config) : config_(config)
     // Add file sink in temp directory with error handling
     try
     {
-        std::string log_path = std::filesystem::temp_directory_path() / "plotix_app.log";
+        std::string log_path = std::filesystem::temp_directory_path() / "spectra_app.log";
         logger.add_sink(spectra::sinks::file_sink(log_path));
-        PLOTIX_LOG_INFO("app", "Log file: " + log_path);
+        SPECTRA_LOG_INFO("app", "Log file: " + log_path);
     }
     catch (const std::exception& e)
     {
-        PLOTIX_LOG_WARN("app", "Failed to create log file: " + std::string(e.what()));
+        SPECTRA_LOG_WARN("app", "Failed to create log file: " + std::string(e.what()));
     }
 
-    PLOTIX_LOG_INFO("app",
+    SPECTRA_LOG_INFO("app",
                     "Initializing Spectra application (headless: "
                         + std::string(config_.headless ? "true" : "false") + ")");
 
@@ -88,7 +88,7 @@ App::App(const AppConfig& config) : config_(config)
     backend_ = std::make_unique<VulkanBackend>();
     if (!backend_->init(config_.headless))
     {
-        PLOTIX_LOG_ERROR("app", "Failed to initialize Vulkan backend");
+        SPECTRA_LOG_ERROR("app", "Failed to initialize Vulkan backend");
         return;
     }
 
@@ -96,11 +96,11 @@ App::App(const AppConfig& config) : config_(config)
     renderer_ = std::make_unique<Renderer>(*backend_);
     if (!renderer_->init())
     {
-        PLOTIX_LOG_ERROR("app", "Failed to initialize renderer");
+        SPECTRA_LOG_ERROR("app", "Failed to initialize renderer");
         return;
     }
 
-    PLOTIX_LOG_INFO("app", "Spectra application initialized successfully");
+    SPECTRA_LOG_INFO("app", "Spectra application initialized successfully");
 }
 
 App::~App()
@@ -145,7 +145,7 @@ void App::run()
     float anim_time = 0.0f;  // Animation time accumulator (independent of wall-clock)
 
     auto switch_active_figure = [&](size_t new_index
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
                                     ,
                                     InputHandler* input_handler
 #endif
@@ -159,7 +159,7 @@ void App::run()
         active_figure = figures_[active_figure_index].get();
         scheduler.set_target_fps(active_figure->anim_fps_);
         has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
         if (input_handler)
         {
             input_handler->set_figure(active_figure);
@@ -173,16 +173,16 @@ void App::run()
 #endif
     };
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     bool is_recording = !active_figure->video_record_path_.empty();
 #else
     if (!active_figure->video_record_path_.empty())
     {
-        std::cerr << "[spectra] Video recording requested but PLOTIX_USE_FFMPEG is not enabled\n";
+        std::cerr << "[spectra] Video recording requested but SPECTRA_USE_FFMPEG is not enabled\n";
     }
 #endif
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     std::unique_ptr<VideoExporter> video_exporter;
     std::vector<uint8_t> video_frame_pixels;
     if (is_recording)
@@ -212,7 +212,7 @@ void App::run()
     }
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
     std::unique_ptr<DataInteraction> data_interaction;
     std::unique_ptr<TabBar> figure_tabs;
@@ -281,7 +281,7 @@ void App::run()
     cmd_palette.set_shortcut_manager(&shortcut_mgr);
 #endif
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
     AnimationController anim_controller;
     GestureRecognizer gesture;
@@ -320,7 +320,7 @@ void App::run()
             // Set GLFW callbacks for input
             InputCallbacks callbacks;
             callbacks.on_mouse_move = [&input_handler
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                                        ,
                                        &imgui_ui,
                                        &dock_system,
@@ -328,7 +328,7 @@ void App::run()
     #endif
             ](double x, double y)
             {
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 // Always pass through mouse moves when InputHandler is in an active
                 // drag (pan, measure, middle-pan, box zoom).  Without this, ImGui
                 // capture from overlapping windows (toolbar, status bar) blocks
@@ -342,7 +342,7 @@ void App::run()
                 if (!input_is_dragging && imgui_ui
                     && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
                 {
-                    PLOTIX_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
+                    SPECTRA_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
                     return;
                 }
                 // In split mode, route to the figure under the cursor
@@ -365,7 +365,7 @@ void App::run()
                 input_handler.on_mouse_move(x, y);
             };
             callbacks.on_mouse_button = [&input_handler
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                                          ,
                                          &imgui_ui,
                                          &dock_system,
@@ -373,7 +373,7 @@ void App::run()
     #endif
             ](int button, int action, int mods, double x, double y)
             {
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 // Always pass through when InputHandler is actively dragging
                 // (pan, measure, middle-pan, box zoom) so release events and
                 // continued interaction work correctly.
@@ -416,7 +416,7 @@ void App::run()
             };
             callbacks.on_scroll = [&input_handler,
                                    &glfw
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                                    ,
                                    &imgui_ui,
                                    &dock_system,
@@ -425,13 +425,13 @@ void App::run()
     #endif
             ](double x_offset, double y_offset)
             {
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 // Block scroll when command palette is open — it handles its own smooth scroll
                 if (cmd_palette.is_open())
                     return;
                 if (imgui_ui && imgui_ui->wants_capture_mouse())
                 {
-                    // PLOTIX_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
+                    // SPECTRA_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
                     return;
                 }
     #endif
@@ -440,7 +440,7 @@ void App::run()
                 {
                     glfw->mouse_position(cx, cy);
                 }
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (dock_system.is_split())
                 {
                     SplitPane* root = dock_system.split_view().root();
@@ -460,14 +460,14 @@ void App::run()
                 input_handler.on_scroll(x_offset, y_offset, cx, cy);
             };
             callbacks.on_key = [&input_handler
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                                 ,
                                 &imgui_ui,
                                 &shortcut_mgr
     #endif
             ](int key, int action, int mods)
             {
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (imgui_ui && imgui_ui->wants_capture_keyboard())
                     return;
                 // Dispatch to shortcut manager first; if it handles the key, skip input handler
@@ -481,7 +481,7 @@ void App::run()
                                    &new_height,
                                    this,
                                    &active_figure
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                                    ,
                                    &imgui_ui,
                                    &dock_system
@@ -492,7 +492,7 @@ void App::run()
                     return;
                 uint32_t uw = static_cast<uint32_t>(w);
                 uint32_t uh = static_cast<uint32_t>(h);
-                PLOTIX_LOG_DEBUG("resize",
+                SPECTRA_LOG_DEBUG("resize",
                                  "Callback: " + std::to_string(w) + "x" + std::to_string(h));
 
                 // Recreate swapchain immediately in the callback
@@ -502,7 +502,7 @@ void App::run()
                 active_figure->config_.width = backend_->swapchain_width();
                 active_figure->config_.height = backend_->swapchain_height();
 
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (imgui_ui)
                 {
                     imgui_ui->on_swapchain_recreated(*vk);
@@ -583,7 +583,7 @@ void App::run()
                     renderer_->flush_pending_deletions();
                     renderer_->begin_render_pass();
                     renderer_->render_figure_content(*active_figure);
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                     if (imgui_ui)
                     {
                         imgui_ui->render(*vk);
@@ -592,7 +592,7 @@ void App::run()
                     renderer_->end_render_pass();
                     backend_->end_frame();
                 }
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 else if (imgui_ui)
                 {
                     ImGui::EndFrame();
@@ -609,7 +609,7 @@ void App::run()
     }
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (!config_.headless && glfw)
     {
         imgui_ui = std::make_unique<ImGuiIntegration>();
@@ -690,13 +690,13 @@ void App::run()
                 std::string tmp_dir;
                 try { tmp_dir = std::filesystem::temp_directory_path().string(); }
                 catch (...) { tmp_dir = "/tmp"; }
-                std::string detach_path = tmp_dir + "/plotix_detach_"
+                std::string detach_path = tmp_dir + "/spectra_detach_"
                     + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
                     + ".spectra";
 
                 if (!Workspace::save(detach_path, data))
                 {
-                    PLOTIX_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                    SPECTRA_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
                     return;
                 }
 
@@ -712,7 +712,7 @@ void App::run()
                     + " --spectra-window-y=" + std::to_string(static_cast<int>(screen_y))
                     + " &";
 
-                PLOTIX_LOG_INFO("app",
+                SPECTRA_LOG_INFO("app",
                                 "Detaching tab " + std::to_string(index) + " to new window at ("
                                     + std::to_string(screen_x) + ", " + std::to_string(screen_y)
                                     + ") cmd: " + cmd);
@@ -720,7 +720,7 @@ void App::run()
                 int ret = std::system(cmd.c_str());
                 if (ret != 0)
                 {
-                    PLOTIX_LOG_WARN("app", "Failed to spawn detached window (exit code "
+                    SPECTRA_LOG_WARN("app", "Failed to spawn detached window (exit code "
                                     + std::to_string(ret) + "). Workspace saved at: " + detach_path);
                 }
 
@@ -750,7 +750,7 @@ void App::run()
     // Now that render pass exists, create real Vulkan pipelines from SPIR-V
     static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     if (imgui_ui && glfw)
     {
         auto* vk = static_cast<VulkanBackend*>(backend_.get());
@@ -833,13 +833,13 @@ void App::run()
                 std::string tmp_dir;
                 try { tmp_dir = std::filesystem::temp_directory_path().string(); }
                 catch (...) { tmp_dir = "/tmp"; }
-                std::string detach_path = tmp_dir + "/plotix_detach_"
+                std::string detach_path = tmp_dir + "/spectra_detach_"
                     + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
                     + ".spectra";
 
                 if (!Workspace::save(detach_path, data))
                 {
-                    PLOTIX_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                    SPECTRA_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
                     return;
                 }
 
@@ -851,14 +851,14 @@ void App::run()
                 std::string arg_x = "--spectra-window-x=" + std::to_string(static_cast<int>(screen_x));
                 std::string arg_y = "--spectra-window-y=" + std::to_string(static_cast<int>(screen_y));
 
-                PLOTIX_LOG_INFO("app",
+                SPECTRA_LOG_INFO("app",
                                 "Detaching tab " + std::to_string(index) + " to new window at ("
                                     + std::to_string(screen_x) + ", " + std::to_string(screen_y)
                                     + ") exe: " + exe_path);
 
                 // TODO: spawn new process to restore the detached workspace
                 // fork()+exec() crashes NVIDIA Vulkan driver; needs posix_spawn or post-frame queue
-                PLOTIX_LOG_INFO("app", "Detached workspace saved to: " + detach_path
+                SPECTRA_LOG_INFO("app", "Detached workspace saved to: " + detach_path
                                 + " (process spawn deferred)");
 
                 // TODO: Remove the figure from current window after spawn works
@@ -1224,7 +1224,7 @@ void App::run()
         cmd_registry.register_command(
             "file.export_png",
             "Export PNG",
-            [&]() { active_figure->save_png("plotix_export.png"); },
+            [&]() { active_figure->save_png("spectra_export.png"); },
             "Ctrl+S",
             "File",
             static_cast<uint16_t>(ui::Icon::Export));
@@ -1232,7 +1232,7 @@ void App::run()
         cmd_registry.register_command(
             "file.export_svg",
             "Export SVG",
-            [&]() { active_figure->save_svg("plotix_export.svg"); },
+            [&]() { active_figure->save_svg("spectra_export.svg"); },
             "Ctrl+Shift+S",
             "File",
             static_cast<uint16_t>(ui::Icon::Export));
@@ -1787,7 +1787,7 @@ void App::run()
         // Register default shortcut bindings
         shortcut_mgr.register_defaults();
 
-        PLOTIX_LOG_INFO("app",
+        SPECTRA_LOG_INFO("app",
                         "Registered " + std::to_string(cmd_registry.count()) + " commands, "
                             + std::to_string(shortcut_mgr.count()) + " shortcuts");
     }
@@ -1808,9 +1808,9 @@ void App::run()
 
     while (running)
     {
-        PLOTIX_LOG_TRACE("main_loop", "Starting frame iteration");
+        SPECTRA_LOG_TRACE("main_loop", "Starting frame iteration");
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
         // Handle minimized window (0x0): sleep until restored
         if (glfw)
         {
@@ -1837,7 +1837,7 @@ void App::run()
         }
         catch (const std::exception& e)
         {
-            PLOTIX_LOG_CRITICAL("main_loop", "Frame scheduler failed: " + std::string(e.what()));
+            SPECTRA_LOG_CRITICAL("main_loop", "Frame scheduler failed: " + std::string(e.what()));
             running = false;
             break;
         }
@@ -1846,14 +1846,14 @@ void App::run()
         size_t commands_processed = cmd_queue.drain();
         if (commands_processed > 0)
         {
-            PLOTIX_LOG_TRACE("main_loop",
+            SPECTRA_LOG_TRACE("main_loop",
                              "Processed " + std::to_string(commands_processed) + " commands");
         }
 
         // Evaluate keyframe animations
         animator.evaluate(scheduler.elapsed_seconds());
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
         // Advance timeline editor (drives interpolator evaluation)
         // When Playing, we control the playhead ourselves to avoid double-speed
         if (timeline_editor.playback_state() != PlaybackState::Playing)
@@ -1894,7 +1894,7 @@ void App::run()
         }
 #endif
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
         // Update interaction animations (animated zoom, inertial pan, auto-fit)
         if (glfw)
         {
@@ -1923,7 +1923,7 @@ void App::run()
         if (has_animation && active_figure->anim_on_frame_)
         {
             Frame frame = scheduler.current_frame();
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
             auto tl_state = timeline_editor.playback_state();
             if (tl_state == PlaybackState::Playing)
             {
@@ -1970,7 +1970,7 @@ void App::run()
 
         // Start ImGui frame (updates layout manager with current window size).
         bool imgui_frame_started = false;
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
         {
             imgui_ui->new_frame();
@@ -1978,7 +1978,7 @@ void App::run()
         }
 #endif
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
         // Time-based resize debounce: recreate swapchain only when size has
         // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
         // we keep rendering with the old swapchain (slightly stretched but
@@ -1989,7 +1989,7 @@ void App::run()
             auto since_last = now_resize - resize_requested_time;
             if (since_last >= RESIZE_DEBOUNCE)
             {
-                PLOTIX_LOG_INFO("resize",
+                SPECTRA_LOG_INFO("resize",
                                 "Recreating swapchain: " + std::to_string(new_width) + "x"
                                     + std::to_string(new_height));
                 needs_resize = false;
@@ -1999,7 +1999,7 @@ void App::run()
 
                 active_figure->config_.width = backend_->swapchain_width();
                 active_figure->config_.height = backend_->swapchain_height();
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (imgui_ui)
                 {
                     imgui_ui->on_swapchain_recreated(*vk);
@@ -2016,7 +2016,7 @@ void App::run()
         }
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
         // Build ImGui UI (new_frame was already called above before layout computation)
         if (imgui_ui && imgui_frame_started)
         {
@@ -2109,13 +2109,13 @@ void App::run()
         }
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
         // Process queued figure operations (create, close, switch)
         if (fig_mgr.process_pending())
         {
             active_figure_index = fig_mgr.active_index();
             switch_active_figure(active_figure_index
-    #ifdef PLOTIX_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
                                  ,
                                  glfw ? &input_handler : nullptr
     #endif
@@ -2173,7 +2173,7 @@ void App::run()
         // Compute subplot layout AFTER build_ui() so that nav rail / inspector
         // toggles from the current frame are immediately reflected.
         {
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
             if (imgui_ui)
             {
                 const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
@@ -2264,21 +2264,21 @@ void App::run()
         if (!frame_ok)
         {
             // Swapchain truly unusable — recreate and retry
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
             if (imgui_frame_started)
             {
                 ImGui::EndFrame();
                 imgui_frame_started = false;
             }
 #endif
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
             if (glfw)
             {
                 uint32_t fb_width = 0, fb_height = 0;
                 glfw->framebuffer_size(fb_width, fb_height);
                 if (fb_width > 0 && fb_height > 0)
                 {
-                    PLOTIX_LOG_INFO("resize",
+                    SPECTRA_LOG_INFO("resize",
                                     "OUT_OF_DATE, recreating: " + std::to_string(fb_width) + "x"
                                         + std::to_string(fb_height));
                     backend_->recreate_swapchain(fb_width, fb_height);
@@ -2287,7 +2287,7 @@ void App::run()
                     active_figure->config_.width = backend_->swapchain_width();
                     active_figure->config_.height = backend_->swapchain_height();
                     needs_resize = false;
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                     if (imgui_ui)
                     {
                         imgui_ui->on_swapchain_recreated(*vk_fb);
@@ -2309,7 +2309,7 @@ void App::run()
 
             renderer_->begin_render_pass();
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
             if (dock_system.is_split())
             {
                 auto pane_infos = dock_system.get_pane_infos();
@@ -2329,7 +2329,7 @@ void App::run()
             renderer_->render_figure_content(*active_figure);
 #endif
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
             // Only render ImGui if we have a valid frame (not a retry frame
             // where we already ended the ImGui frame)
             if (imgui_ui && imgui_frame_started)
@@ -2342,7 +2342,7 @@ void App::run()
             backend_->end_frame();
         }
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
         // Capture frame for video recording
         if (video_exporter && video_exporter->is_open())
         {
@@ -2366,18 +2366,18 @@ void App::run()
             {
                 if (ImageExporter::write_png(active_figure->png_export_path_, px.data(), ew, eh))
                 {
-                    PLOTIX_LOG_INFO("export",
+                    SPECTRA_LOG_INFO("export",
                                     "Saved PNG: " + active_figure->png_export_path_);
                 }
                 else
                 {
-                    PLOTIX_LOG_ERROR("export",
+                    SPECTRA_LOG_ERROR("export",
                                      "Failed to write PNG: " + active_figure->png_export_path_);
                 }
             }
             else
             {
-                PLOTIX_LOG_ERROR("export", "Failed to readback framebuffer for PNG export");
+                SPECTRA_LOG_ERROR("export", "Failed to readback framebuffer for PNG export");
             }
             active_figure->png_export_path_.clear();
             active_figure->png_export_width_ = 0;
@@ -2397,29 +2397,29 @@ void App::run()
         // Headless without animation: render one frame and stop
         if (config_.headless && !has_animation)
         {
-            PLOTIX_LOG_INFO("main_loop", "Headless single frame mode, exiting loop");
+            SPECTRA_LOG_INFO("main_loop", "Headless single frame mode, exiting loop");
             running = false;
         }
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
         if (glfw)
         {
-            PLOTIX_LOG_TRACE("main_loop", "Polling GLFW events");
+            SPECTRA_LOG_TRACE("main_loop", "Polling GLFW events");
             glfw->poll_events();
             if (glfw->should_close())
             {
-                PLOTIX_LOG_INFO("main_loop", "GLFW window should close, exiting loop");
+                SPECTRA_LOG_INFO("main_loop", "GLFW window should close, exiting loop");
                 running = false;
             }
         }
 #endif
 
-        PLOTIX_LOG_TRACE("main_loop", "Frame iteration completed");
+        SPECTRA_LOG_TRACE("main_loop", "Frame iteration completed");
     }
 
-    PLOTIX_LOG_INFO("main_loop", "Exited main render loop");
+    SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
 
-#ifdef PLOTIX_USE_FFMPEG
+#ifdef SPECTRA_USE_FFMPEG
     // Finalize video recording
     if (video_exporter)
     {
@@ -2495,7 +2495,7 @@ void App::run()
         }
     }
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
     if (glfw)
     {
         glfw->shutdown();

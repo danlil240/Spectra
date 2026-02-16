@@ -20,7 +20,7 @@ namespace spectra
 
 extern "C"
 {
-    int plotix_register_command(PlotixCommandRegistry registry, const PlotixCommandDesc* desc)
+    int spectra_register_command(SpectraCommandRegistry registry, const SpectraCommandDesc* desc)
     {
         if (!registry || !desc || !desc->id || !desc->label)
             return -1;
@@ -44,7 +44,7 @@ extern "C"
         return 0;
     }
 
-    int plotix_unregister_command(PlotixCommandRegistry registry, const char* command_id)
+    int spectra_unregister_command(SpectraCommandRegistry registry, const char* command_id)
     {
         if (!registry || !command_id)
             return -1;
@@ -53,7 +53,7 @@ extern "C"
         return 0;
     }
 
-    int plotix_execute_command(PlotixCommandRegistry registry, const char* command_id)
+    int spectra_execute_command(SpectraCommandRegistry registry, const char* command_id)
     {
         if (!registry || !command_id)
             return -1;
@@ -61,7 +61,7 @@ extern "C"
         return reg->execute(command_id) ? 0 : -1;
     }
 
-    int plotix_bind_shortcut(PlotixShortcutManager manager,
+    int spectra_bind_shortcut(SpectraShortcutManager manager,
                              const char* shortcut_str,
                              const char* command_id)
     {
@@ -75,11 +75,11 @@ extern "C"
         return 0;
     }
 
-    int plotix_push_undo(PlotixUndoManager manager,
+    int spectra_push_undo(SpectraUndoManager manager,
                          const char* description,
-                         PlotixCommandCallback undo_fn,
+                         SpectraCommandCallback undo_fn,
                          void* undo_data,
-                         PlotixCommandCallback redo_fn,
+                         SpectraCommandCallback redo_fn,
                          void* redo_data)
     {
         if (!manager || !description)
@@ -109,14 +109,14 @@ PluginManager::~PluginManager()
     unload_all();
 }
 
-PlotixPluginContext PluginManager::make_context() const
+SpectraPluginContext PluginManager::make_context() const
 {
-    PlotixPluginContext ctx{};
-    ctx.api_version_major = PLOTIX_PLUGIN_API_VERSION_MAJOR;
-    ctx.api_version_minor = PLOTIX_PLUGIN_API_VERSION_MINOR;
-    ctx.command_registry = static_cast<PlotixCommandRegistry>(registry_);
-    ctx.shortcut_manager = static_cast<PlotixShortcutManager>(shortcut_mgr_);
-    ctx.undo_manager = static_cast<PlotixUndoManager>(undo_mgr_);
+    SpectraPluginContext ctx{};
+    ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+    ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
+    ctx.command_registry = static_cast<SpectraCommandRegistry>(registry_);
+    ctx.shortcut_manager = static_cast<SpectraShortcutManager>(shortcut_mgr_);
+    ctx.undo_manager = static_cast<SpectraUndoManager>(undo_mgr_);
     return ctx;
 }
 
@@ -132,23 +132,23 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     void* handle = nullptr;
-    PlotixPluginInitFn init_fn = nullptr;
-    PlotixPluginShutdownFn shutdown_fn = nullptr;
+    SpectraPluginInitFn init_fn = nullptr;
+    SpectraPluginShutdownFn shutdown_fn = nullptr;
 
 #ifdef _WIN32
     handle = LoadLibraryA(path.c_str());
     if (!handle)
         return false;
-    init_fn = reinterpret_cast<PlotixPluginInitFn>(
-        GetProcAddress(static_cast<HMODULE>(handle), "plotix_plugin_init"));
-    shutdown_fn = reinterpret_cast<PlotixPluginShutdownFn>(
-        GetProcAddress(static_cast<HMODULE>(handle), "plotix_plugin_shutdown"));
+    init_fn = reinterpret_cast<SpectraPluginInitFn>(
+        GetProcAddress(static_cast<HMODULE>(handle), "spectra_plugin_init"));
+    shutdown_fn = reinterpret_cast<SpectraPluginShutdownFn>(
+        GetProcAddress(static_cast<HMODULE>(handle), "spectra_plugin_shutdown"));
 #else
     handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle)
         return false;
-    init_fn = reinterpret_cast<PlotixPluginInitFn>(dlsym(handle, "plotix_plugin_init"));
-    shutdown_fn = reinterpret_cast<PlotixPluginShutdownFn>(dlsym(handle, "plotix_plugin_shutdown"));
+    init_fn = reinterpret_cast<SpectraPluginInitFn>(dlsym(handle, "spectra_plugin_init"));
+    shutdown_fn = reinterpret_cast<SpectraPluginShutdownFn>(dlsym(handle, "spectra_plugin_shutdown"));
 #endif
 
     if (!init_fn)
@@ -161,8 +161,8 @@ bool PluginManager::load_plugin(const std::string& path)
         return false;
     }
 
-    PlotixPluginContext ctx = make_context();
-    PlotixPluginInfo info{};
+    SpectraPluginContext ctx = make_context();
+    SpectraPluginInfo info{};
     int result = init_fn(&ctx, &info);
     if (result != 0)
     {
@@ -175,7 +175,7 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     // Version compatibility check
-    if (info.api_version_major != PLOTIX_PLUGIN_API_VERSION_MAJOR)
+    if (info.api_version_major != SPECTRA_PLUGIN_API_VERSION_MAJOR)
     {
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));

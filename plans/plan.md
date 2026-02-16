@@ -29,9 +29,9 @@ A production-grade development plan for a C++20 GPU-accelerated plotting library
 
 ### A2. Windowing: GLFW as Optional Dependency
 
-**Choice: Headless core + GLFW windowing adapter (optional, behind `PLOTIX_USE_GLFW`)**
+**Choice: Headless core + GLFW windowing adapter (optional, behind `SPECTRA_USE_GLFW`)**
 
-- Core library (`libplotix`) is headless-capable: renders to offscreen framebuffers. No window dependency.
+- Core library (`libspectra`) is headless-capable: renders to offscreen framebuffers. No window dependency.
 - `spectra-glfw` adapter (separate CMake target) provides `spectra::app` with window creation, input, vsync.
 - Trade-off: SDL2 offers audio/gamepad but is heavier; GLFW is lighter and Vulkan-native. GLFW wins for a plotting library.
 - Users can bring their own surface (pass a `VkSurfaceKHR`) for embedding in Qt/ImGui/etc.
@@ -51,7 +51,7 @@ A production-grade development plan for a C++20 GPU-accelerated plotting library
 
 - Use **multi-channel signed distance field** (MSDF) technique via pre-generated atlas.
 - Ship a default font atlas (e.g., Roboto/Noto) as embedded binary data (no runtime file I/O required).
-- Optional: runtime atlas generation behind `PLOTIX_USE_FREETYPE` flag using msdfgen.
+- Optional: runtime atlas generation behind `SPECTRA_USE_FREETYPE` flag using msdfgen.
 - Text is batched into a single draw call per font size/atlas.
 
 **Risk:** MSDF atlas generation tooling. Mitigated by pre-baking atlas at build time with a helper script.
@@ -212,7 +212,7 @@ ax.line(std::span<const float> x, std::span<const float> y);
 std::vector<float> x, y;
 ax.line(x, y);
 
-// Optional Eigen adapter (behind PLOTIX_USE_EIGEN)
+// Optional Eigen adapter (behind SPECTRA_USE_EIGEN)
 Eigen::VectorXf ex, ey;
 ax.line(spectra::eigen_span(ex), spectra::eigen_span(ey));
 ```
@@ -276,7 +276,7 @@ spectra/
 ├── cmake/
 │   ├── FindVulkan.cmake
 │   ├── CompileShaders.cmake        # GLSL→SPIR-V custom commands
-│   └── PlotixConfig.cmake.in
+│   └── SpectraConfig.cmake.in
 ├── include/spectra/
 │   ├── spectra.hpp                  # umbrella header
 │   ├── app.hpp
@@ -482,7 +482,7 @@ while running:
 
 ## I. Concrete First 10 Tasks
 
-1. **CMake skeleton** — top-level CMakeLists.txt with feature flags (`PLOTIX_USE_GLFW`, `PLOTIX_USE_FFMPEG`, `PLOTIX_USE_EIGEN`), directory structure, find Vulkan SDK.
+1. **CMake skeleton** — top-level CMakeLists.txt with feature flags (`SPECTRA_USE_GLFW`, `SPECTRA_USE_FFMPEG`, `SPECTRA_USE_EIGEN`), directory structure, find Vulkan SDK.
 2. **Vulkan device wrapper** — `VulkanBackend` init: instance, physical device selection, logical device, VMA allocator, single graphics queue.
 3. **Swapchain + GLFW window** — Create GLFW window, Vulkan surface, swapchain, framebuffers, render pass. Render a clear color.
 4. **Headless framebuffer** — Offscreen `VkImage` + `VkFramebuffer`, render to it, readback to CPU, write PNG via stb_image_write.
@@ -502,13 +502,13 @@ while running:
 | Vulkan SDK (1.2+) | **Yes** | Rendering backend |
 | VMA (header-only) | **Yes** (bundled) | Vulkan memory allocation |
 | stb_image_write (header-only) | **Yes** (bundled) | PNG export |
-| GLFW 3.3+ | Optional (`PLOTIX_USE_GLFW`) | Windowing + input |
+| GLFW 3.3+ | Optional (`SPECTRA_USE_GLFW`) | Windowing + input |
 | glslangValidator | Build-time | GLSL → SPIR-V compilation |
 | Google Test | Dev only | Unit tests |
 | Google Benchmark | Dev only | Perf benchmarks |
-| FreeType + msdfgen | Optional (`PLOTIX_USE_FREETYPE`) | Runtime font atlas generation |
-| ffmpeg (CLI) | Optional (`PLOTIX_USE_FFMPEG`) | Video export |
-| Eigen | Optional (`PLOTIX_USE_EIGEN`) | Eigen::Vector adapters |
+| FreeType + msdfgen | Optional (`SPECTRA_USE_FREETYPE`) | Runtime font atlas generation |
+| ffmpeg (CLI) | Optional (`SPECTRA_USE_FFMPEG`) | Video export |
+| Eigen | Optional (`SPECTRA_USE_EIGEN`) | Eigen::Vector adapters |
 
 ---
 
@@ -516,7 +516,7 @@ while running:
 
 - **No global state.** All state owned by `App` → `Figure` → `Axes` → `Series` hierarchy. RAII throughout.
 - **Pimpl for public headers** (Phase 3). Internal headers can expose implementation.
-- **No macros** except `PLOTIX_USE_*` feature flags and `PLOTIX_ASSERT` (debug only).
+- **No macros** except `SPECTRA_USE_*` feature flags and `SPECTRA_ASSERT` (debug only).
 - **Extensibility:** New plot types inherit from `Series` base, register a pipeline + shader pair. Renderer dispatches by series type via virtual `record_commands()`.
 - **Zero-copy where possible:** `std::span` interfaces avoid copies; GPU upload from user memory directly.
 - **Minimal allocations in hot path:** Pre-allocated command buffers, ring buffers, arena allocators for per-frame scratch.

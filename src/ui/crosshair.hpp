@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include <spectra/series.hpp>
 
@@ -54,4 +54,4 @@ class Crosshair
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

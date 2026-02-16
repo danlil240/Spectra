@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
 
     #include "glfw_adapter.hpp"
 
@@ -206,4 +206,4 @@ void GlfwAdapter::key_callback(GLFWwindow* window, int key, int /*scancode*/, in
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_GLFW
+#endif  // SPECTRA_USE_GLFW

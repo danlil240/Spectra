@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "crosshair.hpp"
 
@@ -402,4 +402,4 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

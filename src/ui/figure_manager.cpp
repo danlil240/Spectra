@@ -21,10 +21,10 @@ void FigureManager::set_tab_bar(TabBar* tab_bar)
     }
 }
 
-size_t FigureManager::create_figure(const FigureConfig& config)
+FigureId FigureManager::create_figure(const FigureConfig& config)
 {
     figures_.push_back(std::make_unique<Figure>(config));
-    size_t new_index = figures_.size() - 1;
+    FigureId new_index = figures_.size() - 1;
 
     // Add state for the new figure
     FigureState new_state;
@@ -44,7 +44,7 @@ size_t FigureManager::create_figure(const FigureConfig& config)
     return new_index;
 }
 
-bool FigureManager::close_figure(size_t index)
+bool FigureManager::close_figure(FigureId index)
 {
     if (index >= figures_.size())
     {
@@ -101,7 +101,7 @@ bool FigureManager::close_figure(size_t index)
     return true;
 }
 
-bool FigureManager::close_all_except(size_t index)
+bool FigureManager::close_all_except(FigureId index)
 {
     if (index >= figures_.size())
     {
@@ -142,7 +142,7 @@ bool FigureManager::close_all_except(size_t index)
     return true;
 }
 
-bool FigureManager::close_to_right(size_t index)
+bool FigureManager::close_to_right(FigureId index)
 {
     if (index >= figures_.size())
     {
@@ -188,11 +188,11 @@ bool FigureManager::close_to_right(size_t index)
     return true;
 }
 
-size_t FigureManager::duplicate_figure(size_t index)
+FigureId FigureManager::duplicate_figure(FigureId index)
 {
     if (index >= figures_.size())
     {
-        return SIZE_MAX;
+        return INVALID_FIGURE_ID;
     }
 
     // Create a new figure with the same dimensions
@@ -201,7 +201,7 @@ size_t FigureManager::duplicate_figure(size_t index)
     cfg.width = src.width();
     cfg.height = src.height();
     figures_.push_back(std::make_unique<Figure>(cfg));
-    size_t new_index = figures_.size() - 1;
+    FigureId new_index = figures_.size() - 1;
 
     // Copy axis limits from source
     auto& new_fig = *figures_[new_index];
@@ -244,7 +244,7 @@ size_t FigureManager::duplicate_figure(size_t index)
     return new_index;
 }
 
-void FigureManager::switch_to(size_t index)
+void FigureManager::switch_to(FigureId index)
 {
     if (index >= figures_.size() || index == active_index_)
     {
@@ -288,7 +288,7 @@ void FigureManager::switch_to_previous()
     switch_to(prev);
 }
 
-void FigureManager::move_tab(size_t from_index, size_t to_index)
+void FigureManager::move_tab(FigureId from_index, FigureId to_index)
 {
     if (from_index >= figures_.size() || to_index >= figures_.size() || from_index == to_index)
     {
@@ -340,13 +340,13 @@ Figure* FigureManager::active_figure() const
     return nullptr;
 }
 
-bool FigureManager::can_close(size_t index) const
+bool FigureManager::can_close(FigureId index) const
 {
     (void)index;
     return figures_.size() > 1;
 }
 
-FigureState& FigureManager::state(size_t index)
+FigureState& FigureManager::state(FigureId index)
 {
     ensure_states();
     if (index >= states_.size())
@@ -357,7 +357,7 @@ FigureState& FigureManager::state(size_t index)
     return states_[index];
 }
 
-const FigureState& FigureManager::state(size_t index) const
+const FigureState& FigureManager::state(FigureId index) const
 {
     if (index >= states_.size())
     {
@@ -372,7 +372,7 @@ FigureState& FigureManager::active_state()
     return state(active_index_);
 }
 
-std::string FigureManager::get_title(size_t index) const
+std::string FigureManager::get_title(FigureId index) const
 {
     if (index >= states_.size())
     {
@@ -386,7 +386,7 @@ std::string FigureManager::get_title(size_t index) const
     return default_title(index);
 }
 
-void FigureManager::set_title(size_t index, const std::string& title)
+void FigureManager::set_title(FigureId index, const std::string& title)
 {
     ensure_states();
     if (index < states_.size())
@@ -399,7 +399,7 @@ void FigureManager::set_title(size_t index, const std::string& title)
     }
 }
 
-void FigureManager::mark_modified(size_t index, bool modified)
+void FigureManager::mark_modified(FigureId index, bool modified)
 {
     ensure_states();
     if (index < states_.size())
@@ -408,7 +408,7 @@ void FigureManager::mark_modified(size_t index, bool modified)
     }
 }
 
-bool FigureManager::is_modified(size_t index) const
+bool FigureManager::is_modified(FigureId index) const
 {
     if (index >= states_.size())
         return false;
@@ -433,18 +433,18 @@ bool FigureManager::process_pending()
         changed = true;
     }
 
-    if (pending_close_ != SIZE_MAX)
+    if (pending_close_ != INVALID_FIGURE_ID)
     {
-        size_t idx = pending_close_;
-        pending_close_ = SIZE_MAX;
+        FigureId idx = pending_close_;
+        pending_close_ = INVALID_FIGURE_ID;
         close_figure(idx);
         changed = true;
     }
 
-    if (pending_switch_ != SIZE_MAX)
+    if (pending_switch_ != INVALID_FIGURE_ID)
     {
-        size_t idx = pending_switch_;
-        pending_switch_ = SIZE_MAX;
+        FigureId idx = pending_switch_;
+        pending_switch_ = INVALID_FIGURE_ID;
         if (idx < figures_.size() && idx != active_index_)
         {
             switch_to(idx);
@@ -460,12 +460,12 @@ void FigureManager::queue_create()
     pending_create_ = true;
 }
 
-void FigureManager::queue_close(size_t index)
+void FigureManager::queue_close(FigureId index)
 {
     pending_close_ = index;
 }
 
-void FigureManager::queue_switch(size_t index)
+void FigureManager::queue_switch(FigureId index)
 {
     pending_switch_ = index;
 }
@@ -495,7 +495,7 @@ void FigureManager::save_active_state()
     }
 }
 
-void FigureManager::restore_state(size_t index)
+void FigureManager::restore_state(FigureId index)
 {
     if (index >= figures_.size() || index >= states_.size())
     {
@@ -518,7 +518,7 @@ void FigureManager::restore_state(size_t index)
     }
 }
 
-std::string FigureManager::default_title(size_t index)
+std::string FigureManager::default_title(FigureId index)
 {
     return "Figure " + std::to_string(index + 1);
 }

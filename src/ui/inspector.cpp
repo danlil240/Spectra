@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "inspector.hpp"
 
@@ -885,4 +885,4 @@ void Inspector::draw_axes_statistics(const Axes& ax)
 
 }  // namespace spectra::ui
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

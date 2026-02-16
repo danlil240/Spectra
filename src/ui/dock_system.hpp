@@ -62,17 +62,17 @@ class DockSystem
     // ── Convenience split operations ────────────────────────────────────
 
     // Split the active pane right (horizontal split)
-    SplitPane* split_right(size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_right(FigureId new_figure_id, float ratio = 0.5f);
 
     // Split the active pane down (vertical split)
-    SplitPane* split_down(size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_down(FigureId new_figure_id, float ratio = 0.5f);
 
     // Split a specific figure's pane
-    SplitPane* split_figure_right(size_t figure_index, size_t new_figure_index, float ratio = 0.5f);
-    SplitPane* split_figure_down(size_t figure_index, size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_figure_right(FigureId figure_id, FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split_figure_down(FigureId figure_id, FigureId new_figure_id, float ratio = 0.5f);
 
     // Close a split pane (unsplit, keeping sibling)
-    bool close_split(size_t figure_index);
+    bool close_split(FigureId figure_id);
 
     // Reset to single pane
     void reset_splits();
@@ -80,7 +80,7 @@ class DockSystem
     // ── Drag-to-dock ────────────────────────────────────────────────────
 
     // Begin dragging a tab/figure for docking
-    void begin_drag(size_t figure_index, float mouse_x, float mouse_y);
+    void begin_drag(FigureId figure_id, float mouse_x, float mouse_y);
 
     // Update drag position — computes drop zone highlights
     DropTarget update_drag(float mouse_x, float mouse_y);
@@ -92,7 +92,7 @@ class DockSystem
     void cancel_drag();
 
     bool is_dragging() const { return is_dragging_; }
-    size_t dragging_figure() const { return dragging_figure_index_; }
+    FigureId dragging_figure() const { return dragging_figure_index_; }
     DropTarget current_drop_target() const { return current_drop_target_; }
 
     // ── Layout ──────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ class DockSystem
     // Get all leaf pane rects for rendering
     struct PaneInfo
     {
-        size_t figure_index;
+        FigureId figure_index;
         Rect bounds;
         bool is_active;
         SplitPane::PaneId pane_id;
@@ -126,14 +126,14 @@ class DockSystem
 
     // ── Active pane ─────────────────────────────────────────────────────
 
-    size_t active_figure_index() const { return split_view_.active_figure_index(); }
-    void set_active_figure_index(size_t idx) { split_view_.set_active_figure_index(idx); }
+    FigureId active_figure_index() const { return split_view_.active_figure_index(); }
+    void set_active_figure_index(FigureId idx) { split_view_.set_active_figure_index(idx); }
 
     // Click in a pane to activate it
     void activate_pane_at(float x, float y);
 
     // Move a figure from one pane to another (cross-pane tab drag)
-    bool move_figure_to_pane(size_t figure_index, SplitPane::PaneId target_pane_id);
+    bool move_figure_to_pane(FigureId figure_id, SplitPane::PaneId target_pane_id);
 
     // Activate a specific figure within a pane's local tab bar
     void activate_local_tab(SplitPane::PaneId pane_id, size_t local_index);
@@ -157,7 +157,7 @@ class DockSystem
 
     // Drag-to-dock state
     bool is_dragging_ = false;
-    size_t dragging_figure_index_ = 0;
+    FigureId dragging_figure_index_ = 0;
     float drag_mouse_x_ = 0.0f;
     float drag_mouse_y_ = 0.0f;
     DropTarget current_drop_target_;

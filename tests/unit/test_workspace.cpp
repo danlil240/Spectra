@@ -32,7 +32,7 @@ class WorkspaceTest : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_test_workspace.spectra").string();
+            (std::filesystem::temp_directory_path() / "spectra_test_workspace.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }

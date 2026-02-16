@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "widgets.hpp"
 
@@ -859,4 +859,4 @@ void stat_row_colored(const char* label,
 
 }  // namespace spectra::ui::widgets
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

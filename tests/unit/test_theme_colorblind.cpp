@@ -659,7 +659,7 @@ class ThemeExportImportTest : public ::testing::Test
     {
         auto& tm = ThemeManager::instance();
         original_theme_ = tm.current_theme_name();
-        test_dir_ = std::filesystem::temp_directory_path() / "plotix_test_themes";
+        test_dir_ = std::filesystem::temp_directory_path() / "spectra_test_themes";
         std::filesystem::create_directories(test_dir_);
     }
     void TearDown() override

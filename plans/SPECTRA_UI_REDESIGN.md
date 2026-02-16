@@ -1197,7 +1197,7 @@ Both `CMakeLists.txt` and `tests/CMakeLists.txt` use **`if(EXISTS)`-guarded loop
 
 - **A missing `.cpp` file will NOT break the build.** CMake silently skips it.
 - When you create a new `.cpp` file, add its name to the appropriate `foreach()` list in `CMakeLists.txt`. It will be picked up automatically once the file exists on disk.
-- **NEVER use a bare `target_sources()` or `add_plotix_test()` call without an `if(EXISTS)` guard** for files that another agent might not have created yet.
+- **NEVER use a bare `target_sources()` or `add_spectra_test()` call without an `if(EXISTS)` guard** for files that another agent might not have created yet.
 
 **Main CMakeLists.txt pattern (non-ImGui UI sources):**
 ```cmake
@@ -1206,7 +1206,7 @@ foreach(_ui_src
     src/ui/your_new_file.cpp   # ← just add here
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
-        list(APPEND PLOTIX_UI_SOURCES ${_ui_src})
+        list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
     endif()
 endforeach()
 ```
@@ -1225,14 +1225,14 @@ endforeach()
 
 **tests/CMakeLists.txt pattern:**
 ```cmake
-set(PLOTIX_UNIT_TESTS
+set(SPECTRA_UNIT_TESTS
     test_transform
     test_your_new_test          # ← just add here
 )
 
-foreach(_test ${PLOTIX_UNIT_TESTS})
+foreach(_test ${SPECTRA_UNIT_TESTS})
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
-        add_plotix_test(unit ${_test})
+        add_spectra_test(unit ${_test})
     endif()
 endforeach()
 ```
@@ -1242,7 +1242,7 @@ endforeach()
 Every new `.hpp` file you create must be **self-contained**: it must compile when included on its own. This means:
 - Include all dependencies at the top (no implicit includes from other headers).
 - Use forward declarations where possible to minimize coupling.
-- Use `#ifdef PLOTIX_USE_IMGUI` guards if the header depends on ImGui types.
+- Use `#ifdef SPECTRA_USE_IMGUI` guards if the header depends on ImGui types.
 
 This prevents Agent X's header from failing to compile because Agent Y's header (which it transitively included) references a type that Agent Z hasn't defined yet.
 
@@ -1269,7 +1269,7 @@ If your code optionally uses another agent's module that may not exist yet:
 
 ```cpp
 // Good: guarded include
-#ifdef PLOTIX_HAS_TRANSITION_ENGINE
+#ifdef SPECTRA_HAS_TRANSITION_ENGINE
 #include "ui/transition_engine.hpp"
 #endif
 

@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "legend_interaction.hpp"
 
@@ -326,4 +326,4 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

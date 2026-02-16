@@ -19,7 +19,7 @@ namespace spectra::test
 static fs::path baseline_dir()
 {
     // Check environment variable first, then fall back to source-relative path
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_BASELINE_DIR"))
+    if (const char* env = std::getenv("SPECTRA_GOLDEN_BASELINE_DIR"))
     {
         return fs::path(env);
     }
@@ -30,17 +30,17 @@ static fs::path baseline_dir()
 // Directory for test output artifacts (actual renders, diff images)
 static fs::path output_dir()
 {
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_OUTPUT_DIR"))
+    if (const char* env = std::getenv("SPECTRA_GOLDEN_OUTPUT_DIR"))
     {
         return fs::path(env);
     }
     return fs::path(__FILE__).parent_path() / "output";
 }
 
-// If PLOTIX_UPDATE_BASELINES=1, overwrite baselines instead of comparing
+// If SPECTRA_UPDATE_BASELINES=1, overwrite baselines instead of comparing
 static bool update_baselines()
 {
-    const char* env = std::getenv("PLOTIX_UPDATE_BASELINES");
+    const char* env = std::getenv("SPECTRA_UPDATE_BASELINES");
     return env && std::string(env) == "1";
 }
 
@@ -103,7 +103,7 @@ static void run_golden_test(const std::string& scene_name,
     if (!fs::exists(baseline_path))
     {
         GTEST_SKIP() << "Baseline not found: " << baseline_path
-                     << " (run with PLOTIX_UPDATE_BASELINES=1 to generate)";
+                     << " (run with SPECTRA_UPDATE_BASELINES=1 to generate)";
         return;
     }
 

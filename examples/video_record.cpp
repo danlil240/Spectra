@@ -5,8 +5,8 @@
 
 int main()
 {
-#ifndef PLOTIX_USE_FFMPEG
-    std::cerr << "This example requires PLOTIX_USE_FFMPEG=ON\n";
+#ifndef SPECTRA_USE_FFMPEG
+    std::cerr << "This example requires SPECTRA_USE_FFMPEG=ON\n";
     return 1;
 #else
     spectra::App app({.headless = true});

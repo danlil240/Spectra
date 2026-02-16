@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "tooltip.hpp"
 
@@ -175,4 +175,4 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

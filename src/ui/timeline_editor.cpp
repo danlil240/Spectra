@@ -7,7 +7,7 @@
 #include "ui/camera_animator.hpp"
 #include "ui/keyframe_interpolator.hpp"
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
 #endif
 
@@ -1085,7 +1085,7 @@ bool TimelineEditor::deserialize(const std::string& json)
 
 // ─── ImGui Drawing ───────────────────────────────────────────────────────────
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
 void TimelineEditor::draw(float width, float height)
 {
@@ -1239,6 +1239,6 @@ void TimelineEditor::draw(float width, float height)
     ImGui::PopStyleVar();
 }
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI
 
 }  // namespace spectra

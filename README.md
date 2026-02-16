@@ -159,8 +159,8 @@ brew install cmake git
 
 | Feature | How to enable |
 |---|---|---|
-| Video export | Install `ffmpeg` and rebuild with `-DPLOTIX_USE_FFMPEG=ON` |
-| Eigen support | Install `eigen3` and rebuild with `-DPLOTIX_USE_EIGEN=ON` |
+| Video export | Install `ffmpeg` and rebuild with `-DSPECTRA_USE_FFMPEG=ON` |
+| Eigen support | Install `eigen3` and rebuild with `-DSPECTRA_USE_EIGEN=ON` |
 | Debug tools | Install Vulkan SDK and rebuild with debug flags |
 
 ### Run an Example
@@ -377,7 +377,7 @@ spectra/
 
 ```bash
 cd build
-cmake .. -DPLOTIX_BUILD_TESTS=ON
+cmake .. -DSPECTRA_BUILD_TESTS=ON
 make -j$(nproc)
 ctest --output-on-failure
 ```

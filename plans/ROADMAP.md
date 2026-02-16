@@ -13,12 +13,12 @@
 
 ## Build Coordination Rules (READ FIRST)
 
-> **Full protocol:** See `plans/PLOTIX_UI_REDESIGN.md` → Section 11.
+> **Full protocol:** See `plans/SPECTRA_UI_REDESIGN.md` → Section 11.
 
 | Rule | Summary |
 |------|---------|
 | **1. CMake guards** | All sources & tests use `if(EXISTS)` loops. Missing files are silently skipped. Add your file name to the `foreach()` list — it compiles only when the `.cpp` exists on disk. |
-| **2. Standalone headers** | Every `.hpp` must compile on its own. Use forward decls, `#ifdef PLOTIX_USE_IMGUI` guards. |
+| **2. Standalone headers** | Every `.hpp` must compile on its own. Use forward decls, `#ifdef SPECTRA_USE_IMGUI` guards. |
 | **3. Build only your targets** | Use `cmake --build build --target unit_test_YOUR_FEATURE` or `--target spectra`. Do NOT run full `cmake --build build` or `ctest` while parallel agents are working. |
 | **4. Guard cross-agent deps** | Use null-check pointers (`if (ptr) { ptr->method(); }`) or `#ifdef` for optional modules. |
 | **5. Don't touch in-progress files** | Check this roadmap for `🔄 In Progress` markers before modifying shared files. |
@@ -407,8 +407,8 @@
 | `include/spectra/fwd.hpp` | B | 10 | Added AxisLinkManager forward declaration |
 | `src/ui/input.hpp` | B | 10 | Added AxisLinkManager pointer, setter/getter |
 | `src/ui/input.cpp` | B | 10 | Added axis_link.hpp include, propagate zoom/pan/box-zoom/auto-fit to linked axes |
-| `CMakeLists.txt` | B | 10 | Added axis_link.cpp to PLOTIX_UI_SOURCES |
-| `tests/CMakeLists.txt` | B | 10 | Added test_axis_link to PLOTIX_UNIT_TESTS |
+| `CMakeLists.txt` | B | 10 | Added axis_link.cpp to SPECTRA_UI_SOURCES |
+| `tests/CMakeLists.txt` | B | 10 | Added test_axis_link to SPECTRA_UNIT_TESTS |
 
 ### Files Created (Phase 3 — Week 9, Plot Customization)
 
@@ -739,7 +739,7 @@
 | ~~`load_default()`, `export_theme()`, `import_theme()` declared but not implemented~~ | ✅ Fixed | D | Implemented with JSON serialization in `theme.cpp` |
 | ~~`shortcut_manager.hpp` has no `.cpp` implementation~~ | ✅ Fixed | F | Implemented in Week 5 with full keybinding system |
 | ~~`region_select.hpp` has no `.cpp` implementation~~ | ✅ Fixed | E | Implemented in Week 5 with statistics mini-toolbar |
-| ~~`command_registry.cpp` not in `PLOTIX_UI_SOURCES`~~ | ✅ Fixed | F | Added to ImGui sources block, works correctly |
+| ~~`command_registry.cpp` not in `SPECTRA_UI_SOURCES`~~ | ✅ Fixed | F | Added to ImGui sources block, works correctly |
 
 ---
 

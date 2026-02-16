@@ -37,8 +37,8 @@ WARN_NO_PARAMDOC       = YES
 # Preprocessing
 ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
-PREDEFINED             = PLOTIX_USE_GLFW \
-                         PLOTIX_USE_FFMPEG
+PREDEFINED             = SPECTRA_USE_GLFW \
+                         SPECTRA_USE_FFMPEG
 
 # Markdown
 USE_MDFILE_AS_MAINPAGE = README.md

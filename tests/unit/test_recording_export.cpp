@@ -76,7 +76,7 @@ TEST(RecordingSessionValidation, ZeroDimensions)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_rec";
+    cfg.output_path = "/tmp/spectra_test_rec";
     cfg.width = 0;
     cfg.height = 0;
     cfg.start_time = 0.0f;
@@ -90,7 +90,7 @@ TEST(RecordingSessionValidation, ZeroFPS)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_rec";
+    cfg.output_path = "/tmp/spectra_test_rec";
     cfg.fps = 0.0f;
     cfg.start_time = 0.0f;
     cfg.end_time = 1.0f;
@@ -103,7 +103,7 @@ TEST(RecordingSessionValidation, InvalidTimeRange)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_rec";
+    cfg.output_path = "/tmp/spectra_test_rec";
     cfg.start_time = 5.0f;
     cfg.end_time = 2.0f;
 
@@ -115,7 +115,7 @@ TEST(RecordingSessionValidation, NullCallback)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_rec";
+    cfg.output_path = "/tmp/spectra_test_rec";
     cfg.start_time = 0.0f;
     cfg.end_time = 1.0f;
 
@@ -123,12 +123,12 @@ TEST(RecordingSessionValidation, NullCallback)
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
 
-#ifndef PLOTIX_USE_FFMPEG
+#ifndef SPECTRA_USE_FFMPEG
 TEST(RecordingSessionValidation, MP4WithoutFFmpeg)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test.mp4";
+    cfg.output_path = "/tmp/spectra_test.mp4";
     cfg.format = RecordingFormat::MP4;
     cfg.start_time = 0.0f;
     cfg.end_time = 1.0f;
@@ -144,7 +144,7 @@ TEST(RecordingSessionFrames, FrameCount)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_frames";
+    cfg.output_path = "/tmp/spectra_test_frames";
     cfg.format = RecordingFormat::PNG_Sequence;
     cfg.width = 8;
     cfg.height = 8;
@@ -160,7 +160,7 @@ TEST(RecordingSessionFrames, FrameTime)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_ftime";
+    cfg.output_path = "/tmp/spectra_test_ftime";
     cfg.format = RecordingFormat::PNG_Sequence;
     cfg.width = 8;
     cfg.height = 8;
@@ -178,7 +178,7 @@ TEST(RecordingSessionFrames, FrameTime)
 TEST(RecordingSessionPNG, BasicExport)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_png_export";
+    std::string dir = "/tmp/spectra_test_png_export";
 
     // Clean up
     fs::remove_all(dir);
@@ -218,7 +218,7 @@ TEST(RecordingSessionPNG, BasicExport)
 TEST(RecordingSessionPNG, RunAll)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_png_runall";
+    std::string dir = "/tmp/spectra_test_png_runall";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -246,7 +246,7 @@ TEST(RecordingSessionPNG, RunAll)
 TEST(RecordingSessionProgress, ProgressCallback)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_progress";
+    std::string dir = "/tmp/spectra_test_progress";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -281,7 +281,7 @@ TEST(RecordingSessionProgress, ProgressCallback)
 TEST(RecordingSessionProgress, CompletionCallback)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_complete";
+    std::string dir = "/tmp/spectra_test_complete";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -316,7 +316,7 @@ TEST(RecordingSessionProgress, ProgressState)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_pstate";
+    cfg.output_path = "/tmp/spectra_test_pstate";
     cfg.format = RecordingFormat::PNG_Sequence;
     cfg.width = 8;
     cfg.height = 8;
@@ -335,7 +335,7 @@ TEST(RecordingSessionProgress, ProgressState)
 TEST(RecordingSessionCancel, CancelDuringRecording)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_cancel";
+    std::string dir = "/tmp/spectra_test_cancel";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -383,7 +383,7 @@ TEST(RecordingSessionCancel, CancelWhileIdle)
 TEST(RecordingSessionErrors, RenderFailure)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_renderfail";
+    std::string dir = "/tmp/spectra_test_renderfail";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -409,7 +409,7 @@ TEST(RecordingSessionErrors, RenderFailure)
 TEST(RecordingSessionErrors, AdvanceAfterFinish)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_advfinish";
+    std::string dir = "/tmp/spectra_test_advfinish";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -434,7 +434,7 @@ TEST(RecordingSessionErrors, AdvanceAfterFinish)
 TEST(RecordingSessionErrors, DoubleFinish)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_dblfinish";
+    std::string dir = "/tmp/spectra_test_dblfinish";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -566,7 +566,7 @@ TEST(RecordingGifUtils, QuantizeFrame)
 TEST(RecordingSessionGIF, BasicGifExport)
 {
     namespace fs = std::filesystem;
-    std::string path = "/tmp/plotix_test_export.gif";
+    std::string path = "/tmp/spectra_test_export.gif";
     fs::remove(path);
 
     RecordingSession rs;
@@ -604,7 +604,7 @@ TEST(RecordingSessionGIF, BasicGifExport)
 TEST(RecordingSessionEdgeCases, SingleFrame)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_single";
+    std::string dir = "/tmp/spectra_test_single";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -629,7 +629,7 @@ TEST(RecordingSessionEdgeCases, SingleFrame)
 TEST(RecordingSessionEdgeCases, SmallDimensions)
 {
     namespace fs = std::filesystem;
-    std::string dir = "/tmp/plotix_test_small";
+    std::string dir = "/tmp/spectra_test_small";
     fs::remove_all(dir);
 
     RecordingSession rs;
@@ -653,7 +653,7 @@ TEST(RecordingSessionEdgeCases, HighFPS)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_highfps";
+    cfg.output_path = "/tmp/spectra_test_highfps";
     cfg.format = RecordingFormat::PNG_Sequence;
     cfg.width = 4;
     cfg.height = 4;
@@ -667,14 +667,14 @@ TEST(RecordingSessionEdgeCases, HighFPS)
     // Don't actually run all — just verify frame count
     rs.cancel();
 
-    std::filesystem::remove_all("/tmp/plotix_test_highfps");
+    std::filesystem::remove_all("/tmp/spectra_test_highfps");
 }
 
 TEST(RecordingSessionEdgeCases, NonZeroStartTime)
 {
     RecordingSession rs;
     RecordingConfig cfg;
-    cfg.output_path = "/tmp/plotix_test_offset";
+    cfg.output_path = "/tmp/spectra_test_offset";
     cfg.format = RecordingFormat::PNG_Sequence;
     cfg.width = 4;
     cfg.height = 4;
@@ -688,5 +688,5 @@ TEST(RecordingSessionEdgeCases, NonZeroStartTime)
     EXPECT_NEAR(rs.frame_time(5), 5.5f, 0.001f);
 
     rs.cancel();
-    std::filesystem::remove_all("/tmp/plotix_test_offset");
+    std::filesystem::remove_all("/tmp/spectra_test_offset");
 }

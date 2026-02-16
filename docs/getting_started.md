@@ -25,13 +25,13 @@ cmake --build build -j$(nproc)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `PLOTIX_USE_GLFW` | `ON` | Enable GLFW windowing adapter |
-| `PLOTIX_USE_FFMPEG` | `OFF` | Enable video export via ffmpeg pipe |
-| `PLOTIX_USE_EIGEN` | `OFF` | Enable Eigen vector adapters |
-| `PLOTIX_BUILD_EXAMPLES` | `ON` | Build example programs |
-| `PLOTIX_BUILD_TESTS` | `ON` | Build unit tests and benchmarks |
-| `PLOTIX_BUILD_BENCHMARKS` | `OFF` | Build performance benchmarks |
-| `PLOTIX_BUILD_GOLDEN_TESTS` | `ON` | Build golden image regression tests |
+| `SPECTRA_USE_GLFW` | `ON` | Enable GLFW windowing adapter |
+| `SPECTRA_USE_FFMPEG` | `OFF` | Enable video export via ffmpeg pipe |
+| `SPECTRA_USE_EIGEN` | `OFF` | Enable Eigen vector adapters |
+| `SPECTRA_BUILD_EXAMPLES` | `ON` | Build example programs |
+| `SPECTRA_BUILD_TESTS` | `ON` | Build unit tests and benchmarks |
+| `SPECTRA_BUILD_BENCHMARKS` | `OFF` | Build performance benchmarks |
+| `SPECTRA_BUILD_GOLDEN_TESTS` | `ON` | Build golden image regression tests |
 
 ## Quick Start
 
@@ -141,7 +141,7 @@ app.run();
 
 ```bash
 # Build with tests
-cmake -B build -DPLOTIX_BUILD_TESTS=ON
+cmake -B build -DSPECTRA_BUILD_TESTS=ON
 cmake --build build
 
 # Run all unit tests
@@ -151,13 +151,13 @@ cd build && ctest --output-on-failure
 ctest --output-on-failure -L golden
 
 # Update golden baselines
-PLOTIX_UPDATE_BASELINES=1 ./golden_image_tests
+SPECTRA_UPDATE_BASELINES=1 ./golden_image_tests
 ```
 
 ## Running Benchmarks
 
 ```bash
-cmake -B build -DPLOTIX_BUILD_BENCHMARKS=ON
+cmake -B build -DSPECTRA_BUILD_BENCHMARKS=ON
 cmake --build build
 ./build/bench_render
 ```

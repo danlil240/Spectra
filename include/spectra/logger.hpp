@@ -122,7 +122,7 @@ Logger::LogSink file_sink(const std::string& filename);
 Logger::LogSink null_sink();
 }  // namespace sinks
 
-#define PLOTIX_LOG_TRACE(category, ...)                                         \
+#define SPECTRA_LOG_TRACE(category, ...)                                         \
     do                                                                          \
     {                                                                           \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Trace)) \
@@ -132,7 +132,7 @@ Logger::LogSink null_sink();
         }                                                                       \
     } while (0)
 
-#define PLOTIX_LOG_DEBUG(category, ...)                                         \
+#define SPECTRA_LOG_DEBUG(category, ...)                                         \
     do                                                                          \
     {                                                                           \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Debug)) \
@@ -142,7 +142,7 @@ Logger::LogSink null_sink();
         }                                                                       \
     } while (0)
 
-#define PLOTIX_LOG_INFO(category, ...)                                         \
+#define SPECTRA_LOG_INFO(category, ...)                                         \
     do                                                                         \
     {                                                                          \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Info)) \
@@ -152,7 +152,7 @@ Logger::LogSink null_sink();
         }                                                                      \
     } while (0)
 
-#define PLOTIX_LOG_WARN(category, ...)                                            \
+#define SPECTRA_LOG_WARN(category, ...)                                            \
     do                                                                            \
     {                                                                             \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Warning)) \
@@ -162,7 +162,7 @@ Logger::LogSink null_sink();
         }                                                                         \
     } while (0)
 
-#define PLOTIX_LOG_ERROR(category, ...)                                         \
+#define SPECTRA_LOG_ERROR(category, ...)                                         \
     do                                                                          \
     {                                                                           \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Error)) \
@@ -172,7 +172,7 @@ Logger::LogSink null_sink();
         }                                                                       \
     } while (0)
 
-#define PLOTIX_LOG_CRITICAL(category, ...)                                         \
+#define SPECTRA_LOG_CRITICAL(category, ...)                                         \
     do                                                                             \
     {                                                                              \
         if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Critical)) \
@@ -182,22 +182,22 @@ Logger::LogSink null_sink();
         }                                                                          \
     } while (0)
 
-#define PLOTIX_LOG_TRACE_HERE(category, ...) \
-    PLOTIX_LOG_TRACE(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_TRACE_HERE(category, ...) \
+    SPECTRA_LOG_TRACE(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-#define PLOTIX_LOG_DEBUG_HERE(category, ...) \
-    PLOTIX_LOG_DEBUG(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_DEBUG_HERE(category, ...) \
+    SPECTRA_LOG_DEBUG(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-#define PLOTIX_LOG_INFO_HERE(category, ...) \
-    PLOTIX_LOG_INFO(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_INFO_HERE(category, ...) \
+    SPECTRA_LOG_INFO(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-#define PLOTIX_LOG_WARN_HERE(category, ...) \
-    PLOTIX_LOG_WARN(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_WARN_HERE(category, ...) \
+    SPECTRA_LOG_WARN(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-#define PLOTIX_LOG_ERROR_HERE(category, ...) \
-    PLOTIX_LOG_ERROR(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_ERROR_HERE(category, ...) \
+    SPECTRA_LOG_ERROR(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-#define PLOTIX_LOG_CRITICAL_HERE(category, ...) \
-    PLOTIX_LOG_CRITICAL(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
+#define SPECTRA_LOG_CRITICAL_HERE(category, ...) \
+    SPECTRA_LOG_CRITICAL(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
 }  // namespace spectra

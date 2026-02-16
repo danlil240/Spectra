@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PLOTIX_USE_GLFW
+#ifdef SPECTRA_USE_GLFW
 
     #include <cstdint>
     #include <functional>
@@ -82,4 +82,4 @@ class GlfwAdapter
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_GLFW
+#endif  // SPECTRA_USE_GLFW

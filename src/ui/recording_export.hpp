@@ -18,7 +18,7 @@ enum class RecordingFormat
 {
     PNG_Sequence,  // Individual PNG frames in a directory
     GIF,           // Animated GIF (via stb_image_write)
-    MP4,           // MP4 via ffmpeg pipe (requires PLOTIX_USE_FFMPEG)
+    MP4,           // MP4 via ffmpeg pipe (requires SPECTRA_USE_FFMPEG)
 };
 
 // Recording quality preset.
@@ -234,8 +234,8 @@ class RecordingSession
     };
     std::unique_ptr<GifState> gif_state_;
 
-    // MP4 pipe state (only when PLOTIX_USE_FFMPEG is enabled)
-#ifdef PLOTIX_USE_FFMPEG
+    // MP4 pipe state (only when SPECTRA_USE_FFMPEG is enabled)
+#ifdef SPECTRA_USE_FFMPEG
     FILE* ffmpeg_pipe_ = nullptr;
 #endif
 

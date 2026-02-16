@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include <cmath>
     #include <string>
@@ -101,4 +101,4 @@ class CommandPalette
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

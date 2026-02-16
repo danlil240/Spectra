@@ -75,7 +75,7 @@ TEST(Workspace3DRoundTrip, EmptyWorkspace)
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
-    std::string path = "/tmp/plotix_test_ws3d_empty.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_empty.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -119,7 +119,7 @@ TEST(Workspace3DRoundTrip, SingleAxes3D)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_single.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_single.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -177,7 +177,7 @@ TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_mixed.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_mixed.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -224,7 +224,7 @@ TEST(Workspace3DRoundTrip, Series3DMetadata)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_series.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_series.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -253,7 +253,7 @@ TEST(Workspace3DRoundTrip, ModeTransitionState)
     data.version = WorkspaceData::FORMAT_VERSION;
     data.mode_transition_state = "{\"duration\":0.8,\"direction\":1}";
 
-    std::string path = "/tmp/plotix_test_ws3d_mt.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_mt.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -293,7 +293,7 @@ TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults)
         "data_palette_name": ""
     })";
 
-    std::string path = "/tmp/plotix_test_ws3d_v3compat.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_v3compat.spectra";
     {
         std::ofstream f(path);
         f << v3_json;
@@ -325,7 +325,7 @@ TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults)
 TEST(Workspace3DBackwardCompat, FutureVersionRejected)
 {
     std::string future_json = R"({"version": 99})";
-    std::string path = "/tmp/plotix_test_ws3d_future.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_future.spectra";
     {
         std::ofstream f(path);
         f << future_json;
@@ -365,7 +365,7 @@ TEST(Workspace3DMultiple, TwoAxes3DInOneFigure)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_multi.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_multi.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -427,7 +427,7 @@ TEST(Workspace3DCamera, CameraInWorkspaceRoundTrip)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_cam.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_cam.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -464,7 +464,7 @@ TEST(Workspace3DSpecialChars, LabelsWithSpecialChars)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_special.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_special.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -499,7 +499,7 @@ TEST(Workspace3DLighting, LightingDisabled)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_light.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_light.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -575,7 +575,7 @@ TEST(Workspace3DFull, CompleteStateRoundTrip)
 
     data.figures.push_back(fig);
 
-    std::string path = "/tmp/plotix_test_ws3d_full.spectra";
+    std::string path = "/tmp/spectra_test_ws3d_full.spectra";
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;

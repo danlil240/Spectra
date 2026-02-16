@@ -61,7 +61,7 @@ static WorkspaceData make_v3_workspace()
 
 TEST(WorkspaceV3, RoundTrip)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_v3.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -106,7 +106,7 @@ TEST(WorkspaceV3, RoundTrip)
 
 TEST(WorkspaceV3, V2BackwardCompat)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_v2compat.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_v2compat.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -152,7 +152,7 @@ TEST(WorkspaceV3, V2BackwardCompat)
 
 TEST(WorkspaceV3, FutureVersionRejected)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_future.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_future.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -172,7 +172,7 @@ TEST(WorkspaceV3, FutureVersionRejected)
 
 TEST(WorkspaceV3, AxisLinkState)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_axislink.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_axislink.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -192,7 +192,7 @@ TEST(WorkspaceV3, AxisLinkState)
 
 TEST(WorkspaceV3, TransformPipeline)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_transforms.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_transforms.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -228,7 +228,7 @@ TEST(WorkspaceV3, TransformPipeline)
 
 TEST(WorkspaceV3, MultipleTransformPipelines)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_multi_transforms.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_multi_transforms.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -262,7 +262,7 @@ TEST(WorkspaceV3, MultipleTransformPipelines)
 
 TEST(WorkspaceV3, ShortcutOverrides)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_shortcuts.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_shortcuts.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -294,7 +294,7 @@ TEST(WorkspaceV3, ShortcutOverrides)
 
 TEST(WorkspaceV3, TimelineState)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_timeline.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_timeline.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -327,7 +327,7 @@ TEST(WorkspaceV3, TimelineState)
 
 TEST(WorkspaceV3, PluginState)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_plugins.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_plugins.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -347,7 +347,7 @@ TEST(WorkspaceV3, PluginState)
 
 TEST(WorkspaceV3, DataPaletteName)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_palette.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_palette.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -367,7 +367,7 @@ TEST(WorkspaceV3, DataPaletteName)
 
 TEST(WorkspaceV3, EmptyDashPattern)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_empty_dash.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_empty_dash.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -385,7 +385,7 @@ TEST(WorkspaceV3, EmptyDashPattern)
 
 TEST(WorkspaceV3, SingleDashValue)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_single_dash.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_single_dash.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -406,7 +406,7 @@ TEST(WorkspaceV3, SingleDashValue)
 
 TEST(WorkspaceV3, FullStateRoundTrip)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_full_v3.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_full_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -480,7 +480,7 @@ TEST(WorkspaceV3, FullStateRoundTrip)
 
 TEST(WorkspaceV3, EmptyWorkspace)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_empty_v3.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_empty_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -503,7 +503,7 @@ TEST(WorkspaceV3, EmptyWorkspace)
 
 TEST(WorkspaceV3, SpecialCharsInStrings)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_special_v3.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_special_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -526,7 +526,7 @@ TEST(WorkspaceV3, SpecialCharsInStrings)
 
 TEST(WorkspaceV3, MultipleFigures)
 {
-    auto path = std::filesystem::temp_directory_path() / "plotix_test_multi_fig_v3.spectra";
+    auto path = std::filesystem::temp_directory_path() / "spectra_test_multi_fig_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 

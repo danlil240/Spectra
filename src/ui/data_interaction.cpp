@@ -1,4 +1,4 @@
-#ifdef PLOTIX_USE_IMGUI
+#ifdef SPECTRA_USE_IMGUI
 
     #include "data_interaction.hpp"
 
@@ -34,7 +34,7 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
 
     // Update legend animation state
     float dt = 0.016f;  // fallback
-    #ifdef PLOTIX_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     dt = ImGui::GetIO().DeltaTime;
     #endif
     legend_.update(dt, figure);
@@ -330,4 +330,4 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
 }  // namespace spectra
 
-#endif  // PLOTIX_USE_IMGUI
+#endif  // SPECTRA_USE_IMGUI

@@ -193,7 +193,7 @@ Cursor Readout [NEW]:
 - **Dear ImGui** (lowest friction — single header, Vulkan backend exists, overlay mode)
 - **Qt6** (heavyweight, but best for a full application with docking)
 
-Recommendation: Add Dear ImGui as optional (`PLOTIX_USE_IMGUI`) in Phase 3 for a debug/style panel overlay.
+Recommendation: Add Dear ImGui as optional (`SPECTRA_USE_IMGUI`) in Phase 3 for a debug/style panel overlay.
 
 ---
 
@@ -449,7 +449,7 @@ Agent 6: [golden framework]──[baselines]──[CI pipeline]──[docs]─�
 - [ ] Histogram / bar chart type works
 - [ ] Heatmap with colormap works
 - [ ] Plugin API: user can register a custom `Series` subclass with custom shader
-- [ ] Dear ImGui overlay for style editing (behind `PLOTIX_USE_IMGUI`)
+- [ ] Dear ImGui overlay for style editing (behind `SPECTRA_USE_IMGUI`)
 - [ ] Pimpl on all public headers — ABI stable across minor versions
 - [ ] `find_package(spectra)` works from an install
 - [ ] CI runs on Linux (GCC + Clang), optionally Windows

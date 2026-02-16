@@ -772,9 +772,8 @@ bool VulkanBackend::begin_frame() {
         device_lost_ = true;
         throw std::runtime_error("Vulkan device lost - cannot continue rendering");
     }
-    vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
 
-    // Acquire next swapchain image
+    // Acquire next swapchain image BEFORE resetting fence
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device, swapchain_.swapchain, UINT64_MAX,
         image_available_semaphores_[current_flight_frame_],
@@ -783,6 +782,9 @@ bool VulkanBackend::begin_frame() {
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         return false;  // Caller should recreate swapchain
     }
+
+    // Only reset fence after successful acquisition
+    vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
 
     current_cmd_ = command_buffers_[current_flight_frame_];
     vkResetCommandBuffer(current_cmd_, 0);

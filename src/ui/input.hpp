@@ -103,6 +103,10 @@ public:
     void set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
+    // Lock/unlock orbit rotation (lock in 2D mode so drag = pan only)
+    void set_orbit_locked(bool locked) { orbit_locked_ = locked; }
+    bool orbit_locked() const { return orbit_locked_; }
+
     // Key event: keyboard shortcuts
     void on_key(int key, int action, int mods);
 
@@ -156,6 +160,7 @@ private:
     // 3D orbit drag state
     bool is_3d_orbit_drag_ = false;
     bool is_3d_pan_drag_ = false;
+    bool orbit_locked_ = false;  // When true, orbit drag becomes pan (2D mode)
     static constexpr int MOUSE_BUTTON_MIDDLE = 2;
     static constexpr float ORBIT_SENSITIVITY = 0.3f;
     static constexpr float ZOOM_3D_FACTOR = 0.1f;

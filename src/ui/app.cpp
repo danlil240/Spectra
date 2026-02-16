@@ -735,6 +735,7 @@ void App::run() {
 
                 mode_transition.begin_to_2d(from, to);
                 is_in_3d_mode = false;
+                input_handler.set_orbit_locked(true);
             } else {
                 // 2D → 3D: animate back to saved 3D camera
                 ModeTransition2DState from;
@@ -750,6 +751,7 @@ void App::run() {
 
                 mode_transition.begin_to_3d(from, to);
                 is_in_3d_mode = true;
+                input_handler.set_orbit_locked(false);
             }
         }, "3", "View", static_cast<uint16_t>(ui::Icon::Axes));
 

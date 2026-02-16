@@ -2010,9 +2010,11 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
 
         float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
 
-        // Detect top-down view: camera view direction nearly aligned with Z
+        // Detect top-down view: camera looking down Y (orbit elevation≈90°) or Z (transition camera)
         vec3 view_dir_early = vec3_normalize(cam.target - cam.position);
-        bool is_top_down_early = std::abs(view_dir_early.z) > 0.85f;
+        bool looking_down_y = std::abs(view_dir_early.y) > 0.85f;
+        bool looking_down_z = std::abs(view_dir_early.z) > 0.85f;
+        bool is_top_down_early = looking_down_y || looking_down_z;
 
         // Tick offset: slightly beyond the tick mark end
         float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
@@ -2020,6 +2022,7 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
 
         // --- X-axis tick labels (along y=y0, z=z0 edge) ---
+        // Visible in all views (X is always a screen axis in top-down)
         ImGui::PushFont(font_body_);
         auto x_ticks = axes3d->compute_x_ticks();
         for (size_t i = 0; i < x_ticks.positions.size(); ++i) {
@@ -2032,19 +2035,22 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         }
 
         // --- Y-axis tick labels (along x=x0, z=z0 edge) ---
-        auto y_ticks = axes3d->compute_y_ticks();
-        for (size_t i = 0; i < y_ticks.positions.size(); ++i) {
-            float sx, sy;
-            vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
-            if (!world_to_screen(pos, sx, sy)) continue;
-            const char* txt = y_ticks.labels[i].c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(sx - sz.x, sy - sz.y * 0.5f), tick_col, txt);
+        // Hidden when looking down Y (Y is depth axis, all labels overlap)
+        if (!looking_down_y) {
+            auto y_ticks = axes3d->compute_y_ticks();
+            for (size_t i = 0; i < y_ticks.positions.size(); ++i) {
+                float sx, sy;
+                vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
+                if (!world_to_screen(pos, sx, sy)) continue;
+                const char* txt = y_ticks.labels[i].c_str();
+                ImVec2 sz = ImGui::CalcTextSize(txt);
+                dl->AddText(ImVec2(sx - sz.x, sy - sz.y * 0.5f), tick_col, txt);
+            }
         }
 
         // --- Z-axis tick labels (along x=x0, y=y0 edge) ---
-        // Hidden in top-down view (Z points into screen, labels would overlap)
-        if (!is_top_down_early) {
+        // Hidden when looking down Z (Z is depth axis, all labels overlap)
+        if (!looking_down_z) {
             auto z_ticks = axes3d->compute_z_ticks();
             for (size_t i = 0; i < z_ticks.positions.size(); ++i) {
                 float sx, sy;
@@ -2058,10 +2064,11 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         ImGui::PopFont();
 
         // --- Axis direction arrows with labels ---
-        // Draw arrows pointing outward from the bounding box edges.
-        // When the camera is near-top-down (looking down Z), switch to
-        // 2D-style placement: X arrow along bottom, Y arrow along left,
-        // Z arrow hidden.
+        // In top-down views, only show arrows for the two visible axes,
+        // placed on the visible grid plane. Hide the depth-axis arrow.
+        // Looking down Y: visible plane is XZ at y=y0, show X and Z arrows
+        // Looking down Z: visible plane is XY at z=z0, show X and Y arrows
+        // 3D view: show all three arrows at bounding box corners
         {
             float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
             float x_range = xlim.max - xlim.min;
@@ -2071,14 +2078,12 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
             float arrow_len_y = y_range * 0.18f;
             float arrow_len_z = z_range * 0.18f;
 
-            bool is_top_down = is_top_down_early;
-
             // Arrow colors: X=red, Y=green, Z=blue (standard convention)
             ImU32 x_arrow_col = IM_COL32(230, 70, 70, 220);
             ImU32 y_arrow_col = IM_COL32(70, 200, 70, 220);
             ImU32 z_arrow_col = IM_COL32(80, 130, 255, 220);
 
-            // Helper: draw a 2D arrowhead at screen position (tip_x, tip_y) pointing from (from_x, from_y)
+            // Helper: draw a 2D arrowhead at screen position
             auto draw_arrowhead = [&](float from_x, float from_y, float tip_x, float tip_y, ImU32 col) {
                 float dx = tip_x - from_x;
                 float dy = tip_y - from_y;
@@ -2087,7 +2092,6 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 float ux = dx / len;
                 float uy = dy / len;
                 float head_size = 6.0f;
-                // Perpendicular
                 float px = -uy * head_size;
                 float py =  ux * head_size;
                 float base_x = tip_x - ux * head_size * 1.8f;
@@ -2100,75 +2104,47 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 dl->AddTriangleFilled(tri[0], tri[1], tri[2], col);
             };
 
-            // Choose arrow start positions based on view mode
-            // Top-down: arrows at grid edges on the XY plane (z=z0)
-            // 3D: arrows at bounding box corners (original behavior)
-            float z_plane = z0;  // XY grid plane
-
-            // X arrow: along bottom edge of grid
-            {
-                vec3 arrow_start = {x1, y0, z_plane};
-                vec3 arrow_end   = {x1 + arrow_len_x, y0, z_plane};
+            // Helper: draw an arrow with label
+            auto draw_arrow_with_label = [&](vec3 start, vec3 end, ImU32 col, const char* default_lbl, const std::string& user_lbl) {
                 float sx0, sy0, sx1, sy1;
-                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
-                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), x_arrow_col, 2.0f);
-                    draw_arrowhead(sx0, sy0, sx1, sy1, x_arrow_col);
-                    ImGui::PushFont(font_menubar_);
-                    const char* lbl = axes3d->get_xlabel().empty() ? "X" : axes3d->get_xlabel().c_str();
-                    ImVec2 sz = ImGui::CalcTextSize(lbl);
-                    float label_offset = 8.0f;
-                    float dir_x = sx1 - sx0;
-                    float dir_y = sy1 - sy0;
-                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
-                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f) - sz.y * 0.5f;
-                    dl->AddText(ImVec2(lx, ly), x_arrow_col, lbl);
-                    ImGui::PopFont();
-                }
-            }
+                if (!world_to_screen(start, sx0, sy0) || !world_to_screen(end, sx1, sy1)) return;
+                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, 2.0f);
+                draw_arrowhead(sx0, sy0, sx1, sy1, col);
+                ImGui::PushFont(font_menubar_);
+                const char* lbl = user_lbl.empty() ? default_lbl : user_lbl.c_str();
+                ImVec2 sz = ImGui::CalcTextSize(lbl);
+                float label_offset = 8.0f;
+                float dir_x = sx1 - sx0;
+                float dir_y = sy1 - sy0;
+                float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
+                float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f) - sz.y * 0.5f;
+                dl->AddText(ImVec2(lx, ly), col, lbl);
+                ImGui::PopFont();
+            };
 
-            // Y arrow: along left edge of grid
-            {
-                vec3 arrow_start = {x0, y1, z_plane};
-                vec3 arrow_end   = {x0, y1 + arrow_len_y, z_plane};
-                float sx0, sy0, sx1, sy1;
-                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
-                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), y_arrow_col, 2.0f);
-                    draw_arrowhead(sx0, sy0, sx1, sy1, y_arrow_col);
-                    ImGui::PushFont(font_menubar_);
-                    const char* lbl = axes3d->get_ylabel().empty() ? "Y" : axes3d->get_ylabel().c_str();
-                    ImVec2 sz = ImGui::CalcTextSize(lbl);
-                    float label_offset = 8.0f;
-                    float dir_x = sx1 - sx0;
-                    float dir_y = sy1 - sy0;
-                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : 0.0f) - sz.x * 0.5f;
-                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : -label_offset) - sz.y * 0.5f;
-                    dl->AddText(ImVec2(lx, ly), y_arrow_col, lbl);
-                    ImGui::PopFont();
-                }
-            }
-
-            // Z arrow: only show in 3D view (hidden when top-down)
-            if (!is_top_down) {
-                vec3 arrow_start = {x0, y0, z1};
-                vec3 arrow_end   = {x0, y0, z1 + arrow_len_z};
-                float sx0, sy0, sx1, sy1;
-                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
-                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), z_arrow_col, 2.0f);
-                    draw_arrowhead(sx0, sy0, sx1, sy1, z_arrow_col);
-                    ImGui::PushFont(font_menubar_);
-                    const char* lbl = axes3d->get_zlabel().empty() ? "Z" : axes3d->get_zlabel().c_str();
-                    ImVec2 sz = ImGui::CalcTextSize(lbl);
-                    float label_offset = 8.0f;
-                    float dir_x = sx1 - sx0;
-                    float dir_y = sy1 - sy0;
-                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : 0.0f) - sz.x * 0.5f;
-                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : -label_offset) - sz.y * 0.5f;
-                    dl->AddText(ImVec2(lx, ly), z_arrow_col, lbl);
-                    ImGui::PopFont();
-                }
+            if (looking_down_y) {
+                // Looking down Y: visible grid is XZ plane at y=y0
+                // X arrow along bottom edge, Z arrow along left edge
+                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
+                                       x_arrow_col, "X", axes3d->get_xlabel());
+                draw_arrow_with_label({x0, y0, z1}, {x0, y0, z1 + arrow_len_z},
+                                       z_arrow_col, "Z", axes3d->get_zlabel());
+            } else if (looking_down_z) {
+                // Looking down Z: visible grid is XY plane at z=z0
+                // X arrow along bottom edge, Y arrow along left edge
+                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
+                                       x_arrow_col, "X", axes3d->get_xlabel());
+                draw_arrow_with_label({x0, y1, z0}, {x0, y1 + arrow_len_y, z0},
+                                       y_arrow_col, "Y", axes3d->get_ylabel());
+            } else {
+                // 3D view: all three arrows at bounding box corners
+                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
+                                       x_arrow_col, "X", axes3d->get_xlabel());
+                draw_arrow_with_label({x0, y1, z0}, {x0, y1 + arrow_len_y, z0},
+                                       y_arrow_col, "Y", axes3d->get_ylabel());
+                draw_arrow_with_label({x0, y0, z1}, {x0, y0, z1 + arrow_len_z},
+                                       z_arrow_col, "Z", axes3d->get_zlabel());
             }
         }
 

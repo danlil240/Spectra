@@ -32,8 +32,8 @@ int main() {
     ax.auto_fit();
 
     // Set camera to a nice viewing angle
-    ax.camera().azimuth = 0.0f;
-    ax.camera().elevation = 90.0f;
+    ax.camera().azimuth = 45.0f;
+    ax.camera().elevation = 25.0f;
     ax.camera().update_position_from_orbit();
 
     show();

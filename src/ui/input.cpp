@@ -355,8 +355,12 @@ void InputHandler::on_mouse_move(double x, double y) {
             float dx = static_cast<float>(x - drag_start_x_);
             float dy = static_cast<float>(y - drag_start_y_);
             
-            if (is_3d_orbit_drag_) {
+            if (is_3d_orbit_drag_ && !orbit_locked_) {
                 cam.orbit(dx * ORBIT_SENSITIVITY, -dy * ORBIT_SENSITIVITY);
+            } else if (is_3d_orbit_drag_ && orbit_locked_) {
+                // In 2D mode, orbit drag becomes pan
+                const auto& vp = viewport_for_axes(axes3d);
+                cam.pan(dx, dy, vp.w, vp.h);
             } else if (is_3d_pan_drag_) {
                 const auto& vp = viewport_for_axes(axes3d);
                 cam.pan(dx, dy, vp.w, vp.h);

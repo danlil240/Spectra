@@ -2,15 +2,17 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include <plotix/color.hpp>
-#include <plotix/series.hpp>
+    #include <plotix/color.hpp>
+    #include <plotix/series.hpp>
 
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 // Result of nearest-point spatial query
-struct NearestPointResult {
+struct NearestPointResult
+{
     bool found = false;
     const Series* series = nullptr;
     size_t point_index = 0;
@@ -23,8 +25,9 @@ struct NearestPointResult {
 
 // Rich hover tooltip rendered via ImGui over the plot canvas.
 // Shows series name, coordinates, and a color swatch.
-class Tooltip {
-public:
+class Tooltip
+{
+   public:
     Tooltip() = default;
 
     // Set fonts used for tooltip rendering
@@ -41,7 +44,7 @@ public:
     void set_enabled(bool e) { enabled_ = e; }
     bool enabled() const { return enabled_; }
 
-private:
+   private:
     ImFont* font_body_ = nullptr;
     ImFont* font_heading_ = nullptr;
     float snap_radius_px_ = 8.0f;
@@ -52,6 +55,6 @@ private:
     float target_opacity_ = 0.0f;
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

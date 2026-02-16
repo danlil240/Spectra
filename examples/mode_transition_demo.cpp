@@ -4,25 +4,26 @@
 // and back. The transition animates camera, axis limits, grid planes, and
 // 3D element opacity over 0.8 seconds.
 
-#include <plotix/plotix.hpp>
-
 #include <cmath>
+#include <plotix/plotix.hpp>
 #include <vector>
 
-int main() {
+int main()
+{
     using namespace plotix;
 
     // Generate helix data
     const int N = 500;
     std::vector<float> x(N), y(N), z(N);
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < N; ++i)
+    {
         float t = static_cast<float>(i) / (N - 1) * 4.0f * 3.14159f;
         x[i] = std::cos(t);
         y[i] = std::sin(t);
         z[i] = t / (4.0f * 3.14159f) * 2.0f - 1.0f;
     }
 
-    // Create figure with a 3D subplot  
+    // Create figure with a 3D subplot
     auto& fig = figure({.width = 1280, .height = 720});
     auto& ax = fig.subplot3d(1, 1, 1);
     ax.line3d(x, y, z).color({0.122f, 0.467f, 0.706f}).width(2.5f).label("Helix");

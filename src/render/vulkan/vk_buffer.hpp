@@ -1,15 +1,16 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <vulkan/vulkan.h>
 
-namespace plotix::vk {
+namespace plotix::vk
+{
 
-class GpuBuffer {
-public:
+class GpuBuffer
+{
+   public:
     GpuBuffer() = default;
     ~GpuBuffer();
 
@@ -29,21 +30,22 @@ public:
 
     void read(void* dst, VkDeviceSize size, VkDeviceSize offset = 0) const;
 
-    VkBuffer     buffer()      const { return buffer_; }
-    VkDeviceSize size()        const { return size_; }
-    bool         valid()       const { return buffer_ != VK_NULL_HANDLE; }
-    void*        mapped_data() const { return mapped_; }
+    VkBuffer buffer() const { return buffer_; }
+    VkDeviceSize size() const { return size_; }
+    bool valid() const { return buffer_ != VK_NULL_HANDLE; }
+    void* mapped_data() const { return mapped_; }
 
-private:
-    VkDevice       device_ = VK_NULL_HANDLE;
-    VkBuffer       buffer_ = VK_NULL_HANDLE;
+   private:
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkBuffer buffer_ = VK_NULL_HANDLE;
     VkDeviceMemory memory_ = VK_NULL_HANDLE;
-    VkDeviceSize   size_   = 0;
-    void*          mapped_ = nullptr;
+    VkDeviceSize size_ = 0;
+    void* mapped_ = nullptr;
 };
 
-class RingBuffer {
-public:
+class RingBuffer
+{
+   public:
     RingBuffer() = default;
 
     void init(VkDevice device,
@@ -60,16 +62,16 @@ public:
     // Write data into current frame's region
     void write(const void* data, VkDeviceSize size, VkDeviceSize offset_in_frame = 0);
 
-    VkBuffer     buffer()         const { return buffer_.buffer(); }
+    VkBuffer buffer() const { return buffer_.buffer(); }
     VkDeviceSize current_offset() const { return current_frame_ * frame_size_; }
-    VkDeviceSize frame_size()     const { return frame_size_; }
-    uint32_t     frame_count()    const { return frame_count_; }
+    VkDeviceSize frame_size() const { return frame_size_; }
+    uint32_t frame_count() const { return frame_count_; }
 
-private:
-    GpuBuffer    buffer_;
-    VkDeviceSize frame_size_   = 0;
-    uint32_t     frame_count_  = 0;
-    uint32_t     current_frame_ = 0;
+   private:
+    GpuBuffer buffer_;
+    VkDeviceSize frame_size_ = 0;
+    uint32_t frame_count_ = 0;
+    uint32_t current_frame_ = 0;
 };
 
 // Staging upload helper: create a staging buffer, copy data, submit transfer
@@ -82,4 +84,4 @@ void staging_upload(VkDevice device,
                     VkDeviceSize size,
                     VkDeviceSize dst_offset = 0);
 
-} // namespace plotix::vk
+}  // namespace plotix::vk

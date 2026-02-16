@@ -1,16 +1,17 @@
+#include <filesystem>
 #include <gtest/gtest.h>
-#include "ui/plugin_api.hpp"
+
 #include "ui/command_registry.hpp"
+#include "ui/plugin_api.hpp"
 #include "ui/shortcut_manager.hpp"
 #include "ui/undo_manager.hpp"
-
-#include <filesystem>
 
 using namespace plotix;
 
 // ─── C ABI Functions ─────────────────────────────────────────────────────────
 
-TEST(PluginCAPI, RegisterCommand) {
+TEST(PluginCAPI, RegisterCommand)
+{
     CommandRegistry registry;
 
     bool called = false;
@@ -34,19 +35,22 @@ TEST(PluginCAPI, RegisterCommand) {
     EXPECT_TRUE(called);
 }
 
-TEST(PluginCAPI, RegisterCommandNullRegistry) {
+TEST(PluginCAPI, RegisterCommandNullRegistry)
+{
     PlotixCommandDesc desc{};
     desc.id = "test";
     desc.label = "Test";
     EXPECT_EQ(plotix_register_command(nullptr, &desc), -1);
 }
 
-TEST(PluginCAPI, RegisterCommandNullDesc) {
+TEST(PluginCAPI, RegisterCommandNullDesc)
+{
     CommandRegistry registry;
     EXPECT_EQ(plotix_register_command(&registry, nullptr), -1);
 }
 
-TEST(PluginCAPI, RegisterCommandNullId) {
+TEST(PluginCAPI, RegisterCommandNullId)
+{
     CommandRegistry registry;
     PlotixCommandDesc desc{};
     desc.id = nullptr;
@@ -54,7 +58,8 @@ TEST(PluginCAPI, RegisterCommandNullId) {
     EXPECT_EQ(plotix_register_command(&registry, &desc), -1);
 }
 
-TEST(PluginCAPI, UnregisterCommand) {
+TEST(PluginCAPI, UnregisterCommand)
+{
     CommandRegistry registry;
     registry.register_command("plugin.test", "Test", []() {});
     EXPECT_NE(registry.find("plugin.test"), nullptr);
@@ -64,13 +69,15 @@ TEST(PluginCAPI, UnregisterCommand) {
     EXPECT_EQ(registry.find("plugin.test"), nullptr);
 }
 
-TEST(PluginCAPI, UnregisterCommandNull) {
+TEST(PluginCAPI, UnregisterCommandNull)
+{
     EXPECT_EQ(plotix_unregister_command(nullptr, "test"), -1);
     CommandRegistry registry;
     EXPECT_EQ(plotix_unregister_command(&registry, nullptr), -1);
 }
 
-TEST(PluginCAPI, ExecuteCommand) {
+TEST(PluginCAPI, ExecuteCommand)
+{
     CommandRegistry registry;
     bool called = false;
     registry.register_command("plugin.test", "Test", [&]() { called = true; });
@@ -80,45 +87,53 @@ TEST(PluginCAPI, ExecuteCommand) {
     EXPECT_TRUE(called);
 }
 
-TEST(PluginCAPI, ExecuteCommandNotFound) {
+TEST(PluginCAPI, ExecuteCommandNotFound)
+{
     CommandRegistry registry;
     EXPECT_EQ(plotix_execute_command(&registry, "nonexistent"), -1);
 }
 
-TEST(PluginCAPI, ExecuteCommandNull) {
+TEST(PluginCAPI, ExecuteCommandNull)
+{
     EXPECT_EQ(plotix_execute_command(nullptr, "test"), -1);
     CommandRegistry registry;
     EXPECT_EQ(plotix_execute_command(&registry, nullptr), -1);
 }
 
-TEST(PluginCAPI, BindShortcut) {
+TEST(PluginCAPI, BindShortcut)
+{
     ShortcutManager mgr;
     int result = plotix_bind_shortcut(&mgr, "Ctrl+T", "test.cmd");
     EXPECT_EQ(result, 0);
     EXPECT_EQ(mgr.command_for_shortcut(Shortcut::from_string("Ctrl+T")), "test.cmd");
 }
 
-TEST(PluginCAPI, BindShortcutInvalid) {
+TEST(PluginCAPI, BindShortcutInvalid)
+{
     ShortcutManager mgr;
     EXPECT_EQ(plotix_bind_shortcut(&mgr, "", "test.cmd"), -1);
 }
 
-TEST(PluginCAPI, BindShortcutNull) {
+TEST(PluginCAPI, BindShortcutNull)
+{
     EXPECT_EQ(plotix_bind_shortcut(nullptr, "Ctrl+T", "test"), -1);
     ShortcutManager mgr;
     EXPECT_EQ(plotix_bind_shortcut(&mgr, nullptr, "test"), -1);
     EXPECT_EQ(plotix_bind_shortcut(&mgr, "Ctrl+T", nullptr), -1);
 }
 
-TEST(PluginCAPI, PushUndo) {
+TEST(PluginCAPI, PushUndo)
+{
     UndoManager undo;
     int value = 0;
 
     int result = plotix_push_undo(
-        &undo, "Set value",
-        [](void* ud) { *static_cast<int*>(ud) = 0; }, &value,
-        [](void* ud) { *static_cast<int*>(ud) = 42; }, &value
-    );
+        &undo,
+        "Set value",
+        [](void* ud) { *static_cast<int*>(ud) = 0; },
+        &value,
+        [](void* ud) { *static_cast<int*>(ud) = 42; },
+        &value);
     EXPECT_EQ(result, 0);
     EXPECT_TRUE(undo.can_undo());
     EXPECT_EQ(undo.undo_description(), "Set value");
@@ -130,7 +145,8 @@ TEST(PluginCAPI, PushUndo) {
     EXPECT_EQ(value, 42);
 }
 
-TEST(PluginCAPI, PushUndoNull) {
+TEST(PluginCAPI, PushUndoNull)
+{
     EXPECT_EQ(plotix_push_undo(nullptr, "test", nullptr, nullptr, nullptr, nullptr), -1);
     UndoManager undo;
     EXPECT_EQ(plotix_push_undo(&undo, nullptr, nullptr, nullptr, nullptr, nullptr), -1);
@@ -138,41 +154,48 @@ TEST(PluginCAPI, PushUndoNull) {
 
 // ─── PluginManager ───────────────────────────────────────────────────────────
 
-TEST(PluginManagerTest, Construction) {
+TEST(PluginManagerTest, Construction)
+{
     PluginManager mgr;
     EXPECT_EQ(mgr.plugin_count(), 0u);
     EXPECT_TRUE(mgr.plugins().empty());
 }
 
-TEST(PluginManagerTest, LoadNonexistent) {
+TEST(PluginManagerTest, LoadNonexistent)
+{
     PluginManager mgr;
     EXPECT_FALSE(mgr.load_plugin("/nonexistent/plugin.so"));
 }
 
-TEST(PluginManagerTest, UnloadNonexistent) {
+TEST(PluginManagerTest, UnloadNonexistent)
+{
     PluginManager mgr;
     EXPECT_FALSE(mgr.unload_plugin("nonexistent"));
 }
 
-TEST(PluginManagerTest, FindPluginEmpty) {
+TEST(PluginManagerTest, FindPluginEmpty)
+{
     PluginManager mgr;
     EXPECT_EQ(mgr.find_plugin("test"), nullptr);
 }
 
-TEST(PluginManagerTest, UnloadAll) {
+TEST(PluginManagerTest, UnloadAll)
+{
     PluginManager mgr;
     // Should not crash when empty
     mgr.unload_all();
     EXPECT_EQ(mgr.plugin_count(), 0u);
 }
 
-TEST(PluginManagerTest, DiscoverNonexistentDir) {
+TEST(PluginManagerTest, DiscoverNonexistentDir)
+{
     PluginManager mgr;
     auto paths = mgr.discover("/nonexistent/plugin/dir");
     EXPECT_TRUE(paths.empty());
 }
 
-TEST(PluginManagerTest, DiscoverEmptyDir) {
+TEST(PluginManagerTest, DiscoverEmptyDir)
+{
     auto tmp = std::filesystem::temp_directory_path() / "plotix_test_plugins_empty";
     std::filesystem::create_directories(tmp);
 
@@ -183,7 +206,8 @@ TEST(PluginManagerTest, DiscoverEmptyDir) {
     std::filesystem::remove(tmp);
 }
 
-TEST(PluginManagerTest, DefaultPluginDir) {
+TEST(PluginManagerTest, DefaultPluginDir)
+{
     std::string dir = PluginManager::default_plugin_dir();
     EXPECT_FALSE(dir.empty());
     EXPECT_NE(dir.find("plugins"), std::string::npos);
@@ -191,21 +215,24 @@ TEST(PluginManagerTest, DefaultPluginDir) {
 
 // ─── PluginManager Serialization ─────────────────────────────────────────────
 
-TEST(PluginManagerSerialize, EmptyState) {
+TEST(PluginManagerSerialize, EmptyState)
+{
     PluginManager mgr;
     std::string json = mgr.serialize_state();
     EXPECT_FALSE(json.empty());
     EXPECT_NE(json.find("\"plugins\""), std::string::npos);
 }
 
-TEST(PluginManagerSerialize, DeserializeEmpty) {
+TEST(PluginManagerSerialize, DeserializeEmpty)
+{
     PluginManager mgr;
     EXPECT_TRUE(mgr.deserialize_state("{\"plugins\": []}"));
 }
 
 // ─── PluginEntry Struct ──────────────────────────────────────────────────────
 
-TEST(PluginEntryTest, DefaultValues) {
+TEST(PluginEntryTest, DefaultValues)
+{
     PluginEntry entry;
     EXPECT_TRUE(entry.name.empty());
     EXPECT_TRUE(entry.version.empty());
@@ -218,12 +245,14 @@ TEST(PluginEntryTest, DefaultValues) {
 
 // ─── Plugin Context ──────────────────────────────────────────────────────────
 
-TEST(PluginContextTest, VersionConstants) {
+TEST(PluginContextTest, VersionConstants)
+{
     EXPECT_EQ(PLOTIX_PLUGIN_API_VERSION_MAJOR, 1u);
     EXPECT_EQ(PLOTIX_PLUGIN_API_VERSION_MINOR, 0u);
 }
 
-TEST(PluginContextTest, ContextStruct) {
+TEST(PluginContextTest, ContextStruct)
+{
     PlotixPluginContext ctx{};
     ctx.api_version_major = PLOTIX_PLUGIN_API_VERSION_MAJOR;
     ctx.api_version_minor = PLOTIX_PLUGIN_API_VERSION_MINOR;
@@ -234,7 +263,8 @@ TEST(PluginContextTest, ContextStruct) {
     EXPECT_EQ(ctx.undo_manager, nullptr);
 }
 
-TEST(PluginContextTest, InfoStruct) {
+TEST(PluginContextTest, InfoStruct)
+{
     PlotixPluginInfo info{};
     info.name = "TestPlugin";
     info.version = "1.0.0";
@@ -251,7 +281,8 @@ TEST(PluginContextTest, InfoStruct) {
 
 // ─── Plugin Enable/Disable ───────────────────────────────────────────────────
 
-TEST(PluginManagerEnable, EnableDisableNoPlugins) {
+TEST(PluginManagerEnable, EnableDisableNoPlugins)
+{
     PluginManager mgr;
     // Should not crash
     mgr.set_plugin_enabled("nonexistent", false);
@@ -260,7 +291,8 @@ TEST(PluginManagerEnable, EnableDisableNoPlugins) {
 
 // ─── C ABI Command with Default Category ─────────────────────────────────────
 
-TEST(PluginCAPI, RegisterCommandDefaultCategory) {
+TEST(PluginCAPI, RegisterCommandDefaultCategory)
+{
     CommandRegistry registry;
 
     PlotixCommandDesc desc{};
@@ -278,7 +310,8 @@ TEST(PluginCAPI, RegisterCommandDefaultCategory) {
     EXPECT_EQ(cmd->category, "Plugin");
 }
 
-TEST(PluginCAPI, RegisterCommandNoCallback) {
+TEST(PluginCAPI, RegisterCommandNoCallback)
+{
     CommandRegistry registry;
 
     PlotixCommandDesc desc{};

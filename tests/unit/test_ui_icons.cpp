@@ -4,7 +4,8 @@
 
 using namespace plotix::ui;
 
-TEST(IconFont, AllIconsListUsesEnumValues) {
+TEST(IconFont, AllIconsListUsesEnumValues)
+{
     const auto& icons = IconFont::instance().get_all_icons();
     ASSERT_FALSE(icons.empty());
 
@@ -18,7 +19,8 @@ TEST(IconFont, AllIconsListUsesEnumValues) {
     EXPECT_GE(last, enum_first);
     EXPECT_LT(last, enum_last);
 
-    for (Icon icon : icons) {
+    for (Icon icon : icons)
+    {
         const auto value = static_cast<uint16_t>(icon);
         EXPECT_GE(value, enum_first);
         EXPECT_LT(value, enum_last);

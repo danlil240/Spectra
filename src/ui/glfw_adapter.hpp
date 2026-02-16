@@ -2,27 +2,30 @@
 
 #ifdef PLOTIX_USE_GLFW
 
-#include <cstdint>
-#include <functional>
-#include <string>
+    #include <cstdint>
+    #include <functional>
+    #include <string>
 
 struct GLFWwindow;
 
-namespace plotix {
+namespace plotix
+{
 
 class Axes;
 
 // Callback types for input events
-struct InputCallbacks {
-    std::function<void(double x, double y)>                  on_mouse_move;
+struct InputCallbacks
+{
+    std::function<void(double x, double y)> on_mouse_move;
     std::function<void(int button, int action, int mods, double x, double y)> on_mouse_button;
-    std::function<void(double x_offset, double y_offset)>    on_scroll;
-    std::function<void(int width, int height)>               on_resize;
-    std::function<void(int key, int action, int mods)>       on_key;
+    std::function<void(double x_offset, double y_offset)> on_scroll;
+    std::function<void(int width, int height)> on_resize;
+    std::function<void(int key, int action, int mods)> on_key;
 };
 
-class GlfwAdapter {
-public:
+class GlfwAdapter
+{
+   public:
     GlfwAdapter() = default;
     ~GlfwAdapter();
 
@@ -59,7 +62,7 @@ public:
     // Check if a mouse button is pressed
     bool is_mouse_button_pressed(int button) const;
 
-private:
+   private:
     GLFWwindow* window_ = nullptr;
     InputCallbacks callbacks_;
 
@@ -71,6 +74,6 @@ private:
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_GLFW
+#endif  // PLOTIX_USE_GLFW

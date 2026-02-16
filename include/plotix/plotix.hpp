@@ -26,25 +26,30 @@
 //
 // For advanced use (multiple windows, headless, custom config), use App directly.
 
-namespace plotix {
+namespace plotix
+{
 
-namespace detail {
+namespace detail
+{
 
-inline App& global_app() {
+inline App& global_app()
+{
     static App instance;
     return instance;
 }
 
-} // namespace detail
+}  // namespace detail
 
 // Create a new figure on the global App.
-inline Figure& figure(const FigureConfig& config = {}) {
+inline Figure& figure(const FigureConfig& config = {})
+{
     return detail::global_app().figure(config);
 }
 
 // Show all figures and enter the event loop (blocking).
-inline void show() {
+inline void show()
+{
     detail::global_app().run();
 }
 
-} // namespace plotix
+}  // namespace plotix

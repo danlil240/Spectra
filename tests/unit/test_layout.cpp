@@ -4,7 +4,8 @@
 
 using namespace plotix;
 
-TEST(SubplotLayout, SingleCell) {
+TEST(SubplotLayout, SingleCell)
+{
     auto rects = compute_subplot_layout(1280.0f, 720.0f, 1, 1);
     ASSERT_EQ(rects.size(), 1u);
 
@@ -13,10 +14,11 @@ TEST(SubplotLayout, SingleCell) {
     EXPECT_FLOAT_EQ(r.x, 60.0f);
     EXPECT_FLOAT_EQ(r.y, 40.0f);
     EXPECT_FLOAT_EQ(r.w, 1280.0f - 60.0f - 40.0f);  // 1180
-    EXPECT_FLOAT_EQ(r.h, 720.0f - 40.0f - 50.0f);    // 630
+    EXPECT_FLOAT_EQ(r.h, 720.0f - 40.0f - 50.0f);   // 630
 }
 
-TEST(SubplotLayout, TwoByOneGrid) {
+TEST(SubplotLayout, TwoByOneGrid)
+{
     auto rects = compute_subplot_layout(1920.0f, 1080.0f, 2, 1);
     ASSERT_EQ(rects.size(), 2u);
 
@@ -35,7 +37,8 @@ TEST(SubplotLayout, TwoByOneGrid) {
     EXPECT_FLOAT_EQ(rects[1].h, cell_h - 40.0f - 50.0f);
 }
 
-TEST(SubplotLayout, OneByTwoGrid) {
+TEST(SubplotLayout, OneByTwoGrid)
+{
     auto rects = compute_subplot_layout(1000.0f, 500.0f, 1, 2);
     ASSERT_EQ(rects.size(), 2u);
 
@@ -54,7 +57,8 @@ TEST(SubplotLayout, OneByTwoGrid) {
     EXPECT_FLOAT_EQ(rects[1].h, 500.0f - 40.0f - 50.0f);
 }
 
-TEST(SubplotLayout, TwoByTwoGrid) {
+TEST(SubplotLayout, TwoByTwoGrid)
+{
     auto rects = compute_subplot_layout(800.0f, 600.0f, 2, 2);
     ASSERT_EQ(rects.size(), 4u);
 
@@ -65,7 +69,8 @@ TEST(SubplotLayout, TwoByTwoGrid) {
     float expected_w = cell_w - 60.0f - 40.0f;
     float expected_h = cell_h - 40.0f - 50.0f;
 
-    for (size_t i = 0; i < 4; ++i) {
+    for (size_t i = 0; i < 4; ++i)
+    {
         EXPECT_FLOAT_EQ(rects[i].w, expected_w) << "cell " << i;
         EXPECT_FLOAT_EQ(rects[i].h, expected_h) << "cell " << i;
     }
@@ -85,7 +90,8 @@ TEST(SubplotLayout, TwoByTwoGrid) {
     EXPECT_FLOAT_EQ(rects[3].y, cell_h + 40.0f);
 }
 
-TEST(SubplotLayout, CustomMargins) {
+TEST(SubplotLayout, CustomMargins)
+{
     Margins m{10.0f, 10.0f, 10.0f, 10.0f};
     auto rects = compute_subplot_layout(100.0f, 100.0f, 1, 1, m);
     ASSERT_EQ(rects.size(), 1u);
@@ -95,7 +101,8 @@ TEST(SubplotLayout, CustomMargins) {
     EXPECT_FLOAT_EQ(rects[0].h, 80.0f);
 }
 
-TEST(SubplotLayout, TinyFigureClampsToZero) {
+TEST(SubplotLayout, TinyFigureClampsToZero)
+{
     // Margins larger than cell — should clamp to 0 width/height
     auto rects = compute_subplot_layout(50.0f, 50.0f, 1, 1);
     ASSERT_EQ(rects.size(), 1u);

@@ -2,17 +2,19 @@
 
 #include <plotix/series.hpp>  // For Rect definition
 
-namespace plotix {
+namespace plotix
+{
 
 /**
  * LayoutManager - Zone-based layout engine for Plotix UI
- * 
+ *
  * Replaces hardcoded pixel positions with a responsive zone system.
  * All UI components query their layout rectangles from this manager.
  * Supports smooth animated transitions for panel open/close/resize.
  */
-class LayoutManager {
-public:
+class LayoutManager
+{
+   public:
     LayoutManager();
     ~LayoutManager() = default;
 
@@ -46,43 +48,87 @@ public:
     void reset_inspector_width();
 
     // Bottom panel (timeline)
-    void set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
-    float bottom_panel_height() const { return bottom_panel_height_; }
+    void set_bottom_panel_height(float h)
+    {
+        bottom_panel_height_ = h;
+    }
+    float bottom_panel_height() const
+    {
+        return bottom_panel_height_;
+    }
 
 #if PLOTIX_FLOATING_TOOLBAR
     // Floating toolbar
     void set_floating_toolbar_visible(bool visible);
     void toggle_floating_toolbar();
-    bool is_floating_toolbar_visible() const { return floating_toolbar_visible_; }
-    float floating_toolbar_opacity() const { return floating_toolbar_opacity_; }
+    bool is_floating_toolbar_visible() const
+    {
+        return floating_toolbar_visible_;
+    }
+    float floating_toolbar_opacity() const
+    {
+        return floating_toolbar_opacity_;
+    }
     void set_floating_toolbar_drag_offset(float dx, float dy);
     void reset_floating_toolbar_position();
     void notify_toolbar_activity();
 #endif
 
     // State queries
-    bool is_inspector_visible() const { return inspector_visible_; }
-    float inspector_width() const { return inspector_width_; }
-    float inspector_animated_width() const { return inspector_anim_width_; }
-    bool is_nav_rail_expanded() const { return nav_rail_expanded_; }
+    bool is_inspector_visible() const
+    {
+        return inspector_visible_;
+    }
+    float inspector_width() const
+    {
+        return inspector_width_;
+    }
+    float inspector_animated_width() const
+    {
+        return inspector_anim_width_;
+    }
+    bool is_nav_rail_expanded() const
+    {
+        return nav_rail_expanded_;
+    }
     float nav_rail_width() const;
-    float nav_rail_animated_width() const { return nav_rail_anim_width_; }
-    bool is_tab_bar_visible() const { return tab_bar_visible_; }
+    float nav_rail_animated_width() const
+    {
+        return nav_rail_anim_width_;
+    }
+    bool is_tab_bar_visible() const
+    {
+        return tab_bar_visible_;
+    }
     bool is_animating() const;
 
     // Inspector resize interaction helpers
-    bool is_inspector_resize_hovered() const { return inspector_resize_hovered_; }
-    void set_inspector_resize_hovered(bool hovered) { inspector_resize_hovered_ = hovered; }
-    bool is_inspector_resize_active() const { return inspector_resize_active_; }
-    void set_inspector_resize_active(bool active) { inspector_resize_active_ = active; }
+    bool is_inspector_resize_hovered() const
+    {
+        return inspector_resize_hovered_;
+    }
+    void set_inspector_resize_hovered(bool hovered)
+    {
+        inspector_resize_hovered_ = hovered;
+    }
+    bool is_inspector_resize_active() const
+    {
+        return inspector_resize_active_;
+    }
+    void set_inspector_resize_active(bool active)
+    {
+        inspector_resize_active_ = active;
+    }
 
     // Layout constants (matching the design spec)
     static constexpr float COMMAND_BAR_HEIGHT = 48.0f;
     static constexpr float STATUS_BAR_HEIGHT = 28.0f;
     static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 48.0f;
     static constexpr float NAV_RAIL_EXPANDED_WIDTH = 200.0f;
-    static constexpr float NAV_TOOLBAR_INSET = 68.0f;  // Space reserved for floating nav toolbar (margin + toolbar + gap)
-    static constexpr float PLOT_LEFT_MARGIN = 100.0f;  // Default plot left margin (matches Margins::left) for tab alignment
+    static constexpr float NAV_TOOLBAR_INSET =
+        68.0f;  // Space reserved for floating nav toolbar (margin + toolbar + gap)
+    static constexpr float PLOT_LEFT_MARGIN =
+        100.0f;  // Default plot left margin (matches Margins::left) for tab alignment
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
     static constexpr float INSPECTOR_MIN_WIDTH = 240.0f;
     static constexpr float INSPECTOR_MAX_WIDTH = 480.0f;
@@ -94,7 +140,7 @@ public:
     static constexpr float RESIZE_HANDLE_WIDTH = 6.0f;
     static constexpr float ANIM_SPEED = 12.0f;
 
-private:
+   private:
     // Window dimensions
     float window_width_ = 1280.0f;
     float window_height_ = 720.0f;
@@ -120,7 +166,7 @@ private:
     float bottom_panel_height_ = 0.0f;  // Timeline panel height (0 when hidden)
 
     // Animated state (smoothly interpolated toward targets)
-    float inspector_anim_width_ = 0.0f;   // 0 when hidden
+    float inspector_anim_width_ = 0.0f;  // 0 when hidden
     float nav_rail_anim_width_ = NAV_RAIL_COLLAPSED_WIDTH;
 
     // Inspector resize interaction state
@@ -155,4 +201,4 @@ private:
     Rect compute_tab_bar() const;
 };
 
-} // namespace plotix
+}  // namespace plotix

@@ -1,31 +1,35 @@
 #pragma once
 
-#include <plotix/axes.hpp>
-#include <plotix/fwd.hpp>
-
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <plotix/axes.hpp>
+#include <plotix/fwd.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // Which axis dimensions are linked within a group
-enum class LinkAxis : uint8_t {
-    X    = 0x01,
-    Y    = 0x02,
+enum class LinkAxis : uint8_t
+{
+    X = 0x01,
+    Y = 0x02,
     Both = 0x03,
 };
 
-inline LinkAxis operator|(LinkAxis a, LinkAxis b) {
+inline LinkAxis operator|(LinkAxis a, LinkAxis b)
+{
     return static_cast<LinkAxis>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
 }
-inline LinkAxis operator&(LinkAxis a, LinkAxis b) {
+inline LinkAxis operator&(LinkAxis a, LinkAxis b)
+{
     return static_cast<LinkAxis>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
-inline bool has_flag(LinkAxis val, LinkAxis flag) {
+inline bool has_flag(LinkAxis val, LinkAxis flag)
+{
     return (static_cast<uint8_t>(val) & static_cast<uint8_t>(flag)) != 0;
 }
 
@@ -33,12 +37,13 @@ inline bool has_flag(LinkAxis val, LinkAxis flag) {
 using LinkGroupId = uint32_t;
 
 // A group of axes that are linked together
-struct LinkGroup {
-    LinkGroupId              id    = 0;
-    LinkAxis                 axis  = LinkAxis::X;
-    std::string              name;           // User-visible label (e.g. "Group 1")
-    Color                    color = colors::blue; // Visual indicator color
-    std::vector<Axes*>       members;
+struct LinkGroup
+{
+    LinkGroupId id = 0;
+    LinkAxis axis = LinkAxis::X;
+    std::string name;            // User-visible label (e.g. "Group 1")
+    Color color = colors::blue;  // Visual indicator color
+    std::vector<Axes*> members;
 
     bool contains(const Axes* ax) const;
     void remove(const Axes* ax);
@@ -46,13 +51,14 @@ struct LinkGroup {
 
 // Shared cursor state — represents a cursor position broadcast across linked axes.
 // Stored in data coordinates of the source axes.
-struct SharedCursor {
-    bool         valid       = false;
-    float        data_x      = 0.0f;
-    float        data_y      = 0.0f;
-    double       screen_x    = 0.0;
-    double       screen_y    = 0.0;
-    const Axes*  source_axes = nullptr;  // Which axes generated this cursor
+struct SharedCursor
+{
+    bool valid = false;
+    float data_x = 0.0f;
+    float data_y = 0.0f;
+    double screen_x = 0.0;
+    double screen_y = 0.0;
+    const Axes* source_axes = nullptr;  // Which axes generated this cursor
 };
 
 // Callback fired when linked axes limits change (for UI redraw notification)
@@ -72,8 +78,9 @@ using LinkChangeCallback = std::function<void()>;
 //   the source's limits. All other members in the same group(s) will be
 //   updated to match the source's new limits (for the linked dimensions).
 //
-class AxisLinkManager {
-public:
+class AxisLinkManager
+{
+   public:
     AxisLinkManager();
     ~AxisLinkManager();
 
@@ -171,7 +178,7 @@ public:
     // Clear the shared cursor (e.g. mouse left the window).
     void clear_shared_cursor();
 
-private:
+   private:
     void notify();
 
     // Get peers for a given axes in a specific group (excluding the axes itself).
@@ -189,4 +196,4 @@ private:
     SharedCursor shared_cursor_;
 };
 
-} // namespace plotix
+}  // namespace plotix

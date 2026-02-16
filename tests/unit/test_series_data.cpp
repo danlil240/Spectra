@@ -1,22 +1,22 @@
 #include <gtest/gtest.h>
-
-#include <plotix/series.hpp>
 #include <plotix/color.hpp>
-
+#include <plotix/series.hpp>
 #include <vector>
 
 using namespace plotix;
 
 // ─── LineSeries ─────────────────────────────────────────────────────────────
 
-TEST(LineSeries, DefaultConstruction) {
+TEST(LineSeries, DefaultConstruction)
+{
     LineSeries s;
     EXPECT_EQ(s.point_count(), 0u);
     EXPECT_TRUE(s.is_dirty());
     EXPECT_TRUE(s.visible());
 }
 
-TEST(LineSeries, ConstructWithData) {
+TEST(LineSeries, ConstructWithData)
+{
     std::vector<float> x = {1.0f, 2.0f, 3.0f};
     std::vector<float> y = {4.0f, 5.0f, 6.0f};
 
@@ -31,7 +31,8 @@ TEST(LineSeries, ConstructWithData) {
     EXPECT_FLOAT_EQ(yd[1], 5.0f);
 }
 
-TEST(LineSeries, SetXY) {
+TEST(LineSeries, SetXY)
+{
     LineSeries s;
     std::vector<float> x = {10.0f, 20.0f};
     std::vector<float> y = {30.0f, 40.0f};
@@ -44,7 +45,8 @@ TEST(LineSeries, SetXY) {
     EXPECT_TRUE(s.is_dirty());
 }
 
-TEST(LineSeries, Append) {
+TEST(LineSeries, Append)
+{
     LineSeries s;
     s.append(1.0f, 2.0f);
     s.append(3.0f, 4.0f);
@@ -54,7 +56,8 @@ TEST(LineSeries, Append) {
     EXPECT_FLOAT_EQ(s.y_data()[1], 4.0f);
 }
 
-TEST(LineSeries, FluentAPI) {
+TEST(LineSeries, FluentAPI)
+{
     LineSeries s;
     auto& ref = s.label("test").color(colors::red).width(3.0f);
 
@@ -66,7 +69,8 @@ TEST(LineSeries, FluentAPI) {
     EXPECT_FLOAT_EQ(s.width(), 3.0f);
 }
 
-TEST(LineSeries, ClearDirty) {
+TEST(LineSeries, ClearDirty)
+{
     LineSeries s;
     EXPECT_TRUE(s.is_dirty());
     s.clear_dirty();
@@ -78,7 +82,8 @@ TEST(LineSeries, ClearDirty) {
     EXPECT_TRUE(s.is_dirty());
 }
 
-TEST(LineSeries, Visibility) {
+TEST(LineSeries, Visibility)
+{
     LineSeries s;
     EXPECT_TRUE(s.visible());
     s.visible(false);
@@ -89,13 +94,15 @@ TEST(LineSeries, Visibility) {
 
 // ─── ScatterSeries ──────────────────────────────────────────────────────────
 
-TEST(ScatterSeries, DefaultConstruction) {
+TEST(ScatterSeries, DefaultConstruction)
+{
     ScatterSeries s;
     EXPECT_EQ(s.point_count(), 0u);
     EXPECT_TRUE(s.is_dirty());
 }
 
-TEST(ScatterSeries, ConstructWithData) {
+TEST(ScatterSeries, ConstructWithData)
+{
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {2.0f, 3.0f};
 
@@ -105,7 +112,8 @@ TEST(ScatterSeries, ConstructWithData) {
     EXPECT_FLOAT_EQ(s.y_data()[1], 3.0f);
 }
 
-TEST(ScatterSeries, SetXY) {
+TEST(ScatterSeries, SetXY)
+{
     ScatterSeries s;
     std::vector<float> x = {5.0f};
     std::vector<float> y = {6.0f};
@@ -115,7 +123,8 @@ TEST(ScatterSeries, SetXY) {
     EXPECT_EQ(s.point_count(), 1u);
 }
 
-TEST(ScatterSeries, Append) {
+TEST(ScatterSeries, Append)
+{
     ScatterSeries s;
     s.append(10.0f, 20.0f);
     EXPECT_EQ(s.point_count(), 1u);
@@ -123,7 +132,8 @@ TEST(ScatterSeries, Append) {
     EXPECT_FLOAT_EQ(s.y_data()[0], 20.0f);
 }
 
-TEST(ScatterSeries, FluentAPI) {
+TEST(ScatterSeries, FluentAPI)
+{
     ScatterSeries s;
     auto& ref = s.label("scatter").color(colors::green).size(8.0f);
 
@@ -134,7 +144,8 @@ TEST(ScatterSeries, FluentAPI) {
     EXPECT_FLOAT_EQ(s.size(), 8.0f);
 }
 
-TEST(ScatterSeries, DefaultSize) {
+TEST(ScatterSeries, DefaultSize)
+{
     ScatterSeries s;
     EXPECT_FLOAT_EQ(s.size(), 4.0f);
 }

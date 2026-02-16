@@ -2,33 +2,36 @@
 
 // Suppress warnings in third-party STB headers
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wall"
-#pragma clang diagnostic ignored "-Wextra"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#pragma clang diagnostic ignored "-Wunused-function"
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wall"
+    #pragma clang diagnostic ignored "-Wextra"
+    #pragma clang diagnostic ignored "-Wmissing-field-initializers"
+    #pragma clang diagnostic ignored "-Wunused-function"
 #elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wunused-function"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
 // stb_image_write header-only (implementation in src/io/stb_impl.cpp)
 #include "stb_image_write.h"
 
 #if defined(__clang__)
-#pragma clang diagnostic pop
+    #pragma clang diagnostic pop
 #elif defined(__GNUC__)
-#pragma GCC diagnostic pop
+    #pragma GCC diagnostic pop
 #endif
 
-namespace plotix {
+namespace plotix
+{
 
 bool ImageExporter::write_png(const std::string& path,
                               const uint8_t* rgba_data,
                               uint32_t width,
-                              uint32_t height) {
-    if (!rgba_data || width == 0 || height == 0) {
+                              uint32_t height)
+{
+    if (!rgba_data || width == 0 || height == 0)
+    {
         return false;
     }
 
@@ -43,4 +46,4 @@ bool ImageExporter::write_png(const std::string& path,
     return result != 0;
 }
 
-} // namespace plotix
+}  // namespace plotix

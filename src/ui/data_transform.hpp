@@ -9,11 +9,13 @@
 #include <unordered_map>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // ─── Transform types ────────────────────────────────────────────────────────
 
-enum class TransformType {
+enum class TransformType
+{
     Identity,       // No-op passthrough
     Log10,          // log10(x), skips non-positive values
     Ln,             // ln(x), skips non-positive values
@@ -32,20 +34,22 @@ enum class TransformType {
 
 // ─── Transform parameters ───────────────────────────────────────────────────
 
-struct TransformParams {
-    float scale_factor = 1.0f;       // For Scale transform
-    float offset_value = 0.0f;       // For Offset transform
-    float clamp_min = 0.0f;          // For Clamp transform
-    float clamp_max = 1.0f;          // For Clamp transform
-    float log_base = 10.0f;          // For custom log base (unused by Log10/Ln)
-    bool  skip_nan = true;           // Skip NaN values in output
+struct TransformParams
+{
+    float scale_factor = 1.0f;  // For Scale transform
+    float offset_value = 0.0f;  // For Offset transform
+    float clamp_min = 0.0f;     // For Clamp transform
+    float clamp_max = 1.0f;     // For Clamp transform
+    float log_base = 10.0f;     // For custom log base (unused by Log10/Ln)
+    bool skip_nan = true;       // Skip NaN values in output
 };
 
 // ─── Single transform step ──────────────────────────────────────────────────
 
 // A single transform operation that can be applied to a data vector.
-class DataTransform {
-public:
+class DataTransform
+{
+   public:
     using CustomFunc = std::function<float(float)>;
     using CustomXYFunc = std::function<void(std::span<const float> x_in,
                                             std::span<const float> y_in,
@@ -65,8 +69,10 @@ public:
     // Apply this transform to Y data only (X passes through unchanged).
     // Returns transformed Y values. Output may be shorter than input
     // for transforms like Derivative or Diff.
-    void apply_y(std::span<const float> x_in, std::span<const float> y_in,
-                 std::vector<float>& x_out, std::vector<float>& y_out) const;
+    void apply_y(std::span<const float> x_in,
+                 std::span<const float> y_in,
+                 std::vector<float>& x_out,
+                 std::vector<float>& y_out) const;
 
     // Apply to a single value (for per-element transforms only).
     // Returns NaN for transforms that require the full array.
@@ -87,7 +93,7 @@ public:
     // Human-readable description
     std::string description() const;
 
-private:
+   private:
     TransformType type_;
     std::string name_;
     TransformParams params_;
@@ -95,40 +101,67 @@ private:
     CustomXYFunc custom_xy_func_;
 
     // Built-in transform implementations
-    void apply_identity(std::span<const float> x_in, std::span<const float> y_in,
-                        std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_log10(std::span<const float> x_in, std::span<const float> y_in,
-                     std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_ln(std::span<const float> x_in, std::span<const float> y_in,
-                  std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_abs(std::span<const float> x_in, std::span<const float> y_in,
-                   std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_negate(std::span<const float> x_in, std::span<const float> y_in,
-                      std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_normalize(std::span<const float> x_in, std::span<const float> y_in,
-                         std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_standardize(std::span<const float> x_in, std::span<const float> y_in,
-                           std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_derivative(std::span<const float> x_in, std::span<const float> y_in,
-                          std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_cumulative_sum(std::span<const float> x_in, std::span<const float> y_in,
-                              std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_diff(std::span<const float> x_in, std::span<const float> y_in,
-                    std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_scale(std::span<const float> x_in, std::span<const float> y_in,
-                     std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_offset(std::span<const float> x_in, std::span<const float> y_in,
-                      std::vector<float>& x_out, std::vector<float>& y_out) const;
-    void apply_clamp(std::span<const float> x_in, std::span<const float> y_in,
-                     std::vector<float>& x_out, std::vector<float>& y_out) const;
+    void apply_identity(std::span<const float> x_in,
+                        std::span<const float> y_in,
+                        std::vector<float>& x_out,
+                        std::vector<float>& y_out) const;
+    void apply_log10(std::span<const float> x_in,
+                     std::span<const float> y_in,
+                     std::vector<float>& x_out,
+                     std::vector<float>& y_out) const;
+    void apply_ln(std::span<const float> x_in,
+                  std::span<const float> y_in,
+                  std::vector<float>& x_out,
+                  std::vector<float>& y_out) const;
+    void apply_abs(std::span<const float> x_in,
+                   std::span<const float> y_in,
+                   std::vector<float>& x_out,
+                   std::vector<float>& y_out) const;
+    void apply_negate(std::span<const float> x_in,
+                      std::span<const float> y_in,
+                      std::vector<float>& x_out,
+                      std::vector<float>& y_out) const;
+    void apply_normalize(std::span<const float> x_in,
+                         std::span<const float> y_in,
+                         std::vector<float>& x_out,
+                         std::vector<float>& y_out) const;
+    void apply_standardize(std::span<const float> x_in,
+                           std::span<const float> y_in,
+                           std::vector<float>& x_out,
+                           std::vector<float>& y_out) const;
+    void apply_derivative(std::span<const float> x_in,
+                          std::span<const float> y_in,
+                          std::vector<float>& x_out,
+                          std::vector<float>& y_out) const;
+    void apply_cumulative_sum(std::span<const float> x_in,
+                              std::span<const float> y_in,
+                              std::vector<float>& x_out,
+                              std::vector<float>& y_out) const;
+    void apply_diff(std::span<const float> x_in,
+                    std::span<const float> y_in,
+                    std::vector<float>& x_out,
+                    std::vector<float>& y_out) const;
+    void apply_scale(std::span<const float> x_in,
+                     std::span<const float> y_in,
+                     std::vector<float>& x_out,
+                     std::vector<float>& y_out) const;
+    void apply_offset(std::span<const float> x_in,
+                      std::span<const float> y_in,
+                      std::vector<float>& x_out,
+                      std::vector<float>& y_out) const;
+    void apply_clamp(std::span<const float> x_in,
+                     std::span<const float> y_in,
+                     std::vector<float>& x_out,
+                     std::vector<float>& y_out) const;
 };
 
 // ─── Transform pipeline ─────────────────────────────────────────────────────
 
 // A chain of transforms applied in sequence.
 // Each step's output becomes the next step's input.
-class TransformPipeline {
-public:
+class TransformPipeline
+{
+   public:
     TransformPipeline() = default;
     explicit TransformPipeline(const std::string& name) : name_(name) {}
 
@@ -153,8 +186,10 @@ public:
     bool is_enabled(size_t index) const;
 
     // Apply the full pipeline to input data
-    void apply(std::span<const float> x_in, std::span<const float> y_in,
-               std::vector<float>& x_out, std::vector<float>& y_out) const;
+    void apply(std::span<const float> x_in,
+               std::span<const float> y_in,
+               std::vector<float>& x_out,
+               std::vector<float>& y_out) const;
 
     // Access steps
     size_t step_count() const { return steps_.size(); }
@@ -171,8 +206,9 @@ public:
     // Check if pipeline is empty or all steps disabled
     bool is_identity() const;
 
-private:
-    struct Step {
+   private:
+    struct Step
+    {
         DataTransform transform;
         bool enabled = true;
     };
@@ -185,20 +221,23 @@ private:
 
 // Registry of available transforms and saved pipelines.
 // Thread-safe via internal mutex.
-class TransformRegistry {
-public:
+class TransformRegistry
+{
+   public:
     TransformRegistry();
 
     // Get the singleton instance
     static TransformRegistry& instance();
 
     // Register a named custom transform
-    void register_transform(const std::string& name, DataTransform::CustomFunc func,
+    void register_transform(const std::string& name,
+                            DataTransform::CustomFunc func,
                             const std::string& description = "");
 
     // Register a named custom XY transform
-    void register_xy_transform(const std::string& name, DataTransform::CustomXYFunc func,
-                                const std::string& description = "");
+    void register_xy_transform(const std::string& name,
+                               DataTransform::CustomXYFunc func,
+                               const std::string& description = "");
 
     // Get a registered custom transform by name
     bool get_transform(const std::string& name, DataTransform& out) const;
@@ -221,8 +260,9 @@ public:
     // Create a DataTransform from a TransformType (factory)
     static DataTransform create(TransformType type, const TransformParams& params = {});
 
-private:
-    struct CustomEntry {
+   private:
+    struct CustomEntry
+    {
         DataTransform transform;
         std::string description;
     };
@@ -237,16 +277,19 @@ private:
 // ─── Convenience free functions ─────────────────────────────────────────────
 
 // Apply a single transform type to Y data
-[[nodiscard]] std::vector<float> transform_y(
-    std::span<const float> y, TransformType type,
-    const TransformParams& params = {});
+[[nodiscard]] std::vector<float> transform_y(std::span<const float> y,
+                                             TransformType type,
+                                             const TransformParams& params = {});
 
 // Apply a single transform to X-Y data
-void transform_xy(std::span<const float> x_in, std::span<const float> y_in,
-                   std::vector<float>& x_out, std::vector<float>& y_out,
-                   TransformType type, const TransformParams& params = {});
+void transform_xy(std::span<const float> x_in,
+                  std::span<const float> y_in,
+                  std::vector<float>& x_out,
+                  std::vector<float>& y_out,
+                  TransformType type,
+                  const TransformParams& params = {});
 
 // Get the human-readable name for a transform type
 const char* transform_type_name(TransformType type);
 
-} // namespace plotix
+}  // namespace plotix

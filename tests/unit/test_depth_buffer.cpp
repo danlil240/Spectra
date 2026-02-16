@@ -1,34 +1,35 @@
-#include <plotix/app.hpp>
-#include <plotix/plotix.hpp>
-#include <plotix/math3d.hpp>
-#include <gtest/gtest.h>
-#include "render/backend.hpp"
-
 #include <cstring>
+#include <gtest/gtest.h>
+#include <plotix/app.hpp>
+#include <plotix/math3d.hpp>
+#include <plotix/plotix.hpp>
 #include <vector>
+
+#include "render/backend.hpp"
 
 using namespace plotix;
 
 // ─── Fixture ────────────────────────────────────────────────────────────────
 
-class DepthBufferTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+class DepthBufferTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
         AppConfig config;
         config.headless = true;
         app_ = std::make_unique<App>(config);
     }
 
-    void TearDown() override {
-        app_.reset();
-    }
+    void TearDown() override { app_.reset(); }
 
     std::unique_ptr<App> app_;
 };
 
 // ─── Pipeline Creation ──────────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, DepthBufferCreatedWithSwapchain) {
+TEST_F(DepthBufferTest, DepthBufferCreatedWithSwapchain)
+{
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
@@ -36,7 +37,8 @@ TEST_F(DepthBufferTest, DepthBufferCreatedWithSwapchain) {
     EXPECT_TRUE(pipeline);
 }
 
-TEST_F(DepthBufferTest, DepthBufferExistsForMultiplePipelines) {
+TEST_F(DepthBufferTest, DepthBufferExistsForMultiplePipelines)
+{
     auto* backend = app_->backend();
 
     auto line3d = backend->create_pipeline(PipelineType::Line3D);
@@ -46,7 +48,8 @@ TEST_F(DepthBufferTest, DepthBufferExistsForMultiplePipelines) {
     EXPECT_TRUE(scatter3d);
 }
 
-TEST_F(DepthBufferTest, DepthTestingEnabledFor3D) {
+TEST_F(DepthBufferTest, DepthTestingEnabledFor3D)
+{
     auto* backend = app_->backend();
 
     auto line3d = backend->create_pipeline(PipelineType::Line3D);
@@ -58,7 +61,8 @@ TEST_F(DepthBufferTest, DepthTestingEnabledFor3D) {
     EXPECT_TRUE(grid3d);
 }
 
-TEST_F(DepthBufferTest, DepthTestingDisabledFor2D) {
+TEST_F(DepthBufferTest, DepthTestingDisabledFor2D)
+{
     auto* backend = app_->backend();
 
     auto line2d = backend->create_pipeline(PipelineType::Line);
@@ -70,7 +74,8 @@ TEST_F(DepthBufferTest, DepthTestingDisabledFor2D) {
     EXPECT_TRUE(grid2d);
 }
 
-TEST_F(DepthBufferTest, AllPipelineTypesSupported) {
+TEST_F(DepthBufferTest, AllPipelineTypesSupported)
+{
     auto* backend = app_->backend();
 
     auto line2d = backend->create_pipeline(PipelineType::Line);
@@ -88,7 +93,8 @@ TEST_F(DepthBufferTest, AllPipelineTypesSupported) {
     EXPECT_TRUE(grid3d);
 }
 
-TEST_F(DepthBufferTest, DepthBufferFormatSupported) {
+TEST_F(DepthBufferTest, DepthBufferFormatSupported)
+{
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
@@ -96,7 +102,8 @@ TEST_F(DepthBufferTest, DepthBufferFormatSupported) {
     EXPECT_TRUE(pipeline);
 }
 
-TEST_F(DepthBufferTest, MeshAndSurfacePipelineTypes) {
+TEST_F(DepthBufferTest, MeshAndSurfacePipelineTypes)
+{
     [[maybe_unused]] PipelineType mesh3d = PipelineType::Mesh3D;
     [[maybe_unused]] PipelineType surface3d = PipelineType::Surface3D;
 
@@ -105,7 +112,8 @@ TEST_F(DepthBufferTest, MeshAndSurfacePipelineTypes) {
 
 // ─── Offscreen Depth Buffer ─────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, OffscreenFramebufferHasDepth) {
+TEST_F(DepthBufferTest, OffscreenFramebufferHasDepth)
+{
     // Headless mode creates an offscreen framebuffer — 3D pipelines must still work
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
@@ -114,7 +122,8 @@ TEST_F(DepthBufferTest, OffscreenFramebufferHasDepth) {
     EXPECT_TRUE(scatter3d) << "3D pipeline creation must succeed in headless/offscreen mode";
 }
 
-TEST_F(DepthBufferTest, OffscreenRenderWith3DContent) {
+TEST_F(DepthBufferTest, OffscreenRenderWith3DContent)
+{
     auto& fig = app_->figure({.width = 320, .height = 240});
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -129,7 +138,8 @@ TEST_F(DepthBufferTest, OffscreenRenderWith3DContent) {
 
 // ─── Depth Clear Validation ─────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, DepthClearedOnRenderPassBegin) {
+TEST_F(DepthBufferTest, DepthClearedOnRenderPassBegin)
+{
     // Render a 3D scene — the depth buffer must be cleared to 1.0 at the start
     // of each render pass. If not, geometry from previous frames would occlude.
     auto& fig = app_->figure({.width = 320, .height = 240});
@@ -147,7 +157,8 @@ TEST_F(DepthBufferTest, DepthClearedOnRenderPassBegin) {
 
 // ─── Readback with 3D Content ───────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, ReadbackFramebufferWith3D) {
+TEST_F(DepthBufferTest, ReadbackFramebufferWith3D)
+{
     auto& fig = app_->figure({.width = 64, .height = 64});
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -167,26 +178,34 @@ TEST_F(DepthBufferTest, ReadbackFramebufferWith3D) {
 
     // Verify the buffer was actually written to (not all zeros)
     bool has_nonzero = false;
-    for (size_t i = 0; i < pixels.size(); ++i) {
-        if (pixels[i] != 0) { has_nonzero = true; break; }
+    for (size_t i = 0; i < pixels.size(); ++i)
+    {
+        if (pixels[i] != 0)
+        {
+            has_nonzero = true;
+            break;
+        }
     }
     EXPECT_TRUE(has_nonzero) << "Readback buffer should contain rendered data";
 }
 
 // ─── FrameUBO Layout Validation ─────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, FrameUBOSize) {
+TEST_F(DepthBufferTest, FrameUBOSize)
+{
     // FrameUBO must be exactly the right size for std140 layout
     // 3 * mat4 (48 floats) + viewport_size(2) + time(1) + pad(1) +
     // camera_pos(3) + near(1) + light_dir(3) + far(1) = 60 floats = 240 bytes
     EXPECT_EQ(sizeof(FrameUBO), 240u);
 }
 
-TEST_F(DepthBufferTest, FrameUBODefaultValues) {
+TEST_F(DepthBufferTest, FrameUBODefaultValues)
+{
     FrameUBO ubo{};
 
     // Projection, view, model should be zero-initialized
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < 16; ++i)
+    {
         EXPECT_FLOAT_EQ(ubo.projection[i], 0.0f);
         EXPECT_FLOAT_EQ(ubo.view[i], 0.0f);
         EXPECT_FLOAT_EQ(ubo.model[i], 0.0f);
@@ -198,12 +217,14 @@ TEST_F(DepthBufferTest, FrameUBODefaultValues) {
 
 // ─── SeriesPushConstants Layout ─────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, PushConstantsSize) {
+TEST_F(DepthBufferTest, PushConstantsSize)
+{
     // Push constants must be exactly 96 bytes (under 128-byte minimum guarantee)
     EXPECT_EQ(sizeof(SeriesPushConstants), 96u);
 }
 
-TEST_F(DepthBufferTest, PushConstantsDefaults) {
+TEST_F(DepthBufferTest, PushConstantsDefaults)
+{
     SeriesPushConstants pc{};
     EXPECT_FLOAT_EQ(pc.line_width, 2.0f);
     EXPECT_FLOAT_EQ(pc.point_size, 4.0f);
@@ -214,7 +235,8 @@ TEST_F(DepthBufferTest, PushConstantsDefaults) {
 
 // ─── PipelineType Enum Completeness ─────────────────────────────────────────
 
-TEST_F(DepthBufferTest, PipelineTypeEnumValues) {
+TEST_F(DepthBufferTest, PipelineTypeEnumValues)
+{
     // Verify all expected pipeline types exist
     EXPECT_NE(static_cast<int>(PipelineType::Line), static_cast<int>(PipelineType::Line3D));
     EXPECT_NE(static_cast<int>(PipelineType::Scatter), static_cast<int>(PipelineType::Scatter3D));
@@ -222,7 +244,8 @@ TEST_F(DepthBufferTest, PipelineTypeEnumValues) {
     EXPECT_NE(static_cast<int>(PipelineType::Mesh3D), static_cast<int>(PipelineType::Surface3D));
 }
 
-TEST_F(DepthBufferTest, GridOverlay3DPipelineType) {
+TEST_F(DepthBufferTest, GridOverlay3DPipelineType)
+{
     // GridOverlay3D is a special pipeline type — no depth test, for grid lines after series
     [[maybe_unused]] PipelineType overlay = PipelineType::GridOverlay3D;
     EXPECT_NE(static_cast<int>(PipelineType::Grid3D),
@@ -231,7 +254,8 @@ TEST_F(DepthBufferTest, GridOverlay3DPipelineType) {
 
 // ─── Mixed 2D + 3D Depth Isolation ──────────────────────────────────────────
 
-TEST_F(DepthBufferTest, Mixed2DAnd3DRendering) {
+TEST_F(DepthBufferTest, Mixed2DAnd3DRendering)
+{
     auto& fig = app_->figure({.width = 320, .height = 480});
 
     // 2D subplot
@@ -253,7 +277,8 @@ TEST_F(DepthBufferTest, Mixed2DAnd3DRendering) {
 
 // ─── Buffer Management ──────────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, BufferCreateAndDestroy) {
+TEST_F(DepthBufferTest, BufferCreateAndDestroy)
+{
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
@@ -264,7 +289,8 @@ TEST_F(DepthBufferTest, BufferCreateAndDestroy) {
     EXPECT_NO_FATAL_FAILURE(backend->destroy_buffer(buf));
 }
 
-TEST_F(DepthBufferTest, IndexBufferCreation) {
+TEST_F(DepthBufferTest, IndexBufferCreation)
+{
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
@@ -276,7 +302,8 @@ TEST_F(DepthBufferTest, IndexBufferCreation) {
 
 // ─── Draw Indexed ───────────────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, DrawIndexedExists) {
+TEST_F(DepthBufferTest, DrawIndexedExists)
+{
     // Verify draw_indexed is callable on the backend (needed for mesh/surface)
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
@@ -288,7 +315,8 @@ TEST_F(DepthBufferTest, DrawIndexedExists) {
 
 // ─── Multiple 3D Subplots ───────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, Multiple3DSubplotsShareDepthBuffer) {
+TEST_F(DepthBufferTest, Multiple3DSubplotsShareDepthBuffer)
+{
     auto& fig = app_->figure({.width = 640, .height = 480});
 
     auto& ax1 = fig.subplot3d(1, 2, 1);
@@ -309,7 +337,8 @@ TEST_F(DepthBufferTest, Multiple3DSubplotsShareDepthBuffer) {
 
 // ─── Empty 3D Axes ──────────────────────────────────────────────────────────
 
-TEST_F(DepthBufferTest, Empty3DAxesRender) {
+TEST_F(DepthBufferTest, Empty3DAxesRender)
+{
     auto& fig = app_->figure({.width = 320, .height = 240});
     auto& ax = fig.subplot3d(1, 1, 1);
     ax.title("Empty 3D");

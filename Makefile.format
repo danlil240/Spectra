@@ -1,0 +1,37 @@
+# Makefile for formatting the Plotix project with clang-format
+# Usage: 
+#   make -f Makefile.format format     # Format all files
+#   make -f Makefile.format check      # Check formatting
+#   make -f Makefile.format help       # Show help
+
+.PHONY: format check help clean
+
+# Default target
+help:
+	@echo "Plotix Project Formatting Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  format  - Format all C++ files in the project"
+	@echo "  check   - Check if files are properly formatted"
+	@echo "  help    - Show this help message"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make -f Makefile.format format"
+	@echo "  make -f Makefile.format check"
+
+format:
+	@echo "Formatting all C++ files..."
+	@./format_project.sh
+
+check:
+	@echo "Checking formatting..."
+	@./format_project.sh --check
+
+# Alternative targets for convenience
+format-verbose:
+	@echo "Formatting all C++ files (verbose)..."
+	@./format_project.sh --verbose
+
+check-verbose:
+	@echo "Checking formatting (verbose)..."
+	@./format_project.sh --check --verbose

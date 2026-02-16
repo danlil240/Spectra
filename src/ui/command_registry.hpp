@@ -4,17 +4,19 @@
 #include <functional>
 #include <mutex>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // A single command that can be executed, searched, and bound to shortcuts.
-struct Command {
-    std::string id;           // Unique identifier, e.g. "view.reset"
-    std::string label;        // Display label, e.g. "Reset View"
-    std::string category;     // Category for grouping, e.g. "View"
-    std::string shortcut;     // Human-readable shortcut, e.g. "Ctrl+R"
+struct Command
+{
+    std::string id;        // Unique identifier, e.g. "view.reset"
+    std::string label;     // Display label, e.g. "Reset View"
+    std::string category;  // Category for grouping, e.g. "View"
+    std::string shortcut;  // Human-readable shortcut, e.g. "Ctrl+R"
     std::function<void()> callback;
     bool enabled = true;
 
@@ -23,15 +25,17 @@ struct Command {
 };
 
 // Result from a fuzzy search query.
-struct CommandSearchResult {
+struct CommandSearchResult
+{
     const Command* command = nullptr;
     int score = 0;  // Higher = better match
 };
 
 // Central registry for all application commands.
 // Thread-safe: register/unregister/search/execute may be called from any thread.
-class CommandRegistry {
-public:
+class CommandRegistry
+{
+   public:
     CommandRegistry() = default;
     ~CommandRegistry() = default;
 
@@ -57,7 +61,8 @@ public:
 
     // Fuzzy search across all commands. Returns results sorted by score (descending).
     // Empty query returns all commands (sorted by category, then label).
-    std::vector<CommandSearchResult> search(const std::string& query, size_t max_results = 50) const;
+    std::vector<CommandSearchResult> search(const std::string& query,
+                                            size_t max_results = 50) const;
 
     // Get a command by id. Returns nullptr if not found.
     const Command* find(const std::string& id) const;
@@ -82,7 +87,7 @@ public:
     std::vector<const Command*> recent_commands(size_t max_count = 10) const;
     void clear_recent();
 
-private:
+   private:
     // Fuzzy match score: higher = better. Returns 0 if no match.
     static int fuzzy_score(const std::string& query, const std::string& text);
 
@@ -92,4 +97,4 @@ private:
     static constexpr size_t MAX_RECENT = 20;
 };
 
-} // namespace plotix
+}  // namespace plotix

@@ -1,21 +1,23 @@
 #include <gtest/gtest.h>
-
 #include <plotix/series.hpp>
 
 using namespace plotix;
 
-TEST(SeriesVisibility, DefaultVisible) {
+TEST(SeriesVisibility, DefaultVisible)
+{
     LineSeries ls;
     EXPECT_TRUE(ls.visible());
 }
 
-TEST(SeriesVisibility, SetInvisible) {
+TEST(SeriesVisibility, SetInvisible)
+{
     LineSeries ls;
     ls.visible(false);
     EXPECT_FALSE(ls.visible());
 }
 
-TEST(SeriesVisibility, ToggleBack) {
+TEST(SeriesVisibility, ToggleBack)
+{
     LineSeries ls;
     ls.visible(false);
     EXPECT_FALSE(ls.visible());
@@ -23,18 +25,21 @@ TEST(SeriesVisibility, ToggleBack) {
     EXPECT_TRUE(ls.visible());
 }
 
-TEST(SeriesVisibility, ScatterDefaultVisible) {
+TEST(SeriesVisibility, ScatterDefaultVisible)
+{
     ScatterSeries ss;
     EXPECT_TRUE(ss.visible());
 }
 
-TEST(SeriesVisibility, ScatterSetInvisible) {
+TEST(SeriesVisibility, ScatterSetInvisible)
+{
     ScatterSeries ss;
     ss.visible(false);
     EXPECT_FALSE(ss.visible());
 }
 
-TEST(SeriesVisibility, FluentChaining) {
+TEST(SeriesVisibility, FluentChaining)
+{
     float x[] = {1.0f, 2.0f};
     float y[] = {3.0f, 4.0f};
     LineSeries ls(std::span<const float>(x, 2), std::span<const float>(y, 2));

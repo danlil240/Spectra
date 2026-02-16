@@ -1,23 +1,25 @@
 #pragma once
 
-#include <plotix/figure.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>
-
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <plotix/figure.hpp>
+#include <plotix/fwd.hpp>
+#include <plotix/series.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 class TabBar;
 
 // Per-figure state that persists across tab switches
-struct FigureState {
+struct FigureState
+{
     // Axis limits snapshot (restored when switching back to this figure)
-    struct AxesSnapshot {
+    struct AxesSnapshot
+    {
         AxisLimits x_limits;
         AxisLimits y_limits;
     };
@@ -44,8 +46,9 @@ struct FigureState {
  * duplication. Maintains per-figure state that persists across tab switches.
  * Designed to work with TabBar for UI representation.
  */
-class FigureManager {
-public:
+class FigureManager
+{
+   public:
     using FigureChangeCallback = std::function<void(size_t new_index, Figure* fig)>;
     using FigureCloseCallback = std::function<void(size_t index)>;
 
@@ -110,7 +113,7 @@ public:
     // Generate default title for a figure
     static std::string default_title(size_t index);
 
-private:
+   private:
     std::vector<std::unique_ptr<Figure>>& figures_;
     std::vector<FigureState> states_;
     size_t active_index_ = 0;
@@ -131,4 +134,4 @@ private:
     size_t next_figure_number() const;
 };
 
-} // namespace plotix
+}  // namespace plotix

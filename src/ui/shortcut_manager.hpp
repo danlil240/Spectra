@@ -7,32 +7,38 @@
 #include <unordered_map>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 class CommandRegistry;
 
 // Modifier flags (matching GLFW modifier bits)
-enum class KeyMod : uint8_t {
-    None    = 0,
-    Shift   = 0x01,
+enum class KeyMod : uint8_t
+{
+    None = 0,
+    Shift = 0x01,
     Control = 0x02,
-    Alt     = 0x04,
-    Super   = 0x08,
+    Alt = 0x04,
+    Super = 0x08,
 };
 
-inline KeyMod operator|(KeyMod a, KeyMod b) {
+inline KeyMod operator|(KeyMod a, KeyMod b)
+{
     return static_cast<KeyMod>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
 }
-inline KeyMod operator&(KeyMod a, KeyMod b) {
+inline KeyMod operator&(KeyMod a, KeyMod b)
+{
     return static_cast<KeyMod>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
-inline bool has_mod(KeyMod mods, KeyMod flag) {
+inline bool has_mod(KeyMod mods, KeyMod flag)
+{
     return (static_cast<uint8_t>(mods) & static_cast<uint8_t>(flag)) != 0;
 }
 
 // A keyboard shortcut: key + modifiers.
-struct Shortcut {
-    int key = 0;           // GLFW key code
+struct Shortcut
+{
+    int key = 0;  // GLFW key code
     KeyMod mods = KeyMod::None;
 
     bool operator==(const Shortcut& o) const { return key == o.key && mods == o.mods; }
@@ -48,22 +54,26 @@ struct Shortcut {
     bool valid() const { return key != 0; }
 };
 
-struct ShortcutHash {
-    size_t operator()(const Shortcut& s) const {
+struct ShortcutHash
+{
+    size_t operator()(const Shortcut& s) const
+    {
         return std::hash<int>()(s.key) ^ (std::hash<uint8_t>()(static_cast<uint8_t>(s.mods)) << 16);
     }
 };
 
 // Binding: shortcut → command id.
-struct ShortcutBinding {
+struct ShortcutBinding
+{
     Shortcut shortcut;
     std::string command_id;
 };
 
 // Manages keyboard shortcut bindings and dispatches key events to commands.
 // Thread-safe for bind/unbind. on_key should be called from the main thread.
-class ShortcutManager {
-public:
+class ShortcutManager
+{
+   public:
     ShortcutManager() = default;
     ~ShortcutManager() = default;
 
@@ -105,7 +115,7 @@ public:
     // Clear all bindings.
     void clear();
 
-private:
+   private:
     CommandRegistry* registry_ = nullptr;
     mutable std::mutex mutex_;
     std::unordered_map<Shortcut, std::string, ShortcutHash> bindings_;
@@ -114,4 +124,4 @@ private:
     static constexpr int GLFW_PRESS = 1;
 };
 
-} // namespace plotix
+}  // namespace plotix

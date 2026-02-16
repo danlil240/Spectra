@@ -1,6 +1,7 @@
 #pragma once
 
-namespace plotix {
+namespace plotix
+{
 
 class App;
 class Figure;
@@ -72,4 +73,4 @@ struct SeriesStyle;
 struct LegendConfig;
 struct FigureStyle;
 
-} // namespace plotix
+}  // namespace plotix

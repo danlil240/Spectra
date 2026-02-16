@@ -1,18 +1,20 @@
 #pragma once
 
-#include <plotix/frame.hpp>
-
 #include <chrono>
 #include <cstdint>
+#include <plotix/frame.hpp>
 
-namespace plotix {
+namespace plotix
+{
 
-class FrameScheduler {
-public:
-    enum class Mode {
-        TargetFPS,   // Sleep + spin-wait to hit target FPS
-        VSync,       // Let the swapchain/driver handle pacing
-        Uncapped,    // Run as fast as possible
+class FrameScheduler
+{
+   public:
+    enum class Mode
+    {
+        TargetFPS,  // Sleep + spin-wait to hit target FPS
+        VSync,      // Let the swapchain/driver handle pacing
+        Uncapped,   // Run as fast as possible
     };
 
     explicit FrameScheduler(float target_fps = 60.0f, Mode mode = Mode::TargetFPS);
@@ -42,27 +44,27 @@ public:
     float dt() const { return frame_.dt; }
     uint64_t frame_number() const { return frame_.number; }
 
-private:
+   private:
     using Clock = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
     using Duration = std::chrono::duration<double>;
 
     float target_fps_ = 60.0f;
-    Mode  mode_       = Mode::TargetFPS;
+    Mode mode_ = Mode::TargetFPS;
 
     // Fixed timestep
-    bool  use_fixed_timestep_ = false;
-    float fixed_dt_           = 1.0f / 60.0f;
-    float accumulator_        = 0.0f;
+    bool use_fixed_timestep_ = false;
+    float fixed_dt_ = 1.0f / 60.0f;
+    float accumulator_ = 0.0f;
 
     // Timing
     TimePoint start_time_;
     TimePoint frame_start_;
     TimePoint last_frame_start_;
     TimePoint last_frame_end_;
-    bool      first_frame_ = true;
+    bool first_frame_ = true;
 
     Frame frame_;
 };
 
-} // namespace plotix
+}  // namespace plotix

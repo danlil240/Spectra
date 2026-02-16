@@ -1,31 +1,40 @@
-#include <gtest/gtest.h>
-
-#include "ui/workspace.hpp"
-
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <string>
+
+#include "ui/workspace.hpp"
 
 using namespace plotix;
 
 // ─── Test fixture ────────────────────────────────────────────────────────────
 
-class WorkspaceV2Test : public ::testing::Test {
-protected:
+class WorkspaceV2Test : public ::testing::Test
+{
+   protected:
     std::string tmp_path;
 
-    void SetUp() override {
+    void SetUp() override
+    {
         tmp_path = (std::filesystem::temp_directory_path() / "plotix_test_ws_v2.plotix").string();
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         std::remove(tmp_path.c_str());
         // Clean up autosave if created
-        try { std::filesystem::remove(Workspace::autosave_path()); } catch (...) {}
+        try
+        {
+            std::filesystem::remove(Workspace::autosave_path());
+        }
+        catch (...)
+        {
+        }
     }
 
-    WorkspaceData make_v2_data() {
+    WorkspaceData make_v2_data()
+    {
         WorkspaceData data;
         data.theme_name = "dark";
         data.active_figure_index = 0;
@@ -90,7 +99,8 @@ protected:
 
 // ─── V2 format round-trip ───────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, V2RoundTrip) {
+TEST_F(WorkspaceV2Test, V2RoundTrip)
+{
     auto original = make_v2_data();
     ASSERT_TRUE(Workspace::save(tmp_path, original));
 
@@ -132,7 +142,8 @@ TEST_F(WorkspaceV2Test, V2RoundTrip) {
 
 // ─── V1 backward compatibility ──────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, V1FileLoadsWithDefaults) {
+TEST_F(WorkspaceV2Test, V1FileLoadsWithDefaults)
+{
     // Write a v1-style JSON manually
     std::string v1_json = R"({
   "version": 1,
@@ -179,7 +190,8 @@ TEST_F(WorkspaceV2Test, V1FileLoadsWithDefaults) {
 
 // ─── Multiple figures with tab titles ───────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, MultipleFiguresWithTabTitles) {
+TEST_F(WorkspaceV2Test, MultipleFiguresWithTabTitles)
+{
     WorkspaceData data;
     data.figures.resize(3);
     data.figures[0].title = "Fig A";
@@ -209,9 +221,11 @@ TEST_F(WorkspaceV2Test, MultipleFiguresWithTabTitles) {
 
 // ─── Multiple markers ───────────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, MultipleMarkers) {
+TEST_F(WorkspaceV2Test, MultipleMarkers)
+{
     WorkspaceData data;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         WorkspaceData::InteractionState::MarkerEntry m;
         m.data_x = static_cast<float>(i) * 1.5f;
         m.data_y = static_cast<float>(i) * 0.5f;
@@ -226,7 +240,8 @@ TEST_F(WorkspaceV2Test, MultipleMarkers) {
     ASSERT_TRUE(Workspace::load(tmp_path, loaded));
 
     ASSERT_EQ(loaded.interaction.markers.size(), 5u);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         EXPECT_NEAR(loaded.interaction.markers[i].data_x, i * 1.5f, 0.01f);
         EXPECT_EQ(loaded.interaction.markers[i].series_label, "series_" + std::to_string(i));
         EXPECT_EQ(loaded.interaction.markers[i].point_index, static_cast<size_t>(i * 10));
@@ -235,7 +250,8 @@ TEST_F(WorkspaceV2Test, MultipleMarkers) {
 
 // ─── Series visibility round-trip ───────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, SeriesVisibilityRoundTrip) {
+TEST_F(WorkspaceV2Test, SeriesVisibilityRoundTrip)
+{
     WorkspaceData data;
     WorkspaceData::FigureState fig;
     fig.title = "Visibility Test";
@@ -268,7 +284,8 @@ TEST_F(WorkspaceV2Test, SeriesVisibilityRoundTrip) {
 
 // ─── Grid visibility in axes ────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, GridVisibilityRoundTrip) {
+TEST_F(WorkspaceV2Test, GridVisibilityRoundTrip)
+{
     WorkspaceData data;
     WorkspaceData::FigureState fig;
 
@@ -294,13 +311,15 @@ TEST_F(WorkspaceV2Test, GridVisibilityRoundTrip) {
 
 // ─── Autosave ───────────────────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, AutosavePathNotEmpty) {
+TEST_F(WorkspaceV2Test, AutosavePathNotEmpty)
+{
     std::string path = Workspace::autosave_path();
     EXPECT_FALSE(path.empty());
     EXPECT_NE(path.find("plotix"), std::string::npos);
 }
 
-TEST_F(WorkspaceV2Test, MaybeAutosaveWritesFile) {
+TEST_F(WorkspaceV2Test, MaybeAutosaveWritesFile)
+{
     // Clean up first
     Workspace::clear_autosave();
     EXPECT_FALSE(Workspace::has_autosave());
@@ -322,7 +341,8 @@ TEST_F(WorkspaceV2Test, MaybeAutosaveWritesFile) {
     EXPECT_FALSE(Workspace::has_autosave());
 }
 
-TEST_F(WorkspaceV2Test, MaybeAutosaveRespectsInterval) {
+TEST_F(WorkspaceV2Test, MaybeAutosaveRespectsInterval)
+{
     Workspace::clear_autosave();
     WorkspaceData data;
 
@@ -336,7 +356,8 @@ TEST_F(WorkspaceV2Test, MaybeAutosaveRespectsInterval) {
     Workspace::clear_autosave();
 }
 
-TEST_F(WorkspaceV2Test, ClearAutosaveNoError) {
+TEST_F(WorkspaceV2Test, ClearAutosaveNoError)
+{
     // Should not throw even if file doesn't exist
     Workspace::clear_autosave();
     Workspace::clear_autosave();  // Double clear
@@ -344,7 +365,8 @@ TEST_F(WorkspaceV2Test, ClearAutosaveNoError) {
 
 // ─── Version rejection ──────────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, FutureVersionRejected) {
+TEST_F(WorkspaceV2Test, FutureVersionRejected)
+{
     std::string future_json = R"({
   "version": 999,
   "theme_name": "dark",
@@ -358,7 +380,8 @@ TEST_F(WorkspaceV2Test, FutureVersionRejected) {
 
 // ─── Empty interaction state ────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, EmptyInteractionState) {
+TEST_F(WorkspaceV2Test, EmptyInteractionState)
+{
     WorkspaceData data;
     // Default interaction state — no markers, crosshair off, tooltip on
     ASSERT_TRUE(Workspace::save(tmp_path, data));
@@ -373,7 +396,8 @@ TEST_F(WorkspaceV2Test, EmptyInteractionState) {
 
 // ─── Special characters in tab titles ───────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, SpecialCharsInTabTitle) {
+TEST_F(WorkspaceV2Test, SpecialCharsInTabTitle)
+{
     WorkspaceData data;
     WorkspaceData::FigureState fig;
     fig.custom_tab_title = "Test \"quoted\" tab\nwith newline";
@@ -391,7 +415,8 @@ TEST_F(WorkspaceV2Test, SpecialCharsInTabTitle) {
 
 // ─── Undo metadata round-trip ───────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, UndoMetadataRoundTrip) {
+TEST_F(WorkspaceV2Test, UndoMetadataRoundTrip)
+{
     WorkspaceData data;
     data.undo_count = 42;
     data.redo_count = 7;
@@ -407,17 +432,20 @@ TEST_F(WorkspaceV2Test, UndoMetadataRoundTrip) {
 
 // ─── Large workspace ────────────────────────────────────────────────────────
 
-TEST_F(WorkspaceV2Test, LargeWorkspace) {
+TEST_F(WorkspaceV2Test, LargeWorkspace)
+{
     WorkspaceData data;
     data.active_figure_index = 5;
 
-    for (int fi = 0; fi < 10; ++fi) {
+    for (int fi = 0; fi < 10; ++fi)
+    {
         WorkspaceData::FigureState fig;
         fig.title = "Figure " + std::to_string(fi);
         fig.custom_tab_title = "Tab " + std::to_string(fi);
         fig.is_modified = (fi % 2 == 0);
 
-        for (int ai = 0; ai < 4; ++ai) {
+        for (int ai = 0; ai < 4; ++ai)
+        {
             WorkspaceData::AxisState ax;
             ax.x_min = static_cast<float>(fi * 10 + ai);
             ax.x_max = ax.x_min + 10.0f;
@@ -425,7 +453,8 @@ TEST_F(WorkspaceV2Test, LargeWorkspace) {
             fig.axes.push_back(ax);
         }
 
-        for (int si = 0; si < 3; ++si) {
+        for (int si = 0; si < 3; ++si)
+        {
             WorkspaceData::SeriesState ser;
             ser.name = "Series " + std::to_string(fi) + "." + std::to_string(si);
             ser.visible = (si != 1);
@@ -444,19 +473,21 @@ TEST_F(WorkspaceV2Test, LargeWorkspace) {
     ASSERT_EQ(loaded.figures.size(), 10u);
     EXPECT_EQ(loaded.active_figure_index, 5u);
 
-    for (int fi = 0; fi < 10; ++fi) {
+    for (int fi = 0; fi < 10; ++fi)
+    {
         EXPECT_EQ(loaded.figures[fi].custom_tab_title, "Tab " + std::to_string(fi));
         EXPECT_EQ(loaded.figures[fi].is_modified, (fi % 2 == 0));
         ASSERT_EQ(loaded.figures[fi].axes.size(), 4u);
         ASSERT_EQ(loaded.figures[fi].series.size(), 3u);
 
-        for (int ai = 0; ai < 4; ++ai) {
-            EXPECT_NEAR(loaded.figures[fi].axes[ai].x_min,
-                        static_cast<float>(fi * 10 + ai), 0.01f);
+        for (int ai = 0; ai < 4; ++ai)
+        {
+            EXPECT_NEAR(loaded.figures[fi].axes[ai].x_min, static_cast<float>(fi * 10 + ai), 0.01f);
             EXPECT_EQ(loaded.figures[fi].axes[ai].grid_visible, (ai % 2 == 0));
         }
 
-        for (int si = 0; si < 3; ++si) {
+        for (int si = 0; si < 3; ++si)
+        {
             EXPECT_EQ(loaded.figures[fi].series[si].visible, (si != 1));
         }
     }

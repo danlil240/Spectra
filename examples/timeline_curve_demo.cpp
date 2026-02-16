@@ -7,13 +7,13 @@
 // - Timeline playback controls
 // - Real-time property binding to plot elements
 
-#include <plotix/plotix.hpp>
-
-#include <iostream>
-#include <vector>
 #include <cmath>
+#include <iostream>
+#include <plotix/plotix.hpp>
+#include <vector>
 
-int main() {
+int main()
+{
     plotix::App app;
     auto& fig = app.figure({.width = 1200, .height = 800});
     auto& ax = fig.subplot(1, 1, 1);
@@ -21,14 +21,15 @@ int main() {
     // Generate sample data
     constexpr size_t N = 100;
     std::vector<float> x(N), y(N);
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i)
+    {
         x[i] = static_cast<float>(i) / (N - 1) * 10.0f;
         y[i] = std::sin(x[i]);
     }
 
     // Create a line series that will be animated
     auto& line = ax.line(x, y).label("Animated Sine Wave");
-    
+
     // Set initial style
     line.color(plotix::colors::blue);
     line.width(2.0f);

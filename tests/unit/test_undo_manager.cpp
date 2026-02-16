@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
+#include <plotix/series.hpp>
+#include <string>
 
 #include "ui/tab_bar.hpp"
-#include <plotix/series.hpp>
-
-#include <string>
 
 using namespace plotix;
 
@@ -16,7 +15,8 @@ using namespace plotix;
 
 // ─── Initial State ───────────────────────────────────────────────────────────
 
-TEST(TabBar, ConstructorCreatesDefaultTab) {
+TEST(TabBar, ConstructorCreatesDefaultTab)
+{
     TabBar tb;
     EXPECT_EQ(tb.get_tab_count(), 1u);
     EXPECT_EQ(tb.get_tab_title(0), "Figure 1");
@@ -25,7 +25,8 @@ TEST(TabBar, ConstructorCreatesDefaultTab) {
 
 // ─── Tab Management ──────────────────────────────────────────────────────────
 
-TEST(TabBar, AddTabIncreasesCount) {
+TEST(TabBar, AddTabIncreasesCount)
+{
     TabBar tb;
     EXPECT_EQ(tb.get_tab_count(), 1u);
 
@@ -34,7 +35,8 @@ TEST(TabBar, AddTabIncreasesCount) {
     EXPECT_EQ(tb.get_tab_count(), 2u);
 }
 
-TEST(TabBar, AddMultipleTabs) {
+TEST(TabBar, AddMultipleTabs)
+{
     TabBar tb;
     size_t idx1 = tb.add_tab("Plot A");
     size_t idx2 = tb.add_tab("Plot B");
@@ -44,7 +46,8 @@ TEST(TabBar, AddMultipleTabs) {
     EXPECT_EQ(tb.get_tab_count(), 3u);
 }
 
-TEST(TabBar, GetTabTitle) {
+TEST(TabBar, GetTabTitle)
+{
     TabBar tb;
     tb.add_tab("My Plot");
 
@@ -52,13 +55,15 @@ TEST(TabBar, GetTabTitle) {
     EXPECT_EQ(tb.get_tab_title(1), "My Plot");
 }
 
-TEST(TabBar, SetTabTitle) {
+TEST(TabBar, SetTabTitle)
+{
     TabBar tb;
     tb.set_tab_title(0, "Renamed");
     EXPECT_EQ(tb.get_tab_title(0), "Renamed");
 }
 
-TEST(TabBar, RemoveCloseableTab) {
+TEST(TabBar, RemoveCloseableTab)
+{
     TabBar tb;
     tb.add_tab("Closeable");
     EXPECT_EQ(tb.get_tab_count(), 2u);
@@ -67,14 +72,16 @@ TEST(TabBar, RemoveCloseableTab) {
     EXPECT_EQ(tb.get_tab_count(), 1u);
 }
 
-TEST(TabBar, RemoveNonCloseableTabIsNoOp) {
+TEST(TabBar, RemoveNonCloseableTabIsNoOp)
+{
     TabBar tb;
     tb.remove_tab(0);
     EXPECT_EQ(tb.get_tab_count(), 1u);
     EXPECT_EQ(tb.get_tab_title(0), "Figure 1");
 }
 
-TEST(TabBar, RemoveTabShiftsTitles) {
+TEST(TabBar, RemoveTabShiftsTitles)
+{
     TabBar tb;
     tb.add_tab("Tab A");
     tb.add_tab("Tab B");
@@ -90,7 +97,8 @@ TEST(TabBar, RemoveTabShiftsTitles) {
 
 // ─── Active Tab ──────────────────────────────────────────────────────────────
 
-TEST(TabBar, AddTabAutoActivates) {
+TEST(TabBar, AddTabAutoActivates)
+{
     TabBar tb;
     EXPECT_EQ(tb.get_active_tab(), 0u);
 
@@ -98,7 +106,8 @@ TEST(TabBar, AddTabAutoActivates) {
     EXPECT_EQ(tb.get_active_tab(), 1u);
 }
 
-TEST(TabBar, SetActiveTab) {
+TEST(TabBar, SetActiveTab)
+{
     TabBar tb;
     tb.add_tab("Tab 1");
     tb.add_tab("Tab 2");
@@ -110,7 +119,8 @@ TEST(TabBar, SetActiveTab) {
     EXPECT_EQ(tb.get_active_tab(), 2u);
 }
 
-TEST(TabBar, RemoveActiveTabAdjustsIndex) {
+TEST(TabBar, RemoveActiveTabAdjustsIndex)
+{
     TabBar tb;
     tb.add_tab("Tab A");
     tb.add_tab("Tab B");  // index 2, now active
@@ -119,7 +129,8 @@ TEST(TabBar, RemoveActiveTabAdjustsIndex) {
     EXPECT_LT(tb.get_active_tab(), tb.get_tab_count());
 }
 
-TEST(TabBar, RemoveBeforeActiveAdjustsIndex) {
+TEST(TabBar, RemoveBeforeActiveAdjustsIndex)
+{
     TabBar tb;
     tb.add_tab("Tab A");
     tb.add_tab("Tab B");
@@ -129,7 +140,8 @@ TEST(TabBar, RemoveBeforeActiveAdjustsIndex) {
     EXPECT_EQ(tb.get_tab_title(tb.get_active_tab()), "Tab C");
 }
 
-TEST(TabBar, HasActiveTabAlwaysTrueWithDefaultTab) {
+TEST(TabBar, HasActiveTabAlwaysTrueWithDefaultTab)
+{
     TabBar tb;
     EXPECT_TRUE(tb.has_active_tab());
 
@@ -140,38 +152,35 @@ TEST(TabBar, HasActiveTabAlwaysTrueWithDefaultTab) {
 
 // ─── Callbacks ───────────────────────────────────────────────────────────────
 
-TEST(TabBar, TabChangeCallbackFires) {
+TEST(TabBar, TabChangeCallbackFires)
+{
     TabBar tb;
     tb.add_tab("Tab 1");  // index 1, now active
 
     size_t callback_index = SIZE_MAX;
-    tb.set_tab_change_callback([&callback_index](size_t idx) {
-        callback_index = idx;
-    });
+    tb.set_tab_change_callback([&callback_index](size_t idx) { callback_index = idx; });
 
     tb.set_active_tab(0);
     EXPECT_EQ(callback_index, 0u);
 }
 
-TEST(TabBar, TabChangeCallbackNotFiredForSameTab) {
+TEST(TabBar, TabChangeCallbackNotFiredForSameTab)
+{
     TabBar tb;
     tb.add_tab("Tab 1");  // index 1, now active
 
     int call_count = 0;
-    tb.set_tab_change_callback([&call_count](size_t) {
-        ++call_count;
-    });
+    tb.set_tab_change_callback([&call_count](size_t) { ++call_count; });
 
     tb.set_active_tab(1);  // Already active
     EXPECT_EQ(call_count, 0);
 }
 
-TEST(TabBar, AddTabDoesNotFireCallback) {
+TEST(TabBar, AddTabDoesNotFireCallback)
+{
     TabBar tb;
     int add_count = 0;
-    tb.set_tab_add_callback([&add_count]() {
-        ++add_count;
-    });
+    tb.set_tab_add_callback([&add_count]() { ++add_count; });
 
     // add_tab() is called programmatically by FigureManager,
     // so it must NOT fire on_tab_add_ (which would re-queue a create).
@@ -184,25 +193,23 @@ TEST(TabBar, AddTabDoesNotFireCallback) {
     EXPECT_EQ(tb.get_tab_count(), 3u);  // 1 default + 2 added
 }
 
-TEST(TabBar, TabCloseCallbackFires) {
+TEST(TabBar, TabCloseCallbackFires)
+{
     TabBar tb;
     tb.add_tab("Closeable");
 
     size_t closed_index = SIZE_MAX;
-    tb.set_tab_close_callback([&closed_index](size_t idx) {
-        closed_index = idx;
-    });
+    tb.set_tab_close_callback([&closed_index](size_t idx) { closed_index = idx; });
 
     tb.remove_tab(1);
     EXPECT_EQ(closed_index, 1u);
 }
 
-TEST(TabBar, TabCloseCallbackNotFiredForNonCloseable) {
+TEST(TabBar, TabCloseCallbackNotFiredForNonCloseable)
+{
     TabBar tb;
     int close_count = 0;
-    tb.set_tab_close_callback([&close_count](size_t) {
-        ++close_count;
-    });
+    tb.set_tab_close_callback([&close_count](size_t) { ++close_count; });
 
     tb.remove_tab(0);
     EXPECT_EQ(close_count, 0);
@@ -210,7 +217,8 @@ TEST(TabBar, TabCloseCallbackNotFiredForNonCloseable) {
 
 // ─── Can-close flag ──────────────────────────────────────────────────────────
 
-TEST(TabBar, DefaultAddedTabIsCloseable) {
+TEST(TabBar, DefaultAddedTabIsCloseable)
+{
     TabBar tb;
     tb.add_tab("Closeable");
     size_t before = tb.get_tab_count();
@@ -218,7 +226,8 @@ TEST(TabBar, DefaultAddedTabIsCloseable) {
     EXPECT_EQ(tb.get_tab_count(), before - 1);
 }
 
-TEST(TabBar, NonCloseableTabCannotBeRemoved) {
+TEST(TabBar, NonCloseableTabCannotBeRemoved)
+{
     TabBar tb;
     tb.add_tab("Permanent", false);
     size_t before = tb.get_tab_count();
@@ -228,7 +237,8 @@ TEST(TabBar, NonCloseableTabCannotBeRemoved) {
 
 // ─── Multiple operations ─────────────────────────────────────────────────────
 
-TEST(TabBar, AddRemoveAddSequence) {
+TEST(TabBar, AddRemoveAddSequence)
+{
     TabBar tb;
     tb.add_tab("A");
     tb.add_tab("B");
@@ -241,9 +251,11 @@ TEST(TabBar, AddRemoveAddSequence) {
     EXPECT_EQ(tb.get_tab_title(2), "C");
 }
 
-TEST(TabBar, ManyTabs) {
+TEST(TabBar, ManyTabs)
+{
     TabBar tb;
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 50; ++i)
+    {
         tb.add_tab("Tab " + std::to_string(i));
     }
     EXPECT_EQ(tb.get_tab_count(), 51u);
@@ -255,7 +267,8 @@ TEST(TabBar, ManyTabs) {
     EXPECT_EQ(tb.get_tab_count(), 50u);
 }
 
-TEST(TabBar, SetActiveTabOutOfRangeIsIgnored) {
+TEST(TabBar, SetActiveTabOutOfRangeIsIgnored)
+{
     TabBar tb;
     tb.add_tab("Tab 1");
     size_t before = tb.get_active_tab();
@@ -263,7 +276,8 @@ TEST(TabBar, SetActiveTabOutOfRangeIsIgnored) {
     EXPECT_EQ(tb.get_active_tab(), before);
 }
 
-TEST(TabBar, RemoveOutOfRangeIsNoOp) {
+TEST(TabBar, RemoveOutOfRangeIsNoOp)
+{
     TabBar tb;
     size_t before = tb.get_tab_count();
     tb.remove_tab(999);
@@ -272,14 +286,16 @@ TEST(TabBar, RemoveOutOfRangeIsNoOp) {
 
 // ─── TabInfo struct ──────────────────────────────────────────────────────────
 
-TEST(TabInfo, ConstructorDefaults) {
+TEST(TabInfo, ConstructorDefaults)
+{
     TabBar::TabInfo info("Test");
     EXPECT_EQ(info.title, "Test");
     EXPECT_TRUE(info.can_close);
     EXPECT_FALSE(info.is_modified);
 }
 
-TEST(TabInfo, ConstructorCustom) {
+TEST(TabInfo, ConstructorCustom)
+{
     TabBar::TabInfo info("Custom", false, true);
     EXPECT_EQ(info.title, "Custom");
     EXPECT_FALSE(info.can_close);

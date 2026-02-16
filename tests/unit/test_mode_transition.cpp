@@ -1,36 +1,39 @@
-#include <gtest/gtest.h>
-
-#include "ui/mode_transition.hpp"
-#include <plotix/axes3d.hpp>
-#include <plotix/camera.hpp>
-
 #include <atomic>
 #include <cmath>
+#include <gtest/gtest.h>
+#include <plotix/axes3d.hpp>
+#include <plotix/camera.hpp>
 #include <thread>
+
+#include "ui/mode_transition.hpp"
 
 using namespace plotix;
 
 // ─── Construction ───────────────────────────────────────────────────────────
 
-TEST(ModeTransitionConstruction, DefaultState) {
+TEST(ModeTransitionConstruction, DefaultState)
+{
     ModeTransition mt;
     EXPECT_EQ(mt.state(), ModeTransitionState::Idle);
     EXPECT_FALSE(mt.is_active());
     EXPECT_FLOAT_EQ(mt.progress(), 0.0f);
 }
 
-TEST(ModeTransitionConstruction, DefaultDuration) {
+TEST(ModeTransitionConstruction, DefaultDuration)
+{
     ModeTransition mt;
     EXPECT_FLOAT_EQ(mt.duration(), 0.6f);
 }
 
-TEST(ModeTransitionConstruction, SetDuration) {
+TEST(ModeTransitionConstruction, SetDuration)
+{
     ModeTransition mt;
     mt.set_duration(1.5f);
     EXPECT_FLOAT_EQ(mt.duration(), 1.5f);
 }
 
-TEST(ModeTransitionConstruction, SetDurationClampsPositive) {
+TEST(ModeTransitionConstruction, SetDurationClampsPositive)
+{
     ModeTransition mt;
     mt.set_duration(-1.0f);
     EXPECT_GT(mt.duration(), 0.0f);
@@ -38,7 +41,8 @@ TEST(ModeTransitionConstruction, SetDurationClampsPositive) {
 
 // ─── To3D Transition ────────────────────────────────────────────────────────
 
-TEST(ModeTransitionTo3D, BeginReturnsNonZeroId) {
+TEST(ModeTransitionTo3D, BeginReturnsNonZeroId)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -46,7 +50,8 @@ TEST(ModeTransitionTo3D, BeginReturnsNonZeroId) {
     EXPECT_GT(id, 0u);
 }
 
-TEST(ModeTransitionTo3D, StateBecomesAnimating) {
+TEST(ModeTransitionTo3D, StateBecomesAnimating)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -54,7 +59,8 @@ TEST(ModeTransitionTo3D, StateBecomesAnimating) {
     EXPECT_TRUE(mt.is_active());
 }
 
-TEST(ModeTransitionTo3D, DirectionIsTo3D) {
+TEST(ModeTransitionTo3D, DirectionIsTo3D)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -62,7 +68,8 @@ TEST(ModeTransitionTo3D, DirectionIsTo3D) {
     EXPECT_EQ(mt.direction(), ModeTransitionDirection::To3D);
 }
 
-TEST(ModeTransitionTo3D, RejectsWhileAnimating) {
+TEST(ModeTransitionTo3D, RejectsWhileAnimating)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -71,7 +78,8 @@ TEST(ModeTransitionTo3D, RejectsWhileAnimating) {
     EXPECT_EQ(id2, 0u);
 }
 
-TEST(ModeTransitionTo3D, InitialOpacityIsZero) {
+TEST(ModeTransitionTo3D, InitialOpacityIsZero)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -79,7 +87,8 @@ TEST(ModeTransitionTo3D, InitialOpacityIsZero) {
     EXPECT_FLOAT_EQ(mt.element_3d_opacity(), 0.0f);
 }
 
-TEST(ModeTransitionTo3D, InitialZLimMatchesTarget) {
+TEST(ModeTransitionTo3D, InitialZLimMatchesTarget)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -91,7 +100,8 @@ TEST(ModeTransitionTo3D, InitialZLimMatchesTarget) {
     EXPECT_NEAR(zlim.max, 5.0f, 0.01f);
 }
 
-TEST(ModeTransitionTo3D, ProgressIncreasesWithUpdate) {
+TEST(ModeTransitionTo3D, ProgressIncreasesWithUpdate)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     ModeTransition2DState s2d;
@@ -102,7 +112,8 @@ TEST(ModeTransitionTo3D, ProgressIncreasesWithUpdate) {
     EXPECT_LT(mt.progress(), 1.0f);
 }
 
-TEST(ModeTransitionTo3D, CompletesAfterDuration) {
+TEST(ModeTransitionTo3D, CompletesAfterDuration)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     ModeTransition2DState s2d;
@@ -113,7 +124,8 @@ TEST(ModeTransitionTo3D, CompletesAfterDuration) {
     EXPECT_EQ(mt.state(), ModeTransitionState::Finished);
 }
 
-TEST(ModeTransitionTo3D, OpacityReachesOneAtEnd) {
+TEST(ModeTransitionTo3D, OpacityReachesOneAtEnd)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });  // Linear
@@ -124,7 +136,8 @@ TEST(ModeTransitionTo3D, OpacityReachesOneAtEnd) {
     EXPECT_NEAR(mt.element_3d_opacity(), 1.0f, 0.01f);
 }
 
-TEST(ModeTransitionTo3D, ZLimExpandsAtEnd) {
+TEST(ModeTransitionTo3D, ZLimExpandsAtEnd)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });  // Linear
@@ -138,7 +151,8 @@ TEST(ModeTransitionTo3D, ZLimExpandsAtEnd) {
     EXPECT_NEAR(zlim.max, 5.0f, 0.1f);
 }
 
-TEST(ModeTransitionTo3D, XLimStaysConstant) {
+TEST(ModeTransitionTo3D, XLimStaysConstant)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });  // Linear
@@ -156,7 +170,8 @@ TEST(ModeTransitionTo3D, XLimStaysConstant) {
 
 // ─── To2D Transition ────────────────────────────────────────────────────────
 
-TEST(ModeTransitionTo2D, BeginReturnsNonZeroId) {
+TEST(ModeTransitionTo2D, BeginReturnsNonZeroId)
+{
     ModeTransition mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
@@ -164,7 +179,8 @@ TEST(ModeTransitionTo2D, BeginReturnsNonZeroId) {
     EXPECT_GT(id, 0u);
 }
 
-TEST(ModeTransitionTo2D, DirectionIsTo2D) {
+TEST(ModeTransitionTo2D, DirectionIsTo2D)
+{
     ModeTransition mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
@@ -172,7 +188,8 @@ TEST(ModeTransitionTo2D, DirectionIsTo2D) {
     EXPECT_EQ(mt.direction(), ModeTransitionDirection::To2D);
 }
 
-TEST(ModeTransitionTo2D, InitialOpacityIsOne) {
+TEST(ModeTransitionTo2D, InitialOpacityIsOne)
+{
     ModeTransition mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
@@ -180,7 +197,8 @@ TEST(ModeTransitionTo2D, InitialOpacityIsOne) {
     EXPECT_FLOAT_EQ(mt.element_3d_opacity(), 1.0f);
 }
 
-TEST(ModeTransitionTo2D, OpacityReachesZeroAtEnd) {
+TEST(ModeTransitionTo2D, OpacityReachesZeroAtEnd)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });
@@ -191,7 +209,8 @@ TEST(ModeTransitionTo2D, OpacityReachesZeroAtEnd) {
     EXPECT_NEAR(mt.element_3d_opacity(), 0.0f, 0.01f);
 }
 
-TEST(ModeTransitionTo2D, ZLimStaysConstant) {
+TEST(ModeTransitionTo2D, ZLimStaysConstant)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });
@@ -206,7 +225,8 @@ TEST(ModeTransitionTo2D, ZLimStaysConstant) {
     EXPECT_NEAR(zlim.max, 5.0f, 0.01f);
 }
 
-TEST(ModeTransitionTo2D, CompletesAfterDuration) {
+TEST(ModeTransitionTo2D, CompletesAfterDuration)
+{
     ModeTransition mt;
     mt.set_duration(0.3f);
     ModeTransition3DState s3d;
@@ -218,7 +238,8 @@ TEST(ModeTransitionTo2D, CompletesAfterDuration) {
 
 // ─── Camera Interpolation ───────────────────────────────────────────────────
 
-TEST(ModeTransitionCamera, TopDownStartsOrthographic) {
+TEST(ModeTransitionCamera, TopDownStartsOrthographic)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -228,7 +249,8 @@ TEST(ModeTransitionCamera, TopDownStartsOrthographic) {
     EXPECT_EQ(cam.projection_mode, Camera::ProjectionMode::Orthographic);
 }
 
-TEST(ModeTransitionCamera, SwitchesToPerspectiveAtMidpoint) {
+TEST(ModeTransitionCamera, SwitchesToPerspectiveAtMidpoint)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
@@ -241,7 +263,8 @@ TEST(ModeTransitionCamera, SwitchesToPerspectiveAtMidpoint) {
     EXPECT_EQ(cam.projection_mode, Camera::ProjectionMode::Perspective);
 }
 
-TEST(ModeTransitionCamera, PositionInterpolatesTo3D) {
+TEST(ModeTransitionCamera, PositionInterpolatesTo3D)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
@@ -259,7 +282,8 @@ TEST(ModeTransitionCamera, PositionInterpolatesTo3D) {
     EXPECT_NEAR(cam.position.z, s3d.camera.position.z, 0.5f);
 }
 
-TEST(ModeTransitionCamera, TargetInterpolatesTo3D) {
+TEST(ModeTransitionCamera, TargetInterpolatesTo3D)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
@@ -280,7 +304,8 @@ TEST(ModeTransitionCamera, TargetInterpolatesTo3D) {
 
 // ─── Grid Planes ────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionGrid, StartsAtTargetPlanes) {
+TEST(ModeTransitionGrid, StartsAtTargetPlanes)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -290,7 +315,8 @@ TEST(ModeTransitionGrid, StartsAtTargetPlanes) {
     EXPECT_EQ(mt.interpolated_grid_planes(), 7);
 }
 
-TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate) {
+TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
@@ -304,7 +330,8 @@ TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate) {
 
 // ─── Cancel ─────────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionCancel, CancelStopsTransition) {
+TEST(ModeTransitionCancel, CancelStopsTransition)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -315,7 +342,8 @@ TEST(ModeTransitionCancel, CancelStopsTransition) {
     EXPECT_EQ(mt.state(), ModeTransitionState::Idle);
 }
 
-TEST(ModeTransitionCancel, CanBeginAfterCancel) {
+TEST(ModeTransitionCancel, CanBeginAfterCancel)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -327,7 +355,8 @@ TEST(ModeTransitionCancel, CanBeginAfterCancel) {
 
 // ─── Callbacks ──────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionCallbacks, ProgressCallbackFires) {
+TEST(ModeTransitionCallbacks, ProgressCallbackFires)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     float last_t = -1.0f;
@@ -339,7 +368,8 @@ TEST(ModeTransitionCallbacks, ProgressCallbackFires) {
     EXPECT_GT(last_t, 0.0f);
 }
 
-TEST(ModeTransitionCallbacks, CompleteCallbackFires) {
+TEST(ModeTransitionCallbacks, CompleteCallbackFires)
+{
     ModeTransition mt;
     mt.set_duration(0.1f);
     ModeTransitionDirection completed_dir = ModeTransitionDirection::To2D;
@@ -351,7 +381,8 @@ TEST(ModeTransitionCallbacks, CompleteCallbackFires) {
     EXPECT_EQ(completed_dir, ModeTransitionDirection::To3D);
 }
 
-TEST(ModeTransitionCallbacks, CompleteCallbackFiresTo2D) {
+TEST(ModeTransitionCallbacks, CompleteCallbackFiresTo2D)
+{
     ModeTransition mt;
     mt.set_duration(0.1f);
     ModeTransitionDirection completed_dir = ModeTransitionDirection::To3D;
@@ -365,7 +396,8 @@ TEST(ModeTransitionCallbacks, CompleteCallbackFiresTo2D) {
 
 // ─── Easing ─────────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionEasing, CustomEasingApplied) {
+TEST(ModeTransitionEasing, CustomEasingApplied)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t * t; });  // Quadratic ease-in
@@ -378,7 +410,8 @@ TEST(ModeTransitionEasing, CustomEasingApplied) {
     EXPECT_NEAR(p, 0.25f, 0.01f);
 }
 
-TEST(ModeTransitionEasing, DefaultSmoothstep) {
+TEST(ModeTransitionEasing, DefaultSmoothstep)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     ModeTransition2DState s2d;
@@ -392,7 +425,8 @@ TEST(ModeTransitionEasing, DefaultSmoothstep) {
 
 // ─── Serialization ──────────────────────────────────────────────────────────
 
-TEST(ModeTransitionSerialization, RoundTrip) {
+TEST(ModeTransitionSerialization, RoundTrip)
+{
     ModeTransition mt;
     mt.set_duration(1.2f);
     std::string json = mt.serialize();
@@ -403,7 +437,8 @@ TEST(ModeTransitionSerialization, RoundTrip) {
     EXPECT_NEAR(mt2.duration(), 1.2f, 0.01f);
 }
 
-TEST(ModeTransitionSerialization, DeserializeResetsToIdle) {
+TEST(ModeTransitionSerialization, DeserializeResetsToIdle)
+{
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
@@ -416,20 +451,23 @@ TEST(ModeTransitionSerialization, DeserializeResetsToIdle) {
     EXPECT_FALSE(mt2.is_active());
 }
 
-TEST(ModeTransitionSerialization, EmptyJsonHandled) {
+TEST(ModeTransitionSerialization, EmptyJsonHandled)
+{
     ModeTransition mt;
     EXPECT_TRUE(mt.deserialize("{}"));
 }
 
 // ─── Edge Cases ─────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionEdge, UpdateWhenIdle) {
+TEST(ModeTransitionEdge, UpdateWhenIdle)
+{
     ModeTransition mt;
     mt.update(0.1f);  // Should not crash
     EXPECT_EQ(mt.state(), ModeTransitionState::Idle);
 }
 
-TEST(ModeTransitionEdge, ZeroDuration) {
+TEST(ModeTransitionEdge, ZeroDuration)
+{
     ModeTransition mt;
     mt.set_duration(0.0f);  // Clamped to 0.01
     ModeTransition2DState s2d;
@@ -439,7 +477,8 @@ TEST(ModeTransitionEdge, ZeroDuration) {
     EXPECT_FALSE(mt.is_active());
 }
 
-TEST(ModeTransitionEdge, VeryLargeDt) {
+TEST(ModeTransitionEdge, VeryLargeDt)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     ModeTransition2DState s2d;
@@ -449,7 +488,8 @@ TEST(ModeTransitionEdge, VeryLargeDt) {
     EXPECT_FALSE(mt.is_active());
 }
 
-TEST(ModeTransitionEdge, MultipleSmallUpdates) {
+TEST(ModeTransitionEdge, MultipleSmallUpdates)
+{
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });
@@ -457,7 +497,8 @@ TEST(ModeTransitionEdge, MultipleSmallUpdates) {
     ModeTransition3DState s3d;
     s3d.zlim = {-1.0f, 1.0f};
     mt.begin_to_3d(s2d, s3d);
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 100; ++i)
+    {
         mt.update(0.01f);
     }
     // 100 * 0.01 = 1.0s > 0.5s duration, so should be finished
@@ -468,7 +509,8 @@ TEST(ModeTransitionEdge, MultipleSmallUpdates) {
     EXPECT_NEAR(zlim.max, 1.0f, 0.1f);
 }
 
-TEST(ModeTransitionEdge, CanBeginAfterFinished) {
+TEST(ModeTransitionEdge, CanBeginAfterFinished)
+{
     ModeTransition mt;
     mt.set_duration(0.1f);
     ModeTransition2DState s2d;
@@ -484,7 +526,8 @@ TEST(ModeTransitionEdge, CanBeginAfterFinished) {
 
 // ─── Thread Safety ──────────────────────────────────────────────────────────
 
-TEST(ModeTransitionThread, ConcurrentUpdateAndQuery) {
+TEST(ModeTransitionThread, ConcurrentUpdateAndQuery)
+{
     ModeTransition mt;
     mt.set_duration(1.0f);
     ModeTransition2DState s2d;
@@ -492,15 +535,19 @@ TEST(ModeTransitionThread, ConcurrentUpdateAndQuery) {
     mt.begin_to_3d(s2d, s3d);
 
     std::atomic<bool> done{false};
-    std::thread updater([&] {
-        for (int i = 0; i < 100 && !done; ++i) {
-            mt.update(0.01f);
-        }
-        done = true;
-    });
+    std::thread updater(
+        [&]
+        {
+            for (int i = 0; i < 100 && !done; ++i)
+            {
+                mt.update(0.01f);
+            }
+            done = true;
+        });
 
     // Query from main thread while updating
-    for (int i = 0; i < 100 && !done; ++i) {
+    for (int i = 0; i < 100 && !done; ++i)
+    {
         (void)mt.progress();
         (void)mt.interpolated_camera();
         (void)mt.element_3d_opacity();

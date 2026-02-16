@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
-
-#include <plotix/figure.hpp>
 #include <plotix/axes.hpp>
+#include <plotix/figure.hpp>
 #include <plotix/series.hpp>
 
 // SelectionContext is header-only, no ImGui dependency
@@ -12,7 +11,8 @@ using namespace plotix::ui;
 
 // ─── SelectionContext Tests ─────────────────────────────────────────────────
 
-TEST(SelectionContext, DefaultIsNone) {
+TEST(SelectionContext, DefaultIsNone)
+{
     SelectionContext ctx;
     EXPECT_EQ(ctx.type, SelectionType::None);
     EXPECT_EQ(ctx.figure, nullptr);
@@ -22,7 +22,8 @@ TEST(SelectionContext, DefaultIsNone) {
     EXPECT_EQ(ctx.series_index, -1);
 }
 
-TEST(SelectionContext, SelectFigure) {
+TEST(SelectionContext, SelectFigure)
+{
     Figure fig;
     SelectionContext ctx;
     ctx.select_figure(&fig);
@@ -33,7 +34,8 @@ TEST(SelectionContext, SelectFigure) {
     EXPECT_EQ(ctx.series, nullptr);
 }
 
-TEST(SelectionContext, SelectAxes) {
+TEST(SelectionContext, SelectAxes)
+{
     Figure fig;
     auto& ax = fig.subplot(1, 1, 1);
     SelectionContext ctx;
@@ -46,7 +48,8 @@ TEST(SelectionContext, SelectAxes) {
     EXPECT_EQ(ctx.series, nullptr);
 }
 
-TEST(SelectionContext, SelectSeries) {
+TEST(SelectionContext, SelectSeries)
+{
     Figure fig;
     auto& ax = fig.subplot(1, 1, 1);
     float x[] = {1, 2, 3};
@@ -64,7 +67,8 @@ TEST(SelectionContext, SelectSeries) {
     EXPECT_EQ(ctx.series_index, 0);
 }
 
-TEST(SelectionContext, ClearResetsAll) {
+TEST(SelectionContext, ClearResetsAll)
+{
     Figure fig;
     auto& ax = fig.subplot(1, 1, 1);
     float x[] = {1, 2, 3};
@@ -84,7 +88,8 @@ TEST(SelectionContext, ClearResetsAll) {
     EXPECT_EQ(ctx.series_index, -1);
 }
 
-TEST(SelectionContext, SelectFigureClearsPrevious) {
+TEST(SelectionContext, SelectFigureClearsPrevious)
+{
     Figure fig;
     auto& ax = fig.subplot(1, 1, 1);
     float x[] = {1, 2, 3};
@@ -104,7 +109,8 @@ TEST(SelectionContext, SelectFigureClearsPrevious) {
     EXPECT_EQ(ctx.axes_index, -1);
 }
 
-TEST(SelectionContext, MultipleAxesSelection) {
+TEST(SelectionContext, MultipleAxesSelection)
+{
     Figure fig;
     auto& ax0 = fig.subplot(2, 1, 1);
     auto& ax1 = fig.subplot(2, 1, 2);
@@ -121,7 +127,8 @@ TEST(SelectionContext, MultipleAxesSelection) {
 
 // ─── SelectionType enum coverage ────────────────────────────────────────────
 
-TEST(SelectionType, AllValuesDistinct) {
+TEST(SelectionType, AllValuesDistinct)
+{
     EXPECT_NE(SelectionType::None, SelectionType::Figure);
     EXPECT_NE(SelectionType::Figure, SelectionType::Axes);
     EXPECT_NE(SelectionType::Axes, SelectionType::Series);

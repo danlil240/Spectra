@@ -1,21 +1,22 @@
 #pragma once
 
-#include <plotix/series.hpp>  // For Rect
-#include <plotix/fwd.hpp>
-
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <plotix/fwd.hpp>
+#include <plotix/series.hpp>  // For Rect
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // ─── Split direction ─────────────────────────────────────────────────────────
 
-enum class SplitDirection {
+enum class SplitDirection
+{
     Horizontal,  // Left | Right  (vertical divider)
     Vertical     // Top / Bottom  (horizontal divider)
 };
@@ -24,8 +25,9 @@ enum class SplitDirection {
 // A leaf or internal node in the split tree.
 // Leaf nodes hold a figure_index; internal nodes hold two children + a ratio.
 
-class SplitPane {
-public:
+class SplitPane
+{
+   public:
     using PaneId = uint32_t;
 
     // Create a leaf pane bound to a figure index
@@ -44,8 +46,7 @@ public:
     // (second) child pane. The original figure_index moves to the first child.
     // new_figure_index is assigned to the second child.
     // Returns nullptr if this pane is already split.
-    SplitPane* split(SplitDirection direction, size_t new_figure_index,
-                     float ratio = 0.5f);
+    SplitPane* split(SplitDirection direction, size_t new_figure_index, float ratio = 0.5f);
 
     // Unsplit: collapse this internal node back to a leaf, keeping the
     // child identified by keep_first (true = first child, false = second).
@@ -127,11 +128,11 @@ public:
     static constexpr float MIN_RATIO = 0.1f;
     static constexpr float MAX_RATIO = 0.9f;
 
-private:
+   private:
     PaneId id_;
     size_t figure_index_ = 0;
     std::vector<size_t> figure_indices_;  // All figures in this pane
-    size_t active_local_ = 0;            // Index into figure_indices_
+    size_t active_local_ = 0;             // Index into figure_indices_
 
     SplitDirection split_direction_ = SplitDirection::Horizontal;
     float split_ratio_ = 0.5f;
@@ -150,8 +151,9 @@ private:
 // Owns the root SplitPane tree and provides convenience operations.
 // Thread-safe via internal mutex.
 
-class SplitViewManager {
-public:
+class SplitViewManager
+{
+   public:
     using SplitCallback = std::function<void(SplitPane* pane)>;
     using PaneChangeCallback = std::function<void(size_t figure_index)>;
 
@@ -166,12 +168,13 @@ public:
 
     // Split the pane containing figure_index. Returns the new pane, or
     // nullptr if the figure is not found or max splits reached.
-    SplitPane* split_pane(size_t figure_index, SplitDirection direction,
-                          size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_pane(size_t figure_index,
+                          SplitDirection direction,
+                          size_t new_figure_index,
+                          float ratio = 0.5f);
 
     // Split the active pane (convenience)
-    SplitPane* split_active(SplitDirection direction, size_t new_figure_index,
-                            float ratio = 0.5f);
+    SplitPane* split_active(SplitDirection direction, size_t new_figure_index, float ratio = 0.5f);
 
     // Close a split pane (unsplit its parent, keeping the sibling)
     bool close_pane(size_t figure_index);
@@ -241,7 +244,7 @@ public:
 
     static constexpr size_t MAX_PANES = 8;
 
-private:
+   private:
     std::unique_ptr<SplitPane> root_;
     size_t active_figure_index_ = 0;
     Rect canvas_bounds_{};
@@ -262,4 +265,4 @@ private:
     void recompute_layout();
 };
 
-} // namespace plotix
+}  // namespace plotix

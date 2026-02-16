@@ -1,18 +1,18 @@
-#include <gtest/gtest.h>
-
-#include <plotix/timeline.hpp>
-
 #include <cmath>
+#include <gtest/gtest.h>
+#include <plotix/timeline.hpp>
 
 using namespace plotix;
 
-TEST(Timeline, EmptyTimeline) {
+TEST(Timeline, EmptyTimeline)
+{
     Timeline tl;
     EXPECT_TRUE(tl.empty());
     EXPECT_FLOAT_EQ(tl.duration(), 0.0f);
 }
 
-TEST(Timeline, SingleFloatKeyframe) {
+TEST(Timeline, SingleFloatKeyframe)
+{
     Timeline tl;
     tl.add(0.0f, 42.0f);
 
@@ -24,7 +24,8 @@ TEST(Timeline, SingleFloatKeyframe) {
     EXPECT_FLOAT_EQ(std::get<float>(val), 42.0f);
 }
 
-TEST(Timeline, TwoFloatKeyframesLinear) {
+TEST(Timeline, TwoFloatKeyframesLinear)
+{
     Timeline tl;
     tl.add(0.0f, 0.0f, ease::linear);
     tl.add(1.0f, 10.0f, ease::linear);
@@ -47,7 +48,8 @@ TEST(Timeline, TwoFloatKeyframesLinear) {
     EXPECT_FLOAT_EQ(std::get<float>(v1), 10.0f);
 }
 
-TEST(Timeline, FloatKeyframeBeforeFirst) {
+TEST(Timeline, FloatKeyframeBeforeFirst)
+{
     Timeline tl;
     tl.add(1.0f, 100.0f);
     tl.add(2.0f, 200.0f);
@@ -58,7 +60,8 @@ TEST(Timeline, FloatKeyframeBeforeFirst) {
     EXPECT_FLOAT_EQ(std::get<float>(v), 100.0f);
 }
 
-TEST(Timeline, FloatKeyframeAfterLast) {
+TEST(Timeline, FloatKeyframeAfterLast)
+{
     Timeline tl;
     tl.add(0.0f, 10.0f);
     tl.add(1.0f, 20.0f);
@@ -69,7 +72,8 @@ TEST(Timeline, FloatKeyframeAfterLast) {
     EXPECT_FLOAT_EQ(std::get<float>(v), 20.0f);
 }
 
-TEST(Timeline, ThreeFloatKeyframes) {
+TEST(Timeline, ThreeFloatKeyframes)
+{
     Timeline tl;
     tl.add(0.0f, 0.0f, ease::linear);
     tl.add(1.0f, 10.0f, ease::linear);
@@ -86,7 +90,8 @@ TEST(Timeline, ThreeFloatKeyframes) {
     EXPECT_FLOAT_EQ(std::get<float>(v15), 5.0f);
 }
 
-TEST(Timeline, ColorKeyframesLinear) {
+TEST(Timeline, ColorKeyframesLinear)
+{
     Timeline tl;
     tl.add(0.0f, Color{1.0f, 0.0f, 0.0f, 1.0f}, ease::linear);
     tl.add(1.0f, Color{0.0f, 0.0f, 1.0f, 1.0f}, ease::linear);
@@ -101,7 +106,8 @@ TEST(Timeline, ColorKeyframesLinear) {
     EXPECT_NEAR(c.a, 1.0f, 1e-5f);
 }
 
-TEST(Timeline, EaseInKeyframes) {
+TEST(Timeline, EaseInKeyframes)
+{
     Timeline tl;
     tl.add(0.0f, 0.0f, ease::ease_in);
     tl.add(1.0f, 1.0f, ease::ease_in);
@@ -112,7 +118,8 @@ TEST(Timeline, EaseInKeyframes) {
     EXPECT_NEAR(std::get<float>(v), 0.125f, 1e-5f);
 }
 
-TEST(Timeline, Duration) {
+TEST(Timeline, Duration)
+{
     Timeline tl;
     tl.add(0.0f, 0.0f);
     tl.add(3.5f, 10.0f);

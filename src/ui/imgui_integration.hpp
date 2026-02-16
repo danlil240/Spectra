@@ -2,22 +2,24 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include <plotix/fwd.hpp>
-#include "input.hpp"
-#include "layout_manager.hpp"
-#include "inspector.hpp"
-#include "selection_context.hpp"
-#include "dock_system.hpp"
-#include <functional>
-#include <vector>
-#include <string>
-#include <memory>
-#include <unordered_map>
+    #include <functional>
+    #include <memory>
+    #include <plotix/fwd.hpp>
+    #include <string>
+    #include <unordered_map>
+    #include <vector>
+
+    #include "dock_system.hpp"
+    #include "input.hpp"
+    #include "inspector.hpp"
+    #include "layout_manager.hpp"
+    #include "selection_context.hpp"
 
 struct GLFWwindow;
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 class AnimationCurveEditor;
 class AxisLinkManager;
@@ -33,13 +35,16 @@ class TimelineEditor;
 class UndoManager;
 class VulkanBackend;
 
-class ImGuiIntegration {
-public:
-    struct MenuItem {
+class ImGuiIntegration
+{
+   public:
+    struct MenuItem
+    {
         std::string label;
         std::function<void()> callback;
-        MenuItem(const std::string& l, std::function<void()> cb = nullptr) 
-            : label(l), callback(cb) {}
+        MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
+        {
+        }
     };
 
     ImGuiIntegration() = default;
@@ -56,7 +61,7 @@ public:
     void render(VulkanBackend& backend);
 
     void on_swapchain_recreated(VulkanBackend& backend);
-    
+
     // Layout management
     LayoutManager& get_layout_manager() { return *layout_manager_; }
     void update_layout(float window_width, float window_height, float dt = 0.0f);
@@ -64,14 +69,18 @@ public:
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
-    
+
     // Interaction state getters
     bool should_reset_view() const { return reset_view_; }
     void clear_reset_view() { reset_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
-    
+
     // Status bar data setters (called by app loop with real data)
-    void set_cursor_data(float x, float y) { cursor_data_x_ = x; cursor_data_y_ = y; }
+    void set_cursor_data(float x, float y)
+    {
+        cursor_data_x_ = x;
+        cursor_data_y_ = y;
+    }
     void set_zoom_level(float zoom) { zoom_level_ = zoom; }
     void set_gpu_time(float ms) { gpu_time_ms_ = ms; }
 
@@ -130,7 +139,7 @@ public:
     // Series selection from canvas click (updates inspector context)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
 
-private:
+   private:
     void apply_modern_style();
     void load_fonts();
 
@@ -145,13 +154,16 @@ private:
     void draw_axis_link_indicators(Figure& figure);
     void draw_timeline_panel();
     void draw_curve_editor_panel();
-#if PLOTIX_FLOATING_TOOLBAR
+    #if PLOTIX_FLOATING_TOOLBAR
     void draw_floating_toolbar();
-#endif
+    #endif
     void draw_theme_settings();
-    
+
     void draw_plot_text(Figure& figure);
-    void draw_toolbar_button(const char* icon, std::function<void()> callback, const char* tooltip, bool is_active = false);
+    void draw_toolbar_button(const char* icon,
+                             std::function<void()> callback,
+                             const char* tooltip,
+                             bool is_active = false);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
     // Legacy methods (to be removed after full migration)
     void draw_menubar();
@@ -166,24 +178,29 @@ private:
     ui::SelectionContext selection_ctx_;
 
     // Panel state
-    bool panel_open_   = false;
+    bool panel_open_ = false;
 
-    enum class Section { Figure, Series, Axes };
+    enum class Section
+    {
+        Figure,
+        Series,
+        Axes
+    };
     Section active_section_ = Section::Figure;
 
     float panel_anim_ = 0.0f;
 
     // Fonts at different sizes
-    ImFont* font_body_    = nullptr;  // 16px — body text, controls
+    ImFont* font_body_ = nullptr;     // 16px — body text, controls
     ImFont* font_heading_ = nullptr;  // 12.5px — section headers (uppercase)
-    ImFont* font_icon_    = nullptr;  // 20px — icon bar symbols
-    ImFont* font_title_   = nullptr;  // 18px — panel title
+    ImFont* font_icon_ = nullptr;     // 20px — icon bar symbols
+    ImFont* font_title_ = nullptr;    // 18px — panel title
     ImFont* font_menubar_ = nullptr;  // 15px — menubar items
-    
+
     // Interaction state
     bool reset_view_ = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
-    
+
     // Status bar data
     float cursor_data_x_ = 0.0f;
     float cursor_data_y_ = 0.0f;
@@ -229,53 +246,62 @@ private:
     // bool context_menu_open_ = false;  // Currently unused
 
     // Per-pane tab drag state
-    struct PaneTabDragState {
+    struct PaneTabDragState
+    {
         bool dragging = false;
         uint32_t source_pane_id = 0;
         size_t dragged_figure_index = SIZE_MAX;
         float drag_start_x = 0.0f;
         float drag_start_y = 0.0f;
-        bool cross_pane = false;    // Dragged outside source pane header
-        bool dock_dragging = false; // Dragged far enough vertically → dock system handles split
+        bool cross_pane = false;     // Dragged outside source pane header
+        bool dock_dragging = false;  // Dragged far enough vertically → dock system handles split
     };
     PaneTabDragState pane_tab_drag_;
     bool pane_tab_hovered_ = false;  // True when mouse is over a pane tab header
 
     // Animated tab positions: keyed by (pane_id, figure_index) so each
     // pane gets independent animation state (prevents shaking after splits)
-    struct PaneTabAnim {
+    struct PaneTabAnim
+    {
         float current_x = 0.0f;
         float target_x = 0.0f;
         float opacity = 1.0f;
         float target_opacity = 1.0f;
     };
-    struct PaneTabAnimKey {
+    struct PaneTabAnimKey
+    {
         uint32_t pane_id;
         size_t fig_idx;
-        bool operator==(const PaneTabAnimKey& o) const {
+        bool operator==(const PaneTabAnimKey& o) const
+        {
             return pane_id == o.pane_id && fig_idx == o.fig_idx;
         }
     };
-    struct PaneTabAnimKeyHash {
-        size_t operator()(const PaneTabAnimKey& k) const {
-            return std::hash<uint64_t>()(
-                (static_cast<uint64_t>(k.pane_id) << 32) | (k.fig_idx & 0xFFFFFFFF));
+    struct PaneTabAnimKeyHash
+    {
+        size_t operator()(const PaneTabAnimKey& k) const
+        {
+            return std::hash<uint64_t>()((static_cast<uint64_t>(k.pane_id) << 32)
+                                         | (k.fig_idx & 0xFFFFFFFF));
         }
     };
     std::unordered_map<PaneTabAnimKey, PaneTabAnim, PaneTabAnimKeyHash> pane_tab_anims_;
 
     // Tab insertion gap animation state (for drag-between-tabs)
-    struct InsertionGap {
-        uint32_t target_pane_id = 0;   // Pane where the gap is shown
-        size_t insert_after_idx = SIZE_MAX;  // Insert after this tab index (SIZE_MAX = before first)
-        float current_gap = 0.0f;      // Animated gap width
-        float target_gap = 0.0f;       // Target gap width
+    struct InsertionGap
+    {
+        uint32_t target_pane_id = 0;  // Pane where the gap is shown
+        size_t insert_after_idx =
+            SIZE_MAX;              // Insert after this tab index (SIZE_MAX = before first)
+        float current_gap = 0.0f;  // Animated gap width
+        float target_gap = 0.0f;   // Target gap width
     };
     InsertionGap insertion_gap_;
 
     // Non-split drag-to-split state
-    struct TabDragSplitState {
-        bool active = false;           // True when a main tab bar tab is being dock-dragged
+    struct TabDragSplitState
+    {
+        bool active = false;  // True when a main tab bar tab is being dock-dragged
         DropZone suggested_zone = DropZone::None;
         float overlay_opacity = 0.0f;  // Animated overlay opacity
     };
@@ -283,23 +309,27 @@ private:
 
     // Figure title lookup callback (set by App)
     std::function<std::string(size_t)> get_figure_title_;
-public:
-    void set_figure_title_callback(std::function<std::string(size_t)> cb) { get_figure_title_ = std::move(cb); }
-private:
-    
+
+   public:
+    void set_figure_title_callback(std::function<std::string(size_t)> cb)
+    {
+        get_figure_title_ = std::move(cb);
+    }
+
+   private:
     // Theme settings window state
     bool show_theme_settings_ = false;
 
     // Menubar hover-switch state: tracks which menu popup is currently open
     // so hovering another menu button auto-opens it
     std::string open_menu_label_;  // label of currently open menu ("" = none)
-    
-#if PLOTIX_FLOATING_TOOLBAR
+
+    #if PLOTIX_FLOATING_TOOLBAR
     // Floating toolbar drag state
     bool toolbar_dragging_ = false;
-#endif
+    #endif
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

@@ -2,43 +2,46 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include <plotix/color.hpp>
-#include <plotix/series.hpp>
-
-#include <cstddef>
-#include <vector>
+    #include <cstddef>
+    #include <plotix/color.hpp>
+    #include <plotix/series.hpp>
+    #include <vector>
 
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 class Axes;
 class Figure;
 class TransitionEngine;
 
 // Statistics computed for a selected region of data points.
-struct RegionStatistics {
+struct RegionStatistics
+{
     size_t point_count = 0;
-    float  x_min = 0.0f, x_max = 0.0f;
-    float  y_min = 0.0f, y_max = 0.0f;
-    float  y_mean = 0.0f;
-    float  y_std  = 0.0f;
+    float x_min = 0.0f, x_max = 0.0f;
+    float y_min = 0.0f, y_max = 0.0f;
+    float y_mean = 0.0f;
+    float y_std = 0.0f;
 };
 
 // A point captured inside a region selection.
-struct SelectedPoint {
+struct SelectedPoint
+{
     const Series* series = nullptr;
-    size_t        index  = 0;
-    float         data_x = 0.0f;
-    float         data_y = 0.0f;
+    size_t index = 0;
+    float data_x = 0.0f;
+    float data_y = 0.0f;
 };
 
 // Region selection: shift-drag to select a rectangular region on the plot.
 // Shows a floating mini-toolbar with point count and basic statistics.
 // The selection rectangle is defined in data coordinates so it survives
 // zoom/pan until explicitly dismissed.
-class RegionSelect {
-public:
+class RegionSelect
+{
+   public:
     RegionSelect() = default;
 
     // Set fonts for the mini-toolbar rendering
@@ -50,16 +53,22 @@ public:
     // ─── Selection lifecycle ────────────────────────────────────────────
 
     // Begin a new selection at the given screen position.
-    void begin(double screen_x, double screen_y,
+    void begin(double screen_x,
+               double screen_y,
                const Rect& viewport,
-               float xlim_min, float xlim_max,
-               float ylim_min, float ylim_max);
+               float xlim_min,
+               float xlim_max,
+               float ylim_min,
+               float ylim_max);
 
     // Update the selection end point (while dragging).
-    void update_drag(double screen_x, double screen_y,
+    void update_drag(double screen_x,
+                     double screen_y,
                      const Rect& viewport,
-                     float xlim_min, float xlim_max,
-                     float ylim_min, float ylim_max);
+                     float xlim_min,
+                     float xlim_max,
+                     float ylim_min,
+                     float ylim_max);
 
     // Finish the selection (mouse release). Computes statistics.
     void finish(const Axes* axes);
@@ -86,33 +95,44 @@ public:
     // Draw the selection rectangle and floating mini-toolbar.
     // Call inside ImGui frame, after build_ui.
     void draw(const Rect& viewport,
-              float xlim_min, float xlim_max,
-              float ylim_min, float ylim_max,
-              float window_width, float window_height);
+              float xlim_min,
+              float xlim_max,
+              float ylim_min,
+              float ylim_max,
+              float window_width,
+              float window_height);
 
     // ─── Configuration ──────────────────────────────────────────────────
 
     void set_fill_alpha(float a) { fill_alpha_ = a; }
     void set_border_width(float w) { border_width_ = w; }
 
-private:
+   private:
     // Draw the floating mini-toolbar with statistics
-    void draw_mini_toolbar(float rx0, float ry0, float rx1, float ry1,
-                           float window_width, float window_height);
+    void draw_mini_toolbar(
+        float rx0, float ry0, float rx1, float ry1, float window_width, float window_height);
 
     // Convert data coordinates to screen coordinates
-    static void data_to_screen(float data_x, float data_y,
-                                const Rect& viewport,
-                                float xlim_min, float xlim_max,
-                                float ylim_min, float ylim_max,
-                                float& screen_x, float& screen_y);
+    static void data_to_screen(float data_x,
+                               float data_y,
+                               const Rect& viewport,
+                               float xlim_min,
+                               float xlim_max,
+                               float ylim_min,
+                               float ylim_max,
+                               float& screen_x,
+                               float& screen_y);
 
     // Convert screen coordinates to data coordinates
-    static void screen_to_data(double screen_x, double screen_y,
-                                const Rect& viewport,
-                                float xlim_min, float xlim_max,
-                                float ylim_min, float ylim_max,
-                                float& data_x, float& data_y);
+    static void screen_to_data(double screen_x,
+                               double screen_y,
+                               const Rect& viewport,
+                               float xlim_min,
+                               float xlim_max,
+                               float ylim_min,
+                               float ylim_max,
+                               float& data_x,
+                               float& data_y);
 
     // Collect all data points inside the selection rectangle
     void collect_points(const Axes* axes);
@@ -149,6 +169,6 @@ private:
     float border_width_ = 1.5f;
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

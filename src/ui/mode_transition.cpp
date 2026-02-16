@@ -1,26 +1,29 @@
 #include "mode_transition.hpp"
 
+#include <cmath>
 #include <plotix/animator.hpp>
 #include <plotix/axes3d.hpp>
-
-#include <cmath>
 #include <sstream>
 
-namespace plotix {
+namespace plotix
+{
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-void ModeTransition::set_duration(float seconds) {
+void ModeTransition::set_duration(float seconds)
+{
     std::lock_guard lock(mutex_);
     duration_ = seconds > 0.0f ? seconds : 0.01f;
 }
 
-float ModeTransition::duration() const {
+float ModeTransition::duration() const
+{
     std::lock_guard lock(mutex_);
     return duration_;
 }
 
-void ModeTransition::set_easing(EasingFunc easing) {
+void ModeTransition::set_easing(EasingFunc easing)
+{
     std::lock_guard lock(mutex_);
     easing_ = std::move(easing);
 }
@@ -28,9 +31,11 @@ void ModeTransition::set_easing(EasingFunc easing) {
 // ─── Transition triggers ────────────────────────────────────────────────────
 
 uint32_t ModeTransition::begin_to_3d(const ModeTransition2DState& from_2d,
-                                      const ModeTransition3DState& target_3d) {
+                                     const ModeTransition3DState& target_3d)
+{
     std::lock_guard lock(mutex_);
-    if (state_ == ModeTransitionState::Animating) return 0;
+    if (state_ == ModeTransitionState::Animating)
+        return 0;
 
     state_ = ModeTransitionState::Animating;
     direction_ = ModeTransitionDirection::To3D;
@@ -52,9 +57,11 @@ uint32_t ModeTransition::begin_to_3d(const ModeTransition2DState& from_2d,
 }
 
 uint32_t ModeTransition::begin_to_2d(const ModeTransition3DState& from_3d,
-                                      const ModeTransition2DState& target_2d) {
+                                     const ModeTransition2DState& target_2d)
+{
     std::lock_guard lock(mutex_);
-    if (state_ == ModeTransitionState::Animating) return 0;
+    if (state_ == ModeTransitionState::Animating)
+        return 0;
 
     state_ = ModeTransitionState::Animating;
     direction_ = ModeTransitionDirection::To2D;
@@ -75,7 +82,8 @@ uint32_t ModeTransition::begin_to_2d(const ModeTransition3DState& from_3d,
     return current_id_;
 }
 
-void ModeTransition::cancel() {
+void ModeTransition::cancel()
+{
     std::lock_guard lock(mutex_);
     state_ = ModeTransitionState::Idle;
     elapsed_ = 0.0f;
@@ -84,7 +92,8 @@ void ModeTransition::cancel() {
 
 // ─── Update ─────────────────────────────────────────────────────────────────
 
-void ModeTransition::update(float dt) {
+void ModeTransition::update(float dt)
+{
     ModeTransitionCompleteCallback complete_cb;
     ModeTransitionCallback progress_cb;
     float eased_t = 0.0f;
@@ -92,36 +101,45 @@ void ModeTransition::update(float dt) {
 
     {
         std::lock_guard lock(mutex_);
-        if (state_ != ModeTransitionState::Animating) return;
+        if (state_ != ModeTransitionState::Animating)
+            return;
 
         elapsed_ += dt;
         eased_t = compute_eased_t();
         dir = direction_;
 
-        if (direction_ == ModeTransitionDirection::To3D) {
+        if (direction_ == ModeTransitionDirection::To3D)
+        {
             interpolate_to_3d(eased_t);
-        } else {
+        }
+        else
+        {
             interpolate_to_2d(eased_t);
         }
 
         progress_cb = on_progress_;
 
-        if (elapsed_ >= duration_) {
+        if (elapsed_ >= duration_)
+        {
             state_ = ModeTransitionState::Finished;
             complete_cb = on_complete_;
         }
     }
 
     // Fire callbacks outside the lock to avoid deadlocks
-    if (progress_cb) progress_cb(eased_t);
-    if (complete_cb) complete_cb(dir);
+    if (progress_cb)
+        progress_cb(eased_t);
+    if (complete_cb)
+        complete_cb(dir);
 }
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
-ModeTransitionState ModeTransition::state() const {
+ModeTransitionState ModeTransition::state() const
+{
     std::lock_guard lock(mutex_);
-    if (state_ == ModeTransitionState::Finished) {
+    if (state_ == ModeTransitionState::Finished)
+    {
         // Auto-reset to Idle on query
         const_cast<ModeTransition*>(this)->state_ = ModeTransitionState::Idle;
         return ModeTransitionState::Finished;
@@ -129,67 +147,80 @@ ModeTransitionState ModeTransition::state() const {
     return state_;
 }
 
-ModeTransitionDirection ModeTransition::direction() const {
+ModeTransitionDirection ModeTransition::direction() const
+{
     std::lock_guard lock(mutex_);
     return direction_;
 }
 
-float ModeTransition::progress() const {
+float ModeTransition::progress() const
+{
     std::lock_guard lock(mutex_);
-    if (state_ == ModeTransitionState::Idle) return 0.0f;
+    if (state_ == ModeTransitionState::Idle)
+        return 0.0f;
     return compute_eased_t();
 }
 
-Camera ModeTransition::interpolated_camera() const {
+Camera ModeTransition::interpolated_camera() const
+{
     std::lock_guard lock(mutex_);
     return interp_camera_;
 }
 
-AxisLimits ModeTransition::interpolated_xlim() const {
+AxisLimits ModeTransition::interpolated_xlim() const
+{
     std::lock_guard lock(mutex_);
     return interp_xlim_;
 }
 
-AxisLimits ModeTransition::interpolated_ylim() const {
+AxisLimits ModeTransition::interpolated_ylim() const
+{
     std::lock_guard lock(mutex_);
     return interp_ylim_;
 }
 
-AxisLimits ModeTransition::interpolated_zlim() const {
+AxisLimits ModeTransition::interpolated_zlim() const
+{
     std::lock_guard lock(mutex_);
     return interp_zlim_;
 }
 
-int ModeTransition::interpolated_grid_planes() const {
+int ModeTransition::interpolated_grid_planes() const
+{
     std::lock_guard lock(mutex_);
     return interp_grid_planes_;
 }
 
-float ModeTransition::element_3d_opacity() const {
+float ModeTransition::element_3d_opacity() const
+{
     std::lock_guard lock(mutex_);
     return interp_3d_opacity_;
 }
 
-bool ModeTransition::is_active() const {
+bool ModeTransition::is_active() const
+{
     std::lock_guard lock(mutex_);
     return state_ == ModeTransitionState::Animating;
 }
 
 // ─── Callbacks ──────────────────────────────────────────────────────────────
 
-void ModeTransition::set_on_progress(ModeTransitionCallback cb) {
+void ModeTransition::set_on_progress(ModeTransitionCallback cb)
+{
     std::lock_guard lock(mutex_);
     on_progress_ = std::move(cb);
 }
 
-void ModeTransition::set_on_complete(ModeTransitionCompleteCallback cb) {
+void ModeTransition::set_on_complete(ModeTransitionCompleteCallback cb)
+{
     std::lock_guard lock(mutex_);
     on_complete_ = std::move(cb);
 }
 
 // ─── Serialization ──────────────────────────────────────────────────────────
 
-std::string ModeTransition::serialize() const {
+std::string ModeTransition::serialize() const
+{
     std::lock_guard lock(mutex_);
     std::ostringstream os;
     os << "{";
@@ -200,27 +231,36 @@ std::string ModeTransition::serialize() const {
     return os.str();
 }
 
-bool ModeTransition::deserialize(const std::string& json) {
+bool ModeTransition::deserialize(const std::string& json)
+{
     std::lock_guard lock(mutex_);
     // Minimal parse: extract duration and direction
-    auto find_number = [&](const std::string& key) -> float {
+    auto find_number = [&](const std::string& key) -> float
+    {
         std::string search = "\"" + key + "\":";
         auto pos = json.find(search);
-        if (pos == std::string::npos) return 0.0f;
+        if (pos == std::string::npos)
+            return 0.0f;
         pos += search.size();
-        while (pos < json.size() && json[pos] == ' ') ++pos;
-        try {
+        while (pos < json.size() && json[pos] == ' ')
+            ++pos;
+        try
+        {
             return std::stof(json.substr(pos));
-        } catch (...) {
+        }
+        catch (...)
+        {
             return 0.0f;
         }
     };
 
     float d = find_number("duration");
-    if (d > 0.0f) duration_ = d;
+    if (d > 0.0f)
+        duration_ = d;
 
     int dir = static_cast<int>(find_number("direction"));
-    if (dir == 0 || dir == 1) {
+    if (dir == 0 || dir == 1)
+    {
         direction_ = static_cast<ModeTransitionDirection>(dir);
     }
 
@@ -233,18 +273,23 @@ bool ModeTransition::deserialize(const std::string& json) {
 
 // ─── Internal helpers ───────────────────────────────────────────────────────
 
-float ModeTransition::compute_eased_t() const {
+float ModeTransition::compute_eased_t() const
+{
     float raw_t = (duration_ > 0.0f) ? (elapsed_ / duration_) : 1.0f;
-    if (raw_t > 1.0f) raw_t = 1.0f;
-    if (raw_t < 0.0f) raw_t = 0.0f;
+    if (raw_t > 1.0f)
+        raw_t = 1.0f;
+    if (raw_t < 0.0f)
+        raw_t = 0.0f;
 
-    if (easing_) return easing_(raw_t);
+    if (easing_)
+        return easing_(raw_t);
 
     // Default ease_in_out (smoothstep)
     return raw_t * raw_t * (3.0f - 2.0f * raw_t);
 }
 
-static float lerp_f(float a, float b, float t) {
+static float lerp_f(float a, float b, float t)
+{
     return a + (b - a) * t;
 }
 
@@ -252,7 +297,8 @@ static float lerp_f(float a, float b, float t) {
 //     return {lerp_f(a.min, b.min, t), lerp_f(a.max, b.max, t)};
 // }
 
-void ModeTransition::interpolate_to_3d(float t) {
+void ModeTransition::interpolate_to_3d(float t)
+{
     // Camera: start from top-down ortho (looking down Z), end at target 3D orbit
     Camera top_down = make_top_down_camera(state_2d_);
     const Camera& target = state_3d_.camera;
@@ -269,9 +315,8 @@ void ModeTransition::interpolate_to_3d(float t) {
     interp_camera_.distance = lerp_f(top_down.distance, target.distance, t);
 
     // Projection mode: switch to perspective at t=0.5
-    interp_camera_.projection_mode = (t < 0.5f)
-        ? Camera::ProjectionMode::Orthographic
-        : Camera::ProjectionMode::Perspective;
+    interp_camera_.projection_mode =
+        (t < 0.5f) ? Camera::ProjectionMode::Orthographic : Camera::ProjectionMode::Perspective;
 
     // Axis limits stay unchanged — we only animate the camera
     interp_xlim_ = state_3d_.xlim;
@@ -281,7 +326,8 @@ void ModeTransition::interpolate_to_3d(float t) {
     interp_3d_opacity_ = t;
 }
 
-void ModeTransition::interpolate_to_2d(float t) {
+void ModeTransition::interpolate_to_2d(float t)
+{
     // Camera: start from 3D orbit, end at top-down ortho (looking down Z)
     Camera top_down = make_top_down_camera(state_2d_);
     const Camera& start = state_3d_.camera;
@@ -297,9 +343,8 @@ void ModeTransition::interpolate_to_2d(float t) {
     interp_camera_.distance = lerp_f(start.distance, top_down.distance, t);
 
     // Projection mode: switch to orthographic at t=0.5
-    interp_camera_.projection_mode = (t < 0.5f)
-        ? Camera::ProjectionMode::Perspective
-        : Camera::ProjectionMode::Orthographic;
+    interp_camera_.projection_mode =
+        (t < 0.5f) ? Camera::ProjectionMode::Perspective : Camera::ProjectionMode::Orthographic;
 
     // Axis limits stay unchanged — we only animate the camera
     interp_xlim_ = state_3d_.xlim;
@@ -309,7 +354,8 @@ void ModeTransition::interpolate_to_2d(float t) {
     interp_3d_opacity_ = 1.0f - t;
 }
 
-Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/) const {
+Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/) const
+{
     // The orbit camera convention has Y as up, so elevation=90° looks down Y.
     // But the XY grid (the standard grid) is in the XY plane — from looking
     // down Y it's edge-on and invisible. We need to look down Z instead,
@@ -321,12 +367,12 @@ Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/
     cam.far_clip = 1000.0f;
 
     float hs = Axes3D::box_half_size();  // 3.0
-    cam.ortho_size = hs * 2.0f * 1.15f; // ~6.9 — fits the cube with margin
+    cam.ortho_size = hs * 2.0f * 1.15f;  // ~6.9 — fits the cube with margin
 
     // Position directly above on Z axis, looking down at origin
     cam.target = {0.0f, 0.0f, 0.0f};
     cam.position = {0.0f, 0.0f, hs * 4.0f};  // Above on +Z
-    cam.up = {0.0f, 1.0f, 0.0f};              // Y is up on screen
+    cam.up = {0.0f, 1.0f, 0.0f};             // Y is up on screen
 
     // Set orbit params to match (for consistency, though we set position directly)
     cam.distance = hs * 4.0f;
@@ -336,4 +382,4 @@ Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/
     return cam;
 }
 
-} // namespace plotix
+}  // namespace plotix

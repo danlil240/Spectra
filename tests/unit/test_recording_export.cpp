@@ -1,18 +1,19 @@
+#include <cstring>
+#include <filesystem>
 #include <gtest/gtest.h>
 
 #include "ui/recording_export.hpp"
-
-#include <cstring>
-#include <filesystem>
 
 using namespace plotix;
 
 // ─── Helper: dummy render callback ──────────────────────────────────────────
 
-static bool fill_solid_color(uint32_t /*frame*/, float /*time*/,
-                              uint8_t* rgba, uint32_t w, uint32_t h) {
+static bool fill_solid_color(
+    uint32_t /*frame*/, float /*time*/, uint8_t* rgba, uint32_t w, uint32_t h)
+{
     size_t pixels = static_cast<size_t>(w) * h;
-    for (size_t i = 0; i < pixels; ++i) {
+    for (size_t i = 0; i < pixels; ++i)
+    {
         rgba[i * 4 + 0] = 128;  // R
         rgba[i * 4 + 1] = 64;   // G
         rgba[i * 4 + 2] = 32;   // B
@@ -21,10 +22,12 @@ static bool fill_solid_color(uint32_t /*frame*/, float /*time*/,
     return true;
 }
 
-static bool fill_gradient(uint32_t frame, float /*time*/,
-                           uint8_t* rgba, uint32_t w, uint32_t h) {
-    for (uint32_t y = 0; y < h; ++y) {
-        for (uint32_t x = 0; x < w; ++x) {
+static bool fill_gradient(uint32_t frame, float /*time*/, uint8_t* rgba, uint32_t w, uint32_t h)
+{
+    for (uint32_t y = 0; y < h; ++y)
+    {
+        for (uint32_t x = 0; x < w; ++x)
+        {
             size_t idx = (static_cast<size_t>(y) * w + x) * 4;
             rgba[idx + 0] = static_cast<uint8_t>((x * 255) / w);
             rgba[idx + 1] = static_cast<uint8_t>((y * 255) / h);
@@ -35,14 +38,16 @@ static bool fill_gradient(uint32_t frame, float /*time*/,
     return true;
 }
 
-static bool fail_render(uint32_t /*frame*/, float /*time*/,
-                         uint8_t* /*rgba*/, uint32_t /*w*/, uint32_t /*h*/) {
+static bool fail_render(
+    uint32_t /*frame*/, float /*time*/, uint8_t* /*rgba*/, uint32_t /*w*/, uint32_t /*h*/)
+{
     return false;
 }
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-TEST(RecordingSessionConstruction, DefaultState) {
+TEST(RecordingSessionConstruction, DefaultState)
+{
     RecordingSession rs;
     EXPECT_EQ(rs.state(), RecordingState::Idle);
     EXPECT_FALSE(rs.is_active());
@@ -54,7 +59,8 @@ TEST(RecordingSessionConstruction, DefaultState) {
 
 // ─── Config Validation ───────────────────────────────────────────────────────
 
-TEST(RecordingSessionValidation, EmptyPath) {
+TEST(RecordingSessionValidation, EmptyPath)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "";
@@ -66,7 +72,8 @@ TEST(RecordingSessionValidation, EmptyPath) {
     EXPECT_FALSE(rs.error().empty());
 }
 
-TEST(RecordingSessionValidation, ZeroDimensions) {
+TEST(RecordingSessionValidation, ZeroDimensions)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_rec";
@@ -79,7 +86,8 @@ TEST(RecordingSessionValidation, ZeroDimensions) {
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
 
-TEST(RecordingSessionValidation, ZeroFPS) {
+TEST(RecordingSessionValidation, ZeroFPS)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_rec";
@@ -91,7 +99,8 @@ TEST(RecordingSessionValidation, ZeroFPS) {
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
 
-TEST(RecordingSessionValidation, InvalidTimeRange) {
+TEST(RecordingSessionValidation, InvalidTimeRange)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_rec";
@@ -102,7 +111,8 @@ TEST(RecordingSessionValidation, InvalidTimeRange) {
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
 
-TEST(RecordingSessionValidation, NullCallback) {
+TEST(RecordingSessionValidation, NullCallback)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_rec";
@@ -114,7 +124,8 @@ TEST(RecordingSessionValidation, NullCallback) {
 }
 
 #ifndef PLOTIX_USE_FFMPEG
-TEST(RecordingSessionValidation, MP4WithoutFFmpeg) {
+TEST(RecordingSessionValidation, MP4WithoutFFmpeg)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test.mp4";
@@ -129,7 +140,8 @@ TEST(RecordingSessionValidation, MP4WithoutFFmpeg) {
 
 // ─── Frame Computation ───────────────────────────────────────────────────────
 
-TEST(RecordingSessionFrames, FrameCount) {
+TEST(RecordingSessionFrames, FrameCount)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_frames";
@@ -144,7 +156,8 @@ TEST(RecordingSessionFrames, FrameCount) {
     EXPECT_EQ(rs.total_frames(), 20u);
 }
 
-TEST(RecordingSessionFrames, FrameTime) {
+TEST(RecordingSessionFrames, FrameTime)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_ftime";
@@ -162,7 +175,8 @@ TEST(RecordingSessionFrames, FrameTime) {
 
 // ─── PNG Sequence Export ─────────────────────────────────────────────────────
 
-TEST(RecordingSessionPNG, BasicExport) {
+TEST(RecordingSessionPNG, BasicExport)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_png_export";
 
@@ -184,7 +198,9 @@ TEST(RecordingSessionPNG, BasicExport) {
     EXPECT_EQ(rs.total_frames(), 5u);
 
     // Advance all frames
-    while (rs.advance()) {}
+    while (rs.advance())
+    {
+    }
 
     EXPECT_TRUE(rs.finish());
     EXPECT_EQ(rs.state(), RecordingState::Finished);
@@ -199,7 +215,8 @@ TEST(RecordingSessionPNG, BasicExport) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionPNG, RunAll) {
+TEST(RecordingSessionPNG, RunAll)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_png_runall";
     fs::remove_all(dir);
@@ -226,7 +243,8 @@ TEST(RecordingSessionPNG, RunAll) {
 
 // ─── Progress Tracking ───────────────────────────────────────────────────────
 
-TEST(RecordingSessionProgress, ProgressCallback) {
+TEST(RecordingSessionProgress, ProgressCallback)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_progress";
     fs::remove_all(dir);
@@ -243,11 +261,13 @@ TEST(RecordingSessionProgress, ProgressCallback) {
 
     int progress_calls = 0;
     float last_percent = 0.0f;
-    rs.set_on_progress([&](const RecordingProgress& p) {
-        progress_calls++;
-        last_percent = p.percent;
-        EXPECT_LE(p.current_frame, p.total_frames);
-    });
+    rs.set_on_progress(
+        [&](const RecordingProgress& p)
+        {
+            progress_calls++;
+            last_percent = p.percent;
+            EXPECT_LE(p.current_frame, p.total_frames);
+        });
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     rs.run_all();
@@ -258,7 +278,8 @@ TEST(RecordingSessionProgress, ProgressCallback) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionProgress, CompletionCallback) {
+TEST(RecordingSessionProgress, CompletionCallback)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_complete";
     fs::remove_all(dir);
@@ -275,10 +296,12 @@ TEST(RecordingSessionProgress, CompletionCallback) {
 
     bool completed = false;
     bool success_val = false;
-    rs.set_on_complete([&](bool success) {
-        completed = true;
-        success_val = success;
-    });
+    rs.set_on_complete(
+        [&](bool success)
+        {
+            completed = true;
+            success_val = success;
+        });
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     rs.run_all();
@@ -289,7 +312,8 @@ TEST(RecordingSessionProgress, CompletionCallback) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionProgress, ProgressState) {
+TEST(RecordingSessionProgress, ProgressState)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_pstate";
@@ -308,7 +332,8 @@ TEST(RecordingSessionProgress, ProgressState) {
 
 // ─── Cancel ──────────────────────────────────────────────────────────────────
 
-TEST(RecordingSessionCancel, CancelDuringRecording) {
+TEST(RecordingSessionCancel, CancelDuringRecording)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_cancel";
     fs::remove_all(dir);
@@ -325,7 +350,12 @@ TEST(RecordingSessionCancel, CancelDuringRecording) {
 
     bool completed = false;
     bool success_val = true;
-    rs.set_on_complete([&](bool s) { completed = true; success_val = s; });
+    rs.set_on_complete(
+        [&](bool s)
+        {
+            completed = true;
+            success_val = s;
+        });
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
 
@@ -341,7 +371,8 @@ TEST(RecordingSessionCancel, CancelDuringRecording) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionCancel, CancelWhileIdle) {
+TEST(RecordingSessionCancel, CancelWhileIdle)
+{
     RecordingSession rs;
     rs.cancel();  // Should not crash
     EXPECT_EQ(rs.state(), RecordingState::Idle);
@@ -349,7 +380,8 @@ TEST(RecordingSessionCancel, CancelWhileIdle) {
 
 // ─── Error Handling ──────────────────────────────────────────────────────────
 
-TEST(RecordingSessionErrors, RenderFailure) {
+TEST(RecordingSessionErrors, RenderFailure)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_renderfail";
     fs::remove_all(dir);
@@ -374,7 +406,8 @@ TEST(RecordingSessionErrors, RenderFailure) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionErrors, AdvanceAfterFinish) {
+TEST(RecordingSessionErrors, AdvanceAfterFinish)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_advfinish";
     fs::remove_all(dir);
@@ -398,7 +431,8 @@ TEST(RecordingSessionErrors, AdvanceAfterFinish) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionErrors, DoubleFinish) {
+TEST(RecordingSessionErrors, DoubleFinish)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_dblfinish";
     fs::remove_all(dir);
@@ -424,38 +458,66 @@ TEST(RecordingSessionErrors, DoubleFinish) {
 
 // ─── GIF Utilities ───────────────────────────────────────────────────────────
 
-TEST(RecordingGifUtils, MedianCutBasic) {
+TEST(RecordingGifUtils, MedianCutBasic)
+{
     // 4 pixels: red, green, blue, white
     uint8_t rgba[] = {
-        255, 0, 0, 255,
-        0, 255, 0, 255,
-        0, 0, 255, 255,
-        255, 255, 255, 255,
+        255,
+        0,
+        0,
+        255,
+        0,
+        255,
+        0,
+        255,
+        0,
+        0,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
     };
 
     auto palette = RecordingSession::median_cut(rgba, 4, 4);
     EXPECT_EQ(palette.size(), 4u);
 }
 
-TEST(RecordingGifUtils, MedianCutReduces) {
+TEST(RecordingGifUtils, MedianCutReduces)
+{
     // 4 pixels but request only 2 colors
     uint8_t rgba[] = {
-        255, 0, 0, 255,
-        250, 5, 5, 255,
-        0, 0, 255, 255,
-        5, 5, 250, 255,
+        255,
+        0,
+        0,
+        255,
+        250,
+        5,
+        5,
+        255,
+        0,
+        0,
+        255,
+        255,
+        5,
+        5,
+        250,
+        255,
     };
 
     auto palette = RecordingSession::median_cut(rgba, 4, 2);
     EXPECT_LE(palette.size(), 2u);
 }
 
-TEST(RecordingGifUtils, MedianCutEmpty) {
+TEST(RecordingGifUtils, MedianCutEmpty)
+{
     auto palette = RecordingSession::median_cut(nullptr, 0, 256);
     EXPECT_TRUE(palette.empty());
 }
 
-TEST(RecordingGifUtils, NearestPaletteIndex) {
+TEST(RecordingGifUtils, NearestPaletteIndex)
+{
     std::vector<Color> palette = {
         Color{1.0f, 0.0f, 0.0f},  // Red
         Color{0.0f, 1.0f, 0.0f},  // Green
@@ -468,15 +530,18 @@ TEST(RecordingGifUtils, NearestPaletteIndex) {
     EXPECT_EQ(RecordingSession::nearest_palette_index(palette, 200, 30, 30), 0);
 }
 
-TEST(RecordingGifUtils, NearestPaletteIndexEmpty) {
+TEST(RecordingGifUtils, NearestPaletteIndexEmpty)
+{
     std::vector<Color> empty;
     EXPECT_EQ(RecordingSession::nearest_palette_index(empty, 128, 128, 128), 0);
 }
 
-TEST(RecordingGifUtils, QuantizeFrame) {
+TEST(RecordingGifUtils, QuantizeFrame)
+{
     // 4x2 gradient image
     uint8_t rgba[4 * 2 * 4];
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < 8; ++i)
+    {
         rgba[i * 4 + 0] = static_cast<uint8_t>(i * 32);
         rgba[i * 4 + 1] = static_cast<uint8_t>(i * 16);
         rgba[i * 4 + 2] = static_cast<uint8_t>(i * 8);
@@ -490,14 +555,16 @@ TEST(RecordingGifUtils, QuantizeFrame) {
     EXPECT_LE(palette.size(), 4u * 3);
     // Each index should be valid
     uint32_t num_colors = static_cast<uint32_t>(palette.size() / 3);
-    for (uint8_t idx : indexed) {
+    for (uint8_t idx : indexed)
+    {
         EXPECT_LT(idx, num_colors);
     }
 }
 
 // ─── GIF Export ──────────────────────────────────────────────────────────────
 
-TEST(RecordingSessionGIF, BasicGifExport) {
+TEST(RecordingSessionGIF, BasicGifExport)
+{
     namespace fs = std::filesystem;
     std::string path = "/tmp/plotix_test_export.gif";
     fs::remove(path);
@@ -534,7 +601,8 @@ TEST(RecordingSessionGIF, BasicGifExport) {
 
 // ─── Edge Cases ──────────────────────────────────────────────────────────────
 
-TEST(RecordingSessionEdgeCases, SingleFrame) {
+TEST(RecordingSessionEdgeCases, SingleFrame)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_single";
     fs::remove_all(dir);
@@ -558,7 +626,8 @@ TEST(RecordingSessionEdgeCases, SingleFrame) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionEdgeCases, SmallDimensions) {
+TEST(RecordingSessionEdgeCases, SmallDimensions)
+{
     namespace fs = std::filesystem;
     std::string dir = "/tmp/plotix_test_small";
     fs::remove_all(dir);
@@ -580,7 +649,8 @@ TEST(RecordingSessionEdgeCases, SmallDimensions) {
     fs::remove_all(dir);
 }
 
-TEST(RecordingSessionEdgeCases, HighFPS) {
+TEST(RecordingSessionEdgeCases, HighFPS)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_highfps";
@@ -600,7 +670,8 @@ TEST(RecordingSessionEdgeCases, HighFPS) {
     std::filesystem::remove_all("/tmp/plotix_test_highfps");
 }
 
-TEST(RecordingSessionEdgeCases, NonZeroStartTime) {
+TEST(RecordingSessionEdgeCases, NonZeroStartTime)
+{
     RecordingSession rs;
     RecordingConfig cfg;
     cfg.output_path = "/tmp/plotix_test_offset";

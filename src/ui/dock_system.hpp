@@ -1,19 +1,21 @@
 #pragma once
 
-#include <plotix/series.hpp>  // For Rect
-#include <plotix/fwd.hpp>
-#include "split_view.hpp"
-
 #include <cstddef>
 #include <functional>
+#include <plotix/fwd.hpp>
+#include <plotix/series.hpp>  // For Rect
 #include <string>
 #include <vector>
 
-namespace plotix {
+#include "split_view.hpp"
+
+namespace plotix
+{
 
 // ─── Drop zone indicators for drag-to-dock ──────────────────────────────────
 
-enum class DropZone {
+enum class DropZone
+{
     None,
     Left,
     Right,
@@ -22,7 +24,8 @@ enum class DropZone {
     Center  // Tab into existing pane (no split)
 };
 
-struct DropTarget {
+struct DropTarget
+{
     DropZone zone = DropZone::None;
     SplitPane* target_pane = nullptr;
     Rect highlight_rect{};  // Visual indicator rect
@@ -39,8 +42,9 @@ struct DropTarget {
 //   SplitViewManager → owns the canvas split tree (figure panes)
 //   DockSystem   → orchestrates both + drag-to-dock + serialization
 
-class DockSystem {
-public:
+class DockSystem
+{
+   public:
     using DockCallback = std::function<void()>;
 
     DockSystem();
@@ -64,10 +68,8 @@ public:
     SplitPane* split_down(size_t new_figure_index, float ratio = 0.5f);
 
     // Split a specific figure's pane
-    SplitPane* split_figure_right(size_t figure_index, size_t new_figure_index,
-                                   float ratio = 0.5f);
-    SplitPane* split_figure_down(size_t figure_index, size_t new_figure_index,
-                                  float ratio = 0.5f);
+    SplitPane* split_figure_right(size_t figure_index, size_t new_figure_index, float ratio = 0.5f);
+    SplitPane* split_figure_down(size_t figure_index, size_t new_figure_index, float ratio = 0.5f);
 
     // Close a split pane (unsplit, keeping sibling)
     bool close_split(size_t figure_index);
@@ -99,7 +101,8 @@ public:
     void update_layout(const Rect& canvas_bounds);
 
     // Get all leaf pane rects for rendering
-    struct PaneInfo {
+    struct PaneInfo
+    {
         size_t figure_index;
         Rect bounds;
         bool is_active;
@@ -149,7 +152,7 @@ public:
 
     void set_on_layout_changed(DockCallback cb) { on_layout_changed_ = std::move(cb); }
 
-private:
+   private:
     SplitViewManager split_view_;
 
     // Drag-to-dock state
@@ -171,4 +174,4 @@ private:
     static constexpr float DROP_ZONE_MIN_SIZE = 40.0f;  // Minimum drop zone size in pixels
 };
 
-} // namespace plotix
+}  // namespace plotix

@@ -1,26 +1,25 @@
-#include <plotix/plotix.hpp>
-
 #include <cmath>
+#include <plotix/plotix.hpp>
 #include <vector>
 
-int main() {
+int main()
+{
     auto& fig = plotix::figure({.width = 1280, .height = 720});
-    auto& ax  = fig.subplot(1, 1, 1);
+    auto& ax = fig.subplot(1, 1, 1);
 
     constexpr size_t N = 100;
     std::vector<float> x(N);
     std::vector<float> y(N);
 
     // Initial positions on a circle
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i)
+    {
         float angle = static_cast<float>(i) / static_cast<float>(N) * 6.2832f;
         x[i] = std::cos(angle);
         y[i] = std::sin(angle);
     }
 
-    auto& scatter = ax.scatter(x, y)
-                      .color(plotix::rgb(1.0f, 0.4f, 0.0f))
-                      .size(6.0f);
+    auto& scatter = ax.scatter(x, y).color(plotix::rgb(1.0f, 0.4f, 0.0f)).size(6.0f);
 
     ax.xlim(-2.0f, 2.0f);
     ax.ylim(-2.0f, 2.0f);
@@ -31,7 +30,7 @@ int main() {
     fig.animate()
         .fps(60)
         .on_frame(
-            [&](plotix::Frame &f)
+            [&](plotix::Frame& f)
             {
                 float t = f.elapsed_seconds();
                 for (size_t i = 0; i < N; ++i)
@@ -47,7 +46,6 @@ int main() {
         .play();
 
     plotix::show();
-
 
     return 0;
 }

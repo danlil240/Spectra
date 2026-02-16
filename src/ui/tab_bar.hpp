@@ -1,32 +1,37 @@
 #pragma once
 
-#include <plotix/series.hpp>
 #include <cstddef>
+#include <functional>
+#include <plotix/series.hpp>
 #include <string>
 #include <vector>
-#include <functional>
 
 #ifdef PLOTIX_USE_IMGUI
 struct ImVec2;
 #endif
 
-namespace plotix {
+namespace plotix
+{
 
 /**
  * TabBar - Widget for managing multiple figure tabs
- * 
+ *
  * Provides tab switching, reordering, and add/close functionality.
  * Designed to work within the canvas area of the new layout system.
  */
-class TabBar {
-public:
-    struct TabInfo {
+class TabBar
+{
+   public:
+    struct TabInfo
+    {
         std::string title;
         bool can_close = true;
         bool is_modified = false;  // For future: show dirty state
-        
+
         TabInfo(const std::string& t, bool close = true, bool modified = false)
-            : title(t), can_close(close), is_modified(modified) {}
+            : title(t), can_close(close), is_modified(modified)
+        {
+        }
     };
 
     using TabChangeCallback = std::function<void(size_t new_index)>;
@@ -54,7 +59,7 @@ public:
     void remove_tab(size_t index);
     void set_tab_title(size_t index, const std::string& title);
     const std::string& get_tab_title(size_t index) const;
-    
+
     // State queries
     size_t get_tab_count() const { return tabs_.size(); }
     size_t get_active_tab() const { return active_tab_; }
@@ -67,17 +72,29 @@ public:
     void set_tab_add_callback(TabAddCallback callback) { on_tab_add_ = callback; }
     void set_tab_reorder_callback(TabReorderCallback callback) { on_tab_reorder_ = callback; }
     void set_tab_duplicate_callback(TabDuplicateCallback callback) { on_tab_duplicate_ = callback; }
-    void set_tab_close_all_except_callback(TabCloseAllExceptCallback callback) { on_tab_close_all_except_ = callback; }
-    void set_tab_close_to_right_callback(TabCloseToRightCallback callback) { on_tab_close_to_right_ = callback; }
+    void set_tab_close_all_except_callback(TabCloseAllExceptCallback callback)
+    {
+        on_tab_close_all_except_ = callback;
+    }
+    void set_tab_close_to_right_callback(TabCloseToRightCallback callback)
+    {
+        on_tab_close_to_right_ = callback;
+    }
     void set_tab_rename_callback(TabRenameCallback callback) { on_tab_rename_ = callback; }
     void set_tab_drag_out_callback(TabDragOutCallback callback) { on_tab_drag_out_ = callback; }
-    void set_tab_drag_update_callback(TabDragUpdateCallback callback) { on_tab_drag_update_ = callback; }
+    void set_tab_drag_update_callback(TabDragUpdateCallback callback)
+    {
+        on_tab_drag_update_ = callback;
+    }
     void set_tab_drag_end_callback(TabDragEndCallback callback) { on_tab_drag_end_ = callback; }
-    void set_tab_drag_cancel_callback(TabDragCancelCallback callback) { on_tab_drag_cancel_ = callback; }
+    void set_tab_drag_cancel_callback(TabDragCancelCallback callback)
+    {
+        on_tab_drag_cancel_ = callback;
+    }
 
     // Rendering
     void draw(const Rect& bounds);
-    
+
     // Interaction state
     bool is_tab_hovered(size_t index) const;
     bool is_close_button_hovered(size_t index) const;
@@ -86,10 +103,10 @@ public:
     void set_tab_modified(size_t index, bool modified);
     bool is_tab_modified(size_t index) const;
 
-private:
+   private:
     std::vector<TabInfo> tabs_;
     size_t active_tab_ = 0;
-    
+
     // Interaction state
     size_t hovered_tab_ = SIZE_MAX;
     size_t hovered_close_ = SIZE_MAX;
@@ -98,7 +115,7 @@ private:
     float drag_offset_x_ = 0.0f;
     float drag_start_y_ = 0.0f;
     bool is_dock_dragging_ = false;  // Tab has been dragged out of bar → dock mode
-    
+
     // Callbacks
     TabChangeCallback on_tab_change_;
     TabCloseCallback on_tab_close_;
@@ -112,7 +129,7 @@ private:
     TabDragUpdateCallback on_tab_drag_update_;
     TabDragEndCallback on_tab_drag_end_;
     TabDragCancelCallback on_tab_drag_cancel_;
-    
+
     // Layout constants
     static constexpr float TAB_HEIGHT = 32.0f;
     static constexpr float TAB_MIN_WIDTH = 80.0f;
@@ -120,7 +137,7 @@ private:
     static constexpr float TAB_PADDING = 12.0f;
     static constexpr float CLOSE_BUTTON_SIZE = 16.0f;
     static constexpr float ADD_BUTTON_WIDTH = 32.0f;
-    
+
     // Context menu state
     size_t context_menu_tab_ = SIZE_MAX;
     bool context_menu_open_ = false;
@@ -133,22 +150,24 @@ private:
     void draw_tabs(const Rect& bounds);
     void draw_add_button(const Rect& bounds);
     void draw_context_menu();
-    
-    struct TabLayout {
+
+    struct TabLayout
+    {
         Rect bounds;
         Rect close_bounds;
         bool is_visible;
         bool is_clipped;
     };
-    
+
     std::vector<TabLayout> compute_tab_layouts(const Rect& bounds) const;
     size_t get_tab_at_position(const ImVec2& pos, const std::vector<TabLayout>& layouts) const;
-    size_t get_close_button_at_position(const ImVec2& pos, const std::vector<TabLayout>& layouts) const;
-    
+    size_t get_close_button_at_position(const ImVec2& pos,
+                                        const std::vector<TabLayout>& layouts) const;
+
     void start_drag(size_t tab_index, float mouse_x);
     void update_drag(float mouse_x);
     void end_drag();
-    
+
     // Scrolling (for when tabs overflow)
     float scroll_offset_ = 0.0f;
     bool needs_scroll_buttons(const Rect& bounds) const;
@@ -156,4 +175,4 @@ private:
     void scroll_to_tab(size_t index);
 };
 
-} // namespace plotix
+}  // namespace plotix

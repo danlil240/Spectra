@@ -1,41 +1,46 @@
+#include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <gtest/gtest.h>
-
+#include <iostream>
 #include <plotix/plotix.hpp>
+#include <string>
+#include <vector>
 
 #include "image_diff.hpp"
 #include "render/backend.hpp"
 
-#include <cmath>
-#include <cstdlib>
-#include <filesystem>
-#include <iostream>
-#include <string>
-#include <vector>
-
 namespace fs = std::filesystem;
 
-namespace plotix::test {
+namespace plotix::test
+{
 
-static fs::path baseline_dir() {
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_BASELINE_DIR")) {
+static fs::path baseline_dir()
+{
+    if (const char* env = std::getenv("PLOTIX_GOLDEN_BASELINE_DIR"))
+    {
         return fs::path(env);
     }
     return fs::path(__FILE__).parent_path() / "baseline";
 }
 
-static fs::path output_dir() {
-    if (const char* env = std::getenv("PLOTIX_GOLDEN_OUTPUT_DIR")) {
+static fs::path output_dir()
+{
+    if (const char* env = std::getenv("PLOTIX_GOLDEN_OUTPUT_DIR"))
+    {
         return fs::path(env);
     }
     return fs::path(__FILE__).parent_path() / "output";
 }
 
-static bool update_baselines() {
+static bool update_baselines()
+{
     const char* env = std::getenv("PLOTIX_UPDATE_BASELINES");
     return env && std::string(env) == "1";
 }
 
-static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels) {
+static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
+{
     uint32_t w = fig.width();
     uint32_t h = fig.height();
 
@@ -43,19 +48,22 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
 
     pixels.resize(static_cast<size_t>(w) * h * 4);
     Backend* backend = app.backend();
-    if (!backend) return false;
+    if (!backend)
+        return false;
 
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
 static void run_golden_test_3d_p3(const std::string& scene_name,
-                                   std::function<void(App&, Figure&)> setup_scene,
-                                   uint32_t width = 640, uint32_t height = 480,
-                                   double tolerance_percent = 2.0,
-                                   double max_mae = 3.0) {
+                                  std::function<void(App&, Figure&)> setup_scene,
+                                  uint32_t width = 640,
+                                  uint32_t height = 480,
+                                  double tolerance_percent = 2.0,
+                                  double max_mae = 3.0)
+{
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
 
     fs::create_directories(output_dir());
 
@@ -71,7 +79,8 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
     ASSERT_TRUE(save_raw_rgba(actual_path.string(), actual_pixels.data(), width, height))
         << "Failed to save actual render for: " << scene_name;
 
-    if (update_baselines()) {
+    if (update_baselines())
+    {
         fs::create_directories(baseline_dir());
         ASSERT_TRUE(save_raw_rgba(baseline_path.string(), actual_pixels.data(), width, height))
             << "Failed to save baseline for: " << scene_name;
@@ -79,7 +88,8 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
         return;
     }
 
-    if (!fs::exists(baseline_path)) {
+    if (!fs::exists(baseline_path))
+    {
         GTEST_SKIP() << "Baseline not found: " << baseline_path
                      << " (run with PLOTIX_UPDATE_BASELINES=1 to generate)";
         return;
@@ -93,16 +103,14 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
     ASSERT_EQ(baseline_w, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(baseline_h, height) << "Baseline height mismatch for: " << scene_name;
 
-    DiffResult diff = compare_images(
-        actual_pixels.data(), baseline_pixels.data(), width, height);
+    DiffResult diff = compare_images(actual_pixels.data(), baseline_pixels.data(), width, height);
 
-    std::vector<uint8_t> diff_pixels = generate_diff_image(
-        actual_pixels.data(), baseline_pixels.data(), width, height);
+    std::vector<uint8_t> diff_pixels =
+        generate_diff_image(actual_pixels.data(), baseline_pixels.data(), width, height);
     save_raw_rgba(diff_path.string(), diff_pixels.data(), width, height);
 
     EXPECT_LE(diff.percent_different, tolerance_percent)
-        << "Scene: " << scene_name
-        << "\n  MAE: " << diff.mean_absolute_error
+        << "Scene: " << scene_name << "\n  MAE: " << diff.mean_absolute_error
         << "\n  Max error: " << diff.max_absolute_error
         << "\n  Different pixels: " << diff.percent_different << "%"
         << "\n  Diff image: " << diff_path;
@@ -115,349 +123,391 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
 // 1. Lit Surface — Phong shading with configurable material
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, LitSurface_SinCos) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_sincos", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, LitSurface_SinCos)
+{
+    run_golden_test_3d_p3("3d_p3_lit_surface_sincos",
+                          [](App& /*app*/, Figure& fig)
+                          {
+                              auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 30, ny = 30;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i)
-                z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
+                              const int nx = 30, ny = 30;
+                              std::vector<float> x_grid, y_grid, z_values;
+                              for (int i = 0; i < nx; ++i)
+                                  x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  for (int i = 0; i < nx; ++i)
+                                      z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(Color{0.8f, 0.4f, 0.1f, 1.0f})
-            .ambient(0.2f)
-            .specular(0.6f)
-            .shininess(64.0f);
+                              ax.surface(x_grid, y_grid, z_values)
+                                  .color(Color{0.8f, 0.4f, 0.1f, 1.0f})
+                                  .ambient(0.2f)
+                                  .specular(0.6f)
+                                  .shininess(64.0f);
 
-        ax.set_light_dir(1.0f, 1.0f, 1.0f);
-        ax.set_lighting_enabled(true);
-        ax.title("Lit Surface: sin(x)*cos(y)");
-    });
+                              ax.set_light_dir(1.0f, 1.0f, 1.0f);
+                              ax.set_lighting_enabled(true);
+                              ax.title("Lit Surface: sin(x)*cos(y)");
+                          });
 }
 
-TEST(Golden3DPhase3, LitSurface_HighSpecular) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_specular", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, LitSurface_HighSpecular)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_lit_surface_specular",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 25, ny = 25;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i) {
-                float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
-                z_values.push_back(std::sin(r * 2.0f) / r);
-            }
+            const int nx = 25, ny = 25;
+            std::vector<float> x_grid, y_grid, z_values;
+            for (int i = 0; i < nx; ++i)
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                {
+                    float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
+                    z_values.push_back(std::sin(r * 2.0f) / r);
+                }
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(Color{0.2f, 0.6f, 0.9f, 1.0f})
-            .ambient(0.1f)
-            .specular(0.9f)
-            .shininess(256.0f);
+            ax.surface(x_grid, y_grid, z_values)
+                .color(Color{0.2f, 0.6f, 0.9f, 1.0f})
+                .ambient(0.1f)
+                .specular(0.9f)
+                .shininess(256.0f);
 
-        ax.set_light_dir(0.5f, 0.8f, 1.0f);
-        ax.title("High Specular Surface");
-    });
+            ax.set_light_dir(0.5f, 0.8f, 1.0f);
+            ax.title("High Specular Surface");
+        });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. Lit Mesh — Phong shading on custom geometry
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, LitMesh_Quad) {
-    run_golden_test_3d_p3("3d_p3_lit_mesh_quad", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, LitMesh_Quad)
+{
+    run_golden_test_3d_p3("3d_p3_lit_mesh_quad",
+                          [](App& /*app*/, Figure& fig)
+                          {
+                              auto& ax = fig.subplot3d(1, 1, 1);
 
-        std::vector<float> vertices = {
-            -1.5f, -1.5f, 0.0f,   0.0f, 0.0f, 1.0f,
-             1.5f, -1.5f, 0.0f,   0.0f, 0.0f, 1.0f,
-             1.5f,  1.5f, 0.0f,   0.0f, 0.0f, 1.0f,
-            -1.5f,  1.5f, 0.0f,   0.0f, 0.0f, 1.0f,
-        };
-        std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
+                              std::vector<float> vertices = {
+                                  -1.5f, -1.5f, 0.0f,  0.0f, 0.0f, 1.0f, 1.5f, -1.5f,
+                                  0.0f,  0.0f,  0.0f,  1.0f, 1.5f, 1.5f, 0.0f, 0.0f,
+                                  0.0f,  1.0f,  -1.5f, 1.5f, 0.0f, 0.0f, 0.0f, 1.0f,
+                              };
+                              std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
 
-        ax.mesh(vertices, indices)
-            .color(Color{0.3f, 0.7f, 0.3f, 1.0f})
-            .ambient(0.2f)
-            .specular(0.5f)
-            .shininess(64.0f);
+                              ax.mesh(vertices, indices)
+                                  .color(Color{0.3f, 0.7f, 0.3f, 1.0f})
+                                  .ambient(0.2f)
+                                  .specular(0.5f)
+                                  .shininess(64.0f);
 
-        ax.set_light_dir(1.0f, 1.0f, 1.0f);
-        ax.title("Lit Mesh: Quad");
-    });
+                              ax.set_light_dir(1.0f, 1.0f, 1.0f);
+                              ax.title("Lit Mesh: Quad");
+                          });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 3. Transparent Surface
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, TransparentSurface) {
-    run_golden_test_3d_p3("3d_p3_transparent_surface", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, TransparentSurface)
+{
+    run_golden_test_3d_p3("3d_p3_transparent_surface",
+                          [](App& /*app*/, Figure& fig)
+                          {
+                              auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 25, ny = 25;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i)
-                z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
+                              const int nx = 25, ny = 25;
+                              std::vector<float> x_grid, y_grid, z_values;
+                              for (int i = 0; i < nx; ++i)
+                                  x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  for (int i = 0; i < nx; ++i)
+                                      z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(Color{1.0f, 0.5f, 0.0f, 0.5f})
-            .ambient(0.2f)
-            .specular(0.4f)
-            .shininess(32.0f);
+                              ax.surface(x_grid, y_grid, z_values)
+                                  .color(Color{1.0f, 0.5f, 0.0f, 0.5f})
+                                  .ambient(0.2f)
+                                  .specular(0.4f)
+                                  .shininess(32.0f);
 
-        ax.title("Transparent Surface (alpha=0.5)");
-    });
+                              ax.title("Transparent Surface (alpha=0.5)");
+                          });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 4. Transparent Scatter Overlay on Opaque Surface
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, TransparentScatterOnSurface) {
-    run_golden_test_3d_p3("3d_p3_transparent_scatter_on_surface", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, TransparentScatterOnSurface)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_transparent_scatter_on_surface",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-        // Opaque surface
-        const int nx = 20, ny = 20;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
+            // Opaque surface
+            const int nx = 20, ny = 20;
+            std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
-                z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                    z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(colors::blue)
-            .ambient(0.2f)
-            .specular(0.5f)
-            .shininess(64.0f);
+            ax.surface(x_grid, y_grid, z_values)
+                .color(colors::blue)
+                .ambient(0.2f)
+                .specular(0.5f)
+                .shininess(64.0f);
 
-        // Transparent scatter overlay
-        std::vector<float> sx, sy, sz;
-        for (int i = 0; i < 200; ++i) {
-            float t = static_cast<float>(i) * 0.05f;
-            sx.push_back(std::cos(t) * 1.5f);
-            sy.push_back(std::sin(t) * 1.5f);
-            sz.push_back(std::sin(t * 0.5f) + 0.5f);
-        }
-        ax.scatter3d(sx, sy, sz)
-            .color(Color{1.0f, 0.0f, 0.0f, 0.4f})
-            .size(6.0f);
+            // Transparent scatter overlay
+            std::vector<float> sx, sy, sz;
+            for (int i = 0; i < 200; ++i)
+            {
+                float t = static_cast<float>(i) * 0.05f;
+                sx.push_back(std::cos(t) * 1.5f);
+                sy.push_back(std::sin(t) * 1.5f);
+                sz.push_back(std::sin(t * 0.5f) + 0.5f);
+            }
+            ax.scatter3d(sx, sy, sz).color(Color{1.0f, 0.0f, 0.0f, 0.4f}).size(6.0f);
 
-        ax.title("Transparent Scatter on Lit Surface");
-    });
+            ax.title("Transparent Scatter on Lit Surface");
+        });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5. Wireframe Surface
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, WireframeSurface) {
-    run_golden_test_3d_p3("3d_p3_wireframe_surface", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, WireframeSurface)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_wireframe_surface",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 20, ny = 20;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i) {
-                float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
-                z_values.push_back(std::sin(r) / r);
-            }
+            const int nx = 20, ny = 20;
+            std::vector<float> x_grid, y_grid, z_values;
+            for (int i = 0; i < nx; ++i)
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                {
+                    float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
+                    z_values.push_back(std::sin(r) / r);
+                }
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(colors::green)
-            .wireframe(true);
+            ax.surface(x_grid, y_grid, z_values).color(colors::green).wireframe(true);
 
-        ax.title("Wireframe Surface: sinc(r)");
-    });
+            ax.title("Wireframe Surface: sinc(r)");
+        });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 6. Surface with Colormap + Alpha
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, SurfaceColormapAlpha) {
-    run_golden_test_3d_p3("3d_p3_surface_colormap_alpha", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, SurfaceColormapAlpha)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_surface_colormap_alpha",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 30, ny = 30;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i) {
-                float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
-                z_values.push_back(std::sin(r) / r);
-            }
+            const int nx = 30, ny = 30;
+            std::vector<float> x_grid, y_grid, z_values;
+            for (int i = 0; i < nx; ++i)
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                {
+                    float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
+                    z_values.push_back(std::sin(r) / r);
+                }
 
-        ax.surface(x_grid, y_grid, z_values)
-            .colormap(ColormapType::Viridis)
-            .colormap_alpha(true)
-            .set_colormap_alpha_range(0.2f, 1.0f);
+            ax.surface(x_grid, y_grid, z_values)
+                .colormap(ColormapType::Viridis)
+                .colormap_alpha(true)
+                .set_colormap_alpha_range(0.2f, 1.0f);
 
-        ax.title("Viridis Colormap + Alpha");
-    });
+            ax.title("Viridis Colormap + Alpha");
+        });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 7. Lighting Disabled (flat shading)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, LightingDisabled) {
-    run_golden_test_3d_p3("3d_p3_lighting_disabled", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, LightingDisabled)
+{
+    run_golden_test_3d_p3("3d_p3_lighting_disabled",
+                          [](App& /*app*/, Figure& fig)
+                          {
+                              auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 20, ny = 20;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i)
-                z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
+                              const int nx = 20, ny = 20;
+                              std::vector<float> x_grid, y_grid, z_values;
+                              for (int i = 0; i < nx; ++i)
+                                  x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  for (int i = 0; i < nx; ++i)
+                                      z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
 
-        ax.surface(x_grid, y_grid, z_values)
-            .color(colors::orange);
+                              ax.surface(x_grid, y_grid, z_values).color(colors::orange);
 
-        ax.set_lighting_enabled(false);
-        ax.title("Lighting Disabled (flat)");
-    });
+                              ax.set_lighting_enabled(false);
+                              ax.title("Lighting Disabled (flat)");
+                          });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 8. Multiple Transparent Surfaces (Painter's Sort)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, MultipleTransparentSurfaces) {
-    run_golden_test_3d_p3("3d_p3_multi_transparent_surfaces", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, MultipleTransparentSurfaces)
+{
+    run_golden_test_3d_p3("3d_p3_multi_transparent_surfaces",
+                          [](App& /*app*/, Figure& fig)
+                          {
+                              auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 20, ny = 20;
-        std::vector<float> x_grid, y_grid;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+                              const int nx = 20, ny = 20;
+                              std::vector<float> x_grid, y_grid;
+                              for (int i = 0; i < nx; ++i)
+                                  x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+                              for (int j = 0; j < ny; ++j)
+                                  y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
 
-        // Surface 1: sin(x)*cos(y)
-        std::vector<float> z1(nx * ny);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i)
-                z1[j * nx + i] = std::sin(x_grid[i]) * std::cos(y_grid[j]);
+                              // Surface 1: sin(x)*cos(y)
+                              std::vector<float> z1(nx * ny);
+                              for (int j = 0; j < ny; ++j)
+                                  for (int i = 0; i < nx; ++i)
+                                      z1[j * nx + i] = std::sin(x_grid[i]) * std::cos(y_grid[j]);
 
-        ax.surface(x_grid, y_grid, z1)
-            .color(Color{1.0f, 0.2f, 0.2f, 0.5f})
-            .ambient(0.2f)
-            .specular(0.4f)
-            .shininess(32.0f);
+                              ax.surface(x_grid, y_grid, z1)
+                                  .color(Color{1.0f, 0.2f, 0.2f, 0.5f})
+                                  .ambient(0.2f)
+                                  .specular(0.4f)
+                                  .shininess(32.0f);
 
-        // Surface 2: cos(x)*sin(y) + offset
-        std::vector<float> z2(nx * ny);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i)
-                z2[j * nx + i] = std::cos(x_grid[i]) * std::sin(y_grid[j]) + 0.5f;
+                              // Surface 2: cos(x)*sin(y) + offset
+                              std::vector<float> z2(nx * ny);
+                              for (int j = 0; j < ny; ++j)
+                                  for (int i = 0; i < nx; ++i)
+                                      z2[j * nx + i] =
+                                          std::cos(x_grid[i]) * std::sin(y_grid[j]) + 0.5f;
 
-        ax.surface(x_grid, y_grid, z2)
-            .color(Color{0.2f, 0.2f, 1.0f, 0.5f})
-            .ambient(0.2f)
-            .specular(0.4f)
-            .shininess(32.0f);
+                              ax.surface(x_grid, y_grid, z2)
+                                  .color(Color{0.2f, 0.2f, 1.0f, 0.5f})
+                                  .ambient(0.2f)
+                                  .specular(0.4f)
+                                  .shininess(32.0f);
 
-        ax.title("Two Transparent Surfaces");
-    });
+                              ax.title("Two Transparent Surfaces");
+                          });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 9. Mixed 2D + Lit 3D (Phase 3 acceptance scenario)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, Mixed2DAndLit3D) {
-    run_golden_test_3d_p3("3d_p3_mixed_2d_lit3d", [](App& /*app*/, Figure& fig) {
-        // 2D line plot
-        auto& ax2d = fig.subplot(2, 1, 1);
-        std::vector<float> x2d, y2d;
-        for (int i = 0; i < 200; ++i) {
-            float t = static_cast<float>(i) * 0.05f;
-            x2d.push_back(t);
-            y2d.push_back(std::sin(t) * std::exp(-t * 0.1f));
-        }
-        ax2d.line(x2d, y2d).color(colors::blue);
-        ax2d.title("2D: Damped Sine");
+TEST(Golden3DPhase3, Mixed2DAndLit3D)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_mixed_2d_lit3d",
+        [](App& /*app*/, Figure& fig)
+        {
+            // 2D line plot
+            auto& ax2d = fig.subplot(2, 1, 1);
+            std::vector<float> x2d, y2d;
+            for (int i = 0; i < 200; ++i)
+            {
+                float t = static_cast<float>(i) * 0.05f;
+                x2d.push_back(t);
+                y2d.push_back(std::sin(t) * std::exp(-t * 0.1f));
+            }
+            ax2d.line(x2d, y2d).color(colors::blue);
+            ax2d.title("2D: Damped Sine");
 
-        // 3D lit surface
-        auto& ax3d = fig.subplot3d(2, 1, 2);
-        const int nx = 25, ny = 25;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
-        for (int j = 0; j < ny; ++j)
+            // 3D lit surface
+            auto& ax3d = fig.subplot3d(2, 1, 2);
+            const int nx = 25, ny = 25;
+            std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
-                z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                    z_values.push_back(std::sin(x_grid[i]) * std::cos(y_grid[j]));
 
-        ax3d.surface(x_grid, y_grid, z_values)
-            .color(Color{0.9f, 0.4f, 0.1f, 1.0f})
-            .ambient(0.2f)
-            .specular(0.5f)
-            .shininess(64.0f);
-        ax3d.set_light_dir(1.0f, 1.0f, 1.0f);
-        ax3d.title("3D: Lit Surface");
-    }, 640, 960);
+            ax3d.surface(x_grid, y_grid, z_values)
+                .color(Color{0.9f, 0.4f, 0.1f, 1.0f})
+                .ambient(0.2f)
+                .specular(0.5f)
+                .shininess(64.0f);
+            ax3d.set_light_dir(1.0f, 1.0f, 1.0f);
+            ax3d.title("3D: Lit Surface");
+        },
+        640,
+        960);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 10. Lit Surface with Colormap (Viridis + Phong)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(Golden3DPhase3, LitSurfaceColormap) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_colormap", [](App& /*app*/, Figure& fig) {
-        auto& ax = fig.subplot3d(1, 1, 1);
+TEST(Golden3DPhase3, LitSurfaceColormap)
+{
+    run_golden_test_3d_p3(
+        "3d_p3_lit_surface_colormap",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-        const int nx = 30, ny = 30;
-        std::vector<float> x_grid, y_grid, z_values;
-        for (int i = 0; i < nx; ++i)
-            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
-        for (int j = 0; j < ny; ++j)
-            for (int i = 0; i < nx; ++i) {
-                float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
-                z_values.push_back(std::sin(r) / r);
-            }
+            const int nx = 30, ny = 30;
+            std::vector<float> x_grid, y_grid, z_values;
+            for (int i = 0; i < nx; ++i)
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
+            for (int j = 0; j < ny; ++j)
+                for (int i = 0; i < nx; ++i)
+                {
+                    float r = std::sqrt(x_grid[i] * x_grid[i] + y_grid[j] * y_grid[j]) + 0.001f;
+                    z_values.push_back(std::sin(r) / r);
+                }
 
-        ax.surface(x_grid, y_grid, z_values)
-            .colormap(ColormapType::Plasma)
-            .ambient(0.15f)
-            .specular(0.5f)
-            .shininess(64.0f);
+            ax.surface(x_grid, y_grid, z_values)
+                .colormap(ColormapType::Plasma)
+                .ambient(0.15f)
+                .specular(0.5f)
+                .shininess(64.0f);
 
-        ax.set_light_dir(0.7f, 0.7f, 1.0f);
-        ax.title("Lit Surface + Plasma Colormap");
-    });
+            ax.set_light_dir(0.7f, 0.7f, 1.0f);
+            ax.title("Lit Surface + Plasma Colormap");
+        });
 }
 
-} // namespace plotix::test
+}  // namespace plotix::test

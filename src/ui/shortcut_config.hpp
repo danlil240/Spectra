@@ -1,18 +1,20 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
-#include <functional>
 
-namespace plotix {
+namespace plotix
+{
 
 class ShortcutManager;
 
 // Persistent shortcut configuration: save/load custom keybindings to JSON.
 // Tracks user overrides separately from defaults so reset-to-defaults is trivial.
 // Thread-safe: all public methods are safe to call from any thread.
-class ShortcutConfig {
-public:
+class ShortcutConfig
+{
+   public:
     ShortcutConfig() = default;
     ~ShortcutConfig() = default;
 
@@ -20,10 +22,11 @@ public:
     ShortcutConfig& operator=(const ShortcutConfig&) = delete;
 
     // A single keybinding override (user customization).
-    struct BindingOverride {
-        std::string command_id;      // e.g. "view.reset"
-        std::string shortcut_str;    // e.g. "Ctrl+R" or "" to unbind
-        bool removed = false;        // true if user explicitly removed the binding
+    struct BindingOverride
+    {
+        std::string command_id;    // e.g. "view.reset"
+        std::string shortcut_str;  // e.g. "Ctrl+R" or "" to unbind
+        bool removed = false;      // true if user explicitly removed the binding
     };
 
     // Set the ShortcutManager to apply overrides to.
@@ -73,7 +76,7 @@ public:
     using ChangeCallback = std::function<void()>;
     void set_on_change(ChangeCallback cb) { on_change_ = std::move(cb); }
 
-private:
+   private:
     ShortcutManager* manager_ = nullptr;
     std::vector<BindingOverride> overrides_;
     ChangeCallback on_change_;
@@ -81,4 +84,4 @@ private:
     void notify_change();
 };
 
-} // namespace plotix
+}  // namespace plotix

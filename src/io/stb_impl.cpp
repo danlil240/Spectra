@@ -3,15 +3,15 @@
 
 // Suppress warnings in third-party STB headers (triggered by -Werror in CI)
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wall"
-#pragma clang diagnostic ignored "-Wextra"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#pragma clang diagnostic ignored "-Wunused-function"
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wall"
+    #pragma clang diagnostic ignored "-Wextra"
+    #pragma clang diagnostic ignored "-Wmissing-field-initializers"
+    #pragma clang diagnostic ignored "-Wunused-function"
 #elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wunused-function"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -22,7 +22,7 @@
 #include "stb_image_write.h"
 
 #if defined(__clang__)
-#pragma clang diagnostic pop
+    #pragma clang diagnostic pop
 #elif defined(__GNUC__)
-#pragma GCC diagnostic pop
+    #pragma GCC diagnostic pop
 #endif

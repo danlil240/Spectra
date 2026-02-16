@@ -1,52 +1,55 @@
 #pragma once
 
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-
 #include <cstdint>
 #include <cstdio>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <plotix/color.hpp>
+#include <plotix/fwd.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // Output format for recording export.
-enum class RecordingFormat {
+enum class RecordingFormat
+{
     PNG_Sequence,  // Individual PNG frames in a directory
     GIF,           // Animated GIF (via stb_image_write)
     MP4,           // MP4 via ffmpeg pipe (requires PLOTIX_USE_FFMPEG)
 };
 
 // Recording quality preset.
-enum class RecordingQuality {
-    Draft,    // Lower resolution, faster encoding
-    Normal,   // Standard quality
-    High,     // High quality, larger files
+enum class RecordingQuality
+{
+    Draft,   // Lower resolution, faster encoding
+    Normal,  // Standard quality
+    High,    // High quality, larger files
 };
 
 // Configuration for a recording session.
-struct RecordingConfig {
-    RecordingFormat format   = RecordingFormat::PNG_Sequence;
+struct RecordingConfig
+{
+    RecordingFormat format = RecordingFormat::PNG_Sequence;
     RecordingQuality quality = RecordingQuality::Normal;
 
-    std::string output_path;        // File path or directory for PNG sequence
-    uint32_t    width       = 1280;
-    uint32_t    height      = 720;
-    float       fps         = 60.0f;
-    float       start_time  = 0.0f;
-    float       end_time    = 0.0f;  // 0 = use timeline duration
+    std::string output_path;  // File path or directory for PNG sequence
+    uint32_t width = 1280;
+    uint32_t height = 720;
+    float fps = 60.0f;
+    float start_time = 0.0f;
+    float end_time = 0.0f;  // 0 = use timeline duration
 
     // GIF-specific
-    uint32_t    gif_palette_size = 256;  // Max colors in GIF palette
-    bool        gif_dither       = true;
+    uint32_t gif_palette_size = 256;  // Max colors in GIF palette
+    bool gif_dither = true;
 
     // MP4-specific
-    std::string codec   = "libx264";
+    std::string codec = "libx264";
     std::string pix_fmt = "yuv420p";
-    int         crf     = 23;  // Constant rate factor (lower = better quality)
+    int crf = 23;  // Constant rate factor (lower = better quality)
 
     // Multi-pane recording (Week 11 enhancement)
     // When pane_count > 1, the render callback is called once per pane per frame.
@@ -54,7 +57,8 @@ struct RecordingConfig {
     uint32_t pane_count = 1;
 
     // Pane layout: each pane has normalized [0,1] rect within the output frame.
-    struct PaneRect {
+    struct PaneRect
+    {
         float x = 0.0f;
         float y = 0.0f;
         float w = 1.0f;
@@ -64,17 +68,19 @@ struct RecordingConfig {
 };
 
 // Progress information for recording callbacks.
-struct RecordingProgress {
+struct RecordingProgress
+{
     uint32_t current_frame = 0;
-    uint32_t total_frames  = 0;
-    float    elapsed_sec   = 0.0f;
-    float    estimated_remaining_sec = 0.0f;
-    float    percent       = 0.0f;
-    bool     cancelled     = false;
+    uint32_t total_frames = 0;
+    float elapsed_sec = 0.0f;
+    float estimated_remaining_sec = 0.0f;
+    float percent = 0.0f;
+    bool cancelled = false;
 };
 
 // Recording session state.
-enum class RecordingState {
+enum class RecordingState
+{
     Idle,
     Preparing,
     Recording,
@@ -86,15 +92,16 @@ enum class RecordingState {
 
 // Callback types.
 using ProgressCallback = std::function<void(const RecordingProgress&)>;
-using FrameRenderCallback = std::function<bool(uint32_t frame_index, float time,
-                                                uint8_t* rgba_buffer,
-                                                uint32_t width, uint32_t height)>;
+using FrameRenderCallback = std::function<bool(
+    uint32_t frame_index, float time, uint8_t* rgba_buffer, uint32_t width, uint32_t height)>;
 
 // Multi-pane render callback: receives pane_index in addition to frame info.
 using PaneRenderCallback = std::function<bool(uint32_t pane_index,
-                                               uint32_t frame_index, float time,
-                                               uint8_t* rgba_buffer,
-                                               uint32_t width, uint32_t height)>;
+                                              uint32_t frame_index,
+                                              float time,
+                                              uint8_t* rgba_buffer,
+                                              uint32_t width,
+                                              uint32_t height)>;
 
 // RecordingSession — Orchestrates frame-by-frame recording and export.
 //
@@ -109,8 +116,9 @@ using PaneRenderCallback = std::function<bool(uint32_t pane_index,
 // pipeline — the session doesn't need to know about Vulkan/OpenGL.
 //
 // Thread-safe: all public methods lock an internal mutex.
-class RecordingSession {
-public:
+class RecordingSession
+{
+   public:
     RecordingSession();
     ~RecordingSession();
 
@@ -170,37 +178,42 @@ public:
 
     // Quantize an RGBA image to a palette of at most max_colors.
     // Returns palette (max_colors * 3 bytes RGB) and indexed image.
-    static void quantize_frame(const uint8_t* rgba, uint32_t width, uint32_t height,
+    static void quantize_frame(const uint8_t* rgba,
+                               uint32_t width,
+                               uint32_t height,
                                uint32_t max_colors,
                                std::vector<uint8_t>& palette,
                                std::vector<uint8_t>& indexed);
 
     // Compute median-cut color quantization on a set of RGBA pixels.
-    static std::vector<Color> median_cut(const uint8_t* rgba, size_t pixel_count,
-                                          uint32_t max_colors);
+    static std::vector<Color> median_cut(const uint8_t* rgba,
+                                         size_t pixel_count,
+                                         uint32_t max_colors);
 
     // Find nearest palette index for a given color.
     static uint8_t nearest_palette_index(const std::vector<Color>& palette,
-                                          uint8_t r, uint8_t g, uint8_t b);
+                                         uint8_t r,
+                                         uint8_t g,
+                                         uint8_t b);
 
-private:
+   private:
     mutable std::mutex mutex_;
 
     RecordingConfig config_;
-    RecordingState  state_ = RecordingState::Idle;
-    std::string     error_;
+    RecordingState state_ = RecordingState::Idle;
+    std::string error_;
 
     FrameRenderCallback render_cb_;
-    PaneRenderCallback  pane_render_cb_;
-    ProgressCallback    on_progress_;
+    PaneRenderCallback pane_render_cb_;
+    ProgressCallback on_progress_;
     std::function<void(bool)> on_complete_;
 
     // Multi-pane state
-    bool     multi_pane_ = false;
+    bool multi_pane_ = false;
     std::vector<uint8_t> pane_buffer_;  // Temp buffer for individual pane rendering
     std::vector<RecordingConfig::PaneRect> resolved_pane_rects_;
 
-    uint32_t total_frames_  = 0;
+    uint32_t total_frames_ = 0;
     uint32_t current_frame_ = 0;
 
     // Frame buffer (RGBA, width * height * 4 bytes)
@@ -213,9 +226,10 @@ private:
     uint32_t png_frame_digits_ = 4;
 
     // GIF accumulation state
-    struct GifState {
+    struct GifState
+    {
         std::vector<std::vector<uint8_t>> frames;  // Indexed frames
-        std::vector<uint8_t> global_palette;        // RGB palette
+        std::vector<uint8_t> global_palette;       // RGB palette
         bool palette_computed = false;
     };
     std::unique_ptr<GifState> gif_state_;
@@ -238,4 +252,4 @@ private:
     float wall_time() const;
 };
 
-} // namespace plotix
+}  // namespace plotix

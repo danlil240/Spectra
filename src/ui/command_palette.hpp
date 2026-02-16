@@ -2,13 +2,14 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include <string>
-#include <vector>
-#include <cmath>
+    #include <cmath>
+    #include <string>
+    #include <vector>
 
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 class CommandRegistry;
 class ShortcutManager;
@@ -17,8 +18,9 @@ struct CommandSearchResult;
 // ImGui-based command palette overlay (Ctrl+K).
 // Renders a centered floating search box with fuzzy-matched command results.
 // Arrow keys navigate, Enter executes, Escape closes.
-class CommandPalette {
-public:
+class CommandPalette
+{
+   public:
     CommandPalette() = default;
     ~CommandPalette() = default;
 
@@ -43,7 +45,7 @@ public:
     void set_body_font(ImFont* font) { font_body_ = font; }
     void set_heading_font(ImFont* font) { font_heading_ = font; }
 
-private:
+   private:
     void update_search();
     bool handle_keyboard();
 
@@ -68,17 +70,17 @@ private:
     float scale_ = 0.98f;
 
     // Smooth scroll state
-    float scroll_offset_ = 0.0f;      // Current smooth scroll position (pixels)
-    float scroll_target_ = 0.0f;      // Target scroll position (pixels)
-    float scroll_velocity_ = 0.0f;    // Inertial velocity (pixels/sec)
-    float content_height_ = 0.0f;     // Total content height (computed each frame)
-    float visible_height_ = 0.0f;     // Visible region height
+    float scroll_offset_ = 0.0f;    // Current smooth scroll position (pixels)
+    float scroll_target_ = 0.0f;    // Target scroll position (pixels)
+    float scroll_velocity_ = 0.0f;  // Inertial velocity (pixels/sec)
+    float content_height_ = 0.0f;   // Total content height (computed each frame)
+    float visible_height_ = 0.0f;   // Visible region height
 
     // Scrollbar state
     float scrollbar_opacity_ = 0.0f;  // Animated opacity (fades in on scroll, out on idle)
     float scrollbar_hover_t_ = 0.0f;  // Hover animation (widens on hover)
     bool scrollbar_dragging_ = false;
-    float scrollbar_drag_offset_ = 0.0f; // Offset from thumb top when drag started
+    float scrollbar_drag_offset_ = 0.0f;  // Offset from thumb top when drag started
 
     // Fonts
     ImFont* font_body_ = nullptr;
@@ -90,13 +92,13 @@ private:
     static constexpr float RESULT_ITEM_HEIGHT = 36.0f;
     static constexpr float CATEGORY_HEADER_HEIGHT = 28.0f;
     static constexpr float INPUT_HEIGHT = 44.0f;
-    static constexpr float ANIM_SPEED = 12.0f;       // Lerp speed for open/close
-    static constexpr float SCROLL_SPEED = 50.0f;     // Pixels per scroll tick
-    static constexpr float SCROLL_SMOOTHING = 14.0f;  // Exponential lerp rate
-    static constexpr float SCROLL_DECEL = 8.0f;      // Velocity damping rate
-    static constexpr float SCROLL_VEL_THRESHOLD = 0.5f; // Stop threshold
+    static constexpr float ANIM_SPEED = 12.0f;           // Lerp speed for open/close
+    static constexpr float SCROLL_SPEED = 50.0f;         // Pixels per scroll tick
+    static constexpr float SCROLL_SMOOTHING = 14.0f;     // Exponential lerp rate
+    static constexpr float SCROLL_DECEL = 8.0f;          // Velocity damping rate
+    static constexpr float SCROLL_VEL_THRESHOLD = 0.5f;  // Stop threshold
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

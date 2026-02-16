@@ -6,7 +6,8 @@ using namespace plotix;
 
 // ─── Basic Zone Computation ─────────────────────────────────────────────────
 
-TEST(LayoutManager, DefaultZonesAt1280x720) {
+TEST(LayoutManager, DefaultZonesAt1280x720)
+{
     LayoutManager lm;
     lm.update(1280.0f, 720.0f);
 
@@ -47,7 +48,8 @@ TEST(LayoutManager, DefaultZonesAt1280x720) {
 
 // ─── Inspector Visibility ───────────────────────────────────────────────────
 
-TEST(LayoutManager, InspectorOpenReducesCanvas) {
+TEST(LayoutManager, InspectorOpenReducesCanvas)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(1280.0f, 720.0f);  // dt=0 snaps instantly
@@ -57,14 +59,16 @@ TEST(LayoutManager, InspectorOpenReducesCanvas) {
     EXPECT_FLOAT_EQ(insp.w, LayoutManager::INSPECTOR_DEFAULT_WIDTH);
 
     auto cv = lm.canvas_rect();
-    float expected_canvas_w = 1280.0f - LayoutManager::NAV_TOOLBAR_INSET - LayoutManager::INSPECTOR_DEFAULT_WIDTH;
+    float expected_canvas_w =
+        1280.0f - LayoutManager::NAV_TOOLBAR_INSET - LayoutManager::INSPECTOR_DEFAULT_WIDTH;
     EXPECT_FLOAT_EQ(cv.w, expected_canvas_w);
 
     // Inspector is on the right edge
     EXPECT_FLOAT_EQ(insp.x + insp.w, 1280.0f);
 }
 
-TEST(LayoutManager, InspectorCloseExpandsCanvas) {
+TEST(LayoutManager, InspectorCloseExpandsCanvas)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(1280.0f, 720.0f);  // snap open
@@ -79,7 +83,8 @@ TEST(LayoutManager, InspectorCloseExpandsCanvas) {
 
 // ─── Inspector Resize ───────────────────────────────────────────────────────
 
-TEST(LayoutManager, InspectorWidthClamped) {
+TEST(LayoutManager, InspectorWidthClamped)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
 
@@ -96,7 +101,8 @@ TEST(LayoutManager, InspectorWidthClamped) {
     EXPECT_FLOAT_EQ(lm.inspector_width(), 350.0f);
 }
 
-TEST(LayoutManager, InspectorResizeActiveSnaps) {
+TEST(LayoutManager, InspectorResizeActiveSnaps)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(1280.0f, 720.0f);  // snap open
@@ -108,7 +114,8 @@ TEST(LayoutManager, InspectorResizeActiveSnaps) {
     EXPECT_FLOAT_EQ(lm.inspector_animated_width(), 400.0f);
 }
 
-TEST(LayoutManager, ResetInspectorWidth) {
+TEST(LayoutManager, ResetInspectorWidth)
+{
     LayoutManager lm;
     lm.set_inspector_width(400.0f);
     EXPECT_FLOAT_EQ(lm.inspector_width(), 400.0f);
@@ -119,7 +126,8 @@ TEST(LayoutManager, ResetInspectorWidth) {
 
 // ─── Nav Rail Expand/Collapse ───────────────────────────────────────────────
 
-TEST(LayoutManager, NavRailExpandedWidth) {
+TEST(LayoutManager, NavRailExpandedWidth)
+{
     LayoutManager lm;
     EXPECT_FALSE(lm.is_nav_rail_expanded());
     EXPECT_FLOAT_EQ(lm.nav_rail_width(), LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
@@ -136,7 +144,8 @@ TEST(LayoutManager, NavRailExpandedWidth) {
     EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
 }
 
-TEST(LayoutManager, NavRailCustomWidth) {
+TEST(LayoutManager, NavRailCustomWidth)
+{
     LayoutManager lm;
     lm.set_nav_rail_width(180.0f);
     lm.set_nav_rail_expanded(true);
@@ -148,7 +157,8 @@ TEST(LayoutManager, NavRailCustomWidth) {
 
 // ─── Tab Bar ────────────────────────────────────────────────────────────────
 
-TEST(LayoutManager, TabBarHiddenByDefault) {
+TEST(LayoutManager, TabBarHiddenByDefault)
+{
     LayoutManager lm;
     lm.update(1280.0f, 720.0f);
 
@@ -158,7 +168,8 @@ TEST(LayoutManager, TabBarHiddenByDefault) {
     EXPECT_FLOAT_EQ(tb.h, 0.0f);
 }
 
-TEST(LayoutManager, TabBarVisibleOffsetsCanvas) {
+TEST(LayoutManager, TabBarVisibleOffsetsCanvas)
+{
     LayoutManager lm;
     lm.set_tab_bar_visible(true);
     lm.update(1280.0f, 720.0f);
@@ -172,13 +183,15 @@ TEST(LayoutManager, TabBarVisibleOffsetsCanvas) {
     auto cv = lm.canvas_rect();
     EXPECT_FLOAT_EQ(cv.y, LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::TAB_BAR_HEIGHT);
 
-    float content_h = 720.0f - LayoutManager::COMMAND_BAR_HEIGHT - LayoutManager::STATUS_BAR_HEIGHT - LayoutManager::TAB_BAR_HEIGHT;
+    float content_h = 720.0f - LayoutManager::COMMAND_BAR_HEIGHT - LayoutManager::STATUS_BAR_HEIGHT
+                      - LayoutManager::TAB_BAR_HEIGHT;
     EXPECT_FLOAT_EQ(cv.h, content_h);
 }
 
 // ─── Animation ──────────────────────────────────────────────────────────────
 
-TEST(LayoutManager, AnimationProgressesWithDt) {
+TEST(LayoutManager, AnimationProgressesWithDt)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
 
@@ -197,7 +210,8 @@ TEST(LayoutManager, AnimationProgressesWithDt) {
     EXPECT_TRUE(lm.is_animating());
 }
 
-TEST(LayoutManager, AnimationConverges) {
+TEST(LayoutManager, AnimationConverges)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(1280.0f, 720.0f, 0.0f);  // snap open
@@ -205,7 +219,8 @@ TEST(LayoutManager, AnimationConverges) {
     lm.set_inspector_visible(false);
 
     // Run many frames — should converge to 0
-    for (int i = 0; i < 200; ++i) {
+    for (int i = 0; i < 200; ++i)
+    {
         lm.update(1280.0f, 720.0f, 0.016f);
     }
 
@@ -215,7 +230,8 @@ TEST(LayoutManager, AnimationConverges) {
 
 // ─── Window Resize ──────────────────────────────────────────────────────────
 
-TEST(LayoutManager, ZonesAdaptToWindowResize) {
+TEST(LayoutManager, ZonesAdaptToWindowResize)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(1920.0f, 1080.0f);
@@ -231,7 +247,8 @@ TEST(LayoutManager, ZonesAdaptToWindowResize) {
     EXPECT_FLOAT_EQ(insp.x + insp.w, 1920.0f);
 }
 
-TEST(LayoutManager, SmallWindowClampsToZero) {
+TEST(LayoutManager, SmallWindowClampsToZero)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.update(100.0f, 100.0f);
@@ -244,7 +261,8 @@ TEST(LayoutManager, SmallWindowClampsToZero) {
 #if PLOTIX_FLOATING_TOOLBAR
 // ─── Floating Toolbar ───────────────────────────────────────────────────────
 
-TEST(LayoutManager, FloatingToolbarCenteredInCanvas) {
+TEST(LayoutManager, FloatingToolbarCenteredInCanvas)
+{
     LayoutManager lm;
     lm.update(1280.0f, 720.0f);
 
@@ -263,7 +281,8 @@ TEST(LayoutManager, FloatingToolbarCenteredInCanvas) {
 
 // ─── Combined State ─────────────────────────────────────────────────────────
 
-TEST(LayoutManager, AllZonesOpenSimultaneously) {
+TEST(LayoutManager, AllZonesOpenSimultaneously)
+{
     LayoutManager lm;
     lm.set_inspector_visible(true);
     lm.set_nav_rail_expanded(true);

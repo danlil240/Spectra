@@ -7,32 +7,35 @@
 // - Timeline playback with real-time updates
 // - Curve editor integration for visual editing
 
-#include <plotix/plotix.hpp>
-
-#include <iostream>
-#include <vector>
 #include <cmath>
+#include <iostream>
+#include <plotix/plotix.hpp>
+#include <vector>
 
 // Animated plot data structure
-struct AnimatedPlot {
+struct AnimatedPlot
+{
     std::vector<float> x, y;
     float phase = 0.0f;
     float amplitude = 1.0f;
     float frequency = 1.0f;
     float y_offset = 0.0f;
-    
-    void regenerate(size_t n_points = 200) {
+
+    void regenerate(size_t n_points = 200)
+    {
         x.resize(n_points);
         y.resize(n_points);
-        
-        for (size_t i = 0; i < n_points; ++i) {
+
+        for (size_t i = 0; i < n_points; ++i)
+        {
             x[i] = static_cast<float>(i) / (n_points - 1) * 10.0f;
             y[i] = amplitude * std::sin(frequency * x[i] + phase) + y_offset;
         }
     }
 };
 
-int main() {
+int main()
+{
     plotix::App app;
     auto& fig = app.figure({.width = 1400, .height = 900});
     auto& ax = fig.subplot(1, 1, 1);

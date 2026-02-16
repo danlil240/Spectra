@@ -1,21 +1,23 @@
+#include <filesystem>
 #include <gtest/gtest.h>
+
+#include "ui/command_registry.hpp"
 #include "ui/shortcut_config.hpp"
 #include "ui/shortcut_manager.hpp"
-#include "ui/command_registry.hpp"
-
-#include <filesystem>
 
 using namespace plotix;
 
 // ─── Override Management ─────────────────────────────────────────────────────
 
-TEST(ShortcutConfigOverrides, InitiallyEmpty) {
+TEST(ShortcutConfigOverrides, InitiallyEmpty)
+{
     ShortcutConfig config;
     EXPECT_EQ(config.override_count(), 0u);
     EXPECT_TRUE(config.overrides().empty());
 }
 
-TEST(ShortcutConfigOverrides, SetOverride) {
+TEST(ShortcutConfigOverrides, SetOverride)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     EXPECT_EQ(config.override_count(), 1u);
@@ -23,7 +25,8 @@ TEST(ShortcutConfigOverrides, SetOverride) {
     EXPECT_FALSE(config.has_override("view.zoom"));
 }
 
-TEST(ShortcutConfigOverrides, UpdateOverride) {
+TEST(ShortcutConfigOverrides, UpdateOverride)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.set_override("view.reset", "Ctrl+Shift+R");
@@ -32,7 +35,8 @@ TEST(ShortcutConfigOverrides, UpdateOverride) {
     EXPECT_EQ(overrides[0].shortcut_str, "Ctrl+Shift+R");
 }
 
-TEST(ShortcutConfigOverrides, RemoveOverride) {
+TEST(ShortcutConfigOverrides, RemoveOverride)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.set_override("view.zoom", "Ctrl+Z");
@@ -43,14 +47,16 @@ TEST(ShortcutConfigOverrides, RemoveOverride) {
     EXPECT_TRUE(config.has_override("view.zoom"));
 }
 
-TEST(ShortcutConfigOverrides, RemoveNonexistent) {
+TEST(ShortcutConfigOverrides, RemoveNonexistent)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.remove_override("nonexistent");
     EXPECT_EQ(config.override_count(), 1u);
 }
 
-TEST(ShortcutConfigOverrides, ResetAll) {
+TEST(ShortcutConfigOverrides, ResetAll)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.set_override("view.zoom", "Ctrl+Z");
@@ -59,7 +65,8 @@ TEST(ShortcutConfigOverrides, ResetAll) {
     EXPECT_EQ(config.override_count(), 0u);
 }
 
-TEST(ShortcutConfigOverrides, UnbindOverride) {
+TEST(ShortcutConfigOverrides, UnbindOverride)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "");
     EXPECT_EQ(config.override_count(), 1u);
@@ -68,7 +75,8 @@ TEST(ShortcutConfigOverrides, UnbindOverride) {
     EXPECT_TRUE(overrides[0].shortcut_str.empty());
 }
 
-TEST(ShortcutConfigOverrides, MultipleOverrides) {
+TEST(ShortcutConfigOverrides, MultipleOverrides)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.set_override("view.zoom", "Ctrl+Plus");
@@ -79,7 +87,8 @@ TEST(ShortcutConfigOverrides, MultipleOverrides) {
 
 // ─── Apply Overrides ─────────────────────────────────────────────────────────
 
-TEST(ShortcutConfigApply, ApplyRebind) {
+TEST(ShortcutConfigApply, ApplyRebind)
+{
     CommandRegistry registry;
     bool called = false;
     registry.register_command("test.cmd", "Test", [&]() { called = true; });
@@ -99,7 +108,8 @@ TEST(ShortcutConfigApply, ApplyRebind) {
     EXPECT_EQ(mgr.command_for_shortcut(Shortcut::from_string("Ctrl+R")), "test.cmd");
 }
 
-TEST(ShortcutConfigApply, ApplyUnbind) {
+TEST(ShortcutConfigApply, ApplyUnbind)
+{
     CommandRegistry registry;
     registry.register_command("test.cmd", "Test", []() {});
 
@@ -116,14 +126,16 @@ TEST(ShortcutConfigApply, ApplyUnbind) {
     EXPECT_TRUE(mgr.shortcut_for_command("test.cmd").key == 0);
 }
 
-TEST(ShortcutConfigApply, ApplyWithNullManager) {
+TEST(ShortcutConfigApply, ApplyWithNullManager)
+{
     ShortcutConfig config;
     config.set_override("test.cmd", "Ctrl+R");
     // Should not crash
     config.apply_overrides();
 }
 
-TEST(ShortcutConfigApply, ApplyMultipleOverrides) {
+TEST(ShortcutConfigApply, ApplyMultipleOverrides)
+{
     CommandRegistry registry;
     registry.register_command("cmd.a", "A", []() {});
     registry.register_command("cmd.b", "B", []() {});
@@ -145,7 +157,8 @@ TEST(ShortcutConfigApply, ApplyMultipleOverrides) {
 
 // ─── Serialization ───────────────────────────────────────────────────────────
 
-TEST(ShortcutConfigSerialize, EmptyConfig) {
+TEST(ShortcutConfigSerialize, EmptyConfig)
+{
     ShortcutConfig config;
     std::string json = config.serialize();
     EXPECT_FALSE(json.empty());
@@ -153,7 +166,8 @@ TEST(ShortcutConfigSerialize, EmptyConfig) {
     EXPECT_NE(json.find("\"bindings\""), std::string::npos);
 }
 
-TEST(ShortcutConfigSerialize, RoundTrip) {
+TEST(ShortcutConfigSerialize, RoundTrip)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
     config.set_override("view.zoom", "Ctrl+Plus");
@@ -167,17 +181,21 @@ TEST(ShortcutConfigSerialize, RoundTrip) {
 
     auto overrides = config2.overrides();
     bool found_reset = false, found_zoom = false, found_undo = false;
-    for (const auto& o : overrides) {
-        if (o.command_id == "view.reset") {
+    for (const auto& o : overrides)
+    {
+        if (o.command_id == "view.reset")
+        {
             EXPECT_EQ(o.shortcut_str, "Ctrl+R");
             EXPECT_FALSE(o.removed);
             found_reset = true;
         }
-        if (o.command_id == "view.zoom") {
+        if (o.command_id == "view.zoom")
+        {
             EXPECT_EQ(o.shortcut_str, "Ctrl+Plus");
             found_zoom = true;
         }
-        if (o.command_id == "edit.undo") {
+        if (o.command_id == "edit.undo")
+        {
             EXPECT_TRUE(o.removed);
             found_undo = true;
         }
@@ -187,23 +205,27 @@ TEST(ShortcutConfigSerialize, RoundTrip) {
     EXPECT_TRUE(found_undo);
 }
 
-TEST(ShortcutConfigSerialize, DeserializeEmpty) {
+TEST(ShortcutConfigSerialize, DeserializeEmpty)
+{
     ShortcutConfig config;
     EXPECT_FALSE(config.deserialize(""));
 }
 
-TEST(ShortcutConfigSerialize, DeserializeFutureVersion) {
+TEST(ShortcutConfigSerialize, DeserializeFutureVersion)
+{
     ShortcutConfig config;
     EXPECT_FALSE(config.deserialize("{\"version\": 99, \"bindings\": []}"));
 }
 
-TEST(ShortcutConfigSerialize, DeserializeNoBindings) {
+TEST(ShortcutConfigSerialize, DeserializeNoBindings)
+{
     ShortcutConfig config;
     EXPECT_TRUE(config.deserialize("{\"version\": 1}"));
     EXPECT_EQ(config.override_count(), 0u);
 }
 
-TEST(ShortcutConfigSerialize, SpecialCharacters) {
+TEST(ShortcutConfigSerialize, SpecialCharacters)
+{
     ShortcutConfig config;
     config.set_override("plugin.my\"cmd", "Ctrl+Shift+A");
 
@@ -215,7 +237,8 @@ TEST(ShortcutConfigSerialize, SpecialCharacters) {
 
 // ─── File I/O ────────────────────────────────────────────────────────────────
 
-TEST(ShortcutConfigFile, SaveAndLoad) {
+TEST(ShortcutConfigFile, SaveAndLoad)
+{
     auto path = std::filesystem::temp_directory_path() / "plotix_test_keybindings.json";
     auto path_str = path.string();
 
@@ -236,19 +259,22 @@ TEST(ShortcutConfigFile, SaveAndLoad) {
     std::filesystem::remove(path);
 }
 
-TEST(ShortcutConfigFile, LoadNonexistent) {
+TEST(ShortcutConfigFile, LoadNonexistent)
+{
     ShortcutConfig config;
     EXPECT_FALSE(config.load("/nonexistent/path/keybindings.json"));
 }
 
-TEST(ShortcutConfigFile, SaveToInvalidPath) {
+TEST(ShortcutConfigFile, SaveToInvalidPath)
+{
     ShortcutConfig config;
     // This might succeed on some systems (creates dirs), might fail on others
     // Just ensure it doesn't crash
     config.save("/dev/null/impossible/path/keybindings.json");
 }
 
-TEST(ShortcutConfigFile, DefaultPath) {
+TEST(ShortcutConfigFile, DefaultPath)
+{
     std::string path = ShortcutConfig::default_path();
     EXPECT_FALSE(path.empty());
     EXPECT_NE(path.find("keybindings.json"), std::string::npos);
@@ -256,7 +282,8 @@ TEST(ShortcutConfigFile, DefaultPath) {
 
 // ─── Callback ────────────────────────────────────────────────────────────────
 
-TEST(ShortcutConfigCallback, OnChangeCalledOnSet) {
+TEST(ShortcutConfigCallback, OnChangeCalledOnSet)
+{
     ShortcutConfig config;
     int change_count = 0;
     config.set_on_change([&]() { ++change_count; });
@@ -268,7 +295,8 @@ TEST(ShortcutConfigCallback, OnChangeCalledOnSet) {
     EXPECT_EQ(change_count, 2);
 }
 
-TEST(ShortcutConfigCallback, OnChangeCalledOnRemove) {
+TEST(ShortcutConfigCallback, OnChangeCalledOnRemove)
+{
     ShortcutConfig config;
     int change_count = 0;
     config.set_override("view.reset", "Ctrl+R");
@@ -278,7 +306,8 @@ TEST(ShortcutConfigCallback, OnChangeCalledOnRemove) {
     EXPECT_EQ(change_count, 1);
 }
 
-TEST(ShortcutConfigCallback, OnChangeCalledOnReset) {
+TEST(ShortcutConfigCallback, OnChangeCalledOnReset)
+{
     ShortcutConfig config;
     config.set_override("view.reset", "Ctrl+R");
 
@@ -288,7 +317,8 @@ TEST(ShortcutConfigCallback, OnChangeCalledOnReset) {
     EXPECT_EQ(change_count, 1);
 }
 
-TEST(ShortcutConfigCallback, NoCallbackNoCrash) {
+TEST(ShortcutConfigCallback, NoCallbackNoCrash)
+{
     ShortcutConfig config;
     // No callback set — should not crash
     config.set_override("view.reset", "Ctrl+R");

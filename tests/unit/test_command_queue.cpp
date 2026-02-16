@@ -1,20 +1,22 @@
 #include <gtest/gtest.h>
 
 // CommandQueue is an internal header in src/ui/
-#include "ui/command_queue.hpp"
-
 #include <atomic>
 #include <thread>
 #include <vector>
 
+#include "ui/command_queue.hpp"
+
 using namespace plotix;
 
-TEST(CommandQueue, InitiallyEmpty) {
+TEST(CommandQueue, InitiallyEmpty)
+{
     CommandQueue q;
     EXPECT_TRUE(q.empty());
 }
 
-TEST(CommandQueue, PushAndPop) {
+TEST(CommandQueue, PushAndPop)
+{
     CommandQueue q;
     int value = 0;
 
@@ -29,7 +31,8 @@ TEST(CommandQueue, PushAndPop) {
     EXPECT_EQ(value, 42);
 }
 
-TEST(CommandQueue, Drain) {
+TEST(CommandQueue, Drain)
+{
     CommandQueue q;
     int counter = 0;
 
@@ -43,13 +46,15 @@ TEST(CommandQueue, Drain) {
     EXPECT_TRUE(q.empty());
 }
 
-TEST(CommandQueue, DrainEmpty) {
+TEST(CommandQueue, DrainEmpty)
+{
     CommandQueue q;
     size_t drained = q.drain();
     EXPECT_EQ(drained, 0u);
 }
 
-TEST(CommandQueue, FIFO_Order) {
+TEST(CommandQueue, FIFO_Order)
+{
     CommandQueue q;
     std::vector<int> order;
 
@@ -65,7 +70,8 @@ TEST(CommandQueue, FIFO_Order) {
     EXPECT_EQ(order[2], 3);
 }
 
-TEST(CommandQueue, FullQueue) {
+TEST(CommandQueue, FullQueue)
+{
     // Small capacity to test full condition
     CommandQueue q(4);
 
@@ -73,21 +79,24 @@ TEST(CommandQueue, FullQueue) {
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
-    EXPECT_FALSE(q.push([]() {})); // Should fail — full
+    EXPECT_FALSE(q.push([]() {}));  // Should fail — full
 }
 
-TEST(CommandQueue, PopFromEmpty) {
+TEST(CommandQueue, PopFromEmpty)
+{
     CommandQueue q;
     std::function<void()> cmd;
     EXPECT_FALSE(q.pop(cmd));
 }
 
-TEST(CommandQueue, Capacity) {
+TEST(CommandQueue, Capacity)
+{
     CommandQueue q(128);
     EXPECT_EQ(q.capacity(), 128u);
 }
 
-TEST(CommandQueue, NullCommandSafe) {
+TEST(CommandQueue, NullCommandSafe)
+{
     CommandQueue q;
     q.push(nullptr);
 
@@ -96,30 +105,39 @@ TEST(CommandQueue, NullCommandSafe) {
     EXPECT_EQ(drained, 1u);
 }
 
-TEST(CommandQueue, ProducerConsumerThreaded) {
+TEST(CommandQueue, ProducerConsumerThreaded)
+{
     CommandQueue q;
     std::atomic<int> sum{0};
     constexpr int N = 1000;
 
     // Producer thread
-    std::thread producer([&q, &sum]() {
-        for (int i = 0; i < N; ++i) {
-            while (!q.push([&sum]() { sum.fetch_add(1, std::memory_order_relaxed); })) {
-                std::this_thread::yield();
+    std::thread producer(
+        [&q, &sum]()
+        {
+            for (int i = 0; i < N; ++i)
+            {
+                while (!q.push([&sum]() { sum.fetch_add(1, std::memory_order_relaxed); }))
+                {
+                    std::this_thread::yield();
+                }
             }
-        }
-    });
+        });
 
     // Consumer thread
-    std::thread consumer([&q]() {
-        int consumed = 0;
-        while (consumed < N) {
-            consumed += static_cast<int>(q.drain());
-            if (consumed < N) {
-                std::this_thread::yield();
+    std::thread consumer(
+        [&q]()
+        {
+            int consumed = 0;
+            while (consumed < N)
+            {
+                consumed += static_cast<int>(q.drain());
+                if (consumed < N)
+                {
+                    std::this_thread::yield();
+                }
             }
-        }
-    });
+        });
 
     producer.join();
     consumer.join();

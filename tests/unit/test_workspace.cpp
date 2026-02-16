@@ -1,17 +1,17 @@
-#include <gtest/gtest.h>
-
-#include "ui/workspace.hpp"
-
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <string>
+
+#include "ui/workspace.hpp"
 
 using namespace plotix;
 
 // ─── WorkspaceData defaults ──────────────────────────────────────────────────
 
-TEST(WorkspaceData, DefaultValues) {
+TEST(WorkspaceData, DefaultValues)
+{
     WorkspaceData data;
     EXPECT_EQ(data.version, WorkspaceData::FORMAT_VERSION);
     EXPECT_EQ(data.theme_name, "dark");
@@ -24,19 +24,21 @@ TEST(WorkspaceData, DefaultValues) {
 
 // ─── Serialization round-trip ────────────────────────────────────────────────
 
-class WorkspaceTest : public ::testing::Test {
-protected:
+class WorkspaceTest : public ::testing::Test
+{
+   protected:
     std::string tmp_path;
 
-    void SetUp() override {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_test_workspace.plotix").string();
+    void SetUp() override
+    {
+        tmp_path =
+            (std::filesystem::temp_directory_path() / "plotix_test_workspace.plotix").string();
     }
 
-    void TearDown() override {
-        std::remove(tmp_path.c_str());
-    }
+    void TearDown() override { std::remove(tmp_path.c_str()); }
 
-    WorkspaceData make_sample_data() {
+    WorkspaceData make_sample_data()
+    {
         WorkspaceData data;
         data.theme_name = "light";
         data.active_figure_index = 1;
@@ -80,7 +82,8 @@ protected:
     }
 };
 
-TEST_F(WorkspaceTest, SaveAndLoadRoundTrip) {
+TEST_F(WorkspaceTest, SaveAndLoadRoundTrip)
+{
     auto original = make_sample_data();
     ASSERT_TRUE(Workspace::save(tmp_path, original));
 
@@ -124,30 +127,35 @@ TEST_F(WorkspaceTest, SaveAndLoadRoundTrip) {
     EXPECT_TRUE(ser.visible);
 }
 
-TEST_F(WorkspaceTest, SaveCreatesFile) {
+TEST_F(WorkspaceTest, SaveCreatesFile)
+{
     auto data = make_sample_data();
     ASSERT_TRUE(Workspace::save(tmp_path, data));
     EXPECT_TRUE(std::filesystem::exists(tmp_path));
     EXPECT_GT(std::filesystem::file_size(tmp_path), 0u);
 }
 
-TEST_F(WorkspaceTest, LoadNonExistentReturnsFalse) {
+TEST_F(WorkspaceTest, LoadNonExistentReturnsFalse)
+{
     WorkspaceData data;
     EXPECT_FALSE(Workspace::load("/nonexistent/path/workspace.plotix", data));
 }
 
-TEST_F(WorkspaceTest, LoadEmptyFileReturnsFalse) {
+TEST_F(WorkspaceTest, LoadEmptyFileReturnsFalse)
+{
     std::ofstream(tmp_path).close();  // Create empty file
     WorkspaceData data;
     EXPECT_FALSE(Workspace::load(tmp_path, data));
 }
 
-TEST_F(WorkspaceTest, SaveToInvalidPathReturnsFalse) {
+TEST_F(WorkspaceTest, SaveToInvalidPathReturnsFalse)
+{
     auto data = make_sample_data();
     EXPECT_FALSE(Workspace::save("/nonexistent/dir/workspace.plotix", data));
 }
 
-TEST_F(WorkspaceTest, MultipleFigures) {
+TEST_F(WorkspaceTest, MultipleFigures)
+{
     WorkspaceData data;
     data.figures.resize(3);
     data.figures[0].title = "Fig A";
@@ -164,7 +172,8 @@ TEST_F(WorkspaceTest, MultipleFigures) {
     EXPECT_EQ(loaded.figures[2].title, "Fig C");
 }
 
-TEST_F(WorkspaceTest, EmptyFiguresArray) {
+TEST_F(WorkspaceTest, EmptyFiguresArray)
+{
     WorkspaceData data;
     // No figures
     ASSERT_TRUE(Workspace::save(tmp_path, data));
@@ -174,7 +183,8 @@ TEST_F(WorkspaceTest, EmptyFiguresArray) {
     EXPECT_TRUE(loaded.figures.empty());
 }
 
-TEST_F(WorkspaceTest, SpecialCharactersInStrings) {
+TEST_F(WorkspaceTest, SpecialCharactersInStrings)
+{
     WorkspaceData data;
     WorkspaceData::FigureState fig;
     fig.title = "Test \"quoted\" figure";
@@ -195,13 +205,15 @@ TEST_F(WorkspaceTest, SpecialCharactersInStrings) {
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
-TEST(WorkspacePaths, DefaultPathNotEmpty) {
+TEST(WorkspacePaths, DefaultPathNotEmpty)
+{
     std::string path = Workspace::default_path();
     EXPECT_FALSE(path.empty());
     EXPECT_NE(path.find("plotix"), std::string::npos);
 }
 
-TEST(WorkspacePaths, AutosavePathNotEmpty) {
+TEST(WorkspacePaths, AutosavePathNotEmpty)
+{
     std::string path = Workspace::autosave_path();
     EXPECT_FALSE(path.empty());
     EXPECT_NE(path.find("plotix"), std::string::npos);
@@ -209,13 +221,13 @@ TEST(WorkspacePaths, AutosavePathNotEmpty) {
 
 // ─── JSON format ─────────────────────────────────────────────────────────────
 
-TEST_F(WorkspaceTest, OutputIsValidJson) {
+TEST_F(WorkspaceTest, OutputIsValidJson)
+{
     auto data = make_sample_data();
     ASSERT_TRUE(Workspace::save(tmp_path, data));
 
     std::ifstream file(tmp_path);
-    std::string content((std::istreambuf_iterator<char>(file)),
-                         std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
     // Basic JSON structure checks
     EXPECT_EQ(content.front(), '{');

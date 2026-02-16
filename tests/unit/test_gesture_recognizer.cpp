@@ -6,13 +6,15 @@ using namespace plotix;
 
 // ─── Double-click detection ─────────────────────────────────────────────────
 
-TEST(GestureRecognizer, SingleClickNotDouble) {
+TEST(GestureRecognizer, SingleClickNotDouble)
+{
     GestureRecognizer gr;
     bool result = gr.on_click(100.0, 100.0);
     EXPECT_FALSE(result);
 }
 
-TEST(GestureRecognizer, TwoClicksCloseInTimeIsDouble) {
+TEST(GestureRecognizer, TwoClicksCloseInTimeIsDouble)
+{
     GestureRecognizer gr;
     gr.on_click(100.0, 100.0);
     // Second click immediately after — should be double-click
@@ -20,7 +22,8 @@ TEST(GestureRecognizer, TwoClicksCloseInTimeIsDouble) {
     EXPECT_TRUE(result);
 }
 
-TEST(GestureRecognizer, TwoClicksFarApartNotDouble) {
+TEST(GestureRecognizer, TwoClicksFarApartNotDouble)
+{
     GestureRecognizer gr;
     gr.on_click(100.0, 100.0);
     // Second click far away — not a double-click
@@ -28,18 +31,20 @@ TEST(GestureRecognizer, TwoClicksFarApartNotDouble) {
     EXPECT_FALSE(result);
 }
 
-TEST(GestureRecognizer, ThirdClickAfterDoubleIsNotDouble) {
+TEST(GestureRecognizer, ThirdClickAfterDoubleIsNotDouble)
+{
     GestureRecognizer gr;
     gr.on_click(100.0, 100.0);
-    gr.on_click(101.0, 101.0); // double
+    gr.on_click(101.0, 101.0);  // double
     // Third click should NOT be a double (resets)
     bool result = gr.on_click(101.0, 101.0);
-    EXPECT_TRUE(result); // Actually this is still within time+distance, so it's another double
+    EXPECT_TRUE(result);  // Actually this is still within time+distance, so it's another double
 }
 
 // ─── Scroll accumulation ────────────────────────────────────────────────────
 
-TEST(GestureRecognizer, ScrollAccumulates) {
+TEST(GestureRecognizer, ScrollAccumulates)
+{
     GestureRecognizer gr;
     gr.on_scroll(0.0, 1.0, false);
     gr.on_scroll(0.0, 2.0, false);
@@ -52,7 +57,8 @@ TEST(GestureRecognizer, ScrollAccumulates) {
     EXPECT_FLOAT_EQ(dy2, 0.0f);
 }
 
-TEST(GestureRecognizer, ScrollDxAccumulates) {
+TEST(GestureRecognizer, ScrollDxAccumulates)
+{
     GestureRecognizer gr;
     gr.on_scroll(1.5, 0.0, false);
     gr.on_scroll(2.5, 0.0, false);
@@ -63,13 +69,15 @@ TEST(GestureRecognizer, ScrollDxAccumulates) {
 
 // ─── Pinch state ────────────────────────────────────────────────────────────
 
-TEST(GestureRecognizer, PinchInitiallyInactive) {
+TEST(GestureRecognizer, PinchInitiallyInactive)
+{
     GestureRecognizer gr;
     EXPECT_FALSE(gr.is_pinching());
     EXPECT_FLOAT_EQ(gr.pinch_scale(), 1.0f);
 }
 
-TEST(GestureRecognizer, PinchActivatesOnEvent) {
+TEST(GestureRecognizer, PinchActivatesOnEvent)
+{
     GestureRecognizer gr;
     gr.on_pinch(1.5f, 400.0f, 300.0f);
 
@@ -79,7 +87,8 @@ TEST(GestureRecognizer, PinchActivatesOnEvent) {
     EXPECT_FLOAT_EQ(gr.pinch_cy(), 300.0f);
 }
 
-TEST(GestureRecognizer, EndPinchResetsState) {
+TEST(GestureRecognizer, EndPinchResetsState)
+{
     GestureRecognizer gr;
     gr.on_pinch(2.0f, 100.0f, 100.0f);
     gr.end_pinch();
@@ -90,9 +99,10 @@ TEST(GestureRecognizer, EndPinchResetsState) {
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-TEST(GestureRecognizer, CustomDoubleClickDistance) {
+TEST(GestureRecognizer, CustomDoubleClickDistance)
+{
     GestureRecognizer gr;
-    gr.set_double_click_distance(2.0f); // Very tight
+    gr.set_double_click_distance(2.0f);  // Very tight
 
     gr.on_click(100.0, 100.0);
     // 3px away — should NOT be double with 2px threshold

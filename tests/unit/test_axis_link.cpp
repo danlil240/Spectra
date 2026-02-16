@@ -1,21 +1,22 @@
+#include <atomic>
 #include <gtest/gtest.h>
+#include <plotix/axes.hpp>
+#include <plotix/figure.hpp>
+#include <thread>
 
 #include "ui/axis_link.hpp"
 #include "ui/input.hpp"
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
-
-#include <atomic>
-#include <thread>
 
 using namespace plotix;
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 // Create a figure with N subplots (1 row, N cols) and set explicit limits
-static std::unique_ptr<Figure> make_figure(int n_axes) {
+static std::unique_ptr<Figure> make_figure(int n_axes)
+{
     auto fig = std::make_unique<Figure>();
-    for (int i = 0; i < n_axes; ++i) {
+    for (int i = 0; i < n_axes; ++i)
+    {
         auto& ax = fig->subplot(1, n_axes, i + 1);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(-1.0f, 1.0f);
@@ -23,19 +24,22 @@ static std::unique_ptr<Figure> make_figure(int n_axes) {
     return fig;
 }
 
-static Axes& ax(Figure& fig, int idx) {
+static Axes& ax(Figure& fig, int idx)
+{
     return *fig.axes_mut()[static_cast<size_t>(idx)];
 }
 
 // ─── LinkAxis enum ───────────────────────────────────────────────────────────
 
-TEST(LinkAxisEnum, BitwiseOr) {
+TEST(LinkAxisEnum, BitwiseOr)
+{
     auto both = LinkAxis::X | LinkAxis::Y;
     EXPECT_EQ(static_cast<uint8_t>(both), 0x03);
     EXPECT_EQ(both, LinkAxis::Both);
 }
 
-TEST(LinkAxisEnum, BitwiseAnd) {
+TEST(LinkAxisEnum, BitwiseAnd)
+{
     EXPECT_TRUE(has_flag(LinkAxis::Both, LinkAxis::X));
     EXPECT_TRUE(has_flag(LinkAxis::Both, LinkAxis::Y));
     EXPECT_TRUE(has_flag(LinkAxis::X, LinkAxis::X));
@@ -45,12 +49,14 @@ TEST(LinkAxisEnum, BitwiseAnd) {
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-TEST(AxisLinkConstruction, DefaultEmpty) {
+TEST(AxisLinkConstruction, DefaultEmpty)
+{
     AxisLinkManager mgr;
     EXPECT_EQ(mgr.group_count(), 0u);
 }
 
-TEST(AxisLinkConstruction, CreateGroup) {
+TEST(AxisLinkConstruction, CreateGroup)
+{
     AxisLinkManager mgr;
     auto id = mgr.create_group("X Link", LinkAxis::X);
     EXPECT_GT(id, 0u);
@@ -62,7 +68,8 @@ TEST(AxisLinkConstruction, CreateGroup) {
     EXPECT_TRUE(g->members.empty());
 }
 
-TEST(AxisLinkConstruction, MultipleGroups) {
+TEST(AxisLinkConstruction, MultipleGroups)
+{
     AxisLinkManager mgr;
     auto id1 = mgr.create_group("G1", LinkAxis::X);
     auto id2 = mgr.create_group("G2", LinkAxis::Y);
@@ -74,7 +81,8 @@ TEST(AxisLinkConstruction, MultipleGroups) {
 
 // ─── Membership ──────────────────────────────────────────────────────────────
 
-TEST(AxisLinkMembership, AddToGroup) {
+TEST(AxisLinkMembership, AddToGroup)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
@@ -86,16 +94,18 @@ TEST(AxisLinkMembership, AddToGroup) {
     EXPECT_EQ(g->members.size(), 2u);
 }
 
-TEST(AxisLinkMembership, NoDuplicates) {
+TEST(AxisLinkMembership, NoDuplicates)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
     mgr.add_to_group(id, &ax(*fig, 0));
-    mgr.add_to_group(id, &ax(*fig, 0)); // duplicate
+    mgr.add_to_group(id, &ax(*fig, 0));  // duplicate
     EXPECT_EQ(mgr.group(id)->members.size(), 1u);
 }
 
-TEST(AxisLinkMembership, RemoveFromGroup) {
+TEST(AxisLinkMembership, RemoveFromGroup)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
@@ -110,7 +120,8 @@ TEST(AxisLinkMembership, RemoveFromGroup) {
     EXPECT_FALSE(g->contains(&ax(*fig, 1)));
 }
 
-TEST(AxisLinkMembership, RemoveFromAll) {
+TEST(AxisLinkMembership, RemoveFromAll)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id1 = mgr.create_group("G1", LinkAxis::X);
@@ -126,7 +137,8 @@ TEST(AxisLinkMembership, RemoveFromAll) {
     EXPECT_EQ(mgr.group(id2)->members.size(), 1u);
 }
 
-TEST(AxisLinkMembership, RemoveGroupCleansUp) {
+TEST(AxisLinkMembership, RemoveGroupCleansUp)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
@@ -138,33 +150,37 @@ TEST(AxisLinkMembership, RemoveGroupCleansUp) {
     EXPECT_FALSE(mgr.is_linked(&ax(*fig, 0)));
 }
 
-TEST(AxisLinkMembership, EmptyGroupAutoRemoved) {
+TEST(AxisLinkMembership, EmptyGroupAutoRemoved)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
     mgr.add_to_group(id, &ax(*fig, 0));
 
     mgr.remove_from_group(id, &ax(*fig, 0));
-    EXPECT_EQ(mgr.group_count(), 0u); // Empty group auto-removed
+    EXPECT_EQ(mgr.group_count(), 0u);  // Empty group auto-removed
 }
 
-TEST(AxisLinkMembership, AddNullIgnored) {
+TEST(AxisLinkMembership, AddNullIgnored)
+{
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
     mgr.add_to_group(id, nullptr);
     EXPECT_EQ(mgr.group(id)->members.size(), 0u);
 }
 
-TEST(AxisLinkMembership, AddToNonexistentGroup) {
+TEST(AxisLinkMembership, AddToNonexistentGroup)
+{
     auto fig = make_figure(1);
     AxisLinkManager mgr;
-    mgr.add_to_group(999, &ax(*fig, 0)); // No crash
+    mgr.add_to_group(999, &ax(*fig, 0));  // No crash
     EXPECT_FALSE(mgr.is_linked(&ax(*fig, 0)));
 }
 
 // ─── Convenience link() ──────────────────────────────────────────────────────
 
-TEST(AxisLinkConvenience, LinkTwoAxes) {
+TEST(AxisLinkConvenience, LinkTwoAxes)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -174,40 +190,45 @@ TEST(AxisLinkConvenience, LinkTwoAxes) {
     EXPECT_TRUE(mgr.is_linked(&ax(*fig, 1)));
 }
 
-TEST(AxisLinkConvenience, LinkAlreadyLinked) {
+TEST(AxisLinkConvenience, LinkAlreadyLinked)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id1 = mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
     auto id2 = mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
-    EXPECT_EQ(id1, id2); // Same group reused
+    EXPECT_EQ(id1, id2);  // Same group reused
     EXPECT_EQ(mgr.group_count(), 1u);
 }
 
-TEST(AxisLinkConvenience, LinkThirdToExistingGroup) {
+TEST(AxisLinkConvenience, LinkThirdToExistingGroup)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id1 = mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
     auto id2 = mgr.link(&ax(*fig, 0), &ax(*fig, 2), LinkAxis::X);
-    EXPECT_EQ(id1, id2); // ax0 already in group, ax2 joins
+    EXPECT_EQ(id1, id2);  // ax0 already in group, ax2 joins
     EXPECT_EQ(mgr.group_count(), 1u);
     EXPECT_EQ(mgr.group(id1)->members.size(), 3u);
 }
 
-TEST(AxisLinkConvenience, LinkSameAxesReturnsZero) {
+TEST(AxisLinkConvenience, LinkSameAxesReturnsZero)
+{
     auto fig = make_figure(1);
     AxisLinkManager mgr;
     auto id = mgr.link(&ax(*fig, 0), &ax(*fig, 0), LinkAxis::X);
     EXPECT_EQ(id, 0u);
 }
 
-TEST(AxisLinkConvenience, LinkNullReturnsZero) {
+TEST(AxisLinkConvenience, LinkNullReturnsZero)
+{
     auto fig = make_figure(1);
     AxisLinkManager mgr;
     EXPECT_EQ(mgr.link(nullptr, &ax(*fig, 0), LinkAxis::X), 0u);
     EXPECT_EQ(mgr.link(&ax(*fig, 0), nullptr, LinkAxis::X), 0u);
 }
 
-TEST(AxisLinkConvenience, UnlinkRemovesFromAll) {
+TEST(AxisLinkConvenience, UnlinkRemovesFromAll)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -219,7 +240,8 @@ TEST(AxisLinkConvenience, UnlinkRemovesFromAll) {
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
-TEST(AxisLinkQueries, GroupsFor) {
+TEST(AxisLinkQueries, GroupsFor)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id1 = mgr.create_group("G1", LinkAxis::X);
@@ -232,7 +254,8 @@ TEST(AxisLinkQueries, GroupsFor) {
     EXPECT_EQ(groups.size(), 2u);
 }
 
-TEST(AxisLinkQueries, LinkedPeers) {
+TEST(AxisLinkQueries, LinkedPeers)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -242,7 +265,8 @@ TEST(AxisLinkQueries, LinkedPeers) {
     EXPECT_EQ(peers.size(), 2u);
 }
 
-TEST(AxisLinkQueries, LinkedPeersNoDuplicates) {
+TEST(AxisLinkQueries, LinkedPeersNoDuplicates)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id1 = mgr.create_group("G1", LinkAxis::X);
@@ -254,16 +278,18 @@ TEST(AxisLinkQueries, LinkedPeersNoDuplicates) {
     mgr.add_to_group(id2, &ax(*fig, 1));
 
     auto peers = mgr.linked_peers(&ax(*fig, 0));
-    EXPECT_EQ(peers.size(), 1u); // ax1 appears once despite being in 2 groups
+    EXPECT_EQ(peers.size(), 1u);  // ax1 appears once despite being in 2 groups
 }
 
-TEST(AxisLinkQueries, IsLinkedFalseForUnlinked) {
+TEST(AxisLinkQueries, IsLinkedFalseForUnlinked)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     EXPECT_FALSE(mgr.is_linked(&ax(*fig, 0)));
 }
 
-TEST(AxisLinkQueries, IsLinkedFalseForSoleGroupMember) {
+TEST(AxisLinkQueries, IsLinkedFalseForSoleGroupMember)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
@@ -272,14 +298,16 @@ TEST(AxisLinkQueries, IsLinkedFalseForSoleGroupMember) {
     EXPECT_FALSE(mgr.is_linked(&ax(*fig, 0)));
 }
 
-TEST(AxisLinkQueries, GroupReturnsNullForInvalidId) {
+TEST(AxisLinkQueries, GroupReturnsNullForInvalidId)
+{
     AxisLinkManager mgr;
     EXPECT_EQ(mgr.group(999), nullptr);
 }
 
 // ─── Propagation: X-axis ────────────────────────────────────────────────────
 
-TEST(AxisLinkPropagateX, PropagateFromSetsXLimits) {
+TEST(AxisLinkPropagateX, PropagateFromSetsXLimits)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -296,7 +324,8 @@ TEST(AxisLinkPropagateX, PropagateFromSetsXLimits) {
     EXPECT_FLOAT_EQ(ax(*fig, 2).x_limits().max, 8.0f);
 }
 
-TEST(AxisLinkPropagateX, PropagateFromDoesNotChangeY) {
+TEST(AxisLinkPropagateX, PropagateFromDoesNotChangeY)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -312,7 +341,8 @@ TEST(AxisLinkPropagateX, PropagateFromDoesNotChangeY) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).y_limits().max, 5.0f);
 }
 
-TEST(AxisLinkPropagateX, PropagateZoom) {
+TEST(AxisLinkPropagateX, PropagateZoom)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -331,7 +361,8 @@ TEST(AxisLinkPropagateX, PropagateZoom) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).x_limits().max, new_xmax);
 }
 
-TEST(AxisLinkPropagateX, PropagatePan) {
+TEST(AxisLinkPropagateX, PropagatePan)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -348,7 +379,8 @@ TEST(AxisLinkPropagateX, PropagatePan) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).y_limits().max, 1.0f);
 }
 
-TEST(AxisLinkPropagateX, PropagateLimits) {
+TEST(AxisLinkPropagateX, PropagateLimits)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -366,7 +398,8 @@ TEST(AxisLinkPropagateX, PropagateLimits) {
 
 // ─── Propagation: Y-axis ────────────────────────────────────────────────────
 
-TEST(AxisLinkPropagateY, PropagateFromSetsYLimits) {
+TEST(AxisLinkPropagateY, PropagateFromSetsYLimits)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::Y);
@@ -383,7 +416,8 @@ TEST(AxisLinkPropagateY, PropagateFromSetsYLimits) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).x_limits().max, 10.0f);
 }
 
-TEST(AxisLinkPropagateY, PropagatePanYOnly) {
+TEST(AxisLinkPropagateY, PropagatePanYOnly)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::Y);
@@ -402,7 +436,8 @@ TEST(AxisLinkPropagateY, PropagatePanYOnly) {
 
 // ─── Propagation: Both axes ─────────────────────────────────────────────────
 
-TEST(AxisLinkPropagateBoth, PropagateFromSetsBoth) {
+TEST(AxisLinkPropagateBoth, PropagateFromSetsBoth)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::Both);
@@ -419,7 +454,8 @@ TEST(AxisLinkPropagateBoth, PropagateFromSetsBoth) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).y_limits().max, 0.5f);
 }
 
-TEST(AxisLinkPropagateBoth, PropagatePanBoth) {
+TEST(AxisLinkPropagateBoth, PropagatePanBoth)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::Both);
@@ -435,7 +471,8 @@ TEST(AxisLinkPropagateBoth, PropagatePanBoth) {
 
 // ─── Propagation: edge cases ─────────────────────────────────────────────────
 
-TEST(AxisLinkPropagateEdge, PropagateNullSource) {
+TEST(AxisLinkPropagateEdge, PropagateNullSource)
+{
     AxisLinkManager mgr;
     // Should not crash
     mgr.propagate_from(nullptr, {0, 10}, {-1, 1});
@@ -444,7 +481,8 @@ TEST(AxisLinkPropagateEdge, PropagateNullSource) {
     mgr.propagate_limits(nullptr, {0, 10}, {-1, 1});
 }
 
-TEST(AxisLinkPropagateEdge, PropagateUnlinkedAxes) {
+TEST(AxisLinkPropagateEdge, PropagateUnlinkedAxes)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     // ax0 is not linked to anything
@@ -457,7 +495,8 @@ TEST(AxisLinkPropagateEdge, PropagateUnlinkedAxes) {
     EXPECT_FLOAT_EQ(ax(*fig, 1).x_limits().max, 10.0f);
 }
 
-TEST(AxisLinkPropagateEdge, SourceNotModifiedByPropagate) {
+TEST(AxisLinkPropagateEdge, SourceNotModifiedByPropagate)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -470,7 +509,8 @@ TEST(AxisLinkPropagateEdge, SourceNotModifiedByPropagate) {
     EXPECT_FLOAT_EQ(ax(*fig, 0).x_limits().max, 8.0f);
 }
 
-TEST(AxisLinkPropagateEdge, ReentrantGuard) {
+TEST(AxisLinkPropagateEdge, ReentrantGuard)
+{
     // Propagation should not recurse
     auto fig = make_figure(3);
     AxisLinkManager mgr;
@@ -488,7 +528,8 @@ TEST(AxisLinkPropagateEdge, ReentrantGuard) {
 
 // ─── Multiple groups ─────────────────────────────────────────────────────────
 
-TEST(AxisLinkMultiGroup, SeparateXAndYGroups) {
+TEST(AxisLinkMultiGroup, SeparateXAndYGroups)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -501,14 +542,15 @@ TEST(AxisLinkMultiGroup, SeparateXAndYGroups) {
 
     // ax1: X linked, Y not
     EXPECT_FLOAT_EQ(ax(*fig, 1).x_limits().min, 1.0f);
-    EXPECT_FLOAT_EQ(ax(*fig, 1).y_limits().min, -1.0f); // unchanged
+    EXPECT_FLOAT_EQ(ax(*fig, 1).y_limits().min, -1.0f);  // unchanged
 
     // ax2: Y linked, X not
-    EXPECT_FLOAT_EQ(ax(*fig, 2).x_limits().min, 0.0f); // unchanged
+    EXPECT_FLOAT_EQ(ax(*fig, 2).x_limits().min, 0.0f);  // unchanged
     EXPECT_FLOAT_EQ(ax(*fig, 2).y_limits().min, -2.0f);
 }
 
-TEST(AxisLinkMultiGroup, AxesInMultipleGroups) {
+TEST(AxisLinkMultiGroup, AxesInMultipleGroups)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     auto id1 = mgr.create_group("X-link", LinkAxis::X);
@@ -522,12 +564,13 @@ TEST(AxisLinkMultiGroup, AxesInMultipleGroups) {
     EXPECT_EQ(groups.size(), 2u);
 
     auto peers = mgr.linked_peers(&ax(*fig, 0));
-    EXPECT_EQ(peers.size(), 2u); // ax1 and ax2
+    EXPECT_EQ(peers.size(), 2u);  // ax1 and ax2
 }
 
 // ─── Callback ────────────────────────────────────────────────────────────────
 
-TEST(AxisLinkCallback, OnChangeCalledOnLink) {
+TEST(AxisLinkCallback, OnChangeCalledOnLink)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     int count = 0;
@@ -537,7 +580,8 @@ TEST(AxisLinkCallback, OnChangeCalledOnLink) {
     EXPECT_GT(count, 0);
 }
 
-TEST(AxisLinkCallback, OnChangeCalledOnUnlink) {
+TEST(AxisLinkCallback, OnChangeCalledOnUnlink)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
@@ -548,7 +592,8 @@ TEST(AxisLinkCallback, OnChangeCalledOnUnlink) {
     EXPECT_GT(count, 0);
 }
 
-TEST(AxisLinkCallback, OnChangeCalledOnRemoveGroup) {
+TEST(AxisLinkCallback, OnChangeCalledOnRemoveGroup)
+{
     AxisLinkManager mgr;
     auto id = mgr.create_group("G1", LinkAxis::X);
     int count = 0;
@@ -559,35 +604,44 @@ TEST(AxisLinkCallback, OnChangeCalledOnRemoveGroup) {
 
 // ─── Serialization ───────────────────────────────────────────────────────────
 
-TEST(AxisLinkSerialization, EmptySerialize) {
+TEST(AxisLinkSerialization, EmptySerialize)
+{
     AxisLinkManager mgr;
     auto json = mgr.serialize([](const Axes*) { return -1; });
     EXPECT_EQ(json, "{}");
 }
 
-TEST(AxisLinkSerialization, RoundTrip) {
+TEST(AxisLinkSerialization, RoundTrip)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
     mgr.link(&ax(*fig, 0), &ax(*fig, 2), LinkAxis::Y);
 
     // Serialize
-    auto json = mgr.serialize([&](const Axes* a) -> int {
-        for (size_t i = 0; i < fig->axes().size(); ++i) {
-            if (fig->axes()[i].get() == a) return static_cast<int>(i);
-        }
-        return -1;
-    });
+    auto json = mgr.serialize(
+        [&](const Axes* a) -> int
+        {
+            for (size_t i = 0; i < fig->axes().size(); ++i)
+            {
+                if (fig->axes()[i].get() == a)
+                    return static_cast<int>(i);
+            }
+            return -1;
+        });
 
     EXPECT_FALSE(json.empty());
     EXPECT_NE(json, "{}");
 
     // Deserialize into a new manager
     AxisLinkManager mgr2;
-    mgr2.deserialize(json, [&](int idx) -> Axes* {
-        if (idx < 0 || idx >= static_cast<int>(fig->axes().size())) return nullptr;
-        return fig->axes_mut()[static_cast<size_t>(idx)].get();
-    });
+    mgr2.deserialize(json,
+                     [&](int idx) -> Axes*
+                     {
+                         if (idx < 0 || idx >= static_cast<int>(fig->axes().size()))
+                             return nullptr;
+                         return fig->axes_mut()[static_cast<size_t>(idx)].get();
+                     });
 
     EXPECT_EQ(mgr2.group_count(), 2u);
     EXPECT_TRUE(mgr2.is_linked(&ax(*fig, 0)));
@@ -595,7 +649,8 @@ TEST(AxisLinkSerialization, RoundTrip) {
     EXPECT_TRUE(mgr2.is_linked(&ax(*fig, 2)));
 }
 
-TEST(AxisLinkSerialization, DeserializeEmpty) {
+TEST(AxisLinkSerialization, DeserializeEmpty)
+{
     AxisLinkManager mgr;
     mgr.deserialize("", [](int) -> Axes* { return nullptr; });
     EXPECT_EQ(mgr.group_count(), 0u);
@@ -604,25 +659,33 @@ TEST(AxisLinkSerialization, DeserializeEmpty) {
     EXPECT_EQ(mgr.group_count(), 0u);
 }
 
-TEST(AxisLinkSerialization, DeserializePreservesAxisType) {
+TEST(AxisLinkSerialization, DeserializePreservesAxisType)
+{
     auto fig = make_figure(2);
     AxisLinkManager mgr;
     auto id = mgr.create_group("XY Link", LinkAxis::Both);
     mgr.add_to_group(id, &ax(*fig, 0));
     mgr.add_to_group(id, &ax(*fig, 1));
 
-    auto json = mgr.serialize([&](const Axes* a) -> int {
-        for (size_t i = 0; i < fig->axes().size(); ++i) {
-            if (fig->axes()[i].get() == a) return static_cast<int>(i);
-        }
-        return -1;
-    });
+    auto json = mgr.serialize(
+        [&](const Axes* a) -> int
+        {
+            for (size_t i = 0; i < fig->axes().size(); ++i)
+            {
+                if (fig->axes()[i].get() == a)
+                    return static_cast<int>(i);
+            }
+            return -1;
+        });
 
     AxisLinkManager mgr2;
-    mgr2.deserialize(json, [&](int idx) -> Axes* {
-        if (idx < 0 || idx >= static_cast<int>(fig->axes().size())) return nullptr;
-        return fig->axes_mut()[static_cast<size_t>(idx)].get();
-    });
+    mgr2.deserialize(json,
+                     [&](int idx) -> Axes*
+                     {
+                         if (idx < 0 || idx >= static_cast<int>(fig->axes().size()))
+                             return nullptr;
+                         return fig->axes_mut()[static_cast<size_t>(idx)].get();
+                     });
 
     EXPECT_EQ(mgr2.group_count(), 1u);
     auto groups = mgr2.groups_for(&ax(*fig, 0));
@@ -634,25 +697,32 @@ TEST(AxisLinkSerialization, DeserializePreservesAxisType) {
 
 // ─── Thread safety ───────────────────────────────────────────────────────────
 
-TEST(AxisLinkThreadSafety, ConcurrentLinkUnlink) {
+TEST(AxisLinkThreadSafety, ConcurrentLinkUnlink)
+{
     auto fig = make_figure(4);
     AxisLinkManager mgr;
 
     std::atomic<bool> done{false};
-    std::thread t1([&]() {
-        for (int i = 0; i < 100; ++i) {
-            mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
-            mgr.unlink(&ax(*fig, 0));
-        }
-        done = true;
-    });
+    std::thread t1(
+        [&]()
+        {
+            for (int i = 0; i < 100; ++i)
+            {
+                mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
+                mgr.unlink(&ax(*fig, 0));
+            }
+            done = true;
+        });
 
-    std::thread t2([&]() {
-        for (int i = 0; i < 100; ++i) {
-            mgr.link(&ax(*fig, 2), &ax(*fig, 3), LinkAxis::Y);
-            mgr.unlink(&ax(*fig, 2));
-        }
-    });
+    std::thread t2(
+        [&]()
+        {
+            for (int i = 0; i < 100; ++i)
+            {
+                mgr.link(&ax(*fig, 2), &ax(*fig, 3), LinkAxis::Y);
+                mgr.unlink(&ax(*fig, 2));
+            }
+        });
 
     t1.join();
     t2.join();
@@ -660,29 +730,36 @@ TEST(AxisLinkThreadSafety, ConcurrentLinkUnlink) {
     EXPECT_TRUE(done.load());
 }
 
-TEST(AxisLinkThreadSafety, ConcurrentPropagateAndQuery) {
+TEST(AxisLinkThreadSafety, ConcurrentPropagateAndQuery)
+{
     auto fig = make_figure(3);
     AxisLinkManager mgr;
     mgr.link(&ax(*fig, 0), &ax(*fig, 1), LinkAxis::X);
     mgr.link(&ax(*fig, 0), &ax(*fig, 2), LinkAxis::X);
 
     std::atomic<bool> done{false};
-    std::thread t1([&]() {
-        for (int i = 0; i < 100; ++i) {
-            mgr.propagate_limits(&ax(*fig, 0),
-                {static_cast<float>(i), static_cast<float>(i + 10)},
-                {-1.0f, 1.0f});
-        }
-        done = true;
-    });
+    std::thread t1(
+        [&]()
+        {
+            for (int i = 0; i < 100; ++i)
+            {
+                mgr.propagate_limits(&ax(*fig, 0),
+                                     {static_cast<float>(i), static_cast<float>(i + 10)},
+                                     {-1.0f, 1.0f});
+            }
+            done = true;
+        });
 
-    std::thread t2([&]() {
-        for (int i = 0; i < 100; ++i) {
-            mgr.is_linked(&ax(*fig, 1));
-            mgr.linked_peers(&ax(*fig, 0));
-            mgr.groups_for(&ax(*fig, 0));
-        }
-    });
+    std::thread t2(
+        [&]()
+        {
+            for (int i = 0; i < 100; ++i)
+            {
+                mgr.is_linked(&ax(*fig, 1));
+                mgr.linked_peers(&ax(*fig, 0));
+                mgr.groups_for(&ax(*fig, 0));
+            }
+        });
 
     t1.join();
     t2.join();
@@ -691,7 +768,8 @@ TEST(AxisLinkThreadSafety, ConcurrentPropagateAndQuery) {
 
 // ─── LinkGroup struct ────────────────────────────────────────────────────────
 
-TEST(LinkGroupStruct, ContainsAndRemove) {
+TEST(LinkGroupStruct, ContainsAndRemove)
+{
     auto fig = make_figure(3);
     LinkGroup group;
     group.members.push_back(&ax(*fig, 0));
@@ -708,7 +786,8 @@ TEST(LinkGroupStruct, ContainsAndRemove) {
 
 // ─── Integration with InputHandler ──────────────────────────────────────────
 
-TEST(AxisLinkInput, SetterGetter) {
+TEST(AxisLinkInput, SetterGetter)
+{
     InputHandler handler;
     EXPECT_EQ(handler.axis_link_manager(), nullptr);
 

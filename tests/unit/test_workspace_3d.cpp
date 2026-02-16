@@ -1,20 +1,20 @@
+#include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
-
-#include "ui/workspace.hpp"
 #include <plotix/axes3d.hpp>
 #include <plotix/camera.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/series3d.hpp>
 
-#include <cmath>
-#include <filesystem>
-#include <fstream>
+#include "ui/workspace.hpp"
 
 using namespace plotix;
 
 // ─── Axes3DState Struct ─────────────────────────────────────────────────────
 
-TEST(WorkspaceAxes3DState, DefaultValues) {
+TEST(WorkspaceAxes3DState, DefaultValues)
+{
     WorkspaceData::Axes3DState a3;
     EXPECT_EQ(a3.axes_index, 0u);
     EXPECT_FLOAT_EQ(a3.z_min, 0.0f);
@@ -29,7 +29,8 @@ TEST(WorkspaceAxes3DState, DefaultValues) {
     EXPECT_FLOAT_EQ(a3.light_dir_z, 1.0f);
 }
 
-TEST(WorkspaceAxes3DState, Is3DFlag) {
+TEST(WorkspaceAxes3DState, Is3DFlag)
+{
     WorkspaceData::AxisState as;
     EXPECT_FALSE(as.is_3d);
     as.is_3d = true;
@@ -38,7 +39,8 @@ TEST(WorkspaceAxes3DState, Is3DFlag) {
 
 // ─── SeriesState 3D Fields ──────────────────────────────────────────────────
 
-TEST(WorkspaceSeries3D, DefaultValues) {
+TEST(WorkspaceSeries3D, DefaultValues)
+{
     WorkspaceData::SeriesState ss;
     EXPECT_EQ(ss.colormap_type, 0);
     EXPECT_FLOAT_EQ(ss.ambient, 0.0f);
@@ -46,7 +48,8 @@ TEST(WorkspaceSeries3D, DefaultValues) {
     EXPECT_FLOAT_EQ(ss.shininess, 0.0f);
 }
 
-TEST(WorkspaceSeries3D, TypeStrings) {
+TEST(WorkspaceSeries3D, TypeStrings)
+{
     WorkspaceData::SeriesState ss;
     ss.type = "line3d";
     EXPECT_EQ(ss.type, "line3d");
@@ -60,13 +63,15 @@ TEST(WorkspaceSeries3D, TypeStrings) {
 
 // ─── Format Version ─────────────────────────────────────────────────────────
 
-TEST(WorkspaceVersion, FormatVersionIs4) {
+TEST(WorkspaceVersion, FormatVersionIs4)
+{
     EXPECT_EQ(WorkspaceData::FORMAT_VERSION, 4u);
 }
 
 // ─── Serialization Round-Trip ───────────────────────────────────────────────
 
-TEST(Workspace3DRoundTrip, EmptyWorkspace) {
+TEST(Workspace3DRoundTrip, EmptyWorkspace)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -79,7 +84,8 @@ TEST(Workspace3DRoundTrip, EmptyWorkspace) {
     std::filesystem::remove(path);
 }
 
-TEST(Workspace3DRoundTrip, SingleAxes3D) {
+TEST(Workspace3DRoundTrip, SingleAxes3D)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -88,8 +94,10 @@ TEST(Workspace3DRoundTrip, SingleAxes3D) {
 
     WorkspaceData::AxisState ax;
     ax.is_3d = true;
-    ax.x_min = -10.0f; ax.x_max = 10.0f;
-    ax.y_min = -5.0f; ax.y_max = 5.0f;
+    ax.x_min = -10.0f;
+    ax.x_max = 10.0f;
+    ax.y_min = -5.0f;
+    ax.y_max = 5.0f;
     ax.x_label = "X Axis";
     ax.y_label = "Y Axis";
     ax.title = "3D Plot";
@@ -97,13 +105,16 @@ TEST(Workspace3DRoundTrip, SingleAxes3D) {
 
     WorkspaceData::Axes3DState a3;
     a3.axes_index = 0;
-    a3.z_min = -3.0f; a3.z_max = 3.0f;
+    a3.z_min = -3.0f;
+    a3.z_max = 3.0f;
     a3.z_label = "Z Axis";
     a3.camera_state = "{\"azimuth\":45,\"elevation\":30}";
     a3.grid_planes = 7;
     a3.show_bounding_box = true;
     a3.lighting_enabled = false;
-    a3.light_dir_x = 0.5f; a3.light_dir_y = 0.7f; a3.light_dir_z = 1.0f;
+    a3.light_dir_x = 0.5f;
+    a3.light_dir_y = 0.7f;
+    a3.light_dir_z = 1.0f;
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -137,7 +148,8 @@ TEST(Workspace3DRoundTrip, SingleAxes3D) {
     std::filesystem::remove(path);
 }
 
-TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes) {
+TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -146,18 +158,21 @@ TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes) {
     // 2D axes
     WorkspaceData::AxisState ax2d;
     ax2d.is_3d = false;
-    ax2d.x_min = 0.0f; ax2d.x_max = 100.0f;
+    ax2d.x_min = 0.0f;
+    ax2d.x_max = 100.0f;
     fig.axes.push_back(ax2d);
 
     // 3D axes
     WorkspaceData::AxisState ax3d;
     ax3d.is_3d = true;
-    ax3d.x_min = -1.0f; ax3d.x_max = 1.0f;
+    ax3d.x_min = -1.0f;
+    ax3d.x_max = 1.0f;
     fig.axes.push_back(ax3d);
 
     WorkspaceData::Axes3DState a3;
     a3.axes_index = 1;
-    a3.z_min = -2.0f; a3.z_max = 2.0f;
+    a3.z_min = -2.0f;
+    a3.z_max = 2.0f;
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -179,7 +194,8 @@ TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes) {
     std::filesystem::remove(path);
 }
 
-TEST(Workspace3DRoundTrip, Series3DMetadata) {
+TEST(Workspace3DRoundTrip, Series3DMetadata)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -231,7 +247,8 @@ TEST(Workspace3DRoundTrip, Series3DMetadata) {
     std::filesystem::remove(path);
 }
 
-TEST(Workspace3DRoundTrip, ModeTransitionState) {
+TEST(Workspace3DRoundTrip, ModeTransitionState)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
     data.mode_transition_state = "{\"duration\":0.8,\"direction\":1}";
@@ -249,7 +266,8 @@ TEST(Workspace3DRoundTrip, ModeTransitionState) {
 
 // ─── Backward Compatibility ─────────────────────────────────────────────────
 
-TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults) {
+TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults)
+{
     // Simulate a v3 file (no is_3d, no axes_3d, no 3D series fields)
     std::string v3_json = R"({
         "version": 3,
@@ -304,7 +322,8 @@ TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults) {
     std::filesystem::remove(path);
 }
 
-TEST(Workspace3DBackwardCompat, FutureVersionRejected) {
+TEST(Workspace3DBackwardCompat, FutureVersionRejected)
+{
     std::string future_json = R"({"version": 99})";
     std::string path = "/tmp/plotix_test_ws3d_future.plotix";
     {
@@ -319,7 +338,8 @@ TEST(Workspace3DBackwardCompat, FutureVersionRejected) {
 
 // ─── Multiple 3D Axes ───────────────────────────────────────────────────────
 
-TEST(Workspace3DMultiple, TwoAxes3DInOneFigure) {
+TEST(Workspace3DMultiple, TwoAxes3DInOneFigure)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -327,7 +347,8 @@ TEST(Workspace3DMultiple, TwoAxes3DInOneFigure) {
     fig.grid_rows = 1;
     fig.grid_cols = 2;
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 2; ++i)
+    {
         WorkspaceData::AxisState ax;
         ax.is_3d = true;
         ax.x_min = static_cast<float>(-i - 1);
@@ -363,7 +384,8 @@ TEST(Workspace3DMultiple, TwoAxes3DInOneFigure) {
 
 // ─── Camera State Serialization ─────────────────────────────────────────────
 
-TEST(Workspace3DCamera, CameraStateRoundTrip) {
+TEST(Workspace3DCamera, CameraStateRoundTrip)
+{
     Camera cam;
     cam.azimuth = 60.0f;
     cam.elevation = 45.0f;
@@ -382,7 +404,8 @@ TEST(Workspace3DCamera, CameraStateRoundTrip) {
     EXPECT_NEAR(cam2.distance, 12.0f, 0.1f);
 }
 
-TEST(Workspace3DCamera, CameraInWorkspaceRoundTrip) {
+TEST(Workspace3DCamera, CameraInWorkspaceRoundTrip)
+{
     Camera cam;
     cam.azimuth = 120.0f;
     cam.elevation = 15.0f;
@@ -422,7 +445,8 @@ TEST(Workspace3DCamera, CameraInWorkspaceRoundTrip) {
 
 // ─── Special Characters ─────────────────────────────────────────────────────
 
-TEST(Workspace3DSpecialChars, LabelsWithSpecialChars) {
+TEST(Workspace3DSpecialChars, LabelsWithSpecialChars)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -455,7 +479,8 @@ TEST(Workspace3DSpecialChars, LabelsWithSpecialChars) {
 
 // ─── Lighting State ─────────────────────────────────────────────────────────
 
-TEST(Workspace3DLighting, LightingDisabled) {
+TEST(Workspace3DLighting, LightingDisabled)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
@@ -489,7 +514,8 @@ TEST(Workspace3DLighting, LightingDisabled) {
 
 // ─── Full State Round-Trip ──────────────────────────────────────────────────
 
-TEST(Workspace3DFull, CompleteStateRoundTrip) {
+TEST(Workspace3DFull, CompleteStateRoundTrip)
+{
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
     data.theme_name = "light";
@@ -506,19 +532,23 @@ TEST(Workspace3DFull, CompleteStateRoundTrip) {
     // 2D axes at index 0
     WorkspaceData::AxisState ax2d;
     ax2d.is_3d = false;
-    ax2d.x_min = 0; ax2d.x_max = 100;
+    ax2d.x_min = 0;
+    ax2d.x_max = 100;
     fig.axes.push_back(ax2d);
 
     // 3D axes at index 1
     WorkspaceData::AxisState ax3d;
     ax3d.is_3d = true;
-    ax3d.x_min = -5; ax3d.x_max = 5;
-    ax3d.y_min = -5; ax3d.y_max = 5;
+    ax3d.x_min = -5;
+    ax3d.x_max = 5;
+    ax3d.y_min = -5;
+    ax3d.y_max = 5;
     fig.axes.push_back(ax3d);
 
     WorkspaceData::Axes3DState a3;
     a3.axes_index = 1;
-    a3.z_min = -3; a3.z_max = 3;
+    a3.z_min = -3;
+    a3.z_max = 3;
     a3.z_label = "Depth";
     a3.camera_state = "{\"az\":45}";
     a3.grid_planes = 3;  // XY | XZ

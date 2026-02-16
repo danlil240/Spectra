@@ -1,23 +1,23 @@
 #pragma once
 
-#include <plotix/animator.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/timeline.hpp>
-
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <plotix/animator.hpp>
+#include <plotix/color.hpp>
+#include <plotix/fwd.hpp>
+#include <plotix/timeline.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 class KeyframeInterpolator;
 
 // Playback state for the timeline editor.
-enum class PlaybackState {
+enum class PlaybackState
+{
     Stopped,
     Playing,
     Paused,
@@ -25,43 +25,47 @@ enum class PlaybackState {
 };
 
 // Loop mode for playback.
-enum class LoopMode {
-    None,       // Play once and stop
-    Loop,       // Loop back to start
-    PingPong,   // Reverse direction at each end
+enum class LoopMode
+{
+    None,      // Play once and stop
+    Loop,      // Loop back to start
+    PingPong,  // Reverse direction at each end
 };
 
 // Snap mode for playhead and keyframe placement.
-enum class SnapMode {
-    None,       // Free positioning
-    Frame,      // Snap to frame boundaries
-    Beat,       // Snap to beat grid (custom interval)
+enum class SnapMode
+{
+    None,   // Free positioning
+    Frame,  // Snap to frame boundaries
+    Beat,   // Snap to beat grid (custom interval)
 };
 
 // A single keyframe entry visible in the timeline UI.
-struct KeyframeMarker {
-    float    time     = 0.0f;
+struct KeyframeMarker
+{
+    float time = 0.0f;
     uint32_t track_id = 0;
-    bool     selected = false;
+    bool selected = false;
 };
 
 // A named track in the timeline (e.g., "X Position", "Color", "Opacity").
-struct TimelineTrack {
-    uint32_t    id   = 0;
+struct TimelineTrack
+{
+    uint32_t id = 0;
     std::string name;
-    Color       color = colors::cyan;
-    bool        visible  = true;
-    bool        locked   = false;
-    bool        expanded = true;
+    Color color = colors::cyan;
+    bool visible = true;
+    bool locked = false;
+    bool expanded = true;
 
     std::vector<KeyframeMarker> keyframes;
 };
 
 // Callback types for timeline editor events.
-using PlaybackCallback    = std::function<void(PlaybackState)>;
-using ScrubCallback       = std::function<void(float time)>;
-using KeyframeCallback    = std::function<void(uint32_t track_id, float time)>;
-using SelectionCallback   = std::function<void(const std::vector<KeyframeMarker*>&)>;
+using PlaybackCallback = std::function<void(PlaybackState)>;
+using ScrubCallback = std::function<void(float time)>;
+using KeyframeCallback = std::function<void(uint32_t track_id, float time)>;
+using SelectionCallback = std::function<void(const std::vector<KeyframeMarker*>&)>;
 
 // TimelineEditor — UI-independent timeline editing logic.
 //
@@ -70,8 +74,9 @@ using SelectionCallback   = std::function<void(const std::vector<KeyframeMarker*
 // behind PLOTIX_USE_IMGUI guards; the pure logic is always available.
 //
 // Thread-safe: all public methods lock an internal mutex.
-class TimelineEditor {
-public:
+class TimelineEditor
+{
+   public:
     TimelineEditor();
     ~TimelineEditor() = default;
 
@@ -237,13 +242,13 @@ public:
 
     // Create a track and a matching interpolator channel, linked by track_id.
     // Returns the track_id (which also serves as the channel_id).
-    uint32_t add_animated_track(const std::string& name, float default_value = 0.0f,
-                                 Color color = colors::cyan);
+    uint32_t add_animated_track(const std::string& name,
+                                float default_value = 0.0f,
+                                Color color = colors::cyan);
 
     // Add a keyframe to both the track (visual marker) and the interpolator channel.
     // interp_mode: 0=Step, 1=Linear, 2=CubicBezier, 3=Spring, 4=EaseIn, 5=EaseOut, 6=EaseInOut
-    void add_animated_keyframe(uint32_t track_id, float time, float value,
-                                int interp_mode = 1);
+    void add_animated_keyframe(uint32_t track_id, float time, float value, int interp_mode = 1);
 
     // Serialize timeline state + interpolator to a JSON string.
     std::string serialize() const;
@@ -257,25 +262,25 @@ public:
     void draw(float width, float height);
 #endif
 
-private:
+   private:
     mutable std::mutex mutex_;
 
     // Playback
-    PlaybackState state_     = PlaybackState::Stopped;
-    float         playhead_  = 0.0f;
-    float         duration_  = 10.0f;
-    float         fps_       = 60.0f;
-    LoopMode      loop_mode_ = LoopMode::None;
-    int           ping_pong_dir_ = 1;  // +1 forward, -1 backward
+    PlaybackState state_ = PlaybackState::Stopped;
+    float playhead_ = 0.0f;
+    float duration_ = 10.0f;
+    float fps_ = 60.0f;
+    LoopMode loop_mode_ = LoopMode::None;
+    int ping_pong_dir_ = 1;  // +1 forward, -1 backward
 
     // Loop region
-    float loop_in_  = 0.0f;
+    float loop_in_ = 0.0f;
     float loop_out_ = 0.0f;  // 0 = use duration
-    bool  has_loop_region_ = false;
+    bool has_loop_region_ = false;
 
     // Snap
-    SnapMode snap_mode_     = SnapMode::Frame;
-    float    snap_interval_ = 0.1f;  // For Beat mode
+    SnapMode snap_mode_ = SnapMode::Frame;
+    float snap_interval_ = 0.1f;  // For Beat mode
 
     // Tracks
     std::vector<TimelineTrack> tracks_;
@@ -283,18 +288,18 @@ private:
 
     // View
     float view_start_ = 0.0f;
-    float view_end_   = 10.0f;
-    float zoom_       = 100.0f;  // pixels per second
+    float view_end_ = 10.0f;
+    float zoom_ = 100.0f;  // pixels per second
 
     // KeyframeInterpolator (optional, not owned)
     KeyframeInterpolator* interpolator_ = nullptr;
-    CameraAnimator*       camera_animator_ = nullptr;
+    CameraAnimator* camera_animator_ = nullptr;
 
     // Callbacks
-    PlaybackCallback  on_playback_change_;
-    ScrubCallback     on_scrub_;
-    KeyframeCallback  on_keyframe_added_;
-    KeyframeCallback  on_keyframe_removed_;
+    PlaybackCallback on_playback_change_;
+    ScrubCallback on_scrub_;
+    KeyframeCallback on_keyframe_added_;
+    KeyframeCallback on_keyframe_removed_;
     SelectionCallback on_selection_change_;
 
     // Internal helpers
@@ -305,4 +310,4 @@ private:
     KeyframeMarker* find_keyframe(uint32_t track_id, float time, float tolerance = 0.001f);
 };
 
-} // namespace plotix
+}  // namespace plotix

@@ -1,19 +1,21 @@
 #pragma once
 
+#include <memory>
 #include <plotix/figure.hpp>
 #include <plotix/fwd.hpp>
-
-#include <memory>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
-struct AppConfig {
+struct AppConfig
+{
     bool headless = false;
 };
 
-class App {
-public:
+class App
+{
+   public:
     explicit App(const AppConfig& config = {});
     ~App();
 
@@ -31,11 +33,11 @@ public:
     Backend* backend() { return backend_.get(); }
     Renderer* renderer() { return renderer_.get(); }
 
-private:
+   private:
     AppConfig config_;
     std::vector<std::unique_ptr<Figure>> figures_;
-    std::unique_ptr<Backend>   backend_;
-    std::unique_ptr<Renderer>  renderer_;
+    std::unique_ptr<Backend> backend_;
+    std::unique_ptr<Renderer> renderer_;
 };
 
-} // namespace plotix
+}  // namespace plotix

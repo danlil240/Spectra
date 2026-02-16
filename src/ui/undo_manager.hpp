@@ -6,20 +6,23 @@
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // A single undoable action with forward (redo) and backward (undo) operations.
-struct UndoAction {
-    std::string description;       // Human-readable description, e.g. "Change line color"
-    std::function<void()> undo_fn; // Restores previous state
-    std::function<void()> redo_fn; // Re-applies the change
+struct UndoAction
+{
+    std::string description;        // Human-readable description, e.g. "Change line color"
+    std::function<void()> undo_fn;  // Restores previous state
+    std::function<void()> redo_fn;  // Re-applies the change
 };
 
 // Manages an undo/redo stack for property changes.
 // Thread-safe: push/undo/redo may be called from any thread.
 // Capped at MAX_STACK_SIZE entries to prevent unbounded memory growth.
-class UndoManager {
-public:
+class UndoManager
+{
+   public:
     static constexpr size_t MAX_STACK_SIZE = 100;
 
     UndoManager() = default;
@@ -36,8 +39,10 @@ public:
     // setter is called with `before` on undo and `after` on redo.
     template <typename T>
     void push_value(const std::string& description,
-                    T before, T after,
-                    std::function<void(const T&)> setter) {
+                    T before,
+                    T after,
+                    std::function<void(const T&)> setter)
+    {
         UndoAction action;
         action.description = description;
         action.undo_fn = [setter, before]() { setter(before); };
@@ -72,7 +77,7 @@ public:
     void end_group();
     bool in_group() const;
 
-private:
+   private:
     mutable std::mutex mutex_;
     std::vector<UndoAction> undo_stack_;
     std::vector<UndoAction> redo_stack_;
@@ -83,4 +88,4 @@ private:
     std::vector<UndoAction> group_actions_;
 };
 
-} // namespace plotix
+}  // namespace plotix

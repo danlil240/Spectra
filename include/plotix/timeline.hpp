@@ -2,16 +2,17 @@
 
 #include <plotix/animator.hpp>
 #include <plotix/color.hpp>
-
 #include <variant>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 using AnimValue = std::variant<float, Color>;
 
-class Timeline {
-public:
+class Timeline
+{
+   public:
     Timeline() = default;
 
     // Add keyframes
@@ -26,14 +27,15 @@ public:
 
     bool empty() const;
 
-private:
-    struct KeyframeEntry {
-        float     time;
+   private:
+    struct KeyframeEntry
+    {
+        float time;
         AnimValue value;
-        EasingFn  easing;
+        EasingFn easing;
     };
 
     std::vector<KeyframeEntry> keyframes_;
 };
 
-} // namespace plotix
+}  // namespace plotix

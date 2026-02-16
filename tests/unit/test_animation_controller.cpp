@@ -1,12 +1,13 @@
 #include <gtest/gtest.h>
+#include <plotix/axes.hpp>
 
 #include "ui/animation_controller.hpp"
-#include <plotix/axes.hpp>
 
 using namespace plotix;
 
 // Helper: create an Axes with known limits
-static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float ymax) {
+static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float ymax)
+{
     auto ax = std::make_unique<Axes>();
     ax->xlim(xmin, xmax);
     ax->ylim(ymin, ymax);
@@ -15,13 +16,15 @@ static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float
 
 // ─── Basic lifecycle ────────────────────────────────────────────────────────
 
-TEST(AnimationController, InitiallyEmpty) {
+TEST(AnimationController, InitiallyEmpty)
+{
     AnimationController ctrl;
     EXPECT_FALSE(ctrl.has_active_animations());
     EXPECT_EQ(ctrl.active_count(), 0u);
 }
 
-TEST(AnimationController, AnimateLimitsCreatesAnimation) {
+TEST(AnimationController, AnimateLimitsCreatesAnimation)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -30,7 +33,8 @@ TEST(AnimationController, AnimateLimitsCreatesAnimation) {
     EXPECT_EQ(ctrl.active_count(), 1u);
 }
 
-TEST(AnimationController, AnimationCompletesAfterDuration) {
+TEST(AnimationController, AnimationCompletesAfterDuration)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -50,7 +54,8 @@ TEST(AnimationController, AnimationCompletesAfterDuration) {
     EXPECT_FLOAT_EQ(ylim.max, 7.0f);
 }
 
-TEST(AnimationController, AnimationInterpolatesMidway) {
+TEST(AnimationController, AnimationInterpolatesMidway)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -66,7 +71,8 @@ TEST(AnimationController, AnimationInterpolatesMidway) {
 
 // ─── Cancellation ───────────────────────────────────────────────────────────
 
-TEST(AnimationController, CancelById) {
+TEST(AnimationController, CancelById)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -74,12 +80,13 @@ TEST(AnimationController, CancelById) {
     EXPECT_TRUE(ctrl.has_active_animations());
 
     ctrl.cancel(id);
-    ctrl.update(0.01f); // GC runs on update
+    ctrl.update(0.01f);  // GC runs on update
 
     EXPECT_FALSE(ctrl.has_active_animations());
 }
 
-TEST(AnimationController, CancelForAxes) {
+TEST(AnimationController, CancelForAxes)
+{
     AnimationController ctrl;
     auto ax1 = make_axes(0, 10, 0, 10);
     auto ax2 = make_axes(0, 10, 0, 10);
@@ -94,7 +101,8 @@ TEST(AnimationController, CancelForAxes) {
     EXPECT_EQ(ctrl.active_count(), 1u);
 }
 
-TEST(AnimationController, CancelAll) {
+TEST(AnimationController, CancelAll)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -110,7 +118,8 @@ TEST(AnimationController, CancelAll) {
 
 // ─── New animation replaces existing on same axes ───────────────────────────
 
-TEST(AnimationController, NewLimitAnimCancelsPrevious) {
+TEST(AnimationController, NewLimitAnimCancelsPrevious)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -123,7 +132,8 @@ TEST(AnimationController, NewLimitAnimCancelsPrevious) {
 
 // ─── Inertial pan ───────────────────────────────────────────────────────────
 
-TEST(AnimationController, InertialPanMovesLimits) {
+TEST(AnimationController, InertialPanMovesLimits)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -138,7 +148,8 @@ TEST(AnimationController, InertialPanMovesLimits) {
     EXPECT_GT(xlim.max, 10.0f);
 }
 
-TEST(AnimationController, InertialPanDecelerates) {
+TEST(AnimationController, InertialPanDecelerates)
+{
     AnimationController ctrl;
     auto ax = make_axes(0, 10, 0, 10);
 
@@ -164,10 +175,12 @@ TEST(AnimationController, InertialPanDecelerates) {
 
 // ─── Performance: update with no animations is cheap ────────────────────────
 
-TEST(AnimationController, UpdateWithNoAnimations) {
+TEST(AnimationController, UpdateWithNoAnimations)
+{
     AnimationController ctrl;
     // Should not crash or do anything expensive
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 1000; ++i)
+    {
         ctrl.update(0.016f);
     }
     EXPECT_FALSE(ctrl.has_active_animations());

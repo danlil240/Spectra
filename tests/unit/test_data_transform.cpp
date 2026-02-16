@@ -1,22 +1,23 @@
-#include <gtest/gtest.h>
-
-#include "ui/data_transform.hpp"
-
 #include <cmath>
+#include <gtest/gtest.h>
 #include <numeric>
 #include <vector>
+
+#include "ui/data_transform.hpp"
 
 using namespace plotix;
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 
-static std::vector<float> make_x(size_t n) {
+static std::vector<float> make_x(size_t n)
+{
     std::vector<float> x(n);
     std::iota(x.begin(), x.end(), 0.0f);
     return x;
 }
 
-static std::vector<float> make_y(std::initializer_list<float> vals) {
+static std::vector<float> make_y(std::initializer_list<float> vals)
+{
     return std::vector<float>(vals);
 }
 
@@ -24,7 +25,8 @@ static std::vector<float> make_y(std::initializer_list<float> vals) {
 // Identity
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformIdentity, Passthrough) {
+TEST(DataTransformIdentity, Passthrough)
+{
     auto x = make_x(5);
     auto y = make_y({1, 2, 3, 4, 5});
     std::vector<float> xo, yo;
@@ -34,13 +36,15 @@ TEST(DataTransformIdentity, Passthrough) {
 
     ASSERT_EQ(xo.size(), 5u);
     ASSERT_EQ(yo.size(), 5u);
-    for (size_t i = 0; i < 5; ++i) {
+    for (size_t i = 0; i < 5; ++i)
+    {
         EXPECT_FLOAT_EQ(xo[i], x[i]);
         EXPECT_FLOAT_EQ(yo[i], y[i]);
     }
 }
 
-TEST(DataTransformIdentity, Empty) {
+TEST(DataTransformIdentity, Empty)
+{
     std::vector<float> x, y, xo, yo;
     DataTransform t(TransformType::Identity);
     t.apply_y(x, y, xo, yo);
@@ -48,7 +52,8 @@ TEST(DataTransformIdentity, Empty) {
     EXPECT_TRUE(yo.empty());
 }
 
-TEST(DataTransformIdentity, ScalarPassthrough) {
+TEST(DataTransformIdentity, ScalarPassthrough)
+{
     DataTransform t(TransformType::Identity);
     EXPECT_FLOAT_EQ(t.apply_scalar(42.0f), 42.0f);
 }
@@ -57,7 +62,8 @@ TEST(DataTransformIdentity, ScalarPassthrough) {
 // Log10
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformLog10, PositiveValues) {
+TEST(DataTransformLog10, PositiveValues)
+{
     auto x = make_x(4);
     auto y = make_y({1, 10, 100, 1000});
     std::vector<float> xo, yo;
@@ -72,7 +78,8 @@ TEST(DataTransformLog10, PositiveValues) {
     EXPECT_NEAR(yo[3], 3.0f, 1e-6f);
 }
 
-TEST(DataTransformLog10, SkipsNonPositive) {
+TEST(DataTransformLog10, SkipsNonPositive)
+{
     auto x = make_x(5);
     auto y = make_y({-1, 0, 1, 10, 100});
     std::vector<float> xo, yo;
@@ -85,12 +92,14 @@ TEST(DataTransformLog10, SkipsNonPositive) {
     EXPECT_FLOAT_EQ(xo[0], 2.0f);  // x index of value 1
 }
 
-TEST(DataTransformLog10, ScalarPositive) {
+TEST(DataTransformLog10, ScalarPositive)
+{
     DataTransform t(TransformType::Log10);
     EXPECT_NEAR(t.apply_scalar(100.0f), 2.0f, 1e-6f);
 }
 
-TEST(DataTransformLog10, ScalarNonPositive) {
+TEST(DataTransformLog10, ScalarNonPositive)
+{
     DataTransform t(TransformType::Log10);
     EXPECT_TRUE(std::isnan(t.apply_scalar(-1.0f)));
     EXPECT_TRUE(std::isnan(t.apply_scalar(0.0f)));
@@ -100,7 +109,8 @@ TEST(DataTransformLog10, ScalarNonPositive) {
 // Ln
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformLn, PositiveValues) {
+TEST(DataTransformLn, PositiveValues)
+{
     auto x = make_x(3);
     auto y = make_y({1.0f, static_cast<float>(M_E), static_cast<float>(M_E * M_E)});
     std::vector<float> xo, yo;
@@ -114,7 +124,8 @@ TEST(DataTransformLn, PositiveValues) {
     EXPECT_NEAR(yo[2], 2.0f, 1e-4f);
 }
 
-TEST(DataTransformLn, SkipsNonPositive) {
+TEST(DataTransformLn, SkipsNonPositive)
+{
     auto x = make_x(3);
     auto y = make_y({-5.0f, 0.0f, 1.0f});
     std::vector<float> xo, yo;
@@ -128,7 +139,8 @@ TEST(DataTransformLn, SkipsNonPositive) {
 // Abs
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformAbs, MixedValues) {
+TEST(DataTransformAbs, MixedValues)
+{
     auto x = make_x(5);
     auto y = make_y({-3, -1, 0, 1, 3});
     std::vector<float> xo, yo;
@@ -144,7 +156,8 @@ TEST(DataTransformAbs, MixedValues) {
     EXPECT_FLOAT_EQ(yo[4], 3.0f);
 }
 
-TEST(DataTransformAbs, Scalar) {
+TEST(DataTransformAbs, Scalar)
+{
     DataTransform t(TransformType::Abs);
     EXPECT_FLOAT_EQ(t.apply_scalar(-7.0f), 7.0f);
     EXPECT_FLOAT_EQ(t.apply_scalar(7.0f), 7.0f);
@@ -154,7 +167,8 @@ TEST(DataTransformAbs, Scalar) {
 // Negate
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformNegate, Basic) {
+TEST(DataTransformNegate, Basic)
+{
     auto x = make_x(3);
     auto y = make_y({1, -2, 3});
     std::vector<float> xo, yo;
@@ -172,7 +186,8 @@ TEST(DataTransformNegate, Basic) {
 // Normalize
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformNormalize, BasicRange) {
+TEST(DataTransformNormalize, BasicRange)
+{
     auto x = make_x(5);
     auto y = make_y({0, 25, 50, 75, 100});
     std::vector<float> xo, yo;
@@ -188,7 +203,8 @@ TEST(DataTransformNormalize, BasicRange) {
     EXPECT_NEAR(yo[4], 1.0f, 1e-6f);
 }
 
-TEST(DataTransformNormalize, ConstantValue) {
+TEST(DataTransformNormalize, ConstantValue)
+{
     auto x = make_x(3);
     auto y = make_y({5, 5, 5});
     std::vector<float> xo, yo;
@@ -202,7 +218,8 @@ TEST(DataTransformNormalize, ConstantValue) {
     EXPECT_FLOAT_EQ(yo[2], 0.5f);
 }
 
-TEST(DataTransformNormalize, NegativeRange) {
+TEST(DataTransformNormalize, NegativeRange)
+{
     auto x = make_x(3);
     auto y = make_y({-10, 0, 10});
     std::vector<float> xo, yo;
@@ -219,7 +236,8 @@ TEST(DataTransformNormalize, NegativeRange) {
 // Standardize
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformStandardize, ZeroMeanUnitVariance) {
+TEST(DataTransformStandardize, ZeroMeanUnitVariance)
+{
     auto x = make_x(4);
     auto y = make_y({2, 4, 6, 8});
     std::vector<float> xo, yo;
@@ -231,18 +249,21 @@ TEST(DataTransformStandardize, ZeroMeanUnitVariance) {
 
     // Mean should be ~0
     double mean = 0;
-    for (float v : yo) mean += v;
+    for (float v : yo)
+        mean += v;
     mean /= yo.size();
     EXPECT_NEAR(mean, 0.0, 1e-5);
 
     // Stddev should be ~1
     double var = 0;
-    for (float v : yo) var += (v - mean) * (v - mean);
+    for (float v : yo)
+        var += (v - mean) * (v - mean);
     double stddev = std::sqrt(var / yo.size());
     EXPECT_NEAR(stddev, 1.0, 1e-5);
 }
 
-TEST(DataTransformStandardize, ConstantValue) {
+TEST(DataTransformStandardize, ConstantValue)
+{
     auto x = make_x(3);
     auto y = make_y({7, 7, 7});
     std::vector<float> xo, yo;
@@ -250,14 +271,16 @@ TEST(DataTransformStandardize, ConstantValue) {
     DataTransform t(TransformType::Standardize);
     t.apply_y(x, y, xo, yo);
 
-    for (float v : yo) EXPECT_FLOAT_EQ(v, 0.0f);
+    for (float v : yo)
+        EXPECT_FLOAT_EQ(v, 0.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Derivative
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformDerivative, LinearFunction) {
+TEST(DataTransformDerivative, LinearFunction)
+{
     // y = 2x → dy/dx = 2
     auto x = make_x(5);  // 0, 1, 2, 3, 4
     auto y = make_y({0, 2, 4, 6, 8});
@@ -267,12 +290,14 @@ TEST(DataTransformDerivative, LinearFunction) {
     t.apply_y(x, y, xo, yo);
 
     ASSERT_EQ(yo.size(), 4u);  // n-1 points
-    for (float v : yo) {
+    for (float v : yo)
+    {
         EXPECT_NEAR(v, 2.0f, 1e-6f);
     }
 }
 
-TEST(DataTransformDerivative, MidpointX) {
+TEST(DataTransformDerivative, MidpointX)
+{
     auto x = make_x(3);  // 0, 1, 2
     auto y = make_y({0, 1, 4});
     std::vector<float> xo, yo;
@@ -285,7 +310,8 @@ TEST(DataTransformDerivative, MidpointX) {
     EXPECT_FLOAT_EQ(xo[1], 1.5f);  // Midpoint of 1 and 2
 }
 
-TEST(DataTransformDerivative, TooFewPoints) {
+TEST(DataTransformDerivative, TooFewPoints)
+{
     std::vector<float> x = {1.0f};
     std::vector<float> y = {5.0f};
     std::vector<float> xo, yo;
@@ -296,7 +322,8 @@ TEST(DataTransformDerivative, TooFewPoints) {
     EXPECT_TRUE(yo.empty());
 }
 
-TEST(DataTransformDerivative, EmptyInput) {
+TEST(DataTransformDerivative, EmptyInput)
+{
     std::vector<float> x, y, xo, yo;
     DataTransform t(TransformType::Derivative);
     t.apply_y(x, y, xo, yo);
@@ -307,7 +334,8 @@ TEST(DataTransformDerivative, EmptyInput) {
 // CumulativeSum
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformCumulativeSum, Basic) {
+TEST(DataTransformCumulativeSum, Basic)
+{
     auto x = make_x(5);
     auto y = make_y({1, 2, 3, 4, 5});
     std::vector<float> xo, yo;
@@ -323,7 +351,8 @@ TEST(DataTransformCumulativeSum, Basic) {
     EXPECT_FLOAT_EQ(yo[4], 15.0f);
 }
 
-TEST(DataTransformCumulativeSum, PreservesX) {
+TEST(DataTransformCumulativeSum, PreservesX)
+{
     auto x = make_x(3);
     auto y = make_y({1, 1, 1});
     std::vector<float> xo, yo;
@@ -331,7 +360,8 @@ TEST(DataTransformCumulativeSum, PreservesX) {
     DataTransform t(TransformType::CumulativeSum);
     t.apply_y(x, y, xo, yo);
 
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 3; ++i)
+    {
         EXPECT_FLOAT_EQ(xo[i], x[i]);
     }
 }
@@ -340,7 +370,8 @@ TEST(DataTransformCumulativeSum, PreservesX) {
 // Diff
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformDiff, Basic) {
+TEST(DataTransformDiff, Basic)
+{
     auto x = make_x(5);
     auto y = make_y({1, 3, 6, 10, 15});
     std::vector<float> xo, yo;
@@ -355,7 +386,8 @@ TEST(DataTransformDiff, Basic) {
     EXPECT_FLOAT_EQ(yo[3], 5.0f);
 }
 
-TEST(DataTransformDiff, UsesNextX) {
+TEST(DataTransformDiff, UsesNextX)
+{
     auto x = make_x(3);
     auto y = make_y({0, 1, 3});
     std::vector<float> xo, yo;
@@ -368,7 +400,8 @@ TEST(DataTransformDiff, UsesNextX) {
     EXPECT_FLOAT_EQ(xo[1], 2.0f);
 }
 
-TEST(DataTransformDiff, TooFewPoints) {
+TEST(DataTransformDiff, TooFewPoints)
+{
     std::vector<float> x = {0.0f};
     std::vector<float> y = {5.0f};
     std::vector<float> xo, yo;
@@ -382,7 +415,8 @@ TEST(DataTransformDiff, TooFewPoints) {
 // Scale
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformScale, MultiplyByFactor) {
+TEST(DataTransformScale, MultiplyByFactor)
+{
     auto x = make_x(3);
     auto y = make_y({1, 2, 3});
     std::vector<float> xo, yo;
@@ -398,7 +432,8 @@ TEST(DataTransformScale, MultiplyByFactor) {
     EXPECT_FLOAT_EQ(yo[2], 7.5f);
 }
 
-TEST(DataTransformScale, Scalar) {
+TEST(DataTransformScale, Scalar)
+{
     TransformParams p;
     p.scale_factor = 3.0f;
     DataTransform t(TransformType::Scale, p);
@@ -409,7 +444,8 @@ TEST(DataTransformScale, Scalar) {
 // Offset
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformOffset, AddConstant) {
+TEST(DataTransformOffset, AddConstant)
+{
     auto x = make_x(3);
     auto y = make_y({1, 2, 3});
     std::vector<float> xo, yo;
@@ -429,7 +465,8 @@ TEST(DataTransformOffset, AddConstant) {
 // Clamp
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformClamp, ClampsToRange) {
+TEST(DataTransformClamp, ClampsToRange)
+{
     auto x = make_x(5);
     auto y = make_y({-10, -1, 0.5f, 1, 10});
     std::vector<float> xo, yo;
@@ -448,7 +485,8 @@ TEST(DataTransformClamp, ClampsToRange) {
     EXPECT_FLOAT_EQ(yo[4], 1.0f);
 }
 
-TEST(DataTransformClamp, Scalar) {
+TEST(DataTransformClamp, Scalar)
+{
     TransformParams p;
     p.clamp_min = 0.0f;
     p.clamp_max = 1.0f;
@@ -462,7 +500,8 @@ TEST(DataTransformClamp, Scalar) {
 // Custom transforms
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformCustom, PerElement) {
+TEST(DataTransformCustom, PerElement)
+{
     DataTransform t("square", [](float v) { return v * v; });
 
     auto x = make_x(4);
@@ -477,19 +516,25 @@ TEST(DataTransformCustom, PerElement) {
     EXPECT_FLOAT_EQ(yo[3], 16.0f);
 }
 
-TEST(DataTransformCustom, XYFunction) {
+TEST(DataTransformCustom, XYFunction)
+{
     // Custom transform that reverses the data
-    DataTransform t("reverse", DataTransform::CustomXYFunc(
-        [](std::span<const float> x_in, std::span<const float> y_in,
-           std::vector<float>& x_out, std::vector<float>& y_out) {
-            size_t n = std::min(x_in.size(), y_in.size());
-            x_out.resize(n);
-            y_out.resize(n);
-            for (size_t i = 0; i < n; ++i) {
-                x_out[i] = x_in[n - 1 - i];
-                y_out[i] = y_in[n - 1 - i];
-            }
-        }));
+    DataTransform t("reverse",
+                    DataTransform::CustomXYFunc(
+                        [](std::span<const float> x_in,
+                           std::span<const float> y_in,
+                           std::vector<float>& x_out,
+                           std::vector<float>& y_out)
+                        {
+                            size_t n = std::min(x_in.size(), y_in.size());
+                            x_out.resize(n);
+                            y_out.resize(n);
+                            for (size_t i = 0; i < n; ++i)
+                            {
+                                x_out[i] = x_in[n - 1 - i];
+                                y_out[i] = y_in[n - 1 - i];
+                            }
+                        }));
 
     auto x = make_x(3);
     auto y = make_y({10, 20, 30});
@@ -502,16 +547,20 @@ TEST(DataTransformCustom, XYFunction) {
     EXPECT_FLOAT_EQ(yo[2], 10.0f);
 }
 
-TEST(DataTransformCustom, ScalarPerElement) {
+TEST(DataTransformCustom, ScalarPerElement)
+{
     DataTransform t("double", [](float v) { return v * 2.0f; });
     EXPECT_FLOAT_EQ(t.apply_scalar(5.0f), 10.0f);
     EXPECT_TRUE(t.is_elementwise());
 }
 
-TEST(DataTransformCustom, ScalarXYReturnsNaN) {
-    DataTransform t("xy_func", DataTransform::CustomXYFunc(
-        [](std::span<const float>, std::span<const float>,
-           std::vector<float>&, std::vector<float>&) {}));
+TEST(DataTransformCustom, ScalarXYReturnsNaN)
+{
+    DataTransform t("xy_func",
+                    DataTransform::CustomXYFunc([](std::span<const float>,
+                                                   std::span<const float>,
+                                                   std::vector<float>&,
+                                                   std::vector<float>&) {}));
     EXPECT_TRUE(std::isnan(t.apply_scalar(5.0f)));
     EXPECT_FALSE(t.is_elementwise());
 }
@@ -520,7 +569,8 @@ TEST(DataTransformCustom, ScalarXYReturnsNaN) {
 // Metadata
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformMetadata, IsElementwise) {
+TEST(DataTransformMetadata, IsElementwise)
+{
     EXPECT_TRUE(DataTransform(TransformType::Identity).is_elementwise());
     EXPECT_TRUE(DataTransform(TransformType::Log10).is_elementwise());
     EXPECT_TRUE(DataTransform(TransformType::Abs).is_elementwise());
@@ -530,7 +580,8 @@ TEST(DataTransformMetadata, IsElementwise) {
     EXPECT_FALSE(DataTransform(TransformType::CumulativeSum).is_elementwise());
 }
 
-TEST(DataTransformMetadata, ChangesLength) {
+TEST(DataTransformMetadata, ChangesLength)
+{
     EXPECT_FALSE(DataTransform(TransformType::Identity).changes_length());
     EXPECT_FALSE(DataTransform(TransformType::Abs).changes_length());
     EXPECT_TRUE(DataTransform(TransformType::Derivative).changes_length());
@@ -538,7 +589,8 @@ TEST(DataTransformMetadata, ChangesLength) {
     EXPECT_TRUE(DataTransform(TransformType::Log10).changes_length());
 }
 
-TEST(DataTransformMetadata, Description) {
+TEST(DataTransformMetadata, Description)
+{
     EXPECT_EQ(DataTransform(TransformType::Identity).description(), "Identity (no change)");
     EXPECT_EQ(DataTransform(TransformType::Log10).description(), "Log10(y)");
     EXPECT_EQ(DataTransform(TransformType::Derivative).description(), "dy/dx");
@@ -548,7 +600,8 @@ TEST(DataTransformMetadata, Description) {
     EXPECT_NE(DataTransform(TransformType::Scale, p).description().find("2.5"), std::string::npos);
 }
 
-TEST(DataTransformMetadata, TypeName) {
+TEST(DataTransformMetadata, TypeName)
+{
     EXPECT_STREQ(transform_type_name(TransformType::Identity), "Identity");
     EXPECT_STREQ(transform_type_name(TransformType::Log10), "Log10");
     EXPECT_STREQ(transform_type_name(TransformType::Derivative), "Derivative");
@@ -559,13 +612,15 @@ TEST(DataTransformMetadata, TypeName) {
 // TransformPipeline
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(TransformPipeline, EmptyIsIdentity) {
+TEST(TransformPipeline, EmptyIsIdentity)
+{
     TransformPipeline pipe;
     EXPECT_TRUE(pipe.is_identity());
     EXPECT_EQ(pipe.step_count(), 0u);
 }
 
-TEST(TransformPipeline, SingleStep) {
+TEST(TransformPipeline, SingleStep)
+{
     TransformPipeline pipe("test");
     pipe.push_back(DataTransform(TransformType::Negate));
 
@@ -580,7 +635,8 @@ TEST(TransformPipeline, SingleStep) {
     EXPECT_FLOAT_EQ(yo[2], -3.0f);
 }
 
-TEST(TransformPipeline, ChainedSteps) {
+TEST(TransformPipeline, ChainedSteps)
+{
     TransformPipeline pipe;
     TransformParams p;
     p.scale_factor = 2.0f;
@@ -593,12 +649,13 @@ TEST(TransformPipeline, ChainedSteps) {
     pipe.apply(x, y, xo, yo);
 
     ASSERT_EQ(yo.size(), 3u);
-    EXPECT_FLOAT_EQ(yo[0], -2.0f);   // 1*2 = 2, then -2
+    EXPECT_FLOAT_EQ(yo[0], -2.0f);  // 1*2 = 2, then -2
     EXPECT_FLOAT_EQ(yo[1], -4.0f);
     EXPECT_FLOAT_EQ(yo[2], -6.0f);
 }
 
-TEST(TransformPipeline, DisabledStep) {
+TEST(TransformPipeline, DisabledStep)
+{
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Negate));
     pipe.push_back(DataTransform(TransformType::Abs));
@@ -616,7 +673,8 @@ TEST(TransformPipeline, DisabledStep) {
     EXPECT_FLOAT_EQ(yo[2], 3.0f);
 }
 
-TEST(TransformPipeline, AllDisabledIsIdentity) {
+TEST(TransformPipeline, AllDisabledIsIdentity)
+{
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Negate));
     pipe.set_enabled(0, false);
@@ -624,7 +682,8 @@ TEST(TransformPipeline, AllDisabledIsIdentity) {
     EXPECT_TRUE(pipe.is_identity());
 }
 
-TEST(TransformPipeline, InsertAndRemove) {
+TEST(TransformPipeline, InsertAndRemove)
+{
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Abs));
     pipe.insert(0, DataTransform(TransformType::Negate));
@@ -638,7 +697,8 @@ TEST(TransformPipeline, InsertAndRemove) {
     EXPECT_EQ(pipe.step(0).type(), TransformType::Abs);
 }
 
-TEST(TransformPipeline, MoveStep) {
+TEST(TransformPipeline, MoveStep)
+{
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Abs));
     pipe.push_back(DataTransform(TransformType::Negate));
@@ -650,7 +710,8 @@ TEST(TransformPipeline, MoveStep) {
     EXPECT_EQ(pipe.step(2).type(), TransformType::Negate);
 }
 
-TEST(TransformPipeline, Clear) {
+TEST(TransformPipeline, Clear)
+{
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Abs));
     pipe.push_back(DataTransform(TransformType::Negate));
@@ -659,7 +720,8 @@ TEST(TransformPipeline, Clear) {
     EXPECT_TRUE(pipe.is_identity());
 }
 
-TEST(TransformPipeline, Description) {
+TEST(TransformPipeline, Description)
+{
     TransformPipeline pipe("my_pipe");
     pipe.push_back(DataTransform(TransformType::Abs));
     pipe.push_back(DataTransform(TransformType::Negate));
@@ -670,7 +732,8 @@ TEST(TransformPipeline, Description) {
     EXPECT_NE(desc.find("→"), std::string::npos);
 }
 
-TEST(TransformPipeline, LengthChangingChain) {
+TEST(TransformPipeline, LengthChangingChain)
+{
     // Derivative reduces length by 1, then Diff reduces by 1 more
     TransformPipeline pipe;
     pipe.push_back(DataTransform(TransformType::Derivative));
@@ -689,29 +752,36 @@ TEST(TransformPipeline, LengthChangingChain) {
 // TransformRegistry
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(TransformRegistryTest, Singleton) {
+TEST(TransformRegistryTest, Singleton)
+{
     auto& r1 = TransformRegistry::instance();
     auto& r2 = TransformRegistry::instance();
     EXPECT_EQ(&r1, &r2);
 }
 
-TEST(TransformRegistryTest, BuiltinTransformsAvailable) {
+TEST(TransformRegistryTest, BuiltinTransformsAvailable)
+{
     auto names = TransformRegistry::instance().available_transforms();
     EXPECT_GE(names.size(), 13u);  // At least 13 built-in types
 
     // Check some expected names
     bool has_identity = false, has_log10 = false, has_derivative = false;
-    for (const auto& n : names) {
-        if (n == "Identity") has_identity = true;
-        if (n == "Log10") has_log10 = true;
-        if (n == "Derivative") has_derivative = true;
+    for (const auto& n : names)
+    {
+        if (n == "Identity")
+            has_identity = true;
+        if (n == "Log10")
+            has_log10 = true;
+        if (n == "Derivative")
+            has_derivative = true;
     }
     EXPECT_TRUE(has_identity);
     EXPECT_TRUE(has_log10);
     EXPECT_TRUE(has_derivative);
 }
 
-TEST(TransformRegistryTest, BuiltinCustomTransforms) {
+TEST(TransformRegistryTest, BuiltinCustomTransforms)
+{
     auto& reg = TransformRegistry::instance();
     DataTransform t;
     EXPECT_TRUE(reg.get_transform("square", t));
@@ -724,22 +794,26 @@ TEST(TransformRegistryTest, BuiltinCustomTransforms) {
     EXPECT_FLOAT_EQ(t.apply_scalar(4.0f), 0.25f);
 }
 
-TEST(TransformRegistryTest, RegisterCustom) {
+TEST(TransformRegistryTest, RegisterCustom)
+{
     TransformRegistry reg;
-    reg.register_transform("cube", [](float v) { return v * v * v; }, "y³");
+    reg.register_transform(
+        "cube", [](float v) { return v * v * v; }, "y³");
 
     DataTransform t;
     EXPECT_TRUE(reg.get_transform("cube", t));
     EXPECT_FLOAT_EQ(t.apply_scalar(2.0f), 8.0f);
 }
 
-TEST(TransformRegistryTest, GetNonexistent) {
+TEST(TransformRegistryTest, GetNonexistent)
+{
     TransformRegistry reg;
     DataTransform t;
     EXPECT_FALSE(reg.get_transform("nonexistent_xyzzy", t));
 }
 
-TEST(TransformRegistryTest, SaveLoadPipeline) {
+TEST(TransformRegistryTest, SaveLoadPipeline)
+{
     TransformRegistry reg;
 
     TransformPipeline pipe("test_pipe");
@@ -755,7 +829,8 @@ TEST(TransformRegistryTest, SaveLoadPipeline) {
     EXPECT_EQ(loaded.step(1).type(), TransformType::Negate);
 }
 
-TEST(TransformRegistryTest, SavedPipelineNames) {
+TEST(TransformRegistryTest, SavedPipelineNames)
+{
     TransformRegistry reg;
     reg.save_pipeline("beta", TransformPipeline("b"));
     reg.save_pipeline("alpha", TransformPipeline("a"));
@@ -766,14 +841,16 @@ TEST(TransformRegistryTest, SavedPipelineNames) {
     EXPECT_EQ(names[1], "beta");
 }
 
-TEST(TransformRegistryTest, RemovePipeline) {
+TEST(TransformRegistryTest, RemovePipeline)
+{
     TransformRegistry reg;
     reg.save_pipeline("test", TransformPipeline());
     EXPECT_TRUE(reg.remove_pipeline("test"));
     EXPECT_FALSE(reg.remove_pipeline("test"));
 }
 
-TEST(TransformRegistryTest, CreateFactory) {
+TEST(TransformRegistryTest, CreateFactory)
+{
     auto t = TransformRegistry::create(TransformType::Abs);
     EXPECT_EQ(t.type(), TransformType::Abs);
     EXPECT_FLOAT_EQ(t.apply_scalar(-5.0f), 5.0f);
@@ -783,7 +860,8 @@ TEST(TransformRegistryTest, CreateFactory) {
 // Free functions
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(TransformFreeFunc, TransformY) {
+TEST(TransformFreeFunc, TransformY)
+{
     std::vector<float> y = {1, 2, 3, 4};
     auto result = transform_y(y, TransformType::Negate);
 
@@ -792,7 +870,8 @@ TEST(TransformFreeFunc, TransformY) {
     EXPECT_FLOAT_EQ(result[3], -4.0f);
 }
 
-TEST(TransformFreeFunc, TransformXY) {
+TEST(TransformFreeFunc, TransformXY)
+{
     std::vector<float> x = {0, 1, 2, 3};
     std::vector<float> y = {1, 10, 100, 1000};
     std::vector<float> xo, yo;
@@ -808,7 +887,8 @@ TEST(TransformFreeFunc, TransformXY) {
 // Edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST(DataTransformEdge, MismatchedLengths) {
+TEST(DataTransformEdge, MismatchedLengths)
+{
     std::vector<float> x = {0, 1, 2, 3, 4};
     std::vector<float> y = {1, 2, 3};  // Shorter than x
     std::vector<float> xo, yo;
@@ -820,7 +900,8 @@ TEST(DataTransformEdge, MismatchedLengths) {
     EXPECT_EQ(yo.size(), 3u);
 }
 
-TEST(DataTransformEdge, SinglePoint) {
+TEST(DataTransformEdge, SinglePoint)
+{
     std::vector<float> x = {1.0f};
     std::vector<float> y = {5.0f};
     std::vector<float> xo, yo;
@@ -832,7 +913,8 @@ TEST(DataTransformEdge, SinglePoint) {
     EXPECT_FLOAT_EQ(yo[0], 0.5f);  // Constant → 0.5
 }
 
-TEST(DataTransformEdge, DerivativeZeroDx) {
+TEST(DataTransformEdge, DerivativeZeroDx)
+{
     std::vector<float> x = {1.0f, 1.0f};  // Same x values
     std::vector<float> y = {0.0f, 5.0f};
     std::vector<float> xo, yo;
@@ -844,10 +926,12 @@ TEST(DataTransformEdge, DerivativeZeroDx) {
     EXPECT_FLOAT_EQ(yo[0], 0.0f);  // Division by zero → 0
 }
 
-TEST(DataTransformEdge, LargeDataset) {
+TEST(DataTransformEdge, LargeDataset)
+{
     const size_t N = 100000;
     std::vector<float> x(N), y(N);
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i)
+    {
         x[i] = static_cast<float>(i);
         y[i] = std::sin(static_cast<float>(i) * 0.01f);
     }
@@ -858,7 +942,8 @@ TEST(DataTransformEdge, LargeDataset) {
 
     ASSERT_EQ(yo.size(), N);
     // Normalized values should be in [0, 1]
-    for (float v : yo) {
+    for (float v : yo)
+    {
         EXPECT_GE(v, 0.0f);
         EXPECT_LE(v, 1.0f);
     }

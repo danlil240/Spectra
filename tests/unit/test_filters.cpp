@@ -1,20 +1,21 @@
+#include <cmath>
 #include <gtest/gtest.h>
+#include <vector>
 
 #include "data/filters.hpp"
-
-#include <cmath>
-#include <vector>
 
 using namespace plotix::data;
 
 // --- Moving average tests ---
 
-TEST(MovingAverage, EmptyInput) {
+TEST(MovingAverage, EmptyInput)
+{
     auto result = moving_average({}, 5);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(MovingAverage, WindowSizeOne) {
+TEST(MovingAverage, WindowSizeOne)
+{
     std::vector<float> v = {1, 2, 3, 4, 5};
     auto result = moving_average(v, 1);
     ASSERT_EQ(result.size(), 5u);
@@ -22,7 +23,8 @@ TEST(MovingAverage, WindowSizeOne) {
         EXPECT_FLOAT_EQ(result[i], v[i]);
 }
 
-TEST(MovingAverage, ConstantSignal) {
+TEST(MovingAverage, ConstantSignal)
+{
     std::vector<float> v(50, 7.0f);
     auto result = moving_average(v, 11);
     ASSERT_EQ(result.size(), 50u);
@@ -30,7 +32,8 @@ TEST(MovingAverage, ConstantSignal) {
         EXPECT_NEAR(val, 7.0f, 1e-5f);
 }
 
-TEST(MovingAverage, KnownValues) {
+TEST(MovingAverage, KnownValues)
+{
     // [1, 2, 3, 4, 5] with window=3 (centered)
     // i=0: avg(1,2)       = 1.5   (half=1, lo=0, hi=1)
     // i=1: avg(1,2,3)     = 2.0
@@ -47,7 +50,8 @@ TEST(MovingAverage, KnownValues) {
     EXPECT_NEAR(result[4], 4.5f, 1e-5f);
 }
 
-TEST(MovingAverage, SmoothsNoise) {
+TEST(MovingAverage, SmoothsNoise)
+{
     // A noisy signal should have lower variance after smoothing
     std::vector<float> v(200);
     for (std::size_t i = 0; i < 200; ++i)
@@ -58,7 +62,8 @@ TEST(MovingAverage, SmoothsNoise) {
     // Compute variance of original vs smoothed (excluding edges)
     double var_orig = 0, var_smooth = 0;
     const std::size_t start = 20, end = 180;
-    for (std::size_t i = start; i < end; ++i) {
+    for (std::size_t i = start; i < end; ++i)
+    {
         double d1 = v[i] - static_cast<float>(i);
         double d2 = smoothed[i] - static_cast<float>(i);
         var_orig += d1 * d1;
@@ -67,7 +72,8 @@ TEST(MovingAverage, SmoothsNoise) {
     EXPECT_LT(var_smooth, var_orig) << "Smoothed signal should have lower variance";
 }
 
-TEST(MovingAverage, OutputSameSize) {
+TEST(MovingAverage, OutputSameSize)
+{
     std::vector<float> v(100, 1.0f);
     auto result = moving_average(v, 15);
     EXPECT_EQ(result.size(), 100u);
@@ -75,12 +81,14 @@ TEST(MovingAverage, OutputSameSize) {
 
 // --- Exponential smoothing tests ---
 
-TEST(ExponentialSmoothing, EmptyInput) {
+TEST(ExponentialSmoothing, EmptyInput)
+{
     auto result = exponential_smoothing({}, 0.5f);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(ExponentialSmoothing, AlphaOne) {
+TEST(ExponentialSmoothing, AlphaOne)
+{
     // alpha=1 means no smoothing: output == input
     std::vector<float> v = {1, 5, 3, 8, 2};
     auto result = exponential_smoothing(v, 1.0f);
@@ -89,13 +97,15 @@ TEST(ExponentialSmoothing, AlphaOne) {
         EXPECT_FLOAT_EQ(result[i], v[i]);
 }
 
-TEST(ExponentialSmoothing, FirstValuePreserved) {
+TEST(ExponentialSmoothing, FirstValuePreserved)
+{
     std::vector<float> v = {10, 20, 30};
     auto result = exponential_smoothing(v, 0.3f);
     EXPECT_FLOAT_EQ(result[0], 10.0f);
 }
 
-TEST(ExponentialSmoothing, KnownRecurrence) {
+TEST(ExponentialSmoothing, KnownRecurrence)
+{
     // alpha=0.5: out[0]=1, out[1]=0.5*2+0.5*1=1.5, out[2]=0.5*3+0.5*1.5=2.25
     std::vector<float> v = {1, 2, 3};
     auto result = exponential_smoothing(v, 0.5f);
@@ -105,7 +115,8 @@ TEST(ExponentialSmoothing, KnownRecurrence) {
     EXPECT_FLOAT_EQ(result[2], 2.25f);
 }
 
-TEST(ExponentialSmoothing, LowAlphaSmooths) {
+TEST(ExponentialSmoothing, LowAlphaSmooths)
+{
     // With very low alpha, output should lag behind input significantly
     std::vector<float> v = {0, 0, 0, 0, 100, 100, 100, 100};
     auto result = exponential_smoothing(v, 0.1f);
@@ -113,7 +124,8 @@ TEST(ExponentialSmoothing, LowAlphaSmooths) {
     EXPECT_LT(result[5], 50.0f);
 }
 
-TEST(ExponentialSmoothing, OutputSameSize) {
+TEST(ExponentialSmoothing, OutputSameSize)
+{
     std::vector<float> v(100, 1.0f);
     auto result = exponential_smoothing(v, 0.3f);
     EXPECT_EQ(result.size(), 100u);
@@ -121,12 +133,14 @@ TEST(ExponentialSmoothing, OutputSameSize) {
 
 // --- Gaussian smooth tests ---
 
-TEST(GaussianSmooth, EmptyInput) {
+TEST(GaussianSmooth, EmptyInput)
+{
     auto result = gaussian_smooth({}, 1.0f);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(GaussianSmooth, ZeroSigmaReturnsInput) {
+TEST(GaussianSmooth, ZeroSigmaReturnsInput)
+{
     std::vector<float> v = {1, 2, 3, 4, 5};
     auto result = gaussian_smooth(v, 0.0f);
     ASSERT_EQ(result.size(), 5u);
@@ -134,7 +148,8 @@ TEST(GaussianSmooth, ZeroSigmaReturnsInput) {
         EXPECT_FLOAT_EQ(result[i], v[i]);
 }
 
-TEST(GaussianSmooth, ConstantSignal) {
+TEST(GaussianSmooth, ConstantSignal)
+{
     std::vector<float> v(50, 3.0f);
     auto result = gaussian_smooth(v, 5.0f);
     ASSERT_EQ(result.size(), 50u);
@@ -142,7 +157,8 @@ TEST(GaussianSmooth, ConstantSignal) {
         EXPECT_NEAR(val, 3.0f, 1e-4f);
 }
 
-TEST(GaussianSmooth, SmoothsNoise) {
+TEST(GaussianSmooth, SmoothsNoise)
+{
     std::vector<float> v(200);
     for (std::size_t i = 0; i < 200; ++i)
         v[i] = static_cast<float>(i) + ((i % 2 == 0) ? 5.0f : -5.0f);
@@ -151,7 +167,8 @@ TEST(GaussianSmooth, SmoothsNoise) {
 
     double var_orig = 0, var_smooth = 0;
     const std::size_t start = 20, end = 180;
-    for (std::size_t i = start; i < end; ++i) {
+    for (std::size_t i = start; i < end; ++i)
+    {
         double d1 = v[i] - static_cast<float>(i);
         double d2 = smoothed[i] - static_cast<float>(i);
         var_orig += d1 * d1;
@@ -160,7 +177,8 @@ TEST(GaussianSmooth, SmoothsNoise) {
     EXPECT_LT(var_smooth, var_orig);
 }
 
-TEST(GaussianSmooth, OutputSameSize) {
+TEST(GaussianSmooth, OutputSameSize)
+{
     std::vector<float> v(100, 1.0f);
     auto result = gaussian_smooth(v, 2.0f);
     EXPECT_EQ(result.size(), 100u);

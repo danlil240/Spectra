@@ -1,36 +1,39 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
+#include <mutex>
 #include <plotix/axes.hpp>
 #include <plotix/camera.hpp>
 #include <plotix/color.hpp>
 #include <plotix/math3d.hpp>
-
-#include <cstdint>
-#include <functional>
-#include <mutex>
 #include <string>
 
-namespace plotix {
+namespace plotix
+{
 
 class Axes3D;
 class TransitionEngine;
 class Figure;
 
 // Transition direction for 2D↔3D mode switching.
-enum class ModeTransitionDirection {
-    To3D,   // 2D → 3D: camera lifts from flat top-down to orbit view
-    To2D,   // 3D → 2D: camera flattens from orbit to top-down orthographic
+enum class ModeTransitionDirection
+{
+    To3D,  // 2D → 3D: camera lifts from flat top-down to orbit view
+    To2D,  // 3D → 2D: camera flattens from orbit to top-down orthographic
 };
 
 // Current state of a mode transition.
-enum class ModeTransitionState {
+enum class ModeTransitionState
+{
     Idle,       // No transition active
     Animating,  // Transition in progress
     Finished,   // Transition completed (auto-resets to Idle on next query)
 };
 
 // Snapshot of 2D axes state for transition interpolation.
-struct ModeTransition2DState {
+struct ModeTransition2DState
+{
     AxisLimits xlim{0.0f, 1.0f};
     AxisLimits ylim{0.0f, 1.0f};
     std::string xlabel;
@@ -40,7 +43,8 @@ struct ModeTransition2DState {
 };
 
 // Snapshot of 3D axes state for transition interpolation.
-struct ModeTransition3DState {
+struct ModeTransition3DState
+{
     AxisLimits xlim{0.0f, 1.0f};
     AxisLimits ylim{0.0f, 1.0f};
     AxisLimits zlim{0.0f, 1.0f};
@@ -71,8 +75,9 @@ using ModeTransitionCompleteCallback = std::function<void(ModeTransitionDirectio
 //   - Grid planes transition to flat XY only
 //
 // Thread-safe: all public methods lock an internal mutex.
-class ModeTransition {
-public:
+class ModeTransition
+{
+   public:
     ModeTransition() = default;
     ~ModeTransition() = default;
 
@@ -151,11 +156,11 @@ public:
     std::string serialize() const;
     bool deserialize(const std::string& json);
 
-private:
+   private:
     mutable std::mutex mutex_;
 
     float duration_ = 0.6f;  // Default 600ms
-    EasingFunc easing_;       // nullptr = default ease_in_out
+    EasingFunc easing_;      // nullptr = default ease_in_out
 
     ModeTransitionState state_ = ModeTransitionState::Idle;
     ModeTransitionDirection direction_ = ModeTransitionDirection::To3D;
@@ -186,4 +191,4 @@ private:
     Camera make_top_down_camera(const ModeTransition2DState& s2d) const;
 };
 
-} // namespace plotix
+}  // namespace plotix

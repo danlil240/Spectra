@@ -1,22 +1,23 @@
 #pragma once
 
-#include <plotix/animator.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <plotix/animator.hpp>
+#include <plotix/camera.hpp>
+#include <plotix/color.hpp>
+#include <plotix/fwd.hpp>
 #include <string>
 #include <variant>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // Interpolation mode for keyframe segments.
-enum class InterpMode : uint8_t {
+enum class InterpMode : uint8_t
+{
     Step,         // Hold previous value until next keyframe
     Linear,       // Linear interpolation
     CubicBezier,  // Cubic bezier with tangent handles
@@ -28,41 +29,47 @@ enum class InterpMode : uint8_t {
 
 // Tangent handle for cubic bezier interpolation.
 // Stored as time/value offsets relative to the keyframe position.
-struct TangentHandle {
-    float dt = 0.0f;   // Time offset (always positive for out, negative for in)
-    float dv = 0.0f;   // Value offset
+struct TangentHandle
+{
+    float dt = 0.0f;  // Time offset (always positive for out, negative for in)
+    float dv = 0.0f;  // Value offset
 
     constexpr TangentHandle() = default;
     constexpr TangentHandle(float dt, float dv) : dt(dt), dv(dv) {}
 };
 
 // Tangent mode controls how in/out tangents relate to each other.
-enum class TangentMode : uint8_t {
-    Free,       // In and out tangents are independent
-    Aligned,    // In and out tangents are co-linear (smooth)
-    Flat,       // Both tangents are horizontal (zero slope)
-    Auto,       // Automatically computed for smooth curves (Catmull-Rom style)
+enum class TangentMode : uint8_t
+{
+    Free,     // In and out tangents are independent
+    Aligned,  // In and out tangents are co-linear (smooth)
+    Flat,     // Both tangents are horizontal (zero slope)
+    Auto,     // Automatically computed for smooth curves (Catmull-Rom style)
 };
 
 // A typed keyframe with value, interpolation mode, and tangent handles.
-struct TypedKeyframe {
-    float         time       = 0.0f;
-    float         value      = 0.0f;
-    InterpMode    interp     = InterpMode::Linear;
-    TangentMode   tangent_mode = TangentMode::Auto;
-    TangentHandle in_tangent;    // Incoming tangent (from previous keyframe)
-    TangentHandle out_tangent;   // Outgoing tangent (to next keyframe)
-    bool          selected   = false;
+struct TypedKeyframe
+{
+    float time = 0.0f;
+    float value = 0.0f;
+    InterpMode interp = InterpMode::Linear;
+    TangentMode tangent_mode = TangentMode::Auto;
+    TangentHandle in_tangent;   // Incoming tangent (from previous keyframe)
+    TangentHandle out_tangent;  // Outgoing tangent (to next keyframe)
+    bool selected = false;
 
     constexpr TypedKeyframe() = default;
     constexpr TypedKeyframe(float t, float v, InterpMode mode = InterpMode::Linear)
-        : time(t), value(v), interp(mode) {}
+        : time(t), value(v), interp(mode)
+    {
+    }
 };
 
 // A single animation channel (e.g., "X Position", "Opacity", "Line Width").
 // Stores a sorted list of typed keyframes and provides interpolation.
-class AnimationChannel {
-public:
+class AnimationChannel
+{
+   public:
     AnimationChannel() = default;
     explicit AnimationChannel(const std::string& name, float default_value = 0.0f);
 
@@ -97,8 +104,10 @@ public:
     bool set_keyframe_interp(float time, InterpMode mode, float tolerance = 0.001f);
 
     // Set tangent handles for a keyframe.
-    bool set_keyframe_tangents(float time, TangentHandle in, TangentHandle out,
-                                float tolerance = 0.001f);
+    bool set_keyframe_tangents(float time,
+                               TangentHandle in,
+                               TangentHandle out,
+                               float tolerance = 0.001f);
 
     // Set tangent mode for a keyframe.
     bool set_keyframe_tangent_mode(float time, TangentMode mode, float tolerance = 0.001f);
@@ -137,12 +146,12 @@ public:
     // Recompute auto tangents for all keyframes that have TangentMode::Auto.
     void compute_auto_tangents();
 
-private:
+   private:
     std::string name_;
     float default_value_ = 0.0f;
     float min_value_ = 0.0f;
     float max_value_ = 1.0f;
-    bool  has_range_ = false;
+    bool has_range_ = false;
 
     std::vector<TypedKeyframe> keyframes_;  // Always sorted by time
 
@@ -163,21 +172,23 @@ private:
 using AnimatableValue = std::variant<float*, Color*, std::function<void(float)>>;
 
 // Property binding: connects an AnimationChannel to a target property.
-struct PropertyBinding {
-    uint32_t        channel_id = 0;
-    std::string     property_name;
+struct PropertyBinding
+{
+    uint32_t channel_id = 0;
+    std::string property_name;
     AnimatableValue target;
-    float           scale  = 1.0f;   // Multiplier applied to channel output
-    float           offset = 0.0f;   // Offset added after scale
+    float scale = 1.0f;   // Multiplier applied to channel output
+    float offset = 0.0f;  // Offset added after scale
 };
 
 // Camera binding: connects 4 channels to camera parameters.
-struct CameraBinding {
-    Camera*  target_camera;
-    uint32_t azimuth_id   = 0;
+struct CameraBinding
+{
+    Camera* target_camera;
+    uint32_t azimuth_id = 0;
     uint32_t elevation_id = 0;
-    uint32_t distance_id  = 0;
-    uint32_t fov_id       = 0;
+    uint32_t distance_id = 0;
+    uint32_t fov_id = 0;
 };
 
 // KeyframeInterpolator — manages multiple animation channels and property bindings.
@@ -187,8 +198,9 @@ struct CameraBinding {
 // modes, and property bindings connect channels to runtime targets.
 //
 // Thread-safe: all public methods lock an internal mutex.
-class KeyframeInterpolator {
-public:
+class KeyframeInterpolator
+{
+   public:
     KeyframeInterpolator() = default;
     ~KeyframeInterpolator() = default;
 
@@ -215,21 +227,26 @@ public:
     // ─── Property bindings ───────────────────────────────────────────
 
     // Bind a channel to a float pointer target.
-    void bind(uint32_t channel_id, const std::string& prop_name, float* target,
-              float scale = 1.0f, float offset = 0.0f);
+    void bind(uint32_t channel_id,
+              const std::string& prop_name,
+              float* target,
+              float scale = 1.0f,
+              float offset = 0.0f);
 
     // Bind a channel to a Color target (channel controls one RGBA component).
     void bind_color(uint32_t channel_id, const std::string& prop_name, Color* target);
 
     // Bind a channel to a callback function.
-    void bind_callback(uint32_t channel_id, const std::string& prop_name,
+    void bind_callback(uint32_t channel_id,
+                       const std::string& prop_name,
                        std::function<void(float)> callback,
-                       float scale = 1.0f, float offset = 0.0f);
+                       float scale = 1.0f,
+                       float offset = 0.0f);
 
     // Bind channels to a Camera target.
     // Pass 0 for any channel you don't want to bind.
-    void bind_camera(Camera* cam, uint32_t az_ch, uint32_t el_ch,
-                     uint32_t dist_ch, uint32_t fov_ch);
+    void bind_camera(
+        Camera* cam, uint32_t az_ch, uint32_t el_ch, uint32_t dist_ch, uint32_t fov_ch);
 
     // Remove camera binding.
     void unbind_camera(Camera* cam);
@@ -277,12 +294,12 @@ public:
     // Total keyframe count across all channels.
     size_t total_keyframe_count() const;
 
-private:
+   private:
     mutable std::mutex mutex_;
 
     std::vector<std::pair<uint32_t, AnimationChannel>> channels_;
     std::vector<PropertyBinding> bindings_;
-    std::vector<CameraBinding>   camera_bindings_;
+    std::vector<CameraBinding> camera_bindings_;
     uint32_t next_channel_id_ = 1;
 
     AnimationChannel* find_channel_unlocked(uint32_t id);
@@ -297,4 +314,4 @@ const char* interp_mode_name(InterpMode mode);
 // Convert TangentMode to a human-readable string.
 const char* tangent_mode_name(TangentMode mode);
 
-} // namespace plotix
+}  // namespace plotix

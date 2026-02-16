@@ -1,29 +1,28 @@
+#include <cstdio>
+#include <filesystem>
 #include <gtest/gtest.h>
-
-#include "ui/command_registry.hpp"
-#include "ui/shortcut_manager.hpp"
-#include "ui/undo_manager.hpp"
-#include "ui/undoable_property.hpp"
-#include "ui/workspace.hpp"
-#include "ui/figure_manager.hpp"
-#include "ui/transition_engine.hpp"
-
+#include <memory>
 #include <plotix/axes.hpp>
 #include <plotix/color.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/series.hpp>
-
-#include <cstdio>
-#include <filesystem>
-#include <memory>
 #include <string>
 #include <vector>
+
+#include "ui/command_registry.hpp"
+#include "ui/figure_manager.hpp"
+#include "ui/shortcut_manager.hpp"
+#include "ui/transition_engine.hpp"
+#include "ui/undo_manager.hpp"
+#include "ui/undoable_property.hpp"
+#include "ui/workspace.hpp"
 
 using namespace plotix;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-static Figure make_figure_with_data() {
+static Figure make_figure_with_data()
+{
     Figure fig;
     auto& ax = fig.subplot(1, 1, 1);
     static float x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
@@ -41,53 +40,60 @@ static Figure make_figure_with_data() {
 // Integration: CommandRegistry + ShortcutManager
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class CommandShortcutIntegration : public ::testing::Test {
-protected:
+class CommandShortcutIntegration : public ::testing::Test
+{
+   protected:
     CommandRegistry registry;
     ShortcutManager shortcuts;
     int action_count = 0;
 
-    void SetUp() override {
+    void SetUp() override
+    {
         shortcuts.set_command_registry(&registry);
 
-        registry.register_command("view.reset", "Reset View",
-            [this]() { ++action_count; }, "Ctrl+R", "View");
-        registry.register_command("view.zoom_in", "Zoom In",
-            [this]() { action_count += 10; }, "Ctrl++", "View");
-        registry.register_command("edit.undo", "Undo",
-            [this]() { action_count += 100; }, "Ctrl+Z", "Edit");
+        registry.register_command(
+            "view.reset", "Reset View", [this]() { ++action_count; }, "Ctrl+R", "View");
+        registry.register_command(
+            "view.zoom_in", "Zoom In", [this]() { action_count += 10; }, "Ctrl++", "View");
+        registry.register_command(
+            "edit.undo", "Undo", [this]() { action_count += 100; }, "Ctrl+Z", "Edit");
 
         // Bind shortcuts (key codes are arbitrary for testing)
-        shortcuts.bind(Shortcut{82, KeyMod::Control}, "view.reset");      // Ctrl+R
-        shortcuts.bind(Shortcut{61, KeyMod::Control}, "view.zoom_in");    // Ctrl+=
-        shortcuts.bind(Shortcut{90, KeyMod::Control}, "edit.undo");       // Ctrl+Z
+        shortcuts.bind(Shortcut{82, KeyMod::Control}, "view.reset");    // Ctrl+R
+        shortcuts.bind(Shortcut{61, KeyMod::Control}, "view.zoom_in");  // Ctrl+=
+        shortcuts.bind(Shortcut{90, KeyMod::Control}, "edit.undo");     // Ctrl+Z
     }
 };
 
-TEST_F(CommandShortcutIntegration, ShortcutExecutesCommand) {
-    EXPECT_TRUE(shortcuts.on_key(82, 1, 0x02)); // Ctrl+R → view.reset
+TEST_F(CommandShortcutIntegration, ShortcutExecutesCommand)
+{
+    EXPECT_TRUE(shortcuts.on_key(82, 1, 0x02));  // Ctrl+R → view.reset
     EXPECT_EQ(action_count, 1);
 }
 
-TEST_F(CommandShortcutIntegration, MultipleShortcutsWork) {
+TEST_F(CommandShortcutIntegration, MultipleShortcutsWork)
+{
     shortcuts.on_key(82, 1, 0x02);  // Ctrl+R
     shortcuts.on_key(61, 1, 0x02);  // Ctrl+=
     shortcuts.on_key(90, 1, 0x02);  // Ctrl+Z
     EXPECT_EQ(action_count, 111);   // 1 + 10 + 100
 }
 
-TEST_F(CommandShortcutIntegration, UnboundKeyDoesNothing) {
+TEST_F(CommandShortcutIntegration, UnboundKeyDoesNothing)
+{
     EXPECT_FALSE(shortcuts.on_key(999, 1, 0));
     EXPECT_EQ(action_count, 0);
 }
 
-TEST_F(CommandShortcutIntegration, DisabledCommandNotExecuted) {
+TEST_F(CommandShortcutIntegration, DisabledCommandNotExecuted)
+{
     registry.set_enabled("view.reset", false);
     EXPECT_FALSE(shortcuts.on_key(82, 1, 0x02));
     EXPECT_EQ(action_count, 0);
 }
 
-TEST_F(CommandShortcutIntegration, RecentCommandsTracked) {
+TEST_F(CommandShortcutIntegration, RecentCommandsTracked)
+{
     registry.execute("view.reset");
     registry.execute("edit.undo");
     registry.execute("view.reset");
@@ -97,23 +103,26 @@ TEST_F(CommandShortcutIntegration, RecentCommandsTracked) {
     EXPECT_EQ(recent[0]->id, "view.reset");
 }
 
-TEST_F(CommandShortcutIntegration, SearchFindsRegisteredCommands) {
+TEST_F(CommandShortcutIntegration, SearchFindsRegisteredCommands)
+{
     auto results = registry.search("reset");
     ASSERT_GE(results.size(), 1u);
     EXPECT_EQ(results[0].command->id, "view.reset");
 }
 
-TEST_F(CommandShortcutIntegration, RebindShortcut) {
+TEST_F(CommandShortcutIntegration, RebindShortcut)
+{
     shortcuts.unbind(Shortcut{82, KeyMod::Control});
     shortcuts.bind(Shortcut{82, KeyMod::Control}, "edit.undo");
 
     shortcuts.on_key(82, 1, 0x02);
-    EXPECT_EQ(action_count, 100); // Now executes undo, not reset
+    EXPECT_EQ(action_count, 100);  // Now executes undo, not reset
 }
 
-TEST_F(CommandShortcutIntegration, CategoriesGroupCorrectly) {
+TEST_F(CommandShortcutIntegration, CategoriesGroupCorrectly)
+{
     auto cats = registry.categories();
-    EXPECT_GE(cats.size(), 2u); // View, Edit
+    EXPECT_GE(cats.size(), 2u);  // View, Edit
 
     auto view_cmds = registry.commands_in_category("View");
     EXPECT_EQ(view_cmds.size(), 2u);
@@ -126,27 +135,29 @@ TEST_F(CommandShortcutIntegration, CategoriesGroupCorrectly) {
 // Integration: UndoManager + Workspace save/load
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class UndoWorkspaceIntegration : public ::testing::Test {
-protected:
+class UndoWorkspaceIntegration : public ::testing::Test
+{
+   protected:
     std::string tmp_path;
 
-    void SetUp() override {
+    void SetUp() override
+    {
         tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_undo_ws.plotix").string();
     }
 
-    void TearDown() override {
-        std::remove(tmp_path.c_str());
-    }
+    void TearDown() override { std::remove(tmp_path.c_str()); }
 };
 
-TEST_F(UndoWorkspaceIntegration, UndoCountSavedInWorkspace) {
+TEST_F(UndoWorkspaceIntegration, UndoCountSavedInWorkspace)
+{
     UndoManager mgr;
     int val = 0;
-    for (int i = 0; i < 5; ++i) {
-        mgr.push(UndoAction{"change " + std::to_string(i),
-                             [&val]() { --val; }, [&val]() { ++val; }});
+    for (int i = 0; i < 5; ++i)
+    {
+        mgr.push(
+            UndoAction{"change " + std::to_string(i), [&val]() { --val; }, [&val]() { ++val; }});
     }
-    mgr.undo(); // 4 undo, 1 redo
+    mgr.undo();  // 4 undo, 1 redo
 
     WorkspaceData data;
     data.undo_count = mgr.undo_count();
@@ -162,7 +173,8 @@ TEST_F(UndoWorkspaceIntegration, UndoCountSavedInWorkspace) {
     EXPECT_EQ(loaded.redo_count, 1u);
 }
 
-TEST_F(UndoWorkspaceIntegration, UndoablePropertyThenSaveRestore) {
+TEST_F(UndoWorkspaceIntegration, UndoablePropertyThenSaveRestore)
+{
     UndoManager mgr;
     Figure fig = make_figure_with_data();
     auto& ax = *fig.axes()[0];
@@ -193,7 +205,8 @@ TEST_F(UndoWorkspaceIntegration, UndoablePropertyThenSaveRestore) {
     EXPECT_EQ(loaded.undo_count, 3u);
 }
 
-TEST_F(UndoWorkspaceIntegration, UndoAfterWorkspaceRestore) {
+TEST_F(UndoWorkspaceIntegration, UndoAfterWorkspaceRestore)
+{
     UndoManager mgr;
     Figure fig = make_figure_with_data();
     auto& ax = *fig.axes()[0];
@@ -217,14 +230,15 @@ TEST_F(UndoWorkspaceIntegration, UndoAfterWorkspaceRestore) {
     EXPECT_FLOAT_EQ(ax.x_limits().max, 8.0f);
 }
 
-TEST_F(UndoWorkspaceIntegration, GroupedUndoWithWorkspaceSave) {
+TEST_F(UndoWorkspaceIntegration, GroupedUndoWithWorkspaceSave)
+{
     UndoManager mgr;
     Figure fig = make_figure_with_data();
 
     // Toggle grid on all axes as a grouped undo
     undoable_toggle_grid_all(&mgr, fig);
 
-    EXPECT_EQ(mgr.undo_count(), 1u); // Grouped = 1 undo step
+    EXPECT_EQ(mgr.undo_count(), 1u);  // Grouped = 1 undo step
 
     // Save
     std::vector<Figure*> figs = {&fig};
@@ -241,24 +255,26 @@ TEST_F(UndoWorkspaceIntegration, GroupedUndoWithWorkspaceSave) {
 // Integration: FigureManager + Workspace
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class FigureManagerWorkspaceIntegration : public ::testing::Test {
-protected:
+class FigureManagerWorkspaceIntegration : public ::testing::Test
+{
+   protected:
     std::string tmp_path;
     std::vector<std::unique_ptr<Figure>> figures;
     std::unique_ptr<FigureManager> mgr;
 
-    void SetUp() override {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_figmgr_ws.plotix").string();
+    void SetUp() override
+    {
+        tmp_path =
+            (std::filesystem::temp_directory_path() / "plotix_int_figmgr_ws.plotix").string();
         figures.push_back(std::make_unique<Figure>());
         mgr = std::make_unique<FigureManager>(figures);
     }
 
-    void TearDown() override {
-        std::remove(tmp_path.c_str());
-    }
+    void TearDown() override { std::remove(tmp_path.c_str()); }
 };
 
-TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore) {
+TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore)
+{
     // Create multiple figures
     mgr->create_figure();
     mgr->create_figure();
@@ -274,7 +290,8 @@ TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore) {
 
     // Capture workspace
     std::vector<Figure*> fig_ptrs;
-    for (auto& f : figures) fig_ptrs.push_back(f.get());
+    for (auto& f : figures)
+        fig_ptrs.push_back(f.get());
 
     auto ws = Workspace::capture(fig_ptrs, mgr->active_index(), "dark", true, 320.0f, false);
 
@@ -291,7 +308,8 @@ TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore) {
     EXPECT_EQ(loaded.active_figure_index, 1u);
 }
 
-TEST_F(FigureManagerWorkspaceIntegration, ModifiedFlagSaved) {
+TEST_F(FigureManagerWorkspaceIntegration, ModifiedFlagSaved)
+{
     mgr->mark_modified(0, true);
 
     WorkspaceData ws;
@@ -311,7 +329,8 @@ TEST_F(FigureManagerWorkspaceIntegration, ModifiedFlagSaved) {
     EXPECT_TRUE(loaded.figures[0].is_modified);
 }
 
-TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave) {
+TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave)
+{
     // Create a second figure via create (not duplicate, to avoid subplot issues)
     mgr->create_figure();
     ASSERT_EQ(mgr->count(), 2u);
@@ -321,7 +340,8 @@ TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave) {
 
     // Save
     std::vector<Figure*> fig_ptrs;
-    for (auto& f : figures) fig_ptrs.push_back(f.get());
+    for (auto& f : figures)
+        fig_ptrs.push_back(f.get());
 
     auto ws = Workspace::capture(fig_ptrs, 0, "dark", true, 320.0f, false);
     ASSERT_EQ(ws.figures.size(), 2u);
@@ -337,7 +357,8 @@ TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave) {
 // Integration: TransitionEngine + UndoManager
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(TransitionUndoIntegration, AnimatedLimitChangeWithUndo) {
+TEST(TransitionUndoIntegration, AnimatedLimitChangeWithUndo)
+{
     TransitionEngine te;
     UndoManager mgr;
     Axes ax;
@@ -352,21 +373,22 @@ TEST(TransitionUndoIntegration, AnimatedLimitChangeWithUndo) {
     te.animate_limits(ax, {2.0f, 8.0f}, {2.0f, 8.0f}, 0.3f, ease::ease_out);
 
     // Run animation to completion
-    for (int i = 0; i < 30; ++i) te.update(0.016f);
+    for (int i = 0; i < 30; ++i)
+        te.update(0.016f);
 
     // Push undo after animation completes
     Axes* ptr = &ax;
-    mgr.push(UndoAction{
-        "Animated zoom",
-        [ptr, old_x, old_y]() {
-            ptr->xlim(old_x.min, old_x.max);
-            ptr->ylim(old_y.min, old_y.max);
-        },
-        [ptr]() {
-            ptr->xlim(2.0f, 8.0f);
-            ptr->ylim(2.0f, 8.0f);
-        }
-    });
+    mgr.push(UndoAction{"Animated zoom",
+                        [ptr, old_x, old_y]()
+                        {
+                            ptr->xlim(old_x.min, old_x.max);
+                            ptr->ylim(old_y.min, old_y.max);
+                        },
+                        [ptr]()
+                        {
+                            ptr->xlim(2.0f, 8.0f);
+                            ptr->ylim(2.0f, 8.0f);
+                        }});
 
     // Verify animation completed
     EXPECT_NEAR(ax.x_limits().min, 2.0f, 0.01f);
@@ -383,7 +405,8 @@ TEST(TransitionUndoIntegration, AnimatedLimitChangeWithUndo) {
     EXPECT_FLOAT_EQ(ax.x_limits().max, 8.0f);
 }
 
-TEST(TransitionUndoIntegration, CancelAnimationThenUndo) {
+TEST(TransitionUndoIntegration, CancelAnimationThenUndo)
+{
     TransitionEngine te;
     UndoManager mgr;
     Axes ax;
@@ -406,11 +429,9 @@ TEST(TransitionUndoIntegration, CancelAnimationThenUndo) {
 
     // Push undo for the partial change
     Axes* ptr = &ax;
-    mgr.push(UndoAction{
-        "Cancelled zoom",
-        [ptr, old_x]() { ptr->xlim(old_x.min, old_x.max); },
-        [ptr, mid_min, mid_max]() { ptr->xlim(mid_min, mid_max); }
-    });
+    mgr.push(UndoAction{"Cancelled zoom",
+                        [ptr, old_x]() { ptr->xlim(old_x.min, old_x.max); },
+                        [ptr, mid_min, mid_max]() { ptr->xlim(mid_min, mid_max); }});
 
     // Undo restores original
     mgr.undo();
@@ -422,7 +443,8 @@ TEST(TransitionUndoIntegration, CancelAnimationThenUndo) {
 // Integration: FigureManager lifecycle
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(FigureManagerIntegration, CreateSwitchCloseLifecycle) {
+TEST(FigureManagerIntegration, CreateSwitchCloseLifecycle)
+{
     std::vector<std::unique_ptr<Figure>> figures;
     figures.push_back(std::make_unique<Figure>());
     FigureManager mgr(figures);
@@ -451,7 +473,8 @@ TEST(FigureManagerIntegration, CreateSwitchCloseLifecycle) {
     EXPECT_FALSE(mgr.can_close(0));
 }
 
-TEST(FigureManagerIntegration, QueuedOperationsProcessCorrectly) {
+TEST(FigureManagerIntegration, QueuedOperationsProcessCorrectly)
+{
     std::vector<std::unique_ptr<Figure>> figures;
     figures.push_back(std::make_unique<Figure>());
     FigureManager mgr(figures);
@@ -466,10 +489,11 @@ TEST(FigureManagerIntegration, QueuedOperationsProcessCorrectly) {
     EXPECT_EQ(mgr.active_index(), 2u);
 
     mgr.process_pending();
-    EXPECT_EQ(mgr.active_index(), 0u); // Now processed
+    EXPECT_EQ(mgr.active_index(), 0u);  // Now processed
 }
 
-TEST(FigureManagerIntegration, PerFigureStatePreserved) {
+TEST(FigureManagerIntegration, PerFigureStatePreserved)
+{
     std::vector<std::unique_ptr<Figure>> figures;
     figures.push_back(std::make_unique<Figure>());
     FigureManager mgr(figures);
@@ -496,15 +520,15 @@ TEST(FigureManagerIntegration, PerFigureStatePreserved) {
 // Integration: CommandRegistry + UndoManager
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(CommandUndoIntegration, CommandTriggersUndoableAction) {
+TEST(CommandUndoIntegration, CommandTriggersUndoableAction)
+{
     CommandRegistry reg;
     UndoManager undo;
     Axes ax;
     ax.xlim(0.0f, 10.0f);
 
-    reg.register_command("view.reset", "Reset View", [&]() {
-        undoable_xlim(&undo, ax, 0.0f, 1.0f);
-    });
+    reg.register_command(
+        "view.reset", "Reset View", [&]() { undoable_xlim(&undo, ax, 0.0f, 1.0f); });
 
     reg.execute("view.reset");
     EXPECT_FLOAT_EQ(ax.x_limits().min, 0.0f);
@@ -516,19 +540,16 @@ TEST(CommandUndoIntegration, CommandTriggersUndoableAction) {
     EXPECT_FLOAT_EQ(ax.x_limits().max, 10.0f);
 }
 
-TEST(CommandUndoIntegration, MultipleCommandsUndoInOrder) {
+TEST(CommandUndoIntegration, MultipleCommandsUndoInOrder)
+{
     CommandRegistry reg;
     UndoManager undo;
     Axes ax;
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
 
-    reg.register_command("zoom.x", "Zoom X", [&]() {
-        undoable_xlim(&undo, ax, 2.0f, 8.0f);
-    });
-    reg.register_command("zoom.y", "Zoom Y", [&]() {
-        undoable_ylim(&undo, ax, 3.0f, 7.0f);
-    });
+    reg.register_command("zoom.x", "Zoom X", [&]() { undoable_xlim(&undo, ax, 2.0f, 8.0f); });
+    reg.register_command("zoom.y", "Zoom Y", [&]() { undoable_ylim(&undo, ax, 3.0f, 7.0f); });
 
     reg.execute("zoom.x");
     reg.execute("zoom.y");
@@ -539,7 +560,7 @@ TEST(CommandUndoIntegration, MultipleCommandsUndoInOrder) {
     // Undo Y first
     undo.undo();
     EXPECT_FLOAT_EQ(ax.y_limits().min, 0.0f);
-    EXPECT_FLOAT_EQ(ax.x_limits().min, 2.0f); // X unchanged
+    EXPECT_FLOAT_EQ(ax.x_limits().min, 2.0f);  // X unchanged
 
     // Undo X
     undo.undo();
@@ -550,20 +571,22 @@ TEST(CommandUndoIntegration, MultipleCommandsUndoInOrder) {
 // Integration: Workspace interaction state round-trip
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class WorkspaceInteractionIntegration : public ::testing::Test {
-protected:
+class WorkspaceInteractionIntegration : public ::testing::Test
+{
+   protected:
     std::string tmp_path;
 
-    void SetUp() override {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_ws_interact.plotix").string();
+    void SetUp() override
+    {
+        tmp_path =
+            (std::filesystem::temp_directory_path() / "plotix_int_ws_interact.plotix").string();
     }
 
-    void TearDown() override {
-        std::remove(tmp_path.c_str());
-    }
+    void TearDown() override { std::remove(tmp_path.c_str()); }
 };
 
-TEST_F(WorkspaceInteractionIntegration, CrosshairStatePersists) {
+TEST_F(WorkspaceInteractionIntegration, CrosshairStatePersists)
+{
     WorkspaceData data;
     data.theme_name = "dark";
     data.interaction.crosshair_enabled = true;
@@ -578,17 +601,22 @@ TEST_F(WorkspaceInteractionIntegration, CrosshairStatePersists) {
     EXPECT_FALSE(loaded.interaction.tooltip_enabled);
 }
 
-TEST_F(WorkspaceInteractionIntegration, MarkersPersist) {
+TEST_F(WorkspaceInteractionIntegration, MarkersPersist)
+{
     WorkspaceData data;
     data.theme_name = "dark";
 
     WorkspaceData::InteractionState::MarkerEntry m1;
-    m1.data_x = 1.5f; m1.data_y = 2.5f;
-    m1.series_label = "sin(x)"; m1.point_index = 10;
+    m1.data_x = 1.5f;
+    m1.data_y = 2.5f;
+    m1.series_label = "sin(x)";
+    m1.point_index = 10;
 
     WorkspaceData::InteractionState::MarkerEntry m2;
-    m2.data_x = 3.0f; m2.data_y = -1.0f;
-    m2.series_label = "cos(x)"; m2.point_index = 25;
+    m2.data_x = 3.0f;
+    m2.data_y = -1.0f;
+    m2.series_label = "cos(x)";
+    m2.point_index = 25;
 
     data.interaction.markers = {m1, m2};
 
@@ -606,7 +634,8 @@ TEST_F(WorkspaceInteractionIntegration, MarkersPersist) {
     EXPECT_EQ(loaded.interaction.markers[1].series_label, "cos(x)");
 }
 
-TEST_F(WorkspaceInteractionIntegration, SeriesOpacityPersists) {
+TEST_F(WorkspaceInteractionIntegration, SeriesOpacityPersists)
+{
     WorkspaceData data;
     data.theme_name = "dark";
 
@@ -631,7 +660,8 @@ TEST_F(WorkspaceInteractionIntegration, SeriesOpacityPersists) {
     EXPECT_FALSE(loaded.figures[0].series[0].visible);
 }
 
-TEST_F(WorkspaceInteractionIntegration, PanelStatePersists) {
+TEST_F(WorkspaceInteractionIntegration, PanelStatePersists)
+{
     WorkspaceData data;
     data.theme_name = "light";
     data.panels.inspector_visible = false;
@@ -653,33 +683,35 @@ TEST_F(WorkspaceInteractionIntegration, PanelStatePersists) {
 // Integration: UndoManager stress / edge cases
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(UndoStressIntegration, RapidPushUndoRedoCycle) {
+TEST(UndoStressIntegration, RapidPushUndoRedoCycle)
+{
     UndoManager mgr;
     int val = 0;
 
     // Rapid push-undo-redo cycle
-    for (int i = 0; i < 200; ++i) {
+    for (int i = 0; i < 200; ++i)
+    {
         mgr.push(UndoAction{
-            "step " + std::to_string(i),
-            [&val, i]() { val -= i; },
-            [&val, i]() { val += i; }
-        });
+            "step " + std::to_string(i), [&val, i]() { val -= i; }, [&val, i]() { val += i; }});
     }
 
     // Stack should be capped at MAX_STACK_SIZE
     EXPECT_LE(mgr.undo_count(), UndoManager::MAX_STACK_SIZE);
 
     // Undo all
-    while (mgr.can_undo()) mgr.undo();
+    while (mgr.can_undo())
+        mgr.undo();
     EXPECT_EQ(mgr.undo_count(), 0u);
     EXPECT_GT(mgr.redo_count(), 0u);
 
     // Redo all
-    while (mgr.can_redo()) mgr.redo();
+    while (mgr.can_redo())
+        mgr.redo();
     EXPECT_EQ(mgr.redo_count(), 0u);
 }
 
-TEST(UndoStressIntegration, InterleavedGroupsAndSingles) {
+TEST(UndoStressIntegration, InterleavedGroupsAndSingles)
+{
     UndoManager mgr;
     int val = 0;
 
@@ -692,10 +724,10 @@ TEST(UndoStressIntegration, InterleavedGroupsAndSingles) {
 
     mgr.push(UndoAction{"single2", [&val]() { val -= 100; }, [&val]() { val += 100; }});
 
-    EXPECT_EQ(mgr.undo_count(), 3u); // single1, group1, single2
+    EXPECT_EQ(mgr.undo_count(), 3u);  // single1, group1, single2
 
-    mgr.undo(); // Undo single2
-    mgr.undo(); // Undo group1 (both g1a and g1b)
+    mgr.undo();  // Undo single2
+    mgr.undo();  // Undo group1 (both g1a and g1b)
     EXPECT_EQ(mgr.undo_count(), 1u);
     EXPECT_EQ(mgr.redo_count(), 2u);
 }

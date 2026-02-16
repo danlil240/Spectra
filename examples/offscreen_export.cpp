@@ -1,19 +1,20 @@
-#include <plotix/plotix.hpp>
-
 #include <cmath>
 #include <iostream>
+#include <plotix/plotix.hpp>
 #include <vector>
 
-int main() {
+int main()
+{
     plotix::App app({.headless = true});
     auto& fig = app.figure({.width = 1920, .height = 1080});
-    auto& ax  = fig.subplot(1, 1, 1);
+    auto& ax = fig.subplot(1, 1, 1);
 
     // Generate data
     constexpr size_t N = 500;
     std::vector<float> x(N);
     std::vector<float> y(N);
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i)
+    {
         x[i] = static_cast<float>(i) * 0.02f;
         y[i] = std::sin(x[i]) * std::cos(x[i] * 0.5f);
     }

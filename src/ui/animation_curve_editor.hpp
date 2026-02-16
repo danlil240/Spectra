@@ -1,19 +1,20 @@
 #pragma once
 
-#include "ui/keyframe_interpolator.hpp"
-
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-
 #include <cstdint>
 #include <functional>
+#include <plotix/color.hpp>
+#include <plotix/fwd.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix {
+#include "ui/keyframe_interpolator.hpp"
+
+namespace plotix
+{
 
 // Hit-test result for curve editor interaction.
-enum class CurveHitType : uint8_t {
+enum class CurveHitType : uint8_t
+{
     None,
     Keyframe,
     InTangent,
@@ -22,35 +23,38 @@ enum class CurveHitType : uint8_t {
     Background,
 };
 
-struct CurveHitResult {
-    CurveHitType type       = CurveHitType::None;
-    uint32_t     channel_id = 0;
-    size_t       keyframe_index = 0;
-    float        time       = 0.0f;
-    float        value      = 0.0f;
+struct CurveHitResult
+{
+    CurveHitType type = CurveHitType::None;
+    uint32_t channel_id = 0;
+    size_t keyframe_index = 0;
+    float time = 0.0f;
+    float value = 0.0f;
 };
 
 // Drag state for interactive editing.
-struct CurveDragState {
-    bool         active     = false;
-    CurveHitType dragging   = CurveHitType::None;
-    uint32_t     channel_id = 0;
-    size_t       keyframe_index = 0;
-    float        start_time  = 0.0f;
-    float        start_value = 0.0f;
-    float        start_mouse_x = 0.0f;
-    float        start_mouse_y = 0.0f;
+struct CurveDragState
+{
+    bool active = false;
+    CurveHitType dragging = CurveHitType::None;
+    uint32_t channel_id = 0;
+    size_t keyframe_index = 0;
+    float start_time = 0.0f;
+    float start_value = 0.0f;
+    float start_mouse_x = 0.0f;
+    float start_mouse_y = 0.0f;
 };
 
 // View transform for the curve editor coordinate space.
-struct CurveViewTransform {
-    float time_min  = 0.0f;
-    float time_max  = 10.0f;
+struct CurveViewTransform
+{
+    float time_min = 0.0f;
+    float time_max = 10.0f;
     float value_min = -0.1f;
     float value_max = 1.1f;
 
     // Viewport pixel dimensions
-    float width  = 400.0f;
+    float width = 400.0f;
     float height = 200.0f;
     float origin_x = 0.0f;  // Screen-space origin
     float origin_y = 0.0f;
@@ -77,7 +81,8 @@ struct CurveViewTransform {
 
 // Callback types for curve editor events.
 using CurveEditCallback = std::function<void(uint32_t channel_id, size_t keyframe_index)>;
-using CurveValueChangeCallback = std::function<void(uint32_t channel_id, float time, float old_value, float new_value)>;
+using CurveValueChangeCallback =
+    std::function<void(uint32_t channel_id, float time, float old_value, float new_value)>;
 
 // AnimationCurveEditor — visual curve editor for keyframe animation channels.
 //
@@ -92,8 +97,9 @@ using CurveValueChangeCallback = std::function<void(uint32_t channel_id, float t
 //
 // The ImGui drawing code is behind PLOTIX_USE_IMGUI guards.
 // Pure logic (hit-testing, view transforms, curve sampling) is always available.
-class AnimationCurveEditor {
-public:
+class AnimationCurveEditor
+{
+   public:
     AnimationCurveEditor();
     ~AnimationCurveEditor() = default;
 
@@ -138,8 +144,7 @@ public:
     // Select/deselect keyframes.
     void select_keyframe(uint32_t channel_id, size_t index);
     void deselect_all();
-    void select_keyframes_in_rect(float time_min, float time_max,
-                                   float value_min, float value_max);
+    void select_keyframes_in_rect(float time_min, float time_max, float value_min, float value_max);
 
     size_t selected_count() const;
 
@@ -199,31 +204,32 @@ public:
     void draw(float width, float height);
 #endif
 
-private:
+   private:
     KeyframeInterpolator* interpolator_ = nullptr;
 
     CurveViewTransform view_;
-    CurveDragState     drag_;
+    CurveDragState drag_;
 
     // Per-channel display state
-    struct ChannelDisplay {
+    struct ChannelDisplay
+    {
         uint32_t channel_id = 0;
-        Color    color = colors::cyan;
-        bool     visible = true;
+        Color color = colors::cyan;
+        bool visible = true;
     };
     std::vector<ChannelDisplay> channel_displays_;
 
     // Display options
-    uint32_t curve_resolution_  = 200;
-    bool     show_grid_         = true;
-    bool     show_tangents_     = true;
-    bool     show_value_labels_ = false;
-    float    playhead_time_     = 0.0f;
+    uint32_t curve_resolution_ = 200;
+    bool show_grid_ = true;
+    bool show_tangents_ = true;
+    bool show_value_labels_ = false;
+    float playhead_time_ = 0.0f;
 
     // Callbacks
-    CurveEditCallback        on_keyframe_moved_;
+    CurveEditCallback on_keyframe_moved_;
     CurveValueChangeCallback on_value_changed_;
-    CurveEditCallback        on_tangent_changed_;
+    CurveEditCallback on_tangent_changed_;
 
     // Default channel colors (cycle through these)
     static constexpr Color kChannelColors[] = {
@@ -243,4 +249,4 @@ private:
     ChannelDisplay& ensure_display(uint32_t channel_id);
 };
 
-} // namespace plotix
+}  // namespace plotix

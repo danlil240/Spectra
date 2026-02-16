@@ -1,34 +1,34 @@
-#include <plotix/plotix.hpp>
-#include <plotix/math3d.hpp>
+#include <cmath>
 #include <gtest/gtest.h>
+#include <plotix/math3d.hpp>
+#include <plotix/plotix.hpp>
+#include <vector>
 
 #include "ui/camera_animator.hpp"
-
-#include <cmath>
-#include <vector>
 
 using namespace plotix;
 
 // ─── Fixture ────────────────────────────────────────────────────────────────
 
-class Integration3DTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+class Integration3DTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
         AppConfig config;
         config.headless = true;
         app_ = std::make_unique<App>(config);
     }
 
-    void TearDown() override {
-        app_.reset();
-    }
+    void TearDown() override { app_.reset(); }
 
     std::unique_ptr<App> app_;
 };
 
 // ─── Mixed 2D + 3D ─────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, Mixed2DAnd3DFigure) {
+TEST_F(Integration3DTest, Mixed2DAnd3DFigure)
+{
     auto& fig = app_->figure();
 
     auto& ax2d = fig.subplot(2, 1, 1);
@@ -47,7 +47,8 @@ TEST_F(Integration3DTest, Mixed2DAnd3DFigure) {
     SUCCEED();
 }
 
-TEST_F(Integration3DTest, Multiple3DSubplots) {
+TEST_F(Integration3DTest, Multiple3DSubplots)
+{
     auto& fig = app_->figure();
 
     auto& ax1 = fig.subplot3d(2, 2, 1);
@@ -65,10 +66,14 @@ TEST_F(Integration3DTest, Multiple3DSubplots) {
     auto& ax3 = fig.subplot3d(2, 2, 3);
     const int nx = 10, ny = 10;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i);
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j);
-    for (int j = 0; j < ny; ++j) {
-        for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i);
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j);
+    for (int j = 0; j < ny; ++j)
+    {
+        for (int i = 0; i < nx; ++i)
+        {
             z_values[j * nx + i] = static_cast<float>(i + j);
         }
     }
@@ -85,7 +90,8 @@ TEST_F(Integration3DTest, Multiple3DSubplots) {
 
 // ─── Camera Independence ────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, CameraIndependenceAcrossSubplots) {
+TEST_F(Integration3DTest, CameraIndependenceAcrossSubplots)
+{
     auto& fig = app_->figure();
 
     auto& ax1 = fig.subplot3d(1, 2, 1);
@@ -102,7 +108,8 @@ TEST_F(Integration3DTest, CameraIndependenceAcrossSubplots) {
 
 // ─── Grid Planes ────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, GridPlaneConfiguration) {
+TEST_F(Integration3DTest, GridPlaneConfiguration)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -116,7 +123,8 @@ TEST_F(Integration3DTest, GridPlaneConfiguration) {
     EXPECT_EQ(ax.grid_planes(), Axes3D::GridPlane::None);
 }
 
-TEST_F(Integration3DTest, GridPlaneBitwiseOr) {
+TEST_F(Integration3DTest, GridPlaneBitwiseOr)
+{
     auto combined = Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ;
     EXPECT_EQ(combined, (Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
     EXPECT_NE(static_cast<int>(combined), 0);
@@ -124,7 +132,8 @@ TEST_F(Integration3DTest, GridPlaneBitwiseOr) {
 
 // ─── Bounding Box ───────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, BoundingBoxToggle) {
+TEST_F(Integration3DTest, BoundingBoxToggle)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -139,7 +148,8 @@ TEST_F(Integration3DTest, BoundingBoxToggle) {
 
 // ─── Axis Limits ────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, AxisLimits3D) {
+TEST_F(Integration3DTest, AxisLimits3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -159,7 +169,8 @@ TEST_F(Integration3DTest, AxisLimits3D) {
     EXPECT_FLOAT_EQ(zlim.max, 3.0f);
 }
 
-TEST_F(Integration3DTest, AxisLabels3D) {
+TEST_F(Integration3DTest, AxisLabels3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -174,7 +185,8 @@ TEST_F(Integration3DTest, AxisLabels3D) {
 
 // ─── Series Chaining ────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, SeriesChaining3D) {
+TEST_F(Integration3DTest, SeriesChaining3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -182,25 +194,20 @@ TEST_F(Integration3DTest, SeriesChaining3D) {
     std::vector<float> y = {0.0f, 1.0f, 0.5f};
     std::vector<float> z = {0.0f, 0.5f, 1.0f};
 
-    auto& scatter = ax.scatter3d(x, y, z)
-        .color(colors::blue)
-        .size(5.0f)
-        .label("Test Scatter")
-        .opacity(0.8f);
+    auto& scatter =
+        ax.scatter3d(x, y, z).color(colors::blue).size(5.0f).label("Test Scatter").opacity(0.8f);
 
     EXPECT_FLOAT_EQ(scatter.size(), 5.0f);
 
-    auto& line = ax.line3d(x, y, z)
-        .color(colors::red)
-        .width(3.0f)
-        .label("Test Line");
+    auto& line = ax.line3d(x, y, z).color(colors::red).width(3.0f).label("Test Line");
 
     EXPECT_FLOAT_EQ(line.width(), 3.0f);
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, CameraProjectionModes) {
+TEST_F(Integration3DTest, CameraProjectionModes)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -211,7 +218,8 @@ TEST_F(Integration3DTest, CameraProjectionModes) {
     EXPECT_EQ(ax.camera().projection_mode, Camera::ProjectionMode::Orthographic);
 }
 
-TEST_F(Integration3DTest, CameraParameters) {
+TEST_F(Integration3DTest, CameraParameters)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -226,7 +234,8 @@ TEST_F(Integration3DTest, CameraParameters) {
     EXPECT_FLOAT_EQ(ax.camera().distance, 10.0f);
 }
 
-TEST_F(Integration3DTest, CameraOrbitProducesValidMatrix) {
+TEST_F(Integration3DTest, CameraOrbitProducesValidMatrix)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -238,13 +247,19 @@ TEST_F(Integration3DTest, CameraOrbitProducesValidMatrix) {
     mat4 view = ax.camera().view_matrix();
     // View matrix should not be all zeros
     bool has_nonzero = false;
-    for (int i = 0; i < 16; ++i) {
-        if (view.m[i] != 0.0f) { has_nonzero = true; break; }
+    for (int i = 0; i < 16; ++i)
+    {
+        if (view.m[i] != 0.0f)
+        {
+            has_nonzero = true;
+            break;
+        }
     }
     EXPECT_TRUE(has_nonzero);
 }
 
-TEST_F(Integration3DTest, CameraOrbitChangesPosition) {
+TEST_F(Integration3DTest, CameraOrbitChangesPosition)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -260,7 +275,8 @@ TEST_F(Integration3DTest, CameraOrbitChangesPosition) {
     EXPECT_NE(pos_before.x, pos_after.x);
 }
 
-TEST_F(Integration3DTest, CameraSerialization) {
+TEST_F(Integration3DTest, CameraSerialization)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -281,7 +297,8 @@ TEST_F(Integration3DTest, CameraSerialization) {
     EXPECT_NEAR(restored.fov, 60.0f, 0.1f);
 }
 
-TEST_F(Integration3DTest, CameraReset) {
+TEST_F(Integration3DTest, CameraReset)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -298,17 +315,22 @@ TEST_F(Integration3DTest, CameraReset) {
 
 // ─── Surface & Mesh ─────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, SurfaceMeshGeneration) {
+TEST_F(Integration3DTest, SurfaceMeshGeneration)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const int nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
 
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i);
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j);
-    for (int j = 0; j < ny; ++j) {
-        for (int i = 0; i < nx; ++i) {
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i);
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j);
+    for (int j = 0; j < ny; ++j)
+    {
+        for (int i = 0; i < nx; ++i)
+        {
             z_values[j * nx + i] = static_cast<float>(i * j);
         }
     }
@@ -327,14 +349,17 @@ TEST_F(Integration3DTest, SurfaceMeshGeneration) {
     EXPECT_GT(mesh.triangle_count, 0u);
 }
 
-TEST_F(Integration3DTest, SurfaceMeshTopology) {
+TEST_F(Integration3DTest, SurfaceMeshTopology)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const int nx = 4, ny = 3;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i);
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j);
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i);
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j);
     for (int j = 0; j < ny; ++j)
         for (int i = 0; i < nx; ++i)
             z_values[j * nx + i] = 0.0f;
@@ -346,14 +371,30 @@ TEST_F(Integration3DTest, SurfaceMeshTopology) {
     EXPECT_EQ(surf.mesh().triangle_count, static_cast<size_t>((nx - 1) * (ny - 1) * 2));
 }
 
-TEST_F(Integration3DTest, MeshSeriesCustomGeometry) {
+TEST_F(Integration3DTest, MeshSeriesCustomGeometry)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     std::vector<float> vertices = {
-        0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        0.5f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        0.5f,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
     };
 
     std::vector<uint32_t> indices = {0, 1, 2};
@@ -366,7 +407,8 @@ TEST_F(Integration3DTest, MeshSeriesCustomGeometry) {
 
 // ─── Bounds & Centroid ──────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, SeriesBoundsComputation) {
+TEST_F(Integration3DTest, SeriesBoundsComputation)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -387,7 +429,8 @@ TEST_F(Integration3DTest, SeriesBoundsComputation) {
     EXPECT_FLOAT_EQ(max_bounds.z, 3.0f);
 }
 
-TEST_F(Integration3DTest, SeriesCentroidComputation) {
+TEST_F(Integration3DTest, SeriesCentroidComputation)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -404,7 +447,8 @@ TEST_F(Integration3DTest, SeriesCentroidComputation) {
     EXPECT_FLOAT_EQ(centroid.z, 0.0f);
 }
 
-TEST_F(Integration3DTest, ScatterBoundsSymmetric) {
+TEST_F(Integration3DTest, ScatterBoundsSymmetric)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -426,7 +470,8 @@ TEST_F(Integration3DTest, ScatterBoundsSymmetric) {
 
 // ─── Auto-Fit ───────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, AutoFit3D) {
+TEST_F(Integration3DTest, AutoFit3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -449,7 +494,8 @@ TEST_F(Integration3DTest, AutoFit3D) {
     EXPECT_GE(zlim.max, 2.0f);
 }
 
-TEST_F(Integration3DTest, AutoFitWithMultipleSeries) {
+TEST_F(Integration3DTest, AutoFitWithMultipleSeries)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -472,7 +518,8 @@ TEST_F(Integration3DTest, AutoFitWithMultipleSeries) {
 
 // ─── Zoom Limits ────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, ZoomLimitsScalesAxes) {
+TEST_F(Integration3DTest, ZoomLimitsScalesAxes)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -488,7 +535,8 @@ TEST_F(Integration3DTest, ZoomLimitsScalesAxes) {
     EXPECT_LT(xlim.max, 1.0f);
 }
 
-TEST_F(Integration3DTest, ZoomLimitsOutExpandsAxes) {
+TEST_F(Integration3DTest, ZoomLimitsOutExpandsAxes)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -506,7 +554,8 @@ TEST_F(Integration3DTest, ZoomLimitsOutExpandsAxes) {
 
 // ─── Data-to-Normalized Matrix ──────────────────────────────────────────────
 
-TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform) {
+TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -519,8 +568,10 @@ TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform) {
     // The model matrix should not be identity (it maps data to normalized box)
     mat4 identity = mat4_identity();
     bool is_identity = true;
-    for (int i = 0; i < 16; ++i) {
-        if (std::abs(model.m[i] - identity.m[i]) > 1e-6f) {
+    for (int i = 0; i < 16; ++i)
+    {
+        if (std::abs(model.m[i] - identity.m[i]) > 1e-6f)
+        {
             is_identity = false;
             break;
         }
@@ -530,20 +581,24 @@ TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform) {
     EXPECT_FALSE(is_identity);
 }
 
-TEST_F(Integration3DTest, BoxHalfSizeConstant) {
+TEST_F(Integration3DTest, BoxHalfSizeConstant)
+{
     EXPECT_FLOAT_EQ(Axes3D::box_half_size(), 3.0f);
 }
 
 // ─── Colormap ───────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, SurfaceColormapSetting) {
+TEST_F(Integration3DTest, SurfaceColormapSetting)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const int nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny, 0.0f);
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i);
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j);
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i);
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j);
 
     auto& surf = ax.surface(x_grid, y_grid, z_values);
     surf.colormap(ColormapType::Viridis);
@@ -553,30 +608,41 @@ TEST_F(Integration3DTest, SurfaceColormapSetting) {
     EXPECT_EQ(surf.colormap_type(), ColormapType::Jet);
 }
 
-TEST_F(Integration3DTest, ColormapSampling) {
+TEST_F(Integration3DTest, ColormapSampling)
+{
     // Sample at t=0 and t=1 for each colormap — should produce valid colors
-    for (int cm = 0; cm <= static_cast<int>(ColormapType::Grayscale); ++cm) {
+    for (int cm = 0; cm <= static_cast<int>(ColormapType::Grayscale); ++cm)
+    {
         auto type = static_cast<ColormapType>(cm);
         Color c0 = SurfaceSeries::sample_colormap(type, 0.0f);
         Color c1 = SurfaceSeries::sample_colormap(type, 1.0f);
 
-        EXPECT_GE(c0.r, 0.0f); EXPECT_LE(c0.r, 1.0f);
-        EXPECT_GE(c0.g, 0.0f); EXPECT_LE(c0.g, 1.0f);
-        EXPECT_GE(c0.b, 0.0f); EXPECT_LE(c0.b, 1.0f);
-        EXPECT_GE(c1.r, 0.0f); EXPECT_LE(c1.r, 1.0f);
-        EXPECT_GE(c1.g, 0.0f); EXPECT_LE(c1.g, 1.0f);
-        EXPECT_GE(c1.b, 0.0f); EXPECT_LE(c1.b, 1.0f);
+        EXPECT_GE(c0.r, 0.0f);
+        EXPECT_LE(c0.r, 1.0f);
+        EXPECT_GE(c0.g, 0.0f);
+        EXPECT_LE(c0.g, 1.0f);
+        EXPECT_GE(c0.b, 0.0f);
+        EXPECT_LE(c0.b, 1.0f);
+        EXPECT_GE(c1.r, 0.0f);
+        EXPECT_LE(c1.r, 1.0f);
+        EXPECT_GE(c1.g, 0.0f);
+        EXPECT_LE(c1.g, 1.0f);
+        EXPECT_GE(c1.b, 0.0f);
+        EXPECT_LE(c1.b, 1.0f);
     }
 }
 
-TEST_F(Integration3DTest, ColormapRange) {
+TEST_F(Integration3DTest, ColormapRange)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const int nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny, 0.0f);
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i);
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j);
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i);
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j);
 
     auto& surf = ax.surface(x_grid, y_grid, z_values);
     surf.set_colormap_range(-5.0f, 5.0f);
@@ -587,7 +653,8 @@ TEST_F(Integration3DTest, ColormapRange) {
 
 // ─── Camera Animator Integration ────────────────────────────────────────────
 
-TEST_F(Integration3DTest, CameraAnimatorOrbitPath) {
+TEST_F(Integration3DTest, CameraAnimatorOrbitPath)
+{
     CameraAnimator animator;
     animator.set_path_mode(CameraPathMode::Orbit);
 
@@ -609,7 +676,8 @@ TEST_F(Integration3DTest, CameraAnimatorOrbitPath) {
     EXPECT_NEAR(mid.elevation, 30.0f, 1.0f);
 }
 
-TEST_F(Integration3DTest, CameraAnimatorTargetBinding) {
+TEST_F(Integration3DTest, CameraAnimatorTargetBinding)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -636,7 +704,8 @@ TEST_F(Integration3DTest, CameraAnimatorTargetBinding) {
     EXPECT_NEAR(ax.camera().azimuth, 180.0f, 1.0f);
 }
 
-TEST_F(Integration3DTest, CameraAnimatorTurntable) {
+TEST_F(Integration3DTest, CameraAnimatorTurntable)
+{
     CameraAnimator animator;
 
     Camera base;
@@ -654,7 +723,8 @@ TEST_F(Integration3DTest, CameraAnimatorTurntable) {
     EXPECT_NEAR(mid.azimuth, 180.0f, 1.0f);
 }
 
-TEST_F(Integration3DTest, CameraAnimatorSerialization) {
+TEST_F(Integration3DTest, CameraAnimatorSerialization)
+{
     CameraAnimator animator;
     animator.set_path_mode(CameraPathMode::Orbit);
 
@@ -677,7 +747,8 @@ TEST_F(Integration3DTest, CameraAnimatorSerialization) {
 
 // ─── Tick Computation ───────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, TickComputation3D) {
+TEST_F(Integration3DTest, TickComputation3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -697,7 +768,8 @@ TEST_F(Integration3DTest, TickComputation3D) {
 
 // ─── Multiple Series Types in One Axes ──────────────────────────────────────
 
-TEST_F(Integration3DTest, MixedSeriesTypesIn3DAxes) {
+TEST_F(Integration3DTest, MixedSeriesTypesIn3DAxes)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -713,7 +785,8 @@ TEST_F(Integration3DTest, MixedSeriesTypesIn3DAxes) {
 
 // ─── Clear Series 3D ────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, ClearSeries3D) {
+TEST_F(Integration3DTest, ClearSeries3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -729,7 +802,8 @@ TEST_F(Integration3DTest, ClearSeries3D) {
     EXPECT_EQ(ax.series().size(), 0u);
 }
 
-TEST_F(Integration3DTest, RemoveSingleSeries3D) {
+TEST_F(Integration3DTest, RemoveSingleSeries3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -748,7 +822,8 @@ TEST_F(Integration3DTest, RemoveSingleSeries3D) {
 
 // ─── 2D Regression ──────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, No2DRegressions) {
+TEST_F(Integration3DTest, No2DRegressions)
+{
     auto& fig = app_->figure();
 
     auto& ax2d = fig.subplot(1, 1, 1);
@@ -766,12 +841,14 @@ TEST_F(Integration3DTest, No2DRegressions) {
 
 // ─── Render Smoke Tests ─────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, RenderScatter3DSmoke) {
+TEST_F(Integration3DTest, RenderScatter3DSmoke)
+{
     auto& fig = app_->figure({.width = 128, .height = 128});
     auto& ax = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x, y, z;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 100; ++i)
+    {
         float t = static_cast<float>(i) * 0.1f;
         x.push_back(std::cos(t));
         y.push_back(std::sin(t));
@@ -782,12 +859,14 @@ TEST_F(Integration3DTest, RenderScatter3DSmoke) {
     EXPECT_NO_FATAL_FAILURE(app_->run());
 }
 
-TEST_F(Integration3DTest, RenderLine3DSmoke) {
+TEST_F(Integration3DTest, RenderLine3DSmoke)
+{
     auto& fig = app_->figure({.width = 128, .height = 128});
     auto& ax = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x, y, z;
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 50; ++i)
+    {
         float t = static_cast<float>(i) * 0.2f;
         x.push_back(std::cos(t));
         y.push_back(std::sin(t));
@@ -798,14 +877,17 @@ TEST_F(Integration3DTest, RenderLine3DSmoke) {
     EXPECT_NO_FATAL_FAILURE(app_->run());
 }
 
-TEST_F(Integration3DTest, RenderSurfaceSmoke) {
+TEST_F(Integration3DTest, RenderSurfaceSmoke)
+{
     auto& fig = app_->figure({.width = 128, .height = 128});
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const int nx = 10, ny = 10;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
-    for (int i = 0; i < nx; ++i) x_grid[i] = static_cast<float>(i) - 5.0f;
-    for (int j = 0; j < ny; ++j) y_grid[j] = static_cast<float>(j) - 5.0f;
+    for (int i = 0; i < nx; ++i)
+        x_grid[i] = static_cast<float>(i) - 5.0f;
+    for (int j = 0; j < ny; ++j)
+        y_grid[j] = static_cast<float>(j) - 5.0f;
     for (int j = 0; j < ny; ++j)
         for (int i = 0; i < nx; ++i)
             z_values[j * nx + i] = std::sin(x_grid[i]) * std::cos(y_grid[j]);
@@ -815,16 +897,15 @@ TEST_F(Integration3DTest, RenderSurfaceSmoke) {
     EXPECT_NO_FATAL_FAILURE(app_->run());
 }
 
-TEST_F(Integration3DTest, RenderMeshSmoke) {
+TEST_F(Integration3DTest, RenderMeshSmoke)
+{
     auto& fig = app_->figure({.width = 128, .height = 128});
     auto& ax = fig.subplot3d(1, 1, 1);
 
     // Simple quad (2 triangles)
     std::vector<float> vertices = {
-        0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        1.0f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
     };
     std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
 
@@ -833,7 +914,8 @@ TEST_F(Integration3DTest, RenderMeshSmoke) {
     EXPECT_NO_FATAL_FAILURE(app_->run());
 }
 
-TEST_F(Integration3DTest, RenderMixed2DAnd3DSmoke) {
+TEST_F(Integration3DTest, RenderMixed2DAnd3DSmoke)
+{
     auto& fig = app_->figure({.width = 256, .height = 512});
 
     auto& ax2d = fig.subplot(2, 1, 1);
@@ -852,7 +934,8 @@ TEST_F(Integration3DTest, RenderMixed2DAnd3DSmoke) {
 
 // ─── Edge Cases ─────────────────────────────────────────────────────────────
 
-TEST_F(Integration3DTest, SinglePoint3D) {
+TEST_F(Integration3DTest, SinglePoint3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -869,7 +952,8 @@ TEST_F(Integration3DTest, SinglePoint3D) {
     EXPECT_FLOAT_EQ(centroid.z, 3.0f);
 }
 
-TEST_F(Integration3DTest, EmptyAxes3DAutoFit) {
+TEST_F(Integration3DTest, EmptyAxes3DAutoFit)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
@@ -877,13 +961,15 @@ TEST_F(Integration3DTest, EmptyAxes3DAutoFit) {
     EXPECT_NO_FATAL_FAILURE(ax.auto_fit());
 }
 
-TEST_F(Integration3DTest, LargeDataset3D) {
+TEST_F(Integration3DTest, LargeDataset3D)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
     const size_t N = 10000;
     std::vector<float> x(N), y(N), z(N);
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i)
+    {
         float t = static_cast<float>(i) * 0.001f;
         x[i] = std::cos(t) * t;
         y[i] = std::sin(t) * t;
@@ -894,7 +980,8 @@ TEST_F(Integration3DTest, LargeDataset3D) {
     EXPECT_EQ(scatter.point_count(), N);
 }
 
-TEST_F(Integration3DTest, NegativeAxisLimits) {
+TEST_F(Integration3DTest, NegativeAxisLimits)
+{
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 

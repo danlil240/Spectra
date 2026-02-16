@@ -4,18 +4,21 @@
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 class Figure;
 
 // Serializable workspace state: captures all figures, series configurations,
 // panel states, zoom levels, and theme for save/load.
 // Format: JSON text file with .plotix extension.
-struct WorkspaceData {
+struct WorkspaceData
+{
     // File format version for migration support
     static constexpr uint32_t FORMAT_VERSION = 4;
 
-    struct AxisState {
+    struct AxisState
+    {
         float x_min = 0.0f, x_max = 1.0f;
         float y_min = 0.0f, y_max = 1.0f;
         bool auto_fit = true;
@@ -27,18 +30,20 @@ struct WorkspaceData {
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
-    struct Axes3DState {
+    struct Axes3DState
+    {
         size_t axes_index = 0;  // Index into FigureState::axes
         float z_min = 0.0f, z_max = 1.0f;
         std::string z_label;
         std::string camera_state;  // Camera::serialize() JSON
-        int grid_planes = 1;      // Axes3D::GridPlane bitmask
+        int grid_planes = 1;       // Axes3D::GridPlane bitmask
         bool show_bounding_box = true;
         bool lighting_enabled = true;
         float light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
     };
 
-    struct SeriesState {
+    struct SeriesState
+    {
         std::string name;
         std::string type;  // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
         float color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
@@ -55,13 +60,14 @@ struct WorkspaceData {
         // v3: dash pattern
         std::vector<float> dash_pattern;
         // v4: 3D series fields
-        int colormap_type = 0;       // ColormapType enum
+        int colormap_type = 0;  // ColormapType enum
         float ambient = 0.0f;
         float specular = 0.0f;
         float shininess = 0.0f;
     };
 
-    struct FigureState {
+    struct FigureState
+    {
         std::string title;
         uint32_t width = 1280;
         uint32_t height = 720;
@@ -74,17 +80,20 @@ struct WorkspaceData {
         std::vector<Axes3DState> axes_3d;  // v4: 3D axes state
     };
 
-    struct PanelState {
+    struct PanelState
+    {
         bool inspector_visible = true;
         float inspector_width = 320.0f;
         bool nav_rail_expanded = false;
     };
 
-    struct InteractionState {
+    struct InteractionState
+    {
         bool crosshair_enabled = false;
         bool tooltip_enabled = true;
         // Persistent data markers (screen-independent, stored in data coords)
-        struct MarkerEntry {
+        struct MarkerEntry
+        {
             float data_x = 0.0f;
             float data_y = 0.0f;
             std::string series_label;
@@ -111,12 +120,14 @@ struct WorkspaceData {
     std::string axis_link_state;
 
     // v3: Data transform pipeline presets per-axes
-    struct TransformState {
+    struct TransformState
+    {
         size_t figure_index = 0;
         size_t axes_index = 0;
-        struct Step {
-            int type = 0;       // DataTransform::Type enum value
-            float param = 0.0f; // Scale/offset/clamp parameter
+        struct Step
+        {
+            int type = 0;        // DataTransform::Type enum value
+            float param = 0.0f;  // Scale/offset/clamp parameter
             bool enabled = true;
         };
         std::vector<Step> steps;
@@ -124,7 +135,8 @@ struct WorkspaceData {
     std::vector<TransformState> transforms;
 
     // v3: Shortcut overrides (user keybinding customizations)
-    struct ShortcutOverride {
+    struct ShortcutOverride
+    {
         std::string command_id;
         std::string shortcut_str;  // "" means unbound
         bool removed = false;
@@ -132,11 +144,12 @@ struct WorkspaceData {
     std::vector<ShortcutOverride> shortcut_overrides;
 
     // v3: Timeline editor state
-    struct TimelineState {
+    struct TimelineState
+    {
         float playhead = 0.0f;
         float duration = 10.0f;
         float fps = 30.0f;
-        int loop_mode = 0;     // 0=None, 1=Loop, 2=PingPong
+        int loop_mode = 0;  // 0=None, 1=Loop, 2=PingPong
         float loop_start = 0.0f;
         float loop_end = 0.0f;
         bool playing = false;
@@ -155,8 +168,9 @@ struct WorkspaceData {
 
 // Workspace save/load operations.
 // All methods are static — no persistent state needed.
-class Workspace {
-public:
+class Workspace
+{
+   public:
     // Save workspace state to a .plotix file. Returns true on success.
     static bool save(const std::string& path, const WorkspaceData& data);
 
@@ -174,8 +188,7 @@ public:
 
     // Apply loaded workspace data to figures (restores axis limits, etc.).
     // Returns false if data is incompatible.
-    static bool apply(const WorkspaceData& data,
-                      std::vector<Figure*>& figures);
+    static bool apply(const WorkspaceData& data, std::vector<Figure*>& figures);
 
     // Get default workspace file path (in user config directory).
     static std::string default_path();
@@ -194,15 +207,19 @@ public:
     // Delete the autosave file.
     static void clear_autosave();
 
-private:
+   private:
     // JSON serialization helpers (minimal, no external dependency)
     static std::string serialize_json(const WorkspaceData& data);
     static bool deserialize_json(const std::string& json, WorkspaceData& data);
 
     // Simple JSON value parser
     static std::string read_string_value(const std::string& json, const std::string& key);
-    static double read_number_value(const std::string& json, const std::string& key, double default_val = 0.0);
-    static bool read_bool_value(const std::string& json, const std::string& key, bool default_val = false);
+    static double read_number_value(const std::string& json,
+                                    const std::string& key,
+                                    double default_val = 0.0);
+    static bool read_bool_value(const std::string& json,
+                                const std::string& key,
+                                bool default_val = false);
 };
 
-} // namespace plotix
+}  // namespace plotix

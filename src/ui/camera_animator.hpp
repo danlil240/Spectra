@@ -1,18 +1,19 @@
 #pragma once
 
-#include <plotix/camera.hpp>
-#include <plotix/math3d.hpp>
-
 #include <cstdint>
 #include <mutex>
+#include <plotix/camera.hpp>
+#include <plotix/math3d.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
 // Camera keyframe — stores a full camera snapshot at a point in time.
-struct CameraKeyframe {
-    float  time = 0.0f;
+struct CameraKeyframe
+{
+    float time = 0.0f;
     Camera camera;
 
     CameraKeyframe() = default;
@@ -20,7 +21,8 @@ struct CameraKeyframe {
 };
 
 // Animation path mode for camera keyframe interpolation.
-enum class CameraPathMode {
+enum class CameraPathMode
+{
     Orbit,       // Interpolates azimuth, elevation, distance, fov (spherical coords)
     FreeFlight,  // Interpolates position, target, up via slerp for orientation
 };
@@ -34,8 +36,9 @@ enum class CameraPathMode {
 //     Best for fly-through animations with arbitrary camera movement.
 //
 // Thread-safe: all public methods lock an internal mutex.
-class CameraAnimator {
-public:
+class CameraAnimator
+{
+   public:
     CameraAnimator() = default;
     ~CameraAnimator() = default;
 
@@ -93,7 +96,8 @@ public:
     // over the given duration, using the camera's current state as base.
     // Adds two keyframes (start and end).
     void create_orbit_animation(const Camera& base,
-                                float start_azimuth, float end_azimuth,
+                                float start_azimuth,
+                                float end_azimuth,
                                 float duration_seconds);
 
     // Create a full 360° turntable orbit animation.
@@ -104,7 +108,7 @@ public:
     std::string serialize() const;
     bool deserialize(const std::string& json);
 
-private:
+   private:
     mutable std::mutex mutex_;
 
     CameraPathMode path_mode_ = CameraPathMode::Orbit;
@@ -129,4 +133,4 @@ private:
     static void apply_orientation(Camera& cam, const quat& q, float distance);
 };
 
-} // namespace plotix
+}  // namespace plotix

@@ -1,15 +1,16 @@
+#include <cmath>
 #include <gtest/gtest.h>
 
 #include "ui/input.hpp"
 
-#include <cmath>
-
 using namespace plotix;
 
 // Helper: create a figure with one axes and known limits/viewport
-class InputHandlerTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+class InputHandlerTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
         fig_ = std::make_unique<Figure>(FigureConfig{800, 600});
         auto& ax = fig_->subplot(1, 1, 1);
         ax.xlim(0.0f, 10.0f);
@@ -30,7 +31,8 @@ protected:
 
 // ─── screen_to_data ─────────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, ScreenToDataCenter) {
+TEST_F(InputHandlerTest, ScreenToDataCenter)
+{
     auto& vp = axes().viewport();
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
@@ -42,7 +44,8 @@ TEST_F(InputHandlerTest, ScreenToDataCenter) {
     EXPECT_NEAR(dy, 5.0f, 0.1f);
 }
 
-TEST_F(InputHandlerTest, ScreenToDataTopLeft) {
+TEST_F(InputHandlerTest, ScreenToDataTopLeft)
+{
     auto& vp = axes().viewport();
 
     float dx, dy;
@@ -53,7 +56,8 @@ TEST_F(InputHandlerTest, ScreenToDataTopLeft) {
     EXPECT_NEAR(dy, 10.0f, 0.1f);
 }
 
-TEST_F(InputHandlerTest, ScreenToDataBottomRight) {
+TEST_F(InputHandlerTest, ScreenToDataBottomRight)
+{
     auto& vp = axes().viewport();
 
     float dx, dy;
@@ -65,14 +69,15 @@ TEST_F(InputHandlerTest, ScreenToDataBottomRight) {
 
 // ─── Pan ────────────────────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, PanMovesLimits) {
+TEST_F(InputHandlerTest, PanMovesLimits)
+{
     auto& vp = axes().viewport();
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
 
     // Set pan tool mode
     handler_.set_tool_mode(ToolMode::Pan);
-    
+
     // Press left button at center
     handler_.on_mouse_button(0, 1, 0, cx, cy);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
@@ -98,7 +103,8 @@ TEST_F(InputHandlerTest, PanMovesLimits) {
 
 // ─── Scroll zoom ────────────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, ScrollZoomIn) {
+TEST_F(InputHandlerTest, ScrollZoomIn)
+{
     auto& vp = axes().viewport();
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
@@ -118,7 +124,8 @@ TEST_F(InputHandlerTest, ScrollZoomIn) {
     EXPECT_LT(range_after, range_before);
 }
 
-TEST_F(InputHandlerTest, ScrollZoomOut) {
+TEST_F(InputHandlerTest, ScrollZoomOut)
+{
     auto& vp = axes().viewport();
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
@@ -137,12 +144,13 @@ TEST_F(InputHandlerTest, ScrollZoomOut) {
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
+TEST_F(InputHandlerTest, BoxZoomSetsLimits)
+{
     auto& vp = axes().viewport();
 
     // Set box zoom tool mode
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    
+
     // Right-click press at 25% from top-left
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
@@ -167,12 +175,13 @@ TEST_F(InputHandlerTest, BoxZoomSetsLimits) {
     EXPECT_NEAR(ylim.max, 7.5f, 0.5f);
 }
 
-TEST_F(InputHandlerTest, BoxZoomCancelledByEscape) {
+TEST_F(InputHandlerTest, BoxZoomCancelledByEscape)
+{
     auto& vp = axes().viewport();
 
     // Set box zoom tool mode
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    
+
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     handler_.on_mouse_button(0, 1, 0, x0, y0);
@@ -188,7 +197,8 @@ TEST_F(InputHandlerTest, BoxZoomCancelledByEscape) {
     EXPECT_NEAR(xlim.max, 10.0f, 0.01f);
 }
 
-TEST_F(InputHandlerTest, BoxZoomTooSmallIgnored) {
+TEST_F(InputHandlerTest, BoxZoomTooSmallIgnored)
+{
     auto& vp = axes().viewport();
     handler_.set_tool_mode(ToolMode::BoxZoom);
 
@@ -209,7 +219,8 @@ TEST_F(InputHandlerTest, BoxZoomTooSmallIgnored) {
 
 // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, ResetViewAutoFits) {
+TEST_F(InputHandlerTest, ResetViewAutoFits)
+{
     // Zoom in first
     axes().xlim(3.0f, 7.0f);
     axes().ylim(3.0f, 7.0f);
@@ -225,7 +236,8 @@ TEST_F(InputHandlerTest, ResetViewAutoFits) {
     EXPECT_NE(xlim.max, 7.0f);
 }
 
-TEST_F(InputHandlerTest, ToggleGrid) {
+TEST_F(InputHandlerTest, ToggleGrid)
+{
     EXPECT_TRUE(axes().grid_enabled());
 
     // Press 'g' (KEY_G = 71)
@@ -238,7 +250,8 @@ TEST_F(InputHandlerTest, ToggleGrid) {
 
 // ─── Cursor readout ─────────────────────────────────────────────────────────
 
-TEST_F(InputHandlerTest, CursorReadoutUpdatesOnMove) {
+TEST_F(InputHandlerTest, CursorReadoutUpdatesOnMove)
+{
     auto& vp = axes().viewport();
     float cx = vp.x + vp.w / 2.0f;
     float cy = vp.y + vp.h / 2.0f;
@@ -251,7 +264,8 @@ TEST_F(InputHandlerTest, CursorReadoutUpdatesOnMove) {
     EXPECT_NEAR(readout.data_y, 5.0f, 0.5f);
 }
 
-TEST_F(InputHandlerTest, CursorReadoutInvalidOutsideViewport) {
+TEST_F(InputHandlerTest, CursorReadoutInvalidOutsideViewport)
+{
     // Move cursor way outside the viewport
     handler_.on_mouse_move(-100.0, -100.0);
 
@@ -261,9 +275,11 @@ TEST_F(InputHandlerTest, CursorReadoutInvalidOutsideViewport) {
 
 // ─── Multi-axes hit-testing ─────────────────────────────────────────────────
 
-class MultiAxesInputTest : public ::testing::Test {
-protected:
-    void SetUp() override {
+class MultiAxesInputTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
         fig_ = std::make_unique<Figure>(FigureConfig{800, 600});
         auto& ax1 = fig_->subplot(1, 2, 1);
         auto& ax2 = fig_->subplot(1, 2, 2);
@@ -280,7 +296,8 @@ protected:
     InputHandler handler_;
 };
 
-TEST_F(MultiAxesInputTest, ClickSelectsCorrectAxes) {
+TEST_F(MultiAxesInputTest, ClickSelectsCorrectAxes)
+{
     auto& ax1 = *fig_->axes()[0];
     auto& ax2 = *fig_->axes()[1];
     auto& vp1 = ax1.viewport();
@@ -297,7 +314,8 @@ TEST_F(MultiAxesInputTest, ClickSelectsCorrectAxes) {
     handler_.on_mouse_button(0, 0, 0, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
 }
 
-TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes) {
+TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes)
+{
     auto& ax1 = *fig_->axes()[0];
     auto& ax2 = *fig_->axes()[1];
     auto& vp2 = ax2.viewport();

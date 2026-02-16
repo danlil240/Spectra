@@ -4,15 +4,16 @@
 #include <cassert>
 #include <cmath>
 
-namespace plotix::data {
+namespace plotix::data
+{
 
-std::vector<float> moving_average(
-    std::span<const float> values,
-    std::size_t window_size)
+std::vector<float> moving_average(std::span<const float> values, std::size_t window_size)
 {
     const std::size_t n = values.size();
-    if (n == 0) return {};
-    if (window_size == 0) window_size = 1;
+    if (n == 0)
+        return {};
+    if (window_size == 0)
+        window_size = 1;
 
     std::vector<float> out(n);
 
@@ -25,7 +26,8 @@ std::vector<float> moving_average(
     for (std::size_t i = 0; i < n; ++i)
         prefix[i + 1] = prefix[i] + static_cast<double>(values[i]);
 
-    for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < n; ++i)
+    {
         const std::size_t lo = (i >= half) ? (i - half) : 0;
         const std::size_t hi = std::min(i + half, n - 1);
         const auto count = static_cast<double>(hi - lo + 1);
@@ -35,12 +37,11 @@ std::vector<float> moving_average(
     return out;
 }
 
-std::vector<float> exponential_smoothing(
-    std::span<const float> values,
-    float alpha)
+std::vector<float> exponential_smoothing(std::span<const float> values, float alpha)
 {
     const std::size_t n = values.size();
-    if (n == 0) return {};
+    if (n == 0)
+        return {};
 
     assert(alpha > 0.0f && alpha <= 1.0f);
 
@@ -54,14 +55,13 @@ std::vector<float> exponential_smoothing(
     return out;
 }
 
-std::vector<float> gaussian_smooth(
-    std::span<const float> values,
-    float sigma,
-    std::size_t radius)
+std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, std::size_t radius)
 {
     const std::size_t n = values.size();
-    if (n == 0) return {};
-    if (sigma <= 0.0f) {
+    if (n == 0)
+        return {};
+    if (sigma <= 0.0f)
+    {
         return {values.begin(), values.end()};
     }
 
@@ -73,22 +73,28 @@ std::vector<float> gaussian_smooth(
     std::vector<float> kernel(kernel_size);
     const float inv_2sigma2 = 1.0f / (2.0f * sigma * sigma);
     float sum = 0.0f;
-    for (std::size_t k = 0; k < kernel_size; ++k) {
+    for (std::size_t k = 0; k < kernel_size; ++k)
+    {
         const auto d = static_cast<float>(static_cast<int>(k) - static_cast<int>(radius));
         kernel[k] = std::exp(-d * d * inv_2sigma2);
         sum += kernel[k];
     }
     // Normalize
-    for (auto& v : kernel) v /= sum;
+    for (auto& v : kernel)
+        v /= sum;
 
     // Convolve
     std::vector<float> out(n);
-    for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < n; ++i)
+    {
         float acc = 0.0f;
         float w_sum = 0.0f;
-        for (std::size_t k = 0; k < kernel_size; ++k) {
-            const auto j_signed = static_cast<int>(i) + static_cast<int>(k) - static_cast<int>(radius);
-            if (j_signed >= 0 && static_cast<std::size_t>(j_signed) < n) {
+        for (std::size_t k = 0; k < kernel_size; ++k)
+        {
+            const auto j_signed =
+                static_cast<int>(i) + static_cast<int>(k) - static_cast<int>(radius);
+            if (j_signed >= 0 && static_cast<std::size_t>(j_signed) < n)
+            {
                 acc += kernel[k] * values[static_cast<std::size_t>(j_signed)];
                 w_sum += kernel[k];
             }

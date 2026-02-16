@@ -7,41 +7,41 @@
 // - Plugin lifecycle management
 // - Communication between plugins and host application
 
+#include <fstream>
+#include <iostream>
 #include <plotix/plotix.hpp>
 
-#include <iostream>
-#include <fstream>
-
-void demo_plugin_api_concepts() {
+void demo_plugin_api_concepts()
+{
     std::cout << "=== Plugin API Usage Guide ===\n\n";
-    
+
     std::cout << "📋 OVERVIEW\n";
     std::cout << "Plotix provides a stable C ABI plugin system that allows external\n";
     std::cout << "developers to create extensions that can register commands, handle\n";
     std::cout << "shortcuts, and interact with the application's core services.\n\n";
-    
+
     std::cout << "🔧 CORE CONCEPTS\n\n";
-    
+
     std::cout << "1. Stable C ABI\n";
     std::cout << "   - C-compatible interface for language-agnostic plugin development\n";
     std::cout << "   - Versioned API to ensure compatibility\n";
     std::cout << "   - Memory-safe callbacks and handles\n";
     std::cout << "   - Error handling with return codes\n\n";
-    
+
     std::cout << "2. PluginManager\n";
     std::cout << "   - Dynamic loading/unloading of plugin libraries\n";
     std::cout << "   - Plugin lifecycle management (initialize/shutdown)\n";
     std::cout << "   - Dependency resolution and ordering\n";
     std::cout << "   - Error isolation and recovery\n\n";
-    
+
     std::cout << "3. Plugin Context\n";
     std::cout << "   - Safe handle to application services\n";
     std::cout << "   - Access to CommandRegistry, ShortcutManager, UndoManager\n";
     std::cout << "   - Plugin-specific data storage\n";
     std::cout << "   - Logging and error reporting\n\n";
-    
+
     std::cout << "💻 PLUGIN DEVELOPMENT EXAMPLES\n\n";
-    
+
     std::cout << "Example 1: Basic Plugin Structure\n";
     std::cout << "```c\n";
     std::cout << "// plugin_example.c\n";
@@ -60,7 +60,7 @@ void demo_plugin_api_concepts() {
     std::cout << "    // Cleanup resources\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "Example 2: Command Implementation\n";
     std::cout << "```c\n";
     std::cout << "void hello_callback(PluginContext* ctx, void* user_data) {\n";
@@ -74,7 +74,7 @@ void demo_plugin_api_concepts() {
     std::cout << "    ctx->show_message(ctx, \"Hello\", \"Plugin says hello!\");\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "Example 3: Advanced Plugin with Undo Support\n";
     std::cout << "```c\n";
     std::cout << "void add_random_data_callback(PluginContext* ctx, void* user_data) {\n";
@@ -94,7 +94,7 @@ void demo_plugin_api_concepts() {
     std::cout << "        restore_figure_callback);\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "Example 4: Plugin Configuration\n";
     std::cout << "```c\n";
     std::cout << "PLOTIX_PLUGIN_EXPORT int plotix_plugin_init(PluginContext* ctx) {\n";
@@ -112,9 +112,9 @@ void demo_plugin_api_concepts() {
     std::cout << "    return PLOTIX_PLUGIN_SUCCESS;\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "🏭 HOST APPLICATION INTEGRATION\n\n";
-    
+
     std::cout << "Example 5: Loading Plugins\n";
     std::cout << "```cpp\n";
     std::cout << "// In the main application\n";
@@ -138,7 +138,7 @@ void demo_plugin_api_concepts() {
     std::cout << "    }\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "Example 6: Plugin Discovery\n";
     std::cout << "```cpp\n";
     std::cout << "// Discover plugins in a directory\n";
@@ -156,7 +156,7 @@ void demo_plugin_api_concepts() {
     std::cout << "    }\n";
     std::cout << "}\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "📁 PLUGIN FILE FORMAT\n\n";
     std::cout << "Plugins are shared libraries (.so, .dll, .dylib) with specific exports:\n";
     std::cout << "```c\n";
@@ -171,7 +171,7 @@ void demo_plugin_api_concepts() {
     std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_description();\n";
     std::cout << "PLOTIX_PLUGIN_EXPORT const char* plotix_plugin_dependencies();\n";
     std::cout << "```\n\n";
-    
+
     std::cout << "⚡ ADVANCED FEATURES\n\n";
     std::cout << "• Plugin Dependencies: Declare and resolve plugin dependencies\n";
     std::cout << "• Version Compatibility: API versioning for forward/backward compatibility\n";
@@ -180,7 +180,7 @@ void demo_plugin_api_concepts() {
     std::cout << "• Plugin Communication: Allow plugins to communicate with each other\n";
     std::cout << "• Resource Management: Automatic cleanup of plugin resources\n";
     std::cout << "• Error Recovery: Handle plugin crashes gracefully\n\n";
-    
+
     std::cout << "🎯 BEST PRACTICES\n\n";
     std::cout << "• Always check return codes from API calls\n";
     std::cout << "• Use the provided logging system instead of stdout/stderr\n";
@@ -189,13 +189,13 @@ void demo_plugin_api_concepts() {
     std::cout << "• Use semantic versioning for plugin compatibility\n";
     std::cout << "• Provide clear descriptions and help text for commands\n";
     std::cout << "• Handle errors gracefully and report them through the API\n\n";
-    
+
     std::cout << "📚 REFERENCE IMPLEMENTATION\n";
     std::cout << "The actual implementation is in:\n";
     std::cout << "• src/ui/plugin_api.hpp - C ABI definitions and PluginManager\n";
     std::cout << "• src/ui/plugin_api.cpp - Host implementation and loading logic\n";
     std::cout << "• tests/unit/test_plugin_api.cpp - Comprehensive API tests\n\n";
-    
+
     std::cout << "🔧 PLUGIN DEVELOPMENT WORKFLOW\n\n";
     std::cout << "1. Setup: Include plugin_api.h and link against the ABI\n";
     std::cout << "2. Implementation: Write plugin logic using C ABI functions\n";
@@ -203,14 +203,15 @@ void demo_plugin_api_concepts() {
     std::cout << "4. Packaging: Build as shared library with proper exports\n";
     std::cout << "5. Distribution: Provide plugin metadata and dependencies\n";
     std::cout << "6. Integration: Load and test in host application\n\n";
-    
+
     std::cout << "=== Demo Complete ===\n";
     std::cout << "This demonstrates the concepts and usage patterns for the\n";
     std::cout << "Plugin API in Plotix. The actual API requires internal headers\n";
     std::cout << "and is designed for external plugin developers.\n";
 }
 
-int main() {
+int main()
+{
     demo_plugin_api_concepts();
     return 0;
 }

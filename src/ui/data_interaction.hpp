@@ -2,30 +2,30 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include "tooltip.hpp"
-#include "crosshair.hpp"
-#include "data_marker.hpp"
-#include "region_select.hpp"
-#include "legend_interaction.hpp"
-#include "input.hpp"
+    #include <functional>
+    #include <plotix/figure.hpp>
+    #include <plotix/fwd.hpp>
 
-#include <plotix/fwd.hpp>
-
-#include <plotix/figure.hpp>
-
-#include <functional>
+    #include "crosshair.hpp"
+    #include "data_marker.hpp"
+    #include "input.hpp"
+    #include "legend_interaction.hpp"
+    #include "region_select.hpp"
+    #include "tooltip.hpp"
 
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 // Orchestrates all data-interaction features:
 //   - Nearest-point spatial query
 //   - Rich hover tooltip
 //   - Crosshair overlay
 //   - Persistent data markers (click to pin, right-click to remove)
-class DataInteraction {
-public:
+class DataInteraction
+{
+   public:
     DataInteraction() = default;
 
     // Set fonts for tooltip/legend/region rendering
@@ -90,7 +90,7 @@ public:
     using SeriesSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int)>;
     void set_on_series_selected(SeriesSelectedCallback cb) { on_series_selected_ = std::move(cb); }
 
-private:
+   private:
     // Perform nearest-point spatial query across all visible series in the active axes.
     NearestPointResult find_nearest(const CursorReadout& cursor, Figure& figure) const;
 
@@ -116,6 +116,6 @@ private:
     float ylim_min_ = 0.0f, ylim_max_ = 1.0f;
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

@@ -6,7 +6,8 @@ using namespace plotix;
 
 // ─── Construction ────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorConstruction, DefaultState) {
+TEST(TimelineEditorConstruction, DefaultState)
+{
     TimelineEditor te;
     EXPECT_EQ(te.playback_state(), PlaybackState::Stopped);
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
@@ -19,7 +20,8 @@ TEST(TimelineEditorConstruction, DefaultState) {
     EXPECT_EQ(te.selected_count(), 0u);
 }
 
-TEST(TimelineEditorConstruction, DefaultViewRange) {
+TEST(TimelineEditorConstruction, DefaultViewRange)
+{
     TimelineEditor te;
     EXPECT_FLOAT_EQ(te.view_start(), 0.0f);
     EXPECT_FLOAT_EQ(te.view_end(), 10.0f);
@@ -28,7 +30,8 @@ TEST(TimelineEditorConstruction, DefaultViewRange) {
 
 // ─── Playback ────────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorPlayback, PlayPauseStop) {
+TEST(TimelineEditorPlayback, PlayPauseStop)
+{
     TimelineEditor te;
 
     te.play();
@@ -47,7 +50,8 @@ TEST(TimelineEditorPlayback, PlayPauseStop) {
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
 }
 
-TEST(TimelineEditorPlayback, TogglePlay) {
+TEST(TimelineEditorPlayback, TogglePlay)
+{
     TimelineEditor te;
 
     te.toggle_play();
@@ -60,14 +64,16 @@ TEST(TimelineEditorPlayback, TogglePlay) {
     EXPECT_TRUE(te.is_playing());
 }
 
-TEST(TimelineEditorPlayback, PlayResetsFromStopped) {
+TEST(TimelineEditorPlayback, PlayResetsFromStopped)
+{
     TimelineEditor te;
     te.set_playhead(5.0f);
     te.play();
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
 }
 
-TEST(TimelineEditorPlayback, PausePreservesPlayhead) {
+TEST(TimelineEditorPlayback, PausePreservesPlayhead)
+{
     TimelineEditor te;
     te.play();
     te.advance(2.5f);
@@ -75,15 +81,18 @@ TEST(TimelineEditorPlayback, PausePreservesPlayhead) {
     EXPECT_NEAR(te.playhead(), 2.5f, 0.01f);
 }
 
-TEST(TimelineEditorPlayback, PlaybackCallback) {
+TEST(TimelineEditorPlayback, PlaybackCallback)
+{
     TimelineEditor te;
     int call_count = 0;
     PlaybackState last_state = PlaybackState::Stopped;
 
-    te.set_on_playback_change([&](PlaybackState s) {
-        call_count++;
-        last_state = s;
-    });
+    te.set_on_playback_change(
+        [&](PlaybackState s)
+        {
+            call_count++;
+            last_state = s;
+        });
 
     te.play();
     EXPECT_EQ(call_count, 1);
@@ -100,7 +109,8 @@ TEST(TimelineEditorPlayback, PlaybackCallback) {
 
 // ─── Playhead & Advance ─────────────────────────────────────────────────────
 
-TEST(TimelineEditorPlayhead, SetAndClamp) {
+TEST(TimelineEditorPlayhead, SetAndClamp)
+{
     TimelineEditor te;
     te.set_duration(5.0f);
 
@@ -114,7 +124,8 @@ TEST(TimelineEditorPlayhead, SetAndClamp) {
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
 }
 
-TEST(TimelineEditorPlayhead, AdvanceNoLoop) {
+TEST(TimelineEditorPlayhead, AdvanceNoLoop)
+{
     TimelineEditor te;
     te.set_duration(2.0f);
     te.play();
@@ -129,7 +140,8 @@ TEST(TimelineEditorPlayhead, AdvanceNoLoop) {
     EXPECT_EQ(te.playback_state(), PlaybackState::Stopped);
 }
 
-TEST(TimelineEditorPlayhead, AdvanceLoop) {
+TEST(TimelineEditorPlayhead, AdvanceLoop)
+{
     TimelineEditor te;
     te.set_duration(2.0f);
     te.set_loop_mode(LoopMode::Loop);
@@ -145,7 +157,8 @@ TEST(TimelineEditorPlayhead, AdvanceLoop) {
     EXPECT_TRUE(te.is_playing());
 }
 
-TEST(TimelineEditorPlayhead, AdvancePingPong) {
+TEST(TimelineEditorPlayhead, AdvancePingPong)
+{
     TimelineEditor te;
     te.set_duration(2.0f);
     te.set_loop_mode(LoopMode::PingPong);
@@ -161,14 +174,16 @@ TEST(TimelineEditorPlayhead, AdvancePingPong) {
     EXPECT_TRUE(te.is_playing());
 }
 
-TEST(TimelineEditorPlayhead, AdvanceWhileStopped) {
+TEST(TimelineEditorPlayhead, AdvanceWhileStopped)
+{
     TimelineEditor te;
     bool active = te.advance(1.0f);
     EXPECT_FALSE(active);
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
 }
 
-TEST(TimelineEditorPlayhead, Scrub) {
+TEST(TimelineEditorPlayhead, Scrub)
+{
     TimelineEditor te;
     float scrubbed_time = -1.0f;
     te.set_on_scrub([&](float t) { scrubbed_time = t; });
@@ -178,7 +193,8 @@ TEST(TimelineEditorPlayhead, Scrub) {
     EXPECT_FLOAT_EQ(scrubbed_time, 3.5f);
 }
 
-TEST(TimelineEditorPlayhead, StepForwardBackward) {
+TEST(TimelineEditorPlayhead, StepForwardBackward)
+{
     TimelineEditor te;
     te.set_fps(30.0f);
 
@@ -194,52 +210,60 @@ TEST(TimelineEditorPlayhead, StepForwardBackward) {
 
 // ─── Duration & FPS ──────────────────────────────────────────────────────────
 
-TEST(TimelineEditorDuration, SetDuration) {
+TEST(TimelineEditorDuration, SetDuration)
+{
     TimelineEditor te;
     te.set_duration(5.0f);
     EXPECT_FLOAT_EQ(te.duration(), 5.0f);
 }
 
-TEST(TimelineEditorDuration, DurationClampsPlayhead) {
+TEST(TimelineEditorDuration, DurationClampsPlayhead)
+{
     TimelineEditor te;
     te.set_playhead(8.0f);
     te.set_duration(3.0f);
     EXPECT_FLOAT_EQ(te.playhead(), 3.0f);
 }
 
-TEST(TimelineEditorDuration, NegativeDuration) {
+TEST(TimelineEditorDuration, NegativeDuration)
+{
     TimelineEditor te;
     te.set_duration(-5.0f);
     EXPECT_FLOAT_EQ(te.duration(), 0.0f);
 }
 
-TEST(TimelineEditorFPS, SetFPS) {
+TEST(TimelineEditorFPS, SetFPS)
+{
     TimelineEditor te;
     te.set_fps(30.0f);
     EXPECT_FLOAT_EQ(te.fps(), 30.0f);
 }
 
-TEST(TimelineEditorFPS, MinFPS) {
+TEST(TimelineEditorFPS, MinFPS)
+{
     TimelineEditor te;
     te.set_fps(0.5f);
     EXPECT_FLOAT_EQ(te.fps(), 1.0f);
 }
 
-TEST(TimelineEditorFPS, FrameCount) {
+TEST(TimelineEditorFPS, FrameCount)
+{
     TimelineEditor te;
     te.set_duration(2.0f);
     te.set_fps(30.0f);
     EXPECT_EQ(te.frame_count(), 60u);
 }
 
-TEST(TimelineEditorFPS, CurrentFrame) {
+TEST(TimelineEditorFPS, CurrentFrame)
+{
     TimelineEditor te;
     te.set_fps(10.0f);
     te.set_playhead(1.5f);
     EXPECT_EQ(te.current_frame(), 15u);
 }
 
-TEST(TimelineEditorFPS, FrameTimeConversion) {
+TEST(TimelineEditorFPS, FrameTimeConversion)
+{
     TimelineEditor te;
     te.set_fps(30.0f);
     EXPECT_NEAR(te.frame_to_time(30), 1.0f, 0.001f);
@@ -248,7 +272,8 @@ TEST(TimelineEditorFPS, FrameTimeConversion) {
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorLoop, LoopRegion) {
+TEST(TimelineEditorLoop, LoopRegion)
+{
     TimelineEditor te;
     te.set_duration(10.0f);
     te.set_loop_region(2.0f, 6.0f);
@@ -257,7 +282,8 @@ TEST(TimelineEditorLoop, LoopRegion) {
     EXPECT_FLOAT_EQ(te.loop_out(), 6.0f);
 }
 
-TEST(TimelineEditorLoop, ClearLoopRegion) {
+TEST(TimelineEditorLoop, ClearLoopRegion)
+{
     TimelineEditor te;
     te.set_loop_region(2.0f, 6.0f);
     te.clear_loop_region();
@@ -266,7 +292,8 @@ TEST(TimelineEditorLoop, ClearLoopRegion) {
     EXPECT_FLOAT_EQ(te.loop_out(), 10.0f);  // Falls back to duration
 }
 
-TEST(TimelineEditorLoop, LoopRegionAdvance) {
+TEST(TimelineEditorLoop, LoopRegionAdvance)
+{
     TimelineEditor te;
     te.set_duration(10.0f);
     te.set_loop_mode(LoopMode::Loop);
@@ -284,7 +311,8 @@ TEST(TimelineEditorLoop, LoopRegionAdvance) {
 
 // ─── Snap ────────────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorSnap, FrameSnap) {
+TEST(TimelineEditorSnap, FrameSnap)
+{
     TimelineEditor te;
     te.set_fps(10.0f);
     te.set_snap_mode(SnapMode::Frame);
@@ -293,7 +321,8 @@ TEST(TimelineEditorSnap, FrameSnap) {
     EXPECT_NEAR(te.snap_time(0.36f), 0.4f, 0.001f);
 }
 
-TEST(TimelineEditorSnap, BeatSnap) {
+TEST(TimelineEditorSnap, BeatSnap)
+{
     TimelineEditor te;
     te.set_snap_mode(SnapMode::Beat);
     te.set_snap_interval(0.25f);
@@ -302,7 +331,8 @@ TEST(TimelineEditorSnap, BeatSnap) {
     EXPECT_NEAR(te.snap_time(0.63f), 0.75f, 0.001f);
 }
 
-TEST(TimelineEditorSnap, NoSnap) {
+TEST(TimelineEditorSnap, NoSnap)
+{
     TimelineEditor te;
     te.set_snap_mode(SnapMode::None);
     EXPECT_FLOAT_EQ(te.snap_time(0.37f), 0.37f);
@@ -310,7 +340,8 @@ TEST(TimelineEditorSnap, NoSnap) {
 
 // ─── Tracks ──────────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorTracks, AddRemove) {
+TEST(TimelineEditorTracks, AddRemove)
+{
     TimelineEditor te;
     uint32_t id1 = te.add_track("Position X");
     uint32_t id2 = te.add_track("Opacity", colors::red);
@@ -327,7 +358,8 @@ TEST(TimelineEditorTracks, AddRemove) {
     EXPECT_EQ(te.get_track(id1), nullptr);
 }
 
-TEST(TimelineEditorTracks, Rename) {
+TEST(TimelineEditorTracks, Rename)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Old Name");
     te.rename_track(id, "New Name");
@@ -337,7 +369,8 @@ TEST(TimelineEditorTracks, Rename) {
     EXPECT_EQ(t->name, "New Name");
 }
 
-TEST(TimelineEditorTracks, VisibleAndLocked) {
+TEST(TimelineEditorTracks, VisibleAndLocked)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -348,14 +381,16 @@ TEST(TimelineEditorTracks, VisibleAndLocked) {
     EXPECT_TRUE(te.get_track(id)->locked);
 }
 
-TEST(TimelineEditorTracks, RemoveNonexistent) {
+TEST(TimelineEditorTracks, RemoveNonexistent)
+{
     TimelineEditor te;
     te.add_track("Track");
     te.remove_track(999);  // Should not crash
     EXPECT_EQ(te.track_count(), 1u);
 }
 
-TEST(TimelineEditorTracks, GetTrackConst) {
+TEST(TimelineEditorTracks, GetTrackConst)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -369,7 +404,8 @@ TEST(TimelineEditorTracks, GetTrackConst) {
 
 // ─── Keyframes ───────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorKeyframes, AddAndCount) {
+TEST(TimelineEditorKeyframes, AddAndCount)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -380,7 +416,8 @@ TEST(TimelineEditorKeyframes, AddAndCount) {
     EXPECT_EQ(te.total_keyframe_count(), 3u);
 }
 
-TEST(TimelineEditorKeyframes, AddSorted) {
+TEST(TimelineEditorKeyframes, AddSorted)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -395,7 +432,8 @@ TEST(TimelineEditorKeyframes, AddSorted) {
     EXPECT_FLOAT_EQ(t->keyframes[2].time, 2.0f);
 }
 
-TEST(TimelineEditorKeyframes, NoDuplicates) {
+TEST(TimelineEditorKeyframes, NoDuplicates)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -405,7 +443,8 @@ TEST(TimelineEditorKeyframes, NoDuplicates) {
     EXPECT_EQ(te.total_keyframe_count(), 1u);
 }
 
-TEST(TimelineEditorKeyframes, Remove) {
+TEST(TimelineEditorKeyframes, Remove)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -418,7 +457,8 @@ TEST(TimelineEditorKeyframes, Remove) {
     EXPECT_FLOAT_EQ(t->keyframes[0].time, 2.0f);
 }
 
-TEST(TimelineEditorKeyframes, MoveKeyframe) {
+TEST(TimelineEditorKeyframes, MoveKeyframe)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -430,7 +470,8 @@ TEST(TimelineEditorKeyframes, MoveKeyframe) {
     EXPECT_FLOAT_EQ(t->keyframes[0].time, 3.0f);
 }
 
-TEST(TimelineEditorKeyframes, MoveClampsToDuration) {
+TEST(TimelineEditorKeyframes, MoveClampsToDuration)
+{
     TimelineEditor te;
     te.set_duration(5.0f);
     uint32_t id = te.add_track("Track");
@@ -442,7 +483,8 @@ TEST(TimelineEditorKeyframes, MoveClampsToDuration) {
     EXPECT_FLOAT_EQ(t->keyframes[0].time, 5.0f);
 }
 
-TEST(TimelineEditorKeyframes, ClearKeyframes) {
+TEST(TimelineEditorKeyframes, ClearKeyframes)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
@@ -454,7 +496,8 @@ TEST(TimelineEditorKeyframes, ClearKeyframes) {
     EXPECT_EQ(te.total_keyframe_count(), 0u);
 }
 
-TEST(TimelineEditorKeyframes, LockedTrackRejectsAdd) {
+TEST(TimelineEditorKeyframes, LockedTrackRejectsAdd)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.set_track_locked(id, true);
@@ -463,7 +506,8 @@ TEST(TimelineEditorKeyframes, LockedTrackRejectsAdd) {
     EXPECT_EQ(te.total_keyframe_count(), 0u);
 }
 
-TEST(TimelineEditorKeyframes, LockedTrackRejectsRemove) {
+TEST(TimelineEditorKeyframes, LockedTrackRejectsRemove)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -473,7 +517,8 @@ TEST(TimelineEditorKeyframes, LockedTrackRejectsRemove) {
     EXPECT_EQ(te.total_keyframe_count(), 1u);
 }
 
-TEST(TimelineEditorKeyframes, LockedTrackRejectsMove) {
+TEST(TimelineEditorKeyframes, LockedTrackRejectsMove)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -484,46 +529,54 @@ TEST(TimelineEditorKeyframes, LockedTrackRejectsMove) {
     EXPECT_FLOAT_EQ(t->keyframes[0].time, 1.0f);
 }
 
-TEST(TimelineEditorKeyframes, AddCallback) {
+TEST(TimelineEditorKeyframes, AddCallback)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
 
     uint32_t cb_track = 0;
     float cb_time = -1.0f;
-    te.set_on_keyframe_added([&](uint32_t tid, float t) {
-        cb_track = tid;
-        cb_time = t;
-    });
+    te.set_on_keyframe_added(
+        [&](uint32_t tid, float t)
+        {
+            cb_track = tid;
+            cb_time = t;
+        });
 
     te.add_keyframe(id, 2.5f);
     EXPECT_EQ(cb_track, id);
     EXPECT_FLOAT_EQ(cb_time, 2.5f);
 }
 
-TEST(TimelineEditorKeyframes, RemoveCallback) {
+TEST(TimelineEditorKeyframes, RemoveCallback)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
 
     uint32_t cb_track = 0;
     float cb_time = -1.0f;
-    te.set_on_keyframe_removed([&](uint32_t tid, float t) {
-        cb_track = tid;
-        cb_time = t;
-    });
+    te.set_on_keyframe_removed(
+        [&](uint32_t tid, float t)
+        {
+            cb_track = tid;
+            cb_time = t;
+        });
 
     te.remove_keyframe(id, 1.0f);
     EXPECT_EQ(cb_track, id);
     EXPECT_FLOAT_EQ(cb_time, 1.0f);
 }
 
-TEST(TimelineEditorKeyframes, AddToNonexistentTrack) {
+TEST(TimelineEditorKeyframes, AddToNonexistentTrack)
+{
     TimelineEditor te;
     te.add_keyframe(999, 1.0f);  // Should not crash
     EXPECT_EQ(te.total_keyframe_count(), 0u);
 }
 
-TEST(TimelineEditorKeyframes, MultipleTracksIndependent) {
+TEST(TimelineEditorKeyframes, MultipleTracksIndependent)
+{
     TimelineEditor te;
     uint32_t id1 = te.add_track("Track 1");
     uint32_t id2 = te.add_track("Track 2");
@@ -539,7 +592,8 @@ TEST(TimelineEditorKeyframes, MultipleTracksIndependent) {
 
 // ─── Selection ───────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorSelection, SelectDeselect) {
+TEST(TimelineEditorSelection, SelectDeselect)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -555,7 +609,8 @@ TEST(TimelineEditorSelection, SelectDeselect) {
     EXPECT_EQ(te.selected_count(), 1u);
 }
 
-TEST(TimelineEditorSelection, SelectAll) {
+TEST(TimelineEditorSelection, SelectAll)
+{
     TimelineEditor te;
     uint32_t id1 = te.add_track("Track 1");
     uint32_t id2 = te.add_track("Track 2");
@@ -566,7 +621,8 @@ TEST(TimelineEditorSelection, SelectAll) {
     EXPECT_EQ(te.selected_count(), 2u);
 }
 
-TEST(TimelineEditorSelection, DeselectAll) {
+TEST(TimelineEditorSelection, DeselectAll)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -576,7 +632,8 @@ TEST(TimelineEditorSelection, DeselectAll) {
     EXPECT_EQ(te.selected_count(), 0u);
 }
 
-TEST(TimelineEditorSelection, SelectRange) {
+TEST(TimelineEditorSelection, SelectRange)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 0.5f);
@@ -588,7 +645,8 @@ TEST(TimelineEditorSelection, SelectRange) {
     EXPECT_EQ(te.selected_count(), 2u);  // 1.5 and 2.5
 }
 
-TEST(TimelineEditorSelection, DeleteSelected) {
+TEST(TimelineEditorSelection, DeleteSelected)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -604,7 +662,8 @@ TEST(TimelineEditorSelection, DeleteSelected) {
     EXPECT_FLOAT_EQ(t->keyframes[0].time, 2.0f);
 }
 
-TEST(TimelineEditorSelection, DeleteSelectedRespectsLock) {
+TEST(TimelineEditorSelection, DeleteSelectedRespectsLock)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -615,15 +674,14 @@ TEST(TimelineEditorSelection, DeleteSelectedRespectsLock) {
     EXPECT_EQ(te.total_keyframe_count(), 1u);
 }
 
-TEST(TimelineEditorSelection, SelectionCallback) {
+TEST(TimelineEditorSelection, SelectionCallback)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
 
     int call_count = 0;
-    te.set_on_selection_change([&](const std::vector<KeyframeMarker*>& /*sel*/) {
-        call_count++;
-    });
+    te.set_on_selection_change([&](const std::vector<KeyframeMarker*>& /*sel*/) { call_count++; });
 
     te.select_keyframe(id, 1.0f);
     EXPECT_EQ(call_count, 1);
@@ -632,7 +690,8 @@ TEST(TimelineEditorSelection, SelectionCallback) {
     EXPECT_EQ(call_count, 2);
 }
 
-TEST(TimelineEditorSelection, SelectedKeyframesPointers) {
+TEST(TimelineEditorSelection, SelectedKeyframesPointers)
+{
     TimelineEditor te;
     uint32_t id = te.add_track("Track");
     te.add_keyframe(id, 1.0f);
@@ -646,26 +705,30 @@ TEST(TimelineEditorSelection, SelectedKeyframesPointers) {
 
 // ─── Zoom & Scroll ───────────────────────────────────────────────────────────
 
-TEST(TimelineEditorView, SetViewRange) {
+TEST(TimelineEditorView, SetViewRange)
+{
     TimelineEditor te;
     te.set_view_range(2.0f, 8.0f);
     EXPECT_FLOAT_EQ(te.view_start(), 2.0f);
     EXPECT_FLOAT_EQ(te.view_end(), 8.0f);
 }
 
-TEST(TimelineEditorView, ViewRangeClamp) {
+TEST(TimelineEditorView, ViewRangeClamp)
+{
     TimelineEditor te;
     te.set_view_range(-5.0f, 3.0f);
     EXPECT_FLOAT_EQ(te.view_start(), 0.0f);
 }
 
-TEST(TimelineEditorView, SetZoom) {
+TEST(TimelineEditorView, SetZoom)
+{
     TimelineEditor te;
     te.set_zoom(200.0f);
     EXPECT_FLOAT_EQ(te.zoom(), 200.0f);
 }
 
-TEST(TimelineEditorView, ZoomClamp) {
+TEST(TimelineEditorView, ZoomClamp)
+{
     TimelineEditor te;
     te.set_zoom(5.0f);
     EXPECT_FLOAT_EQ(te.zoom(), 10.0f);
@@ -674,7 +737,8 @@ TEST(TimelineEditorView, ZoomClamp) {
     EXPECT_FLOAT_EQ(te.zoom(), 10000.0f);
 }
 
-TEST(TimelineEditorView, ZoomInOut) {
+TEST(TimelineEditorView, ZoomInOut)
+{
     TimelineEditor te;
     float initial = te.zoom();
 
@@ -686,7 +750,8 @@ TEST(TimelineEditorView, ZoomInOut) {
     EXPECT_LT(te.zoom(), after_in);
 }
 
-TEST(TimelineEditorView, ScrollToPlayhead) {
+TEST(TimelineEditorView, ScrollToPlayhead)
+{
     TimelineEditor te;
     te.set_duration(20.0f);
     te.set_playhead(15.0f);
@@ -700,14 +765,16 @@ TEST(TimelineEditorView, ScrollToPlayhead) {
 
 // ─── Edge Cases ──────────────────────────────────────────────────────────────
 
-TEST(TimelineEditorEdgeCases, ZeroDuration) {
+TEST(TimelineEditorEdgeCases, ZeroDuration)
+{
     TimelineEditor te;
     te.set_duration(0.0f);
     EXPECT_FLOAT_EQ(te.duration(), 0.0f);
     EXPECT_FLOAT_EQ(te.playhead(), 0.0f);
 }
 
-TEST(TimelineEditorEdgeCases, EmptyTracksOperations) {
+TEST(TimelineEditorEdgeCases, EmptyTracksOperations)
+{
     TimelineEditor te;
     // These should all be no-ops, not crash
     te.select_all_keyframes();
@@ -717,18 +784,22 @@ TEST(TimelineEditorEdgeCases, EmptyTracksOperations) {
     EXPECT_EQ(te.selected_count(), 0u);
 }
 
-TEST(TimelineEditorEdgeCases, RapidPlayPause) {
+TEST(TimelineEditorEdgeCases, RapidPlayPause)
+{
     TimelineEditor te;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 100; ++i)
+    {
         te.toggle_play();
     }
     // Should not crash; even number of toggles = paused
     EXPECT_EQ(te.playback_state(), PlaybackState::Paused);
 }
 
-TEST(TimelineEditorEdgeCases, ManyTracks) {
+TEST(TimelineEditorEdgeCases, ManyTracks)
+{
     TimelineEditor te;
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 50; ++i)
+    {
         uint32_t id = te.add_track("Track " + std::to_string(i));
         te.add_keyframe(id, static_cast<float>(i) * 0.1f);
     }
@@ -736,7 +807,8 @@ TEST(TimelineEditorEdgeCases, ManyTracks) {
     EXPECT_EQ(te.total_keyframe_count(), 50u);
 }
 
-TEST(TimelineEditorEdgeCases, PingPongBounceAtStart) {
+TEST(TimelineEditorEdgeCases, PingPongBounceAtStart)
+{
     TimelineEditor te;
     te.set_duration(2.0f);
     te.set_loop_mode(LoopMode::PingPong);

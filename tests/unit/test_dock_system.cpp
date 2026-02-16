@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
+
 #include "ui/dock_system.hpp"
 
 using namespace plotix;
 
 // ─── DockSystem Construction ─────────────────────────────────────────────────
 
-TEST(DockSystemConstruction, DefaultState) {
+TEST(DockSystemConstruction, DefaultState)
+{
     DockSystem ds;
     EXPECT_FALSE(ds.is_split());
     EXPECT_EQ(ds.pane_count(), 1u);
@@ -16,7 +18,8 @@ TEST(DockSystemConstruction, DefaultState) {
 
 // ─── DockSystem Split Operations ─────────────────────────────────────────────
 
-TEST(DockSystemSplit, SplitRight) {
+TEST(DockSystemSplit, SplitRight)
+{
     DockSystem ds;
     auto* pane = ds.split_right(1);
     EXPECT_NE(pane, nullptr);
@@ -24,7 +27,8 @@ TEST(DockSystemSplit, SplitRight) {
     EXPECT_EQ(ds.pane_count(), 2u);
 }
 
-TEST(DockSystemSplit, SplitDown) {
+TEST(DockSystemSplit, SplitDown)
+{
     DockSystem ds;
     auto* pane = ds.split_down(1);
     EXPECT_NE(pane, nullptr);
@@ -32,7 +36,8 @@ TEST(DockSystemSplit, SplitDown) {
     EXPECT_EQ(ds.pane_count(), 2u);
 }
 
-TEST(DockSystemSplit, SplitFigureRight) {
+TEST(DockSystemSplit, SplitFigureRight)
+{
     DockSystem ds;
     ds.split_right(1);
     auto* pane = ds.split_figure_right(1, 2, 0.4f);
@@ -40,7 +45,8 @@ TEST(DockSystemSplit, SplitFigureRight) {
     EXPECT_EQ(ds.pane_count(), 3u);
 }
 
-TEST(DockSystemSplit, SplitFigureDown) {
+TEST(DockSystemSplit, SplitFigureDown)
+{
     DockSystem ds;
     ds.split_right(1);
     auto* pane = ds.split_figure_down(1, 2, 0.6f);
@@ -48,7 +54,8 @@ TEST(DockSystemSplit, SplitFigureDown) {
     EXPECT_EQ(ds.pane_count(), 3u);
 }
 
-TEST(DockSystemSplit, CloseSplit) {
+TEST(DockSystemSplit, CloseSplit)
+{
     DockSystem ds;
     ds.split_right(1);
     EXPECT_TRUE(ds.close_split(1));
@@ -56,13 +63,15 @@ TEST(DockSystemSplit, CloseSplit) {
     EXPECT_EQ(ds.pane_count(), 1u);
 }
 
-TEST(DockSystemSplit, CloseNonExistent) {
+TEST(DockSystemSplit, CloseNonExistent)
+{
     DockSystem ds;
     ds.split_right(1);
     EXPECT_FALSE(ds.close_split(99));
 }
 
-TEST(DockSystemSplit, ResetSplits) {
+TEST(DockSystemSplit, ResetSplits)
+{
     DockSystem ds;
     ds.split_right(1);
     ds.split_figure_down(1, 2);
@@ -73,7 +82,8 @@ TEST(DockSystemSplit, ResetSplits) {
     EXPECT_EQ(ds.pane_count(), 1u);
 }
 
-TEST(DockSystemSplit, LayoutChangedCallback) {
+TEST(DockSystemSplit, LayoutChangedCallback)
+{
     DockSystem ds;
     int callback_count = 0;
     ds.set_on_layout_changed([&]() { callback_count++; });
@@ -93,7 +103,8 @@ TEST(DockSystemSplit, LayoutChangedCallback) {
 
 // ─── DockSystem Drag-to-Dock ─────────────────────────────────────────────────
 
-TEST(DockSystemDrag, BeginDrag) {
+TEST(DockSystemDrag, BeginDrag)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -102,14 +113,16 @@ TEST(DockSystemDrag, BeginDrag) {
     EXPECT_EQ(ds.dragging_figure(), 0u);
 }
 
-TEST(DockSystemDrag, CancelDrag) {
+TEST(DockSystemDrag, CancelDrag)
+{
     DockSystem ds;
     ds.begin_drag(0, 500.0f, 300.0f);
     ds.cancel_drag();
     EXPECT_FALSE(ds.is_dragging());
 }
 
-TEST(DockSystemDrag, UpdateDragComputesDropTarget) {
+TEST(DockSystemDrag, UpdateDragComputesDropTarget)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -121,7 +134,8 @@ TEST(DockSystemDrag, UpdateDragComputesDropTarget) {
     EXPECT_NE(target.target_pane, nullptr);
 }
 
-TEST(DockSystemDrag, EndDragOnSelfDoesNothing) {
+TEST(DockSystemDrag, EndDragOnSelfDoesNothing)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -132,7 +146,8 @@ TEST(DockSystemDrag, EndDragOnSelfDoesNothing) {
     EXPECT_FALSE(ds.is_dragging());
 }
 
-TEST(DockSystemDrag, EndDragOnDifferentPane) {
+TEST(DockSystemDrag, EndDragOnDifferentPane)
+{
     DockSystem ds;
     ds.split_right(1);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -146,7 +161,8 @@ TEST(DockSystemDrag, EndDragOnDifferentPane) {
     (void)result;  // Result depends on exact drop zone hit
 }
 
-TEST(DockSystemDrag, EndDragOutsideBounds) {
+TEST(DockSystemDrag, EndDragOutsideBounds)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -155,7 +171,8 @@ TEST(DockSystemDrag, EndDragOutsideBounds) {
     EXPECT_FALSE(result);
 }
 
-TEST(DockSystemDrag, DragWithoutBeginReturnsEmpty) {
+TEST(DockSystemDrag, DragWithoutBeginReturnsEmpty)
+{
     DockSystem ds;
     auto target = ds.update_drag(500.0f, 300.0f);
     EXPECT_EQ(target.zone, DropZone::None);
@@ -163,7 +180,8 @@ TEST(DockSystemDrag, DragWithoutBeginReturnsEmpty) {
 
 // ─── DockSystem Layout ───────────────────────────────────────────────────────
 
-TEST(DockSystemLayout, UpdateLayout) {
+TEST(DockSystemLayout, UpdateLayout)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{100, 50, 800, 600});
@@ -171,13 +189,15 @@ TEST(DockSystemLayout, UpdateLayout) {
     auto infos = ds.get_pane_infos();
     EXPECT_EQ(infos.size(), 2u);
 
-    for (const auto& info : infos) {
+    for (const auto& info : infos)
+    {
         EXPECT_GT(info.bounds.w, 0.0f);
         EXPECT_GT(info.bounds.h, 0.0f);
     }
 }
 
-TEST(DockSystemLayout, PaneInfosContainActiveFlag) {
+TEST(DockSystemLayout, PaneInfosContainActiveFlag)
+{
     DockSystem ds;
     ds.split_right(1);
     ds.set_active_figure_index(1);
@@ -187,18 +207,23 @@ TEST(DockSystemLayout, PaneInfosContainActiveFlag) {
     EXPECT_EQ(infos.size(), 2u);
 
     bool found_active = false;
-    for (const auto& info : infos) {
-        if (info.figure_index == 1) {
+    for (const auto& info : infos)
+    {
+        if (info.figure_index == 1)
+        {
             EXPECT_TRUE(info.is_active);
             found_active = true;
-        } else {
+        }
+        else
+        {
             EXPECT_FALSE(info.is_active);
         }
     }
     EXPECT_TRUE(found_active);
 }
 
-TEST(DockSystemLayout, SinglePaneInfo) {
+TEST(DockSystemLayout, SinglePaneInfo)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -213,7 +238,8 @@ TEST(DockSystemLayout, SinglePaneInfo) {
 
 // ─── DockSystem Splitter Interaction ─────────────────────────────────────────
 
-TEST(DockSystemSplitter, IsOverSplitter) {
+TEST(DockSystemSplitter, IsOverSplitter)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -222,7 +248,8 @@ TEST(DockSystemSplitter, IsOverSplitter) {
     EXPECT_FALSE(ds.is_over_splitter(100.0f, 300.0f));
 }
 
-TEST(DockSystemSplitter, SplitterDirection) {
+TEST(DockSystemSplitter, SplitterDirection)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -231,7 +258,8 @@ TEST(DockSystemSplitter, SplitterDirection) {
     EXPECT_EQ(dir, SplitDirection::Horizontal);
 }
 
-TEST(DockSystemSplitter, SplitterDirectionVertical) {
+TEST(DockSystemSplitter, SplitterDirectionVertical)
+{
     DockSystem ds;
     ds.split_down(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -240,7 +268,8 @@ TEST(DockSystemSplitter, SplitterDirectionVertical) {
     EXPECT_EQ(dir, SplitDirection::Vertical);
 }
 
-TEST(DockSystemSplitter, BeginAndEndSplitterDrag) {
+TEST(DockSystemSplitter, BeginAndEndSplitterDrag)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -253,7 +282,8 @@ TEST(DockSystemSplitter, BeginAndEndSplitterDrag) {
     EXPECT_FALSE(ds.is_dragging_splitter());
 }
 
-TEST(DockSystemSplitter, BeginSplitterDragMiss) {
+TEST(DockSystemSplitter, BeginSplitterDragMiss)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -264,7 +294,8 @@ TEST(DockSystemSplitter, BeginSplitterDragMiss) {
 
 // ─── DockSystem Active Pane ──────────────────────────────────────────────────
 
-TEST(DockSystemActive, ActivatePaneAtPoint) {
+TEST(DockSystemActive, ActivatePaneAtPoint)
+{
     DockSystem ds;
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -276,7 +307,8 @@ TEST(DockSystemActive, ActivatePaneAtPoint) {
     EXPECT_EQ(ds.active_figure_index(), 0u);
 }
 
-TEST(DockSystemActive, SetActiveFigure) {
+TEST(DockSystemActive, SetActiveFigure)
+{
     DockSystem ds;
     ds.split_right(1);
 
@@ -289,7 +321,8 @@ TEST(DockSystemActive, SetActiveFigure) {
 
 // ─── DockSystem Serialization ────────────────────────────────────────────────
 
-TEST(DockSystemSerialization, RoundTrip) {
+TEST(DockSystemSerialization, RoundTrip)
+{
     DockSystem ds;
     ds.split_right(1, 0.6f);
     ds.set_active_figure_index(1);
@@ -307,12 +340,14 @@ TEST(DockSystemSerialization, RoundTrip) {
     EXPECT_EQ(ds2.active_figure_index(), 1u);
 }
 
-TEST(DockSystemSerialization, DeserializeEmpty) {
+TEST(DockSystemSerialization, DeserializeEmpty)
+{
     DockSystem ds;
     EXPECT_FALSE(ds.deserialize(""));
 }
 
-TEST(DockSystemSerialization, DeserializeCallsLayoutChanged) {
+TEST(DockSystemSerialization, DeserializeCallsLayoutChanged)
+{
     DockSystem ds;
     ds.split_right(1);
     std::string data = ds.serialize();
@@ -327,7 +362,8 @@ TEST(DockSystemSerialization, DeserializeCallsLayoutChanged) {
 
 // ─── DockSystem Drop Zones ───────────────────────────────────────────────────
 
-TEST(DockSystemDropZones, LeftEdge) {
+TEST(DockSystemDropZones, LeftEdge)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -337,7 +373,8 @@ TEST(DockSystemDropZones, LeftEdge) {
     ds.cancel_drag();
 }
 
-TEST(DockSystemDropZones, RightEdge) {
+TEST(DockSystemDropZones, RightEdge)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -347,7 +384,8 @@ TEST(DockSystemDropZones, RightEdge) {
     ds.cancel_drag();
 }
 
-TEST(DockSystemDropZones, TopEdge) {
+TEST(DockSystemDropZones, TopEdge)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -357,7 +395,8 @@ TEST(DockSystemDropZones, TopEdge) {
     ds.cancel_drag();
 }
 
-TEST(DockSystemDropZones, BottomEdge) {
+TEST(DockSystemDropZones, BottomEdge)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -367,7 +406,8 @@ TEST(DockSystemDropZones, BottomEdge) {
     ds.cancel_drag();
 }
 
-TEST(DockSystemDropZones, Center) {
+TEST(DockSystemDropZones, Center)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -377,7 +417,8 @@ TEST(DockSystemDropZones, Center) {
     ds.cancel_drag();
 }
 
-TEST(DockSystemDropZones, HighlightRectNonZero) {
+TEST(DockSystemDropZones, HighlightRectNonZero)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 
@@ -390,9 +431,11 @@ TEST(DockSystemDropZones, HighlightRectNonZero) {
 
 // ─── Edge Cases ──────────────────────────────────────────────────────────────
 
-TEST(DockSystemEdgeCases, SplitAndCloseRepeatedly) {
+TEST(DockSystemEdgeCases, SplitAndCloseRepeatedly)
+{
     DockSystem ds;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         ds.split_right(static_cast<size_t>(i + 1));
         EXPECT_TRUE(ds.is_split());
         ds.close_split(static_cast<size_t>(i + 1));
@@ -400,7 +443,8 @@ TEST(DockSystemEdgeCases, SplitAndCloseRepeatedly) {
     }
 }
 
-TEST(DockSystemEdgeCases, ComplexSplitTree) {
+TEST(DockSystemEdgeCases, ComplexSplitTree)
+{
     DockSystem ds;
     ds.split_right(1);
     ds.split_figure_down(0, 2);
@@ -413,7 +457,8 @@ TEST(DockSystemEdgeCases, ComplexSplitTree) {
 
     // All figures should be present
     std::set<size_t> figures;
-    for (const auto& info : infos) {
+    for (const auto& info : infos)
+    {
         figures.insert(info.figure_index);
     }
     EXPECT_EQ(figures.count(0), 1u);
@@ -422,7 +467,8 @@ TEST(DockSystemEdgeCases, ComplexSplitTree) {
     EXPECT_EQ(figures.count(3), 1u);
 }
 
-TEST(DockSystemEdgeCases, SplitWithCustomRatios) {
+TEST(DockSystemEdgeCases, SplitWithCustomRatios)
+{
     DockSystem ds;
     ds.split_right(1, 0.3f);
     ds.update_layout(Rect{0, 0, 1000, 600});
@@ -432,14 +478,17 @@ TEST(DockSystemEdgeCases, SplitWithCustomRatios) {
 
     // First pane should be narrower (30%)
     // Find the pane with figure 0
-    for (const auto& info : infos) {
-        if (info.figure_index == 0) {
+    for (const auto& info : infos)
+    {
+        if (info.figure_index == 0)
+        {
             EXPECT_LT(info.bounds.w, 500.0f);
         }
     }
 }
 
-TEST(DockSystemEdgeCases, ActivateAtPointOutsideBounds) {
+TEST(DockSystemEdgeCases, ActivateAtPointOutsideBounds)
+{
     DockSystem ds;
     ds.update_layout(Rect{0, 0, 1000, 600});
 

@@ -1,9 +1,7 @@
-#include <gtest/gtest.h>
-
-#include <plotix/axes.hpp>
-
 #include <cmath>
+#include <gtest/gtest.h>
 #include <memory>
+#include <plotix/axes.hpp>
 
 using namespace plotix;
 
@@ -18,7 +16,8 @@ using namespace plotix;
 
 // --- Basic tick generation ---
 
-TEST(TickGeneration, PositiveRange) {
+TEST(TickGeneration, PositiveRange)
+{
     Axes ax;
     ax.xlim(0.0f, 10.0f);
     auto ticks = ax.compute_x_ticks();
@@ -26,37 +25,44 @@ TEST(TickGeneration, PositiveRange) {
     EXPECT_LE(ticks.positions.size(), 15u);
     EXPECT_EQ(ticks.positions.size(), ticks.labels.size());
     // All ticks should be within [0, 10]
-    for (float v : ticks.positions) {
+    for (float v : ticks.positions)
+    {
         EXPECT_GE(v, -0.1f);
         EXPECT_LE(v, 10.1f);
     }
 }
 
-TEST(TickGeneration, NegativeRange) {
+TEST(TickGeneration, NegativeRange)
+{
     Axes ax;
     ax.xlim(-100.0f, -10.0f);
     auto ticks = ax.compute_x_ticks();
     EXPECT_GE(ticks.positions.size(), 2u);
-    for (float v : ticks.positions) {
+    for (float v : ticks.positions)
+    {
         EXPECT_GE(v, -101.0f);
         EXPECT_LE(v, -9.0f);
     }
 }
 
-TEST(TickGeneration, CrossingZero) {
+TEST(TickGeneration, CrossingZero)
+{
     Axes ax;
     ax.xlim(-5.0f, 5.0f);
     auto ticks = ax.compute_x_ticks();
     EXPECT_GE(ticks.positions.size(), 3u);
     // Should include zero (or very close to it)
     bool has_zero = false;
-    for (float v : ticks.positions) {
-        if (std::abs(v) < 0.01f) has_zero = true;
+    for (float v : ticks.positions)
+    {
+        if (std::abs(v) < 0.01f)
+            has_zero = true;
     }
     EXPECT_TRUE(has_zero);
 }
 
-TEST(TickGeneration, VerySmallRange) {
+TEST(TickGeneration, VerySmallRange)
+{
     Axes ax;
     ax.xlim(1.0f, 1.0f + 1e-12f);
     auto ticks = ax.compute_x_ticks();
@@ -65,14 +71,16 @@ TEST(TickGeneration, VerySmallRange) {
     EXPECT_EQ(ticks.positions.size(), ticks.labels.size());
 }
 
-TEST(TickGeneration, ZeroRange) {
+TEST(TickGeneration, ZeroRange)
+{
     Axes ax;
     ax.xlim(5.0f, 5.0f);
     auto ticks = ax.compute_x_ticks();
     EXPECT_GE(ticks.positions.size(), 1u);
 }
 
-TEST(TickGeneration, LargeRange) {
+TEST(TickGeneration, LargeRange)
+{
     Axes ax;
     ax.xlim(0.0f, 1e6f);
     auto ticks = ax.compute_x_ticks();
@@ -80,7 +88,8 @@ TEST(TickGeneration, LargeRange) {
     EXPECT_LE(ticks.positions.size(), 25u);
 }
 
-TEST(TickGeneration, TinyValues) {
+TEST(TickGeneration, TinyValues)
+{
     Axes ax;
     ax.xlim(1e-8f, 2e-8f);
     auto ticks = ax.compute_x_ticks();
@@ -89,18 +98,21 @@ TEST(TickGeneration, TinyValues) {
 
 // --- No "-0" labels ---
 
-TEST(TickGeneration, NoNegativeZeroLabel) {
+TEST(TickGeneration, NoNegativeZeroLabel)
+{
     Axes ax;
     ax.xlim(-1.0f, 1.0f);
     auto ticks = ax.compute_x_ticks();
-    for (const auto& lbl : ticks.labels) {
+    for (const auto& lbl : ticks.labels)
+    {
         EXPECT_NE(lbl, "-0");
     }
 }
 
 // --- Y ticks work the same ---
 
-TEST(TickGeneration, YTicksPositive) {
+TEST(TickGeneration, YTicksPositive)
+{
     Axes ax;
     ax.ylim(0.0f, 100.0f);
     auto ticks = ax.compute_y_ticks();

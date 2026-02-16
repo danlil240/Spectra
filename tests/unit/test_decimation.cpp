@@ -1,39 +1,43 @@
-#include <gtest/gtest.h>
-
-#include "data/decimation.hpp"
-
 #include <cmath>
+#include <gtest/gtest.h>
 #include <numeric>
 #include <vector>
+
+#include "data/decimation.hpp"
 
 using namespace plotix::data;
 
 // --- LTTB tests ---
 
-TEST(LTTB, EmptyInput) {
+TEST(LTTB, EmptyInput)
+{
     auto result = lttb({}, {}, 10);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(LTTB, TargetLargerThanInput) {
+TEST(LTTB, TargetLargerThanInput)
+{
     std::vector<float> x = {0, 1, 2, 3, 4};
     std::vector<float> y = {0, 1, 4, 9, 16};
     auto result = lttb(x, y, 100);
     ASSERT_EQ(result.size(), 5u);
-    for (std::size_t i = 0; i < 5; ++i) {
+    for (std::size_t i = 0; i < 5; ++i)
+    {
         EXPECT_FLOAT_EQ(result[i].first, x[i]);
         EXPECT_FLOAT_EQ(result[i].second, y[i]);
     }
 }
 
-TEST(LTTB, TargetEqualsInput) {
+TEST(LTTB, TargetEqualsInput)
+{
     std::vector<float> x = {0, 1, 2};
     std::vector<float> y = {0, 1, 0};
     auto result = lttb(x, y, 3);
     ASSERT_EQ(result.size(), 3u);
 }
 
-TEST(LTTB, PreservesFirstAndLast) {
+TEST(LTTB, PreservesFirstAndLast)
+{
     std::vector<float> x(100), y(100);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < 100; ++i)
@@ -47,7 +51,8 @@ TEST(LTTB, PreservesFirstAndLast) {
     EXPECT_FLOAT_EQ(result.back().second, y.back());
 }
 
-TEST(LTTB, OutputSizeMatchesTarget) {
+TEST(LTTB, OutputSizeMatchesTarget)
+{
     std::vector<float> x(1000), y(1000);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < 1000; ++i)
@@ -57,7 +62,8 @@ TEST(LTTB, OutputSizeMatchesTarget) {
     EXPECT_EQ(result.size(), 100u);
 }
 
-TEST(LTTB, PreservesKeyPoints) {
+TEST(LTTB, PreservesKeyPoints)
+{
     // Create a signal with a clear spike — LTTB should preserve it
     std::vector<float> x(100), y(100);
     std::iota(x.begin(), x.end(), 0.0f);
@@ -68,8 +74,10 @@ TEST(LTTB, PreservesKeyPoints) {
 
     // The spike should be preserved
     bool spike_found = false;
-    for (auto& [rx, ry] : result) {
-        if (ry > 50.0f) {
+    for (auto& [rx, ry] : result)
+    {
+        if (ry > 50.0f)
+        {
             spike_found = true;
             break;
         }
@@ -77,7 +85,8 @@ TEST(LTTB, PreservesKeyPoints) {
     EXPECT_TRUE(spike_found) << "LTTB should preserve prominent spike";
 }
 
-TEST(LTTB, TargetLessThan3ReturnsAll) {
+TEST(LTTB, TargetLessThan3ReturnsAll)
+{
     std::vector<float> x = {0, 1, 2, 3, 4};
     std::vector<float> y = {0, 1, 2, 3, 4};
     auto result = lttb(x, y, 2);
@@ -86,26 +95,30 @@ TEST(LTTB, TargetLessThan3ReturnsAll) {
 
 // --- Min-max decimation tests ---
 
-TEST(MinMaxDecimate, EmptyInput) {
+TEST(MinMaxDecimate, EmptyInput)
+{
     auto result = min_max_decimate({}, {}, 10);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(MinMaxDecimate, ZeroBuckets) {
+TEST(MinMaxDecimate, ZeroBuckets)
+{
     std::vector<float> x = {0, 1, 2};
     std::vector<float> y = {0, 1, 0};
     auto result = min_max_decimate(x, y, 0);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(MinMaxDecimate, SmallInputReturnedUnchanged) {
+TEST(MinMaxDecimate, SmallInputReturnedUnchanged)
+{
     std::vector<float> x = {0, 1, 2};
     std::vector<float> y = {5, 10, 3};
     auto result = min_max_decimate(x, y, 5);
     ASSERT_EQ(result.size(), 3u);
 }
 
-TEST(MinMaxDecimate, PreservesExtremes) {
+TEST(MinMaxDecimate, PreservesExtremes)
+{
     std::vector<float> x(100), y(100);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < 100; ++i)
@@ -120,7 +133,8 @@ TEST(MinMaxDecimate, PreservesExtremes) {
     // The result should contain values close to the global extremes
     float result_min = std::numeric_limits<float>::max();
     float result_max = -std::numeric_limits<float>::max();
-    for (auto& [rx, ry] : result) {
+    for (auto& [rx, ry] : result)
+    {
         result_min = std::min(result_min, ry);
         result_max = std::max(result_max, ry);
     }
@@ -128,10 +142,12 @@ TEST(MinMaxDecimate, PreservesExtremes) {
     EXPECT_NEAR(result_max, y_max, 0.1f);
 }
 
-TEST(MinMaxDecimate, OutputSizeBounded) {
+TEST(MinMaxDecimate, OutputSizeBounded)
+{
     std::vector<float> x(1000), y(1000);
     std::iota(x.begin(), x.end(), 0.0f);
-    for (auto& v : y) v = 1.0f;
+    for (auto& v : y)
+        v = 1.0f;
 
     auto result = min_max_decimate(x, y, 50);
     EXPECT_LE(result.size(), 100u);  // at most 2 * bucket_count
@@ -139,12 +155,14 @@ TEST(MinMaxDecimate, OutputSizeBounded) {
 
 // --- Resample uniform tests ---
 
-TEST(ResampleUniform, EmptyInput) {
+TEST(ResampleUniform, EmptyInput)
+{
     auto result = resample_uniform({}, {}, 10);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(ResampleUniform, SinglePoint) {
+TEST(ResampleUniform, SinglePoint)
+{
     std::vector<float> x = {5.0f};
     std::vector<float> y = {3.0f};
     auto result = resample_uniform(x, y, 1);
@@ -153,7 +171,8 @@ TEST(ResampleUniform, SinglePoint) {
     EXPECT_FLOAT_EQ(result[0].second, 3.0f);
 }
 
-TEST(ResampleUniform, LinearInterpolation) {
+TEST(ResampleUniform, LinearInterpolation)
+{
     // y = 2x on [0, 10]
     std::vector<float> x = {0.0f, 10.0f};
     std::vector<float> y = {0.0f, 20.0f};
@@ -161,7 +180,8 @@ TEST(ResampleUniform, LinearInterpolation) {
     auto result = resample_uniform(x, y, 11);
     ASSERT_EQ(result.size(), 11u);
 
-    for (std::size_t i = 0; i < 11; ++i) {
+    for (std::size_t i = 0; i < 11; ++i)
+    {
         float expected_x = static_cast<float>(i);
         float expected_y = 2.0f * expected_x;
         EXPECT_NEAR(result[i].first, expected_x, 1e-5f) << "at i=" << i;
@@ -169,7 +189,8 @@ TEST(ResampleUniform, LinearInterpolation) {
     }
 }
 
-TEST(ResampleUniform, PreservesEndpoints) {
+TEST(ResampleUniform, PreservesEndpoints)
+{
     std::vector<float> x = {1.0f, 3.0f, 7.0f, 10.0f};
     std::vector<float> y = {2.0f, 6.0f, 1.0f, 5.0f};
 
@@ -181,7 +202,8 @@ TEST(ResampleUniform, PreservesEndpoints) {
     EXPECT_NEAR(result.back().second, 5.0f, 1e-4f);
 }
 
-TEST(ResampleUniform, OutputCountRespected) {
+TEST(ResampleUniform, OutputCountRespected)
+{
     std::vector<float> x = {0, 1, 5, 10};
     std::vector<float> y = {0, 1, 5, 10};
     auto result = resample_uniform(x, y, 200);

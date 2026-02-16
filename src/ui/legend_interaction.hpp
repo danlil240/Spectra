@@ -2,30 +2,32 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
-
-#include <cstddef>
-#include <unordered_map>
+    #include <cstddef>
+    #include <plotix/color.hpp>
+    #include <plotix/figure.hpp>
+    #include <plotix/series.hpp>
+    #include <unordered_map>
 
 struct ImFont;
 
-namespace plotix {
+namespace plotix
+{
 
 class TransitionEngine;
 
 // Per-series animation state for legend interaction.
-struct LegendSeriesState {
-    float opacity = 1.0f;          // Current animated opacity (0=hidden, 1=visible)
-    float target_opacity = 1.0f;   // Target opacity for animation
-    bool  user_visible = true;     // User-toggled visibility state
+struct LegendSeriesState
+{
+    float opacity = 1.0f;         // Current animated opacity (0=hidden, 1=visible)
+    float target_opacity = 1.0f;  // Target opacity for animation
+    bool user_visible = true;     // User-toggled visibility state
 };
 
 // Legend interaction: click-to-toggle series visibility with animated opacity,
 // drag-to-reposition the legend box.
-class LegendInteraction {
-public:
+class LegendInteraction
+{
+   public:
     LegendInteraction() = default;
 
     // Set fonts for legend rendering
@@ -67,12 +69,13 @@ public:
     void set_toggle_duration(float d) { toggle_duration_ = d; }
     float toggle_duration() const { return toggle_duration_; }
 
-private:
+   private:
     // Get or create state for a series pointer
     LegendSeriesState& get_state(const Series* s);
 
     // Per-axes legend position offset (from default position)
-    struct LegendOffset {
+    struct LegendOffset
+    {
         float dx = 0.0f;
         float dy = 0.0f;
     };
@@ -106,6 +109,6 @@ private:
     TransitionEngine* transition_engine_ = nullptr;
 };
 
-} // namespace plotix
+}  // namespace plotix
 
-#endif // PLOTIX_USE_IMGUI
+#endif  // PLOTIX_USE_IMGUI

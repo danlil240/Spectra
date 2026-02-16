@@ -1,18 +1,20 @@
 #pragma once
 
+#include <memory>
 #include <plotix/axes.hpp>
 #include <plotix/camera.hpp>
 #include <plotix/fwd.hpp>
 #include <plotix/math3d.hpp>
 #include <plotix/series3d.hpp>
-#include <memory>
 #include <string>
 #include <vector>
 
-namespace plotix {
+namespace plotix
+{
 
-class Axes3D : public AxesBase {
-public:
+class Axes3D : public AxesBase
+{
+   public:
     Axes3D();
     ~Axes3D();
 
@@ -46,7 +48,8 @@ public:
     Camera& camera() { return *camera_; }
     const Camera& camera() const { return *camera_; }
 
-    enum class GridPlane {
+    enum class GridPlane
+    {
         None = 0,
         XY = 1 << 0,
         XZ = 1 << 1,
@@ -87,13 +90,18 @@ public:
     // Zoom by scaling axis limits (bounding box stays fixed, data range changes)
     void zoom_limits(float factor);
 
-    LineSeries3D& line3d(std::span<const float> x, std::span<const float> y, std::span<const float> z);
-    ScatterSeries3D& scatter3d(std::span<const float> x, std::span<const float> y, std::span<const float> z);
-    SurfaceSeries& surface(std::span<const float> x_grid, std::span<const float> y_grid,
+    LineSeries3D& line3d(std::span<const float> x,
+                         std::span<const float> y,
+                         std::span<const float> z);
+    ScatterSeries3D& scatter3d(std::span<const float> x,
+                               std::span<const float> y,
+                               std::span<const float> z);
+    SurfaceSeries& surface(std::span<const float> x_grid,
+                           std::span<const float> y_grid,
                            std::span<const float> z_values);
     MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_t> indices);
 
-private:
+   private:
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
     std::optional<AxisLimits> zlim_;
@@ -109,16 +117,19 @@ private:
     bool lighting_enabled_ = true;
 };
 
-inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b) {
+inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b)
+{
     return static_cast<Axes3D::GridPlane>(static_cast<int>(a) | static_cast<int>(b));
 }
 
-inline Axes3D::GridPlane operator&(Axes3D::GridPlane a, Axes3D::GridPlane b) {
+inline Axes3D::GridPlane operator&(Axes3D::GridPlane a, Axes3D::GridPlane b)
+{
     return static_cast<Axes3D::GridPlane>(static_cast<int>(a) & static_cast<int>(b));
 }
 
-inline Axes3D::GridPlane operator~(Axes3D::GridPlane a) {
+inline Axes3D::GridPlane operator~(Axes3D::GridPlane a)
+{
     return static_cast<Axes3D::GridPlane>(~static_cast<int>(a));
 }
 
-} // namespace plotix
+}  // namespace plotix

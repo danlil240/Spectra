@@ -31,6 +31,10 @@ function(add_plotix_test subdir name)
     target_compile_features(${target_name} PRIVATE cxx_std_20)
     # Tests need access to internal src/ headers (e.g. core/transform.hpp)
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    # Propagate feature flags to tests for conditional compilation
+    target_compile_definitions(${target_name} PRIVATE
+        $<$<BOOL:${PLOTIX_USE_FFMPEG}>:PLOTIX_USE_FFMPEG>
+    )
     add_test(NAME ${target_name} COMMAND ${target_name})
 endfunction()
 

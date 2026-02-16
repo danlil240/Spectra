@@ -38,6 +38,9 @@ public:
     // Poll events (call once per frame)
     void poll_events();
 
+    // Wait for events (blocks until an event arrives — used when minimized)
+    void wait_events();
+
     // Check if window should close
     bool should_close() const;
 

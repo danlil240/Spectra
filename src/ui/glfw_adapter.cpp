@@ -67,6 +67,10 @@ void GlfwAdapter::poll_events() {
     glfwPollEvents();
 }
 
+void GlfwAdapter::wait_events() {
+    glfwWaitEvents();
+}
+
 bool GlfwAdapter::should_close() const {
     return window_ ? glfwWindowShouldClose(window_) : true;
 }

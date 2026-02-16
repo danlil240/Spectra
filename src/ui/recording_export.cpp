@@ -28,13 +28,19 @@ static float get_wall_time() {
 
 // ─── RecordingSession ────────────────────────────────────────────────────────
 
-RecordingSession::RecordingSession() = default;
+RecordingSession::RecordingSession() 
+#ifdef PLOTIX_USE_FFMPEG
+    : ffmpeg_pipe_(nullptr)
+#endif
+{
+}
 
 RecordingSession::~RecordingSession() {
     // Ensure cleanup
     std::lock_guard lock(mutex_);
 #ifdef PLOTIX_USE_FFMPEG
-    if (ffmpeg_pipe_) {
+    // Only close if we actually opened an MP4 pipe
+    if (config_.format == RecordingFormat::MP4 && ffmpeg_pipe_ != nullptr) {
         pclose(ffmpeg_pipe_);
         ffmpeg_pipe_ = nullptr;
     }

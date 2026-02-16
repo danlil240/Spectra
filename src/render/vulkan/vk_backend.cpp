@@ -245,6 +245,7 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
     PLOTIX_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
     auto old_swapchain = swapchain_.swapchain;
     auto old_context = swapchain_;  // Copy the entire context
+    VkRenderPass reuse_rp = old_context.render_pass;  // Reuse — format doesn't change
     
     try {
         PLOTIX_LOG_DEBUG("vulkan", "Creating new swapchain...");
@@ -253,25 +254,28 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
             width, height,
             ctx_.queue_families.graphics.value(),
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
-            old_swapchain
+            old_swapchain,
+            reuse_rp
         );
         PLOTIX_LOG_INFO("vulkan", "New swapchain created: " + std::to_string(swapchain_.extent.width) + "x" + std::to_string(swapchain_.extent.height));
         
-        // Destroy the old swapchain context after the new one is created successfully
+        // Destroy the old swapchain context (skip render pass — we reused it)
         PLOTIX_LOG_DEBUG("vulkan", "Destroying old swapchain...");
-        vk::destroy_swapchain(ctx_.device, old_context);
+        vk::destroy_swapchain(ctx_.device, old_context, /*skip_render_pass=*/true);
         
-        PLOTIX_LOG_DEBUG("vulkan", "Recreating command buffers and sync objects...");
-        create_command_buffers();
-        
-        // Destroy old sync objects and recreate for new swapchain image count
-        for (auto sem : image_available_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
-        for (auto sem : render_finished_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
-        for (auto fence : in_flight_fences_)         vkDestroyFence(ctx_.device, fence, nullptr);
-        image_available_semaphores_.clear();
-        render_finished_semaphores_.clear();
-        in_flight_fences_.clear();
-        create_sync_objects();
+        // Recreate sync objects only if image count changed (rare during resize)
+        if (swapchain_.images.size() != old_context.images.size()) {
+            PLOTIX_LOG_DEBUG("vulkan", "Image count changed " +
+                std::to_string(old_context.images.size()) + " -> " +
+                std::to_string(swapchain_.images.size()) + ", recreating sync objects");
+            for (auto sem : image_available_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+            for (auto sem : render_finished_semaphores_) vkDestroySemaphore(ctx_.device, sem, nullptr);
+            for (auto fence : in_flight_fences_)         vkDestroyFence(ctx_.device, fence, nullptr);
+            image_available_semaphores_.clear();
+            render_finished_semaphores_.clear();
+            in_flight_fences_.clear();
+            create_sync_objects();
+        }
         current_flight_frame_ = 0;
         
         PLOTIX_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
@@ -779,8 +783,14 @@ bool VulkanBackend::begin_frame() {
         image_available_semaphores_[current_flight_frame_],
         VK_NULL_HANDLE, &current_image_index_);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        return false;  // Caller should recreate swapchain
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        return false;  // Swapchain truly unusable — caller must recreate
+    }
+    if (result == VK_SUBOPTIMAL_KHR) {
+        // Image is still valid and presentable, just not optimal for the
+        // current surface size. Continue rendering (stretched > black flash).
+        // The main loop debounce will recreate when resize stabilizes.
+        swapchain_dirty_ = true;
     }
 
     // Only reset fence after successful acquisition
@@ -841,14 +851,10 @@ void VulkanBackend::end_frame() {
 
     current_flight_frame_ = (current_flight_frame_ + 1) % static_cast<uint32_t>(in_flight_fences_.size());
     
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        PLOTIX_LOG_INFO("vulkan", "end_frame: present returned VK_ERROR_OUT_OF_DATE_KHR");
-        // Caller should recreate swapchain on next frame
-        // We'll handle it in begin_frame()
-    } else if (result == VK_SUBOPTIMAL_KHR) {
-        PLOTIX_LOG_INFO("vulkan", "end_frame: present returned VK_SUBOPTIMAL_KHR");
-        // Caller should recreate swapchain on next frame
-        // We'll handle it in begin_frame()
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        swapchain_dirty_ = true;
+        PLOTIX_LOG_DEBUG("vulkan", "end_frame: present returned " +
+            std::string(result == VK_ERROR_OUT_OF_DATE_KHR ? "OUT_OF_DATE" : "SUBOPTIMAL"));
     } else if (result != VK_SUCCESS) {
         PLOTIX_LOG_ERROR("vulkan", "end_frame: present failed with result " + std::to_string(static_cast<int>(result)));
     }

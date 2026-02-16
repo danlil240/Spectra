@@ -225,9 +225,9 @@ void App::run() {
     bool needs_resize = false;
     uint32_t new_width = active_figure->width();
     uint32_t new_height = active_figure->height();
-    bool is_resizing = false;
-    int resize_frame_counter = 0;
-    static constexpr int RESIZE_SKIP_FRAMES = 1;  // Skip frames during rapid resize
+    auto resize_requested_time = std::chrono::steady_clock::now();
+    static constexpr auto RESIZE_DEBOUNCE = std::chrono::milliseconds(50);
+    static constexpr auto RESIZE_MAX_DELAY = std::chrono::milliseconds(200);
 
     if (!config_.headless) {
         glfw = std::make_unique<GlfwAdapter>();
@@ -345,41 +345,100 @@ void App::run() {
 #endif
                 input_handler.on_key(key, action, mods);
             };
-            callbacks.on_resize = [&needs_resize, &new_width, &new_height, &is_resizing](int w, int h) {
-                static int call_count = 0;
-                static bool ignore_resizes = false;
-                call_count++;
-                auto now = std::chrono::steady_clock::now();
-                static auto last_call = now;
-                auto time_since_last = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call);
-                
-                // After 10 resize events, start ignoring them to test stability
-                if (call_count > 10 && !ignore_resizes) {
-                    PLOTIX_LOG_WARN("resize", "Too many resize events (" + std::to_string(call_count) + 
-                                   "). Ignoring future resize events for testing.");
-                    ignore_resizes = true;
+            callbacks.on_resize = [&needs_resize, &new_width, &new_height, &resize_requested_time,
+                                   this, &active_figure
+#ifdef PLOTIX_USE_IMGUI
+                                   , &imgui_ui, &dock_system
+#endif
+            ](int w, int h) {
+                if (w <= 0 || h <= 0) return;
+                uint32_t uw = static_cast<uint32_t>(w);
+                uint32_t uh = static_cast<uint32_t>(h);
+                PLOTIX_LOG_DEBUG("resize", "Callback: " + std::to_string(w) + "x" + std::to_string(h));
+
+                // Recreate swapchain immediately in the callback
+                auto* vk = static_cast<VulkanBackend*>(backend_.get());
+                backend_->recreate_swapchain(uw, uh);
+                vk->clear_swapchain_dirty();
+                active_figure->config_.width = backend_->swapchain_width();
+                active_figure->config_.height = backend_->swapchain_height();
+
+#ifdef PLOTIX_USE_IMGUI
+                if (imgui_ui) {
+                    imgui_ui->on_swapchain_recreated(*vk);
+                    imgui_ui->new_frame();
+                    imgui_ui->build_ui(*active_figure);
+
+                    // Use ImGui-aware layout (same as main loop) so plot
+                    // position accounts for nav rail / inspector / tab bar.
+                    const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                    dock_system.update_layout(canvas);
+
+                    if (dock_system.is_split()) {
+                        auto pane_infos = dock_system.get_pane_infos();
+                        for (const auto& pinfo : pane_infos) {
+                            if (pinfo.figure_index < figures_.size()) {
+                                auto* fig = figures_[pinfo.figure_index].get();
+                                if (!fig) continue;
+                                Margins pm;
+                                pm.left   = std::clamp(pinfo.bounds.w * 0.15f, 40.0f, 60.0f);
+                                pm.right  = std::clamp(pinfo.bounds.w * 0.08f, 15.0f, 30.0f);
+                                pm.bottom = std::clamp(pinfo.bounds.h * 0.15f, 35.0f, 50.0f);
+                                pm.top    = std::clamp(pinfo.bounds.h * 0.08f, 15.0f, 35.0f);
+                                const auto rects = compute_subplot_layout(
+                                    pinfo.bounds.w, pinfo.bounds.h,
+                                    fig->grid_rows_, fig->grid_cols_,
+                                    pm, pinfo.bounds.x, pinfo.bounds.y);
+                                for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i) {
+                                    if (fig->axes_mut()[i])
+                                        fig->axes_mut()[i]->set_viewport(rects[i]);
+                                }
+                            }
+                        }
+                    } else {
+                        SplitPane* root = dock_system.split_view().root();
+                        Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
+                        const auto rects = compute_subplot_layout(
+                            cb.w, cb.h,
+                            active_figure->grid_rows_, active_figure->grid_cols_,
+                            {}, cb.x, cb.y);
+                        for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
+                            if (active_figure->axes_mut()[i])
+                                active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                        }
+                        for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
+                            if (active_figure->all_axes_mut()[i])
+                                active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
+                        }
+                    }
+                } else
+#endif
+                {
+                    active_figure->compute_layout();
                 }
-                
-                if (ignore_resizes) {
-                    PLOTIX_LOG_DEBUG("resize", "Ignoring resize callback #" + std::to_string(call_count) + 
-                                    ": " + std::to_string(w) + "x" + std::to_string(h));
-                    return;
+
+                // Render a full frame
+                if (backend_->begin_frame()) {
+                    renderer_->begin_render_pass();
+                    renderer_->render_figure_content(*active_figure);
+#ifdef PLOTIX_USE_IMGUI
+                    if (imgui_ui) {
+                        imgui_ui->render(*vk);
+                    }
+#endif
+                    renderer_->end_render_pass();
+                    backend_->end_frame();
                 }
-                
-                PLOTIX_LOG_DEBUG("resize", "GLFW resize callback #" + std::to_string(call_count) + 
-                                ": " + std::to_string(w) + "x" + std::to_string(h) + 
-                                " (+" + std::to_string(time_since_last.count()) + "ms since last)");
-                
-                if (w > 0 && h > 0) {
-                    needs_resize = true;
-                    new_width = static_cast<uint32_t>(w);
-                    new_height = static_cast<uint32_t>(h);
-                    is_resizing = true;
-                    PLOTIX_LOG_DEBUG("resize", "Set resize pending: " + std::to_string(new_width) + "x" + std::to_string(new_height));
-                } else {
-                    PLOTIX_LOG_WARN("resize", "Invalid resize dimensions: " + std::to_string(w) + "x" + std::to_string(h));
+#ifdef PLOTIX_USE_IMGUI
+                else if (imgui_ui) {
+                    ImGui::EndFrame();
                 }
-                last_call = now;
+#endif
+
+                // Mark resize as handled so the main loop doesn't redo it
+                needs_resize = false;
+                new_width = uw;
+                new_height = uh;
             };
             glfw->set_callbacks(callbacks);
         }
@@ -1000,58 +1059,23 @@ void App::run() {
 
     scheduler.reset();
     
-    // Add heartbeat tracking and resize loop detection
-    auto last_heartbeat = std::chrono::steady_clock::now();
-    const auto heartbeat_interval = std::chrono::seconds(5);
-    int resize_count = 0;
-    auto last_resize_time = std::chrono::steady_clock::now();
-    const auto resize_burst_threshold = std::chrono::milliseconds(200); // Reduced to 200ms
-    const int max_resizes_in_burst = 3; // Reduced to 3 resizes
-    int total_recreations = 0;
-    const int max_total_recreations = 20; // Hard limit to prevent infinite loops
-
     while (running) {
-        PLOTIX_LOG_TRACE("main_loop", "Starting frame iteration, running=" + std::string(running ? "true" : "false"));
-        
-        // Check for heartbeat logging and resize loop detection
-        auto now = std::chrono::steady_clock::now();
-        if (now - last_heartbeat >= heartbeat_interval) {
-            PLOTIX_LOG_INFO("heartbeat", "App is still running, frame " + std::to_string(scheduler.current_frame().number) + 
-                           ", elapsed " + std::to_string(scheduler.elapsed_seconds()) + "s" + 
-                           (is_resizing ? ", RESIZING" : ""));
-            last_heartbeat = now;
-        }
-        
-        // Detect resize loops and add hard limit
-        if (needs_resize) {
-            resize_count++;
-            total_recreations++;
-            
-            auto time_since_last_resize = now - last_resize_time;
-            if (time_since_last_resize < resize_burst_threshold) {
-                if (resize_count > max_resizes_in_burst) {
-                    PLOTIX_LOG_WARN("resize", "Detected resize loop! " + std::to_string(resize_count) + 
-                                   " resizes in " + std::to_string(time_since_last_resize.count()) + "ms. "
-                                   "Throttling resize processing.");
-                    // Skip this resize to break the loop
-                    needs_resize = false;
-                    resize_count = 0;
-                }
-            } else {
-                resize_count = 1; // Reset count if enough time has passed
+        PLOTIX_LOG_TRACE("main_loop", "Starting frame iteration");
+
+#ifdef PLOTIX_USE_GLFW
+        // Handle minimized window (0x0): sleep until restored
+        if (glfw) {
+            uint32_t fb_w = 0, fb_h = 0;
+            glfw->framebuffer_size(fb_w, fb_h);
+            while (fb_w == 0 || fb_h == 0) {
+                glfw->wait_events();
+                glfw->framebuffer_size(fb_w, fb_h);
+                if (glfw->should_close()) { running = false; break; }
             }
-            
-            // Hard limit to prevent infinite loops
-            if (total_recreations > max_total_recreations) {
-                PLOTIX_LOG_ERROR("resize", "Hard limit reached: " + std::to_string(total_recreations) + 
-                                " swapchain recreations. Terminating to prevent infinite loop.");
-                running = false;
-                break;
-            }
-            
-            last_resize_time = now;
+            if (!running) break;
         }
-        
+#endif
+
         try {
             scheduler.begin_frame();
         } catch (const std::exception& e) {
@@ -1090,91 +1114,36 @@ void App::run() {
         // Start ImGui frame (updates layout manager with current window size).
         bool imgui_frame_started = false;
 #ifdef PLOTIX_USE_IMGUI
-        bool should_update_imgui = !is_resizing || (resize_frame_counter % 6 == 0);
-        if (imgui_ui && should_update_imgui) {
-            imgui_ui->new_frame();  // updates layout manager with current window size
+        if (imgui_ui) {
+            imgui_ui->new_frame();
             imgui_frame_started = true;
         }
 #endif
 
 #ifdef PLOTIX_USE_GLFW
-        // Handle window resize with debouncing and frame skipping
-        // Note: We only process resize when begin_frame succeeds to avoid duplicate recreation
-        // The fallback path handles resize when begin_frame fails
-        if (needs_resize && backend_->begin_frame()) {
-            resize_frame_counter++;
-            PLOTIX_LOG_DEBUG("resize", "Processing resize with successful begin_frame: frame_counter=" + std::to_string(resize_frame_counter) + 
-                            ", target=" + std::to_string(new_width) + "x" + std::to_string(new_height));
-            
-            // Only process resize after a few frames to debounce rapid resize events
-            if (resize_frame_counter > RESIZE_SKIP_FRAMES) {
-                PLOTIX_LOG_DEBUG("resize", "Debounce threshold reached (counter=" + std::to_string(resize_frame_counter) + ")");
-                PLOTIX_LOG_INFO("resize", "Recreating swapchain: " + std::to_string(new_width) + "x" + std::to_string(new_height) + 
-                               " (recreation #" + std::to_string(total_recreations) + ")");
+        // Time-based resize debounce: recreate swapchain only when size has
+        // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
+        // we keep rendering with the old swapchain (slightly stretched but
+        // no black flash). swapchain_dirty_ is set by present OUT_OF_DATE/SUBOPTIMAL.
+        if (needs_resize && glfw) {
+            auto now_resize = std::chrono::steady_clock::now();
+            auto since_last = now_resize - resize_requested_time;
+            if (since_last >= RESIZE_DEBOUNCE) {
+                PLOTIX_LOG_INFO("resize", "Recreating swapchain: " +
+                    std::to_string(new_width) + "x" + std::to_string(new_height));
                 needs_resize = false;
-                resize_frame_counter = 0;
-                is_resizing = false;
-                
-                // Recreate swapchain with new dimensions
-                auto swapchain_start = std::chrono::high_resolution_clock::now();
+                auto* vk = static_cast<VulkanBackend*>(backend_.get());
+                vk->clear_swapchain_dirty();
                 backend_->recreate_swapchain(new_width, new_height);
-                auto swapchain_end = std::chrono::high_resolution_clock::now();
-                auto swapchain_duration = std::chrono::duration_cast<std::chrono::milliseconds>(swapchain_end - swapchain_start);
-                PLOTIX_LOG_INFO("resize", "Swapchain recreation completed in " + std::to_string(swapchain_duration.count()) + "ms");
-                
-                // Sync figure dimensions from actual swapchain extent
-                // (may differ from callback values due to surface capabilities)
+
                 active_figure->config_.width = backend_->swapchain_width();
                 active_figure->config_.height = backend_->swapchain_height();
-                PLOTIX_LOG_INFO("resize", "Swapchain recreated, actual extent: " + std::to_string(active_figure->config_.width) + "x" + std::to_string(active_figure->config_.height));
-
 #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui) {
-                    imgui_ui->on_swapchain_recreated(
-                        *static_cast<VulkanBackend*>(backend_.get()));
+                    imgui_ui->on_swapchain_recreated(*vk);
                 }
 #endif
-                
-                // Recompute layout with new dimensions
-#ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui) {
-                    // Update layout manager with new window size before recomputing
-                    imgui_ui->update_layout(
-                        static_cast<float>(active_figure->config_.width),
-                        static_cast<float>(active_figure->config_.height));
-                    const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-                    const auto rects = compute_subplot_layout(
-                        canvas.w, canvas.h,
-                        active_figure->grid_rows_, active_figure->grid_cols_,
-                        {},
-                        canvas.x, canvas.y);
-                    for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
-                        if (active_figure->axes_mut()[i]) {
-                            active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                        }
-                    }
-                    for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
-                        if (active_figure->all_axes_mut()[i]) {
-                            active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                        }
-                    }
-                } else
-#endif
-                {
-                    active_figure->compute_layout();
-                }
-                
-                // Update input handler viewport after layout recompute
-                if (!active_figure->axes().empty() && active_figure->axes()[0]) {
-                    auto& vp = active_figure->axes()[0]->viewport();
-                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-                }
             }
-            
-            // End the frame we started for resize checking
-            backend_->end_frame();
-        } else if (!needs_resize) {
-            resize_frame_counter = 0;
         }
 
         // Update input handler with current active axes viewport
@@ -1305,7 +1274,7 @@ void App::run() {
 
         // Compute subplot layout AFTER build_ui() so that nav rail / inspector
         // toggles from the current frame are immediately reflected.
-        if (!is_resizing) {
+        {
 #ifdef PLOTIX_USE_IMGUI
             if (imgui_ui) {
                 const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
@@ -1315,15 +1284,11 @@ void App::run() {
 
                 if (dock_system.is_split()) {
                     // Per-pane layout: each pane renders its own figure
-                    // Use explicit margins to guarantee space for axis labels
                     auto pane_infos = dock_system.get_pane_infos();
                     for (const auto& pinfo : pane_infos) {
                         if (pinfo.figure_index < figures_.size()) {
                             auto* fig = figures_[pinfo.figure_index].get();
                             if (!fig) continue;
-                            // Ensure each pane has adequate margins for Y-axis
-                            // labels (left) and X-axis labels (bottom), scaled
-                            // to pane size but with guaranteed minimums.
                             Margins pane_margins;
                             pane_margins.left   = std::min(60.0f, pinfo.bounds.w * 0.15f);
                             pane_margins.left   = std::max(pane_margins.left, 40.0f);
@@ -1346,8 +1311,6 @@ void App::run() {
                         }
                     }
                 } else {
-                    // Single pane — use root pane's content_bounds() to
-                    // account for the unified tab header
                     SplitPane* root = dock_system.split_view().root();
                     Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
                     const auto rects = compute_subplot_layout(
@@ -1375,21 +1338,48 @@ void App::run() {
 #endif
         }
 
-        // Render (skip drawing if swapchain is stale, but keep the loop going)
-        // During active resize, only render every few frames to maintain responsiveness
-        // Note: begin_frame might have been called already in resize processing above
-        bool already_begun_frame = (needs_resize && resize_frame_counter > 0);
-        bool should_render = !is_resizing || (resize_frame_counter % 3 == 0);
-        
-        if (should_render && (already_begun_frame || backend_->begin_frame())) {
-            PLOTIX_LOG_TRACE("resize", "begin_frame succeeded, rendering frame");
+        // Render frame. If begin_frame fails (OUT_OF_DATE), recreate and
+        // retry once so we present content immediately (no black-flash gap).
+        bool frame_ok = backend_->begin_frame();
 
-            // Use split render pass so ImGui can render inside the same pass
+        if (!frame_ok) {
+            // Swapchain truly unusable — recreate and retry
+#ifdef PLOTIX_USE_IMGUI
+            if (imgui_frame_started) {
+                ImGui::EndFrame();
+                imgui_frame_started = false;
+            }
+#endif
+#ifdef PLOTIX_USE_GLFW
+            if (glfw) {
+                uint32_t fb_width = 0, fb_height = 0;
+                glfw->framebuffer_size(fb_width, fb_height);
+                if (fb_width > 0 && fb_height > 0) {
+                    PLOTIX_LOG_INFO("resize", "OUT_OF_DATE, recreating: " +
+                                   std::to_string(fb_width) + "x" + std::to_string(fb_height));
+                    backend_->recreate_swapchain(fb_width, fb_height);
+                    auto* vk_fb = static_cast<VulkanBackend*>(backend_.get());
+                    vk_fb->clear_swapchain_dirty();
+                    active_figure->config_.width = backend_->swapchain_width();
+                    active_figure->config_.height = backend_->swapchain_height();
+                    needs_resize = false;
+#ifdef PLOTIX_USE_IMGUI
+                    if (imgui_ui) {
+                        imgui_ui->on_swapchain_recreated(*vk_fb);
+                    }
+#endif
+                    // Retry begin_frame with the new swapchain
+                    frame_ok = backend_->begin_frame();
+                }
+            }
+#endif
+        }
+
+        if (frame_ok) {
             renderer_->begin_render_pass();
 
 #ifdef PLOTIX_USE_IMGUI
             if (dock_system.is_split()) {
-                // Render all visible figures in their respective panes
                 auto pane_infos = dock_system.get_pane_infos();
                 for (const auto& pinfo : pane_infos) {
                     if (pinfo.figure_index < figures_.size() && figures_[pinfo.figure_index]) {
@@ -1404,80 +1394,15 @@ void App::run() {
 #endif
 
 #ifdef PLOTIX_USE_IMGUI
-            // Render ImGui overlay inside the same render pass, after plot content
+            // Only render ImGui if we have a valid frame (not a retry frame
+            // where we already ended the ImGui frame)
             if (imgui_ui && imgui_frame_started) {
                 imgui_ui->render(*static_cast<VulkanBackend*>(backend_.get()));
             }
 #endif
 
             renderer_->end_render_pass();
-
-            if (!already_begun_frame) {
-                backend_->end_frame();
-            }
-        } else {
-            PLOTIX_LOG_DEBUG("resize", "begin_frame failed or should_render=false");
-#ifdef PLOTIX_USE_IMGUI
-            // If render failed, we still need to end the ImGui frame properly
-            if (imgui_frame_started) {
-                ImGui::EndFrame();
-            }
-#endif
-#ifdef PLOTIX_USE_GLFW
-            if (glfw) {
-                // Swapchain is out of date — recreate with current framebuffer size
-                uint32_t fb_width, fb_height;
-                glfw->framebuffer_size(fb_width, fb_height);
-                PLOTIX_LOG_INFO("resize", "begin_frame failed, recreating from fallback: " + std::to_string(fb_width) + "x" + std::to_string(fb_height));
-                if (fb_width > 0 && fb_height > 0) {
-                    auto fallback_start = std::chrono::high_resolution_clock::now();
-                    backend_->recreate_swapchain(fb_width, fb_height);
-                    auto fallback_end = std::chrono::high_resolution_clock::now();
-                    auto fallback_duration = std::chrono::duration_cast<std::chrono::milliseconds>(fallback_end - fallback_start);
-                    PLOTIX_LOG_INFO("resize", "Fallback swapchain recreation completed in " + std::to_string(fallback_duration.count()) + "ms");
-                    // Sync figure dimensions from actual swapchain extent
-                    active_figure->config_.width = backend_->swapchain_width();
-                    active_figure->config_.height = backend_->swapchain_height();
-                    PLOTIX_LOG_INFO("resize", "Fallback recreation complete, actual extent: " + std::to_string(active_figure->config_.width) + "x" + std::to_string(active_figure->config_.height));
-#ifdef PLOTIX_USE_IMGUI
-                    if (imgui_ui) {
-                        imgui_ui->on_swapchain_recreated(
-                            *static_cast<VulkanBackend*>(backend_.get()));
-                    }
-#endif
-#ifdef PLOTIX_USE_IMGUI
-                    if (imgui_ui) {
-                        imgui_ui->update_layout(
-                            static_cast<float>(active_figure->config_.width),
-                            static_cast<float>(active_figure->config_.height));
-                        const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-                        const auto rects = compute_subplot_layout(
-                            canvas.w, canvas.h,
-                            active_figure->grid_rows_, active_figure->grid_cols_,
-                            {},
-                            canvas.x, canvas.y);
-                        for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
-                            if (active_figure->axes_mut()[i]) {
-                                active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
-                        for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
-                            if (active_figure->all_axes_mut()[i]) {
-                                active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
-                    } else
-#endif
-                    {
-                        active_figure->compute_layout();
-                    }
-                    // Clear resize flags to prevent redundant double recreation
-                    needs_resize = false;
-                    resize_frame_counter = 0;
-                    is_resizing = false;
-                }
-            }
-#endif
+            backend_->end_frame();
         }
 
 #ifdef PLOTIX_USE_FFMPEG

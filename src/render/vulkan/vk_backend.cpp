@@ -1281,6 +1281,11 @@ void VulkanBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t h
     vkCmdSetScissor(current_cmd_, 0, 1, &scissor);
 }
 
+void VulkanBackend::set_line_width(float width)
+{
+    vkCmdSetLineWidth(current_cmd_, width);
+}
+
 void VulkanBackend::draw(uint32_t vertex_count, uint32_t first_vertex)
 {
     vkCmdDraw(current_cmd_, vertex_count, 1, first_vertex, 0);
@@ -1300,8 +1305,27 @@ void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int
 
 bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height)
 {
-    if (!headless_)
+    // Determine source image and its current layout
+    VkImage src_image = VK_NULL_HANDLE;
+    VkImageLayout src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (headless_)
+    {
+        src_image = offscreen_.color_image;
+        src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    }
+    else
+    {
+        if (swapchain_.images.empty())
+            return false;
+        src_image = swapchain_.images[swapchain_.current_image_index];
+        src_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    }
+
+    if (src_image == VK_NULL_HANDLE)
         return false;
+
+    vkQueueWaitIdle(ctx_.graphics_queue);
 
     VkDeviceSize buffer_size = static_cast<VkDeviceSize>(width) * height * 4;
 
@@ -1327,17 +1351,65 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &begin);
 
+    // Transition source image to TRANSFER_SRC_OPTIMAL if needed
+    if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+    {
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = src_layout;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = src_image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
     VkBufferImageCopy region{};
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.layerCount = 1;
     region.imageExtent = {width, height, 1};
 
     vkCmdCopyImageToBuffer(cmd,
-                           offscreen_.color_image,
+                           src_image,
                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            staging.buffer(),
                            1,
                            &region);
+
+    // Transition back to original layout if we changed it
+    if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+    {
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = src_layout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = src_image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
 
     vkEndCommandBuffer(cmd);
 
@@ -1353,6 +1425,16 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     // Read back from staging buffer (GpuBuffer auto-maps host-visible memory)
     staging.read(out_rgba, buffer_size);
     staging.destroy();
+
+    // Swapchain uses BGRA format — swizzle to RGBA for PNG export
+    if (!headless_)
+    {
+        for (uint32_t i = 0; i < width * height; ++i)
+        {
+            std::swap(out_rgba[i * 4 + 0], out_rgba[i * 4 + 2]);  // B↔R
+        }
+    }
+
     return true;
 }
 

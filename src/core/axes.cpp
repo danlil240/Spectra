@@ -121,6 +121,27 @@ void Axes::show_border(bool enabled)
 
 void Axes::autoscale_mode(AutoscaleMode mode)
 {
+    if (mode == AutoscaleMode::Manual && autoscale_mode_ != AutoscaleMode::Manual)
+    {
+        // Switching TO Manual: freeze current computed limits so pan/zoom works
+        if (!xlim_.has_value())
+        {
+            auto lim = x_limits();
+            xlim_ = lim;
+        }
+        if (!ylim_.has_value())
+        {
+            auto lim = y_limits();
+            ylim_ = lim;
+        }
+    }
+    else if (mode != AutoscaleMode::Manual)
+    {
+        // Switching to an auto mode: clear explicit limits so the
+        // auto-computed limits take effect immediately.
+        xlim_.reset();
+        ylim_.reset();
+    }
     autoscale_mode_ = mode;
 }
 

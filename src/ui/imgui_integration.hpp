@@ -31,6 +31,7 @@ class DockSystem;
 class KeyframeInterpolator;
 class ModeTransition;
 class ShortcutManager;
+class TabBar;
 class TimelineEditor;
 class UndoManager;
 class VulkanBackend;
@@ -130,6 +131,22 @@ class ImGuiIntegration
     void set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
     ModeTransition* mode_transition() const { return mode_transition_; }
 
+    // Tab bar (owned externally by App)
+    void set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
+    TabBar* tab_bar() const { return tab_bar_; }
+
+    // Pane tab context menu callbacks (wired by App)
+    using PaneTabCallback = std::function<void(size_t figure_index)>;
+    using PaneTabDetachCallback = std::function<void(size_t figure_index, float screen_x, float screen_y)>;
+    using PaneTabRenameCallback = std::function<void(size_t figure_index, const std::string& new_title)>;
+
+    void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
+    void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
+    void set_pane_tab_split_right_cb(PaneTabCallback cb) { pane_tab_split_right_cb_ = std::move(cb); }
+    void set_pane_tab_split_down_cb(PaneTabCallback cb) { pane_tab_split_down_cb_ = std::move(cb); }
+    void set_pane_tab_detach_cb(PaneTabDetachCallback cb) { pane_tab_detach_cb_ = std::move(cb); }
+    void set_pane_tab_rename_cb(PaneTabRenameCallback cb) { pane_tab_rename_cb_ = std::move(cb); }
+
     // Panel visibility toggles
     bool is_timeline_visible() const { return show_timeline_; }
     void set_timeline_visible(bool v) { show_timeline_ = v; }
@@ -144,6 +161,7 @@ class ImGuiIntegration
     void load_fonts();
 
     void draw_command_bar();
+    void draw_tab_bar();
     void draw_nav_rail();
     void draw_canvas(Figure& figure);
     void draw_inspector(Figure& figure);
@@ -179,6 +197,7 @@ class ImGuiIntegration
 
     // Panel state
     bool panel_open_ = false;
+    bool show_nav_rail_ = true;  // Nav rail toolbar visibility
 
     enum class Section
     {
@@ -237,6 +256,26 @@ class ImGuiIntegration
 
     // Mode transition (not owned)
     ModeTransition* mode_transition_ = nullptr;
+
+    // Tab bar (not owned)
+    TabBar* tab_bar_ = nullptr;
+
+    // Pane tab context menu callbacks
+    PaneTabCallback pane_tab_duplicate_cb_;
+    PaneTabCallback pane_tab_close_cb_;
+    PaneTabCallback pane_tab_split_right_cb_;
+    PaneTabCallback pane_tab_split_down_cb_;
+    PaneTabDetachCallback pane_tab_detach_cb_;
+    PaneTabRenameCallback pane_tab_rename_cb_;
+
+    // Pane tab context menu state
+    size_t pane_ctx_menu_fig_ = SIZE_MAX;  // Figure index of right-clicked tab
+    bool pane_ctx_menu_open_ = false;
+
+    // Pane tab rename state
+    bool pane_tab_renaming_ = false;
+    size_t pane_tab_rename_fig_ = SIZE_MAX;
+    char pane_tab_rename_buf_[256] = {};
 
     // Current figure pointer (set each frame in build_ui for menu callbacks)
     Figure* current_figure_ = nullptr;
@@ -323,6 +362,9 @@ class ImGuiIntegration
     // Menubar hover-switch state: tracks which menu popup is currently open
     // so hovering another menu button auto-opens it
     std::string open_menu_label_;  // label of currently open menu ("" = none)
+
+    // Deferred tooltip rendering to ensure tooltips appear above all UI elements
+    const char* deferred_tooltip_ = nullptr;
 
     #if PLOTIX_FLOATING_TOOLBAR
     // Floating toolbar drag state

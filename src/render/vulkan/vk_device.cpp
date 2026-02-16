@@ -298,7 +298,12 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
         queue_infos.push_back(qi);
     }
 
+    VkPhysicalDeviceFeatures supported_features{};
+    vkGetPhysicalDeviceFeatures(physical_device, &supported_features);
+
     VkPhysicalDeviceFeatures features{};
+    if (supported_features.wideLines)
+        features.wideLines = VK_TRUE;
 
     bool need_swapchain = indices.has_present();
     auto extensions = get_required_device_extensions(need_swapchain);

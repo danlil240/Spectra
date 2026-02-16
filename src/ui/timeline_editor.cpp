@@ -1095,7 +1095,6 @@ void TimelineEditor::draw(float width, float height)
     ImGui::BeginChild("##timeline_editor", ImVec2(width, height), true);
 
     const float track_height = 28.0f;
-    const float header_height = 32.0f;
     const float ruler_height = 24.0f;
     const float track_label_width = 140.0f;
 
@@ -1111,59 +1110,8 @@ void TimelineEditor::draw(float width, float height)
     auto time_to_px = [&](float t) -> float
     { return track_label_width + (t - view_start_) * px_per_sec; };
 
-    // ─── Transport controls bar ──────────────────────────────────────
-    ImGui::SetCursorScreenPos(origin);
-    ImGui::BeginGroup();
-    ImGui::Indent(4.0f);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
-
-    if (ImGui::SmallButton(state_ == PlaybackState::Playing ? "||" : ">"))
-    {
-        if (state_ == PlaybackState::Playing)
-        {
-            state_ = PlaybackState::Paused;
-        }
-        else
-        {
-            if (state_ == PlaybackState::Stopped)
-            {
-                playhead_ = 0.0f;
-                ping_pong_dir_ = 1;
-            }
-            state_ = PlaybackState::Playing;
-        }
-        fire_playback_change();
-    }
-    ImGui::SameLine();
-    if (ImGui::SmallButton("[]"))
-    {
-        state_ = PlaybackState::Stopped;
-        playhead_ = 0.0f;
-        ping_pong_dir_ = 1;
-        fire_playback_change();
-    }
-    ImGui::SameLine();
-    if (ImGui::SmallButton("|<"))
-    {
-        if (fps_ > 0.0f)
-            playhead_ = std::max(0.0f, playhead_ - 1.0f / fps_);
-    }
-    ImGui::SameLine();
-    if (ImGui::SmallButton(">|"))
-    {
-        if (fps_ > 0.0f)
-            playhead_ = std::min(duration_, playhead_ + 1.0f / fps_);
-    }
-    ImGui::SameLine();
-    ImGui::Text("%.2fs  F:%u/%u",
-                playhead_,
-                static_cast<uint32_t>(std::floor(playhead_ * fps_)),
-                static_cast<uint32_t>(std::ceil(duration_ * fps_)));
-
-    ImGui::EndGroup();
-
     // ─── Time ruler ──────────────────────────────────────────────────
-    float ruler_y = origin.y + header_height;
+    float ruler_y = origin.y;
     draw_list->AddRectFilled(ImVec2(origin.x + track_label_width, ruler_y),
                              ImVec2(origin.x + width, ruler_y + ruler_height),
                              IM_COL32(40, 40, 40, 255));

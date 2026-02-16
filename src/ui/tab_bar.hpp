@@ -42,6 +42,9 @@ class TabBar
     using TabCloseAllExceptCallback = std::function<void(size_t index)>;
     using TabCloseToRightCallback = std::function<void(size_t index)>;
     using TabRenameCallback = std::function<void(size_t index, const std::string& new_title)>;
+    using TabSplitRightCallback = std::function<void(size_t index)>;
+    using TabSplitDownCallback = std::function<void(size_t index)>;
+    using TabDetachCallback = std::function<void(size_t index, float screen_x, float screen_y)>;
     using TabDragOutCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
     using TabDragUpdateCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
     using TabDragEndCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
@@ -81,6 +84,15 @@ class TabBar
         on_tab_close_to_right_ = callback;
     }
     void set_tab_rename_callback(TabRenameCallback callback) { on_tab_rename_ = callback; }
+    void set_tab_split_right_callback(TabSplitRightCallback callback)
+    {
+        on_tab_split_right_ = callback;
+    }
+    void set_tab_split_down_callback(TabSplitDownCallback callback)
+    {
+        on_tab_split_down_ = callback;
+    }
+    void set_tab_detach_callback(TabDetachCallback callback) { on_tab_detach_ = callback; }
     void set_tab_drag_out_callback(TabDragOutCallback callback) { on_tab_drag_out_ = callback; }
     void set_tab_drag_update_callback(TabDragUpdateCallback callback)
     {
@@ -125,6 +137,9 @@ class TabBar
     TabCloseAllExceptCallback on_tab_close_all_except_;
     TabCloseToRightCallback on_tab_close_to_right_;
     TabRenameCallback on_tab_rename_;
+    TabSplitRightCallback on_tab_split_right_;
+    TabSplitDownCallback on_tab_split_down_;
+    TabDetachCallback on_tab_detach_;
     TabDragOutCallback on_tab_drag_out_;
     TabDragUpdateCallback on_tab_drag_update_;
     TabDragEndCallback on_tab_drag_end_;

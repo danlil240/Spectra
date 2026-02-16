@@ -57,11 +57,12 @@ VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& confi
     input_assembly.topology = config.topology;
     input_assembly.primitiveRestartEnable = VK_FALSE;
 
-    // Dynamic viewport and scissor
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    // Dynamic viewport, scissor, and line width
+    VkDynamicState dynamic_states[] = {
+        VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_LINE_WIDTH};
     VkPipelineDynamicStateCreateInfo dynamic_state{};
     dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamic_state.dynamicStateCount = 2;
+    dynamic_state.dynamicStateCount = 3;
     dynamic_state.pDynamicStates = dynamic_states;
 
     VkPipelineViewportStateCreateInfo viewport_state{};

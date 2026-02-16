@@ -59,6 +59,12 @@ class GlfwAdapter
     // Get current mouse position
     void mouse_position(double& x, double& y) const;
 
+    // Get window position on screen (top-left corner)
+    void window_pos(int& x, int& y) const;
+
+    // Get window size in screen coordinates
+    void window_size(int& width, int& height) const;
+
     // Check if a mouse button is pressed
     bool is_mouse_button_pressed(int button) const;
 

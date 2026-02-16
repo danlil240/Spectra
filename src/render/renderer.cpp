@@ -146,6 +146,7 @@ void Renderer::begin_render_pass()
                            theme_colors.bg_primary.b,
                            theme_colors.bg_primary.a);
     backend_.begin_render_pass(bg_color);
+    backend_.set_line_width(1.0f);  // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
 
 void Renderer::render_figure_content(Figure& figure)
@@ -798,18 +799,31 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto& theme_colors = ui::ThemeManager::instance().colors();
-        pc.color[0] = theme_colors.grid_line.r;
-        pc.color[1] = theme_colors.grid_line.g;
-        pc.color[2] = theme_colors.grid_line.b;
-        pc.color[3] = theme_colors.grid_line.a;
-        pc.line_width = 1.0f;
+        const auto& as = axes2d->axis_style();
+        if (as.grid_color.a > 0.0f)
+        {
+            pc.color[0] = as.grid_color.r;
+            pc.color[1] = as.grid_color.g;
+            pc.color[2] = as.grid_color.b;
+            pc.color[3] = as.grid_color.a;
+        }
+        else
+        {
+            const auto& theme_colors = ui::ThemeManager::instance().colors();
+            pc.color[0] = theme_colors.grid_line.r;
+            pc.color[1] = theme_colors.grid_line.g;
+            pc.color[2] = theme_colors.grid_line.b;
+            pc.color[3] = theme_colors.grid_line.a;
+        }
+        pc.line_width = as.grid_width;
         pc.data_offset_x = 0.0f;
         pc.data_offset_y = 0.0f;
         backend_.push_constants(pc);
 
+        backend_.set_line_width(std::max(1.0f, as.grid_width));
         backend_.bind_buffer(gpu.grid_buffer, 0);
         backend_.draw(static_cast<uint32_t>(total_lines * 2));
+        backend_.set_line_width(1.0f);
     }
 }
 

@@ -120,6 +120,32 @@ void GlfwAdapter::mouse_position(double& x, double& y) const
     }
 }
 
+void GlfwAdapter::window_pos(int& x, int& y) const
+{
+    if (window_)
+    {
+        glfwGetWindowPos(window_, &x, &y);
+    }
+    else
+    {
+        x = 0;
+        y = 0;
+    }
+}
+
+void GlfwAdapter::window_size(int& width, int& height) const
+{
+    if (window_)
+    {
+        glfwGetWindowSize(window_, &width, &height);
+    }
+    else
+    {
+        width = 0;
+        height = 0;
+    }
+}
+
 bool GlfwAdapter::is_mouse_button_pressed(int button) const
 {
     if (window_)

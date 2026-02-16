@@ -167,6 +167,20 @@ void TabBar::handle_input(const Rect& bounds)
     bool mouse_in_bounds = (mouse_pos.x >= bounds.x && mouse_pos.x < bounds.x + bounds.w
                             && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
 
+    // Always process ongoing drags, even when mouse is outside tab bar
+    if (is_dragging_)
+    {
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            end_drag();
+        }
+        else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        {
+            update_drag(mouse_pos.x);
+        }
+        return;  // Don't process hover/click while dragging
+    }
+
     if (!mouse_in_bounds)
     {
         hovered_tab_ = SIZE_MAX;
@@ -206,18 +220,6 @@ void TabBar::handle_input(const Rect& bounds)
             context_menu_open_ = true;
             ImGui::OpenPopup("##tab_context_menu");
         }
-    }
-
-    // Handle mouse release (end drag)
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && is_dragging_)
-    {
-        end_drag();
-    }
-
-    // Handle mouse drag
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging_)
-    {
-        update_drag(mouse_pos.x);
     }
 #endif
 }
@@ -565,7 +567,21 @@ void TabBar::end_drag()
     if (is_dock_dragging_ && dragged_tab_ < tabs_.size())
     {
         ImVec2 mouse_pos = ImGui::GetMousePos();
-        if (on_tab_drag_end_)
+
+        // Check if mouse is outside the main window — detach to new window
+        ImVec2 display_size = ImGui::GetIO().DisplaySize;
+        bool outside_window = (mouse_pos.x < 0 || mouse_pos.y < 0 || mouse_pos.x >= display_size.x
+                               || mouse_pos.y >= display_size.y);
+
+        if (outside_window && on_tab_detach_ && tabs_.size() > 1)
+        {
+            // Convert to screen coordinates for new window placement
+            ImVec2 window_pos = ImGui::GetMainViewport()->Pos;
+            float screen_x = window_pos.x + mouse_pos.x;
+            float screen_y = window_pos.y + mouse_pos.y;
+            on_tab_detach_(dragged_tab_, screen_x, screen_y);
+        }
+        else if (on_tab_drag_end_)
         {
             on_tab_drag_end_(dragged_tab_, mouse_pos.x, mouse_pos.y);
         }
@@ -725,6 +741,39 @@ void TabBar::draw_context_menu()
             {
                 if (on_tab_duplicate_)
                     on_tab_duplicate_(context_menu_tab_);
+            }
+
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(
+                ImGuiCol_Separator,
+                ImVec4(
+                    colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+
+            if (menu_item("Split Right"))
+            {
+                if (on_tab_split_right_)
+                    on_tab_split_right_(context_menu_tab_);
+            }
+
+            if (menu_item("Split Down"))
+            {
+                if (on_tab_split_down_)
+                    on_tab_split_down_(context_menu_tab_);
+            }
+
+            if (tabs_.size() > 1)
+            {
+                if (menu_item("Detach to Window"))
+                {
+                    if (on_tab_detach_)
+                    {
+                        ImVec2 mouse = ImGui::GetMousePos();
+                        on_tab_detach_(context_menu_tab_, mouse.x, mouse.y);
+                    }
+                }
             }
 
             ImGui::Dummy(ImVec2(0, 2));

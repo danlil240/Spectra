@@ -26,9 +26,12 @@
     #include "icons.hpp"
     #include "keyframe_interpolator.hpp"
     #include "mode_transition.hpp"
+    #include "tab_bar.hpp"
     #include "theme.hpp"
     #include "timeline_editor.hpp"
     #include "widgets.hpp"
+
+    #include <unordered_map>
 
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
@@ -207,6 +210,37 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_curve_editor_panel();
     }
 
+    // Draw deferred tooltip (command bar) on top of everything
+    if (deferred_tooltip_)
+    {
+        ImGui::SetNextWindowPos(ImGui::GetIO().MousePos, ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+        ImGui::BeginTooltip();
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+        ImGui::PushStyleColor(
+            ImGuiCol_PopupBg,
+            ImVec4(ui::theme().bg_elevated.r,
+                   ui::theme().bg_elevated.g,
+                   ui::theme().bg_elevated.b,
+                   0.95f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Border,
+            ImVec4(ui::theme().border_subtle.r,
+                   ui::theme().border_subtle.g,
+                   ui::theme().border_subtle.b,
+                   0.3f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(ui::theme().text_primary.r,
+                                     ui::theme().text_primary.g,
+                                     ui::theme().text_primary.b,
+                                     ui::theme().text_primary.a));
+        ImGui::TextUnformatted(deferred_tooltip_);
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+        ImGui::EndTooltip();
+        deferred_tooltip_ = nullptr;  // Clear for next frame
+    }
+
     // Draw data interaction overlays (tooltip, crosshair, markers) on top of everything
     if (data_interaction_)
     {
@@ -220,6 +254,85 @@ void ImGuiIntegration::build_ui(Figure& figure)
         box_zoom_overlay_->update(dt);
         ImGuiIO& io = ImGui::GetIO();
         box_zoom_overlay_->draw(io.DisplaySize.x, io.DisplaySize.y);
+    }
+
+    // Draw measure overlay (Measure tool mode)
+    // Crosshair is handled by data_interaction (auto-enabled when entering Measure mode)
+    if (input_handler_ && input_handler_->tool_mode() == ToolMode::Measure)
+    {
+        Axes* ax = input_handler_->active_axes();
+        bool dragging = input_handler_->is_measure_dragging();
+        bool has_result = input_handler_->has_measure_result();
+        if (ax && (dragging || has_result))
+        {
+            const auto& vp = ax->viewport();
+            auto xlim = ax->x_limits();
+            auto ylim = ax->y_limits();
+
+            auto data_to_screen = [&](float dx_, float dy_, float& scr_x, float& scr_y)
+            {
+                scr_x = vp.x + (dx_ - xlim.min) / (xlim.max - xlim.min) * vp.w;
+                scr_y = vp.y + (1.0f - (dy_ - ylim.min) / (ylim.max - ylim.min)) * vp.h;
+            };
+
+            float sx = input_handler_->measure_start_data_x();
+            float sy = input_handler_->measure_start_data_y();
+            float ex = input_handler_->measure_end_data_x();
+            float ey = input_handler_->measure_end_data_y();
+
+            float mdx = ex - sx;
+            float mdy = ey - sy;
+            float dist = std::sqrt(mdx * mdx + mdy * mdy);
+            if (dist > 1e-6f)
+            {
+                auto* dl = ImGui::GetForegroundDrawList();
+                auto accent = ui::theme().accent;
+                ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
+                                          uint8_t(accent.g * 255),
+                                          uint8_t(accent.b * 255),
+                                          220);
+                ImU32 dot_col = IM_COL32(uint8_t(accent.r * 255),
+                                         uint8_t(accent.g * 255),
+                                         uint8_t(accent.b * 255),
+                                         255);
+                ImU32 bg_col = IM_COL32(uint8_t(ui::theme().bg_elevated.r * 255),
+                                        uint8_t(ui::theme().bg_elevated.g * 255),
+                                        uint8_t(ui::theme().bg_elevated.b * 255),
+                                        230);
+
+                float scr_sx, scr_sy, scr_ex, scr_ey;
+                data_to_screen(sx, sy, scr_sx, scr_sy);
+                data_to_screen(ex, ey, scr_ex, scr_ey);
+
+                // Measurement line
+                dl->AddLine(ImVec2(scr_sx, scr_sy), ImVec2(scr_ex, scr_ey), line_col, 2.0f);
+
+                // Endpoint dots
+                dl->AddCircleFilled(ImVec2(scr_sx, scr_sy), 4.0f, dot_col);
+                dl->AddCircleFilled(ImVec2(scr_ex, scr_ey), 4.0f, dot_col);
+
+                // Distance label at midpoint
+                float mid_x = (scr_sx + scr_ex) * 0.5f;
+                float mid_y = (scr_sy + scr_ey) * 0.5f;
+                char label[128];
+                std::snprintf(label,
+                              sizeof(label),
+                              "dX: %.4f  dY: %.4f  dist: %.4f",
+                              mdx,
+                              mdy,
+                              dist);
+                ImVec2 tsz = ImGui::CalcTextSize(label);
+                float pad = 6.0f;
+                dl->AddRectFilled(
+                    ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
+                    ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
+                    bg_col,
+                    4.0f);
+                dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
+                            IM_COL32(255, 255, 255, 240),
+                            label);
+            }
+        }
     }
 
     // Draw theme settings window if open
@@ -456,11 +569,12 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     bool clicked = ImGui::Button(label);
     ImVec2 btn_size = ImGui::GetItemRectSize();
     ImVec2 btn_max = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
-    bool btn_hovered = ImGui::IsItemHovered();
+    bool btn_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
 
     // Click opens this menu
     if (clicked)
     {
+        PLOTIX_LOG_DEBUG("menu", "Click open: " + std::string(label));
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
     }
@@ -468,6 +582,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     // Hover-switch: if another menu is open and user hovers this button, switch
     if (btn_hovered && !open_menu_label_.empty() && open_menu_label_ != label)
     {
+        PLOTIX_LOG_DEBUG("menu", "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
     }
@@ -509,6 +624,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 
         if (!mouse_in_zone && !ImGui::IsAnyItemActive())
         {
+            PLOTIX_LOG_DEBUG("menu", "Auto-close: " + std::string(label));
             ImGui::CloseCurrentPopup();
             open_menu_label_.clear();
         }
@@ -628,25 +744,10 @@ void ImGuiIntegration::draw_toolbar_button(const char* icon,
             callback();
     }
 
-    // Modern themed tooltip
+    // Store tooltip for deferred rendering at the end of build_ui
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && tooltip)
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-        ImGui::PushStyleColor(
-            ImGuiCol_PopupBg,
-            ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.95f));
-        ImGui::PushStyleColor(
-            ImGuiCol_Border,
-            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_primary.r,
-                                     colors.text_primary.g,
-                                     colors.text_primary.b,
-                                     colors.text_primary.a));
-        ImGui::SetTooltip("%s", tooltip);
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar(2);
+        deferred_tooltip_ = tooltip;
     }
 
     ImGui::PopStyleVar(2);
@@ -707,22 +808,6 @@ void ImGuiIntegration::draw_command_bar()
 
         ImGui::SameLine();
 
-        // Home button to reset view
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::Menu),
-            [this]()
-            {
-                PLOTIX_LOG_DEBUG("ui_button", "Menu button clicked - toggling nav rail");
-                layout_manager_->set_nav_rail_expanded(!layout_manager_->is_nav_rail_expanded());
-                PLOTIX_LOG_DEBUG(
-                    "ui_button",
-                    "Nav rail expanded state: "
-                        + std::string(layout_manager_->is_nav_rail_expanded() ? "true" : "false"));
-            },
-            "Toggle Navigation Rail");
-
-        ImGui::SameLine();
-
         draw_toolbar_button(
             ui::icon_str(ui::Icon::Home),
             [this]()
@@ -738,11 +823,37 @@ void ImGuiIntegration::draw_command_bar()
         // File menu
         draw_menubar_menu(
             "File",
-            {MenuItem("Export PNG", []() { /* TODO: Export functionality */ }),
-             MenuItem("Export SVG", []() { /* TODO: Export functionality */ }),
-             MenuItem("Export Video", []() { /* TODO: Video export functionality */ }),
+            {MenuItem("Export PNG",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.export_png");
+                      }),
+             MenuItem("Export SVG",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.export_svg");
+                      }),
+             MenuItem("Save Workspace",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.save_workspace");
+                      }),
+             MenuItem("Load Workspace",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.load_workspace");
+                      }),
              MenuItem("", nullptr),  // Separator
-             MenuItem("Exit", []() { /* TODO: Exit functionality */ })});
+             MenuItem("Exit",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("app.cancel");
+                      })});
 
         ImGui::SameLine();
 
@@ -752,24 +863,60 @@ void ImGuiIntegration::draw_command_bar()
             {MenuItem("Toggle Inspector",
                       [this]()
                       {
-                          bool new_vis = !layout_manager_->is_inspector_visible();
-                          layout_manager_->set_inspector_visible(new_vis);
-                          panel_open_ = new_vis;
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_inspector");
+                          else
+                          {
+                              bool new_vis = !layout_manager_->is_inspector_visible();
+                              layout_manager_->set_inspector_visible(new_vis);
+                              panel_open_ = new_vis;
+                          }
                       }),
              MenuItem("Toggle Navigation Rail",
-                      [this]() {
-                          layout_manager_->set_nav_rail_expanded(
-                              !layout_manager_->is_nav_rail_expanded());
-                      }),
+                      [this]() { show_nav_rail_ = !show_nav_rail_; }),
              MenuItem("Toggle 2D/3D View",
                       [this]()
                       {
                           if (command_registry_)
                               command_registry_->execute("view.toggle_3d");
                       }),
-             MenuItem("Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
-             MenuItem("Reset View", []() { /* TODO: Reset view functionality */ }),
-             MenuItem("Toggle Grid", []() { /* TODO: Grid toggle functionality */ })});
+             MenuItem("Zoom to Fit",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.autofit");
+                      }),
+             MenuItem("Reset View",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.reset");
+                      }),
+             MenuItem("Toggle Grid",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.toggle_grid");
+                      }),
+             MenuItem("Toggle Legend",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.toggle_legend");
+                      }),
+             MenuItem("", nullptr),  // Separator
+             MenuItem("Toggle Timeline",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_timeline");
+                      }),
+             MenuItem("Toggle Curve Editor",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_curve_editor");
+                      })});
 
         ImGui::SameLine();
 
@@ -900,10 +1047,32 @@ void ImGuiIntegration::draw_command_bar()
         // Tools menu
         draw_menubar_menu(
             "Tools",
-            {MenuItem("Screenshot", []() { /* TODO: Screenshot functionality */ }),
-             MenuItem("Performance Monitor", []() { /* TODO: Performance monitor */ }),
+            {MenuItem("Screenshot (PNG)",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.export_png");
+                      }),
+             MenuItem("Undo",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("edit.undo");
+                      }),
+             MenuItem("Redo",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("edit.redo");
+                      }),
+             MenuItem("", nullptr),  // Separator
              MenuItem("Theme Settings", [this]() { show_theme_settings_ = !show_theme_settings_; }),
-             MenuItem("Preferences", []() { /* TODO: Preferences dialog */ })});
+             MenuItem("Command Palette",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("app.command_palette");
+                      })});
 
         // Push status info to the right
         ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
@@ -934,9 +1103,50 @@ void ImGuiIntegration::draw_command_bar()
     ImGui::PopStyleColor(2);
 }
 
+void ImGuiIntegration::draw_tab_bar()
+{
+    if (!layout_manager_ || !tab_bar_)
+        return;
+    if (!layout_manager_->is_tab_bar_visible())
+        return;
+
+    Rect bounds = layout_manager_->tab_bar_rect();
+    if (bounds.w < 1.0f || bounds.h < 1.0f)
+        return;
+
+    // Create an ImGui window for the tab bar so that GetWindowDrawList(),
+    // OpenPopup(), and BeginPopup() all work correctly inside TabBar::draw()
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(ui::theme().bg_secondary.r,
+                                 ui::theme().bg_secondary.g,
+                                 ui::theme().bg_secondary.b,
+                                 ui::theme().bg_secondary.a));
+
+    if (ImGui::Begin("##plotix_tab_bar", nullptr, flags))
+    {
+        // Let the TabBar handle all input, drawing, and context menus
+        tab_bar_->draw(bounds);
+    }
+    ImGui::End();
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
+}
+
 void ImGuiIntegration::draw_nav_rail()
 {
-    if (!layout_manager_)
+    if (!layout_manager_ || !show_nav_rail_)
         return;
 
     Rect bounds = layout_manager_->nav_rail_rect();
@@ -1012,6 +1222,7 @@ void ImGuiIntegration::draw_nav_rail()
         {
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
             {
+                ImGui::BeginTooltip();
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
                 ImGui::PushStyleColor(ImGuiCol_PopupBg,
@@ -1029,9 +1240,10 @@ void ImGuiIntegration::draw_nav_rail()
                                              ui::theme().text_primary.g,
                                              ui::theme().text_primary.b,
                                              1.0f));
-                ImGui::SetTooltip("%s", tip);
+                ImGui::TextUnformatted(tip);
                 ImGui::PopStyleColor(3);
                 ImGui::PopStyleVar(2);
+                ImGui::EndTooltip();
             }
         };
 
@@ -1092,10 +1304,16 @@ void ImGuiIntegration::draw_nav_rail()
         tool_btn(ui::Icon::ZoomIn, "Box Zoom (Z)", ToolMode::BoxZoom);
         tool_btn(ui::Icon::Crosshair, "Select (S)", ToolMode::Select);
 
-        // Measure button (no tool mode, standalone action)
+        // Measure button — switches to Measure tool mode for click-drag distance measurement
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
-        icon_button(ui::icon_str(ui::Icon::Ruler), false, font_icon_, btn_size);
-        modern_tooltip("Measure");
+        {
+            bool is_active = (interaction_mode_ == ToolMode::Measure);
+            if (icon_button(ui::icon_str(ui::Icon::Ruler), is_active, font_icon_, btn_size))
+            {
+                interaction_mode_ = ToolMode::Measure;
+            }
+        }
+        modern_tooltip("Measure (M)");
 
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
@@ -1279,15 +1497,22 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
         {
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
 
-            // Update selection context based on active nav rail section
+            // Update selection context based on active nav rail section.
+            // When the Series section is active and the user has drilled into
+            // a specific series, preserve that selection so the properties
+            // panel stays visible. Switching to any other section always
+            // overrides the selection.
             switch (active_section_)
             {
                 case Section::Figure:
                     selection_ctx_.select_figure(&figure);
                     break;
                 case Section::Series:
-                    // For Series section, show only series browser (no figure properties)
-                    selection_ctx_.select_series_browser(&figure);
+                    // Only show browser if user hasn't selected a specific series
+                    if (selection_ctx_.type != ui::SelectionType::Series)
+                    {
+                        selection_ctx_.select_series_browser(&figure);
+                    }
                     break;
                 case Section::Axes:
                     if (selection_ctx_.type != ui::SelectionType::Axes && !figure.axes().empty())
@@ -1377,6 +1602,10 @@ void ImGuiIntegration::draw_status_bar()
                 case ToolMode::Select:
                     mode_label = "Select";
                     mode_color = ui::theme().info;
+                    break;
+                case ToolMode::Measure:
+                    mode_label = "Measure";
+                    mode_color = ui::theme().success;
                     break;
                 default:
                     break;
@@ -2011,6 +2240,14 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     pane_tab_drag_.cross_pane = false;
                     pane_tab_drag_.dock_dragging = false;
                 }
+
+                // Right-click context menu
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                {
+                    pane_ctx_menu_fig_ = tr.figure_index;
+                    pane_ctx_menu_open_ = true;
+                    ImGui::OpenPopup("##pane_tab_ctx");
+                }
             }
         }
     }
@@ -2157,8 +2394,23 @@ void ImGuiIntegration::draw_pane_tab_headers()
     {
         if (pane_tab_drag_.dragging && pane_tab_drag_.dock_dragging)
         {
-            // Dock-drag mode: let dock system handle the split
-            dock_system_->end_drag(mouse.x, mouse.y);
+            // Check if mouse is outside the window → detach to new window
+            ImVec2 display_size = ImGui::GetIO().DisplaySize;
+            bool outside = (mouse.x < 0 || mouse.y < 0
+                            || mouse.x >= display_size.x || mouse.y >= display_size.y);
+
+            if (outside && pane_tab_detach_cb_)
+            {
+                dock_system_->cancel_drag();
+                ImVec2 wpos = ImGui::GetMainViewport()->Pos;
+                pane_tab_detach_cb_(pane_tab_drag_.dragged_figure_index,
+                                     wpos.x + mouse.x, wpos.y + mouse.y);
+            }
+            else
+            {
+                // Dock-drag mode: let dock system handle the split
+                dock_system_->end_drag(mouse.x, mouse.y);
+            }
         }
         else if (pane_tab_drag_.dragging && pane_tab_drag_.cross_pane)
         {
@@ -2198,6 +2450,186 @@ void ImGuiIntegration::draw_pane_tab_headers()
         pane_tab_drag_.cross_pane = false;
         pane_tab_drag_.dock_dragging = false;
     }
+
+    // ── Phase 5: Right-click context menu ────────────────────────────────
+    // OpenPopup/BeginPopup require an active ImGui window context.
+    // Create an invisible overlay window for the popup scope.
+    {
+    ImGuiIO& popup_io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(popup_io.DisplaySize.x, popup_io.DisplaySize.y));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGuiWindowFlags popup_host_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground
+        | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav;
+    ImGui::Begin("##pane_tab_popup_host", nullptr, popup_host_flags);
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(2);
+
+    // Open the popup if right-click was detected in Phase 2
+    if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != SIZE_MAX)
+    {
+        ImGui::OpenPopup("##pane_tab_ctx");
+        pane_ctx_menu_open_ = false;  // Only open once
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg,
+                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
+                                 theme.bg_elevated.b, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(theme.border_default.r, theme.border_default.g,
+                                 theme.border_default.b, 0.5f));
+
+    if (ImGui::BeginPopup("##pane_tab_ctx"))
+    {
+        if (pane_ctx_menu_fig_ != SIZE_MAX)
+        {
+            auto menu_item = [&](const char* label) -> bool
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                                      ImVec4(theme.accent_subtle.r, theme.accent_subtle.g,
+                                             theme.accent_subtle.b, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive,
+                                      ImVec4(theme.accent_muted.r, theme.accent_muted.g,
+                                             theme.accent_muted.b, 0.7f));
+                float item_h = ImGui::GetTextLineHeight() + 8.0f;
+                bool clicked = ImGui::Selectable(label, false, ImGuiSelectableFlags_None,
+                                                  ImVec2(0, item_h));
+                ImGui::PopStyleColor(3);
+                return clicked;
+            };
+
+            if (menu_item("Rename..."))
+            {
+                pane_tab_renaming_ = true;
+                pane_tab_rename_fig_ = pane_ctx_menu_fig_;
+                std::string title = fig_title(pane_ctx_menu_fig_);
+                strncpy(pane_tab_rename_buf_, title.c_str(), sizeof(pane_tab_rename_buf_) - 1);
+                pane_tab_rename_buf_[sizeof(pane_tab_rename_buf_) - 1] = '\0';
+            }
+
+            if (menu_item("Duplicate"))
+            {
+                if (pane_tab_duplicate_cb_)
+                    pane_tab_duplicate_cb_(pane_ctx_menu_fig_);
+            }
+
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(theme.border_subtle.r, theme.border_subtle.g,
+                                         theme.border_subtle.b, 0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+
+            if (menu_item("Split Right"))
+            {
+                if (pane_tab_split_right_cb_)
+                    pane_tab_split_right_cb_(pane_ctx_menu_fig_);
+            }
+
+            if (menu_item("Split Down"))
+            {
+                if (pane_tab_split_down_cb_)
+                    pane_tab_split_down_cb_(pane_ctx_menu_fig_);
+            }
+
+            if (menu_item("Detach to Window"))
+            {
+                if (pane_tab_detach_cb_)
+                {
+                    ImVec2 m = ImGui::GetMousePos();
+                    ImVec2 wpos = ImGui::GetMainViewport()->Pos;
+                    pane_tab_detach_cb_(pane_ctx_menu_fig_, wpos.x + m.x, wpos.y + m.y);
+                }
+            }
+
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(theme.border_subtle.r, theme.border_subtle.g,
+                                         theme.border_subtle.b, 0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+
+            if (menu_item("Close"))
+            {
+                if (pane_tab_close_cb_)
+                    pane_tab_close_cb_(pane_ctx_menu_fig_);
+            }
+        }
+        ImGui::EndPopup();
+    }
+    else
+    {
+        pane_ctx_menu_open_ = false;
+        pane_ctx_menu_fig_ = SIZE_MAX;
+    }
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(4);
+
+    // ── Rename popup ─────────────────────────────────────────────────────
+
+    if (pane_tab_renaming_ && pane_tab_rename_fig_ != SIZE_MAX)
+    {
+        ImGui::OpenPopup("##pane_tab_rename");
+        pane_tab_renaming_ = false;
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg,
+                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
+                                 theme.bg_elevated.b, 0.98f));
+
+    if (ImGui::BeginPopup("##pane_tab_rename"))
+    {
+        ImGui::TextUnformatted("Rename tab");
+        ImGui::Spacing();
+        bool enter = ImGui::InputText("##pane_rename_input", pane_tab_rename_buf_,
+                                       sizeof(pane_tab_rename_buf_),
+                                       ImGuiInputTextFlags_EnterReturnsTrue);
+        if (ImGui::IsWindowAppearing())
+            ImGui::SetKeyboardFocusHere(-1);
+        ImGui::Spacing();
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
+        if (enter || ImGui::Button("OK"))
+        {
+            std::string new_title(pane_tab_rename_buf_);
+            if (!new_title.empty() && pane_tab_rename_fig_ != SIZE_MAX)
+            {
+                if (pane_tab_rename_cb_)
+                    pane_tab_rename_cb_(pane_tab_rename_fig_, new_title);
+            }
+            pane_tab_rename_fig_ = SIZE_MAX;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            pane_tab_rename_fig_ = SIZE_MAX;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::PopStyleVar();
+        ImGui::EndPopup();
+    }
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
+
+    ImGui::End();  // ##pane_tab_popup_host
+    }  // Phase 5 scope
 }
 
     #if PLOTIX_FLOATING_TOOLBAR
@@ -2368,25 +2800,50 @@ void ImGuiIntegration::draw_plot_text(Figure& figure)
         auto data_to_px_y = [&](float dy) -> float
         { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
 
-        // --- X tick labels ---
-        ImGui::PushFont(font_body_);
+        // --- Tick marks and labels ---
+        const auto& as = axes.axis_style();
+        float tl = as.tick_length;  // tick mark length in pixels
+        ImU32 axis_col = IM_COL32(static_cast<uint8_t>(colors.axis_line.r * 255),
+                                   static_cast<uint8_t>(colors.axis_line.g * 255),
+                                   static_cast<uint8_t>(colors.axis_line.b * 255),
+                                   static_cast<uint8_t>(colors.axis_line.a * 255));
+
         auto x_ticks = axes.compute_x_ticks();
+        auto y_ticks = axes.compute_y_ticks();
+
+        // X tick marks (at bottom edge of viewport)
+        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        {
+            float px = data_to_px_x(x_ticks.positions[i]);
+            if (tl > 0.0f)
+                dl->AddLine(ImVec2(px, vp.y + vp.h), ImVec2(px, vp.y + vp.h + tl), axis_col, 1.0f);
+        }
+
+        // Y tick marks (at left edge of viewport)
+        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        {
+            float py = data_to_px_y(y_ticks.positions[i]);
+            if (tl > 0.0f)
+                dl->AddLine(ImVec2(vp.x, py), ImVec2(vp.x - tl, py), axis_col, 1.0f);
+        }
+
+        // X tick labels
+        ImGui::PushFont(font_body_);
         for (size_t i = 0; i < x_ticks.positions.size(); ++i)
         {
             float px = data_to_px_x(x_ticks.positions[i]);
             const char* txt = x_ticks.labels[i].c_str();
             ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(px - sz.x * 0.5f, vp.y + vp.h + tick_padding), tick_col, txt);
+            dl->AddText(ImVec2(px - sz.x * 0.5f, vp.y + vp.h + tl + tick_padding), tick_col, txt);
         }
 
-        // --- Y tick labels ---
-        auto y_ticks = axes.compute_y_ticks();
+        // Y tick labels
         for (size_t i = 0; i < y_ticks.positions.size(); ++i)
         {
             float py = data_to_px_y(y_ticks.positions[i]);
             const char* txt = y_ticks.labels[i].c_str();
             ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(vp.x - tick_padding - sz.x, py - sz.y * 0.5f), tick_col, txt);
+            dl->AddText(ImVec2(vp.x - tl - tick_padding - sz.x, py - sz.y * 0.5f), tick_col, txt);
         }
         ImGui::PopFont();
 

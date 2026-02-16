@@ -23,6 +23,43 @@ constexpr int ACTION_PRESS = 1;
 constexpr int ACTION_RELEASE = 0;
 }  // anonymous namespace
 
+// ─── Tool mode ──────────────────────────────────────────────────────────────
+
+void InputHandler::set_tool_mode(ToolMode new_tool)
+{
+    if (new_tool == tool_mode_)
+        return;
+
+    // Leaving Select mode: dismiss region selection
+    if (tool_mode_ == ToolMode::Select)
+    {
+        if (data_interaction_)
+            data_interaction_->dismiss_region_select();
+        region_dragging_ = false;
+    }
+
+    // Leaving Measure mode: restore previous crosshair state, reset measure
+    if (tool_mode_ == ToolMode::Measure)
+    {
+        if (data_interaction_)
+            data_interaction_->set_crosshair(crosshair_was_active_);
+        measure_dragging_ = false;
+        measure_click_state_ = 0;
+    }
+
+    // Entering Measure mode: auto-enable crosshair
+    if (new_tool == ToolMode::Measure)
+    {
+        if (data_interaction_)
+        {
+            crosshair_was_active_ = data_interaction_->crosshair_active();
+            data_interaction_->set_crosshair(true);
+        }
+    }
+
+    tool_mode_ = new_tool;
+}
+
 // ─── Hit-testing ────────────────────────────────────────────────────────────
 
 Axes* InputHandler::hit_test_axes(double screen_x, double screen_y) const
@@ -87,10 +124,10 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     // Update modifier state from the authoritative GLFW mods bitmask
     mods_ = mods;
 
-    PLOTIX_LOG_DEBUG("input",
-                     "Mouse button event - button: " + std::to_string(button)
-                         + ", action: " + std::to_string(action) + ", mods: " + std::to_string(mods)
-                         + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+    // PLOTIX_LOG_DEBUG("input",
+    //                  "Mouse button event - button: " + std::to_string(button)
+    //                      + ", action: " + std::to_string(action) + ", mods: " + std::to_string(mods)
+    //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
     // Hit-test all axes (including 3D) first
     AxesBase* hit_base = hit_test_all_axes(x, y);
@@ -152,16 +189,105 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     Axes* hit = hit_test_axes(x, y);
     if (hit)
     {
-        PLOTIX_LOG_DEBUG("input", "Mouse hit axes - setting active axes");
         active_axes_ = hit;
         active_axes_base_ = hit;
+        // Sync viewport so screen_to_data works correctly for this axes
+        const auto& vp = hit->viewport();
+        vp_x_ = vp.x;
+        vp_y_ = vp.y;
+        vp_w_ = vp.w;
+        vp_h_ = vp.h;
     }
 
     if (!active_axes_)
         return;
 
+    // Middle-mouse pan: works in ALL tool modes for 2D axes
+    if (button == MOUSE_BUTTON_MIDDLE)
+    {
+        if (action == ACTION_PRESS && !middle_pan_dragging_ && active_axes_)
+        {
+            // Cancel any running animations
+            if (transition_engine_)
+                transition_engine_->cancel_for_axes(active_axes_);
+            else if (anim_ctrl_)
+                anim_ctrl_->cancel_for_axes(active_axes_);
+
+            middle_pan_dragging_ = true;
+            middle_pan_start_x_ = x;
+            middle_pan_start_y_ = y;
+            auto xlim = active_axes_->x_limits();
+            auto ylim = active_axes_->y_limits();
+            middle_pan_xlim_min_ = xlim.min;
+            middle_pan_xlim_max_ = xlim.max;
+            middle_pan_ylim_min_ = ylim.min;
+            middle_pan_ylim_max_ = ylim.max;
+            return;
+        }
+        if (action == ACTION_RELEASE && middle_pan_dragging_)
+        {
+            middle_pan_dragging_ = false;
+            return;
+        }
+    }
+
+    // Measure mode: left-click/drag to measure distance between two data points
+    // Supports both drag (press-move-release) and two-click (click, move, click)
+    if (button == MOUSE_BUTTON_LEFT && tool_mode_ == ToolMode::Measure)
+    {
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle)
+        {
+            if (measure_click_state_ == 1)
+            {
+                // Second click: finalize measurement at this point
+                PLOTIX_LOG_DEBUG("input", "Measure: second click placed");
+                screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+                measure_click_state_ = 2;
+                return;
+            }
+
+            // First press: start measurement (could be drag or first click)
+            PLOTIX_LOG_DEBUG("input", "Starting measure (press)");
+            measure_dragging_ = true;
+            measure_click_state_ = 0;
+            measure_start_screen_x_ = x;
+            measure_start_screen_y_ = y;
+            screen_to_data(x, y, measure_start_data_x_, measure_start_data_y_);
+            measure_end_data_x_ = measure_start_data_x_;
+            measure_end_data_y_ = measure_start_data_y_;
+            mode_ = InteractionMode::Dragging;
+            return;
+        }
+        if (action == ACTION_RELEASE && measure_dragging_)
+        {
+            screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+            measure_dragging_ = false;
+            mode_ = InteractionMode::Idle;
+
+            // Check if the mouse barely moved — treat as a click (first point)
+            float dx_px = static_cast<float>(x - measure_start_screen_x_);
+            float dy_px = static_cast<float>(y - measure_start_screen_y_);
+            float move_dist = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+            constexpr float CLICK_THRESHOLD_PX = 5.0f;
+            if (move_dist < CLICK_THRESHOLD_PX)
+            {
+                // This was a click, not a drag — enter two-click mode
+                PLOTIX_LOG_DEBUG("input", "Measure: first click placed (two-click mode)");
+                measure_click_state_ = 1;
+            }
+            else
+            {
+                // This was a drag — measurement is complete
+                PLOTIX_LOG_DEBUG("input", "Finishing measure drag");
+                measure_click_state_ = 2;
+            }
+            return;
+        }
+    }
+
     if (button == MOUSE_BUTTON_LEFT)
     {
+
         // Select mode: left-drag for region selection
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle
             && tool_mode_ == ToolMode::Select)
@@ -467,7 +593,8 @@ void InputHandler::on_mouse_move(double x, double y)
         screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
         // Restore if we were in a drag with a different axes
-        if (mode_ == InteractionMode::Dragging)
+        // (includes middle-mouse pan and measure drag which don't set mode_)
+        if (mode_ == InteractionMode::Dragging || middle_pan_dragging_ || measure_dragging_)
         {
             active_axes_ = prev;
             vp_x_ = saved_vp_x;
@@ -493,6 +620,38 @@ void InputHandler::on_mouse_move(double x, double y)
 
     if (!active_axes_)
         return;
+
+    // Middle-mouse pan (works in all tool modes)
+    if (middle_pan_dragging_ && active_axes_)
+    {
+        const auto& vp = viewport_for_axes(active_axes_);
+        double dx_screen = x - middle_pan_start_x_;
+        double dy_screen = y - middle_pan_start_y_;
+        float x_range = middle_pan_xlim_max_ - middle_pan_xlim_min_;
+        float y_range = middle_pan_ylim_max_ - middle_pan_ylim_min_;
+        float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
+        float dy_data = static_cast<float>(dy_screen) * y_range / vp.h;
+        active_axes_->xlim(middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
+        active_axes_->ylim(middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
+        if (axis_link_mgr_)
+            axis_link_mgr_->propagate_limits(
+                active_axes_, active_axes_->x_limits(), active_axes_->y_limits());
+        // Don't return — allow cursor readout and other overlays to update too
+    }
+
+    // Update measure drag (Measure mode)
+    if (measure_dragging_ && tool_mode_ == ToolMode::Measure)
+    {
+        screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+        return;
+    }
+
+    // Update measure endpoint in two-click mode (first point placed, tracking cursor)
+    if (measure_click_state_ == 1 && tool_mode_ == ToolMode::Measure)
+    {
+        screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+        // Don't return — allow cursor readout to update
+    }
 
     // Update region selection drag (Select mode)
     if (region_dragging_ && tool_mode_ == ToolMode::Select && data_interaction_)

@@ -25,7 +25,7 @@ struct AxisStyle
 {
     Color tick_color = colors::black;
     Color label_color = colors::black;
-    Color grid_color = {0.85f, 0.85f, 0.85f, 1.0f};
+    Color grid_color = {0.0f, 0.0f, 0.0f, 0.0f};  // alpha=0 → use theme grid_line color
     float tick_length = 5.0f;
     float label_size = 14.0f;
     float title_size = 16.0f;

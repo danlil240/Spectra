@@ -46,12 +46,8 @@ void Inspector::draw(Figure& figure)
     {
         case SelectionType::None:
         case SelectionType::Figure:
-            // Default: show figure properties + series browser
+            // Default: show figure properties only
             draw_figure_properties(figure);
-            widgets::section_spacing();
-            widgets::separator();
-            widgets::section_spacing();
-            draw_series_browser(figure);
             break;
 
         case SelectionType::SeriesBrowser:

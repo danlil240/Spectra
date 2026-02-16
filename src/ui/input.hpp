@@ -22,6 +22,7 @@ enum class ToolMode
     Pan,      // Pan tool - left click and drag to pan
     BoxZoom,  // Box zoom tool - right click and drag to zoom
     Select,   // Select tool - left click and drag to region-select data points
+    Measure,  // Measure tool - left click and drag to measure distance between two points
 };
 
 // Interaction state for the input handler (dragging state)
@@ -132,13 +133,24 @@ class InputHandler
 
     // Current tool mode (selected by toolbar)
     ToolMode tool_mode() const { return tool_mode_; }
-    void set_tool_mode(ToolMode new_tool) { tool_mode_ = new_tool; }
+    void set_tool_mode(ToolMode new_tool);
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }
 
     // Box zoom rectangle (for overlay rendering)
     const BoxZoomRect& box_zoom_rect() const { return box_zoom_; }
+
+    // Measure tool state (for overlay rendering)
+    bool is_measure_dragging() const { return measure_dragging_; }
+    bool has_measure_result() const { return measure_click_state_ >= 1; }
+
+    // Middle-mouse pan state (for callback passthrough)
+    bool is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    float measure_start_data_x() const { return measure_start_data_x_; }
+    float measure_start_data_y() const { return measure_start_data_y_; }
+    float measure_end_data_x() const { return measure_end_data_x_; }
+    float measure_end_data_y() const { return measure_end_data_y_; }
 
     // True if any interaction animation is running (zoom, pan inertia, auto-fit)
     bool has_active_animations() const;
@@ -226,6 +238,26 @@ class InputHandler
 
     // Region selection drag state
     bool region_dragging_ = false;
+
+    // Measure tool state
+    bool measure_dragging_ = false;
+    int measure_click_state_ = 0;  // 0=idle, 1=first point placed, 2=second point placed
+    double measure_start_screen_x_ = 0.0;
+    double measure_start_screen_y_ = 0.0;
+    float measure_start_data_x_ = 0.0f;
+    float measure_start_data_y_ = 0.0f;
+    float measure_end_data_x_ = 0.0f;
+    float measure_end_data_y_ = 0.0f;
+    bool crosshair_was_active_ = false;  // to restore crosshair state when leaving Measure
+
+    // Middle-mouse pan state (works in all tool modes for 2D axes)
+    bool middle_pan_dragging_ = false;
+    double middle_pan_start_x_ = 0.0;
+    double middle_pan_start_y_ = 0.0;
+    float middle_pan_xlim_min_ = 0.0f;
+    float middle_pan_xlim_max_ = 0.0f;
+    float middle_pan_ylim_min_ = 0.0f;
+    float middle_pan_ylim_max_ = 0.0f;
 
     // Ctrl+drag box zoom state (allows box zoom in Pan mode via modifier)
     bool ctrl_box_zoom_active_ = false;

@@ -146,6 +146,7 @@ class Backend
     virtual void push_constants(const SeriesPushConstants& pc) = 0;
     virtual void set_viewport(float x, float y, float width, float height) = 0;
     virtual void set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height) = 0;
+    virtual void set_line_width(float width) = 0;
     virtual void draw(uint32_t vertex_count, uint32_t first_vertex = 0) = 0;
     virtual void draw_instanced(uint32_t vertex_count,
                                 uint32_t instance_count,

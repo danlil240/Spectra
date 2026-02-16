@@ -43,10 +43,15 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <memory>
 #include <span>
+#include <unordered_map>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace plotix
 {
@@ -137,6 +142,7 @@ void App::run()
 
     bool has_animation = static_cast<bool>(active_figure->anim_on_frame_);
     bool running = true;
+    float anim_time = 0.0f;  // Animation time accumulator (independent of wall-clock)
 
     auto switch_active_figure = [&](size_t new_index
 #ifdef PLOTIX_USE_GLFW
@@ -231,10 +237,38 @@ void App::run()
     timeline_editor.set_interpolator(&keyframe_interpolator);
     curve_editor.set_interpolator(&keyframe_interpolator);
 
+    // Sync timeline with figure animation settings
+    if (active_figure->anim_duration_ > 0.0f)
+    {
+        timeline_editor.set_duration(active_figure->anim_duration_);
+    }
+    else if (has_animation)
+    {
+        // No explicit duration — set a generous default for infinite animations
+        timeline_editor.set_duration(60.0f);
+    }
+    if (active_figure->anim_loop_)
+    {
+        timeline_editor.set_loop_mode(LoopMode::Loop);
+    }
+    if (active_figure->anim_fps_ > 0.0f)
+    {
+        timeline_editor.set_fps(active_figure->anim_fps_);
+    }
+    // Auto-start timeline when figure has an animation
+    if (has_animation)
+    {
+        timeline_editor.play();
+    }
+
     // Agent 6 Week 11: Mode transition for 2D↔3D view switching
     ModeTransition mode_transition;
     bool is_in_3d_mode = true;  // Start in 3D (figures with subplot3d start in 3D)
     Camera saved_3d_camera;     // Saved 3D camera to restore on toggle-back
+
+    // Initial axes limits for Home button (restore original view)
+    struct InitialLimits { AxisLimits x, y; };
+    std::unordered_map<Axes*, InitialLimits> home_limits;
 
     // Agent F: Command palette & productivity
     CommandRegistry cmd_registry;
@@ -242,6 +276,7 @@ void App::run()
     UndoManager undo_mgr;
     CommandPalette cmd_palette;
     shortcut_mgr.set_command_registry(&cmd_registry);
+    shortcut_mgr.register_defaults();
     cmd_palette.set_command_registry(&cmd_registry);
     cmd_palette.set_shortcut_manager(&shortcut_mgr);
 #endif
@@ -294,7 +329,18 @@ void App::run()
             ](double x, double y)
             {
     #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
+                // Always pass through mouse moves when InputHandler is in an active
+                // drag (pan, measure, middle-pan, box zoom).  Without this, ImGui
+                // capture from overlapping windows (toolbar, status bar) blocks
+                // drag updates and makes tools appear broken.
+                bool input_is_dragging =
+                    input_handler.mode() == InteractionMode::Dragging
+                    || input_handler.is_measure_dragging()
+                    || input_handler.is_middle_pan_dragging()
+                    || input_handler.has_measure_result();  // two-click tracking
+
+                if (!input_is_dragging && imgui_ui
+                    && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
                 {
                     PLOTIX_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
                     return;
@@ -328,7 +374,16 @@ void App::run()
             ](int button, int action, int mods, double x, double y)
             {
     #ifdef PLOTIX_USE_IMGUI
-                if (imgui_ui && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
+                // Always pass through when InputHandler is actively dragging
+                // (pan, measure, middle-pan, box zoom) so release events and
+                // continued interaction work correctly.
+                bool input_is_dragging =
+                    input_handler.mode() == InteractionMode::Dragging
+                    || input_handler.is_measure_dragging()
+                    || input_handler.is_middle_pan_dragging();
+
+                if (!input_is_dragging && imgui_ui
+                    && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
                 {
                     // Always forward RELEASE events so InputHandler can exit
                     // Dragging mode. Without this, starting a drag on the canvas
@@ -407,12 +462,16 @@ void App::run()
             callbacks.on_key = [&input_handler
     #ifdef PLOTIX_USE_IMGUI
                                 ,
-                                &imgui_ui
+                                &imgui_ui,
+                                &shortcut_mgr
     #endif
             ](int key, int action, int mods)
             {
     #ifdef PLOTIX_USE_IMGUI
                 if (imgui_ui && imgui_ui->wants_capture_keyboard())
+                    return;
+                // Dispatch to shortcut manager first; if it handles the key, skip input handler
+                if (shortcut_mgr.on_key(key, action, mods))
                     return;
     #endif
                 input_handler.on_key(key, action, mods);
@@ -582,6 +641,93 @@ void App::run()
         figure_tabs->set_tab_rename_callback([&fig_mgr](size_t index, const std::string& title)
                                              { fig_mgr.set_title(index, title); });
 
+        // Tab context menu: Split Right / Split Down
+        // Duplicates the clicked figure into a new pane
+        figure_tabs->set_tab_split_right_callback(
+            [&dock_system, &fig_mgr, this](size_t index)
+            {
+                if (index >= figures_.size())
+                    return;
+                // Duplicate the figure to get a new copy for the split pane
+                size_t new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == SIZE_MAX)
+                    return;
+                dock_system.split_figure_right(index, new_fig);
+                dock_system.set_active_figure_index(index);
+            });
+
+        figure_tabs->set_tab_split_down_callback(
+            [&dock_system, &fig_mgr, this](size_t index)
+            {
+                if (index >= figures_.size())
+                    return;
+                // Duplicate the figure to get a new copy for the split pane
+                size_t new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == SIZE_MAX)
+                    return;
+                dock_system.split_figure_down(index, new_fig);
+                dock_system.set_active_figure_index(index);
+            });
+
+        // Tab detach: drag tab outside window or context menu "Detach to Window"
+        // Serializes figure state to a temp file and spawns a new process
+        figure_tabs->set_tab_detach_callback(
+            [&fig_mgr, &imgui_ui, this](size_t index, float screen_x, float screen_y)
+            {
+                if (index >= figures_.size() || figures_.size() <= 1)
+                    return;
+
+                // Serialize the single figure into a minimal workspace file
+                std::vector<Figure*> single_fig = {figures_[index].get()};
+                auto data = Workspace::capture(single_fig,
+                                               0,
+                                               ui::ThemeManager::instance().current_theme_name(),
+                                               imgui_ui ? imgui_ui->get_layout_manager().is_inspector_visible() : true,
+                                               imgui_ui ? imgui_ui->get_layout_manager().inspector_width() : 320.0f,
+                                               imgui_ui ? imgui_ui->get_layout_manager().is_nav_rail_expanded() : false);
+
+                // Write to a temp file
+                std::string tmp_dir;
+                try { tmp_dir = std::filesystem::temp_directory_path().string(); }
+                catch (...) { tmp_dir = "/tmp"; }
+                std::string detach_path = tmp_dir + "/plotix_detach_"
+                    + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+                    + ".plotix";
+
+                if (!Workspace::save(detach_path, data))
+                {
+                    PLOTIX_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                    return;
+                }
+
+                // Get the executable path
+                std::string exe_path;
+                try { exe_path = std::filesystem::read_symlink("/proc/self/exe").string(); }
+                catch (...) { exe_path = "/proc/self/exe"; }
+
+                // Spawn a new process with the detached workspace
+                std::string cmd = "\"" + exe_path + "\""
+                    + " --plotix-restore=\"" + detach_path + "\""
+                    + " --plotix-window-x=" + std::to_string(static_cast<int>(screen_x))
+                    + " --plotix-window-y=" + std::to_string(static_cast<int>(screen_y))
+                    + " &";
+
+                PLOTIX_LOG_INFO("app",
+                                "Detaching tab " + std::to_string(index) + " to new window at ("
+                                    + std::to_string(screen_x) + ", " + std::to_string(screen_y)
+                                    + ") cmd: " + cmd);
+
+                int ret = std::system(cmd.c_str());
+                if (ret != 0)
+                {
+                    PLOTIX_LOG_WARN("app", "Failed to spawn detached window (exit code "
+                                    + std::to_string(ret) + "). Workspace saved at: " + detach_path);
+                }
+
+                // Remove the figure from the current window
+                fig_mgr.close_figure(index);
+            });
+
         // Tab drag-to-dock: when a tab is dragged vertically out of the tab bar,
         // initiate a dock drag operation to split the view
         figure_tabs->set_tab_drag_out_callback([&dock_system](size_t index, float mx, float my)
@@ -639,6 +785,89 @@ void App::run()
 
         // Wire Agent A Week 9: Dock system
         imgui_ui->set_dock_system(&dock_system);
+
+        // Wire tab bar to ImGui integration
+        imgui_ui->set_tab_bar(figure_tabs.get());
+
+        // Wire pane tab context menu callbacks
+        imgui_ui->set_pane_tab_duplicate_cb(
+            [&fig_mgr](size_t index) { fig_mgr.duplicate_figure(index); });
+
+        imgui_ui->set_pane_tab_close_cb(
+            [&fig_mgr](size_t index) { fig_mgr.queue_close(index); });
+
+        imgui_ui->set_pane_tab_split_right_cb(
+            [&dock_system, &fig_mgr](size_t index)
+            {
+                size_t new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == SIZE_MAX)
+                    return;
+                dock_system.split_figure_right(index, new_fig);
+                dock_system.set_active_figure_index(index);
+            });
+
+        imgui_ui->set_pane_tab_split_down_cb(
+            [&dock_system, &fig_mgr](size_t index)
+            {
+                size_t new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == SIZE_MAX)
+                    return;
+                dock_system.split_figure_down(index, new_fig);
+                dock_system.set_active_figure_index(index);
+            });
+
+        imgui_ui->set_pane_tab_detach_cb(
+            [&imgui_ui, this](size_t index, float screen_x, float screen_y)
+            {
+                if (index >= figures_.size() || figures_.size() <= 1)
+                    return;
+
+                std::vector<Figure*> single_fig = {figures_[index].get()};
+                auto data = Workspace::capture(single_fig,
+                                               0,
+                                               ui::ThemeManager::instance().current_theme_name(),
+                                               imgui_ui ? imgui_ui->get_layout_manager().is_inspector_visible() : true,
+                                               imgui_ui ? imgui_ui->get_layout_manager().inspector_width() : 320.0f,
+                                               imgui_ui ? imgui_ui->get_layout_manager().is_nav_rail_expanded() : false);
+
+                std::string tmp_dir;
+                try { tmp_dir = std::filesystem::temp_directory_path().string(); }
+                catch (...) { tmp_dir = "/tmp"; }
+                std::string detach_path = tmp_dir + "/plotix_detach_"
+                    + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+                    + ".plotix";
+
+                if (!Workspace::save(detach_path, data))
+                {
+                    PLOTIX_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                    return;
+                }
+
+                std::string exe_path;
+                try { exe_path = std::filesystem::read_symlink("/proc/self/exe").string(); }
+                catch (...) { exe_path = "/proc/self/exe"; }
+
+                std::string arg_restore = "--plotix-restore=" + detach_path;
+                std::string arg_x = "--plotix-window-x=" + std::to_string(static_cast<int>(screen_x));
+                std::string arg_y = "--plotix-window-y=" + std::to_string(static_cast<int>(screen_y));
+
+                PLOTIX_LOG_INFO("app",
+                                "Detaching tab " + std::to_string(index) + " to new window at ("
+                                    + std::to_string(screen_x) + ", " + std::to_string(screen_y)
+                                    + ") exe: " + exe_path);
+
+                // TODO: spawn new process to restore the detached workspace
+                // fork()+exec() crashes NVIDIA Vulkan driver; needs posix_spawn or post-frame queue
+                PLOTIX_LOG_INFO("app", "Detached workspace saved to: " + detach_path
+                                + " (process spawn deferred)");
+
+                // TODO: Remove the figure from current window after spawn works
+                // fig_mgr.queue_close(index);
+            });
+
+        imgui_ui->set_pane_tab_rename_cb(
+            [&fig_mgr](size_t index, const std::string& title)
+            { fig_mgr.set_title(index, title); });
 
         // Figure title lookup for per-pane tab headers
         imgui_ui->set_figure_title_callback(
@@ -834,8 +1063,29 @@ void App::run()
 
         cmd_registry.register_command(
             "view.home",
-            "Home (Reset All Views)",
-            [&]() { undoable_reset_view(&undo_mgr, *active_figure); },
+            "Home (Restore Original View)",
+            [&]()
+            {
+                auto before = capture_figure_axes(*active_figure);
+                for (auto& ax : active_figure->axes_mut())
+                {
+                    if (!ax) continue;
+                    auto it = home_limits.find(ax.get());
+                    if (it != home_limits.end())
+                    {
+                        ax->xlim(it->second.x.min, it->second.x.max);
+                        ax->ylim(it->second.y.min, it->second.y.max);
+                    }
+                    else
+                    {
+                        ax->auto_fit();
+                    }
+                }
+                auto after = capture_figure_axes(*active_figure);
+                undo_mgr.push(UndoAction{"Restore original view",
+                                         [before]() { restore_figure_axes(before); },
+                                         [after]() { restore_figure_axes(after); }});
+            },
             "Home",
             "View",
             static_cast<uint16_t>(ui::Icon::Home));
@@ -1545,6 +1795,17 @@ void App::run()
 
     scheduler.reset();
 
+    // Capture initial axes limits for Home button (restore original view)
+    for (auto& fig_ptr : figures_)
+    {
+        if (!fig_ptr) continue;
+        for (auto& ax : fig_ptr->axes_mut())
+        {
+            if (ax)
+                home_limits[ax.get()] = {ax->x_limits(), ax->y_limits()};
+        }
+    }
+
     while (running)
     {
         PLOTIX_LOG_TRACE("main_loop", "Starting frame iteration");
@@ -1593,8 +1854,12 @@ void App::run()
         animator.evaluate(scheduler.elapsed_seconds());
 
 #ifdef PLOTIX_USE_IMGUI
-        // Advance timeline editor (drives playback + interpolator evaluation)
-        timeline_editor.advance(scheduler.dt());
+        // Advance timeline editor (drives interpolator evaluation)
+        // When Playing, we control the playhead ourselves to avoid double-speed
+        if (timeline_editor.playback_state() != PlaybackState::Playing)
+        {
+            timeline_editor.advance(scheduler.dt());
+        }
 
         // Update mode transition animation — only animate camera, never axis limits
         if (mode_transition.is_active())
@@ -1654,11 +1919,53 @@ void App::run()
             }
         }
 
-        // Call user on_frame callback
+        // Call user on_frame callback, gated by timeline state
         if (has_animation && active_figure->anim_on_frame_)
         {
             Frame frame = scheduler.current_frame();
+#ifdef PLOTIX_USE_IMGUI
+            auto tl_state = timeline_editor.playback_state();
+            if (tl_state == PlaybackState::Playing)
+            {
+                // Check if user scrubbed/stepped the playhead externally
+                float tl_playhead = timeline_editor.playhead();
+                float diff = tl_playhead - anim_time;
+                if ((diff > 0.001f) || (diff < -0.001f))
+                {
+                    // User moved the playhead — sync anim_time to it
+                    anim_time = tl_playhead;
+                }
+                // Advance animation time by frame dt
+                anim_time += frame.dt;
+                frame.elapsed_sec = anim_time;
+                active_figure->anim_on_frame_(frame);
+                // Auto-expand timeline duration if needed
+                if (anim_time > timeline_editor.duration())
+                {
+                    timeline_editor.set_duration(anim_time + 30.0f);
+                }
+                // Sync timeline playhead to animation time
+                timeline_editor.set_playhead(anim_time);
+            }
+            else if (tl_state == PlaybackState::Paused)
+            {
+                // Sync anim_time from timeline playhead (user may scrub or step)
+                anim_time = timeline_editor.playhead();
+                frame.elapsed_sec = anim_time;
+                frame.dt = 0.0f;
+                active_figure->anim_on_frame_(frame);
+            }
+            else
+            {
+                // Stopped: reset animation time and render at 0
+                anim_time = 0.0f;
+                frame.elapsed_sec = 0.0f;
+                frame.dt = 0.0f;
+                active_figure->anim_on_frame_(frame);
+            }
+#else
             active_figure->anim_on_frame_(frame);
+#endif
         }
 
         // Start ImGui frame (updates layout manager with current window size).
@@ -1721,23 +2028,33 @@ void App::run()
             // extends into that space — pane headers draw in the canvas area.
             imgui_ui->get_layout_manager().set_tab_bar_visible(false);
 
-            // Handle interaction state from UI
+            // Handle interaction state from UI — Home restores original view
             if (imgui_ui->should_reset_view())
             {
-                // Animated auto-fit all axes
                 for (auto& ax : active_figure->axes_mut())
                 {
                     if (ax)
                     {
-                        auto old_xlim = ax->x_limits();
-                        auto old_ylim = ax->y_limits();
-                        ax->auto_fit();
-                        AxisLimits target_x = ax->x_limits();
-                        AxisLimits target_y = ax->y_limits();
-                        ax->xlim(old_xlim.min, old_xlim.max);
-                        ax->ylim(old_ylim.min, old_ylim.max);
-                        anim_controller.animate_axis_limits(
-                            *ax, target_x, target_y, 0.25f, ease::ease_out);
+                        auto it = home_limits.find(ax.get());
+                        if (it != home_limits.end())
+                        {
+                            // Animate back to the user's original limits
+                            anim_controller.animate_axis_limits(
+                                *ax, it->second.x, it->second.y, 0.25f, ease::ease_out);
+                        }
+                        else
+                        {
+                            // Fallback: auto-fit if we don't have saved limits
+                            auto old_xlim = ax->x_limits();
+                            auto old_ylim = ax->y_limits();
+                            ax->auto_fit();
+                            AxisLimits target_x = ax->x_limits();
+                            AxisLimits target_y = ax->y_limits();
+                            ax->xlim(old_xlim.min, old_xlim.max);
+                            ax->ylim(old_ylim.min, old_ylim.max);
+                            anim_controller.animate_axis_limits(
+                                *ax, target_x, target_y, 0.25f, ease::ease_out);
+                        }
                     }
                 }
                 imgui_ui->clear_reset_view();
@@ -2036,6 +2353,36 @@ void App::run()
             }
         }
 #endif
+
+        // Process pending PNG export for the active figure (interactive mode)
+        if (!config_.headless && active_figure && !active_figure->png_export_path_.empty())
+        {
+            uint32_t ew = active_figure->png_export_width_ > 0 ? active_figure->png_export_width_
+                                                                : active_figure->width();
+            uint32_t eh = active_figure->png_export_height_ > 0 ? active_figure->png_export_height_
+                                                                 : active_figure->height();
+            std::vector<uint8_t> px(static_cast<size_t>(ew) * eh * 4);
+            if (backend_->readback_framebuffer(px.data(), ew, eh))
+            {
+                if (ImageExporter::write_png(active_figure->png_export_path_, px.data(), ew, eh))
+                {
+                    PLOTIX_LOG_INFO("export",
+                                    "Saved PNG: " + active_figure->png_export_path_);
+                }
+                else
+                {
+                    PLOTIX_LOG_ERROR("export",
+                                     "Failed to write PNG: " + active_figure->png_export_path_);
+                }
+            }
+            else
+            {
+                PLOTIX_LOG_ERROR("export", "Failed to readback framebuffer for PNG export");
+            }
+            active_figure->png_export_path_.clear();
+            active_figure->png_export_width_ = 0;
+            active_figure->png_export_height_ = 0;
+        }
 
         scheduler.end_frame();
 

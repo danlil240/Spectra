@@ -71,6 +71,8 @@ struct PluginEntry;
 class CameraAnimator;
 class ModeTransition;
 
+class WindowManager;
+
 class ImageExporter;
 class SvgExporter;
 class VideoExporter;

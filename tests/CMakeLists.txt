@@ -108,6 +108,7 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_3d
     test_3d_regression
     test_multi_window
+    test_window_manager
     test_figure_registry
 )
 

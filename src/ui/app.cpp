@@ -16,6 +16,7 @@
 
 #ifdef SPECTRA_USE_GLFW
     #include "glfw_adapter.hpp"
+    #include "window_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
@@ -283,6 +284,7 @@ void App::run()
 
 #ifdef SPECTRA_USE_GLFW
     std::unique_ptr<GlfwAdapter> glfw;
+    std::unique_ptr<WindowManager> window_mgr;
     AnimationController anim_controller;
     GestureRecognizer gesture;
     InputHandler input_handler;
@@ -307,6 +309,11 @@ void App::run()
             // Create Vulkan surface from GLFW window
             backend_->create_surface(glfw->native_window());
             backend_->create_swapchain(active_figure->width(), active_figure->height());
+
+            // Initialize WindowManager and adopt the primary window
+            window_mgr = std::make_unique<WindowManager>();
+            window_mgr->init(static_cast<VulkanBackend*>(backend_.get()));
+            window_mgr->adopt_primary_window(glfw->native_window());
 
             // Wire input handler — set active figure for multi-axes hit-testing
             input_handler.set_figure(active_figure);
@@ -2405,7 +2412,16 @@ void App::run()
         if (glfw)
         {
             SPECTRA_LOG_TRACE("main_loop", "Polling GLFW events");
-            glfw->poll_events();
+            // Use WindowManager for event polling when available (handles all windows)
+            if (window_mgr)
+            {
+                window_mgr->poll_events();
+                window_mgr->process_pending_closes();
+            }
+            else
+            {
+                glfw->poll_events();
+            }
             if (glfw->should_close())
             {
                 SPECTRA_LOG_INFO("main_loop", "GLFW window should close, exiting loop");
@@ -2496,6 +2512,11 @@ void App::run()
     }
 
 #ifdef SPECTRA_USE_GLFW
+    if (window_mgr)
+    {
+        window_mgr->shutdown();
+        window_mgr.reset();
+    }
     if (glfw)
     {
         glfw->shutdown();

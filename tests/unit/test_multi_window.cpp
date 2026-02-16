@@ -139,11 +139,14 @@ TEST_F(SingleWindowFixture, RenderNoHang)
 
 TEST_F(SingleWindowFixture, OffscreenFramebufferCreation)
 {
+    auto& fig = create_simple_figure();
+    app_->run();
+
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
-    // Headless mode already created an offscreen framebuffer
-    EXPECT_GT(backend->swapchain_width(), 0u);
-    EXPECT_GT(backend->swapchain_height(), 0u);
+    // After rendering, offscreen framebuffer should have the figure's dimensions
+    EXPECT_EQ(backend->swapchain_width(), fig.width());
+    EXPECT_EQ(backend->swapchain_height(), fig.height());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

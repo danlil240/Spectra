@@ -51,8 +51,8 @@ bool VulkanBackend::init(bool headless)
         }
 
         // For headless, pick device without surface
-        ctx_.physical_device = vk::pick_physical_device(ctx_.instance, surface_);
-        ctx_.queue_families = vk::find_queue_families(ctx_.physical_device, surface_);
+        ctx_.physical_device = vk::pick_physical_device(ctx_.instance, active_window_->surface);
+        ctx_.queue_families = vk::find_queue_families(ctx_.physical_device, active_window_->surface);
 
         // When not headless, force swapchain extension even though surface doesn't exist yet
         // (surface is created later by GLFW adapter, but device needs the extension at creation
@@ -163,15 +163,15 @@ void VulkanBackend::shutdown()
     textures_.clear();
 
     // Destroy sync objects
-    for (auto sem : image_available_semaphores_)
+    for (auto sem : active_window_->image_available_semaphores)
         vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto sem : render_finished_semaphores_)
+    for (auto sem : active_window_->render_finished_semaphores)
         vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto fence : in_flight_fences_)
+    for (auto fence : active_window_->in_flight_fences)
         vkDestroyFence(ctx_.device, fence, nullptr);
-    image_available_semaphores_.clear();
-    render_finished_semaphores_.clear();
-    in_flight_fences_.clear();
+    active_window_->image_available_semaphores.clear();
+    active_window_->render_finished_semaphores.clear();
+    active_window_->in_flight_fences.clear();
 
     // Destroy layouts
     if (pipeline_layout_ != VK_NULL_HANDLE)
@@ -189,10 +189,10 @@ void VulkanBackend::shutdown()
         vkDestroyCommandPool(ctx_.device, command_pool_, nullptr);
 
     vk::destroy_offscreen(ctx_.device, offscreen_);
-    vk::destroy_swapchain(ctx_.device, swapchain_);
+    vk::destroy_swapchain(ctx_.device, active_window_->swapchain);
 
-    if (surface_ != VK_NULL_HANDLE)
-        vkDestroySurfaceKHR(ctx_.instance, surface_, nullptr);
+    if (active_window_->surface != VK_NULL_HANDLE)
+        vkDestroySurfaceKHR(ctx_.instance, active_window_->surface, nullptr);
 
     vkDestroyDevice(ctx_.device, nullptr);
 
@@ -202,7 +202,7 @@ void VulkanBackend::shutdown()
     vkDestroyInstance(ctx_.instance, nullptr);
 
     ctx_ = {};
-    surface_ = VK_NULL_HANDLE;
+    active_window_->surface = VK_NULL_HANDLE;
 }
 
 bool VulkanBackend::create_surface(void* native_window)
@@ -212,7 +212,7 @@ bool VulkanBackend::create_surface(void* native_window)
 
 #ifdef SPECTRA_USE_GLFW
     auto* glfw_window = static_cast<GLFWwindow*>(native_window);
-    VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &surface_);
+    VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &active_window_->surface);
     if (result != VK_SUCCESS)
     {
         std::cerr << "[Spectra] Failed to create Vulkan surface (VkResult=" << result << ")\n";
@@ -222,7 +222,7 @@ bool VulkanBackend::create_surface(void* native_window)
     // Re-query present support for the created surface, but keep device-created queue
     // family indices stable. The logical device was created before surface creation,
     // so it may not contain a separately discovered present family index.
-    const auto surface_families = vk::find_queue_families(ctx_.physical_device, surface_);
+    const auto surface_families = vk::find_queue_families(ctx_.physical_device, active_window_->surface);
     if (surface_families.has_present()
         && surface_families.present.value() == ctx_.queue_families.graphics.value())
     {
@@ -256,16 +256,16 @@ bool VulkanBackend::create_surface(void* native_window)
 
 bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
 {
-    if (surface_ == VK_NULL_HANDLE)
+    if (active_window_->surface == VK_NULL_HANDLE)
         return false;
 
     try
     {
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
-        swapchain_ = vk::create_swapchain(
+        active_window_->swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
-            surface_,
+            active_window_->surface,
             width,
             height,
             ctx_.queue_families.graphics.value(),
@@ -291,15 +291,15 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         "recreate_swapchain called: " + std::to_string(width) + "x" + std::to_string(height));
 
     // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
-    if (!in_flight_fences_.empty())
+    if (!active_window_->in_flight_fences.empty())
     {
         SPECTRA_LOG_DEBUG("vulkan",
-                         "Waiting for " + std::to_string(in_flight_fences_.size())
+                         "Waiting for " + std::to_string(active_window_->in_flight_fences.size())
                              + " in-flight fences before swapchain recreation");
         auto wait_start = std::chrono::high_resolution_clock::now();
         vkWaitForFences(ctx_.device,
-                        static_cast<uint32_t>(in_flight_fences_.size()),
-                        in_flight_fences_.data(),
+                        static_cast<uint32_t>(active_window_->in_flight_fences.size()),
+                        active_window_->in_flight_fences.data(),
                         VK_TRUE,
                         UINT64_MAX);
         auto wait_end = std::chrono::high_resolution_clock::now();
@@ -310,18 +310,18 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
     }
 
     SPECTRA_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
-    auto old_swapchain = swapchain_.swapchain;
-    auto old_context = swapchain_;                    // Copy the entire context
+    auto old_swapchain = active_window_->swapchain.swapchain;
+    auto old_context = active_window_->swapchain;                    // Copy the entire context
     VkRenderPass reuse_rp = old_context.render_pass;  // Reuse — format doesn't change
 
     try
     {
         SPECTRA_LOG_DEBUG("vulkan", "Creating new swapchain...");
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
-        swapchain_ = vk::create_swapchain(
+        active_window_->swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
-            surface_,
+            active_window_->surface,
             width,
             height,
             ctx_.queue_families.graphics.value(),
@@ -330,32 +330,32 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             reuse_rp,
             vk_msaa);
         SPECTRA_LOG_INFO("vulkan",
-                        "New swapchain created: " + std::to_string(swapchain_.extent.width) + "x"
-                            + std::to_string(swapchain_.extent.height));
+                        "New swapchain created: " + std::to_string(active_window_->swapchain.extent.width) + "x"
+                            + std::to_string(active_window_->swapchain.extent.height));
 
         // Destroy the old swapchain context (skip render pass — we reused it)
         SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
         vk::destroy_swapchain(ctx_.device, old_context, /*skip_render_pass=*/true);
 
         // Recreate sync objects only if image count changed (rare during resize)
-        if (swapchain_.images.size() != old_context.images.size())
+        if (active_window_->swapchain.images.size() != old_context.images.size())
         {
             SPECTRA_LOG_DEBUG("vulkan",
                              "Image count changed " + std::to_string(old_context.images.size())
-                                 + " -> " + std::to_string(swapchain_.images.size())
+                                 + " -> " + std::to_string(active_window_->swapchain.images.size())
                                  + ", recreating sync objects");
-            for (auto sem : image_available_semaphores_)
+            for (auto sem : active_window_->image_available_semaphores)
                 vkDestroySemaphore(ctx_.device, sem, nullptr);
-            for (auto sem : render_finished_semaphores_)
+            for (auto sem : active_window_->render_finished_semaphores)
                 vkDestroySemaphore(ctx_.device, sem, nullptr);
-            for (auto fence : in_flight_fences_)
+            for (auto fence : active_window_->in_flight_fences)
                 vkDestroyFence(ctx_.device, fence, nullptr);
-            image_available_semaphores_.clear();
-            render_finished_semaphores_.clear();
-            in_flight_fences_.clear();
+            active_window_->image_available_semaphores.clear();
+            active_window_->render_finished_semaphores.clear();
+            active_window_->in_flight_fences.clear();
             create_sync_objects();
         }
-        current_flight_frame_ = 0;
+        active_window_->current_flight_frame = 0;
 
         SPECTRA_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
         return true;
@@ -1010,23 +1010,23 @@ bool VulkanBackend::begin_frame()
     if (headless_)
     {
         // For offscreen, just allocate a command buffer
-        if (command_buffers_.empty())
+        if (active_window_->command_buffers.empty())
         {
             SPECTRA_LOG_ERROR("vulkan", "begin_frame: no command buffers for headless");
             return false;
         }
-        current_cmd_ = command_buffers_[0];
+        active_window_->current_cmd = active_window_->command_buffers[0];
 
         VkCommandBufferBeginInfo begin_info{};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer(current_cmd_, &begin_info);
+        vkBeginCommandBuffer(active_window_->current_cmd, &begin_info);
         return true;
     }
 
     // Windowed mode — wait for this slot's previous work to finish
     VkResult fence_status = vkWaitForFences(
-        ctx_.device, 1, &in_flight_fences_[current_flight_frame_], VK_TRUE, UINT64_MAX);
+        ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame], VK_TRUE, UINT64_MAX);
     if (fence_status == VK_ERROR_DEVICE_LOST)
     {
         device_lost_ = true;
@@ -1035,11 +1035,11 @@ bool VulkanBackend::begin_frame()
 
     // Acquire next swapchain image BEFORE resetting fence
     VkResult result = vkAcquireNextImageKHR(ctx_.device,
-                                            swapchain_.swapchain,
+                                            active_window_->swapchain.swapchain,
                                             UINT64_MAX,
-                                            image_available_semaphores_[current_flight_frame_],
+                                            active_window_->image_available_semaphores[active_window_->current_flight_frame],
                                             VK_NULL_HANDLE,
-                                            &current_image_index_);
+                                            &active_window_->current_image_index);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
@@ -1050,43 +1050,43 @@ bool VulkanBackend::begin_frame()
         // Image is still valid and presentable, just not optimal for the
         // current surface size. Continue rendering (stretched > black flash).
         // The main loop debounce will recreate when resize stabilizes.
-        swapchain_dirty_ = true;
+        active_window_->swapchain_dirty = true;
     }
 
     // Only reset fence after successful acquisition
-    vkResetFences(ctx_.device, 1, &in_flight_fences_[current_flight_frame_]);
+    vkResetFences(ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame]);
 
-    current_cmd_ = command_buffers_[current_flight_frame_];
-    vkResetCommandBuffer(current_cmd_, 0);
+    active_window_->current_cmd = active_window_->command_buffers[active_window_->current_flight_frame];
+    vkResetCommandBuffer(active_window_->current_cmd, 0);
 
     VkCommandBufferBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    vkBeginCommandBuffer(current_cmd_, &begin_info);
+    vkBeginCommandBuffer(active_window_->current_cmd, &begin_info);
 
     return true;
 }
 
 void VulkanBackend::end_frame()
 {
-    vkEndCommandBuffer(current_cmd_);
+    vkEndCommandBuffer(active_window_->current_cmd);
 
     if (headless_)
     {
         VkSubmitInfo submit{};
         submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.commandBufferCount = 1;
-        submit.pCommandBuffers = &current_cmd_;
+        submit.pCommandBuffers = &active_window_->current_cmd;
         vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(ctx_.graphics_queue);
         return;
     }
 
     // Windowed submit
-    // image_available: indexed by current_flight_frame_ (matches acquire)
-    // render_finished: indexed by current_image_index_ (tied to swapchain image lifecycle —
+    // image_available: indexed by active_window_->current_flight_frame (matches acquire)
+    // render_finished: indexed by active_window_->current_image_index (tied to swapchain image lifecycle —
     //   only reused when that image is re-acquired, guaranteeing the previous present completed)
-    VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_flight_frame_]};
-    VkSemaphore signal_semaphores[] = {render_finished_semaphores_[current_image_index_]};
+    VkSemaphore wait_semaphores[] = {active_window_->image_available_semaphores[active_window_->current_flight_frame]};
+    VkSemaphore signal_semaphores[] = {active_window_->render_finished_semaphores[active_window_->current_image_index]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submit{};
@@ -1095,28 +1095,28 @@ void VulkanBackend::end_frame()
     submit.pWaitSemaphores = wait_semaphores;
     submit.pWaitDstStageMask = wait_stages;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &current_cmd_;
+    submit.pCommandBuffers = &active_window_->current_cmd;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = signal_semaphores;
 
-    vkQueueSubmit(ctx_.graphics_queue, 1, &submit, in_flight_fences_[current_flight_frame_]);
+    vkQueueSubmit(ctx_.graphics_queue, 1, &submit, active_window_->in_flight_fences[active_window_->current_flight_frame]);
 
     VkPresentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present.waitSemaphoreCount = 1;
     present.pWaitSemaphores = signal_semaphores;
     present.swapchainCount = 1;
-    present.pSwapchains = &swapchain_.swapchain;
-    present.pImageIndices = &current_image_index_;
+    present.pSwapchains = &active_window_->swapchain.swapchain;
+    present.pImageIndices = &active_window_->current_image_index;
 
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
 
-    current_flight_frame_ =
-        (current_flight_frame_ + 1) % static_cast<uint32_t>(in_flight_fences_.size());
+    active_window_->current_flight_frame =
+        (active_window_->current_flight_frame + 1) % static_cast<uint32_t>(active_window_->in_flight_fences.size());
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
-        swapchain_dirty_ = true;
+        active_window_->swapchain_dirty = true;
         SPECTRA_LOG_DEBUG(
             "vulkan",
             "end_frame: present returned "
@@ -1149,17 +1149,17 @@ void VulkanBackend::begin_render_pass(const Color& clear_color)
     }
     else
     {
-        info.renderPass = swapchain_.render_pass;
-        info.framebuffer = swapchain_.framebuffers[current_image_index_];
-        info.renderArea = {{0, 0}, swapchain_.extent};
+        info.renderPass = active_window_->swapchain.render_pass;
+        info.framebuffer = active_window_->swapchain.framebuffers[active_window_->current_image_index];
+        info.renderArea = {{0, 0}, active_window_->swapchain.extent};
     }
 
-    vkCmdBeginRenderPass(current_cmd_, &info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(active_window_->current_cmd, &info, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void VulkanBackend::end_render_pass()
 {
-    vkCmdEndRenderPass(current_cmd_);
+    vkCmdEndRenderPass(active_window_->current_cmd);
 }
 
 void VulkanBackend::bind_pipeline(PipelineHandle handle)
@@ -1167,7 +1167,7 @@ void VulkanBackend::bind_pipeline(PipelineHandle handle)
     auto it = pipelines_.find(handle.id);
     if (it != pipelines_.end() && it->second != VK_NULL_HANDLE)
     {
-        vkCmdBindPipeline(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
+        vkCmdBindPipeline(active_window_->current_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, it->second);
         auto layout_it = pipeline_layouts_.find(handle.id);
         current_pipeline_layout_ =
             (layout_it != pipeline_layouts_.end()) ? layout_it->second : pipeline_layout_;
@@ -1187,7 +1187,7 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding)
     if (entry.usage == BufferUsage::Uniform && entry.descriptor_set != VK_NULL_HANDLE)
     {
         uint32_t dynamic_offset = ubo_bound_offset_;
-        vkCmdBindDescriptorSets(current_cmd_,
+        vkCmdBindDescriptorSets(active_window_->current_cmd,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout,
                                 0,
@@ -1198,7 +1198,7 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding)
     }
     else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE)
     {
-        vkCmdBindDescriptorSets(current_cmd_,
+        vkCmdBindDescriptorSets(active_window_->current_cmd,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout,
                                 1,
@@ -1212,7 +1212,7 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding)
         // Only actual vertex buffers may be bound as vertex buffers.
         VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
         VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(current_cmd_, binding, 1, bufs, offsets);
+        vkCmdBindVertexBuffers(active_window_->current_cmd, binding, 1, bufs, offsets);
     }
     // Storage/Uniform with NULL descriptor: silently skip (pool exhausted).
 }
@@ -1224,7 +1224,7 @@ void VulkanBackend::bind_index_buffer(BufferHandle handle)
         return;
 
     auto& entry = it->second;
-    vkCmdBindIndexBuffer(current_cmd_, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(active_window_->current_cmd, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
 void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
@@ -1238,7 +1238,7 @@ void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
     {
         VkPipelineLayout layout =
             current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
-        vkCmdBindDescriptorSets(current_cmd_,
+        vkCmdBindDescriptorSets(active_window_->current_cmd,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout,
                                 1,
@@ -1253,7 +1253,7 @@ void VulkanBackend::push_constants(const SeriesPushConstants& pc)
 {
     VkPipelineLayout layout =
         current_pipeline_layout_ ? current_pipeline_layout_ : pipeline_layout_;
-    vkCmdPushConstants(current_cmd_,
+    vkCmdPushConstants(active_window_->current_cmd,
                        layout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0,
@@ -1270,7 +1270,7 @@ void VulkanBackend::set_viewport(float x, float y, float width, float height)
     vp.height = height;
     vp.minDepth = 0.0f;
     vp.maxDepth = 1.0f;
-    vkCmdSetViewport(current_cmd_, 0, 1, &vp);
+    vkCmdSetViewport(active_window_->current_cmd, 0, 1, &vp);
 }
 
 void VulkanBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
@@ -1278,29 +1278,29 @@ void VulkanBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t h
     VkRect2D scissor{};
     scissor.offset = {x, y};
     scissor.extent = {width, height};
-    vkCmdSetScissor(current_cmd_, 0, 1, &scissor);
+    vkCmdSetScissor(active_window_->current_cmd, 0, 1, &scissor);
 }
 
 void VulkanBackend::set_line_width(float width)
 {
-    vkCmdSetLineWidth(current_cmd_, width);
+    vkCmdSetLineWidth(active_window_->current_cmd, width);
 }
 
 void VulkanBackend::draw(uint32_t vertex_count, uint32_t first_vertex)
 {
-    vkCmdDraw(current_cmd_, vertex_count, 1, first_vertex, 0);
+    vkCmdDraw(active_window_->current_cmd, vertex_count, 1, first_vertex, 0);
 }
 
 void VulkanBackend::draw_instanced(uint32_t vertex_count,
                                    uint32_t instance_count,
                                    uint32_t first_vertex)
 {
-    vkCmdDraw(current_cmd_, vertex_count, instance_count, first_vertex, 0);
+    vkCmdDraw(active_window_->current_cmd, vertex_count, instance_count, first_vertex, 0);
 }
 
 void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset)
 {
-    vkCmdDrawIndexed(current_cmd_, index_count, 1, first_index, vertex_offset, 0);
+    vkCmdDrawIndexed(active_window_->current_cmd, index_count, 1, first_index, vertex_offset, 0);
 }
 
 bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height)
@@ -1316,9 +1316,9 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     }
     else
     {
-        if (swapchain_.images.empty())
+        if (active_window_->swapchain.images.empty())
             return false;
-        src_image = swapchain_.images[swapchain_.current_image_index];
+        src_image = active_window_->swapchain.images[active_window_->swapchain.current_image_index];
         src_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
 
@@ -1442,21 +1442,21 @@ uint32_t VulkanBackend::swapchain_width() const
 {
     if (headless_)
         return offscreen_.extent.width;
-    return swapchain_.extent.width;
+    return active_window_->swapchain.extent.width;
 }
 
 uint32_t VulkanBackend::swapchain_height() const
 {
     if (headless_)
         return offscreen_.extent.height;
-    return swapchain_.extent.height;
+    return active_window_->swapchain.extent.height;
 }
 
 VkRenderPass VulkanBackend::render_pass() const
 {
     if (headless_)
         return offscreen_.render_pass;
-    return swapchain_.render_pass;
+    return active_window_->swapchain.render_pass;
 }
 
 // --- Private helpers ---
@@ -1477,16 +1477,16 @@ void VulkanBackend::create_command_pool()
 void VulkanBackend::create_command_buffers()
 {
     // Free existing command buffers before allocating new ones (prevents leak on resize)
-    if (!command_buffers_.empty() && command_pool_ != VK_NULL_HANDLE)
+    if (!active_window_->command_buffers.empty() && command_pool_ != VK_NULL_HANDLE)
     {
         vkFreeCommandBuffers(ctx_.device,
                              command_pool_,
-                             static_cast<uint32_t>(command_buffers_.size()),
-                             command_buffers_.data());
+                             static_cast<uint32_t>(active_window_->command_buffers.size()),
+                             active_window_->command_buffers.data());
     }
 
-    uint32_t count = headless_ ? 1 : static_cast<uint32_t>(swapchain_.images.size());
-    command_buffers_.resize(count);
+    uint32_t count = headless_ ? 1 : static_cast<uint32_t>(active_window_->swapchain.images.size());
+    active_window_->command_buffers.resize(count);
 
     VkCommandBufferAllocateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1494,7 +1494,7 @@ void VulkanBackend::create_command_buffers()
     info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = count;
 
-    if (vkAllocateCommandBuffers(ctx_.device, &info, command_buffers_.data()) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(ctx_.device, &info, active_window_->command_buffers.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to allocate command buffers");
     }
@@ -1507,10 +1507,10 @@ void VulkanBackend::create_sync_objects()
 
     // Use one set of sync objects per swapchain image to prevent
     // semaphore reuse while the presentation engine still holds them.
-    uint32_t count = static_cast<uint32_t>(swapchain_.images.size());
-    image_available_semaphores_.resize(count);
-    render_finished_semaphores_.resize(count);
-    in_flight_fences_.resize(count);
+    uint32_t count = static_cast<uint32_t>(active_window_->swapchain.images.size());
+    active_window_->image_available_semaphores.resize(count);
+    active_window_->render_finished_semaphores.resize(count);
+    active_window_->in_flight_fences.resize(count);
 
     VkSemaphoreCreateInfo sem_info{};
     sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1521,11 +1521,11 @@ void VulkanBackend::create_sync_objects()
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &image_available_semaphores_[i])
+        if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &active_window_->image_available_semaphores[i])
                 != VK_SUCCESS
-            || vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &render_finished_semaphores_[i])
+            || vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &active_window_->render_finished_semaphores[i])
                    != VK_SUCCESS
-            || vkCreateFence(ctx_.device, &fence_info, nullptr, &in_flight_fences_[i])
+            || vkCreateFence(ctx_.device, &fence_info, nullptr, &active_window_->in_flight_fences[i])
                    != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create sync objects");
@@ -1607,6 +1607,186 @@ void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer,
     write.pBufferInfo = &buf_info;
 
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
+}
+
+// --- Multi-window helpers ---
+
+bool VulkanBackend::recreate_swapchain_for(WindowContext& wctx, uint32_t width, uint32_t height)
+{
+    auto* prev_active = active_window_;
+    active_window_ = &wctx;
+    bool ok = recreate_swapchain(width, height);
+    active_window_ = prev_active;
+    return ok;
+}
+
+bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uint32_t height)
+{
+    if (!wctx.glfw_window)
+    {
+        SPECTRA_LOG_ERROR("vulkan", "init_window_context: no GLFW window set");
+        return false;
+    }
+
+    // Save and restore active window so callers don't need to worry about it
+    auto* prev_active = active_window_;
+
+    try
+    {
+#ifdef SPECTRA_USE_GLFW
+        auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
+        VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_win, nullptr, &wctx.surface);
+        if (result != VK_SUCCESS)
+        {
+            SPECTRA_LOG_ERROR("vulkan",
+                              "init_window_context: surface creation failed (VkResult="
+                                  + std::to_string(result) + ")");
+            active_window_ = prev_active;
+            return false;
+        }
+#else
+        SPECTRA_LOG_ERROR("vulkan", "init_window_context: GLFW not available");
+        active_window_ = prev_active;
+        return false;
+#endif
+
+        // Create swapchain for this window
+        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        wctx.swapchain = vk::create_swapchain(
+            ctx_.device,
+            ctx_.physical_device,
+            wctx.surface,
+            width,
+            height,
+            ctx_.queue_families.graphics.value(),
+            ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
+            VK_NULL_HANDLE,
+            VK_NULL_HANDLE,
+            vk_msaa);
+
+        // Allocate command buffers and sync objects for this window
+        create_command_buffers_for(wctx);
+        create_sync_objects_for(wctx);
+
+        active_window_ = prev_active;
+
+        SPECTRA_LOG_INFO("vulkan",
+                         "Window context " + std::to_string(wctx.id) + " initialized: "
+                             + std::to_string(wctx.swapchain.extent.width) + "x"
+                             + std::to_string(wctx.swapchain.extent.height));
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("vulkan",
+                          "init_window_context failed: " + std::string(e.what()));
+        active_window_ = prev_active;
+        return false;
+    }
+}
+
+void VulkanBackend::destroy_window_context(WindowContext& wctx)
+{
+    // Wait for any in-flight work on this window
+    if (!wctx.in_flight_fences.empty())
+    {
+        vkWaitForFences(ctx_.device,
+                        static_cast<uint32_t>(wctx.in_flight_fences.size()),
+                        wctx.in_flight_fences.data(),
+                        VK_TRUE,
+                        UINT64_MAX);
+    }
+
+    // Destroy sync objects
+    for (auto sem : wctx.image_available_semaphores)
+        vkDestroySemaphore(ctx_.device, sem, nullptr);
+    for (auto sem : wctx.render_finished_semaphores)
+        vkDestroySemaphore(ctx_.device, sem, nullptr);
+    for (auto fence : wctx.in_flight_fences)
+        vkDestroyFence(ctx_.device, fence, nullptr);
+    wctx.image_available_semaphores.clear();
+    wctx.render_finished_semaphores.clear();
+    wctx.in_flight_fences.clear();
+
+    // Free command buffers back to the shared pool
+    if (!wctx.command_buffers.empty() && command_pool_ != VK_NULL_HANDLE)
+    {
+        vkFreeCommandBuffers(ctx_.device,
+                             command_pool_,
+                             static_cast<uint32_t>(wctx.command_buffers.size()),
+                             wctx.command_buffers.data());
+        wctx.command_buffers.clear();
+    }
+    wctx.current_cmd = VK_NULL_HANDLE;
+
+    // Destroy swapchain
+    vk::destroy_swapchain(ctx_.device, wctx.swapchain);
+
+    // Destroy surface
+    if (wctx.surface != VK_NULL_HANDLE)
+    {
+        vkDestroySurfaceKHR(ctx_.instance, wctx.surface, nullptr);
+        wctx.surface = VK_NULL_HANDLE;
+    }
+
+    SPECTRA_LOG_INFO("vulkan",
+                     "Window context " + std::to_string(wctx.id) + " destroyed");
+}
+
+void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
+{
+    // Free existing command buffers before allocating new ones
+    if (!wctx.command_buffers.empty() && command_pool_ != VK_NULL_HANDLE)
+    {
+        vkFreeCommandBuffers(ctx_.device,
+                             command_pool_,
+                             static_cast<uint32_t>(wctx.command_buffers.size()),
+                             wctx.command_buffers.data());
+    }
+
+    uint32_t count = static_cast<uint32_t>(wctx.swapchain.images.size());
+    wctx.command_buffers.resize(count);
+
+    VkCommandBufferAllocateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    info.commandPool = command_pool_;
+    info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    info.commandBufferCount = count;
+
+    if (vkAllocateCommandBuffers(ctx_.device, &info, wctx.command_buffers.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate command buffers for window "
+                                 + std::to_string(wctx.id));
+    }
+}
+
+void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
+{
+    uint32_t count = static_cast<uint32_t>(wctx.swapchain.images.size());
+    wctx.image_available_semaphores.resize(count);
+    wctx.render_finished_semaphores.resize(count);
+    wctx.in_flight_fences.resize(count);
+
+    VkSemaphoreCreateInfo sem_info{};
+    sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &wctx.image_available_semaphores[i])
+                != VK_SUCCESS
+            || vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &wctx.render_finished_semaphores[i])
+                   != VK_SUCCESS
+            || vkCreateFence(ctx_.device, &fence_info, nullptr, &wctx.in_flight_fences[i])
+                   != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create sync objects for window "
+                                     + std::to_string(wctx.id));
+        }
+    }
 }
 
 }  // namespace spectra

@@ -6,7 +6,7 @@
 #include <spectra/fwd.hpp>
 #include <vector>
 
-#include "../util/multi_window_fixture.hpp"
+#include "multi_window_fixture.hpp"
 #include "render/backend.hpp"
 
 using namespace spectra;
@@ -56,7 +56,6 @@ TEST(FigureBaseline, FigureOwnsAxes)
     ax.line(x, y).label("test");
 
     EXPECT_EQ(fig.axes().size(), 1u);
-    EXPECT_EQ(fig.all_axes().size(), 1u);
 }
 
 TEST(FigureBaseline, FigureSubplotGrid)

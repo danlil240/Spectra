@@ -8,6 +8,7 @@
 #include "vk_device.hpp"
 #include "vk_pipeline.hpp"
 #include "vk_swapchain.hpp"
+#include "window_context.hpp"
 
 // shader_spirv.hpp included in .cpp
 
@@ -71,8 +72,32 @@ class VulkanBackend : public Backend
     uint32_t swapchain_height() const override;
 
     // Returns true if swapchain needs recreation (set by present OUT_OF_DATE)
-    bool swapchain_needs_recreation() const { return swapchain_dirty_; }
-    void clear_swapchain_dirty() { swapchain_dirty_ = false; }
+    bool swapchain_needs_recreation() const { return active_window_->swapchain_dirty; }
+    void clear_swapchain_dirty() { active_window_->swapchain_dirty = false; }
+
+    // Multi-window support: set the active window context for frame operations.
+    // All begin_frame/end_frame/render pass calls target the active context.
+    void set_active_window(WindowContext* ctx) { active_window_ = ctx; }
+    WindowContext* active_window() const { return active_window_; }
+    WindowContext& primary_window() { return primary_window_; }
+
+    // Initialize Vulkan resources for a secondary WindowContext.
+    // Creates surface from GLFW window, swapchain, command buffers, and sync objects.
+    // The WindowContext must have a valid glfw_window pointer set before calling.
+    bool init_window_context(WindowContext& wctx, uint32_t width, uint32_t height);
+
+    // Destroy all Vulkan resources owned by a WindowContext.
+    // Waits for in-flight fences before cleanup.
+    void destroy_window_context(WindowContext& wctx);
+
+    // Allocate command buffers for a specific WindowContext from the shared pool.
+    void create_command_buffers_for(WindowContext& wctx);
+
+    // Create sync objects (semaphores + fences) for a specific WindowContext.
+    void create_sync_objects_for(WindowContext& wctx);
+
+    // Recreate swapchain for a specific WindowContext (saves/restores active_window_).
+    bool recreate_swapchain_for(WindowContext& wctx, uint32_t width, uint32_t height);
 
     // Returns true if the Vulkan device has been lost (unrecoverable)
     bool is_device_lost() const { return device_lost_; }
@@ -88,10 +113,10 @@ class VulkanBackend : public Backend
     VkDescriptorPool descriptor_pool() const { return descriptor_pool_; }
     uint32_t image_count() const
     {
-        return headless_ ? 1 : static_cast<uint32_t>(swapchain_.images.size());
+        return headless_ ? 1 : static_cast<uint32_t>(active_window_->swapchain.images.size());
     }
     uint32_t min_image_count() const { return headless_ ? 1 : 2; }
-    VkCommandBuffer current_command_buffer() const { return current_cmd_; }
+    VkCommandBuffer current_command_buffer() const { return active_window_->current_cmd; }
 
    private:
     void create_command_pool();
@@ -105,24 +130,20 @@ class VulkanBackend : public Backend
 
    private:
     vk::DeviceContext ctx_;
-    VkSurfaceKHR surface_ = VK_NULL_HANDLE;
-    vk::SwapchainContext swapchain_;
     vk::OffscreenContext offscreen_;
     bool headless_ = false;
-    bool swapchain_dirty_ = false;  // set when present returns OUT_OF_DATE/SUBOPTIMAL
-    bool device_lost_ = false;      // set on VK_ERROR_DEVICE_LOST — unrecoverable
+    bool device_lost_ = false;  // set on VK_ERROR_DEVICE_LOST — unrecoverable
+
+    // Primary window context (single-window mode).
+    // All per-window resources (surface, swapchain, command buffers, sync
+    // objects) live here.  active_window_ points to the context that
+    // begin_frame/end_frame currently target.
+    WindowContext primary_window_;
+    WindowContext* active_window_ = &primary_window_;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
-    std::vector<VkCommandBuffer> command_buffers_;
 
-    // Sync objects
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
-    // Per-swapchain-image semaphores (fixes semaphore reuse during present)
-    std::vector<VkSemaphore> image_available_semaphores_;  // indexed by swapchain image
-    std::vector<VkSemaphore> render_finished_semaphores_;  // indexed by swapchain image
-    // Per-frame-in-flight fences
-    std::vector<VkFence> in_flight_fences_;
-    uint32_t current_flight_frame_ = 0;
 
     // Descriptor management
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
@@ -169,8 +190,6 @@ class VulkanBackend : public Backend
     static constexpr uint32_t UBO_MAX_SLOTS = 64;
 
     // Current frame state
-    VkCommandBuffer current_cmd_ = VK_NULL_HANDLE;
-    uint32_t current_image_index_ = 0;
     VkPipelineLayout current_pipeline_layout_ = VK_NULL_HANDLE;
 };
 

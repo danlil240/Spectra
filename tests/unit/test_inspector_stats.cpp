@@ -319,7 +319,7 @@ TEST(AxesStatistics, VisibilityTracking)
     auto& ax = fig.subplot(1, 1, 1);
     float x[] = {1.0f, 2.0f};
     float y[] = {3.0f, 4.0f};
-    // auto& s1 = ax.line(x, y);  // Currently unused
+    auto& s1 = ax.line(x, y);
     auto& s2 = ax.line(x, y);
     s2.visible(false);
 

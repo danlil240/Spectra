@@ -2,7 +2,8 @@
 
 **Author:** Principal Graphics Architect  
 **Date:** 2026-02-16  
-**Status:** Planning — NO IMPLEMENTATION
+**Status:** Phase 1 Complete — Agent A (WindowContext Extraction) ✅  
+**Last Updated:** 2026-02-16
 
 ---
 
@@ -1241,6 +1242,181 @@ The multi-window system is complete when ALL of the following are true:
 - [ ] All golden image tests pass
 - [ ] All benchmarks show no regression (±5%)
 - [ ] Single-window mode is the default and works identically to pre-refactor
+
+---
+
+## 10. SESSION PROGRESS TRACKING
+
+**IMPORTANT:** After every work session, update this section to track what was completed and what's next.
+
+### Session Log Format
+
+```markdown
+### Session [N] — [Date] — [Agent X] — [Phase Y]
+**Duration:** [time]
+**Status:** [In Progress / Complete / Blocked]
+
+**Completed:**
+- [ ] Item 1 description
+- [ ] Item 2 description
+- [ ] ...
+
+**Files Modified:**
+- `path/to/file.hpp` — brief description of changes
+- `path/to/file.cpp` — brief description of changes
+
+**Files Created:**
+- `path/to/new_file.hpp` — brief description
+- `path/to/new_file.cpp` — brief description
+
+**Tests:**
+- X/Y unit tests pass
+- Build status: [clean / warnings / errors]
+- Validation errors: [none / count]
+
+**Next Session:**
+- [ ] Next task 1
+- [ ] Next task 2
+- [ ] ...
+
+**Blockers:** [None / description of blockers]
+
+**Notes:**
+- Any important decisions or findings
+- Risks encountered
+- Deviations from plan
+```
+
+### Session History
+
+*(Sessions will be logged below in reverse chronological order)*
+
+---
+
+### Session 1 — 2026-02-16 — Agent A — Phase 1
+**Duration:** ~2 hours
+**Status:** Complete ✅
+
+**Completed:**
+- [x] Extracted WindowContext struct from VulkanBackend
+- [x] Moved per-window resources into WindowContext (surface, swapchain, command buffers, sync objects)
+- [x] Added active_window_ pointer pattern with primary_window_ default
+- [x] Updated all VulkanBackend methods to use active_window_->
+- [x] Refactored GlfwAdapter with destroy_window() and terminate() separation
+- [x] FigureId typedef already existed from prior work
+
+**Files Modified:**
+- `src/render/vulkan/vk_backend.hpp` — Added WindowContext include, removed flat members, added primary_window_ + active_window_
+- `src/render/vulkan/vk_backend.cpp` — All per-window access redirected through active_window_->
+- `src/ui/glfw_adapter.hpp` — Added destroy_window() and static terminate()
+- `src/ui/glfw_adapter.cpp` — Implemented destroy_window() and terminate(), refactored shutdown()
+
+**Files Created:**
+- `src/render/vulkan/window_context.hpp` — WindowContext struct with all per-window Vulkan resources
+
+**Tests:**
+- 68/68 ctest pass
+- Build status: clean, zero warnings from changes
+- Validation errors: none
+
+**Next Session:**
+- [ ] Agent B: Implement WindowManager class
+- [ ] Agent B: Multi-swapchain rendering (2+ windows simultaneously)
+- [ ] Agent B: Per-window render loop integration
+- [ ] Agent B: Window creation/destruction API
+
+**Blockers:** None
+
+**Notes:**
+- Single primary_window_ member with active_window_ pointer defaulting to it — zero behavioral change for single-window mode
+- frame_ubo_buffer_ stays in Renderer for now (moving it into WindowContext deferred to Agent B when multi-window rendering is implemented)
+- GlfwAdapter::shutdown() preserved as convenience (calls both destroy_window + terminate)
+- All existing tests pass with zero regressions
+
+---
+
+### Session 2 — 2026-02-17 — Agent B — Phase 2 (WindowManager Creation)
+**Duration:** ~1.5 hours
+**Status:** Complete ✅
+
+**Completed:**
+- [x] Created WindowManager class (`window_manager.hpp` / `window_manager.cpp`)
+- [x] Added `init_window_context()`, `destroy_window_context()`, `create_command_buffers_for()`, `create_sync_objects_for()` to VulkanBackend
+- [x] Added `void* glfw_window` and `bool is_focused` fields to WindowContext
+- [x] Added `class WindowManager` forward declaration to `fwd.hpp`
+- [x] Added `window_manager.cpp` to CMakeLists.txt build
+
+**Files Created:**
+- `src/ui/window_manager.hpp` — WindowManager class: init(), adopt_primary_window(), create_window(), request_close(), destroy_window(), process_pending_closes(), poll_events(), focused_window(), any_window_open(), find_window(), shutdown(). GLFW callback trampolines for resize/close/focus. Non-copyable.
+- `src/ui/window_manager.cpp` — Full implementation. GLFW window creation with GLFW_NO_API. Vulkan resource init via backend. Deferred close pattern. GLFW callbacks route via glfwGetWindowUserPointer.
+
+**Files Modified:**
+- `src/render/vulkan/window_context.hpp` — Added `void* glfw_window = nullptr`, `bool is_focused = false`
+- `src/render/vulkan/vk_backend.hpp` — Added 4 public multi-window methods
+- `src/render/vulkan/vk_backend.cpp` — Implemented init/destroy window context, per-window cmd buffers and sync objects
+- `include/spectra/fwd.hpp` — Added WindowManager forward declaration
+- `CMakeLists.txt` — Added window_manager.cpp to SPECTRA_UI_SOURCES
+
+**Tests:** 68/68 ctest pass, zero regressions
+
+---
+
+### Session 3 — 2026-02-17 — Agent B — Phase 2 (App Integration + Tests)
+**Duration:** ~1 hour
+**Status:** Complete ✅
+
+**Completed:**
+- [x] Wired WindowManager into `app.cpp` — creates and initializes after GLFW window setup
+- [x] WindowManager adopts primary window after surface/swapchain creation
+- [x] WindowManager handles poll_events() and process_pending_closes() in main loop
+- [x] WindowManager shutdown() called before GlfwAdapter shutdown on exit
+- [x] Added `recreate_swapchain_for(WindowContext&)` to VulkanBackend for per-window resize
+- [x] Created `test_window_manager.cpp` with 24 unit tests covering:
+  - Construction & init (default, with backend, null backend)
+  - Adopt primary window (headless, ID assignment, appears in windows list)
+  - Find window (by ID, invalid ID)
+  - Focused window (primary focused, none when closed)
+  - Any window open (true, false after close)
+  - Request close (primary)
+  - Shutdown (cleanup, idempotent, destructor)
+  - WindowContext fields (defaults, MAX_FRAMES_IN_FLIGHT)
+  - VulkanBackend multi-window methods (init fails without GLFW, destroy empty context, recreate swapchain)
+  - Poll events and process_pending_closes (no-op in headless)
+  - Multiple operations (multiple adopt calls, window count accuracy)
+- [x] Added test_window_manager to tests/CMakeLists.txt
+
+**Files Created:**
+- `tests/unit/test_window_manager.cpp` — 24 unit tests for WindowManager
+
+**Files Modified:**
+- `src/ui/app.cpp` — Included window_manager.hpp, created WindowManager instance, adopt primary window, use for poll/close, shutdown before GLFW
+- `src/render/vulkan/vk_backend.hpp` — Added `recreate_swapchain_for()` declaration
+- `src/render/vulkan/vk_backend.cpp` — Implemented `recreate_swapchain_for()` (saves/restores active_window_)
+- `tests/CMakeLists.txt` — Added test_window_manager to unit test list
+
+**Tests:** 69/69 ctest pass (68 existing + 1 new test_window_manager), zero regressions
+
+**Key Design Decisions:**
+- WindowManager is created as `unique_ptr` alongside GlfwAdapter in app.cpp GLFW block
+- Primary window adopted after create_surface + create_swapchain (Vulkan resources already set up)
+- WindowManager::poll_events() replaces GlfwAdapter::poll_events() when available (handles all windows)
+- WindowManager::shutdown() called before GlfwAdapter::shutdown() to destroy secondary windows first
+- `recreate_swapchain_for()` is a thin wrapper that saves/restores active_window_ around existing recreate_swapchain()
+- Tests use headless App to get a real VulkanBackend without requiring GLFW display
+
+**Next Session:**
+- [ ] Per-window render loop: iterate over WindowManager::windows() for begin_frame/end_frame
+- [ ] Per-window resize debounce using WindowContext::needs_resize/pending_width/pending_height
+- [ ] Move frame_ubo_buffer_ into WindowContext for per-window viewport dimensions
+- [ ] Enable SPECTRA_HAS_WINDOW_MANAGER tests in test_multi_window.cpp
+- [ ] Integration test: create secondary window, render to both, close secondary
+
+**Blockers:** None
+
+**Notes:**
+- The render loop still renders to a single window (primary). Multi-window rendering (iterating over all windows) is deferred to the next session.
+- frame_ubo_buffer_ remains in Renderer — it's re-uploaded per-axes call, so it works correctly even with multiple windows. Moving it to WindowContext is an optimization for when windows have different viewport dimensions.
+- The existing resize debounce in app.cpp still operates on the primary window only. Per-window resize will use WindowContext::needs_resize fields set by WindowManager's GLFW callbacks.
 
 ---
 

@@ -51,6 +51,7 @@ foreach(_ui_src
     src/ui/mode_transition.cpp
     src/ui/camera.cpp
     src/ui/axes3d_renderer.cpp
+    src/ui/window_manager.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})

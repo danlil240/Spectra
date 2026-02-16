@@ -38,6 +38,14 @@ class GlfwAdapter
     // Shutdown and destroy window
     void shutdown();
 
+    // Destroy only this window (does NOT call glfwTerminate).
+    // Use this when closing one window in a multi-window setup.
+    void destroy_window();
+
+    // Terminate the entire GLFW library.  Call once after all windows
+    // have been destroyed (typically at application exit).
+    static void terminate();
+
     // Poll events (call once per frame)
     void poll_events();
 

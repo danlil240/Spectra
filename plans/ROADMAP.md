@@ -1,8 +1,8 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-15 (All UI Redesign Phases Complete + 3D Phases 1 & 2 (partial) Complete)  
+**Last Updated:** 2026-02-16 (All UI Redesign Phases Complete + 3D Phases 1 & 2 (partial) Complete)  
 **Current Phase:** 3D Visualization — Phase 2 In Progress  
-**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 6 ✅
+**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 5 ✅, Agent 6 ✅
 
 ---
 
@@ -537,12 +537,14 @@
 | `test_undo_redo.cpp` | 25 | ✅ Pass |
 | `test_workspace.cpp` | 12 | ✅ Pass |
 | `test_math3d.cpp` | 60 | ✅ Pass |
+| `test_camera_animator.cpp` | 48 | ✅ Pass |
+| `test_camera.cpp` | — | ✅ Pass |
 
 ---
 
 ## 3D Visualization Architecture (Separate Track)
 
-**Status:** Phase 1 — Agent 1 Complete ✅  
+**Status:** Phase 2 — Agent 6 Complete ✅  
 **Reference:** See [`plans/3D_ARCHITECTURE_PLAN.md`](3D_ARCHITECTURE_PLAN.md) for full 7-agent plan
 
 ### Agent 1 — Core Transform Refactor & Math Utilities ✅ Complete
@@ -566,7 +568,7 @@
 - No GLM dependency — self-contained math library
 - FrameUBO std140 compatible with proper padding
 
-### Next: Agent 2 — Camera & 3D Interaction (In Progress)
+### Agent 2 — Camera & 3D Interaction ✅ Complete
 
 **Planned deliverables:**
 - Camera class (position, target, up, orbit, pan, zoom, projection modes)
@@ -577,6 +579,32 @@
 
 **Depends on:** Agent 1 (math3d.hpp) ✅
 
+### Agent 6 — 3D Animation Extension ✅ Complete
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| CameraAnimator class (orbit + free-flight keyframe paths) | ✅ Done | `src/ui/camera_animator.hpp/.cpp` |
+| CameraKeyframe struct, CameraPathMode enum | ✅ Done | `src/ui/camera_animator.hpp` |
+| Orbit interpolation (lerp azimuth/elevation/distance/fov/target) | ✅ Done | `src/ui/camera_animator.cpp` |
+| Free-flight interpolation (slerp orientation + lerp position) | ✅ Done | `src/ui/camera_animator.cpp` |
+| Target camera binding + evaluate_at() for timeline integration | ✅ Done | `src/ui/camera_animator.hpp/.cpp` |
+| Convenience: create_orbit_animation(), create_turntable() | ✅ Done | `src/ui/camera_animator.cpp` |
+| CameraAnimator serialization/deserialization | ✅ Done | `src/ui/camera_animator.cpp` |
+| TransitionEngine::animate_camera() (lerp all camera params) | ✅ Done | `src/ui/transition_engine.hpp/.cpp` |
+| KeyframeInterpolator CameraBinding (azimuth/elevation/distance/fov channels) | ✅ Done | `src/ui/keyframe_interpolator.hpp/.cpp` |
+| TimelineEditor camera_animator_ integration + evaluate_at_playhead() | ✅ Done | `src/ui/timeline_editor.hpp/.cpp` |
+| CameraAnimator forward declaration | ✅ Done | `include/plotix/fwd.hpp` |
+| Unit tests (48 tests, 11 suites) | ✅ Done | `tests/unit/test_camera_animator.cpp` |
+
+**Key achievements:**
+- Two interpolation strategies: Orbit (spherical coord lerp) and FreeFlight (quaternion slerp + position lerp)
+- Shepperd's method for numerically stable quaternion extraction from rotation matrix
+- Thread-safe: all public methods lock internal mutex
+- Timeline integration: evaluate_at_playhead() drives both KeyframeInterpolator and CameraAnimator
+- Zero regressions: 62/62 ctest pass
+
+**Depends on:** Agent 2 (Camera class) ✅
+
 ### Future Agents (Planned)
 
 | Agent | Scope | Status | Depends On |
@@ -584,7 +612,7 @@
 | Agent 3 | Axes3D, grid planes, tick labels | Planned | Agent 1, 2 |
 | Agent 4 | 3D pipelines & shaders (10 new shaders) | Planned | Agent 1 |
 | Agent 5 | 3D series (ScatterSeries3D, LineSeries3D, SurfaceSeries, MeshSeries) | ✅ Done | Agent 3, 4 |
-| Agent 6 | Camera animation, keyframe interpolation, timeline integration | Planned | Agent 2, 5 |
+| Agent 6 | Camera animation, keyframe interpolation, timeline integration | ✅ Done | Agent 2, 5 |
 | Agent 7 | Testing, golden images, benchmarks, validation | Planned | All agents |
 
 **3D Phase 1 Target (Weeks 1–4):** 3D scatter plot with orbit camera, depth tested, exportable to PNG  

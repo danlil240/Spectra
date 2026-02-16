@@ -506,7 +506,11 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes) 
 void VulkanBackend::destroy_buffer(BufferHandle handle) {
     auto it = buffers_.find(handle.id);
     if (it != buffers_.end()) {
-        // Descriptor sets are freed when the pool is destroyed/reset
+        // Free the descriptor set back to the pool so it can be reused.
+        // The pool was created with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT.
+        if (it->second.descriptor_set != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE) {
+            vkFreeDescriptorSets(ctx_.device, descriptor_pool_, 1, &it->second.descriptor_set);
+        }
         buffers_.erase(it);
     }
 }
@@ -911,11 +915,13 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding) {
     } else if (entry.usage == BufferUsage::Storage && entry.descriptor_set != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(current_cmd_, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout, 1, 1, &entry.descriptor_set, 0, nullptr);
-    } else {
+    } else if (entry.usage == BufferUsage::Vertex) {
+        // Only actual vertex buffers may be bound as vertex buffers.
         VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(current_cmd_, binding, 1, bufs, offsets);
     }
+    // Storage/Uniform with NULL descriptor: silently skip (pool exhausted).
 }
 
 void VulkanBackend::bind_index_buffer(BufferHandle handle) {

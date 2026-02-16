@@ -4,6 +4,7 @@
 #include <plotix/fwd.hpp>
 #include <plotix/series.hpp>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -48,6 +49,17 @@ public:
     const std::vector<std::unique_ptr<Series>>& series() const { return series_; }
     std::vector<std::unique_ptr<Series>>& series_mut() { return series_; }
 
+    // Safely remove all series, notifying the renderer to defer GPU cleanup.
+    // Always prefer this over series_mut().clear().
+    void clear_series();
+
+    // Remove a single series by index (0-based).  Returns false if out of range.
+    bool remove_series(size_t index);
+
+    // Called by the framework to wire up deferred GPU cleanup.
+    using SeriesRemovedCallback = std::function<void(const Series*)>;
+    void set_series_removed_callback(SeriesRemovedCallback cb) { on_series_removed_ = std::move(cb); }
+
     void set_viewport(const Rect& r) { viewport_ = r; }
     const Rect& viewport() const { return viewport_; }
 
@@ -73,6 +85,7 @@ protected:
     bool border_enabled_ = true;
     AxisStyle axis_style_;
     Rect viewport_;
+    SeriesRemovedCallback on_series_removed_;
 };
 
 class Axes : public AxesBase {

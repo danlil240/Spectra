@@ -77,6 +77,16 @@ public:
     // Evaluate and apply directly to a Camera reference.
     void apply(float time, Camera& cam) const;
 
+    // ─── Target camera binding ──────────────────────────────────────
+
+    // Set a target camera that evaluate_at() will write to.
+    void set_target_camera(Camera* cam);
+    Camera* target_camera() const;
+
+    // Evaluate at the given time and apply to the bound target camera.
+    // No-op if no target camera is set or no keyframes exist.
+    void evaluate_at(float time);
+
     // ─── Convenience ────────────────────────────────────────────────────
 
     // Create a simple orbit animation: rotating from start_azimuth to end_azimuth
@@ -99,6 +109,7 @@ private:
 
     CameraPathMode path_mode_ = CameraPathMode::Orbit;
     std::vector<CameraKeyframe> keyframes_;  // Always sorted by time
+    Camera* target_camera_ = nullptr;
 
     void sort_keyframes();
 

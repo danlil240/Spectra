@@ -8,8 +8,10 @@
 // Forward declarations
 namespace plotix { class Axes3D; }
 
+#include <array>
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 namespace plotix {
 
@@ -38,6 +40,16 @@ public:
 
     // Upload series data to GPU if dirty
     void upload_series_data(Series& series);
+
+    // Notify the renderer that a Series object is about to be destroyed.
+    // Moves its GPU resources into a deferred-deletion queue so they are
+    // not freed while the GPU is still using them.
+    void notify_series_removed(const Series* series);
+
+    // Flush the deferred-deletion queue.  Call this at a point where the
+    // GPU is guaranteed to have finished all previously submitted work
+    // (e.g. right after begin_frame / fence wait).
+    void flush_pending_deletions();
 
     Backend& backend() { return backend_; }
 
@@ -94,6 +106,12 @@ private:
         size_t       index_count = 0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Double-buffered deferred deletion: resources removed in frame N are
+    // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).
+    static constexpr uint32_t DELETION_RING_SIZE = 4; // MAX_FRAMES_IN_FLIGHT + 2
+    std::array<std::vector<SeriesGpuData>, DELETION_RING_SIZE> deletion_ring_;
+    uint32_t deletion_ring_write_ = 0;
 };
 
 } // namespace plotix

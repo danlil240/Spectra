@@ -102,6 +102,31 @@ void CameraAnimator::apply(float time, Camera& cam) const {
     cam = evaluate(time);
 }
 
+// ─── Target camera binding ──────────────────────────────────────────────────
+
+void CameraAnimator::set_target_camera(Camera* cam) {
+    std::lock_guard lock(mutex_);
+    target_camera_ = cam;
+}
+
+Camera* CameraAnimator::target_camera() const {
+    std::lock_guard lock(mutex_);
+    return target_camera_;
+}
+
+void CameraAnimator::evaluate_at(float time) {
+    std::lock_guard lock(mutex_);
+    if (!target_camera_ || keyframes_.empty()) return;
+
+    Camera result;
+    if (path_mode_ == CameraPathMode::Orbit) {
+        result = evaluate_orbit(time);
+    } else {
+        result = evaluate_free_flight(time);
+    }
+    *target_camera_ = result;
+}
+
 // ─── Convenience ────────────────────────────────────────────────────────────
 
 void CameraAnimator::create_orbit_animation(const Camera& base,

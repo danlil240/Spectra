@@ -18,9 +18,44 @@ Renderer::Renderer(Backend& backend)
     : backend_(backend)
 {}
 
+void Renderer::notify_series_removed(const Series* series) {
+    auto it = series_gpu_data_.find(series);
+    if (it != series_gpu_data_.end()) {
+        // Move GPU resources into the current ring slot.  They will be
+        // destroyed DELETION_RING_SIZE frames later, after the GPU has
+        // finished all command buffers that might reference them.
+        deletion_ring_[deletion_ring_write_].push_back(std::move(it->second));
+        series_gpu_data_.erase(it);
+    }
+}
+
+void Renderer::flush_pending_deletions() {
+    // Destroy the oldest slot — these resources were queued DELETION_RING_SIZE
+    // frames ago, so the GPU is guaranteed to be done with them.
+    uint32_t destroy_slot = (deletion_ring_write_ + 1) % DELETION_RING_SIZE;
+    auto& slot = deletion_ring_[destroy_slot];
+    for (auto& gpu : slot) {
+        if (gpu.ssbo)         backend_.destroy_buffer(gpu.ssbo);
+        if (gpu.index_buffer) backend_.destroy_buffer(gpu.index_buffer);
+    }
+    slot.clear();
+
+    // Advance write pointer to the slot we just freed.
+    deletion_ring_write_ = destroy_slot;
+}
+
 Renderer::~Renderer() {
     // Wait for GPU to finish using all resources before destroying them
     backend_.wait_idle();
+
+    // Flush ALL deferred deletion ring slots
+    for (auto& slot : deletion_ring_) {
+        for (auto& gpu : slot) {
+            if (gpu.ssbo)         backend_.destroy_buffer(gpu.ssbo);
+            if (gpu.index_buffer) backend_.destroy_buffer(gpu.index_buffer);
+        }
+        slot.clear();
+    }
     
     // Clean up per-series GPU data
     for (auto& [ptr, data] : series_gpu_data_) {
@@ -68,6 +103,10 @@ bool Renderer::init() {
 }
 
 void Renderer::begin_render_pass() {
+    // NOTE: flush_pending_deletions() is called from App::run() right after
+    // begin_frame() succeeds, NOT here.  This ensures the fence wait has
+    // completed before any GPU resources are freed.
+
     const auto& theme_colors = ui::ThemeManager::instance().colors();
     Color bg_color = Color(theme_colors.bg_primary.r, theme_colors.bg_primary.g,
                           theme_colors.bg_primary.b, theme_colors.bg_primary.a);
@@ -82,10 +121,15 @@ void Renderer::render_figure_content(Figure& figure) {
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
     backend_.set_scissor(0, 0, w, h);
 
+    // Wire up deferred-deletion callback on every axes so that
+    // clear_series() / remove_series() safely defer GPU cleanup.
+    auto removal_cb = [this](const Series* s) { notify_series_removed(s); };
+
     // Render each 2D axes
     for (auto& axes_ptr : figure.axes()) {
         if (!axes_ptr) continue;
         auto& ax = *axes_ptr;
+        ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);
@@ -95,6 +139,7 @@ void Renderer::render_figure_content(Figure& figure) {
     for (auto& axes_ptr : figure.all_axes()) {
         if (!axes_ptr) continue;
         auto& ax = *axes_ptr;
+        ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);

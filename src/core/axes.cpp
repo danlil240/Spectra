@@ -6,6 +6,24 @@
 
 namespace plotix {
 
+// --- Safe series removal ---
+
+void AxesBase::clear_series() {
+    if (on_series_removed_) {
+        for (auto& s : series_)
+            on_series_removed_(s.get());
+    }
+    series_.clear();
+}
+
+bool AxesBase::remove_series(size_t index) {
+    if (index >= series_.size()) return false;
+    if (on_series_removed_)
+        on_series_removed_(series_[index].get());
+    series_.erase(series_.begin() + static_cast<ptrdiff_t>(index));
+    return true;
+}
+
 // --- Series creation ---
 
 LineSeries& Axes::line(std::span<const float> x, std::span<const float> y) {

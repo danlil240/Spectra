@@ -419,6 +419,7 @@ void App::run() {
 
                 // Render a full frame
                 if (backend_->begin_frame()) {
+                    renderer_->flush_pending_deletions();
                     renderer_->begin_render_pass();
                     renderer_->render_figure_content(*active_figure);
 #ifdef PLOTIX_USE_IMGUI
@@ -1105,6 +1106,18 @@ void App::run() {
         }
 #endif
 
+        // Ensure all axes have the deferred-deletion callback wired
+        // BEFORE the user's on_frame callback can call clear_series().
+        if (renderer_) {
+            auto removal_cb = [this](const Series* s) { renderer_->notify_series_removed(s); };
+            for (auto& axes_ptr : active_figure->axes()) {
+                if (axes_ptr) axes_ptr->set_series_removed_callback(removal_cb);
+            }
+            for (auto& axes_ptr : active_figure->all_axes()) {
+                if (axes_ptr) axes_ptr->set_series_removed_callback(removal_cb);
+            }
+        }
+
         // Call user on_frame callback
         if (has_animation && active_figure->anim_on_frame_) {
             Frame frame = scheduler.current_frame();
@@ -1376,6 +1389,11 @@ void App::run() {
         }
 
         if (frame_ok) {
+            // begin_frame() just waited on the in-flight fence, so all GPU
+            // work from DELETION_RING_SIZE frames ago is guaranteed complete.
+            // Safe to free those deferred resources now.
+            renderer_->flush_pending_deletions();
+
             renderer_->begin_render_pass();
 
 #ifdef PLOTIX_USE_IMGUI

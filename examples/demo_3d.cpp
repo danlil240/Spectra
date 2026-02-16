@@ -1,12 +1,20 @@
 #include <plotix/plotix.hpp>
 #include <cmath>
 #include <vector>
+#include <iostream>
 
 using namespace plotix;
+
+// Global animation state
+struct AnimationState {
+    float time = 0.0f;
+    bool animate = true;
+} g_anim;
 
 int main() {
     App app;
     auto& fig = app.figure({.width = 1600, .height = 1200});
+    
     // --- Subplot 1: 3D Scatter Plot (Spiral) ---
     auto& ax1 = fig.subplot3d(2, 2, 1);
     
@@ -25,7 +33,7 @@ int main() {
     
     ax1.auto_fit();
     
-    ax1.title("3D Scatter: Spiral");
+    ax1.title("3D Scatter: Spiral (Animated)");
     ax1.xlabel("X");
     ax1.ylabel("Y");
     ax1.zlabel("Z");
@@ -142,6 +150,46 @@ int main() {
     ax4.camera().update_position_from_orbit();
     ax4.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
     fig.show();
+    
+    // Print animation instructions
+    std::cout << "\n=== 3D Camera Animation Demo ===\n";
+    std::cout << "The first subplot (top-left) shows an animated camera orbit.\n";
+    std::cout << "The camera will continuously rotate around the spiral.\n";
+    std::cout << "Close the window to exit.\n\n";
+    std::cout << "Animation Details:\n";
+    std::cout << "  - Smooth orbit: 0° → 360° azimuth over 6 seconds\n";
+    std::cout << "  - Elevation oscillates: 30° → 60° → 30° over 6 seconds\n";
+    std::cout << "  - Distance oscillates: 15 → 10 → 15 units over 6 seconds\n";
+    std::cout << "\n";
+    
+    // Animation update function - will be called from the main loop
+    auto update_animation = [&]() {
+        if (!g_anim.animate) return;
+        
+        g_anim.time += 0.016f; // ~60 FPS
+        
+        // Loop animation every 6 seconds
+        if (g_anim.time > 6.0f) g_anim.time -= 6.0f;
+        
+        // Calculate smooth camera animation parameters
+        float t = g_anim.time / 6.0f;  // Normalize to [0, 1]
+        
+        // Azimuth: full rotation (0° → 360°)
+        ax1.camera().azimuth = t * 360.0f;
+        
+        // Elevation: oscillate (30° → 60° → 30°)
+        float elevation_phase = t * 2.0f * M_PI;
+        ax1.camera().elevation = 45.0f + 15.0f * std::sin(elevation_phase);
+        
+        // Distance: oscillate (15 → 10 → 15)
+        float distance_phase = t * 2.0f * M_PI;
+        ax1.camera().distance = 12.5f + 2.5f * std::cos(distance_phase);
+        
+        // Update camera position from orbit parameters
+        ax1.camera().update_position_from_orbit();
+    };
+    
+    // Run the app with animation
     app.run();
     return 0;
 }

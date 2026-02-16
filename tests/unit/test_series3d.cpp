@@ -848,8 +848,8 @@ TEST(Axes3DIntegration, AutoFitEmpty) {
     axes.auto_fit();
     
     auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-    auto zlim = axes.z_limits();
+    // auto ylim = axes.y_limits();  // Currently unused
+    // auto zlim = axes.z_limits();  // Currently unused
     
     EXPECT_FLOAT_EQ(xlim.min, -1.0f);
     EXPECT_FLOAT_EQ(xlim.max, 1.0f);

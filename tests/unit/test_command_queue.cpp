@@ -111,7 +111,7 @@ TEST(CommandQueue, ProducerConsumerThreaded) {
     });
 
     // Consumer thread
-    std::thread consumer([&q, &sum]() {
+    std::thread consumer([&q]() {
         int consumed = 0;
         while (consumed < N) {
             consumed += static_cast<int>(q.drain());

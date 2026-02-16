@@ -679,7 +679,7 @@ void stat_row(const char* label, const char* value, const char* unit) {
 
 void stat_row_colored(const char* label, const char* value,
                       const plotix::Color& dot_color, const char* unit) {
-    const auto& c = theme();
+    // const auto& c = theme();  // Currently unused
 
     // Color dot
     ImVec2 pos = ImGui::GetCursorScreenPos();

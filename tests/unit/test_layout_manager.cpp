@@ -270,7 +270,7 @@ TEST(LayoutManager, AllZonesOpenSimultaneously) {
     lm.set_tab_bar_visible(true);
     lm.update(1920.0f, 1080.0f);
 
-    auto nr = lm.nav_rail_rect();
+    // auto nr = lm.nav_rail_rect();  // Currently unused
     auto cv = lm.canvas_rect();
     auto insp = lm.inspector_rect();
     auto tb = lm.tab_bar_rect();

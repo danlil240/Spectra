@@ -79,7 +79,7 @@ int main() {
     fig.show();
     
     // Animation state
-    float time = 0.0f;
+    // float time = 0.0f;  // Currently unused
     
     // Use the figure's animation system
     fig.animate()

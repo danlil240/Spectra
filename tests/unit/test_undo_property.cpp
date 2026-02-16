@@ -304,7 +304,7 @@ TEST(UndoProperty, UndoResetView) {
 
     // After auto_fit, limits should change
     auto xl = ax.x_limits();
-    auto yl = ax.y_limits();
+    // auto yl = ax.y_limits();  // Currently unused
 
     mgr.undo();
     EXPECT_FLOAT_EQ(ax.x_limits().min, 5.0f);

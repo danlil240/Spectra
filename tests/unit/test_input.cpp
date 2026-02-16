@@ -104,13 +104,13 @@ TEST_F(InputHandlerTest, ScrollZoomIn) {
     float cy = vp.y + vp.h / 2.0f;
 
     auto xlim_before = axes().x_limits();
-    auto ylim_before = axes().y_limits();
+    // auto ylim_before = axes().y_limits();  // Currently unused
 
     // Scroll up = zoom in
     handler_.on_scroll(0.0, 1.0, cx, cy);
 
     auto xlim_after = axes().x_limits();
-    auto ylim_after = axes().y_limits();
+    // auto ylim_after = axes().y_limits();  // Currently unused
 
     // Range should shrink
     float range_before = xlim_before.max - xlim_before.min;

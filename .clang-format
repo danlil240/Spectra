@@ -1,0 +1,115 @@
+---
+Language: Cpp
+Standard: c++20
+BasedOnStyle: Google
+ColumnLimit: 100
+TabWidth: 4
+IndentWidth: 4
+UseTab: Never
+
+# Brace style - Allman style for better readability
+BreakBeforeBraces: Allman
+
+# Pointer/reference alignment
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Template formatting
+AlwaysBreakTemplateDeclarations: Yes
+
+# Line breaking
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+
+# Constructor/destructor formatting
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ConstructorInitializerIndentWidth: 4
+
+# Array and initializer lists
+Cpp11BracedListStyle: true
+
+# Namespace formatting
+NamespaceIndentation: None
+CompactNamespaces: false
+
+# Modern C++ features
+SortIncludes: true
+SortUsingDeclarations: true
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: false
+SpacesInContainerLiterals: true
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: false
+AlignOperands: true
+AlignTrailingComments: true
+
+# Line ending and whitespace
+DeriveLineEnding: true
+UseCRLF: false
+
+# Specific to Plotix patterns
+FixNamespaceComments: true
+
+# Handle long function signatures in graphics code
+BinPackArguments: false
+BinPackParameters: false
+
+# Handle template-heavy graphics code
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+
+# Handle includes with system vs project separation
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<.*>'
+    Priority: 1
+  - Regex: '^".*"'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
+
+# Handle third-party includes
+IndentPPDirectives: BeforeHash
+
+# Handle attributes
+AttributeMacros:
+  - '__declspec'
+  - '__attribute__'
+
+# Handle constexpr and consteval
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeTernaryOperators: true
+
+# Handle long template parameter lists
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Handle shader-related code
+AlignEscapedNewlines: Left
+AlignConsecutiveBitFields: false

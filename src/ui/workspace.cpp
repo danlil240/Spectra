@@ -32,9 +32,9 @@ static std::string escape_json(const std::string& s) {
     return out;
 }
 
-static void write_indent(std::ostringstream& os, int depth) {
-    for (int i = 0; i < depth; ++i) os << "  ";
-}
+// static void write_indent(std::ostringstream& os, int depth) {
+//     for (int i = 0; i < depth; ++i) os << "  ";
+// }
 
 std::string Workspace::serialize_json(const WorkspaceData& data) {
     std::ostringstream os;

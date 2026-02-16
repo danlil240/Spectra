@@ -84,7 +84,7 @@ void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3 min_corner, vec3 max_
     }
 }
 
-void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes, vec3 min_corner, vec3 max_corner) {
+void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes, vec3 min_corner, vec3 /*max_corner*/) {
     positions.clear();
     labels.clear();
     
@@ -97,7 +97,7 @@ void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes, vec3 min
     }
 }
 
-void Axes3DRenderer::TickMarkData::generate_y_ticks(const Axes3D& axes, vec3 min_corner, vec3 max_corner) {
+void Axes3DRenderer::TickMarkData::generate_y_ticks(const Axes3D& axes, vec3 min_corner, vec3 /*max_corner*/) {
     positions.clear();
     labels.clear();
     
@@ -110,7 +110,7 @@ void Axes3DRenderer::TickMarkData::generate_y_ticks(const Axes3D& axes, vec3 min
     }
 }
 
-void Axes3DRenderer::TickMarkData::generate_z_ticks(const Axes3D& axes, vec3 min_corner, vec3 max_corner) {
+void Axes3DRenderer::TickMarkData::generate_z_ticks(const Axes3D& axes, vec3 min_corner, vec3 /*max_corner*/) {
     positions.clear();
     labels.clear();
     
@@ -123,7 +123,7 @@ void Axes3DRenderer::TickMarkData::generate_z_ticks(const Axes3D& axes, vec3 min
     }
 }
 
-void Axes3DRenderer::render(Axes3D& axes, Renderer& renderer) {
+void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/) {
     auto xlim = axes.x_limits();
     auto ylim = axes.y_limits();
     auto zlim = axes.z_limits();

@@ -146,14 +146,14 @@ TEST(AnimationController, InertialPanDecelerates) {
 
     // Step early: high velocity
     ctrl.update(0.01f);
-    float shift1 = ax->x_limits().min;
+    // float shift1 = ax->x_limits().min;  // Currently unused
 
     // Step later: lower velocity (deceleration)
     ctrl.update(0.14f);
-    float shift2 = ax->x_limits().min - shift1;
+    // float shift2 = ax->x_limits().min - shift1;  // Currently unused
 
     ctrl.update(0.01f);
-    float shift3 = ax->x_limits().min - shift1 - shift2;
+    // float shift3 = ax->x_limits().min - shift1 - shift2;  // Currently unused
 
     // Each successive shift should be smaller (decelerating)
     // shift2 covers more time so it's larger, but per-unit-time it's slower

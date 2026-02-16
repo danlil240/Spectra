@@ -112,7 +112,7 @@ static void run_golden_test_3d(const std::string& scene_name,
 }
 
 TEST(Golden3D, Scatter3D_Basic) {
-    run_golden_test_3d("3d_scatter_basic", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_scatter_basic", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
@@ -128,7 +128,7 @@ TEST(Golden3D, Scatter3D_Basic) {
 }
 
 TEST(Golden3D, Scatter3D_LargeDataset) {
-    run_golden_test_3d("3d_scatter_large", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_scatter_large", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x, y, z;
@@ -145,7 +145,7 @@ TEST(Golden3D, Scatter3D_LargeDataset) {
 }
 
 TEST(Golden3D, Line3D_Basic) {
-    run_golden_test_3d("3d_line_basic", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_line_basic", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
@@ -158,7 +158,7 @@ TEST(Golden3D, Line3D_Basic) {
 }
 
 TEST(Golden3D, Line3D_Helix) {
-    run_golden_test_3d("3d_line_helix", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_line_helix", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x, y, z;
@@ -175,7 +175,7 @@ TEST(Golden3D, Line3D_Helix) {
 }
 
 TEST(Golden3D, Surface_Basic) {
-    run_golden_test_3d("3d_surface_basic", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_surface_basic", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x_grid, y_grid, z_values;
@@ -203,7 +203,7 @@ TEST(Golden3D, Surface_Basic) {
 }
 
 TEST(Golden3D, BoundingBox) {
-    run_golden_test_3d("3d_bounding_box", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_bounding_box", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         ax.xlim(-1.0f, 1.0f);
@@ -215,7 +215,7 @@ TEST(Golden3D, BoundingBox) {
 }
 
 TEST(Golden3D, GridPlanes_XY) {
-    run_golden_test_3d("3d_grid_xy", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_grid_xy", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         ax.grid_planes(Axes3D::GridPlane::XY);
@@ -230,7 +230,7 @@ TEST(Golden3D, GridPlanes_XY) {
 }
 
 TEST(Golden3D, GridPlanes_All) {
-    run_golden_test_3d("3d_grid_all", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_grid_all", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         ax.grid_planes(Axes3D::GridPlane::All);
@@ -245,7 +245,7 @@ TEST(Golden3D, GridPlanes_All) {
 }
 
 TEST(Golden3D, CameraAngle_Front) {
-    run_golden_test_3d("3d_camera_front", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_camera_front", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x = {0.0f, 1.0f, 0.5f};
@@ -262,7 +262,7 @@ TEST(Golden3D, CameraAngle_Front) {
 }
 
 TEST(Golden3D, CameraAngle_Top) {
-    run_golden_test_3d("3d_camera_top", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_camera_top", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x = {0.0f, 1.0f, 0.5f};
@@ -279,7 +279,7 @@ TEST(Golden3D, CameraAngle_Top) {
 }
 
 TEST(Golden3D, DepthOcclusion) {
-    run_golden_test_3d("3d_depth_occlusion", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_depth_occlusion", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
         std::vector<float> x_front = {0.0f};
@@ -298,7 +298,7 @@ TEST(Golden3D, DepthOcclusion) {
 }
 
 TEST(Golden3D, Mixed2DAnd3D) {
-    run_golden_test_3d("3d_mixed_2d_3d", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_mixed_2d_3d", [](App& /*app*/, Figure& fig) {
         auto& ax2d = fig.subplot(2, 1, 1);
         std::vector<float> x2d = {0.0f, 1.0f, 2.0f, 3.0f};
         std::vector<float> y2d = {0.0f, 1.0f, 0.5f, 1.5f};
@@ -315,7 +315,7 @@ TEST(Golden3D, Mixed2DAnd3D) {
 }
 
 TEST(Golden3D, Mesh3D_Triangle) {
-    run_golden_test_3d("3d_mesh_triangle", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_mesh_triangle", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         // A simple colored triangle with normals
@@ -332,7 +332,7 @@ TEST(Golden3D, Mesh3D_Triangle) {
 }
 
 TEST(Golden3D, Mesh3D_Quad) {
-    run_golden_test_3d("3d_mesh_quad", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_mesh_quad", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         // A quad made of 2 triangles
@@ -350,7 +350,7 @@ TEST(Golden3D, Mesh3D_Quad) {
 }
 
 TEST(Golden3D, Surface_Colormap) {
-    run_golden_test_3d("3d_surface_colormap", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_surface_colormap", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 30, ny = 30;
@@ -377,7 +377,7 @@ TEST(Golden3D, Surface_Colormap) {
 }
 
 TEST(Golden3D, CameraAngle_Orthographic) {
-    run_golden_test_3d("3d_camera_ortho", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_camera_ortho", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
@@ -397,7 +397,7 @@ TEST(Golden3D, CameraAngle_Orthographic) {
 }
 
 TEST(Golden3D, MultiSubplot3D) {
-    run_golden_test_3d("3d_multi_subplot", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_multi_subplot", [](App& /*app*/, Figure& fig) {
         // 2x2 grid of 3D subplots
         auto& ax1 = fig.subplot3d(2, 2, 1);
         std::vector<float> x1 = {0.0f, 1.0f, 2.0f};
@@ -438,7 +438,7 @@ TEST(Golden3D, MultiSubplot3D) {
 }
 
 TEST(Golden3D, CombinedLineAndScatter3D) {
-    run_golden_test_3d("3d_combined_line_scatter", [](App& app, Figure& fig) {
+    run_golden_test_3d("3d_combined_line_scatter", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         std::vector<float> x, y, z;

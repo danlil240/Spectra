@@ -92,7 +92,7 @@ TEST(Vec3, Dot) {
 }
 
 TEST(Vec3, Cross) {
-    vec3 x{1, 0, 0}, y{0, 1, 0}, z{0, 0, 1};
+    vec3 x{1, 0, 0}, y{0, 1, 0}/*, z{0, 0, 1}*/;  // z currently unused
     auto r = vec3_cross(x, y);
     EXPECT_FLOAT_EQ(r.x, 0.0f);
     EXPECT_FLOAT_EQ(r.y, 0.0f);

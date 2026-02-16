@@ -286,7 +286,7 @@ bool CommandPalette::draw(float window_width, float window_height) {
     {
         bool sb_active = scrolling || scrollbar_dragging_ || scrollbar_hover_t_ > 0.05f
             || std::abs(scroll_offset_ - scroll_target_) > 1.0f;
-        float sb_opacity_target = sb_active ? 1.0f : 0.0f;
+        // float sb_opacity_target = sb_active ? 1.0f : 0.0f;  // Currently unused
         if (sb_active) {
             scrollbar_opacity_ += (1.0f - scrollbar_opacity_) * std::min(1.0f, 20.0f * dt);
         } else {

@@ -226,7 +226,7 @@ private:
 
     // Axes context menu state (right-click on canvas)
     Axes* context_menu_axes_ = nullptr;  // Which axes was right-clicked
-    bool context_menu_open_ = false;
+    // bool context_menu_open_ = false;  // Currently unused
 
     // Per-pane tab drag state
     struct PaneTabDragState {

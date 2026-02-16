@@ -248,9 +248,9 @@ static float lerp_f(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
-static AxisLimits lerp_limits(const AxisLimits& a, const AxisLimits& b, float t) {
-    return {lerp_f(a.min, b.min, t), lerp_f(a.max, b.max, t)};
-}
+// static AxisLimits lerp_limits(const AxisLimits& a, const AxisLimits& b, float t) {
+//     return {lerp_f(a.min, b.min, t), lerp_f(a.max, b.max, t)};
+// }
 
 void ModeTransition::interpolate_to_3d(float t) {
     // Camera: start from top-down ortho (looking down Z), end at target 3D orbit

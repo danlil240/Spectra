@@ -210,7 +210,7 @@ TEST(TransitionEngine, LayoutAnimationDoesNotOversizeWindow) {
         lm.update(1280.0f, 720.0f, 1.0f / 60.0f);
 
         auto cv = lm.canvas_rect();
-        auto nr = lm.nav_rail_rect();
+        // auto nr = lm.nav_rail_rect();  // Currently unused
         auto insp = lm.inspector_rect();
 
         // Nav toolbar inset + canvas + inspector should not exceed window width

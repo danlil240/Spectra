@@ -37,7 +37,7 @@ void Inspector::set_fonts(ImFont* body, ImFont* heading, ImFont* title) {
 
 void Inspector::draw(Figure& figure) {
     // Context header
-    const auto& c = theme();
+    // const auto& c = theme();  // Currently unused
 
     switch (ctx_.type) {
         case SelectionType::None:
@@ -354,7 +354,7 @@ void Inspector::draw_axes_properties(Axes& ax, int index) {
 
 // ─── Series Properties ──────────────────────────────────────────────────────
 
-void Inspector::draw_series_properties(Series& s, int index) {
+void Inspector::draw_series_properties(Series& s, int /*index*/) {
     const auto& c = theme();
 
     // Context header with color swatch

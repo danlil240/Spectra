@@ -32,19 +32,19 @@ using namespace plotix;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-static std::unique_ptr<Figure> make_figure_with_styled_data() {
-    auto fig = std::make_unique<Figure>();
-    auto& ax = fig->subplot(1, 1, 1);
-    static float x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
-    static float y[] = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
-    ax.line(x, y).label("styled_line").color(colors::blue);
-    ax.xlim(0.0f, 5.0f);
-    ax.ylim(-1.0f, 2.0f);
-    ax.title("Styled Plot");
-    ax.xlabel("X");
-    ax.ylabel("Y");
-    return fig;
-}
+// static std::unique_ptr<Figure> make_figure_with_styled_data() {
+//     auto fig = std::make_unique<Figure>();
+//     auto& ax = fig->subplot(1, 1, 1);
+//     static float x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+//     static float y[] = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
+//     ax.line(x, y).label("styled_line").color(colors::blue);
+//     ax.xlim(0.0f, 5.0f);
+//     ax.ylim(-1.0f, 2.0f);
+//     ax.title("Styled Plot");
+//     ax.xlabel("X");
+//     ax.ylabel("Y");
+//     return fig;
+// }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Integration: DockSystem + AxisLinkManager

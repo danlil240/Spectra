@@ -116,7 +116,7 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, LitSurface_SinCos) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_sincos", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_lit_surface_sincos", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 30, ny = 30;
@@ -142,7 +142,7 @@ TEST(Golden3DPhase3, LitSurface_SinCos) {
 }
 
 TEST(Golden3DPhase3, LitSurface_HighSpecular) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_specular", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_lit_surface_specular", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 25, ny = 25;
@@ -173,7 +173,7 @@ TEST(Golden3DPhase3, LitSurface_HighSpecular) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, LitMesh_Quad) {
-    run_golden_test_3d_p3("3d_p3_lit_mesh_quad", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_lit_mesh_quad", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         std::vector<float> vertices = {
@@ -200,7 +200,7 @@ TEST(Golden3DPhase3, LitMesh_Quad) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, TransparentSurface) {
-    run_golden_test_3d_p3("3d_p3_transparent_surface", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_transparent_surface", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 25, ny = 25;
@@ -228,7 +228,7 @@ TEST(Golden3DPhase3, TransparentSurface) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, TransparentScatterOnSurface) {
-    run_golden_test_3d_p3("3d_p3_transparent_scatter_on_surface", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_transparent_scatter_on_surface", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         // Opaque surface
@@ -269,7 +269,7 @@ TEST(Golden3DPhase3, TransparentScatterOnSurface) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, WireframeSurface) {
-    run_golden_test_3d_p3("3d_p3_wireframe_surface", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_wireframe_surface", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 20, ny = 20;
@@ -297,7 +297,7 @@ TEST(Golden3DPhase3, WireframeSurface) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, SurfaceColormapAlpha) {
-    run_golden_test_3d_p3("3d_p3_surface_colormap_alpha", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_surface_colormap_alpha", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 30, ny = 30;
@@ -326,7 +326,7 @@ TEST(Golden3DPhase3, SurfaceColormapAlpha) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, LightingDisabled) {
-    run_golden_test_3d_p3("3d_p3_lighting_disabled", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_lighting_disabled", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 20, ny = 20;
@@ -352,7 +352,7 @@ TEST(Golden3DPhase3, LightingDisabled) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, MultipleTransparentSurfaces) {
-    run_golden_test_3d_p3("3d_p3_multi_transparent_surfaces", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_multi_transparent_surfaces", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 20, ny = 20;
@@ -395,7 +395,7 @@ TEST(Golden3DPhase3, MultipleTransparentSurfaces) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, Mixed2DAndLit3D) {
-    run_golden_test_3d_p3("3d_p3_mixed_2d_lit3d", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_mixed_2d_lit3d", [](App& /*app*/, Figure& fig) {
         // 2D line plot
         auto& ax2d = fig.subplot(2, 1, 1);
         std::vector<float> x2d, y2d;
@@ -434,7 +434,7 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 TEST(Golden3DPhase3, LitSurfaceColormap) {
-    run_golden_test_3d_p3("3d_p3_lit_surface_colormap", [](App& app, Figure& fig) {
+    run_golden_test_3d_p3("3d_p3_lit_surface_colormap", [](App& /*app*/, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
 
         const int nx = 30, ny = 30;

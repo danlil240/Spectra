@@ -621,7 +621,7 @@ TEST(TimelineEditorSelection, SelectionCallback) {
     te.add_keyframe(id, 1.0f);
 
     int call_count = 0;
-    te.set_on_selection_change([&](const std::vector<KeyframeMarker*>& sel) {
+    te.set_on_selection_change([&](const std::vector<KeyframeMarker*>& /*sel*/) {
         call_count++;
     });
 

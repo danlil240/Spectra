@@ -31,7 +31,7 @@ void Camera::orbit(float d_azimuth, float d_elevation) {
     update_position_from_orbit();
 }
 
-void Camera::pan(float dx, float dy, float viewport_width, float viewport_height) {
+void Camera::pan(float dx, float dy, float /*viewport_width*/, float /*viewport_height*/) {
     vec3 forward = vec3_normalize(target - position);
     vec3 right = vec3_normalize(vec3_cross(forward, up));
     vec3 cam_up = vec3_cross(right, forward);

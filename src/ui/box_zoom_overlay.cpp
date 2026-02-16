@@ -18,7 +18,7 @@ void BoxZoomOverlay::update(float dt) {
     if (!input_handler_) return;
 
     const auto& bz = input_handler_->box_zoom_rect();
-    bool was_active = active_;
+    // bool was_active = active_;  // Currently unused
     active_ = bz.active;
 
     if (active_) {

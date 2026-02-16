@@ -875,7 +875,7 @@ void ImGuiIntegration::draw_nav_rail() {
     ImGui::PopStyleVar(5);
 }
 
-void ImGuiIntegration::draw_canvas(Figure& figure) {
+void ImGuiIntegration::draw_canvas(Figure& /*figure*/) {
     if (!layout_manager_) return;
     
     Rect bounds = layout_manager_->canvas_rect();
@@ -1995,8 +1995,9 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
             sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
             sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
 
-            // Cull if far outside viewport (with generous margin for labels)
-            float margin = 50.0f;
+            // Cull if far outside viewport (generous margin so arrows/labels
+            // at bounding box edges remain visible at oblique camera angles)
+            float margin = 200.0f;
             if (sx < vp.x - margin || sx > vp.x + vp.w + margin ||
                 sy < vp.y - margin || sy > vp.y + vp.h + margin)
                 return false;
@@ -2011,10 +2012,11 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
 
         // Detect top-down view: camera looking down Y (orbit elevation≈90°) or Z (transition camera)
+        // Threshold 0.98 ≈ 78° elevation — only trigger when nearly straight down
         vec3 view_dir_early = vec3_normalize(cam.target - cam.position);
-        bool looking_down_y = std::abs(view_dir_early.y) > 0.85f;
-        bool looking_down_z = std::abs(view_dir_early.z) > 0.85f;
-        bool is_top_down_early = looking_down_y || looking_down_z;
+        bool looking_down_y = std::abs(view_dir_early.y) > 0.98f;
+        bool looking_down_z = std::abs(view_dir_early.z) > 0.98f;
+        // bool is_top_down_early = looking_down_y || looking_down_z;  // Currently unused
 
         // Tick offset: slightly beyond the tick mark end
         float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
@@ -2123,29 +2125,14 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 ImGui::PopFont();
             };
 
-            if (looking_down_y) {
-                // Looking down Y: visible grid is XZ plane at y=y0
-                // X arrow along bottom edge, Z arrow along left edge
-                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
-                                       x_arrow_col, "X", axes3d->get_xlabel());
-                draw_arrow_with_label({x0, y0, z1}, {x0, y0, z1 + arrow_len_z},
-                                       z_arrow_col, "Z", axes3d->get_zlabel());
-            } else if (looking_down_z) {
-                // Looking down Z: visible grid is XY plane at z=z0
-                // X arrow along bottom edge, Y arrow along left edge
-                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
-                                       x_arrow_col, "X", axes3d->get_xlabel());
-                draw_arrow_with_label({x0, y1, z0}, {x0, y1 + arrow_len_y, z0},
-                                       y_arrow_col, "Y", axes3d->get_ylabel());
-            } else {
-                // 3D view: all three arrows at bounding box corners
-                draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
-                                       x_arrow_col, "X", axes3d->get_xlabel());
-                draw_arrow_with_label({x0, y1, z0}, {x0, y1 + arrow_len_y, z0},
-                                       y_arrow_col, "Y", axes3d->get_ylabel());
-                draw_arrow_with_label({x0, y0, z1}, {x0, y0, z1 + arrow_len_z},
-                                       z_arrow_col, "Z", axes3d->get_zlabel());
-            }
+            // Always show all three arrows in 3D mode (regardless of camera angle)
+            // Place them at the bounding box corners as in original 3D behavior
+            draw_arrow_with_label({x1, y0, z0}, {x1 + arrow_len_x, y0, z0},
+                                   x_arrow_col, "X", axes3d->get_xlabel());
+            draw_arrow_with_label({x0, y1, z0}, {x0, y1 + arrow_len_y, z0},
+                                   y_arrow_col, "Y", axes3d->get_ylabel());
+            draw_arrow_with_label({x0, y0, z1}, {x0, y0, z1 + arrow_len_z},
+                                   z_arrow_col, "Z", axes3d->get_zlabel());
         }
 
         // --- 3D Title (clamped inside viewport so tab bar doesn't cover it) ---

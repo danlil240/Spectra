@@ -43,7 +43,7 @@ static void draw_dashed_line(ImDrawList* dl, ImVec2 p0, ImVec2 p1,
 }
 
 void Crosshair::draw(const CursorReadout& cursor, const Rect& viewport,
-                     float xlim_min, float xlim_max, float ylim_min, float ylim_max) {
+                     float /*xlim_min*/, float /*xlim_max*/, float /*ylim_min*/, float /*ylim_max*/) {
     // Animate opacity
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
     float dt = ImGui::GetIO().DeltaTime;

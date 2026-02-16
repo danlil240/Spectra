@@ -169,7 +169,7 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
     if (ImGui::Begin(win_id, nullptr, flags)) {
         // Handle legend dragging
         if (draggable_) {
-            ImVec2 win_pos = ImGui::GetWindowPos();
+            // ImVec2 win_pos = ImGui::GetWindowPos();  // Currently unused
             if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
                 !ImGui::IsAnyItemHovered()) {
                 dragging_ = true;

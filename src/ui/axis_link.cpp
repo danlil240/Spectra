@@ -153,7 +153,7 @@ void AxisLinkManager::unlink(Axes* ax) {
 
 // ─── Propagation ─────────────────────────────────────────────────────────────
 
-void AxisLinkManager::propagate_from(Axes* source, AxisLimits old_xlim, AxisLimits old_ylim) {
+void AxisLinkManager::propagate_from(Axes* source, AxisLimits /*old_xlim*/, AxisLimits /*old_ylim*/) {
     if (!source) return;
     std::lock_guard lock(mutex_);
     if (propagating_) return; // Guard re-entrant calls

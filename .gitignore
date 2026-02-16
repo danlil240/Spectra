@@ -42,6 +42,8 @@
 
 
 build
+build_clang
+build_gcc
 .cache
 
 # Golden image test output (actual renders + diff images — not baselines)

@@ -20,8 +20,8 @@ int main() {
     ax.zlabel("Z");
 
     // Configure lighting
-    ax.set_light_dir(0.5f, 0.8f, 1.0f);
-    ax.set_lighting_enabled(true);
+    ax.light_dir(0.5f, 0.8f, 1.0f);
+    ax.lighting_enabled(true);
 
     // Generate surface data: z = sin(sqrt(x² + y²))
     const int N = 80;

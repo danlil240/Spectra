@@ -25,16 +25,15 @@ int main() {
         ax.title("3D Coordinate System");
         
         // Configure grid planes
-        ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
+        ax.grid_planes(Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ);
         ax.show_bounding_box(true);
         ax.grid(true);
         
         // Configure camera
-        auto& cam = ax.camera();
-        cam.azimuth = 45.0f;
-        cam.elevation = 30.0f;
-        cam.distance = 15.0f;
-        cam.update_position_from_orbit();
+        ax.camera()
+            .set_azimuth(45.0f)
+            .set_elevation(30.0f)
+            .set_distance(15.0f);
         
         std::cout << "✓ Created 3D axes with:\n";
         std::cout << "  - X limits: [-5, 5]\n";

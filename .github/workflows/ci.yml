@@ -41,6 +41,7 @@ jobs:
             libxcursor-dev \
             libxi-dev \
             libxkbcommon-dev \
+            libgl1-mesa-dev \
             glslang-tools
 
       - name: Configure CMake

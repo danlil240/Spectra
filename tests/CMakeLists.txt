@@ -102,6 +102,7 @@ set(PLOTIX_UNIT_TESTS
     test_transparency
     test_mode_transition
     test_workspace_3d
+    test_3d_regression
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})
@@ -151,6 +152,19 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
         set_tests_properties(golden_image_tests_phase3 PROPERTIES LABELS "golden")
     endif()
 
+    # 3D Phase 3 golden image tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d_phase3.cpp)
+        add_executable(golden_image_tests_3d_phase3 golden/golden_test_3d_phase3.cpp)
+        target_link_libraries(golden_image_tests_3d_phase3 PRIVATE plotix GTest::gtest_main)
+        target_compile_features(golden_image_tests_3d_phase3 PRIVATE cxx_std_20)
+        target_include_directories(golden_image_tests_3d_phase3 PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/golden
+        )
+        add_test(NAME golden_image_tests_3d_phase3 COMMAND golden_image_tests_3d_phase3)
+        set_tests_properties(golden_image_tests_3d_phase3 PROPERTIES LABELS "golden")
+    endif()
+
     # 3D golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d.cpp)
         add_executable(golden_image_tests_3d golden/golden_test_3d.cpp)
@@ -188,5 +202,9 @@ if(PLOTIX_BUILD_BENCHMARKS)
 
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_3d.cpp)
         add_plotix_bench(bench_3d)
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_3d_phase3.cpp)
+        add_plotix_bench(bench_3d_phase3)
     endif()
 endif()

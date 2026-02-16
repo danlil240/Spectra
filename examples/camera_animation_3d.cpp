@@ -27,17 +27,14 @@ int main() {
         .label("Animated Spiral");
     
     ax.auto_fit();
-    ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+    ax.grid_planes(Axes3D::GridPlane::All);
     ax.title("3D Camera Animation Demo");
     ax.xlabel("X");
     ax.ylabel("Y");
     ax.zlabel("Z");
     
     // Set initial camera position
-    ax.camera().azimuth = 0.0f;
-    ax.camera().elevation = 30.0f;
-    ax.camera().distance = 15.0f;
-    ax.camera().update_position_from_orbit();
+    ax.camera().set_azimuth(0.0f).set_elevation(30.0f).set_distance(15.0f);
     
     std::cout << "\n=== 3D Camera Animation Demo ===\n";
     std::cout << "Using built-in CameraAnimator for smooth camera animation!\n";

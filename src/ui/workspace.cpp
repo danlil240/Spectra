@@ -648,7 +648,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 a3.z_min = zlim.min; a3.z_max = zlim.max;
                 a3.z_label = ax3d->get_zlabel();
                 a3.camera_state = ax3d->camera().serialize();
-                a3.grid_planes = ax3d->grid_planes();
+                a3.grid_planes = static_cast<int>(ax3d->grid_planes());
                 a3.show_bounding_box = ax3d->show_bounding_box();
                 a3.lighting_enabled = ax3d->lighting_enabled();
                 auto ld = ax3d->light_dir();

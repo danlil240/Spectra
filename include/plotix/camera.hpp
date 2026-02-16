@@ -28,6 +28,15 @@ public:
 
     Camera() = default;
 
+    // Fluent setters — automatically update position from orbit parameters
+    Camera& set_azimuth(float a)   { azimuth = a; update_position_from_orbit(); return *this; }
+    Camera& set_elevation(float e) { elevation = e; update_position_from_orbit(); return *this; }
+    Camera& set_distance(float d)  { distance = d; update_position_from_orbit(); return *this; }
+    Camera& set_fov(float f)       { fov = f; return *this; }
+    Camera& set_ortho_size(float s){ ortho_size = s; return *this; }
+    Camera& set_target(vec3 t)     { target = t; update_position_from_orbit(); return *this; }
+    Camera& set_projection(ProjectionMode m) { projection_mode = m; return *this; }
+
     mat4 view_matrix() const;
     mat4 projection_matrix(float aspect_ratio) const;
 

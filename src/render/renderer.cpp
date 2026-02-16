@@ -374,10 +374,6 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
     // Check if this is a 3D axes
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
         // 3D projection with camera
-        auto xlim = axes3d->x_limits();
-        auto ylim = axes3d->y_limits();
-        auto zlim = axes3d->z_limits();
-        
         // Build perspective projection
         float aspect = viewport.w / viewport.h;
         const auto& cam = axes3d->camera();
@@ -393,10 +389,11 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
             ubo.projection[11] = -1.0f;
             ubo.projection[14] = (cam.far_clip * cam.near_clip) / (cam.near_clip - cam.far_clip);
         } else {
-            // Orthographic projection
+            // Orthographic projection with proper near/far depth
             float half_w = cam.ortho_size * aspect * 0.5f;
             float half_h = cam.ortho_size * 0.5f;
-            build_ortho_projection(-half_w, half_w, -half_h, half_h, ubo.projection);
+            build_ortho_projection_3d(-half_w, half_w, -half_h, half_h,
+                                       cam.near_clip, cam.far_clip, ubo.projection);
         }
         
         // Camera view matrix
@@ -558,14 +555,6 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/) {
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
         if (!axes3d->grid_enabled()) return;
         
-        auto x_ticks = axes3d->compute_x_ticks();
-        auto y_ticks = axes3d->compute_y_ticks();
-        auto z_ticks = axes3d->compute_z_ticks();
-        
-        size_t num_x = x_ticks.positions.size();
-        size_t num_y = y_ticks.positions.size();
-        size_t num_z = z_ticks.positions.size();
-        
         auto xlim = axes3d->x_limits();
         auto ylim = axes3d->y_limits();
         auto zlim = axes3d->z_limits();
@@ -574,20 +563,20 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/) {
         Axes3DRenderer::GridPlaneData grid_gen;
         vec3 min_corner = {xlim.min, ylim.min, zlim.min};
         vec3 max_corner = {xlim.max, ylim.max, zlim.max};
-        int grid_planes = axes3d->grid_planes();
+        auto gp = axes3d->grid_planes();
         
         // XY plane grid (z = zlim.min)
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XY)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::XY)) {
             grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
         }
         
         // XZ plane grid (y = ylim.min)
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XZ)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::XZ)) {
             grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
         }
         
         // YZ plane grid (x = xlim.min)
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::YZ)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::YZ)) {
             grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
         }
 
@@ -853,7 +842,7 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/) {
     backend_.draw(vertex_count);
 }
 
-void Renderer::render_axis_border(AxesBase& axes, const Rect& viewport,
+void Renderer::render_axis_border(AxesBase& axes, const Rect& /*viewport*/,
                                    uint32_t /*fig_width*/, uint32_t /*fig_height*/) {
     // Draw border in data space using the already-bound data-space UBO.
     // Inset vertices by a tiny fraction of the axis range so they don't
@@ -1091,6 +1080,29 @@ void Renderer::build_ortho_projection(float left, float right, float bottom, flo
     m[10] = -1.0f;
     m[12] = -(right + left) / rl;
     m[13] =  (top + bottom) / tb;  // Flip sign for Vulkan
+    m[15] =  1.0f;
+}
+
+void Renderer::build_ortho_projection_3d(float left, float right, float bottom, float top,
+                                          float near_clip, float far_clip, float* m) {
+    // Column-major 4x4 orthographic projection with proper depth mapping.
+    // Maps [left,right] x [bottom,top] x [near,far] to Vulkan clip space.
+    std::memset(m, 0, 16 * sizeof(float));
+
+    float rl = right - left;
+    float tb = top - bottom;
+    float fn = far_clip - near_clip;
+
+    if (rl == 0.0f) rl = 1.0f;
+    if (tb == 0.0f) tb = 1.0f;
+    if (fn == 0.0f) fn = 1.0f;
+
+    m[0]  =  2.0f / rl;
+    m[5]  = -2.0f / tb;            // Negate for Vulkan Y-down
+    m[10] = -1.0f / fn;            // Maps [near,far] → [0,1] for Vulkan depth
+    m[12] = -(right + left) / rl;
+    m[13] =  (top + bottom) / tb;
+    m[14] = -near_clip / fn;       // Depth offset
     m[15] =  1.0f;
 }
 

@@ -85,7 +85,7 @@ ax.surface(x_grid, y_grid, z_values).color(colors::cyan);
 **Key API:**
 ```cpp
 ax.line3d(x, y, z).color(colors::magenta).width(3.0f);
-ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+ax.grid_planes(Axes3D::GridPlane::All);
 ```
 
 **Mathematical curve:**
@@ -198,9 +198,9 @@ ax.ylabel("Y Axis");
 ax.zlabel("Z Axis");
 
 // Grid planes
-ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY));
-ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
-ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::None));
+ax.grid_planes(Axes3D::GridPlane::XY);
+ax.grid_planes(Axes3D::GridPlane::All);
+ax.grid_planes(Axes3D::GridPlane::None);
 
 // Bounding box
 ax.show_bounding_box(true);

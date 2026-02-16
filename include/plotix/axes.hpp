@@ -63,7 +63,7 @@ public:
     void set_viewport(const Rect& r) { viewport_ = r; }
     const Rect& viewport() const { return viewport_; }
 
-    const std::string& get_title() const { return title_; }
+    const std::string& title() const { return title_; }
     void title(const std::string& t) { title_ = t; }
 
     bool grid_enabled() const { return grid_enabled_; }
@@ -75,8 +75,10 @@ public:
     AxisStyle& axis_style() { return axis_style_; }
     const AxisStyle& axis_style() const { return axis_style_; }
 
+    // Deprecated aliases — prefer grid(bool) and show_border(bool)
     void set_grid_enabled(bool e) { grid_enabled_ = e; }
     void set_border_enabled(bool e) { border_enabled_ = e; }
+    const std::string& get_title() const { return title_; }
 
 protected:
     std::vector<std::unique_ptr<Series>> series_;
@@ -119,11 +121,17 @@ public:
     // Accessors
     AxisLimits x_limits() const;
     AxisLimits y_limits() const;
+    const std::string& title() const     { return title_; }
+    const std::string& xlabel() const     { return xlabel_; }
+    const std::string& ylabel() const     { return ylabel_; }
+    bool grid_enabled() const             { return grid_enabled_; }
+    bool border_enabled() const           { return border_enabled_; }
+    AutoscaleMode autoscale_mode() const  { return autoscale_mode_; }
+
+    // Deprecated aliases
     const std::string& get_title() const  { return title_; }
     const std::string& get_xlabel() const { return xlabel_; }
     const std::string& get_ylabel() const { return ylabel_; }
-    bool grid_enabled() const             { return grid_enabled_; }
-    bool border_enabled() const            { return border_enabled_; }
     AutoscaleMode get_autoscale_mode() const { return autoscale_mode_; }
 
     // Tick computation

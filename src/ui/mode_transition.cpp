@@ -40,12 +40,12 @@ uint32_t ModeTransition::begin_to_3d(const ModeTransition2DState& from_2d,
     state_2d_ = from_2d;
     state_3d_ = target_3d;
 
-    // Initialize interpolated state to the 2D starting point
+    // Initialize interpolated state to the 2D starting point (camera only)
     interp_camera_ = make_top_down_camera(from_2d);
-    interp_xlim_ = from_2d.xlim;
-    interp_ylim_ = from_2d.ylim;
-    interp_zlim_ = {0.0f, 0.0f};  // Z starts collapsed
-    interp_grid_planes_ = 1;  // XY only
+    interp_xlim_ = target_3d.xlim;
+    interp_ylim_ = target_3d.ylim;
+    interp_zlim_ = target_3d.zlim;
+    interp_grid_planes_ = target_3d.grid_planes;
     interp_3d_opacity_ = 0.0f;
 
     return current_id_;
@@ -253,97 +253,86 @@ static AxisLimits lerp_limits(const AxisLimits& a, const AxisLimits& b, float t)
 }
 
 void ModeTransition::interpolate_to_3d(float t) {
-    // Camera: start from top-down ortho, end at target 3D camera
+    // Camera: start from top-down ortho (looking down Z), end at target 3D orbit
     Camera top_down = make_top_down_camera(state_2d_);
     const Camera& target = state_3d_.camera;
 
-    interp_camera_.azimuth = lerp_f(top_down.azimuth, target.azimuth, t);
-    interp_camera_.elevation = lerp_f(top_down.elevation, target.elevation, t);
-    interp_camera_.distance = lerp_f(top_down.distance, target.distance, t);
+    // Interpolate position, target, up directly (not orbit params)
+    // because the top-down camera uses a non-orbit position (on Z axis).
+    interp_camera_.position = vec3_lerp(top_down.position, target.position, t);
+    interp_camera_.target = vec3_lerp(top_down.target, target.target, t);
+    interp_camera_.up = vec3_normalize(vec3_lerp(top_down.up, target.up, t));
     interp_camera_.fov = lerp_f(top_down.fov, target.fov, t);
     interp_camera_.ortho_size = lerp_f(top_down.ortho_size, target.ortho_size, t);
     interp_camera_.near_clip = lerp_f(top_down.near_clip, target.near_clip, t);
     interp_camera_.far_clip = lerp_f(top_down.far_clip, target.far_clip, t);
-    interp_camera_.target = vec3_lerp(top_down.target, target.target, t);
+    interp_camera_.distance = lerp_f(top_down.distance, target.distance, t);
 
     // Projection mode: switch to perspective at t=0.5
     interp_camera_.projection_mode = (t < 0.5f)
         ? Camera::ProjectionMode::Orthographic
         : Camera::ProjectionMode::Perspective;
 
-    interp_camera_.update_position_from_orbit();
-
-    // Axis limits: X/Y interpolate from 2D to 3D, Z fades in
-    interp_xlim_ = lerp_limits(state_2d_.xlim, state_3d_.xlim, t);
-    interp_ylim_ = lerp_limits(state_2d_.ylim, state_3d_.ylim, t);
-    AxisLimits z_collapsed = {
-        (state_3d_.zlim.min + state_3d_.zlim.max) * 0.5f,
-        (state_3d_.zlim.min + state_3d_.zlim.max) * 0.5f
-    };
-    interp_zlim_ = lerp_limits(z_collapsed, state_3d_.zlim, t);
-
-    // Grid planes: switch at t=0.7 (keep XY-only during most of transition)
-    interp_grid_planes_ = (t < 0.7f) ? 1 : state_3d_.grid_planes;
-
-    // 3D element opacity: fade in over the full transition
+    // Axis limits stay unchanged — we only animate the camera
+    interp_xlim_ = state_3d_.xlim;
+    interp_ylim_ = state_3d_.ylim;
+    interp_zlim_ = state_3d_.zlim;
+    interp_grid_planes_ = state_3d_.grid_planes;
     interp_3d_opacity_ = t;
 }
 
 void ModeTransition::interpolate_to_2d(float t) {
-    // Camera: start from 3D camera, end at top-down ortho
+    // Camera: start from 3D orbit, end at top-down ortho (looking down Z)
     Camera top_down = make_top_down_camera(state_2d_);
     const Camera& start = state_3d_.camera;
 
-    interp_camera_.azimuth = lerp_f(start.azimuth, top_down.azimuth, t);
-    interp_camera_.elevation = lerp_f(start.elevation, top_down.elevation, t);
-    interp_camera_.distance = lerp_f(start.distance, top_down.distance, t);
+    // Interpolate position, target, up directly
+    interp_camera_.position = vec3_lerp(start.position, top_down.position, t);
+    interp_camera_.target = vec3_lerp(start.target, top_down.target, t);
+    interp_camera_.up = vec3_normalize(vec3_lerp(start.up, top_down.up, t));
     interp_camera_.fov = lerp_f(start.fov, top_down.fov, t);
     interp_camera_.ortho_size = lerp_f(start.ortho_size, top_down.ortho_size, t);
     interp_camera_.near_clip = lerp_f(start.near_clip, top_down.near_clip, t);
     interp_camera_.far_clip = lerp_f(start.far_clip, top_down.far_clip, t);
-    interp_camera_.target = vec3_lerp(start.target, top_down.target, t);
+    interp_camera_.distance = lerp_f(start.distance, top_down.distance, t);
 
     // Projection mode: switch to orthographic at t=0.5
     interp_camera_.projection_mode = (t < 0.5f)
         ? Camera::ProjectionMode::Perspective
         : Camera::ProjectionMode::Orthographic;
 
-    interp_camera_.update_position_from_orbit();
-
-    // Axis limits: X/Y interpolate from 3D to 2D, Z collapses
-    interp_xlim_ = lerp_limits(state_3d_.xlim, state_2d_.xlim, t);
-    interp_ylim_ = lerp_limits(state_3d_.ylim, state_2d_.ylim, t);
-    AxisLimits z_collapsed = {
-        (state_3d_.zlim.min + state_3d_.zlim.max) * 0.5f,
-        (state_3d_.zlim.min + state_3d_.zlim.max) * 0.5f
-    };
-    interp_zlim_ = lerp_limits(state_3d_.zlim, z_collapsed, t);
-
-    // Grid planes: switch to XY-only at t=0.3
-    interp_grid_planes_ = (t < 0.3f) ? state_3d_.grid_planes : 1;
-
-    // 3D element opacity: fade out over the full transition
+    // Axis limits stay unchanged — we only animate the camera
+    interp_xlim_ = state_3d_.xlim;
+    interp_ylim_ = state_3d_.ylim;
+    interp_zlim_ = state_3d_.zlim;
+    interp_grid_planes_ = state_3d_.grid_planes;
     interp_3d_opacity_ = 1.0f - t;
 }
 
-Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& s2d) const {
+Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/) const {
+    // The orbit camera convention has Y as up, so elevation=90° looks down Y.
+    // But the XY grid (the standard grid) is in the XY plane — from looking
+    // down Y it's edge-on and invisible. We need to look down Z instead,
+    // so the XY grid is visible face-on and data X/Y map to screen X/Y.
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Orthographic;
-    cam.azimuth = 0.0f;
-    cam.elevation = 90.0f;  // Looking straight down
-    cam.distance = Axes3D::box_half_size() * 2.0f * 2.2f;
-    cam.target = {0.0f, 0.0f, 0.0f};
-    cam.up = {0.0f, 0.0f, -1.0f};  // Z-up when looking down Y
     cam.fov = 45.0f;
     cam.near_clip = 0.01f;
     cam.far_clip = 1000.0f;
 
-    // Ortho size based on 2D axis range
-    float x_range = s2d.xlim.max - s2d.xlim.min;
-    float y_range = s2d.ylim.max - s2d.ylim.min;
-    cam.ortho_size = std::max(x_range, y_range) * 0.6f;
+    float hs = Axes3D::box_half_size();  // 3.0
+    cam.ortho_size = hs * 2.0f * 1.15f; // ~6.9 — fits the cube with margin
 
-    cam.update_position_from_orbit();
+    // Position directly above on Z axis, looking down at origin
+    cam.target = {0.0f, 0.0f, 0.0f};
+    cam.position = {0.0f, 0.0f, hs * 4.0f};  // Above on +Z
+    cam.up = {0.0f, 1.0f, 0.0f};              // Y is up on screen
+
+    // Set orbit params to match (for consistency, though we set position directly)
+    cam.distance = hs * 4.0f;
+    cam.azimuth = 0.0f;
+    cam.elevation = 0.0f;  // Not meaningful for Z-down, but keep sane
+
     return cam;
 }
 

@@ -5,10 +5,12 @@
 #include "axis_link.hpp"
 #include "box_zoom_overlay.hpp"
 #include "command_palette.hpp"
+#include "command_registry.hpp"
 #include "data_interaction.hpp"
 #include "data_transform.hpp"
 #include "dock_system.hpp"
 #include "keyframe_interpolator.hpp"
+#include "mode_transition.hpp"
 #include "theme.hpp"
 #include "timeline_editor.hpp"
 #include "design_tokens.hpp"
@@ -29,6 +31,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -594,6 +597,9 @@ void ImGuiIntegration::draw_command_bar() {
             }),
             MenuItem("Toggle Navigation Rail", [this]() {
                 layout_manager_->set_nav_rail_expanded(!layout_manager_->is_nav_rail_expanded());
+            }),
+            MenuItem("Toggle 2D/3D View", [this]() {
+                if (command_registry_) command_registry_->execute("view.toggle_3d");
             }),
             MenuItem("Zoom to Fit", []() { /* TODO: Zoom to fit functionality */ }),
             MenuItem("Reset View", []() { /* TODO: Reset view functionality */ }),
@@ -2004,6 +2010,10 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
 
         float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
 
+        // Detect top-down view: camera view direction nearly aligned with Z
+        vec3 view_dir_early = vec3_normalize(cam.target - cam.position);
+        bool is_top_down_early = std::abs(view_dir_early.z) > 0.85f;
+
         // Tick offset: slightly beyond the tick mark end
         float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
         float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
@@ -2033,20 +2043,25 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         }
 
         // --- Z-axis tick labels (along x=x0, y=y0 edge) ---
-        auto z_ticks = axes3d->compute_z_ticks();
-        for (size_t i = 0; i < z_ticks.positions.size(); ++i) {
-            float sx, sy;
-            vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
-            if (!world_to_screen(pos, sx, sy)) continue;
-            const char* txt = z_ticks.labels[i].c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), tick_col, txt);
+        // Hidden in top-down view (Z points into screen, labels would overlap)
+        if (!is_top_down_early) {
+            auto z_ticks = axes3d->compute_z_ticks();
+            for (size_t i = 0; i < z_ticks.positions.size(); ++i) {
+                float sx, sy;
+                vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
+                if (!world_to_screen(pos, sx, sy)) continue;
+                const char* txt = z_ticks.labels[i].c_str();
+                ImVec2 sz = ImGui::CalcTextSize(txt);
+                dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), tick_col, txt);
+            }
         }
         ImGui::PopFont();
 
         // --- Axis direction arrows with labels ---
-        // Draw arrows pointing outward from the max corner of the bounding box
-        // along each axis direction, with colored arrowheads and labels.
+        // Draw arrows pointing outward from the bounding box edges.
+        // When the camera is near-top-down (looking down Z), switch to
+        // 2D-style placement: X arrow along bottom, Y arrow along left,
+        // Z arrow hidden.
         {
             float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
             float x_range = xlim.max - xlim.min;
@@ -2055,6 +2070,8 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
             float arrow_len_x = x_range * 0.18f;
             float arrow_len_y = y_range * 0.18f;
             float arrow_len_z = z_range * 0.18f;
+
+            bool is_top_down = is_top_down_early;
 
             // Arrow colors: X=red, Y=green, Z=blue (standard convention)
             ImU32 x_arrow_col = IM_COL32(230, 70, 70, 220);
@@ -2083,15 +2100,19 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 dl->AddTriangleFilled(tri[0], tri[1], tri[2], col);
             };
 
-            // X arrow: from (x1, y0, z0) to (x1 + arrow_len, y0, z0)
+            // Choose arrow start positions based on view mode
+            // Top-down: arrows at grid edges on the XY plane (z=z0)
+            // 3D: arrows at bounding box corners (original behavior)
+            float z_plane = z0;  // XY grid plane
+
+            // X arrow: along bottom edge of grid
             {
-                vec3 arrow_start = {x1, y0, z0};
-                vec3 arrow_end   = {x1 + arrow_len_x, y0, z0};
+                vec3 arrow_start = {x1, y0, z_plane};
+                vec3 arrow_end   = {x1 + arrow_len_x, y0, z_plane};
                 float sx0, sy0, sx1, sy1;
                 if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
                     dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), x_arrow_col, 2.0f);
                     draw_arrowhead(sx0, sy0, sx1, sy1, x_arrow_col);
-                    // Label
                     ImGui::PushFont(font_menubar_);
                     const char* lbl = axes3d->get_xlabel().empty() ? "X" : axes3d->get_xlabel().c_str();
                     ImVec2 sz = ImGui::CalcTextSize(lbl);
@@ -2106,10 +2127,10 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 }
             }
 
-            // Y arrow: from (x0, y1, z0) to (x0, y1 + arrow_len, z0)
+            // Y arrow: along left edge of grid
             {
-                vec3 arrow_start = {x0, y1, z0};
-                vec3 arrow_end   = {x0, y1 + arrow_len_y, z0};
+                vec3 arrow_start = {x0, y1, z_plane};
+                vec3 arrow_end   = {x0, y1 + arrow_len_y, z_plane};
                 float sx0, sy0, sx1, sy1;
                 if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
                     dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), y_arrow_col, 2.0f);
@@ -2128,8 +2149,8 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
                 }
             }
 
-            // Z arrow: from (x0, y0, z1) to (x0, y0, z1 + arrow_len)
-            {
+            // Z arrow: only show in 3D view (hidden when top-down)
+            if (!is_top_down) {
                 vec3 arrow_start = {x0, y0, z1};
                 vec3 arrow_end   = {x0, y0, z1 + arrow_len_z};
                 float sx0, sy0, sx1, sy1;

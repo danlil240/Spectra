@@ -28,6 +28,11 @@ public:
     AxisLimits y_limits() const;
     AxisLimits z_limits() const;
 
+    const std::string& xlabel() const { return xlabel_; }
+    const std::string& ylabel() const { return ylabel_; }
+    const std::string& zlabel() const { return zlabel_; }
+
+    // Deprecated aliases
     const std::string& get_xlabel() const { return xlabel_; }
     const std::string& get_ylabel() const { return ylabel_; }
     const std::string& get_zlabel() const { return zlabel_; }
@@ -49,19 +54,27 @@ public:
         All = XY | XZ | YZ
     };
 
+    void grid_planes(GridPlane planes) { grid_planes_ = static_cast<int>(planes); }
+    GridPlane grid_planes() const { return static_cast<GridPlane>(grid_planes_); }
+
+    // Deprecated: use grid_planes(GridPlane) instead
     void set_grid_planes(int planes) { grid_planes_ = planes; }
-    int grid_planes() const { return grid_planes_; }
 
     bool show_bounding_box() const { return show_bounding_box_; }
     void show_bounding_box(bool enabled) { show_bounding_box_ = enabled; }
 
     // Directional light configuration
-    void set_light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
-    void set_light_dir(vec3 dir) { light_dir_ = dir; }
+    void light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
+    void light_dir(vec3 dir) { light_dir_ = dir; }
     vec3 light_dir() const { return light_dir_; }
 
-    void set_lighting_enabled(bool enabled) { lighting_enabled_ = enabled; }
+    void lighting_enabled(bool enabled) { lighting_enabled_ = enabled; }
     bool lighting_enabled() const { return lighting_enabled_; }
+
+    // Deprecated aliases
+    void set_light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
+    void set_light_dir(vec3 dir) { light_dir_ = dir; }
+    void set_lighting_enabled(bool enabled) { lighting_enabled_ = enabled; }
 
     // Returns a model matrix that maps data coordinates [xlim, ylim, zlim]
     // into a fixed-size normalized cube [-box_half_size, +box_half_size]³.
@@ -90,7 +103,7 @@ private:
     std::string zlabel_;
 
     std::unique_ptr<Camera> camera_;
-    int grid_planes_ = static_cast<int>(GridPlane::XY);
+    int grid_planes_ = static_cast<int>(GridPlane::All);
     bool show_bounding_box_ = true;
     vec3 light_dir_ = {1.0f, 1.0f, 1.0f};  // Default: top-right-front
     bool lighting_enabled_ = true;
@@ -98,6 +111,14 @@ private:
 
 inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b) {
     return static_cast<Axes3D::GridPlane>(static_cast<int>(a) | static_cast<int>(b));
+}
+
+inline Axes3D::GridPlane operator&(Axes3D::GridPlane a, Axes3D::GridPlane b) {
+    return static_cast<Axes3D::GridPlane>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+inline Axes3D::GridPlane operator~(Axes3D::GridPlane a) {
+    return static_cast<Axes3D::GridPlane>(~static_cast<int>(a));
 }
 
 } // namespace plotix

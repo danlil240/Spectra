@@ -62,6 +62,9 @@ private:
 
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
+    // Build orthographic projection with proper near/far depth (for 3D ortho views)
+    void build_ortho_projection_3d(float left, float right, float bottom, float top,
+                                    float near_clip, float far_clip, float* out_mat4);
 
     void render_axis_border(AxesBase& axes, const Rect& viewport,
                             uint32_t fig_width, uint32_t fig_height);

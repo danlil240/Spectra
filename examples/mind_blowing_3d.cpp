@@ -105,7 +105,7 @@ int main() {
     
     // Setup axes
     ax.auto_fit();
-    ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+    ax.grid_planes(Axes3D::GridPlane::All);
     ax.title("MIND-BLOWING 3D ANIMATION");
     ax.xlabel("X Dimension");
     ax.ylabel("Y Dimension");

@@ -101,14 +101,14 @@ void test_axes3d_camera() {
 void test_axes3d_grid_planes() {
     Axes3D axes;
     
-    axes.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY));
-    assert(axes.grid_planes() == static_cast<int>(Axes3D::GridPlane::XY));
+    axes.grid_planes(Axes3D::GridPlane::XY);
+    assert(axes.grid_planes() == Axes3D::GridPlane::XY);
     
-    axes.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
-    assert(axes.grid_planes() == (static_cast<int>(Axes3D::GridPlane::XY) | static_cast<int>(Axes3D::GridPlane::XZ)));
+    axes.grid_planes(Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ);
+    assert(axes.grid_planes() == (Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
     
-    axes.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
-    assert(axes.grid_planes() == static_cast<int>(Axes3D::GridPlane::All));
+    axes.grid_planes(Axes3D::GridPlane::All);
+    assert(axes.grid_planes() == Axes3D::GridPlane::All);
     
     std::cout << "✓ test_axes3d_grid_planes passed\n";
 }

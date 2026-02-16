@@ -30,6 +30,7 @@
 #include "icons.hpp"
 #include "imgui_integration.hpp"
 #include "keyframe_interpolator.hpp"
+#include "mode_transition.hpp"
 #include "shortcut_manager.hpp"
 #include "tab_bar.hpp"
 #include "theme.hpp"
@@ -204,6 +205,11 @@ void App::run() {
     AnimationCurveEditor curve_editor;
     timeline_editor.set_interpolator(&keyframe_interpolator);
     curve_editor.set_interpolator(&keyframe_interpolator);
+
+    // Agent 6 Week 11: Mode transition for 2D↔3D view switching
+    ModeTransition mode_transition;
+    bool is_in_3d_mode = true;   // Start in 3D (figures with subplot3d start in 3D)
+    Camera saved_3d_camera;      // Saved 3D camera to restore on toggle-back
 
     // Agent F: Command palette & productivity
     CommandRegistry cmd_registry;
@@ -565,6 +571,9 @@ void App::run() {
         imgui_ui->set_keyframe_interpolator(&keyframe_interpolator);
         imgui_ui->set_curve_editor(&curve_editor);
 
+        // Wire Agent 6 Week 11: Mode transition
+        imgui_ui->set_mode_transition(&mode_transition);
+
         // Wire Agent F: command palette & productivity
         imgui_ui->set_command_palette(&cmd_palette);
         imgui_ui->set_command_registry(&cmd_registry);
@@ -695,6 +704,54 @@ void App::run() {
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
             }
         }, "", "View");
+
+        // Toggle 2D/3D view mode (Agent 6 Week 11)
+        // Only animates the camera between orbit-3D and top-down-ortho.
+        // Axis limits are NEVER modified — that would break the model matrix.
+        cmd_registry.register_command("view.toggle_3d", "Toggle 2D/3D View", [&]() {
+            Axes3D* ax3d = nullptr;
+            for (auto& ax_base : active_figure->all_axes()) {
+                if (ax_base) {
+                    ax3d = dynamic_cast<Axes3D*>(ax_base.get());
+                    if (ax3d) break;
+                }
+            }
+            if (!ax3d || mode_transition.is_active()) return;
+
+            if (is_in_3d_mode) {
+                // 3D → 2D: save current camera, animate to top-down ortho
+                saved_3d_camera = ax3d->camera();
+
+                ModeTransition3DState from;
+                from.camera = ax3d->camera();
+                from.xlim = ax3d->x_limits();
+                from.ylim = ax3d->y_limits();
+                from.zlim = ax3d->z_limits();
+                from.grid_planes = static_cast<int>(ax3d->grid_planes());
+
+                ModeTransition2DState to;
+                to.xlim = ax3d->x_limits();
+                to.ylim = ax3d->y_limits();
+
+                mode_transition.begin_to_2d(from, to);
+                is_in_3d_mode = false;
+            } else {
+                // 2D → 3D: animate back to saved 3D camera
+                ModeTransition2DState from;
+                from.xlim = ax3d->x_limits();
+                from.ylim = ax3d->y_limits();
+
+                ModeTransition3DState to;
+                to.camera = saved_3d_camera;
+                to.xlim = ax3d->x_limits();
+                to.ylim = ax3d->y_limits();
+                to.zlim = ax3d->z_limits();
+                to.grid_planes = static_cast<int>(ax3d->grid_planes());
+
+                mode_transition.begin_to_3d(from, to);
+                is_in_3d_mode = true;
+            }
+        }, "3", "View", static_cast<uint16_t>(ui::Icon::Axes));
 
         // Command palette
         cmd_registry.register_command("app.command_palette", "Command Palette", [&]() {
@@ -1099,6 +1156,33 @@ void App::run() {
 #ifdef PLOTIX_USE_IMGUI
         // Advance timeline editor (drives playback + interpolator evaluation)
         timeline_editor.advance(scheduler.dt());
+
+        // Update mode transition animation — only animate camera, never axis limits
+        if (mode_transition.is_active()) {
+            mode_transition.update(scheduler.dt());
+
+            Axes3D* ax3d = nullptr;
+            for (auto& ax_base : active_figure->all_axes()) {
+                if (ax_base) {
+                    ax3d = dynamic_cast<Axes3D*>(ax_base.get());
+                    if (ax3d) break;
+                }
+            }
+            if (ax3d) {
+                Camera interp_cam = mode_transition.interpolated_camera();
+                // Set position directly (not via orbit) because the
+                // top-down camera is on the Z axis, not an orbit position.
+                ax3d->camera().position = interp_cam.position;
+                ax3d->camera().target = interp_cam.target;
+                ax3d->camera().up = interp_cam.up;
+                ax3d->camera().fov = interp_cam.fov;
+                ax3d->camera().ortho_size = interp_cam.ortho_size;
+                ax3d->camera().projection_mode = interp_cam.projection_mode;
+                ax3d->camera().near_clip = interp_cam.near_clip;
+                ax3d->camera().far_clip = interp_cam.far_clip;
+                ax3d->camera().distance = interp_cam.distance;
+            }
+        }
 #endif
 
 #ifdef PLOTIX_USE_GLFW

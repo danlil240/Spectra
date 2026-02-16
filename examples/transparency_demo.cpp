@@ -20,7 +20,7 @@ int main() {
         ax.xlabel("X");
         ax.ylabel("Y");
         ax.zlabel("Z");
-        ax.set_light_dir(0.5f, 0.8f, 1.0f);
+        ax.light_dir(0.5f, 0.8f, 1.0f);
 
         const int N = 60;
         std::vector<float> x(N), y(N);
@@ -136,7 +136,7 @@ int main() {
         ax.xlabel("X");
         ax.ylabel("Y");
         ax.zlabel("Z");
-        ax.set_light_dir(1.0f, 0.5f, 0.8f);
+        ax.light_dir(1.0f, 0.5f, 0.8f);
 
         // Create a simple icosahedron-like mesh
         // 12 vertices, 20 triangles

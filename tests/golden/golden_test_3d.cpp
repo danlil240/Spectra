@@ -218,7 +218,7 @@ TEST(Golden3D, GridPlanes_XY) {
     run_golden_test_3d("3d_grid_xy", [](App& app, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
-        ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY));
+        ax.grid_planes(Axes3D::GridPlane::XY);
         
         std::vector<float> x = {0.0f, 1.0f};
         std::vector<float> y = {0.0f, 1.0f};
@@ -233,7 +233,7 @@ TEST(Golden3D, GridPlanes_All) {
     run_golden_test_3d("3d_grid_all", [](App& app, Figure& fig) {
         auto& ax = fig.subplot3d(1, 1, 1);
         
-        ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+        ax.grid_planes(Axes3D::GridPlane::All);
         
         std::vector<float> x = {0.5f};
         std::vector<float> y = {0.5f};
@@ -432,7 +432,7 @@ TEST(Golden3D, MultiSubplot3D) {
         ax4.xlim(-1.0f, 1.0f);
         ax4.ylim(-1.0f, 1.0f);
         ax4.zlim(-1.0f, 1.0f);
-        ax4.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+        ax4.grid_planes(Axes3D::GridPlane::All);
         ax4.title("Empty + Grids");
     }, 800, 600);
 }

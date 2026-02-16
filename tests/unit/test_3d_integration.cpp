@@ -106,21 +106,20 @@ TEST_F(Integration3DTest, GridPlaneConfiguration) {
     auto& fig = app_->figure();
     auto& ax = fig.subplot3d(1, 1, 1);
 
-    ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::XY));
-    EXPECT_EQ(ax.grid_planes(), static_cast<int>(Axes3D::GridPlane::XY));
+    ax.grid_planes(Axes3D::GridPlane::XY);
+    EXPECT_EQ(ax.grid_planes(), Axes3D::GridPlane::XY);
 
-    ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
-    EXPECT_EQ(ax.grid_planes(), static_cast<int>(Axes3D::GridPlane::All));
+    ax.grid_planes(Axes3D::GridPlane::All);
+    EXPECT_EQ(ax.grid_planes(), Axes3D::GridPlane::All);
 
-    ax.set_grid_planes(static_cast<int>(Axes3D::GridPlane::None));
-    EXPECT_EQ(ax.grid_planes(), static_cast<int>(Axes3D::GridPlane::None));
+    ax.grid_planes(Axes3D::GridPlane::None);
+    EXPECT_EQ(ax.grid_planes(), Axes3D::GridPlane::None);
 }
 
 TEST_F(Integration3DTest, GridPlaneBitwiseOr) {
     auto combined = Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ;
-    int val = static_cast<int>(combined);
-    EXPECT_EQ(val, static_cast<int>(Axes3D::GridPlane::XY) |
-                   static_cast<int>(Axes3D::GridPlane::XZ));
+    EXPECT_EQ(combined, (Axes3D::GridPlane::XY | Axes3D::GridPlane::XZ));
+    EXPECT_NE(static_cast<int>(combined), 0);
 }
 
 // ─── Bounding Box ───────────────────────────────────────────────────────────

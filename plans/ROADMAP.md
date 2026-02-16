@@ -1,8 +1,8 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-17 (All UI Redesign Phases Complete + 3D Phases 1–3 In Progress)  
-**Current Phase:** 3D Visualization — Phase 3 In Progress  
-**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 4 ✅, Agent 5 ✅, Agent 6 ✅, Agent 7 ✅
+**Last Updated:** 2026-02-17 (All UI Redesign Phases Complete + 3D Phase 3 Complete)  
+**Current Phase:** 3D Visualization — Phase 3 Complete ✅  
+**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 4 ✅, Agent 5 ✅, Agent 6 ✅, Agent 7 ✅ (Phase 3 Final)
 
 ---
 
@@ -544,7 +544,7 @@
 
 ## 3D Visualization Architecture (Separate Track)
 
-**Status:** Phase 2 — Agent 6 Complete ✅  
+**Status:** Phase 3 Complete ✅  
 **Reference:** See [`plans/3D_ARCHITECTURE_PLAN.md`](3D_ARCHITECTURE_PLAN.md) for full 7-agent plan
 
 ### Agent 1 — Core Transform Refactor & Math Utilities ✅ Complete
@@ -705,6 +705,29 @@
 | SurfaceWireframe3D + SurfaceWireframe3D_Transparent pipeline types | ✅ Done | `src/render/backend.hpp`, `src/render/vulkan/vk_backend.cpp` |
 | 46 new unit tests (blend mode, transparency detection, wireframe mesh, thresholds, chaining) | ✅ Done | `tests/unit/test_transparency.cpp` |
 | transparency_demo example (4 subplots: overlapping surfaces, scatter+line, wireframe, transparent mesh) | ✅ Done | `examples/transparency_demo.cpp` |
+
+### Agent 7 — Week 12: Full 3D Phase 3 Regression Suite, Benchmarks & Golden Tests ✅ Complete
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| 3D Phase 3 regression test suite (88 tests, 20 categories) | ✅ Done | `tests/unit/test_3d_regression.cpp` (NEW) |
+| 3D Phase 3 performance benchmarks (28 benchmarks) | ✅ Done | `tests/bench/bench_3d_phase3.cpp` (NEW) |
+| 3D Phase 3 golden image tests (11 scenes) | ✅ Done | `tests/golden/golden_test_3d_phase3.cpp` (NEW) |
+| CMakeLists.txt integration for all 3 new targets | ✅ Done | `tests/CMakeLists.txt` (UPDATED) |
+
+**Regression tests cover:** Lighting API (default, toggle, direction set/get, per-axes independence), material properties (surface/mesh defaults, set/get, chaining), transparency (line/scatter/surface/mesh alpha, opacity, colormap_alpha, blend modes, thresholds), wireframe (surface/mesh toggle, mesh generation, data change reset), double-sided rendering, colormap alpha (default, range, enable/disable), MSAA configuration (1x/4x toggle), pipeline types (transparent enum existence, opaque/2D creation), painter's sort (centroid computation for all series types), data-to-normalized matrix, zoom limits, camera (default projection, orthographic switch, orbit, serialization round-trip, reset, independence, view matrix), camera animator (orbit interpolation, target binding, turntable, serialization), grid planes & bounding box, colormap (set/get, sampling all types, range), auto-fit (single/multi-series, empty axes), series lifecycle (clear/remove), mixed 2D+3D, FrameUBO/PushConstants layout, render smoke tests (lit surface, transparent scatter, wireframe, lit mesh, transparent surface, mixed opaque+transparent, multi-subplot), edge cases (single point, 10K dataset, negative limits, labels, ticks, mesh topology).
+
+**Benchmarks cover:** Lit surface rendering (50×50/100×100/500×500), lit mesh (1K/100K triangles), transparent series (scatter 10K, surface 50×50/100×100, mesh 10K), mixed opaque+transparent (painter's sort), multiple transparent layers, wireframe surface (50×50/100×100), material property overhead, transparency check, centroid computation (scatter 10K, surface 100×100), bounds computation, wireframe mesh generation (50×50/200×200), colormap sampling (Viridis/Jet), camera operations (orbit 1000 steps, view matrix, projection matrix, serialize/deserialize), data-to-normalized matrix, mixed 2D+3D lit surface.
+
+**Golden tests cover:** Lit surface (sin*cos + high specular), lit mesh (quad), transparent surface, transparent scatter on lit surface, wireframe surface (sinc), surface colormap+alpha (Viridis), lighting disabled (flat), multiple transparent surfaces (painter's sort), mixed 2D + lit 3D, lit surface + Plasma colormap.
+
+**Key achievements:**
+- 88/88 regression tests pass, 11 golden tests compile and skip cleanly (no baselines yet)
+- All 28 benchmarks compile and link
+- Zero regressions: 66/67 ctest pass (1 pre-existing failure in mode_transition unrelated to this work)
+- Comprehensive Phase 3 acceptance criteria coverage: Phong lighting ✅, transparency ✅, MSAA ✅, workspace 3D state ✅, 2D regression ✅
+
+**Depends on:** All agents ✅
 
 ---
 

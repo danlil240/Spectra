@@ -137,17 +137,17 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& renderer) {
     
     if (axes.grid_enabled()) {
         grid_data_.vertices.clear();
-        int grid_planes = axes.grid_planes();
+        auto gp = axes.grid_planes();
         
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XY)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::XY)) {
             grid_data_.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
         }
         
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::XZ)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::XZ)) {
             grid_data_.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
         }
         
-        if (grid_planes & static_cast<int>(Axes3D::GridPlane::YZ)) {
+        if (static_cast<int>(gp & Axes3D::GridPlane::YZ)) {
             grid_data_.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
         }
     }

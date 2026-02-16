@@ -79,14 +79,16 @@ TEST(ModeTransitionTo3D, InitialOpacityIsZero) {
     EXPECT_FLOAT_EQ(mt.element_3d_opacity(), 0.0f);
 }
 
-TEST(ModeTransitionTo3D, InitialZLimCollapsed) {
+TEST(ModeTransitionTo3D, InitialZLimMatchesTarget) {
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.zlim = {-5.0f, 5.0f};
     mt.begin_to_3d(s2d, s3d);
     auto zlim = mt.interpolated_zlim();
-    EXPECT_FLOAT_EQ(zlim.min, zlim.max);  // Collapsed at start
+    // Axis limits stay constant — never interpolated
+    EXPECT_NEAR(zlim.min, -5.0f, 0.01f);
+    EXPECT_NEAR(zlim.max, 5.0f, 0.01f);
 }
 
 TEST(ModeTransitionTo3D, ProgressIncreasesWithUpdate) {
@@ -136,7 +138,7 @@ TEST(ModeTransitionTo3D, ZLimExpandsAtEnd) {
     EXPECT_NEAR(zlim.max, 5.0f, 0.1f);
 }
 
-TEST(ModeTransitionTo3D, XLimInterpolates) {
+TEST(ModeTransitionTo3D, XLimStaysConstant) {
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });  // Linear
@@ -147,8 +149,9 @@ TEST(ModeTransitionTo3D, XLimInterpolates) {
     mt.begin_to_3d(s2d, s3d);
     mt.update(0.5f);  // t=0.5
     auto xlim = mt.interpolated_xlim();
-    EXPECT_NEAR(xlim.min, -2.5f, 0.1f);
-    EXPECT_NEAR(xlim.max, 7.5f, 0.1f);
+    // Axis limits stay at 3D target — never interpolated
+    EXPECT_NEAR(xlim.min, -5.0f, 0.01f);
+    EXPECT_NEAR(xlim.max, 5.0f, 0.01f);
 }
 
 // ─── To2D Transition ────────────────────────────────────────────────────────
@@ -188,7 +191,7 @@ TEST(ModeTransitionTo2D, OpacityReachesZeroAtEnd) {
     EXPECT_NEAR(mt.element_3d_opacity(), 0.0f, 0.01f);
 }
 
-TEST(ModeTransitionTo2D, ZLimCollapsesAtEnd) {
+TEST(ModeTransitionTo2D, ZLimStaysConstant) {
     ModeTransition mt;
     mt.set_duration(0.5f);
     mt.set_easing([](float t) { return t; });
@@ -198,7 +201,9 @@ TEST(ModeTransitionTo2D, ZLimCollapsesAtEnd) {
     mt.begin_to_2d(s3d, s2d);
     mt.update(0.5f);
     auto zlim = mt.interpolated_zlim();
-    EXPECT_NEAR(zlim.min, zlim.max, 0.1f);
+    // Axis limits stay constant — never interpolated
+    EXPECT_NEAR(zlim.min, -5.0f, 0.01f);
+    EXPECT_NEAR(zlim.max, 5.0f, 0.01f);
 }
 
 TEST(ModeTransitionTo2D, CompletesAfterDuration) {
@@ -236,41 +241,53 @@ TEST(ModeTransitionCamera, SwitchesToPerspectiveAtMidpoint) {
     EXPECT_EQ(cam.projection_mode, Camera::ProjectionMode::Perspective);
 }
 
-TEST(ModeTransitionCamera, ElevationInterpolatesTo3D) {
+TEST(ModeTransitionCamera, PositionInterpolatesTo3D) {
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.camera.elevation = 30.0f;
+    s3d.camera.distance = 10.0f;
+    s3d.camera.update_position_from_orbit();
     mt.begin_to_3d(s2d, s3d);
     mt.update(1.0f);
     auto cam = mt.interpolated_camera();
-    EXPECT_NEAR(cam.elevation, 30.0f, 0.5f);
+    // Position should reach the 3D target camera position
+    EXPECT_NEAR(cam.position.x, s3d.camera.position.x, 0.5f);
+    EXPECT_NEAR(cam.position.y, s3d.camera.position.y, 0.5f);
+    EXPECT_NEAR(cam.position.z, s3d.camera.position.z, 0.5f);
 }
 
-TEST(ModeTransitionCamera, AzimuthInterpolatesTo3D) {
+TEST(ModeTransitionCamera, TargetInterpolatesTo3D) {
     ModeTransition mt;
     mt.set_duration(1.0f);
     mt.set_easing([](float t) { return t; });
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
+    s3d.camera.target = {1.0f, 2.0f, 3.0f};
     s3d.camera.azimuth = 45.0f;
+    s3d.camera.distance = 10.0f;
+    s3d.camera.update_position_from_orbit();
     mt.begin_to_3d(s2d, s3d);
     mt.update(1.0f);
     auto cam = mt.interpolated_camera();
-    EXPECT_NEAR(cam.azimuth, 45.0f, 0.5f);
+    // Target should reach the 3D camera target
+    EXPECT_NEAR(cam.target.x, 1.0f, 0.5f);
+    EXPECT_NEAR(cam.target.y, 2.0f, 0.5f);
+    EXPECT_NEAR(cam.target.z, 3.0f, 0.5f);
 }
 
 // ─── Grid Planes ────────────────────────────────────────────────────────────
 
-TEST(ModeTransitionGrid, StartsXYOnly) {
+TEST(ModeTransitionGrid, StartsAtTargetPlanes) {
     ModeTransition mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.grid_planes = 7;  // All planes
     mt.begin_to_3d(s2d, s3d);
-    EXPECT_EQ(mt.interpolated_grid_planes(), 1);  // XY only
+    // Grid planes stay constant — never changed during transition
+    EXPECT_EQ(mt.interpolated_grid_planes(), 7);
 }
 
 TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate) {

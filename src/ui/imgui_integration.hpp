@@ -27,6 +27,7 @@ class CommandRegistry;
 class DataInteraction;
 class DockSystem;
 class KeyframeInterpolator;
+class ModeTransition;
 class ShortcutManager;
 class TimelineEditor;
 class UndoManager;
@@ -115,6 +116,10 @@ public:
     // Animation curve editor (Agent G, owned externally by App)
     void set_curve_editor(AnimationCurveEditor* ce) { curve_editor_ = ce; }
     AnimationCurveEditor* curve_editor() const { return curve_editor_; }
+
+    // Mode transition (Agent 6 Week 11, owned externally by App)
+    void set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
+    ModeTransition* mode_transition() const { return mode_transition_; }
 
     // Panel visibility toggles
     bool is_timeline_visible() const { return show_timeline_; }
@@ -212,6 +217,9 @@ private:
     AnimationCurveEditor* curve_editor_ = nullptr;
     bool show_timeline_ = false;
     bool show_curve_editor_ = false;
+
+    // Mode transition (not owned)
+    ModeTransition* mode_transition_ = nullptr;
 
     // Current figure pointer (set each frame in build_ui for menu callbacks)
     Figure* current_figure_ = nullptr;

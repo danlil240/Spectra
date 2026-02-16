@@ -169,9 +169,12 @@ public:
     SurfaceSeries& colormap(const std::string& name);
     ColormapType colormap_type() const { return colormap_; }
 
-    void set_colormap_range(float min_val, float max_val) { cmap_min_ = min_val; cmap_max_ = max_val; }
+    SurfaceSeries& colormap_range(float min_val, float max_val) { cmap_min_ = min_val; cmap_max_ = max_val; return *this; }
     float colormap_min() const { return cmap_min_; }
     float colormap_max() const { return cmap_max_; }
+
+    // Deprecated alias
+    void set_colormap_range(float min_val, float max_val) { cmap_min_ = min_val; cmap_max_ = max_val; }
 
     static Color sample_colormap(ColormapType cm, float t);
 
@@ -205,13 +208,20 @@ public:
     SurfaceSeries& colormap_alpha(bool enabled) { colormap_alpha_ = enabled; dirty_ = true; return *this; }
     bool colormap_alpha() const { return colormap_alpha_; }
 
-    // Set a custom alpha range for colormap alpha mapping
+    // Custom alpha range for colormap alpha mapping
+    SurfaceSeries& colormap_alpha_range(float min_alpha, float max_alpha) {
+        cmap_alpha_min_ = min_alpha;
+        cmap_alpha_max_ = max_alpha;
+        return *this;
+    }
+    float colormap_alpha_min() const { return cmap_alpha_min_; }
+    float colormap_alpha_max() const { return cmap_alpha_max_; }
+
+    // Deprecated alias
     void set_colormap_alpha_range(float min_alpha, float max_alpha) {
         cmap_alpha_min_ = min_alpha;
         cmap_alpha_max_ = max_alpha;
     }
-    float colormap_alpha_min() const { return cmap_alpha_min_; }
-    float colormap_alpha_max() const { return cmap_alpha_max_; }
 
     bool is_transparent() const {
         return (color_.a * style_.opacity) < 0.99f || colormap_alpha_;

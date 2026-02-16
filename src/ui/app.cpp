@@ -1153,6 +1153,11 @@ void App::run() {
                             active_figure->axes_mut()[i]->set_viewport(rects[i]);
                         }
                     }
+                    for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
+                        if (active_figure->all_axes_mut()[i]) {
+                            active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
+                        }
+                    }
                 } else
 #endif
                 {
@@ -1356,6 +1361,11 @@ void App::run() {
                             active_figure->axes_mut()[i]->set_viewport(rects[i]);
                         }
                     }
+                    for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
+                        if (active_figure->all_axes_mut()[i]) {
+                            active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
+                        }
+                    }
                 }
             } else {
                 active_figure->compute_layout();
@@ -1449,6 +1459,11 @@ void App::run() {
                         for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i) {
                             if (active_figure->axes_mut()[i]) {
                                 active_figure->axes_mut()[i]->set_viewport(rects[i]);
+                            }
+                        }
+                        for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size(); ++i) {
+                            if (active_figure->all_axes_mut()[i]) {
+                                active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
                             }
                         }
                     } else

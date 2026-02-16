@@ -21,6 +21,7 @@ layout(location = 0) in float v_distance_to_edge;
 layout(location = 1) in float v_line_length;
 layout(location = 2) in float v_along_line;
 layout(location = 3) in float v_cumulative_dist;
+layout(location = 4) in vec3 v_model_pos;
 
 layout(location = 0) out vec4 out_color;
 
@@ -51,6 +52,10 @@ float dash_sdf(float dist_along) {
 }
 
 void main() {
+    // Discard fragments outside the bounding box
+    const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
+    if (any(greaterThan(abs(v_model_pos), vec3(BOX_HS)))) discard;
+
     float half_w = line_width * 0.5;
     // AA feather width in pixels — 1.0px gives crisp but smooth edges
     float aa = 1.0;

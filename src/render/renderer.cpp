@@ -337,9 +337,9 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
         const mat4& view = cam.view_matrix();
         std::memcpy(ubo.view, view.m, 16 * sizeof(float));
         
-        // Identity model matrix for now
-        ubo.model[0] = 1.0f; ubo.model[5] = 1.0f;
-        ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
+        // Model matrix maps data coordinates into fixed-size normalized cube
+        mat4 model = axes3d->data_to_normalized_matrix();
+        std::memcpy(ubo.model, model.m, 16 * sizeof(float));
         
         ubo.near_plane = cam.near_clip;
         ubo.far_plane = cam.far_clip;

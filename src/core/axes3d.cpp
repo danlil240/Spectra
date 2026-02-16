@@ -57,12 +57,11 @@ TickResult compute_ticks_for_range(float min, float max) {
 } // anonymous namespace
 
 Axes3D::Axes3D() : camera_(std::make_unique<Camera>()) {
-    camera_->position = {5.0f, 5.0f, 5.0f};
     camera_->target = {0.0f, 0.0f, 0.0f};
     camera_->up = {0.0f, 1.0f, 0.0f};
     camera_->azimuth = 45.0f;
     camera_->elevation = 30.0f;
-    camera_->distance = 8.66f;
+    camera_->distance = box_half_size() * 2.0f * 2.2f;
     camera_->update_position_from_orbit();
 }
 
@@ -177,12 +176,12 @@ void Axes3D::auto_fit() {
     ylim(global_min.y, global_max.y);
     zlim(global_min.z, global_max.z);
 
-    vec3 center = (global_min + global_max) * 0.5f;
-    camera_->target = center;
+    // Camera targets the center of the normalized cube (origin)
+    camera_->target = {0.0f, 0.0f, 0.0f};
 
-    float max_extent = std::max({extent.x, extent.y, extent.z});
-    if (max_extent < 1e-6f) max_extent = 1.0f;
-    camera_->distance = max_extent * 2.0f;
+    // Distance based on fixed cube size, not data extent
+    float cube_size = box_half_size() * 2.0f;
+    camera_->distance = cube_size * 2.2f;
     camera_->update_position_from_orbit();
 }
 
@@ -213,6 +212,58 @@ MeshSeries& Axes3D::mesh(std::span<const float> vertices, std::span<const uint32
     auto* ptr = series.get();
     series_.push_back(std::move(series));
     return *ptr;
+}
+
+mat4 Axes3D::data_to_normalized_matrix() const {
+    auto xl = x_limits();
+    auto yl = y_limits();
+    auto zl = z_limits();
+
+    float hs = box_half_size();
+
+    // Scale: map each axis range to [-hs, +hs]
+    float sx = (xl.max - xl.min) > 1e-10f ? (2.0f * hs) / (xl.max - xl.min) : 1.0f;
+    float sy = (yl.max - yl.min) > 1e-10f ? (2.0f * hs) / (yl.max - yl.min) : 1.0f;
+    float sz = (zl.max - zl.min) > 1e-10f ? (2.0f * hs) / (zl.max - zl.min) : 1.0f;
+
+    // Center of data range
+    float cx = (xl.min + xl.max) * 0.5f;
+    float cy = (yl.min + yl.max) * 0.5f;
+    float cz = (zl.min + zl.max) * 0.5f;
+
+    // Model = Scale * Translate(-center)
+    // result = S * (p - c) = S*p - S*c
+    // Column-major mat4:
+    mat4 m = mat4_identity();
+    m.m[0]  = sx;
+    m.m[5]  = sy;
+    m.m[10] = sz;
+    m.m[12] = -sx * cx;  // translation x
+    m.m[13] = -sy * cy;  // translation y
+    m.m[14] = -sz * cz;  // translation z
+    m.m[15] = 1.0f;
+    return m;
+}
+
+void Axes3D::zoom_limits(float factor) {
+    auto xl = x_limits();
+    auto yl = y_limits();
+    auto zl = z_limits();
+
+    auto zoom_range = [&](AxisLimits lim) -> AxisLimits {
+        float center = (lim.min + lim.max) * 0.5f;
+        float half_range = (lim.max - lim.min) * 0.5f * factor;
+        if (half_range < 1e-10f) half_range = 1e-10f;
+        return {center - half_range, center + half_range};
+    };
+
+    auto new_xl = zoom_range(xl);
+    auto new_yl = zoom_range(yl);
+    auto new_zl = zoom_range(zl);
+
+    xlim(new_xl.min, new_xl.max);
+    ylim(new_yl.min, new_yl.max);
+    zlim(new_zl.min, new_zl.max);
 }
 
 } // namespace plotix

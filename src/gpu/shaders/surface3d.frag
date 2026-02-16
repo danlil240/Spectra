@@ -24,6 +24,10 @@ layout(location = 2) in vec3 v_view_dir;
 layout(location = 0) out vec4 out_color;
 
 void main() {
+    // Discard fragments outside the bounding box
+    const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
+    if (any(greaterThan(abs(v_world_pos), vec3(BOX_HS)))) discard;
+
     // Normalize interpolated vectors
     vec3 N = normalize(v_normal);
     vec3 V = normalize(v_view_dir);

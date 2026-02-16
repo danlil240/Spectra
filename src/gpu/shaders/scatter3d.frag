@@ -18,6 +18,7 @@ layout(push_constant) uniform SeriesPC {
 };
 
 layout(location = 0) in vec2 v_uv;
+layout(location = 1) in vec3 v_model_pos;
 
 layout(location = 0) out vec4 out_color;
 
@@ -108,6 +109,10 @@ float sdf_hexagon(vec2 p) {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 void main() {
+    // Discard points outside the bounding box
+    const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
+    if (any(greaterThan(abs(v_model_pos), vec3(BOX_HS)))) discard;
+
     // AA width in UV space — scale by point size for resolution-independent smoothing
     // Larger point_size → smaller AA band in UV → sharper edges
     float aa = clamp(2.5 / point_size, 0.01, 0.15);

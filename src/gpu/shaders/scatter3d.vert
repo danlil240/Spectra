@@ -37,6 +37,7 @@ layout(std430, set = 1, binding = 0) readonly buffer VertexData {
 };
 
 layout(location = 0) out vec2 v_uv;
+layout(location = 1) out vec3 v_model_pos;
 
 void main() {
     // Instanced rendering: each instance is a point from the SSBO.
@@ -49,8 +50,11 @@ void main() {
     vec3 data_offset = vec3(data_offset_x, data_offset_y, 0.0);
     vec3 center = points[point_index].xyz + data_offset;
 
+    // Transform to model space (pass to fragment for box clipping)
+    vec4 model_pos = model * vec4(center, 1.0);
+
     // Project center to clip space, then to screen space
-    vec4 clip_center = projection * view * model * vec4(center, 1.0);
+    vec4 clip_center = projection * view * model_pos;
     vec2 ndc_center = clip_center.xy / clip_center.w;
     vec2 screen_center = (ndc_center * 0.5 + 0.5) * viewport_size;
 
@@ -73,4 +77,5 @@ void main() {
 
     // UV for SDF shapes: ranges from -1 to 1 across the quad
     v_uv = offset;
+    v_model_pos = model_pos.xyz;
 }

@@ -95,7 +95,6 @@ int main() {
     ax3.zlabel("Z");
     ax3.camera().azimuth = 30.0f;
     ax3.camera().elevation = 45.0f;
-    ax3.camera().distance = 8.0f;
     ax3.camera().update_position_from_orbit();
     ax3.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
 

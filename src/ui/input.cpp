@@ -465,10 +465,10 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset,
         active_axes_ = dynamic_cast<Axes*>(hit_base);
     }
 
-    // Handle 3D zoom via camera
+    // Handle 3D zoom by scaling axis limits (box stays fixed visual size)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_)) {
         float factor = (y_offset > 0) ? (1.0f - ZOOM_3D_FACTOR) : (1.0f + ZOOM_3D_FACTOR);
-        axes3d->camera().zoom(factor);
+        axes3d->zoom_limits(factor);
         return;
     }
 

@@ -55,6 +55,17 @@ public:
     bool show_bounding_box() const { return show_bounding_box_; }
     void show_bounding_box(bool enabled) { show_bounding_box_ = enabled; }
 
+    // Returns a model matrix that maps data coordinates [xlim, ylim, zlim]
+    // into a fixed-size normalized cube [-box_half_size, +box_half_size]³.
+    // This keeps the bounding box a constant visual size regardless of zoom.
+    mat4 data_to_normalized_matrix() const;
+
+    // The half-size of the fixed normalized bounding box in world units.
+    static constexpr float box_half_size() { return 3.0f; }
+
+    // Zoom by scaling axis limits (bounding box stays fixed, data range changes)
+    void zoom_limits(float factor);
+
     LineSeries3D& line3d(std::span<const float> x, std::span<const float> y, std::span<const float> z);
     ScatterSeries3D& scatter3d(std::span<const float> x, std::span<const float> y, std::span<const float> z);
     SurfaceSeries& surface(std::span<const float> x_grid, std::span<const float> y_grid,

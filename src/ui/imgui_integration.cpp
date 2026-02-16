@@ -1942,13 +1942,14 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
             ImGui::PopFont();
         }
 
-        // --- Title ---
+        // --- Title (clamped inside viewport so tab bar doesn't cover it) ---
         if (!axes.get_title().empty()) {
             ImGui::PushFont(font_title_);
             const char* txt = axes.get_title().c_str();
             ImVec2 sz = ImGui::CalcTextSize(txt);
             float cx = vp.x + vp.w * 0.5f;
             float py = vp.y - sz.y - tick_padding;
+            if (py < vp.y + 2.0f) py = vp.y + 2.0f;
             dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
             ImGui::PopFont();
         }
@@ -1963,11 +1964,12 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         const auto& vp = axes3d->viewport();
         const auto& cam = axes3d->camera();
 
-        // Build MVP matrix: projection * view (model is identity)
+        // Build MVP matrix: projection * view * model
         float aspect = vp.w / std::max(vp.h, 1.0f);
         mat4 proj = cam.projection_matrix(aspect);
         mat4 view = cam.view_matrix();
-        mat4 mvp = mat4_mul(proj, view);
+        mat4 model = axes3d->data_to_normalized_matrix();
+        mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
 
         // Helper: project a 3D world point to screen coords within the viewport
         auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy) -> bool {
@@ -2042,44 +2044,122 @@ void ImGuiIntegration::draw_plot_text(Figure& figure) {
         }
         ImGui::PopFont();
 
-        // --- Axis labels (xlabel, ylabel, zlabel) ---
-        ImGui::PushFont(font_menubar_);
-        if (!axes3d->get_xlabel().empty()) {
-            float sx, sy;
-            vec3 mid = {(xlim.min + xlim.max) * 0.5f, y0 - x_tick_offset * 3.0f, z0};
-            if (world_to_screen(mid, sx, sy)) {
-                const char* txt = axes3d->get_xlabel().c_str();
-                ImVec2 sz = ImGui::CalcTextSize(txt);
-                dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), label_col, txt);
-            }
-        }
-        if (!axes3d->get_ylabel().empty()) {
-            float sx, sy;
-            vec3 mid = {x0 - y_tick_offset * 3.0f, (ylim.min + ylim.max) * 0.5f, z0};
-            if (world_to_screen(mid, sx, sy)) {
-                const char* txt = axes3d->get_ylabel().c_str();
-                ImVec2 sz = ImGui::CalcTextSize(txt);
-                dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), label_col, txt);
-            }
-        }
-        if (!axes3d->get_zlabel().empty()) {
-            float sx, sy;
-            vec3 mid = {x0 - z_tick_offset * 3.0f, y0, (zlim.min + zlim.max) * 0.5f};
-            if (world_to_screen(mid, sx, sy)) {
-                const char* txt = axes3d->get_zlabel().c_str();
-                ImVec2 sz = ImGui::CalcTextSize(txt);
-                dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), label_col, txt);
-            }
-        }
-        ImGui::PopFont();
+        // --- Axis direction arrows with labels ---
+        // Draw arrows pointing outward from the max corner of the bounding box
+        // along each axis direction, with colored arrowheads and labels.
+        {
+            float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
+            float x_range = xlim.max - xlim.min;
+            float y_range = ylim.max - ylim.min;
+            float z_range = zlim.max - zlim.min;
+            float arrow_len_x = x_range * 0.18f;
+            float arrow_len_y = y_range * 0.18f;
+            float arrow_len_z = z_range * 0.18f;
 
-        // --- 3D Title ---
+            // Arrow colors: X=red, Y=green, Z=blue (standard convention)
+            ImU32 x_arrow_col = IM_COL32(230, 70, 70, 220);
+            ImU32 y_arrow_col = IM_COL32(70, 200, 70, 220);
+            ImU32 z_arrow_col = IM_COL32(80, 130, 255, 220);
+
+            // Helper: draw a 2D arrowhead at screen position (tip_x, tip_y) pointing from (from_x, from_y)
+            auto draw_arrowhead = [&](float from_x, float from_y, float tip_x, float tip_y, ImU32 col) {
+                float dx = tip_x - from_x;
+                float dy = tip_y - from_y;
+                float len = std::sqrt(dx * dx + dy * dy);
+                if (len < 1.0f) return;
+                float ux = dx / len;
+                float uy = dy / len;
+                float head_size = 6.0f;
+                // Perpendicular
+                float px = -uy * head_size;
+                float py =  ux * head_size;
+                float base_x = tip_x - ux * head_size * 1.8f;
+                float base_y = tip_y - uy * head_size * 1.8f;
+                ImVec2 tri[3] = {
+                    ImVec2(tip_x, tip_y),
+                    ImVec2(base_x + px, base_y + py),
+                    ImVec2(base_x - px, base_y - py)
+                };
+                dl->AddTriangleFilled(tri[0], tri[1], tri[2], col);
+            };
+
+            // X arrow: from (x1, y0, z0) to (x1 + arrow_len, y0, z0)
+            {
+                vec3 arrow_start = {x1, y0, z0};
+                vec3 arrow_end   = {x1 + arrow_len_x, y0, z0};
+                float sx0, sy0, sx1, sy1;
+                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
+                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), x_arrow_col, 2.0f);
+                    draw_arrowhead(sx0, sy0, sx1, sy1, x_arrow_col);
+                    // Label
+                    ImGui::PushFont(font_menubar_);
+                    const char* lbl = axes3d->get_xlabel().empty() ? "X" : axes3d->get_xlabel().c_str();
+                    ImVec2 sz = ImGui::CalcTextSize(lbl);
+                    float label_offset = 8.0f;
+                    float dir_x = sx1 - sx0;
+                    float dir_y = sy1 - sy0;
+                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
+                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f) - sz.y * 0.5f;
+                    dl->AddText(ImVec2(lx, ly), x_arrow_col, lbl);
+                    ImGui::PopFont();
+                }
+            }
+
+            // Y arrow: from (x0, y1, z0) to (x0, y1 + arrow_len, z0)
+            {
+                vec3 arrow_start = {x0, y1, z0};
+                vec3 arrow_end   = {x0, y1 + arrow_len_y, z0};
+                float sx0, sy0, sx1, sy1;
+                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
+                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), y_arrow_col, 2.0f);
+                    draw_arrowhead(sx0, sy0, sx1, sy1, y_arrow_col);
+                    ImGui::PushFont(font_menubar_);
+                    const char* lbl = axes3d->get_ylabel().empty() ? "Y" : axes3d->get_ylabel().c_str();
+                    ImVec2 sz = ImGui::CalcTextSize(lbl);
+                    float label_offset = 8.0f;
+                    float dir_x = sx1 - sx0;
+                    float dir_y = sy1 - sy0;
+                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : 0.0f) - sz.x * 0.5f;
+                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : -label_offset) - sz.y * 0.5f;
+                    dl->AddText(ImVec2(lx, ly), y_arrow_col, lbl);
+                    ImGui::PopFont();
+                }
+            }
+
+            // Z arrow: from (x0, y0, z1) to (x0, y0, z1 + arrow_len)
+            {
+                vec3 arrow_start = {x0, y0, z1};
+                vec3 arrow_end   = {x0, y0, z1 + arrow_len_z};
+                float sx0, sy0, sx1, sy1;
+                if (world_to_screen(arrow_start, sx0, sy0) && world_to_screen(arrow_end, sx1, sy1)) {
+                    dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), z_arrow_col, 2.0f);
+                    draw_arrowhead(sx0, sy0, sx1, sy1, z_arrow_col);
+                    ImGui::PushFont(font_menubar_);
+                    const char* lbl = axes3d->get_zlabel().empty() ? "Z" : axes3d->get_zlabel().c_str();
+                    ImVec2 sz = ImGui::CalcTextSize(lbl);
+                    float label_offset = 8.0f;
+                    float dir_x = sx1 - sx0;
+                    float dir_y = sy1 - sy0;
+                    float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                    float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : 0.0f) - sz.x * 0.5f;
+                    float ly = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : -label_offset) - sz.y * 0.5f;
+                    dl->AddText(ImVec2(lx, ly), z_arrow_col, lbl);
+                    ImGui::PopFont();
+                }
+            }
+        }
+
+        // --- 3D Title (clamped inside viewport so tab bar doesn't cover it) ---
         if (!axes3d->get_title().empty()) {
             ImGui::PushFont(font_title_);
             const char* txt = axes3d->get_title().c_str();
             ImVec2 sz = ImGui::CalcTextSize(txt);
             float cx = vp.x + vp.w * 0.5f;
             float py = vp.y - sz.y - tick_padding;
+            // Clamp title to stay within or just at the top of the viewport
+            if (py < vp.y + 2.0f) py = vp.y + 2.0f;
             dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
             ImGui::PopFont();
         }

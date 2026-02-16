@@ -40,6 +40,7 @@ layout(location = 0) out float v_distance_to_edge;
 layout(location = 1) out float v_line_length;
 layout(location = 2) out float v_along_line;
 layout(location = 3) out float v_cumulative_dist;
+layout(location = 4) out vec3 v_model_pos;
 
 void main() {
     // Each line segment produces 6 vertices (2 triangles = 1 quad, triangle list).
@@ -56,10 +57,14 @@ void main() {
     vec3 p0 = points[segment_index].xyz     + data_offset;
     vec3 p1 = points[segment_index + 1].xyz + data_offset;
 
+    // Transform to model space
+    vec4 mp0 = model * vec4(p0, 1.0);
+    vec4 mp1 = model * vec4(p1, 1.0);
+
     // Project to clip space, then to screen space for width extrusion
-    mat4 mvp = projection * view * model;
-    vec4 clip0 = mvp * vec4(p0, 1.0);
-    vec4 clip1 = mvp * vec4(p1, 1.0);
+    mat4 vp = projection * view;
+    vec4 clip0 = vp * mp0;
+    vec4 clip1 = vp * mp1;
 
     vec2 ndc0 = clip0.xy / clip0.w;
     vec2 ndc1 = clip1.xy / clip1.w;
@@ -108,11 +113,12 @@ void main() {
     for (int i = segment_index - 1; i >= segment_index - walk_limit; --i) {
         vec3 a = points[i].xyz     + data_offset;
         vec3 b = points[i + 1].xyz + data_offset;
-        vec4 ca = mvp * vec4(a, 1.0);
-        vec4 cb = mvp * vec4(b, 1.0);
+        vec4 ca = vp * (model * vec4(a, 1.0));
+        vec4 cb = vp * (model * vec4(b, 1.0));
         vec2 sa = (ca.xy / ca.w * 0.5 + 0.5) * viewport_size;
         vec2 sb = (cb.xy / cb.w * 0.5 + 0.5) * viewport_size;
         cumul += length(sb - sa);
     }
     v_cumulative_dist = cumul + along * seg_length;
+    v_model_pos = mix(mp0.xyz, mp1.xyz, along);
 }

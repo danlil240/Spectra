@@ -55,6 +55,14 @@ public:
     bool show_bounding_box() const { return show_bounding_box_; }
     void show_bounding_box(bool enabled) { show_bounding_box_ = enabled; }
 
+    // Directional light configuration
+    void set_light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
+    void set_light_dir(vec3 dir) { light_dir_ = dir; }
+    vec3 light_dir() const { return light_dir_; }
+
+    void set_lighting_enabled(bool enabled) { lighting_enabled_ = enabled; }
+    bool lighting_enabled() const { return lighting_enabled_; }
+
     // Returns a model matrix that maps data coordinates [xlim, ylim, zlim]
     // into a fixed-size normalized cube [-box_half_size, +box_half_size]³.
     // This keeps the bounding box a constant visual size regardless of zoom.
@@ -84,6 +92,8 @@ private:
     std::unique_ptr<Camera> camera_;
     int grid_planes_ = static_cast<int>(GridPlane::XY);
     bool show_bounding_box_ = true;
+    vec3 light_dir_ = {1.0f, 1.0f, 1.0f};  // Default: top-right-front
+    bool lighting_enabled_ = true;
 };
 
 inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b) {

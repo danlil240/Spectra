@@ -69,7 +69,7 @@ TEST(WorkspaceV3, RoundTrip) {
     WorkspaceData loaded;
     ASSERT_TRUE(Workspace::load(path_str, loaded));
 
-    EXPECT_EQ(loaded.version, 3u);
+    EXPECT_EQ(loaded.version, WorkspaceData::FORMAT_VERSION);
     EXPECT_EQ(loaded.theme_name, "dark");
     EXPECT_EQ(loaded.data_palette_name, "okabe_ito");
     ASSERT_EQ(loaded.figures.size(), 1u);
@@ -437,7 +437,7 @@ TEST(WorkspaceV3, FullStateRoundTrip) {
     ASSERT_TRUE(Workspace::load(path_str, loaded));
 
     // Verify everything
-    EXPECT_EQ(loaded.version, 3u);
+    EXPECT_EQ(loaded.version, WorkspaceData::FORMAT_VERSION);
     EXPECT_EQ(loaded.theme_name, "dark");
     EXPECT_EQ(loaded.data_palette_name, "wong");
     EXPECT_EQ(loaded.axis_link_state, "groups:empty");
@@ -476,7 +476,7 @@ TEST(WorkspaceV3, EmptyWorkspace) {
 
     WorkspaceData loaded;
     ASSERT_TRUE(Workspace::load(path_str, loaded));
-    EXPECT_EQ(loaded.version, 3u);
+    EXPECT_EQ(loaded.version, WorkspaceData::FORMAT_VERSION);
     EXPECT_TRUE(loaded.figures.empty());
     EXPECT_TRUE(loaded.transforms.empty());
     EXPECT_TRUE(loaded.shortcut_overrides.empty());
@@ -500,8 +500,8 @@ TEST(WorkspaceV3, SpecialCharsInStrings) {
 
     WorkspaceData loaded;
     ASSERT_TRUE(Workspace::load(path_str, loaded));
-    EXPECT_EQ(loaded.figures[0].title, "Test \\\"quoted\\\" title");
-    EXPECT_EQ(loaded.data_palette_name, "palette\\\"with\\\"quotes");
+    EXPECT_EQ(loaded.figures[0].title, "Test \"quoted\" title");
+    EXPECT_EQ(loaded.data_palette_name, "palette\"with\"quotes");
 
     std::filesystem::remove(path);
 }

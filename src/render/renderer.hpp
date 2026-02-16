@@ -78,6 +78,16 @@ private:
     PipelineHandle surface3d_pipeline_;
     PipelineHandle grid3d_pipeline_;
     PipelineHandle grid_overlay3d_pipeline_;
+    
+    // Wireframe 3D pipelines (line topology)
+    PipelineHandle surface_wireframe3d_pipeline_;
+    PipelineHandle surface_wireframe3d_transparent_pipeline_;
+    
+    // Transparent 3D pipelines (depth test ON, depth write OFF)
+    PipelineHandle line3d_transparent_pipeline_;
+    PipelineHandle scatter3d_transparent_pipeline_;
+    PipelineHandle mesh3d_transparent_pipeline_;
+    PipelineHandle surface3d_transparent_pipeline_;
 
     BufferHandle frame_ubo_buffer_;
     // Per-axes GPU buffers for grid and border vertices.

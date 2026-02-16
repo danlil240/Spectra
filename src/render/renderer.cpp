@@ -9,6 +9,7 @@
 #include <plotix/series.hpp>
 #include <plotix/series3d.hpp>
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -95,6 +96,16 @@ bool Renderer::init() {
     surface3d_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D);
     grid3d_pipeline_    = backend_.create_pipeline(PipelineType::Grid3D);
     grid_overlay3d_pipeline_ = backend_.create_pipeline(PipelineType::GridOverlay3D);
+    
+    // Create wireframe 3D pipelines (line topology)
+    surface_wireframe3d_pipeline_             = backend_.create_pipeline(PipelineType::SurfaceWireframe3D);
+    surface_wireframe3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::SurfaceWireframe3D_Transparent);
+    
+    // Create transparent 3D pipelines (depth test ON, depth write OFF)
+    line3d_transparent_pipeline_    = backend_.create_pipeline(PipelineType::Line3D_Transparent);
+    scatter3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Scatter3D_Transparent);
+    mesh3d_transparent_pipeline_    = backend_.create_pipeline(PipelineType::Mesh3D_Transparent);
+    surface3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D_Transparent);
     
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
@@ -279,32 +290,42 @@ void Renderer::upload_series_data(Series& series) {
     }
     // Handle surface (vertex buffer + index buffer)
     else if (surface) {
-        if (!surface->is_mesh_generated()) {
-            surface->generate_mesh();
+        // Choose between wireframe and solid mesh
+        const SurfaceMesh* active_mesh = nullptr;
+        if (surface->wireframe()) {
+            if (!surface->is_wireframe_mesh_generated()) {
+                surface->generate_wireframe_mesh();
+            }
+            if (!surface->is_wireframe_mesh_generated()) return;
+            active_mesh = &surface->wireframe_mesh();
+        } else {
+            if (!surface->is_mesh_generated()) {
+                surface->generate_mesh();
+            }
+            if (!surface->is_mesh_generated()) return;
+            active_mesh = &surface->mesh();
         }
-        if (!surface->is_mesh_generated()) return;
         
-        const auto& surf_mesh = surface->mesh();
-        if (surf_mesh.vertices.empty() || surf_mesh.indices.empty()) return;
+        if (active_mesh->vertices.empty() || active_mesh->indices.empty()) return;
 
-        size_t vert_byte_size = surf_mesh.vertices.size() * sizeof(float);
-        size_t idx_byte_size = surf_mesh.indices.size() * sizeof(uint32_t);
+        size_t vert_byte_size = active_mesh->vertices.size() * sizeof(float);
+        size_t idx_byte_size = active_mesh->indices.size() * sizeof(uint32_t);
 
         // Vertex buffer
-        if (!gpu.ssbo || gpu.uploaded_count < surf_mesh.vertex_count) {
+        if (!gpu.ssbo || gpu.uploaded_count < active_mesh->vertex_count) {
             if (gpu.ssbo) backend_.destroy_buffer(gpu.ssbo);
             gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
         }
-        backend_.upload_buffer(gpu.ssbo, surf_mesh.vertices.data(), vert_byte_size);
-        gpu.uploaded_count = surf_mesh.vertex_count;
+        backend_.upload_buffer(gpu.ssbo, active_mesh->vertices.data(), vert_byte_size);
+        gpu.uploaded_count = active_mesh->vertex_count;
 
         // Index buffer
-        if (!gpu.index_buffer || gpu.index_count < surf_mesh.indices.size()) {
+        if (!gpu.index_buffer || gpu.index_count < active_mesh->indices.size()) {
             if (gpu.index_buffer) backend_.destroy_buffer(gpu.index_buffer);
             gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
         }
-        backend_.upload_buffer(gpu.index_buffer, surf_mesh.indices.data(), idx_byte_size);
-        gpu.index_count = surf_mesh.indices.size();
+        backend_.upload_buffer(gpu.index_buffer, active_mesh->indices.data(), idx_byte_size);
+        gpu.index_count = active_mesh->indices.size();
 
         series.clear_dirty();
     }
@@ -394,10 +415,18 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
         ubo.camera_pos[1] = cam.position.y;
         ubo.camera_pos[2] = cam.position.z;
         
-        // Default light direction (from top-right)
-        ubo.light_dir[0] = 1.0f;
-        ubo.light_dir[1] = 1.0f;
-        ubo.light_dir[2] = 1.0f;
+        // Light direction from Axes3D (configurable)
+        if (axes3d->lighting_enabled()) {
+            vec3 ld = axes3d->light_dir();
+            ubo.light_dir[0] = ld.x;
+            ubo.light_dir[1] = ld.y;
+            ubo.light_dir[2] = ld.z;
+        } else {
+            // Zero light_dir signals shader to skip lighting (use flat color)
+            ubo.light_dir[0] = 0.0f;
+            ubo.light_dir[1] = 0.0f;
+            ubo.light_dir[2] = 0.0f;
+        }
     } else if (auto* axes2d = dynamic_cast<Axes*>(&axes)) {
         // 2D orthographic projection
         auto xlim = axes2d->x_limits();
@@ -443,15 +472,82 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
     // Render grid BEFORE series so series appears on top (for 3D)
     render_grid(axes, viewport);
 
-    // Render each series (skip hidden ones)
-    for (auto& series_ptr : axes.series()) {
-        if (!series_ptr || !series_ptr->visible()) continue;
+    // For 3D axes, sort series by distance from camera for correct transparency.
+    // Opaque series render first (front-to-back for early-Z benefit),
+    // then transparent series render back-to-front (painter's algorithm).
+    if (auto* axes3d = dynamic_cast<Axes3D*>(&axes)) {
+        const auto& cam = axes3d->camera();
+        vec3 cam_pos = cam.position;
+        mat4 model_mat = axes3d->data_to_normalized_matrix();
 
-        if (series_ptr->is_dirty()) {
-            upload_series_data(*series_ptr);
+        // Collect visible series with their distances
+        struct SortEntry {
+            Series* series;
+            float distance;
+            bool transparent;
+        };
+        std::vector<SortEntry> opaque_entries;
+        std::vector<SortEntry> transparent_entries;
+
+        for (auto& series_ptr : axes.series()) {
+            if (!series_ptr || !series_ptr->visible()) continue;
+
+            if (series_ptr->is_dirty()) {
+                upload_series_data(*series_ptr);
+            }
+
+            // Compute centroid distance from camera
+            vec3 centroid{0.0f, 0.0f, 0.0f};
+            auto* line3d = dynamic_cast<LineSeries3D*>(series_ptr.get());
+            auto* scatter3d = dynamic_cast<ScatterSeries3D*>(series_ptr.get());
+            auto* surface = dynamic_cast<SurfaceSeries*>(series_ptr.get());
+            auto* mesh_s = dynamic_cast<MeshSeries*>(series_ptr.get());
+
+            if (line3d) centroid = line3d->compute_centroid();
+            else if (scatter3d) centroid = scatter3d->compute_centroid();
+            else if (surface) centroid = surface->compute_centroid();
+            else if (mesh_s) centroid = mesh_s->compute_centroid();
+
+            // Transform centroid to world space via model matrix
+            vec4 world_c = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
+            vec3 world_pos = {world_c.x, world_c.y, world_c.z};
+            float dist = vec3_length(world_pos - cam_pos);
+
+            bool is_transparent = (series_ptr->color().a * series_ptr->opacity()) < 0.99f;
+
+            if (is_transparent) {
+                transparent_entries.push_back({series_ptr.get(), dist, true});
+            } else {
+                opaque_entries.push_back({series_ptr.get(), dist, false});
+            }
         }
 
-        render_series(*series_ptr, viewport);
+        // Sort opaque front-to-back (for early-Z optimization)
+        std::sort(opaque_entries.begin(), opaque_entries.end(),
+                  [](const SortEntry& a, const SortEntry& b) { return a.distance < b.distance; });
+
+        // Sort transparent back-to-front (painter's algorithm)
+        std::sort(transparent_entries.begin(), transparent_entries.end(),
+                  [](const SortEntry& a, const SortEntry& b) { return a.distance > b.distance; });
+
+        // Render opaque first, then transparent
+        for (auto& entry : opaque_entries) {
+            render_series(*entry.series, viewport);
+        }
+        for (auto& entry : transparent_entries) {
+            render_series(*entry.series, viewport);
+        }
+    } else {
+        // 2D: render in order (no sorting needed)
+        for (auto& series_ptr : axes.series()) {
+            if (!series_ptr || !series_ptr->visible()) continue;
+
+            if (series_ptr->is_dirty()) {
+                upload_series_data(*series_ptr);
+            }
+
+            render_series(*series_ptr, viewport);
+        }
     }
 
     // Tick labels, axis labels, and titles are now rendered by ImGui
@@ -903,9 +999,11 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
     }
     // 3D series rendering
+    // Determine if this series is transparent (for pipeline selection)
     else if (line3d) {
         if (line3d->point_count() > 1) {
-            backend_.bind_pipeline(line3d_pipeline_);
+            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+            backend_.bind_pipeline(is_transparent ? line3d_transparent_pipeline_ : line3d_pipeline_);
             pc.line_width = line3d->width();
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
@@ -913,24 +1011,62 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/) {
             backend_.draw(segments * 6);
         }
     } else if (scatter3d) {
-        backend_.bind_pipeline(scatter3d_pipeline_);
+        bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+        backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_ : scatter3d_pipeline_);
         pc.point_size = scatter3d->size();
         pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
         backend_.push_constants(pc);
         backend_.bind_buffer(gpu.ssbo, 0);
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
     } else if (surface) {
-        if (surface->is_mesh_generated() && gpu.index_buffer) {
-            const auto& surf_mesh = surface->mesh();
-            backend_.bind_pipeline(surface3d_pipeline_);
-            backend_.push_constants(pc);
-            backend_.bind_buffer(gpu.ssbo, 0);
-            backend_.bind_index_buffer(gpu.index_buffer);
-            backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
+        if (gpu.index_buffer) {
+            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+            
+            if (surface->wireframe()) {
+                // Wireframe mode: use line topology pipeline
+                if (!surface->is_wireframe_mesh_generated()) return;
+                backend_.bind_pipeline(is_transparent ? surface_wireframe3d_transparent_pipeline_ : surface_wireframe3d_pipeline_);
+                pc._pad2[0] = surface->ambient();
+                pc._pad2[1] = surface->specular();
+                if (surface->shininess() > 0.0f) {
+                    pc.marker_size = surface->shininess();
+                    pc.marker_type = 0;
+                }
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.bind_index_buffer(gpu.index_buffer);
+                backend_.draw_indexed(static_cast<uint32_t>(surface->wireframe_mesh().indices.size()));
+            } else {
+                // Solid mode: use triangle topology pipeline
+                if (!surface->is_mesh_generated()) return;
+                const auto& surf_mesh = surface->mesh();
+                backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_ : surface3d_pipeline_);
+                // Encode material properties in push constant padding fields
+                pc._pad2[0] = surface->ambient();   // 0 = shader default
+                pc._pad2[1] = surface->specular();  // 0 = shader default
+                // Encode shininess via marker_size (unused for surface)
+                if (surface->shininess() > 0.0f) {
+                    pc.marker_size = surface->shininess();
+                    pc.marker_type = 0;  // Signal shader to read shininess from marker_size
+                }
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.bind_index_buffer(gpu.index_buffer);
+                backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
+            }
         }
     } else if (mesh) {
         if (gpu.index_buffer) {
-            backend_.bind_pipeline(mesh3d_pipeline_);
+            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+            backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_ : mesh3d_pipeline_);
+            // Encode material properties in push constant padding fields
+            pc._pad2[0] = mesh->ambient();   // 0 = shader default
+            pc._pad2[1] = mesh->specular();  // 0 = shader default
+            // Encode shininess via marker_size (unused for mesh)
+            if (mesh->shininess() > 0.0f) {
+                pc.marker_size = mesh->shininess();
+                pc.marker_type = 0;  // Signal shader to read shininess from marker_size
+            }
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.bind_index_buffer(gpu.index_buffer);

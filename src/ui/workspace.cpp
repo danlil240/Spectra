@@ -1,8 +1,10 @@
 #include "workspace.hpp"
 
+#include <plotix/axes3d.hpp>
 #include <plotix/figure.hpp>
 #include <plotix/axes.hpp>
 #include <plotix/series.hpp>
+#include <plotix/series3d.hpp>
 
 #include <chrono>
 #include <cstdlib>
@@ -74,9 +76,32 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
             os << "          \"grid_visible\": " << (ax.grid_visible ? "true" : "false") << ",\n";
             os << "          \"x_label\": \"" << escape_json(ax.x_label) << "\",\n";
             os << "          \"y_label\": \"" << escape_json(ax.y_label) << "\",\n";
-            os << "          \"title\": \"" << escape_json(ax.title) << "\"\n";
+            os << "          \"title\": \"" << escape_json(ax.title) << "\",\n";
+            os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size()) os << ",";
+            os << "\n";
+        }
+        os << "      ],\n";
+
+        // 3D axes state
+        os << "      \"axes_3d\": [\n";
+        for (size_t a3i = 0; a3i < fig.axes_3d.size(); ++a3i) {
+            const auto& a3 = fig.axes_3d[a3i];
+            os << "        {\n";
+            os << "          \"axes_index\": " << a3.axes_index << ",\n";
+            os << "          \"z_min\": " << a3.z_min << ",\n";
+            os << "          \"z_max\": " << a3.z_max << ",\n";
+            os << "          \"z_label\": \"" << escape_json(a3.z_label) << "\",\n";
+            os << "          \"camera_state\": \"" << escape_json(a3.camera_state) << "\",\n";
+            os << "          \"grid_planes\": " << a3.grid_planes << ",\n";
+            os << "          \"show_bounding_box\": " << (a3.show_bounding_box ? "true" : "false") << ",\n";
+            os << "          \"lighting_enabled\": " << (a3.lighting_enabled ? "true" : "false") << ",\n";
+            os << "          \"light_dir_x\": " << a3.light_dir_x << ",\n";
+            os << "          \"light_dir_y\": " << a3.light_dir_y << ",\n";
+            os << "          \"light_dir_z\": " << a3.light_dir_z << "\n";
+            os << "        }";
+            if (a3i + 1 < fig.axes_3d.size()) os << ",";
             os << "\n";
         }
         os << "      ],\n";
@@ -99,6 +124,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
             os << "          \"opacity\": " << s.opacity << ",\n";
             os << "          \"line_style\": " << s.line_style << ",\n";
             os << "          \"marker_style\": " << s.marker_style << ",\n";
+            os << "          \"colormap_type\": " << s.colormap_type << ",\n";
+            os << "          \"ambient\": " << s.ambient << ",\n";
+            os << "          \"specular\": " << s.specular << ",\n";
+            os << "          \"shininess\": " << s.shininess << ",\n";
             os << "          \"dash_pattern\": [";
             for (size_t di = 0; di < s.dash_pattern.size(); ++di) {
                 if (di > 0) os << ", ";
@@ -193,7 +222,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data) {
     os << "  \"plugin_state\": \"" << escape_json(data.plugin_state) << "\",\n";
 
     // v3: Data palette name
-    os << "  \"data_palette_name\": \"" << escape_json(data.data_palette_name) << "\"\n";
+    os << "  \"data_palette_name\": \"" << escape_json(data.data_palette_name) << "\",\n";
+
+    // v4: Mode transition state
+    os << "  \"mode_transition_state\": \"" << escape_json(data.mode_transition_state) << "\"\n";
     os << "}\n";
 
     return os.str();
@@ -209,6 +241,26 @@ static std::string trim(const std::string& s) {
     if (start == std::string::npos) return "";
     size_t end = s.find_last_not_of(" \t\n\r");
     return s.substr(start, end - start + 1);
+}
+
+static std::string unescape_json(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '\\' && i + 1 < s.size()) {
+            switch (s[i + 1]) {
+                case '"':  out += '"'; ++i; break;
+                case '\\': out += '\\'; ++i; break;
+                case 'n':  out += '\n'; ++i; break;
+                case 'r':  out += '\r'; ++i; break;
+                case 't':  out += '\t'; ++i; break;
+                default:   out += s[i]; break;
+            }
+        } else {
+            out += s[i];
+        }
+    }
+    return out;
 }
 
 std::string Workspace::read_string_value(const std::string& json, const std::string& key) {
@@ -227,7 +279,7 @@ std::string Workspace::read_string_value(const std::string& json, const std::str
         if (json[end] == '"' && json[end - 1] != '\\') break;
         ++end;
     }
-    return json.substr(pos + 1, end - pos - 1);
+    return unescape_json(json.substr(pos + 1, end - pos - 1));
 }
 
 double Workspace::read_number_value(const std::string& json, const std::string& key, double default_val) {
@@ -341,6 +393,10 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
             ax.x_label = read_string_value(ax_json, "x_label");
             ax.y_label = read_string_value(ax_json, "y_label");
             ax.title = read_string_value(ax_json, "title");
+            // v4 field
+            if (data.version >= 4) {
+                ax.is_3d = read_bool_value(ax_json, "is_3d", false);
+            }
             fig.axes.push_back(std::move(ax));
         }
 
@@ -385,7 +441,34 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
                     }
                 }
             }
+            // v4: 3D series fields
+            if (data.version >= 4) {
+                s.colormap_type = static_cast<int>(read_number_value(ser_json, "colormap_type", 0));
+                s.ambient = static_cast<float>(read_number_value(ser_json, "ambient", 0));
+                s.specular = static_cast<float>(read_number_value(ser_json, "specular", 0));
+                s.shininess = static_cast<float>(read_number_value(ser_json, "shininess", 0));
+            }
             fig.series.push_back(std::move(s));
+        }
+
+        // v4: 3D axes state
+        if (data.version >= 4) {
+            auto a3_objects = parse_json_array(fig_json, "axes_3d");
+            for (const auto& a3_json : a3_objects) {
+                WorkspaceData::Axes3DState a3;
+                a3.axes_index = static_cast<size_t>(read_number_value(a3_json, "axes_index", 0));
+                a3.z_min = static_cast<float>(read_number_value(a3_json, "z_min", 0));
+                a3.z_max = static_cast<float>(read_number_value(a3_json, "z_max", 1));
+                a3.z_label = read_string_value(a3_json, "z_label");
+                a3.camera_state = read_string_value(a3_json, "camera_state");
+                a3.grid_planes = static_cast<int>(read_number_value(a3_json, "grid_planes", 1));
+                a3.show_bounding_box = read_bool_value(a3_json, "show_bounding_box", true);
+                a3.lighting_enabled = read_bool_value(a3_json, "lighting_enabled", true);
+                a3.light_dir_x = static_cast<float>(read_number_value(a3_json, "light_dir_x", 1));
+                a3.light_dir_y = static_cast<float>(read_number_value(a3_json, "light_dir_y", 1));
+                a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
+                fig.axes_3d.push_back(std::move(a3));
+            }
         }
 
         data.figures.push_back(std::move(fig));
@@ -483,6 +566,11 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data) {
         }
     }
 
+    // v4 fields
+    if (data.version >= 4) {
+        data.mode_transition_state = read_string_value(json, "mode_transition_state");
+    }
+
     return true;
 }
 
@@ -533,26 +621,73 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         fs.grid_rows = fig->grid_rows();
         fs.grid_cols = fig->grid_cols();
 
-        for (const auto& ax : fig->axes()) {
-            if (!ax) continue;
+        // Capture axes: use all_axes() if populated (mixed/3D figures),
+        // otherwise fall back to axes() (2D-only figures).
+        const bool has_all_axes = !fig->all_axes().empty();
+
+        // Helper lambda to capture a single AxesBase
+        auto capture_axes_base = [&](const AxesBase* ax_base, size_t axes_idx) {
+            if (!ax_base) return;
             WorkspaceData::AxisState as;
-            auto xlim = ax->x_limits();
-            auto ylim = ax->y_limits();
-            as.x_min = xlim.min;
-            as.x_max = xlim.max;
-            as.y_min = ylim.min;
-            as.y_max = ylim.max;
-            as.auto_fit = false;  // If we're capturing, user has explicit limits
-            as.grid_visible = ax->grid_enabled();
-            as.x_label = ax->get_xlabel();
-            as.y_label = ax->get_ylabel();
-            as.title = ax->get_title();
+
+            if (auto* ax3d = dynamic_cast<const Axes3D*>(ax_base)) {
+                as.is_3d = true;
+                auto xlim = ax3d->x_limits();
+                auto ylim = ax3d->y_limits();
+                auto zlim = ax3d->z_limits();
+                as.x_min = xlim.min; as.x_max = xlim.max;
+                as.y_min = ylim.min; as.y_max = ylim.max;
+                as.auto_fit = false;
+                as.grid_visible = ax3d->grid_enabled();
+                as.x_label = ax3d->get_xlabel();
+                as.y_label = ax3d->get_ylabel();
+                as.title = ax3d->get_title();
+
+                WorkspaceData::Axes3DState a3;
+                a3.axes_index = axes_idx;
+                a3.z_min = zlim.min; a3.z_max = zlim.max;
+                a3.z_label = ax3d->get_zlabel();
+                a3.camera_state = ax3d->camera().serialize();
+                a3.grid_planes = ax3d->grid_planes();
+                a3.show_bounding_box = ax3d->show_bounding_box();
+                a3.lighting_enabled = ax3d->lighting_enabled();
+                auto ld = ax3d->light_dir();
+                a3.light_dir_x = ld.x; a3.light_dir_y = ld.y; a3.light_dir_z = ld.z;
+                fs.axes_3d.push_back(std::move(a3));
+            } else if (auto* ax2d = dynamic_cast<const Axes*>(ax_base)) {
+                as.is_3d = false;
+                auto xlim = ax2d->x_limits();
+                auto ylim = ax2d->y_limits();
+                as.x_min = xlim.min; as.x_max = xlim.max;
+                as.y_min = ylim.min; as.y_max = ylim.max;
+                as.auto_fit = false;
+                as.grid_visible = ax2d->grid_enabled();
+                as.x_label = ax2d->get_xlabel();
+                as.y_label = ax2d->get_ylabel();
+                as.title = ax2d->get_title();
+            }
+
             fs.axes.push_back(std::move(as));
+        };
+
+        if (has_all_axes) {
+            size_t axes_idx = 0;
+            for (const auto& ax_base : fig->all_axes()) {
+                capture_axes_base(ax_base.get(), axes_idx);
+                ++axes_idx;
+            }
+        } else {
+            size_t axes_idx = 0;
+            for (const auto& ax : fig->axes()) {
+                capture_axes_base(ax.get(), axes_idx);
+                ++axes_idx;
+            }
         }
 
-        for (const auto& ax : fig->axes()) {
-            if (!ax) continue;
-            for (const auto& s : ax->series()) {
+        // Capture series: iterate the same axes list used above
+        auto capture_series_from = [&](const AxesBase* ax_base) {
+            if (!ax_base) return;
+            for (const auto& s : ax_base->series()) {
                 if (!s) continue;
                 WorkspaceData::SeriesState ss;
                 ss.name = s->label();
@@ -561,6 +696,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 ss.color_g = s->color().g;
                 ss.color_b = s->color().b;
                 ss.color_a = s->color().a;
+                ss.opacity = s->opacity();
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get())) {
                     ss.type = "line";
@@ -570,10 +706,39 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                     ss.type = "scatter";
                     ss.marker_size = sc->size();
                     ss.point_count = sc->x_data().size();
+                } else if (auto* ls3 = dynamic_cast<LineSeries3D*>(s.get())) {
+                    ss.type = "line3d";
+                    ss.line_width = ls3->width();
+                    ss.point_count = ls3->point_count();
+                } else if (auto* sc3 = dynamic_cast<ScatterSeries3D*>(s.get())) {
+                    ss.type = "scatter3d";
+                    ss.marker_size = sc3->size();
+                    ss.point_count = sc3->point_count();
+                } else if (auto* sf = dynamic_cast<SurfaceSeries*>(s.get())) {
+                    ss.type = "surface";
+                    ss.point_count = sf->z_values().size();
+                    ss.colormap_type = static_cast<int>(sf->colormap_type());
+                    ss.ambient = sf->ambient();
+                    ss.specular = sf->specular();
+                    ss.shininess = sf->shininess();
+                } else if (auto* ms = dynamic_cast<MeshSeries*>(s.get())) {
+                    ss.type = "mesh";
+                    ss.point_count = ms->vertex_count();
+                    ss.ambient = ms->ambient();
+                    ss.specular = ms->specular();
+                    ss.shininess = ms->shininess();
                 }
 
                 fs.series.push_back(std::move(ss));
             }
+        };
+
+        if (has_all_axes) {
+            for (const auto& ax_base : fig->all_axes())
+                capture_series_from(ax_base.get());
+        } else {
+            for (const auto& ax : fig->axes())
+                capture_series_from(ax.get());
         }
 
         data.figures.push_back(std::move(fs));
@@ -590,25 +755,67 @@ bool Workspace::apply(const WorkspaceData& data,
         auto* fig = figures[fi];
         if (!fig) continue;
 
-        for (size_t ai = 0; ai < fs.axes.size() && ai < fig->axes().size(); ++ai) {
-            const auto& as = fs.axes[ai];
-            auto* ax = fig->axes()[ai].get();
-            if (!ax) continue;
+        // Apply axes: use all_axes() if populated, else axes()
+        const bool has_all_axes = !fig->all_axes().empty();
 
-            ax->xlim(as.x_min, as.x_max);
-            ax->ylim(as.y_min, as.y_max);
-            ax->set_grid_enabled(as.grid_visible);
+        auto apply_to_axes_base = [&](AxesBase* ax_base, size_t ai) {
+            if (!ax_base || ai >= fs.axes.size()) return;
+            const auto& as = fs.axes[ai];
+
+            if (as.is_3d) {
+                auto* ax3d = dynamic_cast<Axes3D*>(ax_base);
+                if (!ax3d) return;
+                ax3d->xlim(as.x_min, as.x_max);
+                ax3d->ylim(as.y_min, as.y_max);
+                ax3d->set_grid_enabled(as.grid_visible);
+
+                for (const auto& a3 : fs.axes_3d) {
+                    if (a3.axes_index == ai) {
+                        ax3d->zlim(a3.z_min, a3.z_max);
+                        ax3d->zlabel(a3.z_label);
+                        if (!a3.camera_state.empty())
+                            ax3d->camera().deserialize(a3.camera_state);
+                        ax3d->set_grid_planes(a3.grid_planes);
+                        ax3d->show_bounding_box(a3.show_bounding_box);
+                        ax3d->set_lighting_enabled(a3.lighting_enabled);
+                        ax3d->set_light_dir(a3.light_dir_x, a3.light_dir_y, a3.light_dir_z);
+                        break;
+                    }
+                }
+            } else {
+                auto* ax2d = dynamic_cast<Axes*>(ax_base);
+                if (!ax2d) return;
+                ax2d->xlim(as.x_min, as.x_max);
+                ax2d->ylim(as.y_min, as.y_max);
+                ax2d->set_grid_enabled(as.grid_visible);
+            }
+        };
+
+        if (has_all_axes) {
+            for (size_t ai = 0; ai < fs.axes.size() && ai < fig->all_axes().size(); ++ai)
+                apply_to_axes_base(fig->all_axes()[ai].get(), ai);
+        } else {
+            for (size_t ai = 0; ai < fs.axes.size() && ai < fig->axes().size(); ++ai)
+                apply_to_axes_base(fig->axes()[ai].get(), ai);
         }
 
-        // Apply series visibility from workspace data
+        // Apply series visibility
         size_t si = 0;
-        for (const auto& ax : fig->axes()) {
-            if (!ax) continue;
-            for (auto& s : ax->series_mut()) {
-                if (!s || si >= fs.series.size()) continue;
+        auto apply_series_vis = [&](AxesBase* ax_base) {
+            if (!ax_base) return;
+            for (auto& s : ax_base->series_mut()) {
+                if (!s || si >= fs.series.size()) return;
                 s->visible(fs.series[si].visible);
                 ++si;
             }
+        };
+
+        if (has_all_axes) {
+            for (const auto& ax_base : fig->all_axes())
+                apply_series_vis(ax_base.get());
+        } else {
+            for (const auto& ax : fig->axes())
+                apply_series_vis(ax.get());
         }
     }
     return true;

@@ -13,7 +13,7 @@ class Figure;
 // Format: JSON text file with .plotix extension.
 struct WorkspaceData {
     // File format version for migration support
-    static constexpr uint32_t FORMAT_VERSION = 3;
+    static constexpr uint32_t FORMAT_VERSION = 4;
 
     struct AxisState {
         float x_min = 0.0f, x_max = 1.0f;
@@ -23,11 +23,24 @@ struct WorkspaceData {
         std::string x_label;
         std::string y_label;
         std::string title;
+        bool is_3d = false;  // v4: true if this axes is an Axes3D
+    };
+
+    // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
+    struct Axes3DState {
+        size_t axes_index = 0;  // Index into FigureState::axes
+        float z_min = 0.0f, z_max = 1.0f;
+        std::string z_label;
+        std::string camera_state;  // Camera::serialize() JSON
+        int grid_planes = 1;      // Axes3D::GridPlane bitmask
+        bool show_bounding_box = true;
+        bool lighting_enabled = true;
+        float light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
     };
 
     struct SeriesState {
         std::string name;
-        std::string type;  // "line" or "scatter"
+        std::string type;  // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
         float color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
         float line_width = 2.0f;
         float marker_size = 6.0f;
@@ -41,6 +54,11 @@ struct WorkspaceData {
         int marker_style = 0;  // MarkerStyle enum value (default None)
         // v3: dash pattern
         std::vector<float> dash_pattern;
+        // v4: 3D series fields
+        int colormap_type = 0;       // ColormapType enum
+        float ambient = 0.0f;
+        float specular = 0.0f;
+        float shininess = 0.0f;
     };
 
     struct FigureState {
@@ -53,6 +71,7 @@ struct WorkspaceData {
         std::string custom_tab_title;  // Tab title from FigureManager
         std::vector<AxisState> axes;
         std::vector<SeriesState> series;
+        std::vector<Axes3DState> axes_3d;  // v4: 3D axes state
     };
 
     struct PanelState {
@@ -129,6 +148,9 @@ struct WorkspaceData {
 
     // v3: Active data palette name
     std::string data_palette_name;
+
+    // v4: Mode transition state (serialized JSON from ModeTransition)
+    std::string mode_transition_state;
 };
 
 // Workspace save/load operations.

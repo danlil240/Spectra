@@ -3,6 +3,25 @@
 	"tasks": [
 		{
 			"type": "cmake",
+			"label": "CMake: Configure Project",
+			"command": "configure",
+			"problemMatcher": [],
+			"detail": "Configure CMake project with all examples enabled",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"configureArgs": ["-DCMAKE_BUILD_TYPE=Debug", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
+			}
+		},
+		{
+			"type": "cmake",
 			"label": "CMake: clean rebuild",
 			"command": "cleanRebuild",
 			"targets": [
@@ -10,7 +29,8 @@
 			],
 			"group": "build",
 			"problemMatcher": [],
-			"detail": "CMake template clean rebuild task"
+			"detail": "CMake template clean rebuild task",
+			"dependsOn": ["CMake: Configure Project"]
 		},
 		{
 			"type": "cmake",
@@ -35,7 +55,8 @@
 			},
 			"options": {
 				"cwd": "${workspaceFolder}"
-			}
+			},
+			"dependsOn": ["CMake: Configure Project"]
 		}
 	]
 }

@@ -48,6 +48,7 @@ foreach(_ui_src
     src/ui/keyframe_interpolator.cpp
     src/ui/camera_animator.cpp
     src/ui/animation_curve_editor.cpp
+    src/ui/mode_transition.cpp
     src/ui/camera.cpp
     src/ui/axes3d_renderer.cpp
 )

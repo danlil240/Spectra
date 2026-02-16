@@ -307,10 +307,12 @@ void App::run() {
             };
             callbacks.on_scroll = [&input_handler, &glfw
 #ifdef PLOTIX_USE_IMGUI
-                , &imgui_ui, &dock_system, this
+                , &imgui_ui, &dock_system, &cmd_palette, this
 #endif
             ](double x_offset, double y_offset) {
 #ifdef PLOTIX_USE_IMGUI
+                // Block scroll when command palette is open — it handles its own smooth scroll
+                if (cmd_palette.is_open()) return;
                 if (imgui_ui && imgui_ui->wants_capture_mouse()) {
                     // PLOTIX_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
                     return;

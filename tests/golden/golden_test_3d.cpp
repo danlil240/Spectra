@@ -314,4 +314,145 @@ TEST(Golden3D, Mixed2DAnd3D) {
     }, 640, 960);
 }
 
+TEST(Golden3D, Mesh3D_Triangle) {
+    run_golden_test_3d("3d_mesh_triangle", [](App& app, Figure& fig) {
+        auto& ax = fig.subplot3d(1, 1, 1);
+
+        // A simple colored triangle with normals
+        std::vector<float> vertices = {
+            0.0f, 0.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+            2.0f, 0.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+            1.0f, 2.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+        };
+        std::vector<uint32_t> indices = {0, 1, 2};
+
+        ax.mesh(vertices, indices).color(colors::cyan);
+        ax.title("Mesh: Single Triangle");
+    });
+}
+
+TEST(Golden3D, Mesh3D_Quad) {
+    run_golden_test_3d("3d_mesh_quad", [](App& app, Figure& fig) {
+        auto& ax = fig.subplot3d(1, 1, 1);
+
+        // A quad made of 2 triangles
+        std::vector<float> vertices = {
+            -1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+             1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+             1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+            -1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,
+        };
+        std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
+
+        ax.mesh(vertices, indices).color(colors::green);
+        ax.title("Mesh: Quad");
+    });
+}
+
+TEST(Golden3D, Surface_Colormap) {
+    run_golden_test_3d("3d_surface_colormap", [](App& app, Figure& fig) {
+        auto& ax = fig.subplot3d(1, 1, 1);
+
+        const int nx = 30, ny = 30;
+        std::vector<float> x_grid, y_grid, z_values;
+
+        for (int i = 0; i < nx; ++i)
+            x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
+        for (int j = 0; j < ny; ++j)
+            y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
+
+        for (int j = 0; j < ny; ++j) {
+            for (int i = 0; i < nx; ++i) {
+                float x = x_grid[i];
+                float y = y_grid[j];
+                float r = std::sqrt(x * x + y * y) + 0.001f;
+                z_values.push_back(std::sin(r) / r);
+            }
+        }
+
+        ax.surface(x_grid, y_grid, z_values)
+            .colormap(ColormapType::Viridis);
+        ax.title("Surface: sinc(r) + Viridis");
+    });
+}
+
+TEST(Golden3D, CameraAngle_Orthographic) {
+    run_golden_test_3d("3d_camera_ortho", [](App& app, Figure& fig) {
+        auto& ax = fig.subplot3d(1, 1, 1);
+
+        std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
+        std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f};
+        std::vector<float> z = {0.0f, 0.5f, 1.0f, 0.5f};
+
+        ax.scatter3d(x, y, z).color(colors::red).size(8.0f);
+        ax.line3d(x, y, z).color(colors::blue).width(2.0f);
+
+        ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
+        ax.camera().ortho_size = 5.0f;
+        ax.camera().azimuth = 45.0f;
+        ax.camera().elevation = 30.0f;
+
+        ax.title("Orthographic Projection");
+    });
+}
+
+TEST(Golden3D, MultiSubplot3D) {
+    run_golden_test_3d("3d_multi_subplot", [](App& app, Figure& fig) {
+        // 2x2 grid of 3D subplots
+        auto& ax1 = fig.subplot3d(2, 2, 1);
+        std::vector<float> x1 = {0.0f, 1.0f, 2.0f};
+        std::vector<float> y1 = {0.0f, 1.0f, 0.5f};
+        std::vector<float> z1 = {0.0f, 0.5f, 1.0f};
+        ax1.scatter3d(x1, y1, z1).color(colors::red).size(6.0f);
+        ax1.title("Scatter");
+
+        auto& ax2 = fig.subplot3d(2, 2, 2);
+        std::vector<float> x2, y2, z2;
+        for (int i = 0; i < 100; ++i) {
+            float t = static_cast<float>(i) * 0.1f;
+            x2.push_back(std::cos(t));
+            y2.push_back(std::sin(t));
+            z2.push_back(t * 0.1f);
+        }
+        ax2.line3d(x2, y2, z2).color(colors::green).width(2.0f);
+        ax2.title("Helix");
+
+        auto& ax3 = fig.subplot3d(2, 2, 3);
+        const int nx = 15, ny = 15;
+        std::vector<float> xg, yg, zv;
+        for (int i = 0; i < nx; ++i) xg.push_back(static_cast<float>(i) - 7.0f);
+        for (int j = 0; j < ny; ++j) yg.push_back(static_cast<float>(j) - 7.0f);
+        for (int j = 0; j < ny; ++j)
+            for (int i = 0; i < nx; ++i)
+                zv.push_back(std::sin(xg[i] * 0.5f) * std::cos(yg[j] * 0.5f));
+        ax3.surface(xg, yg, zv).color(colors::orange);
+        ax3.title("Surface");
+
+        auto& ax4 = fig.subplot3d(2, 2, 4);
+        ax4.xlim(-1.0f, 1.0f);
+        ax4.ylim(-1.0f, 1.0f);
+        ax4.zlim(-1.0f, 1.0f);
+        ax4.set_grid_planes(static_cast<int>(Axes3D::GridPlane::All));
+        ax4.title("Empty + Grids");
+    }, 800, 600);
+}
+
+TEST(Golden3D, CombinedLineAndScatter3D) {
+    run_golden_test_3d("3d_combined_line_scatter", [](App& app, Figure& fig) {
+        auto& ax = fig.subplot3d(1, 1, 1);
+
+        std::vector<float> x, y, z;
+        for (int i = 0; i < 50; ++i) {
+            float t = static_cast<float>(i) * 0.2f;
+            x.push_back(std::cos(t) * 2.0f);
+            y.push_back(std::sin(t) * 2.0f);
+            z.push_back(t * 0.2f);
+        }
+
+        ax.line3d(x, y, z).color(colors::blue).width(2.0f);
+        ax.scatter3d(x, y, z).color(colors::red).size(4.0f);
+        ax.title("Line + Scatter Combined");
+    });
+}
+
 } // namespace plotix::test

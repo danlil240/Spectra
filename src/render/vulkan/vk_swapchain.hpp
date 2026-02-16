@@ -21,6 +21,14 @@ struct SwapchainContext {
     VkDeviceMemory depth_memory = VK_NULL_HANDLE;
     VkImageView    depth_view   = VK_NULL_HANDLE;
     VkFormat       depth_format = VK_FORMAT_D32_SFLOAT;
+    // MSAA resources (VK_NULL_HANDLE when msaa_samples == 1)
+    VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT;
+    VkImage        msaa_color_image  = VK_NULL_HANDLE;
+    VkDeviceMemory msaa_color_memory = VK_NULL_HANDLE;
+    VkImageView    msaa_color_view   = VK_NULL_HANDLE;
+    VkImage        msaa_depth_image  = VK_NULL_HANDLE;
+    VkDeviceMemory msaa_depth_memory = VK_NULL_HANDLE;
+    VkImageView    msaa_depth_view   = VK_NULL_HANDLE;
 };
 
 struct SwapchainSupportDetails {
@@ -36,7 +44,8 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
 VkExtent2D choose_extent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t width, uint32_t height);
 
 VkRenderPass create_render_pass(VkDevice device, VkFormat color_format,
-                                VkFormat depth_format = VK_FORMAT_D32_SFLOAT);
+                                VkFormat depth_format = VK_FORMAT_D32_SFLOAT,
+                                VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT);
 
 SwapchainContext create_swapchain(VkDevice device,
                                   VkPhysicalDevice physical_device,
@@ -45,7 +54,8 @@ SwapchainContext create_swapchain(VkDevice device,
                                   uint32_t graphics_family,
                                   uint32_t present_family,
                                   VkSwapchainKHR old_swapchain = VK_NULL_HANDLE,
-                                  VkRenderPass reuse_render_pass = VK_NULL_HANDLE);
+                                  VkRenderPass reuse_render_pass = VK_NULL_HANDLE,
+                                  VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT);
 
 void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_pass = false);
 
@@ -63,11 +73,20 @@ struct OffscreenContext {
     VkDeviceMemory depth_memory = VK_NULL_HANDLE;
     VkImageView    depth_view   = VK_NULL_HANDLE;
     VkFormat       depth_format = VK_FORMAT_D32_SFLOAT;
+    // MSAA resources (VK_NULL_HANDLE when msaa_samples == 1)
+    VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT;
+    VkImage        msaa_color_image  = VK_NULL_HANDLE;
+    VkDeviceMemory msaa_color_memory = VK_NULL_HANDLE;
+    VkImageView    msaa_color_view   = VK_NULL_HANDLE;
+    VkImage        msaa_depth_image  = VK_NULL_HANDLE;
+    VkDeviceMemory msaa_depth_memory = VK_NULL_HANDLE;
+    VkImageView    msaa_depth_view   = VK_NULL_HANDLE;
 };
 
 OffscreenContext create_offscreen_framebuffer(VkDevice device,
                                               VkPhysicalDevice physical_device,
-                                              uint32_t width, uint32_t height);
+                                              uint32_t width, uint32_t height,
+                                              VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT);
 
 void destroy_offscreen(VkDevice device, OffscreenContext& ctx);
 

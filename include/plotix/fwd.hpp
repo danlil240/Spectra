@@ -58,6 +58,7 @@ class ShortcutConfig;
 class PluginManager;
 struct PluginEntry;
 class CameraAnimator;
+class ModeTransition;
 
 class ImageExporter;
 class SvgExporter;

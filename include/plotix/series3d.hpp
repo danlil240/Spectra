@@ -23,6 +23,12 @@ enum class ColormapType {
     Grayscale,
 };
 
+enum class BlendMode {
+    Alpha = 0,       // Standard alpha blending (src_alpha, 1-src_alpha)
+    Additive,        // Additive blending (src_alpha, one)
+    Premultiplied,   // Premultiplied alpha (one, 1-src_alpha)
+};
+
 class LineSeries3D : public Series {
 public:
     LineSeries3D() = default;
@@ -60,11 +66,17 @@ public:
     LineSeries3D& marker_size(float s)          { Series::marker_size(s); return *this; }
     LineSeries3D& opacity(float o)              { Series::opacity(o); return *this; }
 
+    LineSeries3D& blend_mode(BlendMode m)  { blend_mode_ = m; return *this; }
+    BlendMode blend_mode() const           { return blend_mode_; }
+
+    bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
+
 private:
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
     float line_width_ = 2.0f;
+    BlendMode blend_mode_ = BlendMode::Alpha;
 };
 
 class ScatterSeries3D : public Series {
@@ -104,11 +116,17 @@ public:
     ScatterSeries3D& marker_size(float s)          { Series::marker_size(s); return *this; }
     ScatterSeries3D& opacity(float o)              { Series::opacity(o); return *this; }
 
+    ScatterSeries3D& blend_mode(BlendMode m)  { blend_mode_ = m; return *this; }
+    BlendMode blend_mode() const               { return blend_mode_; }
+
+    bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
+
 private:
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
     float point_size_ = 4.0f;
+    BlendMode blend_mode_ = BlendMode::Alpha;
 };
 
 struct SurfaceMesh {
@@ -135,9 +153,12 @@ public:
     std::span<const float> z_values() const { return z_values_; }
 
     const SurfaceMesh& mesh() const { return mesh_; }
+    const SurfaceMesh& wireframe_mesh() const { return wireframe_mesh_; }
     bool is_mesh_generated() const { return mesh_generated_; }
+    bool is_wireframe_mesh_generated() const { return wireframe_mesh_generated_; }
 
     void generate_mesh();
+    void generate_wireframe_mesh();
 
     void record_commands(Renderer& renderer) override;
 
@@ -162,6 +183,40 @@ public:
     SurfaceSeries& color(const Color& c)         { Series::color(c); return *this; }
     SurfaceSeries& opacity(float o)              { Series::opacity(o); return *this; }
 
+    // Material properties for Phong lighting
+    SurfaceSeries& ambient(float a)   { ambient_ = a; return *this; }
+    SurfaceSeries& specular(float s)  { specular_ = s; return *this; }
+    SurfaceSeries& shininess(float s) { shininess_ = s; return *this; }
+    float ambient() const  { return ambient_; }
+    float specular() const { return specular_; }
+    float shininess() const { return shininess_; }
+
+    SurfaceSeries& blend_mode(BlendMode m)  { blend_mode_ = m; return *this; }
+    BlendMode blend_mode() const            { return blend_mode_; }
+
+    SurfaceSeries& double_sided(bool d)  { double_sided_ = d; return *this; }
+    bool double_sided() const            { return double_sided_; }
+
+    SurfaceSeries& wireframe(bool w)  { wireframe_ = w; dirty_ = true; return *this; }
+    bool wireframe() const            { return wireframe_; }
+
+    // Per-vertex alpha from colormap: when enabled, the colormap also drives
+    // the alpha channel based on the Z value (low Z = transparent, high Z = opaque).
+    SurfaceSeries& colormap_alpha(bool enabled) { colormap_alpha_ = enabled; dirty_ = true; return *this; }
+    bool colormap_alpha() const { return colormap_alpha_; }
+
+    // Set a custom alpha range for colormap alpha mapping
+    void set_colormap_alpha_range(float min_alpha, float max_alpha) {
+        cmap_alpha_min_ = min_alpha;
+        cmap_alpha_max_ = max_alpha;
+    }
+    float colormap_alpha_min() const { return cmap_alpha_min_; }
+    float colormap_alpha_max() const { return cmap_alpha_max_; }
+
+    bool is_transparent() const {
+        return (color_.a * style_.opacity) < 0.99f || colormap_alpha_;
+    }
+
 private:
     std::vector<float> x_grid_;
     std::vector<float> y_grid_;
@@ -170,11 +225,24 @@ private:
     int cols_ = 0;
 
     SurfaceMesh mesh_;
+    SurfaceMesh wireframe_mesh_;
     bool mesh_generated_ = false;
+    bool wireframe_mesh_generated_ = false;
 
     ColormapType colormap_ = ColormapType::None;
     float cmap_min_ = 0.0f;
     float cmap_max_ = 1.0f;
+
+    float ambient_   = 0.0f;  // 0 = shader default (0.15)
+    float specular_  = 0.0f;  // 0 = shader default (0.3)
+    float shininess_ = 0.0f;  // 0 = shader default (32)
+
+    BlendMode blend_mode_ = BlendMode::Alpha;
+    bool double_sided_ = true;   // Default: render both sides (shader flips normal)
+    bool wireframe_ = false;
+    bool colormap_alpha_ = false;
+    float cmap_alpha_min_ = 0.1f;
+    float cmap_alpha_max_ = 1.0f;
 };
 
 class MeshSeries : public Series {
@@ -204,9 +272,36 @@ public:
     MeshSeries& color(const Color& c)         { Series::color(c); return *this; }
     MeshSeries& opacity(float o)              { Series::opacity(o); return *this; }
 
+    // Material properties for Phong lighting
+    MeshSeries& ambient(float a)   { ambient_ = a; return *this; }
+    MeshSeries& specular(float s)  { specular_ = s; return *this; }
+    MeshSeries& shininess(float s) { shininess_ = s; return *this; }
+    float ambient() const  { return ambient_; }
+    float specular() const { return specular_; }
+    float shininess() const { return shininess_; }
+
+    MeshSeries& blend_mode(BlendMode m)  { blend_mode_ = m; return *this; }
+    BlendMode blend_mode() const         { return blend_mode_; }
+
+    MeshSeries& double_sided(bool d)  { double_sided_ = d; return *this; }
+    bool double_sided() const         { return double_sided_; }
+
+    MeshSeries& wireframe(bool w)  { wireframe_ = w; dirty_ = true; return *this; }
+    bool wireframe() const         { return wireframe_; }
+
+    bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
+
 private:
     std::vector<float> vertices_;        // Flat: {x,y,z, nx,ny,nz, ...} per vertex
     std::vector<uint32_t> indices_;      // Triangle indices
+
+    float ambient_   = 0.0f;  // 0 = shader default (0.15)
+    float specular_  = 0.0f;  // 0 = shader default (0.3)
+    float shininess_ = 0.0f;  // 0 = shader default (32)
+
+    BlendMode blend_mode_ = BlendMode::Alpha;
+    bool double_sided_ = true;
+    bool wireframe_ = false;
 };
 
 } // namespace plotix

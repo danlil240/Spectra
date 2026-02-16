@@ -165,6 +165,7 @@ void SurfaceSeries::set_data(std::span<const float> x_grid, std::span<const floa
     rows_ = static_cast<int>(y_grid_.size());
     
     mesh_generated_ = false;
+    wireframe_mesh_generated_ = false;
     dirty_ = true;
 }
 
@@ -245,6 +246,60 @@ void SurfaceSeries::generate_mesh() {
     mesh_generated_ = true;
 }
 
+void SurfaceSeries::generate_wireframe_mesh() {
+    if (cols_ < 2 || rows_ < 2) {
+        wireframe_mesh_generated_ = false;
+        return;
+    }
+
+    size_t expected_z_count = static_cast<size_t>(rows_) * static_cast<size_t>(cols_);
+    if (z_values_.size() != expected_z_count) {
+        wireframe_mesh_generated_ = false;
+        return;
+    }
+
+    wireframe_mesh_.vertices.clear();
+    wireframe_mesh_.indices.clear();
+
+    // Reuse the same vertex layout as the solid mesh (position + normal)
+    wireframe_mesh_.vertex_count = rows_ * cols_;
+    wireframe_mesh_.vertices.reserve(wireframe_mesh_.vertex_count * 6);
+
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = 0; j < cols_; ++j) {
+            float x = x_grid_[j];
+            float y = y_grid_[i];
+            float z = z_values_[i * cols_ + j];
+
+            // Normal pointing up for wireframe (not used for lighting but needed for vertex layout)
+            wireframe_mesh_.vertices.push_back(x);
+            wireframe_mesh_.vertices.push_back(y);
+            wireframe_mesh_.vertices.push_back(z);
+            wireframe_mesh_.vertices.push_back(0.0f);
+            wireframe_mesh_.vertices.push_back(0.0f);
+            wireframe_mesh_.vertices.push_back(1.0f);
+        }
+    }
+
+    // Generate line indices: horizontal lines + vertical lines
+    // Each line segment = 2 indices
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = 0; j < cols_ - 1; ++j) {
+            wireframe_mesh_.indices.push_back(static_cast<uint32_t>(i * cols_ + j));
+            wireframe_mesh_.indices.push_back(static_cast<uint32_t>(i * cols_ + j + 1));
+        }
+    }
+    for (int j = 0; j < cols_; ++j) {
+        for (int i = 0; i < rows_ - 1; ++i) {
+            wireframe_mesh_.indices.push_back(static_cast<uint32_t>(i * cols_ + j));
+            wireframe_mesh_.indices.push_back(static_cast<uint32_t>((i + 1) * cols_ + j));
+        }
+    }
+
+    wireframe_mesh_.triangle_count = 0; // Not triangles — line segments
+    wireframe_mesh_generated_ = true;
+}
+
 vec3 SurfaceSeries::compute_centroid() const {
     if (x_grid_.empty() || y_grid_.empty() || z_values_.empty()) {
         return {0.0f, 0.0f, 0.0f};
@@ -279,11 +334,17 @@ void SurfaceSeries::get_bounds(vec3& min_out, vec3& max_out) const {
 void SurfaceSeries::record_commands(Renderer& renderer) {
     if (!visible_) return;
     
-    if (!mesh_generated_) {
-        generate_mesh();
+    if (wireframe_) {
+        if (!wireframe_mesh_generated_) {
+            generate_wireframe_mesh();
+        }
+    } else {
+        if (!mesh_generated_) {
+            generate_mesh();
+        }
     }
     
-    if (mesh_generated_) {
+    if (mesh_generated_ || wireframe_mesh_generated_) {
         renderer.upload_series_data(*this);
     }
 }

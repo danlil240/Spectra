@@ -72,7 +72,7 @@ void main() {
     float diffuse = NdotL * 0.65;
 
     // Specular (Blinn-Phong)
-    // marker_size encodes shininess when used for surface (0 = use default 32)
+    // marker_size encodes shininess when used for mesh (0 = use default 32)
     float shininess = (marker_type == 0u && marker_size > 1.0) ? marker_size : 32.0;
     vec3 H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0);

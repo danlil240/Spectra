@@ -59,30 +59,110 @@ static uint32_t find_memory_type(VkPhysicalDevice physical_device,
                                   uint32_t type_filter,
                                   VkMemoryPropertyFlags properties);
 
-VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat depth_format) {
-    // Attachment 0: color
-    VkAttachmentDescription color_attachment {};
-    color_attachment.format         = color_format;
-    color_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat depth_format,
+                                VkSampleCountFlagBits msaa_samples) {
+    bool use_msaa = (msaa_samples != VK_SAMPLE_COUNT_1_BIT);
 
-    // Attachment 1: depth
-    VkAttachmentDescription depth_attachment {};
-    depth_attachment.format         = depth_format;
-    depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    if (!use_msaa) {
+        // Non-MSAA path: 2 attachments (color + depth)
+        VkAttachmentDescription color_attachment {};
+        color_attachment.format         = color_format;
+        color_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+        color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+        color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    VkAttachmentDescription attachments[] = {color_attachment, depth_attachment};
+        VkAttachmentDescription depth_attachment {};
+        depth_attachment.format         = depth_format;
+        depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+        depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription attachments[] = {color_attachment, depth_attachment};
+
+        VkAttachmentReference color_ref {};
+        color_ref.attachment = 0;
+        color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depth_ref {};
+        depth_ref.attachment = 1;
+        depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass {};
+        subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount    = 1;
+        subpass.pColorAttachments       = &color_ref;
+        subpass.pDepthStencilAttachment = &depth_ref;
+
+        VkSubpassDependency dependency {};
+        dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass    = 0;
+        dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                 | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                 | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                                 | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        VkRenderPassCreateInfo info {};
+        info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        info.attachmentCount = 2;
+        info.pAttachments    = attachments;
+        info.subpassCount    = 1;
+        info.pSubpasses      = &subpass;
+        info.dependencyCount = 1;
+        info.pDependencies   = &dependency;
+
+        VkRenderPass render_pass = VK_NULL_HANDLE;
+        if (vkCreateRenderPass(device, &info, nullptr, &render_pass) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create render pass");
+        }
+        return render_pass;
+    }
+
+    // MSAA path: 3 attachments (MSAA color, MSAA depth, resolve target)
+    // Attachment 0: MSAA color (multisampled, not stored — resolved to attachment 2)
+    VkAttachmentDescription msaa_color {};
+    msaa_color.format         = color_format;
+    msaa_color.samples        = msaa_samples;
+    msaa_color.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    msaa_color.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE; // resolved, not stored
+    msaa_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    msaa_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    msaa_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    msaa_color.finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Attachment 1: MSAA depth (multisampled)
+    VkAttachmentDescription msaa_depth {};
+    msaa_depth.format         = depth_format;
+    msaa_depth.samples        = msaa_samples;
+    msaa_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    msaa_depth.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    msaa_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    msaa_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    msaa_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    msaa_depth.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // Attachment 2: resolve target (single-sample, presented)
+    VkAttachmentDescription resolve_att {};
+    resolve_att.format         = color_format;
+    resolve_att.samples        = VK_SAMPLE_COUNT_1_BIT;
+    resolve_att.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolve_att.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+    resolve_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolve_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    resolve_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    resolve_att.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentDescription attachments[] = {msaa_color, msaa_depth, resolve_att};
 
     VkAttachmentReference color_ref {};
     color_ref.attachment = 0;
@@ -92,11 +172,16 @@ VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat
     depth_ref.attachment = 1;
     depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference resolve_ref {};
+    resolve_ref.attachment = 2;
+    resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass {};
     subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount    = 1;
     subpass.pColorAttachments       = &color_ref;
     subpass.pDepthStencilAttachment = &depth_ref;
+    subpass.pResolveAttachments     = &resolve_ref;
 
     VkSubpassDependency dependency {};
     dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
@@ -111,7 +196,7 @@ VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat
 
     VkRenderPassCreateInfo info {};
     info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    info.attachmentCount = 2;
+    info.attachmentCount = 3;
     info.pAttachments    = attachments;
     info.subpassCount    = 1;
     info.pSubpasses      = &subpass;
@@ -120,7 +205,7 @@ VkRenderPass create_render_pass(VkDevice device, VkFormat color_format, VkFormat
 
     VkRenderPass render_pass = VK_NULL_HANDLE;
     if (vkCreateRenderPass(device, &info, nullptr, &render_pass) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create render pass");
+        throw std::runtime_error("Failed to create MSAA render pass");
     }
     return render_pass;
 }
@@ -132,7 +217,8 @@ SwapchainContext create_swapchain(VkDevice device,
                                   uint32_t graphics_family,
                                   uint32_t present_family,
                                   VkSwapchainKHR old_swapchain,
-                                  VkRenderPass reuse_render_pass) {
+                                  VkRenderPass reuse_render_pass,
+                                  VkSampleCountFlagBits msaa_samples) {
     auto support = query_swapchain_support(physical_device, surface);
     auto format  = choose_surface_format(support.formats);
     auto mode    = choose_present_mode(support.present_modes);
@@ -170,6 +256,8 @@ SwapchainContext create_swapchain(VkDevice device,
     SwapchainContext ctx;
     ctx.image_format = format.format;
     ctx.extent       = extent;
+    ctx.msaa_samples = msaa_samples;
+    bool use_msaa = (msaa_samples != VK_SAMPLE_COUNT_1_BIT);
 
     if (vkCreateSwapchainKHR(device, &create_info, nullptr, &ctx.swapchain) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swapchain");
@@ -209,8 +297,11 @@ SwapchainContext create_swapchain(VkDevice device,
     if (reuse_render_pass != VK_NULL_HANDLE) {
         ctx.render_pass = reuse_render_pass;
     } else {
-        ctx.render_pass = create_render_pass(device, ctx.image_format, ctx.depth_format);
+        ctx.render_pass = create_render_pass(device, ctx.image_format, ctx.depth_format, msaa_samples);
     }
+
+    // Determine depth sample count: MSAA depth when MSAA is enabled
+    VkSampleCountFlagBits depth_samples = use_msaa ? msaa_samples : VK_SAMPLE_COUNT_1_BIT;
 
     // Create depth image (shared across all framebuffers)
     {
@@ -221,7 +312,7 @@ SwapchainContext create_swapchain(VkDevice device,
         depth_img_info.extent        = {extent.width, extent.height, 1};
         depth_img_info.mipLevels     = 1;
         depth_img_info.arrayLayers   = 1;
-        depth_img_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        depth_img_info.samples       = depth_samples;
         depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
         depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
@@ -261,19 +352,76 @@ SwapchainContext create_swapchain(VkDevice device,
         }
     }
 
-    // Create framebuffers (color + depth attachments)
+    // Create MSAA color image (shared across all framebuffers) when MSAA is enabled
+    if (use_msaa) {
+        VkImageCreateInfo msaa_img_info {};
+        msaa_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        msaa_img_info.imageType     = VK_IMAGE_TYPE_2D;
+        msaa_img_info.format        = ctx.image_format;
+        msaa_img_info.extent        = {extent.width, extent.height, 1};
+        msaa_img_info.mipLevels     = 1;
+        msaa_img_info.arrayLayers   = 1;
+        msaa_img_info.samples       = msaa_samples;
+        msaa_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+        msaa_img_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+        msaa_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+        msaa_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        if (vkCreateImage(device, &msaa_img_info, nullptr, &ctx.msaa_color_image) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create MSAA color image");
+        }
+
+        VkMemoryRequirements mem_reqs;
+        vkGetImageMemoryRequirements(device, ctx.msaa_color_image, &mem_reqs);
+
+        VkMemoryAllocateInfo alloc_info {};
+        alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize  = mem_reqs.size;
+        alloc_info.memoryTypeIndex = find_memory_type(physical_device, mem_reqs.memoryTypeBits,
+                                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.msaa_color_memory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate MSAA color image memory");
+        }
+        vkBindImageMemory(device, ctx.msaa_color_image, ctx.msaa_color_memory, 0);
+
+        VkImageViewCreateInfo msaa_view_info {};
+        msaa_view_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        msaa_view_info.image    = ctx.msaa_color_image;
+        msaa_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        msaa_view_info.format   = ctx.image_format;
+        msaa_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        msaa_view_info.subresourceRange.baseMipLevel   = 0;
+        msaa_view_info.subresourceRange.levelCount     = 1;
+        msaa_view_info.subresourceRange.baseArrayLayer = 0;
+        msaa_view_info.subresourceRange.layerCount     = 1;
+
+        if (vkCreateImageView(device, &msaa_view_info, nullptr, &ctx.msaa_color_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create MSAA color image view");
+        }
+    }
+
+    // Create framebuffers
     ctx.framebuffers.resize(image_count);
     for (uint32_t i = 0; i < image_count; ++i) {
-        VkImageView fb_attachments[] = {ctx.image_views[i], ctx.depth_view};
-
         VkFramebufferCreateInfo fb_info {};
-        fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fb_info.renderPass      = ctx.render_pass;
-        fb_info.attachmentCount = 2;
-        fb_info.pAttachments    = fb_attachments;
-        fb_info.width           = extent.width;
-        fb_info.height          = extent.height;
-        fb_info.layers          = 1;
+        fb_info.sType      = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb_info.renderPass = ctx.render_pass;
+        fb_info.width      = extent.width;
+        fb_info.height     = extent.height;
+        fb_info.layers     = 1;
+
+        if (use_msaa) {
+            // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (swapchain image)
+            VkImageView fb_attachments[] = {ctx.msaa_color_view, ctx.depth_view, ctx.image_views[i]};
+            fb_info.attachmentCount = 3;
+            fb_info.pAttachments    = fb_attachments;
+        } else {
+            // Non-MSAA: attachment 0 = color (swapchain image), 1 = depth
+            VkImageView fb_attachments[] = {ctx.image_views[i], ctx.depth_view};
+            fb_info.attachmentCount = 2;
+            fb_info.pAttachments    = fb_attachments;
+        }
 
         if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer");
@@ -287,6 +435,17 @@ void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_
     for (auto fb : ctx.framebuffers)
         vkDestroyFramebuffer(device, fb, nullptr);
     ctx.framebuffers.clear();
+
+    // Destroy MSAA color resources
+    if (ctx.msaa_color_view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, ctx.msaa_color_view, nullptr);
+    ctx.msaa_color_view = VK_NULL_HANDLE;
+    if (ctx.msaa_color_image != VK_NULL_HANDLE)
+        vkDestroyImage(device, ctx.msaa_color_image, nullptr);
+    ctx.msaa_color_image = VK_NULL_HANDLE;
+    if (ctx.msaa_color_memory != VK_NULL_HANDLE)
+        vkFreeMemory(device, ctx.msaa_color_memory, nullptr);
+    ctx.msaa_color_memory = VK_NULL_HANDLE;
 
     // Destroy depth resources
     if (ctx.depth_view != VK_NULL_HANDLE)
@@ -333,12 +492,15 @@ VkFormat find_depth_format(VkPhysicalDevice physical_device);
 
 OffscreenContext create_offscreen_framebuffer(VkDevice device,
                                               VkPhysicalDevice physical_device,
-                                              uint32_t width, uint32_t height) {
+                                              uint32_t width, uint32_t height,
+                                              VkSampleCountFlagBits msaa_samples) {
     OffscreenContext ctx;
     ctx.format = VK_FORMAT_R8G8B8A8_UNORM;
     ctx.extent = {width, height};
+    ctx.msaa_samples = msaa_samples;
+    bool use_msaa = (msaa_samples != VK_SAMPLE_COUNT_1_BIT);
 
-    // Create color image
+    // Create color image (resolve target — always single-sample for readback)
     VkImageCreateInfo img_info {};
     img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     img_info.imageType     = VK_IMAGE_TYPE_2D;
@@ -386,6 +548,9 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
         throw std::runtime_error("Failed to create offscreen image view");
     }
 
+    // Determine depth sample count
+    VkSampleCountFlagBits depth_samples = use_msaa ? msaa_samples : VK_SAMPLE_COUNT_1_BIT;
+
     // Create depth image for offscreen
     ctx.depth_format = find_depth_format(physical_device);
     {
@@ -396,7 +561,7 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
         depth_img_info.extent        = {width, height, 1};
         depth_img_info.mipLevels     = 1;
         depth_img_info.arrayLayers   = 1;
-        depth_img_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        depth_img_info.samples       = depth_samples;
         depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
         depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
@@ -436,8 +601,58 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
         }
     }
 
-    // Create render pass (final layout is TRANSFER_SRC for readback)
-    {
+    // Create MSAA color image when MSAA is enabled
+    if (use_msaa) {
+        VkImageCreateInfo msaa_img_info {};
+        msaa_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        msaa_img_info.imageType     = VK_IMAGE_TYPE_2D;
+        msaa_img_info.format        = ctx.format;
+        msaa_img_info.extent        = {width, height, 1};
+        msaa_img_info.mipLevels     = 1;
+        msaa_img_info.arrayLayers   = 1;
+        msaa_img_info.samples       = msaa_samples;
+        msaa_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+        msaa_img_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+        msaa_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+        msaa_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        if (vkCreateImage(device, &msaa_img_info, nullptr, &ctx.msaa_color_image) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen MSAA color image");
+        }
+
+        VkMemoryRequirements msaa_mem_reqs;
+        vkGetImageMemoryRequirements(device, ctx.msaa_color_image, &msaa_mem_reqs);
+
+        VkMemoryAllocateInfo msaa_alloc_info {};
+        msaa_alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        msaa_alloc_info.allocationSize  = msaa_mem_reqs.size;
+        msaa_alloc_info.memoryTypeIndex = find_memory_type(physical_device, msaa_mem_reqs.memoryTypeBits,
+                                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device, &msaa_alloc_info, nullptr, &ctx.msaa_color_memory) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate offscreen MSAA color image memory");
+        }
+        vkBindImageMemory(device, ctx.msaa_color_image, ctx.msaa_color_memory, 0);
+
+        VkImageViewCreateInfo msaa_view_info {};
+        msaa_view_info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        msaa_view_info.image    = ctx.msaa_color_image;
+        msaa_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        msaa_view_info.format   = ctx.format;
+        msaa_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        msaa_view_info.subresourceRange.baseMipLevel   = 0;
+        msaa_view_info.subresourceRange.levelCount     = 1;
+        msaa_view_info.subresourceRange.baseArrayLayer = 0;
+        msaa_view_info.subresourceRange.layerCount     = 1;
+
+        if (vkCreateImageView(device, &msaa_view_info, nullptr, &ctx.msaa_color_view) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen MSAA color image view");
+        }
+    }
+
+    // Create render pass
+    if (!use_msaa) {
+        // Non-MSAA: final layout is TRANSFER_SRC for readback
         VkAttachmentDescription color_att {};
         color_att.format         = ctx.format;
         color_att.samples        = VK_SAMPLE_COUNT_1_BIT;
@@ -484,20 +699,90 @@ OffscreenContext create_offscreen_framebuffer(VkDevice device,
         if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create offscreen render pass");
         }
+    } else {
+        // MSAA: 3 attachments (MSAA color, MSAA depth, resolve target for readback)
+        VkAttachmentDescription msaa_color_att {};
+        msaa_color_att.format         = ctx.format;
+        msaa_color_att.samples        = msaa_samples;
+        msaa_color_att.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        msaa_color_att.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaa_color_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        msaa_color_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaa_color_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        msaa_color_att.finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription msaa_depth_att {};
+        msaa_depth_att.format         = ctx.depth_format;
+        msaa_depth_att.samples        = msaa_samples;
+        msaa_depth_att.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        msaa_depth_att.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaa_depth_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        msaa_depth_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaa_depth_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        msaa_depth_att.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription resolve_att {};
+        resolve_att.format         = ctx.format;
+        resolve_att.samples        = VK_SAMPLE_COUNT_1_BIT;
+        resolve_att.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        resolve_att.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+        resolve_att.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        resolve_att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        resolve_att.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        resolve_att.finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+        VkAttachmentDescription rp_attachments[] = {msaa_color_att, msaa_depth_att, resolve_att};
+
+        VkAttachmentReference color_ref {};
+        color_ref.attachment = 0;
+        color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depth_ref {};
+        depth_ref.attachment = 1;
+        depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference resolve_ref {};
+        resolve_ref.attachment = 2;
+        resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass {};
+        subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount    = 1;
+        subpass.pColorAttachments       = &color_ref;
+        subpass.pDepthStencilAttachment = &depth_ref;
+        subpass.pResolveAttachments     = &resolve_ref;
+
+        VkRenderPassCreateInfo rp_info {};
+        rp_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rp_info.attachmentCount = 3;
+        rp_info.pAttachments    = rp_attachments;
+        rp_info.subpassCount    = 1;
+        rp_info.pSubpasses      = &subpass;
+
+        if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create offscreen MSAA render pass");
+        }
     }
 
-    // Create framebuffer (color + depth)
+    // Create framebuffer
     {
-        VkImageView fb_attachments[] = {ctx.color_view, ctx.depth_view};
-
         VkFramebufferCreateInfo fb_info {};
-        fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fb_info.renderPass      = ctx.render_pass;
-        fb_info.attachmentCount = 2;
-        fb_info.pAttachments    = fb_attachments;
-        fb_info.width           = width;
-        fb_info.height          = height;
-        fb_info.layers          = 1;
+        fb_info.sType      = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb_info.renderPass = ctx.render_pass;
+        fb_info.width      = width;
+        fb_info.height     = height;
+        fb_info.layers     = 1;
+
+        if (use_msaa) {
+            // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (color_view)
+            VkImageView fb_attachments[] = {ctx.msaa_color_view, ctx.depth_view, ctx.color_view};
+            fb_info.attachmentCount = 3;
+            fb_info.pAttachments    = fb_attachments;
+        } else {
+            VkImageView fb_attachments[] = {ctx.color_view, ctx.depth_view};
+            fb_info.attachmentCount = 2;
+            fb_info.pAttachments    = fb_attachments;
+        }
 
         if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffer) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create offscreen framebuffer");
@@ -512,6 +797,13 @@ void destroy_offscreen(VkDevice device, OffscreenContext& ctx) {
         vkDestroyFramebuffer(device, ctx.framebuffer, nullptr);
     if (ctx.render_pass != VK_NULL_HANDLE)
         vkDestroyRenderPass(device, ctx.render_pass, nullptr);
+    // Destroy MSAA resources
+    if (ctx.msaa_color_view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, ctx.msaa_color_view, nullptr);
+    if (ctx.msaa_color_image != VK_NULL_HANDLE)
+        vkDestroyImage(device, ctx.msaa_color_image, nullptr);
+    if (ctx.msaa_color_memory != VK_NULL_HANDLE)
+        vkFreeMemory(device, ctx.msaa_color_memory, nullptr);
     // Destroy depth resources
     if (ctx.depth_view != VK_NULL_HANDLE)
         vkDestroyImageView(device, ctx.depth_view, nullptr);

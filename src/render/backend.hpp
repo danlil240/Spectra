@@ -30,6 +30,14 @@ enum class PipelineType {
     Surface3D,
     Grid3D,
     GridOverlay3D,  // Same as Grid3D but no depth test — for grid lines rendered after series
+    // Wireframe 3D pipeline variants (line topology with vertex buffer)
+    SurfaceWireframe3D,
+    SurfaceWireframe3D_Transparent,
+    // Transparent 3D pipeline variants (depth test ON, depth write OFF)
+    Line3D_Transparent,
+    Scatter3D_Transparent,
+    Mesh3D_Transparent,
+    Surface3D_Transparent,
 };
 
 struct BufferHandle {
@@ -132,9 +140,16 @@ public:
     // Readback (for offscreen/export)
     virtual bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) = 0;
 
+    // MSAA configuration (must be set before creating swapchain/offscreen framebuffer)
+    virtual void set_msaa_samples(uint32_t samples) { msaa_samples_ = samples; }
+    virtual uint32_t msaa_samples() const { return msaa_samples_; }
+
     // Queries
     virtual uint32_t swapchain_width() const = 0;
     virtual uint32_t swapchain_height() const = 0;
+
+protected:
+    uint32_t msaa_samples_ = 1;  // 1 = no MSAA, 4 = MSAA 4x
 };
 
 } // namespace plotix

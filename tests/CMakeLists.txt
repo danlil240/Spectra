@@ -99,6 +99,9 @@ set(PLOTIX_UNIT_TESTS
     test_series3d
     test_depth_buffer
     test_3d_integration
+    test_transparency
+    test_mode_transition
+    test_workspace_3d
 )
 
 foreach(_test ${PLOTIX_UNIT_TESTS})

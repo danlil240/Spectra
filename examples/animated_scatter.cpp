@@ -4,8 +4,7 @@
 #include <vector>
 
 int main() {
-    plotix::App app;
-    auto& fig = app.figure({.width = 1280, .height = 720});
+    auto& fig = plotix::figure({.width = 1280, .height = 720});
     auto& ax  = fig.subplot(1, 1, 1);
 
     constexpr size_t N = 100;
@@ -47,7 +46,7 @@ int main() {
             })
         .play();
 
-    app.run();
+    plotix::show();
 
 
     return 0;

@@ -212,11 +212,13 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height) {
     if (surface_ == VK_NULL_HANDLE) return false;
 
     try {
+        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         swapchain_ = vk::create_swapchain(
             ctx_.device, ctx_.physical_device, surface_,
             width, height,
             ctx_.queue_families.graphics.value(),
-            ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value())
+            ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
+            VK_NULL_HANDLE, VK_NULL_HANDLE, vk_msaa
         );
         create_command_buffers();
         create_sync_objects();
@@ -249,13 +251,15 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
     
     try {
         PLOTIX_LOG_DEBUG("vulkan", "Creating new swapchain...");
+        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         swapchain_ = vk::create_swapchain(
             ctx_.device, ctx_.physical_device, surface_,
             width, height,
             ctx_.queue_families.graphics.value(),
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
             old_swapchain,
-            reuse_rp
+            reuse_rp,
+            vk_msaa
         );
         PLOTIX_LOG_INFO("vulkan", "New swapchain created: " + std::to_string(swapchain_.extent.width) + "x" + std::to_string(swapchain_.extent.height));
         
@@ -289,7 +293,8 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height) {
 bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height) {
     try {
         vk::destroy_offscreen(ctx_.device, offscreen_);
-        offscreen_ = vk::create_offscreen_framebuffer(ctx_.device, ctx_.physical_device, width, height);
+        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        offscreen_ = vk::create_offscreen_framebuffer(ctx_.device, ctx_.physical_device, width, height, vk_msaa);
         create_command_buffers();
         create_sync_objects();
         return true;
@@ -403,10 +408,10 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)}); // normal
             break;
         case PipelineType::Mesh3D:
-            cfg.vert_spirv      = shaders::surface3d_vert;
-            cfg.vert_spirv_size = shaders::surface3d_vert_size;
-            cfg.frag_spirv      = shaders::surface3d_frag;
-            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.vert_spirv      = shaders::mesh3d_vert;
+            cfg.vert_spirv_size = shaders::mesh3d_vert_size;
+            cfg.frag_spirv      = shaders::mesh3d_frag;
+            cfg.frag_spirv_size = shaders::mesh3d_frag_size;
             cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
             cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
@@ -416,9 +421,84 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});                          // position
             cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)}); // normal
             break;
+        // ── Wireframe 3D pipeline variants (line topology with vertex buffer) ──
+        case PipelineType::SurfaceWireframe3D:
+            cfg.vert_spirv      = shaders::surface3d_vert;
+            cfg.vert_spirv_size = shaders::surface3d_vert_size;
+            cfg.frag_spirv      = shaders::surface3d_frag;
+            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
+        case PipelineType::SurfaceWireframe3D_Transparent:
+            cfg.vert_spirv      = shaders::surface3d_vert;
+            cfg.vert_spirv_size = shaders::surface3d_vert_size;
+            cfg.frag_spirv      = shaders::surface3d_frag;
+            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
+        // ── Transparent 3D pipeline variants (depth test ON, depth write OFF) ──
+        case PipelineType::Line3D_Transparent:
+            cfg.vert_spirv      = shaders::line3d_vert;
+            cfg.vert_spirv_size = shaders::line3d_vert_size;
+            cfg.frag_spirv      = shaders::line3d_frag;
+            cfg.frag_spirv_size = shaders::line3d_frag_size;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;  // Don't write depth for transparent
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            break;
+        case PipelineType::Scatter3D_Transparent:
+            cfg.vert_spirv      = shaders::scatter3d_vert;
+            cfg.vert_spirv_size = shaders::scatter3d_vert_size;
+            cfg.frag_spirv      = shaders::scatter3d_frag;
+            cfg.frag_spirv_size = shaders::scatter3d_frag_size;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            break;
+        case PipelineType::Surface3D_Transparent:
+            cfg.vert_spirv      = shaders::surface3d_vert;
+            cfg.vert_spirv_size = shaders::surface3d_vert_size;
+            cfg.frag_spirv      = shaders::surface3d_frag;
+            cfg.frag_spirv_size = shaders::surface3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
+        case PipelineType::Mesh3D_Transparent:
+            cfg.vert_spirv      = shaders::mesh3d_vert;
+            cfg.vert_spirv_size = shaders::mesh3d_vert_size;
+            cfg.frag_spirv      = shaders::mesh3d_frag;
+            cfg.frag_spirv_size = shaders::mesh3d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
         case PipelineType::Heatmap:
             return VK_NULL_HANDLE; // Not yet implemented
     }
+
+    // All pipelines must match the render pass sample count
+    cfg.msaa_samples = static_cast<VkSampleCountFlagBits>(msaa_samples_);
 
     try {
         return vk::create_graphics_pipeline(ctx_.device, cfg);

@@ -1,8 +1,8 @@
 # Plotix UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-16 (All UI Redesign Phases Complete + 3D Phases 1 & 2 (partial) Complete)  
-**Current Phase:** 3D Visualization — Phase 2 In Progress  
-**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 5 ✅, Agent 6 ✅
+**Last Updated:** 2026-02-17 (All UI Redesign Phases Complete + 3D Phases 1–3 In Progress)  
+**Current Phase:** 3D Visualization — Phase 3 In Progress  
+**Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 4 ✅, Agent 5 ✅, Agent 6 ✅, Agent 7 ✅
 
 ---
 
@@ -605,19 +605,106 @@
 
 **Depends on:** Agent 2 (Camera class) ✅
 
+### Agent 6 — Week 11: 2D↔3D Mode Transition & Workspace 3D State ✅ Complete
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| ModeTransition class (2D↔3D animated view switching) | ✅ Done | `src/ui/mode_transition.hpp/.cpp` |
+| ModeTransition2DState / ModeTransition3DState snapshot structs | ✅ Done | `src/ui/mode_transition.hpp` |
+| Camera interpolation: top-down ortho ↔ orbit perspective | ✅ Done | `src/ui/mode_transition.cpp` |
+| Axis limits interpolation (X/Y lerp, Z collapse/expand) | ✅ Done | `src/ui/mode_transition.cpp` |
+| Grid plane transition + 3D element opacity fade | ✅ Done | `src/ui/mode_transition.cpp` |
+| Configurable duration, custom easing, progress/complete callbacks | ✅ Done | `src/ui/mode_transition.hpp/.cpp` |
+| ModeTransition serialization/deserialization | ✅ Done | `src/ui/mode_transition.cpp` |
+| WorkspaceData v4: Axes3DState (zlim, camera, grid_planes, lighting) | ✅ Done | `src/ui/workspace.hpp` |
+| WorkspaceData v4: 3D series metadata (colormap, material properties) | ✅ Done | `src/ui/workspace.hpp` |
+| Workspace serialize/deserialize for 3D state (v4 format) | ✅ Done | `src/ui/workspace.cpp` |
+| Workspace capture/apply with Axes3D support + 2D fallback | ✅ Done | `src/ui/workspace.cpp` |
+| JSON unescape fix for nested JSON strings (camera_state round-trip) | ✅ Done | `src/ui/workspace.cpp` |
+| ModeTransition forward declaration | ✅ Done | `include/plotix/fwd.hpp` |
+| Unit tests: mode transition (43 tests, 11 suites) | ✅ Done | `tests/unit/test_mode_transition.cpp` |
+| Unit tests: workspace 3D serialization (18 tests, 10 suites) | ✅ Done | `tests/unit/test_workspace_3d.cpp` |
+| mode_transition_demo example | ✅ Done | `examples/mode_transition_demo.cpp` |
+
+**Key achievements:**
+- ModeTransition animates camera (elevation, azimuth, distance, projection mode switch), axis limits, grid planes, and 3D element opacity
+- Top-down orthographic → perspective orbit with smooth projection mode crossfade at t=0.5
+- Z-axis limits collapse/expand animation for seamless dimensional transition
+- Thread-safe: all public methods lock internal mutex
+- WorkspaceData FORMAT_VERSION bumped to 4 with full backward compatibility (v1–v3 files load correctly)
+- Camera state stored as escaped JSON string inside workspace JSON, properly round-tripped via unescape_json()
+- Workspace capture/apply handles both 2D-only figures (axes_) and mixed/3D figures (all_axes_) gracefully
+- Zero regressions: 65/65 ctest pass
+
+**Depends on:** Agent 2 (Camera) ✅, Agent 5 (Series3D) ✅
+
+### Agent 7 — Performance, Testing & Validation ✅ Complete
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| Depth buffer unit tests (23 tests) | ✅ Done | `tests/unit/test_depth_buffer.cpp` (EXPANDED) |
+| 3D integration tests (45+ tests) | ✅ Done | `tests/unit/test_3d_integration.cpp` (EXPANDED) |
+| 3D golden image tests (18 scenes) | ✅ Done | `tests/golden/golden_test_3d.cpp` (EXPANDED) |
+| 3D benchmarks (17 benchmarks) | ✅ Done | `tests/bench/bench_3d.cpp` (EXPANDED) |
+
+**Depth buffer tests cover:** pipeline creation (2D/3D), offscreen depth, clear validation, readback, FrameUBO/PushConstants layout, pipeline enum completeness, mixed 2D+3D rendering, buffer management, multiple 3D subplots, empty axes edge case.
+
+**Integration tests cover:** mixed 2D+3D figures, camera independence, grid planes, bounding box, axis limits/labels, series chaining, camera projection modes/orbit/serialization/reset, surface mesh generation/topology, mesh custom geometry, bounds/centroid computation, auto-fit (single & multi-series), zoom_limits (in/out), data_to_normalized_matrix, colormap (setting/sampling/range), CameraAnimator (orbit path, target binding, turntable, serialization), tick computation, mixed series types, clear_series/remove_series, render smoke tests (scatter/line/surface/mesh/mixed), edge cases (single point, empty axes, large dataset, negative limits).
+
+**Golden tests cover:** Scatter3D (basic, large), Line3D (basic, helix), Surface (basic, colormap/Viridis), Mesh3D (triangle, quad), BoundingBox, GridPlanes (XY, All), CameraAngle (front, top, orthographic), DepthOcclusion, Mixed2DAnd3D, MultiSubplot3D (2×2), CombinedLineAndScatter3D.
+
+**Benchmarks cover:** Scatter3D (1K/10K/100K/500K), Line3D (1K/50K), Surface (50×50/100×100/500×500), Mesh3D (1K/100K triangles), Mixed2DAnd3D, CameraOrbit (1000 frames), AutoFit3D, DepthOverhead (3D vs none), MultiSubplot3D (2×2), SurfaceMeshGeneration (CPU-side).
+
+**Key achievements:**
+- Zero regressions: 62/62 ctest pass
+- All 4 test files expanded with comprehensive coverage
+- No CMakeLists.txt changes needed (targets already existed)
+- Tests exercise full headless render pipeline with Vulkan depth buffer
+
+**Depends on:** All agents ✅
+
 ### Future Agents (Planned)
 
 | Agent | Scope | Status | Depends On |
 |-------|-------|--------|------------|
 | Agent 3 | Axes3D, grid planes, tick labels | Planned | Agent 1, 2 |
-| Agent 4 | 3D pipelines & shaders (10 new shaders) | Planned | Agent 1 |
+| Agent 4 | Phong lighting, transparency, MSAA 4x | ✅ Done | Agent 1, 5 |
 | Agent 5 | 3D series (ScatterSeries3D, LineSeries3D, SurfaceSeries, MeshSeries) | ✅ Done | Agent 3, 4 |
 | Agent 6 | Camera animation, keyframe interpolation, timeline integration | ✅ Done | Agent 2, 5 |
-| Agent 7 | Testing, golden images, benchmarks, validation | Planned | All agents |
+| Agent 7 | Testing, golden images, benchmarks, validation | ✅ Done | All agents |
 
 **3D Phase 1 Target (Weeks 1–4):** 3D scatter plot with orbit camera, depth tested, exportable to PNG  
 **3D Phase 2 Target (Weeks 5–8):** Surface plots, 3D lines, 3D axes grid, camera animation  
 **3D Phase 3 Target (Weeks 9–12):** Lighting, transparency, MSAA, polish
+
+### Agent 4 — Lighting, Transparency & MSAA (Weeks 9–10) ✅
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| Dedicated mesh3d.vert/frag shaders with Phong lighting | ✅ Done | `src/gpu/shaders/mesh3d.vert`, `src/gpu/shaders/mesh3d.frag` |
+| Updated surface3d.frag with UBO light_dir + material properties | ✅ Done | `src/gpu/shaders/surface3d.frag` |
+| Configurable light direction + enable/disable on Axes3D | ✅ Done | `include/plotix/axes3d.hpp` |
+| Material properties (ambient/specular/shininess) on SurfaceSeries/MeshSeries | ✅ Done | `include/plotix/series3d.hpp` |
+| Renderer passes light_dir from Axes3D + material props via push constants | ✅ Done | `src/render/renderer.cpp` |
+| Painter's sort for transparency (opaque front-to-back, transparent back-to-front) | ✅ Done | `src/render/renderer.cpp` |
+| MSAA 4x infrastructure (render pass, swapchain, offscreen, pipeline config) | ✅ Done | `src/render/vulkan/vk_swapchain.hpp/.cpp`, `src/render/vulkan/vk_backend.cpp`, `src/render/backend.hpp` |
+| Backend::set_msaa_samples() API | ✅ Done | `src/render/backend.hpp` |
+| 22 new tests (lighting, material, MSAA, transparency, painter's sort) | ✅ Done | `tests/unit/test_3d_pipelines.cpp` |
+| lit_surface_demo example | ✅ Done | `examples/lit_surface_demo.cpp` |
+
+### Agent 5 — Series Transparency Support (Week 10) ✅
+
+| Deliverable | Status | Files |
+|-------------|--------|-------|
+| Transparent pipeline variants (depth test ON, depth write OFF) for Line3D, Scatter3D, Surface3D, Mesh3D | ✅ Done | `src/render/backend.hpp`, `src/render/vulkan/vk_backend.cpp` |
+| Renderer selects transparent vs opaque pipeline per-series based on effective alpha | ✅ Done | `src/render/renderer.cpp`, `src/render/renderer.hpp` |
+| BlendMode enum (Alpha, Additive, Premultiplied) | ✅ Done | `include/plotix/series3d.hpp` |
+| Per-series transparency API: blend_mode(), is_transparent(), double_sided(), wireframe() | ✅ Done | `include/plotix/series3d.hpp` |
+| Colormap alpha support on SurfaceSeries (colormap_alpha, set_colormap_alpha_range) | ✅ Done | `include/plotix/series3d.hpp` |
+| Wireframe mesh generation + line-topology pipeline for SurfaceSeries | ✅ Done | `src/core/series3d.cpp`, `src/render/vulkan/vk_backend.cpp` |
+| SurfaceWireframe3D + SurfaceWireframe3D_Transparent pipeline types | ✅ Done | `src/render/backend.hpp`, `src/render/vulkan/vk_backend.cpp` |
+| 46 new unit tests (blend mode, transparency detection, wireframe mesh, thresholds, chaining) | ✅ Done | `tests/unit/test_transparency.cpp` |
+| transparency_demo example (4 subplots: overlapping surfaces, scatter+line, wireframe, transparent mesh) | ✅ Done | `examples/transparency_demo.cpp` |
 
 ---
 

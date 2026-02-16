@@ -89,7 +89,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
     // Handle 3D axes camera interaction
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_)) {
-        auto& cam = axes3d->camera();
         if (button == MOUSE_BUTTON_LEFT && action == ACTION_PRESS) {
             is_3d_orbit_drag_ = true;
             drag_start_x_ = x;

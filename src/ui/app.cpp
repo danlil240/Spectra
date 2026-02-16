@@ -233,7 +233,6 @@ void App::run() {
     uint32_t new_height = active_figure->height();
     auto resize_requested_time = std::chrono::steady_clock::now();
     static constexpr auto RESIZE_DEBOUNCE = std::chrono::milliseconds(50);
-    static constexpr auto RESIZE_MAX_DELAY = std::chrono::milliseconds(200);
 
     if (!config_.headless) {
         glfw = std::make_unique<GlfwAdapter>();
@@ -353,7 +352,7 @@ void App::run() {
 #endif
                 input_handler.on_key(key, action, mods);
             };
-            callbacks.on_resize = [&needs_resize, &new_width, &new_height, &resize_requested_time,
+            callbacks.on_resize = [&needs_resize, &new_width, &new_height,
                                    this, &active_figure
 #ifdef PLOTIX_USE_IMGUI
                                    , &imgui_ui, &dock_system

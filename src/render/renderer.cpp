@@ -390,8 +390,10 @@ void Renderer::render_axes(AxesBase& axes, const Rect& viewport,
             ubo.projection[14] = (cam.far_clip * cam.near_clip) / (cam.near_clip - cam.far_clip);
         } else {
             // Orthographic projection with proper near/far depth
-            float half_w = cam.ortho_size * aspect * 0.5f;
-            float half_h = cam.ortho_size * 0.5f;
+            // Must match Camera::projection_matrix() convention:
+            // half_w = ortho_size * aspect, half_h = ortho_size
+            float half_w = cam.ortho_size * aspect;
+            float half_h = cam.ortho_size;
             build_ortho_projection_3d(-half_w, half_w, -half_h, half_h,
                                        cam.near_clip, cam.far_clip, ubo.projection);
         }

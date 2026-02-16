@@ -1,14 +1,14 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/camera.hpp>
-#include <plotix/math3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/math3d.hpp>
 
 #include "ui/camera_animator.hpp"
 #include "ui/keyframe_interpolator.hpp"
 #include "ui/timeline_editor.hpp"
 #include "ui/transition_engine.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Suite 1: CameraAnimatorConstruction (3 tests)

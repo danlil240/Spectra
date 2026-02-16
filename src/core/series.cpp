@@ -1,7 +1,7 @@
 #include <cassert>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 // --- Series (base) ---
@@ -114,4 +114,4 @@ void ScatterSeries::record_commands(Renderer& /*renderer*/)
     // Actual GPU command recording is handled by the Renderer (Agent 1).
 }
 
-}  // namespace plotix
+}  // namespace spectra

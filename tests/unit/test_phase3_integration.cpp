@@ -4,11 +4,11 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/plot_style.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/plot_style.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
@@ -26,7 +26,7 @@
 #include "ui/undo_manager.hpp"
 #include "ui/workspace.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -317,7 +317,7 @@ class PlotStyleWorkspaceIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_p3_style_ws.plotix").string();
+            (std::filesystem::temp_directory_path() / "plotix_int_p3_style_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -491,7 +491,7 @@ TEST_F(ShortcutConfigCommandIntegration, OverrideSavedInWorkspaceV3)
     so.shortcut_str = "Ctrl+P";
     data.shortcut_overrides.push_back(so);
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_sc_ws.plotix").string();
+    auto path = (std::filesystem::temp_directory_path() / "plotix_int_sc_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -514,7 +514,7 @@ class SplitViewWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_split_ws.plotix").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_split_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -599,7 +599,7 @@ TEST(TransformWorkspaceIntegration, TransformPipelineSavedInWorkspace)
     ts.steps.push_back({static_cast<int>(TransformType::Offset), -1.0f, false});
     data.transforms.push_back(ts);
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_ws.plotix").string();
+    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -629,7 +629,7 @@ TEST(TransformWorkspaceIntegration, MultipleAxesTransforms)
         data.transforms.push_back(ts);
     }
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_multi.plotix").string();
+    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tf_multi.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -655,7 +655,7 @@ TEST(TimelineWorkspaceIntegration, TimelineStateSavedInWorkspace)
     data.timeline.loop_end = 8.0f;
     data.timeline.playing = true;
 
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tl_ws.plotix").string();
+    auto path = (std::filesystem::temp_directory_path() / "plotix_int_tl_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
 
     WorkspaceData loaded;
@@ -779,7 +779,7 @@ TEST(RecordingTimelineIntegration, MultiPaneConfig)
 
 TEST(FullPhase3WorkspaceIntegration, ComprehensiveRoundTrip)
 {
-    auto path = (std::filesystem::temp_directory_path() / "plotix_int_p3_full.plotix").string();
+    auto path = (std::filesystem::temp_directory_path() / "plotix_int_p3_full.spectra").string();
 
     WorkspaceData data;
     data.theme_name = "dark";

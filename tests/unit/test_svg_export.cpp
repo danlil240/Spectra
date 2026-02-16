@@ -2,13 +2,13 @@
 #include <cstdio>
 #include <fstream>
 #include <gtest/gtest.h>
-#include <plotix/export.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/export.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 namespace
 {
@@ -257,4 +257,4 @@ TEST(SvgExport, GridDisabledOmitsGridGroup)
 }
 
 }  // namespace
-}  // namespace plotix
+}  // namespace spectra

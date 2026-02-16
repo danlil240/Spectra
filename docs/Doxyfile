@@ -1,13 +1,13 @@
-# Doxyfile for Plotix API documentation
+# Doxyfile for Spectra API documentation
 # Run: doxygen docs/Doxyfile
 
-PROJECT_NAME           = "Plotix"
+PROJECT_NAME           = "Spectra"
 PROJECT_NUMBER         = "0.1.0"
 PROJECT_BRIEF          = "GPU-accelerated plotting library for C++20"
 OUTPUT_DIRECTORY       = docs/api
 
 # Input
-INPUT                  = include/plotix
+INPUT                  = include/spectra
 FILE_PATTERNS          = *.hpp
 RECURSIVE              = YES
 EXTRACT_ALL            = YES

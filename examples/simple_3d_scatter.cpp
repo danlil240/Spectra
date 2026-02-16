@@ -1,8 +1,8 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 int main()
 {

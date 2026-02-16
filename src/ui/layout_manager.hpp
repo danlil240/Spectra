@@ -1,12 +1,12 @@
 #pragma once
 
-#include <plotix/series.hpp>  // For Rect definition
+#include <spectra/series.hpp>  // For Rect definition
 
-namespace plotix
+namespace spectra
 {
 
 /**
- * LayoutManager - Zone-based layout engine for Plotix UI
+ * LayoutManager - Zone-based layout engine for Spectra UI
  *
  * Replaces hardcoded pixel positions with a responsive zone system.
  * All UI components query their layout rectangles from this manager.
@@ -201,4 +201,4 @@ class LayoutManager
     Rect compute_tab_bar() const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 // Forward declarations for SVG export
@@ -60,4 +60,4 @@ class VideoExporter
 };
 #endif  // PLOTIX_USE_FFMPEG
 
-}  // namespace plotix
+}  // namespace spectra

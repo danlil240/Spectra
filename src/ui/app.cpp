@@ -1,9 +1,9 @@
-#include <plotix/animator.hpp>
-#include <plotix/app.hpp>
-#include <plotix/export.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/frame.hpp>
-#include <plotix/logger.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/app.hpp>
+#include <spectra/export.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/frame.hpp>
+#include <spectra/logger.hpp>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../core/layout.hpp"
@@ -53,7 +53,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -62,17 +62,17 @@ App::App(const AppConfig& config) : config_(config)
 {
     // Initialize logger for debugging
     // Set to Trace for maximum debugging, Debug for normal debugging, Info for production
-    auto& logger = plotix::Logger::instance();
-    logger.set_level(plotix::LogLevel::Debug);  // Change to Trace to see all frame-by-frame logs
+    auto& logger = spectra::Logger::instance();
+    logger.set_level(spectra::LogLevel::Debug);  // Change to Trace to see all frame-by-frame logs
 
     // Add console sink with timestamps
-    logger.add_sink(plotix::sinks::console_sink());
+    logger.add_sink(spectra::sinks::console_sink());
 
     // Add file sink in temp directory with error handling
     try
     {
         std::string log_path = std::filesystem::temp_directory_path() / "plotix_app.log";
-        logger.add_sink(plotix::sinks::file_sink(log_path));
+        logger.add_sink(spectra::sinks::file_sink(log_path));
         PLOTIX_LOG_INFO("app", "Log file: " + log_path);
     }
     catch (const std::exception& e)
@@ -81,7 +81,7 @@ App::App(const AppConfig& config) : config_(config)
     }
 
     PLOTIX_LOG_INFO("app",
-                    "Initializing Plotix application (headless: "
+                    "Initializing Spectra application (headless: "
                         + std::string(config_.headless ? "true" : "false") + ")");
 
     // Create Vulkan backend
@@ -100,7 +100,7 @@ App::App(const AppConfig& config) : config_(config)
         return;
     }
 
-    PLOTIX_LOG_INFO("app", "Plotix application initialized successfully");
+    PLOTIX_LOG_INFO("app", "Spectra application initialized successfully");
 }
 
 App::~App()
@@ -123,7 +123,7 @@ void App::run()
 {
     if (!backend_ || !renderer_)
     {
-        std::cerr << "[plotix] Cannot run: backend or renderer not initialized\n";
+        std::cerr << "[spectra] Cannot run: backend or renderer not initialized\n";
         return;
     }
 
@@ -178,7 +178,7 @@ void App::run()
 #else
     if (!active_figure->video_record_path_.empty())
     {
-        std::cerr << "[plotix] Video recording requested but PLOTIX_USE_FFMPEG is not enabled\n";
+        std::cerr << "[spectra] Video recording requested but PLOTIX_USE_FFMPEG is not enabled\n";
     }
 #endif
 
@@ -195,7 +195,7 @@ void App::run()
         video_exporter = std::make_unique<VideoExporter>(vcfg);
         if (!video_exporter->is_open())
         {
-            std::cerr << "[plotix] Failed to open video exporter for: "
+            std::cerr << "[spectra] Failed to open video exporter for: "
                       << active_figure->video_record_path_ << "\n";
             video_exporter.reset();
         }
@@ -297,9 +297,9 @@ void App::run()
     if (!config_.headless)
     {
         glfw = std::make_unique<GlfwAdapter>();
-        if (!glfw->init(active_figure->width(), active_figure->height(), "Plotix"))
+        if (!glfw->init(active_figure->width(), active_figure->height(), "Spectra"))
         {
-            std::cerr << "[plotix] Failed to create GLFW window\n";
+            std::cerr << "[spectra] Failed to create GLFW window\n";
             glfw.reset();
         }
         else
@@ -692,7 +692,7 @@ void App::run()
                 catch (...) { tmp_dir = "/tmp"; }
                 std::string detach_path = tmp_dir + "/plotix_detach_"
                     + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
-                    + ".plotix";
+                    + ".spectra";
 
                 if (!Workspace::save(detach_path, data))
                 {
@@ -707,9 +707,9 @@ void App::run()
 
                 // Spawn a new process with the detached workspace
                 std::string cmd = "\"" + exe_path + "\""
-                    + " --plotix-restore=\"" + detach_path + "\""
-                    + " --plotix-window-x=" + std::to_string(static_cast<int>(screen_x))
-                    + " --plotix-window-y=" + std::to_string(static_cast<int>(screen_y))
+                    + " --spectra-restore=\"" + detach_path + "\""
+                    + " --spectra-window-x=" + std::to_string(static_cast<int>(screen_x))
+                    + " --spectra-window-y=" + std::to_string(static_cast<int>(screen_y))
                     + " &";
 
                 PLOTIX_LOG_INFO("app",
@@ -835,7 +835,7 @@ void App::run()
                 catch (...) { tmp_dir = "/tmp"; }
                 std::string detach_path = tmp_dir + "/plotix_detach_"
                     + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
-                    + ".plotix";
+                    + ".spectra";
 
                 if (!Workspace::save(detach_path, data))
                 {
@@ -847,9 +847,9 @@ void App::run()
                 try { exe_path = std::filesystem::read_symlink("/proc/self/exe").string(); }
                 catch (...) { exe_path = "/proc/self/exe"; }
 
-                std::string arg_restore = "--plotix-restore=" + detach_path;
-                std::string arg_x = "--plotix-window-x=" + std::to_string(static_cast<int>(screen_x));
-                std::string arg_y = "--plotix-window-y=" + std::to_string(static_cast<int>(screen_y));
+                std::string arg_restore = "--spectra-restore=" + detach_path;
+                std::string arg_x = "--spectra-window-x=" + std::to_string(static_cast<int>(screen_x));
+                std::string arg_y = "--spectra-window-y=" + std::to_string(static_cast<int>(screen_y));
 
                 PLOTIX_LOG_INFO("app",
                                 "Detaching tab " + std::to_string(index) + " to new window at ("
@@ -2475,12 +2475,12 @@ void App::run()
                 if (!ImageExporter::write_png(
                         f.png_export_path_, pixels.data(), export_w, export_h))
                 {
-                    std::cerr << "[plotix] Failed to write PNG: " << f.png_export_path_ << "\n";
+                    std::cerr << "[spectra] Failed to write PNG: " << f.png_export_path_ << "\n";
                 }
             }
             else
             {
-                std::cerr << "[plotix] Failed to readback framebuffer\n";
+                std::cerr << "[spectra] Failed to readback framebuffer\n";
             }
         }
 
@@ -2490,7 +2490,7 @@ void App::run()
             f.compute_layout();
             if (!SvgExporter::write_svg(f.svg_export_path_, f))
             {
-                std::cerr << "[plotix] Failed to write SVG: " << f.svg_export_path_ << "\n";
+                std::cerr << "[spectra] Failed to write SVG: " << f.svg_export_path_ << "\n";
             }
         }
     }
@@ -2509,4 +2509,4 @@ void App::run()
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

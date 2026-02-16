@@ -1,4 +1,4 @@
-# Plotix 3D Architecture Plan
+# Spectra 3D Architecture Plan
 
 **Author:** Senior Graphics Architect  
 **Date:** 2026-02-15  
@@ -250,7 +250,7 @@ public:
 
 ### 3.2 Math Utilities
 
-New file: `include/plotix/math3d.hpp` — minimal, header-only, no external dependency.
+New file: `include/spectra/math3d.hpp` — minimal, header-only, no external dependency.
 
 ```cpp
 struct vec3 { float x, y, z; };
@@ -290,7 +290,7 @@ struct Ray { vec3 origin; vec3 direction; };
 Ray unproject(float screen_x, float screen_y, const mat4& mvp_inv, float viewport_w, float viewport_h);
 ```
 
-**Design decision:** No GLM dependency. Plotix math is minimal and self-contained. ~400 lines of inline math. Avoids dependency bloat and keeps compile times low.
+**Design decision:** No GLM dependency. Spectra math is minimal and self-contained. ~400 lines of inline math. Avoids dependency bloat and keeps compile times low.
 
 ### 3.3 3D Axes Box & Grid Planes
 
@@ -415,7 +415,7 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 **Scope:** Foundation layer. Expand FrameUBO, add math library, add depth buffer support, refactor projection. **Zero new 3D features** — only infrastructure.
 
 **Files created:**
-- `include/plotix/math3d.hpp` — vec3, vec4, mat4, quat, all math ops (~400 LOC)
+- `include/spectra/math3d.hpp` — vec3, vec4, mat4, quat, all math ops (~400 LOC)
 - `tests/unit/test_math3d.cpp` — 50+ tests (matrix ops, quaternion, projection, unproject)
 
 **Files modified:**
@@ -453,7 +453,7 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 **Files modified:**
 - `src/ui/input.hpp/.cpp` — Add `Axes3D` detection via `dynamic_cast`. Route left-drag→orbit, right-drag→pan, scroll→zoom. Add `P` key for projection toggle. Add camera fit on double-click.
 - `src/ui/animation_controller.hpp/.cpp` — Add `animate_camera()` method for smooth camera transitions.
-- `include/plotix/fwd.hpp` — Add Camera, Axes3D forward declarations.
+- `include/spectra/fwd.hpp` — Add Camera, Axes3D forward declarations.
 - `CMakeLists.txt` — Add camera.cpp.
 - `tests/CMakeLists.txt` — Add test_camera.
 
@@ -482,12 +482,12 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 - `tests/unit/test_axes3d.cpp` — 35+ tests (limits, ticks, auto_fit, camera ownership, grid planes)
 
 **Files modified:**
-- `include/plotix/axes.hpp` — Extract `AxesBase`. `Axes` inherits from `AxesBase` (backward compatible). Add `using Axes2D = Axes;` typedef.
-- `include/plotix/figure.hpp` — `Figure::subplot3d(rows, cols, index)` → returns `Axes3D&`. `axes()` returns both 2D and 3D (they share `AxesBase`).
+- `include/spectra/axes.hpp` — Extract `AxesBase`. `Axes` inherits from `AxesBase` (backward compatible). Add `using Axes2D = Axes;` typedef.
+- `include/spectra/figure.hpp` — `Figure::subplot3d(rows, cols, index)` → returns `Axes3D&`. `axes()` returns both 2D and 3D (they share `AxesBase`).
 - `src/core/figure.cpp` — Add `subplot3d()` implementation.
 - `src/render/renderer.cpp` — Detect `Axes3D` via `dynamic_cast`. Route to `Axes3DRenderer`.
 - `src/ui/imgui_integration.cpp` — Project 3D tick positions to screen for ImGui text labels (billboarded).
-- `include/plotix/fwd.hpp` — Add Axes3D, AxesBase, Axes3DRenderer.
+- `include/spectra/fwd.hpp` — Add Axes3D, AxesBase, Axes3DRenderer.
 - `CMakeLists.txt` — Add axes3d.cpp, axes3d_renderer.cpp.
 - `tests/CMakeLists.txt` — Add test_axes3d.
 
@@ -550,14 +550,14 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 **Scope:** Data model for 3D series. CPU-side mesh generation for surfaces. GPU upload.
 
 **Files created:**
-- `include/plotix/series3d.hpp` — `LineSeries3D`, `ScatterSeries3D`, `SurfaceSeries`, `MeshSeries`
+- `include/spectra/series3d.hpp` — `LineSeries3D`, `ScatterSeries3D`, `SurfaceSeries`, `MeshSeries`
 - `src/core/series3d.cpp` — Implementation (data storage, mesh generation, record_commands)
 - `tests/unit/test_series3d.cpp` — 50+ tests (data storage, mesh topology, normals, degenerate cases)
 
 **Files modified:**
 - `src/core/axes3d.hpp/.cpp` — Add `scatter3d()`, `line3d()`, `surface()`, `mesh()` factory methods (same pattern as 2D `line()`, `scatter()`).
 - `src/render/renderer.cpp` — Add `render_series_3d()` method. Dispatch based on series type.
-- `include/plotix/fwd.hpp` — Add LineSeries3D, ScatterSeries3D, SurfaceSeries, MeshSeries.
+- `include/spectra/fwd.hpp` — Add LineSeries3D, ScatterSeries3D, SurfaceSeries, MeshSeries.
 - `CMakeLists.txt` — Add series3d.cpp.
 - `tests/CMakeLists.txt` — Add test_series3d.
 
@@ -589,7 +589,7 @@ Video export via `RecordingSession` already uses `FrameRenderCallback`. 3D frame
 - `src/ui/transition_engine.hpp/.cpp` — Add `animate_camera(Camera&, Camera target, float duration, EasingFunc)`. Internally interpolates position, target, fov, distance.
 - `src/ui/keyframe_interpolator.hpp/.cpp` — Add `CameraPropertyBinding` variant to support camera parameter channels (azimuth, elevation, distance, fov).
 - `src/ui/timeline_editor.hpp/.cpp` — Add camera track type. `evaluate_at_playhead()` updates camera from keyframes.
-- `include/plotix/fwd.hpp` — Add CameraAnimator.
+- `include/spectra/fwd.hpp` — Add CameraAnimator.
 - `CMakeLists.txt` — Add camera_animator.cpp to UI sources.
 - `tests/CMakeLists.txt` — Add test_camera_animator.
 
@@ -814,7 +814,7 @@ These are the first 10 ordered tasks to begin the 3D work. Each is atomic and te
 
 | # | Task | Agent | Est. Hours | Test | Example Update |
 |---|------|-------|------------|------|----------------|
-| 1 | Create `include/plotix/math3d.hpp` with vec3, mat4, quat, all math ops. Write `test_math3d.cpp` with 50+ unit tests. | 1 | 8h | `ctest -R test_math3d` | Add math3d usage to `examples/advanced_animation_demo.cpp` |
+| 1 | Create `include/spectra/math3d.hpp` with vec3, mat4, quat, all math ops. Write `test_math3d.cpp` with 50+ unit tests. | 1 | 8h | `ctest -R test_math3d` | Add math3d usage to `examples/advanced_animation_demo.cpp` |
 | 2 | Expand `FrameUBO` with `view`, `model`, `camera_pos`, `near_plane`, `far_plane`, `light_dir`. Set view=model=identity in renderer. | 1 | 4h | All existing tests pass | No visible change (verify existing examples work) |
 | 3 | Update all 6 existing shaders to use `projection * view * model * vec4(pos, z, 1.0)`. Z=0 for 2D. | 1 | 3h | Golden image diff = 0 | Verify all existing examples render identically |
 | 4 | Add depth image/view to `SwapchainContext` and `OffscreenContext`. Update render pass with depth attachment. Clear depth in `begin_render_pass()`. | 1 | 6h | No validation errors | No visible change (verify existing examples work) |
@@ -873,8 +873,8 @@ These are the first 10 ordered tasks to begin the 3D work. Each is atomic and te
 
 | File | Agent | Description |
 |------|-------|-------------|
-| `include/plotix/math3d.hpp` | 1 | Vec3, mat4, quat, math ops |
-| `include/plotix/series3d.hpp` | 5 | 3D series types |
+| `include/spectra/math3d.hpp` | 1 | Vec3, mat4, quat, math ops |
+| `include/spectra/series3d.hpp` | 5 | 3D series types |
 | `src/core/axes3d.hpp` | 3 | AxesBase + Axes3D |
 | `src/core/axes3d.cpp` | 3 | Axes3D implementation |
 | `src/core/series3d.cpp` | 5 | 3D series implementation |
@@ -909,9 +909,9 @@ These are the first 10 ordered tasks to begin the 3D work. Each is atomic and te
 
 | File | Agent(s) | Changes |
 |------|----------|---------|
-| `include/plotix/fwd.hpp` | 1,2,3,5,6 | Forward decls for all new types |
-| `include/plotix/axes.hpp` | 3 | Extract AxesBase, Axes inherits |
-| `include/plotix/figure.hpp` | 3 | Add subplot3d() |
+| `include/spectra/fwd.hpp` | 1,2,3,5,6 | Forward decls for all new types |
+| `include/spectra/axes.hpp` | 3 | Extract AxesBase, Axes inherits |
+| `include/spectra/figure.hpp` | 3 | Add subplot3d() |
 | `src/render/backend.hpp` | 1 | FrameUBO, PipelineConfig, PipelineType, draw_indexed |
 | `src/render/renderer.hpp/.cpp` | 1,3,5 | MVP UBO, 3D dispatch, 3D pipelines |
 | `src/render/vulkan/vk_backend.hpp/.cpp` | 1 | Depth buffer, draw_indexed, depth clear |

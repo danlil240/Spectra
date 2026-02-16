@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Transform types ────────────────────────────────────────────────────────
@@ -292,4 +292,4 @@ void transform_xy(std::span<const float> x_in,
 // Get the human-readable name for a transform type
 const char* transform_type_name(TransformType type);
 
-}  // namespace plotix
+}  // namespace spectra

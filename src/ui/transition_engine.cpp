@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Animate float ──────────────────────────────────────────────────────────
@@ -440,4 +440,4 @@ void TransitionEngine::gc()
     std::erase_if(camera_anims_, [](const CameraAnim& a) { return a.finished; });
 }
 
-}  // namespace plotix
+}  // namespace spectra

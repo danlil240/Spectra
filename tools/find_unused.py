@@ -127,7 +127,7 @@ def analyze_targets():
             matches = target_pattern.findall(content)
             for type_, name in matches:
                 # Resolve variables roughly
-                name = name.replace("${PROJECT_NAME}", "plotix")
+                name = name.replace("${PROJECT_NAME}", "spectra")
                 if "alias" not in type_.lower() and "interface" not in type_.lower():
                     defined_targets.add(name)
                     

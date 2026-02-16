@@ -6,7 +6,7 @@
 
 #include "ui/workspace.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── WorkspaceData defaults ──────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ class WorkspaceTest : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_test_workspace.plotix").string();
+            (std::filesystem::temp_directory_path() / "plotix_test_workspace.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -138,7 +138,7 @@ TEST_F(WorkspaceTest, SaveCreatesFile)
 TEST_F(WorkspaceTest, LoadNonExistentReturnsFalse)
 {
     WorkspaceData data;
-    EXPECT_FALSE(Workspace::load("/nonexistent/path/workspace.plotix", data));
+    EXPECT_FALSE(Workspace::load("/nonexistent/path/workspace.spectra", data));
 }
 
 TEST_F(WorkspaceTest, LoadEmptyFileReturnsFalse)
@@ -151,7 +151,7 @@ TEST_F(WorkspaceTest, LoadEmptyFileReturnsFalse)
 TEST_F(WorkspaceTest, SaveToInvalidPathReturnsFalse)
 {
     auto data = make_sample_data();
-    EXPECT_FALSE(Workspace::save("/nonexistent/dir/workspace.plotix", data));
+    EXPECT_FALSE(Workspace::save("/nonexistent/dir/workspace.spectra", data));
 }
 
 TEST_F(WorkspaceTest, MultipleFigures)
@@ -209,14 +209,14 @@ TEST(WorkspacePaths, DefaultPathNotEmpty)
 {
     std::string path = Workspace::default_path();
     EXPECT_FALSE(path.empty());
-    EXPECT_NE(path.find("plotix"), std::string::npos);
+    EXPECT_NE(path.find("spectra"), std::string::npos);
 }
 
 TEST(WorkspacePaths, AutosavePathNotEmpty)
 {
     std::string path = Workspace::autosave_path();
     EXPECT_FALSE(path.empty());
-    EXPECT_NE(path.find("plotix"), std::string::npos);
+    EXPECT_NE(path.find("spectra"), std::string::npos);
 }
 
 // ─── JSON format ─────────────────────────────────────────────────────────────

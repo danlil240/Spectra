@@ -1,8 +1,8 @@
 #include <algorithm>
-#include <plotix/animator.hpp>
-#include <plotix/timeline.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/timeline.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 void Animator::add_timeline(std::shared_ptr<Timeline> tl)
@@ -47,4 +47,4 @@ void Animator::clear()
     timelines_.clear();
 }
 
-}  // namespace plotix
+}  // namespace spectra

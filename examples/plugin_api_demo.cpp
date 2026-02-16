@@ -9,14 +9,14 @@
 
 #include <fstream>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 
 void demo_plugin_api_concepts()
 {
     std::cout << "=== Plugin API Usage Guide ===\n\n";
 
     std::cout << "📋 OVERVIEW\n";
-    std::cout << "Plotix provides a stable C ABI plugin system that allows external\n";
+    std::cout << "Spectra provides a stable C ABI plugin system that allows external\n";
     std::cout << "developers to create extensions that can register commands, handle\n";
     std::cout << "shortcuts, and interact with the application's core services.\n\n";
 
@@ -206,7 +206,7 @@ void demo_plugin_api_concepts()
 
     std::cout << "=== Demo Complete ===\n";
     std::cout << "This demonstrates the concepts and usage patterns for the\n";
-    std::cout << "Plugin API in Plotix. The actual API requires internal headers\n";
+    std::cout << "Plugin API in Spectra. The actual API requires internal headers\n";
     std::cout << "and is designed for external plugin developers.\n";
 }
 

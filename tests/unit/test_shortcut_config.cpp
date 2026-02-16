@@ -5,7 +5,7 @@
 #include "ui/shortcut_config.hpp"
 #include "ui/shortcut_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Override Management ─────────────────────────────────────────────────────
 

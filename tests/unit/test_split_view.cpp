@@ -2,7 +2,7 @@
 
 #include "ui/split_view.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── SplitPane Construction ──────────────────────────────────────────────────
 

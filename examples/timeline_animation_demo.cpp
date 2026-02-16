@@ -3,12 +3,12 @@
 // Press T to toggle timeline, Shift+T for curve editor, Space to play/pause
 
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1200, .height = 800});
 
     // Create 4 subplots for different animation types
@@ -56,9 +56,9 @@ int main()
     scatter_y[0] = 0.5f;
 
     // Create series that will be animated
-    auto& sine_wave = ax1.line(x_base, y_base).color(plotix::rgb(0.2f, 0.4f, 1.0f)).width(2.0f);
+    auto& sine_wave = ax1.line(x_base, y_base).color(spectra::rgb(0.2f, 0.4f, 1.0f)).width(2.0f);
     auto& scatter =
-        ax2.scatter(scatter_x, scatter_y).color(plotix::rgb(1.0f, 0.4f, 0.0f)).size(20.0f);
+        ax2.scatter(scatter_x, scatter_y).color(spectra::rgb(1.0f, 0.4f, 0.0f)).size(20.0f);
     auto& style_line = ax3.line(t_line, y_line).width(2.0f);
     auto& fade_line = ax4.line(t_fade, y_fade).width(3.0f);
 
@@ -76,7 +76,7 @@ int main()
     fig.animate()
         .fps(60)
         .on_frame(
-            [&](plotix::Frame& f)
+            [&](spectra::Frame& f)
             {
                 float t = f.elapsed_seconds();
 
@@ -104,7 +104,7 @@ int main()
                 float r = std::abs(std::cos(hue * 6.28f));
                 float g = std::abs(std::cos((hue + 0.33f) * 6.28f));
                 float b = std::abs(std::cos((hue + 0.66f) * 6.28f));
-                style_line.color(plotix::rgb(r, g, b)).width(line_width);
+                style_line.color(spectra::rgb(r, g, b)).width(line_width);
 
                 // Animate opacity
                 float opacity = 0.3f + 0.7f * (std::sin(t * 0.6f) * 0.5f + 0.5f);

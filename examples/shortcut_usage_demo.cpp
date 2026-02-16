@@ -1,5 +1,5 @@
 // Shortcut Usage Demo
-// Demonstrates how shortcut persistence works in Plotix (conceptual example)
+// Demonstrates how shortcut persistence works in Spectra (conceptual example)
 //
 // This example shows the usage patterns for:
 // - Custom shortcut configuration
@@ -8,14 +8,14 @@
 
 #include <fstream>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 
 void demo_shortcut_concepts()
 {
     std::cout << "=== Shortcut Configuration Usage Guide ===\n\n";
 
     std::cout << "📋 OVERVIEW\n";
-    std::cout << "Plotix provides a persistent shortcut configuration system that allows\n";
+    std::cout << "Spectra provides a persistent shortcut configuration system that allows\n";
     std::cout << "users to customize keybindings and have them saved across sessions.\n\n";
 
     std::cout << "🔧 CORE CONCEPTS\n\n";
@@ -27,7 +27,7 @@ void demo_shortcut_concepts()
     std::cout << "   - Callback system for change notifications\n\n";
 
     std::cout << "2. Integration Pattern\n";
-    std::cout << "   - App loads shortcuts at startup from ~/.plotix/shortcuts.json\n";
+    std::cout << "   - App loads shortcuts at startup from ~/.spectra/shortcuts.json\n";
     std::cout << "   - Overrides are applied to ShortcutManager\n";
     std::cout << "   - Changes are automatically saved on exit\n";
     std::cout << "   - Real-time updates via callback system\n\n";
@@ -134,7 +134,7 @@ void demo_shortcut_concepts()
 
     std::cout << "=== Demo Complete ===\n";
     std::cout << "This demonstrates the concepts and usage patterns for shortcut\n";
-    std::cout << "persistence in Plotix. The actual API requires internal headers.\n";
+    std::cout << "persistence in Spectra. The actual API requires internal headers.\n";
 }
 
 int main()

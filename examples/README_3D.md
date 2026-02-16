@@ -1,6 +1,6 @@
-# Plotix 3D Examples
+# Spectra 3D Examples
 
-This directory contains examples demonstrating the 3D plotting capabilities of Plotix.
+This directory contains examples demonstrating the 3D plotting capabilities of Spectra.
 
 ## Building 3D Examples
 

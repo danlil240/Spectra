@@ -1,15 +1,15 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 
 // DataInteraction and its components are ImGui-guarded.
 // These tests exercise the pure-logic parts (nearest-point, markers)
 // without requiring a running ImGui context, by testing the underlying
 // data structures directly.
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Nearest-point logic (standalone, mirrors DataInteraction::find_nearest) ──
 

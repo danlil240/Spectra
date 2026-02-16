@@ -1,11 +1,11 @@
 #pragma once
 
-#include <plotix/animator.hpp>
-#include <plotix/color.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/color.hpp>
 #include <variant>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 using AnimValue = std::variant<float, Color>;
@@ -38,4 +38,4 @@ class Timeline
     std::vector<KeyframeEntry> keyframes_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

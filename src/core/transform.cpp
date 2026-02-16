@@ -1,6 +1,6 @@
 #include "transform.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 Mat4 ortho_projection(float left, float right, float bottom, float top)
@@ -77,4 +77,4 @@ Vec2 data_to_screen(float data_x,
     return ndc_to_screen(ndc.x, ndc.y, viewport);
 }
 
-}  // namespace plotix
+}  // namespace spectra

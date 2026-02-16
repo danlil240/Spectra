@@ -67,7 +67,7 @@ AlignTrailingComments: true
 DeriveLineEnding: true
 UseCRLF: false
 
-# Specific to Plotix patterns
+# Specific to Spectra patterns
 FixNamespaceComments: true
 
 # Handle long function signatures in graphics code

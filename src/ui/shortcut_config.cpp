@@ -7,7 +7,7 @@
 
 #include "shortcut_manager.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Override management ─────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ std::string ShortcutConfig::default_path()
     if (!home)
         return "keybindings.json";
 
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "plotix";
+    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra";
     return (dir / "keybindings.json").string();
 }
 
@@ -314,4 +314,4 @@ void ShortcutConfig::notify_change()
         on_change_();
 }
 
-}  // namespace plotix
+}  // namespace spectra

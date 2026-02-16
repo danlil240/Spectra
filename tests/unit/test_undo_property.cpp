@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 
 #include "ui/undoable_property.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helper: create a figure with one axes and one line series ───────────────
 

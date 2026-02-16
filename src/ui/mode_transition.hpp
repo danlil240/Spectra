@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <plotix/axes.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/color.hpp>
-#include <plotix/math3d.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/color.hpp>
+#include <spectra/math3d.hpp>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 class Axes3D;
@@ -191,4 +191,4 @@ class ModeTransition
     Camera make_top_down_camera(const ModeTransition2DState& s2d) const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

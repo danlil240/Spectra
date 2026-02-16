@@ -8,7 +8,7 @@
 
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 class CommandRegistry;
@@ -99,6 +99,6 @@ class CommandPalette
     static constexpr float SCROLL_VEL_THRESHOLD = 0.5f;  // Stop threshold
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

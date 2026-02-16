@@ -1,6 +1,6 @@
 #include "vk_device.hpp"
 
-#include "plotix/logger.hpp"
+#include "spectra/logger.hpp"
 
 #ifdef PLOTIX_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 static const std::vector<const char*> validation_layers = {"VK_LAYER_KHRONOS_validation"};
@@ -28,7 +28,7 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 {
     if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        std::cerr << "[Plotix Vulkan] " << callback_data->pMessage << "\n";
+        std::cerr << "[Spectra Vulkan] " << callback_data->pMessage << "\n";
     }
     return VK_FALSE;
 }
@@ -61,9 +61,9 @@ VkInstance create_instance(bool enable_validation)
 {
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "Plotix";
+    app_info.pApplicationName = "Spectra";
     app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.pEngineName = "Plotix Engine";
+    app_info.pEngineName = "Spectra Engine";
     app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
     app_info.apiVersion = VK_API_VERSION_1_2;
 
@@ -92,7 +92,7 @@ VkInstance create_instance(bool enable_validation)
     // GLFW must be initialized before querying required extensions
     if (!glfwInit())
     {
-        std::cerr << "[Plotix] Warning: glfwInit failed during instance creation\n";
+        std::cerr << "[Spectra] Warning: glfwInit failed during instance creation\n";
     }
     {
         uint32_t glfw_ext_count = 0;
@@ -332,4 +332,4 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
     return device;
 }
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

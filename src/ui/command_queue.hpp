@@ -7,7 +7,7 @@
 #include <new>
 #include <type_traits>
 
-namespace plotix
+namespace spectra
 {
 
 // Lock-free SPSC (Single-Producer Single-Consumer) ring buffer for cross-thread
@@ -98,4 +98,4 @@ class CommandQueue
     alignas(64) std::atomic<size_t> tail_{0};
 };
 
-}  // namespace plotix
+}  // namespace spectra

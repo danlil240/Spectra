@@ -4,7 +4,7 @@
 
 #include "../backend.hpp"
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 VkShaderModule create_shader_module(VkDevice device, const uint8_t* spirv, size_t size)
@@ -204,4 +204,4 @@ VkPipelineLayout create_pipeline_layout(VkDevice device,
     return layout;
 }
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

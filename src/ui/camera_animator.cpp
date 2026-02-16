@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Path mode ──────────────────────────────────────────────────────────────
@@ -522,4 +522,4 @@ void CameraAnimator::apply_orientation(Camera& cam, const quat& q, float distanc
     cam.position = cam.target - forward * distance;
 }
 
-}  // namespace plotix
+}  // namespace spectra

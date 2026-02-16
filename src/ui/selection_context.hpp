@@ -1,8 +1,8 @@
 #pragma once
 
-#include <plotix/fwd.hpp>
+#include <spectra/fwd.hpp>
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 enum class SelectionType
@@ -68,4 +68,4 @@ struct SelectionContext
     }
 };
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui

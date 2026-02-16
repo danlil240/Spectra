@@ -6,7 +6,7 @@
 #include "ui/shortcut_manager.hpp"
 #include "ui/undo_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── C ABI Functions ─────────────────────────────────────────────────────────
 

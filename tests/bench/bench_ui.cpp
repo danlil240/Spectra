@@ -1,15 +1,15 @@
 #include <benchmark/benchmark.h>
 #include <cmath>
-#include <plotix/animator.hpp>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
 #include <vector>
 
 #include "ui/animation_controller.hpp"
 #include "ui/command_queue.hpp"
 #include "ui/layout_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Layout update benchmarks ────────────────────────────────────────────────
 

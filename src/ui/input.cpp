@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <plotix/logger.hpp>
+#include <spectra/logger.hpp>
 
 #include "animation_controller.hpp"
 #include "axis_link.hpp"
@@ -11,7 +11,7 @@
 #include "shortcut_manager.hpp"
 #include "transition_engine.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // Mouse button constants (matching GLFW)
@@ -1101,4 +1101,4 @@ bool InputHandler::has_active_animations() const
     return anim_ctrl_ && anim_ctrl_->has_active_animations();
 }
 
-}  // namespace plotix
+}  // namespace spectra

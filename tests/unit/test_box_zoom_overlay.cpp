@@ -5,7 +5,7 @@
 #include "ui/input.hpp"
 #include "ui/transition_engine.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test fixture: sets up a Figure + InputHandler with known viewport/limits

@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class CommandRegistry;
@@ -157,7 +157,7 @@ class PluginManager
     // Discover plugins in a directory (scans for .so/.dll/.dylib files).
     std::vector<std::string> discover(const std::string& directory) const;
 
-    // Default plugin directory (~/.config/plotix/plugins/).
+    // Default plugin directory (~/.config/spectra/plugins/).
     static std::string default_plugin_dir();
 
     // Serialize plugin state (enabled/disabled) to JSON.
@@ -176,4 +176,4 @@ class PluginManager
     PlotixPluginContext make_context() const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

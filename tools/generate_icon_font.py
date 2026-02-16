@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate a minimal icon font for Plotix UI.
+Generate a minimal icon font for Spectra UI.
 
 Creates a TTF font with vector-drawn icons mapped to Private Use Area
 codepoints (0xE001-0xE063) matching the Icon enum in icons.hpp.
@@ -1262,7 +1262,7 @@ def generate_cpp_header(font_data: bytes, output_path: Path):
     """Generate C++ header with raw font data for ImGui's AddFontFromMemoryTTF."""
     lines = []
     lines.append("#pragma once")
-    lines.append("// Auto-generated icon font data for Plotix")
+    lines.append("// Auto-generated icon font data for Spectra")
     lines.append(f"// Font size: {len(font_data)} bytes")
     lines.append("// Codepoint range: U+E001 - U+E062 (Private Use Area)")
     lines.append("")
@@ -1285,7 +1285,7 @@ def generate_cpp_header(font_data: bytes, output_path: Path):
 
 
 def main():
-    print("Building Plotix icon font...")
+    print("Building Spectra icon font...")
     font = build_font()
     
     # Save TTF for debugging

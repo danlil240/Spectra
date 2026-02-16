@@ -2,13 +2,13 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <numeric>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <span>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Replicate the statistics helper functions from inspector.cpp ───────────
 // These are static in inspector.cpp, so we duplicate them here for testing.

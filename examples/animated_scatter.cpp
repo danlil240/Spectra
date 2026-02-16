@@ -1,10 +1,10 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    auto& fig = plotix::figure({.width = 1280, .height = 720});
+    auto& fig = spectra::figure({.width = 1280, .height = 720});
     auto& ax = fig.subplot(1, 1, 1);
 
     constexpr size_t N = 100;
@@ -19,7 +19,7 @@ int main()
         y[i] = std::sin(angle);
     }
 
-    auto& scatter = ax.scatter(x, y).color(plotix::rgb(1.0f, 0.4f, 0.0f)).size(6.0f);
+    auto& scatter = ax.scatter(x, y).color(spectra::rgb(1.0f, 0.4f, 0.0f)).size(6.0f);
 
     ax.xlim(-2.0f, 2.0f);
     ax.ylim(-2.0f, 2.0f);
@@ -30,7 +30,7 @@ int main()
     fig.animate()
         .fps(60)
         .on_frame(
-            [&](plotix::Frame& f)
+            [&](spectra::Frame& f)
             {
                 float t = f.elapsed_seconds();
                 for (size_t i = 0; i < N; ++i)
@@ -45,7 +45,7 @@ int main()
             })
         .play();
 
-    plotix::show();
+    spectra::show();
 
     return 0;
 }

@@ -1,10 +1,10 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
 
     // Create a figure with some sample data
     auto& fig = app.figure();

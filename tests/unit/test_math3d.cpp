@@ -1,8 +1,8 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/math3d.hpp>
+#include <spectra/math3d.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 static constexpr float EPS = 1e-5f;
 static constexpr float PI = 3.14159265358979323846f;

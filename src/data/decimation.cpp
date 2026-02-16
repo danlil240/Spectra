@@ -5,7 +5,7 @@
 #include <cmath>
 #include <limits>
 
-namespace plotix::data
+namespace spectra::data
 {
 
 std::vector<std::pair<float, float>> lttb(std::span<const float> x,
@@ -238,4 +238,4 @@ std::vector<std::pair<float, float>> resample_uniform(std::span<const float> x,
     return out;
 }
 
-}  // namespace plotix::data
+}  // namespace spectra::data

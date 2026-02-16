@@ -2,7 +2,7 @@
 
 #include "ui/icons.hpp"
 
-using namespace plotix::ui;
+using namespace spectra::ui;
 
 TEST(IconFont, AllIconsListUsesEnumValues)
 {

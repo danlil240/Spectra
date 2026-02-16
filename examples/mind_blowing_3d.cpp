@@ -1,10 +1,10 @@
 #include <cmath>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <random>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 // Helper functions for mind-blowing effects
 Color get_spectral_color(float t, float intensity = 1.0f)

@@ -1,16 +1,16 @@
 #pragma once
 
 #include <functional>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
 #include "undo_manager.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Convenience helpers for undoable property mutations ─────────────────────
@@ -381,4 +381,4 @@ inline void undoable_reset_view(UndoManager* mgr, Figure& fig)
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

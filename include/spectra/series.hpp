@@ -1,14 +1,14 @@
 #pragma once
 
 #include <memory>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/plot_style.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/plot_style.hpp>
 #include <span>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 struct SeriesStyle
@@ -252,4 +252,4 @@ class ScatterSeries : public Series
     float point_size_ = 4.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra

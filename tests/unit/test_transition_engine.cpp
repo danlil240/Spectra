@@ -1,15 +1,15 @@
 #include <chrono>
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/animator.hpp>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
 
 #include "ui/animation_controller.hpp"
 #include "ui/layout_manager.hpp"
 #include "ui/transition_engine.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Transition convergence (layout animations) ─────────────────────────────
 

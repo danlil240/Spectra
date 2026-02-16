@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class ShortcutManager;
@@ -63,7 +63,7 @@ class ShortcutConfig
     // Does NOT auto-apply; call apply_overrides() after loading.
     bool load(const std::string& path);
 
-    // Default config file path (~/.config/plotix/keybindings.json).
+    // Default config file path (~/.config/spectra/keybindings.json).
     static std::string default_path();
 
     // Serialize overrides to JSON string.
@@ -84,4 +84,4 @@ class ShortcutConfig
     void notify_change();
 };
 
-}  // namespace plotix
+}  // namespace spectra

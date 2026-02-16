@@ -9,7 +9,7 @@
 
 #include <cmath>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 // Animated plot data structure
@@ -36,7 +36,7 @@ struct AnimatedPlot
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1400, .height = 900});
     auto& ax = fig.subplot(1, 1, 1);
 
@@ -46,13 +46,13 @@ int main()
 
     // Create the line series
     auto& line = ax.line(plot_data.x, plot_data.y).label("Animated Wave");
-    line.color(plotix::rgb(0.2f, 0.8f, 1.0f));
+    line.color(spectra::rgb(0.2f, 0.8f, 1.0f));
     line.width(3.0f);
 
     // Add a second static reference line
     std::vector<float> ref_x = {0, 10};
     std::vector<float> ref_y = {0, 0};
-    ax.line(ref_x, ref_y).label("Reference").color(plotix::rgb(0.5f, 0.5f, 0.5f)).width(1.0f);
+    ax.line(ref_x, ref_y).label("Reference").color(spectra::rgb(0.5f, 0.5f, 0.5f)).width(1.0f);
 
     std::cout << "=== Advanced Animation Demo ===\n";
     std::cout << "\nThis demo shows the integrated animation system:\n";

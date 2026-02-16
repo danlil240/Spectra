@@ -1,14 +1,14 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes3d.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/math3d.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/series3d.hpp>
 #include <vector>
 
 #include "render/backend.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── BlendMode enum tests ───────────────────────────────────────────────────
 

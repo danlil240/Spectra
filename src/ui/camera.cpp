@@ -4,7 +4,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 mat4 Camera::view_matrix() const
@@ -245,4 +245,4 @@ void Camera::deserialize(const std::string& json)
         distance = parse_float(json, pos);
 }
 
-}  // namespace plotix
+}  // namespace spectra

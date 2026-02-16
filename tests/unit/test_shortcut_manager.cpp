@@ -4,7 +4,7 @@
 #include "ui/command_registry.hpp"
 #include "ui/shortcut_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Shortcut string conversion ──────────────────────────────────────────────
 

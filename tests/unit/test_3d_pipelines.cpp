@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
-#include <plotix/app.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/app.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/series3d.hpp>
 
 #include "render/backend.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 TEST(Pipeline3D, Line3DCreation)
 {

@@ -3,14 +3,14 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/series.hpp>
 #include <span>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 enum class AutoscaleMode
@@ -159,4 +159,4 @@ class Axes : public AxesBase
     AutoscaleMode autoscale_mode_ = AutoscaleMode::Padded;
 };
 
-}  // namespace plotix
+}  // namespace spectra

@@ -1,9 +1,9 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <random>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 int main()
 {

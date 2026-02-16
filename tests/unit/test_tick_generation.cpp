@@ -1,9 +1,9 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <memory>
-#include <plotix/axes.hpp>
+#include <spectra/axes.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 // Helper: create axes with a single line series spanning [xmin,xmax] x [ymin,ymax]
 // static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float ymax) {

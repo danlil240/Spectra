@@ -1,4 +1,4 @@
-# Makefile for formatting the Plotix project with clang-format
+# Makefile for formatting the Spectra project with clang-format
 # Usage: 
 #   make -f Makefile.format format     # Format all files
 #   make -f Makefile.format check      # Check formatting
@@ -8,7 +8,7 @@
 
 # Default target
 help:
-	@echo "Plotix Project Formatting Makefile"
+	@echo "Spectra Project Formatting Makefile"
 	@echo ""
 	@echo "Targets:"
 	@echo "  format  - Format all C++ files in the project"

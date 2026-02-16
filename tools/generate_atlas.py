@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate an SDF font atlas for Plotix.
+Generate an SDF font atlas for Spectra.
 
 Renders ASCII glyphs (32-126) using a system TTF font via Pillow,
 computes a signed distance field for each glyph, and packs them
@@ -316,7 +316,7 @@ def generate_cpp_header(atlas_png, atlas_json, metrics_json, out_dir):
     
     cpp_content = f'''#include "embedded_font.hpp"
 
-namespace plotix {{
+namespace spectra {{
 namespace embedded {{
 
 // Auto-generated MSDF font atlas — {len(png_bytes)} bytes PNG
@@ -329,7 +329,7 @@ const size_t font_atlas_png_size = sizeof(font_atlas_png);
 const char font_atlas_metrics_json[] = R"({json_str})";
 
 }} // namespace embedded
-}} // namespace plotix
+}} // namespace spectra
 '''
     
     # Write to the embedded_font.cpp location

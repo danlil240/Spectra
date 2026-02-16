@@ -9,7 +9,7 @@
 
 #include "imgui.h"
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 ThemeManager& ThemeManager::instance()
@@ -793,7 +793,7 @@ void ThemeManager::save_current_as_default()
             home = std::getenv("USERPROFILE");
         if (home)
         {
-            default_theme_path_ = std::string(home) + "/.plotix/default_theme.json";
+            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
         }
     }
     if (!default_theme_path_.empty())
@@ -813,7 +813,7 @@ void ThemeManager::load_default()
             home = std::getenv("USERPROFILE");
         if (home)
         {
-            default_theme_path_ = std::string(home) + "/.plotix/default_theme.json";
+            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
         }
     }
     if (!default_theme_path_.empty() && std::filesystem::exists(default_theme_path_))
@@ -1209,4 +1209,4 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     return result;
 }
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui

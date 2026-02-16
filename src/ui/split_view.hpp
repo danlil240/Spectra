@@ -5,12 +5,12 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>  // For Rect
+#include <spectra/fwd.hpp>
+#include <spectra/series.hpp>  // For Rect
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Split direction ─────────────────────────────────────────────────────────
@@ -265,4 +265,4 @@ class SplitViewManager
     void recompute_layout();
 };
 
-}  // namespace plotix
+}  // namespace spectra

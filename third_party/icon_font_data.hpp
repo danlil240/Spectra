@@ -1,5 +1,5 @@
 #pragma once
-// Auto-generated icon font data for Plotix
+// Auto-generated icon font data for Spectra
 // Font size: 8768 bytes
 // Codepoint range: U+E001 - U+E062 (Private Use Area)
 

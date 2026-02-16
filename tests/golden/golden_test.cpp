@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <string>
 #include <vector>
 
@@ -12,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-namespace plotix::test
+namespace spectra::test
 {
 
 // Directory containing baseline .raw files
@@ -295,4 +295,4 @@ TEST(GoldenImageFramework, SmallDiffWithinTolerance)
     EXPECT_TRUE(result.passed());
 }
 
-}  // namespace plotix::test
+}  // namespace spectra::test

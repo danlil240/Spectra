@@ -3,7 +3,7 @@
 
 #include "ui/input.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // Helper: create a figure with one axes and known limits/viewport
 class InputHandlerTest : public ::testing::Test

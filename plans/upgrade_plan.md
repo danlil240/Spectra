@@ -1,6 +1,6 @@
-# Plotix "Next Level" Roadmap & Multi-Agent Execution Plan
+# Spectra "Next Level" Roadmap & Multi-Agent Execution Plan
 
-A production-grade plan to evolve Plotix from a working GPU-accelerated MVP into a best-in-class interactive plotting/visualization application, grounded in a line-by-line codebase audit.
+A production-grade plan to evolve Spectra from a working GPU-accelerated MVP into a best-in-class interactive plotting/visualization application, grounded in a line-by-line codebase audit.
 
 ---
 
@@ -46,7 +46,7 @@ Data Model:
 
 | Module | Files | Status | Notes |
 |--------|-------|--------|-------|
-| **Public API** | `include/plotix/*.hpp` (11 headers) | **Solid** | Clean interfaces, fluent API, forward decls |
+| **Public API** | `include/spectra/*.hpp` (11 headers) | **Solid** | Clean interfaces, fluent API, forward decls |
 | **Core data model** | `src/core/{series,axes,figure,layout,transform}.cpp` | **Functional** | Tick gen (nice-numbers), layout solver, ortho projection, auto-fit limits |
 | **Vulkan backend** | `src/render/vulkan/vk_{backend,device,swapchain,pipeline,buffer}.{hpp,cpp}` | **Functional** | Instance, device, swapchain, offscreen FB, pipelines, buffers, sync, descriptor sets, readback |
 | **Renderer** | `src/render/{renderer,backend}.{hpp,cpp}` | **Functional** | Per-series SSBO upload, ortho projection, line/scatter draw calls |
@@ -56,7 +56,7 @@ Data Model:
 | **UI / App** | `src/ui/{app,glfw_adapter,input,command_queue}.{hpp,cpp}` | **Partially functional** | App::run() drives the loop. GlfwAdapter creates window+surface. InputHandler has pan/zoom logic BUT is never instantiated or connected in app.cpp. CommandQueue exists but only drain() is called (nothing pushes). |
 | **Export** | `src/io/{png_export,video_export,svg_export}.cpp` | **PNG works; rest stub** | PNG via stb_image_write. Video via ffmpeg pipe (implemented, behind flag). SVG is a comment placeholder. |
 | **Tests** | `tests/unit/test_{easing,layout,ring_buffer,transform,timeline}.cpp` | **5 test files** | Easing, layout, ring_buffer tests are thorough. test_transform and test_timeline exist (not read but registered in CMake). No golden image tests yet. |
-| **Examples** | `examples/{basic_line,live_stream,animated_scatter,multi_subplot,offscreen_export,video_record}.cpp` | **6 examples** | All link against plotix. |
+| **Examples** | `examples/{basic_line,live_stream,animated_scatter,multi_subplot,offscreen_export,video_record}.cpp` | **6 examples** | All link against spectra. |
 | **Build** | `CMakeLists.txt`, `cmake/{CompileShaders,EmbedShaders}.cmake` | **Solid** | C++20, feature flags, FetchContent for GLFW/GTest, shader compilation |
 
 ### A3. Pain Points & Refactor Candidates
@@ -255,9 +255,9 @@ Recommendation: Add Dear ImGui as optional (`PLOTIX_USE_IMGUI`) in Phase 3 for a
 ## D. Multi-Agent Execution Plan (6 Agents)
 
 ### Agent 1: Core Plotting Model + Text Integration
-**Owns:** `include/plotix/`, `src/core/`, `src/text/`
+**Owns:** `include/spectra/`, `src/core/`, `src/text/`
 
-**Contract:** Public headers are the shared contract. No other agent modifies `include/plotix/`. Any interface additions go through Agent 1.
+**Contract:** Public headers are the shared contract. No other agent modifies `include/spectra/`. Any interface additions go through Agent 1.
 
 **Deliverables:**
 1. Bake a real Roboto MSDF atlas (msdf-atlas-gen) → replace `embedded_font.cpp` placeholder
@@ -267,7 +267,7 @@ Recommendation: Add Dear ImGui as optional (`PLOTIX_USE_IMGUI`) in Phase 3 for a
 5. Improve tick algorithm: handle edge cases (negative ranges, very small ranges, log scale prep)
 6. Wire FontAtlas::load_embedded() into Renderer init path
 
-**Files touched:** `include/plotix/{axes,figure,series}.hpp`, `src/core/{axes,series,figure}.cpp`, `src/text/embedded_font.cpp`, new `src/text/atlas_data/` (baked atlas files)
+**Files touched:** `include/spectra/{axes,figure,series}.hpp`, `src/core/{axes,series,figure}.cpp`, `src/text/embedded_font.cpp`, new `src/text/atlas_data/` (baked atlas files)
 
 **Tests:** `test_tick_generation` (edge cases), `test_series_visibility`, `test_font_atlas_load`
 
@@ -398,7 +398,7 @@ Agent 6: [golden framework]──[baselines]──[CI pipeline]──[docs]─�
 
 ### Conflict Avoidance Rules
 
-1. **Only Agent 1 modifies `include/plotix/`** — other agents request additions via shared TODO list
+1. **Only Agent 1 modifies `include/spectra/`** — other agents request additions via shared TODO list
 2. **Only Agent 2 modifies `src/render/`**
 3. **Only Agent 3 modifies `src/ui/`**
 4. Each agent owns their `src/` subdirectory exclusively
@@ -412,7 +412,7 @@ Agent 6: [golden framework]──[baselines]──[CI pipeline]──[docs]─�
 ### Phase 1: Feature-Complete Core Plotting (3 weeks)
 
 **Exit criteria:**
-- [ ] A user can `#include <plotix/plotix.hpp>`, create a line plot with title, axis labels, tick labels, grid, and legend — all rendered correctly
+- [ ] A user can `#include <spectra/spectra.hpp>`, create a line plot with title, axis labels, tick labels, grid, and legend — all rendered correctly
 - [ ] Mouse pan/zoom works in windowed mode
 - [ ] Headless PNG export produces a complete plot (not just data — includes text, grid, legend)
 - [ ] Golden image tests pass for: single line plot, scatter plot, multi-subplot, empty axes
@@ -430,7 +430,7 @@ Agent 6: [golden framework]──[baselines]──[CI pipeline]──[docs]─�
 **Exit criteria:**
 - [ ] Box zoom: right-drag selects a rectangle, release zooms to that region
 - [ ] Reset view: 'r' key returns to auto-fit
-- [ ] Theme system: `fig.set_theme(plotix::themes::dark)` changes all colors
+- [ ] Theme system: `fig.set_theme(spectra::themes::dark)` changes all colors
 - [ ] Per-series styling: dash patterns, marker shapes (at least circle, square, triangle)
 - [ ] Series visibility toggle: click legend entry to hide/show series
 - [ ] SVG export produces valid SVG for line + scatter plots
@@ -451,7 +451,7 @@ Agent 6: [golden framework]──[baselines]──[CI pipeline]──[docs]─�
 - [ ] Plugin API: user can register a custom `Series` subclass with custom shader
 - [ ] Dear ImGui overlay for style editing (behind `PLOTIX_USE_IMGUI`)
 - [ ] Pimpl on all public headers — ABI stable across minor versions
-- [ ] `find_package(plotix)` works from an install
+- [ ] `find_package(spectra)` works from an install
 - [ ] CI runs on Linux (GCC + Clang), optionally Windows
 - [ ] API documentation published (Doxygen + user guide)
 

@@ -5,7 +5,7 @@
 
 #include "data/decimation.hpp"
 
-using namespace plotix::data;
+using namespace spectra::data;
 
 // --- LTTB tests ---
 

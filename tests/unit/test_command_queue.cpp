@@ -7,7 +7,7 @@
 
 #include "ui/command_queue.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 TEST(CommandQueue, InitiallyEmpty)
 {

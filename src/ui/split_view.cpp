@@ -5,7 +5,7 @@
 #include <cmath>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── SplitPane ───────────────────────────────────────────────────────────────
@@ -871,4 +871,4 @@ void SplitViewManager::recompute_layout()
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────
@@ -88,4 +88,4 @@ bool GestureRecognizer::on_click(double x, double y)
     return is_double;
 }
 
-}  // namespace plotix
+}  // namespace spectra

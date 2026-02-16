@@ -12,7 +12,7 @@
     #include "shortcut_manager.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Open / Close ────────────────────────────────────────────────────────────
@@ -680,6 +680,6 @@ bool CommandPalette::draw(float window_width, float window_height)
     return executed;
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

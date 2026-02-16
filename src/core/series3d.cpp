@@ -1,10 +1,10 @@
 #include <algorithm>
 #include <cmath>
-#include <plotix/series3d.hpp>
+#include <spectra/series3d.hpp>
 
 #include "../render/renderer.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── LineSeries3D ────────────────────────────────────────────────────────────
@@ -577,4 +577,4 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

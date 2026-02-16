@@ -34,7 +34,7 @@
     #pragma GCC diagnostic pop
 #endif
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Wall clock helper ───────────────────────────────────────────────────────
@@ -1164,4 +1164,4 @@ float RecordingSession::wall_time() const
     return get_wall_time();
 }
 
-}  // namespace plotix
+}  // namespace spectra

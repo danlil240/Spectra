@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 enum class LogLevel : int
@@ -125,60 +125,60 @@ Logger::LogSink null_sink();
 #define PLOTIX_LOG_TRACE(category, ...)                                         \
     do                                                                          \
     {                                                                           \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Trace)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Trace)) \
         {                                                                       \
-            ::plotix::Logger::instance().log_formatted(                         \
-                ::plotix::LogLevel::Trace, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                         \
+                ::spectra::LogLevel::Trace, category, __VA_ARGS__);              \
         }                                                                       \
     } while (0)
 
 #define PLOTIX_LOG_DEBUG(category, ...)                                         \
     do                                                                          \
     {                                                                           \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Debug)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Debug)) \
         {                                                                       \
-            ::plotix::Logger::instance().log_formatted(                         \
-                ::plotix::LogLevel::Debug, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                         \
+                ::spectra::LogLevel::Debug, category, __VA_ARGS__);              \
         }                                                                       \
     } while (0)
 
 #define PLOTIX_LOG_INFO(category, ...)                                         \
     do                                                                         \
     {                                                                          \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Info)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Info)) \
         {                                                                      \
-            ::plotix::Logger::instance().log_formatted(                        \
-                ::plotix::LogLevel::Info, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                        \
+                ::spectra::LogLevel::Info, category, __VA_ARGS__);              \
         }                                                                      \
     } while (0)
 
 #define PLOTIX_LOG_WARN(category, ...)                                            \
     do                                                                            \
     {                                                                             \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Warning)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Warning)) \
         {                                                                         \
-            ::plotix::Logger::instance().log_formatted(                           \
-                ::plotix::LogLevel::Warning, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                           \
+                ::spectra::LogLevel::Warning, category, __VA_ARGS__);              \
         }                                                                         \
     } while (0)
 
 #define PLOTIX_LOG_ERROR(category, ...)                                         \
     do                                                                          \
     {                                                                           \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Error)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Error)) \
         {                                                                       \
-            ::plotix::Logger::instance().log_formatted(                         \
-                ::plotix::LogLevel::Error, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                         \
+                ::spectra::LogLevel::Error, category, __VA_ARGS__);              \
         }                                                                       \
     } while (0)
 
 #define PLOTIX_LOG_CRITICAL(category, ...)                                         \
     do                                                                             \
     {                                                                              \
-        if (::plotix::Logger::instance().is_enabled(::plotix::LogLevel::Critical)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Critical)) \
         {                                                                          \
-            ::plotix::Logger::instance().log_formatted(                            \
-                ::plotix::LogLevel::Critical, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                            \
+                ::spectra::LogLevel::Critical, category, __VA_ARGS__);              \
         }                                                                          \
     } while (0)
 
@@ -200,4 +200,4 @@ Logger::LogSink null_sink();
 #define PLOTIX_LOG_CRITICAL_HERE(category, ...) \
     PLOTIX_LOG_CRITICAL(category, __VA_ARGS__ " [{}:{}:{}]", __FILE__, __LINE__, __FUNCTION__)
 
-}  // namespace plotix
+}  // namespace spectra

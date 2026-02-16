@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 TEST(SeriesVisibility, DefaultVisible)
 {

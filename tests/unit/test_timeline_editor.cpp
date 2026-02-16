@@ -2,7 +2,7 @@
 
 #include "ui/timeline_editor.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Construction ────────────────────────────────────────────────────────────
 

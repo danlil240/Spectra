@@ -3,7 +3,7 @@
 
 #include "../../src/ui/camera.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 constexpr float EPSILON = 1e-5f;
 

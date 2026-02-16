@@ -1,8 +1,8 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/timeline.hpp>
+#include <spectra/timeline.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 TEST(Timeline, EmptyTimeline)
 {

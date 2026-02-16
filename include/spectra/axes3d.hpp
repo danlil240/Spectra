@@ -1,15 +1,15 @@
 #pragma once
 
 #include <memory>
-#include <plotix/axes.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/math3d.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/series3d.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class Axes3D : public AxesBase
@@ -132,4 +132,4 @@ inline Axes3D::GridPlane operator~(Axes3D::GridPlane a)
     return static_cast<Axes3D::GridPlane>(~static_cast<int>(a));
 }
 
-}  // namespace plotix
+}  // namespace spectra

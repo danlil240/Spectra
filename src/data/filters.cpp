@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cmath>
 
-namespace plotix::data
+namespace spectra::data
 {
 
 std::vector<float> moving_average(std::span<const float> values, std::size_t window_size)
@@ -105,4 +105,4 @@ std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, s
     return out;
 }
 
-}  // namespace plotix::data
+}  // namespace spectra::data

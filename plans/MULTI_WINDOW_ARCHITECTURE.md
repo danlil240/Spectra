@@ -1,4 +1,4 @@
-# Plotix Multi-Window Architecture Plan
+# Spectra Multi-Window Architecture Plan
 
 **Author:** Principal Graphics Architect  
 **Date:** 2026-02-16  
@@ -497,7 +497,7 @@ while (window_manager.any_window_open()) {
 - `src/ui/imgui_integration.*`
 - `src/ui/app.cpp` (except minimal wiring of new WindowContext)
 - `src/ui/dock_system.*`
-- `include/plotix/*`
+- `include/spectra/*`
 
 **Acceptance Criteria:**
 - Clean compile, all tests pass
@@ -530,7 +530,7 @@ while (window_manager.any_window_open()) {
 - `src/ui/window_manager.cpp`
 
 **Files CANNOT touch:**
-- `include/plotix/app.hpp` (public API)
+- `include/spectra/app.hpp` (public API)
 - `src/ui/dock_system.*`
 - `src/ui/imgui_integration.*` (except per-window init)
 - Test files (Agent E handles testing)
@@ -555,7 +555,7 @@ while (window_manager.any_window_open()) {
 **Scope:** Stable figure IDs, decouple figures from window.
 
 **Files allowed to modify:**
-- `include/plotix/app.hpp`
+- `include/spectra/app.hpp`
 - `src/ui/app.cpp`
 - `src/ui/figure_manager.hpp`
 - `src/ui/figure_manager.cpp`

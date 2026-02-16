@@ -8,7 +8,7 @@
 
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void DataMarkerManager::add(float data_x, float data_y, const Series* series, size_t index)
@@ -154,6 +154,6 @@ int DataMarkerManager::hit_test(float screen_x,
     return -1;
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

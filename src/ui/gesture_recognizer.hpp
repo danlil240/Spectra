@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-namespace plotix
+namespace spectra
 {
 
 // Detects trackpad pinch-to-zoom and distinguishes trackpad smooth scroll
@@ -68,4 +68,4 @@ class GestureRecognizer
     float double_click_dist_ = 5.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra

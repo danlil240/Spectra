@@ -1,7 +1,7 @@
 # Unused Code Report
 
 Generated on: Sun Feb 15 09:40:43 PM IST 2026
-Project Root: /home/daniel/projects/plotix
+Project Root: /home/daniel/projects/spectra
 
 ## Summary
 - Unused Source Files: 0

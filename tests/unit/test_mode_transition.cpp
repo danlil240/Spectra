@@ -1,13 +1,13 @@
 #include <atomic>
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes3d.hpp>
-#include <plotix/camera.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/camera.hpp>
 #include <thread>
 
 #include "ui/mode_transition.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Construction ───────────────────────────────────────────────────────────
 

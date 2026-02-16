@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 static uint32_t find_memory_type(VkPhysicalDevice physical_device,
@@ -236,4 +236,4 @@ void staging_upload(VkDevice device,
     staging.destroy();
 }
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

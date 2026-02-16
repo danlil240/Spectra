@@ -1,6 +1,6 @@
-# Getting Started with Plotix
+# Getting Started with Spectra
 
-Plotix is a GPU-accelerated plotting library for C++20, built on Vulkan 1.2+.
+Spectra is a GPU-accelerated plotting library for C++20, built on Vulkan 1.2+.
 
 ## Prerequisites
 
@@ -13,8 +13,8 @@ Plotix is a GPU-accelerated plotting library for C++20, built on Vulkan 1.2+.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/plotix.git
-cd plotix
+git clone https://github.com/your-org/spectra.git
+cd spectra
 
 # Configure and build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -38,12 +38,12 @@ cmake --build build -j$(nproc)
 ### Windowed Line Plot
 
 ```cpp
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <cmath>
 #include <vector>
 
 int main() {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1280, .height = 720});
     auto& ax  = fig.subplot(1, 1, 1);
 
@@ -54,7 +54,7 @@ int main() {
         y[i] = std::sin(x[i]);
     }
 
-    ax.line(x, y).label("sin(x)").color(plotix::rgb(0.2f, 0.8f, 1.0f));
+    ax.line(x, y).label("sin(x)").color(spectra::rgb(0.2f, 0.8f, 1.0f));
     ax.xlim(0.0f, 10.0f);
     ax.ylim(-1.5f, 1.5f);
     ax.title("My First Plot");
@@ -69,12 +69,12 @@ int main() {
 ### Headless PNG Export
 
 ```cpp
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <cmath>
 #include <vector>
 
 int main() {
-    plotix::App app({.headless = true});
+    spectra::App app({.headless = true});
     auto& fig = app.figure({.width = 1920, .height = 1080});
     auto& ax  = fig.subplot(1, 1, 1);
 
@@ -84,7 +84,7 @@ int main() {
         y[i] = std::sin(x[i]) * std::cos(x[i] * 0.5f);
     }
 
-    ax.line(x, y).label("signal").color(plotix::rgb(0.1f, 0.7f, 0.3f));
+    ax.line(x, y).label("signal").color(spectra::rgb(0.1f, 0.7f, 0.3f));
     ax.title("Offscreen Export");
     ax.xlabel("X");
     ax.ylabel("Y");
@@ -101,7 +101,7 @@ int main() {
 auto& ax = fig.subplot(1, 1, 1);
 ax.scatter(x, y)
     .label("data points")
-    .color(plotix::rgb(1.0f, 0.4f, 0.0f))
+    .color(spectra::rgb(1.0f, 0.4f, 0.0f))
     .size(6.0f);
 ```
 
@@ -112,10 +112,10 @@ auto& fig = app.figure({.width = 1920, .height = 1080});
 auto& ax1 = fig.subplot(2, 1, 1);  // 2 rows, 1 col, position 1
 auto& ax2 = fig.subplot(2, 1, 2);  // 2 rows, 1 col, position 2
 
-ax1.line(x, y1).label("temperature").color(plotix::colors::red);
+ax1.line(x, y1).label("temperature").color(spectra::colors::red);
 ax1.title("Temperature");
 
-ax2.line(x, y2).label("pressure").color(plotix::colors::blue);
+ax2.line(x, y2).label("pressure").color(spectra::colors::blue);
 ax2.title("Pressure");
 ```
 
@@ -124,7 +124,7 @@ ax2.title("Pressure");
 ```cpp
 fig.animate()
     .fps(60)
-    .on_frame([&](plotix::Frame& f) {
+    .on_frame([&](spectra::Frame& f) {
         float t = f.elapsed_seconds();
         // Update data each frame
         for (size_t i = 0; i < N; ++i) {
@@ -164,7 +164,7 @@ cmake --build build
 
 ## Window Resizing
 
-Plotix supports dynamic window resizing. When you resize a window:
+Spectra supports dynamic window resizing. When you resize a window:
 
 1. The figure dimensions are automatically updated
 2. The Vulkan swapchain is recreated with the new dimensions  
@@ -173,7 +173,7 @@ Plotix supports dynamic window resizing. When you resize a window:
 
 ```cpp
 // Create a resizable window
-plotix::App app;
+spectra::App app;
 auto& fig = app.figure();
 auto& ax = fig.subplot(1, 1, 0);
 

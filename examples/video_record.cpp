@@ -1,6 +1,6 @@
 #include <cmath>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
@@ -9,7 +9,7 @@ int main()
     std::cerr << "This example requires PLOTIX_USE_FFMPEG=ON\n";
     return 1;
 #else
-    plotix::App app({.headless = true});
+    spectra::App app({.headless = true});
     auto& fig = app.figure({.width = 1280, .height = 720});
     auto& ax = fig.subplot(1, 1, 1);
 
@@ -21,7 +21,7 @@ int main()
         x[i] = static_cast<float>(i) * 0.05f;
     }
 
-    ax.line(x, y).label("wave").color(plotix::colors::cyan);
+    ax.line(x, y).label("wave").color(spectra::colors::cyan);
     ax.xlim(0.0f, 10.0f);
     ax.ylim(-1.5f, 1.5f);
     ax.title("Recorded Animation");
@@ -32,7 +32,7 @@ int main()
         .fps(60)
         .duration(10.0f)
         .on_frame(
-            [&](plotix::Frame& f)
+            [&](spectra::Frame& f)
             {
                 float t = f.elapsed_seconds();
                 for (size_t i = 0; i < N; ++i)

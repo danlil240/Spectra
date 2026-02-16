@@ -4,7 +4,7 @@
 
 #include "data/filters.hpp"
 
-using namespace plotix::data;
+using namespace spectra::data;
 
 // --- Moving average tests ---
 

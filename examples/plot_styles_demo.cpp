@@ -1,10 +1,10 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1920, .height = 1080});
 
     // ── 2x2 subplot grid showcasing all MATLAB-style plot customization ──
@@ -57,37 +57,37 @@ int main()
         auto& ax = fig.subplot(2, 2, 2);
 
         // Place markers on a grid to show each shape clearly
-        const plotix::MarkerStyle markers[] = {
-            plotix::MarkerStyle::Point,
-            plotix::MarkerStyle::Circle,
-            plotix::MarkerStyle::Plus,
-            plotix::MarkerStyle::Cross,
-            plotix::MarkerStyle::Star,
-            plotix::MarkerStyle::Square,
-            plotix::MarkerStyle::Diamond,
-            plotix::MarkerStyle::TriangleUp,
-            plotix::MarkerStyle::TriangleDown,
-            plotix::MarkerStyle::TriangleLeft,
-            plotix::MarkerStyle::TriangleRight,
-            plotix::MarkerStyle::Pentagon,
-            plotix::MarkerStyle::Hexagon,
-            plotix::MarkerStyle::FilledCircle,
-            plotix::MarkerStyle::FilledSquare,
-            plotix::MarkerStyle::FilledDiamond,
-            plotix::MarkerStyle::FilledTriangleUp,
+        const spectra::MarkerStyle markers[] = {
+            spectra::MarkerStyle::Point,
+            spectra::MarkerStyle::Circle,
+            spectra::MarkerStyle::Plus,
+            spectra::MarkerStyle::Cross,
+            spectra::MarkerStyle::Star,
+            spectra::MarkerStyle::Square,
+            spectra::MarkerStyle::Diamond,
+            spectra::MarkerStyle::TriangleUp,
+            spectra::MarkerStyle::TriangleDown,
+            spectra::MarkerStyle::TriangleLeft,
+            spectra::MarkerStyle::TriangleRight,
+            spectra::MarkerStyle::Pentagon,
+            spectra::MarkerStyle::Hexagon,
+            spectra::MarkerStyle::FilledCircle,
+            spectra::MarkerStyle::FilledSquare,
+            spectra::MarkerStyle::FilledDiamond,
+            spectra::MarkerStyle::FilledTriangleUp,
         };
         constexpr int num_markers = 17;
 
         // Use the default color palette for variety
-        const plotix::Color palette[] = {
-            plotix::colors::red,
-            plotix::colors::blue,
-            plotix::colors::green,
-            plotix::colors::cyan,
-            plotix::colors::magenta,
-            plotix::colors::yellow,
-            plotix::rgb(1.0f, 0.5f, 0.0f),  // orange
-            plotix::rgb(0.5f, 0.0f, 1.0f),  // purple
+        const spectra::Color palette[] = {
+            spectra::colors::red,
+            spectra::colors::blue,
+            spectra::colors::green,
+            spectra::colors::cyan,
+            spectra::colors::magenta,
+            spectra::colors::yellow,
+            spectra::rgb(1.0f, 0.5f, 0.0f),  // orange
+            spectra::rgb(0.5f, 0.0f, 1.0f),  // purple
         };
 
         for (int i = 0; i < num_markers; ++i)
@@ -102,7 +102,7 @@ int main()
 
             auto& s = ax.scatter(sx, sy).color(palette[i % 8]).size(14.0f);
             s.marker_style(markers[i]);
-            s.label(plotix::marker_style_name(markers[i]));
+            s.label(spectra::marker_style_name(markers[i]));
         }
 
         ax.title("Marker Shapes (17 types)");
@@ -161,26 +161,26 @@ int main()
         }
 
         // Create series first, then mutate styles via runtime API
-        auto& s1 = ax.line(xp, y1).label("Runtime styled").color(plotix::colors::red);
-        auto& s2 = ax.line(xp, y2).label("PlotStyle struct").color(plotix::colors::blue);
-        auto& s3 = ax.line(xp, y3).label("Opacity 0.4").color(plotix::colors::green);
+        auto& s1 = ax.line(xp, y1).label("Runtime styled").color(spectra::colors::red);
+        auto& s2 = ax.line(xp, y2).label("PlotStyle struct").color(spectra::colors::blue);
+        auto& s3 = ax.line(xp, y3).label("Opacity 0.4").color(spectra::colors::green);
 
         // Runtime mutation: change line style and add markers after creation
-        s1.line_style(plotix::LineStyle::Dashed);
-        s1.marker_style(plotix::MarkerStyle::FilledCircle);
+        s1.line_style(spectra::LineStyle::Dashed);
+        s1.marker_style(spectra::MarkerStyle::FilledCircle);
         s1.marker_size(8.0f);
         s1.width(2.5f);
 
         // PlotStyle struct: set everything at once
-        plotix::PlotStyle ps;
-        ps.line_style = plotix::LineStyle::DashDot;
-        ps.marker_style = plotix::MarkerStyle::Star;
+        spectra::PlotStyle ps;
+        ps.line_style = spectra::LineStyle::DashDot;
+        ps.marker_style = spectra::MarkerStyle::Star;
         ps.marker_size = 10.0f;
         ps.opacity = 0.85f;
         s2.plot_style(ps);
 
         // Opacity demonstration
-        s3.line_style(plotix::LineStyle::Solid);
+        s3.line_style(spectra::LineStyle::Solid);
         s3.opacity(0.4f);
         s3.width(4.0f);
 

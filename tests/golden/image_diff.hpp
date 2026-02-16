@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace plotix::test
+namespace spectra::test
 {
 
 struct DiffResult
@@ -157,4 +157,4 @@ inline bool save_raw_rgba(const std::string& path,
     return f.good();
 }
 
-}  // namespace plotix::test
+}  // namespace spectra::test

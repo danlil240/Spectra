@@ -11,7 +11,7 @@
 
     #include "icons.hpp"
 
-namespace plotix::ui::widgets
+namespace spectra::ui::widgets
 {
 
 // ─── Section Animation State ─────────────────────────────────────────────────
@@ -236,7 +236,7 @@ void info_row_mono(const char* label, const char* value)
 
 // ─── Color Field ────────────────────────────────────────────────────────────
 
-bool color_field(const char* label, plotix::Color& color)
+bool color_field(const char* label, spectra::Color& color)
 {
     ImGui::PushID(label);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
@@ -249,7 +249,7 @@ bool color_field(const char* label, plotix::Color& color)
                               | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_DisplayHSV);
     if (changed)
     {
-        color = plotix::Color{col[0], col[1], col[2], col[3]};
+        color = spectra::Color{col[0], col[1], col[2], col[3]};
     }
 
     ImGui::SameLine();
@@ -574,7 +574,7 @@ void end_group()
 
 // ─── Color Swatch ───────────────────────────────────────────────────────────
 
-void color_swatch(const plotix::Color& color, float size)
+void color_swatch(const spectra::Color& color, float size)
 {
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -602,7 +602,7 @@ void sparkline(const char* id,
                std::span<const float> values,
                float width,
                float height,
-               const plotix::Color& color)
+               const spectra::Color& color)
 {
     if (values.empty())
         return;
@@ -628,9 +628,9 @@ void sparkline(const char* id,
         range = 1.0f;
 
     // Determine line color
-    plotix::Color line_col = (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+    spectra::Color line_col = (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
                                  ? color
-                                 : plotix::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
+                                 : spectra::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
     ImU32 col32 =
         ImGui::ColorConvertFloat4ToU32(ImVec4(line_col.r, line_col.g, line_col.b, line_col.a));
     ImU32 fill_col =
@@ -697,17 +697,17 @@ void progress_bar(const char* label, float fraction, const char* overlay)
 
 // ─── Badge ──────────────────────────────────────────────────────────────────
 
-void badge(const char* text, const plotix::Color& bg, const plotix::Color& fg)
+void badge(const char* text, const spectra::Color& bg, const spectra::Color& fg)
 {
     const auto& c = theme();
 
-    plotix::Color bg_col =
+    spectra::Color bg_col =
         (bg.r > 0.0f || bg.g > 0.0f || bg.b > 0.0f)
             ? bg
-            : plotix::Color{c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a};
-    plotix::Color fg_col = (fg.r > 0.0f || fg.g > 0.0f || fg.b > 0.0f)
+            : spectra::Color{c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a};
+    spectra::Color fg_col = (fg.r > 0.0f || fg.g > 0.0f || fg.b > 0.0f)
                                ? fg
-                               : plotix::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
+                               : spectra::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
 
     ImVec2 text_size = ImGui::CalcTextSize(text);
     float pad_x = tokens::SPACE_2;
@@ -838,7 +838,7 @@ void stat_row(const char* label, const char* value, const char* unit)
 
 void stat_row_colored(const char* label,
                       const char* value,
-                      const plotix::Color& dot_color,
+                      const spectra::Color& dot_color,
                       const char* unit)
 {
     // const auto& c = theme();  // Currently unused
@@ -857,6 +857,6 @@ void stat_row_colored(const char* label,
     stat_row(label, value, unit);
 }
 
-}  // namespace plotix::ui::widgets
+}  // namespace spectra::ui::widgets
 
 #endif  // PLOTIX_USE_IMGUI

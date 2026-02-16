@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <cassert>
-#include <plotix/timeline.hpp>
+#include <spectra/timeline.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 namespace
@@ -120,4 +120,4 @@ bool Timeline::empty() const
     return keyframes_.empty();
 }
 
-}  // namespace plotix
+}  // namespace spectra

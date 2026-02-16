@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <string>
 #include <vector>
 
@@ -12,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-namespace plotix::test
+namespace spectra::test
 {
 
 // ─── Shared infrastructure (mirrors golden_test.cpp) ─────────────────────────
@@ -572,4 +572,4 @@ TEST(GoldenImagePhase2Framework, RawRoundTrip)
     fs::remove(tmp);
 }
 
-}  // namespace plotix::test
+}  // namespace spectra::test

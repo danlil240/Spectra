@@ -6,7 +6,7 @@
 #include <numeric>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── DataTransform construction ─────────────────────────────────────────────
@@ -841,4 +841,4 @@ const char* transform_type_name(TransformType type)
     return "Unknown";
 }
 
-}  // namespace plotix
+}  // namespace spectra

@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── vec3 ────────────────────────────────────────────────────────────────────
@@ -560,4 +560,4 @@ inline constexpr float clampf(float v, float lo, float hi)
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-}  // namespace plotix
+}  // namespace spectra

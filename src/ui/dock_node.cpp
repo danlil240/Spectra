@@ -4,7 +4,7 @@
 #include <functional>
 #include <iostream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── DockNode ─────────────────────────────────────────────────────────────
@@ -541,4 +541,4 @@ bool DockManager::deserialize_state(const std::string& state)
     return false;
 }
 
-}  // namespace plotix
+}  // namespace spectra

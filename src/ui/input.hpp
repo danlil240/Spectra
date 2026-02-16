@@ -2,11 +2,11 @@
 
 #include <chrono>
 #include <functional>
-#include <plotix/axes.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/figure.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/figure.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 class AnimationController;
@@ -295,4 +295,4 @@ class InputHandler
     static constexpr int MOD_CONTROL = 0x0002;
 };
 
-}  // namespace plotix
+}  // namespace spectra

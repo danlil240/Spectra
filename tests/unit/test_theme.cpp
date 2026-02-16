@@ -4,7 +4,7 @@
 #include "ui/design_tokens.hpp"
 #include "ui/theme.hpp"
 
-using namespace plotix::ui;
+using namespace spectra::ui;
 
 // ─── Color struct ────────────────────────────────────────────────────────────
 

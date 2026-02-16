@@ -5,12 +5,12 @@
 // 3D element opacity over 0.8 seconds.
 
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    using namespace plotix;
+    using namespace spectra;
 
     // Generate helix data
     const int N = 500;

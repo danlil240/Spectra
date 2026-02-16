@@ -3,13 +3,13 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
-#include <plotix/figure.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class TabBar;
@@ -40,7 +40,7 @@ struct FigureState
 };
 
 /**
- * FigureManager — Manages multi-figure lifecycle for Plotix.
+ * FigureManager — Manages multi-figure lifecycle for Spectra.
  *
  * Encapsulates figure creation, closing, switching, reordering, and
  * duplication. Maintains per-figure state that persists across tab switches.
@@ -134,4 +134,4 @@ class FigureManager
     size_t next_figure_number() const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

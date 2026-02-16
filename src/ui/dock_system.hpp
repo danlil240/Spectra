@@ -2,14 +2,14 @@
 
 #include <cstddef>
 #include <functional>
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>  // For Rect
+#include <spectra/fwd.hpp>
+#include <spectra/series.hpp>  // For Rect
 #include <string>
 #include <vector>
 
 #include "split_view.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Drop zone indicators for drag-to-dock ──────────────────────────────────
@@ -174,4 +174,4 @@ class DockSystem
     static constexpr float DROP_ZONE_MIN_SIZE = 40.0f;  // Minimum drop zone size in pixels
 };
 
-}  // namespace plotix
+}  // namespace spectra

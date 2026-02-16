@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(plotix VERSION 0.1.0 LANGUAGES CXX)
+project(spectra VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,7 +58,7 @@ foreach(_ui_src
 endforeach()
 
 # Core library (headless-capable)
-add_library(plotix STATIC
+add_library(spectra STATIC
     ${PLOTIX_CORE_SOURCES}
     ${PLOTIX_RENDER_SOURCES}
     ${PLOTIX_ANIM_SOURCES}
@@ -67,28 +67,28 @@ add_library(plotix STATIC
     ${PLOTIX_UI_SOURCES}
 )
 
-target_include_directories(plotix PUBLIC
+target_include_directories(spectra PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
-target_include_directories(plotix PRIVATE
+target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
-target_link_libraries(plotix PUBLIC Vulkan::Vulkan)
+target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 
-target_compile_definitions(plotix PRIVATE
+target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${PLOTIX_USE_FFMPEG}>:PLOTIX_USE_FFMPEG>
     $<$<BOOL:${PLOTIX_USE_EIGEN}>:PLOTIX_USE_EIGEN>
 )
 
 # Ensure shaders are compiled before the library
 if(TARGET plotix_shaders)
-    add_dependencies(plotix plotix_shaders)
+    add_dependencies(spectra plotix_shaders)
 endif()
 
 # GLFW adapter (optional)
@@ -107,9 +107,9 @@ if(PLOTIX_USE_GLFW)
         FetchContent_MakeAvailable(glfw)
     endif()
 
-    target_sources(plotix PRIVATE src/ui/glfw_adapter.cpp)
-    target_link_libraries(plotix PUBLIC glfw)
-    target_compile_definitions(plotix PUBLIC PLOTIX_USE_GLFW)
+    target_sources(spectra PRIVATE src/ui/glfw_adapter.cpp)
+    target_link_libraries(spectra PUBLIC glfw)
+    target_compile_definitions(spectra PUBLIC PLOTIX_USE_GLFW)
 endif()
 
 # Dear ImGui (optional — requires GLFW)
@@ -123,7 +123,7 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
     FetchContent_MakeAvailable(imgui)
 
     # ImGui core (always present when ImGui is enabled)
-    target_sources(plotix PRIVATE
+    target_sources(spectra PRIVATE
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_demo.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -157,21 +157,21 @@ if(PLOTIX_USE_IMGUI AND PLOTIX_USE_GLFW)
         src/ui/plugin_api.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
-            target_sources(plotix PRIVATE ${_imgui_src})
+            target_sources(spectra PRIVATE ${_imgui_src})
         endif()
     endforeach()
-    target_include_directories(plotix PRIVATE
+    target_include_directories(spectra PRIVATE
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
     )
-    target_compile_definitions(plotix PUBLIC PLOTIX_USE_IMGUI)
+    target_compile_definitions(spectra PUBLIC PLOTIX_USE_IMGUI)
 endif()
 
 # Eigen adapter (optional)
 if(PLOTIX_USE_EIGEN)
     find_package(Eigen3 REQUIRED)
-    target_link_libraries(plotix PUBLIC Eigen3::Eigen)
-    target_compile_definitions(plotix PUBLIC PLOTIX_USE_EIGEN)
+    target_link_libraries(spectra PUBLIC Eigen3::Eigen)
+    target_compile_definitions(spectra PUBLIC PLOTIX_USE_EIGEN)
 endif()
 
 # Examples

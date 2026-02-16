@@ -8,9 +8,9 @@
     #include <imgui.h>
     #include <limits>
     #include <numeric>
-    #include <plotix/axes.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
     #include <vector>
 
     #include "design_tokens.hpp"
@@ -18,7 +18,7 @@
     #include "theme.hpp"
     #include "widgets.hpp"
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ void Inspector::draw_figure_properties(Figure& fig)
             widgets::begin_group("quick");
             if (widgets::button_field("Reset to Defaults"))
             {
-                sty.background = plotix::Color{1.0f, 1.0f, 1.0f, 1.0f};
+                sty.background = spectra::Color{1.0f, 1.0f, 1.0f, 1.0f};
                 sty.margin_top = 40.0f;
                 sty.margin_bottom = 60.0f;
                 sty.margin_left = 70.0f;
@@ -236,7 +236,7 @@ void Inspector::draw_series_browser(Figure& fig)
             // Color swatch
             {
                 const auto& sc = s->color();
-                plotix::Color sw{sc.r, sc.g, sc.b, sc.a};
+                spectra::Color sw{sc.r, sc.g, sc.b, sc.a};
                 widgets::color_swatch(sw, 12.0f);
             }
             ImGui::SameLine(0.0f, tokens::SPACE_2);
@@ -461,7 +461,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
     // Color swatch + type badge
     {
         const auto& sc = s.color();
-        plotix::Color swatch_col{sc.r, sc.g, sc.b, sc.a};
+        spectra::Color swatch_col{sc.r, sc.g, sc.b, sc.a};
         widgets::color_swatch(swatch_col, 16.0f);
     }
     ImGui::SameLine(0.0f, tokens::SPACE_2);
@@ -482,7 +482,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
         {
             widgets::begin_group("appearance");
 
-            plotix::Color col = s.color();
+            spectra::Color col = s.color();
             if (widgets::color_field("Color", col))
             {
                 s.set_color(col);
@@ -501,7 +501,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 int ls_idx = static_cast<int>(s.line_style());
                 if (widgets::combo_field("Line Style", ls_idx, line_style_names, 6))
                 {
-                    s.line_style(static_cast<plotix::LineStyle>(ls_idx));
+                    s.line_style(static_cast<spectra::LineStyle>(ls_idx));
                 }
             }
 
@@ -528,12 +528,12 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 int ms_idx = static_cast<int>(s.marker_style());
                 if (widgets::combo_field("Marker", ms_idx, marker_style_names, 18))
                 {
-                    s.marker_style(static_cast<plotix::MarkerStyle>(ms_idx));
+                    s.marker_style(static_cast<spectra::MarkerStyle>(ms_idx));
                 }
             }
 
             // Marker size (shown when marker is not None)
-            if (s.marker_style() != plotix::MarkerStyle::None)
+            if (s.marker_style() != spectra::MarkerStyle::None)
             {
                 float msz = s.marker_size();
                 if (widgets::slider_field("Marker Size", msz, 1.0f, 30.0f, "%.1f px"))
@@ -814,7 +814,7 @@ void Inspector::draw_series_sparkline(const Series& s)
     }
 
     const auto& sc = s.color();
-    plotix::Color line_col{sc.r, sc.g, sc.b, sc.a};
+    spectra::Color line_col{sc.r, sc.g, sc.b, sc.a};
     widgets::sparkline("##series_spark", downsampled, -1.0f, 40.0f, line_col);
 }
 
@@ -883,6 +883,6 @@ void Inspector::draw_axes_statistics(const Axes& ax)
     }
 }
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui
 
 #endif  // PLOTIX_USE_IMGUI

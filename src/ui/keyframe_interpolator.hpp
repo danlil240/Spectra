@@ -4,15 +4,15 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <plotix/animator.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <variant>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Interpolation mode for keyframe segments.
@@ -314,4 +314,4 @@ const char* interp_mode_name(InterpMode mode);
 // Convert TangentMode to a human-readable string.
 const char* tangent_mode_name(TangentMode mode);
 
-}  // namespace plotix
+}  // namespace spectra

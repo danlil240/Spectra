@@ -1,12 +1,12 @@
 #include "shortcut_manager.hpp"
 
 #include <cctype>
-#include <plotix/logger.hpp>
+#include <spectra/logger.hpp>
 #include <sstream>
 
 #include "command_registry.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Shortcut string conversion ──────────────────────────────────────────────
@@ -418,4 +418,4 @@ void ShortcutManager::clear()
     bindings_.clear();
 }
 
-}  // namespace plotix
+}  // namespace spectra

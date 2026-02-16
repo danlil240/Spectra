@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <cmath>
-#include <plotix/animator.hpp>
+#include <spectra/animator.hpp>
 
-namespace plotix::ease
+namespace spectra::ease
 {
 
 namespace
@@ -134,4 +134,4 @@ float CubicBezier::operator()(float t) const
     return 3.0f * inv2 * u * y1 + 3.0f * inv * u2 * y2 + u2 * u;
 }
 
-}  // namespace plotix::ease
+}  // namespace spectra::ease

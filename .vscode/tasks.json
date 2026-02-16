@@ -44,7 +44,7 @@
 				"isDefault": true
 			},
 			"problemMatcher": [],
-			"detail": "Build the entire Plotix project including all examples",
+			"detail": "Build the entire Spectra project including all examples",
 			"presentation": {
 				"echo": true,
 				"reveal": "always",

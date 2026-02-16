@@ -3,7 +3,7 @@
 
 #include "ui/undo_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Initial state ───────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-#include <plotix/export.hpp>
+#include <spectra/export.hpp>
 
 // Suppress warnings in third-party STB headers
 #if defined(__clang__)
@@ -22,7 +22,7 @@
     #pragma GCC diagnostic pop
 #endif
 
-namespace plotix
+namespace spectra
 {
 
 bool ImageExporter::write_png(const std::string& path,
@@ -46,4 +46,4 @@ bool ImageExporter::write_png(const std::string& path,
     return result != 0;
 }
 
-}  // namespace plotix
+}  // namespace spectra

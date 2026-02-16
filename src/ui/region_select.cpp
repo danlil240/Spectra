@@ -6,13 +6,13 @@
     #include <cmath>
     #include <cstdio>
     #include <imgui.h>
-    #include <plotix/axes.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/series.hpp>
 
     #include "design_tokens.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void RegionSelect::set_fonts(ImFont* body, ImFont* heading)
@@ -448,6 +448,6 @@ void RegionSelect::draw_mini_toolbar(
     ImGui::PopStyleVar(4);
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

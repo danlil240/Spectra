@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <plotix/color.hpp>
-#include <plotix/series.hpp>
+#include <spectra/color.hpp>
+#include <spectra/series.hpp>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── LineSeries ─────────────────────────────────────────────────────────────
 

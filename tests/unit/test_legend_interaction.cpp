@@ -1,9 +1,9 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,7 +12,7 @@
 // parts (visibility toggling, opacity animation, state tracking) without
 // requiring a running ImGui context.
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Standalone legend state logic (mirrors LegendInteraction internals) ────
 

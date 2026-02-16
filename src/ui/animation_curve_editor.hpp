@@ -2,14 +2,14 @@
 
 #include <cstdint>
 #include <functional>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
 
 #include "ui/keyframe_interpolator.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // Hit-test result for curve editor interaction.
@@ -249,4 +249,4 @@ class AnimationCurveEditor
     ChannelDisplay& ensure_display(uint32_t channel_id);
 };
 
-}  // namespace plotix
+}  // namespace spectra

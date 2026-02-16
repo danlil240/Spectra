@@ -1,8 +1,8 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/animator.hpp>
+#include <spectra/animator.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 // All easing functions must satisfy: f(0) == 0, f(1) == 1
 

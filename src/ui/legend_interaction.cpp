@@ -6,14 +6,14 @@
     #include <cmath>
     #include <cstdio>
     #include <imgui.h>
-    #include <plotix/axes.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
 
     #include "design_tokens.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void LegendInteraction::set_fonts(ImFont* body, ImFont* icon)
@@ -324,6 +324,6 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
     return consumed;
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

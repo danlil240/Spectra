@@ -13,7 +13,7 @@
     #include <dlfcn.h>
 #endif
 
-namespace plotix
+namespace spectra
 {
 
 // ─── C ABI host functions ────────────────────────────────────────────────────
@@ -360,7 +360,7 @@ std::string PluginManager::default_plugin_dir()
     if (!home)
         return "plugins";
 
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "plotix" / "plugins";
+    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra" / "plugins";
     return dir.string();
 }
 
@@ -451,4 +451,4 @@ bool PluginManager::deserialize_state(const std::string& json)
     return true;
 }
 
-}  // namespace plotix
+}  // namespace spectra

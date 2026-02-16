@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Push ────────────────────────────────────────────────────────────────────
@@ -177,4 +177,4 @@ bool UndoManager::in_group() const
     return grouping_;
 }
 
-}  // namespace plotix
+}  // namespace spectra

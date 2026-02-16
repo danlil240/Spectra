@@ -9,12 +9,12 @@
 
 #include <cmath>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1200, .height = 800});
     auto& ax = fig.subplot(1, 1, 1);
 
@@ -31,7 +31,7 @@ int main()
     auto& line = ax.line(x, y).label("Animated Sine Wave");
 
     // Set initial style
-    line.color(plotix::colors::blue);
+    line.color(spectra::colors::blue);
     line.width(2.0f);
 
     std::cout << "=== Timeline & Curve Editor Demo ===\n";

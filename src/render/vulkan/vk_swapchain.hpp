@@ -4,7 +4,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 struct SwapchainContext
@@ -102,4 +102,4 @@ void destroy_offscreen(VkDevice device, OffscreenContext& ctx);
 // Find a suitable depth format supported by the physical device
 VkFormat find_depth_format(VkPhysicalDevice physical_device);
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

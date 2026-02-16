@@ -3,8 +3,8 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <plotix/plot_style.hpp>
-#include <plotix/plotix.hpp>
+#include <spectra/plot_style.hpp>
+#include <spectra/spectra.hpp>
 #include <string>
 #include <vector>
 
@@ -13,7 +13,7 @@
 
 namespace fs = std::filesystem;
 
-namespace plotix::test
+namespace spectra::test
 {
 
 // ─── Shared infrastructure (mirrors golden_test.cpp / golden_test_phase2.cpp)
@@ -552,4 +552,4 @@ TEST(GoldenImagePhase3, FormatStrings)
     run_golden_test("p3_format_strings", scene_format_strings);
 }
 
-}  // namespace plotix::test
+}  // namespace spectra::test

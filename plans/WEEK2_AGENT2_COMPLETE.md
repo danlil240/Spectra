@@ -111,7 +111,7 @@ struct CameraAnim {
 **Files Modified:**
 - `CMakeLists.txt` - Added `src/ui/camera.cpp` to UI sources
 - `tests/CMakeLists.txt` - Added `test_camera` to unit test list
-- `include/plotix/fwd.hpp` - Added `Camera` forward declaration
+- `include/spectra/fwd.hpp` - Added `Camera` forward declaration
 
 **Build Status:** ✅ Clean build, no warnings
 
@@ -165,7 +165,7 @@ cam.deserialize(state);
 ## Dependencies Satisfied
 
 ✅ **Agent 1 (Transform Refactor)** - Uses math3d.hpp for all matrix operations  
-✅ **No external dependencies** - Self-contained, uses existing plotix infrastructure
+✅ **No external dependencies** - Self-contained, uses existing spectra infrastructure
 
 ---
 

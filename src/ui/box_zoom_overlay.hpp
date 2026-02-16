@@ -2,11 +2,11 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/color.hpp>
+    #include <spectra/color.hpp>
 
     #include "input.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 class TransitionEngine;
@@ -94,6 +94,6 @@ class BoxZoomOverlay
     static constexpr float CORNER_HANDLE_SIZE = 4.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

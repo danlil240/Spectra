@@ -1,13 +1,13 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
-#include <plotix/math3d.hpp>
+#include <spectra/math3d.hpp>
 
 #include "../../src/core/axes3d.hpp"
 #include "../../src/ui/axes3d_renderer.hpp"
 #include "../../src/ui/camera.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 void test_axes3d_construction()
 {

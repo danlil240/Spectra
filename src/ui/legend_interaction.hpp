@@ -3,14 +3,14 @@
 #ifdef PLOTIX_USE_IMGUI
 
     #include <cstddef>
-    #include <plotix/color.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/color.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
     #include <unordered_map>
 
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 class TransitionEngine;
@@ -109,6 +109,6 @@ class LegendInteraction
     TransitionEngine* transition_engine_ = nullptr;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

@@ -7,7 +7,7 @@
     #include <GLFW/glfw3.h>
     #include <iostream>
 
-namespace plotix
+namespace spectra
 {
 
 GlfwAdapter::~GlfwAdapter()
@@ -19,13 +19,13 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 {
     if (!glfwInit())
     {
-        std::cerr << "[plotix] Failed to initialize GLFW\n";
+        std::cerr << "[spectra] Failed to initialize GLFW\n";
         return false;
     }
 
     if (!glfwVulkanSupported())
     {
-        std::cerr << "[plotix] GLFW: Vulkan not supported\n";
+        std::cerr << "[spectra] GLFW: Vulkan not supported\n";
         glfwTerminate();
         return false;
     }
@@ -38,7 +38,7 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 
     if (!window_)
     {
-        std::cerr << "[plotix] Failed to create GLFW window\n";
+        std::cerr << "[spectra] Failed to create GLFW window\n";
         glfwTerminate();
         return false;
     }
@@ -204,6 +204,6 @@ void GlfwAdapter::key_callback(GLFWwindow* window, int key, int /*scancode*/, in
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_GLFW

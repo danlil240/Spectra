@@ -1,6 +1,6 @@
 #include "vk_backend.hpp"
 
-#include <plotix/logger.hpp>
+#include <spectra/logger.hpp>
 
 #include "shader_spirv.hpp"
 
@@ -14,7 +14,7 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace plotix
+namespace spectra
 {
 
 VulkanBackend::VulkanBackend() = default;
@@ -118,7 +118,7 @@ bool VulkanBackend::init(bool headless)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Plotix] Backend init failed: " << e.what() << "\n";
+        std::cerr << "[Spectra] Backend init failed: " << e.what() << "\n";
         return false;
     }
 }
@@ -215,7 +215,7 @@ bool VulkanBackend::create_surface(void* native_window)
     VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &surface_);
     if (result != VK_SUCCESS)
     {
-        std::cerr << "[Plotix] Failed to create Vulkan surface (VkResult=" << result << ")\n";
+        std::cerr << "[Spectra] Failed to create Vulkan surface (VkResult=" << result << ")\n";
         return false;
     }
 
@@ -279,7 +279,7 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Plotix] Swapchain creation failed: " << e.what() << "\n";
+        std::cerr << "[Spectra] Swapchain creation failed: " << e.what() << "\n";
         return false;
     }
 }
@@ -381,7 +381,7 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Plotix] Offscreen framebuffer creation failed: " << e.what() << "\n";
+        std::cerr << "[Spectra] Offscreen framebuffer creation failed: " << e.what() << "\n";
         return false;
     }
 }
@@ -602,7 +602,7 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Plotix] Pipeline creation failed: " << e.what() << "\n";
+        std::cerr << "[Spectra] Pipeline creation failed: " << e.what() << "\n";
         return VK_NULL_HANDLE;
     }
 }
@@ -1609,4 +1609,4 @@ void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer,
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
 }
 
-}  // namespace plotix
+}  // namespace spectra

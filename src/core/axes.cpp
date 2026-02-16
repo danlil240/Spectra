@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <plotix/axes.hpp>
+#include <spectra/axes.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 // --- Safe series removal ---
@@ -430,4 +430,4 @@ TickResult Axes::compute_y_ticks() const
     return generate_ticks(lim.min, lim.max);
 }
 
-}  // namespace plotix
+}  // namespace spectra

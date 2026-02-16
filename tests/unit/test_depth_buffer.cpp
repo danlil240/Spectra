@@ -1,13 +1,13 @@
 #include <cstring>
 #include <gtest/gtest.h>
-#include <plotix/app.hpp>
-#include <plotix/math3d.hpp>
-#include <plotix/plotix.hpp>
+#include <spectra/app.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 #include "render/backend.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Fixture ────────────────────────────────────────────────────────────────
 

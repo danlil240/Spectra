@@ -1,12 +1,12 @@
 #pragma once
 
-#include <plotix/fwd.hpp>
-#include <plotix/series.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/series.hpp>
 
 #include "backend.hpp"
 
 // Forward declarations
-namespace plotix
+namespace spectra
 {
 class Axes3D;
 }
@@ -16,7 +16,7 @@ class Axes3D;
 #include <unordered_map>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class Renderer
@@ -141,4 +141,4 @@ class Renderer
     uint32_t deletion_ring_write_ = 0;
 };
 
-}  // namespace plotix
+}  // namespace spectra

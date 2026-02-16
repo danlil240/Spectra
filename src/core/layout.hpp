@@ -1,9 +1,9 @@
 #pragma once
 
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Margins in pixels around each subplot's plot area.
@@ -31,4 +31,4 @@ std::vector<Rect> compute_subplot_layout(float figure_width,
                                          float origin_x,
                                          float origin_y);
 
-}  // namespace plotix
+}  // namespace spectra

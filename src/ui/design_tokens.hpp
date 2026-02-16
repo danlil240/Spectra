@@ -1,6 +1,6 @@
 #pragma once
 
-namespace plotix::ui::tokens
+namespace spectra::ui::tokens
 {
 
 // Spacing Scale (base: 4px)
@@ -89,4 +89,4 @@ constexpr float FRAME_TIME_BUDGET_MS = 16.67f;   // 60 FPS
 constexpr float UI_FRAME_TIME_TARGET_MS = 2.0f;  // UI rendering budget
 constexpr float TOOLTIP_TIME_TARGET_MS = 0.1f;   // Tooltip query budget
 
-}  // namespace plotix::ui::tokens
+}  // namespace spectra::ui::tokens

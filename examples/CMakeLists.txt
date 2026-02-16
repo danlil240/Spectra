@@ -1,8 +1,8 @@
-# Examples — each is a standalone executable linking against plotix
+# Examples — each is a standalone executable linking against spectra
 
 function(add_plotix_example name)
     add_executable(${name} ${name}.cpp)
-    target_link_libraries(${name} PRIVATE plotix)
+    target_link_libraries(${name} PRIVATE spectra)
     target_compile_features(${name} PRIVATE cxx_std_20)
 endfunction()
 

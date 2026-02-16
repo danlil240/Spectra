@@ -11,7 +11,7 @@
 struct ImVec4;  // Forward declaration for ImGui
 struct ImFont;  // Forward declaration for ImGui
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 enum class Icon : uint16_t
@@ -244,4 +244,4 @@ inline void draw_status_icon(Icon icon, const Color& color = {})
     draw_icon(icon, tokens::ICON_SM, color.r > 0 ? color : colors.text_secondary);
 }
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui

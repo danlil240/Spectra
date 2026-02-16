@@ -27,7 +27,7 @@ endif()
 function(add_plotix_test subdir name)
     string(REPLACE "/" "_" target_name "${subdir}_${name}")
     add_executable(${target_name} ${subdir}/${name}.cpp)
-    target_link_libraries(${target_name} PRIVATE plotix GTest::gtest_main)
+    target_link_libraries(${target_name} PRIVATE spectra GTest::gtest_main)
     target_compile_features(${target_name} PRIVATE cxx_std_20)
     # Tests need access to internal src/ headers (e.g. core/transform.hpp)
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -115,7 +115,7 @@ endforeach()
 option(PLOTIX_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
 if(PLOTIX_BUILD_GOLDEN_TESTS)
     add_executable(golden_image_tests golden/golden_test.cpp)
-    target_link_libraries(golden_image_tests PRIVATE plotix GTest::gtest_main)
+    target_link_libraries(golden_image_tests PRIVATE spectra GTest::gtest_main)
     target_compile_features(golden_image_tests PRIVATE cxx_std_20)
     target_include_directories(golden_image_tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -129,7 +129,7 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
     # Phase 2 golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_phase2.cpp)
         add_executable(golden_image_tests_phase2 golden/golden_test_phase2.cpp)
-        target_link_libraries(golden_image_tests_phase2 PRIVATE plotix GTest::gtest_main)
+        target_link_libraries(golden_image_tests_phase2 PRIVATE spectra GTest::gtest_main)
         target_compile_features(golden_image_tests_phase2 PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_phase2 PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -142,7 +142,7 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
     # Phase 3 golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_phase3.cpp)
         add_executable(golden_image_tests_phase3 golden/golden_test_phase3.cpp)
-        target_link_libraries(golden_image_tests_phase3 PRIVATE plotix GTest::gtest_main)
+        target_link_libraries(golden_image_tests_phase3 PRIVATE spectra GTest::gtest_main)
         target_compile_features(golden_image_tests_phase3 PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_phase3 PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -155,7 +155,7 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
     # 3D Phase 3 golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d_phase3.cpp)
         add_executable(golden_image_tests_3d_phase3 golden/golden_test_3d_phase3.cpp)
-        target_link_libraries(golden_image_tests_3d_phase3 PRIVATE plotix GTest::gtest_main)
+        target_link_libraries(golden_image_tests_3d_phase3 PRIVATE spectra GTest::gtest_main)
         target_compile_features(golden_image_tests_3d_phase3 PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_3d_phase3 PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -168,7 +168,7 @@ if(PLOTIX_BUILD_GOLDEN_TESTS)
     # 3D golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d.cpp)
         add_executable(golden_image_tests_3d golden/golden_test_3d.cpp)
-        target_link_libraries(golden_image_tests_3d PRIVATE plotix GTest::gtest_main)
+        target_link_libraries(golden_image_tests_3d PRIVATE spectra GTest::gtest_main)
         target_compile_features(golden_image_tests_3d PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_3d PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -183,7 +183,7 @@ endif()
 if(PLOTIX_BUILD_BENCHMARKS)
     function(add_plotix_bench name)
         add_executable(${name} bench/${name}.cpp)
-        target_link_libraries(${name} PRIVATE plotix benchmark::benchmark benchmark::benchmark_main)
+        target_link_libraries(${name} PRIVATE spectra benchmark::benchmark benchmark::benchmark_main)
         target_compile_features(${name} PRIVATE cxx_std_20)
         target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
     endfunction()

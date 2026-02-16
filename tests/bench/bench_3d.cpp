@@ -1,9 +1,9 @@
 #include <benchmark/benchmark.h>
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 static void BM_Scatter3D_1K(benchmark::State& state)
 {

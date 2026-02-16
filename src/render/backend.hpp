@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <memory>
-#include <plotix/color.hpp>
-#include <plotix/series.hpp>
+#include <spectra/color.hpp>
+#include <spectra/series.hpp>
 #include <span>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 enum class BufferUsage
@@ -170,4 +170,4 @@ class Backend
     uint32_t msaa_samples_ = 1;  // 1 = no MSAA, 4 = MSAA 4x
 };
 
-}  // namespace plotix
+}  // namespace spectra

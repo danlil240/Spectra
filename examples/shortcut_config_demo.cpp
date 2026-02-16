@@ -9,7 +9,7 @@
 // - Callback system for shortcut changes
 
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <unordered_map>
 
 #include "../src/ui/shortcut_config.hpp"
@@ -19,7 +19,7 @@ void demo_shortcut_persistence()
     std::cout << "=== Shortcut Configuration Demo ===\n\n";
 
     // Create a ShortcutConfig instance
-    plotix::ShortcutConfig config;
+    spectra::ShortcutConfig config;
 
     std::cout << "1. Setting custom shortcut overrides...\n";
 
@@ -59,7 +59,7 @@ void demo_shortcut_persistence()
     std::cout << "\n3. Loading shortcuts from JSON file...\n";
 
     // Create a new config and load from file
-    plotix::ShortcutConfig loaded_config;
+    spectra::ShortcutConfig loaded_config;
     if (loaded_config.load(filename))
     {
         std::cout << "   ✓ Loaded from " << filename << "\n";

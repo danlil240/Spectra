@@ -1,9 +1,9 @@
 #include "frame_scheduler.hpp"
 
-#include <plotix/logger.hpp>
+#include <spectra/logger.hpp>
 #include <thread>
 
-namespace plotix
+namespace spectra
 {
 
 FrameScheduler::FrameScheduler(float target_fps, Mode mode) : target_fps_(target_fps), mode_(mode)
@@ -124,4 +124,4 @@ void FrameScheduler::reset()
     accumulator_ = 0.0f;
 }
 
-}  // namespace plotix
+}  // namespace spectra

@@ -1,4 +1,4 @@
-#include <plotix/export.hpp>
+#include <spectra/export.hpp>
 
 #ifdef PLOTIX_USE_FFMPEG
 
@@ -6,7 +6,7 @@
     #include <sstream>
     #include <stdexcept>
 
-namespace plotix
+namespace spectra
 {
 
 VideoExporter::VideoExporter(const Config& config) : config_(config)
@@ -54,6 +54,6 @@ void VideoExporter::finish()
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_FFMPEG

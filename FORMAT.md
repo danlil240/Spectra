@@ -4,7 +4,7 @@ This project uses `clang-format` to maintain consistent code style across all C+
 
 ## Configuration
 
-The formatting rules are defined in `.clang-format` at the project root. The configuration is based on Google style with customizations for the Plotix project:
+The formatting rules are defined in `.clang-format` at the project root. The configuration is based on Google style with customizations for the Spectra project:
 
 - **C++20 standard**
 - **4-space indentation** (Allman brace style)

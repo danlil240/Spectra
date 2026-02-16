@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace plotix
+namespace spectra
 {
 
 LayoutManager::LayoutManager()
@@ -283,4 +283,4 @@ void LayoutManager::notify_toolbar_activity()
 }
 #endif
 
-}  // namespace plotix
+}  // namespace spectra

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <memory>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 /**
@@ -127,4 +127,4 @@ class DockManager
     DockNode* find_content_node(DockContentType content) const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

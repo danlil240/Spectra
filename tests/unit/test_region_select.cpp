@@ -1,15 +1,15 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <vector>
 
 // RegionSelect is ImGui-guarded. These tests exercise the pure-logic parts
 // (coordinate conversion, point collection, statistics) without requiring
 // a running ImGui context, by reimplementing the core algorithms.
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Standalone coordinate conversion (mirrors RegionSelect internals) ──────
 

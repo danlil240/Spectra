@@ -2,7 +2,7 @@
 
 #include "core/layout.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // Regression tests for layout correctness under resize-like dimension changes.
 // The resize bug root cause was figure dimensions diverging from the actual

@@ -2,10 +2,10 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
-#include <plotix/axes.hpp>
-#include <plotix/color.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
@@ -17,7 +17,7 @@
 #include "ui/undoable_property.hpp"
 #include "ui/workspace.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ class UndoWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_undo_ws.plotix").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "plotix_int_undo_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -265,7 +265,7 @@ class FigureManagerWorkspaceIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_figmgr_ws.plotix").string();
+            (std::filesystem::temp_directory_path() / "plotix_int_figmgr_ws.spectra").string();
         figures.push_back(std::make_unique<Figure>());
         mgr = std::make_unique<FigureManager>(figures);
     }
@@ -579,7 +579,7 @@ class WorkspaceInteractionIntegration : public ::testing::Test
     void SetUp() override
     {
         tmp_path =
-            (std::filesystem::temp_directory_path() / "plotix_int_ws_interact.plotix").string();
+            (std::filesystem::temp_directory_path() / "plotix_int_ws_interact.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }

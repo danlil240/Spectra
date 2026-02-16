@@ -1,6 +1,6 @@
 #include "layout.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 std::vector<Rect> compute_subplot_layout(
@@ -54,4 +54,4 @@ std::vector<Rect> compute_subplot_layout(float figure_width,
     return rects;
 }
 
-}  // namespace plotix
+}  // namespace spectra

@@ -11,7 +11,7 @@
     #include "imgui.h"
 #endif
 
-namespace plotix
+namespace spectra
 {
 
 TimelineEditor::TimelineEditor()
@@ -1241,4 +1241,4 @@ void TimelineEditor::draw(float width, float height)
 
 #endif  // PLOTIX_USE_IMGUI
 
-}  // namespace plotix
+}  // namespace spectra

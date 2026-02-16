@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── DockSystem ──────────────────────────────────────────────────────────────
@@ -447,4 +447,4 @@ Rect DockSystem::compute_drop_highlight(const SplitPane* pane, DropZone zone) co
     return Rect{};
 }
 
-}  // namespace plotix
+}  // namespace spectra

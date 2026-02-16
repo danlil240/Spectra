@@ -1,13 +1,13 @@
 #include <cstdio>
 #include <fstream>
-#include <plotix/axes.hpp>
-#include <plotix/export.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/export.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <sstream>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── SVG Helpers ────────────────────────────────────────────────────────────
@@ -447,4 +447,4 @@ bool SvgExporter::write_svg(const std::string& path, const Figure& figure)
     return file.good();
 }
 
-}  // namespace plotix
+}  // namespace spectra

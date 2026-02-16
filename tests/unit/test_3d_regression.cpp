@@ -1,16 +1,16 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes3d.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/math3d.hpp>
-#include <plotix/plotix.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/spectra.hpp>
+#include <spectra/series3d.hpp>
 #include <vector>
 
 #include "render/backend.hpp"
 #include "ui/camera_animator.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Fixture — headless App for all regression tests

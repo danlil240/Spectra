@@ -5,7 +5,7 @@
 #include <cstring>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── InterpMode / TangentMode names ─────────────────────────────────────────
@@ -1006,4 +1006,4 @@ const AnimationChannel* KeyframeInterpolator::find_channel_unlocked(uint32_t id)
     return nullptr;
 }
 
-}  // namespace plotix
+}  // namespace spectra

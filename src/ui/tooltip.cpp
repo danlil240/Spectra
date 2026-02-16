@@ -10,7 +10,7 @@
     #include "design_tokens.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void Tooltip::set_fonts(ImFont* body, ImFont* heading)
@@ -173,6 +173,6 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

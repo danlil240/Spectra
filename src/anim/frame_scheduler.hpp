@@ -2,9 +2,9 @@
 
 #include <chrono>
 #include <cstdint>
-#include <plotix/frame.hpp>
+#include <spectra/frame.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 class FrameScheduler
@@ -67,4 +67,4 @@ class FrameScheduler
     Frame frame_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

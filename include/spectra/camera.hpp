@@ -1,9 +1,9 @@
 #pragma once
 
-#include <plotix/math3d.hpp>
+#include <spectra/math3d.hpp>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 class Camera
@@ -89,4 +89,4 @@ class Camera
     void deserialize(const std::string& json);
 };
 
-}  // namespace plotix
+}  // namespace spectra

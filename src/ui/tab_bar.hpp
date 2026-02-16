@@ -2,7 +2,7 @@
 
 #include <cstddef>
 #include <functional>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
@@ -10,7 +10,7 @@
 struct ImVec2;
 #endif
 
-namespace plotix
+namespace spectra
 {
 
 /**
@@ -190,4 +190,4 @@ class TabBar
     void scroll_to_tab(size_t index);
 };
 
-}  // namespace plotix
+}  // namespace spectra

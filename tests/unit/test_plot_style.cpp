@@ -1,11 +1,11 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/plot_style.hpp>
-#include <plotix/series.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/plot_style.hpp>
+#include <spectra/series.hpp>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helper: compare colors with tolerance ───────────────────────────────────
 

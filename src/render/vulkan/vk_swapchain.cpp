@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface)
@@ -923,4 +923,4 @@ VkFormat find_depth_format(VkPhysicalDevice physical_device)
     return VK_FORMAT_D32_SFLOAT;
 }
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

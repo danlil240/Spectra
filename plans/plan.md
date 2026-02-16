@@ -1,4 +1,4 @@
-# Plotix: GPU-Accelerated Plotting Engine — Development Plan
+# Spectra: GPU-Accelerated Plotting Engine — Development Plan
 
 A production-grade development plan for a C++20 GPU-accelerated plotting library targeting scientific/engineering visualization with animation, real-time streaming, and export capabilities.
 
@@ -32,7 +32,7 @@ A production-grade development plan for a C++20 GPU-accelerated plotting library
 **Choice: Headless core + GLFW windowing adapter (optional, behind `PLOTIX_USE_GLFW`)**
 
 - Core library (`libplotix`) is headless-capable: renders to offscreen framebuffers. No window dependency.
-- `plotix-glfw` adapter (separate CMake target) provides `plotix::app` with window creation, input, vsync.
+- `spectra-glfw` adapter (separate CMake target) provides `spectra::app` with window creation, input, vsync.
 - Trade-off: SDL2 offers audio/gamepad but is heavier; GLFW is lighter and Vulkan-native. GLFW wins for a plotting library.
 - Users can bring their own surface (pass a `VkSurfaceKHR`) for embedding in Qt/ImGui/etc.
 
@@ -69,7 +69,7 @@ A production-grade development plan for a C++20 GPU-accelerated plotting library
 - **App thread** enqueues mutation commands (set_data, set_property, add_series) into an SPSC lock-free ring buffer.
 - Render thread drains queue at frame start, applies mutations, records commands, submits.
 - Double-buffered (or triple) frame data: render thread reads frame N while app thread writes frame N+1.
-- `plotix::app::run()` drives the render loop; user callbacks (`on_frame`) execute on the app thread.
+- `spectra::app::run()` drives the render loop; user callbacks (`on_frame`) execute on the app thread.
 
 **Failure recovery:**
 - **Device lost:** Recreate logical device + all GPU resources (pipelines, buffers, atlases). Log error, re-upload data.
@@ -106,14 +106,14 @@ A production-grade development plan for a C++20 GPU-accelerated plotting library
 
 **Basic static plot:**
 ```cpp
-plotix::app app;
+spectra::app app;
 auto fig = app.figure({.width = 1280, .height = 720});
 auto ax  = fig.subplot(1, 1, 1);
 
 std::vector<float> x = /* ... */;
 std::vector<float> y = /* ... */;
 
-ax.line(x, y).label("signal").color(plotix::rgb(0.2, 0.8, 1.0));
+ax.line(x, y).label("signal").color(spectra::rgb(0.2, 0.8, 1.0));
 ax.xlim(0, 10);
 ax.ylim(-5, 5);
 ax.title("Sensor Data");
@@ -125,11 +125,11 @@ fig.show();  // opens window, blocks until closed
 
 **Animated line/scatter over time:**
 ```cpp
-auto scatter = ax.scatter(x, y).color(plotix::rgb(1, 0.4, 0)).size(4.0f);
+auto scatter = ax.scatter(x, y).color(spectra::rgb(1, 0.4, 0)).size(4.0f);
 
 fig.animate()
    .fps(60)
-   .on_frame([&](plotix::frame& f) {
+   .on_frame([&](spectra::frame& f) {
        float t = f.elapsed_seconds();
        for (size_t i = 0; i < x.size(); ++i)
            y[i] = std::sin(x[i] + t);
@@ -140,11 +140,11 @@ fig.animate()
 
 **Live streaming plot (append points every frame):**
 ```cpp
-auto line = ax.line().label("live").color(plotix::colors::cyan);
+auto line = ax.line().label("live").color(spectra::colors::cyan);
 
 fig.animate()
    .fps(60)
-   .on_frame([&](plotix::frame& f) {
+   .on_frame([&](spectra::frame& f) {
        float t = f.elapsed_seconds();
        line.append(t, sensor.read());       // O(1) ring buffer append
        ax.xlim(t - 10.0f, t);              // sliding window
@@ -163,7 +163,7 @@ auto line2 = ax2.line(x2, y2).label("pressure");
 
 fig.animate()
    .fps(30)
-   .on_frame([&](plotix::frame& f) {
+   .on_frame([&](spectra::frame& f) {
        line1.set_y(temp_stream.latest());
        line2.set_y(pressure_stream.latest());
    })
@@ -174,19 +174,19 @@ fig.animate()
 ```cpp
 auto line = ax.line(x, y);
 
-plotix::timeline tl;
-tl.at(0.0f).set(line.color(), plotix::rgb(1,0,0));
-tl.at(2.0f).set(line.color(), plotix::rgb(0,0,1));
+spectra::timeline tl;
+tl.at(0.0f).set(line.color(), spectra::rgb(1,0,0));
+tl.at(2.0f).set(line.color(), spectra::rgb(0,0,1));
 tl.at(0.0f).set(ax.xlim_prop(), {0.f, 5.f});
 tl.at(2.0f).set(ax.xlim_prop(), {0.f, 20.f});
-tl.easing(plotix::ease::cubic_in_out);
+tl.easing(spectra::ease::cubic_in_out);
 
 fig.animate().timeline(tl).duration(4.0f).loop(true).play();
 ```
 
 **Offscreen export:**
 ```cpp
-plotix::app app({.headless = true});
+spectra::app app({.headless = true});
 auto fig = app.figure({.width = 1920, .height = 1080});
 auto ax  = fig.subplot(1, 1, 1);
 ax.line(x, y);
@@ -198,7 +198,7 @@ fig.save_png("output.png");
 fig.animate()
    .fps(60)
    .duration(10.0f)
-   .on_frame([&](plotix::frame& f) { /* update */ })
+   .on_frame([&](spectra::frame& f) { /* update */ })
    .record("output.mp4");  // pipes frames to ffmpeg
 ```
 
@@ -214,7 +214,7 @@ ax.line(x, y);
 
 // Optional Eigen adapter (behind PLOTIX_USE_EIGEN)
 Eigen::VectorXf ex, ey;
-ax.line(plotix::eigen_span(ex), plotix::eigen_span(ey));
+ax.line(spectra::eigen_span(ex), spectra::eigen_span(ey));
 ```
 
 ---
@@ -271,14 +271,14 @@ layout(std430, set = 1, binding = 0) readonly buffer VertexData {
 ## D. Directory Structure
 
 ```
-plotix/
+spectra/
 ├── CMakeLists.txt                  # top-level; feature flags here
 ├── cmake/
 │   ├── FindVulkan.cmake
 │   ├── CompileShaders.cmake        # GLSL→SPIR-V custom commands
 │   └── PlotixConfig.cmake.in
-├── include/plotix/
-│   ├── plotix.hpp                  # umbrella header
+├── include/spectra/
+│   ├── spectra.hpp                  # umbrella header
 │   ├── app.hpp
 │   ├── figure.hpp
 │   ├── axes.hpp
@@ -437,7 +437,7 @@ while running:
 - Export: offscreen PNG.
 - Examples: basic_line, live_stream, offscreen_export.
 - Tests: unit + golden image baseline.
-- **Exit criterion:** A user can `#include <plotix/plotix.hpp>`, plot a live-updating line with labels, and export a PNG.
+- **Exit criterion:** A user can `#include <spectra/spectra.hpp>`, plot a live-updating line with labels, and export a PNG.
 
 ### Phase 2 — Interactivity + Video + More Plots (4–6 weeks)
 

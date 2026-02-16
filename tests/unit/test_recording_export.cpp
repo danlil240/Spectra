@@ -4,7 +4,7 @@
 
 #include "ui/recording_export.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helper: dummy render callback ──────────────────────────────────────────
 

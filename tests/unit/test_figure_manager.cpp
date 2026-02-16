@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 #include <memory>
-#include <plotix/figure.hpp>
+#include <spectra/figure.hpp>
 #include <string>
 #include <vector>
 
 #include "ui/figure_manager.hpp"
 #include "ui/tab_bar.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Test Fixture ─────────────────────────────────────────────────────────────
@@ -588,4 +588,4 @@ TEST_F(FigureManagerTest, EmptyFiguresVector)
     EXPECT_EQ(mgr.active_figure(), nullptr);
 }
 
-}  // namespace plotix
+}  // namespace spectra

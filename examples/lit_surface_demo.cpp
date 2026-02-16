@@ -1,13 +1,13 @@
 #include <cmath>
-#include <plotix/app.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/app.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series3d.hpp>
 #include <vector>
 
 int main()
 {
-    using namespace plotix;
+    using namespace spectra;
 
     AppConfig config;
     App app(config);

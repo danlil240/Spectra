@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">Plotix</h1>
+  <h1 align="center">Spectra</h1>
   <p align="center">
     <strong>GPU-accelerated plotting for C++20</strong>
   </p>
@@ -20,22 +20,22 @@
 
 ---
 
-## What is Plotix?
+## What is Spectra?
 
-Plotix is a **C++20 GPU-accelerated plotting library** built on **Vulkan 1.2+**, designed for scientific and engineering visualization. It renders anti-aliased lines, scatter plots, and text directly on the GPU — with first-class support for animation, live-streaming data, and headless offscreen export.
+Spectra is a **C++20 GPU-accelerated plotting library** built on **Vulkan 1.2+**, designed for scientific and engineering visualization. It renders anti-aliased lines, scatter plots, and text directly on the GPU — with first-class support for animation, live-streaming data, and headless offscreen export.
 
 ```cpp
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 
 int main() {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1280, .height = 720});
     auto& ax  = fig.subplot(1, 1, 1);
 
     std::vector<float> x = { /* ... */ };
     std::vector<float> y = { /* ... */ };
 
-    ax.line(x, y).label("signal").color(plotix::rgb(0.2f, 0.8f, 1.0f));
+    ax.line(x, y).label("signal").color(spectra::rgb(0.2f, 0.8f, 1.0f));
     ax.title("Sensor Data");
     ax.xlabel("Time (s)");
     ax.ylabel("Amplitude");
@@ -122,8 +122,8 @@ int main() {
 
 ```bash
 # Clone and build
-git clone https://github.com/danlil240/plotix.git
-cd plotix
+git clone https://github.com/danlil240/spectra.git
+cd spectra
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -191,11 +191,11 @@ vulkaninfo --summary
 ### Basic Line Plot
 
 ```cpp
-plotix::App app;
+spectra::App app;
 auto& fig = app.figure({.width = 1280, .height = 720});
 auto& ax  = fig.subplot(1, 1, 1);
 
-ax.line(x, y).label("sin(x)").color(plotix::rgb(0.2f, 0.8f, 1.0f));
+ax.line(x, y).label("sin(x)").color(spectra::rgb(0.2f, 0.8f, 1.0f));
 ax.xlim(0.0f, 10.0f);
 ax.ylim(-1.5f, 1.5f);
 ax.title("Basic Line Plot");
@@ -206,11 +206,11 @@ fig.show();
 ### Live Streaming Data
 
 ```cpp
-auto& line = ax.line().label("live").color(plotix::colors::cyan);
+auto& line = ax.line().label("live").color(spectra::colors::cyan);
 
 fig.animate()
    .fps(60)
-   .on_frame([&](plotix::Frame& f) {
+   .on_frame([&](spectra::Frame& f) {
        float t = f.elapsed_seconds();
        line.append(t, sensor.read());       // O(1) ring buffer append
        ax.xlim(t - 10.0f, t);              // sliding window
@@ -221,11 +221,11 @@ fig.animate()
 ### Animated Scatter
 
 ```cpp
-auto& scatter = ax.scatter(x, y).color(plotix::rgb(1, 0.4, 0)).size(4.0f);
+auto& scatter = ax.scatter(x, y).color(spectra::rgb(1, 0.4, 0)).size(4.0f);
 
 fig.animate()
    .fps(60)
-   .on_frame([&](plotix::Frame& f) {
+   .on_frame([&](spectra::Frame& f) {
        float t = f.elapsed_seconds();
        for (size_t i = 0; i < x.size(); ++i)
            y[i] = std::sin(x[i] + t);
@@ -250,7 +250,7 @@ fig.show();
 ### Headless PNG Export
 
 ```cpp
-plotix::App app({.headless = true});
+spectra::App app({.headless = true});
 auto& fig = app.figure({.width = 1920, .height = 1080});
 auto& ax  = fig.subplot(1, 1, 1);
 ax.line(x, y);
@@ -263,7 +263,7 @@ fig.save_png("output.png");
 fig.animate()
    .fps(60)
    .duration(10.0f)
-   .on_frame([&](plotix::Frame& f) { /* update data */ })
+   .on_frame([&](spectra::Frame& f) { /* update data */ })
    .record("output.mp4");  // pipes frames to ffmpeg
 ```
 
@@ -350,8 +350,8 @@ App
 ### Project Structure
 
 ```
-plotix/
-├── include/plotix/       # Public API headers (plotix.hpp, math3d.hpp, plot_style.hpp)
+spectra/
+├── include/spectra/       # Public API headers (spectra.hpp, math3d.hpp, plot_style.hpp)
 ├── src/
 │   ├── core/             # Figure, Axes, Series, layout, coordinate transforms
 │   ├── render/           # Renderer + abstract Backend interface
@@ -409,7 +409,7 @@ Contributions are welcome! The codebase is organized into independent modules wi
 
 When submitting changes:
 1. Follow C++20 style with no global state and RAII throughout
-2. Keep public headers in `include/plotix/` minimal (pimpl in Phase 3)
+2. Keep public headers in `include/spectra/` minimal (pimpl in Phase 3)
 3. Add unit tests for new functionality
 4. Run `ctest` before submitting
 

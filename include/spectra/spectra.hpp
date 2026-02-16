@@ -1,32 +1,32 @@
 #pragma once
 
-#include <plotix/animator.hpp>
-#include <plotix/app.hpp>
-#include <plotix/axes.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/color.hpp>
-#include <plotix/export.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/frame.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/logger.hpp>
-#include <plotix/math3d.hpp>
-#include <plotix/series.hpp>
-#include <plotix/series3d.hpp>
-#include <plotix/timeline.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/app.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/color.hpp>
+#include <spectra/export.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/frame.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/logger.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
+#include <spectra/timeline.hpp>
 
 // ─── Convenience API ─────────────────────────────────────────────────────────
 // Free functions that manage a global App instance under the hood.
 //
-//   auto& fig = plotix::figure();
+//   auto& fig = spectra::figure();
 //   auto& ax  = fig.subplot(1, 1, 1);
 //   ax.line(x, y);
-//   plotix::show();
+//   spectra::show();
 //
 // For advanced use (multiple windows, headless, custom config), use App directly.
 
-namespace plotix
+namespace spectra
 {
 
 namespace detail
@@ -52,4 +52,4 @@ inline void show()
     detail::global_app().run();
 }
 
-}  // namespace plotix
+}  // namespace spectra

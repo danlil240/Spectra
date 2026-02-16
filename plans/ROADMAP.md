@@ -1,4 +1,4 @@
-# Plotix UI Redesign — Roadmap & Progress Tracker
+# Spectra UI Redesign — Roadmap & Progress Tracker
 
 **Last Updated:** 2026-02-17 (All UI Redesign Phases Complete + 3D Phase 3 Complete)  
 **Current Phase:** 3D Visualization — Phase 3 Complete ✅  
@@ -19,7 +19,7 @@
 |------|---------|
 | **1. CMake guards** | All sources & tests use `if(EXISTS)` loops. Missing files are silently skipped. Add your file name to the `foreach()` list — it compiles only when the `.cpp` exists on disk. |
 | **2. Standalone headers** | Every `.hpp` must compile on its own. Use forward decls, `#ifdef PLOTIX_USE_IMGUI` guards. |
-| **3. Build only your targets** | Use `cmake --build build --target unit_test_YOUR_FEATURE` or `--target plotix`. Do NOT run full `cmake --build build` or `ctest` while parallel agents are working. |
+| **3. Build only your targets** | Use `cmake --build build --target unit_test_YOUR_FEATURE` or `--target spectra`. Do NOT run full `cmake --build build` or `ctest` while parallel agents are working. |
 | **4. Guard cross-agent deps** | Use null-check pointers (`if (ptr) { ptr->method(); }`) or `#ifdef` for optional modules. |
 | **5. Don't touch in-progress files** | Check this roadmap for `🔄 In Progress` markers before modifying shared files. |
 
@@ -65,7 +65,7 @@
 | Animated zoom (150ms ease-out) | B | ✅ Done | `src/ui/input.hpp`, `src/ui/input.cpp` |
 | Inertial pan (300ms decel) | B | ✅ Done | `src/ui/input.cpp` |
 | Double-click auto-fit | B | ✅ Done | `src/ui/input.cpp` |
-| Spring + CubicBezier easing | B | ✅ Done | `include/plotix/animator.hpp`, `src/anim/easing.cpp` |
+| Spring + CubicBezier easing | B | ✅ Done | `include/spectra/animator.hpp`, `src/anim/easing.cpp` |
 | Hover tooltips | E | ✅ Done | `src/ui/tooltip.hpp`, `src/ui/tooltip.cpp` |
 | Crosshair overlay | E | ✅ Done | `src/ui/crosshair.hpp`, `src/ui/crosshair.cpp` |
 | Data markers (pin/remove) | E | ✅ Done | `src/ui/data_marker.hpp`, `src/ui/data_marker.cpp` |
@@ -183,10 +183,10 @@
 |-------------|-------|--------|-------|
 | Docking system | A | ✅ Done | `src/ui/dock_system.hpp/.cpp` |
 | Split view (horizontal/vertical) | A | ✅ Done | `src/ui/split_view.hpp/.cpp` |
-| MATLAB-style plot customization (LineStyle, MarkerStyle enums, PlotStyle struct) | — | ✅ Done | `include/plotix/plot_style.hpp` (NEW) |
-| Format string parser (`"r--o"`, `"b:*"`, etc.) | — | ✅ Done | `include/plotix/plot_style.hpp` |
-| Runtime style mutation API (line_style, marker_style, marker_size, opacity) | — | ✅ Done | `include/plotix/series.hpp`, `src/core/series.cpp` |
-| `Axes::plot()` convenience method | — | ✅ Done | `include/plotix/axes.hpp`, `src/core/axes.cpp` |
+| MATLAB-style plot customization (LineStyle, MarkerStyle enums, PlotStyle struct) | — | ✅ Done | `include/spectra/plot_style.hpp` (NEW) |
+| Format string parser (`"r--o"`, `"b:*"`, etc.) | — | ✅ Done | `include/spectra/plot_style.hpp` |
+| Runtime style mutation API (line_style, marker_style, marker_size, opacity) | — | ✅ Done | `include/spectra/series.hpp`, `src/core/series.cpp` |
+| `Axes::plot()` convenience method | — | ✅ Done | `include/spectra/axes.hpp`, `src/core/axes.cpp` |
 | GPU push constants for styles (96-byte SeriesPushConstants) | — | ✅ Done | `src/render/backend.hpp` |
 | Shader dash pattern rendering (line.vert/frag) | — | ✅ Done | `src/gpu/shaders/line.vert`, `src/gpu/shaders/line.frag` |
 | Shader SDF marker shapes — 18 types (scatter.vert/frag) | — | ✅ Done | `src/gpu/shaders/scatter.vert`, `src/gpu/shaders/scatter.frag` |
@@ -323,7 +323,7 @@
 |------|-------|------|--------|
 | `CMakeLists.txt` | G | 8 | Added timeline_editor.cpp, recording_export.cpp to UI sources |
 | `tests/CMakeLists.txt` | G | 8 | Added test_timeline_editor, test_recording_export |
-| `include/plotix/fwd.hpp` | G | 8 | Added TimelineEditor, RecordingSession forward declarations |
+| `include/spectra/fwd.hpp` | G | 8 | Added TimelineEditor, RecordingSession forward declarations |
 
 ### Files Created (Phase 3 — Week 12, Agent 6 - 3D Animation)
 
@@ -339,7 +339,7 @@
 | `src/ui/transition_engine.hpp` / `.cpp` | 6 | 12 | Added animate_camera() |
 | `src/ui/keyframe_interpolator.hpp` / `.cpp` | 6 | 12 | Added bind_camera() for parameter channels |
 | `src/ui/timeline_editor.hpp` / `.cpp` | 6 | 12 | Added set_camera_animator() |
-| `include/plotix/fwd.hpp` | 6 | 12 | Added CameraAnimator forward decl |
+| `include/spectra/fwd.hpp` | 6 | 12 | Added CameraAnimator forward decl |
 | `CMakeLists.txt` | 6 | 12 | Added camera_animator.cpp |
 | `tests/CMakeLists.txt` | 6 | 12 | Added test_camera_animator |
 
@@ -404,7 +404,7 @@
 
 | File | Agent | Week | Changes |
 |------|-------|------|--------|
-| `include/plotix/fwd.hpp` | B | 10 | Added AxisLinkManager forward declaration |
+| `include/spectra/fwd.hpp` | B | 10 | Added AxisLinkManager forward declaration |
 | `src/ui/input.hpp` | B | 10 | Added AxisLinkManager pointer, setter/getter |
 | `src/ui/input.cpp` | B | 10 | Added axis_link.hpp include, propagate zoom/pan/box-zoom/auto-fit to linked axes |
 | `CMakeLists.txt` | B | 10 | Added axis_link.cpp to PLOTIX_UI_SOURCES |
@@ -414,7 +414,7 @@
 
 | File | Agent | Week | In Build? |
 |------|-------|------|----------|
-| `include/plotix/plot_style.hpp` | — | 9 | ✅ Header-only |
+| `include/spectra/plot_style.hpp` | — | 9 | ✅ Header-only |
 | `tests/unit/test_plot_style.cpp` | — | 9 | ✅ Yes |
 | `examples/plot_styles_demo.cpp` | — | 9 | ✅ Yes |
 
@@ -422,9 +422,9 @@
 
 | File | Agent | Week | Changes |
 |------|-------|------|--------|
-| `include/plotix/series.hpp` | — | 9 | Added PlotStyle integration, format() methods, using declarations for name hiding fix |
+| `include/spectra/series.hpp` | — | 9 | Added PlotStyle integration, format() methods, using declarations for name hiding fix |
 | `src/core/series.cpp` | — | 9 | Added plot_style(), LineSeries::format(), ScatterSeries::format() |
-| `include/plotix/axes.hpp` | — | 9 | Added plot(x, y, fmt) and plot(x, y, PlotStyle) convenience methods |
+| `include/spectra/axes.hpp` | — | 9 | Added plot(x, y, fmt) and plot(x, y, PlotStyle) convenience methods |
 | `src/core/axes.cpp` | — | 9 | Implemented Axes::plot() methods |
 | `src/render/backend.hpp` | — | 9 | Extended SeriesPushConstants to 96 bytes (line_style, marker_type, dash_pattern, opacity) |
 | `src/render/renderer.cpp` | — | 9 | Updated render_series() to populate style push constants, render markers for LineSeries |
@@ -456,7 +456,7 @@
 |------|-------|------|--------|
 | `src/ui/workspace.hpp` | F | 11 | FORMAT_VERSION bumped to 3. Added dash_pattern to SeriesState. Added axis_link_state, TransformState, ShortcutOverride, TimelineState, plugin_state, data_palette_name to WorkspaceData |
 | `src/ui/workspace.cpp` | F | 11 | v3 serialization: line_style, marker_style, dash_pattern in series. Top-level: axis_link_state, transforms, shortcut_overrides, timeline, plugin_state, data_palette_name. Backward-compatible v2 deserialization |
-| `include/plotix/fwd.hpp` | F | 11 | Added ShortcutConfig, PluginManager, PluginEntry forward declarations |
+| `include/spectra/fwd.hpp` | F | 11 | Added ShortcutConfig, PluginManager, PluginEntry forward declarations |
 | `CMakeLists.txt` | F | 11 | Added shortcut_config.cpp, plugin_api.cpp to ImGui-dependent UI sources |
 | `tests/CMakeLists.txt` | F | 11 | Added test_shortcut_config, test_plugin_api, test_workspace_v3 |
 
@@ -551,7 +551,7 @@
 
 | Deliverable | Status | Files |
 |-------------|--------|-------|
-| Header-only math library (vec3, vec4, mat4, quat) | ✅ Done | `include/plotix/math3d.hpp` (~350 LOC) |
+| Header-only math library (vec3, vec4, mat4, quat) | ✅ Done | `include/spectra/math3d.hpp` (~350 LOC) |
 | FrameUBO expansion (view, model, camera_pos, near/far, light_dir) | ✅ Done | `src/render/backend.hpp` |
 | Depth buffer support (SwapchainContext + OffscreenContext) | ✅ Done | `src/render/vulkan/vk_swapchain.hpp/.cpp` |
 | PipelineConfig extension (depth test/write, cull, msaa) | ✅ Done | `src/render/vulkan/vk_pipeline.hpp/.cpp` |
@@ -593,7 +593,7 @@
 | TransitionEngine::animate_camera() (lerp all camera params) | ✅ Done | `src/ui/transition_engine.hpp/.cpp` |
 | KeyframeInterpolator CameraBinding (azimuth/elevation/distance/fov channels) | ✅ Done | `src/ui/keyframe_interpolator.hpp/.cpp` |
 | TimelineEditor camera_animator_ integration + evaluate_at_playhead() | ✅ Done | `src/ui/timeline_editor.hpp/.cpp` |
-| CameraAnimator forward declaration | ✅ Done | `include/plotix/fwd.hpp` |
+| CameraAnimator forward declaration | ✅ Done | `include/spectra/fwd.hpp` |
 | Unit tests (48 tests, 11 suites) | ✅ Done | `tests/unit/test_camera_animator.cpp` |
 
 **Key achievements:**
@@ -621,7 +621,7 @@
 | Workspace serialize/deserialize for 3D state (v4 format) | ✅ Done | `src/ui/workspace.cpp` |
 | Workspace capture/apply with Axes3D support + 2D fallback | ✅ Done | `src/ui/workspace.cpp` |
 | JSON unescape fix for nested JSON strings (camera_state round-trip) | ✅ Done | `src/ui/workspace.cpp` |
-| ModeTransition forward declaration | ✅ Done | `include/plotix/fwd.hpp` |
+| ModeTransition forward declaration | ✅ Done | `include/spectra/fwd.hpp` |
 | Unit tests: mode transition (43 tests, 11 suites) | ✅ Done | `tests/unit/test_mode_transition.cpp` |
 | Unit tests: workspace 3D serialization (18 tests, 10 suites) | ✅ Done | `tests/unit/test_workspace_3d.cpp` |
 | mode_transition_demo example | ✅ Done | `examples/mode_transition_demo.cpp` |
@@ -683,8 +683,8 @@
 |-------------|--------|-------|
 | Dedicated mesh3d.vert/frag shaders with Phong lighting | ✅ Done | `src/gpu/shaders/mesh3d.vert`, `src/gpu/shaders/mesh3d.frag` |
 | Updated surface3d.frag with UBO light_dir + material properties | ✅ Done | `src/gpu/shaders/surface3d.frag` |
-| Configurable light direction + enable/disable on Axes3D | ✅ Done | `include/plotix/axes3d.hpp` |
-| Material properties (ambient/specular/shininess) on SurfaceSeries/MeshSeries | ✅ Done | `include/plotix/series3d.hpp` |
+| Configurable light direction + enable/disable on Axes3D | ✅ Done | `include/spectra/axes3d.hpp` |
+| Material properties (ambient/specular/shininess) on SurfaceSeries/MeshSeries | ✅ Done | `include/spectra/series3d.hpp` |
 | Renderer passes light_dir from Axes3D + material props via push constants | ✅ Done | `src/render/renderer.cpp` |
 | Painter's sort for transparency (opaque front-to-back, transparent back-to-front) | ✅ Done | `src/render/renderer.cpp` |
 | MSAA 4x infrastructure (render pass, swapchain, offscreen, pipeline config) | ✅ Done | `src/render/vulkan/vk_swapchain.hpp/.cpp`, `src/render/vulkan/vk_backend.cpp`, `src/render/backend.hpp` |
@@ -698,9 +698,9 @@
 |-------------|--------|-------|
 | Transparent pipeline variants (depth test ON, depth write OFF) for Line3D, Scatter3D, Surface3D, Mesh3D | ✅ Done | `src/render/backend.hpp`, `src/render/vulkan/vk_backend.cpp` |
 | Renderer selects transparent vs opaque pipeline per-series based on effective alpha | ✅ Done | `src/render/renderer.cpp`, `src/render/renderer.hpp` |
-| BlendMode enum (Alpha, Additive, Premultiplied) | ✅ Done | `include/plotix/series3d.hpp` |
-| Per-series transparency API: blend_mode(), is_transparent(), double_sided(), wireframe() | ✅ Done | `include/plotix/series3d.hpp` |
-| Colormap alpha support on SurfaceSeries (colormap_alpha, set_colormap_alpha_range) | ✅ Done | `include/plotix/series3d.hpp` |
+| BlendMode enum (Alpha, Additive, Premultiplied) | ✅ Done | `include/spectra/series3d.hpp` |
+| Per-series transparency API: blend_mode(), is_transparent(), double_sided(), wireframe() | ✅ Done | `include/spectra/series3d.hpp` |
+| Colormap alpha support on SurfaceSeries (colormap_alpha, set_colormap_alpha_range) | ✅ Done | `include/spectra/series3d.hpp` |
 | Wireframe mesh generation + line-topology pipeline for SurfaceSeries | ✅ Done | `src/core/series3d.cpp`, `src/render/vulkan/vk_backend.cpp` |
 | SurfaceWireframe3D + SurfaceWireframe3D_Transparent pipeline types | ✅ Done | `src/render/backend.hpp`, `src/render/vulkan/vk_backend.cpp` |
 | 46 new unit tests (blend mode, transparency detection, wireframe mesh, thresholds, chaining) | ✅ Done | `tests/unit/test_transparency.cpp` |

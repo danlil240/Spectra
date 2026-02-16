@@ -1,9 +1,9 @@
 #include <chrono>
-#include <plotix/app.hpp>
-#include <plotix/logger.hpp>
+#include <spectra/app.hpp>
+#include <spectra/logger.hpp>
 #include <thread>
 
-using namespace plotix;
+using namespace spectra;
 
 int main()
 {

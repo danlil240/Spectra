@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 #include <string>
 
 #include "ui/tab_bar.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // TabBar pure-logic tests (tab management, callbacks, state queries).
 // Drawing/rendering is ImGui-dependent and tested via golden image tests.

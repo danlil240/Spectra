@@ -2,11 +2,11 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include <plotix/logger.hpp>
+#include <spectra/logger.hpp>
 #include <sstream>
 #include <string>
 
-namespace plotix
+namespace spectra
 {
 
 Logger& Logger::instance()
@@ -191,4 +191,4 @@ Logger::LogSink null_sink()
 
 }  // namespace sinks
 
-}  // namespace plotix
+}  // namespace spectra

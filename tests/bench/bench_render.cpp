@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 // ─── Data generation helpers ────────────────────────────────────────────────
@@ -34,7 +34,7 @@ static void BM_HeadlessRender_Line_1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1280, .height = 720});
         auto& ax = fig.subplot(1, 1, 1);
         ax.line(x, y).label("bench");
@@ -52,7 +52,7 @@ static void BM_HeadlessRender_Line_10K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1280, .height = 720});
         auto& ax = fig.subplot(1, 1, 1);
         ax.line(x, y).label("bench");
@@ -70,7 +70,7 @@ static void BM_HeadlessRender_Line_100K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1920, .height = 1080});
         auto& ax = fig.subplot(1, 1, 1);
         ax.line(x, y).label("bench");
@@ -88,7 +88,7 @@ static void BM_HeadlessRender_Line_1M(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1920, .height = 1080});
         auto& ax = fig.subplot(1, 1, 1);
         ax.line(x, y).label("bench");
@@ -106,7 +106,7 @@ static void BM_HeadlessRender_Scatter_1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1280, .height = 720});
         auto& ax = fig.subplot(1, 1, 1);
         ax.scatter(x, y).label("bench").size(4.0f);
@@ -124,7 +124,7 @@ static void BM_HeadlessRender_Scatter_100K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1920, .height = 1080});
         auto& ax = fig.subplot(1, 1, 1);
         ax.scatter(x, y).label("bench").size(3.0f);
@@ -145,7 +145,7 @@ static void BM_HeadlessRender_MultiSubplot(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1920, .height = 1080});
         auto& ax1 = fig.subplot(2, 1, 1);
         auto& ax2 = fig.subplot(2, 1, 2);
@@ -167,7 +167,7 @@ static void BM_HeadlessExport_PNG(benchmark::State& state)
 
     for (auto _ : state)
     {
-        plotix::App app({.headless = true});
+        spectra::App app({.headless = true});
         auto& fig = app.figure({.width = 1920, .height = 1080});
         auto& ax = fig.subplot(1, 1, 1);
         ax.line(x, y).label("bench");

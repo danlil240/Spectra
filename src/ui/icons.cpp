@@ -6,7 +6,7 @@
 
 #include "imgui.h"
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 namespace
@@ -194,4 +194,4 @@ void IconFont::build_icon_map()
     }
 }
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui

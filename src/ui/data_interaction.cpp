@@ -5,13 +5,13 @@
     #include <cmath>
     #include <imgui.h>
     #include <limits>
-    #include <plotix/axes.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
 
     #include "axis_link.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
@@ -328,6 +328,6 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     return best;
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

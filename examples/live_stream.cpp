@@ -1,13 +1,13 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1280, .height = 720});
     auto& ax = fig.subplot(1, 1, 1);
 
-    auto& line = ax.line().label("live").color(plotix::colors::cyan);
+    auto& line = ax.line().label("live").color(spectra::colors::cyan);
     ax.ylim(-1.5f, 1.5f);
     ax.title("Live Streaming Plot");
     ax.xlabel("Time (s)");
@@ -16,7 +16,7 @@ int main()
     fig.animate()
         .fps(60)
         .on_frame(
-            [&](plotix::Frame& f)
+            [&](spectra::Frame& f)
             {
                 float t = f.elapsed_seconds();
                 // Append a new point each frame simulating a sensor reading

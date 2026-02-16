@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace plotix
+namespace spectra
 {
 
 struct Color
@@ -59,4 +59,4 @@ inline constexpr Color default_cycle[] = {
 inline constexpr size_t default_cycle_size = sizeof(default_cycle) / sizeof(default_cycle[0]);
 }  // namespace palette
 
-}  // namespace plotix
+}  // namespace spectra

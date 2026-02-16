@@ -8,7 +8,7 @@
 
 struct GLFWwindow;
 
-namespace plotix
+namespace spectra
 {
 
 class Axes;
@@ -80,6 +80,6 @@ class GlfwAdapter
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_GLFW

@@ -5,7 +5,7 @@
 
 #include "ui/data_transform.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 

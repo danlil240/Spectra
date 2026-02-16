@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class CommandRegistry;
@@ -124,4 +124,4 @@ class ShortcutManager
     static constexpr int GLFW_PRESS = 1;
 };
 
-}  // namespace plotix
+}  // namespace spectra

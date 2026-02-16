@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
+#include <spectra/axes.hpp>
 
 #include "ui/animation_controller.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // Helper: create an Axes with known limits
 static std::unique_ptr<Axes> make_axes(float xmin, float xmax, float ymin, float ymax)

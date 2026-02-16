@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Format all C++ source files in the Plotix project using .clang-format
+# Format all C++ source files in the Spectra project using .clang-format
 # Usage: ./format_project.sh [options]
 #   --check     : Check formatting without modifying files
 #   --dry-run   : Same as --check
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "=== Plotix Project Formatter ==="
+echo "=== Spectra Project Formatter ==="
 if [ "$CHECK_ONLY" = true ]; then
     echo "Checking formatting (dry-run mode)..."
 else

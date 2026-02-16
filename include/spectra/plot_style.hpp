@@ -2,11 +2,11 @@
 
 #include <cstdint>
 #include <optional>
-#include <plotix/color.hpp>
+#include <spectra/color.hpp>
 #include <string>
 #include <string_view>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Line Styles ─────────────────────────────────────────────────────────────
@@ -542,4 +542,4 @@ inline std::string to_format_string(const PlotStyle& style)
     return result;
 }
 
-}  // namespace plotix
+}  // namespace spectra

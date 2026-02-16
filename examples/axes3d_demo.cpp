@@ -1,7 +1,7 @@
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 
-using namespace plotix;
+using namespace spectra;
 
 int main()
 {

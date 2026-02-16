@@ -2,10 +2,10 @@
 
 #include <functional>
 #include <memory>
-#include <plotix/fwd.hpp>
+#include <spectra/fwd.hpp>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 namespace ease
@@ -63,4 +63,4 @@ class Animator
     bool paused_ = false;
 };
 
-}  // namespace plotix
+}  // namespace spectra

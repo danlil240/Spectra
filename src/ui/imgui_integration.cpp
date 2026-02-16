@@ -5,13 +5,13 @@
     #include <imgui.h>
     #include <imgui_impl_glfw.h>
     #include <imgui_impl_vulkan.h>
-    #include <plotix/axes.hpp>
-    #include <plotix/axes3d.hpp>
-    #include <plotix/camera.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/logger.hpp>
-    #include <plotix/math3d.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/axes3d.hpp>
+    #include <spectra/camera.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/logger.hpp>
+    #include <spectra/math3d.hpp>
+    #include <spectra/series.hpp>
 
     #include "../render/vulkan/vk_backend.hpp"
     #include "animation_curve_editor.hpp"
@@ -52,7 +52,7 @@
         #define M_PI 3.14159265358979323846
     #endif
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -802,7 +802,7 @@ void ImGuiIntegration::draw_command_bar()
                                      ui::theme().accent.g,
                                      ui::theme().accent.b,
                                      ui::theme().accent.a));
-        ImGui::TextUnformatted("Plotix");
+        ImGui::TextUnformatted("Spectra");
         ImGui::PopStyleColor();
         ImGui::PopFont();
 
@@ -3939,6 +3939,6 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

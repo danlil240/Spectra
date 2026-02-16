@@ -3,8 +3,8 @@
 #ifdef PLOTIX_USE_IMGUI
 
     #include <functional>
-    #include <plotix/figure.hpp>
-    #include <plotix/fwd.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/fwd.hpp>
 
     #include "crosshair.hpp"
     #include "data_marker.hpp"
@@ -15,7 +15,7 @@
 
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 // Orchestrates all data-interaction features:
@@ -116,6 +116,6 @@ class DataInteraction
     float ylim_min_ = 0.0f, ylim_max_ = 1.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

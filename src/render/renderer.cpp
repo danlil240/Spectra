@@ -2,18 +2,18 @@
 
 #include <algorithm>
 #include <cstring>
-#include <plotix/axes.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
 #include <vector>
 
 #include "../ui/axes3d_renderer.hpp"
 #include "../ui/theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 Renderer::Renderer(Backend& backend) : backend_(backend) {}
@@ -1324,4 +1324,4 @@ void Renderer::build_ortho_projection_3d(
     m[15] = 1.0f;
 }
 
-}  // namespace plotix
+}  // namespace spectra

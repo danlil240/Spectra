@@ -5,7 +5,7 @@
 
 #include "camera.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Animate axis limits ────────────────────────────────────────────────────
@@ -282,4 +282,4 @@ void AnimationController::gc()
     std::erase_if(inertial_anims_, [](const InertialPanAnim& a) { return a.finished; });
 }
 
-}  // namespace plotix
+}  // namespace spectra

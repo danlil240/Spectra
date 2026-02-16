@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-namespace plotix::data
+namespace spectra::data
 {
 
 /// Simple moving average (SMA) filter.
@@ -27,4 +27,4 @@ namespace plotix::data
                                                  float sigma,
                                                  std::size_t radius = 0);
 
-}  // namespace plotix::data
+}  // namespace spectra::data

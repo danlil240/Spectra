@@ -5,7 +5,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 struct QueueFamilyIndices
@@ -57,4 +57,4 @@ bool check_validation_layer_support();
 // Required device extensions
 std::vector<const char*> get_required_device_extensions(bool need_swapchain);
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

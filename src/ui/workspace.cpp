@@ -4,14 +4,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <plotix/axes.hpp>
-#include <plotix/axes3d.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
-#include <plotix/series3d.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Simple JSON writer ──────────────────────────────────────────────────────
@@ -1051,23 +1051,23 @@ std::string Workspace::default_path()
     if (!home)
         home = std::getenv("USERPROFILE");
     if (!home)
-        return "workspace.plotix";
+        return "workspace.spectra";
 
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "plotix";
+    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra";
     std::filesystem::create_directories(dir);
-    return (dir / "workspace.plotix").string();
+    return (dir / "workspace.spectra").string();
 }
 
 std::string Workspace::autosave_path()
 {
     try
     {
-        auto tmp = std::filesystem::temp_directory_path() / "plotix_autosave.plotix";
+        auto tmp = std::filesystem::temp_directory_path() / "plotix_autosave.spectra";
         return tmp.string();
     }
     catch (...)
     {
-        return "plotix_autosave.plotix";
+        return "plotix_autosave.spectra";
     }
 }
 
@@ -1109,4 +1109,4 @@ void Workspace::clear_autosave()
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

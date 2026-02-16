@@ -3,13 +3,13 @@
 #ifdef PLOTIX_USE_IMGUI
 
     #include <cstddef>
-    #include <plotix/color.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/color.hpp>
+    #include <spectra/series.hpp>
     #include <vector>
 
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 class Axes;
@@ -169,6 +169,6 @@ class RegionSelect
     float border_width_ = 1.5f;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

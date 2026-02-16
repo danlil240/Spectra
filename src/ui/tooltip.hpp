@@ -2,12 +2,12 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/color.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/color.hpp>
+    #include <spectra/series.hpp>
 
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 // Result of nearest-point spatial query
@@ -55,6 +55,6 @@ class Tooltip
     float target_opacity_ = 0.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <string>
 #include <vector>
 
@@ -12,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-namespace plotix::test
+namespace spectra::test
 {
 
 static fs::path baseline_dir()
@@ -510,4 +510,4 @@ TEST(Golden3DPhase3, LitSurfaceColormap)
         });
 }
 
-}  // namespace plotix::test
+}  // namespace spectra::test

@@ -1,11 +1,11 @@
 #include "mode_transition.hpp"
 
 #include <cmath>
-#include <plotix/animator.hpp>
-#include <plotix/axes3d.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes3d.hpp>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -382,4 +382,4 @@ Camera ModeTransition::make_top_down_camera(const ModeTransition2DState& /*s2d*/
     return cam;
 }
 
-}  // namespace plotix
+}  // namespace spectra

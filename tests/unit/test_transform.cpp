@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
-// Internal headers — tests link against plotix which includes src/ in its include path
+// Internal headers — tests link against spectra which includes src/ in its include path
 #include <cmath>
 
 #include "core/transform.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // --- ortho_projection ---
 

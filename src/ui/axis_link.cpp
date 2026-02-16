@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── LinkGroup ───────────────────────────────────────────────────────────────
@@ -645,4 +645,4 @@ std::vector<Axes*> AxisLinkManager::peers_in_group_unlocked(const LinkGroup& gro
     return result;
 }
 
-}  // namespace plotix
+}  // namespace spectra

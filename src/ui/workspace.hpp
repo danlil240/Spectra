@@ -4,14 +4,14 @@
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class Figure;
 
 // Serializable workspace state: captures all figures, series configurations,
 // panel states, zoom levels, and theme for save/load.
-// Format: JSON text file with .plotix extension.
+// Format: JSON text file with .spectra extension.
 struct WorkspaceData
 {
     // File format version for migration support
@@ -171,10 +171,10 @@ struct WorkspaceData
 class Workspace
 {
    public:
-    // Save workspace state to a .plotix file. Returns true on success.
+    // Save workspace state to a .spectra file. Returns true on success.
     static bool save(const std::string& path, const WorkspaceData& data);
 
-    // Load workspace state from a .plotix file. Returns true on success.
+    // Load workspace state from a .spectra file. Returns true on success.
     static bool load(const std::string& path, WorkspaceData& data);
 
     // Capture current application state into WorkspaceData.
@@ -222,4 +222,4 @@ class Workspace
                                 bool default_val = false);
 };
 
-}  // namespace plotix
+}  // namespace spectra

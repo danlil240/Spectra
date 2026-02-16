@@ -2,13 +2,13 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/fwd.hpp>
+    #include <spectra/fwd.hpp>
 
     #include "selection_context.hpp"
 
 struct ImFont;
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 class Inspector
@@ -62,6 +62,6 @@ class Inspector
     ImFont* font_title_ = nullptr;
 };
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui
 
 #endif  // PLOTIX_USE_IMGUI

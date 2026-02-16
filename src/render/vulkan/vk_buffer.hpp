@@ -5,7 +5,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 class GpuBuffer
@@ -84,4 +84,4 @@ void staging_upload(VkDevice device,
                     VkDeviceSize size,
                     VkDeviceSize dst_offset = 0);
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

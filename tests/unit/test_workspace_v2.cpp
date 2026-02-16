@@ -6,7 +6,7 @@
 
 #include "ui/workspace.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Test fixture ────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ class WorkspaceV2Test : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "plotix_test_ws_v2.plotix").string();
+        tmp_path = (std::filesystem::temp_directory_path() / "plotix_test_ws_v2.spectra").string();
     }
 
     void TearDown() override
@@ -315,7 +315,7 @@ TEST_F(WorkspaceV2Test, AutosavePathNotEmpty)
 {
     std::string path = Workspace::autosave_path();
     EXPECT_FALSE(path.empty());
-    EXPECT_NE(path.find("plotix"), std::string::npos);
+    EXPECT_NE(path.find("spectra"), std::string::npos);
 }
 
 TEST_F(WorkspaceV2Test, MaybeAutosaveWritesFile)

@@ -1,12 +1,12 @@
 #include <cmath>
 #include <gtest/gtest.h>
-#include <plotix/math3d.hpp>
-#include <plotix/plotix.hpp>
+#include <spectra/math3d.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 #include "ui/camera_animator.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Fixture ────────────────────────────────────────────────────────────────
 

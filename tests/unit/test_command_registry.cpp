@@ -6,7 +6,7 @@
 
 #include "ui/command_queue.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Basic push/pop ──────────────────────────────────────────────────────────
 

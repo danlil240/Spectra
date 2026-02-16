@@ -1,11 +1,11 @@
 #include <cassert>
-#include <plotix/figure.hpp>
+#include <spectra/figure.hpp>
 #include <stdexcept>
 
 #include "axes3d.hpp"
 #include "layout.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // --- AnimationBuilder ---
@@ -181,4 +181,4 @@ void Figure::compute_layout()
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra

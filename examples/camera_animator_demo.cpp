@@ -1,9 +1,9 @@
 #include <cmath>
 #include <iostream>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
-using namespace plotix;
+using namespace spectra;
 
 // Helper function for rainbow color animation
 Color get_animated_color(float t)
@@ -92,7 +92,7 @@ int main()
 
     std::cout << "\n=== Dual Animation Demo ===\n";
     std::cout << "Both the spiral plot AND camera are animated!\n";
-    std::cout << "This demonstrates the animation capabilities of Plotix.\n\n";
+    std::cout << "This demonstrates the animation capabilities of Spectra.\n\n";
     std::cout << "Camera Animation (simulating CameraAnimator::Orbit mode):\n";
     std::cout << "  - Keyframe 1 (0s): azimuth=0°, elevation=30°, distance=15\n";
     std::cout << "  - Keyframe 2 (3s): azimuth=180°, elevation=60°, distance=10\n";

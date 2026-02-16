@@ -11,7 +11,7 @@
 
 // shader_spirv.hpp included in .cpp
 
-namespace plotix
+namespace spectra
 {
 
 class VulkanBackend : public Backend
@@ -174,4 +174,4 @@ class VulkanBackend : public Backend
     VkPipelineLayout current_pipeline_layout_ = VK_NULL_HANDLE;
 };
 
-}  // namespace plotix
+}  // namespace spectra

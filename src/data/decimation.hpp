@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-namespace plotix::data
+namespace spectra::data
 {
 
 /// Largest-Triangle-Three-Buckets (LTTB) decimation.
@@ -32,4 +32,4 @@ namespace plotix::data
                                                                     std::span<const float> y,
                                                                     std::size_t output_count);
 
-}  // namespace plotix::data
+}  // namespace spectra::data

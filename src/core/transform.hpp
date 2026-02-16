@@ -1,9 +1,9 @@
 #pragma once
 
 #include <array>
-#include <plotix/series.hpp>
+#include <spectra/series.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 // 4x4 column-major matrix (glm-compatible layout)
@@ -38,4 +38,4 @@ Vec2 data_to_screen(float data_x,
                     float y_max,
                     const Rect& viewport);
 
-}  // namespace plotix
+}  // namespace spectra

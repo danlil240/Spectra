@@ -2,7 +2,7 @@
 
 #include "core/layout.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 TEST(SubplotLayout, SingleCell)
 {

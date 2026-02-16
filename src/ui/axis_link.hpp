@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <plotix/axes.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Which axis dimensions are linked within a group
@@ -196,4 +196,4 @@ class AxisLinkManager
     SharedCursor shared_cursor_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

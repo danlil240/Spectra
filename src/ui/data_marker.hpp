@@ -2,11 +2,11 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/color.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/color.hpp>
+    #include <spectra/series.hpp>
     #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // A persistent data marker pinned to a specific data point.
@@ -66,6 +66,6 @@ class DataMarkerManager
                                float& screen_y);
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

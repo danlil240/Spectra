@@ -4,7 +4,7 @@
 
     #include <functional>
     #include <memory>
-    #include <plotix/fwd.hpp>
+    #include <spectra/fwd.hpp>
     #include <string>
     #include <unordered_map>
     #include <vector>
@@ -18,7 +18,7 @@
 struct GLFWwindow;
 struct ImFont;
 
-namespace plotix
+namespace spectra
 {
 
 class AnimationCurveEditor;
@@ -372,6 +372,6 @@ class ImGuiIntegration
     #endif
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

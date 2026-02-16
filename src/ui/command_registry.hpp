@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // A single command that can be executed, searched, and bound to shortcuts.
@@ -97,4 +97,4 @@ class CommandRegistry
     static constexpr size_t MAX_RECENT = 20;
 };
 
-}  // namespace plotix
+}  // namespace spectra

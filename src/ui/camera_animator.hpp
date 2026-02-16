@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <mutex>
-#include <plotix/camera.hpp>
-#include <plotix/math3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/math3d.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Camera keyframe — stores a full camera snapshot at a point in time.
@@ -133,4 +133,4 @@ class CameraAnimator
     static void apply_orientation(Camera& cam, const quat& q, float distance);
 };
 
-}  // namespace plotix
+}  // namespace spectra

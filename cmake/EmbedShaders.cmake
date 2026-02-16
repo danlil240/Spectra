@@ -13,7 +13,7 @@ string(APPEND HEADER_CONTENT "// Auto-generated — do not edit.\n")
 string(APPEND HEADER_CONTENT "// Embedded SPIR-V shader bytecode.\n\n")
 string(APPEND HEADER_CONTENT "#include <cstdint>\n")
 string(APPEND HEADER_CONTENT "#include <cstddef>\n\n")
-string(APPEND HEADER_CONTENT "namespace plotix::shaders {\n\n")
+string(APPEND HEADER_CONTENT "namespace spectra::shaders {\n\n")
 
 foreach(SPV_FILE ${SPV_FILES})
     get_filename_component(SPV_NAME ${SPV_FILE} NAME)
@@ -48,6 +48,6 @@ foreach(SPV_FILE ${SPV_FILES})
     string(APPEND HEADER_CONTENT "inline constexpr size_t ${VAR_NAME}_size = sizeof(${VAR_NAME});\n\n")
 endforeach()
 
-string(APPEND HEADER_CONTENT "} // namespace plotix::shaders\n")
+string(APPEND HEADER_CONTENT "} // namespace spectra::shaders\n")
 
 file(WRITE ${OUTPUT_HEADER} "${HEADER_CONTENT}")

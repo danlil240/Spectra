@@ -1,11 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <plotix/animator.hpp>
-#include <plotix/axes.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class Camera;
@@ -103,4 +103,4 @@ class AnimationController
     void gc();  // Remove finished animations
 };
 
-}  // namespace plotix
+}  // namespace spectra

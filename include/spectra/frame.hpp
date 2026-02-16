@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace plotix
+namespace spectra
 {
 
 struct Frame
@@ -17,4 +17,4 @@ struct Frame
     uint64_t frame_number() const { return number; }
 };
 
-}  // namespace plotix
+}  // namespace spectra

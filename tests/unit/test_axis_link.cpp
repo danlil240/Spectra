@@ -1,13 +1,13 @@
 #include <atomic>
 #include <gtest/gtest.h>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
 #include <thread>
 
 #include "ui/axis_link.hpp"
 #include "ui/input.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 

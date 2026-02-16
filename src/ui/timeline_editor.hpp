@@ -3,14 +3,14 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <plotix/animator.hpp>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
-#include <plotix/timeline.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/timeline.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class KeyframeInterpolator;
@@ -310,4 +310,4 @@ class TimelineEditor
     KeyframeMarker* find_keyframe(uint32_t track_id, float time, float tolerance = 0.001f);
 };
 
-}  // namespace plotix
+}  // namespace spectra

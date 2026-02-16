@@ -4,7 +4,7 @@
 
 #include "tab_bar.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 FigureManager::FigureManager(std::vector<std::unique_ptr<Figure>>& figures) : figures_(figures)
@@ -607,4 +607,4 @@ size_t FigureManager::next_figure_number() const
     return max_num;
 }
 
-}  // namespace plotix
+}  // namespace spectra

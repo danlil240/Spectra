@@ -1,6 +1,6 @@
-# Plotix: Multi-Agent Task Decomposition
+# Spectra: Multi-Agent Task Decomposition
 
-Strategy for splitting the Plotix development plan across parallel Windsurf Cascade sessions to maximize throughput and minimize conflicts.
+Strategy for splitting the Spectra development plan across parallel Windsurf Cascade sessions to maximize throughput and minimize conflicts.
 
 ---
 
@@ -17,16 +17,16 @@ Strategy for splitting the Plotix development plan across parallel Windsurf Casc
 
 ### Agent 1 — "Scaffold + Vulkan Core" (START FIRST)
 
-**Owns:** `CMakeLists.txt`, `cmake/`, `include/plotix/`, `src/render/`, `third_party/`, `src/gpu/shaders/`
+**Owns:** `CMakeLists.txt`, `cmake/`, `include/spectra/`, `src/render/`, `third_party/`, `src/gpu/shaders/`
 
 **Prompt to paste:**
 ```
-Read /home/daniel/projects/plotix/plan.md for full context.
+Read /home/daniel/projects/spectra/plan.md for full context.
 
 You are Agent 1 — Scaffold + Vulkan Core. You own these directories exclusively:
 - CMakeLists.txt (top-level)
 - cmake/
-- include/plotix/ (ALL public headers)
+- include/spectra/ (ALL public headers)
 - src/render/ (renderer + vulkan backend)
 - third_party/ (stb, vma)
 
@@ -34,7 +34,7 @@ Your tasks IN ORDER:
 1. Create the full directory structure from plan.md section D.
 2. Create CMakeLists.txt with C++20, feature flags (PLOTIX_USE_GLFW, PLOTIX_USE_FFMPEG, PLOTIX_USE_EIGEN), find Vulkan SDK, subdirectories.
 3. Create cmake/CompileShaders.cmake — find glslangValidator, add custom command to compile src/gpu/shaders/*.vert/*.frag to SPIR-V, generate src/gpu/shader_spirv.hpp with embedded constexpr arrays.
-4. Create ALL public headers in include/plotix/ with forward declarations, class skeletons, and the interfaces other agents depend on:
+4. Create ALL public headers in include/spectra/ with forward declarations, class skeletons, and the interfaces other agents depend on:
    - fwd.hpp (forward decls for all core types)
    - color.hpp (rgb struct, colors namespace)
    - series.hpp (Series base class with virtual record_commands(), LineSeries, ScatterSeries)
@@ -44,7 +44,7 @@ Your tasks IN ORDER:
    - frame.hpp (frame struct: elapsed_seconds, dt, frame_number)
    - animator.hpp, timeline.hpp (skeletons)
    - export.hpp (ImageExporter, VideoExporter skeletons)
-   - plotix.hpp (umbrella include)
+   - spectra.hpp (umbrella include)
 5. Create src/render/backend.hpp — abstract Backend interface (init, create_pipeline, create_buffer, begin_frame, end_frame, submit).
 6. Implement src/render/vulkan/vk_backend.cpp — VulkanBackend: instance creation, physical device selection, logical device, VMA allocator init, single graphics queue.
 7. Implement src/render/vulkan/vk_device.cpp — device helpers, queue family selection.
@@ -54,7 +54,7 @@ Your tasks IN ORDER:
 11. Implement src/render/renderer.cpp — Renderer class: owns pipelines, orchestrates draw calls, batches by series type.
 12. Download/add third_party/stb/stb_image_write.h and third_party/vma/vk_mem_alloc.h (or add as git submodule / FetchContent).
 
-CRITICAL: Create ALL include/plotix/ headers FIRST (tasks 1-5) before moving to implementation. Other agents depend on these interfaces. Keep implementations minimal but compilable.
+CRITICAL: Create ALL include/spectra/ headers FIRST (tasks 1-5) before moving to implementation. Other agents depend on these interfaces. Keep implementations minimal but compilable.
 
 Do NOT touch: src/core/, src/text/, src/anim/, src/ui/, src/io/, examples/, tests/
 ```
@@ -67,11 +67,11 @@ Do NOT touch: src/core/, src/text/, src/anim/, src/ui/, src/io/, examples/, test
 
 **Prompt to paste:**
 ```
-Read /home/daniel/projects/plotix/plan.md for full context.
+Read /home/daniel/projects/spectra/plan.md for full context.
 
 You are Agent 2 — Core Data Model + Layout. You own src/core/ exclusively.
 
-Wait until include/plotix/ headers exist (Agent 1 creates them). Then implement:
+Wait until include/spectra/ headers exist (Agent 1 creates them). Then implement:
 
 1. src/core/series.cpp — Series base class, LineSeries (stores x/y data as std::vector<float>, supports set_x/set_y/append via std::span, tracks dirty flag for GPU upload), ScatterSeries (same + point size).
 2. src/core/axes.cpp — Axes class: holds vector of Series, xlim/ylim (auto or manual), title/xlabel/ylabel strings, tick generation (Wilkinson algorithm or simple linear), grid enable/disable.
@@ -85,7 +85,7 @@ Design notes:
 - Axes auto-computes limits from data if xlim/ylim not explicitly set.
 - Tick algorithm: simple approach — divide range into ~5-10 nice intervals (multiples of 1, 2, 5 × 10^n).
 
-Do NOT touch any other directories. Implement against the interfaces in include/plotix/.
+Do NOT touch any other directories. Implement against the interfaces in include/spectra/.
 ```
 
 ---
@@ -96,7 +96,7 @@ Do NOT touch any other directories. Implement against the interfaces in include/
 
 **Prompt to paste:**
 ```
-Read /home/daniel/projects/plotix/plan.md for full context.
+Read /home/daniel/projects/spectra/plan.md for full context.
 
 You are Agent 3 — Shaders + Text Rendering. You own:
 - src/gpu/shaders/ (all .vert/.frag files)
@@ -132,16 +132,16 @@ Do NOT touch any other directories.
 
 **Prompt to paste:**
 ```
-Read /home/daniel/projects/plotix/plan.md for full context.
+Read /home/daniel/projects/spectra/plan.md for full context.
 
 You are Agent 4 — Animation + UI + App. You own:
 - src/anim/
 - src/ui/
 
-Wait until include/plotix/ headers exist (Agent 1 creates them). Then implement:
+Wait until include/spectra/ headers exist (Agent 1 creates them). Then implement:
 
 ANIMATION:
-1. src/anim/easing.cpp — Easing functions: linear, ease_in, ease_out, ease_in_out (cubic), bounce, elastic. Each takes float t in [0,1], returns float. Namespace plotix::ease.
+1. src/anim/easing.cpp — Easing functions: linear, ease_in, ease_out, ease_in_out (cubic), bounce, elastic. Each takes float t in [0,1], returns float. Namespace spectra::ease.
 2. src/anim/timeline.cpp — Timeline class: ordered vector of Keyframe<T> (time, value, easing). evaluate(float t) interpolates between surrounding keyframes. Supports float, vec2, vec4 (color) types.
 3. src/anim/animator.cpp — Animator class: holds active Timelines, evaluates all at current time, applies property changes. Supports add/remove timeline, pause/resume.
 4. src/anim/frame_scheduler.cpp — FrameScheduler: target FPS mode (sleep + spin-wait for precision) and vsync mode. Tracks elapsed time, dt, frame number. begin_frame()/end_frame() bracket. Fixed timestep option with accumulator for deterministic replay.
@@ -153,7 +153,7 @@ UI:
 
 Key design:
 - App::animate() returns an AnimationBuilder (fluent API): .fps(), .duration(), .on_frame(), .play(), .record().
-- on_frame callback receives a plotix::frame& with elapsed_seconds(), dt(), frame_number(), pause(), resume(), seek().
+- on_frame callback receives a spectra::frame& with elapsed_seconds(), dt(), frame_number(), pause(), resume(), seek().
 - CommandQueue (lock-free SPSC ring buffer) for thread-safe mutations from app thread to render thread. Implement as a simple fixed-size circular buffer with atomic head/tail.
 
 Do NOT touch any other directories.
@@ -167,14 +167,14 @@ Do NOT touch any other directories.
 
 **Prompt to paste:**
 ```
-Read /home/daniel/projects/plotix/plan.md for full context.
+Read /home/daniel/projects/spectra/plan.md for full context.
 
 You are Agent 5 — Export + Examples + Tests. You own:
 - src/io/
 - examples/
 - tests/
 
-Wait until include/plotix/ headers exist (Agent 1 creates them). Then implement:
+Wait until include/spectra/ headers exist (Agent 1 creates them). Then implement:
 
 EXPORT:
 1. src/io/png_export.cpp — ImageExporter: takes raw RGBA pixel data (from Vulkan readback), writes PNG via stb_image_write. figure.save_png("path") interface.
@@ -195,9 +195,9 @@ TESTS:
 12. tests/unit/test_timeline.cpp — Test keyframe interpolation with various easings.
 13. tests/unit/test_easing.cpp — Test easing functions at t=0, t=0.5, t=1.
 14. tests/unit/test_ring_buffer.cpp — Test SPSC ring buffer: single-threaded correctness, wrap-around.
-15. Add CMakeLists.txt in tests/ and examples/ for building (link against plotix, GTest, etc.)
+15. Add CMakeLists.txt in tests/ and examples/ for building (link against spectra, GTest, etc.)
 
-Do NOT touch any other directories. Use the interfaces from include/plotix/.
+Do NOT touch any other directories. Use the interfaces from include/spectra/.
 ```
 
 ---
@@ -218,7 +218,7 @@ Agent 5: ····[export stubs]────────────[examples + t
 
 - **Agent 1** starts immediately. Creates directory structure + all public headers first.
 - **Agent 3** can start shaders immediately (no code dependencies, just GLSL files).
-- **Agents 2, 4, 5** wait ~15 min for Agent 1 to create `include/plotix/` headers, then start.
+- **Agents 2, 4, 5** wait ~15 min for Agent 1 to create `include/spectra/` headers, then start.
 - All agents work in parallel on non-overlapping directories.
 
 ## How to Launch Each Agent
@@ -226,11 +226,11 @@ Agent 5: ····[export stubs]────────────[examples + t
 1. Open 5 Cascade chat sessions in Windsurf.
 2. In each session, paste the corresponding prompt block above.
 3. Start Agent 1 and Agent 3 first (no dependencies).
-4. Start Agents 2, 4, 5 once you see Agent 1 has created the `include/plotix/` headers.
+4. Start Agents 2, 4, 5 once you see Agent 1 has created the `include/spectra/` headers.
 
 ## Conflict Avoidance Rules
 
-- **Only Agent 1 touches `CMakeLists.txt` (top-level) and `include/plotix/`.**
+- **Only Agent 1 touches `CMakeLists.txt` (top-level) and `include/spectra/`.**
 - Each agent owns their `src/` subdirectories exclusively.
 - If an agent needs to modify a public header (e.g., add a method), they should note it and you manually merge, or instruct Agent 1 to add it.
 - Examples and tests (Agent 5) only `#include` public headers — no internal deps.

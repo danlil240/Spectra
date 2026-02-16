@@ -2,12 +2,12 @@
 
 #include <functional>
 #include <memory>
-#include <plotix/axes.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 struct FigureConfig
@@ -133,4 +133,4 @@ class Figure
     std::function<void(Frame&)> anim_on_frame_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

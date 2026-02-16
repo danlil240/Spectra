@@ -1,10 +1,10 @@
 #include <cmath>
-#include <plotix/plotix.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 int main()
 {
-    plotix::App app;
+    spectra::App app;
     auto& fig = app.figure({.width = 1920, .height = 1080});
 
     // 2x1 subplot grid
@@ -24,14 +24,14 @@ int main()
         y2[i] = std::cos(x[i] * 2.0f) + 0.5f * std::sin(x[i] * 7.0f);
     }
 
-    ax1.line(x, y1).label("temperature").color(plotix::colors::red);
+    ax1.line(x, y1).label("temperature").color(spectra::colors::red);
     ax1.title("Temperature");
     ax1.xlabel("Time (s)");
     ax1.ylabel("Temp (C)");
     ax1.xlim(0.0f, 6.0f);
     ax1.ylim(-1.5f, 1.5f);
 
-    ax2.line(x, y2).label("pressure").color(plotix::rgb(0.2f, 0.6f, 1.0f));
+    ax2.line(x, y2).label("pressure").color(spectra::rgb(0.2f, 0.6f, 1.0f));
     ax2.title("Pressure");
     ax2.xlabel("Time (s)");
     ax2.ylabel("Pressure (kPa)");

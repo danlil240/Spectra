@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Registration ────────────────────────────────────────────────────────────
@@ -298,4 +298,4 @@ void CommandRegistry::clear_recent()
     recent_ids_.clear();
 }
 
-}  // namespace plotix
+}  // namespace spectra

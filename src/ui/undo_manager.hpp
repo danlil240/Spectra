@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // A single undoable action with forward (redo) and backward (undo) operations.
@@ -88,4 +88,4 @@ class UndoManager
     std::vector<UndoAction> group_actions_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

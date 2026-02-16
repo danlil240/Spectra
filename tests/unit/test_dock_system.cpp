@@ -2,7 +2,7 @@
 
 #include "ui/dock_system.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── DockSystem Construction ─────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace plotix
+namespace spectra
 {
 
 TabBar::TabBar()
@@ -898,4 +898,4 @@ void TabBar::scroll_to_tab(size_t index)
 #endif
 }
 
-}  // namespace plotix
+}  // namespace spectra

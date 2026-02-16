@@ -32,7 +32,7 @@ static void BM_LTTB_1M_to_2000(benchmark::State& state)
     auto [x, y] = make_sine(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::lttb(x, y, 2000);
+        auto result = spectra::data::lttb(x, y, 2000);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);
@@ -44,7 +44,7 @@ static void BM_LTTB_100K_to_1000(benchmark::State& state)
     auto [x, y] = make_sine(100'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::lttb(x, y, 1000);
+        auto result = spectra::data::lttb(x, y, 1000);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 100'000);
@@ -58,7 +58,7 @@ static void BM_LTTB_Varying(benchmark::State& state)
     const std::size_t target = std::max<std::size_t>(n / 500, 3);
     for (auto _ : state)
     {
-        auto result = plotix::data::lttb(x, y, target);
+        auto result = spectra::data::lttb(x, y, target);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n));
@@ -72,7 +72,7 @@ static void BM_MinMax_1M_to_1000(benchmark::State& state)
     auto [x, y] = make_sine(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::min_max_decimate(x, y, 1000);
+        auto result = spectra::data::min_max_decimate(x, y, 1000);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);
@@ -86,7 +86,7 @@ static void BM_Resample_1M_to_2000(benchmark::State& state)
     auto [x, y] = make_sine(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::resample_uniform(x, y, 2000);
+        auto result = spectra::data::resample_uniform(x, y, 2000);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);
@@ -100,7 +100,7 @@ static void BM_MovingAverage_1M_W21(benchmark::State& state)
     auto v = make_noisy(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::moving_average(v, 21);
+        auto result = spectra::data::moving_average(v, 21);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);
@@ -112,7 +112,7 @@ static void BM_ExponentialSmoothing_1M(benchmark::State& state)
     auto v = make_noisy(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::exponential_smoothing(v, 0.1f);
+        auto result = spectra::data::exponential_smoothing(v, 0.1f);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);
@@ -124,7 +124,7 @@ static void BM_GaussianSmooth_1M_S3(benchmark::State& state)
     auto v = make_noisy(1'000'000);
     for (auto _ : state)
     {
-        auto result = plotix::data::gaussian_smooth(v, 3.0f);
+        auto result = spectra::data::gaussian_smooth(v, 3.0f);
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations() * 1'000'000);

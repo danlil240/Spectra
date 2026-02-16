@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <plotix/animator.hpp>
-#include <plotix/axes.hpp>
-#include <plotix/camera.hpp>
-#include <plotix/color.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/color.hpp>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Unified animation system for all UI transitions.
@@ -166,4 +166,4 @@ class TransitionEngine
     void cancel_for_axes_unlocked(Axes* axes);  // Internal: caller must hold mutex_
 };
 
-}  // namespace plotix
+}  // namespace spectra

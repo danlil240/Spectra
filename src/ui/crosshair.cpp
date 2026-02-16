@@ -5,15 +5,15 @@
     #include <cmath>
     #include <cstdio>
     #include <imgui.h>
-    #include <plotix/axes.hpp>
-    #include <plotix/figure.hpp>
-    #include <plotix/series.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
 
     #include "axis_link.hpp"
     #include "input.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // Helper: draw a dashed line on an ImDrawList
@@ -400,6 +400,6 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
     }
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

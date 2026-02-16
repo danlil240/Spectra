@@ -10,7 +10,7 @@
     #include "design_tokens.hpp"
     #include "theme.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 // ─── Update ─────────────────────────────────────────────────────────────────
@@ -238,6 +238,6 @@ void BoxZoomOverlay::draw_zoom_crosshair_impl(float x0,
     dl->AddLine(ImVec2(x1, y1), ImVec2(x1, vp_bottom), col, 0.5f);
 }
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

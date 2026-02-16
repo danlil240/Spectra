@@ -10,7 +10,7 @@
 
 struct ImVec4;  // Forward declaration for ImGui
 
-namespace plotix::ui
+namespace spectra::ui
 {
 
 // 32-bit color structure (RGBA)
@@ -349,4 +349,4 @@ inline const DataPalette& data_palette()
     return ThemeManager::instance().current_data_palette();
 }
 
-}  // namespace plotix::ui
+}  // namespace spectra::ui

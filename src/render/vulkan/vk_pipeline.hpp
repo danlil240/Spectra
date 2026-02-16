@@ -5,7 +5,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-namespace plotix::vk
+namespace spectra::vk
 {
 
 struct PipelineConfig
@@ -40,4 +40,4 @@ VkDescriptorSetLayout create_series_descriptor_layout(VkDevice device);
 VkPipelineLayout create_pipeline_layout(VkDevice device,
                                         const std::vector<VkDescriptorSetLayout>& set_layouts);
 
-}  // namespace plotix::vk
+}  // namespace spectra::vk

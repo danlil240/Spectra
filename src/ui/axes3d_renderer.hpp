@@ -1,11 +1,11 @@
 #pragma once
 
-#include <plotix/fwd.hpp>
-#include <plotix/math3d.hpp>
+#include <spectra/fwd.hpp>
+#include <spectra/math3d.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 class Axes3D;
@@ -52,4 +52,4 @@ class Axes3DRenderer
     TickMarkData tick_data_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

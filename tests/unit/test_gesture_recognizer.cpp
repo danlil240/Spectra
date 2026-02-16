@@ -2,7 +2,7 @@
 
 #include "ui/gesture_recognizer.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Double-click detection ─────────────────────────────────────────────────
 

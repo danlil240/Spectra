@@ -6,7 +6,7 @@
 
 #include "ui/command_registry.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Registration ────────────────────────────────────────────────────────────
 

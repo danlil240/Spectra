@@ -5,12 +5,12 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <plotix/color.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 // Output format for recording export.
@@ -252,4 +252,4 @@ class RecordingSession
     float wall_time() const;
 };
 
-}  // namespace plotix
+}  // namespace spectra

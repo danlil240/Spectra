@@ -4,10 +4,10 @@
 #include <filesystem>
 #include <memory>
 #include <numeric>
-#include <plotix/animator.hpp>
-#include <plotix/axes.hpp>
-#include <plotix/figure.hpp>
-#include <plotix/series.hpp>
+#include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
 #include <string>
 #include <vector>
 
@@ -18,7 +18,7 @@
 #include "ui/undo_manager.hpp"
 #include "ui/workspace.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Command Registry benchmarks ────────────────────────────────────────────
 
@@ -327,7 +327,7 @@ static WorkspaceData make_workspace_data(int num_figures, int series_per_fig)
 static void BM_Workspace_SaveSmall(benchmark::State& state)
 {
     auto data = make_workspace_data(1, 2);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_small.plotix";
+    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_small.spectra";
 
     for (auto _ : state)
     {
@@ -341,7 +341,7 @@ BENCHMARK(BM_Workspace_SaveSmall)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_SaveLarge(benchmark::State& state)
 {
     auto data = make_workspace_data(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_large.plotix";
+    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_large.spectra";
 
     for (auto _ : state)
     {
@@ -355,7 +355,7 @@ BENCHMARK(BM_Workspace_SaveLarge)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_LoadSmall(benchmark::State& state)
 {
     auto data = make_workspace_data(1, 2);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_small.plotix";
+    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_small.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)
@@ -372,7 +372,7 @@ BENCHMARK(BM_Workspace_LoadSmall)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_LoadLarge(benchmark::State& state)
 {
     auto data = make_workspace_data(10, 5);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_large.plotix";
+    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_load_large.spectra";
     Workspace::save(path.string(), data);
 
     for (auto _ : state)
@@ -389,7 +389,7 @@ BENCHMARK(BM_Workspace_LoadLarge)->Unit(benchmark::kMicrosecond);
 static void BM_Workspace_RoundTrip(benchmark::State& state)
 {
     auto data = make_workspace_data(5, 3);
-    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_rt.plotix";
+    auto path = std::filesystem::temp_directory_path() / "plotix_bench_ws_rt.spectra";
 
     for (auto _ : state)
     {

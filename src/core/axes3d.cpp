@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <plotix/camera.hpp>
-#include <plotix/series.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/series.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 namespace
@@ -331,4 +331,4 @@ void Axes3D::zoom_limits(float factor)
     zlim(new_zl.min, new_zl.max);
 }
 
-}  // namespace plotix
+}  // namespace spectra

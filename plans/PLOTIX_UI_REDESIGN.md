@@ -1,4 +1,4 @@
-# Plotix UI Redesign — 2026 Next-Generation Visualization Platform
+# Spectra UI Redesign — 2026 Next-Generation Visualization Platform
  
 **Document Version:** 1.0  
 **Date:** 2026-02-13  
@@ -95,7 +95,7 @@ The UI is built on **ImGui** (immediate mode) rendered as a Vulkan overlay on to
  
 ### Core Design Principles
  
-Every UI decision in Plotix must pass through these 7 principles:
+Every UI decision in Spectra must pass through these 7 principles:
  
 #### P1 — Canvas Supremacy
 The plot canvas is the product. Every pixel of UI chrome must justify its existence. Default state: maximum canvas, minimal chrome. Panels appear on demand, recede when not needed. The canvas must never feel cramped.
@@ -126,7 +126,7 @@ Every UI component is a module. Panels are plugins. Themes are data files. Short
  
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  COMMAND BAR (40px)  [≡] Plotix  [search...]  [⌘K]  [◑] [─][□][×] │
+│  COMMAND BAR (40px)  [≡] Spectra  [search...]  [⌘K]  [◑] [─][□][×] │
 ├────┬────────────────────────────────────────────────────┬───────┤
 │ N  │                                                    │  I    │
 │ A  │                                                    │  N    │
@@ -148,7 +148,7 @@ Every UI component is a module. Panels are plugins. Themes are data files. Short
 ### 3.2 Zone Definitions
  
 #### Command Bar (Top, 40px)
-- **Left:** Hamburger menu (≡) → app-level actions. Brand mark "Plotix" (clickable → home/reset).
+- **Left:** Hamburger menu (≡) → app-level actions. Brand mark "Spectra" (clickable → home/reset).
 - **Center:** Global search / command palette trigger. Typing activates fuzzy search across: series names, axis labels, commands, settings, export options.
 - **Right:** Theme toggle (◑), window controls (minimize/maximize/close on Linux/Windows; hidden on macOS).
 - **Style:** Translucent background with subtle blur. No border. Blends with canvas.
@@ -674,7 +674,7 @@ For animated plots:
 - Community theme gallery (future).
  
 ### 6.9 Workspace Save/Load
-- Save: All figures, series configurations, panel states, zoom levels, theme → single `.plotix` file (JSON + binary data blobs).
+- Save: All figures, series configurations, panel states, zoom levels, theme → single `.spectra` file (JSON + binary data blobs).
 - Load: Restore entire workspace state.
 - Auto-save on exit (optional).
  
@@ -1102,7 +1102,7 @@ src/ui/
 
 **Total new files:** ~30 | **Modified files:** ~8 | **Deleted files:** 0
 
-This redesign transforms Plotix from a functional plotting tool into a professional-grade 2026 visualization platform competitive with TradingView, Figma, and VS Code in UX quality.
+This redesign transforms Spectra from a functional plotting tool into a professional-grade 2026 visualization platform competitive with TradingView, Figma, and VS Code in UX quality.
 
 
 
@@ -1218,7 +1218,7 @@ foreach(_imgui_src
     src/ui/your_new_file.cpp   # ← just add here
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
-        target_sources(plotix PRIVATE ${_imgui_src})
+        target_sources(spectra PRIVATE ${_imgui_src})
     endif()
 endforeach()
 ```
@@ -1254,8 +1254,8 @@ While working on your deliverables, **do NOT build the entire project**. Instead
 # Build only your specific test target
 cmake --build build --target unit_test_your_feature
 
-# Build only the plotix library (to check your .cpp compiles)
-cmake --build build --target plotix
+# Build only the spectra library (to check your .cpp compiles)
+cmake --build build --target spectra
 
 # Do NOT run 'cmake --build build' (builds everything including other agents' tests)
 # Do NOT run 'ctest' (runs all tests including ones that depend on other agents' work)

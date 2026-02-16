@@ -2,7 +2,7 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/color.hpp>
+    #include <spectra/color.hpp>
     #include <span>
     #include <string>
     #include <unordered_map>
@@ -11,7 +11,7 @@
 
 struct ImFont;
 
-namespace plotix::ui::widgets
+namespace spectra::ui::widgets
 {
 
 // ─── Section Animation State ─────────────────────────────────────────────────
@@ -51,7 +51,7 @@ void info_row(const char* label, const char* value);
 void info_row_mono(const char* label, const char* value);
 
 // Color picker field with inline swatch + label
-bool color_field(const char* label, plotix::Color& color);
+bool color_field(const char* label, spectra::Color& color);
 
 // Float slider with label
 bool slider_field(const char* label, float& value, float min, float max, const char* fmt = "%.2f");
@@ -91,7 +91,7 @@ void begin_group(const char* id);
 void end_group();
 
 // Color swatch (small inline preview, no picker)
-void color_swatch(const plotix::Color& color, float size = 14.0f);
+void color_swatch(const spectra::Color& color, float size = 14.0f);
 
 // Spacing helpers
 void small_spacing();
@@ -104,13 +104,13 @@ void sparkline(const char* id,
                std::span<const float> values,
                float width = -1.0f,
                float height = 32.0f,
-               const plotix::Color& color = {});
+               const spectra::Color& color = {});
 
 // Progress bar with label
 void progress_bar(const char* label, float fraction, const char* overlay = nullptr);
 
 // Badge / tag (small colored pill with text)
-void badge(const char* text, const plotix::Color& bg = {}, const plotix::Color& fg = {});
+void badge(const char* text, const spectra::Color& bg = {}, const spectra::Color& fg = {});
 
 // Labeled separator (centered text in a horizontal line)
 void separator_label(const char* label, ImFont* font = nullptr);
@@ -125,9 +125,9 @@ void stat_row(const char* label, const char* value, const char* unit = nullptr);
 // Stat row with color indicator dot
 void stat_row_colored(const char* label,
                       const char* value,
-                      const plotix::Color& dot_color,
+                      const spectra::Color& dot_color,
                       const char* unit = nullptr);
 
-}  // namespace plotix::ui::widgets
+}  // namespace spectra::ui::widgets
 
 #endif  // PLOTIX_USE_IMGUI

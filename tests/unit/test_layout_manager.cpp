@@ -2,7 +2,7 @@
 
 #include "ui/layout_manager.hpp"
 
-using namespace plotix;
+using namespace spectra;
 
 // ─── Basic Zone Computation ─────────────────────────────────────────────────
 

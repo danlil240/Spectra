@@ -2,9 +2,9 @@
 
 #ifdef PLOTIX_USE_IMGUI
 
-    #include <plotix/series.hpp>
+    #include <spectra/series.hpp>
 
-namespace plotix
+namespace spectra
 {
 
 class Figure;
@@ -52,6 +52,6 @@ class Crosshair
     float opacity_ = 0.0f;
 };
 
-}  // namespace plotix
+}  // namespace spectra
 
 #endif  // PLOTIX_USE_IMGUI

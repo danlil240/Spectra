@@ -1,11 +1,11 @@
 #pragma once
 
 #include <memory>
-#include <plotix/figure.hpp>
-#include <plotix/fwd.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/fwd.hpp>
 #include <vector>
 
-namespace plotix
+namespace spectra
 {
 
 struct AppConfig
@@ -40,4 +40,4 @@ class App
     std::unique_ptr<Renderer> renderer_;
 };
 
-}  // namespace plotix
+}  // namespace spectra

@@ -3,7 +3,7 @@
 #include "../core/axes3d.hpp"
 #include "../render/renderer.hpp"
 
-namespace plotix
+namespace spectra
 {
 
 void Axes3DRenderer::BoundingBoxData::generate(vec3 min_corner, vec3 max_corner)
@@ -201,4 +201,4 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/)
     tick_data_.generate_z_ticks(axes, min_corner, max_corner);
 }
 
-}  // namespace plotix
+}  // namespace spectra

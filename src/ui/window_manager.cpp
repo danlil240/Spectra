@@ -41,38 +41,54 @@ void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry,
 
 WindowContext* WindowManager::adopt_primary_window(void* glfw_window)
 {
+    // Delegate to create_initial_window() which takes ownership of the
+    // backend's initial WindowContext and stores it in windows_ uniformly.
+    return create_initial_window(glfw_window);
+}
+
+WindowContext* WindowManager::create_initial_window(void* glfw_window)
+{
     if (!backend_)
     {
-        SPECTRA_LOG_ERROR("window_manager", "adopt_primary_window: not initialized");
+        SPECTRA_LOG_ERROR("window_manager", "create_initial_window: not initialized");
         return nullptr;
     }
 
-    // Wrap the backend's existing primary_window_ into our managed list.
-    // We do NOT create a new WindowContext — we create a unique_ptr that
-    // points to a new WindowContext whose Vulkan resources are already
-    // set up by the normal App init path (create_surface + create_swapchain).
-    auto& primary = backend_->primary_window();
-    primary.id = next_window_id_++;
-    primary.glfw_window = glfw_window;
-    primary.is_focused = true;
+    // Take ownership of the backend's initial WindowContext (already has
+    // surface + swapchain initialized by the App init path).
+    auto wctx = backend_->release_initial_window();
+    if (!wctx)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_initial_window: no initial window to take");
+        return nullptr;
+    }
 
-    // NOTE: We intentionally do NOT install GLFW callbacks on the primary window.
-    // GlfwAdapter owns the primary window's glfwSetWindowUserPointer (set to
-    // GlfwAdapter*) and its input/resize/close callbacks.  Overwriting the user
-    // pointer would cause GlfwAdapter callbacks to cast a WindowManager* as a
-    // GlfwAdapter*, resulting in a segfault.  Primary window events are already
-    // handled by GlfwAdapter + app.cpp; WindowManager only installs callbacks
-    // on secondary windows it creates via create_window().
+    wctx->id = next_window_id_++;
+    wctx->glfw_window = glfw_window;
+    wctx->is_focused = true;
 
-    // We don't own primary_window_ memory (it lives in VulkanBackend),
-    // so we store a non-owning entry.  Use a unique_ptr with a no-op deleter
-    // would be complex; instead, store the pointer directly in active_ptrs_.
-    // The primary window is special — it's always at index 0.
+#ifdef SPECTRA_USE_GLFW
+    // Set user pointer so WindowManager callbacks can find the manager.
+    // Actual callbacks are installed later by install_input_callbacks(),
+    // which must run AFTER ImGui init to avoid breaking ImGui's callback
+    // chaining (ImGui saves "previous" callbacks during init).
+    auto* glfw_win = static_cast<GLFWwindow*>(glfw_window);
+    if (glfw_win)
+    {
+        glfwSetWindowUserPointer(glfw_win, this);
+    }
+#endif
+
+    // Set active window so the backend can continue operating
+    backend_->set_active_window(wctx.get());
+
+    WindowContext* ptr = wctx.get();
+    windows_.push_back(std::move(wctx));
     rebuild_active_list();
 
     SPECTRA_LOG_INFO("window_manager",
-                     "Adopted primary window (id=" + std::to_string(primary.id) + ")");
-    return &primary;
+                     "Created initial window (id=" + std::to_string(ptr->id) + ")");
+    return ptr;
 }
 
 WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
@@ -148,19 +164,7 @@ void WindowManager::request_close(uint32_t window_id)
 
 void WindowManager::destroy_window(uint32_t window_id)
 {
-    // Don't destroy the primary window through this path — it's owned by VulkanBackend
-    auto& primary = backend_->primary_window();
-    if (primary.id == window_id)
-    {
-        primary.should_close = true;
-        SPECTRA_LOG_INFO("window_manager",
-                         "Primary window " + std::to_string(window_id)
-                             + " marked for close (not destroyed here)");
-        rebuild_active_list();
-        return;
-    }
-
-    // Find and destroy secondary window
+    // Find the window in our managed list
     auto it = std::find_if(windows_.begin(), windows_.end(),
                            [window_id](const auto& w) { return w->id == window_id; });
     if (it == windows_.end())
@@ -168,47 +172,57 @@ void WindowManager::destroy_window(uint32_t window_id)
 
     auto& wctx = **it;
 
-    // Window close policy: move figures back to the primary window instead of
-    // destroying them, so detached tabs can be reattached by closing the window.
+    // Window close policy: move figures to the first remaining open window
+    // instead of destroying them, so detached tabs can be reattached.
     if (registry_ && !wctx.assigned_figures.empty())
     {
-        auto& primary = backend_->primary_window();
-        for (FigureId fig_id : wctx.assigned_figures)
+        // Find the first open window that isn't the one being destroyed
+        WindowContext* target = nullptr;
+        for (auto& w : windows_)
         {
-            // Skip figures already assigned to the primary
-            if (std::find(primary.assigned_figures.begin(),
-                          primary.assigned_figures.end(), fig_id)
-                != primary.assigned_figures.end())
-                continue;
-
-            // Extract figure state from the closing window's FigureManager
-            FigureState transferred_state;
-#ifdef SPECTRA_USE_IMGUI
-            if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
-                transferred_state = wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
-#endif
-
-            // Add to primary window's assigned_figures
-            primary.assigned_figures.push_back(fig_id);
-            if (primary.active_figure_id == INVALID_FIGURE_ID)
-                primary.active_figure_id = fig_id;
-
-            // Add to primary window's FigureManager if it exists
-            // Primary window may use ui_ctx_non_owning (App::run() owns the context)
-#ifdef SPECTRA_USE_IMGUI
+            if (w->id != window_id && !w->should_close)
             {
-                WindowUIContext* primary_ui = primary.ui_ctx
-                    ? primary.ui_ctx.get()
-                    : primary.ui_ctx_non_owning;
-                if (primary_ui && primary_ui->fig_mgr)
-                    primary_ui->fig_mgr->add_figure(fig_id, std::move(transferred_state));
+                target = w.get();
+                break;
             }
+        }
+
+        if (target)
+        {
+            for (FigureId fig_id : wctx.assigned_figures)
+            {
+                // Skip figures already assigned to the target
+                if (std::find(target->assigned_figures.begin(),
+                              target->assigned_figures.end(), fig_id)
+                    != target->assigned_figures.end())
+                    continue;
+
+                // Extract figure state from the closing window's FigureManager
+                FigureState transferred_state;
+#ifdef SPECTRA_USE_IMGUI
+                if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
+                    transferred_state = wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
 #endif
 
-            SPECTRA_LOG_INFO("window_manager",
-                             "Reattached figure " + std::to_string(fig_id)
-                                 + " to primary window (window "
-                                 + std::to_string(window_id) + " closed)");
+                // Add to target window's assigned_figures
+                target->assigned_figures.push_back(fig_id);
+                if (target->active_figure_id == INVALID_FIGURE_ID)
+                    target->active_figure_id = fig_id;
+
+                // Add to target window's FigureManager if it exists
+#ifdef SPECTRA_USE_IMGUI
+                {
+                    WindowUIContext* target_ui = target->ui_ctx.get();
+                    if (target_ui && target_ui->fig_mgr)
+                        target_ui->fig_mgr->add_figure(fig_id, std::move(transferred_state));
+                }
+#endif
+
+                SPECTRA_LOG_INFO("window_manager",
+                                 "Reattached figure " + std::to_string(fig_id)
+                                     + " to window " + std::to_string(target->id)
+                                     + " (window " + std::to_string(window_id) + " closed)");
+            }
         }
         wctx.assigned_figures.clear();
     }
@@ -260,15 +274,6 @@ void WindowManager::process_pending_closes()
 {
     // Check GLFW should_close flags on all windows
 #ifdef SPECTRA_USE_GLFW
-    auto& primary = backend_->primary_window();
-    if (primary.glfw_window && !primary.should_close)
-    {
-        if (glfwWindowShouldClose(static_cast<GLFWwindow*>(primary.glfw_window)))
-        {
-            primary.should_close = true;
-        }
-    }
-
     for (auto& wctx : windows_)
     {
         if (wctx->glfw_window && !wctx->should_close)
@@ -305,30 +310,24 @@ void WindowManager::poll_events()
 
 WindowContext* WindowManager::focused_window() const
 {
-    // Check primary window first
-    auto& primary = backend_->primary_window();
-    if (!primary.should_close && primary.is_focused)
-        return &const_cast<WindowContext&>(primary);
-
     for (auto& wctx : windows_)
     {
         if (!wctx->should_close && wctx->is_focused)
             return wctx.get();
     }
 
-    // Fallback: return primary if it's still open
-    if (!primary.should_close)
-        return &const_cast<WindowContext&>(primary);
+    // Fallback: return first open window
+    for (auto& wctx : windows_)
+    {
+        if (!wctx->should_close)
+            return wctx.get();
+    }
 
     return nullptr;
 }
 
 bool WindowManager::any_window_open() const
 {
-    auto& primary = backend_->primary_window();
-    if (!primary.should_close)
-        return true;
-
     for (auto& wctx : windows_)
     {
         if (!wctx->should_close)
@@ -339,10 +338,6 @@ bool WindowManager::any_window_open() const
 
 WindowContext* WindowManager::find_window(uint32_t window_id) const
 {
-    auto& primary = backend_->primary_window();
-    if (primary.id == window_id)
-        return &const_cast<WindowContext&>(primary);
-
     for (auto& wctx : windows_)
     {
         if (wctx->id == window_id)
@@ -360,7 +355,7 @@ void WindowManager::shutdown()
     if (backend_->device() != VK_NULL_HANDLE)
         vkDeviceWaitIdle(backend_->device());
 
-    // Destroy all secondary windows (reverse order)
+    // Destroy all windows (reverse order)
     while (!windows_.empty())
     {
         auto& wctx = *windows_.back();
@@ -399,6 +394,9 @@ void WindowManager::shutdown()
     active_ptrs_.clear();
     pending_close_ids_.clear();
 
+    // Mark as shut down so destructor and repeated calls are no-ops.
+    backend_ = nullptr;
+
     SPECTRA_LOG_INFO("window_manager", "Shutdown complete");
 }
 
@@ -407,15 +405,6 @@ void WindowManager::shutdown()
 void WindowManager::rebuild_active_list()
 {
     active_ptrs_.clear();
-
-    if (backend_)
-    {
-        auto& primary = backend_->primary_window();
-        if (!primary.should_close && primary.id != 0)
-        {
-            active_ptrs_.push_back(&primary);
-        }
-    }
 
     for (auto& wctx : windows_)
     {
@@ -436,25 +425,7 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow* window, int width
     if (!mgr)
         return;
 
-    // Find which WindowContext this GLFW window belongs to
-    WindowContext* wctx = nullptr;
-    auto& primary = mgr->backend_->primary_window();
-    if (primary.glfw_window == window)
-    {
-        wctx = &primary;
-    }
-    else
-    {
-        for (auto& w : mgr->windows_)
-        {
-            if (w->glfw_window == window)
-            {
-                wctx = w.get();
-                break;
-            }
-        }
-    }
-
+    WindowContext* wctx = mgr->find_by_glfw_window(window);
     if (!wctx || width <= 0 || height <= 0)
         return;
 
@@ -474,22 +445,12 @@ void WindowManager::glfw_window_close_callback(GLFWwindow* window)
     if (!mgr)
         return;
 
-    auto& primary = mgr->backend_->primary_window();
-    if (primary.glfw_window == window)
-    {
-        primary.should_close = true;
+    WindowContext* wctx = mgr->find_by_glfw_window(window);
+    if (!wctx)
         return;
-    }
 
-    for (auto& w : mgr->windows_)
-    {
-        if (w->glfw_window == window)
-        {
-            w->should_close = true;
-            mgr->pending_close_ids_.push_back(w->id);
-            return;
-        }
-    }
+    wctx->should_close = true;
+    mgr->pending_close_ids_.push_back(wctx->id);
 }
 
 void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
@@ -498,32 +459,45 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
     if (!mgr)
         return;
 
-    auto& primary = mgr->backend_->primary_window();
-    if (primary.glfw_window == window)
-    {
-        primary.is_focused = (focused != 0);
+    WindowContext* wctx = mgr->find_by_glfw_window(window);
+    if (!wctx)
         return;
-    }
 
-    for (auto& w : mgr->windows_)
-    {
-        if (w->glfw_window == window)
-        {
-            w->is_focused = (focused != 0);
+    wctx->is_focused = (focused != 0);
 #ifdef SPECTRA_USE_IMGUI
-            // Forward focus event to ImGui for this window's context
-            if (w->imgui_context && w->ui_ctx)
-            {
-                ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
-                ImGui::SetCurrentContext(static_cast<ImGuiContext*>(w->imgui_context));
-                ImGui_ImplGlfw_WindowFocusCallback(window, focused);
-                if (prev_ctx)
-                    ImGui::SetCurrentContext(prev_ctx);
-            }
-#endif
-            return;
-        }
+    // Forward focus event to ImGui for this window's context
+    if (wctx->imgui_context && wctx->ui_ctx)
+    {
+        ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
+        ImGui_ImplGlfw_WindowFocusCallback(window, focused);
+        if (prev_ctx)
+            ImGui::SetCurrentContext(prev_ctx);
     }
+#endif
+}
+
+void WindowManager::install_input_callbacks(WindowContext& wctx)
+{
+#ifdef SPECTRA_USE_GLFW
+    auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
+    if (glfw_win)
+    {
+        // Window management callbacks
+        glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
+        glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+        glfwSetWindowFocusCallback(glfw_win, glfw_window_focus_callback);
+        // Input callbacks
+        glfwSetCursorPosCallback(glfw_win, glfw_cursor_pos_callback);
+        glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
+        glfwSetScrollCallback(glfw_win, glfw_scroll_callback);
+        glfwSetKeyCallback(glfw_win, glfw_key_callback);
+        glfwSetCharCallback(glfw_win, glfw_char_callback);
+        glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
+    }
+#else
+    (void)wctx;
+#endif
 }
 
 void WindowManager::set_window_position(WindowContext& wctx, int x, int y)
@@ -704,13 +678,6 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
 WindowContext* WindowManager::find_by_glfw_window(GLFWwindow* window) const
 {
 #ifdef SPECTRA_USE_GLFW
-    if (!backend_)
-        return nullptr;
-
-    auto& primary = backend_->primary_window();
-    if (primary.glfw_window == window)
-        return &const_cast<WindowContext&>(primary);
-
     for (auto& w : windows_)
     {
         if (w->glfw_window == window)

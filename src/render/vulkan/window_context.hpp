@@ -70,7 +70,6 @@ struct WindowContext
     // Used by WindowUIContext for per-window tab management.
     std::vector<FigureId> assigned_figures;
     FigureId active_figure_id = INVALID_FIGURE_ID;
-    bool is_primary = false;
     std::string title;
 
     // Resize state
@@ -89,11 +88,6 @@ struct WindowContext
     // Set for windows created via WindowManager::create_window_with_ui().
     std::unique_ptr<WindowUIContext> ui_ctx;
 
-    // Non-owning alias for the primary window's UI context.
-    // The primary window's WindowUIContext is owned by App::run() (stack-local),
-    // so we store a raw pointer here for WindowManager to access during reattach.
-    // For secondary windows this is nullptr (they use ui_ctx above).
-    WindowUIContext* ui_ctx_non_owning = nullptr;
 };
 
 }  // namespace spectra

@@ -52,6 +52,8 @@ foreach(_ui_src
     src/ui/camera.cpp
     src/ui/axes3d_renderer.cpp
     src/ui/window_manager.cpp
+    src/ui/window_runtime.cpp
+    src/ui/session_runtime.cpp
     src/ui/figure_registry.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})

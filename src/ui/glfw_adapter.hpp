@@ -42,6 +42,11 @@ class GlfwAdapter
     // Use this when closing one window in a multi-window setup.
     void destroy_window();
 
+    // Release ownership of the window handle without destroying it.
+    // Use when another owner (e.g. WindowManager) already destroyed
+    // the GLFW window.
+    void release_window() { window_ = nullptr; }
+
     // Terminate the entire GLFW library.  Call once after all windows
     // have been destroyed (typically at application exit).
     static void terminate();

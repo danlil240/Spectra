@@ -14,6 +14,8 @@ struct AppConfig
     bool headless = false;
 };
 
+class WindowRuntime;
+
 #ifdef SPECTRA_USE_GLFW
 class GlfwAdapter;
 class WindowManager;
@@ -40,33 +42,7 @@ class App
     Renderer* renderer() { return renderer_.get(); }
 
    private:
-    // Per-frame mutable state passed between update_window / render_window.
-    struct FrameState
-    {
-        Figure* active_figure = nullptr;
-        FigureId active_figure_id = INVALID_FIGURE_ID;
-        bool has_animation = false;
-        float anim_time = 0.0f;
-        bool imgui_frame_started = false;
-    };
-
-    // Update all per-window UI subsystems for one frame (animation, ImGui,
-    // layout computation).  Called once per window per frame.
-    void update_window(WindowUIContext& ui_ctx, FrameState& fs, FrameScheduler& scheduler
-#ifdef SPECTRA_USE_GLFW
-                       , GlfwAdapter* glfw, WindowManager* window_mgr
-#endif
-    );
-
-    // Render one window's content (begin_frame, render pass, ImGui, end_frame).
-    // Returns true if the frame was successfully presented.
-    bool render_window(WindowUIContext& ui_ctx, FrameState& fs
-#ifdef SPECTRA_USE_GLFW
-                       , GlfwAdapter* glfw
-#endif
-    );
-
-    // Render a secondary window (no ImGui, figure-only).
+    // Render a legacy secondary window (no ImGui, figure-only).
     void render_secondary_window(struct WindowContext* wctx);
 
     AppConfig config_;

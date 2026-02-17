@@ -6,13 +6,16 @@
 #include <spectra/logger.hpp>
 
 #include "../anim/frame_scheduler.hpp"
-#include "../core/layout.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
 #include "command_queue.hpp"
+#include "window_runtime.hpp"
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
+    #define GLFW_INCLUDE_NONE
+    #define GLFW_INCLUDE_VULKAN
+    #include <GLFW/glfw3.h>
     #include "glfw_adapter.hpp"
     #include "window_manager.hpp"
 #endif
@@ -32,7 +35,6 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
-#include <span>
 #include <unordered_map>
 #include <fcntl.h>
 #include <unistd.h>
@@ -127,6 +129,7 @@ void App::run()
     CommandQueue cmd_queue;
     FrameScheduler scheduler(active_figure->anim_fps_);
     Animator animator;
+    WindowRuntime win_rt(*backend_, *renderer_, registry_);
 
     frame_state.has_animation = static_cast<bool>(active_figure->anim_on_frame_);
     bool& has_animation = frame_state.has_animation;
@@ -268,11 +271,14 @@ void App::run()
             backend_->create_surface(glfw->native_window());
             backend_->create_swapchain(active_figure->width(), active_figure->height());
 
-            // Initialize WindowManager and adopt the primary window
+            // Initialize WindowManager and create the initial window uniformly.
+            // create_initial_window() takes ownership of the backend's initial
+            // WindowContext (already has surface + swapchain) and installs
+            // WindowManager GLFW callbacks for uniform event routing.
             window_mgr = std::make_unique<WindowManager>();
             window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
                              &registry_, renderer_.get());
-            window_mgr->adopt_primary_window(glfw->native_window());
+            window_mgr->create_initial_window(glfw->native_window());
 
             // Wire WindowManager to TabDragController for multi-window
             // outside-detection (uses glfwGetWindowPos/Size on all windows)
@@ -287,296 +293,9 @@ void App::run()
                 input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
             }
 
-            // Set GLFW callbacks for input
-            InputCallbacks callbacks;
-            callbacks.on_mouse_move = [&input_handler
-    #ifdef SPECTRA_USE_IMGUI
-                                       ,
-                                       &imgui_ui,
-                                       &dock_system,
-                                       this
-    #endif
-            ](double x, double y)
-            {
-    #ifdef SPECTRA_USE_IMGUI
-                // Always pass through mouse moves when InputHandler is in an active
-                // drag (pan, measure, middle-pan, box zoom).  Without this, ImGui
-                // capture from overlapping windows (toolbar, status bar) blocks
-                // drag updates and makes tools appear broken.
-                bool input_is_dragging =
-                    input_handler.mode() == InteractionMode::Dragging
-                    || input_handler.is_measure_dragging()
-                    || input_handler.is_middle_pan_dragging()
-                    || input_handler.has_measure_result();  // two-click tracking
-
-                if (!input_is_dragging && imgui_ui
-                    && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
-                {
-                    SPECTRA_LOG_TRACE("input", "Mouse move ignored - ImGui wants capture");
-                    return;
-                }
-                // In split mode, route to the figure under the cursor
-                if (dock_system.is_split())
-                {
-                    SplitPane* root = dock_system.split_view().root();
-                    if (root)
-                    {
-                        SplitPane* pane =
-                            root->find_at_point(static_cast<float>(x), static_cast<float>(y));
-                        if (pane && pane->is_leaf())
-                        {
-                            FigureId fi = pane->figure_index();
-                            Figure* pfig = registry_.get(fi);
-                            if (pfig)
-                                input_handler.set_figure(pfig);
-                        }
-                    }
-                }
-    #endif
-                input_handler.on_mouse_move(x, y);
-            };
-            callbacks.on_mouse_button = [&input_handler
-    #ifdef SPECTRA_USE_IMGUI
-                                         ,
-                                         &imgui_ui,
-                                         &dock_system,
-                                         this
-    #endif
-            ](int button, int action, int mods, double x, double y)
-            {
-    #ifdef SPECTRA_USE_IMGUI
-                // Always pass through when InputHandler is actively dragging
-                // (pan, measure, middle-pan, box zoom) so release events and
-                // continued interaction work correctly.
-                bool input_is_dragging =
-                    input_handler.mode() == InteractionMode::Dragging
-                    || input_handler.is_measure_dragging()
-                    || input_handler.is_middle_pan_dragging();
-
-                if (!input_is_dragging && imgui_ui
-                    && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
-                {
-                    // Always forward RELEASE events so InputHandler can exit
-                    // Dragging mode. Without this, starting a drag on the canvas
-                    // and releasing over a UI element (menu, tab bar) leaves the
-                    // handler stuck in Dragging — causing phantom panning.
-                    constexpr int GLFW_RELEASE = 0;
-                    if (action == GLFW_RELEASE)
-                    {
-                        input_handler.on_mouse_button(button, action, mods, x, y);
-                    }
-                    return;
-                }
-                if (dock_system.is_split())
-                {
-                    SplitPane* root = dock_system.split_view().root();
-                    if (root)
-                    {
-                        SplitPane* pane =
-                            root->find_at_point(static_cast<float>(x), static_cast<float>(y));
-                        if (pane && pane->is_leaf())
-                        {
-                            FigureId fi = pane->figure_index();
-                            Figure* pfig = registry_.get(fi);
-                            if (pfig)
-                                input_handler.set_figure(pfig);
-                        }
-                    }
-                }
-    #endif
-                input_handler.on_mouse_button(button, action, mods, x, y);
-            };
-            callbacks.on_scroll = [&input_handler,
-                                   &glfw
-    #ifdef SPECTRA_USE_IMGUI
-                                   ,
-                                   &imgui_ui,
-                                   &dock_system,
-                                   &cmd_palette,
-                                   this
-    #endif
-            ](double x_offset, double y_offset)
-            {
-    #ifdef SPECTRA_USE_IMGUI
-                // Block scroll when command palette is open — it handles its own smooth scroll
-                if (cmd_palette.is_open())
-                    return;
-                if (imgui_ui && imgui_ui->wants_capture_mouse())
-                {
-                    // SPECTRA_LOG_DEBUG("input", "Scroll ignored - ImGui wants capture");
-                    return;
-                }
-    #endif
-                double cx = 0.0, cy = 0.0;
-                if (glfw)
-                {
-                    glfw->mouse_position(cx, cy);
-                }
-    #ifdef SPECTRA_USE_IMGUI
-                if (dock_system.is_split())
-                {
-                    SplitPane* root = dock_system.split_view().root();
-                    if (root)
-                    {
-                        SplitPane* pane =
-                            root->find_at_point(static_cast<float>(cx), static_cast<float>(cy));
-                        if (pane && pane->is_leaf())
-                        {
-                            FigureId fi = pane->figure_index();
-                            Figure* pfig = registry_.get(fi);
-                            if (pfig)
-                                input_handler.set_figure(pfig);
-                        }
-                    }
-                }
-    #endif
-                input_handler.on_scroll(x_offset, y_offset, cx, cy);
-            };
-            callbacks.on_key = [&input_handler
-    #ifdef SPECTRA_USE_IMGUI
-                                ,
-                                &imgui_ui,
-                                &shortcut_mgr
-    #endif
-            ](int key, int action, int mods)
-            {
-    #ifdef SPECTRA_USE_IMGUI
-                if (imgui_ui && imgui_ui->wants_capture_keyboard())
-                    return;
-                // Dispatch to shortcut manager first; if it handles the key, skip input handler
-                if (shortcut_mgr.on_key(key, action, mods))
-                    return;
-    #endif
-                input_handler.on_key(key, action, mods);
-            };
-            callbacks.on_resize = [&needs_resize,
-                                   &new_width,
-                                   &new_height,
-                                   this,
-                                   &active_figure
-    #ifdef SPECTRA_USE_IMGUI
-                                   ,
-                                   &imgui_ui,
-                                   &dock_system
-    #endif
-            ](int w, int h)
-            {
-                if (w <= 0 || h <= 0)
-                    return;
-                uint32_t uw = static_cast<uint32_t>(w);
-                uint32_t uh = static_cast<uint32_t>(h);
-                SPECTRA_LOG_DEBUG("resize",
-                                 "Callback: " + std::to_string(w) + "x" + std::to_string(h));
-
-                // Recreate swapchain immediately in the callback
-                auto* vk = static_cast<VulkanBackend*>(backend_.get());
-                backend_->recreate_swapchain(uw, uh);
-                vk->clear_swapchain_dirty();
-                active_figure->config_.width = backend_->swapchain_width();
-                active_figure->config_.height = backend_->swapchain_height();
-
-    #ifdef SPECTRA_USE_IMGUI
-                if (imgui_ui)
-                {
-                    imgui_ui->on_swapchain_recreated(*vk);
-                    imgui_ui->new_frame();
-                    imgui_ui->build_ui(*active_figure);
-
-                    // Use ImGui-aware layout (same as main loop) so plot
-                    // position accounts for nav rail / inspector / tab bar.
-                    const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-                    dock_system.update_layout(canvas);
-
-                    if (dock_system.is_split())
-                    {
-                        auto pane_infos = dock_system.get_pane_infos();
-                        for (const auto& pinfo : pane_infos)
-                        {
-                            {
-                                auto* fig = registry_.get(pinfo.figure_index);
-                                if (!fig)
-                                    continue;
-                                Margins pm;
-                                pm.left = std::clamp(pinfo.bounds.w * 0.15f, 40.0f, 60.0f);
-                                pm.right = std::clamp(pinfo.bounds.w * 0.08f, 15.0f, 30.0f);
-                                pm.bottom = std::clamp(pinfo.bounds.h * 0.15f, 35.0f, 50.0f);
-                                pm.top = std::clamp(pinfo.bounds.h * 0.08f, 15.0f, 35.0f);
-                                const auto rects = compute_subplot_layout(pinfo.bounds.w,
-                                                                          pinfo.bounds.h,
-                                                                          fig->grid_rows_,
-                                                                          fig->grid_cols_,
-                                                                          pm,
-                                                                          pinfo.bounds.x,
-                                                                          pinfo.bounds.y);
-                                for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size();
-                                     ++i)
-                                {
-                                    if (fig->axes_mut()[i])
-                                        fig->axes_mut()[i]->set_viewport(rects[i]);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        SplitPane* root = dock_system.split_view().root();
-                        Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
-                        const auto rects = compute_subplot_layout(cb.w,
-                                                                  cb.h,
-                                                                  active_figure->grid_rows_,
-                                                                  active_figure->grid_cols_,
-                                                                  {},
-                                                                  cb.x,
-                                                                  cb.y);
-                        for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size();
-                             ++i)
-                        {
-                            if (active_figure->axes_mut()[i])
-                                active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                        }
-                        for (size_t i = 0;
-                             i < active_figure->all_axes_mut().size() && i < rects.size();
-                             ++i)
-                        {
-                            if (active_figure->all_axes_mut()[i])
-                                active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                        }
-                    }
-                }
-                else
-    #endif
-                {
-                    active_figure->compute_layout();
-                }
-
-                // Render a full frame
-                if (backend_->begin_frame())
-                {
-                    renderer_->flush_pending_deletions();
-                    renderer_->begin_render_pass();
-                    renderer_->render_figure_content(*active_figure);
-    #ifdef SPECTRA_USE_IMGUI
-                    if (imgui_ui)
-                    {
-                        imgui_ui->render(*vk);
-                    }
-    #endif
-                    renderer_->end_render_pass();
-                    backend_->end_frame();
-                }
-    #ifdef SPECTRA_USE_IMGUI
-                else if (imgui_ui)
-                {
-                    ImGui::EndFrame();
-                }
-    #endif
-
-                // Mark resize as handled so the main loop doesn't redo it
-                needs_resize = false;
-                new_width = uw;
-                new_height = uh;
-            };
-            glfw->set_callbacks(callbacks);
+            // Input callbacks are installed by WindowManager via
+            // install_input_callbacks() after UI setup is complete.
+            // GlfwAdapter no longer handles input for any window.
         }
     }
 #endif
@@ -609,62 +328,86 @@ void App::run()
         fig_mgr.set_tab_bar(figure_tabs.get());
 
         // TabBar callbacks → FigureManager queued operations + dock sync
+        // NOTE: TabBar passes positional tab index (size_t), but FigureManager
+        // methods expect FigureId.  Convert via fig_mgr.figure_ids()[pos].
         figure_tabs->set_tab_change_callback(
-            [&fig_mgr, &dock_system, &dock_tab_sync_guard](size_t new_index)
+            [&fig_mgr, &dock_system, &dock_tab_sync_guard](size_t pos)
             {
                 if (dock_tab_sync_guard)
                     return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
+                FigureId id = fig_mgr.figure_ids()[pos];
                 dock_tab_sync_guard = true;
-                fig_mgr.queue_switch(new_index);
-                dock_system.set_active_figure_index(new_index);
+                fig_mgr.queue_switch(id);
+                dock_system.set_active_figure_index(id);
                 dock_tab_sync_guard = false;
             });
-        figure_tabs->set_tab_close_callback([&fig_mgr](size_t index)
-                                            { fig_mgr.queue_close(index); });
+        figure_tabs->set_tab_close_callback([&fig_mgr](size_t pos)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                fig_mgr.queue_close(fig_mgr.figure_ids()[pos]);
+            });
         figure_tabs->set_tab_add_callback([&fig_mgr]() { fig_mgr.queue_create(); });
-        figure_tabs->set_tab_duplicate_callback([&fig_mgr](size_t index)
-                                                { fig_mgr.duplicate_figure(index); });
-        figure_tabs->set_tab_close_all_except_callback([&fig_mgr](size_t index)
-                                                       { fig_mgr.close_all_except(index); });
-        figure_tabs->set_tab_close_to_right_callback([&fig_mgr](size_t index)
-                                                     { fig_mgr.close_to_right(index); });
-        figure_tabs->set_tab_rename_callback([&fig_mgr](size_t index, const std::string& title)
-                                             { fig_mgr.set_title(index, title); });
+        figure_tabs->set_tab_duplicate_callback([&fig_mgr](size_t pos)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                fig_mgr.duplicate_figure(fig_mgr.figure_ids()[pos]);
+            });
+        figure_tabs->set_tab_close_all_except_callback([&fig_mgr](size_t pos)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                fig_mgr.close_all_except(fig_mgr.figure_ids()[pos]);
+            });
+        figure_tabs->set_tab_close_to_right_callback([&fig_mgr](size_t pos)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                fig_mgr.close_to_right(fig_mgr.figure_ids()[pos]);
+            });
+        figure_tabs->set_tab_rename_callback([&fig_mgr](size_t pos, const std::string& title)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                fig_mgr.set_title(fig_mgr.figure_ids()[pos], title);
+            });
 
         // Tab context menu: Split Right / Split Down
         // Duplicates the clicked figure into a new pane
         figure_tabs->set_tab_split_right_callback(
-            [&dock_system, &fig_mgr, this](FigureId index)
+            [&dock_system, &fig_mgr, this](size_t pos)
             {
-                if (!registry_.get(index))
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                FigureId id = fig_mgr.figure_ids()[pos];
+                if (!registry_.get(id))
                     return;
-                // Duplicate the figure to get a new copy for the split pane
-                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                FigureId new_fig = fig_mgr.duplicate_figure(id);
                 if (new_fig == INVALID_FIGURE_ID)
                     return;
-                dock_system.split_figure_right(index, new_fig);
-                dock_system.set_active_figure_index(index);
+                dock_system.split_figure_right(id, new_fig);
+                dock_system.set_active_figure_index(id);
             });
 
         figure_tabs->set_tab_split_down_callback(
-            [&dock_system, &fig_mgr, this](FigureId index)
+            [&dock_system, &fig_mgr, this](size_t pos)
             {
-                if (!registry_.get(index))
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                FigureId id = fig_mgr.figure_ids()[pos];
+                if (!registry_.get(id))
                     return;
-                // Duplicate the figure to get a new copy for the split pane
-                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                FigureId new_fig = fig_mgr.duplicate_figure(id);
                 if (new_fig == INVALID_FIGURE_ID)
                     return;
-                dock_system.split_figure_down(index, new_fig);
-                dock_system.set_active_figure_index(index);
+                dock_system.split_figure_down(id, new_fig);
+                dock_system.set_active_figure_index(id);
             });
 
         // Tab detach: drag tab outside window or context menu "Detach to Window"
         // Creates a new OS window via WindowManager and renders the figure there.
         figure_tabs->set_tab_detach_callback(
-            [&fig_mgr, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
+            [&fig_mgr, &pending_detaches, this](size_t pos, float screen_x, float screen_y)
             {
-                auto* fig = registry_.get(index);
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                FigureId id = fig_mgr.figure_ids()[pos];
+                auto* fig = registry_.get(id);
                 if (!fig)
                     return;
 
@@ -674,16 +417,19 @@ void App::run()
 
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr.get_title(index);
+                std::string title = fig_mgr.get_title(id);
 
-                pending_detaches.push_back({index, win_w, win_h, title,
+                pending_detaches.push_back({id, win_w, win_h, title,
                     static_cast<int>(screen_x), static_cast<int>(screen_y)});
             });
 
         // Tab drag-to-dock: when a tab is dragged vertically out of the tab bar,
         // initiate a dock drag operation to split the view
-        figure_tabs->set_tab_drag_out_callback([&dock_system](size_t index, float mx, float my)
-                                               { dock_system.begin_drag(index, mx, my); });
+        figure_tabs->set_tab_drag_out_callback([&dock_system, &fig_mgr](size_t pos, float mx, float my)
+            {
+                if (pos >= fig_mgr.figure_ids().size()) return;
+                dock_system.begin_drag(fig_mgr.figure_ids()[pos], mx, my);
+            });
         figure_tabs->set_tab_drag_update_callback(
             [&dock_system](size_t /*index*/, float mx, float my)
             { dock_system.update_drag(mx, my); });
@@ -709,8 +455,10 @@ void App::run()
         auto* glfw_window = static_cast<GLFWwindow*>(glfw->native_window());
         imgui_ui->init(*vk, glfw_window);
 
-        // Store the primary window's ImGui context for context switching
-        vk->primary_window().imgui_context = ImGui::GetCurrentContext();
+        // Store the initial window's ImGui context for context switching.
+        // After create_initial_window(), windows()[0] is the initial window.
+        if (window_mgr && !window_mgr->windows().empty())
+            window_mgr->windows()[0]->imgui_context = ImGui::GetCurrentContext();
 
         // Create and wire DataInteraction layer (Agent E)
         data_interaction = std::make_unique<DataInteraction>();
@@ -1779,10 +1527,12 @@ void App::run()
             {
                 if (!window_mgr)
                     return;
-                auto* vk = static_cast<VulkanBackend*>(backend_.get());
-                auto& primary = vk->primary_window();
+                // Find the focused/current window as the source
+                if (!window_mgr || window_mgr->windows().empty())
+                    return;
+                auto* src_wctx = window_mgr->focused_window();
+                if (!src_wctx) src_wctx = window_mgr->windows()[0];
 
-                // Find the source window (primary for now)
                 FigureId fig_id = active_figure_id;
                 if (fig_id == INVALID_FIGURE_ID)
                     return;
@@ -1795,11 +1545,11 @@ void App::run()
                     return;
                 }
 
-                // Find a secondary window to move to, or create one
+                // Find another window to move to, or create one
                 WindowContext* target = nullptr;
                 for (auto* wctx : window_mgr->windows())
                 {
-                    if (wctx != &primary && wctx->ui_ctx)
+                    if (wctx != src_wctx && wctx->ui_ctx)
                     {
                         target = wctx;
                         break;
@@ -1808,35 +1558,31 @@ void App::run()
 
                 if (target)
                 {
-                    window_mgr->move_figure(fig_id, primary.id, target->id);
+                    window_mgr->move_figure(fig_id, src_wctx->id, target->id);
                 }
                 else
                 {
-                    // No secondary window — detach into a new one
+                    // No other window — detach into a new one
                     Figure* fig = registry_.get(fig_id);
                     uint32_t w = fig ? fig->width() : 800;
                     uint32_t h = fig ? fig->height() : 600;
                     std::string title = fig_mgr.get_title(fig_id);
 
-                    // Remove from primary's FigureManager first
+                    // Remove from source's FigureManager first
                     FigureState state = fig_mgr.remove_figure(fig_id);
 
-                    // Remove from primary's assigned_figures
-                    auto& pf = primary.assigned_figures;
+                    // Remove from source's assigned_figures
+                    auto& pf = src_wctx->assigned_figures;
                     pf.erase(std::remove(pf.begin(), pf.end(), fig_id), pf.end());
-                    if (primary.active_figure_id == fig_id)
-                        primary.active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
+                    if (src_wctx->active_figure_id == fig_id)
+                        src_wctx->active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
 
                     // Create new window with the figure
                     auto* new_wctx = window_mgr->create_window_with_ui(w, h, title, fig_id);
                     if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
                     {
-                        // The figure was already added by create_window_with_ui via
-                        // init_window_ui which imports from registry. Override state
-                        // with the transferred one to preserve axis snapshots etc.
                         auto* new_fm = new_wctx->ui_ctx->fig_mgr;
                         new_fm->state(fig_id) = std::move(state);
-                        // Re-sync tab title after state transfer
                         std::string correct_title = new_fm->get_title(fig_id);
                         if (new_fm->tab_bar())
                             new_fm->tab_bar()->set_tab_title(0, correct_title);
@@ -1858,18 +1604,26 @@ void App::run()
 
     scheduler.reset();
 
+    // Keep a raw pointer to the WindowUIContext before moving the unique_ptr.
+    // The object stays at the same heap address, so this pointer (and all
+    // reference aliases like input_handler, imgui_ui, etc.) remain valid.
+    WindowUIContext* ui_ctx_ptr = ui_ctx.get();
+
 #ifdef SPECTRA_USE_GLFW
-    // Store the primary window's figure assignments and a non-owning UI context
-    // pointer so that WindowManager::destroy_window() can reattach figures when
-    // a secondary window is closed.
-    if (window_mgr)
+    // Move ui_ctx into the initial window's WindowContext so all windows
+    // own their UI context uniformly.
+    if (window_mgr && !window_mgr->windows().empty())
     {
-        auto* vk_setup = static_cast<VulkanBackend*>(backend_.get());
-        auto& primary_setup = vk_setup->primary_window();
-        primary_setup.assigned_figures = registry_.all_ids();
-        primary_setup.active_figure_id = frame_state.active_figure_id;
-        // Store non-owning pointer — ownership stays with the local ui_ctx
-        primary_setup.ui_ctx_non_owning = ui_ctx.get();
+        auto* initial_wctx = window_mgr->windows()[0];
+        initial_wctx->assigned_figures = registry_.all_ids();
+        initial_wctx->active_figure_id = frame_state.active_figure_id;
+
+        // Move UI context into the WindowContext
+        initial_wctx->ui_ctx = std::move(ui_ctx);
+
+        // Install full input callbacks so WindowManager handles all events
+        // for the initial window (same as secondary windows with UI).
+        window_mgr->install_input_callbacks(*initial_wctx);
     }
 #endif
 
@@ -1885,42 +1639,10 @@ void App::run()
         }
     }
 
-#ifdef SPECTRA_USE_GLFW
-    bool primary_closed = false;
-#endif
-
     while (running)
     {
         SPECTRA_LOG_TRACE("main_loop", "Starting frame iteration");
         newly_created_window_ids.clear();
-
-#ifdef SPECTRA_USE_GLFW
-        // Handle minimized window (0x0): sleep until restored
-        if (glfw)
-        {
-            if (glfw->should_close())
-            {
-                // Primary is closing — skip its update/render but keep
-                // the loop alive if secondary windows exist.
-                primary_closed = true;
-            }
-            else
-            {
-                uint32_t fb_w = 0, fb_h = 0;
-                glfw->framebuffer_size(fb_w, fb_h);
-                while (fb_w == 0 || fb_h == 0)
-                {
-                    glfw->wait_events();
-                    glfw->framebuffer_size(fb_w, fb_h);
-                    if (glfw->should_close())
-                    {
-                        primary_closed = true;
-                        break;
-                    }
-                }
-            }
-        }
-#endif
 
         try
         {
@@ -1944,112 +1666,17 @@ void App::run()
         // Evaluate keyframe animations
         animator.evaluate(scheduler.elapsed_seconds());
 
-        // ── Update primary window ─────────────────────────────────────
-        // Ensure the primary ImGui context is active before the primary
-        // window's frame.  GLFW callbacks during poll_events() may have
-        // temporarily switched to a secondary window's context; an early-
-        // return bug in any callback could leave the wrong context set.
-#ifdef SPECTRA_USE_GLFW
-        if (!primary_closed)
-        {
-#endif
-#ifdef SPECTRA_USE_IMGUI
-            {
-                auto* vk = static_cast<VulkanBackend*>(backend_.get());
-                auto& pw = vk->primary_window();
-                if (pw.imgui_context)
-                    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(pw.imgui_context));
-            }
-#endif
-            update_window(*ui_ctx, frame_state, scheduler
-#ifdef SPECTRA_USE_GLFW
-                          , glfw.get(), window_mgr.get()
-#endif
-            );
-            // update_window may switch the active figure — sync local alias
-            active_figure = frame_state.active_figure;
-
-            // ── Render primary window ─────────────────────────────────────
-            render_window(*ui_ctx, frame_state
-#ifdef SPECTRA_USE_GLFW
-                          , glfw.get()
-#endif
-            );
-#ifdef SPECTRA_USE_GLFW
-        }
-#endif
-
-        // ── Process deferred detach requests ─────────────────────────
-        // Detach requests are queued during build_ui (mid-ImGui-frame) and
-        // processed here, after the primary window's frame is complete, so
-        // that creating a new ImGui context doesn't conflict with the
-        // primary's in-progress frame (avoids TexID mismatch assertion).
-#ifdef SPECTRA_USE_GLFW
-        if (window_mgr && !pending_detaches.empty())
-        {
-            auto* vk_detach = static_cast<VulkanBackend*>(backend_.get());
-            auto& primary_detach = vk_detach->primary_window();
-
-            for (auto& pd : pending_detaches)
-            {
-                // Don't detach the last figure from the primary window
-                if (fig_mgr.count() <= 1)
-                    continue;
-
-                // Remove figure from primary window's FigureManager BEFORE
-                // creating the new window, so the secondary FigureManager
-                // constructor (which reads the registry) still finds it,
-                // but the primary no longer shows it.
-                FigureState detached_state = fig_mgr.remove_figure(pd.figure_id);
-
-                // Remove from primary window's assigned_figures
-                auto& pf = primary_detach.assigned_figures;
-                pf.erase(std::remove(pf.begin(), pf.end(), pd.figure_id), pf.end());
-                if (primary_detach.active_figure_id == pd.figure_id)
-                    primary_detach.active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
-
-                auto* new_wctx = window_mgr->detach_figure(
-                    pd.figure_id, pd.width, pd.height,
-                    pd.title, pd.screen_x, pd.screen_y);
-
-                // Transfer the figure state (axis snapshots, title, etc.)
-                // and re-sync the tab bar title — init_window_ui assigned a
-                // positional title that may differ from the original.
-                if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
-                {
-                    auto* new_fm = new_wctx->ui_ctx->fig_mgr;
-                    new_fm->state(pd.figure_id) = std::move(detached_state);
-                    // Update tab title to match the transferred custom_title
-                    std::string correct_title = new_fm->get_title(pd.figure_id);
-                    if (new_fm->tab_bar())
-                        new_fm->tab_bar()->set_tab_title(0, correct_title);
-                }
-
-                // Sync primary's active figure after removal
-                frame_state.active_figure_id = fig_mgr.active_index();
-                frame_state.active_figure = registry_.get(frame_state.active_figure_id);
-                active_figure = frame_state.active_figure;
-
-                // Mark newly created windows so we skip their first render
-                // frame — ImGui needs a full NewFrame/EndFrame cycle on the
-                // next frame to properly initialize draw list state.
-                if (new_wctx)
-                    newly_created_window_ids.push_back(new_wctx->id);
-            }
-            pending_detaches.clear();
-        }
-#endif
-
-        // ── Render secondary windows ──────────────────────────────────
+        // ── Unified window update + render loop ───────────────────────
+        // All windows (including the first) are iterated uniformly.
+        // No "primary" vs "secondary" distinction.
 #ifdef SPECTRA_USE_GLFW
         if (window_mgr)
         {
             auto* vk = static_cast<VulkanBackend*>(backend_.get());
-            auto& primary_wctx = vk->primary_window();
 
             for (auto* wctx : window_mgr->windows())
             {
-                if (wctx == &primary_wctx)
+                if (wctx->should_close)
                     continue;
 
                 // Skip windows created this frame — their ImGui context
@@ -2060,51 +1687,137 @@ void App::run()
                               wctx->id) != newly_created_window_ids.end())
                     continue;
 
-                if (wctx->ui_ctx)
+                // Handle minimized window (0x0 framebuffer): skip until restored
+                if (wctx->glfw_window)
                 {
-                    // Secondary window with full UI — use update_window/render_window
-                    vk->set_active_window(wctx);
-
-                    // Switch to this window's ImGui context so all ImGui
-                    // calls (NewFrame, build_ui, Render) use the correct
-                    // context and font atlas texture.
-                    if (wctx->imgui_context)
-                        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
-
-                    // Build a per-window FrameState from the window's assigned figure
-                    FrameState sec_fs;
-                    sec_fs.active_figure_id = wctx->active_figure_id;
-                    sec_fs.active_figure = registry_.get(sec_fs.active_figure_id);
-                    if (!sec_fs.active_figure)
-                    {
-                        // Restore primary ImGui context before continuing
-                        if (primary_wctx.imgui_context)
-                            ImGui::SetCurrentContext(static_cast<ImGuiContext*>(primary_wctx.imgui_context));
+                    int fb_w = 0, fb_h = 0;
+                    glfwGetFramebufferSize(static_cast<GLFWwindow*>(wctx->glfw_window), &fb_w, &fb_h);
+                    if (fb_w <= 0 || fb_h <= 0)
                         continue;
-                    }
-                    sec_fs.has_animation = static_cast<bool>(sec_fs.active_figure->anim_on_frame_);
-
-                    update_window(*wctx->ui_ctx, sec_fs, scheduler
-                                  , nullptr, window_mgr.get()
-                    );
-
-                    render_window(*wctx->ui_ctx, sec_fs
-                                  , nullptr
-                    );
-
-                    // Restore primary window's ImGui context
-                    if (primary_wctx.imgui_context)
-                        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(primary_wctx.imgui_context));
                 }
-                else
+
+                if (!wctx->ui_ctx)
                 {
-                    // Legacy secondary window (no ImGui, figure-only)
+                    // Legacy window (no ImGui, figure-only)
+                    vk->set_active_window(wctx);
                     render_secondary_window(wctx);
+                    continue;
+                }
+
+                // Set active window for Vulkan operations
+                vk->set_active_window(wctx);
+
+                // Switch to this window's ImGui context
+                if (wctx->imgui_context)
+                    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
+
+                // Sync WindowContext resize state → UIContext resize fields.
+                // WindowManager's framebuffer callback writes to wctx->needs_resize
+                // etc., but update_window reads from ui_ctx.needs_resize.
+                if (wctx->needs_resize)
+                {
+                    wctx->ui_ctx->needs_resize = true;
+                    wctx->ui_ctx->new_width = wctx->pending_width;
+                    wctx->ui_ctx->new_height = wctx->pending_height;
+                    wctx->ui_ctx->resize_requested_time = wctx->resize_time;
+                    wctx->needs_resize = false;  // consumed
+                }
+
+                // Build per-window FrameState
+                FrameState win_fs;
+                win_fs.active_figure_id = wctx->active_figure_id;
+                win_fs.active_figure = registry_.get(win_fs.active_figure_id);
+                if (!win_fs.active_figure)
+                    continue;
+                win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
+
+                win_rt.update(*wctx->ui_ctx, win_fs, scheduler
+                              , window_mgr.get()
+                );
+
+                win_rt.render(*wctx->ui_ctx, win_fs);
+
+                // Sync back to the app-level frame_state for the initial window
+                // (commands, exports, etc. still reference frame_state/active_figure)
+                if (wctx == window_mgr->windows()[0])
+                {
+                    frame_state = win_fs;
+                    active_figure = frame_state.active_figure;
                 }
             }
+        }
+#endif
 
-            // Restore primary window as active
-            vk->set_active_window(&primary_wctx);
+        // Headless path (no GLFW, no WindowManager)
+        if (config_.headless)
+        {
+            win_rt.update(*ui_ctx_ptr, frame_state, scheduler
+#ifdef SPECTRA_USE_GLFW
+                          , nullptr
+#endif
+            );
+            active_figure = frame_state.active_figure;
+            win_rt.render(*ui_ctx_ptr, frame_state);
+        }
+
+        // ── Process deferred detach requests ─────────────────────────
+        // Detach requests are queued during build_ui (mid-ImGui-frame) and
+        // processed here, after all windows' frames are complete, so
+        // that creating a new ImGui context doesn't conflict with any
+        // in-progress frame (avoids TexID mismatch assertion).
+#ifdef SPECTRA_USE_GLFW
+        if (window_mgr && !pending_detaches.empty())
+        {
+            // Find the source window (focused, or first)
+            auto* src_wctx = window_mgr->focused_window();
+            if (!src_wctx && !window_mgr->windows().empty())
+                src_wctx = window_mgr->windows()[0];
+
+            for (auto& pd : pending_detaches)
+            {
+                // Don't detach the last figure from the source window
+                if (!src_wctx || !src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
+                    continue;
+                auto* src_fm = src_wctx->ui_ctx->fig_mgr;
+                if (src_fm->count() <= 1)
+                    continue;
+
+                // Remove figure from source window's FigureManager BEFORE
+                // creating the new window, so the new FigureManager
+                // constructor (which reads the registry) still finds it,
+                // but the source no longer shows it.
+                FigureState detached_state = src_fm->remove_figure(pd.figure_id);
+
+                // Remove from source window's assigned_figures
+                auto& pf = src_wctx->assigned_figures;
+                pf.erase(std::remove(pf.begin(), pf.end(), pd.figure_id), pf.end());
+                if (src_wctx->active_figure_id == pd.figure_id)
+                    src_wctx->active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
+
+                auto* new_wctx = window_mgr->detach_figure(
+                    pd.figure_id, pd.width, pd.height,
+                    pd.title, pd.screen_x, pd.screen_y);
+
+                // Transfer the figure state (axis snapshots, title, etc.)
+                if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
+                {
+                    auto* new_fm = new_wctx->ui_ctx->fig_mgr;
+                    new_fm->state(pd.figure_id) = std::move(detached_state);
+                    std::string correct_title = new_fm->get_title(pd.figure_id);
+                    if (new_fm->tab_bar())
+                        new_fm->tab_bar()->set_tab_title(0, correct_title);
+                }
+
+                // Sync source's active figure after removal
+                frame_state.active_figure_id = src_fm->active_index();
+                frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+                active_figure = frame_state.active_figure;
+
+                // Mark newly created windows so we skip their first render
+                if (new_wctx)
+                    newly_created_window_ids.push_back(new_wctx->id);
+            }
+            pending_detaches.clear();
         }
 #endif
 
@@ -2168,39 +1881,26 @@ void App::run()
         }
 
 #ifdef SPECTRA_USE_GLFW
-        if (glfw)
+        if (window_mgr)
         {
             SPECTRA_LOG_TRACE("main_loop", "Polling GLFW events");
-            // Use WindowManager for event polling when available (handles all windows)
-            if (window_mgr)
+            window_mgr->poll_events();
+            window_mgr->process_pending_closes();
+
+            // Unified exit condition: exit when no windows remain open.
+            if (!window_mgr->any_window_open())
             {
-                window_mgr->poll_events();
-                window_mgr->process_pending_closes();
+                SPECTRA_LOG_INFO("main_loop", "All windows closed, exiting loop");
+                running = false;
             }
-            else
-            {
-                glfw->poll_events();
-            }
+        }
+        else if (glfw)
+        {
+            glfw->poll_events();
             if (glfw->should_close())
             {
-                // If secondary windows are still open, don't exit the app —
-                // hide the primary window and keep running until all are closed.
-                if (window_mgr && window_mgr->any_window_open())
-                {
-                    if (!primary_closed)
-                    {
-                        // First time: hide the GLFW window and log once
-                        primary_closed = true;
-                        glfw->hide_window();
-                        SPECTRA_LOG_INFO("main_loop",
-                                         "Primary window hidden — secondary windows remain");
-                    }
-                }
-                else
-                {
-                    SPECTRA_LOG_INFO("main_loop", "All windows closed, exiting loop");
-                    running = false;
-                }
+                SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
+                running = false;
             }
         }
 #endif
@@ -2290,13 +1990,19 @@ void App::run()
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
+        // Release GlfwAdapter's copy of the initial GLFW window handle.
+        // WindowManager owns the actual glfwDestroyWindow call for all
+        // windows (including the initial one).  Without this release,
+        // GlfwAdapter::~GlfwAdapter() would double-destroy the same handle
+        // → X11 BadWindow / segfault.
+        if (glfw)
+        {
+            glfw->release_window();
+        }
         window_mgr->shutdown();
         window_mgr.reset();
     }
-    if (glfw)
-    {
-        glfw->shutdown();
-    }
+    // GlfwAdapter destructor handles glfwTerminate().
 #endif
 
     // Ensure all GPU work is complete before destructors clean up resources
@@ -2304,556 +2010,6 @@ void App::run()
     {
         backend_->wait_idle();
     }
-}
-
-// ─── update_window ────────────────────────────────────────────────────────────
-// Per-window update: advance animations, build ImGui UI, compute layout.
-// Extracted from the main loop body for per-window iteration (Phase 1 PR2).
-void App::update_window(WindowUIContext& ui_ctx, FrameState& fs, FrameScheduler& scheduler
-#ifdef SPECTRA_USE_GLFW
-                        , GlfwAdapter* glfw, WindowManager* window_mgr
-#endif
-)
-{
-    auto* active_figure = fs.active_figure;
-    auto& active_figure_id = fs.active_figure_id;
-    auto& has_animation = fs.has_animation;
-    auto& anim_time = fs.anim_time;
-
-#ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui        = ui_ctx.imgui_ui;
-    auto& data_interaction = ui_ctx.data_interaction;
-    auto& dock_system     = ui_ctx.dock_system;
-    auto& timeline_editor = ui_ctx.timeline_editor;
-    auto& mode_transition = ui_ctx.mode_transition;
-    auto& home_limits     = ui_ctx.home_limits;
-    auto& fig_mgr         = *ui_ctx.fig_mgr;
-    auto& anim_controller = ui_ctx.anim_controller;
-
-    // Advance timeline editor (drives interpolator evaluation)
-    // When Playing, we control the playhead ourselves to avoid double-speed
-    if (timeline_editor.playback_state() != PlaybackState::Playing)
-    {
-        timeline_editor.advance(scheduler.dt());
-    }
-
-    // Update mode transition animation — only animate camera, never axis limits
-    if (mode_transition.is_active())
-    {
-        mode_transition.update(scheduler.dt());
-
-        Axes3D* ax3d = nullptr;
-        for (auto& ax_base : active_figure->all_axes())
-        {
-            if (ax_base)
-            {
-                ax3d = dynamic_cast<Axes3D*>(ax_base.get());
-                if (ax3d)
-                    break;
-            }
-        }
-        if (ax3d)
-        {
-            Camera interp_cam = mode_transition.interpolated_camera();
-            // Set position directly (not via orbit) because the
-            // top-down camera is on the Z axis, not an orbit position.
-            ax3d->camera().position = interp_cam.position;
-            ax3d->camera().target = interp_cam.target;
-            ax3d->camera().up = interp_cam.up;
-            ax3d->camera().fov = interp_cam.fov;
-            ax3d->camera().ortho_size = interp_cam.ortho_size;
-            ax3d->camera().projection_mode = interp_cam.projection_mode;
-            ax3d->camera().near_clip = interp_cam.near_clip;
-            ax3d->camera().far_clip = interp_cam.far_clip;
-            ax3d->camera().distance = interp_cam.distance;
-        }
-    }
-#endif
-
-#ifdef SPECTRA_USE_GLFW
-    // Update interaction animations (animated zoom, inertial pan, auto-fit)
-    auto& input_handler = ui_ctx.input_handler;
-    if (glfw)
-    {
-        input_handler.update(scheduler.dt());
-    }
-#endif
-
-    // Ensure all axes have the deferred-deletion callback wired
-    // BEFORE the user's on_frame callback can call clear_series().
-    if (renderer_)
-    {
-        auto removal_cb = [this](const Series* s) { renderer_->notify_series_removed(s); };
-        for (auto& axes_ptr : active_figure->axes())
-        {
-            if (axes_ptr)
-                axes_ptr->set_series_removed_callback(removal_cb);
-        }
-        for (auto& axes_ptr : active_figure->all_axes())
-        {
-            if (axes_ptr)
-                axes_ptr->set_series_removed_callback(removal_cb);
-        }
-    }
-
-    // Call user on_frame callback, gated by timeline state
-    if (has_animation && active_figure->anim_on_frame_)
-    {
-        Frame frame = scheduler.current_frame();
-#ifdef SPECTRA_USE_IMGUI
-        auto tl_state = timeline_editor.playback_state();
-        if (tl_state == PlaybackState::Playing)
-        {
-            // Check if user scrubbed/stepped the playhead externally
-            float tl_playhead = timeline_editor.playhead();
-            float diff = tl_playhead - anim_time;
-            if ((diff > 0.001f) || (diff < -0.001f))
-            {
-                // User moved the playhead — sync anim_time to it
-                anim_time = tl_playhead;
-            }
-            // Advance animation time by frame dt
-            anim_time += frame.dt;
-            frame.elapsed_sec = anim_time;
-            active_figure->anim_on_frame_(frame);
-            // Auto-expand timeline duration if needed
-            if (anim_time > timeline_editor.duration())
-            {
-                timeline_editor.set_duration(anim_time + 30.0f);
-            }
-            // Sync timeline playhead to animation time
-            timeline_editor.set_playhead(anim_time);
-        }
-        else if (tl_state == PlaybackState::Paused)
-        {
-            // Sync anim_time from timeline playhead (user may scrub or step)
-            anim_time = timeline_editor.playhead();
-            frame.elapsed_sec = anim_time;
-            frame.dt = 0.0f;
-            active_figure->anim_on_frame_(frame);
-        }
-        else
-        {
-            // Stopped: reset animation time and render at 0
-            anim_time = 0.0f;
-            frame.elapsed_sec = 0.0f;
-            frame.dt = 0.0f;
-            active_figure->anim_on_frame_(frame);
-        }
-#else
-        active_figure->anim_on_frame_(frame);
-#endif
-    }
-
-    // Start ImGui frame (updates layout manager with current window size).
-    fs.imgui_frame_started = false;
-#ifdef SPECTRA_USE_IMGUI
-    if (imgui_ui)
-    {
-        imgui_ui->new_frame();
-        fs.imgui_frame_started = true;
-    }
-#endif
-
-#ifdef SPECTRA_USE_GLFW
-    // Time-based resize debounce: recreate swapchain only when size has
-    // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
-    // we keep rendering with the old swapchain (slightly stretched but
-    // no black flash). swapchain_dirty_ is set by present OUT_OF_DATE/SUBOPTIMAL.
-    static constexpr auto RESIZE_DEBOUNCE = std::chrono::milliseconds(50);
-    auto& needs_resize = ui_ctx.needs_resize;
-    auto& new_width = ui_ctx.new_width;
-    auto& new_height = ui_ctx.new_height;
-    auto& resize_requested_time = ui_ctx.resize_requested_time;
-    if (needs_resize && glfw)
-    {
-        auto now_resize = std::chrono::steady_clock::now();
-        auto since_last = now_resize - resize_requested_time;
-        if (since_last >= RESIZE_DEBOUNCE)
-        {
-            SPECTRA_LOG_INFO("resize",
-                            "Recreating swapchain: " + std::to_string(new_width) + "x"
-                                + std::to_string(new_height));
-            needs_resize = false;
-            auto* vk = static_cast<VulkanBackend*>(backend_.get());
-            vk->clear_swapchain_dirty();
-            backend_->recreate_swapchain(new_width, new_height);
-
-            active_figure->config_.width = backend_->swapchain_width();
-            active_figure->config_.height = backend_->swapchain_height();
-    #ifdef SPECTRA_USE_IMGUI
-            if (imgui_ui)
-            {
-                imgui_ui->on_swapchain_recreated(*vk);
-            }
-    #endif
-        }
-    }
-
-    // Update input handler with current active axes viewport
-    if (glfw && !active_figure->axes().empty() && active_figure->axes()[0])
-    {
-        auto& vp = active_figure->axes()[0]->viewport();
-        input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-    }
-#endif
-
-#ifdef SPECTRA_USE_IMGUI
-    // Build ImGui UI (new_frame was already called above before layout computation)
-    if (imgui_ui && fs.imgui_frame_started)
-    {
-        imgui_ui->build_ui(*active_figure);
-
-        // Old TabBar is replaced by unified pane tab headers
-        // (drawn by draw_pane_tab_headers in ImGuiIntegration)
-        // Always hide the layout manager's tab bar zone so canvas
-        // extends into that space — pane headers draw in the canvas area.
-        imgui_ui->get_layout_manager().set_tab_bar_visible(false);
-
-        // Handle interaction state from UI — Home restores original view
-        if (imgui_ui->should_reset_view())
-        {
-            for (auto& ax : active_figure->axes_mut())
-            {
-                if (ax)
-                {
-                    auto it = home_limits.find(ax.get());
-                    if (it != home_limits.end())
-                    {
-                        // Animate back to the user's original limits
-                        anim_controller.animate_axis_limits(
-                            *ax, it->second.x, it->second.y, 0.25f, ease::ease_out);
-                    }
-                    else
-                    {
-                        // Fallback: auto-fit if we don't have saved limits
-                        auto old_xlim = ax->x_limits();
-                        auto old_ylim = ax->y_limits();
-                        ax->auto_fit();
-                        AxisLimits target_x = ax->x_limits();
-                        AxisLimits target_y = ax->y_limits();
-                        ax->xlim(old_xlim.min, old_xlim.max);
-                        ax->ylim(old_ylim.min, old_ylim.max);
-                        anim_controller.animate_axis_limits(
-                            *ax, target_x, target_y, 0.25f, ease::ease_out);
-                    }
-                }
-            }
-            imgui_ui->clear_reset_view();
-        }
-
-        // Update input handler tool mode
-        input_handler.set_tool_mode(imgui_ui->get_interaction_mode());
-
-        // Feed cursor data to status bar
-        auto readout = input_handler.cursor_readout();
-        imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
-
-        // Update data interaction layer (nearest-point query, tooltip state)
-        if (data_interaction)
-        {
-            data_interaction->update(readout, *active_figure);
-        }
-
-        // Feed zoom level (approximate: based on data bounds vs view)
-        if (!active_figure->axes().empty() && active_figure->axes()[0])
-        {
-            auto& ax = active_figure->axes()[0];
-            auto xlim = ax->x_limits();
-            float view_range = xlim.max - xlim.min;
-            // Estimate data range from series x_data spans
-            float data_min = xlim.max, data_max = xlim.min;
-            for (auto& s : ax->series())
-            {
-                if (!s)
-                    continue;
-                std::span<const float> xd;
-                if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
-                    xd = ls->x_data();
-                else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
-                    xd = sc->x_data();
-                if (!xd.empty())
-                {
-                    auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
-                    data_min = std::min(data_min, *it_min);
-                    data_max = std::max(data_max, *it_max);
-                }
-            }
-            float data_range = data_max - data_min;
-            if (view_range > 0.0f && data_range > 0.0f)
-            {
-                imgui_ui->set_zoom_level(data_range / view_range);
-            }
-        }
-
-        // Always hide old tab bar — unified pane tab headers handle all tabs
-        imgui_ui->get_layout_manager().set_tab_bar_visible(false);
-    }
-#endif
-
-#ifdef SPECTRA_USE_IMGUI
-    // Process queued figure operations (create, close, switch)
-    if (fig_mgr.process_pending())
-    {
-        active_figure_id = fig_mgr.active_index();
-        Figure* fig = registry_.get(active_figure_id);
-        if (fig)
-        {
-            fs.active_figure = fig;
-            active_figure = fig;
-            scheduler.set_target_fps(active_figure->anim_fps_);
-            has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-#ifdef SPECTRA_USE_GLFW
-            if (glfw)
-            {
-                input_handler.set_figure(active_figure);
-                if (!active_figure->axes().empty() && active_figure->axes()[0])
-                {
-                    input_handler.set_active_axes(active_figure->axes()[0].get());
-                    const auto& vp = active_figure->axes()[0]->viewport();
-                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-                }
-            }
-#endif
-        }
-    }
-
-    // Sync root pane's figure_indices_ with actual figures when not split.
-    // The unified pane tab headers always read from the root pane.
-    if (!dock_system.is_split())
-    {
-        SplitPane* root = dock_system.split_view().root();
-        if (root && root->is_leaf())
-        {
-            // Ensure root has exactly the right figures
-            const auto& current = root->figure_indices();
-            const auto& mgr_ids = fig_mgr.figure_ids();
-            bool needs_sync_dock = (current.size() != mgr_ids.size());
-            if (!needs_sync_dock)
-            {
-                for (auto id : mgr_ids)
-                {
-                    if (!root->has_figure(id))
-                    {
-                        needs_sync_dock = true;
-                        break;
-                    }
-                }
-            }
-            if (needs_sync_dock)
-            {
-                // Rebuild figure_indices_ to match actual figures
-                while (root->figure_count() > 0)
-                {
-                    root->remove_figure(root->figure_indices().back());
-                }
-                for (auto id : mgr_ids)
-                {
-                    root->add_figure(id);
-                }
-            }
-            // Sync active tab
-            size_t active = fig_mgr.active_index();
-            dock_system.set_active_figure_index(active);
-            for (size_t li = 0; li < root->figure_indices().size(); ++li)
-            {
-                if (root->figure_indices()[li] == active)
-                {
-                    root->set_active_local_index(li);
-                    break;
-                }
-            }
-        }
-    }
-#endif
-
-    // Compute subplot layout AFTER build_ui() so that nav rail / inspector
-    // toggles from the current frame are immediately reflected.
-    {
-#ifdef SPECTRA_USE_IMGUI
-        if (imgui_ui)
-        {
-            const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
-
-            // Update dock system layout with current canvas bounds
-            dock_system.update_layout(canvas);
-
-            if (dock_system.is_split())
-            {
-                // Per-pane layout: each pane renders its own figure
-                auto pane_infos = dock_system.get_pane_infos();
-                for (const auto& pinfo : pane_infos)
-                {
-                    {
-                        auto* fig = registry_.get(pinfo.figure_index);
-                        if (!fig)
-                            continue;
-                        Margins pane_margins;
-                        pane_margins.left = std::min(60.0f, pinfo.bounds.w * 0.15f);
-                        pane_margins.left = std::max(pane_margins.left, 40.0f);
-                        pane_margins.right = std::min(30.0f, pinfo.bounds.w * 0.08f);
-                        pane_margins.right = std::max(pane_margins.right, 15.0f);
-                        pane_margins.bottom = std::min(50.0f, pinfo.bounds.h * 0.15f);
-                        pane_margins.bottom = std::max(pane_margins.bottom, 35.0f);
-                        pane_margins.top = std::min(35.0f, pinfo.bounds.h * 0.08f);
-                        pane_margins.top = std::max(pane_margins.top, 15.0f);
-                        const auto rects = compute_subplot_layout(pinfo.bounds.w,
-                                                                  pinfo.bounds.h,
-                                                                  fig->grid_rows_,
-                                                                  fig->grid_cols_,
-                                                                  pane_margins,
-                                                                  pinfo.bounds.x,
-                                                                  pinfo.bounds.y);
-                        for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i)
-                        {
-                            if (fig->axes_mut()[i])
-                            {
-                                fig->axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
-                    }
-                }
-            }
-            else
-            {
-                SplitPane* root = dock_system.split_view().root();
-                Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
-                const auto rects = compute_subplot_layout(cb.w,
-                                                          cb.h,
-                                                          active_figure->grid_rows_,
-                                                          active_figure->grid_cols_,
-                                                          {},
-                                                          cb.x,
-                                                          cb.y);
-
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size();
-                     ++i)
-                {
-                    if (active_figure->axes_mut()[i])
-                    {
-                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
-                for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size();
-                     ++i)
-                {
-                    if (active_figure->all_axes_mut()[i])
-                    {
-                        active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
-            }
-        }
-        else
-        {
-            active_figure->compute_layout();
-        }
-#else
-        active_figure->compute_layout();
-#endif
-    }
-}
-
-// ─── render_window ────────────────────────────────────────────────────────────
-// Render one window: begin_frame, render pass, figure content, ImGui, end_frame.
-// Returns true if the frame was successfully presented.
-bool App::render_window(WindowUIContext& ui_ctx, FrameState& fs
-#ifdef SPECTRA_USE_GLFW
-                        , GlfwAdapter* glfw
-#endif
-)
-{
-    auto* active_figure = fs.active_figure;
-    auto& imgui_frame_started = fs.imgui_frame_started;
-
-    // Render frame. If begin_frame fails (OUT_OF_DATE), recreate and
-    // retry once so we present content immediately (no black-flash gap).
-    bool frame_ok = backend_->begin_frame();
-
-    if (!frame_ok)
-    {
-        // Swapchain truly unusable — recreate and retry
-#ifdef SPECTRA_USE_IMGUI
-        if (imgui_frame_started)
-        {
-            ImGui::EndFrame();
-            imgui_frame_started = false;
-        }
-#endif
-#ifdef SPECTRA_USE_GLFW
-        if (glfw)
-        {
-            uint32_t fb_width = 0, fb_height = 0;
-            glfw->framebuffer_size(fb_width, fb_height);
-            if (fb_width > 0 && fb_height > 0)
-            {
-                SPECTRA_LOG_INFO("resize",
-                                "OUT_OF_DATE, recreating: " + std::to_string(fb_width) + "x"
-                                    + std::to_string(fb_height));
-                backend_->recreate_swapchain(fb_width, fb_height);
-                auto* vk_fb = static_cast<VulkanBackend*>(backend_.get());
-                vk_fb->clear_swapchain_dirty();
-                active_figure->config_.width = backend_->swapchain_width();
-                active_figure->config_.height = backend_->swapchain_height();
-                ui_ctx.needs_resize = false;
-    #ifdef SPECTRA_USE_IMGUI
-                if (ui_ctx.imgui_ui)
-                {
-                    ui_ctx.imgui_ui->on_swapchain_recreated(*vk_fb);
-                }
-    #endif
-                // Retry begin_frame with the new swapchain
-                frame_ok = backend_->begin_frame();
-            }
-        }
-#endif
-    }
-
-    if (frame_ok)
-    {
-        // begin_frame() just waited on the in-flight fence, so all GPU
-        // work from DELETION_RING_SIZE frames ago is guaranteed complete.
-        // Safe to free those deferred resources now.
-        renderer_->flush_pending_deletions();
-
-        renderer_->begin_render_pass();
-
-#ifdef SPECTRA_USE_IMGUI
-        auto& dock_system = ui_ctx.dock_system;
-        if (dock_system.is_split())
-        {
-            auto pane_infos = dock_system.get_pane_infos();
-            for (const auto& pinfo : pane_infos)
-            {
-                Figure* pfig = registry_.get(pinfo.figure_index);
-                if (pfig)
-                {
-                    renderer_->render_figure_content(*pfig);
-                }
-            }
-        }
-        else
-        {
-            renderer_->render_figure_content(*active_figure);
-        }
-#else
-        renderer_->render_figure_content(*active_figure);
-#endif
-
-#ifdef SPECTRA_USE_IMGUI
-        // Only render ImGui if we have a valid frame (not a retry frame
-        // where we already ended the ImGui frame)
-        if (ui_ctx.imgui_ui && imgui_frame_started)
-        {
-            ui_ctx.imgui_ui->render(*static_cast<VulkanBackend*>(backend_.get()));
-        }
-#endif
-
-        renderer_->end_render_pass();
-        backend_->end_frame();
-    }
-
-    return frame_ok;
 }
 
 // ─── render_secondary_window ──────────────────────────────────────────────────

@@ -51,7 +51,15 @@ class WindowManager
     // Adopt the primary window that was already created by GlfwAdapter.
     // This wraps the existing primary_window_ in VulkanBackend into a
     // managed WindowContext.  Returns the context pointer.
+    // DEPRECATED: Use create_initial_window() instead.
     WindowContext* adopt_primary_window(void* glfw_window);
+
+    // Create the initial (first) window uniformly — same ownership as
+    // secondary windows.  Takes ownership of the backend's initial
+    // WindowContext (which already has surface + swapchain initialized)
+    // and installs WindowManager GLFW callbacks on it.
+    // Returns the context pointer, or nullptr on failure.
+    WindowContext* create_initial_window(void* glfw_window);
 
     // Create a new OS window with its own swapchain and Vulkan resources.
     // Returns nullptr on failure.
@@ -108,6 +116,12 @@ class WindowManager
                                          const std::string& title,
                                          FigureId initial_figure_id,
                                          int screen_x = 0, int screen_y = 0);
+
+    // Install full input GLFW callbacks (cursor, mouse, scroll, key, char,
+    // cursor_enter) on a WindowContext that already has ui_ctx set.
+    // Used after moving a UI context into a window that was created with
+    // only basic callbacks (framebuffer size, close, focus).
+    void install_input_callbacks(WindowContext& wctx);
 
     // Returns the number of open windows.
     size_t window_count() const { return active_ptrs_.size(); }

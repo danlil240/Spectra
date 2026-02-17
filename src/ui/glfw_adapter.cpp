@@ -43,15 +43,11 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
         return false;
     }
 
-    // Store this pointer for static callbacks
-    glfwSetWindowUserPointer(window_, this);
-
-    // Register callbacks
-    glfwSetCursorPosCallback(window_, cursor_pos_callback);
-    glfwSetMouseButtonCallback(window_, mouse_button_callback);
-    glfwSetScrollCallback(window_, scroll_callback);
-    glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
-    glfwSetKeyCallback(window_, key_callback);
+    // NOTE: No GLFW callbacks are installed here.  WindowManager owns all
+    // callbacks for every window (initial and secondary).  Installing
+    // callbacks here would cause ImGui's callback chaining to invoke them
+    // with the wrong user-pointer type (WindowManager* vs GlfwAdapter*),
+    // resulting in a segfault.
 
     return true;
 }

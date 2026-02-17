@@ -30,7 +30,12 @@ namespace spectra
 // Out-of-line destructor so unique_ptr<WindowUIContext> sees the complete type.
 WindowContext::~WindowContext() = default;
 
-VulkanBackend::VulkanBackend() = default;
+VulkanBackend::VulkanBackend()
+    : initial_window_(std::make_unique<WindowContext>())
+{
+    initial_window_raw_ = initial_window_.get();
+    active_window_ = initial_window_.get();
+}
 
 VulkanBackend::~VulkanBackend()
 {
@@ -175,16 +180,20 @@ void VulkanBackend::shutdown()
     }
     textures_.clear();
 
-    // Destroy sync objects
-    for (auto sem : active_window_->image_available_semaphores)
-        vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto sem : active_window_->render_finished_semaphores)
-        vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto fence : active_window_->in_flight_fences)
-        vkDestroyFence(ctx_.device, fence, nullptr);
-    active_window_->image_available_semaphores.clear();
-    active_window_->render_finished_semaphores.clear();
-    active_window_->in_flight_fences.clear();
+    // Destroy sync objects and per-window Vulkan resources.
+    // If the window was released to WindowManager, it already cleaned up.
+    if (active_window_)
+    {
+        for (auto sem : active_window_->image_available_semaphores)
+            vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto sem : active_window_->render_finished_semaphores)
+            vkDestroySemaphore(ctx_.device, sem, nullptr);
+        for (auto fence : active_window_->in_flight_fences)
+            vkDestroyFence(ctx_.device, fence, nullptr);
+        active_window_->image_available_semaphores.clear();
+        active_window_->render_finished_semaphores.clear();
+        active_window_->in_flight_fences.clear();
+    }
 
     // Destroy layouts
     if (pipeline_layout_ != VK_NULL_HANDLE)
@@ -202,10 +211,16 @@ void VulkanBackend::shutdown()
         vkDestroyCommandPool(ctx_.device, command_pool_, nullptr);
 
     vk::destroy_offscreen(ctx_.device, offscreen_);
-    vk::destroy_swapchain(ctx_.device, active_window_->swapchain);
 
-    if (active_window_->surface != VK_NULL_HANDLE)
-        vkDestroySurfaceKHR(ctx_.instance, active_window_->surface, nullptr);
+    if (active_window_)
+    {
+        vk::destroy_swapchain(ctx_.device, active_window_->swapchain);
+        if (active_window_->surface != VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(ctx_.instance, active_window_->surface, nullptr);
+            active_window_->surface = VK_NULL_HANDLE;
+        }
+    }
 
     vkDestroyDevice(ctx_.device, nullptr);
 
@@ -215,7 +230,6 @@ void VulkanBackend::shutdown()
     vkDestroyInstance(ctx_.instance, nullptr);
 
     ctx_ = {};
-    active_window_->surface = VK_NULL_HANDLE;
 }
 
 bool VulkanBackend::create_surface(void* native_window)
@@ -1748,13 +1762,13 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t
     // multi-monitor setups.  If they differ, log a warning — the render pass
     // and pipelines were created for the primary's format, so a mismatch would
     // cause validation errors.  In practice this is extremely rare on the same GPU.
-    if (wctx.swapchain.image_format != primary_window_.swapchain.image_format)
+    if (wctx.swapchain.image_format != initial_window_->swapchain.image_format)
     {
         SPECTRA_LOG_WARN("vulkan",
                          "Window " + std::to_string(wctx.id)
                              + " swapchain format (" + std::to_string(wctx.swapchain.image_format)
                              + ") differs from primary ("
-                             + std::to_string(primary_window_.swapchain.image_format)
+                             + std::to_string(initial_window_->swapchain.image_format)
                              + "). Recreating swapchain with primary format.");
 
         // Force-recreate with the primary's format by destroying and recreating
@@ -1792,7 +1806,7 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t
 
         active_window_ = prev_active;
 
-        if (wctx.swapchain.image_format != primary_window_.swapchain.image_format)
+        if (wctx.swapchain.image_format != initial_window_->swapchain.image_format)
         {
             SPECTRA_LOG_ERROR("vulkan",
                               "Window " + std::to_string(wctx.id)

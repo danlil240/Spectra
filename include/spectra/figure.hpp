@@ -106,6 +106,8 @@ class Figure
    private:
     friend class AnimationBuilder;
     friend class App;
+    friend class WindowRuntime;
+    friend class SessionRuntime;
 
     FigureConfig config_;
     FigureStyle style_;

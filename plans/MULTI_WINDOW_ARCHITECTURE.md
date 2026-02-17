@@ -1715,6 +1715,7 @@ The multi-window system is complete when ALL of the following are true:
 - The multi-window architecture plan (Phases 1–4) is now functionally complete. All mandatory acceptance criteria are met.
 - Phase 5 (ImGui Multi-Viewport) is explicitly optional and can be implemented as a future enhancement.
 - The `detach_figure()` API signature differs slightly from the plan's target (`detach_figure(FigureId, source_window, screen_x, screen_y)`) — the implemented version takes `width`, `height`, and `title` directly instead of a source window ID, because the figure dimensions and title are caller-side knowledge.
+- No-Main-Window refactor is tracked separately in `plans/no_main_window_plan.md`.
 
 ---
 

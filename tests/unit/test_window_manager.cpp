@@ -208,12 +208,14 @@ TEST_F(WindowManagerTest, RequestClosePrimary)
 
     auto* wctx = wm.adopt_primary_window(nullptr);
     ASSERT_NE(wctx, nullptr);
+    uint32_t id = wctx->id;
 
-    wm.request_close(wctx->id);
+    wm.request_close(id);
     wm.process_pending_closes();
 
-    // Primary window is marked should_close but not destroyed (owned by VulkanBackend)
-    EXPECT_TRUE(wctx->should_close);
+    // Window is now fully destroyed (uniform ownership)
+    EXPECT_EQ(wm.window_count(), 0u);
+    EXPECT_EQ(wm.find_window(id), nullptr);
 }
 
 // ─── Shutdown ───────────────────────────────────────────────────────────────
@@ -351,16 +353,14 @@ TEST_F(WindowManagerTest, MultipleAdoptCallsOverwrite)
 
     auto* first = wm.adopt_primary_window(nullptr);
     ASSERT_NE(first, nullptr);
-    uint32_t first_id = first->id;
 
-    // Adopting again should update the same primary window
+    // Second adopt returns nullptr because initial_window_ was already
+    // released from the backend by the first call.
     auto* second = wm.adopt_primary_window(nullptr);
-    ASSERT_NE(second, nullptr);
+    EXPECT_EQ(second, nullptr);
 
-    // Both point to the same primary_window_ in VulkanBackend
-    EXPECT_EQ(first, second);
-    // ID should have been updated
-    EXPECT_NE(second->id, first_id);
+    // First window is still managed
+    EXPECT_EQ(wm.window_count(), 1u);
 }
 
 TEST_F(WindowManagerTest, WindowCountAccurate)
@@ -578,13 +578,16 @@ TEST_F(WindowManagerTest, MultipleRequestClosesSameId)
 
     auto* wctx = wm.adopt_primary_window(nullptr);
     ASSERT_NE(wctx, nullptr);
+    uint32_t id = wctx->id;
 
     // Multiple close requests for the same ID should not crash
-    wm.request_close(wctx->id);
-    wm.request_close(wctx->id);
+    wm.request_close(id);
+    wm.request_close(id);
     wm.process_pending_closes();
 
-    EXPECT_TRUE(wctx->should_close);
+    // Window is fully destroyed after close
+    EXPECT_EQ(wm.window_count(), 0u);
+    EXPECT_EQ(wm.find_window(id), nullptr);
 }
 
 TEST_F(WindowManagerTest, DestroyNonexistentWindow)
@@ -609,14 +612,12 @@ TEST_F(WindowManagerTest, FindWindowAfterShutdown)
 
     wm.shutdown();
 
-    // After shutdown, active_ptrs_ is cleared but find_window still
-    // checks backend_->primary_window() directly, so it can still find
-    // the primary.  Verify window_count is 0 (active list is empty).
+    // After shutdown, all windows are destroyed.
     EXPECT_EQ(wm.window_count(), 0u);
     EXPECT_TRUE(wm.windows().empty());
 
-    // A nonexistent secondary window ID should return nullptr
-    auto* found = wm.find_window(9999);
+    // All windows destroyed — any ID should return nullptr
+    auto* found = wm.find_window(id);
     EXPECT_EQ(found, nullptr);
 }
 

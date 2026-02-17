@@ -79,7 +79,20 @@ class VulkanBackend : public Backend
     // All begin_frame/end_frame/render pass calls target the active context.
     void set_active_window(WindowContext* ctx) { active_window_ = ctx; }
     WindowContext* active_window() const { return active_window_; }
-    WindowContext& primary_window() { return primary_window_; }
+    // Returns the initial window context.  Deprecated — callers should
+    // transition to using WindowManager::windows() uniformly.
+    WindowContext& primary_window() { return *initial_window_raw_; }
+    const WindowContext& primary_window() const { return *initial_window_raw_; }
+
+    // Transfer ownership of the initial WindowContext to the caller.
+    // After this call, initial_window_ is nullptr but initial_window_raw_
+    // still points to the object (now owned by the caller).
+    // The caller MUST set_active_window() before any frame ops.
+    std::unique_ptr<WindowContext> release_initial_window()
+    {
+        active_window_ = nullptr;
+        return std::move(initial_window_);
+    }
 
     // Initialize Vulkan resources for a secondary WindowContext.
     // Creates surface from GLFW window, swapchain, command buffers, and sync objects.
@@ -154,12 +167,13 @@ class VulkanBackend : public Backend
     bool headless_ = false;
     bool device_lost_ = false;  // set on VK_ERROR_DEVICE_LOST — unrecoverable
 
-    // Primary window context (single-window mode).
+    // Initial window context (heap-allocated for uniform ownership).
     // All per-window resources (surface, swapchain, command buffers, sync
     // objects) live here.  active_window_ points to the context that
     // begin_frame/end_frame currently target.
-    WindowContext primary_window_;
-    WindowContext* active_window_ = &primary_window_;
+    std::unique_ptr<WindowContext> initial_window_;
+    WindowContext* initial_window_raw_ = nullptr;  // non-owning alias, survives release
+    WindowContext* active_window_ = nullptr;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
 

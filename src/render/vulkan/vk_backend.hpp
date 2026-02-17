@@ -86,6 +86,19 @@ class VulkanBackend : public Backend
     // The WindowContext must have a valid glfw_window pointer set before calling.
     bool init_window_context(WindowContext& wctx, uint32_t width, uint32_t height);
 
+    // Initialize Vulkan resources AND a per-window ImGui context for a secondary
+    // WindowContext.  Enforces Section 3F render pass compatibility constraints:
+    //   1. set_active_window(wctx) before ImGui init so render_pass() returns
+    //      the correct per-window render pass.
+    //   2. Assert swapchain image format matches primary (log warning + force
+    //      primary format on mismatch).
+    //   3. Use per-window ImageCount for ImGui_ImplVulkan_InitInfo.
+    //   4. Per-window on_swapchain_recreated() (only that window's ImGui updated).
+    // The WindowContext must have a valid glfw_window pointer set before calling.
+    // On success, wctx.ui_ctx is NOT set here — caller (WindowManager) owns that.
+    // Returns false on failure (Vulkan or ImGui init error).
+    bool init_window_context_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height);
+
     // Destroy all Vulkan resources owned by a WindowContext.
     // Waits for in-flight fences before cleanup.
     void destroy_window_context(WindowContext& wctx);
@@ -98,6 +111,12 @@ class VulkanBackend : public Backend
 
     // Recreate swapchain for a specific WindowContext (saves/restores active_window_).
     bool recreate_swapchain_for(WindowContext& wctx, uint32_t width, uint32_t height);
+
+    // Recreate swapchain for a WindowContext that has a per-window ImGui context.
+    // After swapchain recreation, updates the window's ImGui Vulkan backend with
+    // the new render pass and image count (Section 3F constraint 4).
+    // Falls back to recreate_swapchain_for() if the window has no ImGui context.
+    bool recreate_swapchain_for_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height);
 
     // Returns true if the Vulkan device has been lost (unrecoverable)
     bool is_device_lost() const { return device_lost_; }

@@ -120,8 +120,9 @@ class ShortcutManager
     mutable std::mutex mutex_;
     std::unordered_map<Shortcut, std::string, ShortcutHash> bindings_;
 
-    // GLFW action constants (to avoid including GLFW in header)
-    static constexpr int GLFW_PRESS = 1;
+    // GLFW action constants (to avoid including GLFW in header).
+    // Named with kGlfw prefix to avoid macro conflicts when GLFW is included.
+    static constexpr int kGlfwPress = 1;
 };
 
 }  // namespace spectra

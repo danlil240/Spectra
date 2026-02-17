@@ -17,6 +17,8 @@
 
 struct GLFWwindow;
 struct ImFont;
+struct ImFontAtlas;
+struct ImGuiContext;
 
 namespace spectra
 {
@@ -54,7 +56,7 @@ class ImGuiIntegration
     ImGuiIntegration(const ImGuiIntegration&) = delete;
     ImGuiIntegration& operator=(const ImGuiIntegration&) = delete;
 
-    bool init(VulkanBackend& backend, GLFWwindow* window);
+    bool init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks = true);
     void shutdown();
 
     void new_frame();
@@ -135,6 +137,10 @@ class ImGuiIntegration
     void set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
     TabBar* tab_bar() const { return tab_bar_; }
 
+    // Tab drag controller (owned externally by WindowUIContext)
+    void set_tab_drag_controller(TabDragController* tdc) { tab_drag_controller_ = tdc; }
+    TabDragController* tab_drag_controller() const { return tab_drag_controller_; }
+
     // Pane tab context menu callbacks (wired by App)
     using PaneTabCallback = std::function<void(FigureId figure_id)>;
     using PaneTabDetachCallback = std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
@@ -189,6 +195,7 @@ class ImGuiIntegration
     void draw_panel(Figure& figure);
 
     bool initialized_ = false;
+    uint64_t cached_render_pass_ = 0;  // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 
     // Inspector system (Agent C)
@@ -208,6 +215,12 @@ class ImGuiIntegration
     Section active_section_ = Section::Figure;
 
     float panel_anim_ = 0.0f;
+
+    // Per-window ImGui context and font atlas (owned).
+    // Each window gets its own context+atlas so secondary window init
+    // mid-frame doesn't touch the primary's locked shared atlas.
+    ImGuiContext* imgui_context_ = nullptr;
+    std::unique_ptr<ImFontAtlas> owned_font_atlas_;
 
     // Fonts at different sizes
     ImFont* font_body_ = nullptr;     // 16px — body text, controls
@@ -259,6 +272,9 @@ class ImGuiIntegration
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;
+
+    // Tab drag controller (not owned)
+    TabDragController* tab_drag_controller_ = nullptr;
 
     // Pane tab context menu callbacks
     PaneTabCallback pane_tab_duplicate_cb_;

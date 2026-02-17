@@ -71,6 +71,16 @@ class FigureManager
     bool close_to_right(FigureId index);
     FigureId duplicate_figure(FigureId index);
 
+    // Cross-window figure transfer (does NOT unregister from FigureRegistry)
+    // remove_figure: removes from this manager's ordered list and tab bar,
+    //   returns the FigureState (axis snapshots, inspector state, title).
+    //   Returns default FigureState if not found.
+    FigureState remove_figure(FigureId id);
+
+    // add_figure: adds an existing registry figure to this manager with
+    //   the given state.  Appends to tab bar and switches to it.
+    void add_figure(FigureId id, FigureState state);
+
     // Navigation
     void switch_to(FigureId index);
     void switch_to_next();

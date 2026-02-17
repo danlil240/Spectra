@@ -15,6 +15,7 @@ namespace spectra
 
 struct WindowContext;
 class VulkanBackend;
+class Renderer;
 
 // Manages multiple OS windows, each with its own GLFW window, Vulkan surface,
 // swapchain, command buffers, and sync objects.  Shared Vulkan resources
@@ -42,9 +43,10 @@ class WindowManager
     WindowManager(const WindowManager&) = delete;
     WindowManager& operator=(const WindowManager&) = delete;
 
-    // Initialize the window manager with a reference to the Vulkan backend.
-    // Must be called before any other method.
-    void init(VulkanBackend* backend);
+    // Initialize the window manager with a reference to the Vulkan backend
+    // and figure registry.  Must be called before any other method.
+    void init(VulkanBackend* backend, FigureRegistry* registry = nullptr,
+              Renderer* renderer = nullptr);
 
     // Adopt the primary window that was already created by GlfwAdapter.
     // This wraps the existing primary_window_ in VulkanBackend into a
@@ -98,6 +100,15 @@ class WindowManager
     WindowContext* detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
                                 const std::string& title, int screen_x, int screen_y);
 
+    // Create a new OS window with full UI stack (ImGui, FigureManager, DockSystem,
+    // InputHandler, etc.).  The window gets its own ImGui context and can render
+    // independently.  figure_id is the initial figure to assign to the window.
+    // Returns the new WindowContext, or nullptr on failure.
+    WindowContext* create_window_with_ui(uint32_t width, uint32_t height,
+                                         const std::string& title,
+                                         FigureId initial_figure_id,
+                                         int screen_x = 0, int screen_y = 0);
+
     // Returns the number of open windows.
     size_t window_count() const { return active_ptrs_.size(); }
 
@@ -121,7 +132,24 @@ class WindowManager
     static void glfw_window_close_callback(GLFWwindow* window);
     static void glfw_window_focus_callback(GLFWwindow* window, int focused);
 
+    // Full input callbacks for windows with UI (mouse, key, scroll, char, cursor enter)
+    static void glfw_cursor_pos_callback(GLFWwindow* window, double x, double y);
+    static void glfw_mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+    static void glfw_scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
+    static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void glfw_char_callback(GLFWwindow* window, unsigned int codepoint);
+    static void glfw_cursor_enter_callback(GLFWwindow* window, int entered);
+
+    // Helper: find the WindowContext for a GLFW window handle
+    WindowContext* find_by_glfw_window(GLFWwindow* window) const;
+
+    // Initialize the full UI subsystem bundle for a WindowContext.
+    // Creates ImGuiIntegration, FigureManager, DockSystem, InputHandler, etc.
+    bool init_window_ui(WindowContext& wctx, FigureId initial_figure_id);
+
     VulkanBackend* backend_ = nullptr;
+    FigureRegistry* registry_ = nullptr;
+    Renderer* renderer_ = nullptr;
     std::vector<std::unique_ptr<WindowContext>> windows_;
     std::vector<WindowContext*> active_ptrs_;  // cache of raw pointers for fast iteration
     uint32_t next_window_id_ = 1;

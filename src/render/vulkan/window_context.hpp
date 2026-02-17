@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -19,6 +21,15 @@ namespace spectra
 // series GPU buffers) remain in VulkanBackend.
 struct WindowContext
 {
+    WindowContext() = default;
+    ~WindowContext();
+
+    // Non-copyable (owns unique_ptrs)
+    WindowContext(const WindowContext&) = delete;
+    WindowContext& operator=(const WindowContext&) = delete;
+    WindowContext(WindowContext&&) = default;
+    WindowContext& operator=(WindowContext&&) = default;
+
     // Identity
     uint32_t id = 0;
 
@@ -55,11 +66,29 @@ struct WindowContext
     // INVALID_FIGURE_ID means "use the primary window's active figure" (default).
     FigureId assigned_figure_index = INVALID_FIGURE_ID;
 
+    // Multi-figure support: ordered list of figures assigned to this window.
+    // Used by WindowUIContext for per-window tab management.
+    std::vector<FigureId> assigned_figures;
+    FigureId active_figure_id = INVALID_FIGURE_ID;
+    bool is_primary = false;
+    std::string title;
+
     // Resize state
     bool needs_resize = false;
     uint32_t pending_width = 0;
     uint32_t pending_height = 0;
     std::chrono::steady_clock::time_point resize_time;
+
+    // Per-window ImGui context (nullptr if this window has no ImGui).
+    // Owned by this WindowContext — destroyed in VulkanBackend::destroy_window_context().
+    // For the primary window, ImGui context is managed by ImGuiIntegration::init/shutdown.
+    void* imgui_context = nullptr;
+
+    // Per-window UI subsystem bundle (owned by this window).
+    // nullptr for legacy secondary windows that have no ImGui.
+    // Set for windows created via WindowManager::create_window_with_ui().
+    // Primary window's ui_ctx is set by App::run() after creation.
+    std::unique_ptr<WindowUIContext> ui_ctx;
 };
 
 }  // namespace spectra

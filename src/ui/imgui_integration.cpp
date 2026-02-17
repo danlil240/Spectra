@@ -27,6 +27,7 @@
     #include "keyframe_interpolator.hpp"
     #include "mode_transition.hpp"
     #include "tab_bar.hpp"
+    #include "tab_drag_controller.hpp"
     #include "theme.hpp"
     #include "timeline_editor.hpp"
     #include "widgets.hpp"
@@ -62,7 +63,7 @@ ImGuiIntegration::~ImGuiIntegration()
     shutdown();
 }
 
-bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window)
+bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks)
 {
     if (initialized_)
         return true;
@@ -72,11 +73,15 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window)
     layout_manager_ = std::make_unique<LayoutManager>();
 
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.IniFilename = nullptr;
+    // Each window gets its own font atlas so that creating a secondary
+    // window mid-frame doesn't hit the "locked ImFontAtlas" assertion
+    // (the primary window's shared atlas is locked between NewFrame/EndFrame).
+    owned_font_atlas_ = std::make_unique<ImFontAtlas>();
+    imgui_context_ = ImGui::CreateContext(owned_font_atlas_.get());
+    // CreateContext() restores the previous context if one exists (ImGui 1.90+).
+    // We must explicitly switch to the new context so load_fonts() and
+    // backend init operate on the correct context/atlas.
+    ImGui::SetCurrentContext(imgui_context_);
 
     // Initialize theme system
     ui::ThemeManager::instance();
@@ -90,7 +95,12 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window)
     // Wire inspector fonts
     inspector_.set_fonts(font_body_, font_heading_, font_title_);
 
-    ImGui_ImplGlfw_InitForVulkan(window, true);
+    // For secondary windows, pass install_callbacks=false so ImGui doesn't
+    // install its own GLFW callbacks.  WindowManager handles context switching
+    // and input forwarding for secondary windows.  If ImGui installs callbacks
+    // on a secondary window, they fire during glfwPollEvents() with the wrong
+    // ImGui context (the primary's), routing all input to the primary window.
+    ImGui_ImplGlfw_InitForVulkan(window, install_callbacks);
 
     ImGui_ImplVulkan_InitInfo ii{};
     ii.Instance = backend.instance();
@@ -107,6 +117,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window)
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
+    cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
     initialized_ = true;
     return true;
 }
@@ -115,9 +126,26 @@ void ImGuiIntegration::shutdown()
 {
     if (!initialized_)
         return;
+
+    // Switch to this integration's context before tearing down backends,
+    // then restore the previous context so the caller is not left with a
+    // dangling current context (fixes crash when closing secondary windows).
+    ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
+    ImGuiContext* this_ctx = imgui_context_;
+    if (this_ctx)
+        ImGui::SetCurrentContext(this_ctx);
+
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    ImGui::DestroyContext(this_ctx);
+    imgui_context_ = nullptr;
+
+    // Restore previous context (if it was a different context)
+    if (prev_ctx && prev_ctx != this_ctx)
+        ImGui::SetCurrentContext(prev_ctx);
+    else
+        ImGui::SetCurrentContext(nullptr);
+
     layout_manager_.reset();
     initialized_ = false;
 }
@@ -126,7 +154,38 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
 {
     if (!initialized_)
         return;
+
     ImGui_ImplVulkan_SetMinImageCount(backend.min_image_count());
+
+    // Section 3F constraint 5: If the render pass handle changed (e.g. format
+    // change on multi-monitor), ImGui holds a stale VkRenderPass.  Re-init the
+    // Vulkan backend to pick up the new render pass.  This is a no-op in the
+    // common case where recreate_swapchain reuses the render pass handle.
+    VkRenderPass current_rp = backend.render_pass();
+    auto current_rp_bits = reinterpret_cast<uint64_t>(current_rp);
+    if (current_rp_bits != cached_render_pass_ && current_rp != VK_NULL_HANDLE)
+    {
+        SPECTRA_LOG_WARN("imgui",
+                         "Render pass changed after swapchain recreation — reinitializing ImGui Vulkan backend");
+        ImGui_ImplVulkan_Shutdown();
+
+        ImGui_ImplVulkan_InitInfo ii{};
+        ii.Instance = backend.instance();
+        ii.PhysicalDevice = backend.physical_device();
+        ii.Device = backend.device();
+        ii.QueueFamily = backend.graphics_queue_family();
+        ii.Queue = backend.graphics_queue();
+        ii.DescriptorPool = backend.descriptor_pool();
+        ii.MinImageCount = backend.min_image_count();
+        ii.ImageCount = backend.image_count();
+        ii.RenderPass = current_rp;
+        ii.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+        ImGui_ImplVulkan_Init(&ii);
+        ImGui_ImplVulkan_CreateFontsTexture();
+
+        cached_render_pass_ = current_rp_bits;
+    }
 }
 
 void ImGuiIntegration::update_layout(float window_width, float window_height, float dt)
@@ -708,8 +767,9 @@ void ImGuiIntegration::draw_toolbar_button(const char* icon,
                                            bool is_active)
 {
     const auto& colors = ui::theme();
-    ImFont* icon_font = ui::icon_font(ui::tokens::ICON_MD);
-    ImGui::PushFont(icon_font ? icon_font : font_icon_);
+    // Use per-instance font_icon_ (not the IconFont singleton) so that
+    // secondary windows use their own atlas font, avoiding TexID mismatch.
+    ImGui::PushFont(font_icon_);
 
     if (is_active)
     {
@@ -2231,8 +2291,15 @@ void ImGuiIntegration::draw_pane_tab_headers()
                             break;
                         }
                     }
-                    // Start potential drag
-                    pane_tab_drag_.dragging = false;  // Will become true after threshold
+                    // Start potential drag via TabDragController
+                    if (tab_drag_controller_)
+                    {
+                        tab_drag_controller_->on_mouse_down(
+                            ph.pane->id(), tr.figure_index, mouse.x, mouse.y);
+                        tab_drag_controller_->set_ghost_title(fig_title(tr.figure_index));
+                    }
+                    // Sync to legacy state for rendering compatibility
+                    pane_tab_drag_.dragging = false;
                     pane_tab_drag_.source_pane_id = ph.pane->id();
                     pane_tab_drag_.dragged_figure_index = tr.figure_index;
                     pane_tab_drag_.drag_start_x = mouse.x;
@@ -2253,12 +2320,42 @@ void ImGuiIntegration::draw_pane_tab_headers()
     }
 
     // ── Phase 3: Drag update ─────────────────────────────────────────────
+    // The TabDragController manages the state machine (threshold detection,
+    // dock-drag transitions, drop/cancel).  We call update() each frame and
+    // sync its state back to pane_tab_drag_ for rendering compatibility.
 
-    constexpr float DOCK_DRAG_THRESHOLD = 30.0f;  // Vertical distance to trigger dock drag
-
-    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
-        && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    if (tab_drag_controller_ && tab_drag_controller_->is_active())
     {
+        // Compute screen-space mouse position for outside-window detection
+        ImVec2 wpos = ImGui::GetMainViewport()->Pos;
+        float screen_mx = wpos.x + mouse.x;
+        float screen_my = wpos.y + mouse.y;
+
+        bool mouse_held = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+        tab_drag_controller_->update(mouse.x, mouse.y, mouse_held, screen_mx, screen_my);
+
+        // Sync controller state → legacy pane_tab_drag_ for rendering
+        if (tab_drag_controller_->is_dragging())
+        {
+            pane_tab_drag_.dragging = true;
+            pane_tab_drag_.cross_pane = tab_drag_controller_->is_cross_pane();
+            pane_tab_drag_.dock_dragging = tab_drag_controller_->is_dock_dragging();
+        }
+
+        // If controller returned to Idle, the drop/cancel already executed
+        // via callbacks — reset legacy state.
+        if (!tab_drag_controller_->is_active())
+        {
+            pane_tab_drag_.dragging = false;
+            pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
+            pane_tab_drag_.cross_pane = false;
+            pane_tab_drag_.dock_dragging = false;
+        }
+    }
+    else if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
+             && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+        // Fallback: no controller — use legacy inline logic
         float dx = mouse.x - pane_tab_drag_.drag_start_x;
         float dy = mouse.y - pane_tab_drag_.drag_start_y;
         float dist = std::sqrt(dx * dx + dy * dy);
@@ -2270,12 +2367,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         if (pane_tab_drag_.dragging)
         {
-            // Check if dragged far enough vertically to enter dock-drag mode
-            // (triggers split suggestion overlay via dock system)
+            constexpr float DOCK_DRAG_THRESHOLD = 30.0f;
             if (!pane_tab_drag_.dock_dragging && std::abs(dy) > DOCK_DRAG_THRESHOLD)
             {
-                // Only enter dock drag if there are multiple figures
-                // (need at least 2 to split)
                 bool over_any_header = false;
                 for (auto& ph : headers)
                 {
@@ -2294,102 +2388,111 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 }
             }
 
-            // If in dock-drag mode, forward to dock system
             if (pane_tab_drag_.dock_dragging)
             {
                 dock_system_->update_drag(mouse.x, mouse.y);
             }
+        }
+    }
 
-            // Check if mouse is over a different pane's header
-            bool over_source = false;
-            for (auto& ph : headers)
+    // Cross-pane detection (shared by both controller and legacy paths)
+    if (pane_tab_drag_.dragging)
+    {
+        bool over_source = false;
+        for (auto& ph : headers)
+        {
+            Rect hr = ph.header_rect;
+            if (mouse.x >= hr.x && mouse.x < hr.x + hr.w && mouse.y >= hr.y
+                && mouse.y < hr.y + hr.h)
             {
-                Rect hr = ph.header_rect;
-                if (mouse.x >= hr.x && mouse.x < hr.x + hr.w && mouse.y >= hr.y
-                    && mouse.y < hr.y + hr.h)
+                if (ph.pane->id() == pane_tab_drag_.source_pane_id)
                 {
-                    if (ph.pane->id() == pane_tab_drag_.source_pane_id)
-                    {
-                        over_source = true;
-                    }
-                    else
-                    {
-                        pane_tab_drag_.cross_pane = true;
-                    }
-                    break;
+                    over_source = true;
                 }
-            }
-            if (!over_source && !pane_tab_drag_.dock_dragging)
-            {
-                pane_tab_drag_.cross_pane = true;
-            }
-
-            // Draw drag ghost tab
-            std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
-            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-            float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
-            float ghost_h = TAB_H;
-            float ghost_x = mouse.x - ghost_w * 0.5f;
-            float ghost_y = mouse.y - ghost_h * 0.5f;
-
-            // Ghost shadow
-            draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
-                                     ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
-                                     IM_COL32(0, 0, 0, 40),
-                                     6.0f);
-
-            // Ghost background
-            draw_list->AddRectFilled(ImVec2(ghost_x, ghost_y),
-                                     ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                                     to_col(theme.bg_elevated),
-                                     6.0f);
-            draw_list->AddRect(ImVec2(ghost_x, ghost_y),
-                               ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                               to_col(theme.accent, 0.6f),
-                               6.0f,
-                               0,
-                               1.5f);
-
-            // Ghost text
-            ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
-            draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
-
-            // Draw drop indicator on target pane header
-            for (auto& ph : headers)
-            {
-                if (ph.pane->id() == pane_tab_drag_.source_pane_id && ph.pane->figure_count() <= 1)
-                    continue;
-
-                Rect hr = ph.header_rect;
-                if (mouse.x >= hr.x && mouse.x < hr.x + hr.w && mouse.y >= hr.y - 10
-                    && mouse.y < hr.y + hr.h + 10)
+                else
                 {
-                    // Highlight target header
-                    draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
-                                             ImVec2(hr.x + hr.w, hr.y + hr.h),
-                                             to_col(theme.accent, 0.08f));
-
-                    // Draw insertion line
-                    float insert_x = hr.x + 4.0f;
-                    for (auto& tr : ph.tabs)
-                    {
-                        if (mouse.x > tr.x + tr.w * 0.5f)
-                        {
-                            insert_x = tr.x + tr.w + 1.0f;
-                        }
-                    }
-                    draw_list->AddLine(ImVec2(insert_x, hr.y + 4),
-                                       ImVec2(insert_x, hr.y + hr.h - 4),
-                                       to_col(theme.accent),
-                                       2.0f);
+                    pane_tab_drag_.cross_pane = true;
                 }
+                break;
+            }
+        }
+        if (!over_source && !pane_tab_drag_.dock_dragging)
+        {
+            pane_tab_drag_.cross_pane = true;
+        }
+        if (tab_drag_controller_)
+        {
+            tab_drag_controller_->set_cross_pane(pane_tab_drag_.cross_pane);
+        }
+
+        // Draw drag ghost tab
+        std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
+        ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+        float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+        float ghost_h = TAB_H;
+        float ghost_x = mouse.x - ghost_w * 0.5f;
+        float ghost_y = mouse.y - ghost_h * 0.5f;
+
+        // Ghost shadow
+        draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
+                                 ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
+                                 IM_COL32(0, 0, 0, 40),
+                                 6.0f);
+
+        // Ghost background
+        draw_list->AddRectFilled(ImVec2(ghost_x, ghost_y),
+                                 ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                                 to_col(theme.bg_elevated),
+                                 6.0f);
+        draw_list->AddRect(ImVec2(ghost_x, ghost_y),
+                           ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                           to_col(theme.accent, 0.6f),
+                           6.0f,
+                           0,
+                           1.5f);
+
+        // Ghost text
+        ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
+        draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
+
+        // Draw drop indicator on target pane header
+        for (auto& ph : headers)
+        {
+            if (ph.pane->id() == pane_tab_drag_.source_pane_id && ph.pane->figure_count() <= 1)
+                continue;
+
+            Rect hr = ph.header_rect;
+            if (mouse.x >= hr.x && mouse.x < hr.x + hr.w && mouse.y >= hr.y - 10
+                && mouse.y < hr.y + hr.h + 10)
+            {
+                // Highlight target header
+                draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
+                                         ImVec2(hr.x + hr.w, hr.y + hr.h),
+                                         to_col(theme.accent, 0.08f));
+
+                // Draw insertion line
+                float insert_x = hr.x + 4.0f;
+                for (auto& tr : ph.tabs)
+                {
+                    if (mouse.x > tr.x + tr.w * 0.5f)
+                    {
+                        insert_x = tr.x + tr.w + 1.0f;
+                    }
+                }
+                draw_list->AddLine(ImVec2(insert_x, hr.y + 4),
+                                   ImVec2(insert_x, hr.y + hr.h - 4),
+                                   to_col(theme.accent),
+                                   2.0f);
             }
         }
     }
 
     // ── Phase 4: Drag end (drop) ─────────────────────────────────────────
+    // When TabDragController is active, drop/cancel is handled by its
+    // update() call above (callbacks fire on state transitions).
+    // The legacy fallback handles the case when no controller is set.
 
-    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
+    if (!tab_drag_controller_ && pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
         && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         if (pane_tab_drag_.dragging && pane_tab_drag_.dock_dragging)
@@ -2438,12 +2541,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
         pane_tab_drag_.dock_dragging = false;
     }
 
-    // Cancel drag on escape
-    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID && ImGui::IsKeyPressed(ImGuiKey_Escape))
+    // Cancel drag on escape or right-click
+    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
+        && (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)))
     {
-        if (pane_tab_drag_.dock_dragging)
+        if (tab_drag_controller_ && tab_drag_controller_->is_active())
         {
-            dock_system_->cancel_drag();
+            tab_drag_controller_->cancel();
+        }
+        else
+        {
+            if (pane_tab_drag_.dock_dragging)
+            {
+                dock_system_->cancel_drag();
+            }
         }
         pane_tab_drag_.dragging = false;
         pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;

@@ -71,6 +71,8 @@ class ModeTransition;
 
 class WindowManager;
 class FigureRegistry;
+struct WindowUIContext;
+class TabDragController;
 
 class ImageExporter;
 class SvgExporter;

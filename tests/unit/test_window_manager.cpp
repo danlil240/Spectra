@@ -10,6 +10,7 @@
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
 #include "ui/window_manager.hpp"
+#include "ui/window_ui_context.hpp"
 
 using namespace spectra;
 

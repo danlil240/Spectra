@@ -157,6 +157,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/workspace.cpp
         src/ui/shortcut_config.cpp
         src/ui/plugin_api.cpp
+        src/ui/tab_drag_controller.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})

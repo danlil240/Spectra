@@ -599,4 +599,83 @@ TEST_F(FigureManagerTest, EmptyRegistry)
     EXPECT_EQ(mgr.active_figure(), nullptr);
 }
 
+// ─── Cross-window figure transfer ─────────────────────────────────────────────
+
+TEST_F(FigureManagerTest, RemoveFigureReturnsState)
+{
+    FigureManager mgr(registry_);
+    mgr.set_title(first_id_, "Custom Title");
+    mgr.mark_modified(first_id_, true);
+
+    // Need at least 2 figures (remove_figure doesn't enforce min, close does)
+    FigureId second = mgr.create_figure();
+
+    FigureState state = mgr.remove_figure(first_id_);
+    EXPECT_EQ(state.custom_title, "Custom Title");
+    EXPECT_TRUE(state.is_modified);
+    EXPECT_EQ(mgr.count(), 1u);
+    EXPECT_EQ(mgr.active_index(), second);
+
+    // Figure still exists in registry (not unregistered)
+    EXPECT_NE(registry_.get(first_id_), nullptr);
+}
+
+TEST_F(FigureManagerTest, RemoveFigureInvalidId)
+{
+    FigureManager mgr(registry_);
+    FigureState state = mgr.remove_figure(999);
+    // Should return default state, no crash
+    EXPECT_TRUE(state.custom_title.empty());
+    EXPECT_EQ(mgr.count(), 1u);
+}
+
+TEST_F(FigureManagerTest, AddFigureFromAnotherManager)
+{
+    // Simulate two per-window FigureManagers sharing the same registry
+    FigureId second = registry_.register_figure(std::make_unique<Figure>());
+
+    FigureManager src(registry_);
+    EXPECT_EQ(src.count(), 2u);
+
+    // Remove figure from source (preserves in registry)
+    FigureState transferred = src.remove_figure(second);
+    EXPECT_EQ(src.count(), 1u);
+
+    // Create a target manager with only first_id_ initially
+    // (FigureManager imports all registry figures on construction, so we
+    //  simulate the target by removing second, then re-adding)
+    FigureManager dst(registry_);
+    // dst imported both figures from registry; remove second to simulate
+    // it not being in this window yet
+    dst.remove_figure(second);
+    EXPECT_EQ(dst.count(), 1u);
+
+    // Transfer
+    transferred.custom_title = "Transferred";
+    dst.add_figure(second, std::move(transferred));
+    EXPECT_EQ(dst.count(), 2u);
+    EXPECT_EQ(dst.active_index(), second);
+    EXPECT_EQ(dst.get_title(second), "Transferred");
+}
+
+TEST_F(FigureManagerTest, AddFigureDuplicateIsNoop)
+{
+    FigureManager mgr(registry_);
+    FigureState state;
+    state.custom_title = "Duplicate";
+    mgr.add_figure(first_id_, std::move(state));
+    // Should be no-op — first_id_ already in manager
+    EXPECT_EQ(mgr.count(), 1u);
+}
+
+TEST_F(FigureManagerTest, RemoveLastFigureSetsInvalidActive)
+{
+    FigureManager mgr(registry_);
+    EXPECT_EQ(mgr.count(), 1u);
+
+    FigureState state = mgr.remove_figure(first_id_);
+    EXPECT_EQ(mgr.count(), 0u);
+    EXPECT_EQ(mgr.active_index(), INVALID_FIGURE_ID);
+}
+
 }  // namespace spectra

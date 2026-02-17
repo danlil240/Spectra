@@ -217,6 +217,82 @@ bool FigureManager::close_to_right(FigureId index)
     return true;
 }
 
+FigureState FigureManager::remove_figure(FigureId id)
+{
+    size_t pos = id_to_pos(id);
+    if (pos == SIZE_MAX)
+        return {};
+
+    // Save current state before removal
+    if (id == active_index_)
+        save_active_state();
+
+    // Extract state
+    FigureState extracted;
+    auto st_it = states_.find(id);
+    if (st_it != states_.end())
+    {
+        extracted = std::move(st_it->second);
+        states_.erase(st_it);
+    }
+
+    // Remove from tab bar before modifying ordered_ids_
+    if (tab_bar_)
+        tab_bar_->remove_tab(pos);
+
+    // Remove from ordered list (do NOT unregister from registry)
+    ordered_ids_.erase(ordered_ids_.begin() + static_cast<std::ptrdiff_t>(pos));
+
+    // Adjust active index
+    if (active_index_ == id)
+    {
+        if (!ordered_ids_.empty())
+        {
+            size_t new_pos = (pos < ordered_ids_.size()) ? pos : ordered_ids_.size() - 1;
+            active_index_ = ordered_ids_[new_pos];
+        }
+        else
+        {
+            active_index_ = INVALID_FIGURE_ID;
+        }
+    }
+
+    // Sync tab bar active state
+    if (tab_bar_ && !ordered_ids_.empty())
+    {
+        size_t active_pos = id_to_pos(active_index_);
+        if (active_pos != SIZE_MAX)
+            tab_bar_->set_active_tab(active_pos);
+    }
+
+    // Notify figure changed
+    if (on_figure_changed_)
+        on_figure_changed_(active_index_, active_figure());
+
+    return extracted;
+}
+
+void FigureManager::add_figure(FigureId id, FigureState fig_state)
+{
+    // Don't add duplicates
+    if (id_to_pos(id) != SIZE_MAX)
+        return;
+
+    // Verify figure exists in registry
+    if (!registry_.get(id))
+        return;
+
+    ordered_ids_.push_back(id);
+    states_[id] = std::move(fig_state);
+
+    // Sync tab bar
+    if (tab_bar_)
+        tab_bar_->add_tab(get_title(id));
+
+    // Switch to the new figure
+    switch_to(id);
+}
+
 FigureId FigureManager::duplicate_figure(FigureId index)
 {
     Figure* src = registry_.get(index);

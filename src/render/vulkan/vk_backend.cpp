@@ -10,12 +10,25 @@
     #include <GLFW/glfw3.h>
 #endif
 
+#ifdef SPECTRA_USE_IMGUI
+    #include <imgui.h>
+    #include <imgui_impl_glfw.h>
+    #include <imgui_impl_vulkan.h>
+#endif
+
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
 
+// WindowUIContext must be complete for unique_ptr destructor in WindowContext.
+// Must come after GLFW includes to avoid macro conflicts with shortcut_manager.hpp.
+#include "../../ui/window_ui_context.hpp"
+
 namespace spectra
 {
+
+// Out-of-line destructor so unique_ptr<WindowUIContext> sees the complete type.
+WindowContext::~WindowContext() = default;
 
 VulkanBackend::VulkanBackend() = default;
 
@@ -1620,6 +1633,43 @@ bool VulkanBackend::recreate_swapchain_for(WindowContext& wctx, uint32_t width, 
     return ok;
 }
 
+bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height)
+{
+    // Fall back to plain recreate if this window has no ImGui context
+    if (!wctx.imgui_context)
+    {
+        return recreate_swapchain_for(wctx, width, height);
+    }
+
+    // Recreate the swapchain (saves/restores active_window_ internally)
+    if (!recreate_swapchain_for(wctx, width, height))
+    {
+        return false;
+    }
+
+#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+    // Section 3F constraint 4: Update only this window's ImGui backend
+    // with the new image count.  The render pass handle is reused during
+    // recreate_swapchain (format doesn't change on resize), so we only
+    // need to update MinImageCount.
+    auto* prev_imgui_ctx = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx.imgui_context));
+
+    ImGui_ImplVulkan_SetMinImageCount(
+        static_cast<uint32_t>(wctx.swapchain.images.size()));
+
+    SPECTRA_LOG_INFO("vulkan",
+                     "Window " + std::to_string(wctx.id)
+                         + " swapchain recreated with ImGui update: "
+                         + std::to_string(wctx.swapchain.extent.width) + "x"
+                         + std::to_string(wctx.swapchain.extent.height));
+
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+#endif
+
+    return true;
+}
+
 bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uint32_t height)
 {
     if (!wctx.glfw_window)
@@ -1685,6 +1735,128 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
     }
 }
 
+bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height)
+{
+    // Step 1: Create Vulkan resources (surface, swapchain, cmd buffers, sync)
+    if (!init_window_context(wctx, width, height))
+    {
+        return false;
+    }
+
+    // Step 2 (Section 3F constraint 2): Assert swapchain format matches primary.
+    // Different surfaces can yield different VkSurfaceFormatKHR on exotic
+    // multi-monitor setups.  If they differ, log a warning — the render pass
+    // and pipelines were created for the primary's format, so a mismatch would
+    // cause validation errors.  In practice this is extremely rare on the same GPU.
+    if (wctx.swapchain.image_format != primary_window_.swapchain.image_format)
+    {
+        SPECTRA_LOG_WARN("vulkan",
+                         "Window " + std::to_string(wctx.id)
+                             + " swapchain format (" + std::to_string(wctx.swapchain.image_format)
+                             + ") differs from primary ("
+                             + std::to_string(primary_window_.swapchain.image_format)
+                             + "). Recreating swapchain with primary format.");
+
+        // Force-recreate with the primary's format by destroying and recreating
+        // the swapchain.  The surface must support the primary format — if not,
+        // this will fail and we bail out.
+        auto* prev_active = active_window_;
+        active_window_ = &wctx;
+
+        auto old_swapchain = wctx.swapchain.swapchain;
+        vk::destroy_swapchain(ctx_.device, wctx.swapchain);
+
+        try
+        {
+            auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+            wctx.swapchain = vk::create_swapchain(
+                ctx_.device,
+                ctx_.physical_device,
+                wctx.surface,
+                width,
+                height,
+                ctx_.queue_families.graphics.value(),
+                ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                vk_msaa);
+        }
+        catch (const std::exception& e)
+        {
+            SPECTRA_LOG_ERROR("vulkan",
+                              "Failed to recreate swapchain with primary format: "
+                                  + std::string(e.what()));
+            active_window_ = prev_active;
+            return false;
+        }
+
+        active_window_ = prev_active;
+
+        if (wctx.swapchain.image_format != primary_window_.swapchain.image_format)
+        {
+            SPECTRA_LOG_ERROR("vulkan",
+                              "Window " + std::to_string(wctx.id)
+                                  + " still has mismatched format after recreation — aborting");
+            return false;
+        }
+    }
+
+#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+    // Step 3: Initialize per-window ImGui context.
+    // Each window gets its own ImGui context for complete isolation.
+    auto* prev_imgui_ctx = ImGui::GetCurrentContext();
+    auto* prev_active = active_window_;
+
+    // Section 3F constraint 1: set_active_window so render_pass() returns
+    // this window's render pass (not the primary's).
+    active_window_ = &wctx;
+
+    ImGuiContext* new_ctx = ImGui::CreateContext();
+    ImGui::SetCurrentContext(new_ctx);
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.IniFilename = nullptr;
+
+    auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
+    ImGui_ImplGlfw_InitForVulkan(glfw_win, true);
+
+    // Section 3F constraint 3: use per-window ImageCount
+    ImGui_ImplVulkan_InitInfo ii{};
+    ii.Instance = ctx_.instance;
+    ii.PhysicalDevice = ctx_.physical_device;
+    ii.Device = ctx_.device;
+    ii.QueueFamily = ctx_.queue_families.graphics.value_or(0);
+    ii.Queue = ctx_.graphics_queue;
+    ii.DescriptorPool = descriptor_pool_;
+    ii.MinImageCount = 2;
+    ii.ImageCount = static_cast<uint32_t>(wctx.swapchain.images.size());
+    ii.RenderPass = wctx.swapchain.render_pass;
+    ii.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&ii);
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    // Store the ImGui context handle on the WindowContext so callers can
+    // switch to it with ImGui::SetCurrentContext() before each frame.
+    wctx.imgui_context = new_ctx;
+
+    SPECTRA_LOG_INFO("imgui",
+                     "Per-window ImGui context created for window "
+                         + std::to_string(wctx.id));
+
+    // Restore previous ImGui context and active window
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+    active_window_ = prev_active;
+#else
+    (void)wctx;
+    (void)width;
+    (void)height;
+#endif
+
+    return true;
+}
+
 void VulkanBackend::destroy_window_context(WindowContext& wctx)
 {
     // Wait for ALL GPU work to complete before destroying sync objects.
@@ -1694,6 +1866,29 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
     {
         vkDeviceWaitIdle(ctx_.device);
     }
+
+#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+    // Destroy per-window ImGui context (if this window had one).
+    // Must happen before Vulkan resource teardown since ImGui holds
+    // Vulkan descriptor sets and pipeline references.
+    if (wctx.imgui_context)
+    {
+        auto* prev_ctx = ImGui::GetCurrentContext();
+        auto* this_ctx = static_cast<ImGuiContext*>(wctx.imgui_context);
+        ImGui::SetCurrentContext(this_ctx);
+        ImGui_ImplVulkan_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext(this_ctx);
+        wctx.imgui_context = nullptr;
+
+        // Restore previous context (unless it was the one we just destroyed)
+        ImGui::SetCurrentContext(prev_ctx != this_ctx ? prev_ctx : nullptr);
+
+        SPECTRA_LOG_INFO("imgui",
+                         "Per-window ImGui context destroyed for window "
+                             + std::to_string(wctx.id));
+    }
+#endif
 
     // Destroy sync objects
     for (auto sem : wctx.image_available_semaphores)

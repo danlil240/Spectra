@@ -326,7 +326,7 @@ std::vector<ShortcutBinding> ShortcutManager::all_bindings() const
 
 bool ShortcutManager::on_key(int key, int action, int mods)
 {
-    if (action != GLFW_PRESS)
+    if (action != kGlfwPress)
         return false;
     if (!registry_)
         return false;

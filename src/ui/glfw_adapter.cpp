@@ -156,6 +156,18 @@ void GlfwAdapter::window_size(int& width, int& height) const
     }
 }
 
+void GlfwAdapter::hide_window()
+{
+    if (window_)
+        glfwHideWindow(window_);
+}
+
+void GlfwAdapter::show_window()
+{
+    if (window_)
+        glfwShowWindow(window_);
+}
+
 bool GlfwAdapter::is_mouse_button_pressed(int button) const
 {
     if (window_)

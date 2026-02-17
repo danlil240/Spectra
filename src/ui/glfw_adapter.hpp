@@ -73,6 +73,10 @@ class GlfwAdapter
     // Get window size in screen coordinates
     void window_size(int& width, int& height) const;
 
+    // Hide / show the window (for multi-window: hide primary when closed)
+    void hide_window();
+    void show_window();
+
     // Check if a mouse button is pressed
     bool is_mouse_button_pressed(int button) const;
 

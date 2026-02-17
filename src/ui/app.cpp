@@ -662,21 +662,19 @@ void App::run()
         // Tab detach: drag tab outside window or context menu "Detach to Window"
         // Creates a new OS window via WindowManager and renders the figure there.
         figure_tabs->set_tab_detach_callback(
-            [&figure_tabs, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
+            [&fig_mgr, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
             {
                 auto* fig = registry_.get(index);
                 if (!fig)
                     return;
 
                 // Don't detach the last figure — window must have ≥1
-                if (registry_.count() <= 1)
+                if (fig_mgr.count() <= 1)
                     return;
 
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = (figure_tabs && index < figure_tabs->get_tab_count())
-                    ? figure_tabs->get_tab_title(index)
-                    : ("Figure " + std::to_string(index + 1));
+                std::string title = fig_mgr.get_title(index);
 
                 pending_detaches.push_back({index, win_w, win_h, title,
                     static_cast<int>(screen_x), static_cast<int>(screen_y)});
@@ -765,21 +763,19 @@ void App::run()
 
         // TabDragController drop-outside callback: detach to new window (deferred)
         tab_drag_controller.set_on_drop_outside(
-            [&figure_tabs, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
+            [&fig_mgr, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
             {
                 auto* fig = registry_.get(index);
                 if (!fig)
                     return;
 
                 // Don't detach the last figure — window must have ≥1
-                if (registry_.count() <= 1)
+                if (fig_mgr.count() <= 1)
                     return;
 
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = (figure_tabs && index < figure_tabs->get_tab_count())
-                    ? figure_tabs->get_tab_title(index)
-                    : ("Figure " + std::to_string(index + 1));
+                std::string title = fig_mgr.get_title(index);
 
                 pending_detaches.push_back({index, win_w, win_h, title,
                     static_cast<int>(screen_x), static_cast<int>(screen_y)});
@@ -813,21 +809,19 @@ void App::run()
             });
 
         imgui_ui->set_pane_tab_detach_cb(
-            [&figure_tabs, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
+            [&fig_mgr, &pending_detaches, this](FigureId index, float screen_x, float screen_y)
             {
                 auto* fig = registry_.get(index);
                 if (!fig)
                     return;
 
                 // Don't detach the last figure — window must have ≥1
-                if (registry_.count() <= 1)
+                if (fig_mgr.count() <= 1)
                     return;
 
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = (figure_tabs && index < figure_tabs->get_tab_count())
-                    ? figure_tabs->get_tab_title(index)
-                    : ("Figure " + std::to_string(index + 1));
+                std::string title = fig_mgr.get_title(index);
 
                 pending_detaches.push_back({index, win_w, win_h, title,
                     static_cast<int>(screen_x), static_cast<int>(screen_y)});
@@ -839,13 +833,9 @@ void App::run()
 
         // Figure title lookup for per-pane tab headers
         imgui_ui->set_figure_title_callback(
-            [&figure_tabs](size_t fig_idx) -> std::string
+            [&fig_mgr](size_t fig_idx) -> std::string
             {
-                if (figure_tabs && fig_idx < figure_tabs->get_tab_count())
-                {
-                    return figure_tabs->get_tab_title(fig_idx);
-                }
-                return "Figure " + std::to_string(fig_idx + 1);
+                return fig_mgr.get_title(static_cast<FigureId>(fig_idx));
             });
 
         // Dock system → tab bar sync: when a pane is clicked, update tab selection
@@ -1844,7 +1834,12 @@ void App::run()
                         // The figure was already added by create_window_with_ui via
                         // init_window_ui which imports from registry. Override state
                         // with the transferred one to preserve axis snapshots etc.
-                        new_wctx->ui_ctx->fig_mgr->state(fig_id) = std::move(state);
+                        auto* new_fm = new_wctx->ui_ctx->fig_mgr;
+                        new_fm->state(fig_id) = std::move(state);
+                        // Re-sync tab title after state transfer
+                        std::string correct_title = new_fm->get_title(fig_id);
+                        if (new_fm->tab_bar())
+                            new_fm->tab_bar()->set_tab_title(0, correct_title);
                     }
                 }
             },
@@ -1863,6 +1858,21 @@ void App::run()
 
     scheduler.reset();
 
+#ifdef SPECTRA_USE_GLFW
+    // Store the primary window's figure assignments and a non-owning UI context
+    // pointer so that WindowManager::destroy_window() can reattach figures when
+    // a secondary window is closed.
+    if (window_mgr)
+    {
+        auto* vk_setup = static_cast<VulkanBackend*>(backend_.get());
+        auto& primary_setup = vk_setup->primary_window();
+        primary_setup.assigned_figures = registry_.all_ids();
+        primary_setup.active_figure_id = frame_state.active_figure_id;
+        // Store non-owning pointer — ownership stays with the local ui_ctx
+        primary_setup.ui_ctx_non_owning = ui_ctx.get();
+    }
+#endif
+
     // Capture initial axes limits for Home button (restore original view)
     for (auto id : registry_.all_ids())
     {
@@ -1875,6 +1885,10 @@ void App::run()
         }
     }
 
+#ifdef SPECTRA_USE_GLFW
+    bool primary_closed = false;
+#endif
+
     while (running)
     {
         SPECTRA_LOG_TRACE("main_loop", "Starting frame iteration");
@@ -1884,20 +1898,27 @@ void App::run()
         // Handle minimized window (0x0): sleep until restored
         if (glfw)
         {
-            uint32_t fb_w = 0, fb_h = 0;
-            glfw->framebuffer_size(fb_w, fb_h);
-            while (fb_w == 0 || fb_h == 0)
+            if (glfw->should_close())
             {
-                glfw->wait_events();
+                // Primary is closing — skip its update/render but keep
+                // the loop alive if secondary windows exist.
+                primary_closed = true;
+            }
+            else
+            {
+                uint32_t fb_w = 0, fb_h = 0;
                 glfw->framebuffer_size(fb_w, fb_h);
-                if (glfw->should_close())
+                while (fb_w == 0 || fb_h == 0)
                 {
-                    running = false;
-                    break;
+                    glfw->wait_events();
+                    glfw->framebuffer_size(fb_w, fb_h);
+                    if (glfw->should_close())
+                    {
+                        primary_closed = true;
+                        break;
+                    }
                 }
             }
-            if (!running)
-                break;
         }
 #endif
 
@@ -1928,28 +1949,35 @@ void App::run()
         // window's frame.  GLFW callbacks during poll_events() may have
         // temporarily switched to a secondary window's context; an early-
         // return bug in any callback could leave the wrong context set.
-#ifdef SPECTRA_USE_IMGUI
+#ifdef SPECTRA_USE_GLFW
+        if (!primary_closed)
         {
-            auto* vk = static_cast<VulkanBackend*>(backend_.get());
-            auto& pw = vk->primary_window();
-            if (pw.imgui_context)
-                ImGui::SetCurrentContext(static_cast<ImGuiContext*>(pw.imgui_context));
+#endif
+#ifdef SPECTRA_USE_IMGUI
+            {
+                auto* vk = static_cast<VulkanBackend*>(backend_.get());
+                auto& pw = vk->primary_window();
+                if (pw.imgui_context)
+                    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(pw.imgui_context));
+            }
+#endif
+            update_window(*ui_ctx, frame_state, scheduler
+#ifdef SPECTRA_USE_GLFW
+                          , glfw.get(), window_mgr.get()
+#endif
+            );
+            // update_window may switch the active figure — sync local alias
+            active_figure = frame_state.active_figure;
+
+            // ── Render primary window ─────────────────────────────────────
+            render_window(*ui_ctx, frame_state
+#ifdef SPECTRA_USE_GLFW
+                          , glfw.get()
+#endif
+            );
+#ifdef SPECTRA_USE_GLFW
         }
 #endif
-        update_window(*ui_ctx, frame_state, scheduler
-#ifdef SPECTRA_USE_GLFW
-                      , glfw.get(), window_mgr.get()
-#endif
-        );
-        // update_window may switch the active figure — sync local alias
-        active_figure = frame_state.active_figure;
-
-        // ── Render primary window ─────────────────────────────────────
-        render_window(*ui_ctx, frame_state
-#ifdef SPECTRA_USE_GLFW
-                      , glfw.get()
-#endif
-        );
 
         // ── Process deferred detach requests ─────────────────────────
         // Detach requests are queued during build_ui (mid-ImGui-frame) and
@@ -1985,8 +2013,17 @@ void App::run()
                     pd.title, pd.screen_x, pd.screen_y);
 
                 // Transfer the figure state (axis snapshots, title, etc.)
+                // and re-sync the tab bar title — init_window_ui assigned a
+                // positional title that may differ from the original.
                 if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
-                    new_wctx->ui_ctx->fig_mgr->state(pd.figure_id) = std::move(detached_state);
+                {
+                    auto* new_fm = new_wctx->ui_ctx->fig_mgr;
+                    new_fm->state(pd.figure_id) = std::move(detached_state);
+                    // Update tab title to match the transferred custom_title
+                    std::string correct_title = new_fm->get_title(pd.figure_id);
+                    if (new_fm->tab_bar())
+                        new_fm->tab_bar()->set_tab_title(0, correct_title);
+                }
 
                 // Sync primary's active figure after removal
                 frame_state.active_figure_id = fig_mgr.active_index();
@@ -2146,8 +2183,24 @@ void App::run()
             }
             if (glfw->should_close())
             {
-                SPECTRA_LOG_INFO("main_loop", "GLFW window should close, exiting loop");
-                running = false;
+                // If secondary windows are still open, don't exit the app —
+                // hide the primary window and keep running until all are closed.
+                if (window_mgr && window_mgr->any_window_open())
+                {
+                    if (!primary_closed)
+                    {
+                        // First time: hide the GLFW window and log once
+                        primary_closed = true;
+                        glfw->hide_window();
+                        SPECTRA_LOG_INFO("main_loop",
+                                         "Primary window hidden — secondary windows remain");
+                    }
+                }
+                else
+                {
+                    SPECTRA_LOG_INFO("main_loop", "All windows closed, exiting loop");
+                    running = false;
+                }
             }
         }
 #endif

@@ -87,8 +87,13 @@ struct WindowContext
     // Per-window UI subsystem bundle (owned by this window).
     // nullptr for legacy secondary windows that have no ImGui.
     // Set for windows created via WindowManager::create_window_with_ui().
-    // Primary window's ui_ctx is set by App::run() after creation.
     std::unique_ptr<WindowUIContext> ui_ctx;
+
+    // Non-owning alias for the primary window's UI context.
+    // The primary window's WindowUIContext is owned by App::run() (stack-local),
+    // so we store a raw pointer here for WindowManager to access during reattach.
+    // For secondary windows this is nullptr (they use ui_ctx above).
+    WindowUIContext* ui_ctx_non_owning = nullptr;
 };
 
 }  // namespace spectra

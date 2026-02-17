@@ -168,46 +168,47 @@ void WindowManager::destroy_window(uint32_t window_id)
 
     auto& wctx = **it;
 
-    // Window close policy: destroy all figures assigned to this secondary window.
-    // Only unregister figures that are NOT assigned to any other window.
+    // Window close policy: move figures back to the primary window instead of
+    // destroying them, so detached tabs can be reattached by closing the window.
     if (registry_ && !wctx.assigned_figures.empty())
     {
+        auto& primary = backend_->primary_window();
         for (FigureId fig_id : wctx.assigned_figures)
         {
-            // Check if any other window still references this figure
-            bool used_elsewhere = false;
-            auto& primary = backend_->primary_window();
-            if (&primary != &wctx)
+            // Skip figures already assigned to the primary
+            if (std::find(primary.assigned_figures.begin(),
+                          primary.assigned_figures.end(), fig_id)
+                != primary.assigned_figures.end())
+                continue;
+
+            // Extract figure state from the closing window's FigureManager
+            FigureState transferred_state;
+#ifdef SPECTRA_USE_IMGUI
+            if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
+                transferred_state = wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
+#endif
+
+            // Add to primary window's assigned_figures
+            primary.assigned_figures.push_back(fig_id);
+            if (primary.active_figure_id == INVALID_FIGURE_ID)
+                primary.active_figure_id = fig_id;
+
+            // Add to primary window's FigureManager if it exists
+            // Primary window may use ui_ctx_non_owning (App::run() owns the context)
+#ifdef SPECTRA_USE_IMGUI
             {
-                if (std::find(primary.assigned_figures.begin(),
-                              primary.assigned_figures.end(), fig_id)
-                    != primary.assigned_figures.end())
-                {
-                    used_elsewhere = true;
-                }
+                WindowUIContext* primary_ui = primary.ui_ctx
+                    ? primary.ui_ctx.get()
+                    : primary.ui_ctx_non_owning;
+                if (primary_ui && primary_ui->fig_mgr)
+                    primary_ui->fig_mgr->add_figure(fig_id, std::move(transferred_state));
             }
-            if (!used_elsewhere)
-            {
-                for (auto& other : windows_)
-                {
-                    if (other.get() == &wctx)
-                        continue;
-                    if (std::find(other->assigned_figures.begin(),
-                                  other->assigned_figures.end(), fig_id)
-                        != other->assigned_figures.end())
-                    {
-                        used_elsewhere = true;
-                        break;
-                    }
-                }
-            }
-            if (!used_elsewhere)
-            {
-                registry_->unregister_figure(fig_id);
-                SPECTRA_LOG_INFO("window_manager",
-                                 "Destroyed figure " + std::to_string(fig_id)
-                                     + " (window " + std::to_string(window_id) + " closed)");
-            }
+#endif
+
+            SPECTRA_LOG_INFO("window_manager",
+                             "Reattached figure " + std::to_string(fig_id)
+                                 + " to primary window (window "
+                                 + std::to_string(window_id) + " closed)");
         }
         wctx.assigned_figures.clear();
     }

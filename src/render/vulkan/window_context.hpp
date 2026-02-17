@@ -5,6 +5,8 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include <spectra/fwd.hpp>
+
 #include "vk_swapchain.hpp"
 #include "../backend.hpp"
 
@@ -48,6 +50,10 @@ struct WindowContext
 
     // Window state
     bool is_focused = false;
+
+    // Figure assignment: FigureId from FigureRegistry that this window renders.
+    // INVALID_FIGURE_ID means "use the primary window's active figure" (default).
+    FigureId assigned_figure_index = INVALID_FIGURE_ID;
 
     // Resize state
     bool needs_resize = false;

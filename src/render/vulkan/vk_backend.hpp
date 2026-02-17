@@ -127,6 +127,7 @@ class VulkanBackend : public Backend
 
    public:
     void ensure_pipelines();
+    bool is_headless() const { return headless_; }
 
    private:
     vk::DeviceContext ctx_;

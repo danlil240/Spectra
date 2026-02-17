@@ -3,7 +3,8 @@
 #include <memory>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
-#include <vector>
+
+#include "../src/ui/figure_registry.hpp"
 
 namespace spectra
 {
@@ -35,7 +36,7 @@ class App
 
    private:
     AppConfig config_;
-    std::vector<std::unique_ptr<Figure>> figures_;
+    FigureRegistry registry_;
     std::unique_ptr<Backend> backend_;
     std::unique_ptr<Renderer> renderer_;
 };

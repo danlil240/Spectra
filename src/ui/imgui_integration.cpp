@@ -1984,7 +1984,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     uint32_t gap_pane_id = 0;
     size_t gap_insert_after = SIZE_MAX;  // Insert after this local index
 
-    if (pane_tab_drag_.dragging && pane_tab_drag_.dragged_figure_index != SIZE_MAX)
+    if (pane_tab_drag_.dragging && pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID)
     {
         for (auto* pane_const : panes)
         {
@@ -2256,7 +2256,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     constexpr float DOCK_DRAG_THRESHOLD = 30.0f;  // Vertical distance to trigger dock drag
 
-    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX
+    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
         && ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         float dx = mouse.x - pane_tab_drag_.drag_start_x;
@@ -2389,7 +2389,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     // ── Phase 4: Drag end (drop) ─────────────────────────────────────────
 
-    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX
+    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
         && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         if (pane_tab_drag_.dragging && pane_tab_drag_.dock_dragging)
@@ -2433,20 +2433,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         // Reset drag state
         pane_tab_drag_.dragging = false;
-        pane_tab_drag_.dragged_figure_index = SIZE_MAX;
+        pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
         pane_tab_drag_.cross_pane = false;
         pane_tab_drag_.dock_dragging = false;
     }
 
     // Cancel drag on escape
-    if (pane_tab_drag_.dragged_figure_index != SIZE_MAX && ImGui::IsKeyPressed(ImGuiKey_Escape))
+    if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID && ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
         if (pane_tab_drag_.dock_dragging)
         {
             dock_system_->cancel_drag();
         }
         pane_tab_drag_.dragging = false;
-        pane_tab_drag_.dragged_figure_index = SIZE_MAX;
+        pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
         pane_tab_drag_.cross_pane = false;
         pane_tab_drag_.dock_dragging = false;
     }
@@ -2470,7 +2470,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     ImGui::PopStyleColor(2);
 
     // Open the popup if right-click was detected in Phase 2
-    if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != SIZE_MAX)
+    if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
     {
         ImGui::OpenPopup("##pane_tab_ctx");
         pane_ctx_menu_open_ = false;  // Only open once
@@ -2489,7 +2489,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     if (ImGui::BeginPopup("##pane_tab_ctx"))
     {
-        if (pane_ctx_menu_fig_ != SIZE_MAX)
+        if (pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
         {
             auto menu_item = [&](const char* label) -> bool
             {
@@ -2571,7 +2571,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     else
     {
         pane_ctx_menu_open_ = false;
-        pane_ctx_menu_fig_ = SIZE_MAX;
+        pane_ctx_menu_fig_ = INVALID_FIGURE_ID;
     }
 
     ImGui::PopStyleColor(2);
@@ -2579,7 +2579,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     // ── Rename popup ─────────────────────────────────────────────────────
 
-    if (pane_tab_renaming_ && pane_tab_rename_fig_ != SIZE_MAX)
+    if (pane_tab_renaming_ && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
     {
         ImGui::OpenPopup("##pane_tab_rename");
         pane_tab_renaming_ = false;
@@ -2607,18 +2607,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
         if (enter || ImGui::Button("OK"))
         {
             std::string new_title(pane_tab_rename_buf_);
-            if (!new_title.empty() && pane_tab_rename_fig_ != SIZE_MAX)
+            if (!new_title.empty() && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
             {
                 if (pane_tab_rename_cb_)
                     pane_tab_rename_cb_(pane_tab_rename_fig_, new_title);
             }
-            pane_tab_rename_fig_ = SIZE_MAX;
+            pane_tab_rename_fig_ = INVALID_FIGURE_ID;
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            pane_tab_rename_fig_ = SIZE_MAX;
+            pane_tab_rename_fig_ = INVALID_FIGURE_ID;
             ImGui::CloseCurrentPopup();
         }
         ImGui::PopStyleVar();

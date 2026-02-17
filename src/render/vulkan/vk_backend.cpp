@@ -1687,14 +1687,12 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
 
 void VulkanBackend::destroy_window_context(WindowContext& wctx)
 {
-    // Wait for any in-flight work on this window
-    if (!wctx.in_flight_fences.empty())
+    // Wait for ALL GPU work to complete before destroying sync objects.
+    // vkWaitForFences alone is insufficient — semaphores may still be
+    // referenced by pending vkQueueSubmit/vkQueuePresentKHR operations.
+    if (ctx_.device != VK_NULL_HANDLE)
     {
-        vkWaitForFences(ctx_.device,
-                        static_cast<uint32_t>(wctx.in_flight_fences.size()),
-                        wctx.in_flight_fences.data(),
-                        VK_TRUE,
-                        UINT64_MAX);
+        vkDeviceWaitIdle(ctx_.device);
     }
 
     // Destroy sync objects

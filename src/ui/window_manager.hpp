@@ -83,6 +83,21 @@ class WindowManager
     // Returns the window context for a given window ID, or nullptr.
     WindowContext* find_window(uint32_t window_id) const;
 
+    // Set the screen position of a window (top-left corner).
+    void set_window_position(WindowContext& wctx, int x, int y);
+
+    // Move a figure from one window to another.
+    // Reassigns the figure's FigureId to the target window.
+    // Returns true on success, false if source or target window not found.
+    bool move_figure(FigureId figure_id, uint32_t from_window_id, uint32_t to_window_id);
+
+    // Detach a figure into a new OS window at the given screen position.
+    // Creates a new window sized to the figure's dimensions and assigns the
+    // figure to it.  Returns the new WindowContext, or nullptr on failure.
+    // Will refuse to detach if it's the last figure (caller must check).
+    WindowContext* detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
+                                const std::string& title, int screen_x, int screen_y);
+
     // Returns the number of open windows.
     size_t window_count() const { return active_ptrs_.size(); }
 

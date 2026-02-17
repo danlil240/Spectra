@@ -2,12 +2,13 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
 #include <string>
 #include <vector>
+
+#include "figure_registry.hpp"
 
 namespace spectra
 {
@@ -52,7 +53,7 @@ class FigureManager
     using FigureChangeCallback = std::function<void(FigureId new_id, Figure* fig)>;
     using FigureCloseCallback = std::function<void(FigureId id)>;
 
-    explicit FigureManager(std::vector<std::unique_ptr<Figure>>& figures);
+    explicit FigureManager(FigureRegistry& registry);
     ~FigureManager() = default;
 
     // Disable copying
@@ -79,8 +80,13 @@ class FigureManager
     // State queries
     FigureId active_index() const { return active_index_; }
     Figure* active_figure() const;
-    size_t count() const { return figures_.size(); }
+    size_t count() const { return ordered_ids_.size(); }
     bool can_close(FigureId index) const;
+
+    // Figure access by positional index (for backward compatibility)
+    Figure* get_figure(FigureId id) const;
+    const std::vector<FigureId>& figure_ids() const { return ordered_ids_; }
+    FigureRegistry& registry() { return registry_; }
 
     // Per-figure state
     FigureState& state(FigureId index);
@@ -114,10 +120,15 @@ class FigureManager
     static std::string default_title(FigureId index);
 
    private:
-    std::vector<std::unique_ptr<Figure>>& figures_;
-    std::vector<FigureState> states_;
-    FigureId active_index_ = 0;
+    FigureRegistry& registry_;
+    std::vector<FigureId> ordered_ids_;  // Ordered list of registry IDs (tab order)
+    std::unordered_map<FigureId, FigureState> states_;
+    FigureId active_index_ = INVALID_FIGURE_ID;
     TabBar* tab_bar_ = nullptr;
+
+    // Convert positional index to FigureId and vice versa
+    size_t id_to_pos(FigureId id) const;
+    FigureId pos_to_id(size_t pos) const;
 
     // Pending operations (processed in process_pending())
     FigureId pending_switch_ = INVALID_FIGURE_ID;

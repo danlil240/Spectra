@@ -13,6 +13,7 @@
 
 #include "ui/command_registry.hpp"
 #include "ui/figure_manager.hpp"
+#include "ui/figure_registry.hpp"
 #include "ui/shortcut_manager.hpp"
 #include "ui/transition_engine.hpp"
 #include "ui/undo_manager.hpp"
@@ -410,9 +411,9 @@ static void BM_FigureManager_Create(benchmark::State& state)
     for (auto _ : state)
     {
         state.PauseTiming();
-        std::vector<std::unique_ptr<Figure>> figures;
-        figures.push_back(std::make_unique<Figure>());
-        FigureManager mgr(figures);
+        FigureRegistry registry;
+        registry.register_figure(std::make_unique<Figure>());
+        FigureManager mgr(registry);
         state.ResumeTiming();
 
         for (int i = 0; i < static_cast<int>(state.range(0)); ++i)
@@ -426,17 +427,18 @@ BENCHMARK(BM_FigureManager_Create)->Arg(1)->Arg(5)->Arg(20)->Unit(benchmark::kMi
 
 static void BM_FigureManager_SwitchTab(benchmark::State& state)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
+    FigureRegistry registry;
+    registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
     for (int i = 0; i < 10; ++i)
         mgr.create_figure();
 
-    size_t idx = 0;
+    const auto& ids = mgr.figure_ids();
+    size_t pos = 0;
     for (auto _ : state)
     {
-        mgr.switch_to(idx);
-        idx = (idx + 1) % mgr.count();
+        mgr.switch_to(ids[pos]);
+        pos = (pos + 1) % ids.size();
     }
     benchmark::DoNotOptimize(mgr.active_index());
 }
@@ -444,9 +446,9 @@ BENCHMARK(BM_FigureManager_SwitchTab)->Unit(benchmark::kNanosecond);
 
 static void BM_FigureManager_CycleNextPrev(benchmark::State& state)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
+    FigureRegistry registry;
+    registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
     for (int i = 0; i < 10; ++i)
         mgr.create_figure();
 
@@ -463,12 +465,12 @@ static void BM_FigureManager_Duplicate(benchmark::State& state)
     for (auto _ : state)
     {
         state.PauseTiming();
-        std::vector<std::unique_ptr<Figure>> figures;
-        figures.push_back(std::make_unique<Figure>());
-        FigureManager mgr(figures);
+        FigureRegistry registry;
+        FigureId first_id = registry.register_figure(std::make_unique<Figure>());
+        FigureManager mgr(registry);
         state.ResumeTiming();
 
-        mgr.duplicate_figure(0);
+        mgr.duplicate_figure(first_id);
         benchmark::DoNotOptimize(mgr.count());
     }
 }
@@ -476,15 +478,17 @@ BENCHMARK(BM_FigureManager_Duplicate)->Unit(benchmark::kMicrosecond);
 
 static void BM_FigureManager_ProcessPending(benchmark::State& state)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
+    FigureRegistry registry;
+    registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
     for (int i = 0; i < 5; ++i)
         mgr.create_figure();
 
+    const auto& ids = mgr.figure_ids();
+    FigureId target_id = ids.size() > 3 ? ids[3] : ids.back();
     for (auto _ : state)
     {
-        mgr.queue_switch(3);
+        mgr.queue_switch(target_id);
         mgr.process_pending();
     }
     benchmark::DoNotOptimize(mgr.active_index());

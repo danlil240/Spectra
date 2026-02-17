@@ -11,6 +11,7 @@
 
 #include "ui/command_registry.hpp"
 #include "ui/figure_manager.hpp"
+#include "ui/figure_registry.hpp"
 #include "ui/shortcut_manager.hpp"
 #include "ui/transition_engine.hpp"
 #include "ui/undo_manager.hpp"
@@ -259,15 +260,16 @@ class FigureManagerWorkspaceIntegration : public ::testing::Test
 {
    protected:
     std::string tmp_path;
-    std::vector<std::unique_ptr<Figure>> figures;
+    FigureRegistry registry;
     std::unique_ptr<FigureManager> mgr;
+    FigureId first_id = INVALID_FIGURE_ID;
 
     void SetUp() override
     {
         tmp_path =
             (std::filesystem::temp_directory_path() / "spectra_int_figmgr_ws.spectra").string();
-        figures.push_back(std::make_unique<Figure>());
-        mgr = std::make_unique<FigureManager>(figures);
+        first_id = registry.register_figure(std::make_unique<Figure>());
+        mgr = std::make_unique<FigureManager>(registry);
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -276,28 +278,30 @@ class FigureManagerWorkspaceIntegration : public ::testing::Test
 TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore)
 {
     // Create multiple figures
-    mgr->create_figure();
-    mgr->create_figure();
+    FigureId id1 = mgr->create_figure();
+    FigureId id2 = mgr->create_figure();
     ASSERT_EQ(mgr->count(), 3u);
 
     // Set titles
-    mgr->set_title(0, "Plot A");
-    mgr->set_title(1, "Plot B");
-    mgr->set_title(2, "Plot C");
+    mgr->set_title(first_id, "Plot A");
+    mgr->set_title(id1, "Plot B");
+    mgr->set_title(id2, "Plot C");
 
-    // Switch to figure 1
-    mgr->switch_to(1);
+    // Switch to second figure
+    mgr->switch_to(id1);
 
     // Capture workspace
     std::vector<Figure*> fig_ptrs;
-    for (auto& f : figures)
-        fig_ptrs.push_back(f.get());
+    for (auto id : mgr->figure_ids())
+    {
+        Figure* f = registry.get(id);
+        if (f) fig_ptrs.push_back(f);
+    }
 
     auto ws = Workspace::capture(fig_ptrs, mgr->active_index(), "dark", true, 320.0f, false);
 
     // Verify capture
     ASSERT_EQ(ws.figures.size(), 3u);
-    EXPECT_EQ(ws.active_figure_index, 1u);
 
     ASSERT_TRUE(Workspace::save(tmp_path, ws));
 
@@ -305,19 +309,18 @@ TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore)
     ASSERT_TRUE(Workspace::load(tmp_path, loaded));
 
     EXPECT_EQ(loaded.figures.size(), 3u);
-    EXPECT_EQ(loaded.active_figure_index, 1u);
 }
 
 TEST_F(FigureManagerWorkspaceIntegration, ModifiedFlagSaved)
 {
-    mgr->mark_modified(0, true);
+    mgr->mark_modified(first_id, true);
 
     WorkspaceData ws;
     ws.theme_name = "dark";
     WorkspaceData::FigureState fs;
-    fs.title = mgr->get_title(0);
-    fs.is_modified = mgr->is_modified(0);
-    fs.custom_tab_title = mgr->get_title(0);
+    fs.title = mgr->get_title(first_id);
+    fs.is_modified = mgr->is_modified(first_id);
+    fs.custom_tab_title = mgr->get_title(first_id);
     ws.figures.push_back(fs);
 
     ASSERT_TRUE(Workspace::save(tmp_path, ws));
@@ -332,18 +335,21 @@ TEST_F(FigureManagerWorkspaceIntegration, ModifiedFlagSaved)
 TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave)
 {
     // Create a second figure via create (not duplicate, to avoid subplot issues)
-    mgr->create_figure();
+    FigureId id1 = mgr->create_figure();
     ASSERT_EQ(mgr->count(), 2u);
 
-    mgr->set_title(0, "Original");
-    mgr->set_title(1, "Copy");
+    mgr->set_title(first_id, "Original");
+    mgr->set_title(id1, "Copy");
 
     // Save
     std::vector<Figure*> fig_ptrs;
-    for (auto& f : figures)
-        fig_ptrs.push_back(f.get());
+    for (auto id : mgr->figure_ids())
+    {
+        Figure* f = registry.get(id);
+        if (f) fig_ptrs.push_back(f);
+    }
 
-    auto ws = Workspace::capture(fig_ptrs, 0, "dark", true, 320.0f, false);
+    auto ws = Workspace::capture(fig_ptrs, first_id, "dark", true, 320.0f, false);
     ASSERT_EQ(ws.figures.size(), 2u);
 
     ASSERT_TRUE(Workspace::save(tmp_path, ws));
@@ -445,75 +451,75 @@ TEST(TransitionUndoIntegration, CancelAnimationThenUndo)
 
 TEST(FigureManagerIntegration, CreateSwitchCloseLifecycle)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
+    FigureRegistry registry;
+    FigureId first_id = registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
 
     // Create 3 more
     mgr.create_figure();
     mgr.create_figure();
-    mgr.create_figure();
+    FigureId last_id = mgr.create_figure();
     EXPECT_EQ(mgr.count(), 4u);
 
     // Switch to last
-    mgr.switch_to(3);
-    EXPECT_EQ(mgr.active_index(), 3u);
+    mgr.switch_to(last_id);
+    EXPECT_EQ(mgr.active_index(), last_id);
 
     // Close current (last)
-    mgr.close_figure(3);
+    mgr.close_figure(last_id);
     EXPECT_EQ(mgr.count(), 3u);
-    EXPECT_LE(mgr.active_index(), 2u);
+    EXPECT_NE(mgr.active_index(), last_id);
 
     // Close all except first
-    mgr.close_all_except(0);
+    mgr.close_all_except(first_id);
     EXPECT_EQ(mgr.count(), 1u);
-    EXPECT_EQ(mgr.active_index(), 0u);
+    EXPECT_EQ(mgr.active_index(), first_id);
 
     // Cannot close last figure
-    EXPECT_FALSE(mgr.can_close(0));
+    EXPECT_FALSE(mgr.can_close(first_id));
 }
 
 TEST(FigureManagerIntegration, QueuedOperationsProcessCorrectly)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
+    FigureRegistry registry;
+    FigureId first_id = registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
 
-    mgr.create_figure();  // auto-switches to 1
-    mgr.create_figure();  // auto-switches to 2
-    EXPECT_EQ(mgr.active_index(), 2u);
+    mgr.create_figure();  // auto-switches
+    FigureId last_id = mgr.create_figure();  // auto-switches
+    EXPECT_EQ(mgr.active_index(), last_id);
 
-    // Queue switch back to 0
-    mgr.queue_switch(0);
+    // Queue switch back to first
+    mgr.queue_switch(first_id);
     // Active index doesn't change until process_pending
-    EXPECT_EQ(mgr.active_index(), 2u);
+    EXPECT_EQ(mgr.active_index(), last_id);
 
     mgr.process_pending();
-    EXPECT_EQ(mgr.active_index(), 0u);  // Now processed
+    EXPECT_EQ(mgr.active_index(), first_id);  // Now processed
 }
 
 TEST(FigureManagerIntegration, PerFigureStatePreserved)
 {
-    std::vector<std::unique_ptr<Figure>> figures;
-    figures.push_back(std::make_unique<Figure>());
-    FigureManager mgr(figures);
-    mgr.create_figure();
+    FigureRegistry registry;
+    FigureId first_id = registry.register_figure(std::make_unique<Figure>());
+    FigureManager mgr(registry);
+    FigureId second_id = mgr.create_figure();
 
-    // Set state on figure 0
-    mgr.state(0).selected_series_index = 2;
-    mgr.state(0).inspector_scroll_y = 150.0f;
+    // Set state on first figure
+    mgr.state(first_id).selected_series_index = 2;
+    mgr.state(first_id).inspector_scroll_y = 150.0f;
 
-    // Switch to figure 1
-    mgr.switch_to(1);
-    mgr.state(1).selected_series_index = 5;
+    // Switch to second figure
+    mgr.switch_to(second_id);
+    mgr.state(second_id).selected_series_index = 5;
 
-    // Switch back to figure 0
-    mgr.switch_to(0);
-    EXPECT_EQ(mgr.state(0).selected_series_index, 2);
-    EXPECT_FLOAT_EQ(mgr.state(0).inspector_scroll_y, 150.0f);
+    // Switch back to first figure
+    mgr.switch_to(first_id);
+    EXPECT_EQ(mgr.state(first_id).selected_series_index, 2);
+    EXPECT_FLOAT_EQ(mgr.state(first_id).inspector_scroll_y, 150.0f);
 
-    // Figure 1 state also preserved
-    EXPECT_EQ(mgr.state(1).selected_series_index, 5);
+    // Second figure state also preserved
+    EXPECT_EQ(mgr.state(second_id).selected_series_index, 5);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

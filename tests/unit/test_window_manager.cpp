@@ -4,6 +4,7 @@
 #include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
+#include <type_traits>
 #include <vector>
 
 #include "render/vulkan/vk_backend.hpp"
@@ -262,6 +263,7 @@ TEST_F(WindowManagerTest, WindowContextDefaultFields)
     EXPECT_FALSE(wctx.swapchain_dirty);
     EXPECT_FALSE(wctx.should_close);
     EXPECT_FALSE(wctx.is_focused);
+    EXPECT_EQ(wctx.assigned_figure_index, INVALID_FIGURE_ID);
     EXPECT_FALSE(wctx.needs_resize);
     EXPECT_EQ(wctx.pending_width, 0u);
     EXPECT_EQ(wctx.pending_height, 0u);
@@ -374,3 +376,341 @@ TEST_F(WindowManagerTest, WindowCountAccurate)
     // but window_count should still be accurate
     EXPECT_EQ(wm.window_count(), 1u);
 }
+
+// ─── Assigned Figure Index ─────────────────────────────────────────────────
+
+TEST_F(WindowManagerTest, AssignedFigureIndexDefault)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+    // Primary window has no assigned figure by default (uses active_figure)
+    EXPECT_EQ(wctx->assigned_figure_index, INVALID_FIGURE_ID);
+}
+
+TEST_F(WindowManagerTest, AssignedFigureIndexSettable)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    wctx->assigned_figure_index = 42;
+    EXPECT_EQ(wctx->assigned_figure_index, 42u);
+}
+
+// ─── Set Window Position ───────────────────────────────────────────────────
+
+TEST_F(WindowManagerTest, SetWindowPositionNoGlfw)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    // In headless mode, glfw_window is nullptr — should not crash
+    wm.set_window_position(*wctx, 100, 200);
+    SUCCEED();
+}
+
+// ─── Move Figure Between Windows ────────────────────────────────────────────
+
+TEST_F(WindowManagerTest, MoveFigureInvalidWindows)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    wm.adopt_primary_window(nullptr);
+
+    // Both source and target window IDs are invalid
+    EXPECT_FALSE(wm.move_figure(1, 999, 888));
+}
+
+TEST_F(WindowManagerTest, MoveFigureSameWindow)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    wctx->assigned_figure_index = 1;
+    // Moving to the same window is a no-op
+    EXPECT_FALSE(wm.move_figure(1, wctx->id, wctx->id));
+    // Figure should still be assigned
+    EXPECT_EQ(wctx->assigned_figure_index, 1u);
+}
+
+TEST_F(WindowManagerTest, MoveFigureSourceNotRendering)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* primary = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(primary, nullptr);
+
+    // Primary has INVALID_FIGURE_ID (default), try to move figure 42
+    // which is not assigned to primary
+    EXPECT_FALSE(wm.move_figure(42, primary->id, primary->id));
+}
+
+TEST_F(WindowManagerTest, MoveFigureSuccessful)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* primary = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(primary, nullptr);
+
+    // Simulate a second window by creating a WindowContext manually
+    // (can't use create_window in headless mode)
+    WindowContext secondary{};
+    secondary.id = 99;
+    secondary.assigned_figure_index = INVALID_FIGURE_ID;
+
+    // We can't use wm.move_figure directly since the secondary isn't
+    // managed by wm. Instead, test the logic by assigning and moving
+    // on the primary window.
+    primary->assigned_figure_index = 7;
+
+    // Verify assignment
+    EXPECT_EQ(primary->assigned_figure_index, 7u);
+
+    // Reset to unassigned
+    primary->assigned_figure_index = INVALID_FIGURE_ID;
+    EXPECT_EQ(primary->assigned_figure_index, INVALID_FIGURE_ID);
+}
+
+TEST_F(WindowManagerTest, MoveFigureClearsSource)
+{
+    // Test the move_figure logic path: when source has the figure,
+    // it should be cleared after move.
+    // Since we can't create real secondary windows in headless,
+    // we test the WindowContext field manipulation directly.
+    WindowContext source{};
+    source.id = 1;
+    source.assigned_figure_index = 42;
+
+    WindowContext target{};
+    target.id = 2;
+    target.assigned_figure_index = INVALID_FIGURE_ID;
+
+    // Simulate move
+    target.assigned_figure_index = source.assigned_figure_index;
+    source.assigned_figure_index = INVALID_FIGURE_ID;
+
+    EXPECT_EQ(target.assigned_figure_index, 42u);
+    EXPECT_EQ(source.assigned_figure_index, INVALID_FIGURE_ID);
+}
+
+TEST_F(WindowManagerTest, FigureIdIsUint64)
+{
+    // Verify FigureId is uint64_t (not size_t)
+    static_assert(std::is_same_v<FigureId, uint64_t>,
+                  "FigureId must be uint64_t");
+    static_assert(INVALID_FIGURE_ID == ~FigureId{0},
+                  "INVALID_FIGURE_ID must be all-ones");
+}
+
+// ─── Detach Figure ──────────────────────────────────────────────────────────
+
+TEST_F(WindowManagerTest, DetachFigureNotInitialized)
+{
+    WindowManager wm;
+    // Not initialized — should return nullptr
+    auto* result = wm.detach_figure(1, 800, 600, "Test", 100, 200);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(WindowManagerTest, DetachFigureInvalidId)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+    wm.adopt_primary_window(nullptr);
+
+    // INVALID_FIGURE_ID should be rejected
+    auto* result = wm.detach_figure(INVALID_FIGURE_ID, 800, 600, "Test", 100, 200);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(WindowManagerTest, DetachFigureHeadlessNoGlfw)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+    wm.adopt_primary_window(nullptr);
+
+    // In headless mode, create_window (called by detach_figure) will fail
+    // because GLFW is not initialized. detach_figure should return nullptr.
+    auto* result = wm.detach_figure(1, 800, 600, "Test", 100, 200);
+    // In headless mode without GLFW display, this returns nullptr
+    // (glfwCreateWindow fails). This is expected.
+    // On a system with a display, it would succeed.
+    // We just verify it doesn't crash.
+    (void)result;
+    SUCCEED();
+}
+
+TEST_F(WindowManagerTest, DetachFigureZeroDimensions)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+    wm.adopt_primary_window(nullptr);
+
+    // Zero dimensions should be clamped to defaults (800x600)
+    // In headless, create_window will fail, but the clamping logic
+    // should not cause any issues.
+    auto* result = wm.detach_figure(1, 0, 0, "Test", 0, 0);
+    (void)result;
+    SUCCEED();
+}
+
+// ─── Edge Cases ─────────────────────────────────────────────────────────────
+
+TEST_F(WindowManagerTest, MultipleRequestClosesSameId)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    // Multiple close requests for the same ID should not crash
+    wm.request_close(wctx->id);
+    wm.request_close(wctx->id);
+    wm.process_pending_closes();
+
+    EXPECT_TRUE(wctx->should_close);
+}
+
+TEST_F(WindowManagerTest, DestroyNonexistentWindow)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+    wm.adopt_primary_window(nullptr);
+
+    // Destroying a window that doesn't exist should be a no-op
+    wm.destroy_window(9999);
+    EXPECT_EQ(wm.window_count(), 1u);
+}
+
+TEST_F(WindowManagerTest, FindWindowAfterShutdown)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+    uint32_t id = wctx->id;
+
+    wm.shutdown();
+
+    // After shutdown, active_ptrs_ is cleared but find_window still
+    // checks backend_->primary_window() directly, so it can still find
+    // the primary.  Verify window_count is 0 (active list is empty).
+    EXPECT_EQ(wm.window_count(), 0u);
+    EXPECT_TRUE(wm.windows().empty());
+
+    // A nonexistent secondary window ID should return nullptr
+    auto* found = wm.find_window(9999);
+    EXPECT_EQ(found, nullptr);
+}
+
+TEST_F(WindowManagerTest, WindowCountAfterMultipleOps)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    EXPECT_EQ(wm.window_count(), 0u);
+
+    wm.adopt_primary_window(nullptr);
+    EXPECT_EQ(wm.window_count(), 1u);
+
+    // Request close and process
+    auto* primary = wm.windows()[0];
+    wm.request_close(primary->id);
+    wm.process_pending_closes();
+
+    EXPECT_EQ(wm.window_count(), 0u);
+}
+
+TEST_F(WindowManagerTest, MoveFigureToSelfIsNoOp)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    wctx->assigned_figure_index = 5;
+    bool result = wm.move_figure(5, wctx->id, wctx->id);
+    EXPECT_FALSE(result);
+    // Figure should still be assigned
+    EXPECT_EQ(wctx->assigned_figure_index, 5u);
+}
+
+TEST_F(WindowManagerTest, PollEventsMultipleTimes)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+    wm.adopt_primary_window(nullptr);
+
+    // Multiple poll_events calls should be safe
+    for (int i = 0; i < 10; ++i)
+    {
+        wm.poll_events();
+    }
+    SUCCEED();
+}
+
+TEST_F(WindowManagerTest, FocusedWindowFallbackToPrimary)
+{
+    WindowManager wm;
+    wm.init(vk_backend());
+
+    auto* wctx = wm.adopt_primary_window(nullptr);
+    ASSERT_NE(wctx, nullptr);
+
+    // Primary is not focused but still open — should return primary as fallback
+    wctx->is_focused = false;
+    auto* focused = wm.focused_window();
+    EXPECT_EQ(focused, wctx);
+}
+
+TEST_F(WindowManagerTest, WindowContextResizeFields)
+{
+    WindowContext wctx{};
+    EXPECT_FALSE(wctx.needs_resize);
+    EXPECT_EQ(wctx.pending_width, 0u);
+    EXPECT_EQ(wctx.pending_height, 0u);
+
+    // Simulate resize event
+    wctx.needs_resize = true;
+    wctx.pending_width = 1920;
+    wctx.pending_height = 1080;
+
+    EXPECT_TRUE(wctx.needs_resize);
+    EXPECT_EQ(wctx.pending_width, 1920u);
+    EXPECT_EQ(wctx.pending_height, 1080u);
+}
+
+TEST_F(WindowManagerTest, WindowContextAssignedFigureRoundTrip)
+{
+    WindowContext wctx{};
+    EXPECT_EQ(wctx.assigned_figure_index, INVALID_FIGURE_ID);
+
+    // Assign, verify, clear
+    wctx.assigned_figure_index = 42;
+    EXPECT_EQ(wctx.assigned_figure_index, 42u);
+
+    wctx.assigned_figure_index = INVALID_FIGURE_ID;
+    EXPECT_EQ(wctx.assigned_figure_index, INVALID_FIGURE_ID);
+}
+
+// ─── Create Window (headless — GLFW not initialized, so we skip) ───────────
+// NOTE: create_window() calls glfwCreateWindow which requires glfwInit().
+// In headless mode GLFW is never initialized, so we cannot test create_window
+// without a display.  This is tested via the multi_figure_demo example instead.

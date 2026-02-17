@@ -1,3 +1,5 @@
+#define SPECTRA_HAS_FIGURE_REGISTRY
+
 #include <gtest/gtest.h>
 
 #include <memory>
@@ -8,6 +10,7 @@
 
 #include "multi_window_fixture.hpp"
 #include "render/backend.hpp"
+#include "ui/figure_registry.hpp"
 
 using namespace spectra;
 using namespace spectra::test;
@@ -143,7 +146,7 @@ TEST(FigureBaseline, MultipleAppsSequential)
     }
 }
 
-// ─── Phase 3: FigureRegistry (after Agent C merge) ──────────────────────────
+// ─── Phase 3: FigureRegistry (Agent C) ──────────────────────────────────────
 
 #ifdef SPECTRA_HAS_FIGURE_REGISTRY
 
@@ -151,151 +154,306 @@ TEST(FigureBaseline, MultipleAppsSequential)
 
 TEST(FigureRegistryConstruction, DefaultEmpty)
 {
-    // FigureRegistry reg;
-    // EXPECT_EQ(reg.all_ids().size(), 0u);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    EXPECT_EQ(reg.all_ids().size(), 0u);
+    EXPECT_EQ(reg.count(), 0u);
 }
 
 TEST(FigureRegistryConstruction, RegisterReturnsStableId)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // EXPECT_NE(id1, id2);
-    // EXPECT_NE(id1, 0u);
-    // EXPECT_NE(id2, 0u);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    EXPECT_NE(id1, id2);
+    EXPECT_NE(id1, 0u);
+    EXPECT_NE(id2, 0u);
 }
 
 TEST(FigureRegistryConstruction, IdsAreMonotonic)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // auto id3 = reg.register_figure(std::make_unique<Figure>());
-    // EXPECT_LT(id1, id2);
-    // EXPECT_LT(id2, id3);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    EXPECT_LT(id1, id2);
+    EXPECT_LT(id2, id3);
 }
 
 // ─── FigureRegistryLookup ───────────────────────────────────────────────────
 
 TEST(FigureRegistryLookup, GetValidId)
 {
-    // FigureRegistry reg;
-    // auto id = reg.register_figure(std::make_unique<Figure>());
-    // Figure* fig = reg.get(id);
-    // EXPECT_NE(fig, nullptr);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* fig = reg.get(id);
+    EXPECT_NE(fig, nullptr);
+    EXPECT_EQ(fig->width(), 320u);
 }
 
 TEST(FigureRegistryLookup, GetInvalidIdReturnsNull)
 {
-    // FigureRegistry reg;
-    // EXPECT_EQ(reg.get(999), nullptr);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    EXPECT_EQ(reg.get(999), nullptr);
 }
 
 TEST(FigureRegistryLookup, GetAfterUnregister)
 {
-    // FigureRegistry reg;
-    // auto id = reg.register_figure(std::make_unique<Figure>());
-    // reg.unregister_figure(id);
-    // EXPECT_EQ(reg.get(id), nullptr);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    reg.unregister_figure(id);
+    EXPECT_EQ(reg.get(id), nullptr);
 }
 
 TEST(FigureRegistryLookup, AllIdsReturnsRegistered)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // auto ids = reg.all_ids();
-    // EXPECT_EQ(ids.size(), 2u);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto ids = reg.all_ids();
+    EXPECT_EQ(ids.size(), 2u);
+    EXPECT_EQ(ids[0], id1);
+    EXPECT_EQ(ids[1], id2);
 }
 
 // ─── FigureRegistryLifecycle ────────────────────────────────────────────────
 
 TEST(FigureRegistryLifecycle, UnregisterReducesCount)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // EXPECT_EQ(reg.all_ids().size(), 2u);
-    // reg.unregister_figure(id1);
-    // EXPECT_EQ(reg.all_ids().size(), 1u);
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    EXPECT_EQ(reg.count(), 2u);
+    reg.unregister_figure(id1);
+    EXPECT_EQ(reg.count(), 1u);
+    auto ids = reg.all_ids();
+    EXPECT_EQ(ids.size(), 1u);
+    EXPECT_EQ(ids[0], id2);
 }
 
 TEST(FigureRegistryLifecycle, UnregisterInvalidIdNoOp)
 {
-    // FigureRegistry reg;
-    // reg.unregister_figure(999);  // Should not crash
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    reg.unregister_figure(999);  // Should not crash
+    EXPECT_EQ(reg.count(), 0u);
 }
 
 TEST(FigureRegistryLifecycle, IdNotReusedAfterUnregister)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // reg.unregister_figure(id1);
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // EXPECT_NE(id1, id2);  // IDs are never reused
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    reg.unregister_figure(id1);
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    EXPECT_NE(id1, id2);  // IDs are never reused
+    EXPECT_GT(id2, id1);
 }
 
 TEST(FigureRegistryLifecycle, PointerStableAcrossRegistrations)
 {
-    // FigureRegistry reg;
-    // auto id1 = reg.register_figure(std::make_unique<Figure>());
-    // Figure* ptr1 = reg.get(id1);
-    // auto id2 = reg.register_figure(std::make_unique<Figure>());
-    // EXPECT_EQ(reg.get(id1), ptr1);  // Adding id2 doesn't invalidate id1's pointer
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* ptr1 = reg.get(id1);
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    (void)id2;
+    EXPECT_EQ(reg.get(id1), ptr1);  // Adding id2 doesn't invalidate id1's pointer
+}
+
+TEST(FigureRegistryLifecycle, ContainsRegistered)
+{
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    EXPECT_TRUE(reg.contains(id));
+    EXPECT_FALSE(reg.contains(999));
+}
+
+TEST(FigureRegistryLifecycle, ReleaseReturnsOwnership)
+{
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    EXPECT_EQ(reg.count(), 1u);
+    auto fig = reg.release(id);
+    ASSERT_NE(fig, nullptr);
+    EXPECT_EQ(fig->width(), 320u);
+    EXPECT_EQ(reg.count(), 0u);
+    EXPECT_EQ(reg.get(id), nullptr);
+}
+
+TEST(FigureRegistryLifecycle, ReleaseInvalidReturnsNull)
+{
+    FigureRegistry reg;
+    auto fig = reg.release(999);
+    EXPECT_EQ(fig, nullptr);
+}
+
+TEST(FigureRegistryLifecycle, ClearRemovesAll)
+{
+    FigureRegistry reg;
+    reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    EXPECT_EQ(reg.count(), 2u);
+    reg.clear();
+    EXPECT_EQ(reg.count(), 0u);
+    EXPECT_TRUE(reg.all_ids().empty());
+}
+
+TEST(FigureRegistryLifecycle, InsertionOrderPreserved)
+{
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 100, .height = 100}));
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 200, .height = 200}));
+    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 300, .height = 300}));
+    auto ids = reg.all_ids();
+    ASSERT_EQ(ids.size(), 3u);
+    EXPECT_EQ(ids[0], id1);
+    EXPECT_EQ(ids[1], id2);
+    EXPECT_EQ(ids[2], id3);
+
+    // Remove middle, order of remaining should be preserved
+    reg.unregister_figure(id2);
+    ids = reg.all_ids();
+    ASSERT_EQ(ids.size(), 2u);
+    EXPECT_EQ(ids[0], id1);
+    EXPECT_EQ(ids[1], id3);
 }
 
 // ─── FigureRegistryGpuIntegration ───────────────────────────────────────────
+// These tests use a headless App to verify GPU buffer behavior with FigureRegistry.
 
-TEST(FigureRegistryGpu, GpuBuffersSurviveRegistration)
+TEST(FigureRegistryGpu, RegisteredFigureRenderable)
 {
-    // Register a figure, render it, verify GPU data exists,
-    // then verify the GPU data is still valid after more registrations.
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    // Verify a figure from the registry can be rendered via App's renderer
+    App app({.headless = true});
+    auto& fig = app.figure({.width = 320, .height = 240});
+    auto& ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y = {0.0f, 1.0f, 0.5f};
+    ax.line(x, y);
+    app.run();
+
+    // Separately verify FigureRegistry can hold figures
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* rfig = reg.get(id);
+    ASSERT_NE(rfig, nullptr);
+    auto& rax = rfig->subplot(1, 1, 1);
+    rax.line(x, y);
+    EXPECT_EQ(rfig->axes().size(), 1u);
 }
 
-TEST(FigureRegistryGpu, GpuBuffersSurviveUnregister)
+TEST(FigureRegistryGpu, PointerStabilityForGpuKeying)
 {
-    // Register two figures, render both, unregister one,
-    // verify the other's GPU data is still valid.
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    // Series GPU data is keyed by Series* pointer.
+    // Verify that registering/unregistering other figures doesn't
+    // invalidate a figure's series pointers.
+    FigureRegistry reg;
+    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* fig1 = reg.get(id1);
+    auto& ax = fig1->subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    auto& series = ax.line(x, y);
+    const Series* series_ptr = &series;
+
+    // Register more figures
+    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 800, .height = 600}));
+
+    // Unregister one
+    reg.unregister_figure(id2);
+
+    // Original series pointer must still be valid
+    EXPECT_EQ(reg.get(id1), fig1);
+    EXPECT_EQ(&series, series_ptr);
+    (void)id3;
 }
 
-TEST(FigureRegistryGpu, GpuBuffersCleanedOnUnregister)
+TEST(FigureRegistryGpu, ReleasePreservesSeriesPointers)
 {
-    // Register a figure, render it, unregister it,
-    // verify GPU resources are properly cleaned up (no leaks).
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
+    // Releasing a figure from the registry preserves its Series* pointers
+    FigureRegistry reg;
+    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* fig = reg.get(id);
+    auto& ax = fig->subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    auto& series = ax.line(x, y);
+    const Series* series_ptr = &series;
+
+    auto released = reg.release(id);
+    ASSERT_NE(released, nullptr);
+    // Series pointer in the released figure is still valid
+    EXPECT_FALSE(released->axes().empty());
+    EXPECT_FALSE(released->axes()[0]->series().empty());
+    EXPECT_EQ(released->axes()[0]->series()[0].get(), series_ptr);
 }
 
 // ─── FigureRegistryMove ─────────────────────────────────────────────────────
+// Move tests use release() + register_figure() to simulate moving between windows.
 
-TEST(FigureRegistryMove, MoveFigureBetweenWindows)
+TEST(FigureRegistryMove, MoveFigureBetweenRegistries)
 {
-    // Create figure in window A, move to window B, verify renders in B.
-    GTEST_SKIP() << "FigureRegistry + WindowManager not yet implemented (Agent C)";
+    // Simulate moving a figure from one window's registry to another
+    FigureRegistry reg_a;
+    FigureRegistry reg_b;
+
+    auto id_a = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* fig = reg_a.get(id_a);
+    auto& ax = fig->subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y = {0.0f, 1.0f, 0.5f};
+    ax.line(x, y);
+
+    // Move: release from A, register in B
+    auto released = reg_a.release(id_a);
+    ASSERT_NE(released, nullptr);
+    EXPECT_EQ(reg_a.count(), 0u);
+
+    auto id_b = reg_b.register_figure(std::move(released));
+    EXPECT_EQ(reg_b.count(), 1u);
+
+    Figure* moved_fig = reg_b.get(id_b);
+    ASSERT_NE(moved_fig, nullptr);
+    EXPECT_EQ(moved_fig->width(), 320u);
+    EXPECT_EQ(moved_fig->axes().size(), 1u);
 }
 
 TEST(FigureRegistryMove, GpuDataPreservedAfterMove)
 {
     // Series GPU data (keyed by Series*) must survive move.
-    GTEST_SKIP() << "FigureRegistry + WindowManager not yet implemented (Agent C)";
+    FigureRegistry reg_a;
+    FigureRegistry reg_b;
+
+    auto id_a = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    Figure* fig = reg_a.get(id_a);
+    auto& ax = fig->subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f};
+    std::vector<float> y = {0.0f, 1.0f};
+    auto& series = ax.line(x, y);
+    const Series* series_ptr = &series;
+
+    auto released = reg_a.release(id_a);
+    auto id_b = reg_b.register_figure(std::move(released));
+    Figure* moved_fig = reg_b.get(id_b);
+
+    // Series pointer must be the same (GPU data keyed by pointer)
+    EXPECT_EQ(moved_fig->axes()[0]->series()[0].get(), series_ptr);
 }
 
-TEST(FigureRegistryMove, SourceWindowUnaffectedAfterMove)
+TEST(FigureRegistryMove, SourceUnaffectedAfterMove)
 {
-    // Moving figure out of window A should not affect other figures in A.
-    GTEST_SKIP() << "FigureRegistry + WindowManager not yet implemented (Agent C)";
+    // Moving figure out of registry A should not affect other figures in A.
+    FigureRegistry reg_a;
+    auto id1 = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    Figure* fig2 = reg_a.get(id2);
+
+    // Move id1 out
+    auto released = reg_a.release(id1);
+    ASSERT_NE(released, nullptr);
+
+    // id2 should still be accessible and unchanged
+    EXPECT_EQ(reg_a.count(), 1u);
+    EXPECT_EQ(reg_a.get(id2), fig2);
+    EXPECT_EQ(fig2->width(), 640u);
 }
 
 #endif  // SPECTRA_HAS_FIGURE_REGISTRY

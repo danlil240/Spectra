@@ -1,17 +1,15 @@
 #pragma once
 
-#include <cstddef>
+#include <cstdint>
 
 namespace spectra
 {
 
-// Stable figure identifier. Currently a size_t (positional index) as a
-// migration shim.  Agent C (full) will upgrade this to uint64_t backed by
-// FigureRegistry with monotonic IDs.
-using FigureId = size_t;
+// Stable figure identifier backed by FigureRegistry with monotonic IDs.
+using FigureId = uint64_t;
 
 // Sentinel value for "no figure" / invalid figure id.
-inline constexpr FigureId INVALID_FIGURE_ID = static_cast<FigureId>(-1);
+inline constexpr FigureId INVALID_FIGURE_ID = ~FigureId{0};
 
 class App;
 class Figure;
@@ -72,6 +70,7 @@ class CameraAnimator;
 class ModeTransition;
 
 class WindowManager;
+class FigureRegistry;
 
 class ImageExporter;
 class SvgExporter;

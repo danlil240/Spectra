@@ -116,8 +116,8 @@ App::~App()
 
 Figure& App::figure(const FigureConfig& config)
 {
-    figures_.push_back(std::make_unique<Figure>(config));
-    return *figures_.back();
+    auto id = registry_.register_figure(std::make_unique<Figure>(config));
+    return *registry_.get(id);
 }
 
 void App::run()
@@ -128,14 +128,15 @@ void App::run()
         return;
     }
 
-    if (figures_.empty())
+    if (registry_.count() == 0)
     {
         return;
     }
 
     // Multi-figure support - track active figure
-    size_t active_figure_index = 0;
-    Figure* active_figure = figures_[active_figure_index].get();
+    auto all_ids = registry_.all_ids();
+    FigureId active_figure_id = all_ids[0];
+    Figure* active_figure = registry_.get(active_figure_id);
 
     CommandQueue cmd_queue;
     FrameScheduler scheduler(active_figure->anim_fps_);
@@ -145,19 +146,20 @@ void App::run()
     bool running = true;
     float anim_time = 0.0f;  // Animation time accumulator (independent of wall-clock)
 
-    auto switch_active_figure = [&](size_t new_index
+    auto switch_active_figure = [&](FigureId new_id
 #ifdef SPECTRA_USE_GLFW
                                     ,
                                     InputHandler* input_handler
 #endif
                                 )
     {
-        if (new_index >= figures_.size())
+        Figure* fig = registry_.get(new_id);
+        if (!fig)
         {
             return;
         }
-        active_figure_index = new_index;
-        active_figure = figures_[active_figure_index].get();
+        active_figure_id = new_id;
+        active_figure = fig;
         scheduler.set_target_fps(active_figure->anim_fps_);
         has_animation = static_cast<bool>(active_figure->anim_on_frame_);
 #ifdef SPECTRA_USE_GLFW
@@ -222,7 +224,7 @@ void App::run()
     BoxZoomOverlay box_zoom_overlay;
 
     // Agent A Week 6: FigureManager for multi-figure lifecycle
-    FigureManager fig_mgr(figures_);
+    FigureManager fig_mgr(registry_);
 
     // Agent A Week 9: Dock system for split views
     DockSystem dock_system;
@@ -362,9 +364,10 @@ void App::run()
                             root->find_at_point(static_cast<float>(x), static_cast<float>(y));
                         if (pane && pane->is_leaf())
                         {
-                            size_t fi = pane->figure_index();
-                            if (fi < figures_.size() && figures_[fi])
-                                input_handler.set_figure(figures_[fi].get());
+                            FigureId fi = pane->figure_index();
+                            Figure* pfig = registry_.get(fi);
+                            if (pfig)
+                                input_handler.set_figure(pfig);
                         }
                     }
                 }
@@ -412,9 +415,10 @@ void App::run()
                             root->find_at_point(static_cast<float>(x), static_cast<float>(y));
                         if (pane && pane->is_leaf())
                         {
-                            size_t fi = pane->figure_index();
-                            if (fi < figures_.size() && figures_[fi])
-                                input_handler.set_figure(figures_[fi].get());
+                            FigureId fi = pane->figure_index();
+                            Figure* pfig = registry_.get(fi);
+                            if (pfig)
+                                input_handler.set_figure(pfig);
                         }
                     }
                 }
@@ -457,9 +461,10 @@ void App::run()
                             root->find_at_point(static_cast<float>(cx), static_cast<float>(cy));
                         if (pane && pane->is_leaf())
                         {
-                            size_t fi = pane->figure_index();
-                            if (fi < figures_.size() && figures_[fi])
-                                input_handler.set_figure(figures_[fi].get());
+                            FigureId fi = pane->figure_index();
+                            Figure* pfig = registry_.get(fi);
+                            if (pfig)
+                                input_handler.set_figure(pfig);
                         }
                     }
                 }
@@ -526,9 +531,8 @@ void App::run()
                         auto pane_infos = dock_system.get_pane_infos();
                         for (const auto& pinfo : pane_infos)
                         {
-                            if (pinfo.figure_index < figures_.size())
                             {
-                                auto* fig = figures_[pinfo.figure_index].get();
+                                auto* fig = registry_.get(pinfo.figure_index);
                                 if (!fig)
                                     continue;
                                 Margins pm;
@@ -651,88 +655,55 @@ void App::run()
         // Tab context menu: Split Right / Split Down
         // Duplicates the clicked figure into a new pane
         figure_tabs->set_tab_split_right_callback(
-            [&dock_system, &fig_mgr, this](size_t index)
+            [&dock_system, &fig_mgr, this](FigureId index)
             {
-                if (index >= figures_.size())
+                if (!registry_.get(index))
                     return;
                 // Duplicate the figure to get a new copy for the split pane
-                size_t new_fig = fig_mgr.duplicate_figure(index);
-                if (new_fig == SIZE_MAX)
+                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == INVALID_FIGURE_ID)
                     return;
                 dock_system.split_figure_right(index, new_fig);
                 dock_system.set_active_figure_index(index);
             });
 
         figure_tabs->set_tab_split_down_callback(
-            [&dock_system, &fig_mgr, this](size_t index)
+            [&dock_system, &fig_mgr, this](FigureId index)
             {
-                if (index >= figures_.size())
+                if (!registry_.get(index))
                     return;
                 // Duplicate the figure to get a new copy for the split pane
-                size_t new_fig = fig_mgr.duplicate_figure(index);
-                if (new_fig == SIZE_MAX)
+                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == INVALID_FIGURE_ID)
                     return;
                 dock_system.split_figure_down(index, new_fig);
                 dock_system.set_active_figure_index(index);
             });
 
         // Tab detach: drag tab outside window or context menu "Detach to Window"
-        // Serializes figure state to a temp file and spawns a new process
+        // Creates a new OS window via WindowManager and renders the figure there.
         figure_tabs->set_tab_detach_callback(
-            [&fig_mgr, &imgui_ui, this](size_t index, float screen_x, float screen_y)
+            [&figure_tabs, &window_mgr, this](FigureId index, float screen_x, float screen_y)
             {
-                if (index >= figures_.size() || figures_.size() <= 1)
+                if (!window_mgr)
                     return;
 
-                // Serialize the single figure into a minimal workspace file
-                std::vector<Figure*> single_fig = {figures_[index].get()};
-                auto data = Workspace::capture(single_fig,
-                                               0,
-                                               ui::ThemeManager::instance().current_theme_name(),
-                                               imgui_ui ? imgui_ui->get_layout_manager().is_inspector_visible() : true,
-                                               imgui_ui ? imgui_ui->get_layout_manager().inspector_width() : 320.0f,
-                                               imgui_ui ? imgui_ui->get_layout_manager().is_nav_rail_expanded() : false);
-
-                // Write to a temp file
-                std::string tmp_dir;
-                try { tmp_dir = std::filesystem::temp_directory_path().string(); }
-                catch (...) { tmp_dir = "/tmp"; }
-                std::string detach_path = tmp_dir + "/spectra_detach_"
-                    + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
-                    + ".spectra";
-
-                if (!Workspace::save(detach_path, data))
-                {
-                    SPECTRA_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                auto* fig = registry_.get(index);
+                if (!fig)
                     return;
-                }
 
-                // Get the executable path
-                std::string exe_path;
-                try { exe_path = std::filesystem::read_symlink("/proc/self/exe").string(); }
-                catch (...) { exe_path = "/proc/self/exe"; }
+                // Don't detach the last figure — window must have ≥1
+                if (registry_.count() <= 1)
+                    return;
 
-                // Spawn a new process with the detached workspace
-                std::string cmd = "\"" + exe_path + "\""
-                    + " --spectra-restore=\"" + detach_path + "\""
-                    + " --spectra-window-x=" + std::to_string(static_cast<int>(screen_x))
-                    + " --spectra-window-y=" + std::to_string(static_cast<int>(screen_y))
-                    + " &";
+                uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
+                uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
+                std::string title = (figure_tabs && index < figure_tabs->get_tab_count())
+                    ? figure_tabs->get_tab_title(index)
+                    : ("Figure " + std::to_string(index + 1));
 
-                SPECTRA_LOG_INFO("app",
-                                "Detaching tab " + std::to_string(index) + " to new window at ("
-                                    + std::to_string(screen_x) + ", " + std::to_string(screen_y)
-                                    + ") cmd: " + cmd);
-
-                int ret = std::system(cmd.c_str());
-                if (ret != 0)
-                {
-                    SPECTRA_LOG_WARN("app", "Failed to spawn detached window (exit code "
-                                    + std::to_string(ret) + "). Workspace saved at: " + detach_path);
-                }
-
-                // Remove the figure from the current window
-                fig_mgr.close_figure(index);
+                window_mgr->detach_figure(index, win_w, win_h, title,
+                    static_cast<int>(screen_x), static_cast<int>(screen_y));
             });
 
         // Tab drag-to-dock: when a tab is dragged vertically out of the tab bar,
@@ -798,78 +769,53 @@ void App::run()
 
         // Wire pane tab context menu callbacks
         imgui_ui->set_pane_tab_duplicate_cb(
-            [&fig_mgr](size_t index) { fig_mgr.duplicate_figure(index); });
+            [&fig_mgr](FigureId index) { fig_mgr.duplicate_figure(index); });
 
         imgui_ui->set_pane_tab_close_cb(
-            [&fig_mgr](size_t index) { fig_mgr.queue_close(index); });
+            [&fig_mgr](FigureId index) { fig_mgr.queue_close(index); });
 
         imgui_ui->set_pane_tab_split_right_cb(
-            [&dock_system, &fig_mgr](size_t index)
+            [&dock_system, &fig_mgr](FigureId index)
             {
-                size_t new_fig = fig_mgr.duplicate_figure(index);
-                if (new_fig == SIZE_MAX)
+                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == INVALID_FIGURE_ID)
                     return;
                 dock_system.split_figure_right(index, new_fig);
                 dock_system.set_active_figure_index(index);
             });
 
         imgui_ui->set_pane_tab_split_down_cb(
-            [&dock_system, &fig_mgr](size_t index)
+            [&dock_system, &fig_mgr](FigureId index)
             {
-                size_t new_fig = fig_mgr.duplicate_figure(index);
-                if (new_fig == SIZE_MAX)
+                FigureId new_fig = fig_mgr.duplicate_figure(index);
+                if (new_fig == INVALID_FIGURE_ID)
                     return;
                 dock_system.split_figure_down(index, new_fig);
                 dock_system.set_active_figure_index(index);
             });
 
         imgui_ui->set_pane_tab_detach_cb(
-            [&imgui_ui, this](size_t index, float screen_x, float screen_y)
+            [&figure_tabs, &window_mgr, this](FigureId index, float screen_x, float screen_y)
             {
-                if (index >= figures_.size() || figures_.size() <= 1)
+                if (!window_mgr)
                     return;
 
-                std::vector<Figure*> single_fig = {figures_[index].get()};
-                auto data = Workspace::capture(single_fig,
-                                               0,
-                                               ui::ThemeManager::instance().current_theme_name(),
-                                               imgui_ui ? imgui_ui->get_layout_manager().is_inspector_visible() : true,
-                                               imgui_ui ? imgui_ui->get_layout_manager().inspector_width() : 320.0f,
-                                               imgui_ui ? imgui_ui->get_layout_manager().is_nav_rail_expanded() : false);
-
-                std::string tmp_dir;
-                try { tmp_dir = std::filesystem::temp_directory_path().string(); }
-                catch (...) { tmp_dir = "/tmp"; }
-                std::string detach_path = tmp_dir + "/spectra_detach_"
-                    + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
-                    + ".spectra";
-
-                if (!Workspace::save(detach_path, data))
-                {
-                    SPECTRA_LOG_ERROR("app", "Failed to save detached figure state to " + detach_path);
+                auto* fig = registry_.get(index);
+                if (!fig)
                     return;
-                }
 
-                std::string exe_path;
-                try { exe_path = std::filesystem::read_symlink("/proc/self/exe").string(); }
-                catch (...) { exe_path = "/proc/self/exe"; }
+                // Don't detach the last figure — window must have ≥1
+                if (registry_.count() <= 1)
+                    return;
 
-                std::string arg_restore = "--spectra-restore=" + detach_path;
-                std::string arg_x = "--spectra-window-x=" + std::to_string(static_cast<int>(screen_x));
-                std::string arg_y = "--spectra-window-y=" + std::to_string(static_cast<int>(screen_y));
+                uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
+                uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
+                std::string title = (figure_tabs && index < figure_tabs->get_tab_count())
+                    ? figure_tabs->get_tab_title(index)
+                    : ("Figure " + std::to_string(index + 1));
 
-                SPECTRA_LOG_INFO("app",
-                                "Detaching tab " + std::to_string(index) + " to new window at ("
-                                    + std::to_string(screen_x) + ", " + std::to_string(screen_y)
-                                    + ") exe: " + exe_path);
-
-                // TODO: spawn new process to restore the detached workspace
-                // fork()+exec() crashes NVIDIA Vulkan driver; needs posix_spawn or post-frame queue
-                SPECTRA_LOG_INFO("app", "Detached workspace saved to: " + detach_path
-                                + " (process spawn deferred)");
-
-                // TODO: Remove the figure from current window after spawn works
-                // fig_mgr.queue_close(index);
+                window_mgr->detach_figure(index, win_w, win_h, title,
+                    static_cast<int>(screen_x), static_cast<int>(screen_y));
             });
 
         imgui_ui->set_pane_tab_rename_cb(
@@ -1250,11 +1196,14 @@ void App::run()
             [&]()
             {
                 std::vector<Figure*> figs;
-                for (auto& f : figures_)
-                    figs.push_back(f.get());
+                for (auto id : fig_mgr.figure_ids())
+                {
+                    Figure* f = registry_.get(id);
+                    if (f) figs.push_back(f);
+                }
                 auto data =
                     Workspace::capture(figs,
-                                       active_figure_index,
+                                       fig_mgr.active_index(),
                                        ui::ThemeManager::instance().current_theme_name(),
                                        imgui_ui->get_layout_manager().is_inspector_visible(),
                                        imgui_ui->get_layout_manager().inspector_width(),
@@ -1302,8 +1251,11 @@ void App::run()
                     // Capture before-state for undo
                     auto before_snap = capture_figure_axes(*active_figure);
                     std::vector<Figure*> figs;
-                    for (auto& f : figures_)
-                        figs.push_back(f.get());
+                    for (auto id : fig_mgr.figure_ids())
+                    {
+                        Figure* f = registry_.get(id);
+                        if (f) figs.push_back(f);
+                    }
                     Workspace::apply(data, figs);
                     auto after_snap = capture_figure_axes(*active_figure);
                     undo_mgr.push(UndoAction{"Load workspace",
@@ -1383,7 +1335,7 @@ void App::run()
             "Close Figure",
             [&]()
             {
-                if (figures_.size() > 1)
+                if (fig_mgr.count() > 1)
                 {
                     fig_mgr.queue_close(fig_mgr.active_index());
                 }
@@ -1674,22 +1626,22 @@ void App::run()
             {
                 // Going from single view to split:
                 // Need at least 2 figures to split without creating new ones
-                if (figures_.size() < 2)
+                if (fig_mgr.count() < 2)
                     return;
 
-                size_t orig_active = fig_mgr.active_index();
+                FigureId orig_active = fig_mgr.active_index();
 
                 // Pick a figure to move to the second pane (first non-active)
-                size_t move_fig = SIZE_MAX;
-                for (size_t i = 0; i < figures_.size(); ++i)
+                FigureId move_fig = INVALID_FIGURE_ID;
+                for (auto id : fig_mgr.figure_ids())
                 {
-                    if (i != orig_active)
+                    if (id != orig_active)
                     {
-                        move_fig = i;
+                        move_fig = id;
                         break;
                     }
                 }
-                if (move_fig == SIZE_MAX)
+                if (move_fig == INVALID_FIGURE_ID)
                     return;
 
                 // Split: orig_active stays in first pane, move_fig goes to second
@@ -1715,13 +1667,13 @@ void App::run()
                             first_pane->remove_figure(move_fig);
                         }
                         // Add any remaining figures not yet in first pane
-                        for (size_t i = 0; i < figures_.size(); ++i)
+                        for (auto id : fig_mgr.figure_ids())
                         {
-                            if (i == move_fig)
+                            if (id == move_fig)
                                 continue;
-                            if (!first_pane->has_figure(i))
+                            if (!first_pane->has_figure(id))
                             {
-                                first_pane->add_figure(i);
+                                first_pane->add_figure(id);
                             }
                         }
                         // Restore the originally active figure as the active tab
@@ -1803,8 +1755,9 @@ void App::run()
     scheduler.reset();
 
     // Capture initial axes limits for Home button (restore original view)
-    for (auto& fig_ptr : figures_)
+    for (auto id : registry_.all_ids())
     {
+        Figure* fig_ptr = registry_.get(id);
         if (!fig_ptr) continue;
         for (auto& ax : fig_ptr->axes_mut())
         {
@@ -2120,8 +2073,8 @@ void App::run()
         // Process queued figure operations (create, close, switch)
         if (fig_mgr.process_pending())
         {
-            active_figure_index = fig_mgr.active_index();
-            switch_active_figure(active_figure_index
+            active_figure_id = fig_mgr.active_index();
+            switch_active_figure(active_figure_id
     #ifdef SPECTRA_USE_GLFW
                                  ,
                                  glfw ? &input_handler : nullptr
@@ -2138,12 +2091,13 @@ void App::run()
             {
                 // Ensure root has exactly the right figures
                 const auto& current = root->figure_indices();
-                bool needs_sync = (current.size() != figures_.size());
+                const auto& mgr_ids = fig_mgr.figure_ids();
+                bool needs_sync = (current.size() != mgr_ids.size());
                 if (!needs_sync)
                 {
-                    for (size_t i = 0; i < figures_.size(); ++i)
+                    for (auto id : mgr_ids)
                     {
-                        if (!root->has_figure(i))
+                        if (!root->has_figure(id))
                         {
                             needs_sync = true;
                             break;
@@ -2157,9 +2111,9 @@ void App::run()
                     {
                         root->remove_figure(root->figure_indices().back());
                     }
-                    for (size_t i = 0; i < figures_.size(); ++i)
+                    for (auto id : mgr_ids)
                     {
-                        root->add_figure(i);
+                        root->add_figure(id);
                     }
                 }
                 // Sync active tab
@@ -2194,9 +2148,8 @@ void App::run()
                     auto pane_infos = dock_system.get_pane_infos();
                     for (const auto& pinfo : pane_infos)
                     {
-                        if (pinfo.figure_index < figures_.size())
                         {
-                            auto* fig = figures_[pinfo.figure_index].get();
+                            auto* fig = registry_.get(pinfo.figure_index);
                             if (!fig)
                                 continue;
                             Margins pane_margins;
@@ -2322,9 +2275,10 @@ void App::run()
                 auto pane_infos = dock_system.get_pane_infos();
                 for (const auto& pinfo : pane_infos)
                 {
-                    if (pinfo.figure_index < figures_.size() && figures_[pinfo.figure_index])
+                    Figure* pfig = registry_.get(pinfo.figure_index);
+                    if (pfig)
                     {
-                        renderer_->render_figure_content(*figures_[pinfo.figure_index]);
+                        renderer_->render_figure_content(*pfig);
                     }
                 }
             }
@@ -2348,6 +2302,70 @@ void App::run()
             renderer_->end_render_pass();
             backend_->end_frame();
         }
+
+        // ── Render secondary windows ──────────────────────────────────────
+        // Each secondary window has an assigned_figure_index.  We switch the
+        // VulkanBackend's active_window_, run begin_frame / render / end_frame
+        // for that window, then restore the primary as active.
+#ifdef SPECTRA_USE_GLFW
+        if (window_mgr)
+        {
+            auto* vk = static_cast<VulkanBackend*>(backend_.get());
+            auto& primary_wctx = vk->primary_window();
+
+            for (auto* wctx : window_mgr->windows())
+            {
+                // Skip the primary window (already rendered above)
+                if (wctx == &primary_wctx)
+                    continue;
+                // Skip windows with no assigned figure
+                if (wctx->should_close)
+                    continue;
+
+                auto* fig = registry_.get(wctx->assigned_figure_index);
+                if (!fig)
+                    continue;
+
+                // Handle per-window resize with debounce
+                static constexpr auto SECONDARY_RESIZE_DEBOUNCE = std::chrono::milliseconds(50);
+                if (wctx->needs_resize)
+                {
+                    auto elapsed = std::chrono::steady_clock::now() - wctx->resize_time;
+                    if (elapsed >= SECONDARY_RESIZE_DEBOUNCE
+                        && wctx->pending_width > 0 && wctx->pending_height > 0)
+                    {
+                        vk->recreate_swapchain_for(*wctx, wctx->pending_width, wctx->pending_height);
+                        fig->config_.width = wctx->pending_width;
+                        fig->config_.height = wctx->pending_height;
+                        wctx->needs_resize = false;
+                    }
+                }
+
+                // Switch active window to this secondary context
+                vk->set_active_window(wctx);
+
+                bool sec_ok = backend_->begin_frame();
+                if (!sec_ok && wctx->pending_width > 0 && wctx->pending_height > 0)
+                {
+                    // Swapchain out of date — recreate and retry
+                    vk->recreate_swapchain_for(*wctx, wctx->pending_width, wctx->pending_height);
+                    vk->clear_swapchain_dirty();
+                    sec_ok = backend_->begin_frame();
+                }
+
+                if (sec_ok)
+                {
+                    renderer_->begin_render_pass();
+                    renderer_->render_figure_content(*fig);
+                    renderer_->end_render_pass();
+                    backend_->end_frame();
+                }
+            }
+
+            // Restore primary window as active
+            vk->set_active_window(&primary_wctx);
+        }
+#endif
 
 #ifdef SPECTRA_USE_FFMPEG
         // Capture frame for video recording
@@ -2445,8 +2463,9 @@ void App::run()
 #endif
 
     // Process exports for all figures (headless batch mode)
-    for (auto& fig_ptr : figures_)
+    for (auto id : registry_.all_ids())
     {
+        Figure* fig_ptr = registry_.get(id);
         if (!fig_ptr)
             continue;
         auto& f = *fig_ptr;

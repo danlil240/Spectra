@@ -71,6 +71,12 @@ WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
         return nullptr;
     }
 
+    if (backend_->is_headless())
+    {
+        SPECTRA_LOG_WARN("window_manager", "create_window: cannot create OS windows in headless mode");
+        return nullptr;
+    }
+
 #ifdef SPECTRA_USE_GLFW
     // Create GLFW window (shared context not needed — Vulkan doesn't use GL contexts)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -404,6 +410,14 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
     }
 }
 
+void WindowManager::set_window_position(WindowContext& wctx, int x, int y)
+{
+    if (wctx.glfw_window)
+    {
+        glfwSetWindowPos(static_cast<GLFWwindow*>(wctx.glfw_window), x, y);
+    }
+}
+
 #else
 
 // Stubs when GLFW is not available
@@ -411,6 +425,84 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow*, int, int) {}
 void WindowManager::glfw_window_close_callback(GLFWwindow*) {}
 void WindowManager::glfw_window_focus_callback(GLFWwindow*, int) {}
 
+void WindowManager::set_window_position(WindowContext& /*wctx*/, int /*x*/, int /*y*/) {}
+
 #endif
+
+WindowContext* WindowManager::detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
+                                             const std::string& title, int screen_x, int screen_y)
+{
+    if (!backend_)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "detach_figure: not initialized");
+        return nullptr;
+    }
+
+    if (figure_id == INVALID_FIGURE_ID)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "detach_figure: invalid figure id");
+        return nullptr;
+    }
+
+    // Clamp dimensions to reasonable minimums
+    uint32_t w = width > 0 ? width : 800;
+    uint32_t h = height > 0 ? height : 600;
+
+    auto* wctx = create_window(w, h, title);
+    if (!wctx)
+    {
+        SPECTRA_LOG_ERROR("window_manager",
+                          "detach_figure: failed to create window for figure "
+                              + std::to_string(figure_id));
+        return nullptr;
+    }
+
+    wctx->assigned_figure_index = figure_id;
+    set_window_position(*wctx, screen_x, screen_y);
+
+    SPECTRA_LOG_INFO("window_manager",
+                     "Detached figure " + std::to_string(figure_id) + " to window "
+                         + std::to_string(wctx->id) + " at (" + std::to_string(screen_x) + ", "
+                         + std::to_string(screen_y) + ")");
+    return wctx;
+}
+
+bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uint32_t to_window_id)
+{
+    auto* from_wctx = find_window(from_window_id);
+    auto* to_wctx = find_window(to_window_id);
+    if (!from_wctx || !to_wctx)
+    {
+        SPECTRA_LOG_ERROR("window_manager",
+                          "move_figure: invalid window id (from=" + std::to_string(from_window_id)
+                              + " to=" + std::to_string(to_window_id) + ")");
+        return false;
+    }
+    if (from_wctx == to_wctx)
+    {
+        return false;  // No-op: same window
+    }
+
+    // Verify the source window is actually rendering this figure
+    if (from_wctx->assigned_figure_index != figure_id)
+    {
+        SPECTRA_LOG_WARN("window_manager",
+                         "move_figure: source window " + std::to_string(from_window_id)
+                             + " is not rendering figure " + std::to_string(figure_id));
+        return false;
+    }
+
+    // Reassign: target window now renders this figure
+    to_wctx->assigned_figure_index = figure_id;
+
+    // Clear source window's assignment (mark as unassigned)
+    from_wctx->assigned_figure_index = INVALID_FIGURE_ID;
+
+    SPECTRA_LOG_INFO("window_manager",
+                     "Moved figure " + std::to_string(figure_id) + " from window "
+                         + std::to_string(from_window_id) + " to window "
+                         + std::to_string(to_window_id));
+    return true;
+}
 
 }  // namespace spectra

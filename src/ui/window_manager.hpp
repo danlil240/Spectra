@@ -25,7 +25,7 @@ class Renderer;
 // Usage:
 //   WindowManager wm;
 //   wm.init(backend);
-//   auto* primary = wm.adopt_primary_window(glfw_window, backend);
+//   auto* initial = wm.create_initial_window(glfw_window);
 //   auto* secondary = wm.create_window(800, 600, "Window 2");
 //   ...
 //   // In render loop:
@@ -47,12 +47,6 @@ class WindowManager
     // and figure registry.  Must be called before any other method.
     void init(VulkanBackend* backend, FigureRegistry* registry = nullptr,
               Renderer* renderer = nullptr);
-
-    // Adopt the primary window that was already created by GlfwAdapter.
-    // This wraps the existing primary_window_ in VulkanBackend into a
-    // managed WindowContext.  Returns the context pointer.
-    // DEPRECATED: Use create_initial_window() instead.
-    WindowContext* adopt_primary_window(void* glfw_window);
 
     // Create the initial (first) window uniformly — same ownership as
     // secondary windows.  Takes ownership of the backend's initial
@@ -107,6 +101,16 @@ class WindowManager
     // Will refuse to detach if it's the last figure (caller must check).
     WindowContext* detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
                                 const std::string& title, int screen_x, int screen_y);
+
+    // Create the very first window with full UI stack.  Unlike create_window_with_ui(),
+    // this method also handles the backend's initial WindowContext handoff (the backend
+    // creates surface + swapchain during init, and this method takes ownership).
+    // After this call, the first window is identical to any secondary window.
+    // The glfw_window handle must already exist (created by GlfwAdapter or caller).
+    // figure_ids are ALL figures to assign to this window (the first becomes active).
+    // Returns the new WindowContext, or nullptr on failure.
+    WindowContext* create_first_window_with_ui(void* glfw_window,
+                                                const std::vector<FigureId>& figure_ids);
 
     // Create a new OS window with full UI stack (ImGui, FigureManager, DockSystem,
     // InputHandler, etc.).  The window gets its own ImGui context and can render

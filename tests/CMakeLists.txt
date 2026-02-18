@@ -110,6 +110,9 @@ set(SPECTRA_UNIT_TESTS
     test_multi_window
     test_window_manager
     test_figure_registry
+    test_ipc
+    test_session_graph
+    test_process_manager
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})

@@ -39,13 +39,6 @@ void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry,
     renderer_ = renderer;
 }
 
-WindowContext* WindowManager::adopt_primary_window(void* glfw_window)
-{
-    // Delegate to create_initial_window() which takes ownership of the
-    // backend's initial WindowContext and stores it in windows_ uniformly.
-    return create_initial_window(glfw_window);
-}
-
 WindowContext* WindowManager::create_initial_window(void* glfw_window)
 {
     if (!backend_)
@@ -687,6 +680,93 @@ WindowContext* WindowManager::find_by_glfw_window(GLFWwindow* window) const
     (void)window;
 #endif
     return nullptr;
+}
+
+// --- create_first_window_with_ui ---
+
+WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
+                                                            const std::vector<FigureId>& figure_ids)
+{
+    if (!backend_)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: not initialized");
+        return nullptr;
+    }
+
+    if (!registry_ || figure_ids.empty())
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: no registry or figures");
+        return nullptr;
+    }
+
+    // Take ownership of the backend's initial WindowContext (already has
+    // surface + swapchain initialized by the App init path).
+    auto wctx_ptr = backend_->release_initial_window();
+    if (!wctx_ptr)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: no initial window to take");
+        return nullptr;
+    }
+
+    wctx_ptr->id = next_window_id_++;
+    wctx_ptr->glfw_window = glfw_window;
+    wctx_ptr->is_focused = true;
+
+    // Set figure assignments (all figures go to the first window)
+    FigureId active_id = figure_ids[0];
+    wctx_ptr->assigned_figure_index = active_id;
+    wctx_ptr->assigned_figures = figure_ids;
+    wctx_ptr->active_figure_id = active_id;
+    wctx_ptr->title = "Spectra";
+
+#ifdef SPECTRA_USE_GLFW
+    auto* glfw_win = static_cast<GLFWwindow*>(glfw_window);
+    if (glfw_win)
+    {
+        glfwSetWindowUserPointer(glfw_win, this);
+    }
+#endif
+
+    // Set active window so the backend can continue operating
+    backend_->set_active_window(wctx_ptr.get());
+
+    // Ensure pipelines exist before ImGui init (needs render pass)
+    backend_->ensure_pipelines();
+
+    // Initialize the full UI subsystem bundle (ImGui, FigureManager, etc.)
+    // This is the SAME path that secondary windows use.
+    if (!init_window_ui(*wctx_ptr, active_id))
+    {
+        SPECTRA_LOG_ERROR("window_manager",
+                          "create_first_window_with_ui: UI init failed");
+    }
+
+    // For the first window, FigureManager should have ALL figures, not just one.
+    // init_window_ui() strips all but the initial figure, so re-add the rest.
+#ifdef SPECTRA_USE_IMGUI
+    if (wctx_ptr->ui_ctx && wctx_ptr->ui_ctx->fig_mgr)
+    {
+        auto* fm = wctx_ptr->ui_ctx->fig_mgr;
+        for (size_t i = 1; i < figure_ids.size(); ++i)
+        {
+            fm->add_figure(figure_ids[i], FigureState{});
+        }
+    }
+#endif
+
+#ifdef SPECTRA_USE_GLFW
+    // Install full input callbacks (same as secondary windows)
+    install_input_callbacks(*wctx_ptr);
+#endif
+
+    WindowContext* raw = wctx_ptr.get();
+    windows_.push_back(std::move(wctx_ptr));
+    rebuild_active_list();
+
+    SPECTRA_LOG_INFO("window_manager",
+                     "Created first window with UI (id=" + std::to_string(raw->id)
+                         + ", figures=" + std::to_string(figure_ids.size()) + ")");
+    return raw;
 }
 
 // --- create_window_with_ui ---

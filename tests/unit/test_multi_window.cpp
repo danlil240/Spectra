@@ -380,7 +380,7 @@ TEST_F(TearOffTest, DetachFigureAPIExists)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // detach_figure should be callable (returns nullptr in headless — no GLFW display)
     auto* result = wm.detach_figure(1, 800, 600, "Detached", 100, 200);
@@ -392,7 +392,7 @@ TEST_F(TearOffTest, DetachFigureRejectsInvalidId)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     auto* result = wm.detach_figure(INVALID_FIGURE_ID, 800, 600, "Bad", 0, 0);
     EXPECT_EQ(result, nullptr);
@@ -410,7 +410,7 @@ TEST_F(TearOffTest, DetachFigureClampsZeroDimensions)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Zero dimensions should not crash (clamped internally to 800x600)
     auto* result = wm.detach_figure(1, 0, 0, "Zero", 0, 0);
@@ -422,7 +422,7 @@ TEST_F(TearOffTest, DetachFigureNegativePosition)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Negative screen position should not crash
     auto* result = wm.detach_figure(1, 800, 600, "Negative", -100, -200);
@@ -496,7 +496,7 @@ TEST_F(TearOffTest, RapidDetachAttempts)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Rapidly attempt detach 10 times — should not crash
     for (int i = 0; i < 10; ++i)
@@ -513,7 +513,7 @@ TEST_F(TearOffTest, ShutdownAfterDetachAttempts)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Attempt detach, then shutdown — should not leak or crash
     wm.detach_figure(1, 800, 600, "Test", 0, 0);

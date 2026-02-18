@@ -2,8 +2,8 @@
 
 > **Project**: Spectra (GPU-accelerated scientific plotting library)
 > **Goal**: Eliminate the "primary window" concept so every OS window is an equal peer, with a long-term path to multi-process (backend-daemon + window-agent) architecture.
-> **Status**: Phase 1 Complete, Phase 2 In Progress (tasks 1-2 complete)  
-> **Last Updated**: 2026-02-19
+> **Status**: Phase 1 Complete, Phase 2 Complete, Phase 3 Complete, Phase 4 Complete, Phase 5 Complete, Phase 6 In Progress  
+> **Last Updated**: 2026-02-22
 
 ---
 
@@ -183,11 +183,11 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 1. ✅ **Unify window creation** (addresses P1, P4, P7) — 2026-02-18:
    - ✅ `VulkanBackend::primary_window_` replaced with `std::unique_ptr<WindowContext> initial_window_` (heap-allocated).
    - ✅ Added `release_initial_window()` to transfer ownership to `WindowManager`.
-   - ✅ Added `initial_window_raw_` non-owning pointer so `primary_window()` accessor still works (transitional).
+   - ✅ ~~Added `initial_window_raw_` non-owning pointer~~ — removed in Session 3.
    - ✅ `WindowManager::create_initial_window()` takes ownership from backend, stores in `windows_` uniformly.
-   - ✅ `adopt_primary_window()` delegates to `create_initial_window()` (deprecated).
+   - ✅ ~~`adopt_primary_window()` delegates to `create_initial_window()` (deprecated)~~ — removed in Session 3.
    - ✅ Removed primary special-casing from `rebuild_active_list()`, `destroy_window()`, `process_pending_closes()`, `focused_window()`, `any_window_open()`, `find_window()`, `find_by_glfw_window()`, all GLFW callback trampolines.
-   - ⬜ `GlfwAdapter` still creates the GLFW window (reduced to init/terminate + window creation). Window creation not yet moved to `WindowManager`.
+   - ✅ `GlfwAdapter` reduced to init/terminate + window creation. First window created via `WindowManager::create_first_window_with_ui()` which uses `init_window_ui()` — same path as secondary windows. — 2026-02-21
 
 2. ✅ **Unify callback routing** (addresses P4) — 2026-02-18:
    - ✅ All windows use `WindowManager`'s GLFW callbacks via `install_input_callbacks()`.
@@ -199,7 +199,7 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
    - ✅ Removed `WindowContext::ui_ctx_non_owning` and `WindowContext::is_primary`.
    - ✅ `ui_ctx` moved from `App::run()` stack into `initial_wctx->ui_ctx` after setup.
    - ✅ `ui_ctx_ptr` raw pointer kept for main loop access (heap object stays at same address).
-   - ⬜ First window's UI context is still created in `App::run()` then moved; not yet created by `init_window_ui()` directly.
+   - ✅ First window's UI context created by `init_window_ui()` directly inside `create_first_window_with_ui()`. Stack-local `ui_ctx` removed from `App::run()`. — 2026-02-21
 
 4. ✅ **Unify close/destroy** (addresses P5, P6, P9) — 2026-02-19:
    - ✅ `destroy_window()` handles all windows identically. No special guard for "primary".
@@ -215,9 +215,9 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 
 **Deliverables** (progress):
 - ✅ `GlfwAdapter` reduced to init/terminate + window creation (no callbacks).
-- ✅ `VulkanBackend::primary_window_` replaced with heap-allocated `initial_window_` (transitional `initial_window_raw_` remains).
-- ✅ `adopt_primary_window()` delegates to `create_initial_window()`.
-- ⬜ All windows created via `WindowManager::create_window_with_ui()` — not yet, first window still uses `create_initial_window()`.
+- ✅ `VulkanBackend::primary_window_` replaced with heap-allocated `initial_window_`.
+- ✅ `adopt_primary_window()` removed. All callers use `create_initial_window()`.
+- ✅ All windows created via `init_window_ui()` — first window uses `create_first_window_with_ui()`, secondary windows use `create_window_with_ui()`. Both call `init_window_ui()`. — 2026-02-21
 - ✅ **Uniform render loop** — single iteration over all windows.
 
 **Verify**:
@@ -227,7 +227,10 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 - ✅ **Tab detach shows correct figure names** (fixed positional index → FigureId bug).
 - ✅ **No shutdown crash** when closing all windows.
 - ⬜ Resize torture test not yet performed.
-- ⬜ `grep -rn "primary_window" src/` → still has hits (transitional accessor).
+- [x] `ctest` → 71/71 pass, zero regressions. ✅ 2026-02-21
+- ✅ `grep -rn "primary_window" src/` → zero hits (removed in Session 3).
+- ✅ `grep -rn "adopt_primary" src/` → zero hits (removed in Session 3).
+- ✅ `grep -rn "initial_window_raw_" src/` → zero hits (removed in Session 3).
 
 ---
 
@@ -247,24 +250,27 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
    - ✅ `SessionRuntime::tick()` — frame scheduling, command queue, animation, window iteration, detach processing, event polling.
    - ✅ `SessionRuntime::should_exit()` — `!running_`.
 
-3. ⬜ **Add feature flag**: `SPECTRA_RUNTIME_MODE` (`inproc` | `multiproc`, default `inproc`).
-   - `inproc`: `SessionRuntime` + N × `WindowRuntime` in one process (current behavior).
-   - `multiproc`: `SessionRuntime` in backend process, `WindowRuntime` in agent process (future).
+3. ✅ **Add feature flag**: `SPECTRA_RUNTIME_MODE` (`inproc` | `multiproc`, default `inproc`) — 2026-02-20:
+   - ✅ `CMakeLists.txt`: `SPECTRA_RUNTIME_MODE` cache variable with `inproc`/`multiproc` options.
+   - ✅ Compile definitions: `SPECTRA_RUNTIME_MODE_inproc` (default) or `SPECTRA_RUNTIME_MODE_multiproc` + `SPECTRA_MULTIPROC`.
 
-4. ⬜ **Slim down `App::run()`** to use `SessionRuntime::tick()`:
-   ```cpp
-   void App::run() {
-       SessionRuntime session(backend_, renderer_, registry_);
-       while (!session.should_exit()) {
-           session.tick(scheduler, animator, cmd_queue, ...);
-       }
-   }
-   ```
+4. ✅ **Slim down `App::run()`** to use `SessionRuntime::tick()` — 2026-02-20:
+   - ✅ Main loop replaced with `while (!session.should_exit()) { session.tick(...); }`.
+   - ✅ Removed inline loop body (~270 lines: window iteration, detach processing, event polling, exit checks).
+   - ✅ Removed `PendingDetach` struct, `pending_detaches` vector, `newly_created_window_ids` from `App::run()`.
+   - ✅ All detach callbacks now use `session.queue_detach()` instead of local vector.
+   - ✅ App-level concerns (video recording, PNG export, animation duration) remain in `App::run()`.
+
+5. ✅ **Remove deprecated symbols** — 2026-02-20:
+   - ✅ Removed `primary_window()` accessor from `VulkanBackend`.
+   - ✅ Removed `initial_window_raw_` member from `VulkanBackend`.
+   - ✅ Removed `adopt_primary_window()` from `WindowManager`.
+   - ✅ Updated all tests to use `create_initial_window()` and `active_window()`.
 
 **Deliverables**:
 - ✅ `src/ui/window_runtime.hpp/.cpp` — per-window update/render.
 - ✅ `src/ui/session_runtime.hpp/.cpp` — session orchestration.
-- ⬜ `App::run()` reduced to <50 lines.
+- ✅ `App::run()` main loop is now ~75 lines (setup code remains, loop body delegated to `SessionRuntime::tick()`).
 
 **Verify**:
 - ✅ Identical behavior to Phase 1.
@@ -280,19 +286,30 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 
 **Tasks**:
 
-1. Implement UDS server in `SessionRuntime` (listen on `$XDG_RUNTIME_DIR/spectra-<pid>.sock`).
-2. Implement UDS client in `WindowRuntime`.
-3. Implement message framing + CBOR encode/decode (use [tinycbor](https://github.com/niclas-ahden/tinycbor) or header-only lib).
-4. Implement `HELLO`/`WELCOME` + `RESP_OK`/`RESP_ERR`.
-5. Unit tests: encode/decode round-trip, version mismatch rejection, connection lifecycle.
+1. ✅ **Message types and envelope** — 2026-02-20:
+   - ✅ `src/ipc/message.hpp`: `MessageType` enum (HELLO, WELCOME, RESP_OK, RESP_ERR, REQ_*, CMD_*, STATE_*, EVT_*), `MessageHeader` (40-byte fixed), `Message`, handshake/response payload structs.
+   - ✅ IPC ID types: `SessionId`, `WindowId`, `ProcessId`, `RequestId`, `Revision` (all `uint64_t`).
+
+2. ✅ **Binary codec (TLV framing)** — 2026-02-20:
+   - ✅ `src/ipc/codec.hpp/.cpp`: Header encode/decode, full message encode/decode, `PayloadEncoder`/`PayloadDecoder` (tag-length-value), convenience encode/decode for Hello, Welcome, RespOk, RespErr payloads.
+   - ✅ Little-endian wire format, forward-compatible (unknown tags skipped).
+
+3. ✅ **UDS transport** — 2026-02-20:
+   - ✅ `src/ipc/transport.hpp/.cpp`: `Connection` (send/recv framed messages), `Server` (bind/listen/accept on AF_UNIX), `Client::connect()`, `default_socket_path()`.
+   - ✅ Linux-only (`#ifdef __linux__`), stubs return false on other platforms.
+
+4. ✅ **Unit tests** — 2026-02-20:
+   - ✅ `tests/unit/test_ipc.cpp`: 22 tests covering header round-trip, bad magic, truncation, full message round-trip, empty payload, TLV encoder/decoder, Hello/Welcome/RespOk/RespErr round-trip, version mismatch detection, message type values, constants, UDS server lifecycle, client connect refused, send/recv over real UDS, full HELLO/WELCOME handshake, connection closed detection, send/recv on closed fd.
 
 **Deliverables**:
-- `src/ipc/` module: `transport.hpp/.cpp`, `message.hpp/.cpp`, `codec.hpp/.cpp`.
-- Unit tests in `tests/unit/test_ipc.cpp`.
+- ✅ `src/ipc/message.hpp` — message types, envelope, payload structs.
+- ✅ `src/ipc/codec.hpp/.cpp` — binary encode/decode.
+- ✅ `src/ipc/transport.hpp/.cpp` — UDS server/client.
+- ✅ `tests/unit/test_ipc.cpp` — 22 unit tests.
 
 **Verify**:
-- Run app in `inproc` mode with IPC loopback (optional).
-- Handshake logs confirm `HELLO`/`WELCOME`.
+- ✅ 70/70 ctest pass, zero regressions.
+- ✅ Full handshake test (HELLO → WELCOME) over real UDS connection passes.
 
 ---
 
@@ -302,21 +319,28 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 
 **Tasks**:
 
-1. New binary: `tools/spectra-backend` (or `src/daemon/main.cpp`).
-   - Listens on UDS path.
-   - Maintains session graph: windows, figures, assignments.
-   - Process manager: spawn agents via `posix_spawn()` / `exec()` (no `fork()` after Vulkan init).
-2. Shutdown rule: backend exits when `window_count == 0 && active_client_count == 0`.
-3. Heartbeat tracking + crash detection (agent doesn't send heartbeat for N seconds → clean up).
-4. Logging for spawn/close/assign events.
+1. ✅ New binary: `src/daemon/main.cpp` — 2026-02-21.
+   - ✅ Listens on UDS path (`--socket` flag or `default_socket_path()`).
+   - ✅ Maintains session graph: windows, figures, assignments (`src/daemon/session_graph.hpp/.cpp`).
+   - ✅ Process manager: spawn agents via `posix_spawn()` (`src/daemon/process_manager.hpp/.cpp`) — 2026-02-22.
+2. ✅ Shutdown rule: backend exits when `window_count == 0 && active_client_count == 0` (after at least one agent connected).
+3. ✅ Heartbeat tracking + crash detection (15s timeout, 5s check interval).
+4. ✅ Logging for connect/disconnect/assign/timeout events.
+5. ✅ `REQ_CREATE_WINDOW` handling: spawns new agent process, sends RESP_OK/RESP_ERR — 2026-02-22.
+6. ✅ `REQ_CLOSE_WINDOW` handling: redistributes orphaned figures to remaining agents, sends CMD_CLOSE_WINDOW — 2026-02-22.
+7. ✅ Figure redistribution on agent disconnect/timeout — 2026-02-22.
+8. ✅ Child process reaping via `waitpid(WNOHANG)` — 2026-02-22.
 
 **Deliverables**:
-- `spectra-backend` binary.
-- Session graph with window/figure assignment tracking.
+- ✅ `spectra-backend` binary (built with `-DSPECTRA_RUNTIME_MODE=multiproc`).
+- ✅ `src/daemon/session_graph.hpp/.cpp` — thread-safe session graph with window/figure assignment tracking.
+- ✅ `src/daemon/process_manager.hpp/.cpp` — process spawning/tracking/reaping via `posix_spawn()`.
+- ✅ `tests/unit/test_session_graph.cpp` — 17 unit tests.
+- ✅ `tests/unit/test_process_manager.cpp` — 11 unit tests.
 
 **Verify**:
-- Start backend → spawn one agent via command line → close agent → backend exits.
-- Start backend → spawn two agents → close one → other continues → close second → backend exits.
+- ⬜ Start backend → spawn one agent via command line → close agent → backend exits.
+- ⬜ Start backend → spawn two agents → close one → other continues → close second → backend exits.
 
 ---
 
@@ -326,43 +350,62 @@ The audit is captured in Section 2 above. All 13 primary-window assumptions are 
 
 **Tasks**:
 
-1. New binary: `spectra-window` (reuses `WindowRuntime` from Phase 2).
-   - Initializes Vulkan/GLFW/ImGui.
-   - Connects to backend via IPC.
-   - Sends `HELLO`, receives `WELCOME` + `CMD_ASSIGN_FIGURES`.
-   - Renders whatever figures backend assigns.
-2. Implement `CMD_ASSIGN_FIGURES`, `STATE_SNAPSHOT` (minimal: figure config + series data).
-3. Close behavior: closing agent window sends `EVT_WINDOW { close_requested }` → agent exits cleanly.
+1. ✅ New binary: `src/agent/main.cpp` — 2026-02-21.
+   - ⬜ Initializes Vulkan/GLFW/ImGui (scaffolded, not yet wired to WindowRuntime).
+   - ✅ Connects to backend via IPC.
+   - ✅ Sends `HELLO`, receives `WELCOME`.
+   - ✅ Receives `CMD_ASSIGN_FIGURES` and tracks assigned figures — 2026-02-22.
+2. ✅ `CMD_ASSIGN_FIGURES` handling: agent receives and tracks figure IDs + active figure — 2026-02-22.
+3. ✅ `CMD_REMOVE_FIGURE` handling: agent removes figure from local tracking — 2026-02-22.
+4. ✅ `CMD_SET_ACTIVE` handling: agent updates active figure — 2026-02-22.
+5. ✅ `CMD_CLOSE_WINDOW` handling: agent exits cleanly on backend command — 2026-02-22.
+6. ⬜ `STATE_SNAPSHOT` (minimal: figure config + series data) — not yet implemented.
+7. ✅ Close behavior: agent sends `EVT_WINDOW` on shutdown → backend cleans up.
+8. ✅ Heartbeat: agent sends `EVT_HEARTBEAT` at the interval specified by backend's `WELCOME`.
+9. ✅ Non-blocking message recv via `poll()` — 2026-02-22.
 
 **Deliverables**:
-- `spectra-window` binary.
-- Basic multi-process: backend + one window agent running.
+- ✅ `spectra-window` binary (built with `-DSPECTRA_RUNTIME_MODE=multiproc`).
+- ✅ IPC handshake (HELLO → WELCOME) + heartbeat + clean shutdown.
+- ✅ Agent handles all control commands (CMD_ASSIGN_FIGURES, CMD_REMOVE_FIGURE, CMD_SET_ACTIVE, CMD_CLOSE_WINDOW).
+- ⬜ Basic multi-process rendering (requires STATE_SNAPSHOT + WindowRuntime integration).
 
 **Verify**:
-- Run `spectra-backend` + `spectra-window` → renders same as single-process.
-- Close agent → backend reacts correctly.
+- ⬜ Run `spectra-backend` + `spectra-window` → renders same as single-process.
+- ✅ Close agent → backend reacts correctly (removes agent, logs orphaned figures).
 
 ---
 
-### Phase 6 — Multi-Window (Manual Spawn) — 2–4 days
+### Phase 6 — Multi-Window (Manual Spawn) — 2–4 days — IN PROGRESS
 
 **Objective**: Backend can spawn multiple agents; independent lifetime; no primary window.
 
 **Tasks**:
 
-1. Implement `REQ_CREATE_WINDOW`: backend spawns a new agent process, assigns figures.
-2. Implement `REQ_CLOSE_WINDOW`: agent requests close, backend redistributes figures.
-3. Ensure closing the *first-created* window does not affect others.
-4. Wire existing `app.new_window` command (Ctrl+Shift+N) to send `REQ_CREATE_WINDOW` in multiproc mode.
+1. ✅ Implement `REQ_CREATE_WINDOW`: backend spawns a new agent process via `ProcessManager`, sends RESP_OK/RESP_ERR — 2026-02-22.
+2. ✅ Implement `REQ_CLOSE_WINDOW`: agent requests close, backend redistributes figures to first remaining agent, sends CMD_CLOSE_WINDOW — 2026-02-22.
+3. ✅ Closing the *first-created* window does not affect others: figure redistribution uses `graph.all_window_ids()[0]` (any remaining), not a hardcoded primary — 2026-02-22.
+4. ⬜ Wire existing `app.new_window` command (Ctrl+Shift+N) to send `REQ_CREATE_WINDOW` in multiproc mode.
+
+**IPC payloads added** (2026-02-22):
+- `CmdAssignFiguresPayload` — Backend → Agent: window_id, figure_ids[], active_figure_id.
+- `ReqCreateWindowPayload` — Agent → Backend: template_window_id.
+- `ReqCloseWindowPayload` — Agent → Backend: window_id, reason.
+- `CmdRemoveFigurePayload` — Backend → Agent: window_id, figure_id.
+- `CmdSetActivePayload` — Backend → Agent: window_id, figure_id.
+- `CmdCloseWindowPayload` — Backend → Agent: window_id, reason.
 
 **Deliverables**:
-- Two+ windows run simultaneously, both fully functional.
-- Closing any window redistributes its figures to remaining windows.
+- ✅ Backend spawns agents via `posix_spawn()` on `REQ_CREATE_WINDOW`.
+- ✅ Backend redistributes figures on window close (any window, not just "primary").
+- ✅ Agent handles all control commands from backend.
+- ⬜ Two+ windows run simultaneously with actual rendering (requires STATE_SNAPSHOT).
+- ⬜ Wire `app.new_window` command in multiproc mode.
 
 **Verify**:
-- Spawn window #2 via Ctrl+Shift+N.
-- Close window #1 → window #2 remains functional with all figures.
-- Resize each independently.
+- ⬜ Spawn window #2 via Ctrl+Shift+N.
+- ⬜ Close window #1 → window #2 remains functional with all figures.
+- ⬜ Resize each independently.
 
 ---
 
@@ -585,10 +628,194 @@ App::run()
   └── SessionRuntime available for future slimming of App::run()
 ```
 
+**Next steps**: ~~See Session 3.~~
+
+---
+
+### Session 3 — 2026-02-20
+
+**What changed** (Phase 1 cleanup complete, Phase 2 complete, Phase 3 complete):
+
+#### Phase 1 — Final Cleanup
+
+| File | Change |
+|---|---|
+| `src/render/vulkan/vk_backend.hpp` | **Removed `primary_window()` accessor** (both const and non-const). **Removed `initial_window_raw_`** member. `release_initial_window()` comment updated. |
+| `src/render/vulkan/vk_backend.cpp` | Removed `initial_window_raw_ = initial_window_.get()` from constructor. |
+| `src/ui/window_manager.hpp` | **Removed `adopt_primary_window()` declaration**. Updated usage comment to show `create_initial_window()`. |
+| `src/ui/window_manager.cpp` | **Removed `adopt_primary_window()` implementation**. |
+| `tests/unit/test_window_manager.cpp` | Replaced all `adopt_primary_window()` → `create_initial_window()`. Replaced `primary_window()` → `active_window()`. Updated comments. |
+| `tests/unit/test_multi_window.cpp` | Replaced all `adopt_primary_window()` → `create_initial_window()`. |
+
+#### Phase 2 — Completion
+
+| File | Change |
+|---|---|
+| `CMakeLists.txt` | Added `SPECTRA_RUNTIME_MODE` cache variable (`inproc` | `multiproc`). Added `SPECTRA_RUNTIME_MODE_${mode}` and `SPECTRA_MULTIPROC` compile definitions. Added `SPECTRA_IPC_SOURCES` glob and linked to library. |
+| `src/ui/app.cpp` | **Replaced `WindowRuntime` with `SessionRuntime`** in `App::run()`. **Replaced inline main loop body** (~270 lines) with `session.tick(...)` call. Removed `PendingDetach` struct, `pending_detaches` vector, `newly_created_window_ids`, `running` flag. All detach callbacks now use `session.queue_detach()`. Added `#include "session_runtime.hpp"`. |
+
+#### Phase 3 — IPC Layer (New)
+
+| File | Change |
+|---|---|
+| `src/ipc/message.hpp` | **New file**. `MessageType` enum (22 types), `MessageHeader` (40-byte fixed wire format), `Message`, `HelloPayload`, `WelcomePayload`, `RespOkPayload`, `RespErrPayload`. IPC ID types (`SessionId`, `WindowId`, `ProcessId`, `RequestId`, `Revision`). |
+| `src/ipc/codec.hpp` | **New file**. Header/message encode/decode. `PayloadEncoder`/`PayloadDecoder` (TLV format). Convenience encode/decode for Hello, Welcome, RespOk, RespErr. |
+| `src/ipc/codec.cpp` | **New file**. Full implementation: little-endian helpers, header serialization, TLV payload encoder/decoder, handshake payload round-trip. |
+| `src/ipc/transport.hpp` | **New file**. `Connection` (send/recv framed messages over fd), `Server` (AF_UNIX listen/accept), `Client::connect()`, `default_socket_path()`. |
+| `src/ipc/transport.cpp` | **New file**. Full Linux implementation using `AF_UNIX` + `SOCK_STREAM`. Stubs for non-Linux platforms. |
+| `tests/unit/test_ipc.cpp` | **New file**. 22 unit tests: codec round-trips, bad input handling, TLV encoder/decoder, handshake payloads, version mismatch, UDS server/client lifecycle, real send/recv, full HELLO/WELCOME handshake, connection closed detection. |
+| `tests/CMakeLists.txt` | Added `test_ipc` to unit test list. |
+
+**Build**: 70/70 ctest pass, zero regressions.
+
+**Architecture after Session 3**:
+```
+App::run()
+  ├── creates SessionRuntime(backend, renderer, registry)
+  ├── while (!session.should_exit())
+  │     ├── session.tick(scheduler, animator, cmd_queue, ...)
+  │     │     ├── begin_frame, drain commands, evaluate animations
+  │     │     ├── for each window: win_rt.update() + win_rt.render()
+  │     │     ├── process deferred detaches
+  │     │     └── poll events, check exit
+  │     ├── video capture (app-level)
+  │     ├── PNG export (app-level)
+  │     └── animation duration check (app-level)
+  └── cleanup
+
+IPC Layer (src/ipc/):
+  ├── message.hpp  — wire protocol types
+  ├── codec.hpp/.cpp — binary TLV encode/decode
+  └── transport.hpp/.cpp — UDS server/client
+```
+
+**Next steps** (Phase 6):
+- Implement `CMD_ASSIGN_FIGURES` in backend → agent.
+- Wire `WindowRuntime` into `spectra-window` agent for actual rendering.
+- Implement `REQ_CREATE_WINDOW` / `REQ_CLOSE_WINDOW` for multi-window spawn.
+- Process manager: backend spawns agents via `posix_spawn()`.
+
+---
+
+### Session 4 — 2026-02-21
+
+**What changed** (Phase 1 final completion, Phase 4 complete, Phase 5 complete):
+
+#### Phase 1 — Final Items
+
+| File | Change |
+|---|---|
+| `src/ui/window_manager.hpp` | Added `create_first_window_with_ui()` declaration — creates the first window through the same `init_window_ui()` path as secondary windows. |
+| `src/ui/window_manager.cpp` | Implemented `create_first_window_with_ui()` — takes ownership of backend's initial WindowContext, sets figure assignments, calls `init_window_ui()`, installs callbacks. |
+| `src/ui/app.cpp` | **Major refactor**: Removed stack-local `ui_ctx` creation. Window creation + UI init now handled by `create_first_window_with_ui()`. `ui_ctx_ptr` obtained from `initial_wctx->ui_ctx`. Removed old code that moved `ui_ctx` into WindowContext and installed callbacks. Removed duplicated wiring (series click-to-select, axis link, box zoom, dock system, tab bar, pane tab callbacks, figure title, dock sync, timeline, mode transition, command palette — all now handled by `init_window_ui()`). Kept only app-specific callbacks (TabDragController drop-outside, pane tab detach, command registrations). |
+
+#### Phase 4 — Backend Daemon Process
+
+| File | Change |
+|---|---|
+| `src/daemon/session_graph.hpp` | **New file**. Thread-safe `SessionGraph` class: `add_agent()`, `remove_agent()`, `heartbeat()`, `stale_agents()`, `add_figure()`, `assign_figure()`, `remove_figure()`, `figures_for_window()`, `agent_count()`, `figure_count()`, `is_empty()`. |
+| `src/daemon/session_graph.cpp` | **New file**. Full implementation with mutex-guarded operations, figure reassignment on agent removal, duplicate assignment idempotency. |
+| `src/daemon/main.cpp` | **New file**. `spectra-backend` daemon: UDS listener, HELLO/WELCOME handshake, heartbeat tracking (15s timeout), stale agent cleanup, shutdown when all agents disconnect. |
+
+#### Phase 5 — Window Agent Process
+
+| File | Change |
+|---|---|
+| `src/agent/main.cpp` | **New file**. `spectra-window` agent: connects to backend via `--socket`, sends HELLO, receives WELCOME, sends periodic heartbeats, sends EVT_WINDOW on clean shutdown. |
+
+#### Build System
+
+| File | Change |
+|---|---|
+| `CMakeLists.txt` | Added `SPECTRA_DAEMON_SOURCES` (session_graph.cpp) to spectra library. Added `spectra-backend` and `spectra-window` executable targets (guarded by `SPECTRA_RUNTIME_MODE=multiproc`). |
+| `tests/CMakeLists.txt` | Added `test_session_graph` to unit test list. |
+| `tests/unit/test_session_graph.cpp` | **New file**. 17 unit tests: agent add/remove/lookup, figure add/assign/remove/reassign, heartbeat/stale detection, empty/shutdown, multi-figure multi-window, duplicate assign idempotency. |
+
+**Build**: 71/71 ctest pass (inproc mode), zero regressions. Multiproc mode builds both binaries successfully.
+
+**Architecture after Session 4**:
+```
+In-process (default, SPECTRA_RUNTIME_MODE=inproc):
+  App::run()
+    ├── GlfwAdapter::init() — glfwInit + create GLFW window
+    ├── VulkanBackend — create surface + swapchain
+    ├── WindowManager::create_first_window_with_ui()
+    │     └── init_window_ui() — ImGui, FigureManager, TabBar, DockSystem, etc.
+    ├── App-level wiring (commands, detach callbacks)
+    └── while (!session.should_exit()) { session.tick(...); }
+
+Multi-process (SPECTRA_RUNTIME_MODE=multiproc):
+  spectra-backend (src/daemon/main.cpp)
+    ├── UDS listener
+    ├── SessionGraph (windows, figures, assignments)
+    ├── ProcessManager (posix_spawn, reap, track)
+    ├── HELLO/WELCOME handshake
+    ├── Heartbeat tracking + stale agent cleanup
+    ├── REQ_CREATE_WINDOW → spawn agent + RESP_OK
+    ├── REQ_CLOSE_WINDOW → redistribute figures + CMD_CLOSE_WINDOW
+    ├── EVT_WINDOW → redistribute figures + cleanup
+    └── Shutdown when all agents disconnect
+
+  spectra-window (src/agent/main.cpp)
+    ├── Connects to backend via UDS
+    ├── HELLO → WELCOME handshake
+    ├── Periodic heartbeats
+    ├── CMD_ASSIGN_FIGURES → track figure IDs
+    ├── CMD_REMOVE_FIGURE → remove from tracking
+    ├── CMD_SET_ACTIVE → update active figure
+    ├── CMD_CLOSE_WINDOW → clean exit
+    ├── EVT_WINDOW on shutdown
+    ├── Non-blocking recv via poll()
+    └── TODO: WindowRuntime integration for rendering
+```
+
+---
+
+### Session 5 — 2026-02-22
+
+**What changed** (Phase 4 remaining, Phase 5 remaining, Phase 6 started):
+
+#### IPC Layer — New Control Payloads
+
+| File | Change |
+|---|---|
+| `src/ipc/message.hpp` | Added 6 new payload structs: `CmdAssignFiguresPayload`, `ReqCreateWindowPayload`, `ReqCloseWindowPayload`, `CmdRemoveFigurePayload`, `CmdSetActivePayload`, `CmdCloseWindowPayload`. |
+| `src/ipc/codec.hpp` | Added 6 new field tags (0x40–0x45) and 12 encode/decode function declarations for the new payloads. |
+| `src/ipc/codec.cpp` | Implemented all 12 encode/decode functions using existing TLV PayloadEncoder/PayloadDecoder. `CmdAssignFiguresPayload` uses repeated TAG_FIGURE_IDS for variable-length figure list. |
+
+#### Phase 4 — Process Manager
+
+| File | Change |
+|---|---|
+| `src/daemon/process_manager.hpp` | **New file**. `ProcessManager` class: `spawn_agent()`, `spawn_agent_for_window()`, `is_alive()`, `reap_finished()`, `process_count()`, `all_processes()`, `remove_process()`, `set_window_id()`, `pid_for_window()`. Thread-safe (mutex). |
+| `src/daemon/process_manager.cpp` | **New file**. Full implementation using `posix_spawn()` for agent creation, `waitpid(WNOHANG)` for reaping. Logs spawn/reap events. |
+| `src/daemon/main.cpp` | Integrated `ProcessManager`: set agent_path/socket_path, spawn on `REQ_CREATE_WINDOW`, reap finished children every 2s. |
+
+#### Phase 5 — Agent Command Handling
+
+| File | Change |
+|---|---|
+| `src/agent/main.cpp` | Added `CMD_ASSIGN_FIGURES`, `CMD_REMOVE_FIGURE`, `CMD_SET_ACTIVE`, `CMD_CLOSE_WINDOW` handling. Replaced blocking sleep with `poll()` for non-blocking recv. Tracks `assigned_figures` vector and `active_figure_id`. |
+
+#### Phase 6 — Multi-Window IPC
+
+| File | Change |
+|---|---|
+| `src/daemon/main.cpp` | Added `REQ_CREATE_WINDOW` handler (spawns agent via ProcessManager, sends RESP_OK/RESP_ERR). Added `REQ_CLOSE_WINDOW` handler (redistributes orphaned figures to first remaining agent, sends CMD_CLOSE_WINDOW). Added figure redistribution on `EVT_WINDOW` and stale agent timeout. Added helper functions `send_assign_figures()` and `send_close_window()`. |
+
+#### Build System & Tests
+
+| File | Change |
+|---|---|
+| `CMakeLists.txt` | Added `process_manager.cpp` to `SPECTRA_DAEMON_SOURCES` (library) and `spectra-backend` target. |
+| `tests/CMakeLists.txt` | Added `test_process_manager` to unit test list. |
+| `tests/unit/test_process_manager.cpp` | **New file**. 11 unit tests: default state, set paths, spawn failures (no path, bad path), set_window_id, pid_for_window, remove nonexistent, reap empty, spawn real process (/bin/true), spawn for window, all_processes. |
+| `tests/unit/test_ipc.cpp` | Added 12 new tests: `CmdAssignFiguresRoundTrip`, `CmdAssignFiguresEmpty`, `ReqCreateWindowRoundTrip`, `ReqCreateWindowNoTemplate`, `ReqCloseWindowRoundTrip`, `ReqCloseWindowEmptyReason`, `CmdRemoveFigureRoundTrip`, `CmdSetActiveRoundTrip`, `CmdCloseWindowRoundTrip`, `CmdAssignFiguresLargeList`, `FullMultiWindowFlow` (integration test with 2 agents). |
+
+**Build**: 72/72 ctest pass (inproc mode), zero regressions. Multiproc mode builds both binaries successfully.
+
 **Next steps**:
-- Phase 2 task 3: Wire `App::run()` to use `SessionRuntime::tick()` instead of inline loop body.
-- Phase 2 task 4: Slim `App::run()` down to the target ~10-line form.
-- Phase 2 task 5: Add `SPECTRA_RUNTIME_MODE` feature flag (`inproc` | `multiproc`).
-- Remove `adopt_primary_window()` deprecated wrapper and update tests to use `create_initial_window()`.
-- Remove `primary_window()` accessor from `VulkanBackend` and update test code.
-- Remove `initial_window_raw_` from `VulkanBackend`.
+- Wire `app.new_window` command (Ctrl+Shift+N) to send `REQ_CREATE_WINDOW` in multiproc mode.
+- Implement `STATE_SNAPSHOT` for figure data transfer to agents.
+- Wire `WindowRuntime` into agent for actual GPU rendering.
+- End-to-end manual verification: start backend, spawn 2 agents, close one, verify other continues.

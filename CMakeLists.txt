@@ -14,6 +14,11 @@ option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 
+# Runtime mode: inproc (single-process, all windows in one process)
+#               multiproc (future: each window in its own process via IPC)
+set(SPECTRA_RUNTIME_MODE "inproc" CACHE STRING "Runtime mode: inproc | multiproc")
+set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
+
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
 
@@ -26,6 +31,11 @@ file(GLOB_RECURSE SPECTRA_RENDER_SOURCES src/render/*.cpp)
 file(GLOB_RECURSE SPECTRA_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE SPECTRA_IO_SOURCES     src/io/*.cpp)
 file(GLOB_RECURSE SPECTRA_DATA_SOURCES  src/data/*.cpp)
+file(GLOB_RECURSE SPECTRA_IPC_SOURCES   src/ipc/*.cpp)
+file(GLOB SPECTRA_DAEMON_SOURCES
+    src/daemon/session_graph.cpp
+    src/daemon/process_manager.cpp
+)
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
@@ -68,6 +78,8 @@ add_library(spectra STATIC
     ${SPECTRA_ANIM_SOURCES}
     ${SPECTRA_IO_SOURCES}
     ${SPECTRA_DATA_SOURCES}
+    ${SPECTRA_IPC_SOURCES}
+    ${SPECTRA_DAEMON_SOURCES}
     ${SPECTRA_UI_SOURCES}
 )
 
@@ -89,6 +101,10 @@ target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
+target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE})
+if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+    target_compile_definitions(spectra PUBLIC SPECTRA_MULTIPROC)
+endif()
 
 # Ensure shaders are compiled before the library
 if(TARGET spectra_shaders)
@@ -177,6 +193,36 @@ if(SPECTRA_USE_EIGEN)
     find_package(Eigen3 REQUIRED)
     target_link_libraries(spectra PUBLIC Eigen3::Eigen)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
+endif()
+
+# Multi-process daemon + agent binaries (Phase 4 & 5)
+if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+    # spectra-backend daemon
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/daemon/main.cpp)
+        add_executable(spectra-backend
+            src/daemon/main.cpp
+            src/daemon/session_graph.cpp
+            src/daemon/process_manager.cpp
+            src/daemon/figure_model.cpp
+        )
+        target_link_libraries(spectra-backend PRIVATE spectra)
+        target_compile_features(spectra-backend PRIVATE cxx_std_20)
+        target_include_directories(spectra-backend PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+    endif()
+
+    # spectra-window agent
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/agent/main.cpp)
+        add_executable(spectra-window
+            src/agent/main.cpp
+        )
+        target_link_libraries(spectra-window PRIVATE spectra)
+        target_compile_features(spectra-window PRIVATE cxx_std_20)
+        target_include_directories(spectra-window PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+    endif()
 endif()
 
 # Examples

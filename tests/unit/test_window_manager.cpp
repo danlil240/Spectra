@@ -70,8 +70,8 @@ TEST_F(WindowManagerTest, InitWithNullBackend)
 {
     WindowManager wm;
     wm.init(nullptr);
-    // adopt_primary_window should fail gracefully
-    auto* result = wm.adopt_primary_window(nullptr);
+    // create_initial_window should fail gracefully
+    auto* result = wm.create_initial_window(nullptr);
     EXPECT_EQ(result, nullptr);
 }
 
@@ -82,8 +82,8 @@ TEST_F(WindowManagerTest, AdoptPrimaryWindowHeadless)
     WindowManager wm;
     wm.init(vk_backend());
 
-    // In headless mode, glfw_window is nullptr, but adopt should still work
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    // In headless mode, glfw_window is nullptr, but create should still work
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
     EXPECT_EQ(wm.window_count(), 1u);
     EXPECT_EQ(wctx->glfw_window, nullptr);
@@ -96,7 +96,7 @@ TEST_F(WindowManagerTest, AdoptPrimaryWindowSetsId)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
     // First window should get id=1
     EXPECT_EQ(wctx->id, 1u);
@@ -107,7 +107,7 @@ TEST_F(WindowManagerTest, AdoptPrimaryWindowAppearsInWindowsList)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     const auto& windows = wm.windows();
@@ -122,7 +122,7 @@ TEST_F(WindowManagerTest, FindWindowById)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     auto* found = wm.find_window(wctx->id);
@@ -134,7 +134,7 @@ TEST_F(WindowManagerTest, FindWindowInvalidId)
     WindowManager wm;
     wm.init(vk_backend());
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     auto* found = wm.find_window(9999);
     EXPECT_EQ(found, nullptr);
@@ -147,10 +147,10 @@ TEST_F(WindowManagerTest, FocusedWindowIsPrimary)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
-    // Primary is focused by default after adopt
+    // Initial window is focused by default after creation
     auto* focused = wm.focused_window();
     EXPECT_EQ(focused, wctx);
 }
@@ -160,10 +160,10 @@ TEST_F(WindowManagerTest, FocusedWindowNoneWhenClosed)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
-    // Mark primary as should_close
+    // Mark window as should_close
     wctx->should_close = true;
     wctx->is_focused = false;
 
@@ -178,7 +178,7 @@ TEST_F(WindowManagerTest, AnyWindowOpenTrue)
     WindowManager wm;
     wm.init(vk_backend());
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
     EXPECT_TRUE(wm.any_window_open());
 }
 
@@ -187,12 +187,12 @@ TEST_F(WindowManagerTest, AnyWindowOpenFalseAfterClose)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
-    // Mark primary as closed
+    // Mark window as closed
     wctx->should_close = true;
-    // Rebuild active list by requesting close on primary
+    // Rebuild active list by requesting close
     wm.request_close(wctx->id);
     wm.process_pending_closes();
 
@@ -206,7 +206,7 @@ TEST_F(WindowManagerTest, RequestClosePrimary)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
     uint32_t id = wctx->id;
 
@@ -225,7 +225,7 @@ TEST_F(WindowManagerTest, ShutdownCleansUp)
     WindowManager wm;
     wm.init(vk_backend());
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
     EXPECT_EQ(wm.window_count(), 1u);
 
     wm.shutdown();
@@ -238,7 +238,7 @@ TEST_F(WindowManagerTest, ShutdownIdempotent)
     WindowManager wm;
     wm.init(vk_backend());
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
     wm.shutdown();
     wm.shutdown();  // Should not crash
     EXPECT_EQ(wm.window_count(), 0u);
@@ -249,7 +249,7 @@ TEST_F(WindowManagerTest, DestructorCallsShutdown)
     {
         WindowManager wm;
         wm.init(vk_backend());
-        wm.adopt_primary_window(nullptr);
+        wm.create_initial_window(nullptr);
     }
     // If destructor didn't call shutdown, we'd leak or crash
     SUCCEED();
@@ -308,14 +308,15 @@ TEST_F(WindowManagerTest, BackendRecreateSwapchainForPrimary)
     auto* backend = vk_backend();
     ASSERT_NE(backend, nullptr);
 
-    // recreate_swapchain_for on primary window (headless — has offscreen, not swapchain)
+    // recreate_swapchain_for on active window (headless — has offscreen, not swapchain)
     // This tests that the method doesn't crash when called on a window without a surface
-    auto& primary = backend->primary_window();
-    // In headless mode, primary has no surface, so recreate should handle gracefully
+    auto* active = backend->active_window();
+    ASSERT_NE(active, nullptr);
+    // In headless mode, active window has no surface, so recreate should handle gracefully
     // (it will fail but not crash)
-    if (primary.surface != VK_NULL_HANDLE)
+    if (active->surface != VK_NULL_HANDLE)
     {
-        bool ok = backend->recreate_swapchain_for(primary, 320, 240);
+        bool ok = backend->recreate_swapchain_for(*active, 320, 240);
         EXPECT_TRUE(ok);
     }
 }
@@ -326,7 +327,7 @@ TEST_F(WindowManagerTest, PollEventsNoOp)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Should not crash even without real GLFW windows
     wm.poll_events();
@@ -337,7 +338,7 @@ TEST_F(WindowManagerTest, ProcessPendingClosesEmpty)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // No pending closes — should be a no-op
     wm.process_pending_closes();
@@ -351,12 +352,12 @@ TEST_F(WindowManagerTest, MultipleAdoptCallsOverwrite)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* first = wm.adopt_primary_window(nullptr);
+    auto* first = wm.create_initial_window(nullptr);
     ASSERT_NE(first, nullptr);
 
-    // Second adopt returns nullptr because initial_window_ was already
+    // Second create returns nullptr because initial_window_ was already
     // released from the backend by the first call.
-    auto* second = wm.adopt_primary_window(nullptr);
+    auto* second = wm.create_initial_window(nullptr);
     EXPECT_EQ(second, nullptr);
 
     // First window is still managed
@@ -370,7 +371,7 @@ TEST_F(WindowManagerTest, WindowCountAccurate)
 
     EXPECT_EQ(wm.window_count(), 0u);
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
     EXPECT_EQ(wm.window_count(), 1u);
 
     // In headless mode we can't create secondary windows (no GLFW),
@@ -385,9 +386,9 @@ TEST_F(WindowManagerTest, AssignedFigureIndexDefault)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
-    // Primary window has no assigned figure by default (uses active_figure)
+    // Window has no assigned figure by default (uses active_figure)
     EXPECT_EQ(wctx->assigned_figure_index, INVALID_FIGURE_ID);
 }
 
@@ -396,7 +397,7 @@ TEST_F(WindowManagerTest, AssignedFigureIndexSettable)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     wctx->assigned_figure_index = 42;
@@ -410,7 +411,7 @@ TEST_F(WindowManagerTest, SetWindowPositionNoGlfw)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     // In headless mode, glfw_window is nullptr — should not crash
@@ -425,7 +426,7 @@ TEST_F(WindowManagerTest, MoveFigureInvalidWindows)
     WindowManager wm;
     wm.init(vk_backend());
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Both source and target window IDs are invalid
     EXPECT_FALSE(wm.move_figure(1, 999, 888));
@@ -436,7 +437,7 @@ TEST_F(WindowManagerTest, MoveFigureSameWindow)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     wctx->assigned_figure_index = 1;
@@ -451,12 +452,12 @@ TEST_F(WindowManagerTest, MoveFigureSourceNotRendering)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* primary = wm.adopt_primary_window(nullptr);
-    ASSERT_NE(primary, nullptr);
+    auto* initial = wm.create_initial_window(nullptr);
+    ASSERT_NE(initial, nullptr);
 
-    // Primary has INVALID_FIGURE_ID (default), try to move figure 42
-    // which is not assigned to primary
-    EXPECT_FALSE(wm.move_figure(42, primary->id, primary->id));
+    // Window has INVALID_FIGURE_ID (default), try to move figure 42
+    // which is not assigned to it
+    EXPECT_FALSE(wm.move_figure(42, initial->id, initial->id));
 }
 
 TEST_F(WindowManagerTest, MoveFigureSuccessful)
@@ -464,8 +465,8 @@ TEST_F(WindowManagerTest, MoveFigureSuccessful)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* primary = wm.adopt_primary_window(nullptr);
-    ASSERT_NE(primary, nullptr);
+    auto* initial = wm.create_initial_window(nullptr);
+    ASSERT_NE(initial, nullptr);
 
     // Simulate a second window by creating a WindowContext manually
     // (can't use create_window in headless mode)
@@ -475,15 +476,15 @@ TEST_F(WindowManagerTest, MoveFigureSuccessful)
 
     // We can't use wm.move_figure directly since the secondary isn't
     // managed by wm. Instead, test the logic by assigning and moving
-    // on the primary window.
-    primary->assigned_figure_index = 7;
+    // on the initial window.
+    initial->assigned_figure_index = 7;
 
     // Verify assignment
-    EXPECT_EQ(primary->assigned_figure_index, 7u);
+    EXPECT_EQ(initial->assigned_figure_index, 7u);
 
     // Reset to unassigned
-    primary->assigned_figure_index = INVALID_FIGURE_ID;
-    EXPECT_EQ(primary->assigned_figure_index, INVALID_FIGURE_ID);
+    initial->assigned_figure_index = INVALID_FIGURE_ID;
+    EXPECT_EQ(initial->assigned_figure_index, INVALID_FIGURE_ID);
 }
 
 TEST_F(WindowManagerTest, MoveFigureClearsSource)
@@ -531,7 +532,7 @@ TEST_F(WindowManagerTest, DetachFigureInvalidId)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // INVALID_FIGURE_ID should be rejected
     auto* result = wm.detach_figure(INVALID_FIGURE_ID, 800, 600, "Test", 100, 200);
@@ -542,7 +543,7 @@ TEST_F(WindowManagerTest, DetachFigureHeadlessNoGlfw)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // In headless mode, create_window (called by detach_figure) will fail
     // because GLFW is not initialized. detach_figure should return nullptr.
@@ -559,7 +560,7 @@ TEST_F(WindowManagerTest, DetachFigureZeroDimensions)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Zero dimensions should be clamped to defaults (800x600)
     // In headless, create_window will fail, but the clamping logic
@@ -576,7 +577,7 @@ TEST_F(WindowManagerTest, MultipleRequestClosesSameId)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
     uint32_t id = wctx->id;
 
@@ -594,7 +595,7 @@ TEST_F(WindowManagerTest, DestroyNonexistentWindow)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Destroying a window that doesn't exist should be a no-op
     wm.destroy_window(9999);
@@ -606,7 +607,7 @@ TEST_F(WindowManagerTest, FindWindowAfterShutdown)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
     uint32_t id = wctx->id;
 
@@ -628,7 +629,7 @@ TEST_F(WindowManagerTest, WindowCountAfterMultipleOps)
 
     EXPECT_EQ(wm.window_count(), 0u);
 
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
     EXPECT_EQ(wm.window_count(), 1u);
 
     // Request close and process
@@ -644,7 +645,7 @@ TEST_F(WindowManagerTest, MoveFigureToSelfIsNoOp)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     wctx->assigned_figure_index = 5;
@@ -658,7 +659,7 @@ TEST_F(WindowManagerTest, PollEventsMultipleTimes)
 {
     WindowManager wm;
     wm.init(vk_backend());
-    wm.adopt_primary_window(nullptr);
+    wm.create_initial_window(nullptr);
 
     // Multiple poll_events calls should be safe
     for (int i = 0; i < 10; ++i)
@@ -673,7 +674,7 @@ TEST_F(WindowManagerTest, FocusedWindowFallbackToPrimary)
     WindowManager wm;
     wm.init(vk_backend());
 
-    auto* wctx = wm.adopt_primary_window(nullptr);
+    auto* wctx = wm.create_initial_window(nullptr);
     ASSERT_NE(wctx, nullptr);
 
     // Primary is not focused but still open — should return primary as fallback

@@ -33,7 +33,6 @@ WindowContext::~WindowContext() = default;
 VulkanBackend::VulkanBackend()
     : initial_window_(std::make_unique<WindowContext>())
 {
-    initial_window_raw_ = initial_window_.get();
     active_window_ = initial_window_.get();
 }
 

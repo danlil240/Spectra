@@ -104,6 +104,12 @@ class TabDragController
     // Returns true if the preview window has been created for the current drag.
     bool is_preview_active() const { return preview_created_; }
 
+    // Check if left mouse button is held on any GLFW window (robust for X11 grab transfer).
+    bool check_mouse_held() const;
+
+    // Get the global screen cursor position via GLFW (not ImGui).
+    bool get_screen_cursor(double& sx, double& sy) const;
+
     // Pixel threshold before a mouse-down becomes a drag (default: 10px).
     void set_drag_threshold(float px) { drag_threshold_ = px; }
 
@@ -196,6 +202,7 @@ class TabDragController
     // Preview window state
     bool preview_created_ = false;
     int preview_grace_frames_ = 0;  // Suppress drop for N frames after preview request
+    int preview_created_recently_ = 0;  // Suppress drop for N frames after preview actually created
 
     // Thresholds
     float drag_threshold_ = 10.0f;

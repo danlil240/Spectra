@@ -589,6 +589,16 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
     glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
 
+    // Set suppression window BEFORE creating the window.  The WM may
+    // grab the pointer during glfwCreateWindow (synchronous X11 event
+    // processing), which sends a real ButtonRelease to the source window.
+    // We suppress that artifact for 200ms after creation.
+    if (mouse_release_tracking_)
+    {
+        suppress_release_until_ = std::chrono::steady_clock::now()
+                                  + std::chrono::milliseconds(200);
+    }
+
     GLFWwindow* glfw_win = glfwCreateWindow(
         static_cast<int>(width), static_cast<int>(height),
         figure_title.c_str(), nullptr, nullptr);
@@ -624,10 +634,13 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_
         return nullptr;
     }
 
-    // Set GLFW callbacks (minimal — just framebuffer resize and close)
+    // Set GLFW callbacks (minimal — framebuffer resize, close, and mouse button).
+    // Mouse button callback is needed so we catch ButtonRelease events if the
+    // X11 implicit pointer grab transfers to this window during a tab drag.
     glfwSetWindowUserPointer(glfw_win, this);
     glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
     glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+    glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
     // Initialize ImGui for this preview window so we can render the card
     auto ui = std::make_unique<WindowUIContext>();
@@ -702,6 +715,84 @@ WindowContext* WindowManager::preview_window() const
     if (preview_window_id_ == 0)
         return nullptr;
     return find_window(preview_window_id_);
+}
+
+bool WindowManager::is_mouse_button_held(int glfw_button) const
+{
+    // When callback-based tracking is active (during a tab drag), use
+    // the tracked state.  Polling glfwGetMouseButton gives false RELEASE
+    // on X11 after creating a new GLFW window because poll_events()
+    // processes X11 events from the window creation in the same frame.
+    // The callback only fires for real ButtonRelease X11 events.
+    if (mouse_release_tracking_ && glfw_button == GLFW_MOUSE_BUTTON_LEFT)
+        return !mouse_release_seen_;
+
+#ifdef SPECTRA_USE_GLFW
+    for (auto& wctx : windows_)
+    {
+        if (wctx->glfw_window && !wctx->should_close)
+        {
+            if (glfwGetMouseButton(static_cast<GLFWwindow*>(wctx->glfw_window),
+                                    glfw_button) == GLFW_PRESS)
+                return true;
+        }
+    }
+#endif
+    return false;
+}
+
+void WindowManager::begin_mouse_release_tracking()
+{
+    mouse_release_tracking_ = true;
+    mouse_release_seen_ = false;
+}
+
+void WindowManager::end_mouse_release_tracking()
+{
+    mouse_release_tracking_ = false;
+    mouse_release_seen_ = false;
+}
+
+bool WindowManager::get_global_cursor_pos(double& screen_x, double& screen_y) const
+{
+#ifdef SPECTRA_USE_GLFW
+    // Try focused window first, then fall back to the first open window.
+    WindowContext* wctx = nullptr;
+    for (auto& w : windows_)
+    {
+        if (w->glfw_window && !w->should_close && w->is_focused)
+        {
+            wctx = w.get();
+            break;
+        }
+    }
+    if (!wctx)
+    {
+        for (auto& w : windows_)
+        {
+            if (w->glfw_window && !w->should_close)
+            {
+                wctx = w.get();
+                break;
+            }
+        }
+    }
+    if (!wctx)
+        return false;
+
+    auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+    double cx, cy;
+    glfwGetCursorPos(glfw_win, &cx, &cy);
+    int wx, wy;
+    glfwGetWindowPos(glfw_win, &wx, &wy);
+    screen_x = wx + cx;
+    screen_y = wy + cy;
+    return true;
+#else
+    (void)screen_x;
+    (void)screen_y;
+    return false;
+#endif
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1335,6 +1426,20 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!mgr)
         return;
+
+    // Track mouse release for tab drag (callback-based).
+    // This runs before the ui_ctx check so it catches events on preview windows too.
+    // We suppress releases that arrive within the suppression window — the WM
+    // temporarily grabs the pointer when a new GLFW window is created/mapped,
+    // sending a real ButtonRelease to the source window.  That release is an
+    // artifact, not the user lifting their finger.
+    if (mgr->mouse_release_tracking_ && button == GLFW_MOUSE_BUTTON_LEFT
+        && action == GLFW_RELEASE)
+    {
+        auto now = std::chrono::steady_clock::now();
+        if (now >= mgr->suppress_release_until_)
+            mgr->mouse_release_seen_ = true;
+    }
 
     WindowContext* wctx = mgr->find_by_glfw_window(window);
     if (!wctx || !wctx->ui_ctx)

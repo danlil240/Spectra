@@ -287,6 +287,9 @@ class ImGuiIntegration
     // Tab drag controller (not owned)
     TabDragController* tab_drag_controller_ = nullptr;
 
+    // GLFW window pointer (not owned) — stored for direct mouse queries
+    void* glfw_window_ = nullptr;
+
     // Pane tab context menu callbacks
     PaneTabCallback pane_tab_duplicate_cb_;
     PaneTabCallback pane_tab_close_cb_;

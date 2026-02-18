@@ -4,18 +4,12 @@
 
 #include <cmath>
 
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 #include "dock_system.hpp"
 #include "window_manager.hpp"
 #include "../render/vulkan/window_context.hpp"
-
-struct GLFWwindow;
-
-// GLFW functions needed for screen-space window queries
-extern "C"
-{
-    void glfwGetWindowPos(GLFWwindow* window, int* xpos, int* ypos);
-    void glfwGetWindowSize(GLFWwindow* window, int* width, int* height);
-}
 
 namespace spectra
 {
@@ -37,6 +31,11 @@ void TabDragController::on_mouse_down(uint32_t source_pane_id, FigureId figure_i
     current_mouse_y_ = mouse_y;
     cross_pane_ = false;
     dock_dragging_ = false;
+
+    // Begin callback-based mouse release tracking so we don't lose
+    // the button state when creating preview windows on X11.
+    if (window_manager_)
+        window_manager_->begin_mouse_release_tracking();
 }
 
 void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
@@ -57,7 +56,6 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
     {
         if (!mouse_down)
         {
-            // Mouse released before threshold — treat as click, not drag.
             transition_to_idle();
             return;
         }
@@ -83,9 +81,8 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
                 window_manager_->request_destroy_preview();
                 preview_created_ = false;
             }
-            preview_grace_frames_ = 0;
 
-            // Mouse released — determine drop target.
+            // Determine drop target.
             if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
             {
                 execute_drop_outside(screen_mouse_x, screen_mouse_y);
@@ -122,34 +119,18 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
             }
         }
 
-        // Preview window creation uses a delay: once the tearoff threshold
-        // is exceeded, we wait a few frames (grace period) with the mouse
-        // still held before actually creating the OS window.  This prevents
-        // a brief flash for fast drag-and-release gestures.
+        // Create preview window once drag exceeds tearoff threshold
         constexpr float TEAROFF_THRESHOLD = 25.0f;
         if (!preview_created_ && std::abs(dy) > TEAROFF_THRESHOLD && window_manager_)
         {
-            if (preview_grace_frames_ == 0)
-            {
-                // First frame past threshold — start the grace countdown.
-                preview_grace_frames_ = 4;
-            }
-            else
-            {
-                --preview_grace_frames_;
-                if (preview_grace_frames_ == 0)
-                {
-                    // Grace period expired and mouse is still held — create preview.
-                    constexpr uint32_t PREVIEW_W = 280;
-                    constexpr uint32_t PREVIEW_H = 200;
-                    window_manager_->request_preview_window(
-                        PREVIEW_W, PREVIEW_H,
-                        static_cast<int>(screen_mouse_x),
-                        static_cast<int>(screen_mouse_y),
-                        ghost_title_);
-                    preview_created_ = true;
-                }
-            }
+            constexpr uint32_t PREVIEW_W = 280;
+            constexpr uint32_t PREVIEW_H = 200;
+            window_manager_->request_preview_window(
+                PREVIEW_W, PREVIEW_H,
+                static_cast<int>(screen_mouse_x),
+                static_cast<int>(screen_mouse_y),
+                ghost_title_);
+            preview_created_ = true;
         }
 
         // Move preview window to follow mouse
@@ -186,6 +167,20 @@ void TabDragController::cancel()
     execute_cancel();
 }
 
+bool TabDragController::check_mouse_held() const
+{
+    if (window_manager_)
+        return window_manager_->is_mouse_button_held(GLFW_MOUSE_BUTTON_LEFT);
+    return false;
+}
+
+bool TabDragController::get_screen_cursor(double& sx, double& sy) const
+{
+    if (window_manager_)
+        return window_manager_->get_global_cursor_pos(sx, sy);
+    return false;
+}
+
 // ─── State transitions ──────────────────────────────────────────────────────
 
 void TabDragController::transition_to_idle()
@@ -197,7 +192,11 @@ void TabDragController::transition_to_idle()
     dock_dragging_ = false;
     preview_created_ = false;
     preview_grace_frames_ = 0;
+    preview_created_recently_ = 0;
     ghost_title_.clear();
+
+    if (window_manager_)
+        window_manager_->end_mouse_release_tracking();
 }
 
 void TabDragController::transition_to_dragging()

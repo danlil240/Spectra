@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -156,6 +157,23 @@ class WindowManager
     // Get the current preview window (nullptr if none).
     WindowContext* preview_window() const;
 
+    // Check if a mouse button is pressed on ANY GLFW window.
+    // On X11, creating a new window during an active drag can transfer
+    // the implicit pointer grab, so we check all windows.
+    bool is_mouse_button_held(int glfw_button) const;
+
+    // Callback-based mouse release tracking for tab drag.
+    // When active, is_mouse_button_held uses the callback-tracked state
+    // instead of polling (which can give false RELEASE after creating
+    // a new GLFW window on X11).
+    void begin_mouse_release_tracking();
+    void end_mouse_release_tracking();
+
+    // Get the global screen-space cursor position by querying GLFW.
+    // Uses glfwGetCursorPos + glfwGetWindowPos on the focused (or first) window.
+    // Returns true if a valid position was obtained.
+    bool get_global_cursor_pos(double& screen_x, double& screen_y) const;
+
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
     void shutdown();
@@ -204,6 +222,11 @@ class WindowManager
     // Tearoff preview window (0 = none active)
     uint32_t preview_window_id_ = 0;
     bool preview_rendered_ = false;  // True after preview has been rendered at least once
+
+    // Callback-based mouse release tracking (tab drag)
+    bool mouse_release_tracking_ = false;
+    bool mouse_release_seen_ = false;
+    std::chrono::steady_clock::time_point suppress_release_until_{};
 
     // Deferred preview window requests
     struct PendingPreviewCreate

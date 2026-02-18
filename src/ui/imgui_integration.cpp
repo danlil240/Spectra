@@ -70,6 +70,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     if (!window)
         return false;
 
+    glfw_window_ = window;
     layout_manager_ = std::make_unique<LayoutManager>();
 
     IMGUI_CHECKVERSION();
@@ -2337,12 +2338,33 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     if (tab_drag_controller_ && tab_drag_controller_->is_active())
     {
-        // Compute screen-space mouse position for outside-window detection
-        ImVec2 wpos = ImGui::GetMainViewport()->Pos;
-        float screen_mx = wpos.x + mouse.x;
-        float screen_my = wpos.y + mouse.y;
+        // Compute screen-space cursor position via GLFW (not ImGui).
+        // ImGui::GetMousePos() returns garbage when the cursor leaves
+        // the GLFW window, causing int overflow → INT_MIN coordinates.
+        // GLFW's glfwGetCursorPos works correctly even outside the window.
+        float screen_mx, screen_my;
+        {
+            double sx, sy;
+            if (tab_drag_controller_->get_screen_cursor(sx, sy))
+            {
+                screen_mx = static_cast<float>(sx);
+                screen_my = static_cast<float>(sy);
+            }
+            else
+            {
+                ImVec2 wpos = ImGui::GetMainViewport()->Pos;
+                screen_mx = wpos.x + mouse.x;
+                screen_my = wpos.y + mouse.y;
+            }
+        }
 
-        bool mouse_held = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+        // Check mouse button across ALL GLFW windows.  On X11, creating
+        // a new GLFW window (the preview) during an active drag can break
+        // the implicit pointer grab on the source window, causing
+        // glfwGetMouseButton on the source to return RELEASE even though
+        // the user is still holding the button.  The grab may transfer
+        // to the newly created preview window.
+        bool mouse_held = tab_drag_controller_->check_mouse_held();
         tab_drag_controller_->update(mouse.x, mouse.y, mouse_held, screen_mx, screen_my);
 
         // Sync controller state → legacy pane_tab_drag_ for rendering

@@ -655,6 +655,8 @@ static std::vector<uint8_t> encode_figure_blob(const SnapshotFigureState& fig)
     enc.put_u32(TAG_HEIGHT, fig.height);
     enc.put_u32(TAG_GRID_ROWS, static_cast<uint32_t>(fig.grid_rows));
     enc.put_u32(TAG_GRID_COLS, static_cast<uint32_t>(fig.grid_cols));
+    if (fig.window_group != 0)
+        enc.put_u32(TAG_WINDOW_GROUP, fig.window_group);
     for (const auto& ax : fig.axes)
     {
         auto blob = encode_axis_blob(ax);
@@ -682,6 +684,7 @@ static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
             case TAG_HEIGHT:      fig.height = dec.as_u32(); break;
             case TAG_GRID_ROWS:   fig.grid_rows = static_cast<int32_t>(dec.as_u32()); break;
             case TAG_GRID_COLS:   fig.grid_cols = static_cast<int32_t>(dec.as_u32()); break;
+            case TAG_WINDOW_GROUP: fig.window_group = dec.as_u32(); break;
             case TAG_AXIS_BLOB:
             {
                 auto blob = payload_as_blob(dec);

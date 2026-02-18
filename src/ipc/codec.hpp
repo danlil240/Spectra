@@ -181,6 +181,7 @@ static constexpr uint8_t TAG_VISIBLE         = 0x74;
 static constexpr uint8_t TAG_OPACITY_VAL     = 0x75;
 static constexpr uint8_t TAG_POINT_COUNT     = 0x76;
 static constexpr uint8_t TAG_SERIES_DATA     = 0x77;  // raw float array
+static constexpr uint8_t TAG_WINDOW_GROUP    = 0x78;  // figure window grouping
 
 // Sub-tags for DiffOp
 static constexpr uint8_t TAG_OP_TYPE         = 0x80;

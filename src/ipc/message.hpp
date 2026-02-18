@@ -216,6 +216,7 @@ struct SnapshotFigureState
     uint32_t height = 720;
     int32_t grid_rows = 1;
     int32_t grid_cols = 1;
+    uint32_t window_group = 0;  // Figures with the same non-zero group share one window
     std::vector<SnapshotAxisState> axes;
     std::vector<SnapshotSeriesState> series;
 };

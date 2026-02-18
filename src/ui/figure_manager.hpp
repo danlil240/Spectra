@@ -52,6 +52,7 @@ class FigureManager
    public:
     using FigureChangeCallback = std::function<void(FigureId new_id, Figure* fig)>;
     using FigureCloseCallback = std::function<void(FigureId id)>;
+    using WindowCloseRequestCallback = std::function<void()>;
 
     explicit FigureManager(FigureRegistry& registry);
     ~FigureManager() = default;
@@ -112,6 +113,7 @@ class FigureManager
     // Callbacks
     void set_on_figure_changed(FigureChangeCallback cb) { on_figure_changed_ = std::move(cb); }
     void set_on_figure_closed(FigureCloseCallback cb) { on_figure_closed_ = std::move(cb); }
+    void set_on_window_close_request(WindowCloseRequestCallback cb) { on_window_close_request_ = std::move(cb); }
 
     // Process pending operations (call once per frame from main loop)
     // Returns true if active figure changed this frame
@@ -148,6 +150,7 @@ class FigureManager
     // Callbacks
     FigureChangeCallback on_figure_changed_;
     FigureCloseCallback on_figure_closed_;
+    WindowCloseRequestCallback on_window_close_request_;
 
     // Internal helpers
     void sync_tab_bar();

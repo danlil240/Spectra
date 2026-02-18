@@ -957,6 +957,7 @@ void InputHandler::on_key(int key, int action, int mods)
         }
         return;
     }
+
 }
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────

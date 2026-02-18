@@ -51,6 +51,17 @@ bool FigureRegistry::contains(IdType id) const
     return figures_.count(id) > 0;
 }
 
+FigureRegistry::IdType FigureRegistry::find_id(const Figure* fig) const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& [id, ptr] : figures_)
+    {
+        if (ptr.get() == fig)
+            return id;
+    }
+    return 0;
+}
+
 std::unique_ptr<Figure> FigureRegistry::release(IdType id)
 {
     std::lock_guard<std::mutex> lock(mutex_);

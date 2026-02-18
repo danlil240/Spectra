@@ -52,6 +52,10 @@ class FigureRegistry
     // Check if an ID is registered.
     bool contains(IdType id) const;
 
+    // Reverse lookup: find the ID for a given Figure pointer.
+    // Returns 0 (INVALID_FIGURE_ID) if not found.
+    IdType find_id(const Figure* fig) const;
+
     // Release ownership of a figure (removes from registry, returns the unique_ptr).
     // Returns nullptr if the ID is not found.
     std::unique_ptr<Figure> release(IdType id);

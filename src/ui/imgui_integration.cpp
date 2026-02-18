@@ -2248,8 +2248,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 title.c_str());
             draw_list->PopClipRect();
 
-            // Close button (show on hover or active, only if pane has >1 figure)
-            if ((tr.is_active || tr.is_hovered) && ph.pane->figure_count() > 1)
+            // Close button (always show on active or hovered tabs)
+            if (tr.is_active || tr.is_hovered)
             {
                 float cx = tr.x + tr.w - CLOSE_SZ * 0.5f - 4.0f;
                 float cy = tr.y + tr.h * 0.5f;
@@ -2266,10 +2266,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 draw_list->AddLine(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), x_col, 1.5f);
                 draw_list->AddLine(ImVec2(cx - sz, cy + sz), ImVec2(cx + sz, cy - sz), x_col, 1.5f);
 
-                // Close click
+                // Close click — route through FigureManager callback
                 if (close_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
-                    ph.pane->remove_figure(tr.figure_index);
+                    if (pane_tab_close_cb_)
+                        pane_tab_close_cb_(tr.figure_index);
                     pane_tab_hovered_ = true;
                     continue;
                 }

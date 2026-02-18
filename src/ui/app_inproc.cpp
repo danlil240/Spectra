@@ -60,6 +60,7 @@ void App::run_inproc()
 
     // Multi-figure support - track active figure via FrameState
     auto all_ids = registry_.all_ids();
+    auto window_groups = compute_window_groups();
     FrameState frame_state;
     frame_state.active_figure_id = all_ids[0];
     frame_state.active_figure = registry_.get(frame_state.active_figure_id);
@@ -140,20 +141,44 @@ void App::run_inproc()
             backend_->create_surface(glfw->native_window());
             backend_->create_swapchain(active_figure->width(), active_figure->height());
 
-            // Initialize WindowManager and create the first window with full UI.
-            // create_first_window_with_ui() takes ownership of the backend's
-            // initial WindowContext, creates ImGui + FigureManager + all UI
-            // subsystems via init_window_ui(), and installs GLFW callbacks.
-            // This is the SAME path secondary windows use.
+            // Initialize WindowManager and create windows based on figure grouping.
+            // The first group goes to the primary GLFW window; additional groups
+            // each get their own OS window via create_window_with_ui().
             window_mgr = std::make_unique<WindowManager>();
             window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
                              &registry_, renderer_.get());
+
+            // First group → primary window
             auto* initial_wctx = window_mgr->create_first_window_with_ui(
-                glfw->native_window(), all_ids);
+                glfw->native_window(), window_groups[0]);
 
             if (initial_wctx && initial_wctx->ui_ctx)
             {
                 ui_ctx_ptr = initial_wctx->ui_ctx.get();
+            }
+
+            // Additional groups → new OS windows
+            for (size_t gi = 1; gi < window_groups.size(); ++gi)
+            {
+                auto& group = window_groups[gi];
+                if (group.empty()) continue;
+
+                auto* fig0 = registry_.get(group[0]);
+                uint32_t w = fig0 ? fig0->width() : 800;
+                uint32_t h = fig0 ? fig0->height() : 600;
+
+                auto* new_wctx = window_mgr->create_window_with_ui(
+                    w, h, "Spectra", group[0]);
+
+                if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
+                {
+                    // Add remaining figures in this group as tabs
+                    for (size_t fi = 1; fi < group.size(); ++fi)
+                    {
+                        new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
+                        new_wctx->assigned_figures.push_back(group[fi]);
+                    }
+                }
             }
         }
     }

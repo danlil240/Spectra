@@ -60,6 +60,7 @@ class TabBar
     // Tab management
     size_t add_tab(const std::string& title, bool can_close = true);
     void remove_tab(size_t index);
+    void clear_tabs();
     void set_tab_title(size_t index, const std::string& title);
     const std::string& get_tab_title(size_t index) const;
 

@@ -686,10 +686,47 @@ int main(int argc, char* argv[])
                             ? "Figure " + std::to_string(i + 1) : fig.title);
                     }
 
-                    // Spawn one agent per figure.
-                    // Pre-assign each figure to its agent window so the HELLO
-                    // handler sends only the correct figure to each agent.
+                    // Group figures by window_group and spawn one agent per group.
+                    // Figures with the same non-zero window_group share one agent window.
+                    // Figures with window_group==0 each get their own agent.
+                    std::unordered_map<uint32_t, std::vector<size_t>> groups;
+                    std::vector<size_t> ungrouped;
                     for (size_t fi = 0; fi < new_ids.size(); ++fi)
+                    {
+                        uint32_t wg = incoming->figures[fi].window_group;
+                        if (wg != 0)
+                            groups[wg].push_back(fi);
+                        else
+                            ungrouped.push_back(fi);
+                    }
+
+                    // Spawn one agent per group
+                    for (auto& [wg, fig_indices] : groups)
+                    {
+                        auto pre_wid = graph.add_agent(0, -1);
+                        for (size_t fi : fig_indices)
+                        {
+                            graph.assign_figure(new_ids[fi], pre_wid);
+                        }
+                        graph.heartbeat(pre_wid);
+
+                        pid_t pid = proc_mgr.spawn_agent();
+                        if (pid <= 0)
+                        {
+                            std::cerr << "[spectra-backend] Failed to spawn agent for group "
+                                      << wg << "\n";
+                        }
+                        else
+                        {
+                            std::cerr << "[spectra-backend] Spawned agent pid=" << pid
+                                      << " for group " << wg << " with "
+                                      << fig_indices.size() << " figure(s)"
+                                      << " (pre-assigned window=" << pre_wid << ")\n";
+                        }
+                    }
+
+                    // Spawn one agent per ungrouped figure
+                    for (size_t fi : ungrouped)
                     {
                         auto pre_wid = graph.add_agent(0, -1);
                         graph.assign_figure(new_ids[fi], pre_wid);

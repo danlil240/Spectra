@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #ifdef __linux__
@@ -331,21 +332,47 @@ void App::run_multiproc()
         }
     }
 
-    // Serialize and push all figures as a STATE_SNAPSHOT
+    // Serialize and push all figures as a STATE_SNAPSHOT.
+    // Assign window_group so the daemon groups sibling figures into one agent.
     ipc::StateSnapshotPayload snap;
     snap.revision = 1;
     snap.session_id = session_id;
 
+    auto window_groups = compute_window_groups();
+
+    // Map registry FigureId → IPC figure_id (starting at 100)
+    std::unordered_map<FigureId, uint64_t> reg_to_ipc;
     uint64_t fig_counter = 100;
+    for (auto id : registry_.all_ids())
+        reg_to_ipc[id] = fig_counter++;
+
+    fig_counter = 100;
     for (auto id : registry_.all_ids())
     {
         Figure* fig = registry_.get(id);
         if (!fig) continue;
         fig->compute_layout();
-        auto fig_snap = figure_to_snapshot(*fig, fig_counter);
-        fig_snap.title = "Figure " + std::to_string(fig_counter - 99);
+        auto fig_snap = figure_to_snapshot(*fig, reg_to_ipc[id]);
+        fig_snap.title = "Figure " + std::to_string(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
-        ++fig_counter;
+    }
+
+    // Assign window_group: figures in the same group get the same non-zero ID
+    for (uint32_t gi = 0; gi < window_groups.size(); ++gi)
+    {
+        uint32_t group_id = gi + 1;  // 1-based group IDs
+        for (auto reg_id : window_groups[gi])
+        {
+            uint64_t ipc_id = reg_to_ipc[reg_id];
+            for (auto& fs : snap.figures)
+            {
+                if (fs.figure_id == ipc_id)
+                {
+                    fs.window_group = group_id;
+                    break;
+                }
+            }
+        }
     }
 
     send_msg(*conn, ipc::MessageType::STATE_SNAPSHOT,

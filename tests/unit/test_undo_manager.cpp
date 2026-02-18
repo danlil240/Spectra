@@ -75,9 +75,11 @@ TEST(TabBar, RemoveCloseableTab)
 TEST(TabBar, RemoveNonCloseableTabIsNoOp)
 {
     TabBar tb;
+    tb.clear_tabs();
+    tb.add_tab("Locked", false);  // explicitly non-closeable
     tb.remove_tab(0);
     EXPECT_EQ(tb.get_tab_count(), 1u);
-    EXPECT_EQ(tb.get_tab_title(0), "Figure 1");
+    EXPECT_EQ(tb.get_tab_title(0), "Locked");
 }
 
 TEST(TabBar, RemoveTabShiftsTitles)
@@ -208,6 +210,8 @@ TEST(TabBar, TabCloseCallbackFires)
 TEST(TabBar, TabCloseCallbackNotFiredForNonCloseable)
 {
     TabBar tb;
+    tb.clear_tabs();
+    tb.add_tab("Locked", false);  // explicitly non-closeable
     int close_count = 0;
     tb.set_tab_close_callback([&close_count](size_t) { ++close_count; });
 

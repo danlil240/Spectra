@@ -79,9 +79,11 @@ bool FigureManager::close_figure(FigureId index)
         return false;
     }
 
-    // Can't close the last figure
+    // Last figure: request window close instead of closing the figure
     if (ordered_ids_.size() <= 1)
     {
+        if (on_window_close_request_)
+            on_window_close_request_();
         return false;
     }
 
@@ -630,36 +632,10 @@ void FigureManager::sync_tab_bar()
     if (!tab_bar_)
         return;
 
-    // Rebuild tab bar to match figures
-    // Remove all tabs except the first (which can't be closed)
-    while (tab_bar_->get_tab_count() > 1)
-    {
-        // Find a closeable tab and remove it
-        bool removed = false;
-        for (size_t i = tab_bar_->get_tab_count(); i > 0; --i)
-        {
-            size_t idx = i - 1;
-            // Try to remove — remove_tab skips non-closeable tabs
-            size_t before = tab_bar_->get_tab_count();
-            tab_bar_->remove_tab(idx);
-            if (tab_bar_->get_tab_count() < before)
-            {
-                removed = true;
-                break;
-            }
-        }
-        if (!removed)
-            break;  // Only non-closeable tabs remain
-    }
+    // Rebuild tab bar from scratch (clear without firing callbacks)
+    tab_bar_->clear_tabs();
 
-    // Set first tab title
-    if (!ordered_ids_.empty())
-    {
-        tab_bar_->set_tab_title(0, get_title(ordered_ids_[0]));
-    }
-
-    // Add remaining tabs
-    for (size_t i = 1; i < ordered_ids_.size(); ++i)
+    for (size_t i = 0; i < ordered_ids_.size(); ++i)
     {
         tab_bar_->add_tab(get_title(ordered_ids_[i]));
     }

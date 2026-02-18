@@ -449,7 +449,22 @@ int main(int argc, char* argv[])
     // ═══════════════════════════════════════════════════════════════════════
 
     spectra::FrameState frame_state;
-    frame_state.active_figure_id = all_ids[0];
+    {
+        // Pick the correct initial active figure based on IPC assignment
+        spectra::FigureId initial_active = all_ids[0];
+        if (ipc_active_figure_id != 0)
+        {
+            for (size_t i = 0; i < assigned_figures.size() && i < all_ids.size(); ++i)
+            {
+                if (assigned_figures[i] == ipc_active_figure_id)
+                {
+                    initial_active = all_ids[i];
+                    break;
+                }
+            }
+        }
+        frame_state.active_figure_id = initial_active;
+    }
     frame_state.active_figure = registry.get(frame_state.active_figure_id);
     spectra::Figure* active_figure = frame_state.active_figure;
     spectra::FigureId& active_figure_id = frame_state.active_figure_id;
@@ -500,6 +515,22 @@ int main(int argc, char* argv[])
     if (initial_wctx && initial_wctx->ui_ctx)
     {
         ui_ctx_ptr = initial_wctx->ui_ctx.get();
+
+        // Set tab titles from snapshot cache (so tabs show "Figure 1", "Figure 2", etc.
+        // instead of FigureId-based defaults like "Figure 2", "Figure 3", "Figure 4")
+        if (ui_ctx_ptr->fig_mgr)
+        {
+            for (size_t fi = 0; fi < all_ids.size() && fi < figure_cache.size(); ++fi)
+            {
+                if (!figure_cache[fi].title.empty())
+                    ui_ctx_ptr->fig_mgr->set_title(all_ids[fi], figure_cache[fi].title);
+            }
+            // Switch to the correct initial active figure
+            ui_ctx_ptr->fig_mgr->switch_to(frame_state.active_figure_id);
+        }
+
+        // Sync WindowContext active figure
+        initial_wctx->active_figure_id = frame_state.active_figure_id;
     }
 #endif
 
@@ -715,7 +746,12 @@ int main(int argc, char* argv[])
                     {
                         assigned_figures = payload->figure_ids;
                         ipc_active_figure_id = payload->active_figure_id;
-                        cache_dirty = true;
+                        // CMD_ASSIGN_FIGURES only changes which figures are
+                        // shown and which is active — it does NOT change
+                        // figure data, so do NOT set cache_dirty (which
+                        // triggers an expensive full registry rebuild).
+                        // The figure data is already in the registry from
+                        // the initial STATE_SNAPSHOT.
                     }
                     break;
                 }
@@ -794,9 +830,71 @@ int main(int argc, char* argv[])
             all_ids = rebuild_registry_from_cache(registry, figure_cache, sw, sh);
             if (!all_ids.empty())
             {
-                frame_state.active_figure_id = all_ids[0];
-                frame_state.active_figure = registry.get(all_ids[0]);
+                // Use ipc_active_figure_id to find the correct figure.
+                // The IPC figure IDs don't match registry IDs (registry
+                // assigns new IDs), so match by index in assigned_figures.
+                spectra::FigureId target_id = all_ids[0];
+                if (ipc_active_figure_id != 0)
+                {
+                    for (size_t i = 0; i < assigned_figures.size() && i < all_ids.size(); ++i)
+                    {
+                        if (assigned_figures[i] == ipc_active_figure_id)
+                        {
+                            target_id = all_ids[i];
+                            break;
+                        }
+                    }
+                }
+                frame_state.active_figure_id = target_id;
+                frame_state.active_figure = registry.get(target_id);
                 active_figure = frame_state.active_figure;
+
+                // Sync FigureManager so tab bar reflects the new figures
+#ifdef SPECTRA_USE_IMGUI
+                if (ui_ctx_ptr && ui_ctx_ptr->fig_mgr)
+                {
+                    auto* fm = ui_ctx_ptr->fig_mgr;
+                    // Remove stale figures from FigureManager
+                    auto old_ids = fm->figure_ids();
+                    for (auto old_id : old_ids)
+                    {
+                        if (std::find(all_ids.begin(), all_ids.end(), old_id) == all_ids.end())
+                            fm->remove_figure(old_id);
+                    }
+                    // Add new figures that aren't in FigureManager yet
+                    for (size_t fi = 0; fi < all_ids.size(); ++fi)
+                    {
+                        auto new_id = all_ids[fi];
+                        if (std::find(old_ids.begin(), old_ids.end(), new_id) == old_ids.end())
+                        {
+                            spectra::FigureState st;
+                            if (fi < figure_cache.size() && !figure_cache[fi].title.empty())
+                                st.custom_title = figure_cache[fi].title;
+                            fm->add_figure(new_id, std::move(st));
+                        }
+                    }
+                    // Set titles from snapshot for existing figures too
+                    for (size_t fi = 0; fi < all_ids.size() && fi < figure_cache.size(); ++fi)
+                    {
+                        if (!figure_cache[fi].title.empty())
+                            fm->set_title(all_ids[fi], figure_cache[fi].title);
+                    }
+                    // Switch to the target figure
+                    fm->switch_to(target_id);
+                }
+#endif
+
+#ifdef SPECTRA_USE_GLFW
+                // Sync WindowContext
+                if (window_mgr && !window_mgr->windows().empty())
+                {
+                    auto* wctx = window_mgr->windows()[0];
+                    wctx->assigned_figures.clear();
+                    for (auto id : all_ids)
+                        wctx->assigned_figures.push_back(id);
+                    wctx->active_figure_id = target_id;
+                }
+#endif
             }
             cache_dirty = false;
         }

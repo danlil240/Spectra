@@ -165,57 +165,24 @@ void WindowManager::destroy_window(uint32_t window_id)
 
     auto& wctx = **it;
 
-    // Window close policy: move figures to the first remaining open window
-    // instead of destroying them, so detached tabs can be reattached.
+    // Window close policy: destroy all figures owned by this window.
+    // Detached windows die with their figures — no reattachment.
     if (registry_ && !wctx.assigned_figures.empty())
     {
-        // Find the first open window that isn't the one being destroyed
-        WindowContext* target = nullptr;
-        for (auto& w : windows_)
+#ifdef SPECTRA_USE_IMGUI
+        if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
         {
-            if (w->id != window_id && !w->should_close)
-            {
-                target = w.get();
-                break;
-            }
+            auto figs_copy = wctx.assigned_figures;
+            for (FigureId fig_id : figs_copy)
+                wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
         }
-
-        if (target)
+#endif
+        for (FigureId fig_id : wctx.assigned_figures)
         {
-            for (FigureId fig_id : wctx.assigned_figures)
-            {
-                // Skip figures already assigned to the target
-                if (std::find(target->assigned_figures.begin(),
-                              target->assigned_figures.end(), fig_id)
-                    != target->assigned_figures.end())
-                    continue;
-
-                // Extract figure state from the closing window's FigureManager
-                FigureState transferred_state;
-#ifdef SPECTRA_USE_IMGUI
-                if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
-                    transferred_state = wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
-#endif
-
-                // Add to target window's assigned_figures
-                target->assigned_figures.push_back(fig_id);
-                if (target->active_figure_id == INVALID_FIGURE_ID)
-                    target->active_figure_id = fig_id;
-
-                // Add to target window's FigureManager if it exists
-#ifdef SPECTRA_USE_IMGUI
-                {
-                    WindowUIContext* target_ui = target->ui_ctx.get();
-                    if (target_ui && target_ui->fig_mgr)
-                        target_ui->fig_mgr->add_figure(fig_id, std::move(transferred_state));
-                }
-#endif
-
-                SPECTRA_LOG_INFO("window_manager",
-                                 "Reattached figure " + std::to_string(fig_id)
-                                     + " to window " + std::to_string(target->id)
-                                     + " (window " + std::to_string(window_id) + " closed)");
-            }
+            registry_->unregister_figure(fig_id);
+            SPECTRA_LOG_INFO("window_manager",
+                             "Destroyed figure " + std::to_string(fig_id)
+                                 + " (window " + std::to_string(window_id) + " closed)");
         }
         wctx.assigned_figures.clear();
     }
@@ -861,6 +828,12 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->figure_tabs = std::make_unique<TabBar>();
     ui->fig_mgr->set_tab_bar(ui->figure_tabs.get());
 
+    // Wire "close last tab → close window" callback
+    uint32_t wctx_id = wctx.id;
+    WindowManager* wm_self = this;
+    ui->fig_mgr->set_on_window_close_request(
+        [wm_self, wctx_id]() { wm_self->request_close(wctx_id); });
+
     // Wire TabBar callbacks → FigureManager + DockSystem
     auto* fig_mgr_ptr = ui->fig_mgr;
     auto* dock_ptr = &ui->dock_system;
@@ -872,23 +845,53 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             if (*guard_ptr)
                 return;
             *guard_ptr = true;
-            fig_mgr_ptr->queue_switch(new_index);
-            dock_ptr->set_active_figure_index(new_index);
+            // Convert positional tab index → FigureId
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (new_index < ids.size())
+            {
+                FigureId fid = ids[new_index];
+                fig_mgr_ptr->queue_switch(fid);
+                dock_ptr->set_active_figure_index(fid);
+            }
             *guard_ptr = false;
         });
     ui->figure_tabs->set_tab_close_callback(
-        [fig_mgr_ptr](size_t index) { fig_mgr_ptr->queue_close(index); });
+        [fig_mgr_ptr](size_t index)
+        {
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (index < ids.size())
+                fig_mgr_ptr->queue_close(ids[index]);
+        });
     ui->figure_tabs->set_tab_add_callback(
         [fig_mgr_ptr]() { fig_mgr_ptr->queue_create(); });
     ui->figure_tabs->set_tab_duplicate_callback(
-        [fig_mgr_ptr](size_t index) { fig_mgr_ptr->duplicate_figure(index); });
+        [fig_mgr_ptr](size_t index)
+        {
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (index < ids.size())
+                fig_mgr_ptr->duplicate_figure(ids[index]);
+        });
     ui->figure_tabs->set_tab_close_all_except_callback(
-        [fig_mgr_ptr](size_t index) { fig_mgr_ptr->close_all_except(index); });
+        [fig_mgr_ptr](size_t index)
+        {
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (index < ids.size())
+                fig_mgr_ptr->close_all_except(ids[index]);
+        });
     ui->figure_tabs->set_tab_close_to_right_callback(
-        [fig_mgr_ptr](size_t index) { fig_mgr_ptr->close_to_right(index); });
+        [fig_mgr_ptr](size_t index)
+        {
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (index < ids.size())
+                fig_mgr_ptr->close_to_right(ids[index]);
+        });
     ui->figure_tabs->set_tab_rename_callback(
         [fig_mgr_ptr](size_t index, const std::string& t)
-        { fig_mgr_ptr->set_title(index, t); });
+        {
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            if (index < ids.size())
+                fig_mgr_ptr->set_title(ids[index], t);
+        });
 
     // Tab drag-to-dock callbacks
     ui->figure_tabs->set_tab_drag_out_callback(
@@ -955,6 +958,10 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_curve_editor(&ui->curve_editor);
     ui->imgui_ui->set_mode_transition(&ui->mode_transition);
 
+    // Wire TabDragController for drag-to-detach support
+    ui->tab_drag_controller.set_window_manager(this);
+    ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
+
     // Wire DataInteraction
     ui->data_interaction = std::make_unique<DataInteraction>();
     ui->imgui_ui->set_data_interaction(ui->data_interaction.get());
@@ -1007,14 +1014,11 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         [fig_mgr_ptr](size_t index, const std::string& t)
         { fig_mgr_ptr->set_title(index, t); });
 
-    // Figure title lookup
-    auto* tabs_raw = ui->figure_tabs.get();
+    // Figure title lookup — fig_idx is a FigureId, not a positional index
     ui->imgui_ui->set_figure_title_callback(
-        [tabs_raw](size_t fig_idx) -> std::string
+        [fig_mgr_ptr](size_t fig_idx) -> std::string
         {
-            if (tabs_raw && fig_idx < tabs_raw->get_tab_count())
-                return tabs_raw->get_tab_title(fig_idx);
-            return "Figure " + std::to_string(fig_idx + 1);
+            return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx));
         });
 
     // Dock system → tab bar sync
@@ -1025,8 +1029,18 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             if (*guard_ptr)
                 return;
             *guard_ptr = true;
-            if (figure_tabs_raw && figure_index < figure_tabs_raw->get_tab_count())
-                figure_tabs_raw->set_active_tab(figure_index);
+            // figure_index here is a FigureId from the dock system.
+            // Find its positional index for the tab bar.
+            const auto& ids = fig_mgr_ptr->figure_ids();
+            for (size_t i = 0; i < ids.size(); ++i)
+            {
+                if (ids[i] == figure_index)
+                {
+                    if (figure_tabs_raw && i < figure_tabs_raw->get_tab_count())
+                        figure_tabs_raw->set_active_tab(i);
+                    break;
+                }
+            }
             fig_mgr_ptr->queue_switch(figure_index);
             *guard_ptr = false;
         });
@@ -1316,6 +1330,21 @@ void WindowManager::glfw_key_callback(GLFWwindow* window, int key, int scancode,
         if (prev_ctx)
             ImGui::SetCurrentContext(prev_ctx);
         return;
+    }
+
+    // Q (no modifiers) = close active tab; if last tab, close window
+    constexpr int GLFW_KEY_Q_VAL = 81;   // GLFW_KEY_Q
+    constexpr int GLFW_PRESS_VAL = 1;    // GLFW_PRESS
+    if (key == GLFW_KEY_Q_VAL && action == GLFW_PRESS_VAL && mods == 0)
+    {
+        auto* fm = ui.fig_mgr;
+        if (fm)
+        {
+            fm->queue_close(fm->active_index());
+            if (prev_ctx)
+                ImGui::SetCurrentContext(prev_ctx);
+            return;
+        }
     }
 
     input_handler.on_key(key, action, mods);

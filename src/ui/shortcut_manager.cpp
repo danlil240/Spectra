@@ -53,6 +53,7 @@ constexpr int KEY_F = 70;
 constexpr int KEY_G = 71;
 constexpr int KEY_K = 75;
 constexpr int KEY_L = 76;
+constexpr int KEY_Q = 81;
 constexpr int KEY_R = 82;
 constexpr int KEY_S = 83;
 constexpr int KEY_T = 84;
@@ -369,6 +370,7 @@ void ShortcutManager::register_defaults()
     // Figure management
     bind({KEY_T, KeyMod::Control}, "figure.new");
     bind({KEY_W, KeyMod::Control}, "figure.close");
+    bind({KEY_Q, KeyMod::None}, "figure.close");
 
     // Undo/redo
     bind({KEY_Z, KeyMod::Control}, "edit.undo");

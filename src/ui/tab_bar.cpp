@@ -18,7 +18,7 @@ namespace spectra
 TabBar::TabBar()
 {
     // Start with one default tab
-    add_tab("Figure 1", false);  // Can't close the first tab
+    add_tab("Figure 1", true);
 }
 
 size_t TabBar::add_tab(const std::string& title, bool can_close)
@@ -63,6 +63,15 @@ void TabBar::remove_tab(size_t index)
     }
 
     // Reset interaction state
+    hovered_tab_ = SIZE_MAX;
+    hovered_close_ = SIZE_MAX;
+    is_dragging_ = false;
+}
+
+void TabBar::clear_tabs()
+{
+    tabs_.clear();
+    active_tab_ = 0;
     hovered_tab_ = SIZE_MAX;
     hovered_close_ = SIZE_MAX;
     is_dragging_ = false;
@@ -303,8 +312,8 @@ void TabBar::draw_tabs(const Rect& bounds)
             is_active ? to_imcol(colors.text_primary) : to_imcol(colors.text_secondary);
         draw_list->AddText(text_pos, text_color, tab.title.c_str());
 
-        // Close button (if enabled, only show on hover or active)
-        if (tab.can_close && (is_active || is_hovered))
+        // Close button (always show for closeable tabs)
+        if (tab.can_close)
         {
             bool close_hovered = (i == hovered_close_);
             ImU32 close_color =
@@ -785,7 +794,7 @@ void TabBar::draw_context_menu()
             ImGui::PopStyleColor();
             ImGui::Dummy(ImVec2(0, 2));
 
-            if (tab.can_close && tabs_.size() > 1)
+            if (tab.can_close)
             {
                 if (menu_item("Close"))
                     remove_tab(context_menu_tab_);

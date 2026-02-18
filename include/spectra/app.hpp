@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
+#include <vector>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 
@@ -31,6 +33,7 @@ class App
     App& operator=(const App&) = delete;
 
     Figure& figure(const FigureConfig& config = {});
+    Figure& figure(Figure& sibling);
 
     // Run the application (blocking — processes all figures)
     void run();
@@ -49,10 +52,19 @@ class App
     void render_secondary_window(struct WindowContext* wctx);
 #endif
 
+    // Group figures into windows based on sibling relationships.
+    // Returns a vector of groups; each group is a vector of FigureIds
+    // that should share one OS window.
+    std::vector<std::vector<FigureId>> compute_window_groups() const;
+
     AppConfig config_;
     FigureRegistry registry_;
     std::unique_ptr<Backend> backend_;
     std::unique_ptr<Renderer> renderer_;
+
+    // Maps a FigureId to the FigureId it should be tabbed next to.
+    // Figures not in this map get their own window.
+    std::unordered_map<FigureId, FigureId> sibling_map_;
 };
 
 }  // namespace spectra

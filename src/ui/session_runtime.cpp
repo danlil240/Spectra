@@ -137,6 +137,11 @@ FrameState SessionRuntime::tick(
             win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, window_mgr);
             win_rt_.render(*wctx->ui_ctx, win_fs);
 
+            // Sync active figure back to WindowContext so the next frame
+            // reads the correct figure (tab switch via FigureManager updates
+            // win_fs.active_figure_id but nothing wrote it back to wctx).
+            wctx->active_figure_id = win_fs.active_figure_id;
+
             // Sync back to the app-level frame_state for the initial window
             if (wctx == window_mgr->windows()[0])
             {

@@ -77,6 +77,55 @@ Figure& App::figure(const FigureConfig& config)
     return *registry_.get(id);
 }
 
+Figure& App::figure(Figure& sibling)
+{
+    FigureConfig cfg;
+    cfg.width  = sibling.width();
+    cfg.height = sibling.height();
+    auto new_id = registry_.register_figure(std::make_unique<Figure>(cfg));
+
+    // Record that the new figure should be a tab in the sibling's window
+    FigureId sibling_id = registry_.find_id(&sibling);
+    if (sibling_id != INVALID_FIGURE_ID)
+        sibling_map_[new_id] = sibling_id;
+
+    return *registry_.get(new_id);
+}
+
+std::vector<std::vector<FigureId>> App::compute_window_groups() const
+{
+    auto all_ids = registry_.all_ids();
+    // Build a union-find style grouping: for each figure, find its root
+    // (the figure that has no sibling entry, i.e. the first figure in the window).
+    std::unordered_map<FigureId, FigureId> root_map;
+    for (auto id : all_ids)
+    {
+        FigureId cur = id;
+        while (sibling_map_.count(cur))
+            cur = sibling_map_.at(cur);
+        root_map[id] = cur;
+    }
+
+    // Group by root, preserving insertion order
+    std::vector<std::vector<FigureId>> groups;
+    std::unordered_map<FigureId, size_t> root_to_group;
+    for (auto id : all_ids)
+    {
+        FigureId root = root_map[id];
+        auto it = root_to_group.find(root);
+        if (it == root_to_group.end())
+        {
+            root_to_group[root] = groups.size();
+            groups.push_back({id});
+        }
+        else
+        {
+            groups[it->second].push_back(id);
+        }
+    }
+    return groups;
+}
+
 void App::run()
 {
 #ifdef SPECTRA_MULTIPROC

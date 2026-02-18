@@ -153,6 +153,10 @@ class ImGuiIntegration
     void set_tab_drag_controller(TabDragController* tdc) { tab_drag_controller_ = tdc; }
     TabDragController* tab_drag_controller() const { return tab_drag_controller_; }
 
+    // Window identity (for dock highlight overlay)
+    void set_window_id(uint32_t id) { window_id_ = id; }
+    void set_window_manager(class WindowManager* wm) { window_manager_ = wm; }
+
     // Pane tab context menu callbacks (wired by App)
     using PaneTabCallback = std::function<void(FigureId figure_id)>;
     using PaneTabDetachCallback = std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
@@ -287,6 +291,10 @@ class ImGuiIntegration
 
     // Tab drag controller (not owned)
     TabDragController* tab_drag_controller_ = nullptr;
+
+    // Window identity for dock highlight
+    uint32_t window_id_ = 0;
+    class WindowManager* window_manager_ = nullptr;
 
     // GLFW window pointer (not owned) — stored for direct mouse queries
     void* glfw_window_ = nullptr;

@@ -175,6 +175,11 @@ class WindowManager
     // Returns true if a valid position was obtained.
     bool get_global_cursor_pos(double& screen_x, double& screen_y) const;
 
+    // Cross-window drag target — set each frame by the active
+    // TabDragController so target windows can draw dock highlights.
+    void set_drag_target_window(uint32_t wid) { drag_target_window_id_ = wid; }
+    uint32_t drag_target_window() const { return drag_target_window_id_; }
+
     // Tab drag handlers — stored and applied to every new window's
     // TabDragController in init_window_ui().  Set these before creating
     // windows so all windows get the same drag behavior.
@@ -237,6 +242,9 @@ class WindowManager
     // Tab drag handlers (applied to every new window's TabDragController)
     TabDetachHandler tab_detach_handler_;
     TabMoveHandler tab_move_handler_;
+
+    // Cross-window drag target tracking
+    uint32_t drag_target_window_id_ = 0;
 
     // Callback-based mouse release tracking (tab drag)
     bool mouse_release_tracking_ = false;

@@ -217,20 +217,42 @@ FrameState SessionRuntime::tick(
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr && !pending_detaches_.empty())
     {
-        auto* src_wctx = window_mgr->focused_window();
-        if (!src_wctx && !window_mgr->windows().empty())
-            src_wctx = window_mgr->windows()[0];
-
         for (auto& pd : pending_detaches_)
         {
+            // Find the window that actually owns this figure
+            WindowContext* src_wctx = nullptr;
+            for (auto* w : window_mgr->windows())
+            {
+                if (!w) continue;
+                for (auto fid : w->assigned_figures)
+                {
+                    if (fid == pd.figure_id)
+                    {
+                        src_wctx = w;
+                        break;
+                    }
+                }
+                if (src_wctx) break;
+            }
             if (!src_wctx || !src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
                 continue;
             auto* src_fm = src_wctx->ui_ctx->fig_mgr;
 
             FigureState detached_state = src_fm->remove_figure(pd.figure_id);
 
-            // Also remove from dock system split panes
-            src_wctx->ui_ctx->dock_system.close_split(pd.figure_id);
+            // Remove figure from dock system split panes
+            auto& src_dock_d = src_wctx->ui_ctx->dock_system;
+            if (src_dock_d.is_split())
+            {
+                auto* pane = src_dock_d.split_view().pane_for_figure(pd.figure_id);
+                if (pane)
+                {
+                    if (pane->figure_count() <= 1)
+                        src_dock_d.close_split(pd.figure_id);
+                    else
+                        pane->remove_figure(pd.figure_id);
+                }
+            }
 
             auto& pf = src_wctx->assigned_figures;
             pf.erase(std::remove(pf.begin(), pf.end(), pd.figure_id), pf.end());
@@ -268,6 +290,9 @@ FrameState SessionRuntime::tick(
     {
         for (auto& pm : pending_moves_)
         {
+            fprintf(stderr, "[move] Processing: fig=%u → target_wid=%u\n",
+                    pm.figure_id, pm.target_window_id);
+
             // Find source window (the one that has this figure)
             WindowContext* src_wctx = nullptr;
             WindowContext* dst_wctx = nullptr;
@@ -284,7 +309,12 @@ FrameState SessionRuntime::tick(
             }
 
             if (!src_wctx || !dst_wctx || src_wctx == dst_wctx)
+            {
+                fprintf(stderr, "[move]   SKIP: src=%p dst=%p same=%d\n",
+                        (void*)src_wctx, (void*)dst_wctx,
+                        src_wctx == dst_wctx ? 1 : 0);
                 continue;
+            }
             if (!src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
                 continue;
             if (!dst_wctx->ui_ctx || !dst_wctx->ui_ctx->fig_mgr)
@@ -295,7 +325,18 @@ FrameState SessionRuntime::tick(
 
             // Remove from source
             FigureState moved_state = src_fm->remove_figure(pm.figure_id);
-            src_wctx->ui_ctx->dock_system.close_split(pm.figure_id);
+            auto& src_dock = src_wctx->ui_ctx->dock_system;
+            if (src_dock.is_split())
+            {
+                auto* pane = src_dock.split_view().pane_for_figure(pm.figure_id);
+                if (pane)
+                {
+                    if (pane->figure_count() <= 1)
+                        src_dock.close_split(pm.figure_id);
+                    else
+                        pane->remove_figure(pm.figure_id);
+                }
+            }
 
             auto& spf = src_wctx->assigned_figures;
             spf.erase(std::remove(spf.begin(), spf.end(), pm.figure_id), spf.end());
@@ -311,6 +352,25 @@ FrameState SessionRuntime::tick(
             dst_fm->queue_switch(pm.figure_id);
             dst_wctx->assigned_figures.push_back(pm.figure_id);
             dst_wctx->active_figure_id = pm.figure_id;
+
+            // Add figure to the dock system so it appears in split views.
+            // For non-split windows the sync in window_runtime handles it,
+            // but for split windows we must place it in the active pane.
+            auto& dst_dock = dst_wctx->ui_ctx->dock_system;
+            if (dst_dock.is_split())
+            {
+                auto* active_pane = dst_dock.split_view().active_pane();
+                if (active_pane && active_pane->is_leaf())
+                    active_pane->add_figure(pm.figure_id);
+                dst_dock.set_active_figure_index(pm.figure_id);
+            }
+
+            fprintf(stderr, "[move]   DONE: fig=%u moved %u→%u "
+                    "(src_figs=%zu dst_figs=%zu split=%d)\n",
+                    pm.figure_id, src_wctx->id, dst_wctx->id,
+                    src_wctx->assigned_figures.size(),
+                    dst_wctx->assigned_figures.size(),
+                    dst_dock.is_split() ? 1 : 0);
         }
         pending_moves_.clear();
     }

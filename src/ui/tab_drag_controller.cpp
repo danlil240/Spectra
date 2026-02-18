@@ -3,6 +3,8 @@
 #include "tab_drag_controller.hpp"
 
 #include <cmath>
+#include <cstdio>
+#include <spectra/logger.hpp>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -73,6 +75,36 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
 
     case State::DraggingDetached:
     {
+        // ── Track which non-source window the cursor is over (every frame) ──
+        // This is done BEFORE the release check so the value is fresh at drop time.
+        if (window_manager_)
+        {
+            uint32_t hovered = 0;
+            for (auto* wctx : window_manager_->windows())
+            {
+                if (!wctx || !wctx->glfw_window || wctx->is_preview)
+                    continue;
+                auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                double cx, cy;
+                glfwGetCursorPos(win, &cx, &cy);
+                int ww, wh;
+                glfwGetWindowSize(win, &ww, &wh);
+                // Content area check with generous margin for title bar
+                if (cx >= -10 && cx < ww + 10 && cy >= -50 && cy < wh + 10)
+                {
+                    hovered = wctx->id;
+                    // Prefer the non-source window if cursor is over it
+                    if (hovered != source_window_id_)
+                        break;
+                }
+            }
+            if (hovered != 0 && hovered != source_window_id_)
+                last_hovered_window_id_ = hovered;
+
+            // Publish the drag target so target windows can draw dock highlights
+            window_manager_->set_drag_target_window(last_hovered_window_id_);
+        }
+
         if (!mouse_down)
         {
             // Mouse released — destroy preview and execute drop.
@@ -82,28 +114,63 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
                 preview_created_ = false;
             }
 
-            // Determine drop target.
-            if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
+            // Also check at release time for immediate detection
+            uint32_t release_target = find_window_at(screen_mouse_x, screen_mouse_y);
+
+            // Use the best available target: prefer release-time detection,
+            // fall back to continuously tracked hover
+            uint32_t target_wid = 0;
+            if (release_target != 0 && release_target != source_window_id_)
+                target_wid = release_target;
+            else if (last_hovered_window_id_ != 0
+                     && last_hovered_window_id_ != source_window_id_)
+                target_wid = last_hovered_window_id_;
+
+            fprintf(stderr, "[tab_drag] DROP: fig=%u src=%u target=%u "
+                    "(release_at=%u hover=%u) screen=(%.0f,%.0f) "
+                    "has_cb=%d\n",
+                    figure_id_, source_window_id_, target_wid,
+                    release_target, last_hovered_window_id_,
+                    screen_mouse_x, screen_mouse_y,
+                    on_drop_on_window_ ? 1 : 0);
+
+            // Log all windows
+            if (window_manager_)
             {
+                for (auto* wctx : window_manager_->windows())
+                {
+                    if (!wctx || !wctx->glfw_window || wctx->is_preview)
+                        continue;
+                    auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                    double cx, cy;
+                    glfwGetCursorPos(win, &cx, &cy);
+                    int ww, wh;
+                    glfwGetWindowSize(win, &ww, &wh);
+                    fprintf(stderr, "[tab_drag]   win %u: cursor_rel=(%.0f,%.0f) "
+                            "size=(%d,%d) inside=%d\n",
+                            wctx->id, cx, cy, ww, wh,
+                            (cx >= 0 && cx < ww && cy >= 0 && cy < wh) ? 1 : 0);
+                }
+            }
+
+            if (target_wid != 0 && on_drop_on_window_)
+            {
+                fprintf(stderr, "[tab_drag]   → MOVE to window %u\n", target_wid);
+                if (dock_dragging_ && dock_system_)
+                    dock_system_->cancel_drag();
+                on_drop_on_window_(figure_id_, target_wid,
+                                   screen_mouse_x, screen_mouse_y);
+                transition_to_idle();
+            }
+            else if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
+            {
+                fprintf(stderr, "[tab_drag]   → DETACH (outside all windows)\n");
                 execute_drop_outside(screen_mouse_x, screen_mouse_y);
             }
             else
             {
-                // Check if dropped on a different window (cross-window move)
-                uint32_t target_wid = find_window_at(screen_mouse_x, screen_mouse_y);
-                if (target_wid != 0 && target_wid != source_window_id_
-                    && on_drop_on_window_)
-                {
-                    if (dock_dragging_ && dock_system_)
-                        dock_system_->cancel_drag();
-                    on_drop_on_window_(figure_id_, target_wid,
-                                       screen_mouse_x, screen_mouse_y);
-                    transition_to_idle();
-                }
-                else
-                {
-                    execute_drop_inside(mouse_x, mouse_y);
-                }
+                fprintf(stderr, "[tab_drag]   → DROP INSIDE (return to source)\n");
+                execute_drop_inside(mouse_x, mouse_y);
             }
             return;
         }
@@ -193,10 +260,14 @@ void TabDragController::transition_to_idle()
     preview_created_ = false;
     preview_grace_frames_ = 0;
     preview_created_recently_ = 0;
+    last_hovered_window_id_ = 0;
     ghost_title_.clear();
 
     if (window_manager_)
+    {
+        window_manager_->set_drag_target_window(0);
         window_manager_->end_mouse_release_tracking();
+    }
 }
 
 void TabDragController::transition_to_dragging()
@@ -254,54 +325,61 @@ void TabDragController::execute_cancel()
 
 // ─── Window hit-testing ─────────────────────────────────────────────────────
 
-bool TabDragController::is_outside_all_windows(float screen_x, float screen_y) const
+bool TabDragController::is_outside_all_windows(float /*screen_x*/, float /*screen_y*/) const
 {
     if (!window_manager_)
-    {
-        // Fallback: no window manager means single-window mode.
-        // Cannot determine "outside" without window list — assume inside.
         return false;
-    }
+
+    // Query each window directly via glfwGetCursorPos — this returns the
+    // cursor position relative to that window's content area, which is
+    // far more reliable than screen-coordinate math on X11 (where
+    // glfwGetWindowPos may not account for decorations consistently).
+    // Include a margin above the content area for the title bar so that
+    // drops near the top of a window are not treated as "outside".
+    constexpr double TITLE_BAR_MARGIN = 50.0;
+    constexpr double SIDE_MARGIN = 10.0;
 
     for (auto* wctx : window_manager_->windows())
     {
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        int wx = 0, wy = 0, ww = 0, wh = 0;
-        glfwGetWindowPos(static_cast<GLFWwindow*>(wctx->glfw_window), &wx, &wy);
-        glfwGetWindowSize(static_cast<GLFWwindow*>(wctx->glfw_window), &ww, &wh);
+        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        double cx, cy;
+        glfwGetCursorPos(win, &cx, &cy);
+        int ww, wh;
+        glfwGetWindowSize(win, &ww, &wh);
 
-        if (screen_x >= static_cast<float>(wx)
-            && screen_x < static_cast<float>(wx + ww)
-            && screen_y >= static_cast<float>(wy)
-            && screen_y < static_cast<float>(wy + wh))
+        if (cx >= -SIDE_MARGIN && cx < ww + SIDE_MARGIN
+            && cy >= -TITLE_BAR_MARGIN && cy < wh + SIDE_MARGIN)
         {
-            return false;  // Inside this window
+            return false;  // Inside (or near) this window
         }
     }
 
     return true;
 }
 
-uint32_t TabDragController::find_window_at(float screen_x, float screen_y) const
+uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*/) const
 {
     if (!window_manager_)
         return 0;
 
+    // Query each window directly via glfwGetCursorPos to check if the
+    // cursor is inside its content area.  This avoids screen-coordinate
+    // math issues on X11 with window decorations.
     for (auto* wctx : window_manager_->windows())
     {
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        int wx = 0, wy = 0, ww = 0, wh = 0;
-        glfwGetWindowPos(static_cast<GLFWwindow*>(wctx->glfw_window), &wx, &wy);
-        glfwGetWindowSize(static_cast<GLFWwindow*>(wctx->glfw_window), &ww, &wh);
+        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        double cx, cy;
+        glfwGetCursorPos(win, &cx, &cy);
+        int ww, wh;
+        glfwGetWindowSize(win, &ww, &wh);
 
-        if (screen_x >= static_cast<float>(wx)
-            && screen_x < static_cast<float>(wx + ww)
-            && screen_y >= static_cast<float>(wy)
-            && screen_y < static_cast<float>(wy + wh))
+        if (cx >= 0 && cx < ww && cy >= 0 && cy < wh)
         {
             return wctx->id;
         }

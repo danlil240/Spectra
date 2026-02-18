@@ -1229,6 +1229,8 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->tab_drag_controller.set_dock_system(&ui->dock_system);
     ui->tab_drag_controller.set_source_window_id(wctx.id);
     ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
+    ui->imgui_ui->set_window_id(wctx.id);
+    ui->imgui_ui->set_window_manager(this);
 
     // Wire stored tab drag handlers so every window supports tear-off and cross-window move
     if (tab_detach_handler_)

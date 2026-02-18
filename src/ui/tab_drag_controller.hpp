@@ -215,6 +215,11 @@ class TabDragController
     // Source window tracking for cross-window drops
     uint32_t source_window_id_ = 0;
 
+    // Continuously updated during drag: the non-source, non-preview window
+    // the cursor is currently over (0 if none).  Used at drop time for
+    // reliable cross-window detection.
+    uint32_t last_hovered_window_id_ = 0;
+
     // Callbacks
     DropInsideCallback on_drop_inside_;
     DropOutsideCallback on_drop_outside_;

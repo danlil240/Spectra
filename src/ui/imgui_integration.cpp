@@ -28,6 +28,7 @@
     #include "mode_transition.hpp"
     #include "tab_bar.hpp"
     #include "tab_drag_controller.hpp"
+    #include "window_manager.hpp"
     #include "theme.hpp"
     #include "timeline_editor.hpp"
     #include "widgets.hpp"
@@ -399,6 +400,38 @@ void ImGuiIntegration::build_ui(Figure& figure)
     if (show_theme_settings_)
     {
         draw_theme_settings();
+    }
+
+    // Draw dock highlight overlay when another window is dragging a tab over this one
+    if (window_manager_ && window_id_ != 0
+        && window_manager_->drag_target_window() == window_id_)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        float w = io.DisplaySize.x;
+        float h = io.DisplaySize.y;
+        constexpr float border = 4.0f;
+        ImU32 highlight = IM_COL32(80, 160, 255, 180);
+        ImU32 fill = IM_COL32(80, 160, 255, 30);
+
+        // Semi-transparent fill
+        dl->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), fill);
+
+        // Thick colored border
+        dl->AddRect(ImVec2(border * 0.5f, border * 0.5f),
+                    ImVec2(w - border * 0.5f, h - border * 0.5f),
+                    highlight, 6.0f, 0, border);
+
+        // "Drop to dock" label centered
+        const char* label = "Drop to add tab";
+        ImVec2 tsz = ImGui::CalcTextSize(label);
+        float lx = (w - tsz.x) * 0.5f;
+        float ly = h * 0.4f;
+        float pad = 10.0f;
+        dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
+                          ImVec2(lx + tsz.x + pad, ly + tsz.y + pad),
+                          IM_COL32(30, 30, 30, 200), 6.0f);
+        dl->AddText(ImVec2(lx, ly), IM_COL32(80, 160, 255, 255), label);
     }
 
     // Draw command palette overlay (Agent F) — must be last to render on top

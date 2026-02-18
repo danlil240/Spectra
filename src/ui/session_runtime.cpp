@@ -226,8 +226,6 @@ FrameState SessionRuntime::tick(
             if (!src_wctx || !src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
                 continue;
             auto* src_fm = src_wctx->ui_ctx->fig_mgr;
-            if (src_fm->count() <= 1)
-                continue;
 
             FigureState detached_state = src_fm->remove_figure(pd.figure_id);
 
@@ -238,6 +236,10 @@ FrameState SessionRuntime::tick(
             pf.erase(std::remove(pf.begin(), pf.end(), pd.figure_id), pf.end());
             if (src_wctx->active_figure_id == pd.figure_id)
                 src_wctx->active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
+
+            // Close source window if it has no more figures
+            if (pf.empty())
+                window_mgr->request_close(src_wctx->id);
 
             auto* new_wctx = window_mgr->detach_figure(
                 pd.figure_id, pd.width, pd.height,
@@ -291,9 +293,6 @@ FrameState SessionRuntime::tick(
             auto* src_fm = src_wctx->ui_ctx->fig_mgr;
             auto* dst_fm = dst_wctx->ui_ctx->fig_mgr;
 
-            if (src_fm->count() <= 1)
-                continue;  // Don't leave source window empty
-
             // Remove from source
             FigureState moved_state = src_fm->remove_figure(pm.figure_id);
             src_wctx->ui_ctx->dock_system.close_split(pm.figure_id);
@@ -302,6 +301,10 @@ FrameState SessionRuntime::tick(
             spf.erase(std::remove(spf.begin(), spf.end(), pm.figure_id), spf.end());
             if (src_wctx->active_figure_id == pm.figure_id)
                 src_wctx->active_figure_id = spf.empty() ? INVALID_FIGURE_ID : spf.front();
+
+            // Close source window if it has no more figures
+            if (spf.empty())
+                window_mgr->request_close(src_wctx->id);
 
             // Add to destination
             dst_fm->add_figure(pm.figure_id, std::move(moved_state));

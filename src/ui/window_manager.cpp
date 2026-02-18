@@ -1230,6 +1230,31 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->tab_drag_controller.set_source_window_id(wctx.id);
     ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
 
+    // Wire stored tab drag handlers so every window supports tear-off and cross-window move
+    if (tab_detach_handler_)
+    {
+        auto* reg = registry_;
+        auto handler = tab_detach_handler_;
+        ui->tab_drag_controller.set_on_drop_outside(
+            [fig_mgr_ptr, reg, handler](FigureId fid, float sx, float sy)
+            {
+                auto* fig = reg->get(fid);
+                if (!fig)
+                    return;
+                uint32_t w = fig->width() > 0 ? fig->width() : 800;
+                uint32_t h = fig->height() > 0 ? fig->height() : 600;
+                std::string title = fig_mgr_ptr->get_title(fid);
+                handler(fid, w, h, title, static_cast<int>(sx), static_cast<int>(sy));
+            });
+    }
+    if (tab_move_handler_)
+    {
+        auto handler = tab_move_handler_;
+        ui->tab_drag_controller.set_on_drop_on_window(
+            [handler](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
+            { handler(fid, target_wid); });
+    }
+
     // Wire DataInteraction
     ui->data_interaction = std::make_unique<DataInteraction>();
     ui->imgui_ui->set_data_interaction(ui->data_interaction.get());

@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -174,6 +175,16 @@ class WindowManager
     // Returns true if a valid position was obtained.
     bool get_global_cursor_pos(double& screen_x, double& screen_y) const;
 
+    // Tab drag handlers — stored and applied to every new window's
+    // TabDragController in init_window_ui().  Set these before creating
+    // windows so all windows get the same drag behavior.
+    using TabDetachHandler = std::function<void(FigureId fid, uint32_t w, uint32_t h,
+                                                 const std::string& title, int sx, int sy)>;
+    using TabMoveHandler = std::function<void(FigureId fid, uint32_t target_window_id)>;
+
+    void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
+    void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
+
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
     void shutdown();
@@ -222,6 +233,10 @@ class WindowManager
     // Tearoff preview window (0 = none active)
     uint32_t preview_window_id_ = 0;
     bool preview_rendered_ = false;  // True after preview has been rendered at least once
+
+    // Tab drag handlers (applied to every new window's TabDragController)
+    TabDetachHandler tab_detach_handler_;
+    TabMoveHandler tab_move_handler_;
 
     // Callback-based mouse release tracking (tab drag)
     bool mouse_release_tracking_ = false;

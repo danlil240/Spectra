@@ -148,6 +148,15 @@ void App::run_inproc()
             window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
                              &registry_, renderer_.get());
 
+            // Set tab drag handlers BEFORE creating windows so all windows get them
+            window_mgr->set_tab_detach_handler(
+                [&session](FigureId fid, uint32_t w, uint32_t h,
+                           const std::string& title, int sx, int sy)
+                { session.queue_detach({fid, w, h, title, sx, sy}); });
+            window_mgr->set_tab_move_handler(
+                [&session](FigureId fid, uint32_t target_wid)
+                { session.queue_move({fid, target_wid}); });
+
             // First group → primary window
             auto* initial_wctx = window_mgr->create_first_window_with_ui(
                 glfw->native_window(), window_groups[0]);
@@ -341,9 +350,6 @@ void App::run_inproc()
                 if (!fig)
                     return;
 
-                if (fig_mgr.count() <= 1)
-                    return;
-
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(index);
@@ -360,9 +366,6 @@ void App::run_inproc()
                 {
                     auto* fig = registry_.get(index);
                     if (!fig)
-                        return;
-
-                    if (fig_mgr.count() <= 1)
                         return;
 
                     uint32_t win_w = fig->width() > 0 ? fig->width() : 800;

@@ -509,6 +509,16 @@ int main(int argc, char* argv[])
     window_mgr = std::make_unique<spectra::WindowManager>();
     window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
                      &registry, renderer_ptr.get());
+
+    // Set tab drag handlers BEFORE creating windows so all windows get them
+    window_mgr->set_tab_detach_handler(
+        [&session](spectra::FigureId fid, uint32_t w, uint32_t h,
+                   const std::string& title, int sx, int sy)
+        { session.queue_detach({fid, w, h, title, sx, sy}); });
+    window_mgr->set_tab_move_handler(
+        [&session](spectra::FigureId fid, uint32_t target_wid)
+        { session.queue_move({fid, target_wid}); });
+
     auto* initial_wctx = window_mgr->create_first_window_with_ui(
         glfw->native_window(), all_ids);
 
@@ -642,7 +652,7 @@ int main(int argc, char* argv[])
             [&fig_mgr, &session, &registry](spectra::FigureId index, float screen_x, float screen_y)
             {
                 auto* fig = registry.get(index);
-                if (!fig || fig_mgr.count() <= 1) return;
+                if (!fig) return;
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(index);
@@ -663,7 +673,7 @@ int main(int argc, char* argv[])
                 [&fig_mgr, &session, &registry](spectra::FigureId index, float screen_x, float screen_y)
                 {
                     auto* fig = registry.get(index);
-                    if (!fig || fig_mgr.count() <= 1) return;
+                    if (!fig) return;
                     uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                     uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                     std::string title = fig_mgr.get_title(index);

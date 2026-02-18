@@ -63,8 +63,9 @@ class ImGuiIntegration
     void build_ui(Figure& figure);
     void render(VulkanBackend& backend);
 
-    // Render a tearoff preview card into a preview window (no figure needed).
-    void build_preview_ui(const std::string& title);
+    // Render a tearoff preview card into a preview window.
+    // If figure is provided, renders actual series data; otherwise a placeholder.
+    void build_preview_ui(const std::string& title, Figure* figure = nullptr);
 
     void on_swapchain_recreated(VulkanBackend& backend);
 

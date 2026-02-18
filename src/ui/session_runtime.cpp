@@ -131,13 +131,27 @@ FrameState SessionRuntime::tick(
                 wctx->needs_resize = false;
             }
 
-            // Preview windows: render just the preview card (no figure)
+            // Preview windows: render the preview card with actual figure data
             if (wctx->is_preview)
             {
                 if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui)
                 {
+                    // Find the figure being dragged by checking all windows' drag controllers
+                    Figure* dragged_fig = nullptr;
+                    for (auto* w : window_mgr->windows())
+                    {
+                        if (w->is_preview || !w->ui_ctx || !w->ui_ctx->imgui_ui)
+                            continue;
+                        auto* tdc = w->ui_ctx->imgui_ui->tab_drag_controller();
+                        if (tdc && tdc->is_active())
+                        {
+                            dragged_fig = registry_.get(tdc->dragged_figure());
+                            break;
+                        }
+                    }
+
                     wctx->ui_ctx->imgui_ui->new_frame();
-                    wctx->ui_ctx->imgui_ui->build_preview_ui(wctx->title);
+                    wctx->ui_ctx->imgui_ui->build_preview_ui(wctx->title, dragged_fig);
 
                     bool frame_ok = vk->begin_frame();
                     if (frame_ok)

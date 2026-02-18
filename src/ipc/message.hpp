@@ -146,6 +146,18 @@ struct ReqCloseWindowPayload
     std::string reason;  // "user_close", "error", etc.
 };
 
+// Agent → Backend: detach a figure into a new window at the given screen position.
+// Used for tab drag-and-drop across windows.
+struct ReqDetachFigurePayload
+{
+    WindowId source_window_id = INVALID_WINDOW;
+    uint64_t figure_id = 0;
+    uint32_t width = 800;
+    uint32_t height = 600;
+    int32_t screen_x = 0;   // drop position (screen coordinates)
+    int32_t screen_y = 0;
+};
+
 // Backend → Agent: remove a figure from this window.
 struct CmdRemoveFigurePayload
 {

@@ -103,6 +103,12 @@ class Figure
     int grid_rows() const { return grid_rows_; }
     int grid_cols() const { return grid_cols_; }
 
+    // Animation property accessors
+    float anim_fps() const { return anim_fps_; }
+    float anim_duration() const { return anim_duration_; }
+    bool anim_loop() const { return anim_loop_; }
+    bool has_animation() const { return static_cast<bool>(anim_on_frame_); }
+
    private:
     friend class AnimationBuilder;
     friend class App;

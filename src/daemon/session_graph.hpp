@@ -43,6 +43,11 @@ class SessionGraph
     // Register a new agent. Returns the assigned WindowId.
     ipc::WindowId add_agent(ipc::ProcessId pid, int connection_fd);
 
+    // Claim a pre-registered agent slot (connection_fd == -1).
+    // Returns the WindowId of the claimed slot, or INVALID_WINDOW if none available.
+    // Updates the slot's connection_fd and heartbeat.
+    ipc::WindowId claim_pending_agent(int connection_fd);
+
     // Remove an agent by window ID. Returns its assigned figures.
     std::vector<uint64_t> remove_agent(ipc::WindowId wid);
 
@@ -57,8 +62,15 @@ class SessionGraph
     // Add a figure to the session. Returns the figure ID.
     uint64_t add_figure(const std::string& title = "");
 
+    // Register a figure with an explicit ID (e.g. from FigureModel).
+    void register_figure(uint64_t figure_id, const std::string& title = "");
+
     // Assign a figure to a window agent.
     bool assign_figure(uint64_t figure_id, ipc::WindowId wid);
+
+    // Unassign a figure from a specific window (without removing it from session).
+    // Used for tab detach: figure stays in session but moves to a different window.
+    bool unassign_figure(uint64_t figure_id, ipc::WindowId wid);
 
     // Remove a figure from the session.
     void remove_figure(uint64_t figure_id);

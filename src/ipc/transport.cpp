@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #ifdef __linux__
+    #include <fcntl.h>
     #include <sys/socket.h>
     #include <sys/un.h>
     #include <sys/stat.h>
@@ -172,6 +173,33 @@ std::unique_ptr<Connection> Server::accept()
                              &client_len);
     if (client_fd < 0)
         return nullptr;
+
+    return std::make_unique<Connection>(client_fd);
+#else
+    return nullptr;
+#endif
+}
+
+std::unique_ptr<Connection> Server::try_accept()
+{
+#ifdef __linux__
+    if (listen_fd_ < 0)
+        return nullptr;
+
+    struct sockaddr_un client_addr{};
+    socklen_t client_len = sizeof(client_addr);
+    // SOCK_NONBLOCK makes accept4 return EAGAIN immediately if no connection
+    int client_fd = ::accept4(listen_fd_,
+                              reinterpret_cast<struct sockaddr*>(&client_addr),
+                              &client_len,
+                              SOCK_NONBLOCK | SOCK_CLOEXEC);
+    if (client_fd < 0)
+        return nullptr;  // EAGAIN or error — no pending connection
+
+    // Clear non-blocking on the accepted fd so recv() stays blocking
+    int flags = ::fcntl(client_fd, F_GETFL, 0);
+    if (flags >= 0)
+        ::fcntl(client_fd, F_SETFL, flags & ~O_NONBLOCK);
 
     return std::make_unique<Connection>(client_fd);
 #else

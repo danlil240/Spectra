@@ -69,10 +69,15 @@ class Server
     // Returns nullptr if the server is closed or an error occurs.
     std::unique_ptr<Connection> accept();
 
+    // Accept a new connection (non-blocking).
+    // Returns nullptr immediately if no pending connection.
+    std::unique_ptr<Connection> try_accept();
+
     // Close the listening socket and remove the socket file.
     void close();
 
     bool is_listening() const { return listen_fd_ >= 0; }
+    int listen_fd() const { return listen_fd_; }
     const std::string& path() const { return path_; }
 
    private:

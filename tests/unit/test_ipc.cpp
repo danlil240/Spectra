@@ -1172,3 +1172,57 @@ TEST(IpcCodec, DoubleRoundTrip)
     ASSERT_TRUE(dec.next());
     EXPECT_NEAR(payload_as_double(dec), 123456.789012, 0.000001);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REQ_DETACH_FIGURE Codec
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(IpcCodec, ReqDetachFigureRoundTrip)
+{
+    ReqDetachFigurePayload p;
+    p.source_window_id = 42;
+    p.figure_id = 7;
+    p.width = 1024;
+    p.height = 768;
+    p.screen_x = 200;
+    p.screen_y = 150;
+
+    auto buf = encode_req_detach_figure(p);
+    ASSERT_FALSE(buf.empty());
+
+    auto decoded = decode_req_detach_figure(buf);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->source_window_id, 42u);
+    EXPECT_EQ(decoded->figure_id, 7u);
+    EXPECT_EQ(decoded->width, 1024u);
+    EXPECT_EQ(decoded->height, 768u);
+    EXPECT_EQ(decoded->screen_x, 200);
+    EXPECT_EQ(decoded->screen_y, 150);
+}
+
+TEST(IpcCodec, ReqDetachFigureDefaults)
+{
+    ReqDetachFigurePayload p;
+    auto buf = encode_req_detach_figure(p);
+    auto decoded = decode_req_detach_figure(buf);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->source_window_id, INVALID_WINDOW);
+    EXPECT_EQ(decoded->figure_id, 0u);
+    EXPECT_EQ(decoded->width, 800u);
+    EXPECT_EQ(decoded->height, 600u);
+    EXPECT_EQ(decoded->screen_x, 0);
+    EXPECT_EQ(decoded->screen_y, 0);
+}
+
+TEST(IpcCodec, ReqDetachFigureNegativeCoords)
+{
+    ReqDetachFigurePayload p;
+    p.screen_x = -100;
+    p.screen_y = -50;
+
+    auto buf = encode_req_detach_figure(p);
+    auto decoded = decode_req_detach_figure(buf);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->screen_x, -100);
+    EXPECT_EQ(decoded->screen_y, -50);
+}

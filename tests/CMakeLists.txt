@@ -115,9 +115,29 @@ set(SPECTRA_UNIT_TESTS
     test_process_manager
 )
 
+# Tests that require a GPU/display (Vulkan + GLFW window)
+set(SPECTRA_GPU_TESTS
+    test_3d_pipelines
+    test_depth_buffer
+    test_3d_integration
+    test_transparency
+    test_mode_transition
+    test_workspace_3d
+    test_3d_regression
+    test_multi_window
+    test_window_manager
+    test_figure_registry
+    test_phase2_integration
+    test_phase3_integration
+)
+
 foreach(_test ${SPECTRA_UNIT_TESTS})
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
         add_spectra_test(unit ${_test})
+        # Tag GPU-dependent tests so they can be excluded with -LE gpu
+        if(_test IN_LIST SPECTRA_GPU_TESTS)
+            set_tests_properties(unit_${_test} PROPERTIES LABELS "gpu")
+        endif()
     endif()
 endforeach()
 
@@ -134,7 +154,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
     add_test(NAME golden_image_tests COMMAND golden_image_tests)
 
     # Label golden tests so CI can run them separately
-    set_tests_properties(golden_image_tests PROPERTIES LABELS "golden")
+    set_tests_properties(golden_image_tests PROPERTIES LABELS "golden;gpu")
 
     # Phase 2 golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_phase2.cpp)
@@ -146,7 +166,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/golden
         )
         add_test(NAME golden_image_tests_phase2 COMMAND golden_image_tests_phase2)
-        set_tests_properties(golden_image_tests_phase2 PROPERTIES LABELS "golden")
+        set_tests_properties(golden_image_tests_phase2 PROPERTIES LABELS "golden;gpu")
     endif()
 
     # Phase 3 golden image tests
@@ -159,7 +179,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/golden
         )
         add_test(NAME golden_image_tests_phase3 COMMAND golden_image_tests_phase3)
-        set_tests_properties(golden_image_tests_phase3 PROPERTIES LABELS "golden")
+        set_tests_properties(golden_image_tests_phase3 PROPERTIES LABELS "golden;gpu")
     endif()
 
     # 3D Phase 3 golden image tests
@@ -172,7 +192,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/golden
         )
         add_test(NAME golden_image_tests_3d_phase3 COMMAND golden_image_tests_3d_phase3)
-        set_tests_properties(golden_image_tests_3d_phase3 PROPERTIES LABELS "golden")
+        set_tests_properties(golden_image_tests_3d_phase3 PROPERTIES LABELS "golden;gpu")
     endif()
 
     # 3D golden image tests
@@ -185,7 +205,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/golden
         )
         add_test(NAME golden_image_tests_3d COMMAND golden_image_tests_3d)
-        set_tests_properties(golden_image_tests_3d PROPERTIES LABELS "golden")
+        set_tests_properties(golden_image_tests_3d PROPERTIES LABELS "golden;gpu")
     endif()
 endif()
 

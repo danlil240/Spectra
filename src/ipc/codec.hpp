@@ -120,6 +120,9 @@ static constexpr uint8_t TAG_ACTIVE_FIGURE   = 0x42;
 static constexpr uint8_t TAG_TEMPLATE_WINDOW = 0x43;
 static constexpr uint8_t TAG_REASON          = 0x44;
 static constexpr uint8_t TAG_FIGURE_COUNT    = 0x45;
+static constexpr uint8_t TAG_SOURCE_WINDOW   = 0x46;
+static constexpr uint8_t TAG_SCREEN_X        = 0x47;
+static constexpr uint8_t TAG_SCREEN_Y        = 0x48;
 
 std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p);
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data);
@@ -138,6 +141,9 @@ std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t
 
 std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p);
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p);
+std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data);
 
 // ─── Convenience: encode/decode state sync payloads ──────────────────────────
 

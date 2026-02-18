@@ -80,6 +80,10 @@ class FigureModel
     ipc::StateSnapshotPayload snapshot() const;
     ipc::StateSnapshotPayload snapshot(const std::vector<uint64_t>& figure_ids) const;
 
+    // Replace all figures from an incoming StateSnapshotPayload (app → backend push).
+    // Clears existing figures and loads from the snapshot. Returns new figure IDs.
+    std::vector<uint64_t> load_snapshot(const ipc::StateSnapshotPayload& snap);
+
     // Apply a DiffOp to the model (used when receiving EVT_INPUT mutations).
     // Returns true if the op was applied successfully.
     bool apply_diff_op(const ipc::DiffOp& op);

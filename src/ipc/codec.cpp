@@ -445,6 +445,40 @@ std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uin
     return p;
 }
 
+// ─── REQ_DETACH_FIGURE ───────────────────────────────────────────────────────
+
+std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_SOURCE_WINDOW, p.source_window_id);
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_WIDTH, p.width);
+    enc.put_u32(TAG_HEIGHT, p.height);
+    payload_put_float(enc, TAG_SCREEN_X, static_cast<float>(p.screen_x));
+    payload_put_float(enc, TAG_SCREEN_Y, static_cast<float>(p.screen_y));
+    return enc.take();
+}
+
+std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
+{
+    ReqDetachFigurePayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_SOURCE_WINDOW: p.source_window_id = dec.as_u64(); break;
+            case TAG_FIGURE_ID:     p.figure_id = dec.as_u64(); break;
+            case TAG_WIDTH:         p.width = dec.as_u32(); break;
+            case TAG_HEIGHT:        p.height = dec.as_u32(); break;
+            case TAG_SCREEN_X:      p.screen_x = static_cast<int32_t>(payload_as_float(dec)); break;
+            case TAG_SCREEN_Y:      p.screen_y = static_cast<int32_t>(payload_as_float(dec)); break;
+            default: break;
+        }
+    }
+    return p;
+}
+
 // ─── Payload extension helpers ───────────────────────────────────────────────
 
 void payload_put_float(PayloadEncoder& enc, uint8_t tag, float val)

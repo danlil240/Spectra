@@ -19,6 +19,21 @@ ipc::WindowId SessionGraph::add_agent(ipc::ProcessId pid, int connection_fd)
     return wid;
 }
 
+ipc::WindowId SessionGraph::claim_pending_agent(int connection_fd)
+{
+    std::lock_guard lock(mu_);
+    for (auto& [wid, agent] : agents_)
+    {
+        if (agent.connection_fd == -1)
+        {
+            agent.connection_fd = connection_fd;
+            agent.last_heartbeat = std::chrono::steady_clock::now();
+            return wid;
+        }
+    }
+    return ipc::INVALID_WINDOW;
+}
+
 std::vector<uint64_t> SessionGraph::remove_agent(ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
@@ -72,6 +87,18 @@ uint64_t SessionGraph::add_figure(const std::string& title)
     return id;
 }
 
+void SessionGraph::register_figure(uint64_t figure_id, const std::string& title)
+{
+    std::lock_guard lock(mu_);
+    FigureEntry entry;
+    entry.figure_id = figure_id;
+    entry.title = title;
+    figures_[figure_id] = std::move(entry);
+    // Keep next_figure_id_ above any registered ID to avoid collisions
+    if (figure_id >= next_figure_id_)
+        next_figure_id_ = figure_id + 1;
+}
+
 bool SessionGraph::assign_figure(uint64_t figure_id, ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
@@ -99,6 +126,29 @@ bool SessionGraph::assign_figure(uint64_t figure_id, ipc::WindowId wid)
     auto& af = ait->second.assigned_figures;
     if (std::find(af.begin(), af.end(), figure_id) == af.end())
         af.push_back(figure_id);
+
+    return true;
+}
+
+bool SessionGraph::unassign_figure(uint64_t figure_id, ipc::WindowId wid)
+{
+    std::lock_guard lock(mu_);
+    auto fit = figures_.find(figure_id);
+    if (fit == figures_.end())
+        return false;
+
+    // Only unassign if currently assigned to the specified window
+    if (fit->second.assigned_window != wid)
+        return false;
+
+    fit->second.assigned_window = ipc::INVALID_WINDOW;
+
+    auto ait = agents_.find(wid);
+    if (ait != agents_.end())
+    {
+        auto& af = ait->second.assigned_figures;
+        af.erase(std::remove(af.begin(), af.end(), figure_id), af.end());
+    }
 
     return true;
 }

@@ -242,6 +242,40 @@ ipc::DiffOp FigureModel::set_figure_title(uint64_t figure_id, const std::string&
     return op;
 }
 
+// --- Load snapshot (app → backend push) ---
+
+std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload& snap)
+{
+    std::lock_guard lock(mu_);
+    figures_.clear();
+    figure_order_.clear();
+
+    std::vector<uint64_t> ids;
+    for (const auto& fig : snap.figures)
+    {
+        uint64_t id = fig.figure_id;
+        if (id == 0)
+            id = next_figure_id_++;
+        else if (id >= next_figure_id_)
+            next_figure_id_ = id + 1;
+
+        FigureData fd;
+        fd.id = id;
+        fd.title = fig.title;
+        fd.width = fig.width;
+        fd.height = fig.height;
+        fd.grid_rows = fig.grid_rows;
+        fd.grid_cols = fig.grid_cols;
+        fd.axes = fig.axes;
+        fd.series = fig.series;
+        figures_[id] = std::move(fd);
+        figure_order_.push_back(id);
+        ids.push_back(id);
+    }
+    bump_revision();
+    return ids;
+}
+
 // --- Snapshot ---
 
 ipc::StateSnapshotPayload FigureModel::snapshot() const

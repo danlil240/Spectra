@@ -4,6 +4,7 @@
 
 int main()
 {
+    
     auto& fig = spectra::figure({.width = 1280, .height = 720});
     auto& ax = fig.subplot(1, 1, 1);
 

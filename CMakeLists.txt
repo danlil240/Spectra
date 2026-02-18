@@ -19,6 +19,8 @@ option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 set(SPECTRA_RUNTIME_MODE "inproc" CACHE STRING "Runtime mode: inproc | multiproc")
 set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
 
+message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")
+
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
 
@@ -40,6 +42,11 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
 file(GLOB SPECTRA_UI_SOURCES src/ui/app.cpp)
+if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+    list(APPEND SPECTRA_UI_SOURCES src/ui/app_multiproc.cpp)
+else()
+    list(APPEND SPECTRA_UI_SOURCES src/ui/app_inproc.cpp)
+endif()
 foreach(_ui_src
     src/ui/input.cpp
     src/ui/layout_manager.cpp
@@ -176,6 +183,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/shortcut_config.cpp
         src/ui/plugin_api.cpp
         src/ui/tab_drag_controller.cpp
+        src/ui/register_commands.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})
@@ -212,7 +220,7 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
         )
     endif()
 
-    # spectra-window agent
+    # spectra-window agent — uses the SAME UI stack as inproc
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/agent/main.cpp)
         add_executable(spectra-window
             src/agent/main.cpp
@@ -222,6 +230,12 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
         target_include_directories(spectra-window PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
+        if(SPECTRA_USE_IMGUI)
+            target_include_directories(spectra-window PRIVATE
+                ${imgui_SOURCE_DIR}
+                ${imgui_SOURCE_DIR}/backends
+            )
+        endif()
     endif()
 endif()
 

@@ -215,3 +215,78 @@ TEST(SessionGraph, DuplicateAssignIsIdempotent)
     g.assign_figure(f1, wid);  // duplicate
     EXPECT_EQ(g.figures_for_window(wid).size(), 1u);
 }
+
+// --- Unassign figure (tab detach) ---
+
+TEST(SessionGraph, UnassignFigureRemovesFromWindow)
+{
+    SessionGraph g;
+    auto wid = g.add_agent(1, 1);
+    auto f1 = g.add_figure("Fig");
+    g.assign_figure(f1, wid);
+    EXPECT_EQ(g.figures_for_window(wid).size(), 1u);
+
+    EXPECT_TRUE(g.unassign_figure(f1, wid));
+    EXPECT_EQ(g.figures_for_window(wid).size(), 0u);
+    // Figure still exists in session
+    EXPECT_EQ(g.figure_count(), 1u);
+}
+
+TEST(SessionGraph, UnassignFigureWrongWindowFails)
+{
+    SessionGraph g;
+    auto w1 = g.add_agent(1, 1);
+    auto w2 = g.add_agent(2, 2);
+    auto f1 = g.add_figure("Fig");
+    g.assign_figure(f1, w1);
+
+    // Try to unassign from wrong window
+    EXPECT_FALSE(g.unassign_figure(f1, w2));
+    // Still assigned to w1
+    EXPECT_EQ(g.figures_for_window(w1).size(), 1u);
+}
+
+TEST(SessionGraph, UnassignNonexistentFigureFails)
+{
+    SessionGraph g;
+    auto wid = g.add_agent(1, 1);
+    EXPECT_FALSE(g.unassign_figure(999, wid));
+}
+
+TEST(SessionGraph, UnassignThenReassign)
+{
+    SessionGraph g;
+    auto w1 = g.add_agent(1, 1);
+    auto w2 = g.add_agent(2, 2);
+    auto f1 = g.add_figure("Fig");
+
+    g.assign_figure(f1, w1);
+    EXPECT_TRUE(g.unassign_figure(f1, w1));
+    EXPECT_EQ(g.figures_for_window(w1).size(), 0u);
+
+    // Reassign to different window
+    EXPECT_TRUE(g.assign_figure(f1, w2));
+    EXPECT_EQ(g.figures_for_window(w2).size(), 1u);
+    EXPECT_EQ(g.figures_for_window(w1).size(), 0u);
+}
+
+TEST(SessionGraph, UnassignMultipleFigures)
+{
+    SessionGraph g;
+    auto wid = g.add_agent(1, 1);
+    auto f1 = g.add_figure("A");
+    auto f2 = g.add_figure("B");
+    auto f3 = g.add_figure("C");
+    g.assign_figure(f1, wid);
+    g.assign_figure(f2, wid);
+    g.assign_figure(f3, wid);
+    EXPECT_EQ(g.figures_for_window(wid).size(), 3u);
+
+    // Unassign middle figure
+    EXPECT_TRUE(g.unassign_figure(f2, wid));
+    auto figs = g.figures_for_window(wid);
+    EXPECT_EQ(figs.size(), 2u);
+    EXPECT_TRUE(std::find(figs.begin(), figs.end(), f1) != figs.end());
+    EXPECT_TRUE(std::find(figs.begin(), figs.end(), f3) != figs.end());
+    EXPECT_TRUE(std::find(figs.begin(), figs.end(), f2) == figs.end());
+}

@@ -35,6 +35,13 @@ struct PendingDetach
     int screen_y = 0;
 };
 
+// Deferred cross-window move request.
+struct PendingMove
+{
+    FigureId figure_id = INVALID_FIGURE_ID;
+    uint32_t target_window_id = 0;
+};
+
 // Session-level orchestration.
 // Owns the per-frame loop body: poll events, process pending closes,
 // iterate windows (via WindowRuntime), and check exit condition.
@@ -58,6 +65,9 @@ class SessionRuntime
 
     // Queue a deferred detach request (called from ImGui callbacks).
     void queue_detach(PendingDetach pd);
+
+    // Queue a deferred cross-window move (called from TabDragController).
+    void queue_move(PendingMove pm);
 
     // Execute one tick of the session loop:
     //   1. begin_frame (scheduler)
@@ -98,6 +108,9 @@ class SessionRuntime
 
     // Deferred detach requests.
     std::vector<PendingDetach> pending_detaches_;
+
+    // Deferred cross-window move requests.
+    std::vector<PendingMove> pending_moves_;
 };
 
 }  // namespace spectra

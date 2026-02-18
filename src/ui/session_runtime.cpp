@@ -41,6 +41,11 @@ void SessionRuntime::queue_detach(PendingDetach pd)
     pending_detaches_.push_back(std::move(pd));
 }
 
+void SessionRuntime::queue_move(PendingMove pm)
+{
+    pending_moves_.push_back(std::move(pm));
+}
+
 FrameState SessionRuntime::tick(
     FrameScheduler& scheduler,
     Animator& animator,
@@ -126,6 +131,30 @@ FrameState SessionRuntime::tick(
                 wctx->needs_resize = false;
             }
 
+            // Preview windows: render just the preview card (no figure)
+            if (wctx->is_preview)
+            {
+                if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui)
+                {
+                    wctx->ui_ctx->imgui_ui->new_frame();
+                    wctx->ui_ctx->imgui_ui->build_preview_ui(wctx->title);
+
+                    bool frame_ok = vk->begin_frame();
+                    if (frame_ok)
+                    {
+                        vk->begin_render_pass(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                        wctx->ui_ctx->imgui_ui->render(*vk);
+                        vk->end_render_pass();
+                        vk->end_frame();
+                    }
+                    else
+                    {
+                        ImGui::EndFrame();
+                    }
+                }
+                continue;
+            }
+
             // Build per-window FrameState
             FrameState win_fs;
             win_fs.active_figure_id = wctx->active_figure_id;
@@ -162,6 +191,14 @@ FrameState SessionRuntime::tick(
         win_rt_.render(*headless_ui_ctx, frame_state);
     }
 
+    // ── Process deferred preview window create/destroy ─────────
+#ifdef SPECTRA_USE_GLFW
+    if (window_mgr)
+    {
+        window_mgr->process_deferred_preview();
+    }
+#endif
+
     // ── Process deferred detach requests ─────────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr && !pending_detaches_.empty())
@@ -179,6 +216,9 @@ FrameState SessionRuntime::tick(
                 continue;
 
             FigureState detached_state = src_fm->remove_figure(pd.figure_id);
+
+            // Also remove from dock system split panes
+            src_wctx->ui_ctx->dock_system.close_split(pd.figure_id);
 
             auto& pf = src_wctx->assigned_figures;
             pf.erase(std::remove(pf.begin(), pf.end(), pd.figure_id), pf.end());
@@ -205,6 +245,57 @@ FrameState SessionRuntime::tick(
                 newly_created_window_ids_.push_back(new_wctx->id);
         }
         pending_detaches_.clear();
+    }
+
+    // ── Process deferred cross-window moves ──────────────────────
+    if (window_mgr && !pending_moves_.empty())
+    {
+        for (auto& pm : pending_moves_)
+        {
+            // Find source window (the one that has this figure)
+            WindowContext* src_wctx = nullptr;
+            WindowContext* dst_wctx = nullptr;
+            for (auto* w : window_mgr->windows())
+            {
+                if (!w) continue;
+                if (w->id == pm.target_window_id)
+                    dst_wctx = w;
+                for (auto fid : w->assigned_figures)
+                {
+                    if (fid == pm.figure_id)
+                        src_wctx = w;
+                }
+            }
+
+            if (!src_wctx || !dst_wctx || src_wctx == dst_wctx)
+                continue;
+            if (!src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
+                continue;
+            if (!dst_wctx->ui_ctx || !dst_wctx->ui_ctx->fig_mgr)
+                continue;
+
+            auto* src_fm = src_wctx->ui_ctx->fig_mgr;
+            auto* dst_fm = dst_wctx->ui_ctx->fig_mgr;
+
+            if (src_fm->count() <= 1)
+                continue;  // Don't leave source window empty
+
+            // Remove from source
+            FigureState moved_state = src_fm->remove_figure(pm.figure_id);
+            src_wctx->ui_ctx->dock_system.close_split(pm.figure_id);
+
+            auto& spf = src_wctx->assigned_figures;
+            spf.erase(std::remove(spf.begin(), spf.end(), pm.figure_id), spf.end());
+            if (src_wctx->active_figure_id == pm.figure_id)
+                src_wctx->active_figure_id = spf.empty() ? INVALID_FIGURE_ID : spf.front();
+
+            // Add to destination
+            dst_fm->add_figure(pm.figure_id, std::move(moved_state));
+            dst_fm->queue_switch(pm.figure_id);
+            dst_wctx->assigned_figures.push_back(pm.figure_id);
+            dst_wctx->active_figure_id = pm.figure_id;
+        }
+        pending_moves_.clear();
     }
 #endif
 

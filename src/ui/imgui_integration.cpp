@@ -2198,8 +2198,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
             bool is_being_dragged =
                 pane_tab_drag_.dragging && pane_tab_drag_.dragged_figure_index == tr.figure_index;
 
-            // Skip drawing the tab in its original position if it's being dragged cross-pane
-            if (is_being_dragged && pane_tab_drag_.cross_pane)
+            // Skip drawing the tab in its original position if it's being dragged
+            // cross-pane or if the tearoff preview card is active
+            if (is_being_dragged && (pane_tab_drag_.cross_pane || pane_tab_drag_.preview_active))
                 continue;
 
             // Tab background
@@ -2307,6 +2308,15 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     pane_tab_drag_.drag_start_y = mouse.y;
                     pane_tab_drag_.cross_pane = false;
                     pane_tab_drag_.dock_dragging = false;
+                    // Capture source tab rect for preview animation origin
+                    pane_tab_drag_.source_tab_x = tr.x;
+                    pane_tab_drag_.source_tab_y = tr.y;
+                    pane_tab_drag_.source_tab_w = tr.w;
+                    pane_tab_drag_.source_tab_h = tr.h;
+                    pane_tab_drag_.preview_active = false;
+                    pane_tab_drag_.preview_scale = 0.0f;
+                    pane_tab_drag_.preview_opacity = 0.0f;
+                    pane_tab_drag_.preview_shadow = 0.0f;
                 }
 
                 // Right-click context menu
@@ -2426,35 +2436,35 @@ void ImGuiIntegration::draw_pane_tab_headers()
             tab_drag_controller_->set_cross_pane(pane_tab_drag_.cross_pane);
         }
 
-        // Draw drag ghost tab
+        // ── Ghost tab / preview sync ──────────────────────────────────
         std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
-        ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-        float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
-        float ghost_h = TAB_H;
-        float ghost_x = mouse.x - ghost_w * 0.5f;
-        float ghost_y = mouse.y - ghost_h * 0.5f;
 
-        // Ghost shadow
-        draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
-                                 ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
-                                 IM_COL32(0, 0, 0, 40),
-                                 6.0f);
+        // Sync preview_active from TabDragController's preview state
+        // (the real preview window is managed by TabDragController + WindowManager)
+        if (tab_drag_controller_ && tab_drag_controller_->is_preview_active())
+            pane_tab_drag_.preview_active = true;
 
-        // Ghost background
-        draw_list->AddRectFilled(ImVec2(ghost_x, ghost_y),
-                                 ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                                 to_col(theme.bg_elevated),
-                                 6.0f);
-        draw_list->AddRect(ImVec2(ghost_x, ghost_y),
-                           ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                           to_col(theme.accent, 0.6f),
-                           6.0f,
-                           0,
-                           1.5f);
-
-        // Ghost text
-        ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
-        draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
+        if (!pane_tab_drag_.preview_active)
+        {
+            // Preview window not yet created — draw small ghost tab at cursor
+            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+            float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            float ghost_h = TAB_H;
+            float ghost_x = mouse.x - ghost_w * 0.5f;
+            float ghost_y = mouse.y - ghost_h * 0.5f;
+            draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
+                                     ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
+                                     IM_COL32(0, 0, 0, 40), 6.0f);
+            draw_list->AddRectFilled(ImVec2(ghost_x, ghost_y),
+                                     ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                                     to_col(theme.bg_elevated), 6.0f);
+            draw_list->AddRect(ImVec2(ghost_x, ghost_y),
+                               ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
+                               to_col(theme.accent, 0.6f), 6.0f, 0, 1.5f);
+            ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
+            draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
+        }
+        // else: preview is rendered in a separate OS window by WindowManager
 
         // Draw drop indicator on target pane header
         for (auto& ph : headers)
@@ -4047,6 +4057,110 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
                                                                 : "XY";
             ImVec2 sz = ImGui::CalcTextSize(axis_str.c_str());
             dl->AddText(ImVec2(cx - sz.x * 0.5f, cy + 10), col, axis_str.c_str());
+        }
+    }
+}
+
+// ── Tearoff preview card rendering (for borderless preview window) ───────────
+
+void ImGuiIntegration::build_preview_ui(const std::string& title)
+{
+    const auto& theme = ui::ThemeManager::instance().colors();
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    ImVec2 disp = ImGui::GetIO().DisplaySize;
+
+    float w = disp.x;
+    float h = disp.y;
+
+    constexpr float RADIUS = 10.0f;
+    constexpr float TB_H = 28.0f;
+    constexpr float PAD = 8.0f;
+
+    // Card background (fills entire window)
+    dl->AddRectFilled(
+        ImVec2(0, 0), ImVec2(w, h),
+        IM_COL32(static_cast<uint8_t>(theme.bg_primary.r * 255),
+                 static_cast<uint8_t>(theme.bg_primary.g * 255),
+                 static_cast<uint8_t>(theme.bg_primary.b * 255), 255),
+        RADIUS);
+
+    // Border
+    dl->AddRect(
+        ImVec2(0, 0), ImVec2(w, h),
+        IM_COL32(static_cast<uint8_t>(theme.accent.r * 255),
+                 static_cast<uint8_t>(theme.accent.g * 255),
+                 static_cast<uint8_t>(theme.accent.b * 255), 180),
+        RADIUS, 0, 2.0f);
+
+    // Title bar
+    dl->AddRectFilled(
+        ImVec2(1, 1), ImVec2(w - 1, TB_H),
+        IM_COL32(static_cast<uint8_t>(theme.bg_tertiary.r * 255),
+                 static_cast<uint8_t>(theme.bg_tertiary.g * 255),
+                 static_cast<uint8_t>(theme.bg_tertiary.b * 255), 255),
+        RADIUS, ImDrawFlags_RoundCornersTop);
+
+    // Title text centered
+    ImVec2 tsz = ImGui::CalcTextSize(title.c_str());
+    dl->AddText(
+        ImVec2((w - tsz.x) * 0.5f, (TB_H - tsz.y) * 0.5f),
+        IM_COL32(static_cast<uint8_t>(theme.text_primary.r * 255),
+                 static_cast<uint8_t>(theme.text_primary.g * 255),
+                 static_cast<uint8_t>(theme.text_primary.b * 255), 255),
+        title.c_str());
+
+    // Separator line below title bar
+    dl->AddLine(ImVec2(1, TB_H), ImVec2(w - 1, TB_H),
+                IM_COL32(static_cast<uint8_t>(theme.border_subtle.r * 255),
+                         static_cast<uint8_t>(theme.border_subtle.g * 255),
+                         static_cast<uint8_t>(theme.border_subtle.b * 255), 200),
+                1.0f);
+
+    // Plot area
+    float px = PAD;
+    float py = TB_H + PAD * 0.5f;
+    float pw = w - PAD * 2.0f;
+    float ph = h - TB_H - PAD * 1.5f;
+
+    if (pw > 10.0f && ph > 10.0f)
+    {
+        // Plot background
+        dl->AddRectFilled(
+            ImVec2(px, py), ImVec2(px + pw, py + ph),
+            IM_COL32(static_cast<uint8_t>(theme.bg_secondary.r * 255),
+                     static_cast<uint8_t>(theme.bg_secondary.g * 255),
+                     static_cast<uint8_t>(theme.bg_secondary.b * 255), 200),
+            4.0f);
+
+        // Grid lines
+        uint8_t ga = 30;
+        for (int gi = 1; gi < 4; ++gi)
+        {
+            float gy = py + ph * (static_cast<float>(gi) / 4.0f);
+            dl->AddLine(ImVec2(px, gy), ImVec2(px + pw, gy),
+                        IM_COL32(128, 128, 128, ga), 1.0f);
+        }
+        for (int gi = 1; gi < 5; ++gi)
+        {
+            float gx = px + pw * (static_cast<float>(gi) / 5.0f);
+            dl->AddLine(ImVec2(gx, py), ImVec2(gx, py + ph),
+                        IM_COL32(128, 128, 128, ga), 1.0f);
+        }
+
+        // Sine wave hint
+        uint8_t ar = static_cast<uint8_t>(theme.accent.r * 255);
+        uint8_t ag = static_cast<uint8_t>(theme.accent.g * 255);
+        uint8_t ab = static_cast<uint8_t>(theme.accent.b * 255);
+        ImU32 wave_col = IM_COL32(ar, ag, ab, 200);
+        constexpr int SEGMENTS = 40;
+        for (int si = 0; si < SEGMENTS; ++si)
+        {
+            float t0 = static_cast<float>(si) / SEGMENTS;
+            float t1 = static_cast<float>(si + 1) / SEGMENTS;
+            float y0 = py + ph * 0.5f - std::sin(t0 * 6.28f) * ph * 0.3f;
+            float y1 = py + ph * 0.5f - std::sin(t1 * 6.28f) * ph * 0.3f;
+            dl->AddLine(ImVec2(px + t0 * pw, y0), ImVec2(px + t1 * pw, y1),
+                        wave_col, 2.0f);
         }
     }
 }

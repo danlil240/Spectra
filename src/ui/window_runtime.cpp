@@ -372,6 +372,25 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
             }
             // Sync active tab
             size_t active = fig_mgr.active_index();
+
+            // If the active figure is being torn off, switch to the next
+            // available figure so the source window shows different content.
+            if (imgui_ui)
+            {
+                FigureId tearoff = imgui_ui->tearoff_figure();
+                if (tearoff != INVALID_FIGURE_ID && active == tearoff)
+                {
+                    for (auto id : mgr_ids)
+                    {
+                        if (id != tearoff)
+                        {
+                            active = id;
+                            break;
+                        }
+                    }
+                }
+            }
+
             dock_system.set_active_figure_index(active);
             for (size_t li = 0; li < root->figure_indices().size(); ++li)
             {

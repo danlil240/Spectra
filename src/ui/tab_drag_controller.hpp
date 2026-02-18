@@ -72,6 +72,12 @@ class TabDragController
     using DropOutsideCallback =
         std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
 
+    // Called when a drop occurs inside a *different* window (cross-window move).
+    // Parameters: figure_id, target_window_id, screen_x, screen_y.
+    using DropOnWindowCallback =
+        std::function<void(FigureId figure_id, uint32_t target_window_id,
+                           float screen_x, float screen_y)>;
+
     // Called when drag is cancelled (restore original state).
     using CancelCallback = std::function<void(FigureId figure_id)>;
 
@@ -89,7 +95,14 @@ class TabDragController
 
     void set_on_drop_inside(DropInsideCallback cb) { on_drop_inside_ = std::move(cb); }
     void set_on_drop_outside(DropOutsideCallback cb) { on_drop_outside_ = std::move(cb); }
+    void set_on_drop_on_window(DropOnWindowCallback cb) { on_drop_on_window_ = std::move(cb); }
     void set_on_cancel(CancelCallback cb) { on_cancel_ = std::move(cb); }
+
+    // Set the source window ID so cross-window drops can be distinguished.
+    void set_source_window_id(uint32_t id) { source_window_id_ = id; }
+
+    // Returns true if the preview window has been created for the current drag.
+    bool is_preview_active() const { return preview_created_; }
 
     // Pixel threshold before a mouse-down becomes a drag (default: 10px).
     void set_drag_threshold(float px) { drag_threshold_ = px; }
@@ -153,6 +166,10 @@ class TabDragController
     // Check if screen coordinates are outside all managed windows.
     bool is_outside_all_windows(float screen_x, float screen_y) const;
 
+    // Find which window (by id) contains the screen coordinates.
+    // Returns 0 if no window found.
+    uint32_t find_window_at(float screen_x, float screen_y) const;
+
     // ── State ───────────────────────────────────────────────────────────
 
     State state_ = State::Idle;
@@ -176,6 +193,10 @@ class TabDragController
     // Ghost tab
     std::string ghost_title_;
 
+    // Preview window state
+    bool preview_created_ = false;
+    int preview_grace_frames_ = 0;  // Suppress drop for N frames after preview request
+
     // Thresholds
     float drag_threshold_ = 10.0f;
     float dock_drag_threshold_ = 30.0f;
@@ -184,9 +205,13 @@ class TabDragController
     DockSystem* dock_system_ = nullptr;
     WindowManager* window_manager_ = nullptr;
 
+    // Source window tracking for cross-window drops
+    uint32_t source_window_id_ = 0;
+
     // Callbacks
     DropInsideCallback on_drop_inside_;
     DropOutsideCallback on_drop_outside_;
+    DropOnWindowCallback on_drop_on_window_;
     CancelCallback on_cancel_;
 };
 

@@ -531,6 +531,181 @@ WindowContext* WindowManager::detach_figure(FigureId figure_id, uint32_t width, 
     return wctx;
 }
 
+// ── Tearoff preview window ──────────────────────────────────────────────────
+
+void WindowManager::request_preview_window(uint32_t width, uint32_t height,
+                                           int screen_x, int screen_y,
+                                           const std::string& figure_title)
+{
+    pending_preview_create_ = PendingPreviewCreate{width, height, screen_x, screen_y, figure_title};
+}
+
+void WindowManager::request_destroy_preview()
+{
+    pending_preview_destroy_ = true;
+    pending_preview_create_.reset();  // Cancel any pending create
+}
+
+void WindowManager::process_deferred_preview()
+{
+    if (pending_preview_destroy_)
+    {
+        pending_preview_destroy_ = false;
+        // Also cancel any pending create — the drag ended before the
+        // preview could appear, so don't flash it briefly.
+        pending_preview_create_.reset();
+        destroy_preview_window_impl();
+        return;
+    }
+    if (pending_preview_create_)
+    {
+        auto req = std::move(*pending_preview_create_);
+        pending_preview_create_.reset();
+        create_preview_window_impl(req.width, req.height, req.screen_x, req.screen_y, req.title);
+    }
+}
+
+bool WindowManager::has_preview_window() const
+{
+    return preview_window_id_ != 0 || pending_preview_create_.has_value();
+}
+
+WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_t height,
+                                                          int screen_x, int screen_y,
+                                                          const std::string& figure_title)
+{
+    // Destroy any existing preview window first
+    destroy_preview_window_impl();
+
+    if (!backend_ || backend_->is_headless())
+        return nullptr;
+
+#ifdef SPECTRA_USE_GLFW
+    // Save and restore window hints after creating the preview window
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+
+    GLFWwindow* glfw_win = glfwCreateWindow(
+        static_cast<int>(width), static_cast<int>(height),
+        figure_title.c_str(), nullptr, nullptr);
+
+    // Reset hints to defaults for future windows
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+    glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+
+    if (!glfw_win)
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_preview_window: glfwCreateWindow failed");
+        return nullptr;
+    }
+
+    // Position the window at the cursor
+    glfwSetWindowPos(glfw_win, screen_x - static_cast<int>(width) / 2,
+                     screen_y - static_cast<int>(height) / 3);
+
+    auto wctx = std::make_unique<WindowContext>();
+    wctx->id = next_window_id_++;
+    wctx->glfw_window = glfw_win;
+    wctx->is_preview = true;
+    wctx->title = figure_title;
+
+    // Initialize Vulkan resources
+    if (!backend_->init_window_context(*wctx, width, height))
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_preview_window: Vulkan init failed");
+        glfwDestroyWindow(glfw_win);
+        return nullptr;
+    }
+
+    // Set GLFW callbacks (minimal — just framebuffer resize and close)
+    glfwSetWindowUserPointer(glfw_win, this);
+    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
+    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+
+    // Initialize ImGui for this preview window so we can render the card
+    auto ui = std::make_unique<WindowUIContext>();
+
+    // Minimal ImGui init — no FigureManager, no DockSystem, no input
+    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+
+    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
+    auto* prev_active = backend_->active_window();
+    backend_->set_active_window(wctx.get());
+
+    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    {
+        SPECTRA_LOG_ERROR("window_manager", "create_preview_window: ImGui init failed");
+        backend_->set_active_window(prev_active);
+        ImGui::SetCurrentContext(prev_imgui_ctx);
+        glfwDestroyWindow(glfw_win);
+        return nullptr;
+    }
+
+    wctx->imgui_context = ImGui::GetCurrentContext();
+    backend_->set_active_window(prev_active);
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+
+    preview_window_id_ = wctx->id;
+
+    WindowContext* ptr = wctx.get();
+    windows_.push_back(std::move(wctx));
+    rebuild_active_list();
+
+    // Transfer UI context
+    ptr->ui_ctx = std::move(ui);
+
+    SPECTRA_LOG_DEBUG("window_manager",
+                      "Created preview window " + std::to_string(ptr->id)
+                          + ": " + std::to_string(width) + "x" + std::to_string(height));
+    return ptr;
+#else
+    (void)width; (void)height; (void)screen_x; (void)screen_y; (void)figure_title;
+    return nullptr;
+#endif
+}
+
+void WindowManager::move_preview_window(int screen_x, int screen_y)
+{
+#ifdef SPECTRA_USE_GLFW
+    auto* wctx = preview_window();
+    if (!wctx || !wctx->glfw_window)
+        return;
+
+    auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+    int w = 0, h = 0;
+    glfwGetWindowSize(glfw_win, &w, &h);
+    glfwSetWindowPos(glfw_win, screen_x - w / 2, screen_y - h / 3);
+#else
+    (void)screen_x; (void)screen_y;
+#endif
+}
+
+void WindowManager::destroy_preview_window_impl()
+{
+    if (preview_window_id_ == 0)
+        return;
+
+    uint32_t id = preview_window_id_;
+    preview_window_id_ = 0;
+    destroy_window(id);
+}
+
+WindowContext* WindowManager::preview_window() const
+{
+    if (preview_window_id_ == 0)
+        return nullptr;
+    return find_window(preview_window_id_);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uint32_t to_window_id)
 {
     auto* from_wctx = find_window(from_window_id);
@@ -960,6 +1135,8 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
 
     // Wire TabDragController for drag-to-detach support
     ui->tab_drag_controller.set_window_manager(this);
+    ui->tab_drag_controller.set_dock_system(&ui->dock_system);
+    ui->tab_drag_controller.set_source_window_id(wctx.id);
     ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
 
     // Wire DataInteraction

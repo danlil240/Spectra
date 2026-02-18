@@ -77,6 +77,14 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
     {
         if (!mouse_down)
         {
+            // Mouse released — destroy preview and execute drop.
+            if (preview_created_ && window_manager_)
+            {
+                window_manager_->request_destroy_preview();
+                preview_created_ = false;
+            }
+            preview_grace_frames_ = 0;
+
             // Mouse released — determine drop target.
             if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
             {
@@ -84,7 +92,21 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
             }
             else
             {
-                execute_drop_inside(mouse_x, mouse_y);
+                // Check if dropped on a different window (cross-window move)
+                uint32_t target_wid = find_window_at(screen_mouse_x, screen_mouse_y);
+                if (target_wid != 0 && target_wid != source_window_id_
+                    && on_drop_on_window_)
+                {
+                    if (dock_dragging_ && dock_system_)
+                        dock_system_->cancel_drag();
+                    on_drop_on_window_(figure_id_, target_wid,
+                                       screen_mouse_x, screen_mouse_y);
+                    transition_to_idle();
+                }
+                else
+                {
+                    execute_drop_inside(mouse_x, mouse_y);
+                }
             }
             return;
         }
@@ -98,6 +120,44 @@ void TabDragController::update(float mouse_x, float mouse_y, bool mouse_down,
             {
                 dock_system_->begin_drag(figure_id_, mouse_x, mouse_y);
             }
+        }
+
+        // Preview window creation uses a delay: once the tearoff threshold
+        // is exceeded, we wait a few frames (grace period) with the mouse
+        // still held before actually creating the OS window.  This prevents
+        // a brief flash for fast drag-and-release gestures.
+        constexpr float TEAROFF_THRESHOLD = 25.0f;
+        if (!preview_created_ && std::abs(dy) > TEAROFF_THRESHOLD && window_manager_)
+        {
+            if (preview_grace_frames_ == 0)
+            {
+                // First frame past threshold — start the grace countdown.
+                preview_grace_frames_ = 4;
+            }
+            else
+            {
+                --preview_grace_frames_;
+                if (preview_grace_frames_ == 0)
+                {
+                    // Grace period expired and mouse is still held — create preview.
+                    constexpr uint32_t PREVIEW_W = 280;
+                    constexpr uint32_t PREVIEW_H = 200;
+                    window_manager_->request_preview_window(
+                        PREVIEW_W, PREVIEW_H,
+                        static_cast<int>(screen_mouse_x),
+                        static_cast<int>(screen_mouse_y),
+                        ghost_title_);
+                    preview_created_ = true;
+                }
+            }
+        }
+
+        // Move preview window to follow mouse
+        if (preview_created_ && window_manager_)
+        {
+            window_manager_->move_preview_window(
+                static_cast<int>(screen_mouse_x),
+                static_cast<int>(screen_mouse_y));
         }
 
         // Forward to dock system if in dock-drag mode.
@@ -116,6 +176,13 @@ void TabDragController::cancel()
     if (state_ == State::Idle)
         return;
 
+    // Request deferred preview window destruction on cancel
+    if (preview_created_ && window_manager_)
+    {
+        window_manager_->request_destroy_preview();
+        preview_created_ = false;
+    }
+
     execute_cancel();
 }
 
@@ -128,6 +195,8 @@ void TabDragController::transition_to_idle()
     source_pane_id_ = 0;
     cross_pane_ = false;
     dock_dragging_ = false;
+    preview_created_ = false;
+    preview_grace_frames_ = 0;
     ghost_title_.clear();
 }
 
@@ -197,7 +266,7 @@ bool TabDragController::is_outside_all_windows(float screen_x, float screen_y) c
 
     for (auto* wctx : window_manager_->windows())
     {
-        if (!wctx || !wctx->glfw_window)
+        if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
         int wx = 0, wy = 0, ww = 0, wh = 0;
@@ -214,6 +283,32 @@ bool TabDragController::is_outside_all_windows(float screen_x, float screen_y) c
     }
 
     return true;
+}
+
+uint32_t TabDragController::find_window_at(float screen_x, float screen_y) const
+{
+    if (!window_manager_)
+        return 0;
+
+    for (auto* wctx : window_manager_->windows())
+    {
+        if (!wctx || !wctx->glfw_window || wctx->is_preview)
+            continue;
+
+        int wx = 0, wy = 0, ww = 0, wh = 0;
+        glfwGetWindowPos(static_cast<GLFWwindow*>(wctx->glfw_window), &wx, &wy);
+        glfwGetWindowSize(static_cast<GLFWwindow*>(wctx->glfw_window), &ww, &wh);
+
+        if (screen_x >= static_cast<float>(wx)
+            && screen_x < static_cast<float>(wx + ww)
+            && screen_y >= static_cast<float>(wy)
+            && screen_y < static_cast<float>(wy + wh))
+        {
+            return wctx->id;
+        }
+    }
+
+    return 0;
 }
 
 }  // namespace spectra

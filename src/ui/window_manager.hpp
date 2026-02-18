@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -130,6 +131,31 @@ class WindowManager
     // Returns the number of open windows.
     size_t window_count() const { return active_ptrs_.size(); }
 
+    // ── Tearoff preview window ───────────────────────────────────────
+
+    // Request creation of a preview window (deferred to avoid mutating
+    // windows_ while iterating).  Safe to call from TabDragController.
+    void request_preview_window(uint32_t width, uint32_t height,
+                                int screen_x, int screen_y,
+                                const std::string& figure_title);
+
+    // Request destruction of the preview window (deferred).
+    void request_destroy_preview();
+
+    // Move the preview window to follow the mouse cursor (screen coords).
+    // This is safe mid-iteration (only calls glfwSetWindowPos).
+    void move_preview_window(int screen_x, int screen_y);
+
+    // Process deferred preview create/destroy requests.
+    // Call AFTER the render loop iteration completes.
+    void process_deferred_preview();
+
+    // Returns true if a preview window exists (or creation is pending).
+    bool has_preview_window() const;
+
+    // Get the current preview window (nullptr if none).
+    WindowContext* preview_window() const;
+
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
     void shutdown();
@@ -174,6 +200,28 @@ class WindowManager
 
     // IDs of windows pending destruction (deferred to avoid mutation during iteration)
     std::vector<uint32_t> pending_close_ids_;
+
+    // Tearoff preview window (0 = none active)
+    uint32_t preview_window_id_ = 0;
+    bool preview_rendered_ = false;  // True after preview has been rendered at least once
+
+    // Deferred preview window requests
+    struct PendingPreviewCreate
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        int screen_x = 0;
+        int screen_y = 0;
+        std::string title;
+    };
+    std::optional<PendingPreviewCreate> pending_preview_create_;
+    bool pending_preview_destroy_ = false;
+
+    // Internal: actually create/destroy the preview window.
+    WindowContext* create_preview_window_impl(uint32_t width, uint32_t height,
+                                               int screen_x, int screen_y,
+                                               const std::string& figure_title);
+    void destroy_preview_window_impl();
 };
 
 }  // namespace spectra

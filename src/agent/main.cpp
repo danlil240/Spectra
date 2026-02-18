@@ -650,6 +650,13 @@ int main(int argc, char* argv[])
                     static_cast<int>(screen_x), static_cast<int>(screen_y)});
             });
 
+        tab_drag_controller.set_on_drop_on_window(
+            [&session](spectra::FigureId index, uint32_t target_window_id,
+                       float /*screen_x*/, float /*screen_y*/)
+            {
+                session.queue_move({index, target_window_id});
+            });
+
         if (imgui_ui)
         {
             imgui_ui->set_pane_tab_detach_cb(

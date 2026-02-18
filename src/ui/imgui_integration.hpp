@@ -63,6 +63,9 @@ class ImGuiIntegration
     void build_ui(Figure& figure);
     void render(VulkanBackend& backend);
 
+    // Render a tearoff preview card into a preview window (no figure needed).
+    void build_preview_ui(const std::string& title);
+
     void on_swapchain_recreated(VulkanBackend& backend);
 
     // Layout management
@@ -72,6 +75,14 @@ class ImGuiIntegration
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
+
+    // Returns the FigureId being torn off (preview card active), or INVALID_FIGURE_ID if none.
+    FigureId tearoff_figure() const
+    {
+        return (pane_tab_drag_.dragging && pane_tab_drag_.preview_active)
+                   ? pane_tab_drag_.dragged_figure_index
+                   : INVALID_FIGURE_ID;
+    }
 
     // Interaction state getters
     bool should_reset_view() const { return reset_view_; }
@@ -310,6 +321,16 @@ class ImGuiIntegration
         float drag_start_y = 0.0f;
         bool cross_pane = false;     // Dragged outside source pane header
         bool dock_dragging = false;  // Dragged far enough vertically → dock system handles split
+
+        // Tearoff preview card animation
+        float preview_scale = 0.0f;     // 0→1 animated scale of the preview card
+        float preview_opacity = 0.0f;   // 0→1 animated opacity
+        float preview_shadow = 0.0f;    // 0→1 animated shadow intensity
+        float source_tab_x = 0.0f;      // Source tab position (animation origin)
+        float source_tab_y = 0.0f;
+        float source_tab_w = 0.0f;
+        float source_tab_h = 0.0f;
+        bool preview_active = false;    // True once drag exceeds vertical threshold
     };
     PaneTabDragState pane_tab_drag_;
     bool pane_tab_hovered_ = false;  // True when mouse is over a pane tab header

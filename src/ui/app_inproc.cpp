@@ -636,6 +636,14 @@ void App::render_secondary_window(WindowContext* wctx)
         renderer_->render_figure_content(*fig);
         renderer_->end_render_pass();
         backend_->end_frame();
+
+        // Post-present recovery: if present returned OUT_OF_DATE, recreate
+        // immediately so the next frame's begin_frame() doesn't loop.
+        if (wctx->swapchain_invalidated)
+        {
+            vk->recreate_swapchain_for_with_imgui(*wctx, wctx->pending_width, wctx->pending_height);
+            vk->clear_swapchain_dirty();
+        }
     }
 }
 

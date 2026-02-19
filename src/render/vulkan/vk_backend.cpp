@@ -382,6 +382,7 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             create_sync_objects();
         }
         active_window_->current_flight_frame = 0;
+        active_window_->swapchain_invalidated = false;
 
         SPECTRA_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
         return true;
@@ -1140,13 +1141,16 @@ void VulkanBackend::end_frame()
     active_window_->current_flight_frame =
         (active_window_->current_flight_frame + 1) % static_cast<uint32_t>(active_window_->in_flight_fences.size());
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         active_window_->swapchain_dirty = true;
-        SPECTRA_LOG_DEBUG(
-            "vulkan",
-            "end_frame: present returned "
-                + std::string(result == VK_ERROR_OUT_OF_DATE_KHR ? "OUT_OF_DATE" : "SUBOPTIMAL"));
+        active_window_->swapchain_invalidated = true;
+        SPECTRA_LOG_DEBUG("vulkan", "end_frame: present returned OUT_OF_DATE");
+    }
+    else if (result == VK_SUBOPTIMAL_KHR)
+    {
+        active_window_->swapchain_dirty = true;
+        SPECTRA_LOG_DEBUG("vulkan", "end_frame: present returned SUBOPTIMAL");
     }
     else if (result != VK_SUCCESS)
     {

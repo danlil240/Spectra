@@ -868,10 +868,31 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
             src_dock.split_view().close_pane(figure_id);
         }
 
-        // Add to target FigureManager with the transferred state
+        // Add to target FigureManager with the transferred state.
+        // Save dock active figure BEFORE add_figure(), because
+        // add_figure → switch_to → tab bar callback will change
+        // active_figure_index to the new figure (not yet in any pane).
         if (to_wctx->ui_ctx && to_wctx->ui_ctx->fig_mgr)
         {
+            auto& dst_dock = to_wctx->ui_ctx->dock_system;
+            FigureId prev_dock_active = dst_dock.active_figure_index();
+
             to_wctx->ui_ctx->fig_mgr->add_figure(figure_id, std::move(transferred_state));
+
+            // Place the figure in a split pane so it's visible
+            if (dst_dock.is_split())
+            {
+                auto* target_pane = dst_dock.split_view().pane_for_figure(prev_dock_active);
+                if (!target_pane)
+                {
+                    auto all = dst_dock.split_view().all_panes();
+                    if (!all.empty())
+                        target_pane = all.front();
+                }
+                if (target_pane && target_pane->is_leaf())
+                    target_pane->add_figure(figure_id);
+                dst_dock.set_active_figure_index(figure_id);
+            }
         }
 
         // Update InputHandler in target window

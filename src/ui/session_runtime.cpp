@@ -347,21 +347,35 @@ FrameState SessionRuntime::tick(
             if (spf.empty())
                 window_mgr->request_close(src_wctx->id);
 
+            // Add figure to the dock system so it appears in split views.
+            // For non-split windows the sync in window_runtime handles it,
+            // but for split windows we must place it in the active pane.
+            // IMPORTANT: save the dock active figure BEFORE add_figure(),
+            // because add_figure → switch_to → tab bar callback will change
+            // active_figure_index to the new figure (which isn't in any pane
+            // yet), making active_pane() return nullptr.
+            auto& dst_dock = dst_wctx->ui_ctx->dock_system;
+            FigureId prev_dock_active = dst_dock.active_figure_index();
+
             // Add to destination
             dst_fm->add_figure(pm.figure_id, std::move(moved_state));
             dst_fm->queue_switch(pm.figure_id);
             dst_wctx->assigned_figures.push_back(pm.figure_id);
             dst_wctx->active_figure_id = pm.figure_id;
 
-            // Add figure to the dock system so it appears in split views.
-            // For non-split windows the sync in window_runtime handles it,
-            // but for split windows we must place it in the active pane.
-            auto& dst_dock = dst_wctx->ui_ctx->dock_system;
             if (dst_dock.is_split())
             {
-                auto* active_pane = dst_dock.split_view().active_pane();
-                if (active_pane && active_pane->is_leaf())
-                    active_pane->add_figure(pm.figure_id);
+                // Use the previously-active figure to locate the target pane
+                auto* target_pane = dst_dock.split_view().pane_for_figure(prev_dock_active);
+                if (!target_pane)
+                {
+                    // Fallback: first leaf pane
+                    auto all = dst_dock.split_view().all_panes();
+                    if (!all.empty())
+                        target_pane = all.front();
+                }
+                if (target_pane && target_pane->is_leaf())
+                    target_pane->add_figure(pm.figure_id);
                 dst_dock.set_active_figure_index(pm.figure_id);
             }
 

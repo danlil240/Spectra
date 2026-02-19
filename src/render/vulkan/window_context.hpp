@@ -57,6 +57,7 @@ struct WindowContext
 
     // Swapchain state
     bool swapchain_dirty = false;
+    bool swapchain_invalidated = false;  // present returned OUT_OF_DATE — must recreate before next acquire
     bool should_close = false;
 
     // Window state

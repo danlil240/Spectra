@@ -12,6 +12,9 @@
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
+    #define GLFW_INCLUDE_NONE
+    #define GLFW_INCLUDE_VULKAN
+    #include <GLFW/glfw3.h>
     #include "window_manager.hpp"
 #endif
 
@@ -513,15 +516,34 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
             imgui_frame_started = false;
         }
 #endif
-        // Try to recover by recreating swapchain from active window dimensions
+        // Try to recover by recreating swapchain using actual framebuffer size
         auto* vk = static_cast<VulkanBackend*>(&backend_);
         auto* aw = vk->active_window();
-        if (aw && aw->pending_width > 0 && aw->pending_height > 0)
+        uint32_t target_w = 0, target_h = 0;
+#ifdef SPECTRA_USE_GLFW
+        if (aw && aw->glfw_window)
+        {
+            int fb_w = 0, fb_h = 0;
+            glfwGetFramebufferSize(
+                static_cast<GLFWwindow*>(aw->glfw_window), &fb_w, &fb_h);
+            if (fb_w > 0 && fb_h > 0)
+            {
+                target_w = static_cast<uint32_t>(fb_w);
+                target_h = static_cast<uint32_t>(fb_h);
+            }
+        }
+#endif
+        if (target_w == 0 || target_h == 0)
+        {
+            if (aw) { target_w = aw->pending_width; target_h = aw->pending_height; }
+        }
+        if (aw && target_w > 0 && target_h > 0)
         {
             SPECTRA_LOG_INFO("resize",
-                            "OUT_OF_DATE, recreating: " + std::to_string(aw->pending_width) + "x"
-                                + std::to_string(aw->pending_height));
-            backend_.recreate_swapchain(aw->pending_width, aw->pending_height);
+                            "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
+                                + std::to_string(target_h));
+            aw->swapchain_invalidated = false;
+            backend_.recreate_swapchain(target_w, target_h);
             vk->clear_swapchain_dirty();
             active_figure->config_.width = backend_.swapchain_width();
             active_figure->config_.height = backend_.swapchain_height();
@@ -579,6 +601,48 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
 
         renderer_.end_render_pass();
         backend_.end_frame();
+
+        // Post-present recovery: if vkQueuePresentKHR returned OUT_OF_DATE,
+        // the swapchain is permanently invalidated (Vulkan spec). Recreate
+        // now so the next frame's begin_frame() starts with a valid swapchain
+        // instead of entering the recovery path every frame (infinite loop).
+        {
+            auto* vk_post = static_cast<VulkanBackend*>(&backend_);
+            auto* aw_post = vk_post->active_window();
+            if (aw_post && aw_post->swapchain_invalidated)
+            {
+                aw_post->swapchain_invalidated = false;
+                uint32_t rw = aw_post->swapchain.extent.width;
+                uint32_t rh = aw_post->swapchain.extent.height;
+#ifdef SPECTRA_USE_GLFW
+                if (aw_post->glfw_window)
+                {
+                    int fb_w = 0, fb_h = 0;
+                    glfwGetFramebufferSize(
+                        static_cast<GLFWwindow*>(aw_post->glfw_window), &fb_w, &fb_h);
+                    if (fb_w > 0 && fb_h > 0)
+                    {
+                        rw = static_cast<uint32_t>(fb_w);
+                        rh = static_cast<uint32_t>(fb_h);
+                    }
+                }
+#endif
+                SPECTRA_LOG_DEBUG("resize",
+                                 "Post-present OUT_OF_DATE, recreating: "
+                                     + std::to_string(rw) + "x" + std::to_string(rh));
+                backend_.recreate_swapchain(rw, rh);
+                vk_post->clear_swapchain_dirty();
+                active_figure->config_.width = backend_.swapchain_width();
+                active_figure->config_.height = backend_.swapchain_height();
+                ui_ctx.needs_resize = false;
+#ifdef SPECTRA_USE_IMGUI
+                if (ui_ctx.imgui_ui)
+                {
+                    ui_ctx.imgui_ui->on_swapchain_recreated(*vk_post);
+                }
+#endif
+            }
+        }
     }
 
     return frame_ok;

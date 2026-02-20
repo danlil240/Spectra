@@ -165,26 +165,55 @@ void WindowManager::destroy_window(uint32_t window_id)
 
     auto& wctx = **it;
 
-    // Window close policy: destroy all figures owned by this window.
-    // Detached windows die with their figures — no reattachment.
+    // Window close policy: if other windows exist, redistribute figures
+    // to the first remaining window.  Only destroy figures on the very
+    // last window close (nothing left to move them to).
     if (registry_ && !wctx.assigned_figures.empty())
     {
-#ifdef SPECTRA_USE_IMGUI
-        if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
+        // Find a surviving window (any window other than the one being closed)
+        WindowContext* target = nullptr;
+        for (auto& w : windows_)
         {
+            if (w->id != window_id && !w->should_close)
+            {
+                target = w.get();
+                break;
+            }
+        }
+
+        if (target)
+        {
+            // Redistribute figures to the surviving window
             auto figs_copy = wctx.assigned_figures;
             for (FigureId fig_id : figs_copy)
-                wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
+            {
+                move_figure(fig_id, window_id, target->id);
+                SPECTRA_LOG_INFO("window_manager",
+                                 "Redistributed figure " + std::to_string(fig_id)
+                                     + " from closing window " + std::to_string(window_id)
+                                     + " to window " + std::to_string(target->id));
+            }
         }
-#endif
-        for (FigureId fig_id : wctx.assigned_figures)
+        else
         {
-            registry_->unregister_figure(fig_id);
-            SPECTRA_LOG_INFO("window_manager",
-                             "Destroyed figure " + std::to_string(fig_id)
-                                 + " (window " + std::to_string(window_id) + " closed)");
+            // Last window — destroy figures
+#ifdef SPECTRA_USE_IMGUI
+            if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
+            {
+                auto figs_copy = wctx.assigned_figures;
+                for (FigureId fig_id : figs_copy)
+                    wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
+            }
+#endif
+            for (FigureId fig_id : wctx.assigned_figures)
+            {
+                registry_->unregister_figure(fig_id);
+                SPECTRA_LOG_INFO("window_manager",
+                                 "Destroyed figure " + std::to_string(fig_id)
+                                     + " (last window " + std::to_string(window_id) + " closed)");
+            }
+            wctx.assigned_figures.clear();
         }
-        wctx.assigned_figures.clear();
     }
 
     // Wait for all GPU work to complete before destroying any resources.

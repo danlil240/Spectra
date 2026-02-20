@@ -383,6 +383,8 @@ void App::run_multiproc()
     // receives the STATE_SNAPSHOT.  No need to send REQ_CREATE_WINDOW.
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
+    auto last_heartbeat = std::chrono::steady_clock::now();
+    static constexpr auto HEARTBEAT_INTERVAL = std::chrono::milliseconds(5000);
     while (true)
     {
 #ifdef __linux__
@@ -392,7 +394,19 @@ void App::run_multiproc()
         pfd.revents = 0;
         int pr = ::poll(&pfd, 1, 1000);
         if (pr < 0) break;
-        if (pr == 0) continue;
+        if (pr == 0)
+        {
+            // Send periodic heartbeat to prevent daemon timeout
+            auto now = std::chrono::steady_clock::now();
+            if (now - last_heartbeat >= HEARTBEAT_INTERVAL)
+            {
+                if (!send_msg(*conn, ipc::MessageType::EVT_HEARTBEAT,
+                              session_id, window_id, {}))
+                    break;
+                last_heartbeat = now;
+            }
+            continue;
+        }
         if (pfd.revents & (POLLHUP | POLLERR)) break;
         if (pfd.revents & POLLIN)
         {

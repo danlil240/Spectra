@@ -259,9 +259,13 @@ FrameState SessionRuntime::tick(
             if (src_wctx->active_figure_id == pd.figure_id)
                 src_wctx->active_figure_id = pf.empty() ? INVALID_FIGURE_ID : pf.front();
 
-            // Close source window if it has no more figures
-            if (pf.empty())
-                window_mgr->request_close(src_wctx->id);
+            // Hide (don't destroy) empty windows — full destroy during the
+            // main loop can crash when the primary ImGui context is torn down.
+            if (pf.empty() && src_wctx->glfw_window)
+            {
+                glfwHideWindow(static_cast<GLFWwindow*>(src_wctx->glfw_window));
+                src_wctx->should_close = true;
+            }
 
             auto* new_wctx = window_mgr->detach_figure(
                 pd.figure_id, pd.width, pd.height,
@@ -343,9 +347,13 @@ FrameState SessionRuntime::tick(
             if (src_wctx->active_figure_id == pm.figure_id)
                 src_wctx->active_figure_id = spf.empty() ? INVALID_FIGURE_ID : spf.front();
 
-            // Close source window if it has no more figures
-            if (spf.empty())
-                window_mgr->request_close(src_wctx->id);
+            // Hide (don't destroy) empty windows — full destroy during the
+            // main loop can crash when the primary ImGui context is torn down.
+            if (spf.empty() && src_wctx->glfw_window)
+            {
+                glfwHideWindow(static_cast<GLFWwindow*>(src_wctx->glfw_window));
+                src_wctx->should_close = true;
+            }
 
             // Add figure to the dock system so it appears in split views.
             // For non-split windows the sync in window_runtime handles it,

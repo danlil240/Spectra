@@ -39,8 +39,14 @@ App::App(const AppConfig& config) : config_(config)
     }
 
     SPECTRA_LOG_INFO("app",
-                    "Initializing Spectra application (headless: "
-                        + std::string(config_.headless ? "true" : "false") + ")");
+                     "Initializing Spectra application (headless: "
+                         + std::string(config_.headless ? "true" : "false") + ")");
+    
+#if SPECTRA_RUNTIME_MODE == 'inproc'
+    SPECTRA_LOG_INFO("app", "Runtime mode: inproc");
+#elif SPECTRA_RUNTIME_MODE == 'multiproc'
+    SPECTRA_LOG_INFO("app", "Runtime mode: multiproc");
+#endif
 
     // Create Vulkan backend
     backend_ = std::make_unique<VulkanBackend>();

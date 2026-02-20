@@ -16,7 +16,7 @@ option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 
 # Runtime mode: inproc (single-process, all windows in one process)
 #               multiproc (future: each window in its own process via IPC)
-set(SPECTRA_RUNTIME_MODE "inproc" CACHE STRING "Runtime mode: inproc | multiproc")
+set(SPECTRA_RUNTIME_MODE "multiproc" CACHE STRING "Runtime mode: inproc | multiproc")
 set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
 
 message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")

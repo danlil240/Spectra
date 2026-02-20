@@ -62,7 +62,7 @@
 //   spectra::show();
 //
 // Level 6: 3D
-//   spectra::figure3d();
+//   spectra::figure();
 //   spectra::plot3(x, y, z);
 //   spectra::scatter3(x, y, z, "ro");
 //   spectra::surf(xg, yg, zv);
@@ -241,20 +241,6 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
     s.current_ax3d = nullptr;
     s.has_explicit_figure = true;
     s.has_explicit_subplot = false;
-    return *s.current_fig;
-}
-
-// Create a new figure configured for 3D plotting.
-inline Figure& figure3d(uint32_t width = 1280, uint32_t height = 720)
-{
-    auto& s = detail::easy_state();
-    s.ensure_app();
-    s.current_fig = &s.app->figure({.width = width, .height = height});
-    s.current_ax = nullptr;
-    s.current_ax3d = nullptr;
-    s.has_explicit_figure = true;
-    s.has_explicit_subplot = false;
-    // Axes3D will be created lazily by plot3/scatter3/surf
     return *s.current_fig;
 }
 

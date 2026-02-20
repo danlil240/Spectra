@@ -293,12 +293,20 @@ int main(int argc, char* argv[])
                             it->is_source_client = true;
                     }
 
-                    // Try to claim a pre-registered agent slot (created by
-                    // STATE_SNAPSHOT or REQ_DETACH_FIGURE handlers).
-                    // If none available, register as a brand-new agent.
-                    auto wid = graph.claim_pending_agent(it->conn->fd());
-                    if (wid == spectra::ipc::INVALID_WINDOW)
-                        wid = graph.add_agent(0, it->conn->fd());
+                    // Source app client (spectra-app) is NOT a render agent —
+                    // don't add it to the session graph. Only render agents
+                    // (spectra-window) go into the graph so graph.is_empty()
+                    // works correctly for shutdown detection.
+                    spectra::ipc::WindowId wid = spectra::ipc::INVALID_WINDOW;
+                    if (!it->is_source_client)
+                    {
+                        // Try to claim a pre-registered agent slot (created by
+                        // STATE_SNAPSHOT or REQ_DETACH_FIGURE handlers).
+                        // If none available, register as a brand-new agent.
+                        wid = graph.claim_pending_agent(it->conn->fd());
+                        if (wid == spectra::ipc::INVALID_WINDOW)
+                            wid = graph.add_agent(0, it->conn->fd());
+                    }
                     it->window_id = wid;
                     it->handshake_done = true;
 
@@ -827,11 +835,13 @@ int main(int argc, char* argv[])
         }
 
         // --- Shutdown rule: exit when no agents remain (after at least one connected) ---
+        // Note: the source app client stays in `clients` but is never added to `graph`,
+        // so we check graph.is_empty() rather than clients.empty().
         if (!graph.is_empty())
         {
             had_agents = true;
         }
-        else if (had_agents && clients.empty())
+        else if (had_agents)
         {
             std::cerr << "[spectra-backend] All agents disconnected, shutting down\n";
             g_running.store(false, std::memory_order_relaxed);

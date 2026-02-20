@@ -21,8 +21,8 @@ int main()
         z[i] = t / (4.0f * 3.14159f) * 2.0f - 1.0f;
     }
 
-    // Create figure with a 3D subplot
-    spectra::figure3d();
+    // Create figure with a 3D plot
+    spectra::figure();
     spectra::plot3(x, y, z).color({0.122f, 0.467f, 0.706f}).width(2.5f).label("Helix");
     spectra::xlabel("X");
     spectra::ylabel("Y");

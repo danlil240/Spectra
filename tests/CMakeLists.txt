@@ -113,6 +113,7 @@ set(SPECTRA_UNIT_TESTS
     test_ipc
     test_session_graph
     test_process_manager
+    test_easy_api
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)

@@ -24,6 +24,8 @@ add_spectra_example(shortcut_usage_demo)
 add_spectra_example(shortcut_config_demo)
 add_spectra_example(plugin_api_demo)
 add_spectra_example(timeline_animation_demo)
+add_spectra_example(easy_api_demo)
+add_spectra_example(easy_realtime_demo)
 
 # 3D examples (conditional on 3D infrastructure being available)
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simple_3d_scatter.cpp)

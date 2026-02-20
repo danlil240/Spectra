@@ -5,13 +5,11 @@
 // 3D element opacity over 0.8 seconds.
 
 #include <cmath>
-#include <spectra/spectra.hpp>
+#include <spectra/easy.hpp>
 #include <vector>
 
 int main()
 {
-    using namespace spectra;
-
     // Generate helix data
     const int N = 500;
     std::vector<float> x(N), y(N), z(N);
@@ -24,19 +22,18 @@ int main()
     }
 
     // Create figure with a 3D subplot
-    auto& fig = figure({.width = 1280, .height = 720});
-    auto& ax = fig.subplot3d(1, 1, 1);
-    ax.line3d(x, y, z).color({0.122f, 0.467f, 0.706f}).width(2.5f).label("Helix");
-    ax.xlabel("X");
-    ax.ylabel("Y");
-    ax.zlabel("Z");
-    ax.auto_fit();
+    spectra::figure3d();
+    spectra::plot3(x, y, z).color({0.122f, 0.467f, 0.706f}).width(2.5f).label("Helix");
+    spectra::xlabel("X");
+    spectra::ylabel("Y");
+    spectra::zlabel("Z");
+    spectra::gca3d()->auto_fit();
 
     // Set camera to a nice viewing angle
-    ax.camera().azimuth = 45.0f;
-    ax.camera().elevation = 25.0f;
-    ax.camera().update_position_from_orbit();
+    spectra::gca3d()->camera().azimuth = 45.0f;
+    spectra::gca3d()->camera().elevation = 25.0f;
+    spectra::gca3d()->camera().update_position_from_orbit();
 
-    show();
+    spectra::show();
     return 0;
 }

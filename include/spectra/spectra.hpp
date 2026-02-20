@@ -17,39 +17,19 @@
 #include <spectra/timeline.hpp>
 
 // ─── Convenience API ─────────────────────────────────────────────────────────
-// Free functions that manage a global App instance under the hood.
+// For the easiest possible API with free functions (plot, scatter, show, etc.),
+// include <spectra/easy.hpp> instead.
 //
-//   auto& fig = spectra::figure();
-//   auto& ax  = fig.subplot(1, 1, 1);
-//   ax.line(x, y);
+//   #include <spectra/easy.hpp>
+//
+//   spectra::plot(x, y, "r--o");
+//   spectra::title("My Plot");
 //   spectra::show();
 //
-// For advanced use (multiple windows, headless, custom config), use App directly.
-
-namespace spectra
-{
-
-namespace detail
-{
-
-inline App& global_app()
-{
-    static App instance;
-    return instance;
-}
-
-}  // namespace detail
-
-// Create a new figure on the global App.
-inline Figure& figure(const FigureConfig& config = {})
-{
-    return detail::global_app().figure(config);
-}
-
-// Show all figures and enter the event loop (blocking).
-inline void show()
-{
-    detail::global_app().run();
-}
-
-}  // namespace spectra
+// For full control, use App directly:
+//
+//   spectra::App app;
+//   auto& fig = app.figure();
+//   auto& ax  = fig.subplot(1, 1, 1);
+//   ax.line(x, y);
+//   app.run();

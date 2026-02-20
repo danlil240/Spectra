@@ -1,13 +1,9 @@
 #include <cmath>
-#include <spectra/spectra.hpp>
+#include <spectra/easy.hpp>
 #include <vector>
 
 int main()
 {
-    spectra::App app;
-    auto& fig = app.figure({.width = 1280, .height = 720});
-    auto& ax = fig.subplot(1, 1, 1);
-
     // Generate a sine wave
     std::vector<float> x(200);
     std::vector<float> y(200);
@@ -17,14 +13,15 @@ int main()
         y[i] = std::sin(x[i]);
     }
 
-    ax.line(x, y).label("sin(x)").color(spectra::rgb(0.2f, 0.8f, 1.0f));
-    ax.xlim(0.0f, 10.0f);
-    ax.ylim(-1.5f, 1.5f);
-    ax.title("Basic Line Plot");
-    ax.xlabel("X Axis");
-    ax.ylabel("Y Axis");
+    spectra::plot(x, y, "b-").label("sin(x)");
+    spectra::xlim(0.0f, 10.0f);
+    spectra::ylim(-1.5f, 1.5f);
+    spectra::title("Basic Line Plot");
+    spectra::xlabel("X Axis");
+    spectra::ylabel("Y Axis");
+    spectra::legend();
 
-    app.run();
+    spectra::show();
 
     return 0;
 }

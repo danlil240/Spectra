@@ -1,15 +1,9 @@
 #include <cmath>
-#include <spectra/spectra.hpp>
+#include <spectra/easy.hpp>
 #include <vector>
 
 int main()
 {
-    spectra::App app;
-
-    // Create a figure with some sample data
-    auto& fig = app.figure();
-    auto& ax = fig.subplot(1, 1, 1);  // 1-based indexing
-
     // Generate sample data
     std::vector<float> x, y;
     for (int i = 0; i < 1000; ++i)
@@ -18,21 +12,14 @@ int main()
         y.push_back(std::sin(x[i]) * std::exp(-x[i] * 0.1f));
     }
 
-    // Create a line series
-    auto line = ax.line(x, y);
-    line.color({0.2f, 0.6f, 1.0f, 1.0f});
-    line.width(2.0f);
-
-    // Add grid
-    ax.grid(true);
-
-    // Set labels
-    ax.title("Window Resizing Test");
-    ax.xlabel("Time (s)");
-    ax.ylabel("Amplitude");
+    spectra::plot(x, y, "b-");
+    spectra::grid(true);
+    spectra::title("Window Resizing Test");
+    spectra::xlabel("Time (s)");
+    spectra::ylabel("Amplitude");
 
     // Show the window - try resizing it!
-    app.run();
+    spectra::show();
 
     return 0;
 }

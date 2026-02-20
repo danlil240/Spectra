@@ -1,31 +1,25 @@
 #include <cmath>
-#include <spectra/spectra.hpp>
+#include <spectra/easy.hpp>
 
 int main()
 {
-    spectra::App app;
-    auto& fig = app.figure({.width = 1280, .height = 720});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto& line = spectra::plot().label("live").color(spectra::colors::cyan);
+    spectra::ylim(-1.5f, 1.5f);
+    spectra::title("Live Streaming Plot");
+    spectra::xlabel("Time (s)");
+    spectra::ylabel("Signal");
 
-    auto& line = ax.line().label("live").color(spectra::colors::cyan);
-    ax.ylim(-1.5f, 1.5f);
-    ax.title("Live Streaming Plot");
-    ax.xlabel("Time (s)");
-    ax.ylabel("Signal");
+    spectra::on_update(
+        [&](float /*dt*/, float t)
+        {
+            // Append a new point each frame simulating a sensor reading
+            float value = std::sin(t * 2.0f) + 0.3f * std::sin(t * 7.0f);
+            line.append(t, value);
+            // Sliding window: show last 10 seconds
+            spectra::xlim(t - 10.0f, t);
+        });
 
-    fig.animate()
-        .fps(60)
-        .on_frame(
-            [&](spectra::Frame& f)
-            {
-                float t = f.elapsed_seconds();
-                // Append a new point each frame simulating a sensor reading
-                float value = std::sin(t * 2.0f) + 0.3f * std::sin(t * 7.0f);
-                line.append(t, value);
-                // Sliding window: show last 10 seconds
-                ax.xlim(t - 10.0f, t);
-            })
-        .play();
+    spectra::show();
 
     return 0;
 }

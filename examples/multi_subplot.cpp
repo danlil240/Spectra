@@ -1,15 +1,10 @@
 #include <cmath>
-#include <spectra/spectra.hpp>
+#include <spectra/easy.hpp>
 #include <vector>
 
 int main()
 {
-    spectra::App app;
-    auto& fig = app.figure({.width = 1920, .height = 1080});
-
-    // 2x1 subplot grid
-    auto& ax1 = fig.subplot(2, 1, 1);
-    auto& ax2 = fig.subplot(2, 1, 2);
+    spectra::figure(1920, 1080);
 
     // Generate two independent datasets
     constexpr size_t N = 300;
@@ -24,22 +19,25 @@ int main()
         y2[i] = std::cos(x[i] * 2.0f) + 0.5f * std::sin(x[i] * 7.0f);
     }
 
-    ax1.line(x, y1).label("temperature").color(spectra::colors::red);
-    ax1.title("Temperature");
-    ax1.xlabel("Time (s)");
-    ax1.ylabel("Temp (C)");
-    ax1.xlim(0.0f, 6.0f);
-    ax1.ylim(-1.5f, 1.5f);
+    // Top subplot
+    spectra::subplot(2, 1, 1);
+    spectra::plot(x, y1, "r-").label("temperature");
+    spectra::title("Temperature");
+    spectra::xlabel("Time (s)");
+    spectra::ylabel("Temp (C)");
+    spectra::xlim(0.0f, 6.0f);
+    spectra::ylim(-1.5f, 1.5f);
 
-    ax2.line(x, y2).label("pressure").color(spectra::rgb(0.2f, 0.6f, 1.0f));
-    ax2.title("Pressure");
-    ax2.xlabel("Time (s)");
-    ax2.ylabel("Pressure (kPa)");
-    ax2.xlim(0.0f, 6.0f);
-    ax2.ylim(-2.0f, 2.0f);
+    // Bottom subplot
+    spectra::subplot(2, 1, 2);
+    spectra::plot(x, y2, "b-").label("pressure");
+    spectra::title("Pressure");
+    spectra::xlabel("Time (s)");
+    spectra::ylabel("Pressure (kPa)");
+    spectra::xlim(0.0f, 6.0f);
+    spectra::ylim(-2.0f, 2.0f);
 
-    fig.show();
-    app.run();
+    spectra::show();
 
     return 0;
 }

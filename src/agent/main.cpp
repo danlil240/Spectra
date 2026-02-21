@@ -859,13 +859,18 @@ int main(int argc, char* argv[])
                                     break;
                                 }
                             }
-                            // Also apply directly to live Figure objects
-                            // (fast path for axis limits, grid toggle)
-                            for (auto reg_id : registry.all_ids())
+                            // Also apply directly to the matching live Figure object
+                            // (fast path for axis limits, grid toggle, series data).
+                            // Map IPC figure_id → registry FigureId via assigned_figures/all_ids.
+                            for (size_t mi = 0; mi < assigned_figures.size() && mi < all_ids.size(); ++mi)
                             {
-                                auto* live_fig = registry.get(reg_id);
-                                if (live_fig)
-                                    apply_diff_op_to_figure(*live_fig, op);
+                                if (assigned_figures[mi] == op.figure_id)
+                                {
+                                    auto* live_fig = registry.get(all_ids[mi]);
+                                    if (live_fig)
+                                        apply_diff_op_to_figure(*live_fig, op);
+                                    break;
+                                }
                             }
                         }
                         current_revision = diff->new_revision;

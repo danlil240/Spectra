@@ -118,9 +118,13 @@ struct EasyState
 
     // Animation callback
     std::function<void(float dt, float elapsed)> on_update_cb;
+    uint64_t on_update_frame_ = UINT64_MAX;  // frame guard: prevents double-fire when wired to multiple figures
 
     // Knob manager (shared across all figures in easy API)
     KnobManager knob_mgr;
+
+    // All figures created in this easy-API session (for on_update wiring)
+    std::vector<Figure*> all_figures;
 
     // Auto-created state tracking
     bool has_explicit_figure = false;
@@ -142,6 +146,7 @@ struct EasyState
         if (!current_fig)
         {
             current_fig = &app->figure();
+            all_figures.push_back(current_fig);
             has_explicit_figure = false;
         }
         return *current_fig;
@@ -175,6 +180,8 @@ struct EasyState
         current_ax = nullptr;
         current_ax3d = nullptr;
         on_update_cb = nullptr;
+        on_update_frame_ = UINT64_MAX;
+        all_figures.clear();
         has_explicit_figure = false;
         has_explicit_subplot = false;
         // Don't reset app — it persists
@@ -197,6 +204,7 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
     auto& s = detail::easy_state();
     s.ensure_app();
     s.current_fig = &s.app->figure({.width = width, .height = height});
+    s.all_figures.push_back(s.current_fig);
     s.current_ax = nullptr;
     s.current_ax3d = nullptr;
     s.has_explicit_figure = true;
@@ -210,6 +218,7 @@ inline Figure& figure(Figure& tab_next_to, uint32_t width = 1280, uint32_t heigh
     auto& s = detail::easy_state();
     s.ensure_app();
     s.current_fig = &s.app->figure(tab_next_to);
+    s.all_figures.push_back(s.current_fig);
     s.current_ax = nullptr;
     s.current_ax3d = nullptr;
     s.has_explicit_figure = true;
@@ -242,6 +251,7 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
 
     // Create a new figure as a tab next to the current figure
     s.current_fig = &s.app->figure(*s.current_fig);
+    s.all_figures.push_back(s.current_fig);
     s.current_ax = nullptr;
     s.current_ax3d = nullptr;
     s.has_explicit_figure = true;
@@ -436,16 +446,23 @@ inline void on_update(std::function<void(float dt, float elapsed)> callback)
     s.ensure_figure();
     s.on_update_cb = std::move(callback);
 
-    // Wire it through the Figure's animation system
-    s.current_fig->animate()
-        .fps(60)
-        .on_frame(
-            [&s](Frame& f)
-            {
-                if (s.on_update_cb)
-                    s.on_update_cb(f.delta_time(), f.elapsed_seconds());
-            })
-        .play();
+    // Wire the animation callback on ALL figures so it fires regardless of
+    // which tab is active.  The frame guard (on_update_frame_) ensures the
+    // user callback executes at most once per frame tick — critical because
+    // the multiproc loop fires anim_on_frame_ for every animated figure.
+    auto on_frame_cb = [&s](Frame& f)
+    {
+        uint64_t fc = f.frame_number();
+        if (fc == s.on_update_frame_)
+            return;  // already fired this frame
+        s.on_update_frame_ = fc;
+        if (s.on_update_cb)
+            s.on_update_cb(f.delta_time(), f.elapsed_seconds());
+    };
+    for (auto* fig : s.all_figures)
+    {
+        fig->animate().fps(60).on_frame(on_frame_cb).play();
+    }
 }
 
 // Register per-frame update with explicit FPS target.
@@ -455,15 +472,19 @@ inline void on_update(float fps, std::function<void(float dt, float elapsed)> ca
     s.ensure_figure();
     s.on_update_cb = std::move(callback);
 
-    s.current_fig->animate()
-        .fps(fps)
-        .on_frame(
-            [&s](Frame& f)
-            {
-                if (s.on_update_cb)
-                    s.on_update_cb(f.delta_time(), f.elapsed_seconds());
-            })
-        .play();
+    auto on_frame_cb = [&s](Frame& f)
+    {
+        uint64_t fc = f.frame_number();
+        if (fc == s.on_update_frame_)
+            return;
+        s.on_update_frame_ = fc;
+        if (s.on_update_cb)
+            s.on_update_cb(f.delta_time(), f.elapsed_seconds());
+    };
+    for (auto* fig : s.all_figures)
+    {
+        fig->animate().fps(fps).on_frame(on_frame_cb).play();
+    }
 }
 
 // ─── Knobs (Interactive Parameters) ──────────────────────────────────────────

@@ -420,6 +420,22 @@ void App::run_multiproc()
         scheduler = std::make_unique<FrameScheduler>(max_fps);
     }
 
+    // Track last-sent axis limits so we can emit SET_AXIS_LIMITS diffs
+    // when the user callback changes them (e.g. live_ax->xlim(t-10, t)).
+    struct AxisLimitsKey { uint64_t ipc_fig_id; uint32_t axes_idx; };
+    struct AxisLimitsKeyHash {
+        size_t operator()(const AxisLimitsKey& k) const {
+            return std::hash<uint64_t>{}(k.ipc_fig_id) ^ (std::hash<uint32_t>{}(k.axes_idx) << 32);
+        }
+    };
+    struct AxisLimitsKeyEq {
+        bool operator()(const AxisLimitsKey& a, const AxisLimitsKey& b) const {
+            return a.ipc_fig_id == b.ipc_fig_id && a.axes_idx == b.axes_idx;
+        }
+    };
+    struct SentLimits { float xmin, xmax, ymin, ymax; };
+    std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
+
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
     auto last_heartbeat = std::chrono::steady_clock::now();
     static constexpr auto HEARTBEAT_INTERVAL = std::chrono::milliseconds(5000);
@@ -509,6 +525,31 @@ void App::run_multiproc()
                     for (const auto& ax_ptr : fig->axes())
                     {
                         if (!ax_ptr) { axes_idx++; continue; }
+
+                        // Emit SET_AXIS_LIMITS if limits changed since last frame
+                        {
+                            auto xlim = ax_ptr->x_limits();
+                            auto ylim = ax_ptr->y_limits();
+                            AxisLimitsKey key{reg_to_ipc[id], axes_idx};
+                            auto it = sent_limits.find(key);
+                            bool changed = (it == sent_limits.end())
+                                || it->second.xmin != xlim.min || it->second.xmax != xlim.max
+                                || it->second.ymin != ylim.min || it->second.ymax != ylim.max;
+                            if (changed)
+                            {
+                                ipc::DiffOp op;
+                                op.type = ipc::DiffOp::Type::SET_AXIS_LIMITS;
+                                op.figure_id = reg_to_ipc[id];
+                                op.axes_index = axes_idx;
+                                op.f1 = xlim.min;
+                                op.f2 = xlim.max;
+                                op.f3 = ylim.min;
+                                op.f4 = ylim.max;
+                                diff.ops.push_back(std::move(op));
+                                sent_limits[key] = {xlim.min, xlim.max, ylim.min, ylim.max};
+                            }
+                        }
+
                         uint32_t series_idx = 0;
                         for (const auto& s_ptr : ax_ptr->series())
                         {

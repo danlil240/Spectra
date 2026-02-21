@@ -24,6 +24,7 @@
     #include "tab_bar.hpp"
     #include "timeline_editor.hpp"
     #include "undo_manager.hpp"
+    #include "knob_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_GLFW
@@ -79,6 +80,8 @@ struct WindowUIContext
     CommandPalette cmd_palette;
 
     TabDragController tab_drag_controller;
+
+    KnobManager knob_manager;
 #endif
 
 #ifdef SPECTRA_USE_GLFW

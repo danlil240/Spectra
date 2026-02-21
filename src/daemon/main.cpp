@@ -756,18 +756,36 @@ int main(int argc, char* argv[])
                     break;
                 }
 
-                case spectra::ipc::MessageType::ACK_STATE:
+                case spectra::ipc::MessageType::STATE_DIFF:
                 {
-                    // Agent acknowledges a state revision — for now just log
-                    auto ack = spectra::ipc::decode_ack_state(msg.payload);
-                    if (ack)
+                    // App client pushes incremental updates (e.g. animation frames).
+                    // Decode, apply to FigureModel, and forward to all render agents.
+                    auto incoming_diff = spectra::ipc::decode_state_diff(msg.payload);
+                    if (!incoming_diff || incoming_diff->ops.empty())
+                        break;
+
+                    auto base_rev = fig_model.revision();
+                    for (const auto& op : incoming_diff->ops)
+                        fig_model.apply_diff_op(op);
+
+                    spectra::ipc::StateDiffPayload fwd_diff;
+                    fwd_diff.ops = incoming_diff->ops;
+                    fwd_diff.base_revision = base_rev;
+                    fwd_diff.new_revision = fig_model.revision();
+
+                    for (auto& c : clients)
                     {
-                        std::cerr << "[spectra-backend] ACK_STATE rev="
-                                  << ack->revision << " from window="
-                                  << it->window_id << "\n";
+                        if (c.conn && c.handshake_done && !c.is_source_client)
+                        {
+                            send_state_diff(*c.conn, c.window_id,
+                                            graph.session_id(), fwd_diff);
+                        }
                     }
                     break;
                 }
+
+                case spectra::ipc::MessageType::ACK_STATE:
+                    break;
 
                 default:
                     std::cerr << "[spectra-backend] Unknown message type 0x"

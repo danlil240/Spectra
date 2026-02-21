@@ -28,6 +28,7 @@ class AxisLinkManager;
 class BoxZoomOverlay;
 class CommandPalette;
 class CommandRegistry;
+class KnobManager;
 class DataInteraction;
 class DockSystem;
 class KeyframeInterpolator;
@@ -145,6 +146,10 @@ class ImGuiIntegration
     void set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
     ModeTransition* mode_transition() const { return mode_transition_; }
 
+    // Knob manager (interactive parameter controls, owned externally by WindowUIContext)
+    void set_knob_manager(KnobManager* km) { knob_manager_ = km; }
+    KnobManager* knob_manager() const { return knob_manager_; }
+
     // Tab bar (owned externally by App)
     void set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
     TabBar* tab_bar() const { return tab_bar_; }
@@ -198,6 +203,7 @@ class ImGuiIntegration
     void draw_floating_toolbar();
     #endif
     void draw_theme_settings();
+    void draw_knobs_panel();
 
     void draw_plot_text(Figure& figure);
     void draw_toolbar_button(const char* icon,
@@ -285,6 +291,9 @@ class ImGuiIntegration
 
     // Mode transition (not owned)
     ModeTransition* mode_transition_ = nullptr;
+
+    // Knob manager (not owned)
+    KnobManager* knob_manager_ = nullptr;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

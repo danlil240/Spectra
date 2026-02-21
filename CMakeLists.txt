@@ -66,6 +66,7 @@ foreach(_ui_src
     src/ui/camera_animator.cpp
     src/ui/animation_curve_editor.cpp
     src/ui/mode_transition.cpp
+    src/ui/knob_manager.cpp
     src/ui/camera.cpp
     src/ui/axes3d_renderer.cpp
     src/ui/window_manager.cpp

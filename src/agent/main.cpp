@@ -209,8 +209,35 @@ void apply_diff_op_to_figure(spectra::Figure& fig,
                 fig.axes_mut()[op.axes_index]->grid(op.bool_val);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            {
+                auto& series_vec = fig.axes_mut()[op.axes_index]->series_mut();
+                if (op.series_index < series_vec.size() && series_vec[op.series_index])
+                {
+                    // Deinterleave [x0,y0,x1,y1,...] into separate x/y vectors
+                    size_t n = op.data.size() / 2;
+                    std::vector<float> xv(n), yv(n);
+                    for (size_t i = 0; i < n; ++i)
+                    {
+                        xv[i] = op.data[i * 2];
+                        yv[i] = op.data[i * 2 + 1];
+                    }
+                    auto* s = series_vec[op.series_index].get();
+                    if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
+                    {
+                        line->set_x(xv);
+                        line->set_y(yv);
+                    }
+                    else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
+                    {
+                        scatter->set_x(xv);
+                        scatter->set_y(yv);
+                    }
+                }
+            }
+            break;
         default:
-            // Other diff types require full figure rebuild
             break;
     }
 }

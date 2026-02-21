@@ -68,6 +68,8 @@ class PluginManager;
 struct PluginEntry;
 class CameraAnimator;
 class ModeTransition;
+class KnobManager;
+struct Knob;
 
 class WindowManager;
 class FigureRegistry;

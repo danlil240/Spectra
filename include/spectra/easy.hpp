@@ -86,6 +86,8 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
+#include "../src/ui/knob_manager.hpp"
+
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -116,6 +118,9 @@ struct EasyState
 
     // Animation callback
     std::function<void(float dt, float elapsed)> on_update_cb;
+
+    // Knob manager (shared across all figures in easy API)
+    KnobManager knob_mgr;
 
     // Auto-created state tracking
     bool has_explicit_figure = false;
@@ -461,6 +466,101 @@ inline void on_update(float fps, std::function<void(float dt, float elapsed)> ca
         .play();
 }
 
+// ─── Knobs (Interactive Parameters) ──────────────────────────────────────────
+//
+// Knobs are interactive controls that appear as a floating panel on the plot.
+// When the user adjusts a knob, it changes a variable's value in real-time,
+// triggering data recomputation via the on_update callback.
+//
+// Level 1: Define a knob, read its value in on_update:
+//
+//   auto& freq = spectra::knob("Frequency", 1.0f, 0.1f, 10.0f);
+//   auto& line = spectra::plot(x, y);
+//   spectra::on_update([&](float dt, float t) {
+//       for (int i = 0; i < N; i++) y[i] = sin(freq.value * x[i]);
+//       line.set_y(y);
+//   });
+//   spectra::show();
+//
+// Level 2: Per-knob callback (fires only when that knob changes):
+//
+//   spectra::knob("Amplitude", 1.0f, 0.0f, 5.0f, [&](float val) {
+//       for (int i = 0; i < N; i++) y[i] = val * sin(x[i]);
+//       line.set_y(y);
+//   });
+//
+// Level 3: Other knob types:
+//
+//   spectra::knob_int("Harmonics", 3, 1, 10);
+//   spectra::knob_bool("Show Grid", true);
+//   spectra::knob_choice("Waveform", {"Sine", "Square", "Triangle"});
+//
+
+// Add a float slider knob.  Returns reference to the Knob for reading .value.
+inline Knob& knob(const std::string& name,
+                  float default_val,
+                  float min_val,
+                  float max_val,
+                  std::function<void(float)> on_change = nullptr)
+{
+    return detail::easy_state().knob_mgr.add_float(name, default_val, min_val, max_val, 0.0f,
+                                                    std::move(on_change));
+}
+
+// Float knob with explicit step size.
+inline Knob& knob(const std::string& name,
+                  float default_val,
+                  float min_val,
+                  float max_val,
+                  float step,
+                  std::function<void(float)> on_change = nullptr)
+{
+    return detail::easy_state().knob_mgr.add_float(name, default_val, min_val, max_val, step,
+                                                    std::move(on_change));
+}
+
+// Integer slider knob.
+inline Knob& knob_int(const std::string& name,
+                      int default_val,
+                      int min_val,
+                      int max_val,
+                      std::function<void(float)> on_change = nullptr)
+{
+    return detail::easy_state().knob_mgr.add_int(name, default_val, min_val, max_val,
+                                                  std::move(on_change));
+}
+
+// Boolean checkbox knob.
+inline Knob& knob_bool(const std::string& name,
+                       bool default_val = false,
+                       std::function<void(float)> on_change = nullptr)
+{
+    return detail::easy_state().knob_mgr.add_bool(name, default_val, std::move(on_change));
+}
+
+// Choice dropdown knob.
+inline Knob& knob_choice(const std::string& name,
+                         const std::vector<std::string>& choices,
+                         int default_index = 0,
+                         std::function<void(float)> on_change = nullptr)
+{
+    return detail::easy_state().knob_mgr.add_choice(name, choices, default_index,
+                                                     std::move(on_change));
+}
+
+// Set a global callback that fires whenever ANY knob value changes.
+// Useful for batch recomputation of plot data.
+inline void on_knob_change(std::function<void()> callback)
+{
+    detail::easy_state().knob_mgr.set_on_any_change(std::move(callback));
+}
+
+// Access the knob manager directly (for advanced use).
+inline KnobManager& knobs()
+{
+    return detail::easy_state().knob_mgr;
+}
+
 // ─── Export ─────────────────────────────────────────────────────────────────
 
 // Save current figure as PNG.
@@ -489,6 +589,12 @@ inline void show()
 {
     auto& s = detail::easy_state();
     s.ensure_app();
+
+    // Transfer easy-API knobs into the App so the window UI context can pick them up.
+    // The App stores a pointer to the easy-API KnobManager; the window init code
+    // copies knobs into the per-window KnobManager at create_first_window_with_ui().
+    s.app->set_knob_manager(&s.knob_mgr);
+
     s.app->run();
     s.reset();
 }

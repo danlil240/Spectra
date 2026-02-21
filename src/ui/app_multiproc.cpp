@@ -11,6 +11,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
+#include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/transport.hpp"
@@ -382,43 +383,151 @@ void App::run_multiproc()
     // The daemon spawns one agent per figure automatically when it
     // receives the STATE_SNAPSHOT.  No need to send REQ_CREATE_WINDOW.
 
+    bool has_any_animation = false;
+    float max_fps = 60.0f;
+    for (auto id : registry_.all_ids())
+    {
+        Figure* fig = registry_.get(id);
+        if (fig && fig->has_animation())
+        {
+            has_any_animation = true;
+            if (fig->anim_fps() > max_fps) max_fps = fig->anim_fps();
+        }
+    }
+
+    std::unique_ptr<FrameScheduler> scheduler;
+    if (has_any_animation)
+    {
+        scheduler = std::make_unique<FrameScheduler>(max_fps);
+    }
+
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
     auto last_heartbeat = std::chrono::steady_clock::now();
     static constexpr auto HEARTBEAT_INTERVAL = std::chrono::milliseconds(5000);
     while (true)
     {
+        if (scheduler)
+            scheduler->begin_frame();
+
 #ifdef __linux__
         struct pollfd pfd;
         pfd.fd = conn->fd();
         pfd.events = POLLIN;
-        pfd.revents = 0;
-        int pr = ::poll(&pfd, 1, 1000);
-        if (pr < 0) break;
-        if (pr == 0)
+        
+        int timeout_ms = scheduler ? 0 : 1000;
+        bool exit_requested = false;
+        
+        while (true)
         {
-            // Send periodic heartbeat to prevent daemon timeout
-            auto now = std::chrono::steady_clock::now();
-            if (now - last_heartbeat >= HEARTBEAT_INTERVAL)
+            pfd.revents = 0;
+            int pr = ::poll(&pfd, 1, timeout_ms);
+            if (pr < 0) { exit_requested = true; break; }
+            if (pr == 0) break; // timeout
+            
+            if (pfd.revents & (POLLHUP | POLLERR)) { exit_requested = true; break; }
+            if (pfd.revents & POLLIN)
             {
-                if (!send_msg(*conn, ipc::MessageType::EVT_HEARTBEAT,
-                              session_id, window_id, {}))
-                    break;
-                last_heartbeat = now;
+                auto msg = conn->recv();
+                if (!msg) { exit_requested = true; break; }
+                if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) { exit_requested = true; break; }
             }
-            continue;
+            else {
+                break;
+            }
+            timeout_ms = 0; // only block on the first iteration
         }
-        if (pfd.revents & (POLLHUP | POLLERR)) break;
-        if (pfd.revents & POLLIN)
+        if (exit_requested) break;
+#else
+        if (!scheduler)
         {
             auto msg = conn->recv();
             if (!msg) break;
             if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) break;
         }
-#else
-        auto msg = conn->recv();
-        if (!msg) break;
-        if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) break;
 #endif
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_heartbeat >= HEARTBEAT_INTERVAL)
+        {
+            if (!send_msg(*conn, ipc::MessageType::EVT_HEARTBEAT,
+                          session_id, window_id, {}))
+                break;
+            last_heartbeat = now;
+        }
+
+        if (scheduler)
+        {
+            Frame frame = scheduler->current_frame();
+            ipc::StateDiffPayload diff;
+            
+            for (auto id : registry_.all_ids())
+            {
+                Figure* fig = registry_.get(id);
+                if (fig && fig->has_animation())
+                {
+                    if (fig->anim_on_frame_)
+                    {
+                        fig->anim_on_frame_(frame);
+                    }
+                }
+
+                if (fig)
+                {
+                    uint32_t axes_idx = 0;
+                    for (const auto& ax_ptr : fig->axes())
+                    {
+                        if (!ax_ptr) { axes_idx++; continue; }
+                        uint32_t series_idx = 0;
+                        for (const auto& s_ptr : ax_ptr->series())
+                        {
+                            if (s_ptr && s_ptr->is_dirty())
+                            {
+                                ipc::DiffOp op;
+                                op.type = ipc::DiffOp::Type::SET_SERIES_DATA;
+                                op.figure_id = reg_to_ipc[id];
+                                op.axes_index = axes_idx;
+                                op.series_index = series_idx;
+
+                                if (auto* line = dynamic_cast<const LineSeries*>(s_ptr.get()))
+                                {
+                                    auto xd = line->x_data();
+                                    auto yd = line->y_data();
+                                    op.data.reserve(xd.size() * 2);
+                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
+                                    {
+                                        op.data.push_back(xd[i]);
+                                        op.data.push_back(yd[i]);
+                                    }
+                                }
+                                else if (auto* scatter = dynamic_cast<const ScatterSeries*>(s_ptr.get()))
+                                {
+                                    auto xd = scatter->x_data();
+                                    auto yd = scatter->y_data();
+                                    op.data.reserve(xd.size() * 2);
+                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
+                                    {
+                                        op.data.push_back(xd[i]);
+                                        op.data.push_back(yd[i]);
+                                    }
+                                }
+
+                                diff.ops.push_back(std::move(op));
+                                const_cast<Series*>(s_ptr.get())->clear_dirty();
+                            }
+                            series_idx++;
+                        }
+                        axes_idx++;
+                    }
+                }
+            }
+
+            if (!diff.ops.empty())
+            {
+                send_msg(*conn, ipc::MessageType::STATE_DIFF, session_id, window_id, ipc::encode_state_diff(diff));
+            }
+
+            scheduler->end_frame();
+        }
     }
 
     // Notify backend we are done — it will kill all agents and exit

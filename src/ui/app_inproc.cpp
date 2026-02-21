@@ -227,6 +227,14 @@ void App::run_inproc()
     auto& input_handler   = ui_ctx_ptr->input_handler;
     auto& anim_controller = ui_ctx_ptr->anim_controller;
 
+    // Point ImGui at the external knob manager (if provided by easy API or user).
+    // This lets ImGui directly modify the same Knob objects the user holds
+    // references to, so knob.value updates are visible immediately.
+    if (knob_manager_ && !knob_manager_->empty() && imgui_ui)
+    {
+        imgui_ui->set_knob_manager(knob_manager_);
+    }
+
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
     curve_editor.set_interpolator(&keyframe_interpolator);

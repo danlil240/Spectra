@@ -25,6 +25,7 @@
     #include "dock_system.hpp"
     #include "icons.hpp"
     #include "keyframe_interpolator.hpp"
+    #include "knob_manager.hpp"
     #include "mode_transition.hpp"
     #include "tab_bar.hpp"
     #include "tab_drag_controller.hpp"
@@ -269,6 +270,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
     if (show_curve_editor_ && curve_editor_)
     {
         draw_curve_editor_panel();
+    }
+
+    // Draw knobs panel (interactive parameter controls overlay)
+    if (knob_manager_ && !knob_manager_->empty())
+    {
+        draw_knobs_panel();
     }
 
     // Draw deferred tooltip (command bar) on top of everything
@@ -4298,6 +4305,260 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
                         wave_col, 2.0f);
         }
     }
+}
+
+// ─── Knobs Panel ────────────────────────────────────────────────────────────
+// Draws an overlay panel on the canvas with interactive parameter controls.
+// Positioned at top-right of the canvas area, semi-transparent background.
+
+void ImGuiIntegration::draw_knobs_panel()
+{
+    if (!knob_manager_ || knob_manager_->empty())
+        return;
+    if (!knob_manager_->is_visible())
+        return;
+
+    auto& theme = ui::theme();
+    auto& knobs = knob_manager_->knobs();
+
+    // Position: top-right of canvas with padding
+    float canvas_x = layout_manager_ ? layout_manager_->canvas_rect().x : 0.0f;
+    float canvas_y = layout_manager_ ? layout_manager_->canvas_rect().y : 0.0f;
+    float canvas_w = layout_manager_ ? layout_manager_->canvas_rect().w : ImGui::GetIO().DisplaySize.x;
+
+    float panel_w = 260.0f;
+    float pad = 12.0f;
+    float pos_x = canvas_x + canvas_w - panel_w - pad;
+    float pos_y = canvas_y + pad;
+
+    ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f));  // auto-height
+    ImGui::SetNextWindowBgAlpha(0.88f);
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
+                           | ImGuiWindowFlags_NoResize
+                           | ImGuiWindowFlags_AlwaysAutoResize
+                           | ImGuiWindowFlags_NoSavedSettings
+                           | ImGuiWindowFlags_NoFocusOnAppearing
+                           | ImGuiWindowFlags_NoNav;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
+                                 theme.bg_elevated.b, 0.92f));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(theme.border_subtle.r, theme.border_subtle.g,
+                                 theme.border_subtle.b, 0.4f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(theme.text_primary.r, theme.text_primary.g,
+                                 theme.text_primary.b, theme.text_primary.a));
+
+    bool collapsed = knob_manager_->is_collapsed();
+    ImGui::PushStyleColor(ImGuiCol_TitleBg,
+                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                 theme.bg_tertiary.b, 0.95f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
+                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                 theme.bg_tertiary.b, 0.95f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed,
+                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                 theme.bg_tertiary.b, 0.8f));
+
+    ImGui::SetNextWindowCollapsed(collapsed, ImGuiCond_Once);
+
+    if (!ImGui::Begin("##knobs_panel", nullptr, flags | ImGuiWindowFlags_NoTitleBar))
+    {
+        ImGui::End();
+        ImGui::PopStyleColor(6);
+        ImGui::PopStyleVar(3);
+        return;
+    }
+
+    // Header with collapse toggle
+    {
+        ImGui::PushFont(font_heading_);
+        float header_h = ImGui::GetFontSize() + 4.0f;
+
+        // Collapse arrow
+        const char* arrow = collapsed ? "\xE2\x96\xB6" : "\xE2\x96\xBC";  // ▶ / ▼
+        ImVec2 arrow_size = ImGui::CalcTextSize(arrow);
+        if (ImGui::InvisibleButton("##knob_collapse", ImVec2(arrow_size.x + 8, header_h)))
+        {
+            collapsed = !collapsed;
+            knob_manager_->set_collapsed(collapsed);
+        }
+        ImGui::SameLine(0, 0);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - header_h);
+        ImGui::TextColored(ImVec4(theme.text_secondary.r, theme.text_secondary.g,
+                                   theme.text_secondary.b, 0.7f), "%s", arrow);
+        ImGui::SameLine(0, 6);
+
+        // Title
+        ImGui::TextColored(ImVec4(theme.text_secondary.r, theme.text_secondary.g,
+                                   theme.text_secondary.b, theme.text_secondary.a),
+                           "PARAMETERS");
+        ImGui::PopFont();
+
+        // Separator
+        ImGui::PushStyleColor(ImGuiCol_Separator,
+                              ImVec4(theme.border_subtle.r, theme.border_subtle.g,
+                                     theme.border_subtle.b, 0.3f));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+    }
+
+    if (!collapsed)
+    {
+        bool any_changed = false;
+
+        // Accent color for sliders
+        ImGui::PushStyleColor(ImGuiCol_SliderGrab,
+                              ImVec4(theme.accent.r, theme.accent.g,
+                                     theme.accent.b, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_SliderGrabActive,
+                              ImVec4(theme.accent.r * 0.85f, theme.accent.g * 0.85f,
+                                     theme.accent.b * 0.85f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,
+                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                     theme.bg_tertiary.b, 0.6f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
+                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                     theme.bg_tertiary.b, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive,
+                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
+                                     theme.bg_tertiary.b, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_CheckMark,
+                              ImVec4(theme.accent.r, theme.accent.g,
+                                     theme.accent.b, 1.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_SM);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, ui::tokens::RADIUS_SM);
+
+        float label_w = 0.0f;
+        for (auto& k : knobs)
+        {
+            float tw = ImGui::CalcTextSize(k.name.c_str()).x;
+            if (tw > label_w) label_w = tw;
+        }
+        label_w = std::min(label_w + 8.0f, panel_w * 0.4f);
+
+        for (size_t i = 0; i < knobs.size(); ++i)
+        {
+            auto& k = knobs[i];
+            ImGui::PushID(static_cast<int>(i));
+
+            // Label
+            ImGui::TextColored(ImVec4(theme.text_primary.r, theme.text_primary.g,
+                                       theme.text_primary.b, 0.9f),
+                               "%s", k.name.c_str());
+
+            // Control on same line or next line depending on type
+            float avail = ImGui::GetContentRegionAvail().x;
+
+            switch (k.type)
+            {
+                case KnobType::Float:
+                {
+                    ImGui::SetNextItemWidth(avail);
+                    float old_val = k.value;
+                    if (k.step > 0.0f)
+                    {
+                        // Discrete stepping — use drag float
+                        ImGui::DragFloat("##v", &k.value, k.step, k.min_val, k.max_val, "%.3f");
+                    }
+                    else
+                    {
+                        ImGui::SliderFloat("##v", &k.value, k.min_val, k.max_val, "%.3f");
+                    }
+                    k.value = std::clamp(k.value, k.min_val, k.max_val);
+                    if (k.value != old_val)
+                    {
+                        if (k.on_change) k.on_change(k.value);
+                        any_changed = true;
+                    }
+                    break;
+                }
+                case KnobType::Int:
+                {
+                    ImGui::SetNextItemWidth(avail);
+                    int iv = k.int_value();
+                    int old_iv = iv;
+                    ImGui::SliderInt("##v", &iv,
+                                     static_cast<int>(k.min_val),
+                                     static_cast<int>(k.max_val));
+                    k.value = static_cast<float>(iv);
+                    if (iv != old_iv)
+                    {
+                        if (k.on_change) k.on_change(k.value);
+                        any_changed = true;
+                    }
+                    break;
+                }
+                case KnobType::Bool:
+                {
+                    bool bv = k.bool_value();
+                    bool old_bv = bv;
+                    ImGui::Checkbox("##v", &bv);
+                    k.value = bv ? 1.0f : 0.0f;
+                    if (bv != old_bv)
+                    {
+                        if (k.on_change) k.on_change(k.value);
+                        any_changed = true;
+                    }
+                    break;
+                }
+                case KnobType::Choice:
+                {
+                    ImGui::SetNextItemWidth(avail);
+                    int ci = k.choice_index();
+                    int old_ci = ci;
+                    if (ImGui::BeginCombo("##v",
+                                          (ci >= 0 && ci < static_cast<int>(k.choices.size()))
+                                              ? k.choices[ci].c_str()
+                                              : ""))
+                    {
+                        for (int j = 0; j < static_cast<int>(k.choices.size()); ++j)
+                        {
+                            bool selected = (j == ci);
+                            if (ImGui::Selectable(k.choices[j].c_str(), selected))
+                            {
+                                ci = j;
+                                k.value = static_cast<float>(j);
+                            }
+                            if (selected)
+                                ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+                    if (ci != old_ci)
+                    {
+                        if (k.on_change) k.on_change(k.value);
+                        any_changed = true;
+                    }
+                    break;
+                }
+            }
+
+            // Small spacing between knobs
+            if (i + 1 < knobs.size())
+                ImGui::Spacing();
+
+            ImGui::PopID();
+        }
+
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor(6);
+
+        if (any_changed)
+        {
+            knob_manager_->notify_any_changed();
+        }
+    }
+
+    ImGui::End();
+    ImGui::PopStyleColor(6);
+    ImGui::PopStyleVar(3);
 }
 
 }  // namespace spectra

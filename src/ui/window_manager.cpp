@@ -1273,6 +1273,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_keyframe_interpolator(&ui->keyframe_interpolator);
     ui->imgui_ui->set_curve_editor(&ui->curve_editor);
     ui->imgui_ui->set_mode_transition(&ui->mode_transition);
+    ui->imgui_ui->set_knob_manager(&ui->knob_manager);
 
     // Wire TabDragController for drag-to-detach support
     ui->tab_drag_controller.set_window_manager(this);

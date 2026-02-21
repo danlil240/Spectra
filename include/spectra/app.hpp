@@ -44,6 +44,10 @@ class App
     Backend* backend() { return backend_.get(); }
     Renderer* renderer() { return renderer_.get(); }
 
+    // Knob manager (set by easy API before run(), or by user directly)
+    void set_knob_manager(KnobManager* km) { knob_manager_ = km; }
+    KnobManager* knob_manager() const { return knob_manager_; }
+
    private:
 #ifdef SPECTRA_MULTIPROC
     void run_multiproc();
@@ -65,6 +69,9 @@ class App
     // Maps a FigureId to the FigureId it should be tabbed next to.
     // Figures not in this map get their own window.
     std::unordered_map<FigureId, FigureId> sibling_map_;
+
+    // External knob manager (not owned — set by easy API or user)
+    KnobManager* knob_manager_ = nullptr;
 };
 
 }  // namespace spectra

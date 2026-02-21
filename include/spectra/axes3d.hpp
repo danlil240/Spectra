@@ -90,6 +90,10 @@ class Axes3D : public AxesBase
     // Zoom by scaling axis limits (bounding box stays fixed, data range changes)
     void zoom_limits(float factor);
 
+    // Pan by shifting axis limits (bounding box stays fixed, data range shifts)
+    // dx_screen/dy_screen are pixel deltas, vp_w/vp_h are viewport dimensions.
+    void pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h);
+
     LineSeries3D& line3d(std::span<const float> x,
                          std::span<const float> y,
                          std::span<const float> z);

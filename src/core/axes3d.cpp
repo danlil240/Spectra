@@ -331,4 +331,45 @@ void Axes3D::zoom_limits(float factor)
     zlim(new_zl.min, new_zl.max);
 }
 
+void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h)
+{
+    const auto& cam = camera();
+
+    // Camera right and up vectors in world (normalized) space
+    vec3 forward = vec3_normalize(cam.target - cam.position);
+    vec3 right = vec3_normalize(vec3_cross(forward, cam.up));
+    vec3 up = vec3_cross(right, forward);
+
+    // Scale: how much world-space movement per pixel
+    // Match Camera::pan() scale so drag feels consistent
+    float scale = cam.distance * 0.002f;
+    if (cam.projection_mode == Camera::ProjectionMode::Orthographic)
+        scale = cam.ortho_size * 0.002f;
+
+    // World-space displacement (in normalized cube space)
+    // Negate dx because dragging right should shift data left (show data to the right)
+    vec3 world_delta = right * (-dx_screen * scale) + up * (dy_screen * scale);
+
+    // Convert normalized-space displacement to data-space displacement per axis.
+    // Model matrix maps data range [min,max] to [-hs, +hs], so:
+    //   scale_x = (2*hs) / (xmax - xmin)
+    //   data_delta_x = world_delta_x / scale_x = world_delta_x * (xmax-xmin) / (2*hs)
+    auto xl = x_limits();
+    auto yl = y_limits();
+    auto zl = z_limits();
+    float hs = box_half_size();
+
+    float x_range = xl.max - xl.min;
+    float y_range = yl.max - yl.min;
+    float z_range = zl.max - zl.min;
+
+    float ddx = (x_range > 1e-10f) ? world_delta.x * x_range / (2.0f * hs) : 0.0f;
+    float ddy = (y_range > 1e-10f) ? world_delta.y * y_range / (2.0f * hs) : 0.0f;
+    float ddz = (z_range > 1e-10f) ? world_delta.z * z_range / (2.0f * hs) : 0.0f;
+
+    xlim(xl.min + ddx, xl.max + ddx);
+    ylim(yl.min + ddy, yl.max + ddy);
+    zlim(zl.min + ddz, zl.max + ddz);
+}
+
 }  // namespace spectra

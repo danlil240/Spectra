@@ -67,20 +67,28 @@ void register_standard_commands(const CommandBindings& b)
         [&]()
         {
             auto before = capture_figure_axes(*active_figure);
+            // 2D axes (subplot populates axes_mut only)
             for (auto& ax : active_figure->axes_mut())
             {
-                if (ax)
-                {
-                    auto old_xlim = ax->x_limits();
-                    auto old_ylim = ax->y_limits();
-                    ax->auto_fit();
-                    AxisLimits target_x = ax->x_limits();
-                    AxisLimits target_y = ax->y_limits();
-                    ax->xlim(old_xlim.min, old_xlim.max);
-                    ax->ylim(old_ylim.min, old_ylim.max);
-                    anim_controller.animate_axis_limits(
-                        *ax, target_x, target_y, 0.25f, ease::ease_out);
-                }
+                if (!ax)
+                    continue;
+                auto old_xlim = ax->x_limits();
+                auto old_ylim = ax->y_limits();
+                ax->auto_fit();
+                AxisLimits target_x = ax->x_limits();
+                AxisLimits target_y = ax->y_limits();
+                ax->xlim(old_xlim.min, old_xlim.max);
+                ax->ylim(old_ylim.min, old_ylim.max);
+                anim_controller.animate_axis_limits(
+                    *ax, target_x, target_y, 0.25f, ease::ease_out);
+            }
+            // 3D axes (subplot3d populates all_axes_mut only)
+            for (auto& ax_base : active_figure->all_axes_mut())
+            {
+                if (!ax_base)
+                    continue;
+                if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                    ax3d->auto_fit();
             }
             auto after = capture_figure_axes(*active_figure);
             undo_mgr.push(UndoAction{"Reset view",
@@ -96,7 +104,11 @@ void register_standard_commands(const CommandBindings& b)
         "Auto-Fit Active Axes",
         [&]()
         {
-            if (auto* ax = input_handler.active_axes())
+            if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
+            {
+                ax3d->auto_fit();
+            }
+            else if (auto* ax = input_handler.active_axes())
             {
                 auto old_x = ax->x_limits();
                 auto old_y = ax->y_limits();

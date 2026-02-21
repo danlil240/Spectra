@@ -665,10 +665,11 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto& gpu = axes_gpu_data_[&axes];
 
         // Check if limits/planes changed — skip regeneration if cached
-        bool limits_changed = !gpu.grid_valid || gpu.cached_xmin != xlim.min
-                              || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
-                              || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
-                              || gpu.cached_zmax != zlim.max
+        auto& gc = gpu.grid_cache;
+        bool limits_changed = !gc.valid || gc.xmin != xlim.min
+                              || gc.xmax != xlim.max || gc.ymin != ylim.min
+                              || gc.ymax != ylim.max || gc.zmin != zlim.min
+                              || gc.zmax != zlim.max
                               || gpu.cached_grid_planes != static_cast<int>(gp);
 
         if (limits_changed)
@@ -708,14 +709,14 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
             gpu.grid_vertex_count = static_cast<uint32_t>(float_count / 3);
-            gpu.cached_xmin = xlim.min;
-            gpu.cached_xmax = xlim.max;
-            gpu.cached_ymin = ylim.min;
-            gpu.cached_ymax = ylim.max;
-            gpu.cached_zmin = zlim.min;
-            gpu.cached_zmax = zlim.max;
+            gc.xmin = xlim.min;
+            gc.xmax = xlim.max;
+            gc.ymin = ylim.min;
+            gc.ymax = ylim.max;
+            gc.zmin = zlim.min;
+            gc.zmax = zlim.max;
             gpu.cached_grid_planes = static_cast<int>(gp);
-            gpu.grid_valid = true;
+            gc.valid = true;
         }
 
         if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
@@ -750,9 +751,10 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto& gpu = axes_gpu_data_[&axes];
 
         // Check if limits changed — skip regeneration if cached
-        bool limits_changed = !gpu.grid_valid || gpu.cached_xmin != xlim.min
-                              || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
-                              || gpu.cached_ymax != ylim.max;
+        auto& gc = gpu.grid_cache;
+        bool limits_changed = !gc.valid || gc.xmin != xlim.min
+                              || gc.xmax != xlim.max || gc.ymin != ylim.min
+                              || gc.ymax != ylim.max;
 
         if (limits_changed)
         {
@@ -797,11 +799,11 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
             gpu.grid_vertex_count = static_cast<uint32_t>(total_lines * 2);
-            gpu.cached_xmin = xlim.min;
-            gpu.cached_xmax = xlim.max;
-            gpu.cached_ymin = ylim.min;
-            gpu.cached_ymax = ylim.max;
-            gpu.grid_valid = true;
+            gc.xmin = xlim.min;
+            gc.xmax = xlim.max;
+            gc.ymin = ylim.min;
+            gc.ymax = ylim.max;
+            gc.valid = true;
         }
 
         if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
@@ -849,10 +851,11 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     auto& gpu = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    bool limits_changed = !gpu.bbox_valid || gpu.cached_xmin != xlim.min
-                          || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
-                          || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
-                          || gpu.cached_zmax != zlim.max;
+    auto& bc = gpu.bbox_cache;
+    bool limits_changed = !bc.valid || bc.xmin != xlim.min
+                          || bc.xmax != xlim.max || bc.ymin != ylim.min
+                          || bc.ymax != ylim.max || bc.zmin != zlim.min
+                          || bc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -885,13 +888,13 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
         }
         backend_.upload_buffer(gpu.bbox_buffer, bbox_scratch_.data(), byte_size);
         gpu.bbox_vertex_count = static_cast<uint32_t>(bbox.edge_vertices.size());
-        gpu.cached_xmin = xlim.min;
-        gpu.cached_xmax = xlim.max;
-        gpu.cached_ymin = ylim.min;
-        gpu.cached_ymax = ylim.max;
-        gpu.cached_zmin = zlim.min;
-        gpu.cached_zmax = zlim.max;
-        gpu.bbox_valid = true;
+        bc.xmin = xlim.min;
+        bc.xmax = xlim.max;
+        bc.ymin = ylim.min;
+        bc.ymax = ylim.max;
+        bc.zmin = zlim.min;
+        bc.zmax = zlim.max;
+        bc.valid = true;
     }
 
     if (!gpu.bbox_buffer || gpu.bbox_vertex_count == 0)
@@ -922,10 +925,11 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     auto& gpu = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    bool limits_changed = !gpu.tick_valid || gpu.cached_xmin != xlim.min
-                          || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
-                          || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
-                          || gpu.cached_zmax != zlim.max;
+    auto& tc = gpu.tick_cache;
+    bool limits_changed = !tc.valid || tc.xmin != xlim.min
+                          || tc.xmax != xlim.max || tc.ymin != ylim.min
+                          || tc.ymax != ylim.max || tc.zmin != zlim.min
+                          || tc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -992,13 +996,13 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         }
         backend_.upload_buffer(gpu.tick_buffer, tick_scratch_.data(), byte_size);
         gpu.tick_vertex_count = static_cast<uint32_t>(wi / 3);
-        gpu.cached_xmin = xlim.min;
-        gpu.cached_xmax = xlim.max;
-        gpu.cached_ymin = ylim.min;
-        gpu.cached_ymax = ylim.max;
-        gpu.cached_zmin = zlim.min;
-        gpu.cached_zmax = zlim.max;
-        gpu.tick_valid = true;
+        tc.xmin = xlim.min;
+        tc.xmax = xlim.max;
+        tc.ymin = ylim.min;
+        tc.ymax = ylim.max;
+        tc.zmin = zlim.min;
+        tc.zmax = zlim.max;
+        tc.valid = true;
     }
 
     if (!gpu.tick_buffer || gpu.tick_vertex_count == 0)

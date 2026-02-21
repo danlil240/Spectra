@@ -122,14 +122,19 @@ class Renderer
         size_t tick_capacity = 0;
         uint32_t tick_vertex_count = 0;
 
-        // Cached axis limits — skip regeneration when unchanged.
-        float cached_xmin = 0, cached_xmax = 0;
-        float cached_ymin = 0, cached_ymax = 0;
-        float cached_zmin = 0, cached_zmax = 0;
-        bool grid_valid = false;
-        bool bbox_valid = false;
-        bool tick_valid = false;
-        bool grid_enabled_cached = false;
+        // Per-function cached axis limits — each render function (grid, bbox,
+        // ticks) needs its own cache because they run sequentially and would
+        // clobber a shared cache, causing later functions to skip regeneration.
+        struct CachedLimits
+        {
+            float xmin = 0, xmax = 0;
+            float ymin = 0, ymax = 0;
+            float zmin = 0, zmax = 0;
+            bool valid = false;
+        };
+        CachedLimits grid_cache;
+        CachedLimits bbox_cache;
+        CachedLimits tick_cache;
         int cached_grid_planes = 0;  // for 3D grid plane mask
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;

@@ -1,5 +1,6 @@
 #include "window_runtime.hpp"
 
+#include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/frame.hpp>
 #include <spectra/logger.hpp>
@@ -268,6 +269,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         anim_controller.animate_axis_limits(
                             *ax, target_x, target_y, 0.25f, ease::ease_out);
                     }
+                }
+            }
+            // 3D axes (subplot3d populates all_axes only)
+            for (auto& ax_base : active_figure->all_axes_mut())
+            {
+                if (ax_base)
+                {
+                    if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                        ax3d->auto_fit();
                 }
             }
             imgui_ui->clear_reset_view();

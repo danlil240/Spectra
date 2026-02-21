@@ -374,40 +374,49 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             if (gesture_)
             {
                 bool is_double = gesture_->on_click(x, y);
-                if (is_double && (transition_engine_ || anim_ctrl_))
+                if (is_double)
                 {
                     SPECTRA_LOG_DEBUG("input", "Double-click detected — animated auto-fit");
-                    // Compute auto-fit target limits
-                    auto old_xlim = active_axes_->x_limits();
-                    auto old_ylim = active_axes_->y_limits();
-                    active_axes_->auto_fit();
-                    AxisLimits target_x = active_axes_->x_limits();
-                    AxisLimits target_y = active_axes_->y_limits();
-                    // Restore current limits so animation can interpolate
-                    active_axes_->xlim(old_xlim.min, old_xlim.max);
-                    active_axes_->ylim(old_ylim.min, old_ylim.max);
-                    if (transition_engine_)
+                    if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
                     {
-                        transition_engine_->animate_limits(*active_axes_,
-                                                           target_x,
-                                                           target_y,
-                                                           AUTOFIT_ANIM_DURATION,
-                                                           ease::ease_out);
+                        // 3D: auto_fit resets limits + camera in one call
+                        axes3d->auto_fit();
+                        return;  // Don't start a pan drag on double-click
                     }
-                    else
+                    else if (active_axes_ && (transition_engine_ || anim_ctrl_))
                     {
-                        anim_ctrl_->animate_axis_limits(*active_axes_,
-                                                        target_x,
-                                                        target_y,
-                                                        AUTOFIT_ANIM_DURATION,
-                                                        ease::ease_out);
+                        // Compute auto-fit target limits
+                        auto old_xlim = active_axes_->x_limits();
+                        auto old_ylim = active_axes_->y_limits();
+                        active_axes_->auto_fit();
+                        AxisLimits target_x = active_axes_->x_limits();
+                        AxisLimits target_y = active_axes_->y_limits();
+                        // Restore current limits so animation can interpolate
+                        active_axes_->xlim(old_xlim.min, old_xlim.max);
+                        active_axes_->ylim(old_ylim.min, old_ylim.max);
+                        if (transition_engine_)
+                        {
+                            transition_engine_->animate_limits(*active_axes_,
+                                                               target_x,
+                                                               target_y,
+                                                               AUTOFIT_ANIM_DURATION,
+                                                               ease::ease_out);
+                        }
+                        else
+                        {
+                            anim_ctrl_->animate_axis_limits(*active_axes_,
+                                                            target_x,
+                                                            target_y,
+                                                            AUTOFIT_ANIM_DURATION,
+                                                            ease::ease_out);
+                        }
+                        // Propagate auto-fit to linked axes
+                        if (axis_link_mgr_)
+                        {
+                            axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
+                        }
+                        return;  // Don't start a pan drag on double-click
                     }
-                    // Propagate auto-fit to linked axes
-                    if (axis_link_mgr_)
-                    {
-                        axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
-                    }
-                    return;  // Don't start a pan drag on double-click
                 }
             }
 
@@ -562,7 +571,7 @@ void InputHandler::on_mouse_move(double x, double y)
             else if (is_3d_pan_drag_)
             {
                 const auto& vp = viewport_for_axes(axes3d);
-                cam.pan(dx, dy, vp.w, vp.h);
+                axes3d->pan_limits(dx, dy, vp.w, vp.h);
             }
 
             drag_start_x_ = x;
@@ -822,12 +831,16 @@ void InputHandler::on_key(int key, int action, int mods)
 
     if (key == KEY_R && !(mods & MOD_CONTROL))
     {
-        // Reset view: animated auto-fit all axes in the figure
+        // Reset view: animated auto-fit all axes in the figure (2D and 3D)
+        // Note: subplot() populates axes() (2D only); subplot3d() populates
+        // all_axes() (3D only). Both must be iterated.
         if (figure_)
         {
             for (auto& axes_ptr : figure_->axes())
             {
-                if (axes_ptr && (transition_engine_ || anim_ctrl_))
+                if (!axes_ptr)
+                    continue;
+                if (transition_engine_ || anim_ctrl_)
                 {
                     auto old_xlim = axes_ptr->x_limits();
                     auto old_ylim = axes_ptr->y_limits();
@@ -838,20 +851,37 @@ void InputHandler::on_key(int key, int action, int mods)
                     axes_ptr->ylim(old_ylim.min, old_ylim.max);
                     if (transition_engine_)
                     {
-                        transition_engine_->animate_limits(
-                            *axes_ptr, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                        transition_engine_->animate_limits(*axes_ptr,
+                                                           target_x,
+                                                           target_y,
+                                                           AUTOFIT_ANIM_DURATION,
+                                                           ease::ease_out);
                     }
                     else
                     {
-                        anim_ctrl_->animate_axis_limits(
-                            *axes_ptr, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                        anim_ctrl_->animate_axis_limits(*axes_ptr,
+                                                        target_x,
+                                                        target_y,
+                                                        AUTOFIT_ANIM_DURATION,
+                                                        ease::ease_out);
                     }
                 }
-                else if (axes_ptr)
+                else
                 {
                     axes_ptr->auto_fit();
                 }
             }
+            for (auto& axes_base_ptr : figure_->all_axes())
+            {
+                if (!axes_base_ptr)
+                    continue;
+                if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base_ptr.get()))
+                    axes3d->auto_fit();
+            }
+        }
+        else if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
+        {
+            axes3d->auto_fit();
         }
         else if (active_axes_)
         {

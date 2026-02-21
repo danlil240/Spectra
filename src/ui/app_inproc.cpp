@@ -220,27 +220,18 @@ void App::run_inproc()
 #ifdef SPECTRA_USE_IMGUI
     // Convenience aliases — reference members of ui_ctx_ptr.
     auto& imgui_ui = ui_ctx_ptr->imgui_ui;
-    auto& data_interaction = ui_ctx_ptr->data_interaction;
     auto& figure_tabs = ui_ctx_ptr->figure_tabs;
-    auto& box_zoom_overlay = ui_ctx_ptr->box_zoom_overlay;
     auto& dock_system = ui_ctx_ptr->dock_system;
-    auto& dock_tab_sync_guard = ui_ctx_ptr->dock_tab_sync_guard;
-    auto& axis_link_mgr = ui_ctx_ptr->axis_link_mgr;
     auto& timeline_editor = ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
     auto& curve_editor = ui_ctx_ptr->curve_editor;
-    auto& mode_transition = ui_ctx_ptr->mode_transition;
-    auto& is_in_3d_mode = ui_ctx_ptr->is_in_3d_mode;
-    auto& saved_3d_camera = ui_ctx_ptr->saved_3d_camera;
     auto& home_limits = ui_ctx_ptr->home_limits;
     auto& cmd_registry = ui_ctx_ptr->cmd_registry;
     auto& shortcut_mgr = ui_ctx_ptr->shortcut_mgr;
-    auto& undo_mgr = ui_ctx_ptr->undo_mgr;
     auto& cmd_palette = ui_ctx_ptr->cmd_palette;
     auto& tab_drag_controller = ui_ctx_ptr->tab_drag_controller;
     auto& fig_mgr = *ui_ctx_ptr->fig_mgr;
     auto& input_handler = ui_ctx_ptr->input_handler;
-    auto& anim_controller = ui_ctx_ptr->anim_controller;
 
     // Point ImGui at the external knob manager (if provided by easy API or user).
     // This lets ImGui directly modify the same Knob objects the user holds

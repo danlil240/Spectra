@@ -21,7 +21,7 @@
     #include "command_palette.hpp"
     #include "command_registry.hpp"
     #include "data_interaction.hpp"
-    #include "data_transform.hpp"
+    #include "math/data_transform.hpp"
     #include "design_tokens.hpp"
     #include "dock_system.hpp"
     #include "icons.hpp"
@@ -2995,9 +2995,6 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     if (!layout_manager_)
         return;
 
-    // Only subplot divider lines remain here — all plot-related geometry
-    // (tick marks, arrow lines, arrowheads) is now rendered by
-    // Renderer::render_plot_geometry() via Vulkan pipelines.
 
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     const auto& colors = ui::ThemeManager::instance().colors();

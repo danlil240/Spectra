@@ -37,7 +37,7 @@ int main()
     }
 
     // Create surface plot with colormap
-    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis).opacity(0.9f);
+    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis); // .opacity(0.9f);
 
     ax.auto_fit();
 
@@ -47,9 +47,7 @@ int main()
     ax.zlabel("Z");
 
     // Set camera for good viewing angle
-    ax.camera().azimuth = 135.0f;
-    ax.camera().elevation = 35.0f;
-    ax.camera().distance = 6.0f;
+    ax.camera().set_azimuth(135.0f).set_elevation(35.0f).set_distance(6.0f);
 
     fig.show();
     app.run();

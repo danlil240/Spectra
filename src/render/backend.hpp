@@ -42,6 +42,8 @@ enum class PipelineType
     Surface3D_Transparent,
     // Screen-space filled overlay (triangle list, vec2, same shaders as Grid)
     Overlay,
+    // 3D filled overlay (triangle list, vec3, depth test ON, grid3d shaders)
+    Arrow3D,
     // Text rendering pipeline (screen-space textured quads)
     Text,
     // Text with depth test (for 3D labels occluded by geometry)

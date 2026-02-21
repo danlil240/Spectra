@@ -3,7 +3,7 @@
 #include <numeric>
 #include <vector>
 
-#include "ui/data_transform.hpp"
+#include "math/data_transform.hpp"
 
 using namespace spectra;
 

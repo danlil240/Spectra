@@ -33,6 +33,7 @@ file(GLOB_RECURSE SPECTRA_RENDER_SOURCES src/render/*.cpp)
 file(GLOB_RECURSE SPECTRA_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE SPECTRA_IO_SOURCES     src/io/*.cpp)
 file(GLOB_RECURSE SPECTRA_DATA_SOURCES  src/data/*.cpp)
+file(GLOB_RECURSE SPECTRA_MATH_SOURCES  src/math/*.cpp)
 file(GLOB_RECURSE SPECTRA_IPC_SOURCES   src/ipc/*.cpp)
 file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/session_graph.cpp
@@ -56,7 +57,6 @@ foreach(_ui_src
     src/ui/split_view.cpp
     src/ui/dock_system.cpp
     src/ui/axis_link.cpp
-    src/ui/data_transform.cpp
     src/ui/keyframe_interpolator.cpp
     src/ui/camera_animator.cpp
     src/ui/animation_curve_editor.cpp
@@ -81,6 +81,7 @@ add_library(spectra STATIC
     ${SPECTRA_ANIM_SOURCES}
     ${SPECTRA_IO_SOURCES}
     ${SPECTRA_DATA_SOURCES}
+    ${SPECTRA_MATH_SOURCES}
     ${SPECTRA_IPC_SOURCES}
     ${SPECTRA_DAEMON_SOURCES}
     ${SPECTRA_UI_SOURCES}

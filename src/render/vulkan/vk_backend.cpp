@@ -640,6 +640,23 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
+        case PipelineType::Arrow3D:
+            cfg.vert_spirv = shaders::arrow3d_vert;
+            cfg.vert_spirv_size = shaders::arrow3d_vert_size;
+            cfg.frag_spirv = shaders::arrow3d_frag;
+            cfg.frag_spirv_size = shaders::arrow3d_frag_size;
+            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            // Arrow vertex: {x,y,z, nx,ny,nz} = 6 floats per vertex, 2 attributes
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position
+            cfg.vertex_attributes.push_back({1,
+                                             0,
+                                             VK_FORMAT_R32G32B32_SFLOAT,
+                                             static_cast<uint32_t>(sizeof(float) * 3)});  // normal
+            break;
         case PipelineType::Text:
             cfg.pipeline_layout = text_pipeline_layout_;
             cfg.vert_spirv = shaders::text_vert;

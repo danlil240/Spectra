@@ -10,17 +10,23 @@
 namespace spectra
 {
 
-// Pixel sizes for each FontSize preset (match ImGui font sizes for consistency)
+// Pixel sizes for each FontSize preset — tuned for premium scientific visualization.
+// Slightly larger than typical UI fonts for readability at a glance.
 static constexpr float FONT_PIXEL_SIZES[] = {
-    16.0f,  // Tick  (ImGui font_body_ = 16px)
-    16.0f,  // Label (ImGui font_menubar_ ≈ 15px, round up for crispness)
-    18.0f,  // Title (ImGui font_title_ = 18px)
+    14.0f,  // Tick  — tick labels (compact but legible)
+    16.0f,  // Label — axis labels
+    20.0f,  // Title — plot title (clearly distinguished)
 };
 
-// ASCII range to bake (space through tilde + some extras)
-static constexpr uint32_t FIRST_CHAR = 32;
-static constexpr uint32_t LAST_CHAR = 126;
-static constexpr uint32_t CHAR_COUNT = LAST_CHAR - FIRST_CHAR + 1;
+// Oversampling factor: 2x gives excellent sub-pixel positioning with
+// minimal atlas size overhead. This is the key to uniform letter sizing —
+// stb_truetype rasterizes at 2x resolution then downsamples, producing
+// proper anti-aliased coverage values and fractional glyph offsets.
+static constexpr unsigned int OVERSAMPLE = 2;
+
+// ASCII range to bake (space through tilde)
+static constexpr int FIRST_CHAR = 32;
+static constexpr int NUM_CHARS = 95;  // 32..126 inclusive
 
 TextRenderer::TextRenderer() = default;
 
@@ -37,13 +43,63 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
                    | (static_cast<uint32_t>(font_data[1]) << 16)
                    | (static_cast<uint32_t>(font_data[2]) << 8)
                    | static_cast<uint32_t>(font_data[3]);
-    bool valid_sig = (tag == 0x00010000u)   // TrueType
-                     || (tag == 0x4F54544Fu)  // 'OTTO' (OpenType/CFF)
+    bool valid_sig = (tag == 0x00010000u)    // TrueType
+                     || (tag == 0x4F54544Fu) // 'OTTO' (OpenType/CFF)
                      || (tag == 0x74746366u); // 'ttcf' (TrueType Collection)
     if (!valid_sig)
         return false;
 
-    // Initialize stb_truetype font info
+    // Atlas size: 1024x1024 is ample for 3 ASCII font sizes with 2x oversampling.
+    atlas_width_ = 1024;
+    atlas_height_ = 1024;
+
+    // Allocate single-channel bitmap for the atlas
+    std::vector<uint8_t> atlas_bitmap(atlas_width_ * atlas_height_, 0);
+
+    // Use stbtt_PackBegin/PackRange/PackEnd for proper rect packing with
+    // oversampling. This is the correct API for high-quality text — it handles
+    // sub-pixel positioning, padding, and anti-aliasing automatically.
+    stbtt_pack_context pack_ctx;
+    if (!stbtt_PackBegin(&pack_ctx, atlas_bitmap.data(),
+                         static_cast<int>(atlas_width_),
+                         static_cast<int>(atlas_height_),
+                         0,   // stride_in_bytes (0 = tightly packed)
+                         1,   // padding between glyphs
+                         nullptr))
+    {
+        return false;
+    }
+
+    // Enable oversampling for crisp sub-pixel positioning.
+    // This is the single most important setting for text quality.
+    stbtt_PackSetOversampling(&pack_ctx, OVERSAMPLE, OVERSAMPLE);
+
+    // Pack all 3 font sizes. Each gets its own chardata array.
+    static constexpr size_t FONT_COUNT = static_cast<size_t>(FontSize::Count);
+    stbtt_packedchar chardata[FONT_COUNT][NUM_CHARS];
+
+    stbtt_pack_range ranges[FONT_COUNT];
+    for (size_t si = 0; si < FONT_COUNT; ++si)
+    {
+        ranges[si].font_size = FONT_PIXEL_SIZES[si];
+        ranges[si].first_unicode_codepoint_in_range = FIRST_CHAR;
+        ranges[si].num_chars = NUM_CHARS;
+        ranges[si].chardata_for_range = chardata[si];
+        ranges[si].array_of_unicode_codepoints = nullptr;
+    }
+
+    int pack_ok = stbtt_PackFontRanges(&pack_ctx, font_data,
+                                        0, // font_index
+                                        ranges,
+                                        static_cast<int>(FONT_COUNT));
+    stbtt_PackEnd(&pack_ctx);
+
+    if (!pack_ok)
+        return false;
+
+    // Extract font metrics and glyph info from packed chardata.
+    // stbtt_PackFontRanges produces sub-pixel-accurate quad coordinates
+    // that we store in our GlyphInfo for use at draw time.
     stbtt_fontinfo font_info;
     int offset = stbtt_GetFontOffsetForIndex(font_data, 0);
     if (offset < 0)
@@ -51,20 +107,7 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     if (!stbtt_InitFont(&font_info, font_data, offset))
         return false;
 
-    // Determine atlas size: bake all 3 sizes into one atlas.
-    // 1024x1024 gives ample room for ASCII at 16-18px with crisp rendering.
-    atlas_width_ = 1024;
-    atlas_height_ = 1024;
-
-    // Allocate single-channel bitmap for the atlas
-    std::vector<uint8_t> atlas_bitmap(atlas_width_ * atlas_height_, 0);
-
-    // Pack glyphs for each font size
-    uint32_t pack_x = 1;  // current packing cursor
-    uint32_t pack_y = 1;
-    uint32_t row_height = 0;
-
-    for (size_t si = 0; si < static_cast<size_t>(FontSize::Count); ++si)
+    for (size_t si = 0; si < FONT_COUNT; ++si)
     {
         float pixel_size = FONT_PIXEL_SIZES[si];
         float scale = stbtt_ScaleForPixelHeight(&font_info, pixel_size);
@@ -75,77 +118,49 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         fonts_[si].pixel_size = pixel_size;
         fonts_[si].ascent = static_cast<float>(ascent_i) * scale;
         fonts_[si].descent = static_cast<float>(descent_i) * scale;
-        fonts_[si].line_height = (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
+        fonts_[si].line_height =
+            (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
 
-        for (uint32_t cp = FIRST_CHAR; cp <= LAST_CHAR; ++cp)
+        for (int ci = 0; ci < NUM_CHARS; ++ci)
         {
-            int glyph_index = stbtt_FindGlyphIndex(&font_info, static_cast<int>(cp));
+            uint32_t cp = static_cast<uint32_t>(FIRST_CHAR + ci);
+            const stbtt_packedchar& pc = chardata[si][ci];
 
-            int advance_w, left_bearing;
-            stbtt_GetGlyphHMetrics(&font_info, glyph_index, &advance_w, &left_bearing);
-
-            int x0, y0, x1, y1;
-            stbtt_GetGlyphBitmapBox(&font_info, glyph_index, scale, scale, &x0, &y0, &x1, &y1);
-
-            int gw = x1 - x0;
-            int gh = y1 - y0;
-
-            // Advance to next row if needed
-            if (pack_x + static_cast<uint32_t>(gw) + 2 > atlas_width_)
-            {
-                pack_x = 1;
-                pack_y += row_height + 2;
-                row_height = 0;
-            }
-
-            // Check atlas overflow
-            if (pack_y + static_cast<uint32_t>(gh) + 2 > atlas_height_)
-            {
-                // Atlas too small — skip remaining glyphs
-                break;
-            }
-
-            // Rasterize glyph directly into atlas bitmap
-            if (gw > 0 && gh > 0)
-            {
-                stbtt_MakeGlyphBitmap(&font_info,
-                                      atlas_bitmap.data() + pack_y * atlas_width_ + pack_x,
-                                      gw,
-                                      gh,
-                                      static_cast<int>(atlas_width_),
-                                      scale,
-                                      scale,
-                                      glyph_index);
-            }
+            // stbtt_GetPackedQuad gives us the exact screen-space quad
+            // with sub-pixel offsets baked in from oversampling.
+            stbtt_aligned_quad q;
+            float dummy_x = 0.0f, dummy_y = 0.0f;
+            stbtt_GetPackedQuad(chardata[si], static_cast<int>(atlas_width_),
+                                static_cast<int>(atlas_height_), ci,
+                                &dummy_x, &dummy_y, &q,
+                                0); // align_to_integer = 0 for sub-pixel
 
             GlyphInfo gi{};
-            gi.u0 = static_cast<float>(pack_x) / static_cast<float>(atlas_width_);
-            gi.v0 = static_cast<float>(pack_y) / static_cast<float>(atlas_height_);
-            gi.u1 = static_cast<float>(pack_x + gw) / static_cast<float>(atlas_width_);
-            gi.v1 = static_cast<float>(pack_y + gh) / static_cast<float>(atlas_height_);
-            gi.x_offset = static_cast<float>(x0);
-            gi.y_offset = static_cast<float>(y0);
-            gi.x_advance = static_cast<float>(advance_w) * scale;
-            gi.width = static_cast<float>(gw);
-            gi.height = static_cast<float>(gh);
+            gi.u0 = q.s0;
+            gi.v0 = q.t0;
+            gi.u1 = q.s1;
+            gi.v1 = q.t1;
+            // Quad offsets from the cursor position (baseline-relative)
+            gi.x_offset = q.x0;
+            gi.y_offset = q.y0;
+            gi.width = q.x1 - q.x0;
+            gi.height = q.y1 - q.y0;
+            gi.x_advance = pc.xadvance;
 
             fonts_[si].glyphs[cp] = gi;
-
-            pack_x += static_cast<uint32_t>(gw) + 2;
-            if (static_cast<uint32_t>(gh) > row_height)
-                row_height = static_cast<uint32_t>(gh);
         }
     }
 
-    // Convert single-channel atlas to RGBA (Backend::create_texture expects RGBA)
+    // Convert single-channel atlas to RGBA (Backend::create_texture expects RGBA).
+    // Store coverage in all channels — the fragment shader reads .r as alpha.
     std::vector<uint8_t> atlas_rgba(atlas_width_ * atlas_height_ * 4);
     for (uint32_t i = 0; i < atlas_width_ * atlas_height_; ++i)
     {
         uint8_t a = atlas_bitmap[i];
-        atlas_rgba[i * 4 + 0] = a;  // R = alpha (sampled in fragment shader)
-        atlas_rgba[i * 4 + 1] = a;
-        atlas_rgba[i * 4 + 2] = a;
-        atlas_rgba[i * 4 + 3] = a;
+        atlas_rgba[i * 4 + 0] = 255;  // R — white glyph
+        atlas_rgba[i * 4 + 1] = 255;  // G
+        atlas_rgba[i * 4 + 2] = 255;  // B
+        atlas_rgba[i * 4 + 3] = a;    // A — coverage from rasterizer
     }
 
     // Upload atlas texture
@@ -321,8 +336,9 @@ void TextRenderer::draw_text(const std::string& text,
     else if (valign == TextVAlign::Bottom)
         offset_y = -fd.line_height;
 
+    // Cursor positioned at baseline. GetPackedQuad offsets are baseline-relative.
     float cursor_x = x + offset_x;
-    float cursor_y = y + offset_y + fd.ascent;  // baseline offset
+    float cursor_y = y + offset_y + fd.ascent;
 
     for (char c : text)
     {

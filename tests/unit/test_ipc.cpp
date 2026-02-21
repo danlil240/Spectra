@@ -433,7 +433,7 @@ TEST(IpcTransport, FullHandshake)
             Message hello_msg;
             hello_msg.header.type = MessageType::HELLO;
             hello_msg.header.seq = 1;
-            hello_msg.payload = encode_hello({PROTOCOL_MAJOR, PROTOCOL_MINOR, "test-agent", 0});
+            hello_msg.payload = encode_hello({PROTOCOL_MAJOR, PROTOCOL_MINOR, "test-agent", 0, ""});
             ASSERT_TRUE(conn->send(hello_msg));
 
             // Agent receives WELCOME

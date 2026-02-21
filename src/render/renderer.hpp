@@ -65,9 +65,9 @@ class Renderer
     // Must be called after render_figure_content() and before render_text().
     void render_plot_text(Figure& figure);
 
-    // Render screen-space plot geometry (2D tick marks, 3D arrow lines + arrowheads).
-    // Uses Vulkan grid/overlay pipelines with a screen-space ortho projection.
-    // Must be called after render_figure_content() and before render_text().
+    // Render screen-space plot geometry (2D tick marks only).
+    // Uses Vulkan grid pipeline with a screen-space ortho projection.
+    // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
 
     // Render queued text (call after render_figure_content, before end_render_pass)
@@ -91,6 +91,8 @@ class Renderer
                                    float far_clip,
                                    float* out_mat4);
 
+    void render_arrows(Axes3D& axes, const Rect& viewport);
+
     void render_axis_border(AxesBase& axes,
                             const Rect& viewport,
                             uint32_t fig_width,
@@ -101,7 +103,8 @@ class Renderer
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
-    PipelineHandle overlay_pipeline_;  // Triangle-list topology for filled shapes (arrowheads)
+    PipelineHandle overlay_pipeline_;  // Triangle-list topology for filled shapes (2D arrowheads)
+    PipelineHandle arrow3d_pipeline_;   // Triangle-list, vec3, depth test ON (3D arrowheads)
 
     // 3D pipelines
     PipelineHandle line3d_pipeline_;
@@ -141,6 +144,13 @@ class Renderer
         BufferHandle tick_buffer;
         size_t tick_capacity = 0;
         uint32_t tick_vertex_count = 0;
+        // 3D arrow shaft lines + arrowhead triangles
+        BufferHandle arrow_line_buffer;
+        size_t arrow_line_capacity = 0;
+        uint32_t arrow_line_vertex_count = 0;
+        BufferHandle arrow_tri_buffer;
+        size_t arrow_tri_capacity = 0;
+        uint32_t arrow_tri_vertex_count = 0;
 
         // Per-function cached axis limits — each render function (grid, bbox,
         // ticks) needs its own cache because they run sequentially and would
@@ -191,6 +201,8 @@ class Renderer
     std::vector<float> grid_scratch_;
     std::vector<float> bbox_scratch_;
     std::vector<float> tick_scratch_;
+    std::vector<float> arrow_line_scratch_;
+    std::vector<float> arrow_tri_scratch_;
 
     // Screen-space overlay geometry buffers (tick marks, arrow lines, arrowheads)
     BufferHandle overlay_line_buffer_;   // Line-list vertices (tick marks + arrow shafts)

@@ -35,8 +35,7 @@ int main()
     ax.zlabel("Z Axis");
 
     // Configure camera (auto_fit already positions camera appropriately)
-    ax.camera().azimuth = 45.0f;
-    ax.camera().elevation = 30.0f;
+    ax.camera().set_azimuth(45.0f).set_elevation(30.0f);
 
     app.run();
     return 0;

@@ -170,9 +170,19 @@ bool CommandPalette::draw(float window_width, float window_height)
 
     const auto& colors = ui::theme();
 
-    // ─── Compute true content height (accounts for category headers) ────────
-    float total_content_h = 0.0f;
+    // ─── Compute content height ────────────────────────────────────────────
+    // Use measured_content_ from previous frame (actual ImGui cursor delta).
+    // Fall back to constant-based estimate when no measurement exists yet.
+    float total_content_h;
+    if (measured_content_ > 1.0f)
     {
+        total_content_h = measured_content_;
+    }
+    else
+    {
+        // Estimate from constants + actual ImGui item spacing (first frame only)
+        float sp = ImGui::GetStyle().ItemSpacing.y;
+        total_content_h = 0.0f;
         std::string prev_cat;
         for (int i = 0; i < static_cast<int>(results_.size()); ++i)
         {
@@ -181,16 +191,21 @@ bool CommandPalette::draw(float window_width, float window_height)
             if (results_[i].command->category != prev_cat)
             {
                 prev_cat = results_[i].command->category;
-                total_content_h += CATEGORY_HEADER_HEIGHT;
+                // Dummy + text + dummy, each followed by ItemSpacing
+                total_content_h += CATEGORY_HEADER_HEIGHT + sp * 2;
             }
-            total_content_h += RESULT_ITEM_HEIGHT;
+            total_content_h += RESULT_ITEM_HEIGHT + sp;
         }
     }
     content_height_ = total_content_h;
 
-    float max_results_h = PALETTE_MAX_HEIGHT - INPUT_HEIGHT - ui::tokens::SPACE_2;
-    visible_height_ = std::min(total_content_h, max_results_h);
-    float palette_h = INPUT_HEIGHT + visible_height_ + ui::tokens::SPACE_2;
+    // Compute palette height: overhead (input + separator + padding) + content, capped at max.
+    // measured_overhead_ is updated each frame from GetContentRegionAvail; use conservative
+    // fallback on first frame (before we have a measurement).
+    float overhead = (measured_overhead_ > 1.0f) ? measured_overhead_ : 80.0f;
+    float palette_h = std::min(PALETTE_MAX_HEIGHT, overhead + total_content_h);
+    // visible_height_ is refined later via GetContentRegionAvail; use estimate for scrollbar.
+    visible_height_ = palette_h - overhead;
     float max_scroll = std::max(0.0f, content_height_ - visible_height_);
     bool scrollable = max_scroll > 0.5f;
 
@@ -457,6 +472,7 @@ bool CommandPalette::draw(float window_width, float window_height)
             scroll_offset_ = 0.0f;
             scroll_target_ = 0.0f;
             scroll_velocity_ = 0.0f;
+            measured_content_ = 0.0f;  // Force re-measurement for new result set
         }
 
         executed = handle_keyboard();
@@ -471,6 +487,10 @@ bool CommandPalette::draw(float window_width, float window_height)
         // ─── Results list ───────────────────────────────────────────────
         if (!results_.empty())
         {
+            // Measure actual remaining space — and record overhead for next frame's sizing.
+            float avail = ImGui::GetContentRegionAvail().y;
+            measured_overhead_ = palette_h - avail;
+            visible_height_ = avail;
             ImGui::BeginChild("##palette_results",
                               ImVec2(0, visible_height_),
                               false,
@@ -478,6 +498,7 @@ bool CommandPalette::draw(float window_width, float window_height)
 
             ImGui::SetScrollY(scroll_offset_);
 
+            float content_start_y = ImGui::GetCursorPosY();
             std::string current_category;
 
             for (int i = 0; i < static_cast<int>(results_.size()); ++i)
@@ -616,6 +637,9 @@ bool CommandPalette::draw(float window_width, float window_height)
                 }
                 scroll_target_ = std::max(0.0f, std::min(scroll_target_, max_scroll));
             }
+
+            // Measure actual content height for next frame's palette sizing
+            measured_content_ = ImGui::GetCursorPosY() - content_start_y;
 
             ImGui::EndChild();
         }

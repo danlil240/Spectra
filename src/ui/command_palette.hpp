@@ -73,8 +73,10 @@ class CommandPalette
     float scroll_offset_ = 0.0f;    // Current smooth scroll position (pixels)
     float scroll_target_ = 0.0f;    // Target scroll position (pixels)
     float scroll_velocity_ = 0.0f;  // Inertial velocity (pixels/sec)
-    float content_height_ = 0.0f;   // Total content height (computed each frame)
-    float visible_height_ = 0.0f;   // Visible region height
+    float content_height_ = 0.0f;     // Total content height used for scroll math
+    float visible_height_ = 0.0f;     // Visible region height
+    float measured_overhead_ = 0.0f;   // Non-results space (input + separator + padding), measured
+    float measured_content_ = 0.0f;    // Actual rendered content height, measured from ImGui cursor
 
     // Scrollbar state
     float scrollbar_opacity_ = 0.0f;  // Animated opacity (fades in on scroll, out on idle)
@@ -90,7 +92,7 @@ class CommandPalette
     static constexpr float PALETTE_WIDTH = 560.0f;
     static constexpr float PALETTE_MAX_HEIGHT = 420.0f;
     static constexpr float RESULT_ITEM_HEIGHT = 36.0f;
-    static constexpr float CATEGORY_HEADER_HEIGHT = 28.0f;
+    static constexpr float CATEGORY_HEADER_HEIGHT = 34.0f;
     static constexpr float INPUT_HEIGHT = 44.0f;
     static constexpr float ANIM_SPEED = 12.0f;           // Lerp speed for open/close
     static constexpr float SCROLL_SPEED = 50.0f;         // Pixels per scroll tick

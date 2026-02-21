@@ -2,12 +2,73 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <limits>
 #include <numeric>
 #include <sstream>
 
 namespace spectra
 {
+
+// ─── FFT internals (Cooley-Tukey radix-2 DIT) ──────────────────────────────
+
+namespace
+{
+
+// Next power of two >= n
+size_t next_power_of_two(size_t n)
+{
+    if (n == 0)
+        return 1;
+    size_t p = 1;
+    while (p < n)
+        p <<= 1;
+    return p;
+}
+
+// In-place iterative Cooley-Tukey radix-2 DIT FFT
+void fft_radix2(std::vector<std::complex<float>>& buf)
+{
+    const size_t N = buf.size();
+    if (N <= 1)
+        return;
+
+    // Bit-reversal permutation
+    for (size_t i = 1, j = 0; i < N; ++i)
+    {
+        size_t bit = N >> 1;
+        while (j & bit)
+        {
+            j ^= bit;
+            bit >>= 1;
+        }
+        j ^= bit;
+        if (i < j)
+            std::swap(buf[i], buf[j]);
+    }
+
+    // Butterfly stages
+    for (size_t len = 2; len <= N; len <<= 1)
+    {
+        const float angle = -2.0f * static_cast<float>(M_PI) / static_cast<float>(len);
+        const std::complex<float> wn(std::cos(angle), std::sin(angle));
+
+        for (size_t i = 0; i < N; i += len)
+        {
+            std::complex<float> w(1.0f, 0.0f);
+            for (size_t j = 0; j < len / 2; ++j)
+            {
+                std::complex<float> u = buf[i + j];
+                std::complex<float> v = buf[i + j + len / 2] * w;
+                buf[i + j] = u + v;
+                buf[i + j + len / 2] = u - v;
+                w *= wn;
+            }
+        }
+    }
+}
+
+}  // namespace
 
 // ─── DataTransform construction ─────────────────────────────────────────────
 
@@ -73,6 +134,9 @@ void DataTransform::apply_y(std::span<const float> x_in,
             break;
         case TransformType::Clamp:
             apply_clamp(x_in, y_in, x_out, y_out);
+            break;
+        case TransformType::FFT:
+            apply_fft(x_in, y_in, x_out, y_out);
             break;
         case TransformType::Custom:
             if (custom_xy_func_)
@@ -159,6 +223,8 @@ bool DataTransform::changes_length() const
         case TransformType::Log10:
         case TransformType::Ln:
             return true;  // May skip non-positive values
+        case TransformType::FFT:
+            return true;  // Output is N/2+1 frequency bins (left-sided)
         case TransformType::Custom:
             return custom_xy_func_ != nullptr;
         default:
@@ -206,6 +272,14 @@ std::string DataTransform::description() const
         {
             std::ostringstream ss;
             ss << "Clamp [" << params_.clamp_min << ", " << params_.clamp_max << "]";
+            return ss.str();
+        }
+        case TransformType::FFT:
+        {
+            std::ostringstream ss;
+            ss << "FFT magnitude";
+            if (params_.fft_db)
+                ss << " (dB)";
             return ss.str();
         }
         case TransformType::Custom:
@@ -484,6 +558,74 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
     }
 }
 
+// ─── FFT (left-sided magnitude spectrum) ────────────────────────────────────
+//
+// Computes the one-sided (left-sided) FFT of the input signal:
+//   - Zero-pads input to the next power of two
+//   - Applies Cooley-Tukey radix-2 DIT FFT
+//   - Outputs N/2+1 frequency bins (DC to Nyquist)
+//   - X-axis: frequency in Hz (using params_.fft_sample_rate)
+//   - Y-axis: magnitude (or dB if params_.fft_db is true)
+//   - Magnitudes are normalized by 2/N (except DC and Nyquist which are 1/N)
+
+void DataTransform::apply_fft(std::span<const float> /*x_in*/,
+                              std::span<const float> y_in,
+                              std::vector<float>& x_out,
+                              std::vector<float>& y_out) const
+{
+    const size_t n = y_in.size();
+    if (n == 0)
+    {
+        x_out.clear();
+        y_out.clear();
+        return;
+    }
+
+    // Zero-pad to next power of two
+    const size_t N = next_power_of_two(n);
+
+    // Fill complex buffer (real signal, zero imaginary)
+    std::vector<std::complex<float>> buf(N, {0.0f, 0.0f});
+    for (size_t i = 0; i < n; ++i)
+    {
+        buf[i] = {y_in[i], 0.0f};
+    }
+
+    // In-place FFT
+    fft_radix2(buf);
+
+    // Left-sided: output bins 0..N/2 (DC to Nyquist inclusive)
+    const size_t out_n = N / 2 + 1;
+    const float inv_n = 1.0f / static_cast<float>(N);
+    const float sample_rate = (params_.fft_sample_rate > 0.0f) ? params_.fft_sample_rate : 1.0f;
+    const float freq_step = sample_rate / static_cast<float>(N);
+
+    x_out.resize(out_n);
+    y_out.resize(out_n);
+
+    for (size_t i = 0; i < out_n; ++i)
+    {
+        x_out[i] = static_cast<float>(i) * freq_step;
+
+        float mag = std::abs(buf[i]) * inv_n;
+        // Double the magnitude for non-DC, non-Nyquist bins (energy from negative freqs)
+        if (i > 0 && i < N / 2)
+        {
+            mag *= 2.0f;
+        }
+
+        if (params_.fft_db)
+        {
+            // Convert to dB: 20*log10(mag), floor at -200 dB
+            y_out[i] = (mag > 0.0f) ? 20.0f * std::log10(mag) : -200.0f;
+        }
+        else
+        {
+            y_out[i] = mag;
+        }
+    }
+}
+
 // ─── TransformPipeline ──────────────────────────────────────────────────────
 
 void TransformPipeline::push_back(const DataTransform& transform)
@@ -679,6 +821,7 @@ bool TransformRegistry::get_transform(const std::string& name, DataTransform& ou
         {"Scale", TransformType::Scale},
         {"Offset", TransformType::Offset},
         {"Clamp", TransformType::Clamp},
+        {"FFT", TransformType::FFT},
     };
     auto bit = builtin_map.find(name);
     if (bit != builtin_map.end())
@@ -709,6 +852,7 @@ std::vector<std::string> TransformRegistry::available_transforms() const
     names.push_back("Scale");
     names.push_back("Offset");
     names.push_back("Clamp");
+    names.push_back("FFT");
 
     // Custom transforms
     for (const auto& [k, _] : custom_transforms_)
@@ -835,6 +979,8 @@ const char* transform_type_name(TransformType type)
             return "Offset";
         case TransformType::Clamp:
             return "Clamp";
+        case TransformType::FFT:
+            return "FFT";
         case TransformType::Custom:
             return "Custom";
     }

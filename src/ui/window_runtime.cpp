@@ -493,6 +493,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                 fig->axes_mut()[i]->set_viewport(rects[i]);
                             }
                         }
+                        for (size_t i = 0; i < fig->all_axes_mut().size() && i < rects.size();
+                             ++i)
+                        {
+                            if (fig->all_axes_mut()[i])
+                            {
+                                fig->all_axes_mut()[i]->set_viewport(rects[i]);
+                            }
+                        }
                     }
                 }
             }
@@ -642,6 +650,15 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("figure_content");
 
+        // Flush Vulkan plot text BEFORE ImGui so that UI overlays (command
+        // palette, inspector, menus) render on top of plot labels.
+        // The ImGui canvas ##window uses NoBackground so it won't overwrite text.
+        {
+            float sw = static_cast<float>(backend_.swapchain_width());
+            float sh = static_cast<float>(backend_.swapchain_height());
+            renderer_.render_text(sw, sh);
+        }
+
 #ifdef SPECTRA_USE_IMGUI
         // Only render ImGui if we have a valid frame (not a retry frame
         // where we already ended the ImGui frame)
@@ -654,14 +671,6 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 profiler->end_stage("imgui_render");
         }
 #endif
-
-        // Flush Vulkan text rendering AFTER ImGui so text draws on top of
-        // the ImGui canvas background (which would otherwise overwrite it).
-        {
-            float sw = static_cast<float>(backend_.swapchain_width());
-            float sh = static_cast<float>(backend_.swapchain_height());
-            renderer_.render_text(sw, sh);
-        }
 
         renderer_.end_render_pass();
         if (profiler)

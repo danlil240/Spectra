@@ -581,11 +581,15 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "figure.close",
         "Close Figure",
-        [&]()
+        [&, session = b.session]()
         {
             if (fig_mgr.count() > 1)
             {
                 fig_mgr.queue_close(fig_mgr.active_index());
+            }
+            else if (session)
+            {
+                session->request_exit();
             }
         },
         "Ctrl+W",

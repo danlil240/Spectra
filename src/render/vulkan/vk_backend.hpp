@@ -196,7 +196,6 @@ class VulkanBackend : public Backend
     std::unordered_map<uint64_t, PipelineType> pipeline_types_;
     std::unordered_map<uint64_t, VkPipelineLayout> pipeline_layouts_;
 
-    VkDescriptorSet frame_desc_set_ = VK_NULL_HANDLE;
     // Deferred buffer+descriptor deletion.  Each entry is stamped with the
     // frame counter at destruction time.  At the start of each frame, after
     // the fence wait, we flush entries that are old enough (>= flight_count

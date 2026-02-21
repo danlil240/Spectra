@@ -33,10 +33,6 @@
 
 namespace spectra
 {
-
-// Default socket path used by both the auto-spawned backend and this client.
-static constexpr const char* SPECTRA_DEFAULT_SOCK = "/tmp/spectra-auto.sock";
-
 // ─── Find own binary directory ───────────────────────────────────────────────
 static std::string self_dir()
 {

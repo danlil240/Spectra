@@ -9,10 +9,11 @@ layout(location = 1) in vec4 frag_color;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    float raw = texture(font_atlas, frag_uv).r;
-    if (raw < 0.01)
+    // Atlas stores coverage in alpha channel (oversampled rasterization).
+    // Use it directly — no SDF tricks needed. The 2x oversampled bitmap
+    // already has proper anti-aliased edges from stb_truetype's PackFont.
+    float coverage = texture(font_atlas, frag_uv).a;
+    if (coverage < 0.005)
         discard;
-    // Sharpen alpha edge for crisp text (tight range = sharp edges like ImGui)
-    float alpha = smoothstep(0.15, 0.45, raw);
-    out_color = vec4(frag_color.rgb, frag_color.a * alpha);
+    out_color = vec4(frag_color.rgb, frag_color.a * coverage);
 }

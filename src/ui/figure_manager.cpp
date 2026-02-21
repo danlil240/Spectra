@@ -477,16 +477,11 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     new_fig.style() = src->style();
     new_fig.legend() = src->legend();
 
-    // Copy animation callback (duplicate shares the same animation logic)
-    if (src->has_animation())
-    {
-        new_fig.animate()
-            .fps(src->anim_fps())
-            .duration(src->anim_duration())
-            .loop(src->anim_loop())
-            .on_frame(src->anim_on_frame_)
-            .play();
-    }
+    // NOTE: Animation callbacks are NOT copied to duplicates.
+    // The on_frame callback captures references to the original figure's
+    // series objects (e.g. scatter.set_data()), so copying it would cause
+    // the duplicate's animation to mutate the original figure's data.
+    // Duplicated figures are static snapshots of the current frame.
 
     auto new_id = registry_.register_figure(std::move(new_fig_ptr));
     ordered_ids_.push_back(new_id);

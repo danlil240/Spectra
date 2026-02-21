@@ -57,3 +57,5 @@ src/gpu/shaders/text.vert
 
 __pycache__
 *.pyc
+
+*.log

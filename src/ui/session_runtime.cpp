@@ -405,8 +405,8 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 switch (pm.drop_zone)
                 {
                     case 1:  // Left — split horizontally, new figure goes left
-                        split_result = dst_dock.split_figure_right(
-                            prev_dock_active, pm.figure_id, 0.5f);
+                        split_result =
+                            dst_dock.split_figure_right(prev_dock_active, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
                             auto* parent = split_result->parent();
@@ -415,12 +415,12 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                         }
                         break;
                     case 2:  // Right — split horizontally, new figure goes right
-                        split_result = dst_dock.split_figure_right(
-                            prev_dock_active, pm.figure_id, 0.5f);
+                        split_result =
+                            dst_dock.split_figure_right(prev_dock_active, pm.figure_id, 0.5f);
                         break;
                     case 3:  // Top — split vertically, new figure goes top
-                        split_result = dst_dock.split_figure_down(
-                            prev_dock_active, pm.figure_id, 0.5f);
+                        split_result =
+                            dst_dock.split_figure_down(prev_dock_active, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
                             auto* parent = split_result->parent();
@@ -429,8 +429,8 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                         }
                         break;
                     case 4:  // Bottom — split vertically, new figure goes bottom
-                        split_result = dst_dock.split_figure_down(
-                            prev_dock_active, pm.figure_id, 0.5f);
+                        split_result =
+                            dst_dock.split_figure_down(prev_dock_active, pm.figure_id, 0.5f);
                         break;
                 }
                 if (split_result)

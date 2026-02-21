@@ -198,7 +198,7 @@ class WindowManager
     // Returns {0,0,0,0} if no valid zone.
     struct CrossWindowDropInfo
     {
-        int zone = 0;        // DropZone cast to int
+        int zone = 0;                          // DropZone cast to int
         float hx = 0, hy = 0, hw = 0, hh = 0;  // highlight rect
     };
     CrossWindowDropInfo cross_window_drop_info() const { return cross_drop_info_; }

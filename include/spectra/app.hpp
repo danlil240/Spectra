@@ -1,9 +1,9 @@
 #pragma once
 
 #include <memory>
-#include <string>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
+#include <string>
 #include <unordered_map>
 #include <vector>
 

@@ -116,14 +116,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         for (auto& axes_ptr : active_figure->axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
-                axes_ptr->set_series_removed_callback(
-                    [this](const Series* s) { renderer_.notify_series_removed(s); });
+                axes_ptr->set_series_removed_callback([this](const Series* s)
+                                                      { renderer_.notify_series_removed(s); });
         }
         for (auto& axes_ptr : active_figure->all_axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
-                axes_ptr->set_series_removed_callback(
-                    [this](const Series* s) { renderer_.notify_series_removed(s); });
+                axes_ptr->set_series_removed_callback([this](const Series* s)
+                                                      { renderer_.notify_series_removed(s); });
         }
     }
 
@@ -296,8 +296,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
             // Invalidate cache when series count changes or any series is dirty
             size_t series_count = ax->series().size();
-            bool needs_recompute = !ui_ctx.zoom_cache_valid
-                                   || series_count != ui_ctx.cached_zoom_series_count;
+            bool needs_recompute =
+                !ui_ctx.zoom_cache_valid || series_count != ui_ctx.cached_zoom_series_count;
             if (!needs_recompute)
             {
                 for (auto& s : ax->series())
@@ -535,9 +535,11 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 
     // Render frame. If begin_frame fails (OUT_OF_DATE), recreate and
     // retry once so we present content immediately (no black-flash gap).
-    if (profiler) profiler->begin_stage("begin_frame");
+    if (profiler)
+        profiler->begin_stage("begin_frame");
     bool frame_ok = backend_.begin_frame();
-    if (profiler) profiler->end_stage("begin_frame");
+    if (profiler)
+        profiler->end_stage("begin_frame");
 
     if (!frame_ok)
     {
@@ -604,7 +606,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 
         renderer_.begin_render_pass();
 
-        if (profiler) profiler->begin_stage("figure_content");
+        if (profiler)
+            profiler->begin_stage("figure_content");
 #ifdef SPECTRA_USE_IMGUI
         auto& dock_system = ui_ctx.dock_system;
         if (dock_system.is_split())
@@ -626,23 +629,28 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 #else
         renderer_.render_figure_content(*active_figure);
 #endif
-        if (profiler) profiler->end_stage("figure_content");
+        if (profiler)
+            profiler->end_stage("figure_content");
 
 #ifdef SPECTRA_USE_IMGUI
         // Only render ImGui if we have a valid frame (not a retry frame
         // where we already ended the ImGui frame)
         if (ui_ctx.imgui_ui && imgui_frame_started)
         {
-            if (profiler) profiler->begin_stage("imgui_render");
+            if (profiler)
+                profiler->begin_stage("imgui_render");
             ui_ctx.imgui_ui->render(*static_cast<VulkanBackend*>(&backend_));
-            if (profiler) profiler->end_stage("imgui_render");
+            if (profiler)
+                profiler->end_stage("imgui_render");
         }
 #endif
 
         renderer_.end_render_pass();
-        if (profiler) profiler->begin_stage("end_frame");
+        if (profiler)
+            profiler->begin_stage("end_frame");
         backend_.end_frame();
-        if (profiler) profiler->end_stage("end_frame");
+        if (profiler)
+            profiler->end_stage("end_frame");
 
         // Post-present recovery: if vkQueuePresentKHR returned OUT_OF_DATE,
         // the swapchain is permanently invalidated (Vulkan spec). Recreate

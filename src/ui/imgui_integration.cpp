@@ -415,8 +415,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
             float hw = drop_info.hw, hh = drop_info.hh;
 
             dl->AddRectFilled(ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_color, 4.0f);
-            dl->AddRect(
-                ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_border, 4.0f, 0, 2.0f);
+            dl->AddRect(ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_border, 4.0f, 0, 2.0f);
 
             // Draw a label indicating the action
             const char* label = nullptr;

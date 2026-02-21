@@ -222,12 +222,18 @@ void Renderer::upload_series_data(Series& series)
     // Tag series type on first encounter (avoids 6x dynamic_cast in render_series)
     if (gpu.type == SeriesType::Unknown)
     {
-        if (line) gpu.type = SeriesType::Line2D;
-        else if (scatter) gpu.type = SeriesType::Scatter2D;
-        else if (line3d) gpu.type = SeriesType::Line3D;
-        else if (scatter3d) gpu.type = SeriesType::Scatter3D;
-        else if (surface) gpu.type = SeriesType::Surface3D;
-        else if (mesh) gpu.type = SeriesType::Mesh3D;
+        if (line)
+            gpu.type = SeriesType::Line2D;
+        else if (scatter)
+            gpu.type = SeriesType::Scatter2D;
+        else if (line3d)
+            gpu.type = SeriesType::Line3D;
+        else if (scatter3d)
+            gpu.type = SeriesType::Scatter3D;
+        else if (surface)
+            gpu.type = SeriesType::Surface3D;
+        else if (mesh)
+            gpu.type = SeriesType::Mesh3D;
     }
 
     // Handle 2D line/scatter (vec2 interleaved)
@@ -659,10 +665,10 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto& gpu = axes_gpu_data_[&axes];
 
         // Check if limits/planes changed — skip regeneration if cached
-        bool limits_changed = !gpu.grid_valid
-                              || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
-                              || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
-                              || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max
+        bool limits_changed = !gpu.grid_valid || gpu.cached_xmin != xlim.min
+                              || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
+                              || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
+                              || gpu.cached_zmax != zlim.max
                               || gpu.cached_grid_planes != static_cast<int>(gp);
 
         if (limits_changed)
@@ -702,9 +708,12 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
             gpu.grid_vertex_count = static_cast<uint32_t>(float_count / 3);
-            gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
-            gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
-            gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+            gpu.cached_xmin = xlim.min;
+            gpu.cached_xmax = xlim.max;
+            gpu.cached_ymin = ylim.min;
+            gpu.cached_ymax = ylim.max;
+            gpu.cached_zmin = zlim.min;
+            gpu.cached_zmax = zlim.max;
             gpu.cached_grid_planes = static_cast<int>(gp);
             gpu.grid_valid = true;
         }
@@ -741,9 +750,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto& gpu = axes_gpu_data_[&axes];
 
         // Check if limits changed — skip regeneration if cached
-        bool limits_changed = !gpu.grid_valid
-                              || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
-                              || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max;
+        bool limits_changed = !gpu.grid_valid || gpu.cached_xmin != xlim.min
+                              || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
+                              || gpu.cached_ymax != ylim.max;
 
         if (limits_changed)
         {
@@ -788,8 +797,10 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
             gpu.grid_vertex_count = static_cast<uint32_t>(total_lines * 2);
-            gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
-            gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
+            gpu.cached_xmin = xlim.min;
+            gpu.cached_xmax = xlim.max;
+            gpu.cached_ymin = ylim.min;
+            gpu.cached_ymax = ylim.max;
             gpu.grid_valid = true;
         }
 
@@ -838,10 +849,10 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     auto& gpu = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    bool limits_changed = !gpu.bbox_valid
-                          || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
-                          || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
-                          || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max;
+    bool limits_changed = !gpu.bbox_valid || gpu.cached_xmin != xlim.min
+                          || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
+                          || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
+                          || gpu.cached_zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -874,9 +885,12 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
         }
         backend_.upload_buffer(gpu.bbox_buffer, bbox_scratch_.data(), byte_size);
         gpu.bbox_vertex_count = static_cast<uint32_t>(bbox.edge_vertices.size());
-        gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
-        gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
-        gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+        gpu.cached_xmin = xlim.min;
+        gpu.cached_xmax = xlim.max;
+        gpu.cached_ymin = ylim.min;
+        gpu.cached_ymax = ylim.max;
+        gpu.cached_zmin = zlim.min;
+        gpu.cached_zmax = zlim.max;
         gpu.bbox_valid = true;
     }
 
@@ -908,10 +922,10 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     auto& gpu = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    bool limits_changed = !gpu.tick_valid
-                          || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
-                          || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
-                          || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max;
+    bool limits_changed = !gpu.tick_valid || gpu.cached_xmin != xlim.min
+                          || gpu.cached_xmax != xlim.max || gpu.cached_ymin != ylim.min
+                          || gpu.cached_ymax != ylim.max || gpu.cached_zmin != zlim.min
+                          || gpu.cached_zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -930,7 +944,8 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         Axes3DRenderer::TickMarkData z_data;
         z_data.generate_z_ticks(axes, min_corner, max_corner);
 
-        size_t total_ticks = x_data.positions.size() + y_data.positions.size() + z_data.positions.size();
+        size_t total_ticks =
+            x_data.positions.size() + y_data.positions.size() + z_data.positions.size();
         if (total_ticks == 0)
             return;
 
@@ -941,18 +956,30 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
         for (const auto& pos : x_data.positions)
         {
-            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y - x_tick_len; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x;
+            tick_scratch_[wi++] = pos.y;
+            tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x;
+            tick_scratch_[wi++] = pos.y - x_tick_len;
+            tick_scratch_[wi++] = pos.z;
         }
         for (const auto& pos : y_data.positions)
         {
-            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x - y_tick_len; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x;
+            tick_scratch_[wi++] = pos.y;
+            tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x - y_tick_len;
+            tick_scratch_[wi++] = pos.y;
+            tick_scratch_[wi++] = pos.z;
         }
         for (const auto& pos : z_data.positions)
         {
-            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x - z_tick_len; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x;
+            tick_scratch_[wi++] = pos.y;
+            tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x - z_tick_len;
+            tick_scratch_[wi++] = pos.y;
+            tick_scratch_[wi++] = pos.z;
         }
 
         size_t byte_size = wi * sizeof(float);
@@ -965,9 +992,12 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         }
         backend_.upload_buffer(gpu.tick_buffer, tick_scratch_.data(), byte_size);
         gpu.tick_vertex_count = static_cast<uint32_t>(wi / 3);
-        gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
-        gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
-        gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+        gpu.cached_xmin = xlim.min;
+        gpu.cached_xmax = xlim.max;
+        gpu.cached_ymin = ylim.min;
+        gpu.cached_ymax = ylim.max;
+        gpu.cached_zmin = zlim.min;
+        gpu.cached_zmax = zlim.max;
         gpu.tick_valid = true;
     }
 
@@ -1111,149 +1141,150 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
     // Only perform the single targeted static_cast for the known type.
     switch (gpu.type)
     {
-    case SeriesType::Line2D:
-    {
-        auto* line = static_cast<LineSeries*>(&series);
-        if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None)
+        case SeriesType::Line2D:
         {
-            DashPattern dp = get_dash_pattern(style.line_style, line->width());
-            for (int i = 0; i < dp.count && i < 8; ++i)
-                pc.dash_pattern[i] = dp.segments[i];
-            pc.dash_total = dp.total;
-            pc.dash_count = dp.count;
+            auto* line = static_cast<LineSeries*>(&series);
+            if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None)
+            {
+                DashPattern dp = get_dash_pattern(style.line_style, line->width());
+                for (int i = 0; i < dp.count && i < 8; ++i)
+                    pc.dash_pattern[i] = dp.segments[i];
+                pc.dash_total = dp.total;
+                pc.dash_count = dp.count;
+            }
+            if (style.has_line() && line->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = line->width();
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            if (style.has_marker())
+            {
+                backend_.bind_pipeline(scatter_pipeline_);
+                pc.point_size = style.marker_size;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.draw_instanced(6, static_cast<uint32_t>(line->point_count()));
+            }
+            break;
         }
-        if (style.has_line() && line->point_count() > 1)
+        case SeriesType::Scatter2D:
         {
-            backend_.bind_pipeline(line_pipeline_);
-            pc.line_width = line->width();
-            backend_.push_constants(pc);
-            backend_.bind_buffer(gpu.ssbo, 0);
-            uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
-            backend_.draw(segments * 6);
-        }
-        if (style.has_marker())
-        {
+            auto* scatter = static_cast<ScatterSeries*>(&series);
             backend_.bind_pipeline(scatter_pipeline_);
-            pc.point_size = style.marker_size;
+            pc.point_size = scatter->size();
+            pc.marker_type = static_cast<uint32_t>(style.marker_style);
+            if (pc.marker_type == 0)
+                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
-            backend_.draw_instanced(6, static_cast<uint32_t>(line->point_count()));
+            backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
+            break;
         }
-        break;
-    }
-    case SeriesType::Scatter2D:
-    {
-        auto* scatter = static_cast<ScatterSeries*>(&series);
-        backend_.bind_pipeline(scatter_pipeline_);
-        pc.point_size = scatter->size();
-        pc.marker_type = static_cast<uint32_t>(style.marker_style);
-        if (pc.marker_type == 0)
+        case SeriesType::Line3D:
+        {
+            auto* line3d = static_cast<LineSeries3D*>(&series);
+            if (line3d->point_count() > 1)
+            {
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+                backend_.bind_pipeline(is_transparent ? line3d_transparent_pipeline_
+                                                      : line3d_pipeline_);
+                pc.line_width = line3d->width();
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            break;
+        }
+        case SeriesType::Scatter3D:
+        {
+            auto* scatter3d = static_cast<ScatterSeries3D*>(&series);
+            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+            backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
+                                                  : scatter3d_pipeline_);
+            pc.point_size = scatter3d->size();
             pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
-        backend_.push_constants(pc);
-        backend_.bind_buffer(gpu.ssbo, 0);
-        backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
-        break;
-    }
-    case SeriesType::Line3D:
-    {
-        auto* line3d = static_cast<LineSeries3D*>(&series);
-        if (line3d->point_count() > 1)
-        {
-            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-            backend_.bind_pipeline(is_transparent ? line3d_transparent_pipeline_
-                                                  : line3d_pipeline_);
-            pc.line_width = line3d->width();
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
-            uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
-            backend_.draw(segments * 6);
+            backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
+            break;
         }
-        break;
-    }
-    case SeriesType::Scatter3D:
-    {
-        auto* scatter3d = static_cast<ScatterSeries3D*>(&series);
-        bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-        backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
-                                              : scatter3d_pipeline_);
-        pc.point_size = scatter3d->size();
-        pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
-        backend_.push_constants(pc);
-        backend_.bind_buffer(gpu.ssbo, 0);
-        backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
-        break;
-    }
-    case SeriesType::Surface3D:
-    {
-        auto* surface = static_cast<SurfaceSeries*>(&series);
-        if (gpu.index_buffer)
+        case SeriesType::Surface3D:
         {
-            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-            if (surface->wireframe())
+            auto* surface = static_cast<SurfaceSeries*>(&series);
+            if (gpu.index_buffer)
             {
-                if (!surface->is_wireframe_mesh_generated())
-                    return;
-                backend_.bind_pipeline(is_transparent ? surface_wireframe3d_transparent_pipeline_
-                                                      : surface_wireframe3d_pipeline_);
-                pc._pad2[0] = surface->ambient();
-                pc._pad2[1] = surface->specular();
-                if (surface->shininess() > 0.0f)
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+                if (surface->wireframe())
                 {
-                    pc.marker_size = surface->shininess();
+                    if (!surface->is_wireframe_mesh_generated())
+                        return;
+                    backend_.bind_pipeline(is_transparent
+                                               ? surface_wireframe3d_transparent_pipeline_
+                                               : surface_wireframe3d_pipeline_);
+                    pc._pad2[0] = surface->ambient();
+                    pc._pad2[1] = surface->specular();
+                    if (surface->shininess() > 0.0f)
+                    {
+                        pc.marker_size = surface->shininess();
+                        pc.marker_type = 0;
+                    }
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.bind_index_buffer(gpu.index_buffer);
+                    backend_.draw_indexed(
+                        static_cast<uint32_t>(surface->wireframe_mesh().indices.size()));
+                }
+                else
+                {
+                    if (!surface->is_mesh_generated())
+                        return;
+                    const auto& surf_mesh = surface->mesh();
+                    backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_
+                                                          : surface3d_pipeline_);
+                    pc._pad2[0] = surface->ambient();
+                    pc._pad2[1] = surface->specular();
+                    if (surface->shininess() > 0.0f)
+                    {
+                        pc.marker_size = surface->shininess();
+                        pc.marker_type = 0;
+                    }
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.bind_index_buffer(gpu.index_buffer);
+                    backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
+                }
+            }
+            break;
+        }
+        case SeriesType::Mesh3D:
+        {
+            auto* mesh = static_cast<MeshSeries*>(&series);
+            if (gpu.index_buffer)
+            {
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+                backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_
+                                                      : mesh3d_pipeline_);
+                pc._pad2[0] = mesh->ambient();
+                pc._pad2[1] = mesh->specular();
+                if (mesh->shininess() > 0.0f)
+                {
+                    pc.marker_size = mesh->shininess();
                     pc.marker_type = 0;
                 }
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.bind_index_buffer(gpu.index_buffer);
-                backend_.draw_indexed(
-                    static_cast<uint32_t>(surface->wireframe_mesh().indices.size()));
+                backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
             }
-            else
-            {
-                if (!surface->is_mesh_generated())
-                    return;
-                const auto& surf_mesh = surface->mesh();
-                backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_
-                                                      : surface3d_pipeline_);
-                pc._pad2[0] = surface->ambient();
-                pc._pad2[1] = surface->specular();
-                if (surface->shininess() > 0.0f)
-                {
-                    pc.marker_size = surface->shininess();
-                    pc.marker_type = 0;
-                }
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.bind_index_buffer(gpu.index_buffer);
-                backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
-            }
+            break;
         }
-        break;
-    }
-    case SeriesType::Mesh3D:
-    {
-        auto* mesh = static_cast<MeshSeries*>(&series);
-        if (gpu.index_buffer)
-        {
-            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-            backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_
-                                                  : mesh3d_pipeline_);
-            pc._pad2[0] = mesh->ambient();
-            pc._pad2[1] = mesh->specular();
-            if (mesh->shininess() > 0.0f)
-            {
-                pc.marker_size = mesh->shininess();
-                pc.marker_type = 0;
-            }
-            backend_.push_constants(pc);
-            backend_.bind_buffer(gpu.ssbo, 0);
-            backend_.bind_index_buffer(gpu.index_buffer);
-            backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
-        }
-        break;
-    }
-    case SeriesType::Unknown:
-        break;
+        case SeriesType::Unknown:
+            break;
     }
 }
 

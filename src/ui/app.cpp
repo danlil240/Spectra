@@ -48,8 +48,7 @@ App::App(const AppConfig& config) : config_(config)
         const char* env = std::getenv("SPECTRA_SOCKET");
         multiproc = (env && env[0] != '\0');
     }
-    SPECTRA_LOG_INFO("app",
-                     "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
+    SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
     // Create Vulkan backend
     backend_ = std::make_unique<VulkanBackend>();

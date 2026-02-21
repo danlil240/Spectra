@@ -166,8 +166,7 @@ void FrameScheduler::update_stats(float dt_ms)
         size_t p95_idx = static_cast<size_t>(n * 95 / 100);
         if (p95_idx >= n)
             p95_idx = n - 1;
-        std::nth_element(dt_sorted_.begin(), dt_sorted_.begin() + p95_idx,
-                         dt_sorted_.begin() + n);
+        std::nth_element(dt_sorted_.begin(), dt_sorted_.begin() + p95_idx, dt_sorted_.begin() + n);
         stats_.p95_frame_time_ms = dt_sorted_[p95_idx];
 
         stats_.hitch_count = hitches_in_window_;
@@ -178,8 +177,8 @@ void FrameScheduler::update_stats(float dt_ms)
             SPECTRA_LOG_INFO("perf",
                              "Stats (" + std::to_string(STATS_WINDOW_FRAMES)
                                  + " frames):" + " avg=" + std::to_string(stats_.avg_frame_time_ms)
-                                 + "ms" + " p95=" + std::to_string(stats_.p95_frame_time_ms)
-                                 + "ms" + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
+                                 + "ms" + " p95=" + std::to_string(stats_.p95_frame_time_ms) + "ms"
+                                 + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
                                  + " hitches=" + std::to_string(hitches_in_window_));
         }
 

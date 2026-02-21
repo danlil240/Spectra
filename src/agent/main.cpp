@@ -535,7 +535,9 @@ int main(int argc, char* argv[])
             session.queue_detach({fid, w, h, title, sx, sy});
         });
     window_mgr->set_tab_move_handler(
-        [&session](spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y) {
+        [&session](
+            spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y)
+        {
             session.queue_move({fid, target_wid, drop_zone, local_x, local_y});
         });
 
@@ -722,9 +724,10 @@ int main(int argc, char* argv[])
 
         tab_drag_controller.set_on_drop_on_window(
             [&session, &window_mgr](spectra::FigureId index,
-                       uint32_t target_window_id,
-                       float /*screen_x*/,
-                       float /*screen_y*/) {
+                                    uint32_t target_window_id,
+                                    float /*screen_x*/,
+                                    float /*screen_y*/)
+            {
                 int zone = 0;
                 float lx = 0.0f, ly = 0.0f;
                 if (window_mgr)

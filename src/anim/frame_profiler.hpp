@@ -12,11 +12,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <spectra/logger.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <spectra/logger.hpp>
 
 namespace spectra
 {
@@ -45,8 +44,7 @@ class FrameProfiler
         uint32_t sample_count = 0;
     };
 
-    explicit FrameProfiler(uint32_t log_interval_frames = 600)
-        : log_interval_(log_interval_frames)
+    explicit FrameProfiler(uint32_t log_interval_frames = 600) : log_interval_(log_interval_frames)
     {
     }
 
@@ -111,7 +109,8 @@ class FrameProfiler
             return;
 
         // Compute stats for each stage
-        std::string report = "=== Frame Profiler (" + std::to_string(frame_count_) + " frames) ===\n";
+        std::string report =
+            "=== Frame Profiler (" + std::to_string(frame_count_) + " frames) ===\n";
 
         // Total frame first
         auto total_it = history_.find("_total_frame");
@@ -137,19 +136,19 @@ class FrameProfiler
                 continue;  // skip _total_frame
             ranked.push_back({name, compute_stats(samples)});
         }
-        std::sort(ranked.begin(), ranked.end(), [](const RankedStage& a, const RankedStage& b) {
-            return a.stats.avg_us > b.stats.avg_us;
-        });
+        std::sort(ranked.begin(),
+                  ranked.end(),
+                  [](const RankedStage& a, const RankedStage& b)
+                  { return a.stats.avg_us > b.stats.avg_us; });
 
         for (auto& r : ranked)
         {
-            report += "  " + pad_right(r.name, 24) + " avg=" + format_us(r.stats.avg_us)
-                      + "  p95=" + format_us(r.stats.p95_us) + "  max=" + format_us(r.stats.max_us)
-                      + "\n";
+            report += "  " + pad_right(r.name, 24) + " avg=" + format_us(r.stats.avg_us) + "  p95="
+                      + format_us(r.stats.p95_us) + "  max=" + format_us(r.stats.max_us) + "\n";
         }
 
-        report +=
-            "  Hitches (>2x target): " + std::to_string(hitch_count_) + "/" + std::to_string(frame_count_);
+        report += "  Hitches (>2x target): " + std::to_string(hitch_count_) + "/"
+                  + std::to_string(frame_count_);
 
         SPECTRA_LOG_INFO("profiler", report);
 
@@ -233,7 +232,10 @@ struct ProfileScope
 {
     FrameProfiler& profiler;
     const char* name;
-    ProfileScope(FrameProfiler& p, const char* n) : profiler(p), name(n) { profiler.begin_stage(n); }
+    ProfileScope(FrameProfiler& p, const char* n) : profiler(p), name(n)
+    {
+        profiler.begin_stage(n);
+    }
     ~ProfileScope() { profiler.end_stage(name); }
 };
 

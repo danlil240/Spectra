@@ -165,7 +165,9 @@ void App::run_inproc()
                     session.queue_detach({fid, w, h, title, sx, sy});
                 });
             window_mgr->set_tab_move_handler(
-                [&session](FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y) {
+                [&session](
+                    FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y)
+                {
                     session.queue_move({fid, target_wid, drop_zone, local_x, local_y});
                 });
 

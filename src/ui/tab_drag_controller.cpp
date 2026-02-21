@@ -116,10 +116,9 @@ void TabDragController::update(
                         auto* tw = static_cast<GLFWwindow*>(target_wctx->glfw_window);
                         double lcx, lcy;
                         glfwGetCursorPos(tw, &lcx, &lcy);
-                        window_manager_->compute_cross_window_drop_zone(
-                            last_hovered_window_id_,
-                            static_cast<float>(lcx),
-                            static_cast<float>(lcy));
+                        window_manager_->compute_cross_window_drop_zone(last_hovered_window_id_,
+                                                                        static_cast<float>(lcx),
+                                                                        static_cast<float>(lcy));
                     }
                 }
             }

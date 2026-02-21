@@ -37,7 +37,8 @@ class FigureModel
                       float x_min = 0.0f,
                       float x_max = 1.0f,
                       float y_min = 0.0f,
-                      float y_max = 1.0f);
+                      float y_max = 1.0f,
+                      bool is_3d = false);
 
     // Set axis limits. Returns a DiffOp for broadcasting.
     ipc::DiffOp set_axis_limits(uint64_t figure_id,
@@ -47,8 +48,23 @@ class FigureModel
                                 float y_min,
                                 float y_max);
 
+    // Set 3D z-axis limits. Returns a DiffOp for broadcasting.
+    ipc::DiffOp set_axis_zlimits(uint64_t figure_id,
+                                 uint32_t axes_index,
+                                 float z_min,
+                                 float z_max);
+
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
+
+    // Set axis xlabel. Returns a DiffOp.
+    ipc::DiffOp set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label);
+
+    // Set axis ylabel. Returns a DiffOp.
+    ipc::DiffOp set_axis_ylabel(uint64_t figure_id, uint32_t axes_index, const std::string& label);
+
+    // Set axis title. Returns a DiffOp.
+    ipc::DiffOp set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title);
 
     // --- Series management ---
 
@@ -56,6 +72,14 @@ class FigureModel
     uint32_t add_series(uint64_t figure_id,
                         const std::string& name = "",
                         const std::string& type = "line");
+
+    // Add a series and return a DiffOp for broadcasting to agents.
+    // out_index receives the new series index.
+    ipc::DiffOp add_series_with_diff(uint64_t figure_id,
+                                     const std::string& name,
+                                     const std::string& type,
+                                     uint32_t axes_index,
+                                     uint32_t& out_index);
 
     // Set series color. Returns a DiffOp.
     ipc::DiffOp set_series_color(
@@ -73,10 +97,21 @@ class FigureModel
     // Set series opacity. Returns a DiffOp.
     ipc::DiffOp set_opacity(uint64_t figure_id, uint32_t series_index, float opacity);
 
+    // Set series label/name. Returns a DiffOp.
+    ipc::DiffOp set_series_label(uint64_t figure_id, uint32_t series_index, const std::string& label);
+
+    // Remove a series from a figure. Returns a DiffOp for broadcasting.
+    ipc::DiffOp remove_series(uint64_t figure_id, uint32_t series_index);
+
     // Set series data (raw floats). Returns a DiffOp.
     ipc::DiffOp set_series_data(uint64_t figure_id,
                                 uint32_t series_index,
                                 const std::vector<float>& data);
+
+    // Append data to existing series (streaming). Returns a DiffOp.
+    ipc::DiffOp append_series_data(uint64_t figure_id,
+                                   uint32_t series_index,
+                                   const std::vector<float>& data);
 
     // Set figure title. Returns a DiffOp.
     ipc::DiffOp set_figure_title(uint64_t figure_id, const std::string& title);
@@ -103,6 +138,10 @@ class FigureModel
     size_t figure_count() const;
     std::vector<uint64_t> all_figure_ids() const;
     bool has_figure(uint64_t figure_id) const;
+
+    // Get current axis limits for a figure's axes. Returns false if not found.
+    bool get_axis_limits(uint64_t figure_id, uint32_t axes_index,
+                         float& x_min, float& x_max, float& y_min, float& y_max) const;
 
    private:
     mutable std::mutex mu_;

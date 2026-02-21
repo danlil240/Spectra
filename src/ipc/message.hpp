@@ -52,6 +52,38 @@ enum class MessageType : uint16_t
     EVT_WINDOW = 0x0401,
     EVT_TAB_DRAG = 0x0402,
     EVT_HEARTBEAT = 0x0403,
+
+    // Python → Backend: figure/series lifecycle
+    REQ_CREATE_FIGURE = 0x0500,
+    REQ_DESTROY_FIGURE = 0x0501,
+    REQ_CREATE_AXES = 0x0502,
+    REQ_ADD_SERIES = 0x0503,
+    REQ_REMOVE_SERIES = 0x0504,
+    REQ_SET_DATA = 0x0505,
+    REQ_UPDATE_PROPERTY = 0x0506,
+    REQ_SHOW = 0x0507,
+    REQ_CLOSE_FIGURE = 0x0508,
+    REQ_APPEND_DATA = 0x0509,
+    REQ_UPDATE_BATCH = 0x050A,  // Multiple property changes in one message
+
+    // Python → Backend: queries
+    REQ_GET_SNAPSHOT = 0x0510,
+    REQ_LIST_FIGURES = 0x0511,
+
+    // Python → Backend: session
+    REQ_RECONNECT = 0x0530,
+    REQ_DISCONNECT = 0x0531,
+
+    // Backend → Python: responses
+    RESP_FIGURE_CREATED = 0x0540,
+    RESP_AXES_CREATED = 0x0541,
+    RESP_SERIES_ADDED = 0x0542,
+    RESP_SNAPSHOT = 0x0543,
+    RESP_FIGURE_LIST = 0x0544,
+
+    // Backend → Python: events
+    EVT_WINDOW_CLOSED = 0x0550,
+    EVT_FIGURE_DESTROYED = 0x0552,
 };
 
 // ─── Message envelope ────────────────────────────────────────────────────────
@@ -69,7 +101,7 @@ enum class MessageType : uint16_t
 static constexpr uint8_t MAGIC_0 = 0x53;  // 'S'
 static constexpr uint8_t MAGIC_1 = 0x50;  // 'P'
 static constexpr size_t HEADER_SIZE = 40;
-static constexpr size_t MAX_PAYLOAD_SIZE = 16 * 1024 * 1024;  // 16 MiB
+static constexpr size_t MAX_PAYLOAD_SIZE = 256 * 1024 * 1024;  // 256 MiB
 
 struct MessageHeader
 {
@@ -98,6 +130,7 @@ struct HelloPayload
     uint16_t protocol_minor = PROTOCOL_MINOR;
     std::string agent_build;
     uint32_t capabilities = 0;  // bitmask, reserved for future use
+    std::string client_type;    // "python" or "agent" (empty = legacy agent)
 };
 
 struct WelcomePayload
@@ -186,7 +219,9 @@ struct SnapshotAxisState
 {
     float x_min = 0.0f, x_max = 1.0f;
     float y_min = 0.0f, y_max = 1.0f;
+    float z_min = 0.0f, z_max = 1.0f;
     bool grid_visible = true;
+    bool is_3d = false;
     std::string x_label;
     std::string y_label;
     std::string title;
@@ -258,7 +293,15 @@ struct DiffOp
         ADD_FIGURE = 10,
         REMOVE_FIGURE = 11,
         SET_SERIES_DATA = 12,
-        SET_KNOB_VALUE = 20,  // str_val=knob name, f1=new value
+        SET_AXIS_XLABEL = 13,   // str_val=label text
+        SET_AXIS_YLABEL = 14,   // str_val=label text
+        SET_AXIS_TITLE = 15,    // str_val=title text
+        SET_SERIES_LABEL = 16,  // str_val=label text
+        REMOVE_SERIES = 17,     // figure_id + series_index
+        SET_KNOB_VALUE = 20,    // str_val=knob name, f1=new value
+        SET_AXIS_ZLIMITS = 21,  // f1=z_min, f2=z_max
+        ADD_SERIES = 22,        // str_val=type, axes_index=axes, series_index=new index
+        ADD_AXES = 23,          // axes_index=new index, bool_val=is_3d
     };
 
     Type type = Type::SET_AXIS_LIMITS;
@@ -309,6 +352,147 @@ struct EvtInputPayload
     double y = 0.0;           // cursor y or scroll y
     uint64_t figure_id = 0;   // which figure the input targets
     uint32_t axes_index = 0;  // which axes within the figure
+};
+
+// ─── Python request payloads ────────────────────────────────────────────────
+
+// Python → Backend: create a new figure.
+struct ReqCreateFigurePayload
+{
+    std::string title;
+    uint32_t width = 1280;
+    uint32_t height = 720;
+};
+
+// Python → Backend: destroy a figure.
+struct ReqDestroyFigurePayload
+{
+    uint64_t figure_id = 0;
+};
+
+// Python → Backend: create axes in a figure (subplot).
+struct ReqCreateAxesPayload
+{
+    uint64_t figure_id = 0;
+    int32_t grid_rows = 1;
+    int32_t grid_cols = 1;
+    int32_t grid_index = 1;  // 1-based MATLAB-style
+    bool is_3d = false;
+};
+
+// Python → Backend: add a series to a figure.
+struct ReqAddSeriesPayload
+{
+    uint64_t figure_id = 0;
+    uint32_t axes_index = 0;
+    std::string series_type;  // "line", "scatter", "surface", "mesh"
+    std::string label;
+};
+
+// Python → Backend: remove a series.
+struct ReqRemoveSeriesPayload
+{
+    uint64_t figure_id = 0;
+    uint32_t series_index = 0;
+};
+
+// Python → Backend: set series data (bulk transfer).
+struct ReqSetDataPayload
+{
+    uint64_t figure_id = 0;
+    uint32_t series_index = 0;
+    uint8_t dtype = 0;  // 0=float32, 1=float64
+    std::vector<float> data;  // interleaved x,y (or x,y,z for 3D)
+};
+
+// Python → Backend: update a property on figure/axes/series.
+struct ReqUpdatePropertyPayload
+{
+    uint64_t figure_id = 0;
+    uint32_t axes_index = 0;
+    uint32_t series_index = 0;
+    std::string property;  // e.g. "color", "xlim", "title", "grid", "width", "opacity"
+    float f1 = 0.0f, f2 = 0.0f, f3 = 0.0f, f4 = 0.0f;
+    bool bool_val = false;
+    std::string str_val;
+};
+
+// Python → Backend: show a figure (spawn agent window).
+struct ReqShowPayload
+{
+    uint64_t figure_id = 0;
+};
+
+// Python → Backend: close a figure's window (keep figure in model).
+struct ReqCloseFigurePayload
+{
+    uint64_t figure_id = 0;
+};
+
+// Python → Backend: append data to existing series (streaming).
+struct ReqAppendDataPayload
+{
+    uint64_t figure_id = 0;
+    uint32_t series_index = 0;
+    std::vector<float> data;  // interleaved x,y pairs to append
+};
+
+// Python → Backend: batch property updates (multiple REQ_UPDATE_PROPERTY in one message).
+struct ReqUpdateBatchPayload
+{
+    std::vector<ReqUpdatePropertyPayload> updates;
+};
+
+// Python → Backend: reconnect to existing session.
+struct ReqReconnectPayload
+{
+    SessionId session_id = INVALID_SESSION;
+    std::string session_token;
+};
+
+// ─── Python response payloads ───────────────────────────────────────────────
+
+// Backend → Python: figure created.
+struct RespFigureCreatedPayload
+{
+    RequestId request_id = INVALID_REQUEST;
+    uint64_t figure_id = 0;
+};
+
+// Backend → Python: axes created.
+struct RespAxesCreatedPayload
+{
+    RequestId request_id = INVALID_REQUEST;
+    uint32_t axes_index = 0;
+};
+
+// Backend → Python: series added.
+struct RespSeriesAddedPayload
+{
+    RequestId request_id = INVALID_REQUEST;
+    uint32_t series_index = 0;
+};
+
+// Backend → Python: list of figure IDs.
+struct RespFigureListPayload
+{
+    RequestId request_id = INVALID_REQUEST;
+    std::vector<uint64_t> figure_ids;
+};
+
+// Backend → Python: window was closed by user.
+struct EvtWindowClosedPayload
+{
+    uint64_t figure_id = 0;
+    WindowId window_id = INVALID_WINDOW;
+    std::string reason;
+};
+
+// Backend → Python: figure was destroyed (e.g. timeout).
+struct EvtFigureDestroyedPayload
+{
+    uint64_t figure_id = 0;
+    std::string reason;
 };
 
 }  // namespace spectra::ipc

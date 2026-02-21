@@ -86,6 +86,7 @@ static constexpr uint8_t TAG_PROTOCOL_MAJOR = 0x10;
 static constexpr uint8_t TAG_PROTOCOL_MINOR = 0x11;
 static constexpr uint8_t TAG_AGENT_BUILD = 0x12;
 static constexpr uint8_t TAG_CAPABILITIES = 0x13;
+static constexpr uint8_t TAG_CLIENT_TYPE = 0x14;
 
 // Field tags for WelcomePayload
 static constexpr uint8_t TAG_SESSION_ID = 0x20;
@@ -212,6 +213,18 @@ static constexpr uint8_t TAG_MODS = 0x92;
 static constexpr uint8_t TAG_CURSOR_X = 0x93;
 static constexpr uint8_t TAG_CURSOR_Y = 0x94;
 
+// Field tags for Python request/response payloads
+static constexpr uint8_t TAG_GRID_INDEX = 0xA1;
+static constexpr uint8_t TAG_SERIES_LABEL = 0xA2;
+static constexpr uint8_t TAG_DTYPE = 0xA3;
+static constexpr uint8_t TAG_PROPERTY_NAME = 0xA4;
+static constexpr uint8_t TAG_SESSION_TOKEN = 0xA5;
+static constexpr uint8_t TAG_IS_3D = 0xA6;
+static constexpr uint8_t TAG_Z_MIN = 0xA7;
+static constexpr uint8_t TAG_Z_MAX = 0xA8;
+static constexpr uint8_t TAG_BLOB_INLINE = 0xB0;
+static constexpr uint8_t TAG_BATCH_ITEM = 0xB1;  // nested TLV for a batch update item
+
 // PayloadEncoder extension for floats and raw byte blobs
 // (added as free functions to avoid modifying the class)
 void payload_put_float(PayloadEncoder& enc, uint8_t tag, float val);
@@ -237,5 +250,61 @@ std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data);
 
 std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p);
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data);
+
+// ─── Python request/response payload encode/decode ───────────────────────────
+
+std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p);
+std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p);
+std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p);
+std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p);
+std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p);
+std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p);
+std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& p);
+std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_show(const ReqShowPayload& p);
+std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p);
+std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p);
+std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p);
+std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p);
+std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& p);
+std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p);
+std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p);
+std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p);
+std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p);
+std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p);
+std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data);
 
 }  // namespace spectra::ipc

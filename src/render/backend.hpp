@@ -40,6 +40,12 @@ enum class PipelineType
     Scatter3D_Transparent,
     Mesh3D_Transparent,
     Surface3D_Transparent,
+    // Screen-space filled overlay (triangle list, vec2, same shaders as Grid)
+    Overlay,
+    // Text rendering pipeline (screen-space textured quads)
+    Text,
+    // Text with depth test (for 3D labels occluded by geometry)
+    TextDepth,
 };
 
 struct BufferHandle

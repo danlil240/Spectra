@@ -331,6 +331,36 @@ void Axes3D::zoom_limits(float factor)
     zlim(new_zl.min, new_zl.max);
 }
 
+void Axes3D::zoom_limits_x(float factor)
+{
+    auto xl = x_limits();
+    float center = (xl.min + xl.max) * 0.5f;
+    float half_range = (xl.max - xl.min) * 0.5f * factor;
+    if (half_range < 1e-10f)
+        half_range = 1e-10f;
+    xlim(center - half_range, center + half_range);
+}
+
+void Axes3D::zoom_limits_y(float factor)
+{
+    auto yl = y_limits();
+    float center = (yl.min + yl.max) * 0.5f;
+    float half_range = (yl.max - yl.min) * 0.5f * factor;
+    if (half_range < 1e-10f)
+        half_range = 1e-10f;
+    ylim(center - half_range, center + half_range);
+}
+
+void Axes3D::zoom_limits_z(float factor)
+{
+    auto zl = z_limits();
+    float center = (zl.min + zl.max) * 0.5f;
+    float half_range = (zl.max - zl.min) * 0.5f * factor;
+    if (half_range < 1e-10f)
+        half_range = 1e-10f;
+    zlim(center - half_range, center + half_range);
+}
+
 void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h)
 {
     const auto& cam = camera();

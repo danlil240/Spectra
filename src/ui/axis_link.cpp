@@ -585,15 +585,17 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
 
 // ─── 3D axis linking ─────────────────────────────────────────────────────────
 
-LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b)
+LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b, LinkAxis axis)
 {
     if (!a || !b || a == b)
         return 0;
     std::lock_guard lock(mutex_);
 
-    // Check if they already share a 3D group
+    // Check if they already share a 3D group with the same axis flags
     for (auto& [id, group] : groups_3d_)
     {
+        if (group.axis != axis)
+            continue;
         if (group.contains(a) && group.contains(b))
             return id;
         if (group.contains(a) && !group.contains(b))
@@ -614,8 +616,11 @@ LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b)
     LinkGroupId id = next_id_++;
     Link3DGroup group;
     group.id = id;
-    group.axis = LinkAxis::Both;
-    group.name = "3D Link " + std::to_string(id);
+    group.axis = axis;
+    std::string axis_str = has_flag(axis, LinkAxis::Z) && !has_flag(axis, LinkAxis::X) ? "Z"
+                         : (axis == LinkAxis::All)                                      ? "XYZ"
+                         : "3D";
+    group.name = axis_str + " Link " + std::to_string(id);
     static constexpr Color group_colors[] = {
         {0.34f, 0.65f, 0.96f}, {0.96f, 0.49f, 0.31f}, {0.30f, 0.78f, 0.47f},
         {0.89f, 0.35f, 0.40f}, {0.58f, 0.40f, 0.74f}, {0.09f, 0.75f, 0.81f},
@@ -688,9 +693,12 @@ void AxisLinkManager::propagate_from_3d(Axes3D* source)
         {
             if (peer == source)
                 continue;
-            peer->xlim(new_xlim.min, new_xlim.max);
-            peer->ylim(new_ylim.min, new_ylim.max);
-            peer->zlim(new_zlim.min, new_zlim.max);
+            if (has_flag(group.axis, LinkAxis::X))
+                peer->xlim(new_xlim.min, new_xlim.max);
+            if (has_flag(group.axis, LinkAxis::Y))
+                peer->ylim(new_ylim.min, new_ylim.max);
+            if (has_flag(group.axis, LinkAxis::Z))
+                peer->zlim(new_zlim.min, new_zlim.max);
         }
     }
 

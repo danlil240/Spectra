@@ -655,6 +655,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         }
 #endif
 
+        // Flush Vulkan text rendering AFTER ImGui so text draws on top of
+        // the ImGui canvas background (which would otherwise overwrite it).
+        {
+            float sw = static_cast<float>(backend_.swapchain_width());
+            float sh = static_cast<float>(backend_.swapchain_height());
+            renderer_.render_text(sw, sh);
+        }
+
         renderer_.end_render_pass();
         if (profiler)
             profiler->begin_stage("end_frame");

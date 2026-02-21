@@ -53,3 +53,7 @@ tests/golden/output/*.raw
 docs/api/
 
 .windsurf
+src/gpu/shaders/text.vert
+
+__pycache__
+*.pyc

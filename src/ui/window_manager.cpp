@@ -2,6 +2,7 @@
 
 #include <spectra/logger.hpp>
 
+#include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
 #include "../render/vulkan/window_context.hpp"
 #include "window_ui_context.hpp"
@@ -167,55 +168,27 @@ void WindowManager::destroy_window(uint32_t window_id)
 
     auto& wctx = **it;
 
-    // Window close policy: if other windows exist, redistribute figures
-    // to the first remaining window.  Only destroy figures on the very
-    // last window close (nothing left to move them to).
+    // Window close policy: destroy all figures owned by this window.
+    // Closing a window (or its last tab) kills the figures — they do NOT
+    // migrate to other windows.
     if (registry_ && !wctx.assigned_figures.empty())
     {
-        // Find a surviving window (any window other than the one being closed)
-        WindowContext* target = nullptr;
-        for (auto& w : windows_)
+#ifdef SPECTRA_USE_IMGUI
+        if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
         {
-            if (w->id != window_id && !w->should_close)
-            {
-                target = w.get();
-                break;
-            }
-        }
-
-        if (target)
-        {
-            // Redistribute figures to the surviving window
             auto figs_copy = wctx.assigned_figures;
             for (FigureId fig_id : figs_copy)
-            {
-                move_figure(fig_id, window_id, target->id);
-                SPECTRA_LOG_INFO("window_manager",
-                                 "Redistributed figure " + std::to_string(fig_id)
-                                     + " from closing window " + std::to_string(window_id)
-                                     + " to window " + std::to_string(target->id));
-            }
+                wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
         }
-        else
-        {
-            // Last window — destroy figures
-#ifdef SPECTRA_USE_IMGUI
-            if (wctx.ui_ctx && wctx.ui_ctx->fig_mgr)
-            {
-                auto figs_copy = wctx.assigned_figures;
-                for (FigureId fig_id : figs_copy)
-                    wctx.ui_ctx->fig_mgr->remove_figure(fig_id);
-            }
 #endif
-            for (FigureId fig_id : wctx.assigned_figures)
-            {
-                registry_->unregister_figure(fig_id);
-                SPECTRA_LOG_INFO("window_manager",
-                                 "Destroyed figure " + std::to_string(fig_id) + " (last window "
-                                     + std::to_string(window_id) + " closed)");
-            }
-            wctx.assigned_figures.clear();
+        for (FigureId fig_id : wctx.assigned_figures)
+        {
+            registry_->unregister_figure(fig_id);
+            SPECTRA_LOG_INFO("window_manager",
+                             "Destroyed figure " + std::to_string(fig_id) + " (window "
+                                 + std::to_string(window_id) + " closed)");
         }
+        wctx.assigned_figures.clear();
     }
 
     // Wait for all GPU work to complete before destroying any resources.
@@ -383,6 +356,13 @@ void WindowManager::shutdown()
 
     active_ptrs_.clear();
     pending_close_ids_.clear();
+
+    // Null active_window_ before backend_->shutdown() runs (via destructor or
+    // explicit call). All WindowContext objects owned by windows_ are now
+    // destroyed — active_window_ is a dangling pointer. Clearing it prevents
+    // VulkanBackend::shutdown() from accessing freed memory and double-freeing
+    // semaphores/fences that destroy_window_context() already cleaned up.
+    backend_->set_active_window(nullptr);
 
     // Mark as shut down so destructor and repeated calls are no-ops.
     backend_ = nullptr;
@@ -1057,6 +1037,7 @@ int WindowManager::compute_cross_window_drop_zone(uint32_t target_wid, float loc
     cross_drop_info_.hy = hy;
     cross_drop_info_.hw = hw;
     cross_drop_info_.hh = hh;
+    cross_drop_info_.target_figure_id = target_pane->figure_index();
     return zone;
 #else
     (void)target_wid;
@@ -1394,6 +1375,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_curve_editor(&ui->curve_editor);
     ui->imgui_ui->set_mode_transition(&ui->mode_transition);
     ui->imgui_ui->set_knob_manager(&ui->knob_manager);
+    // (text_renderer wiring removed — plot text now rendered by Renderer::render_plot_text)
 
     // Wire TabDragController for drag-to-detach support
     ui->tab_drag_controller.set_window_manager(this);
@@ -1430,7 +1412,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
                 // Use the last computed cross-window drop zone (updated each frame
                 // during drag by TabDragController → compute_cross_window_drop_zone)
                 auto info = wm->cross_window_drop_info();
-                handler(fid, target_wid, info.zone, info.hx, info.hy);
+                handler(fid, target_wid, info.zone, info.hx, info.hy, info.target_figure_id);
             });
     }
 

@@ -57,12 +57,13 @@ void main() {
     float ambient_strength  = _pad2[0] > 0.001 ? _pad2[0] : 0.15;
     float specular_strength = _pad2[1] > 0.001 ? _pad2[1] : 0.3;
 
-    // Primary light direction from UBO (fallback to default if zero)
+    // Primary light direction from UBO (fallback to default if zero).
+    // Transform from data space into model space to match normals.
     vec3 L = light_dir;
     if (dot(L, L) < 0.001) {
         L = vec3(0.5, 0.7, 1.0);
     }
-    L = normalize(L);
+    L = normalize(mat3(model) * L);
 
     // Ambient
     float ambient = ambient_strength;
@@ -79,7 +80,7 @@ void main() {
     float specular = pow(NdotH, shininess) * specular_strength;
 
     // Secondary fill light from opposite side (softer)
-    vec3 L2 = normalize(vec3(-0.3, -0.5, 0.4));
+    vec3 L2 = normalize(mat3(model) * vec3(-0.3, -0.5, 0.4));
     float fill = max(dot(N, L2), 0.0) * 0.15;
 
     // Combine lighting

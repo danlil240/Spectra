@@ -166,9 +166,10 @@ void App::run_inproc()
                 });
             window_mgr->set_tab_move_handler(
                 [&session](
-                    FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y)
+                    FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y,
+                    FigureId target_figure_id)
                 {
-                    session.queue_move({fid, target_wid, drop_zone, local_x, local_y});
+                    session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                 });
 
             // First group → primary window
@@ -674,6 +675,11 @@ void App::render_secondary_window(WindowContext* wctx)
     {
         renderer_->begin_render_pass();
         renderer_->render_figure_content(*fig);
+        {
+            float sw = static_cast<float>(backend_->swapchain_width());
+            float sh = static_cast<float>(backend_->swapchain_height());
+            renderer_->render_text(sw, sh);
+        }
         renderer_->end_render_pass();
         backend_->end_frame();
 

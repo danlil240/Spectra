@@ -7,10 +7,12 @@
 // mode is used.
 
 #include <spectra/animator.hpp>
+#include <spectra/axes3d.hpp>
 #include <spectra/color.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
@@ -67,6 +69,12 @@ void signal_handler(int /*sig*/)
     g_running.store(false, std::memory_order_relaxed);
 }
 
+// Helper: check if a series type string is a 3D type.
+static bool is_3d_series_type(const std::string& t)
+{
+    return t == "line3d" || t == "scatter3d" || t == "surface" || t == "mesh";
+}
+
 // ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
 std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     const spectra::ipc::SnapshotFigureState& snap,
@@ -84,52 +92,129 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     size_t num_axes = std::max(snap.axes.size(), size_t(1));
     for (size_t i = 0; i < num_axes; ++i)
     {
-        auto& ax = fig->subplot(rows, cols, static_cast<int>(i + 1));
-        if (i < snap.axes.size())
-        {
-            const auto& sa = snap.axes[i];
-            ax.xlim(sa.x_min, sa.x_max);
-            ax.ylim(sa.y_min, sa.y_max);
-            ax.grid(sa.grid_visible);
-            if (!sa.x_label.empty())
-                ax.xlabel(sa.x_label);
-            if (!sa.y_label.empty())
-                ax.ylabel(sa.y_label);
-            if (!sa.title.empty())
-                ax.title(sa.title);
-        }
-    }
+        bool axes_is_3d = (i < snap.axes.size()) && snap.axes[i].is_3d;
 
-    if (!fig->axes().empty() && fig->axes()[0])
-    {
-        auto& ax = *fig->axes_mut()[0];
-        for (const auto& ss : snap.series)
+        if (axes_is_3d)
         {
-            std::vector<float> xs, ys;
-            for (size_t j = 0; j + 1 < ss.data.size(); j += 2)
+            auto& ax3d = fig->subplot3d(rows, cols, static_cast<int>(i + 1));
+            const auto& sa = snap.axes[i];
+            ax3d.xlim(sa.x_min, sa.x_max);
+            ax3d.ylim(sa.y_min, sa.y_max);
+            ax3d.zlim(sa.z_min, sa.z_max);
+            ax3d.grid(sa.grid_visible);
+            if (!sa.x_label.empty())
+                ax3d.xlabel(sa.x_label);
+            if (!sa.y_label.empty())
+                ax3d.ylabel(sa.y_label);
+            if (!sa.title.empty())
+                ax3d.title(sa.title);
+
+            // Add 3D series to this axes
+            for (const auto& ss : snap.series)
             {
-                xs.push_back(ss.data[j]);
-                ys.push_back(ss.data[j + 1]);
+                if (!is_3d_series_type(ss.type))
+                    continue;
+
+                // Unpack XYZ stride-3 data
+                std::vector<float> xs, ys, zs;
+                for (size_t j = 0; j + 2 < ss.data.size(); j += 3)
+                {
+                    xs.push_back(ss.data[j]);
+                    ys.push_back(ss.data[j + 1]);
+                    zs.push_back(ss.data[j + 2]);
+                }
+
+                if (ss.type == "scatter3d")
+                {
+                    auto& s = ax3d.scatter3d(xs, ys, zs);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    s.size(ss.marker_size);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
+                else if (ss.type == "surface")
+                {
+                    auto& s = ax3d.surface(xs, ys, zs);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
+                else if (ss.type == "mesh")
+                {
+                    // mesh expects vertices + indices; for now treat as line3d
+                    auto& s = ax3d.line3d(xs, ys, zs);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    s.width(ss.line_width);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
+                else  // "line3d"
+                {
+                    auto& s = ax3d.line3d(xs, ys, zs);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    s.width(ss.line_width);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
             }
-            if (ss.type == "scatter")
+        }
+        else
+        {
+            auto& ax = fig->subplot(rows, cols, static_cast<int>(i + 1));
+            if (i < snap.axes.size())
             {
-                auto& s = ax.scatter(xs, ys);
-                s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
-                s.visible(ss.visible);
-                s.opacity(ss.opacity);
-                s.size(ss.marker_size);
-                if (!ss.name.empty())
-                    s.label(ss.name);
+                const auto& sa = snap.axes[i];
+                ax.xlim(sa.x_min, sa.x_max);
+                ax.ylim(sa.y_min, sa.y_max);
+                ax.grid(sa.grid_visible);
+                if (!sa.x_label.empty())
+                    ax.xlabel(sa.x_label);
+                if (!sa.y_label.empty())
+                    ax.ylabel(sa.y_label);
+                if (!sa.title.empty())
+                    ax.title(sa.title);
             }
-            else
+
+            // Add 2D series to this axes
+            for (const auto& ss : snap.series)
             {
-                auto& s = ax.line(xs, ys);
-                s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
-                s.visible(ss.visible);
-                s.opacity(ss.opacity);
-                s.width(ss.line_width);
-                if (!ss.name.empty())
-                    s.label(ss.name);
+                if (is_3d_series_type(ss.type))
+                    continue;
+
+                std::vector<float> xs, ys;
+                for (size_t j = 0; j + 1 < ss.data.size(); j += 2)
+                {
+                    xs.push_back(ss.data[j]);
+                    ys.push_back(ss.data[j + 1]);
+                }
+                if (ss.type == "scatter")
+                {
+                    auto& s = ax.scatter(xs, ys);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    s.size(ss.marker_size);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
+                else
+                {
+                    auto& s = ax.line(xs, ys);
+                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.visible(ss.visible);
+                    s.opacity(ss.opacity);
+                    s.width(ss.line_width);
+                    if (!ss.name.empty())
+                        s.label(ss.name);
+                }
             }
         }
     }
@@ -190,6 +275,33 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 fig.series[op.series_index].point_count = static_cast<uint32_t>(op.data.size() / 2);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
+            if (op.axes_index < fig.axes.size())
+            {
+                fig.axes[op.axes_index].z_min = op.f1;
+                fig.axes[op.axes_index].z_max = op.f2;
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::ADD_SERIES:
+        {
+            spectra::ipc::SnapshotSeriesState s;
+            s.type = op.str_val;
+            // Grow series list to accommodate the new index
+            while (fig.series.size() <= op.series_index)
+                fig.series.push_back({});
+            fig.series[op.series_index] = std::move(s);
+            break;
+        }
+        case spectra::ipc::DiffOp::Type::ADD_AXES:
+        {
+            spectra::ipc::SnapshotAxisState ax;
+            ax.is_3d = op.bool_val;
+            // Grow axes list to accommodate the new index
+            while (fig.axes.size() <= op.axes_index)
+                fig.axes.push_back({});
+            fig.axes[op.axes_index] = std::move(ax);
+            break;
+        }
         default:
             break;
     }
@@ -211,6 +323,39 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
             if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
             {
                 fig.axes_mut()[op.axes_index]->grid(op.bool_val);
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            {
+                auto* ax3d = dynamic_cast<spectra::Axes3D*>(fig.axes_mut()[op.axes_index].get());
+                if (ax3d)
+                    ax3d->zlim(op.f1, op.f2);
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::ADD_SERIES:
+            // Series will be populated by the subsequent SET_SERIES_DATA diff.
+            // Add a placeholder so the series_index slot exists in the live figure.
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            {
+                auto* ax = fig.axes_mut()[op.axes_index].get();
+                auto* ax3d = dynamic_cast<spectra::Axes3D*>(ax);
+                if (ax3d)
+                {
+                    if (op.str_val == "scatter3d")
+                        ax3d->scatter3d({}, {}, {});
+                    else if (op.str_val == "surface")
+                        ax3d->surface({}, {}, {});
+                    else
+                        ax3d->line3d({}, {}, {});
+                }
+                else
+                {
+                    if (op.str_val == "scatter")
+                        ax->scatter({}, {});
+                    else
+                        ax->line({}, {});
+                }
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
@@ -431,6 +576,18 @@ int main(int argc, char* argv[])
 
                     std::cerr << "[spectra-window] STATE_SNAPSHOT (init): rev=" << current_revision
                               << " figures=" << figure_cache.size() << "\n";
+                    for (size_t fi = 0; fi < figure_cache.size(); ++fi)
+                    {
+                        const auto& fc = figure_cache[fi];
+                        std::cerr << "[spectra-window]   fig[" << fi << "] id=" << fc.figure_id
+                                  << " axes=" << fc.axes.size()
+                                  << " series=" << fc.series.size() << "\n";
+                        for (size_t ai = 0; ai < fc.axes.size(); ++ai)
+                            std::cerr << "[spectra-window]     axes[" << ai << "] is_3d=" << fc.axes[ai].is_3d << "\n";
+                        for (size_t si = 0; si < fc.series.size(); ++si)
+                            std::cerr << "[spectra-window]     series[" << si << "] type=" << fc.series[si].type
+                                      << " data=" << fc.series[si].data.size() << " floats\n";
+                    }
                 }
             }
         }
@@ -536,9 +693,10 @@ int main(int argc, char* argv[])
         });
     window_mgr->set_tab_move_handler(
         [&session](
-            spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y)
+            spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y,
+            spectra::FigureId target_figure_id)
         {
-            session.queue_move({fid, target_wid, drop_zone, local_x, local_y});
+            session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
         });
 
     auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
@@ -873,6 +1031,7 @@ int main(int argc, char* argv[])
                     auto diff = spectra::ipc::decode_state_diff(msg.payload);
                     if (diff)
                     {
+                        bool needs_rebuild = false;
                         for (const auto& op : diff->ops)
                         {
                             for (auto& fig : figure_cache)
@@ -883,22 +1042,32 @@ int main(int argc, char* argv[])
                                     break;
                                 }
                             }
-                            // Also apply directly to the matching live Figure object
-                            // (fast path for axis limits, grid toggle, series data).
-                            // Map IPC figure_id → registry FigureId via assigned_figures/all_ids.
-                            for (size_t mi = 0; mi < assigned_figures.size() && mi < all_ids.size();
-                                 ++mi)
+                            // Structural changes require a full rebuild
+                            if (op.type == spectra::ipc::DiffOp::Type::ADD_SERIES
+                                || op.type == spectra::ipc::DiffOp::Type::ADD_AXES)
                             {
-                                if (assigned_figures[mi] == op.figure_id)
+                                needs_rebuild = true;
+                            }
+                            else
+                            {
+                                // Apply directly to the matching live Figure object
+                                // (fast path for axis limits, grid toggle, series data).
+                                for (size_t mi = 0;
+                                     mi < assigned_figures.size() && mi < all_ids.size(); ++mi)
                                 {
-                                    auto* live_fig = registry.get(all_ids[mi]);
-                                    if (live_fig)
-                                        apply_diff_op_to_figure(*live_fig, op);
-                                    break;
+                                    if (assigned_figures[mi] == op.figure_id)
+                                    {
+                                        auto* live_fig = registry.get(all_ids[mi]);
+                                        if (live_fig)
+                                            apply_diff_op_to_figure(*live_fig, op);
+                                        break;
+                                    }
                                 }
                             }
                         }
                         current_revision = diff->new_revision;
+                        if (needs_rebuild)
+                            cache_dirty = true;
 
                         spectra::ipc::AckStatePayload ack;
                         ack.revision = current_revision;

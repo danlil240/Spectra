@@ -44,6 +44,7 @@ struct PendingMove
     int drop_zone = 0;     // 0=None/Center(add tab), 1=Left, 2=Right, 3=Top, 4=Bottom
     float local_x = 0.0f;  // Cursor position in target window's local coords
     float local_y = 0.0f;
+    FigureId target_figure_id = INVALID_FIGURE_ID;  // figure in the pane under cursor
 };
 
 // Session-level orchestration.

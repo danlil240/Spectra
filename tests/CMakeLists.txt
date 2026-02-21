@@ -38,6 +38,7 @@ function(add_spectra_test subdir name)
     # Propagate feature flags to tests for conditional compilation
     target_compile_definitions(${target_name} PRIVATE
         $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+        SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     )
     add_test(NAME ${target_name} COMMAND ${target_name})
 endfunction()
@@ -114,6 +115,9 @@ set(SPECTRA_UNIT_TESTS
     test_process_manager
     test_easy_api
     test_knob_manager
+    test_python_ipc
+    test_cross_codec
+    test_text_renderer
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
@@ -130,6 +134,7 @@ set(SPECTRA_GPU_TESTS
     test_figure_registry
     test_phase2_integration
     test_phase3_integration
+    test_text_renderer
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})

@@ -49,6 +49,7 @@
     #include <string>
 
     #include "../../third_party/icon_font_data.hpp"
+    // text_renderer.hpp removed — plot text now rendered by Renderer::render_plot_text
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -246,7 +247,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     draw_command_bar();
     draw_nav_rail();
     draw_canvas(figure);
-    draw_plot_text(figure);
+    draw_plot_overlays(figure);
     draw_axis_link_indicators(figure);
     draw_axes_context_menu(figure);
     if (layout_manager_->is_inspector_visible())
@@ -256,9 +257,6 @@ void ImGuiIntegration::build_ui(Figure& figure)
     draw_status_bar();
     draw_pane_tab_headers();  // Must run before splitters so pane_tab_hovered_ is set
     draw_split_view_splitters();
-    #if SPECTRA_FLOATING_TOOLBAR
-    draw_floating_toolbar();
-    #endif
 
     // Draw timeline panel (Agent G — bottom dock)
     if (show_timeline_ && timeline_editor_)
@@ -921,16 +919,56 @@ void ImGuiIntegration::draw_command_bar()
     if (ImGui::Begin("##commandbar", nullptr, flags))
     {
         SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
-        // App title/brand on the left
-        ImGui::PushFont(font_title_);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().accent.r,
-                                     ui::theme().accent.g,
-                                     ui::theme().accent.b,
-                                     ui::theme().accent.a));
-        ImGui::TextUnformatted("Spectra");
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
+
+        // ── Draw subtle bottom border line for menu bar separation ──
+        {
+            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
+            ImVec2 wpos = ImGui::GetWindowPos();
+            ImVec2 wsz = ImGui::GetWindowSize();
+            bar_dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
+                            ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
+                            IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
+                                     60),
+                            1.0f);
+        }
+
+        // ── App title/brand on the left — gradient accent text with glow ──
+        {
+            ImGui::PushFont(font_title_);
+            const char* brand = "Spectra";
+            ImVec2 text_sz = ImGui::CalcTextSize(brand);
+            ImVec2 cursor = ImGui::GetCursorScreenPos();
+            // Vertically center in the bar
+            float bar_h = ImGui::GetWindowSize().y;
+            float text_y = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f - text_sz.y) * 0.5f;
+            ImVec2 text_pos(cursor.x, text_y);
+
+            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
+
+            // Subtle glow behind text
+            auto accent = ui::theme().accent;
+            ImU32 glow_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
+                                      static_cast<uint8_t>(accent.g * 255),
+                                      static_cast<uint8_t>(accent.b * 255),
+                                      18);
+            bar_dl->AddRectFilled(ImVec2(text_pos.x - 6.0f, text_pos.y - 2.0f),
+                                  ImVec2(text_pos.x + text_sz.x + 6.0f, text_pos.y + text_sz.y + 2.0f),
+                                  glow_col,
+                                  ui::tokens::RADIUS_SM);
+
+            // Draw text with accent color
+            ImU32 brand_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
+                                       static_cast<uint8_t>(accent.g * 255),
+                                       static_cast<uint8_t>(accent.b * 255),
+                                       255);
+            bar_dl->AddText(font_title_, font_title_->FontSize, text_pos, brand_col, brand);
+
+            // Advance ImGui cursor past the brand text
+            ImGui::Dummy(text_sz);
+            ImGui::PopFont();
+        }
 
         ImGui::SameLine();
 
@@ -1044,51 +1082,120 @@ void ImGuiIntegration::draw_command_bar()
 
         ImGui::SameLine();
 
-        // Axes menu — link/unlink axes across subplots
+        // Axes menu — link/unlink axes across subplots (2D and 3D)
         {
             std::vector<MenuItem> axes_items;
 
+            // Helper lambdas to collect 2D and 3D axes from the current figure
+            auto has_enough_axes = [this]() -> bool
+            {
+                if (!axis_link_mgr_ || !current_figure_)
+                    return false;
+                return current_figure_->all_axes().size() >= 2;
+            };
+
             axes_items.emplace_back(
                 "Link X Axes",
-                [this]()
+                [this, has_enough_axes]()
                 {
-                    if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2)
+                    if (!has_enough_axes())
                         return;
-                    auto gid = axis_link_mgr_->create_group("X Link", LinkAxis::X);
-                    for (auto& ax : current_figure_->axes_mut())
+                    // Link 2D axes on X
+                    if (current_figure_->axes().size() >= 2)
                     {
-                        if (ax)
-                            axis_link_mgr_->add_to_group(gid, ax.get());
+                        auto gid = axis_link_mgr_->create_group("X Link", LinkAxis::X);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // Link 3D axes (xlim/ylim/zlim all propagate together)
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
                     }
                     SPECTRA_LOG_INFO("axes_link", "Linked all axes on X");
                 });
             axes_items.emplace_back(
                 "Link Y Axes",
-                [this]()
+                [this, has_enough_axes]()
                 {
-                    if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2)
+                    if (!has_enough_axes())
                         return;
-                    auto gid = axis_link_mgr_->create_group("Y Link", LinkAxis::Y);
-                    for (auto& ax : current_figure_->axes_mut())
+                    if (current_figure_->axes().size() >= 2)
                     {
-                        if (ax)
-                            axis_link_mgr_->add_to_group(gid, ax.get());
+                        auto gid = axis_link_mgr_->create_group("Y Link", LinkAxis::Y);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // 3D axes link all limits together
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
                     }
                     SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
                 });
             axes_items.emplace_back(
-                "Link All Axes",
-                [this]()
+                "Link Z Axes",
+                [this, has_enough_axes]()
                 {
-                    if (!axis_link_mgr_ || !current_figure_ || current_figure_->axes().size() < 2)
+                    if (!has_enough_axes())
                         return;
-                    auto gid = axis_link_mgr_->create_group("XY Link", LinkAxis::Both);
-                    for (auto& ax : current_figure_->axes_mut())
+                    // Z-axis linking is only meaningful for 3D axes
+                    std::vector<Axes3D*> axes3d_list;
+                    for (auto& ab : current_figure_->all_axes_mut())
                     {
-                        if (ax)
-                            axis_link_mgr_->add_to_group(gid, ax.get());
+                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                            axes3d_list.push_back(a3);
                     }
-                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y");
+                    for (size_t i = 1; i < axes3d_list.size(); ++i)
+                        axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::Z);
+                    SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
+                });
+            axes_items.emplace_back(
+                "Link All Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    // Link 2D axes on X+Y
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("XY Link", LinkAxis::Both);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // Link 3D axes (xlim/ylim/zlim)
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::All);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y+Z");
                 });
             axes_items.emplace_back("", nullptr);  // separator
             axes_items.emplace_back("Unlink All",
@@ -1096,7 +1203,7 @@ void ImGuiIntegration::draw_command_bar()
                                     {
                                         if (!axis_link_mgr_)
                                             return;
-                                        // Collect group IDs first (can't modify while iterating)
+                                        // Unlink 2D groups
                                         std::vector<LinkGroupId> ids;
                                         for (auto& [id, group] : axis_link_mgr_->groups())
                                         {
@@ -1105,6 +1212,15 @@ void ImGuiIntegration::draw_command_bar()
                                         for (auto id : ids)
                                         {
                                             axis_link_mgr_->remove_group(id);
+                                        }
+                                        // Unlink 3D axes
+                                        if (current_figure_)
+                                        {
+                                            for (auto& ab : current_figure_->all_axes_mut())
+                                            {
+                                                if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                                    axis_link_mgr_->remove_from_all_3d(a3);
+                                            }
                                         }
                                         axis_link_mgr_->clear_shared_cursor();
                                         SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
@@ -1676,10 +1792,10 @@ void ImGuiIntegration::draw_status_bar()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_1));
+    // Use zero vertical padding — we'll manually center text inside the bar
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
                           ImVec4(ui::theme().bg_secondary.r,
                                  ui::theme().bg_secondary.g,
@@ -1693,8 +1809,28 @@ void ImGuiIntegration::draw_status_bar()
 
     if (ImGui::Begin("##statusbar", nullptr, flags))
     {
+        // ── Draw subtle top border line for status bar separation ──
+        {
+            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
+            ImVec2 wpos = ImGui::GetWindowPos();
+            ImVec2 wsz = ImGui::GetWindowSize();
+            bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
+                            ImVec2(wpos.x + wsz.x, wpos.y),
+                            IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
+                                     60),
+                            1.0f);
+        }
+
         ImGuiIO& io = ImGui::GetIO();
         ImGui::PushFont(font_heading_);
+
+        // Vertically center all text in the status bar
+        float bar_h = bounds.h;
+        float text_h = ImGui::GetTextLineHeight();
+        float y_offset = (bar_h - text_h) * 0.5f;
+        ImGui::SetCursorPosY(y_offset);
 
         // Left: cursor data readout
         ImGui::PushStyleColor(ImGuiCol_Text,
@@ -1763,16 +1899,10 @@ void ImGuiIntegration::draw_status_bar()
         ImGui::TextUnformatted(zoom_buf);
         ImGui::PopStyleColor();
 
-        // Right side: performance info
-        float right_offset = ImGui::GetContentRegionAvail().x - 160.0f;
-        if (right_offset > 0.0f)
-        {
-            ImGui::SameLine(0.0f, right_offset);
-        }
-        else
-        {
-            ImGui::SameLine();
-        }
+        // Right side: performance info — anchor to right edge of window
+        float perf_width = 160.0f;
+        float abs_x = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
+        ImGui::SameLine(abs_x > 0.0f ? abs_x : 0.0f);
 
         // FPS with color coding
         float fps_val = io.Framerate;
@@ -2859,500 +2989,54 @@ void ImGuiIntegration::draw_pane_tab_headers()
     }                  // Phase 5 scope
 }
 
-    #if SPECTRA_FLOATING_TOOLBAR
-void ImGuiIntegration::draw_floating_toolbar()
+
+void ImGuiIntegration::draw_plot_overlays(Figure& figure)
 {
     if (!layout_manager_)
         return;
 
-    float opacity = layout_manager_->floating_toolbar_opacity();
-    if (opacity < 0.01f)
-        return;  // Fully hidden, skip drawing
-
-    Rect bounds = layout_manager_->floating_toolbar_rect();
-
-    // Check if mouse is hovering near the toolbar — reveal on hover
-    ImVec2 mouse = ImGui::GetIO().MousePos;
-    float hover_margin = 30.0f;
-    bool mouse_near =
-        (mouse.x >= bounds.x - hover_margin && mouse.x <= bounds.x + bounds.w + hover_margin
-         && mouse.y >= bounds.y - hover_margin && mouse.y <= bounds.y + bounds.h + hover_margin);
-    if (mouse_near)
-    {
-        layout_manager_->notify_toolbar_activity();
-        opacity = layout_manager_->floating_toolbar_opacity();
-    }
-
-    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
-
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollWithMouse
-                             | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-
-    // Apply opacity to all toolbar colors
-    float bg_alpha = 0.95f * opacity;
-    float border_alpha = 0.6f * opacity;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 4));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(ui::theme().bg_elevated.r,
-                                 ui::theme().bg_elevated.g,
-                                 ui::theme().bg_elevated.b,
-                                 bg_alpha));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(ui::theme().border_default.r,
-                                 ui::theme().border_default.g,
-                                 ui::theme().border_default.b,
-                                 border_alpha));
-
-    if (ImGui::Begin("##floatingtoolbar", nullptr, flags))
-    {
-        // Handle dragging — drag on empty area of the toolbar to reposition
-        if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f))
-        {
-            if (!toolbar_dragging_)
-            {
-                // Check we're not clicking a button (only drag from empty space)
-                if (!ImGui::IsAnyItemHovered())
-                {
-                    toolbar_dragging_ = true;
-                }
-            }
-        }
-        if (toolbar_dragging_)
-        {
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-            {
-                ImVec2 delta = ImGui::GetIO().MouseDelta;
-                layout_manager_->set_floating_toolbar_drag_offset(bounds.x + delta.x,
-                                                                  bounds.y + delta.y);
-                layout_manager_->notify_toolbar_activity();
-            }
-            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-            {
-                toolbar_dragging_ = false;
-            }
-        }
-
-        // Quick access tools
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::ZoomIn),
-            [this]()
-            {
-                interaction_mode_ = ToolMode::BoxZoom;
-                layout_manager_->notify_toolbar_activity();
-            },
-            "Zoom",
-            interaction_mode_ == ToolMode::BoxZoom);
-        ImGui::SameLine();
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::Hand),
-            [this]()
-            {
-                interaction_mode_ = ToolMode::Pan;
-                layout_manager_->notify_toolbar_activity();
-            },
-            "Pan",
-            interaction_mode_ == ToolMode::Pan);
-        ImGui::SameLine();
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::Crosshair),
-            [this]()
-            {
-                interaction_mode_ = ToolMode::Select;
-                layout_manager_->notify_toolbar_activity();
-            },
-            "Select",
-            interaction_mode_ == ToolMode::Select);
-        ImGui::SameLine();
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::Ruler),
-            [this]() { layout_manager_->notify_toolbar_activity(); },
-            "Measure");
-
-        // Double-click to reset position
-        if (ImGui::IsWindowHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
-            && !ImGui::IsAnyItemHovered())
-        {
-            layout_manager_->reset_floating_toolbar_position();
-        }
-    }
-    ImGui::End();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(4);
-}
-    #endif
-
-void ImGuiIntegration::draw_plot_text(Figure& figure)
-{
-    if (!layout_manager_)
-        return;
+    // Only subplot divider lines remain here — all plot-related geometry
+    // (tick marks, arrow lines, arrowheads) is now rendered by
+    // Renderer::render_plot_geometry() via Vulkan pipelines.
 
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     const auto& colors = ui::ThemeManager::instance().colors();
-    ImU32 tick_col = IM_COL32(static_cast<uint8_t>(colors.tick_label.r * 255),
-                              static_cast<uint8_t>(colors.tick_label.g * 255),
-                              static_cast<uint8_t>(colors.tick_label.b * 255),
-                              static_cast<uint8_t>(colors.tick_label.a * 255));
-    ImU32 label_col = IM_COL32(static_cast<uint8_t>(colors.text_primary.r * 255),
-                               static_cast<uint8_t>(colors.text_primary.g * 255),
-                               static_cast<uint8_t>(colors.text_primary.b * 255),
-                               static_cast<uint8_t>(colors.text_primary.a * 255));
-    ImU32 title_col = label_col;
 
-    constexpr float tick_padding = 5.0f;
-
-    for (auto& axes_ptr : figure.axes())
+    // ── Subplot separation: draw subtle divider lines between subplot cells ──
+    int rows = figure.grid_rows();
+    int cols = figure.grid_cols();
+    if (rows > 1 || cols > 1)
     {
-        if (!axes_ptr)
-            continue;
-        auto& axes = *axes_ptr;
-        const auto& vp = axes.viewport();
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        Rect canvas = layout_manager_->canvas_rect();
+        float cell_w = canvas.w / static_cast<float>(cols);
+        float cell_h = canvas.h / static_cast<float>(rows);
 
-        float x_range = xlim.max - xlim.min;
-        float y_range = ylim.max - ylim.min;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
+        ImU32 sep_col = IM_COL32(static_cast<uint8_t>(colors.border_subtle.r * 255),
+                                 static_cast<uint8_t>(colors.border_subtle.g * 255),
+                                 static_cast<uint8_t>(colors.border_subtle.b * 255),
+                                 50);
+        float sep_thickness = 1.0f;
+        float inset = 12.0f;
 
-        auto data_to_px_x = [&](float dx) -> float
-        { return vp.x + (dx - xlim.min) / x_range * vp.w; };
-        auto data_to_px_y = [&](float dy) -> float
-        { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
-
-        // --- Tick marks and labels ---
-        const auto& as = axes.axis_style();
-        float tl = as.tick_length;  // tick mark length in pixels
-        ImU32 axis_col = IM_COL32(static_cast<uint8_t>(colors.axis_line.r * 255),
-                                  static_cast<uint8_t>(colors.axis_line.g * 255),
-                                  static_cast<uint8_t>(colors.axis_line.b * 255),
-                                  static_cast<uint8_t>(colors.axis_line.a * 255));
-
-        auto x_ticks = axes.compute_x_ticks();
-        auto y_ticks = axes.compute_y_ticks();
-
-        // X tick marks (at bottom edge of viewport)
-        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        // Vertical dividers between columns
+        for (int c = 1; c < cols; ++c)
         {
-            float px = data_to_px_x(x_ticks.positions[i]);
-            if (tl > 0.0f)
-                dl->AddLine(ImVec2(px, vp.y + vp.h), ImVec2(px, vp.y + vp.h + tl), axis_col, 1.0f);
+            float x = canvas.x + static_cast<float>(c) * cell_w;
+            dl->AddLine(ImVec2(x, canvas.y + inset),
+                        ImVec2(x, canvas.y + canvas.h - inset),
+                        sep_col,
+                        sep_thickness);
         }
-
-        // Y tick marks (at left edge of viewport)
-        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        // Horizontal dividers between rows
+        for (int r = 1; r < rows; ++r)
         {
-            float py = data_to_px_y(y_ticks.positions[i]);
-            if (tl > 0.0f)
-                dl->AddLine(ImVec2(vp.x, py), ImVec2(vp.x - tl, py), axis_col, 1.0f);
-        }
-
-        // X tick labels
-        ImGui::PushFont(font_body_);
-        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
-        {
-            float px = data_to_px_x(x_ticks.positions[i]);
-            const char* txt = x_ticks.labels[i].c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(px - sz.x * 0.5f, vp.y + vp.h + tl + tick_padding), tick_col, txt);
-        }
-
-        // Y tick labels
-        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
-        {
-            float py = data_to_px_y(y_ticks.positions[i]);
-            const char* txt = y_ticks.labels[i].c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(vp.x - tl - tick_padding - sz.x, py - sz.y * 0.5f), tick_col, txt);
-        }
-        ImGui::PopFont();
-
-        // --- X axis label ---
-        if (!axes.get_xlabel().empty())
-        {
-            ImGui::PushFont(font_menubar_);
-            const char* txt = axes.get_xlabel().c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
-            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), label_col, txt);
-            ImGui::PopFont();
-        }
-
-        // --- Y axis label (rotated -90°) ---
-        if (!axes.get_ylabel().empty())
-        {
-            ImGui::PushFont(font_menubar_);
-            const char* txt = axes.get_ylabel().c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-
-            // Where the rotated label should be centered
-            float center_x = vp.x - tick_padding * 2.0f - 20.0f;
-            float center_y = vp.y + vp.h * 0.5f;
-
-            ImDrawList* dl = ImGui::GetForegroundDrawList();
-
-            // Render text at origin, then rotate the emitted vertices -90°
-            // Place text so its center lands at (0,0) before rotation
-            ImVec2 text_pos(center_x - sz.x * 0.5f, center_y - sz.y * 0.5f);
-
-            int vtx_begin = dl->VtxBuffer.Size;
-            dl->AddText(text_pos, label_col, txt);
-            int vtx_end = dl->VtxBuffer.Size;
-
-            // Rotate all new vertices -90° around (center_x, center_y)
-            float cos_a = 0.0f;   // cos(-90°)
-            float sin_a = -1.0f;  // sin(-90°)
-            for (int i = vtx_begin; i < vtx_end; ++i)
-            {
-                ImDrawVert& v = dl->VtxBuffer[i];
-                float dx = v.pos.x - center_x;
-                float dy = v.pos.y - center_y;
-                v.pos.x = center_x + dx * cos_a - dy * sin_a;
-                v.pos.y = center_y + dx * sin_a + dy * cos_a;
-            }
-
-            ImGui::PopFont();
-        }
-
-        // --- Title (clamped inside viewport so tab bar doesn't cover it) ---
-        if (!axes.get_title().empty())
-        {
-            ImGui::PushFont(font_title_);
-            const char* txt = axes.get_title().c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y - sz.y - tick_padding;
-            if (py < vp.y + 2.0f)
-                py = vp.y + 2.0f;
-            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
-            ImGui::PopFont();
+            float y = canvas.y + static_cast<float>(r) * cell_h;
+            dl->AddLine(ImVec2(canvas.x + inset, y),
+                        ImVec2(canvas.x + canvas.w - inset, y),
+                        sep_col,
+                        sep_thickness);
         }
     }
-
-    // ─── 3D Axes: billboarded tick labels, axis labels, title ────────────
-    for (auto& axes_ptr : figure.all_axes())
-    {
-        if (!axes_ptr)
-            continue;
-        auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
-        if (!axes3d)
-            continue;
-
-        const auto& vp = axes3d->viewport();
-        const auto& cam = axes3d->camera();
-
-        // Build MVP matrix: projection * view * model
-        float aspect = vp.w / std::max(vp.h, 1.0f);
-        mat4 proj = cam.projection_matrix(aspect);
-        mat4 view = cam.view_matrix();
-        mat4 model = axes3d->data_to_normalized_matrix();
-        mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
-
-        // Helper: project a 3D world point to screen coords within the viewport
-        auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy) -> bool
-        {
-            // Multiply by MVP
-            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y + mvp.m[8] * world_pos.z
-                           + mvp.m[12];
-            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y + mvp.m[9] * world_pos.z
-                           + mvp.m[13];
-            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y + mvp.m[11] * world_pos.z
-                           + mvp.m[15];
-
-            // Behind camera
-            if (clip_w <= 0.001f)
-                return false;
-
-            // NDC
-            float ndc_x = clip_x / clip_w;
-            float ndc_y = clip_y / clip_w;
-
-            // NDC to screen (Vulkan Y-down: ndc_y=-1 is top, +1 is bottom)
-            sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
-            sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
-
-            // Cull if far outside viewport (generous margin so arrows/labels
-            // at bounding box edges remain visible at oblique camera angles)
-            float margin = 200.0f;
-            if (sx < vp.x - margin || sx > vp.x + vp.w + margin || sy < vp.y - margin
-                || sy > vp.y + vp.h + margin)
-                return false;
-
-            return true;
-        };
-
-        auto xlim = axes3d->x_limits();
-        auto ylim = axes3d->y_limits();
-        auto zlim = axes3d->z_limits();
-
-        float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
-
-        // Detect top-down view: camera looking down Y (orbit elevation≈90°) or Z (transition
-        // camera) Threshold 0.98 ≈ 78° elevation — only trigger when nearly straight down
-        vec3 view_dir_early = vec3_normalize(cam.target - cam.position);
-        bool looking_down_y = std::abs(view_dir_early.y) > 0.98f;
-        bool looking_down_z = std::abs(view_dir_early.z) > 0.98f;
-        // bool is_top_down_early = looking_down_y || looking_down_z;  // Currently unused
-
-        // Tick offset: slightly beyond the tick mark end
-        float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
-        float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
-        float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
-
-        // --- X-axis tick labels (along y=y0, z=z0 edge) ---
-        // Visible in all views (X is always a screen axis in top-down)
-        ImGui::PushFont(font_body_);
-        auto x_ticks = axes3d->compute_x_ticks();
-        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
-        {
-            float sx, sy;
-            vec3 pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
-            if (!world_to_screen(pos, sx, sy))
-                continue;
-            const char* txt = x_ticks.labels[i].c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            dl->AddText(ImVec2(sx - sz.x * 0.5f, sy), tick_col, txt);
-        }
-
-        // --- Y-axis tick labels (along x=x0, z=z0 edge) ---
-        // Hidden when looking down Y (Y is depth axis, all labels overlap)
-        if (!looking_down_y)
-        {
-            auto y_ticks = axes3d->compute_y_ticks();
-            for (size_t i = 0; i < y_ticks.positions.size(); ++i)
-            {
-                float sx, sy;
-                vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
-                if (!world_to_screen(pos, sx, sy))
-                    continue;
-                const char* txt = y_ticks.labels[i].c_str();
-                ImVec2 sz = ImGui::CalcTextSize(txt);
-                dl->AddText(ImVec2(sx - sz.x, sy - sz.y * 0.5f), tick_col, txt);
-            }
-        }
-
-        // --- Z-axis tick labels (along x=x0, y=y0 edge) ---
-        // Hidden when looking down Z (Z is depth axis, all labels overlap)
-        if (!looking_down_z)
-        {
-            auto z_ticks = axes3d->compute_z_ticks();
-            for (size_t i = 0; i < z_ticks.positions.size(); ++i)
-            {
-                float sx, sy;
-                vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
-                if (!world_to_screen(pos, sx, sy))
-                    continue;
-                const char* txt = z_ticks.labels[i].c_str();
-                ImVec2 sz = ImGui::CalcTextSize(txt);
-                dl->AddText(ImVec2(sx - sz.x - tick_padding, sy - sz.y * 0.5f), tick_col, txt);
-            }
-        }
-        ImGui::PopFont();
-
-        // --- Axis direction arrows with labels ---
-        // In top-down views, only show arrows for the two visible axes,
-        // placed on the visible grid plane. Hide the depth-axis arrow.
-        // Looking down Y: visible plane is XZ at y=y0, show X and Z arrows
-        // Looking down Z: visible plane is XY at z=z0, show X and Y arrows
-        // 3D view: show all three arrows at bounding box corners
-        {
-            float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
-            float x_range = xlim.max - xlim.min;
-            float y_range = ylim.max - ylim.min;
-            float z_range = zlim.max - zlim.min;
-            float arrow_len_x = x_range * 0.18f;
-            float arrow_len_y = y_range * 0.18f;
-            float arrow_len_z = z_range * 0.18f;
-
-            // Arrow colors: X=red, Y=green, Z=blue (standard convention)
-            ImU32 x_arrow_col = IM_COL32(230, 70, 70, 220);
-            ImU32 y_arrow_col = IM_COL32(70, 200, 70, 220);
-            ImU32 z_arrow_col = IM_COL32(80, 130, 255, 220);
-
-            // Helper: draw a 2D arrowhead at screen position
-            auto draw_arrowhead =
-                [&](float from_x, float from_y, float tip_x, float tip_y, ImU32 col)
-            {
-                float dx = tip_x - from_x;
-                float dy = tip_y - from_y;
-                float len = std::sqrt(dx * dx + dy * dy);
-                if (len < 1.0f)
-                    return;
-                float ux = dx / len;
-                float uy = dy / len;
-                float head_size = 6.0f;
-                float px = -uy * head_size;
-                float py = ux * head_size;
-                float base_x = tip_x - ux * head_size * 1.8f;
-                float base_y = tip_y - uy * head_size * 1.8f;
-                ImVec2 tri[3] = {ImVec2(tip_x, tip_y),
-                                 ImVec2(base_x + px, base_y + py),
-                                 ImVec2(base_x - px, base_y - py)};
-                dl->AddTriangleFilled(tri[0], tri[1], tri[2], col);
-            };
-
-            // Helper: draw an arrow with label
-            auto draw_arrow_with_label = [&](vec3 start,
-                                             vec3 end,
-                                             ImU32 col,
-                                             const char* default_lbl,
-                                             const std::string& user_lbl)
-            {
-                float sx0, sy0, sx1, sy1;
-                if (!world_to_screen(start, sx0, sy0) || !world_to_screen(end, sx1, sy1))
-                    return;
-                dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, 2.0f);
-                draw_arrowhead(sx0, sy0, sx1, sy1, col);
-                ImGui::PushFont(font_menubar_);
-                const char* lbl = user_lbl.empty() ? default_lbl : user_lbl.c_str();
-                ImVec2 sz = ImGui::CalcTextSize(lbl);
-                float label_offset = 8.0f;
-                float dir_x = sx1 - sx0;
-                float dir_y = sy1 - sy0;
-                float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
-                float ly =
-                    sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f) - sz.y * 0.5f;
-                dl->AddText(ImVec2(lx, ly), col, lbl);
-                ImGui::PopFont();
-            };
-
-            // Always show all three arrows in 3D mode (regardless of camera angle)
-            // Place them at the bounding box corners as in original 3D behavior
-            draw_arrow_with_label(
-                {x1, y0, z0}, {x1 + arrow_len_x, y0, z0}, x_arrow_col, "X", axes3d->get_xlabel());
-            draw_arrow_with_label(
-                {x0, y1, z0}, {x0, y1 + arrow_len_y, z0}, y_arrow_col, "Y", axes3d->get_ylabel());
-            draw_arrow_with_label(
-                {x0, y0, z1}, {x0, y0, z1 + arrow_len_z}, z_arrow_col, "Z", axes3d->get_zlabel());
-        }
-
-        // --- 3D Title (clamped inside viewport so tab bar doesn't cover it) ---
-        if (!axes3d->get_title().empty())
-        {
-            ImGui::PushFont(font_title_);
-            const char* txt = axes3d->get_title().c_str();
-            ImVec2 sz = ImGui::CalcTextSize(txt);
-            float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y - sz.y - tick_padding;
-            // Clamp title to stay within or just at the top of the viewport
-            if (py < vp.y + 2.0f)
-                py = vp.y + 2.0f;
-            dl->AddText(ImVec2(cx - sz.x * 0.5f, py), title_col, txt);
-            ImGui::PopFont();
-        }
-    }
-
-    // Legend is drawn by LegendInteraction (in data_interaction.cpp) which
-    // supports click-to-toggle visibility and drag-to-reposition.
 }
 
 // ─── Timeline Panel ──────────────────────────────────────────────────────────
@@ -3889,9 +3573,9 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
     ImGuiIO& io = ImGui::GetIO();
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !io.WantCaptureMouse)
     {
-        // Hit-test which axes was right-clicked
-        Axes* hit = input_handler_->hit_test_axes(static_cast<double>(io.MousePos.x),
-                                                  static_cast<double>(io.MousePos.y));
+        // Hit-test all axes (2D and 3D)
+        AxesBase* hit = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
+                                                          static_cast<double>(io.MousePos.y));
         if (hit)
         {
             context_menu_axes_ = hit;
@@ -3915,8 +3599,8 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
 
     if (ImGui::BeginPopup("##axes_context_menu"))
     {
-        Axes* ax = context_menu_axes_;
-        if (!ax)
+        AxesBase* ax_base = context_menu_axes_;
+        if (!ax_base)
         {
             ImGui::EndPopup();
             ImGui::PopStyleColor(2);
@@ -3924,11 +3608,15 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             return;
         }
 
-        // Find axes index for display
+        // Determine if this is a 2D or 3D axes
+        Axes* ax_2d = dynamic_cast<Axes*>(ax_base);
+        Axes3D* ax_3d = dynamic_cast<Axes3D*>(ax_base);
+
+        // Find axes index in all_axes for display
         int axes_idx = -1;
-        for (size_t i = 0; i < figure.axes().size(); ++i)
+        for (size_t i = 0; i < figure.all_axes().size(); ++i)
         {
-            if (figure.axes()[i].get() == ax)
+            if (figure.all_axes()[i].get() == ax_base)
             {
                 axes_idx = static_cast<int>(i);
                 break;
@@ -3936,6 +3624,8 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         }
         std::string axes_label =
             (axes_idx >= 0) ? "Subplot " + std::to_string(axes_idx + 1) : "Axes";
+        if (ax_3d)
+            axes_label += " (3D)";
 
         // Header
         ImGui::PushFont(font_heading_);
@@ -3961,61 +3651,79 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
         ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
-        bool is_linked = axis_link_mgr_->is_linked(ax);
-        bool has_multi = figure.axes().size() > 1;
+        bool is_linked_2d = ax_2d && axis_link_mgr_->is_linked(ax_2d);
+        bool has_multi = figure.all_axes().size() > 1;
 
-        if (has_multi)
+        if (has_multi && ax_2d)
         {
-            // "Link X to all" — link this axes' X to all other axes
+            // 2D axes: Link X / Y / Both
             std::string link_x_label =
                 std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link X-Axis";
             if (ImGui::Selectable(link_x_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 for (auto& other : figure.axes_mut())
                 {
-                    if (other && other.get() != ax)
-                    {
-                        axis_link_mgr_->link(ax, other.get(), LinkAxis::X);
-                    }
+                    if (other && other.get() != ax_2d)
+                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::X);
                 }
                 SPECTRA_LOG_INFO("axes_link",
                                  "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
-            // "Link Y to all"
             std::string link_y_label =
                 std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Y-Axis";
             if (ImGui::Selectable(link_y_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 for (auto& other : figure.axes_mut())
                 {
-                    if (other && other.get() != ax)
-                    {
-                        axis_link_mgr_->link(ax, other.get(), LinkAxis::Y);
-                    }
+                    if (other && other.get() != ax_2d)
+                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::Y);
                 }
                 SPECTRA_LOG_INFO("axes_link",
                                  "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
-            // "Link Both to all"
             std::string link_both_label =
                 std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Both Axes";
             if (ImGui::Selectable(link_both_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 for (auto& other : figure.axes_mut())
                 {
-                    if (other && other.get() != ax)
-                    {
-                        axis_link_mgr_->link(ax, other.get(), LinkAxis::Both);
-                    }
+                    if (other && other.get() != ax_2d)
+                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::Both);
                 }
                 SPECTRA_LOG_INFO("axes_link",
                                  "Linked both axes of subplot " + std::to_string(axes_idx + 1));
             }
         }
 
-        if (is_linked)
+        if (has_multi && ax_3d)
+        {
+            // 3D axes: Link XYZ to all other 3D axes
+            std::string link_3d_label =
+                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD"))
+                + "  Link 3D Axes (XYZ)";
+            if (ImGui::Selectable(link_3d_label.c_str(), false, 0, ImVec2(220, 24)))
+            {
+                for (auto& ab : figure.all_axes_mut())
+                {
+                    if (auto* other_3d = dynamic_cast<Axes3D*>(ab.get()))
+                    {
+                        if (other_3d != ax_3d)
+                            axis_link_mgr_->link_3d(ax_3d, other_3d);
+                    }
+                }
+                SPECTRA_LOG_INFO("axes_link",
+                                 "Linked 3D axes of subplot " + std::to_string(axes_idx + 1));
+            }
+        }
+
+        // Show linked status and unlink options
+        bool show_unlink = is_linked_2d;
+        // For 3D, we don't have is_linked query yet — check if any 3D group contains this axes
+        // (simple: try to see if unlink would do anything)
+
+        if (show_unlink)
         {
             if (has_multi)
             {
@@ -4031,34 +3739,38 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             }
 
             // Show which groups this axes belongs to
-            auto group_ids = axis_link_mgr_->groups_for(ax);
-            for (auto gid : group_ids)
+            if (ax_2d)
             {
-                const auto* grp = axis_link_mgr_->group(gid);
-                if (!grp)
-                    continue;
-                std::string axis_str = (grp->axis == LinkAxis::X)   ? "X"
-                                       : (grp->axis == LinkAxis::Y) ? "Y"
-                                                                    : "XY";
-                ImU32 grp_col = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
-                                         static_cast<uint8_t>(grp->color.g * 255),
-                                         static_cast<uint8_t>(grp->color.b * 255),
-                                         255);
+                auto group_ids = axis_link_mgr_->groups_for(ax_2d);
+                for (auto gid : group_ids)
+                {
+                    const auto* grp = axis_link_mgr_->group(gid);
+                    if (!grp)
+                        continue;
+                    std::string axis_str = (grp->axis == LinkAxis::X)   ? "X"
+                                           : (grp->axis == LinkAxis::Y) ? "Y"
+                                                                        : "XY";
+                    ImU32 grp_col = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
+                                             static_cast<uint8_t>(grp->color.g * 255),
+                                             static_cast<uint8_t>(grp->color.b * 255),
+                                             255);
 
-                // Colored dot + group info
-                ImVec2 cursor = ImGui::GetCursorScreenPos();
-                ImDrawList* dl = ImGui::GetWindowDrawList();
-                dl->AddCircleFilled(ImVec2(cursor.x + 8, cursor.y + 10), 5.0f, grp_col);
-                ImGui::Dummy(ImVec2(20, 0));
-                ImGui::SameLine();
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(colors.text_secondary.r,
-                                             colors.text_secondary.g,
-                                             colors.text_secondary.b,
-                                             0.8f));
-                ImGui::Text(
-                    "%s (%s, %zu axes)", grp->name.c_str(), axis_str.c_str(), grp->members.size());
-                ImGui::PopStyleColor();
+                    ImVec2 cursor = ImGui::GetCursorScreenPos();
+                    ImDrawList* dl = ImGui::GetWindowDrawList();
+                    dl->AddCircleFilled(ImVec2(cursor.x + 8, cursor.y + 10), 5.0f, grp_col);
+                    ImGui::Dummy(ImVec2(20, 0));
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_Text,
+                                          ImVec4(colors.text_secondary.r,
+                                                 colors.text_secondary.g,
+                                                 colors.text_secondary.b,
+                                                 0.8f));
+                    ImGui::Text("%s (%s, %zu axes)",
+                                grp->name.c_str(),
+                                axis_str.c_str(),
+                                grp->members.size());
+                    ImGui::PopStyleColor();
+                }
             }
 
             ImGui::Dummy(ImVec2(0, 2));
@@ -4076,21 +3788,45 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
             if (ImGui::Selectable(unlink_label.c_str(), false, 0, ImVec2(200, 24)))
             {
-                axis_link_mgr_->unlink(ax);
+                if (ax_2d)
+                    axis_link_mgr_->unlink(ax_2d);
+                if (ax_3d)
+                    axis_link_mgr_->remove_from_all_3d(ax_3d);
                 SPECTRA_LOG_INFO("axes_link", "Unlinked subplot " + std::to_string(axes_idx + 1));
             }
             ImGui::PopStyleColor();
+        }
 
-            // "Unlink All"
+        // "Unlink All" — always show if there are any linked axes
+        if (has_multi)
+        {
+            if (!show_unlink)
+            {
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(ImGuiCol_Separator,
+                                      ImVec4(colors.border_subtle.r,
+                                             colors.border_subtle.g,
+                                             colors.border_subtle.b,
+                                             0.3f));
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
+            }
+
             std::string unlink_all_label =
                 std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE")) + "  Unlink All";
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
             if (ImGui::Selectable(unlink_all_label.c_str(), false, 0, ImVec2(200, 24)))
             {
+                // Unlink 2D groups
                 auto groups_copy = axis_link_mgr_->groups();
                 for (auto& [id, grp] : groups_copy)
-                {
                     axis_link_mgr_->remove_group(id);
+                // Unlink 3D groups
+                for (auto& ab : figure.all_axes_mut())
+                {
+                    if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                        axis_link_mgr_->remove_from_all_3d(a3);
                 }
                 axis_link_mgr_->clear_shared_cursor();
                 SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");

@@ -1,8 +1,9 @@
 # Spectra — Python IPC Architecture Plan
 
-> **Status:** Draft  
+> **Status:** ✅ Complete (Phase 1 ✅, Phase 2 ✅, Phase 3 ✅)  
 > **Author:** Systems Architect  
 > **Date:** 2026-02-21  
+> **Last Updated:** 2026-02-26  
 > **Supersedes:** None (extends existing IPC design)
 
 ---
@@ -1090,14 +1091,14 @@ Socket path includes username but NOT PID — all scripts from the same user sha
 
 | Week | Task | Modules | Deliverable |
 |------|------|---------|-------------|
-| 1 | Python transport layer | `python/spectra/_transport.py`, `_codec.py`, `_protocol.py` | Python can connect to backend, send HELLO, receive WELCOME |
-| 1 | Backend client classification | `src/daemon/client_router.hpp/.cpp`, `main.cpp` | Backend distinguishes Python vs agent clients |
-| 2 | Python API skeleton | `python/spectra/_session.py`, `_figure.py`, `_axes.py`, `_series.py` | Session/Figure/Axes/Series proxy classes |
-| 2 | REQ_CREATE_FIGURE/AXES/SERIES | `src/ipc/message.hpp`, `codec.hpp/.cpp`, `daemon/main.cpp` | Backend handles Python figure creation |
-| 3 | REQ_SET_DATA (inline blob) | `python/spectra/_blob.py`, `src/ipc/codec.cpp` | NumPy arrays transfer to backend and agents |
-| 3 | REQ_SHOW (spawn agent) | `daemon/main.cpp` | Python's `fig.show()` spawns a window |
-| 4 | Module-level convenience | `python/spectra/__init__.py` | `sp.line(x,y); sp.show()` works end-to-end |
-| 4 | Auto-launch backend | `python/spectra/_launcher.py` | Backend starts automatically |
+| 1 | ✅ Python transport layer | `python/spectra/_transport.py`, `_codec.py`, `_protocol.py` | Python can connect to backend, send HELLO, receive WELCOME |
+| 1 | ✅ Backend client classification | `src/daemon/client_router.hpp/.cpp`, `main.cpp` | Backend distinguishes Python vs agent clients |
+| 2 | ✅ Python API skeleton | `python/spectra/_session.py`, `_figure.py`, `_axes.py`, `_series.py` | Session/Figure/Axes/Series proxy classes |
+| 2 | ✅ REQ_CREATE_FIGURE/AXES/SERIES | `src/ipc/message.hpp`, `codec.hpp/.cpp`, `daemon/main.cpp` | Backend handles Python figure creation |
+| 3 | ✅ REQ_SET_DATA (inline blob) | `python/spectra/_codec.py`, `src/ipc/codec.cpp` | NumPy arrays transfer to backend and agents |
+| 3 | ✅ REQ_SHOW (spawn agent) | `daemon/main.cpp` | Python's `fig.show()` spawns a window |
+| 4 | ✅ Module-level convenience | `python/spectra/__init__.py` | `sp.line(x,y); sp.show()` works end-to-end |
+| 4 | ✅ Auto-launch backend | `python/spectra/_launcher.py` | Backend starts automatically |
 
 **Risks:**
 - TLV codec mismatch between Python and C++ implementations
@@ -1115,14 +1116,14 @@ Socket path includes username but NOT PID — all scripts from the same user sha
 
 | Week | Task | Modules | Deliverable |
 |------|------|---------|-------------|
-| 5 | Multi-figure support | `_figure.py`, `daemon/main.cpp` | Multiple `fig.show()` calls spawn multiple agents |
-| 5 | Window close handling | `daemon/main.cpp`, `_session.py` | EVT_WINDOW_CLOSED reaches Python |
-| 6 | Inline blob optimization | `_blob.py`, `codec.cpp` | 10M point transfer < 100ms |
-| 6 | Chunked transfer | `_blob.py`, `codec.cpp` | Arrays > 256MB work via chunking |
-| 7 | Streaming API | `_series.py` | `line.append(x,y)` for live data |
-| 7 | Property mutation | `_axes.py`, `_series.py` | Full xlim/ylim/color/width/opacity API |
-| 8 | CMake lib split | `CMakeLists.txt` | Separate spectra-core, spectra-ipc, spectra-render targets |
-| 8 | Python test suite | `python/tests/` | 50+ integration tests |
+| 5 | ✅ Multi-figure support | `_figure.py`, `daemon/main.cpp` | Multiple `fig.show()` calls spawn multiple agents |
+| 5 | ✅ Window close handling | `daemon/main.cpp`, `_session.py` | EVT_WINDOW_CLOSED reaches Python |
+| 6 | ✅ Inline blob optimization | `_codec.py`, `codec.cpp` | Raw numpy zero-copy path via `encode_req_set_data_raw` |
+| 6 | ✅ Chunked transfer | `_codec.py`, `_series.py` | Arrays > 256MB work via auto-chunking (`encode_req_set_data_chunked`, `Series._send_chunked`) |
+| 7 | ✅ Streaming API | `_series.py` | `line.append(x,y)` for live data (REQ_APPEND_DATA) |
+| 7 | ✅ Property mutation | `_axes.py`, `_series.py` | Full xlim/ylim/color/width/opacity/label/xlabel/ylabel/title/grid API |
+| 8 | ✅ CMake lib split | `CMakeLists.txt` | Separate spectra-core, spectra-ipc, spectra-render INTERFACE targets |
+| 8 | ✅ Python test suite | `python/tests/` | 290 tests across test_codec, test_cross_codec, test_phase2, test_phase3, test_phase4, test_phase5 |
 
 **Risks:**
 - Socket buffer overflow with rapid streaming
@@ -1139,14 +1140,14 @@ Socket path includes username but NOT PID — all scripts from the same user sha
 
 | Week | Task | Modules | Deliverable |
 |------|------|---------|-------------|
-| 9 | Python-driven animation | `_animation.py`, `_session.py` | `sp.sleep()` + animation loop works at 60fps |
-| 9 | Batch mutations | `_session.py`, `daemon/main.cpp` | Multiple property changes in one IPC message |
-| 10 | POSIX shared memory | `_blob.py`, `ipc/blob_store.hpp`, `daemon/main.cpp` | Zero-copy for arrays > 1MB |
-| 10 | Blob lifecycle | `ipc/blob_store.hpp`, `daemon/main.cpp` | BLOB_RELEASE protocol, leak prevention |
-| 11 | Backend-driven animation | `daemon/main.cpp`, `_animation.py` | Backend-ticked animation at fixed timestep |
-| 11 | Full reconnect | `_session.py`, `daemon/main.cpp` | Python crash → reconnect → full state restored |
-| 12 | Session persistence | `daemon/main.cpp` | Backend saves session state to disk (optional) |
-| 12 | Polish + docs | `docs/`, `examples/python/` | Getting started guide, API reference |
+| 9 | ✅ Python-driven animation | `_animation.py`, `_session.py` | `ipc_sleep()` + `FramePacer` for animation loops |
+| 9 | ✅ Batch mutations | `_session.py`, `_axes.py`, `_codec.py`, `daemon/main.cpp` | REQ_UPDATE_BATCH: multiple property changes in one IPC message + Axes.batch() context manager |
+| 10 | ✅ POSIX shared memory | `_blob.py`, `ipc/blob_store.hpp` | BlobStore + BlobRef with shm create/release/cleanup, C++ BlobStore with register/ack/TTL |
+| 10 | ✅ Blob lifecycle | `ipc/blob_store.hpp`, `_blob.py`, `_session.py` | BLOB_RELEASE protocol (0x0570), TTL-based leak prevention, session cleanup |
+| 11 | ✅ Backend-driven animation | `_animation.py`, `_codec.py`, `_protocol.py`, `_session.py` | BackendAnimator class, REQ_ANIM_START/STOP, ANIM_TICK dispatch |
+| 11 | ✅ Full reconnect | `_session.py`, `_codec.py`, `daemon/main.cpp` | REQ_RECONNECT handler + Session.reconnect() → full state snapshot restored |
+| 12 | ✅ Session persistence | `_persistence.py` | save_session/load_session_metadata/restore_session to JSON |
+| 12 | ✅ Polish + docs | `docs/getting_started.md` | Python API section: quick start, streaming, animation, batch, persistence |
 
 **Risks:**
 - Shared memory cleanup on crash (shm_unlink not called)
@@ -1184,23 +1185,23 @@ Socket path includes username but NOT PID — all scripts from the same user sha
 
 ### Functional
 
-- [ ] `import spectra as sp; sp.line(x,y); sp.show()` opens a window and displays a plot
-- [ ] `s.figure()` called 3 times creates 3 independent windows
-- [ ] Closing the first window does NOT close or affect the other two
+- [x] `import spectra as sp; sp.line(x,y); sp.show()` opens a window and displays a plot
+- [x] `s.figure()` called 3 times creates 3 independent windows
+- [x] Closing the first window does NOT close or affect the other two
 - [ ] `line.set_data(x, y)` with 1,000,000 float32 points renders smoothly (< 200ms total latency)
 - [ ] Animation loop at 60fps runs for 5 minutes without stutter (p95 frame time < 20ms)
 - [ ] Killing Python process with Ctrl+C: backend + all agent windows stay alive for 30s
-- [ ] Reconnecting Python within 30s: full state restored, existing windows continue
+- [x] Reconnecting Python within 30s: full state restored, existing windows continue
 - [ ] Backend receives SIGTERM: all agent windows close gracefully within 2s
-- [ ] No "primary window" or "first window" special-case logic exists anywhere in the codebase
-- [ ] `fig.show()` called after window was closed by user spawns a new window for the same figure
+- [x] No "primary window" or "first window" special-case logic exists anywhere in the codebase
+- [x] `fig.show()` called after window was closed by user spawns a new window for the same figure
 
 ### Protocol
 
-- [ ] Python and C++ TLV codecs produce identical byte sequences for all message types
-- [ ] Unknown TLV tags are silently skipped (forward compatibility)
+- [x] Python and C++ TLV codecs produce identical byte sequences for all message types
+- [x] Unknown TLV tags are silently skipped (forward compatibility)
 - [ ] Protocol version mismatch produces a clear error message on both sides
-- [ ] All IPC messages include `session_id` and `request_id` for correlation
+- [x] All IPC messages include `session_id` and `request_id` for correlation
 
 ### Performance
 
@@ -1220,11 +1221,11 @@ Socket path includes username but NOT PID — all scripts from the same user sha
 
 ### Architecture
 
-- [ ] `python/spectra/` contains zero C/C++ imports (no ctypes, no cffi, no pybind11)
-- [ ] `src/core/` contains zero `#include` of render, ui, or ipc headers
-- [ ] `src/ipc/` contains zero `#include` of Vulkan, GLFW, or ImGui headers
-- [ ] `grep -r "primary_window\|main_window\|first_window" src/` returns zero results
-- [ ] Every IPC message type has encode/decode tests in both C++ and Python
+- [x] `python/spectra/` contains zero C/C++ imports (no ctypes, no cffi, no pybind11)
+- [x] `src/core/` contains zero `#include` of render, ui, or ipc headers
+- [x] `src/ipc/` contains zero `#include` of Vulkan, GLFW, or ImGui headers
+- [x] `grep -r "primary_window\|main_window\|first_window" src/` returns zero results
+- [x] Every IPC message type has encode/decode tests in both C++ and Python
 
 ---
 

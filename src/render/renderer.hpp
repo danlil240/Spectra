@@ -4,6 +4,7 @@
 #include <spectra/series.hpp>
 
 #include "backend.hpp"
+#include "text_renderer.hpp"
 
 // Forward declarations
 namespace spectra
@@ -55,6 +56,23 @@ class Renderer
 
     Backend& backend() { return backend_; }
 
+    // Text renderer for Vulkan-based plot text
+    TextRenderer& text_renderer() { return text_renderer_; }
+    const TextRenderer& text_renderer() const { return text_renderer_; }
+
+    // Queue all plot text (tick labels, axis labels, titles) for a figure.
+    // Uses Vulkan TextRenderer — no ImGui dependency.
+    // Must be called after render_figure_content() and before render_text().
+    void render_plot_text(Figure& figure);
+
+    // Render screen-space plot geometry (2D tick marks, 3D arrow lines + arrowheads).
+    // Uses Vulkan grid/overlay pipelines with a screen-space ortho projection.
+    // Must be called after render_figure_content() and before render_text().
+    void render_plot_geometry(Figure& figure);
+
+    // Render queued text (call after render_figure_content, before end_render_pass)
+    void render_text(float screen_width, float screen_height);
+
    private:
     void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
     void render_grid(AxesBase& axes, const Rect& viewport);
@@ -78,10 +96,12 @@ class Renderer
                             uint32_t fig_width,
                             uint32_t fig_height);
     Backend& backend_;
+    TextRenderer text_renderer_;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
+    PipelineHandle overlay_pipeline_;  // Triangle-list topology for filled shapes (arrowheads)
 
     // 3D pipelines
     PipelineHandle line3d_pipeline_;
@@ -171,6 +191,14 @@ class Renderer
     std::vector<float> grid_scratch_;
     std::vector<float> bbox_scratch_;
     std::vector<float> tick_scratch_;
+
+    // Screen-space overlay geometry buffers (tick marks, arrow lines, arrowheads)
+    BufferHandle overlay_line_buffer_;   // Line-list vertices (tick marks + arrow shafts)
+    size_t overlay_line_capacity_ = 0;
+    BufferHandle overlay_tri_buffer_;    // Triangle-list vertices (arrowheads)
+    size_t overlay_tri_capacity_ = 0;
+    std::vector<float> overlay_line_scratch_;
+    std::vector<float> overlay_tri_scratch_;
 
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).

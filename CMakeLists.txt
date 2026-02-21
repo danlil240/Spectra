@@ -37,6 +37,7 @@ file(GLOB_RECURSE SPECTRA_IPC_SOURCES   src/ipc/*.cpp)
 file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/session_graph.cpp
     src/daemon/process_manager.cpp
+    src/daemon/figure_model.cpp
 )
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
@@ -194,6 +195,22 @@ if(SPECTRA_USE_EIGEN)
     target_link_libraries(spectra PUBLIC Eigen3::Eigen)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
 endif()
+
+# ─── Logical library split (spectra-core, spectra-ipc, spectra-render) ────────
+# These are INTERFACE targets that expose subsets of the monolithic spectra lib.
+# Downstream consumers can depend on spectra-core (no rendering), spectra-ipc
+# (protocol + transport only), or spectra-render (full rendering stack).
+
+add_library(spectra-core INTERFACE)
+target_link_libraries(spectra-core INTERFACE spectra)
+target_compile_definitions(spectra-core INTERFACE SPECTRA_CORE_ONLY)
+
+add_library(spectra-ipc INTERFACE)
+target_link_libraries(spectra-ipc INTERFACE spectra)
+target_compile_definitions(spectra-ipc INTERFACE SPECTRA_IPC_ONLY)
+
+add_library(spectra-render INTERFACE)
+target_link_libraries(spectra-render INTERFACE spectra)
 
 # Multi-process daemon + agent binaries (Phase 4 & 5)
 if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")

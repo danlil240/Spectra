@@ -38,7 +38,7 @@ bool FigureModel::remove_figure(uint64_t figure_id)
 // --- Axes management ---
 
 uint32_t FigureModel::add_axes(
-    uint64_t figure_id, float x_min, float x_max, float y_min, float y_max)
+    uint64_t figure_id, float x_min, float x_max, float y_min, float y_max, bool is_3d)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -49,6 +49,7 @@ uint32_t FigureModel::add_axes(
     ax.x_max = x_max;
     ax.y_min = y_min;
     ax.y_max = y_max;
+    ax.is_3d = is_3d;
     it->second.axes.push_back(std::move(ax));
     bump_revision();
     return static_cast<uint32_t>(it->second.axes.size() - 1);
@@ -80,6 +81,28 @@ ipc::DiffOp FigureModel::set_axis_limits(
     return op;
 }
 
+ipc::DiffOp FigureModel::set_axis_zlimits(
+    uint64_t figure_id, uint32_t axes_index, float z_min, float z_max)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+    {
+        auto& ax = it->second.axes[axes_index];
+        ax.z_min = z_min;
+        ax.z_max = z_max;
+    }
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_AXIS_ZLIMITS;
+    op.figure_id = figure_id;
+    op.axes_index = axes_index;
+    op.f1 = z_min;
+    op.f2 = z_max;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible)
 {
     std::lock_guard lock(mu_);
@@ -96,7 +119,71 @@ ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_inde
     return op;
 }
 
+ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+        it->second.axes[axes_index].x_label = label;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_AXIS_XLABEL;
+    op.figure_id = figure_id;
+    op.axes_index = axes_index;
+    op.str_val = label;
+    return op;
+}
+
+ipc::DiffOp FigureModel::set_axis_ylabel(uint64_t figure_id, uint32_t axes_index, const std::string& label)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+        it->second.axes[axes_index].y_label = label;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_AXIS_YLABEL;
+    op.figure_id = figure_id;
+    op.axes_index = axes_index;
+    op.str_val = label;
+    return op;
+}
+
+ipc::DiffOp FigureModel::set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+        it->second.axes[axes_index].title = title;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_AXIS_TITLE;
+    op.figure_id = figure_id;
+    op.axes_index = axes_index;
+    op.str_val = title;
+    return op;
+}
+
 // --- Series management ---
+
+ipc::DiffOp FigureModel::set_series_label(uint64_t figure_id, uint32_t series_index, const std::string& label)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+        it->second.series[series_index].name = label;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_SERIES_LABEL;
+    op.figure_id = figure_id;
+    op.series_index = series_index;
+    op.str_val = label;
+    return op;
+}
 
 uint32_t FigureModel::add_series(uint64_t figure_id,
                                  const std::string& name,
@@ -112,6 +199,35 @@ uint32_t FigureModel::add_series(uint64_t figure_id,
     it->second.series.push_back(std::move(s));
     bump_revision();
     return static_cast<uint32_t>(it->second.series.size() - 1);
+}
+
+ipc::DiffOp FigureModel::add_series_with_diff(uint64_t figure_id,
+                                              const std::string& name,
+                                              const std::string& type,
+                                              uint32_t axes_index,
+                                              uint32_t& out_index)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it == figures_.end())
+    {
+        out_index = 0;
+        return {};
+    }
+    ipc::SnapshotSeriesState s;
+    s.name = name;
+    s.type = type;
+    it->second.series.push_back(std::move(s));
+    out_index = static_cast<uint32_t>(it->second.series.size() - 1);
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::ADD_SERIES;
+    op.figure_id = figure_id;
+    op.axes_index = axes_index;
+    op.series_index = out_index;
+    op.str_val = type;
+    return op;
 }
 
 ipc::DiffOp FigureModel::set_series_color(
@@ -204,6 +320,23 @@ ipc::DiffOp FigureModel::set_opacity(uint64_t figure_id, uint32_t series_index, 
     return op;
 }
 
+ipc::DiffOp FigureModel::remove_series(uint64_t figure_id, uint32_t series_index)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        it->second.series.erase(it->second.series.begin() + series_index);
+    }
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::REMOVE_SERIES;
+    op.figure_id = figure_id;
+    op.series_index = series_index;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_series_data(uint64_t figure_id,
                                          uint32_t series_index,
                                          const std::vector<float>& data)
@@ -222,6 +355,31 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t figure_id,
     op.figure_id = figure_id;
     op.series_index = series_index;
     op.data = data;
+    return op;
+}
+
+ipc::DiffOp FigureModel::append_series_data(uint64_t figure_id,
+                                            uint32_t series_index,
+                                            const std::vector<float>& data)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        auto& sd = it->second.series[series_index].data;
+        sd.insert(sd.end(), data.begin(), data.end());
+        it->second.series[series_index].point_count = static_cast<uint32_t>(sd.size() / 2);
+    }
+    bump_revision();
+
+    // For the diff, we send the full updated data so agents get the complete state.
+    // This is simpler than a partial append diff op and avoids ordering issues.
+    ipc::DiffOp op;
+    op.type = ipc::DiffOp::Type::SET_SERIES_DATA;
+    op.figure_id = figure_id;
+    op.series_index = series_index;
+    if (it != figures_.end() && series_index < it->second.series.size())
+        op.data = it->second.series[series_index].data;
     return op;
 }
 
@@ -402,6 +560,30 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
                 static_cast<uint32_t>(op.data.size() / 2);
             break;
 
+        case ipc::DiffOp::Type::SET_AXIS_XLABEL:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            it->second.axes[op.axes_index].x_label = op.str_val;
+            break;
+
+        case ipc::DiffOp::Type::SET_AXIS_YLABEL:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            it->second.axes[op.axes_index].y_label = op.str_val;
+            break;
+
+        case ipc::DiffOp::Type::SET_AXIS_TITLE:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            it->second.axes[op.axes_index].title = op.str_val;
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_LABEL:
+            if (it == figures_.end() || op.series_index >= it->second.series.size())
+                return false;
+            it->second.series[op.series_index].name = op.str_val;
+            break;
+
         case ipc::DiffOp::Type::ADD_FIGURE:
         case ipc::DiffOp::Type::REMOVE_FIGURE:
             // These are handled via create_figure/remove_figure directly
@@ -439,6 +621,21 @@ bool FigureModel::has_figure(uint64_t figure_id) const
 {
     std::lock_guard lock(mu_);
     return figures_.count(figure_id) > 0;
+}
+
+bool FigureModel::get_axis_limits(uint64_t figure_id, uint32_t axes_index,
+                                  float& x_min, float& x_max, float& y_min, float& y_max) const
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    const auto& ax = it->second.axes[axes_index];
+    x_min = ax.x_min;
+    x_max = ax.x_max;
+    y_min = ax.y_min;
+    y_max = ax.y_max;
+    return true;
 }
 
 }  // namespace spectra::daemon

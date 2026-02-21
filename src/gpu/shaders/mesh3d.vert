@@ -44,8 +44,10 @@ void main() {
     vec4 world_pos = model * vec4(pos, 1.0);
     v_world_pos = world_pos.xyz;
 
-    // Transform normal by model matrix (assuming uniform scale)
-    v_normal = normalize(mat3(model) * in_normal);
+    // Transform normal by the normal matrix (inverse-transpose of model).
+    // For non-uniform scale, mat3(model) distorts normals incorrectly.
+    mat3 normal_matrix = transpose(inverse(mat3(model)));
+    v_normal = normalize(normal_matrix * in_normal);
 
     // View direction from surface point to camera
     v_view_dir = normalize(camera_pos - world_pos.xyz);

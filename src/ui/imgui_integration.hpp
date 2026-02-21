@@ -146,6 +146,8 @@ class ImGuiIntegration
     void set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
     ModeTransition* mode_transition() const { return mode_transition_; }
 
+    // (Text renderer removed — plot text now rendered by Renderer::render_plot_text)
+
     // Knob manager (interactive parameter controls, owned externally by WindowUIContext)
     void set_knob_manager(KnobManager* km) { knob_manager_ = km; }
     KnobManager* knob_manager() const { return knob_manager_; }
@@ -204,13 +206,10 @@ class ImGuiIntegration
     void draw_axis_link_indicators(Figure& figure);
     void draw_timeline_panel();
     void draw_curve_editor_panel();
-    #if SPECTRA_FLOATING_TOOLBAR
-    void draw_floating_toolbar();
-    #endif
     void draw_theme_settings();
     void draw_knobs_panel();
 
-    void draw_plot_text(Figure& figure);
+    void draw_plot_overlays(Figure& figure);
     void draw_toolbar_button(const char* icon,
                              std::function<void()> callback,
                              const char* tooltip,
@@ -297,6 +296,8 @@ class ImGuiIntegration
     // Mode transition (not owned)
     ModeTransition* mode_transition_ = nullptr;
 
+    // (text_renderer_ removed — plot text now rendered by Renderer::render_plot_text)
+
     // Knob manager (not owned)
     KnobManager* knob_manager_ = nullptr;
 
@@ -334,7 +335,7 @@ class ImGuiIntegration
     Figure* current_figure_ = nullptr;
 
     // Axes context menu state (right-click on canvas)
-    Axes* context_menu_axes_ = nullptr;  // Which axes was right-clicked
+    AxesBase* context_menu_axes_ = nullptr;  // Which axes was right-clicked (2D or 3D)
     // bool context_menu_open_ = false;  // Currently unused
 
     // Per-pane tab drag state
@@ -435,11 +436,6 @@ class ImGuiIntegration
     {
         float x = 0, y = 0, w = 0, h = 0;
     } knobs_panel_rect_;
-
-    #if SPECTRA_FLOATING_TOOLBAR
-    // Floating toolbar drag state
-    bool toolbar_dragging_ = false;
-    #endif
 };
 
 }  // namespace spectra

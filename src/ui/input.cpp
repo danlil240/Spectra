@@ -190,9 +190,19 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         }
         if (button == MOUSE_BUTTON_RIGHT && action == ACTION_PRESS)
         {
-            is_3d_pan_drag_ = true;
-            drag_start_x_ = x;
-            drag_start_y_ = y;
+            rclick_zoom_dragging_ = true;
+            rclick_zoom_3d_ = true;
+            rclick_zoom_axis_ = ZoomAxis::None;
+            rclick_zoom_start_x_ = x;
+            rclick_zoom_start_y_ = y;
+            rclick_zoom_last_x_ = x;
+            rclick_zoom_last_y_ = y;
+            rclick_zoom_xlim_min_ = axes3d->x_limits().min;
+            rclick_zoom_xlim_max_ = axes3d->x_limits().max;
+            rclick_zoom_ylim_min_ = axes3d->y_limits().min;
+            rclick_zoom_ylim_max_ = axes3d->y_limits().max;
+            rclick_zoom_zlim_min_ = axes3d->z_limits().min;
+            rclick_zoom_zlim_max_ = axes3d->z_limits().max;
             mode_ = InteractionMode::Dragging;
             // Capture state for undo
             drag3d_axes_         = axes3d;
@@ -200,13 +210,73 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             drag3d_start_ylim_   = axes3d->y_limits();
             drag3d_start_zlim_   = axes3d->z_limits();
             drag3d_start_camera_ = axes3d->camera();
+            // Project each data axis direction to screen space so we can later
+            // pick the axis most aligned with the drag direction.
+            {
+                const auto& vp  = axes3d->viewport();
+                const auto& cam = axes3d->camera();
+                float aspect    = vp.w / std::max(vp.h, 1.0f);
+                mat4 proj       = cam.projection_matrix(aspect);
+                mat4 view       = cam.view_matrix();
+                mat4 model      = axes3d->data_to_normalized_matrix();
+                mat4 mvp        = mat4_mul(proj, mat4_mul(view, model));
+
+                // Project a normalized-cube point to viewport screen coords.
+                auto project = [&](vec3 p, float& sx, float& sy) -> bool
+                {
+                    float cx = mvp.m[0]*p.x + mvp.m[4]*p.y + mvp.m[8]*p.z  + mvp.m[12];
+                    float cy = mvp.m[1]*p.x + mvp.m[5]*p.y + mvp.m[9]*p.z  + mvp.m[13];
+                    float cw = mvp.m[3]*p.x + mvp.m[7]*p.y + mvp.m[11]*p.z + mvp.m[15];
+                    if (cw <= 0.001f) return false;
+                    sx = vp.x + (cx/cw + 1.0f) * 0.5f * vp.w;
+                    sy = vp.y + (cy/cw + 1.0f) * 0.5f * vp.h;
+                    return true;
+                };
+
+                // Origin of the normalized cube
+                vec3 origin{0.0f, 0.0f, 0.0f};
+                float ox, oy;
+                if (project(origin, ox, oy))
+                {
+                    // Unit steps along each normalized-cube axis
+                    const float step = 1.0f;
+                    vec3 axis_tips[3] = {{step,0,0},{0,step,0},{0,0,step}};
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        float tx, ty;
+                        if (project(axis_tips[i], tx, ty))
+                        {
+                            float ddx = tx - ox;
+                            float ddy = ty - oy;
+                            float len = std::sqrt(ddx*ddx + ddy*ddy);
+                            if (len > 1e-4f) { ddx /= len; ddy /= len; }
+                            rclick_zoom_axis_sx_[i] = ddx;
+                            rclick_zoom_axis_sy_[i] = ddy;
+                        }
+                        else
+                        {
+                            rclick_zoom_axis_sx_[i] = (i == 0) ? 1.0f : 0.0f;
+                            rclick_zoom_axis_sy_[i] = (i == 1) ? 1.0f : 0.0f;
+                        }
+                    }
+                }
+                else
+                {
+                    rclick_zoom_axis_sx_[0] = 1.0f; rclick_zoom_axis_sy_[0] = 0.0f;
+                    rclick_zoom_axis_sx_[1] = 0.0f; rclick_zoom_axis_sy_[1] = 1.0f;
+                    rclick_zoom_axis_sx_[2] = 0.0f; rclick_zoom_axis_sy_[2] = 0.0f;
+                }
+            }
             return;
         }
-        if (button == MOUSE_BUTTON_RIGHT && action == ACTION_RELEASE && is_3d_pan_drag_)
+        if (button == MOUSE_BUTTON_RIGHT && action == ACTION_RELEASE && rclick_zoom_dragging_
+            && rclick_zoom_3d_)
         {
-            is_3d_pan_drag_ = false;
+            rclick_zoom_dragging_ = false;
+            rclick_zoom_3d_ = false;
+            rclick_zoom_axis_ = ZoomAxis::None;
             mode_ = InteractionMode::Idle;
-            // Push undo for pan drag
+            // Push undo for 1D zoom
             if (undo_mgr_ && drag3d_axes_ == axes3d)
             {
                 auto before_xlim = drag3d_start_xlim_;
@@ -217,7 +287,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 auto after_zlim  = axes3d->z_limits();
                 Axes3D* ax       = axes3d;
                 undo_mgr_->push(UndoAction{
-                    "Pan 3D",
+                    "Zoom 1D 3D",
                     [ax, before_xlim, before_ylim, before_zlim]()
                     {
                         ax->xlim(before_xlim.min, before_xlim.max);
@@ -325,6 +395,40 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (action == ACTION_RELEASE && middle_pan_dragging_)
         {
             middle_pan_dragging_ = false;
+            return;
+        }
+    }
+
+    // Right-click 1D zoom: drag horizontally to zoom X, vertically to zoom Y
+    if (button == MOUSE_BUTTON_RIGHT)
+    {
+        if (action == ACTION_PRESS && !rclick_zoom_dragging_ && active_axes_)
+        {
+            // Cancel any running animations
+            if (transition_engine_)
+                transition_engine_->cancel_for_axes(active_axes_);
+            else if (anim_ctrl_)
+                anim_ctrl_->cancel_for_axes(active_axes_);
+
+            rclick_zoom_dragging_ = true;
+            rclick_zoom_3d_ = false;
+            rclick_zoom_axis_ = ZoomAxis::None;
+            rclick_zoom_start_x_ = x;
+            rclick_zoom_start_y_ = y;
+            rclick_zoom_last_x_ = x;
+            rclick_zoom_last_y_ = y;
+            auto xlim = active_axes_->x_limits();
+            auto ylim = active_axes_->y_limits();
+            rclick_zoom_xlim_min_ = xlim.min;
+            rclick_zoom_xlim_max_ = xlim.max;
+            rclick_zoom_ylim_min_ = ylim.min;
+            rclick_zoom_ylim_max_ = ylim.max;
+            return;
+        }
+        if (action == ACTION_RELEASE && rclick_zoom_dragging_ && !rclick_zoom_3d_)
+        {
+            rclick_zoom_dragging_ = false;
+            rclick_zoom_axis_ = ZoomAxis::None;
             return;
         }
     }
@@ -675,6 +779,112 @@ void InputHandler::on_mouse_move(double x, double y)
 
             drag_start_x_ = x;
             drag_start_y_ = y;
+        }
+        return;
+    }
+
+    // Handle right-click 1D zoom drag (both 2D and 3D)
+    if (rclick_zoom_dragging_)
+    {
+        double dx_total = x - rclick_zoom_start_x_;
+        double dy_total = y - rclick_zoom_start_y_;
+        double dx_delta = x - rclick_zoom_last_x_;
+        double dy_delta = y - rclick_zoom_last_y_;
+        rclick_zoom_last_x_ = x;
+        rclick_zoom_last_y_ = y;
+
+        // Lock axis direction once drag exceeds threshold
+        if (rclick_zoom_axis_ == ZoomAxis::None)
+        {
+            double abs_dx = std::abs(dx_total);
+            double abs_dy = std::abs(dy_total);
+            if (abs_dx >= RCLICK_AXIS_LOCK_THRESHOLD || abs_dy >= RCLICK_AXIS_LOCK_THRESHOLD)
+            {
+                if (rclick_zoom_3d_)
+                {
+                    // 3D: pick the axis whose screen-projected direction best aligns
+                    // with the drag direction (camera-aware, works at any view angle).
+                    float drag_len = static_cast<float>(std::sqrt(abs_dx*abs_dx + abs_dy*abs_dy));
+                    if (drag_len > 1e-4f)
+                    {
+                        float ndx = static_cast<float>(dx_total) / drag_len;
+                        float ndy = static_cast<float>(dy_total) / drag_len;
+                        float best_dot = -1.0f;
+                        int   best_i   = 0;
+                        for (int i = 0; i < 3; ++i)
+                        {
+                            // Use absolute dot product — axis direction or its opposite both zoom
+                            float d = std::abs(ndx * rclick_zoom_axis_sx_[i]
+                                             + ndy * rclick_zoom_axis_sy_[i]);
+                            if (d > best_dot) { best_dot = d; best_i = i; }
+                        }
+                        static constexpr ZoomAxis kMap[3] = {
+                            ZoomAxis::X, ZoomAxis::Y, ZoomAxis::Z };
+                        rclick_zoom_axis_ = kMap[best_i];
+                    }
+                }
+                else
+                {
+                    // 2D: horizontal = X, vertical = Y
+                    rclick_zoom_axis_ = (abs_dx > abs_dy) ? ZoomAxis::X : ZoomAxis::Y;
+                }
+            }
+        }
+
+        // Apply zoom once axis is locked
+        if (rclick_zoom_axis_ != ZoomAxis::None)
+        {
+            // Use the dominant delta component for zoom magnitude
+            // Drag right/up = zoom in (shrink range), drag left/down = zoom out (expand range)
+            float pixel_delta = 0.0f;
+            if (rclick_zoom_axis_ == ZoomAxis::X)
+                pixel_delta = static_cast<float>(dx_delta);
+            else if (rclick_zoom_axis_ == ZoomAxis::Y)
+                pixel_delta = static_cast<float>(-dy_delta);  // screen Y inverted
+            else if (rclick_zoom_axis_ == ZoomAxis::Z)
+                pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
+
+            float factor = 1.0f - pixel_delta * RCLICK_ZOOM_SENSITIVITY;
+            factor = std::clamp(factor, 0.9f, 1.1f);  // limit per-frame zoom step
+
+            if (rclick_zoom_3d_)
+            {
+                if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
+                {
+                    if (rclick_zoom_axis_ == ZoomAxis::X)
+                        axes3d->zoom_limits_x(factor);
+                    else if (rclick_zoom_axis_ == ZoomAxis::Y)
+                        axes3d->zoom_limits_y(factor);
+                    else if (rclick_zoom_axis_ == ZoomAxis::Z)
+                        axes3d->zoom_limits_z(factor);
+                    if (axis_link_mgr_)
+                        axis_link_mgr_->propagate_from_3d(axes3d);
+                }
+            }
+            else if (active_axes_)
+            {
+                if (rclick_zoom_axis_ == ZoomAxis::X)
+                {
+                    auto xlim = active_axes_->x_limits();
+                    float center = (xlim.min + xlim.max) * 0.5f;
+                    float half = (xlim.max - xlim.min) * 0.5f * factor;
+                    if (half < 1e-10f)
+                        half = 1e-10f;
+                    active_axes_->xlim(center - half, center + half);
+                }
+                else if (rclick_zoom_axis_ == ZoomAxis::Y)
+                {
+                    auto ylim = active_axes_->y_limits();
+                    float center = (ylim.min + ylim.max) * 0.5f;
+                    float half = (ylim.max - ylim.min) * 0.5f * factor;
+                    if (half < 1e-10f)
+                        half = 1e-10f;
+                    active_axes_->ylim(center - half, center + half);
+                }
+                if (axis_link_mgr_)
+                    axis_link_mgr_->propagate_limits(
+                        active_axes_, active_axes_->x_limits(), active_axes_->y_limits());
+            }
         }
         return;
     }

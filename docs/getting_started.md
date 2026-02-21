@@ -184,6 +184,109 @@ fig.show();  // Window can be resized by the user
 
 The plot will automatically scale to fill the resized window while maintaining aspect ratios and margins.
 
+## Python API
+
+Spectra provides a Python client that communicates with the C++ backend via IPC
+(Unix domain sockets). This lets you drive plots from Python scripts, Jupyter
+notebooks, or any Python application.
+
+### Installation
+
+```bash
+# From the project root (editable install)
+pip install -e python/
+```
+
+### Quick Start
+
+```python
+import spectra as sp
+
+# Create a figure with a line plot
+fig = sp.figure("My Plot")
+ax = fig.subplot(1, 1, 1)
+line = ax.line([0, 1, 2, 3], [0, 1, 4, 9], label="x²")
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_title("Quadratic")
+
+fig.show()
+sp.show()  # Block until window is closed
+```
+
+### Streaming Data
+
+```python
+import spectra as sp
+import math
+
+fig = sp.figure("Live Stream")
+ax = fig.subplot(1, 1, 1)
+line = ax.line([], [], label="sin(t)")
+fig.show()
+
+pacer = sp.FramePacer(fps=30)
+t = 0.0
+while fig.is_visible:
+    t += 0.033
+    x = [i * 0.1 for i in range(100)]
+    y = [math.sin(xi + t) for xi in x]
+    line.set_data(x, y)
+    pacer.pace(sp._default_session)
+```
+
+### Backend-Driven Animation
+
+```python
+import spectra as sp
+from spectra import BackendAnimator
+import math
+
+session = sp.Session()
+fig = session.figure("Animated")
+ax = fig.subplot(1, 1, 1)
+line = ax.line([], [])
+
+x = [i * 0.1 for i in range(100)]
+
+def on_tick(t, dt, frame_num):
+    y = [math.sin(xi + t) for xi in x]
+    line.set_data(x, y)
+
+animator = BackendAnimator(session, fig.id, fps=60)
+animator.on_tick = on_tick
+animator.start()
+fig.show()
+session.show()
+animator.stop()
+session.close()
+```
+
+### Batch Property Updates
+
+```python
+with ax.batch() as b:
+    b.set_xlim(0, 10)
+    b.set_ylim(-1, 1)
+    b.set_xlabel("Time (s)")
+    b.set_ylabel("Amplitude")
+    b.grid(True)
+```
+
+### Session Persistence
+
+```python
+from spectra._persistence import save_session, restore_session
+
+# Save current session
+save_session(session, "my_session.json")
+
+# Later: restore session structure (data must be re-populated)
+new_session = sp.Session()
+figure_ids = restore_session(new_session, "my_session.json")
+```
+
 ## Architecture Overview
 
 ```

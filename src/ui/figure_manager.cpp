@@ -9,12 +9,14 @@ namespace spectra
 
 FigureManager::FigureManager(FigureRegistry& registry) : registry_(registry)
 {
-    // Import any existing figures from the registry
+    // Import any existing figures from the registry.
+    // Use FigureId-based titles (stable across windows) rather than
+    // position-based titles (which change when figures move between windows).
     for (auto id : registry_.all_ids())
     {
         ordered_ids_.push_back(id);
         FigureState st;
-        st.custom_title = default_title(ordered_ids_.size() - 1);
+        st.custom_title = default_title(id);
         states_[id] = std::move(st);
     }
     if (!ordered_ids_.empty())
@@ -54,9 +56,9 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     auto id = registry_.register_figure(std::make_unique<Figure>(config));
     ordered_ids_.push_back(id);
 
-    // Add state for the new figure
+    // Add state for the new figure (use next available figure number)
     FigureState new_state;
-    new_state.custom_title = default_title(next_figure_number() - 1);
+    new_state.custom_title = default_title(next_figure_number());
     states_[id] = std::move(new_state);
 
     // Sync tab bar
@@ -310,22 +312,53 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     auto new_fig_ptr = std::make_unique<Figure>(cfg);
     auto& new_fig = *new_fig_ptr;
 
-    // Copy axis limits from source
+    // Deep-copy all axes with their series data
     for (size_t i = 0; i < src->axes().size(); ++i)
     {
-        if (src->axes()[i])
+        if (!src->axes()[i])
+            continue;
+
+        auto& src_ax = *src->axes()[i];
+        // Create matching subplot grid (subplot uses 1-based index)
+        auto& dst_ax = new_fig.subplot(src->grid_rows(), src->grid_cols(),
+                                        static_cast<int>(i + 1));
+
+        // Copy axis limits
+        dst_ax.xlim(src_ax.x_limits().min, src_ax.x_limits().max);
+        dst_ax.ylim(src_ax.y_limits().min, src_ax.y_limits().max);
+        if (!src_ax.get_title().empty())
+            dst_ax.title(src_ax.get_title());
+        if (!src_ax.get_xlabel().empty())
+            dst_ax.xlabel(src_ax.get_xlabel());
+        if (!src_ax.get_ylabel().empty())
+            dst_ax.ylabel(src_ax.get_ylabel());
+        dst_ax.grid(src_ax.grid_enabled());
+        dst_ax.show_border(src_ax.border_enabled());
+        dst_ax.autoscale_mode(src_ax.get_autoscale_mode());
+        dst_ax.axis_style() = src_ax.axis_style();
+
+        // Deep-copy all series with their data
+        for (const auto& s : src_ax.series())
         {
-            auto& src_ax = *src->axes()[i];
-            // Create matching subplot grid
-            new_fig.subplot(src->grid_rows(), src->grid_cols(), static_cast<int>(i));
-            if (i < new_fig.axes().size() && new_fig.axes()[i])
+            if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             {
-                new_fig.axes_mut()[i]->xlim(src_ax.x_limits().min, src_ax.x_limits().max);
-                new_fig.axes_mut()[i]->ylim(src_ax.y_limits().min, src_ax.y_limits().max);
-                if (!src_ax.get_title().empty())
-                {
-                    new_fig.axes_mut()[i]->title(src_ax.get_title());
-                }
+                auto& dup = dst_ax.line(ls->x_data(), ls->y_data());
+                dup.color(ls->color());
+                dup.width(ls->width());
+                if (!ls->label().empty())
+                    dup.label(ls->label());
+                dup.visible(ls->visible());
+                dup.plot_style(ls->plot_style());
+            }
+            else if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
+            {
+                auto& dup = dst_ax.scatter(ss->x_data(), ss->y_data());
+                dup.color(ss->color());
+                dup.size(ss->size());
+                if (!ss->label().empty())
+                    dup.label(ss->label());
+                dup.visible(ss->visible());
+                dup.plot_style(ss->plot_style());
             }
         }
     }
@@ -337,10 +370,9 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     auto new_id = registry_.register_figure(std::move(new_fig_ptr));
     ordered_ids_.push_back(new_id);
 
-    // Create state
+    // Create state with next available figure number
     FigureState new_state;
-    std::string src_title = get_title(index);
-    new_state.custom_title = src_title + " (Copy)";
+    new_state.custom_title = default_title(next_figure_number());
     states_[new_id] = std::move(new_state);
 
     // Sync tab bar
@@ -468,17 +500,12 @@ FigureState& FigureManager::active_state()
 std::string FigureManager::get_title(FigureId index) const
 {
     auto it = states_.find(index);
-    if (it == states_.end())
-    {
-        size_t pos = id_to_pos(index);
-        return default_title(pos != SIZE_MAX ? pos : index);
-    }
-    if (!it->second.custom_title.empty())
+    if (it != states_.end() && !it->second.custom_title.empty())
     {
         return it->second.custom_title;
     }
-    size_t pos = id_to_pos(index);
-    return default_title(pos != SIZE_MAX ? pos : index);
+    // Fallback: use FigureId-based title (stable across windows)
+    return default_title(index);
 }
 
 void FigureManager::set_title(FigureId index, const std::string& title)
@@ -624,7 +651,7 @@ void FigureManager::restore_state(FigureId index)
 
 std::string FigureManager::default_title(FigureId index)
 {
-    return "Figure " + std::to_string(index + 1);
+    return "Figure " + std::to_string(index);
 }
 
 void FigureManager::sync_tab_bar()
@@ -655,7 +682,7 @@ void FigureManager::ensure_states()
         if (states_.find(id) == states_.end())
         {
             FigureState st;
-            st.custom_title = default_title(id_to_pos(id));
+            st.custom_title = default_title(id);
             states_[id] = std::move(st);
         }
     }

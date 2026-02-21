@@ -233,13 +233,14 @@ TEST_F(FigureManagerTest, DuplicateOutOfBounds)
     EXPECT_EQ(mgr.count(), 1u);
 }
 
-TEST_F(FigureManagerTest, DuplicateTitleHasCopySuffix)
+TEST_F(FigureManagerTest, DuplicateTitleUsesNextAvailableName)
 {
     FigureManager mgr(registry_);
     mgr.set_title(first_id_, "My Plot");
     FigureId dup_id = mgr.duplicate_figure(first_id_);
     std::string dup_title = mgr.get_title(dup_id);
-    EXPECT_EQ(dup_title, "My Plot (Copy)");
+    // Duplicate gets next available "Figure N" name, not a copy suffix
+    EXPECT_EQ(dup_title, "Figure 2");
 }
 
 // ─── Switch ───────────────────────────────────────────────────────────────────
@@ -338,8 +339,9 @@ TEST_F(FigureManagerTest, MoveTabSameIndex)
 
 TEST_F(FigureManagerTest, DefaultTitle)
 {
-    EXPECT_EQ(FigureManager::default_title(0), "Figure 1");
-    EXPECT_EQ(FigureManager::default_title(4), "Figure 5");
+    // default_title uses the FigureId directly (1-based IDs from registry)
+    EXPECT_EQ(FigureManager::default_title(1), "Figure 1");
+    EXPECT_EQ(FigureManager::default_title(5), "Figure 5");
 }
 
 TEST_F(FigureManagerTest, GetSetTitle)

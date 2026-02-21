@@ -194,6 +194,8 @@ std::vector<uint8_t> encode_hello(const HelloPayload& p)
     enc.put_u16(TAG_PROTOCOL_MINOR, p.protocol_minor);
     enc.put_string(TAG_AGENT_BUILD, p.agent_build);
     enc.put_u32(TAG_CAPABILITIES, p.capabilities);
+    if (!p.client_type.empty())
+        enc.put_string(TAG_CLIENT_TYPE, p.client_type);
     return enc.take();
 }
 
@@ -216,6 +218,9 @@ std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
                 break;
             case TAG_CAPABILITIES:
                 p.capabilities = dec.as_u32();
+                break;
+            case TAG_CLIENT_TYPE:
+                p.client_type = dec.as_string();
                 break;
             default:
                 break;  // skip unknown tags (forward compat)
@@ -640,6 +645,12 @@ static std::vector<uint8_t> encode_axis_blob(const SnapshotAxisState& ax)
     payload_put_float(enc, TAG_Y_MIN, ax.y_min);
     payload_put_float(enc, TAG_Y_MAX, ax.y_max);
     payload_put_bool(enc, TAG_GRID_VISIBLE, ax.grid_visible);
+    if (ax.is_3d)
+    {
+        payload_put_bool(enc, TAG_IS_3D, true);
+        payload_put_float(enc, TAG_Z_MIN, ax.z_min);
+        payload_put_float(enc, TAG_Z_MAX, ax.z_max);
+    }
     enc.put_string(TAG_X_LABEL, ax.x_label);
     enc.put_string(TAG_Y_LABEL, ax.y_label);
     enc.put_string(TAG_TITLE, ax.title);
@@ -668,6 +679,15 @@ static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
                 break;
             case TAG_GRID_VISIBLE:
                 ax.grid_visible = payload_as_bool(dec);
+                break;
+            case TAG_IS_3D:
+                ax.is_3d = payload_as_bool(dec);
+                break;
+            case TAG_Z_MIN:
+                ax.z_min = payload_as_float(dec);
+                break;
+            case TAG_Z_MAX:
+                ax.z_max = payload_as_float(dec);
                 break;
             case TAG_X_LABEL:
                 ax.x_label = dec.as_string();
@@ -1121,6 +1141,598 @@ std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
                 break;
             case TAG_AXES_INDEX:
                 p.axes_index = dec.as_u32();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+// ─── Python request/response payload encode/decode ───────────────────────────
+
+std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_string(TAG_TITLE, p.title);
+    enc.put_u32(TAG_WIDTH, p.width);
+    enc.put_u32(TAG_HEIGHT, p.height);
+    return enc.take();
+}
+
+std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
+{
+    ReqCreateFigurePayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_TITLE:
+                p.title = dec.as_string();
+                break;
+            case TAG_WIDTH:
+                p.width = dec.as_u32();
+                break;
+            case TAG_HEIGHT:
+                p.height = dec.as_u32();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    return enc.take();
+}
+
+std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
+{
+    ReqDestroyFigurePayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_GRID_ROWS, static_cast<uint32_t>(p.grid_rows));
+    enc.put_u32(TAG_GRID_COLS, static_cast<uint32_t>(p.grid_cols));
+    enc.put_u32(TAG_GRID_INDEX, static_cast<uint32_t>(p.grid_index));
+    if (p.is_3d)
+        payload_put_bool(enc, TAG_IS_3D, true);
+    return enc.take();
+}
+
+std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
+{
+    ReqCreateAxesPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_GRID_ROWS:
+                p.grid_rows = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_GRID_COLS:
+                p.grid_cols = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_GRID_INDEX:
+                p.grid_index = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_IS_3D:
+                p.is_3d = payload_as_bool(dec);
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
+    enc.put_string(TAG_SERIES_TYPE, p.series_type);
+    enc.put_string(TAG_SERIES_LABEL, p.label);
+    return enc.take();
+}
+
+std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
+{
+    ReqAddSeriesPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_AXES_INDEX:
+                p.axes_index = dec.as_u32();
+                break;
+            case TAG_SERIES_TYPE:
+                p.series_type = dec.as_string();
+                break;
+            case TAG_SERIES_LABEL:
+                p.label = dec.as_string();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
+    return enc.take();
+}
+
+std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
+{
+    ReqRemoveSeriesPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_SERIES_INDEX:
+                p.series_index = dec.as_u32();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
+    enc.put_u16(TAG_DTYPE, p.dtype);
+    if (!p.data.empty())
+        payload_put_float_array(enc, TAG_BLOB_INLINE, p.data);
+    return enc.take();
+}
+
+std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data)
+{
+    ReqSetDataPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_SERIES_INDEX:
+                p.series_index = dec.as_u32();
+                break;
+            case TAG_DTYPE:
+                p.dtype = static_cast<uint8_t>(dec.as_u16());
+                break;
+            case TAG_BLOB_INLINE:
+                p.data = payload_as_float_array(dec);
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
+    if (!p.data.empty())
+        payload_put_float_array(enc, TAG_BLOB_INLINE, p.data);
+    return enc.take();
+}
+
+std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data)
+{
+    ReqAppendDataPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_SERIES_INDEX:
+                p.series_index = dec.as_u32();
+                break;
+            case TAG_BLOB_INLINE:
+                p.data = payload_as_float_array(dec);
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
+    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
+    enc.put_string(TAG_PROPERTY_NAME, p.property);
+    payload_put_float(enc, TAG_F1, p.f1);
+    payload_put_float(enc, TAG_F2, p.f2);
+    payload_put_float(enc, TAG_F3, p.f3);
+    payload_put_float(enc, TAG_F4, p.f4);
+    payload_put_bool(enc, TAG_BOOL_VAL, p.bool_val);
+    if (!p.str_val.empty())
+        enc.put_string(TAG_STR_VAL, p.str_val);
+    return enc.take();
+}
+
+std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
+{
+    ReqUpdatePropertyPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_AXES_INDEX:
+                p.axes_index = dec.as_u32();
+                break;
+            case TAG_SERIES_INDEX:
+                p.series_index = dec.as_u32();
+                break;
+            case TAG_PROPERTY_NAME:
+                p.property = dec.as_string();
+                break;
+            case TAG_F1:
+                p.f1 = payload_as_float(dec);
+                break;
+            case TAG_F2:
+                p.f2 = payload_as_float(dec);
+                break;
+            case TAG_F3:
+                p.f3 = payload_as_float(dec);
+                break;
+            case TAG_F4:
+                p.f4 = payload_as_float(dec);
+                break;
+            case TAG_BOOL_VAL:
+                p.bool_val = payload_as_bool(dec);
+                break;
+            case TAG_STR_VAL:
+                p.str_val = dec.as_string();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    return enc.take();
+}
+
+std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
+{
+    ReqShowPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    return enc.take();
+}
+
+std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
+{
+    ReqCloseFigurePayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
+{
+    PayloadEncoder enc;
+    for (const auto& upd : p.updates)
+    {
+        auto item_bytes = encode_req_update_property(upd);
+        payload_put_blob(enc, TAG_BATCH_ITEM, item_bytes);
+    }
+    return enc.take();
+}
+
+std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data)
+{
+    ReqUpdateBatchPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        if (dec.tag() == TAG_BATCH_ITEM)
+        {
+            auto blob = payload_as_blob(dec);
+            auto item = decode_req_update_property(
+                std::span<const uint8_t>(blob.data(), blob.size()));
+            if (item)
+                p.updates.push_back(*item);
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_SESSION_ID, p.session_id);
+    enc.put_string(TAG_SESSION_TOKEN, p.session_token);
+    return enc.take();
+}
+
+std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
+{
+    ReqReconnectPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_SESSION_ID:
+                p.session_id = dec.as_u64();
+                break;
+            case TAG_SESSION_TOKEN:
+                p.session_token = dec.as_string();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_REQUEST_ID, p.request_id);
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    return enc.take();
+}
+
+std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
+{
+    RespFigureCreatedPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_REQUEST_ID, p.request_id);
+    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
+    return enc.take();
+}
+
+std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
+{
+    RespAxesCreatedPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            case TAG_AXES_INDEX:
+                p.axes_index = dec.as_u32();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_REQUEST_ID, p.request_id);
+    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
+    return enc.take();
+}
+
+std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
+{
+    RespSeriesAddedPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            case TAG_SERIES_INDEX:
+                p.series_index = dec.as_u32();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_REQUEST_ID, p.request_id);
+    enc.put_u32(TAG_FIGURE_COUNT, static_cast<uint32_t>(p.figure_ids.size()));
+    for (auto fid : p.figure_ids)
+        enc.put_u64(TAG_FIGURE_IDS, fid);
+    return enc.take();
+}
+
+std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
+{
+    RespFigureListPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_IDS:
+                p.figure_ids.push_back(dec.as_u64());
+                break;
+            case TAG_FIGURE_COUNT:
+                break;  // informational only
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_u64(TAG_WINDOW_ID, p.window_id);
+    enc.put_string(TAG_REASON, p.reason);
+    return enc.take();
+}
+
+std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
+{
+    EvtWindowClosedPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_REASON:
+                p.reason = dec.as_string();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p)
+{
+    PayloadEncoder enc;
+    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    enc.put_string(TAG_REASON, p.reason);
+    return enc.take();
+}
+
+std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)
+{
+    EvtFigureDestroyedPayload p;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_REASON:
+                p.reason = dec.as_string();
                 break;
             default:
                 break;

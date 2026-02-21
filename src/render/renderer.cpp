@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <vector>
@@ -50,10 +52,29 @@ void Renderer::flush_pending_deletions()
     deletion_ring_write_ = destroy_slot;
 }
 
+void Renderer::render_text(float screen_width, float screen_height)
+{
+    if (!text_renderer_.is_initialized())
+        return;
+
+    // Set full-screen viewport and scissor for text rendering
+    backend_.set_viewport(0, 0, screen_width, screen_height);
+    backend_.set_scissor(0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
+
+    // Flush depth-tested 3D text first (uses depth buffer from 3D geometry)
+    text_renderer_.flush_depth(backend_, screen_width, screen_height);
+
+    // Then flush 2D text (no depth test, always on top)
+    text_renderer_.flush(backend_, screen_width, screen_height);
+}
+
 Renderer::~Renderer()
 {
     // Wait for GPU to finish using all resources before destroying them
     backend_.wait_idle();
+
+    // Shutdown text renderer
+    text_renderer_.shutdown(backend_);
 
     // Flush ALL deferred deletion ring slots
     for (auto& slot : deletion_ring_)
@@ -96,6 +117,11 @@ Renderer::~Renderer()
     }
     axes_gpu_data_.clear();
 
+    if (overlay_line_buffer_)
+        backend_.destroy_buffer(overlay_line_buffer_);
+    if (overlay_tri_buffer_)
+        backend_.destroy_buffer(overlay_tri_buffer_);
+
     if (frame_ubo_buffer_)
     {
         backend_.destroy_buffer(frame_ubo_buffer_);
@@ -108,6 +134,7 @@ bool Renderer::init()
     line_pipeline_ = backend_.create_pipeline(PipelineType::Line);
     scatter_pipeline_ = backend_.create_pipeline(PipelineType::Scatter);
     grid_pipeline_ = backend_.create_pipeline(PipelineType::Grid);
+    overlay_pipeline_ = backend_.create_pipeline(PipelineType::Overlay);
 
     // Create 3D pipelines
     line3d_pipeline_ = backend_.create_pipeline(PipelineType::Line3D);
@@ -130,6 +157,29 @@ bool Renderer::init()
 
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
+
+    // Initialize text renderer with Inter-Regular.ttf
+    // Try common paths relative to executable
+    const char* font_paths[] = {
+        "third_party/Inter-Regular.ttf",
+        "../third_party/Inter-Regular.ttf",
+        "../../third_party/Inter-Regular.ttf",
+        "../../../third_party/Inter-Regular.ttf",
+    };
+    bool text_ok = false;
+    for (const char* path : font_paths)
+    {
+        if (text_renderer_.init_from_file(backend_, path))
+        {
+            SPECTRA_LOG_INFO("renderer", std::string("TextRenderer initialized from ") + path);
+            text_ok = true;
+            break;
+        }
+    }
+    if (!text_ok)
+    {
+        SPECTRA_LOG_WARN("renderer", "TextRenderer init failed — plot text will not be rendered");
+    }
 
     return true;
 }
@@ -186,7 +236,599 @@ void Renderer::render_figure_content(Figure& figure)
         render_axes(ax, vp, w, h);
     }
 
-    // Legend and text labels are now rendered by ImGui (see imgui_integration.cpp)
+    // Queue all plot text (tick labels, axis labels, titles) via Vulkan TextRenderer.
+    // Flushed later by render_text().
+    render_plot_text(figure);
+
+    // Render screen-space plot geometry (2D tick marks, 3D arrow lines + arrowheads)
+    // via Vulkan grid/overlay pipelines.
+    render_plot_geometry(figure);
+}
+
+void Renderer::render_plot_text(Figure& figure)
+{
+    if (!text_renderer_.is_initialized())
+        return;
+
+    const auto& colors = ui::ThemeManager::instance().colors();
+
+    auto color_to_rgba = [](const ui::Color& c) -> uint32_t
+    {
+        uint8_t r = static_cast<uint8_t>(c.r * 255);
+        uint8_t g = static_cast<uint8_t>(c.g * 255);
+        uint8_t b = static_cast<uint8_t>(c.b * 255);
+        uint8_t a = static_cast<uint8_t>(c.a * 255);
+        return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
+               | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
+    };
+
+    uint32_t tick_col = color_to_rgba(colors.tick_label);
+    uint32_t label_col = color_to_rgba(colors.text_primary);
+    uint32_t title_col = label_col;
+
+    constexpr float tick_padding = 5.0f;
+
+    // ── 2D Axes: tick labels, axis labels, title ──
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto& axes = *axes_ptr;
+        const auto& vp = axes.viewport();
+        auto xlim = axes.x_limits();
+        auto ylim = axes.y_limits();
+
+        float x_range = xlim.max - xlim.min;
+        float y_range = ylim.max - ylim.min;
+        if (x_range == 0.0f)
+            x_range = 1.0f;
+        if (y_range == 0.0f)
+            y_range = 1.0f;
+
+        auto data_to_px_x = [&](float dx) -> float
+        { return vp.x + (dx - xlim.min) / x_range * vp.w; };
+        auto data_to_px_y = [&](float dy) -> float
+        { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
+
+        const auto& as = axes.axis_style();
+        float tl = as.tick_length;
+
+        auto x_ticks = axes.compute_x_ticks();
+        auto y_ticks = axes.compute_y_ticks();
+
+        // X tick labels
+        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        {
+            float px = data_to_px_x(x_ticks.positions[i]);
+            text_renderer_.draw_text(x_ticks.labels[i],
+                                     px,
+                                     vp.y + vp.h + tl + tick_padding,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Center,
+                                     TextVAlign::Top);
+        }
+
+        // Y tick labels
+        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        {
+            float py = data_to_px_y(y_ticks.positions[i]);
+            text_renderer_.draw_text(y_ticks.labels[i],
+                                     vp.x - tl - tick_padding,
+                                     py,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Right,
+                                     TextVAlign::Middle);
+        }
+
+        // X axis label
+        if (!axes.get_xlabel().empty())
+        {
+            float cx = vp.x + vp.w * 0.5f;
+            float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
+            text_renderer_.draw_text(
+                axes.get_xlabel(), cx, py, FontSize::Label, label_col, TextAlign::Center);
+        }
+
+        // Y axis label (rotated -90°)
+        if (!axes.get_ylabel().empty())
+        {
+            float center_x = vp.x - tick_padding * 2.0f - 20.0f;
+            float center_y = vp.y + vp.h * 0.5f;
+            constexpr float neg_90_deg = -1.5707963f;  // -π/2
+            text_renderer_.draw_text_rotated(axes.get_ylabel(),
+                                             center_x,
+                                             center_y,
+                                             neg_90_deg,
+                                             FontSize::Label,
+                                             label_col);
+        }
+
+        // Title
+        if (!axes.get_title().empty())
+        {
+            auto ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
+            float cx = vp.x + vp.w * 0.5f;
+            float py = vp.y - ext.height - tick_padding;
+            if (py < vp.y + 2.0f)
+                py = vp.y + 2.0f;
+            text_renderer_.draw_text(axes.get_title(),
+                                     cx,
+                                     py,
+                                     FontSize::Title,
+                                     title_col,
+                                     TextAlign::Center);
+        }
+    }
+
+    // ── 3D Axes: billboarded tick labels, axis labels, title ──
+    for (auto& axes_ptr : figure.all_axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
+        if (!axes3d)
+            continue;
+
+        const auto& vp = axes3d->viewport();
+        const auto& cam = axes3d->camera();
+
+        // Build MVP matrix: projection * view * model
+        float aspect = vp.w / std::max(vp.h, 1.0f);
+        mat4 proj = cam.projection_matrix(aspect);
+        mat4 view = cam.view_matrix();
+        mat4 model = axes3d->data_to_normalized_matrix();
+        mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
+
+        // Helper: project a 3D world point to screen coords within the viewport
+        // Also outputs NDC depth in [0,1] for depth-tested text rendering.
+        auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy, float& ndc_depth) -> bool
+        {
+            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y
+                           + mvp.m[8] * world_pos.z + mvp.m[12];
+            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y
+                           + mvp.m[9] * world_pos.z + mvp.m[13];
+            float clip_z = mvp.m[2] * world_pos.x + mvp.m[6] * world_pos.y
+                           + mvp.m[10] * world_pos.z + mvp.m[14];
+            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y
+                           + mvp.m[11] * world_pos.z + mvp.m[15];
+
+            if (clip_w <= 0.001f)
+                return false;
+
+            float ndc_x = clip_x / clip_w;
+            float ndc_y = clip_y / clip_w;
+            ndc_depth = clip_z / clip_w;  // Vulkan depth range [0,1]
+
+            sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
+            sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
+
+            float margin = 200.0f;
+            if (sx < vp.x - margin || sx > vp.x + vp.w + margin || sy < vp.y - margin
+                || sy > vp.y + vp.h + margin)
+                return false;
+
+            return true;
+        };
+
+        auto xlim = axes3d->x_limits();
+        auto ylim = axes3d->y_limits();
+        auto zlim = axes3d->z_limits();
+
+        float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
+
+        vec3 view_dir = vec3_normalize(cam.target - cam.position);
+        bool looking_down_y = std::abs(view_dir.y) > 0.98f;
+        bool looking_down_z = std::abs(view_dir.z) > 0.98f;
+
+        float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
+        float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
+        float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
+
+        // --- X-axis tick labels ---
+        {
+            auto x_ticks = axes3d->compute_x_ticks();
+            for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+            {
+                float sx, sy, depth;
+                vec3 pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
+                if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                text_renderer_.draw_text_depth(x_ticks.labels[i],
+                                              sx,
+                                              sy,
+                                              depth,
+                                              FontSize::Tick,
+                                              tick_col,
+                                              TextAlign::Center,
+                                              TextVAlign::Top);
+            }
+        }
+
+        // --- Y-axis tick labels ---
+        if (!looking_down_y)
+        {
+            auto y_ticks = axes3d->compute_y_ticks();
+            for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+            {
+                float sx, sy, depth;
+                vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
+                if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                text_renderer_.draw_text_depth(y_ticks.labels[i],
+                                              sx,
+                                              sy,
+                                              depth,
+                                              FontSize::Tick,
+                                              tick_col,
+                                              TextAlign::Right,
+                                              TextVAlign::Middle);
+            }
+        }
+
+        // --- Z-axis tick labels ---
+        if (!looking_down_z)
+        {
+            auto z_ticks = axes3d->compute_z_ticks();
+            for (size_t i = 0; i < z_ticks.positions.size(); ++i)
+            {
+                float sx, sy, depth;
+                vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
+                if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                text_renderer_.draw_text_depth(z_ticks.labels[i],
+                                              sx - tick_padding,
+                                              sy,
+                                              depth,
+                                              FontSize::Tick,
+                                              tick_col,
+                                              TextAlign::Right,
+                                              TextVAlign::Middle);
+            }
+        }
+
+        // --- 3D axis arrow labels ---
+        {
+            float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
+            float arrow_len_x = (xlim.max - xlim.min) * 0.18f;
+            float arrow_len_y = (ylim.max - ylim.min) * 0.18f;
+            float arrow_len_z = (zlim.max - zlim.min) * 0.18f;
+
+            auto pack_rgba = [](uint8_t r, uint8_t g, uint8_t b, uint8_t a) -> uint32_t
+            {
+                return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
+                       | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
+            };
+            uint32_t vk_x_arrow_col = pack_rgba(230, 70, 70, 220);
+            uint32_t vk_y_arrow_col = pack_rgba(70, 200, 70, 220);
+            uint32_t vk_z_arrow_col = pack_rgba(80, 130, 255, 220);
+
+            // Helper: draw arrow label text at the tip of an axis arrow
+            auto draw_arrow_label = [&](vec3 start,
+                                        vec3 end,
+                                        uint32_t vk_col,
+                                        const char* default_lbl,
+                                        const std::string& user_lbl)
+            {
+                float sx0, sy0, d0, sx1, sy1, d1;
+                if (!world_to_screen(start, sx0, sy0, d0) || !world_to_screen(end, sx1, sy1, d1))
+                    return;
+                const char* lbl = user_lbl.empty() ? default_lbl : user_lbl.c_str();
+                float label_offset = 8.0f;
+                float dir_x = sx1 - sx0;
+                float dir_y = sy1 - sy0;
+                float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                float lx =
+                    sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
+                float ly_center =
+                    sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
+                text_renderer_.draw_text_depth(lbl,
+                                              lx,
+                                              ly_center,
+                                              d1,
+                                              FontSize::Label,
+                                              vk_col,
+                                              TextAlign::Left,
+                                              TextVAlign::Middle);
+            };
+
+            draw_arrow_label({x1, y0, z0},
+                             {x1 + arrow_len_x, y0, z0},
+                             vk_x_arrow_col,
+                             "X",
+                             axes3d->get_xlabel());
+            draw_arrow_label({x0, y1, z0},
+                             {x0, y1 + arrow_len_y, z0},
+                             vk_y_arrow_col,
+                             "Y",
+                             axes3d->get_ylabel());
+            draw_arrow_label({x0, y0, z1},
+                             {x0, y0, z1 + arrow_len_z},
+                             vk_z_arrow_col,
+                             "Z",
+                             axes3d->get_zlabel());
+        }
+
+        // --- 3D Title ---
+        if (!axes3d->get_title().empty())
+        {
+            float cx = vp.x + vp.w * 0.5f;
+            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
+            float py = vp.y - ext.height - tick_padding;
+            if (py < vp.y + 2.0f)
+                py = vp.y + 2.0f;
+            text_renderer_.draw_text(axes3d->get_title(),
+                                     cx,
+                                     py,
+                                     FontSize::Title,
+                                     title_col,
+                                     TextAlign::Center);
+        }
+    }
+}
+
+void Renderer::render_plot_geometry(Figure& figure)
+{
+    uint32_t fig_w = figure.width();
+    uint32_t fig_h = figure.height();
+    float fw = static_cast<float>(fig_w);
+    float fh = static_cast<float>(fig_h);
+
+    const auto& colors = ui::ThemeManager::instance().colors();
+
+    overlay_line_scratch_.clear();
+    overlay_tri_scratch_.clear();
+
+    // ── 2D Axes: tick mark lines ──
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto& axes = *axes_ptr;
+        const auto& vp = axes.viewport();
+        auto xlim = axes.x_limits();
+        auto ylim = axes.y_limits();
+
+        float x_range = xlim.max - xlim.min;
+        float y_range = ylim.max - ylim.min;
+        if (x_range == 0.0f)
+            x_range = 1.0f;
+        if (y_range == 0.0f)
+            y_range = 1.0f;
+
+        auto data_to_px_x = [&](float dx) -> float
+        { return vp.x + (dx - xlim.min) / x_range * vp.w; };
+        auto data_to_px_y = [&](float dy) -> float
+        { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
+
+        const auto& as = axes.axis_style();
+        float tl = as.tick_length;
+        if (tl <= 0.0f)
+            continue;
+
+        auto x_ticks = axes.compute_x_ticks();
+        auto y_ticks = axes.compute_y_ticks();
+
+        // X tick marks (at bottom edge of viewport)
+        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        {
+            float px = data_to_px_x(x_ticks.positions[i]);
+            overlay_line_scratch_.push_back(px);
+            overlay_line_scratch_.push_back(vp.y + vp.h);
+            overlay_line_scratch_.push_back(px);
+            overlay_line_scratch_.push_back(vp.y + vp.h + tl);
+        }
+
+        // Y tick marks (at left edge of viewport)
+        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        {
+            float py = data_to_px_y(y_ticks.positions[i]);
+            overlay_line_scratch_.push_back(vp.x);
+            overlay_line_scratch_.push_back(py);
+            overlay_line_scratch_.push_back(vp.x - tl);
+            overlay_line_scratch_.push_back(py);
+        }
+    }
+
+    // ── 3D Axes: arrow lines and arrowheads ──
+    for (auto& axes_ptr : figure.all_axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
+        if (!axes3d)
+            continue;
+
+        const auto& vp = axes3d->viewport();
+        const auto& cam = axes3d->camera();
+
+        float aspect = vp.w / std::max(vp.h, 1.0f);
+        mat4 proj = cam.projection_matrix(aspect);
+        mat4 view = cam.view_matrix();
+        mat4 model = axes3d->data_to_normalized_matrix();
+        mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
+
+        auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy) -> bool
+        {
+            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y
+                           + mvp.m[8] * world_pos.z + mvp.m[12];
+            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y
+                           + mvp.m[9] * world_pos.z + mvp.m[13];
+            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y
+                           + mvp.m[11] * world_pos.z + mvp.m[15];
+            if (clip_w <= 0.001f)
+                return false;
+            float ndc_x = clip_x / clip_w;
+            float ndc_y = clip_y / clip_w;
+            sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
+            sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
+            float margin = 200.0f;
+            if (sx < vp.x - margin || sx > vp.x + vp.w + margin || sy < vp.y - margin
+                || sy > vp.y + vp.h + margin)
+                return false;
+            return true;
+        };
+
+        auto xlim = axes3d->x_limits();
+        auto ylim = axes3d->y_limits();
+        auto zlim = axes3d->z_limits();
+
+        float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
+        float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
+        float arrow_len_x = (xlim.max - xlim.min) * 0.18f;
+        float arrow_len_y = (ylim.max - ylim.min) * 0.18f;
+        float arrow_len_z = (zlim.max - zlim.min) * 0.18f;
+
+        // Helper: emit arrow line + arrowhead triangle vertices
+        auto emit_arrow = [&](vec3 start, vec3 end)
+        {
+            float sx0, sy0, sx1, sy1;
+            if (!world_to_screen(start, sx0, sy0) || !world_to_screen(end, sx1, sy1))
+                return;
+
+            // Arrow shaft (line-list: 2 vertices)
+            overlay_line_scratch_.push_back(sx0);
+            overlay_line_scratch_.push_back(sy0);
+            overlay_line_scratch_.push_back(sx1);
+            overlay_line_scratch_.push_back(sy1);
+
+            // Arrowhead (filled triangle: 3 vertices)
+            float dx = sx1 - sx0;
+            float dy = sy1 - sy0;
+            float len = std::sqrt(dx * dx + dy * dy);
+            if (len < 1.0f)
+                return;
+            float ux = dx / len;
+            float uy = dy / len;
+            float head_size = 6.0f;
+            float px = -uy * head_size;
+            float py = ux * head_size;
+            float base_x = sx1 - ux * head_size * 1.8f;
+            float base_y = sy1 - uy * head_size * 1.8f;
+
+            // Triangle: tip, base+perp, base-perp
+            overlay_tri_scratch_.push_back(sx1);
+            overlay_tri_scratch_.push_back(sy1);
+            overlay_tri_scratch_.push_back(base_x + px);
+            overlay_tri_scratch_.push_back(base_y + py);
+            overlay_tri_scratch_.push_back(base_x - px);
+            overlay_tri_scratch_.push_back(base_y - py);
+        };
+
+        emit_arrow({x1, y0, z0}, {x1 + arrow_len_x, y0, z0});
+        emit_arrow({x0, y1, z0}, {x0, y1 + arrow_len_y, z0});
+        emit_arrow({x0, y0, z1}, {x0, y0, z1 + arrow_len_z});
+    }
+
+    // ── Upload and draw ──
+    // Set up screen-space ortho projection in UBO.
+    // Screen coordinates are Y-down (0=top, h=bottom), matching Vulkan clip space,
+    // so use positive Y scale (same as TextRenderer::flush).
+    // Do NOT use build_ortho_projection() — that negates Y for data-space (Y-up).
+    FrameUBO ubo{};
+    std::memset(&ubo, 0, sizeof(ubo));
+    ubo.projection[0] = 2.0f / fw;            // X: [0, fw] → [-1, +1]
+    ubo.projection[5] = 2.0f / fh;            // Y: [0, fh] → [-1, +1] (positive = Y-down)
+    ubo.projection[10] = -1.0f;
+    ubo.projection[12] = -1.0f;
+    ubo.projection[13] = -1.0f;
+    ubo.projection[15] = 1.0f;
+    // Identity view + model
+    ubo.view[0] = 1.0f;
+    ubo.view[5] = 1.0f;
+    ubo.view[10] = 1.0f;
+    ubo.view[15] = 1.0f;
+    ubo.model[0] = 1.0f;
+    ubo.model[5] = 1.0f;
+    ubo.model[10] = 1.0f;
+    ubo.model[15] = 1.0f;
+    ubo.viewport_width = fw;
+    ubo.viewport_height = fh;
+
+    backend_.set_viewport(0, 0, fw, fh);
+    backend_.set_scissor(0, 0, fig_w, fig_h);
+    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+
+    // Draw tick mark lines + arrow shaft lines
+    uint32_t line_vert_count =
+        static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
+    if (line_vert_count > 0)
+    {
+        size_t line_bytes = overlay_line_scratch_.size() * sizeof(float);
+        if (!overlay_line_buffer_ || overlay_line_capacity_ < line_bytes)
+        {
+            if (overlay_line_buffer_)
+                backend_.destroy_buffer(overlay_line_buffer_);
+            overlay_line_buffer_ = backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
+            overlay_line_capacity_ = line_bytes * 2;
+        }
+        backend_.upload_buffer(
+            overlay_line_buffer_, overlay_line_scratch_.data(), line_bytes);
+
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants pc{};
+        pc.color[0] = colors.axis_line.r;
+        pc.color[1] = colors.axis_line.g;
+        pc.color[2] = colors.axis_line.b;
+        pc.color[3] = colors.axis_line.a;
+        pc.line_width = 1.0f;
+        backend_.push_constants(pc);
+
+        backend_.bind_buffer(overlay_line_buffer_, 0);
+        backend_.draw(line_vert_count);
+    }
+
+    // Draw arrowhead triangles (3 colors: X=red, Y=green, Z=blue)
+    uint32_t tri_vert_count =
+        static_cast<uint32_t>(overlay_tri_scratch_.size() / 2);
+    if (tri_vert_count > 0)
+    {
+        size_t tri_bytes = overlay_tri_scratch_.size() * sizeof(float);
+        if (!overlay_tri_buffer_ || overlay_tri_capacity_ < tri_bytes)
+        {
+            if (overlay_tri_buffer_)
+                backend_.destroy_buffer(overlay_tri_buffer_);
+            overlay_tri_buffer_ = backend_.create_buffer(BufferUsage::Vertex, tri_bytes * 2);
+            overlay_tri_capacity_ = tri_bytes * 2;
+        }
+        backend_.upload_buffer(
+            overlay_tri_buffer_, overlay_tri_scratch_.data(), tri_bytes);
+
+        backend_.bind_pipeline(overlay_pipeline_);
+
+        // Draw all arrowhead triangles in batches of 3 vertices per arrow,
+        // one color per axis direction.
+        // The arrows are emitted in order: X, Y, Z per 3D axes.
+        // We draw them all with a single color for simplicity — the arrow
+        // shaft lines already convey direction via the text labels.
+        // For per-axis colors, we batch: every 3 vertices = 1 arrowhead.
+        uint32_t total_arrows = tri_vert_count / 3;
+
+        // Colors: X=red, Y=green, Z=blue, repeating per 3D axes
+        float arrow_colors[][4] = {
+            {0.902f, 0.275f, 0.275f, 0.863f},  // X: rgb(230,70,70)/255, a=220/255
+            {0.275f, 0.784f, 0.275f, 0.863f},  // Y: rgb(70,200,70)/255
+            {0.314f, 0.510f, 1.000f, 0.863f},  // Z: rgb(80,130,255)/255
+        };
+
+        backend_.bind_buffer(overlay_tri_buffer_, 0);
+
+        for (uint32_t i = 0; i < total_arrows; ++i)
+        {
+            SeriesPushConstants apc{};
+            uint32_t color_idx = i % 3;
+            apc.color[0] = arrow_colors[color_idx][0];
+            apc.color[1] = arrow_colors[color_idx][1];
+            apc.color[2] = arrow_colors[color_idx][2];
+            apc.color[3] = arrow_colors[color_idx][3];
+            apc.line_width = 1.0f;
+            backend_.push_constants(apc);
+            backend_.draw(3, i * 3);
+        }
+    }
 }
 
 void Renderer::end_render_pass()

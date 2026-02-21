@@ -90,6 +90,11 @@ class Axes3D : public AxesBase
     // Zoom by scaling axis limits (bounding box stays fixed, data range changes)
     void zoom_limits(float factor);
 
+    // Zoom a single axis only (for right-click 1D zoom)
+    void zoom_limits_x(float factor);
+    void zoom_limits_y(float factor);
+    void zoom_limits_z(float factor);
+
     // Pan by shifting axis limits (bounding box stays fixed, data range shifts)
     // dx_screen/dy_screen are pixel deltas, vp_w/vp_h are viewport dimensions.
     void pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h);

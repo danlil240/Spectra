@@ -131,6 +131,10 @@ bool VulkanBackend::init(bool headless)
             }
         }
 
+        // Text pipeline layout: set 0 = frame UBO, set 1 = texture sampler
+        text_pipeline_layout_ =
+            vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, texture_desc_layout_});
+
         return true;
     }
     catch (const std::exception& e)
@@ -198,6 +202,8 @@ void VulkanBackend::shutdown()
     }
 
     // Destroy layouts
+    if (text_pipeline_layout_ != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(ctx_.device, text_pipeline_layout_, nullptr);
     if (pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, pipeline_layout_, nullptr);
     if (texture_desc_layout_ != VK_NULL_HANDLE)
@@ -434,7 +440,7 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
     }
 
     pipelines_[h.id] = create_pipeline_for_type(type, rp);
-    pipeline_layouts_[h.id] = pipeline_layout_;
+    pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth) ? text_pipeline_layout_ : pipeline_layout_;
     return h;
 }
 
@@ -624,6 +630,55 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             break;
         case PipelineType::Heatmap:
             return VK_NULL_HANDLE;  // Not yet implemented
+        case PipelineType::Overlay:
+            cfg.vert_spirv = shaders::grid_vert;
+            cfg.vert_spirv_size = shaders::grid_vert_size;
+            cfg.frag_spirv = shaders::grid_frag;
+            cfg.frag_spirv_size = shaders::grid_frag_size;
+            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            // Same vec2 vertex attribute as Grid, but triangle topology for filled shapes
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
+            break;
+        case PipelineType::Text:
+            cfg.pipeline_layout = text_pipeline_layout_;
+            cfg.vert_spirv = shaders::text_vert;
+            cfg.vert_spirv_size = shaders::text_vert_size;
+            cfg.frag_spirv = shaders::text_frag;
+            cfg.frag_spirv_size = shaders::text_frag_size;
+            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test = false;
+            cfg.enable_depth_write = false;
+            // TextVertex: {float x, y, z, float u, v, uint32_t col} = 24 bytes
+            cfg.vertex_bindings.push_back(
+                {0, sizeof(float) * 5 + sizeof(uint32_t), VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back(
+                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position (x, y, z)
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});  // uv
+            cfg.vertex_attributes.push_back(
+                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});  // color
+            break;
+        case PipelineType::TextDepth:
+            cfg.pipeline_layout = text_pipeline_layout_;
+            cfg.vert_spirv = shaders::text_vert;
+            cfg.vert_spirv_size = shaders::text_vert_size;
+            cfg.frag_spirv = shaders::text_frag;
+            cfg.frag_spirv_size = shaders::text_frag_size;
+            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            // TextVertex: {float x, y, z, float u, v, uint32_t col} = 24 bytes
+            cfg.vertex_bindings.push_back(
+                {0, sizeof(float) * 5 + sizeof(uint32_t), VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back(
+                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position (x, y, z)
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});  // uv
+            cfg.vertex_attributes.push_back(
+                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});  // color
+            break;
     }
 
     // All pipelines must match the render pass sample count
@@ -654,7 +709,9 @@ void VulkanBackend::ensure_pipelines()
             if (it != pipeline_types_.end())
             {
                 pipeline = create_pipeline_for_type(it->second, rp);
-                pipeline_layouts_[id] = pipeline_layout_;
+                pipeline_layouts_[id] = (it->second == PipelineType::Text || it->second == PipelineType::TextDepth)
+                                            ? text_pipeline_layout_
+                                            : pipeline_layout_;
             }
         }
     }

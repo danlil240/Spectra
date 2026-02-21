@@ -99,7 +99,7 @@ int main()
     ax3.zlabel("Z");
     ax3.camera().set_azimuth(30.0f).set_elevation(45.0f);
     ax3.grid_planes(Axes3D::GridPlane::All);
-    ax3.light_dir({1.0f, 0.0f, 1.0f});
+    ax3.light_dir({1.0f, 1.0f, 2.0f});
 
     // --- Subplot 4: Multiple 3D Series (Combined) ---
     auto& ax4 = fig.subplot3d(2, 2, 4);
@@ -135,45 +135,6 @@ int main()
     ax4.grid_planes(Axes3D::GridPlane::All);
     fig.show();
 
-    // Print animation instructions
-    std::cout << "\n=== 3D Camera Animation Demo ===\n";
-    std::cout << "The first subplot (top-left) shows an animated camera orbit.\n";
-    std::cout << "The camera will continuously rotate around the spiral.\n";
-    std::cout << "Close the window to exit.\n\n";
-    std::cout << "Animation Details:\n";
-    std::cout << "  - Smooth orbit: 0° → 360° azimuth over 6 seconds\n";
-    std::cout << "  - Elevation oscillates: 30° → 60° → 30° over 6 seconds\n";
-    std::cout << "  - Distance oscillates: 15 → 10 → 15 units over 6 seconds\n";
-    std::cout << "\n";
-
-    // Animation update function - will be called from the main loop
-    // auto update_animation = [&]() {  // Currently unused
-    //     if (!g_anim.animate) return;
-    //
-    //     g_anim.time += 0.016f; // ~60 FPS
-    //
-    //     // Loop animation every 6 seconds
-    //     if (g_anim.time > 6.0f) g_anim.time -= 6.0f;
-    //
-    //     // Calculate smooth camera animation parameters
-    //     float t = g_anim.time / 6.0f;  // Normalize to [0, 1]
-    //
-    //     // Azimuth: full rotation (0° → 360°)
-    //     ax1.camera().azimuth = t * 360.0f;
-    //
-    //     // Elevation: oscillate (30° → 60° → 30°)
-    //     float elevation_phase = t * 2.0f * M_PI;
-    //     ax1.camera().elevation = 45.0f + 15.0f * std::sin(elevation_phase);
-    //
-    //     // Distance: oscillate (15 → 10 → 15)
-    //     float distance_phase = t * 2.0f * M_PI;
-    //     ax1.camera().distance = 12.5f + 2.5f * std::cos(distance_phase);
-    //
-    //     // Update camera position from orbit parameters
-    //     ax1.camera().update_position_from_orbit();
-    // };
-
-    // Run the app with animation
     app.run();
     return 0;
 }

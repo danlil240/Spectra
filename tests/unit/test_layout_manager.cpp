@@ -258,27 +258,6 @@ TEST(LayoutManager, SmallWindowClampsToZero)
     EXPECT_GE(cv.h, 0.0f);
 }
 
-#if SPECTRA_FLOATING_TOOLBAR
-// ─── Floating Toolbar ───────────────────────────────────────────────────────
-
-TEST(LayoutManager, FloatingToolbarCenteredInCanvas)
-{
-    LayoutManager lm;
-    lm.update(1280.0f, 720.0f);
-
-    auto cv = lm.canvas_rect();
-    auto ft = lm.floating_toolbar_rect();
-
-    // Horizontally centered in canvas
-    float expected_x = cv.x + (cv.w - LayoutManager::FLOATING_TOOLBAR_WIDTH) * 0.5f;
-    EXPECT_FLOAT_EQ(ft.x, expected_x);
-
-    // Near bottom of canvas (floating on top, 16px margin)
-    float expected_y = cv.y + cv.h - LayoutManager::FLOATING_TOOLBAR_HEIGHT - 16.0f;
-    EXPECT_FLOAT_EQ(ft.y, expected_y);
-}
-#endif
-
 // ─── Combined State ─────────────────────────────────────────────────────────
 
 TEST(LayoutManager, AllZonesOpenSimultaneously)
@@ -289,7 +268,6 @@ TEST(LayoutManager, AllZonesOpenSimultaneously)
     lm.set_tab_bar_visible(true);
     lm.update(1920.0f, 1080.0f);
 
-    // auto nr = lm.nav_rail_rect();  // Currently unused
     auto cv = lm.canvas_rect();
     auto insp = lm.inspector_rect();
     auto tb = lm.tab_bar_rect();

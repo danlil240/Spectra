@@ -10,6 +10,7 @@
 #include "gesture_recognizer.hpp"
 #include "shortcut_manager.hpp"
 #include "transition_engine.hpp"
+#include "undo_manager.hpp"
 
 namespace spectra
 {
@@ -147,12 +148,44 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             drag_start_x_ = x;
             drag_start_y_ = y;
             mode_ = InteractionMode::Dragging;
+            // Capture state for undo
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
+            drag3d_start_camera_ = axes3d->camera();
             return;
         }
         if (button == MOUSE_BUTTON_LEFT && action == ACTION_RELEASE && is_3d_orbit_drag_)
         {
             is_3d_orbit_drag_ = false;
             mode_ = InteractionMode::Idle;
+            // Push undo for orbit drag
+            if (undo_mgr_ && drag3d_axes_ == axes3d)
+            {
+                auto before_xlim   = drag3d_start_xlim_;
+                auto before_ylim   = drag3d_start_ylim_;
+                auto before_zlim   = drag3d_start_zlim_;
+                auto before_camera = drag3d_start_camera_;
+                auto after_camera  = axes3d->camera();
+                Axes3D* ax         = axes3d;
+                undo_mgr_->push(UndoAction{
+                    "Orbit 3D",
+                    [ax, before_xlim, before_ylim, before_zlim, before_camera]()
+                    {
+                        ax->xlim(before_xlim.min, before_xlim.max);
+                        ax->ylim(before_ylim.min, before_ylim.max);
+                        ax->zlim(before_zlim.min, before_zlim.max);
+                        ax->camera() = before_camera;
+                        ax->camera().update_position_from_orbit();
+                    },
+                    [ax, after_camera]()
+                    {
+                        ax->camera() = after_camera;
+                        ax->camera().update_position_from_orbit();
+                    }});
+            }
+            drag3d_axes_ = nullptr;
             return;
         }
         if (button == MOUSE_BUTTON_RIGHT && action == ACTION_PRESS)
@@ -161,12 +194,44 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             drag_start_x_ = x;
             drag_start_y_ = y;
             mode_ = InteractionMode::Dragging;
+            // Capture state for undo
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
+            drag3d_start_camera_ = axes3d->camera();
             return;
         }
         if (button == MOUSE_BUTTON_RIGHT && action == ACTION_RELEASE && is_3d_pan_drag_)
         {
             is_3d_pan_drag_ = false;
             mode_ = InteractionMode::Idle;
+            // Push undo for pan drag
+            if (undo_mgr_ && drag3d_axes_ == axes3d)
+            {
+                auto before_xlim = drag3d_start_xlim_;
+                auto before_ylim = drag3d_start_ylim_;
+                auto before_zlim = drag3d_start_zlim_;
+                auto after_xlim  = axes3d->x_limits();
+                auto after_ylim  = axes3d->y_limits();
+                auto after_zlim  = axes3d->z_limits();
+                Axes3D* ax       = axes3d;
+                undo_mgr_->push(UndoAction{
+                    "Pan 3D",
+                    [ax, before_xlim, before_ylim, before_zlim]()
+                    {
+                        ax->xlim(before_xlim.min, before_xlim.max);
+                        ax->ylim(before_ylim.min, before_ylim.max);
+                        ax->zlim(before_zlim.min, before_zlim.max);
+                    },
+                    [ax, after_xlim, after_ylim, after_zlim]()
+                    {
+                        ax->xlim(after_xlim.min, after_xlim.max);
+                        ax->ylim(after_ylim.min, after_ylim.max);
+                        ax->zlim(after_zlim.min, after_zlim.max);
+                    }});
+            }
+            drag3d_axes_ = nullptr;
             return;
         }
         if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_PRESS)
@@ -175,12 +240,44 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             drag_start_x_ = x;
             drag_start_y_ = y;
             mode_ = InteractionMode::Dragging;
+            // Capture state for undo
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
+            drag3d_start_camera_ = axes3d->camera();
             return;
         }
         if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_RELEASE && is_3d_pan_drag_)
         {
             is_3d_pan_drag_ = false;
             mode_ = InteractionMode::Idle;
+            // Push undo for middle-mouse pan
+            if (undo_mgr_ && drag3d_axes_ == axes3d)
+            {
+                auto before_xlim = drag3d_start_xlim_;
+                auto before_ylim = drag3d_start_ylim_;
+                auto before_zlim = drag3d_start_zlim_;
+                auto after_xlim  = axes3d->x_limits();
+                auto after_ylim  = axes3d->y_limits();
+                auto after_zlim  = axes3d->z_limits();
+                Axes3D* ax       = axes3d;
+                undo_mgr_->push(UndoAction{
+                    "Pan 3D",
+                    [ax, before_xlim, before_ylim, before_zlim]()
+                    {
+                        ax->xlim(before_xlim.min, before_xlim.max);
+                        ax->ylim(before_ylim.min, before_ylim.max);
+                        ax->zlim(before_zlim.min, before_zlim.max);
+                    },
+                    [ax, after_xlim, after_ylim, after_zlim]()
+                    {
+                        ax->xlim(after_xlim.min, after_xlim.max);
+                        ax->ylim(after_ylim.min, after_ylim.max);
+                        ax->zlim(after_zlim.min, after_zlim.max);
+                    }});
+            }
+            drag3d_axes_ = nullptr;
             return;
         }
         return;  // 3D axes don't support other interactions
@@ -572,6 +669,8 @@ void InputHandler::on_mouse_move(double x, double y)
             {
                 const auto& vp = viewport_for_axes(axes3d);
                 axes3d->pan_limits(dx, dy, vp.w, vp.h);
+                if (axis_link_mgr_)
+                    axis_link_mgr_->propagate_from_3d(axes3d);
             }
 
             drag_start_x_ = x;
@@ -734,8 +833,34 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     // Handle 3D zoom by scaling axis limits (box stays fixed visual size)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
     {
+        auto before_xlim = axes3d->x_limits();
+        auto before_ylim = axes3d->y_limits();
+        auto before_zlim = axes3d->z_limits();
         float factor = (y_offset > 0) ? (1.0f - ZOOM_3D_FACTOR) : (1.0f + ZOOM_3D_FACTOR);
         axes3d->zoom_limits(factor);
+        if (axis_link_mgr_)
+            axis_link_mgr_->propagate_from_3d(axes3d);
+        if (undo_mgr_)
+        {
+            auto after_xlim = axes3d->x_limits();
+            auto after_ylim = axes3d->y_limits();
+            auto after_zlim = axes3d->z_limits();
+            Axes3D* ax = axes3d;
+            undo_mgr_->push(UndoAction{
+                "Zoom 3D",
+                [ax, before_xlim, before_ylim, before_zlim]()
+                {
+                    ax->xlim(before_xlim.min, before_xlim.max);
+                    ax->ylim(before_ylim.min, before_ylim.max);
+                    ax->zlim(before_zlim.min, before_zlim.max);
+                },
+                [ax, after_xlim, after_ylim, after_zlim]()
+                {
+                    ax->xlim(after_xlim.min, after_xlim.max);
+                    ax->ylim(after_ylim.min, after_ylim.max);
+                    ax->zlim(after_zlim.min, after_zlim.max);
+                }});
+        }
         return;
     }
 

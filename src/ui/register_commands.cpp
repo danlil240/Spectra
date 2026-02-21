@@ -134,7 +134,29 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "view.toggle_grid",
         "Toggle Grid",
-        [&]() { undoable_toggle_grid_all(&undo_mgr, *active_figure); },
+        [&]()
+        {
+            // 2D axes
+            undoable_toggle_grid_all(&undo_mgr, *active_figure);
+            // 3D axes: toggle all grid planes on/off
+            undo_mgr.begin_group("Toggle 3D grid");
+            for (auto& ax_base : active_figure->all_axes_mut())
+            {
+                if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                {
+                    auto old_planes = ax3d->grid_planes();
+                    bool was_on = (old_planes != Axes3D::GridPlane::None);
+                    auto new_planes = was_on ? Axes3D::GridPlane::None : Axes3D::GridPlane::All;
+                    ax3d->grid_planes(new_planes);
+                    Axes3D* ax = ax3d;
+                    undo_mgr.push(UndoAction{
+                        was_on ? "Hide 3D grid" : "Show 3D grid",
+                        [ax, old_planes]() { ax->grid_planes(old_planes); },
+                        [ax, new_planes]() { ax->grid_planes(new_planes); }});
+                }
+            }
+            undo_mgr.end_group();
+        },
         "G",
         "View",
         static_cast<uint16_t>(ui::Icon::Grid));
@@ -177,7 +199,28 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "view.toggle_border",
         "Toggle Border",
-        [&]() { undoable_toggle_border_all(&undo_mgr, *active_figure); },
+        [&]()
+        {
+            // 2D axes
+            undoable_toggle_border_all(&undo_mgr, *active_figure);
+            // 3D axes: toggle bounding box visibility
+            undo_mgr.begin_group("Toggle 3D border");
+            for (auto& ax_base : active_figure->all_axes_mut())
+            {
+                if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                {
+                    bool old_val = ax3d->show_bounding_box();
+                    bool new_val = !old_val;
+                    ax3d->show_bounding_box(new_val);
+                    Axes3D* ax = ax3d;
+                    undo_mgr.push(UndoAction{
+                        new_val ? "Show 3D bounding box" : "Hide 3D bounding box",
+                        [ax, old_val]() { ax->show_bounding_box(old_val); },
+                        [ax, new_val]() { ax->show_bounding_box(new_val); }});
+                }
+            }
+            undo_mgr.end_group();
+        },
         "B",
         "View");
 
@@ -241,6 +284,15 @@ void register_standard_commands(const CommandBindings& b)
                     ax->auto_fit();
                 }
             }
+            // 3D axes: always auto_fit (no home_limits stored for 3D)
+            for (auto& ax_base : active_figure->all_axes_mut())
+            {
+                if (ax_base)
+                {
+                    if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                        ax3d->auto_fit();
+                }
+            }
             auto after = capture_figure_axes(*active_figure);
             undo_mgr.push(UndoAction{"Restore original view",
                                      [before]() { restore_figure_axes(before); },
@@ -255,7 +307,11 @@ void register_standard_commands(const CommandBindings& b)
         "Zoom In",
         [&]()
         {
-            if (auto* ax = input_handler.active_axes())
+            if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
+            {
+                ax3d->zoom_limits(0.75f);
+            }
+            else if (auto* ax = input_handler.active_axes())
             {
                 auto old_x = ax->x_limits();
                 auto old_y = ax->y_limits();
@@ -275,7 +331,11 @@ void register_standard_commands(const CommandBindings& b)
         "Zoom Out",
         [&]()
         {
-            if (auto* ax = input_handler.active_axes())
+            if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
+            {
+                ax3d->zoom_limits(1.25f);
+            }
+            else if (auto* ax = input_handler.active_axes())
             {
                 auto old_x = ax->x_limits();
                 auto old_y = ax->y_limits();

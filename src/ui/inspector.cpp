@@ -213,16 +213,11 @@ void Inspector::draw_series_browser(Figure& fig)
 
     widgets::small_spacing();
 
-    int ax_idx = 0;
-    for (auto& ax : fig.axes_mut())
+    // Helper lambda to draw series rows for any axes (2D or 3D)
+    auto draw_axes_series = [&](AxesBase* ax_base, int ax_idx)
     {
-        if (!ax)
-        {
-            ax_idx++;
-            continue;
-        }
         int s_idx = 0;
-        for (auto& s : ax->series_mut())
+        for (auto& s : ax_base->series_mut())
         {
             if (!s)
             {
@@ -274,7 +269,8 @@ void Inspector::draw_series_browser(Figure& fig)
             }
             if (ImGui::Selectable(name, is_selected, ImGuiSelectableFlags_None, ImVec2(0, 0)))
             {
-                ctx_.select_series(&fig, ax.get(), ax_idx, s.get(), s_idx);
+                // select_series takes Axes* (2D); cast for 2D, nullptr for 3D
+                ctx_.select_series(&fig, dynamic_cast<Axes*>(ax_base), ax_idx, s.get(), s_idx);
             }
             if (is_selected)
             {
@@ -284,6 +280,19 @@ void Inspector::draw_series_browser(Figure& fig)
             ImGui::PopID();
             s_idx++;
         }
+    };
+
+    int ax_idx = 0;
+    for (auto& ax : fig.axes_mut())
+    {
+        if (ax)
+            draw_axes_series(ax.get(), ax_idx);
+        ax_idx++;
+    }
+    for (auto& ax_base : fig.all_axes_mut())
+    {
+        if (ax_base)
+            draw_axes_series(ax_base.get(), ax_idx);
         ax_idx++;
     }
 }

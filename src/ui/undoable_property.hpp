@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
 #include <spectra/color.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
@@ -299,7 +300,8 @@ inline void undoable_set_ylabel(UndoManager* mgr, Axes& ax, const std::string& n
 
 // ─── Grouped multi-axes operations ──────────────────────────────────────────
 
-// Toggle grid on all axes in a figure as a single undo action
+// Toggle grid on all 2D axes in a figure as a single undo action
+// (Axes3D grid is always rendered and not togglable via this function)
 inline void undoable_toggle_grid_all(UndoManager* mgr, Figure& fig)
 {
     if (mgr)
@@ -313,7 +315,8 @@ inline void undoable_toggle_grid_all(UndoManager* mgr, Figure& fig)
         mgr->end_group();
 }
 
-// Toggle border on all axes in a figure as a single undo action
+// Toggle border on all 2D axes in a figure as a single undo action
+// (Axes3D border is always rendered and not togglable via this function)
 inline void undoable_toggle_border_all(UndoManager* mgr, Figure& fig)
 {
     if (mgr)
@@ -328,15 +331,25 @@ inline void undoable_toggle_border_all(UndoManager* mgr, Figure& fig)
 }
 
 // Capture full figure axis state for undo (e.g., before auto-fit / reset view)
+// Captures both 2D axes (xlim/ylim) and 3D axes (xlim/ylim/zlim + camera).
 struct FigureAxisSnapshot
 {
-    struct Entry
+    struct Entry2D
     {
         Axes* axes;
         AxisLimits x_limits;
         AxisLimits y_limits;
     };
-    std::vector<Entry> entries;
+    struct Entry3D
+    {
+        Axes3D* axes;
+        AxisLimits x_limits;
+        AxisLimits y_limits;
+        AxisLimits z_limits;
+        Camera camera;
+    };
+    std::vector<Entry2D> entries;
+    std::vector<Entry3D> entries3d;
 };
 
 inline FigureAxisSnapshot capture_figure_axes(Figure& fig)
@@ -347,6 +360,14 @@ inline FigureAxisSnapshot capture_figure_axes(Figure& fig)
         if (ax)
         {
             snap.entries.push_back({ax.get(), ax->x_limits(), ax->y_limits()});
+        }
+    }
+    for (auto& ax_base : fig.all_axes_mut())
+    {
+        if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+        {
+            snap.entries3d.push_back(
+                {ax3d, ax3d->x_limits(), ax3d->y_limits(), ax3d->z_limits(), ax3d->camera()});
         }
     }
     return snap;
@@ -362,6 +383,17 @@ inline void restore_figure_axes(const FigureAxisSnapshot& snap)
             e.axes->ylim(e.y_limits.min, e.y_limits.max);
         }
     }
+    for (auto& e : snap.entries3d)
+    {
+        if (e.axes)
+        {
+            e.axes->xlim(e.x_limits.min, e.x_limits.max);
+            e.axes->ylim(e.y_limits.min, e.y_limits.max);
+            e.axes->zlim(e.z_limits.min, e.z_limits.max);
+            e.axes->camera() = e.camera;
+            e.axes->camera().update_position_from_orbit();
+        }
+    }
 }
 
 inline void undoable_reset_view(UndoManager* mgr, Figure& fig)
@@ -371,6 +403,11 @@ inline void undoable_reset_view(UndoManager* mgr, Figure& fig)
     {
         if (ax)
             ax->auto_fit();
+    }
+    for (auto& ax_base : fig.all_axes_mut())
+    {
+        if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+            ax3d->auto_fit();
     }
     auto after = capture_figure_axes(fig);
     if (mgr)

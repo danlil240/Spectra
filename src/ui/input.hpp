@@ -15,6 +15,7 @@ class DataInteraction;
 class GestureRecognizer;
 class ShortcutManager;
 class TransitionEngine;
+class UndoManager;
 
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode
@@ -112,6 +113,10 @@ class InputHandler
     // Set the shortcut manager (owned externally by App)
     void set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
     ShortcutManager* shortcut_manager() const { return shortcut_mgr_; }
+
+    // Set the undo manager (owned externally by App)
+    void set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
+    UndoManager* undo_manager() const { return undo_mgr_; }
 
     // Set the axis link manager (owned externally by App)
     void set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
@@ -230,8 +235,18 @@ class InputHandler
     // Shortcut manager (not owned)
     ShortcutManager* shortcut_mgr_ = nullptr;
 
+    // Undo manager (not owned)
+    UndoManager* undo_mgr_ = nullptr;
+
     // Axis link manager (not owned)
     AxisLinkManager* axis_link_mgr_ = nullptr;
+
+    // 3D drag undo snapshots (captured at drag-start)
+    AxisLimits drag3d_start_xlim_{};
+    AxisLimits drag3d_start_ylim_{};
+    AxisLimits drag3d_start_zlim_{};
+    Camera     drag3d_start_camera_{};
+    Axes3D*    drag3d_axes_ = nullptr;
 
     // Modifier key tracking (updated from on_key)
     int mods_ = 0;

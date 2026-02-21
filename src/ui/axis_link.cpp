@@ -583,6 +583,120 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
     }
 }
 
+// ─── 3D axis linking ─────────────────────────────────────────────────────────
+
+LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b)
+{
+    if (!a || !b || a == b)
+        return 0;
+    std::lock_guard lock(mutex_);
+
+    // Check if they already share a 3D group
+    for (auto& [id, group] : groups_3d_)
+    {
+        if (group.contains(a) && group.contains(b))
+            return id;
+        if (group.contains(a) && !group.contains(b))
+        {
+            group.members.push_back(b);
+            notify();
+            return id;
+        }
+        if (group.contains(b) && !group.contains(a))
+        {
+            group.members.push_back(a);
+            notify();
+            return id;
+        }
+    }
+
+    // Create new 3D group
+    LinkGroupId id = next_id_++;
+    Link3DGroup group;
+    group.id = id;
+    group.axis = LinkAxis::Both;
+    group.name = "3D Link " + std::to_string(id);
+    static constexpr Color group_colors[] = {
+        {0.34f, 0.65f, 0.96f}, {0.96f, 0.49f, 0.31f}, {0.30f, 0.78f, 0.47f},
+        {0.89f, 0.35f, 0.40f}, {0.58f, 0.40f, 0.74f}, {0.09f, 0.75f, 0.81f},
+        {0.89f, 0.47f, 0.76f}, {0.74f, 0.74f, 0.13f},
+    };
+    group.color = group_colors[(id - 1) % 8];
+    group.members.push_back(a);
+    group.members.push_back(b);
+    groups_3d_[id] = std::move(group);
+    notify();
+    return id;
+}
+
+void AxisLinkManager::add_to_group_3d(LinkGroupId id, Axes3D* ax)
+{
+    if (!ax)
+        return;
+    std::lock_guard lock(mutex_);
+    auto it = groups_3d_.find(id);
+    if (it == groups_3d_.end())
+        return;
+    if (!it->second.contains(ax))
+    {
+        it->second.members.push_back(ax);
+        notify();
+    }
+}
+
+void AxisLinkManager::remove_from_all_3d(Axes3D* ax)
+{
+    if (!ax)
+        return;
+    std::lock_guard lock(mutex_);
+    bool changed = false;
+    std::vector<LinkGroupId> empty_groups;
+    for (auto& [id, group] : groups_3d_)
+    {
+        if (group.contains(ax))
+        {
+            group.remove(ax);
+            changed = true;
+            if (group.members.empty())
+                empty_groups.push_back(id);
+        }
+    }
+    for (auto gid : empty_groups)
+        groups_3d_.erase(gid);
+    if (changed)
+        notify();
+}
+
+void AxisLinkManager::propagate_from_3d(Axes3D* source)
+{
+    if (!source)
+        return;
+    std::lock_guard lock(mutex_);
+    if (propagating_)
+        return;
+    propagating_ = true;
+
+    auto new_xlim = source->x_limits();
+    auto new_ylim = source->y_limits();
+    auto new_zlim = source->z_limits();
+
+    for (auto& [id, group] : groups_3d_)
+    {
+        if (!group.contains(source))
+            continue;
+        for (Axes3D* peer : group.members)
+        {
+            if (peer == source)
+                continue;
+            peer->xlim(new_xlim.min, new_xlim.max);
+            peer->ylim(new_ylim.min, new_ylim.max);
+            peer->zlim(new_zlim.min, new_zlim.max);
+        }
+    }
+
+    propagating_ = false;
+}
+
 // ─── Shared cursor (Agent E — Week 10) ───────────────────────────────────────
 
 void AxisLinkManager::update_shared_cursor(const SharedCursor& cursor)

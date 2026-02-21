@@ -1447,6 +1447,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->input_handler.set_animation_controller(&ui->anim_controller);
     ui->input_handler.set_gesture_recognizer(&ui->gesture);
     ui->input_handler.set_shortcut_manager(&ui->shortcut_mgr);
+    ui->input_handler.set_undo_manager(&ui->undo_mgr);
     ui->input_handler.set_axis_link_manager(&ui->axis_link_mgr);
 
     // Wire series click-to-select

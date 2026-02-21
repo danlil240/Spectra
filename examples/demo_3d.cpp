@@ -99,6 +99,7 @@ int main()
     ax3.zlabel("Z");
     ax3.camera().set_azimuth(30.0f).set_elevation(45.0f);
     ax3.grid_planes(Axes3D::GridPlane::All);
+    ax3.light_dir({1.0f, 0.0f, 1.0f});
 
     // --- Subplot 4: Multiple 3D Series (Combined) ---
     auto& ax4 = fig.subplot3d(2, 2, 4);

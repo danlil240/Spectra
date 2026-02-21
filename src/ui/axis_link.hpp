@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
 #include <spectra/fwd.hpp>
 #include <string>
 #include <unordered_map>
@@ -47,6 +48,26 @@ struct LinkGroup
 
     bool contains(const Axes* ax) const;
     void remove(const Axes* ax);
+};
+
+// A group of 3D axes that are linked together (xlim/ylim/zlim)
+struct Link3DGroup
+{
+    LinkGroupId id = 0;
+    LinkAxis axis = LinkAxis::Both;  // X=xlim, Y=ylim, Both=xlim+ylim+zlim
+    std::string name;
+    Color color = colors::blue;
+    std::vector<Axes3D*> members;
+
+    bool contains(const Axes3D* ax) const
+    {
+        return std::find(members.begin(), members.end(), ax) != members.end();
+    }
+    void remove(const Axes3D* ax)
+    {
+        members.erase(std::remove(members.begin(), members.end(), const_cast<Axes3D*>(ax)),
+                      members.end());
+    }
 };
 
 // Shared cursor state — represents a cursor position broadcast across linked axes.
@@ -111,6 +132,20 @@ class AxisLinkManager
 
     // Unlink an axes from all groups.
     void unlink(Axes* ax);
+
+    // ── 3D axis linking ───────────────────────────────────────────────
+
+    // Link two 3D axes together (xlim/ylim/zlim propagation).
+    LinkGroupId link_3d(Axes3D* a, Axes3D* b);
+
+    // Add a 3D axes to an existing group.
+    void add_to_group_3d(LinkGroupId id, Axes3D* ax);
+
+    // Remove a 3D axes from all 3D groups.
+    void remove_from_all_3d(Axes3D* ax);
+
+    // Propagate 3D limit changes from source to all linked 3D peers.
+    void propagate_from_3d(Axes3D* source);
 
     // ── Propagation ──────────────────────────────────────────────────
 
@@ -186,6 +221,7 @@ class AxisLinkManager
 
     mutable std::mutex mutex_;
     std::unordered_map<LinkGroupId, LinkGroup> groups_;
+    std::unordered_map<LinkGroupId, Link3DGroup> groups_3d_;
     LinkGroupId next_id_ = 1;
     LinkChangeCallback on_change_;
 

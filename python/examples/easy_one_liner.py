@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import spectra as sp
 
-# ─── Example 1: Plot y-values (x auto-generated) ─────────────────────────────
+# ─── Example 1: Plot y-values (x auto-generated) ─────────────────────────────_
 sp.plot([1, 4, 9, 16, 25, 36, 49, 64])
 
 # ─── Example 2: Plot x, y with styling ───────────────────────────────────────

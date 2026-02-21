@@ -1455,6 +1455,8 @@ std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
 {
     PayloadEncoder enc;
     enc.put_u64(TAG_FIGURE_ID, p.figure_id);
+    if (p.window_id != ipc::INVALID_WINDOW)
+        enc.put_u64(TAG_WINDOW_ID, p.window_id);
     return enc.take();
 }
 
@@ -1468,6 +1470,9 @@ std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
         {
             case TAG_FIGURE_ID:
                 p.figure_id = dec.as_u64();
+                break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
                 break;
             default:
                 break;

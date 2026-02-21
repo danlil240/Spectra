@@ -135,6 +135,7 @@ class _EasyState:
         self._live_threads: List[threading.Thread] = []
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
+        self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
 
     def _ensure_session(self):
         """Lazily create the backend session."""
@@ -195,6 +196,7 @@ class _EasyState:
         self._current_axes = None
         self._current_axes3d = None
         self._figures.clear()
+        self._axes_bounds.clear()
 
 
 _state = _EasyState()
@@ -218,6 +220,44 @@ def figure(title: str = "", width: int = 1280, height: int = 720):
     _state._current_axes_key = (1, 1, 1)
     _state._figures.append(fig)
     _state._pending_show.add(id(fig))
+    return fig
+
+
+def tab(title: str = ""):
+    """Create a new tab in the current window. All subsequent plots go here.
+
+    Unlike ``figure()``, which creates a new OS window, ``tab()`` adds a new
+    figure as a tab inside the same window.
+
+    Usage::
+
+        sp.plot(x, y1)           # first tab (auto-created)
+        sp.tab()                 # new tab in same window
+        sp.plot(x, y2)           # plots in second tab
+        sp.tab("Analysis")       # named tab
+        sp.plot(x, y3)
+
+    Returns the new Figure object.
+    """
+    # Need at least one figure shown to have a window to add tabs to
+    prev_fig = _state._current_fig
+    _state._show_if_pending()
+
+    s = _state._ensure_session()
+    fig = s.figure(title=title)
+
+    # If previous figure has a window_id, show new figure in that window (as tab)
+    if prev_fig is not None and prev_fig._window_id != 0:
+        fig.show(window_id=prev_fig._window_id)
+    else:
+        fig.show()
+
+    _state._current_fig = fig
+    _state._current_axes = None
+    _state._current_axes3d = None
+    _state._current_axes_key = (1, 1, 1)
+    _state._figures.append(fig)
+    # Already shown — don't add to pending
     return fig
 
 
@@ -440,13 +480,31 @@ def vline(x: float, color: Union[str, Tuple, List, None] = "gray", label: str = 
 # ─── Auto-fit helper ─────────────────────────────────────────────────────────
 
 def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
-    """Set axis limits to fit data with 5% padding, ignoring NaN values."""
+    """Set axis limits to fit ALL series data with 5% padding, ignoring NaN values.
+
+    Accumulates bounds across multiple plot() calls on the same axes so that
+    earlier series are not pushed out of frame by later ones.
+    """
     finite_x = [v for v in x if v == v and abs(v) < 1e11]  # filter NaN and sentinel hlines/vlines
     finite_y = [v for v in y if v == v and abs(v) < 1e11]
     if not finite_x or not finite_y:
         return
-    xmin, xmax = min(finite_x), max(finite_x)
-    ymin, ymax = min(finite_y), max(finite_y)
+    new_xmin, new_xmax = min(finite_x), max(finite_x)
+    new_ymin, new_ymax = min(finite_y), max(finite_y)
+
+    # Accumulate with existing bounds for this axes
+    ax_key = id(ax)
+    if ax_key in _state._axes_bounds:
+        prev = _state._axes_bounds[ax_key]
+        xmin = min(prev[0], new_xmin)
+        xmax = max(prev[1], new_xmax)
+        ymin = min(prev[2], new_ymin)
+        ymax = max(prev[3], new_ymax)
+    else:
+        xmin, xmax = new_xmin, new_xmax
+        ymin, ymax = new_ymin, new_ymax
+    _state._axes_bounds[ax_key] = [xmin, xmax, ymin, ymax]
+
     # Add 5% padding
     xpad = (xmax - xmin) * 0.05 if xmax != xmin else 0.5
     ypad = (ymax - ymin) * 0.05 if ymax != ymin else 0.5

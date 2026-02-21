@@ -37,6 +37,19 @@ bool FigureModel::remove_figure(uint64_t figure_id)
 
 // --- Axes management ---
 
+void FigureModel::set_grid(uint64_t figure_id, int32_t rows, int32_t cols)
+{
+    std::lock_guard lock(mu_);
+    auto it = figures_.find(figure_id);
+    if (it == figures_.end())
+        return;
+    // Only grow — never shrink the grid
+    if (rows > it->second.grid_rows)
+        it->second.grid_rows = rows;
+    if (cols > it->second.grid_cols)
+        it->second.grid_cols = cols;
+}
+
 uint32_t FigureModel::add_axes(
     uint64_t figure_id, float x_min, float x_max, float y_min, float y_max, bool is_3d)
 {

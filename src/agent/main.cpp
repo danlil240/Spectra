@@ -332,6 +332,22 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             fig.axes[op.axes_index] = std::move(ax);
             break;
         }
+        case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
+            if (op.series_index < fig.series.size())
+                fig.series[op.series_index].name = op.str_val;
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
+            if (op.axes_index < fig.axes.size())
+                fig.axes[op.axes_index].x_label = op.str_val;
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_YLABEL:
+            if (op.axes_index < fig.axes.size())
+                fig.axes[op.axes_index].y_label = op.str_val;
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
+            if (op.axes_index < fig.axes.size())
+                fig.axes[op.axes_index].title = op.str_val;
+            break;
         default:
             break;
     }
@@ -415,6 +431,26 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     }
                 }
             }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            {
+                auto& series_vec = fig.axes_mut()[op.axes_index]->series_mut();
+                if (op.series_index < series_vec.size() && series_vec[op.series_index])
+                    series_vec[op.series_index]->label(op.str_val);
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+                fig.axes_mut()[op.axes_index]->xlabel(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_YLABEL:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+                fig.axes_mut()[op.axes_index]->ylabel(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
+            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+                fig.axes_mut()[op.axes_index]->title(op.str_val);
             break;
         default:
             break;

@@ -893,6 +893,10 @@ int main(int argc, char* argv[])
                         break;
                     }
 
+                    // Update grid dimensions on the figure model so the
+                    // snapshot sent to agents has the correct layout.
+                    fig_model.set_grid(req->figure_id, req->grid_rows, req->grid_cols);
+
                     auto axes_idx = fig_model.add_axes(
                         req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
 
@@ -958,6 +962,20 @@ int main(int argc, char* argv[])
                         diff.base_revision = fig_model.revision() - 1;
                         diff.new_revision = fig_model.revision();
                         diff.ops.push_back(add_op);
+
+                        // If the series was created with a label, also send
+                        // SET_SERIES_LABEL so the agent picks it up immediately
+                        // (ADD_SERIES diff only carries the type, not the name).
+                        if (!req->label.empty())
+                        {
+                            spectra::ipc::DiffOp label_op;
+                            label_op.type = spectra::ipc::DiffOp::Type::SET_SERIES_LABEL;
+                            label_op.figure_id = req->figure_id;
+                            label_op.series_index = series_idx;
+                            label_op.str_val = req->label;
+                            diff.ops.push_back(label_op);
+                        }
+
                         for (auto& c : clients)
                         {
                             if (c.conn && c.handshake_done
@@ -1175,35 +1193,74 @@ int main(int argc, char* argv[])
                         break;
                     }
 
-                    std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id
-                              << "\n";
-
-                    // Pre-register agent slot and assign figure
-                    auto new_wid = graph.add_agent(0, -1);
-                    graph.assign_figure(req->figure_id, new_wid);
-                    graph.heartbeat(new_wid);
-
-                    // Spawn agent process
-                    pid_t pid = proc_mgr.spawn_agent();
-                    if (pid > 0)
+                    // If window_id is specified and valid, add figure as tab to existing window
+                    if (req->window_id != spectra::ipc::INVALID_WINDOW
+                        && graph.agent(req->window_id) != nullptr)
                     {
-                        std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                                  << " for figure " << req->figure_id
-                                  << " (window=" << new_wid << ")\n";
+                        std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id
+                                  << " as tab in window=" << req->window_id << "\n";
 
+                        graph.assign_figure(req->figure_id, req->window_id);
+
+                        // Send CMD_ASSIGN_FIGURES to the target agent with updated figure list
+                        auto assigned = graph.figures_for_window(req->window_id);
+                        for (auto& c : clients)
+                        {
+                            if (c.window_id == req->window_id && c.conn)
+                            {
+                                send_assign_figures(
+                                    *c.conn, req->window_id, graph.session_id(),
+                                    assigned, req->figure_id);
+
+                                // Also send updated state snapshot so agent has the new figure data
+                                auto snap = fig_model.snapshot(assigned);
+                                send_state_snapshot(*c.conn, req->window_id, graph.session_id(), snap);
+                                break;
+                            }
+                        }
+
+                        // Send RESP_OK with the window_id so Python can track it
                         spectra::ipc::Message ok_msg;
                         ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
+                        ok_msg.header.window_id = req->window_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
                         ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
                         it->conn->send(ok_msg);
                     }
                     else
                     {
-                        graph.remove_agent(new_wid);
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 500, "Failed to spawn agent");
+                        // No target window — spawn a new agent
+                        std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id
+                                  << "\n";
+
+                        auto new_wid = graph.add_agent(0, -1);
+                        graph.assign_figure(req->figure_id, new_wid);
+                        graph.heartbeat(new_wid);
+
+                        pid_t pid = proc_mgr.spawn_agent();
+                        if (pid > 0)
+                        {
+                            std::cerr << "[spectra-backend] Spawned agent pid=" << pid
+                                      << " for figure " << req->figure_id
+                                      << " (window=" << new_wid << ")\n";
+
+                            spectra::ipc::Message ok_msg;
+                            ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
+                            ok_msg.header.session_id = graph.session_id();
+                            ok_msg.header.request_id = msg.header.request_id;
+                            ok_msg.header.window_id = new_wid;
+                            ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
+                            ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
+                            it->conn->send(ok_msg);
+                        }
+                        else
+                        {
+                            graph.remove_agent(new_wid);
+                            send_resp_err(*it->conn, graph.session_id(),
+                                          msg.header.request_id, 500, "Failed to spawn agent");
+                        }
                     }
                     break;
                 }

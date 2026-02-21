@@ -18,7 +18,7 @@ class Figure:
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once")
+    __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once", "_window_id")
 
     def __init__(self, session: Session, figure_id: int, title: str = "") -> None:
         self._session = session
@@ -27,6 +27,7 @@ class Figure:
         self._axes_list: List[Axes] = []
         self._visible = False
         self._shown_once = False
+        self._window_id: int = 0
 
     @property
     def id(self) -> int:
@@ -90,10 +91,25 @@ class Figure:
         """Whether this figure's window is currently open."""
         return self._visible
 
-    def show(self) -> None:
-        """Show this figure in a window (spawns an agent process)."""
-        payload = codec.encode_req_show(self._id)
-        self._session._request(P.REQ_SHOW, payload)
+    @property
+    def window_id(self) -> int:
+        """The window ID this figure is displayed in (0 if not shown yet)."""
+        return self._window_id
+
+    def show(self, window_id: int = 0) -> None:
+        """Show this figure in a window.
+
+        Args:
+            window_id: If non-zero, add this figure as a tab in the specified
+                       window instead of spawning a new window. Use
+                       ``other_fig.window_id`` to get a valid window ID.
+        """
+        payload = codec.encode_req_show(self._id, window_id=window_id)
+        resp = self._session._request(P.REQ_SHOW, payload)
+        # Backend returns the window_id in the response header
+        resp_wid = resp.get("header", {}).get("window_id", 0)
+        if resp_wid:
+            self._window_id = resp_wid
         self._visible = True
         self._shown_once = True
 

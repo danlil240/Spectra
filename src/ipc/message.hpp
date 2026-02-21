@@ -418,9 +418,12 @@ struct ReqUpdatePropertyPayload
 };
 
 // Python → Backend: show a figure (spawn agent window).
+// If window_id is non-zero/valid, the figure is added as a tab to the existing window
+// instead of spawning a new agent.
 struct ReqShowPayload
 {
     uint64_t figure_id = 0;
+    WindowId window_id = INVALID_WINDOW;  // target window for tab (0 = new window)
 };
 
 // Python → Backend: close a figure's window (keep figure in model).

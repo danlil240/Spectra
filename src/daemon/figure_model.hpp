@@ -32,6 +32,9 @@ class FigureModel
 
     // --- Axes management ---
 
+    // Update the subplot grid dimensions for a figure.
+    void set_grid(uint64_t figure_id, int32_t rows, int32_t cols);
+
     // Add an axes to a figure. Returns the axes index.
     uint32_t add_axes(uint64_t figure_id,
                       float x_min = 0.0f,

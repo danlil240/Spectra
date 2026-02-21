@@ -298,34 +298,44 @@ void App::run_inproc()
     // that need access to SessionRuntime, registry_, and command registration.
     if (figure_tabs && !config_.headless)
     {
-        // Tab context menu: Split Right / Split Down
+        // Tab context menu: Split Right / Split Down (move, not duplicate)
         figure_tabs->set_tab_split_right_callback(
-            [&dock_system, &fig_mgr, this](size_t pos)
+            [&dock_system, &fig_mgr](size_t pos)
             {
                 if (pos >= fig_mgr.figure_ids().size())
                     return;
                 FigureId id = fig_mgr.figure_ids()[pos];
-                if (!registry_.get(id))
+                auto* pane = dock_system.split_view().root()
+                                 ? dock_system.split_view().root()->find_by_figure(id)
+                                 : nullptr;
+                if (!pane || pane->figure_count() < 2)
                     return;
-                FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == INVALID_FIGURE_ID)
+                auto* new_pane = dock_system.split_figure_right(id, id);
+                if (!new_pane)
                     return;
-                dock_system.split_figure_right(id, new_fig);
+                auto* parent = new_pane->parent();
+                if (parent && parent->first())
+                    parent->first()->remove_figure(id);
                 dock_system.set_active_figure_index(id);
             });
 
         figure_tabs->set_tab_split_down_callback(
-            [&dock_system, &fig_mgr, this](size_t pos)
+            [&dock_system, &fig_mgr](size_t pos)
             {
                 if (pos >= fig_mgr.figure_ids().size())
                     return;
                 FigureId id = fig_mgr.figure_ids()[pos];
-                if (!registry_.get(id))
+                auto* pane = dock_system.split_view().root()
+                                 ? dock_system.split_view().root()->find_by_figure(id)
+                                 : nullptr;
+                if (!pane || pane->figure_count() < 2)
                     return;
-                FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == INVALID_FIGURE_ID)
+                auto* new_pane = dock_system.split_figure_down(id, id);
+                if (!new_pane)
                     return;
-                dock_system.split_figure_down(id, new_fig);
+                auto* parent = new_pane->parent();
+                if (parent && parent->first())
+                    parent->first()->remove_figure(id);
                 dock_system.set_active_figure_index(id);
             });
 

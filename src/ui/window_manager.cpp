@@ -1448,21 +1448,37 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
                                         { fig_mgr_ptr->queue_close(index); });
     ui->imgui_ui->set_pane_tab_split_right_cb(
-        [dock_ptr, fig_mgr_ptr](FigureId index)
+        [dock_ptr](FigureId index)
         {
-            FigureId new_fig = fig_mgr_ptr->duplicate_figure(index);
-            if (new_fig == INVALID_FIGURE_ID)
+            auto* pane = dock_ptr->split_view().root()
+                             ? dock_ptr->split_view().root()->find_by_figure(index)
+                             : nullptr;
+            if (!pane || pane->figure_count() < 2)
                 return;
-            dock_ptr->split_figure_right(index, new_fig);
+            auto* new_pane = dock_ptr->split_figure_right(index, index);
+            if (!new_pane)
+                return;
+            // Remove the moved figure from the source (first child) pane
+            auto* parent = new_pane->parent();
+            if (parent && parent->first())
+                parent->first()->remove_figure(index);
             dock_ptr->set_active_figure_index(index);
         });
     ui->imgui_ui->set_pane_tab_split_down_cb(
-        [dock_ptr, fig_mgr_ptr](FigureId index)
+        [dock_ptr](FigureId index)
         {
-            FigureId new_fig = fig_mgr_ptr->duplicate_figure(index);
-            if (new_fig == INVALID_FIGURE_ID)
+            auto* pane = dock_ptr->split_view().root()
+                             ? dock_ptr->split_view().root()->find_by_figure(index)
+                             : nullptr;
+            if (!pane || pane->figure_count() < 2)
                 return;
-            dock_ptr->split_figure_down(index, new_fig);
+            auto* new_pane = dock_ptr->split_figure_down(index, index);
+            if (!new_pane)
+                return;
+            // Remove the moved figure from the source (first child) pane
+            auto* parent = new_pane->parent();
+            if (parent && parent->first())
+                parent->first()->remove_figure(index);
             dock_ptr->set_active_figure_index(index);
         });
     ui->imgui_ui->set_pane_tab_rename_cb([fig_mgr_ptr](size_t index, const std::string& t)

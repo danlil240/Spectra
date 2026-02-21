@@ -340,9 +340,11 @@ def encode_req_update_property(
     return enc.take()
 
 
-def encode_req_show(figure_id: int) -> bytes:
+def encode_req_show(figure_id: int, window_id: int = 0) -> bytes:
     enc = PayloadEncoder()
     enc.put_u64(P.TAG_FIGURE_ID, figure_id)
+    if window_id != 0:
+        enc.put_u64(P.TAG_WINDOW_ID, window_id)
     return enc.take()
 
 

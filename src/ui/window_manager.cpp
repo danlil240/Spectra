@@ -1151,11 +1151,10 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
         {
             fm->add_figure(figure_ids[i], FigureState{});
         }
-        // Sync wctx active figure with FigureManager — add_figure() calls
-        // switch_to() which changes the active index, but wctx was set to
-        // figure_ids[0] above.  Without this sync the render loop uses a
-        // stale active_figure_id, causing flickering when it doesn't match
-        // the figure FigureManager considers active.
+        // add_figure() calls switch_to() internally, so after the loop
+        // the active figure is the LAST one added.  Switch back to the
+        // first figure so the window starts on figure_ids[0].
+        fm->switch_to(figure_ids[0]);
         wctx_ptr->active_figure_id = fm->active_index();
     }
 #endif

@@ -82,6 +82,13 @@ struct WindowUIContext
     TabDragController tab_drag_controller;
 
     KnobManager knob_manager;
+
+    // Cached data range for zoom level computation.
+    // Avoids scanning all series x_data with minmax_element every frame.
+    float cached_data_min = 0.0f;
+    float cached_data_max = 0.0f;
+    size_t cached_zoom_series_count = 0;
+    bool zoom_cache_valid = false;
 #endif
 
 #ifdef SPECTRA_USE_GLFW

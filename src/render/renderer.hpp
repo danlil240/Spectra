@@ -113,16 +113,41 @@ class Renderer
     {
         BufferHandle grid_buffer;
         size_t grid_capacity = 0;
+        uint32_t grid_vertex_count = 0;
         BufferHandle border_buffer;
         size_t border_capacity = 0;
         // 3D bounding box edges (12 lines = 24 vec3 vertices)
         BufferHandle bbox_buffer;
         size_t bbox_capacity = 0;
+        uint32_t bbox_vertex_count = 0;
         // 3D tick mark lines
         BufferHandle tick_buffer;
         size_t tick_capacity = 0;
+        uint32_t tick_vertex_count = 0;
+
+        // Cached axis limits — skip regeneration when unchanged.
+        float cached_xmin = 0, cached_xmax = 0;
+        float cached_ymin = 0, cached_ymax = 0;
+        float cached_zmin = 0, cached_zmax = 0;
+        bool grid_valid = false;
+        bool bbox_valid = false;
+        bool tick_valid = false;
+        bool grid_enabled_cached = false;
+        int cached_grid_planes = 0;  // for 3D grid plane mask
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
+
+    // Cached series type — avoids 6x dynamic_cast per series per frame.
+    enum class SeriesType : uint8_t
+    {
+        Unknown = 0,
+        Line2D,
+        Scatter2D,
+        Line3D,
+        Scatter3D,
+        Surface3D,
+        Mesh3D,
+    };
 
     // Per-series GPU buffers (keyed by series pointer address)
     struct SeriesGpuData
@@ -131,12 +156,19 @@ class Renderer
         size_t uploaded_count = 0;
         BufferHandle index_buffer;
         size_t index_count = 0;
+        SeriesType type = SeriesType::Unknown;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.
     std::vector<float> upload_scratch_;
+
+    // Reusable scratch buffers for per-frame vertex generation.
+    // Avoids heap allocations in render_grid, render_bounding_box, render_tick_marks.
+    std::vector<float> grid_scratch_;
+    std::vector<float> bbox_scratch_;
+    std::vector<float> tick_scratch_;
 
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).

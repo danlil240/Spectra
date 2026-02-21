@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "../anim/frame_profiler.hpp"
 #include "window_runtime.hpp"
 
 namespace spectra
@@ -120,6 +121,9 @@ class SessionRuntime
 
     // Deferred cross-window move requests.
     std::vector<PendingMove> pending_moves_;
+
+    // DEBUG-only per-frame performance profiler.
+    FrameProfiler profiler_{600};
 };
 
 }  // namespace spectra

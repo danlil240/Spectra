@@ -139,6 +139,10 @@ void FrameScheduler::update_stats(float dt_ms)
     if (dt_ms > max_dt_in_window_)
         max_dt_in_window_ = dt_ms;
     dt_sum_in_window_ += dt_ms;
+
+    // Store sample in circular buffer for actual percentile computation.
+    if (window_counter_ < STATS_WINDOW_FRAMES)
+        dt_samples_[window_counter_] = dt_ms;
     window_counter_++;
 
     float target_ms = (target_fps_ > 0.0f) ? (1000.0f / target_fps_) : 16.667f;
@@ -155,7 +159,17 @@ void FrameScheduler::update_stats(float dt_ms)
     {
         stats_.max_frame_time_ms = max_dt_in_window_;
         stats_.avg_frame_time_ms = static_cast<float>(dt_sum_in_window_ / window_counter_);
-        stats_.p95_frame_time_ms = max_dt_in_window_ * 0.8f;  // rough estimate
+
+        // Actual p95: copy to scratch, partial sort, pick 95th percentile.
+        size_t n = std::min(window_counter_, static_cast<uint64_t>(STATS_WINDOW_FRAMES));
+        std::copy(dt_samples_.begin(), dt_samples_.begin() + n, dt_sorted_.begin());
+        size_t p95_idx = static_cast<size_t>(n * 95 / 100);
+        if (p95_idx >= n)
+            p95_idx = n - 1;
+        std::nth_element(dt_sorted_.begin(), dt_sorted_.begin() + p95_idx,
+                         dt_sorted_.begin() + n);
+        stats_.p95_frame_time_ms = dt_sorted_[p95_idx];
+
         stats_.hitch_count = hitches_in_window_;
         stats_.window_frame_count = window_counter_;
 
@@ -164,6 +178,7 @@ void FrameScheduler::update_stats(float dt_ms)
             SPECTRA_LOG_INFO("perf",
                              "Stats (" + std::to_string(STATS_WINDOW_FRAMES)
                                  + " frames):" + " avg=" + std::to_string(stats_.avg_frame_time_ms)
+                                 + "ms" + " p95=" + std::to_string(stats_.p95_frame_time_ms)
                                  + "ms" + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
                                  + " hitches=" + std::to_string(hitches_in_window_));
         }

@@ -67,6 +67,7 @@ class AxesBase
     {
         on_series_removed_ = std::move(cb);
     }
+    bool has_series_removed_callback() const { return static_cast<bool>(on_series_removed_); }
 
     void set_viewport(const Rect& r) { viewport_ = r; }
     const Rect& viewport() const { return viewport_; }

@@ -207,6 +207,36 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
             }
         }
     }
+    else if (result && target.zone == DropZone::Center)
+    {
+        // Center drop: figure was added to the target pane as a tab.
+        // Remove it from all OTHER leaf panes (the source pane) and
+        // collapse any panes that become empty.
+        auto all_leaves = split_view_.all_panes();
+        for (auto* leaf : all_leaves)
+        {
+            if (leaf != result && leaf->has_figure(dragging_figure_index_))
+            {
+                leaf->remove_figure(dragging_figure_index_);
+            }
+        }
+
+        // Collapse any empty panes that resulted from the removal
+        all_leaves = split_view_.all_panes();
+        for (auto* leaf : all_leaves)
+        {
+            if (leaf->figure_count() == 0 && leaf->figure_index() == INVALID_FIGURE_ID)
+            {
+                auto* p = leaf->parent();
+                if (p)
+                {
+                    bool keep_first = (p->second() == leaf);
+                    p->unsplit(keep_first);
+                    break;  // Tree changed, stop iterating
+                }
+            }
+        }
+    }
 
     if (result)
     {

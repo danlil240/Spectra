@@ -87,6 +87,12 @@ class FrameScheduler
     double dt_sum_in_window_ = 0.0;
     uint32_t hitches_in_window_ = 0;
     uint64_t window_counter_ = 0;
+
+    // Circular buffer for actual percentile computation.
+    std::array<float, STATS_WINDOW_FRAMES> dt_samples_{};
+    // Scratch for sorting (avoids per-window allocation).
+    std::array<float, STATS_WINDOW_FRAMES> dt_sorted_{};
+
     void update_stats(float dt_ms);
 };
 

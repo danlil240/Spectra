@@ -110,17 +110,20 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
     // Ensure all axes have the deferred-deletion callback wired
     // BEFORE the user's on_frame callback can call clear_series().
+    // Only set on axes that don't already have it (avoids per-frame
+    // std::function allocation for the common case of unchanged axes).
     {
-        auto removal_cb = [this](const Series* s) { renderer_.notify_series_removed(s); };
         for (auto& axes_ptr : active_figure->axes())
         {
-            if (axes_ptr)
-                axes_ptr->set_series_removed_callback(removal_cb);
+            if (axes_ptr && !axes_ptr->has_series_removed_callback())
+                axes_ptr->set_series_removed_callback(
+                    [this](const Series* s) { renderer_.notify_series_removed(s); });
         }
         for (auto& axes_ptr : active_figure->all_axes())
         {
-            if (axes_ptr)
-                axes_ptr->set_series_removed_callback(removal_cb);
+            if (axes_ptr && !axes_ptr->has_series_removed_callback())
+                axes_ptr->set_series_removed_callback(
+                    [this](const Series* s) { renderer_.notify_series_removed(s); });
         }
     }
 
@@ -284,30 +287,55 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         }
 
         // Feed zoom level (approximate: based on data bounds vs view)
+        // Cache data_range to avoid O(n) minmax_element scan every frame.
         if (!active_figure->axes().empty() && active_figure->axes()[0])
         {
             auto& ax = active_figure->axes()[0];
             auto xlim = ax->x_limits();
             float view_range = xlim.max - xlim.min;
-            // Estimate data range from series x_data spans
-            float data_min = xlim.max, data_max = xlim.min;
-            for (auto& s : ax->series())
+
+            // Invalidate cache when series count changes or any series is dirty
+            size_t series_count = ax->series().size();
+            bool needs_recompute = !ui_ctx.zoom_cache_valid
+                                   || series_count != ui_ctx.cached_zoom_series_count;
+            if (!needs_recompute)
             {
-                if (!s)
-                    continue;
-                std::span<const float> xd;
-                if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
-                    xd = ls->x_data();
-                else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
-                    xd = sc->x_data();
-                if (!xd.empty())
+                for (auto& s : ax->series())
                 {
-                    auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
-                    data_min = std::min(data_min, *it_min);
-                    data_max = std::max(data_max, *it_max);
+                    if (s && s->is_dirty())
+                    {
+                        needs_recompute = true;
+                        break;
+                    }
                 }
             }
-            float data_range = data_max - data_min;
+
+            if (needs_recompute)
+            {
+                float data_min = xlim.max, data_max = xlim.min;
+                for (auto& s : ax->series())
+                {
+                    if (!s)
+                        continue;
+                    std::span<const float> xd;
+                    if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
+                        xd = ls->x_data();
+                    else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
+                        xd = sc->x_data();
+                    if (!xd.empty())
+                    {
+                        auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
+                        data_min = std::min(data_min, *it_min);
+                        data_max = std::max(data_max, *it_max);
+                    }
+                }
+                ui_ctx.cached_data_min = data_min;
+                ui_ctx.cached_data_max = data_max;
+                ui_ctx.cached_zoom_series_count = series_count;
+                ui_ctx.zoom_cache_valid = true;
+            }
+
+            float data_range = ui_ctx.cached_data_max - ui_ctx.cached_data_min;
             if (view_range > 0.0f && data_range > 0.0f)
             {
                 imgui_ui->set_zoom_level(data_range / view_range);
@@ -500,14 +528,16 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 // ─── render ───────────────────────────────────────────────────────────────────
 // Render one window: begin_frame, render pass, figure content, ImGui, end_frame.
 // Returns true if the frame was successfully presented.
-bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
+bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler)
 {
     auto* active_figure = fs.active_figure;
     auto& imgui_frame_started = fs.imgui_frame_started;
 
     // Render frame. If begin_frame fails (OUT_OF_DATE), recreate and
     // retry once so we present content immediately (no black-flash gap).
+    if (profiler) profiler->begin_stage("begin_frame");
     bool frame_ok = backend_.begin_frame();
+    if (profiler) profiler->end_stage("begin_frame");
 
     if (!frame_ok)
     {
@@ -574,6 +604,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
 
         renderer_.begin_render_pass();
 
+        if (profiler) profiler->begin_stage("figure_content");
 #ifdef SPECTRA_USE_IMGUI
         auto& dock_system = ui_ctx.dock_system;
         if (dock_system.is_split())
@@ -595,18 +626,23 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
 #else
         renderer_.render_figure_content(*active_figure);
 #endif
+        if (profiler) profiler->end_stage("figure_content");
 
 #ifdef SPECTRA_USE_IMGUI
         // Only render ImGui if we have a valid frame (not a retry frame
         // where we already ended the ImGui frame)
         if (ui_ctx.imgui_ui && imgui_frame_started)
         {
+            if (profiler) profiler->begin_stage("imgui_render");
             ui_ctx.imgui_ui->render(*static_cast<VulkanBackend*>(&backend_));
+            if (profiler) profiler->end_stage("imgui_render");
         }
 #endif
 
         renderer_.end_render_pass();
+        if (profiler) profiler->begin_stage("end_frame");
         backend_.end_frame();
+        if (profiler) profiler->end_stage("end_frame");
 
         // Post-present recovery: if vkQueuePresentKHR returned OUT_OF_DATE,
         // the swapchain is permanently invalidated (Vulkan spec). Recreate

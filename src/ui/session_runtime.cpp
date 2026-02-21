@@ -59,6 +59,8 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
 {
     newly_created_window_ids_.clear();
 
+    profiler_.begin_frame();
+
     try
     {
         scheduler.begin_frame();
@@ -71,7 +73,9 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
     }
 
     // Drain command queue (apply app-thread mutations)
+    SPECTRA_PROFILE_BEGIN(profiler_, "cmd_drain");
     size_t commands_processed = cmd_queue.drain();
+    SPECTRA_PROFILE_END(profiler_, "cmd_drain");
     if (commands_processed > 0)
     {
         SPECTRA_LOG_TRACE("main_loop",
@@ -79,7 +83,9 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
     }
 
     // Evaluate keyframe animations
+    SPECTRA_PROFILE_BEGIN(profiler_, "animator");
     animator.evaluate(scheduler.elapsed_seconds());
+    SPECTRA_PROFILE_END(profiler_, "animator");
 
     // ── Unified window update + render loop ───────────────────────
 #ifdef SPECTRA_USE_GLFW
@@ -181,8 +187,14 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 continue;
             win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
 
-            win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, window_mgr);
-            win_rt_.render(*wctx->ui_ctx, win_fs);
+            {
+                SPECTRA_PROFILE_SCOPE(profiler_, "win_update");
+                win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, window_mgr);
+            }
+            {
+                SPECTRA_PROFILE_SCOPE(profiler_, "win_render");
+                win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);
+            }
 
             // Sync active figure back to WindowContext so the next frame
             // reads the correct figure (tab switch via FigureManager updates
@@ -209,7 +221,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                        nullptr
 #endif
         );
-        win_rt_.render(*headless_ui_ctx, frame_state);
+        win_rt_.render(*headless_ui_ctx, frame_state, &profiler_);
     }
 
     // ── Process deferred preview window create/destroy ─────────
@@ -461,12 +473,15 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
 #endif
 
     scheduler.end_frame();
+    profiler_.end_frame();
 
     // ── Poll events + check exit ─────────────────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
+        SPECTRA_PROFILE_BEGIN(profiler_, "poll_events");
         window_mgr->poll_events();
+        SPECTRA_PROFILE_END(profiler_, "poll_events");
         window_mgr->process_pending_closes();
 
         if (!window_mgr->any_window_open())

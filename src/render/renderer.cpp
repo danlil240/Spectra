@@ -247,6 +247,17 @@ void Renderer::upload_series_data(Series& series)
 
     auto& gpu = series_gpu_data_[&series];
 
+    // Tag series type on first encounter (avoids 6x dynamic_cast in render_series)
+    if (gpu.type == SeriesType::Unknown)
+    {
+        if (line) gpu.type = SeriesType::Line2D;
+        else if (scatter) gpu.type = SeriesType::Scatter2D;
+        else if (line3d) gpu.type = SeriesType::Line3D;
+        else if (scatter3d) gpu.type = SeriesType::Scatter3D;
+        else if (surface) gpu.type = SeriesType::Surface3D;
+        else if (mesh) gpu.type = SeriesType::Mesh3D;
+    }
+
     // Handle 2D line/scatter (vec2 interleaved)
     if (line || scatter)
     {
@@ -672,134 +683,147 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto xlim = axes3d->x_limits();
         auto ylim = axes3d->y_limits();
         auto zlim = axes3d->z_limits();
-
-        // Generate 3D grid vertices using Axes3DRenderer helper
-        Axes3DRenderer::GridPlaneData grid_gen;
-        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
         auto gp = axes3d->grid_planes();
-
-        // XY plane grid (z = zlim.min)
-        if (static_cast<int>(gp & Axes3D::GridPlane::XY))
-        {
-            grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
-        }
-
-        // XZ plane grid (y = ylim.min)
-        if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
-        {
-            grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
-        }
-
-        // YZ plane grid (x = xlim.min)
-        if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
-        {
-            grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
-        }
-
-        if (grid_gen.vertices.empty())
-            return;
-
-        // Convert vec3 vertices to float array
-        std::vector<float> verts;
-        verts.reserve(grid_gen.vertices.size() * 3);
-        for (const auto& v : grid_gen.vertices)
-        {
-            verts.push_back(v.x);
-            verts.push_back(v.y);
-            verts.push_back(v.z);
-        }
-
-        if (verts.empty())
-            return;
-
-        // Upload 3D grid vertices
         auto& gpu = axes_gpu_data_[&axes];
-        size_t byte_size = verts.size() * sizeof(float);
-        if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
+
+        // Check if limits/planes changed — skip regeneration if cached
+        bool limits_changed = !gpu.grid_valid
+                              || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
+                              || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
+                              || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max
+                              || gpu.cached_grid_planes != static_cast<int>(gp);
+
+        if (limits_changed)
         {
-            if (gpu.grid_buffer)
-                backend_.destroy_buffer(gpu.grid_buffer);
-            gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-            gpu.grid_capacity = byte_size * 2;
+            // Generate 3D grid vertices using Axes3DRenderer helper
+            Axes3DRenderer::GridPlaneData grid_gen;
+            vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+            vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+
+            if (static_cast<int>(gp & Axes3D::GridPlane::XY))
+                grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
+            if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
+                grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
+            if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
+                grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
+
+            if (grid_gen.vertices.empty())
+                return;
+
+            size_t float_count = grid_gen.vertices.size() * 3;
+            if (grid_scratch_.size() < float_count)
+                grid_scratch_.resize(float_count);
+            for (size_t i = 0; i < grid_gen.vertices.size(); ++i)
+            {
+                grid_scratch_[i * 3] = grid_gen.vertices[i].x;
+                grid_scratch_[i * 3 + 1] = grid_gen.vertices[i].y;
+                grid_scratch_[i * 3 + 2] = grid_gen.vertices[i].z;
+            }
+
+            size_t byte_size = float_count * sizeof(float);
+            if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
+            {
+                if (gpu.grid_buffer)
+                    backend_.destroy_buffer(gpu.grid_buffer);
+                gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+                gpu.grid_capacity = byte_size * 2;
+            }
+            backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
+            gpu.grid_vertex_count = static_cast<uint32_t>(float_count / 3);
+            gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
+            gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
+            gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+            gpu.cached_grid_planes = static_cast<int>(gp);
+            gpu.grid_valid = true;
         }
-        backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
+
+        if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
+            return;
 
         // Draw 3D grid as overlay (no depth test so it's always visible)
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};
         const auto& theme_colors = ui::ThemeManager::instance().colors();
-        // Blend grid color toward lighter gray for visibility on dark background
         float blend = 0.3f;
         pc.color[0] = theme_colors.grid_line.r * (1.0f - blend) + blend;
         pc.color[1] = theme_colors.grid_line.g * (1.0f - blend) + blend;
         pc.color[2] = theme_colors.grid_line.b * (1.0f - blend) + blend;
-        pc.color[3] = 0.35f;  // Semi-transparent overlay
+        pc.color[3] = 0.35f;
         pc.line_width = 1.0f;
         pc.data_offset_x = 0.0f;
         pc.data_offset_y = 0.0f;
         backend_.push_constants(pc);
 
         backend_.bind_buffer(gpu.grid_buffer, 0);
-        backend_.draw(static_cast<uint32_t>(verts.size() / 3));  // 3 floats per vertex
+        backend_.draw(gpu.grid_vertex_count);
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {
-        // 2D grid rendering (original implementation)
+        // 2D grid rendering
         if (!axes2d->grid_enabled())
-            return;
-
-        auto x_ticks = axes2d->compute_x_ticks();
-        auto y_ticks = axes2d->compute_y_ticks();
-
-        size_t num_x = x_ticks.positions.size();
-        size_t num_y = y_ticks.positions.size();
-        if (num_x == 0 && num_y == 0)
             return;
 
         auto xlim = axes2d->x_limits();
         auto ylim = axes2d->y_limits();
-
-        // Generate line vertices in data space
-        // Each line = 2 endpoints (vec2 each) = 4 floats per line
-        size_t total_lines = num_x + num_y;
-        std::vector<float> verts;
-        verts.reserve(total_lines * 4);
-
-        // Vertical grid lines (at each x tick, from ylim.min to ylim.max)
-        for (size_t i = 0; i < num_x; ++i)
-        {
-            float x = x_ticks.positions[i];
-            verts.push_back(x);
-            verts.push_back(ylim.min);
-            verts.push_back(x);
-            verts.push_back(ylim.max);
-        }
-
-        // Horizontal grid lines (at each y tick, from xlim.min to xlim.max)
-        for (size_t i = 0; i < num_y; ++i)
-        {
-            float y = y_ticks.positions[i];
-            verts.push_back(xlim.min);
-            verts.push_back(y);
-            verts.push_back(xlim.max);
-            verts.push_back(y);
-        }
-
-        // Upload grid vertices to per-axes buffer
         auto& gpu = axes_gpu_data_[&axes];
-        size_t byte_size = verts.size() * sizeof(float);
-        if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
-        {
-            if (gpu.grid_buffer)
-                backend_.destroy_buffer(gpu.grid_buffer);
-            gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-            gpu.grid_capacity = byte_size * 2;
-        }
-        backend_.upload_buffer(gpu.grid_buffer, verts.data(), byte_size);
 
-        // Bind grid pipeline and draw
+        // Check if limits changed — skip regeneration if cached
+        bool limits_changed = !gpu.grid_valid
+                              || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
+                              || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max;
+
+        if (limits_changed)
+        {
+            auto x_ticks = axes2d->compute_x_ticks();
+            auto y_ticks = axes2d->compute_y_ticks();
+
+            size_t num_x = x_ticks.positions.size();
+            size_t num_y = y_ticks.positions.size();
+            if (num_x == 0 && num_y == 0)
+                return;
+
+            size_t total_lines = num_x + num_y;
+            size_t grid2d_floats = total_lines * 4;
+            if (grid_scratch_.size() < grid2d_floats)
+                grid_scratch_.resize(grid2d_floats);
+            size_t wi = 0;
+
+            for (size_t i = 0; i < num_x; ++i)
+            {
+                float x = x_ticks.positions[i];
+                grid_scratch_[wi++] = x;
+                grid_scratch_[wi++] = ylim.min;
+                grid_scratch_[wi++] = x;
+                grid_scratch_[wi++] = ylim.max;
+            }
+            for (size_t i = 0; i < num_y; ++i)
+            {
+                float y = y_ticks.positions[i];
+                grid_scratch_[wi++] = xlim.min;
+                grid_scratch_[wi++] = y;
+                grid_scratch_[wi++] = xlim.max;
+                grid_scratch_[wi++] = y;
+            }
+
+            size_t byte_size = wi * sizeof(float);
+            if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
+            {
+                if (gpu.grid_buffer)
+                    backend_.destroy_buffer(gpu.grid_buffer);
+                gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+                gpu.grid_capacity = byte_size * 2;
+            }
+            backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
+            gpu.grid_vertex_count = static_cast<uint32_t>(total_lines * 2);
+            gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
+            gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
+            gpu.grid_valid = true;
+        }
+
+        if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
+            return;
+
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
@@ -826,7 +850,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
         backend_.set_line_width(std::max(1.0f, as.grid_width));
         backend_.bind_buffer(gpu.grid_buffer, 0);
-        backend_.draw(static_cast<uint32_t>(total_lines * 2));
+        backend_.draw(gpu.grid_vertex_count);
         backend_.set_line_width(1.0f);
     }
 }
@@ -839,36 +863,53 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     auto xlim = axes.x_limits();
     auto ylim = axes.y_limits();
     auto zlim = axes.z_limits();
-
-    vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-    vec3 max_corner = {xlim.max, ylim.max, zlim.max};
-
-    Axes3DRenderer::BoundingBoxData bbox;
-    bbox.generate(min_corner, max_corner);
-
-    if (bbox.edge_vertices.empty())
-        return;
-
-    // Convert vec3 vertices to float array
-    std::vector<float> verts;
-    verts.reserve(bbox.edge_vertices.size() * 3);
-    for (const auto& v : bbox.edge_vertices)
-    {
-        verts.push_back(v.x);
-        verts.push_back(v.y);
-        verts.push_back(v.z);
-    }
-
     auto& gpu = axes_gpu_data_[&axes];
-    size_t byte_size = verts.size() * sizeof(float);
-    if (!gpu.bbox_buffer || gpu.bbox_capacity < byte_size)
+
+    // Check if limits changed — skip regeneration if cached
+    bool limits_changed = !gpu.bbox_valid
+                          || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
+                          || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
+                          || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max;
+
+    if (limits_changed)
     {
-        if (gpu.bbox_buffer)
-            backend_.destroy_buffer(gpu.bbox_buffer);
-        gpu.bbox_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
-        gpu.bbox_capacity = byte_size;
+        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+
+        Axes3DRenderer::BoundingBoxData bbox;
+        bbox.generate(min_corner, max_corner);
+
+        if (bbox.edge_vertices.empty())
+            return;
+
+        size_t bbox_floats = bbox.edge_vertices.size() * 3;
+        if (bbox_scratch_.size() < bbox_floats)
+            bbox_scratch_.resize(bbox_floats);
+        for (size_t i = 0; i < bbox.edge_vertices.size(); ++i)
+        {
+            bbox_scratch_[i * 3] = bbox.edge_vertices[i].x;
+            bbox_scratch_[i * 3 + 1] = bbox.edge_vertices[i].y;
+            bbox_scratch_[i * 3 + 2] = bbox.edge_vertices[i].z;
+        }
+
+        size_t byte_size = bbox_floats * sizeof(float);
+        if (!gpu.bbox_buffer || gpu.bbox_capacity < byte_size)
+        {
+            if (gpu.bbox_buffer)
+                backend_.destroy_buffer(gpu.bbox_buffer);
+            gpu.bbox_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+            gpu.bbox_capacity = byte_size;
+        }
+        backend_.upload_buffer(gpu.bbox_buffer, bbox_scratch_.data(), byte_size);
+        gpu.bbox_vertex_count = static_cast<uint32_t>(bbox.edge_vertices.size());
+        gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
+        gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
+        gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+        gpu.bbox_valid = true;
     }
-    backend_.upload_buffer(gpu.bbox_buffer, verts.data(), byte_size);
+
+    if (!gpu.bbox_buffer || gpu.bbox_vertex_count == 0)
+        return;
 
     backend_.bind_pipeline(grid3d_pipeline_);
 
@@ -884,7 +925,7 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.bbox_buffer, 0);
-    backend_.draw(static_cast<uint32_t>(bbox.edge_vertices.size()));
+    backend_.draw(gpu.bbox_vertex_count);
 }
 
 void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
@@ -892,97 +933,74 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     auto xlim = axes.x_limits();
     auto ylim = axes.y_limits();
     auto zlim = axes.z_limits();
-
-    vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-    vec3 max_corner = {xlim.max, ylim.max, zlim.max};
-
-    Axes3DRenderer::TickMarkData tick_gen;
-    tick_gen.generate_x_ticks(axes, min_corner, max_corner);
-    tick_gen.generate_y_ticks(axes, min_corner, max_corner);
-    tick_gen.generate_z_ticks(axes, min_corner, max_corner);
-
-    if (tick_gen.positions.empty())
-        return;
-
-    // TickMarkData.positions contains the start points of ticks.
-    // The previous implementation generated LINE SEGMENTS.
-    // Axes3DRenderer::TickMarkData seems to only generate POSITIONS (start points)?
-    // Let's check Axes3DRenderer implementation.
-    // ...
-    // Ah, wait. Axes3DRenderer only generates POSITIONS and LABELS.
-    // It does NOT generate the tick line geometry?
-    // Let's check src/ui/axes3d_renderer.cpp again.
-    //
-    // Yes:
-    // void Axes3DRenderer::TickMarkData::generate_x_ticks(...) {
-    //     positions.push_back({x, min_corner.y, min_corner.z});
-    //     labels.push_back(tick_result.labels[i]);
-    // }
-    //
-    // It only generates the position for the label/tick start. Not the line itself?
-    // The previous Renderer implementation generated LINES:
-    // {x, y0, z0, x, y0 - len, z0}
-    //
-    // So Axes3DRenderer is INCOMPLETE for tick lines?
-    // It seems so.
-    // I should EXTEND Axes3DRenderer to generate tick LINES as well, or keep logic here.
-    //
-    // Plan: I will use Axes3DRenderer for POSITIONS (which I need for labels anyway),
-    // but I still need to generate lines here, OR I should update Axes3DRenderer to generate lines.
-    // Updating Axes3DRenderer is better for separation.
-    //
-    // For now, to proceed with refactoring without changing Axes3DRenderer too much,
-    // I will iterate the generated positions and extend them into lines.
-
-    // Tick length: ~2% of axis range
-    float x1 = xlim.max, x0 = xlim.min;
-    float y1 = ylim.max, y0 = ylim.min;
-    float x_tick_len = (y1 - y0) * 0.02f;
-    float y_tick_len = (x1 - x0) * 0.02f;
-    float z_tick_len = (x1 - x0) * 0.02f;
-
-    std::vector<float> verts;
-
-    // Re-generate using helper separately to distinguish axes?
-    // The helper mixes them if I call all 3? No, TickMarkData accumulates them if I call all 3.
-    // But I need to know which axis they belong to to know the tick direction!
-    //
-    // So I should call them intimately.
-
-    Axes3DRenderer::TickMarkData x_data;
-    x_data.generate_x_ticks(axes, min_corner, max_corner);
-    for (const auto& pos : x_data.positions)
-    {
-        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x, pos.y - x_tick_len, pos.z});
-    }
-
-    Axes3DRenderer::TickMarkData y_data;
-    y_data.generate_y_ticks(axes, min_corner, max_corner);
-    for (const auto& pos : y_data.positions)
-    {
-        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x - y_tick_len, pos.y, pos.z});
-    }
-
-    Axes3DRenderer::TickMarkData z_data;
-    z_data.generate_z_ticks(axes, min_corner, max_corner);
-    for (const auto& pos : z_data.positions)
-    {
-        verts.insert(verts.end(), {pos.x, pos.y, pos.z, pos.x - z_tick_len, pos.y, pos.z});
-    }
-
-    if (verts.empty())
-        return;
-
     auto& gpu = axes_gpu_data_[&axes];
-    size_t byte_size = verts.size() * sizeof(float);
-    if (!gpu.tick_buffer || gpu.tick_capacity < byte_size)
+
+    // Check if limits changed — skip regeneration if cached
+    bool limits_changed = !gpu.tick_valid
+                          || gpu.cached_xmin != xlim.min || gpu.cached_xmax != xlim.max
+                          || gpu.cached_ymin != ylim.min || gpu.cached_ymax != ylim.max
+                          || gpu.cached_zmin != zlim.min || gpu.cached_zmax != zlim.max;
+
+    if (limits_changed)
     {
-        if (gpu.tick_buffer)
-            backend_.destroy_buffer(gpu.tick_buffer);
-        gpu.tick_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-        gpu.tick_capacity = byte_size * 2;
+        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
+        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+
+        // Tick length: ~2% of axis range
+        float x_tick_len = (ylim.max - ylim.min) * 0.02f;
+        float y_tick_len = (xlim.max - xlim.min) * 0.02f;
+        float z_tick_len = (xlim.max - xlim.min) * 0.02f;
+
+        Axes3DRenderer::TickMarkData x_data;
+        x_data.generate_x_ticks(axes, min_corner, max_corner);
+        Axes3DRenderer::TickMarkData y_data;
+        y_data.generate_y_ticks(axes, min_corner, max_corner);
+        Axes3DRenderer::TickMarkData z_data;
+        z_data.generate_z_ticks(axes, min_corner, max_corner);
+
+        size_t total_ticks = x_data.positions.size() + y_data.positions.size() + z_data.positions.size();
+        if (total_ticks == 0)
+            return;
+
+        size_t floats_needed = total_ticks * 6;
+        if (tick_scratch_.size() < floats_needed)
+            tick_scratch_.resize(floats_needed);
+        size_t wi = 0;
+
+        for (const auto& pos : x_data.positions)
+        {
+            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y - x_tick_len; tick_scratch_[wi++] = pos.z;
+        }
+        for (const auto& pos : y_data.positions)
+        {
+            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x - y_tick_len; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+        }
+        for (const auto& pos : z_data.positions)
+        {
+            tick_scratch_[wi++] = pos.x; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+            tick_scratch_[wi++] = pos.x - z_tick_len; tick_scratch_[wi++] = pos.y; tick_scratch_[wi++] = pos.z;
+        }
+
+        size_t byte_size = wi * sizeof(float);
+        if (!gpu.tick_buffer || gpu.tick_capacity < byte_size)
+        {
+            if (gpu.tick_buffer)
+                backend_.destroy_buffer(gpu.tick_buffer);
+            gpu.tick_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+            gpu.tick_capacity = byte_size * 2;
+        }
+        backend_.upload_buffer(gpu.tick_buffer, tick_scratch_.data(), byte_size);
+        gpu.tick_vertex_count = static_cast<uint32_t>(wi / 3);
+        gpu.cached_xmin = xlim.min; gpu.cached_xmax = xlim.max;
+        gpu.cached_ymin = ylim.min; gpu.cached_ymax = ylim.max;
+        gpu.cached_zmin = zlim.min; gpu.cached_zmax = zlim.max;
+        gpu.tick_valid = true;
     }
-    backend_.upload_buffer(gpu.tick_buffer, verts.data(), byte_size);
+
+    if (!gpu.tick_buffer || gpu.tick_vertex_count == 0)
+        return;
 
     backend_.bind_pipeline(grid3d_pipeline_);
 
@@ -998,8 +1016,7 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.tick_buffer, 0);
-    uint32_t vertex_count = static_cast<uint32_t>(verts.size() / 3);
-    backend_.draw(vertex_count);
+    backend_.draw(gpu.tick_vertex_count);
 }
 
 void Renderer::render_axis_border(AxesBase& axes,
@@ -1112,38 +1129,27 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
     pc.color[2] = c.b;
     pc.color[3] = c.a * series.opacity();
 
-    // Populate style fields from PlotStyle
     const auto& style = series.plot_style();
     pc.line_style = static_cast<uint32_t>(style.line_style);
     pc.marker_type = static_cast<uint32_t>(style.marker_style);
     pc.marker_size = style.marker_size;
     pc.opacity = style.opacity;
 
-    // Populate dash pattern for non-solid line styles
-    if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None)
+    // Use cached SeriesType to avoid 6x dynamic_cast per series per frame.
+    // Only perform the single targeted static_cast for the known type.
+    switch (gpu.type)
     {
-        auto* line = dynamic_cast<LineSeries*>(&series);
-        float lw = line ? line->width() : 2.0f;
-        DashPattern dp = get_dash_pattern(style.line_style, lw);
-        for (int i = 0; i < dp.count && i < 8; ++i)
-            pc.dash_pattern[i] = dp.segments[i];
-        pc.dash_total = dp.total;
-        pc.dash_count = dp.count;
-    }
-
-    // Try 2D series
-    auto* line = dynamic_cast<LineSeries*>(&series);
-    auto* scatter = dynamic_cast<ScatterSeries*>(&series);
-
-    // Try 3D series
-    auto* line3d = dynamic_cast<LineSeries3D*>(&series);
-    auto* scatter3d = dynamic_cast<ScatterSeries3D*>(&series);
-    auto* surface = dynamic_cast<SurfaceSeries*>(&series);
-    auto* mesh = dynamic_cast<MeshSeries*>(&series);
-
-    if (line)
+    case SeriesType::Line2D:
     {
-        // Draw line segments if line style is not None
+        auto* line = static_cast<LineSeries*>(&series);
+        if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None)
+        {
+            DashPattern dp = get_dash_pattern(style.line_style, line->width());
+            for (int i = 0; i < dp.count && i < 8; ++i)
+                pc.dash_pattern[i] = dp.segments[i];
+            pc.dash_total = dp.total;
+            pc.dash_count = dp.count;
+        }
         if (style.has_line() && line->point_count() > 1)
         {
             backend_.bind_pipeline(line_pipeline_);
@@ -1153,8 +1159,6 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
             uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
             backend_.draw(segments * 6);
         }
-
-        // Draw markers at each data point if marker style is not None
         if (style.has_marker())
         {
             backend_.bind_pipeline(scatter_pipeline_);
@@ -1163,25 +1167,24 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(line->point_count()));
         }
+        break;
     }
-    else if (scatter)
+    case SeriesType::Scatter2D:
     {
+        auto* scatter = static_cast<ScatterSeries*>(&series);
         backend_.bind_pipeline(scatter_pipeline_);
         pc.point_size = scatter->size();
         pc.marker_type = static_cast<uint32_t>(style.marker_style);
         if (pc.marker_type == 0)
-        {
-            // ScatterSeries defaults to Circle if no marker explicitly set
             pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
-        }
         backend_.push_constants(pc);
         backend_.bind_buffer(gpu.ssbo, 0);
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
+        break;
     }
-    // 3D series rendering
-    // Determine if this series is transparent (for pipeline selection)
-    else if (line3d)
+    case SeriesType::Line3D:
     {
+        auto* line3d = static_cast<LineSeries3D*>(&series);
         if (line3d->point_count() > 1)
         {
             bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
@@ -1193,9 +1196,11 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
             uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
             backend_.draw(segments * 6);
         }
+        break;
     }
-    else if (scatter3d)
+    case SeriesType::Scatter3D:
     {
+        auto* scatter3d = static_cast<ScatterSeries3D*>(&series);
         bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
         backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
                                               : scatter3d_pipeline_);
@@ -1204,16 +1209,16 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         backend_.push_constants(pc);
         backend_.bind_buffer(gpu.ssbo, 0);
         backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
+        break;
     }
-    else if (surface)
+    case SeriesType::Surface3D:
     {
+        auto* surface = static_cast<SurfaceSeries*>(&series);
         if (gpu.index_buffer)
         {
             bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-
             if (surface->wireframe())
             {
-                // Wireframe mode: use line topology pipeline
                 if (!surface->is_wireframe_mesh_generated())
                     return;
                 backend_.bind_pipeline(is_transparent ? surface_wireframe3d_transparent_pipeline_
@@ -1233,20 +1238,17 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
             }
             else
             {
-                // Solid mode: use triangle topology pipeline
                 if (!surface->is_mesh_generated())
                     return;
                 const auto& surf_mesh = surface->mesh();
                 backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_
                                                       : surface3d_pipeline_);
-                // Encode material properties in push constant padding fields
-                pc._pad2[0] = surface->ambient();   // 0 = shader default
-                pc._pad2[1] = surface->specular();  // 0 = shader default
-                // Encode shininess via marker_size (unused for surface)
+                pc._pad2[0] = surface->ambient();
+                pc._pad2[1] = surface->specular();
                 if (surface->shininess() > 0.0f)
                 {
                     pc.marker_size = surface->shininess();
-                    pc.marker_type = 0;  // Signal shader to read shininess from marker_size
+                    pc.marker_type = 0;
                 }
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
@@ -1254,28 +1256,32 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
                 backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
             }
         }
+        break;
     }
-    else if (mesh)
+    case SeriesType::Mesh3D:
     {
+        auto* mesh = static_cast<MeshSeries*>(&series);
         if (gpu.index_buffer)
         {
             bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
             backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_
                                                   : mesh3d_pipeline_);
-            // Encode material properties in push constant padding fields
-            pc._pad2[0] = mesh->ambient();   // 0 = shader default
-            pc._pad2[1] = mesh->specular();  // 0 = shader default
-            // Encode shininess via marker_size (unused for mesh)
+            pc._pad2[0] = mesh->ambient();
+            pc._pad2[1] = mesh->specular();
             if (mesh->shininess() > 0.0f)
             {
                 pc.marker_size = mesh->shininess();
-                pc.marker_type = 0;  // Signal shader to read shininess from marker_size
+                pc.marker_type = 0;
             }
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.bind_index_buffer(gpu.index_buffer);
             backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
         }
+        break;
+    }
+    case SeriesType::Unknown:
+        break;
     }
 }
 

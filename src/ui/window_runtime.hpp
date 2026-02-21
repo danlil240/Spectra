@@ -2,6 +2,8 @@
 
 #include <spectra/fwd.hpp>
 
+#include "../anim/frame_profiler.hpp"
+
 namespace spectra
 {
 
@@ -47,7 +49,7 @@ class WindowRuntime
 
     // Render one window: begin_frame, render pass, figure content, ImGui, end_frame.
     // Returns true if the frame was successfully presented.
-    bool render(WindowUIContext& ui_ctx, FrameState& fs);
+    bool render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler = nullptr);
 
    private:
     Backend& backend_;

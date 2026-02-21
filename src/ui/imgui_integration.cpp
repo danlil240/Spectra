@@ -392,39 +392,72 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_theme_settings();
     }
 
-    // Draw dock highlight overlay when another window is dragging a tab over this one
+    // Draw directional dock highlight overlay when another window is dragging a tab over this one
     if (window_manager_ && window_id_ != 0 && window_manager_->drag_target_window() == window_id_)
     {
-        ImGuiIO& io = ImGui::GetIO();
+        auto& theme = ui::theme();
+        auto drop_info = window_manager_->cross_window_drop_info();
         ImDrawList* dl = ImGui::GetForegroundDrawList();
-        float w = io.DisplaySize.x;
-        float h = io.DisplaySize.y;
-        constexpr float border = 4.0f;
-        ImU32 highlight = IM_COL32(80, 160, 255, 180);
-        ImU32 fill = IM_COL32(80, 160, 255, 30);
 
-        // Semi-transparent fill
-        dl->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), fill);
+        if (drop_info.zone >= 1 && drop_info.zone <= 5)
+        {
+            // Draw highlight rect for the active drop zone
+            ImU32 highlight_color = IM_COL32(static_cast<int>(theme.accent.r * 255),
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             40);
+            ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
+                                              static_cast<int>(theme.accent.g * 255),
+                                              static_cast<int>(theme.accent.b * 255),
+                                              160);
 
-        // Thick colored border
-        dl->AddRect(ImVec2(border * 0.5f, border * 0.5f),
-                    ImVec2(w - border * 0.5f, h - border * 0.5f),
-                    highlight,
-                    6.0f,
-                    0,
-                    border);
+            float hx = drop_info.hx, hy = drop_info.hy;
+            float hw = drop_info.hw, hh = drop_info.hh;
 
-        // "Drop to dock" label centered
-        const char* label = "Drop to add tab";
-        ImVec2 tsz = ImGui::CalcTextSize(label);
-        float lx = (w - tsz.x) * 0.5f;
-        float ly = h * 0.4f;
-        float pad = 10.0f;
-        dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
-                          ImVec2(lx + tsz.x + pad, ly + tsz.y + pad),
-                          IM_COL32(30, 30, 30, 200),
-                          6.0f);
-        dl->AddText(ImVec2(lx, ly), IM_COL32(80, 160, 255, 255), label);
+            dl->AddRectFilled(ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_color, 4.0f);
+            dl->AddRect(
+                ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_border, 4.0f, 0, 2.0f);
+
+            // Draw a label indicating the action
+            const char* label = nullptr;
+            switch (drop_info.zone)
+            {
+                case 1:
+                    label = "Split Left";
+                    break;
+                case 2:
+                    label = "Split Right";
+                    break;
+                case 3:
+                    label = "Split Up";
+                    break;
+                case 4:
+                    label = "Split Down";
+                    break;
+                case 5:
+                    label = "Add Tab";
+                    break;
+                default:
+                    break;
+            }
+            if (label)
+            {
+                ImVec2 lsz = ImGui::CalcTextSize(label);
+                float lx = hx + (hw - lsz.x) * 0.5f;
+                float ly = hy + (hh - lsz.y) * 0.5f;
+                float pad = 10.0f;
+                dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
+                                  ImVec2(lx + lsz.x + pad, ly + lsz.y + pad),
+                                  IM_COL32(30, 30, 30, 200),
+                                  6.0f);
+                dl->AddText(ImVec2(lx, ly),
+                            IM_COL32(static_cast<int>(theme.accent.r * 255),
+                                     static_cast<int>(theme.accent.g * 255),
+                                     static_cast<int>(theme.accent.b * 255),
+                                     220),
+                            label);
+            }
+        }
     }
 
     // Draw knobs panel last (above all other windows, user-moveable)

@@ -87,6 +87,10 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
     {
         auto* vk = static_cast<VulkanBackend*>(&backend_);
 
+        // Advance the deferred-deletion frame counter once per tick
+        // (not per window) so buffers survive the correct number of frames.
+        vk->advance_deferred_deletion();
+
         for (auto* wctx : window_mgr->windows())
         {
             if (wctx->should_close)
@@ -299,9 +303,10 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
         for (auto& pm : pending_moves_)
         {
             fprintf(stderr,
-                    "[move] Processing: fig=%u → target_wid=%u\n",
-                    pm.figure_id,
-                    pm.target_window_id);
+                    "[move] Processing: fig=%lu → target_wid=%u drop_zone=%d\n",
+                    (unsigned long)pm.figure_id,
+                    pm.target_window_id,
+                    pm.drop_zone);
 
             // Find source window (the one that has this figure)
             WindowContext* src_wctx = nullptr;
@@ -365,8 +370,6 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             }
 
             // Add figure to the dock system so it appears in split views.
-            // For non-split windows the sync in window_runtime handles it,
-            // but for split windows we must place it in the active pane.
             // IMPORTANT: save the dock active figure BEFORE add_figure(),
             // because add_figure → switch_to → tab bar callback will change
             // active_figure_index to the new figure (which isn't in any pane
@@ -380,20 +383,67 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             dst_wctx->assigned_figures.push_back(pm.figure_id);
             dst_wctx->active_figure_id = pm.figure_id;
 
-            if (dst_dock.is_split())
+            // drop_zone: 0=None/Center(add tab), 1=Left, 2=Right, 3=Top, 4=Bottom, 5=Center
+            bool did_split = false;
+            if (pm.drop_zone >= 1 && pm.drop_zone <= 4 && prev_dock_active != INVALID_FIGURE_ID)
             {
-                // Use the previously-active figure to locate the target pane
-                auto* target_pane = dst_dock.split_view().pane_for_figure(prev_dock_active);
-                if (!target_pane)
+                // Directional split: split the pane containing the EXISTING figure
+                // (prev_dock_active) and place the NEW figure (pm.figure_id) in the new pane.
+                SplitPane* split_result = nullptr;
+                switch (pm.drop_zone)
                 {
-                    // Fallback: first leaf pane
-                    auto all = dst_dock.split_view().all_panes();
-                    if (!all.empty())
-                        target_pane = all.front();
+                    case 1:  // Left — split horizontally, new figure goes left
+                        split_result = dst_dock.split_figure_right(
+                            prev_dock_active, pm.figure_id, 0.5f);
+                        if (split_result && split_result->parent())
+                        {
+                            auto* parent = split_result->parent();
+                            if (parent->first() && parent->second())
+                                parent->first()->swap_contents(*parent->second());
+                        }
+                        break;
+                    case 2:  // Right — split horizontally, new figure goes right
+                        split_result = dst_dock.split_figure_right(
+                            prev_dock_active, pm.figure_id, 0.5f);
+                        break;
+                    case 3:  // Top — split vertically, new figure goes top
+                        split_result = dst_dock.split_figure_down(
+                            prev_dock_active, pm.figure_id, 0.5f);
+                        if (split_result && split_result->parent())
+                        {
+                            auto* parent = split_result->parent();
+                            if (parent->first() && parent->second())
+                                parent->first()->swap_contents(*parent->second());
+                        }
+                        break;
+                    case 4:  // Bottom — split vertically, new figure goes bottom
+                        split_result = dst_dock.split_figure_down(
+                            prev_dock_active, pm.figure_id, 0.5f);
+                        break;
                 }
-                if (target_pane && target_pane->is_leaf())
-                    target_pane->add_figure(pm.figure_id);
-                dst_dock.set_active_figure_index(pm.figure_id);
+                if (split_result)
+                {
+                    did_split = true;
+                    dst_dock.set_active_figure_index(pm.figure_id);
+                }
+            }
+
+            if (!did_split)
+            {
+                // Center / None: add as a tab in the active pane
+                if (dst_dock.is_split())
+                {
+                    auto* target_pane = dst_dock.split_view().pane_for_figure(prev_dock_active);
+                    if (!target_pane)
+                    {
+                        auto all = dst_dock.split_view().all_panes();
+                        if (!all.empty())
+                            target_pane = all.front();
+                    }
+                    if (target_pane && target_pane->is_leaf())
+                        target_pane->add_figure(pm.figure_id);
+                    dst_dock.set_active_figure_index(pm.figure_id);
+                }
             }
 
             fprintf(stderr,

@@ -196,6 +196,26 @@ class VulkanBackend : public Backend
     std::unordered_map<uint64_t, VkPipelineLayout> pipeline_layouts_;
 
     VkDescriptorSet frame_desc_set_ = VK_NULL_HANDLE;
+    // Deferred buffer+descriptor deletion.  Each entry is stamped with the
+    // frame counter at destruction time.  At the start of each frame, after
+    // the fence wait, we flush entries that are old enough (>= flight_count
+    // frames ago) so that every in-flight command buffer has completed.
+    struct DeferredBufferFree
+    {
+        BufferEntry entry;
+        uint64_t frame_destroyed;  // value of frame_counter_ when queued
+    };
+    std::vector<DeferredBufferFree> pending_buffer_frees_;
+    uint64_t frame_counter_ = 0;
+    uint32_t flight_count_ = 2;  // updated from in_flight_fences.size()
+    void flush_pending_buffer_frees(bool force_all = false);
+
+   public:
+    // Call once per application tick (NOT per window) to advance the
+    // deferred-deletion frame counter and flush old entries.
+    void advance_deferred_deletion();
+
+   private:
     VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
     void update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
     void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);

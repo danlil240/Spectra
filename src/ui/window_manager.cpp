@@ -954,6 +954,118 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
     return true;
 }
 
+// --- compute_cross_window_drop_zone ---
+
+int WindowManager::compute_cross_window_drop_zone(uint32_t target_wid, float local_x, float local_y)
+{
+    cross_drop_info_ = CrossWindowDropInfo{};
+
+#ifdef SPECTRA_USE_IMGUI
+    auto* wctx = find_window(target_wid);
+    if (!wctx || !wctx->ui_ctx)
+        return 0;
+
+    auto& dock = wctx->ui_ctx->dock_system;
+
+    // Use the DockSystem's compute_drop_target logic by temporarily
+    // beginning a drag, computing the target, then cancelling.
+    // But we can't call begin_drag (it sets dragging state).
+    // Instead, replicate the edge-zone math from DockSystem::compute_drop_target.
+
+    // Get the root pane bounds (canvas area)
+    auto panes = dock.split_view().all_panes();
+    if (panes.empty())
+        return 0;
+
+    // Find the pane under the cursor
+    SplitPane* target_pane = nullptr;
+    for (auto* p : panes)
+    {
+        if (!p->is_leaf())
+            continue;
+        Rect b = p->bounds();
+        if (local_x >= b.x && local_x < b.x + b.w && local_y >= b.y && local_y < b.y + b.h)
+        {
+            target_pane = const_cast<SplitPane*>(p);
+            break;
+        }
+    }
+
+    if (!target_pane)
+    {
+        // Cursor not over any pane — try using the full window area
+        // (common for non-split windows where pane bounds may not cover the tab bar area)
+        if (panes.size() == 1)
+            target_pane = const_cast<SplitPane*>(panes[0]);
+        else
+            return 0;
+    }
+
+    Rect b = target_pane->bounds();
+    if (b.w < 1.0f || b.h < 1.0f)
+        return 0;
+
+    constexpr float DROP_ZONE_FRACTION = 0.25f;
+    constexpr float DROP_ZONE_MIN_SIZE = 40.0f;
+
+    float edge_w = std::max(b.w * DROP_ZONE_FRACTION, DROP_ZONE_MIN_SIZE);
+    float edge_h = std::max(b.h * DROP_ZONE_FRACTION, DROP_ZONE_MIN_SIZE);
+    edge_w = std::min(edge_w, b.w * 0.4f);
+    edge_h = std::min(edge_h, b.h * 0.4f);
+
+    float rel_x = local_x - b.x;
+    float rel_y = local_y - b.y;
+
+    // DropZone: 0=None, 1=Left, 2=Right, 3=Top, 4=Bottom, 5=Center
+    int zone = 5;  // Default: Center
+
+    if (rel_x < edge_w)
+        zone = 1;  // Left
+    else if (rel_x > b.w - edge_w)
+        zone = 2;  // Right
+    else if (rel_y < edge_h)
+        zone = 3;  // Top
+    else if (rel_y > b.h - edge_h)
+        zone = 4;  // Bottom
+
+    // Compute highlight rect
+    float hx = b.x, hy = b.y, hw = b.w, hh = b.h;
+    switch (zone)
+    {
+        case 1:  // Left
+            hw = b.w * 0.5f;
+            break;
+        case 2:  // Right
+            hx = b.x + b.w * 0.5f;
+            hw = b.w * 0.5f;
+            break;
+        case 3:  // Top
+            hh = b.h * 0.5f;
+            break;
+        case 4:  // Bottom
+            hy = b.y + b.h * 0.5f;
+            hh = b.h * 0.5f;
+            break;
+        case 5:  // Center
+            break;
+        default:
+            break;
+    }
+
+    cross_drop_info_.zone = zone;
+    cross_drop_info_.hx = hx;
+    cross_drop_info_.hy = hy;
+    cross_drop_info_.hw = hw;
+    cross_drop_info_.hh = hh;
+    return zone;
+#else
+    (void)target_wid;
+    (void)local_x;
+    (void)local_y;
+    return 0;
+#endif
+}
+
 // --- find_by_glfw_window ---
 
 WindowContext* WindowManager::find_by_glfw_window(GLFWwindow* window) const
@@ -1312,9 +1424,15 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     if (tab_move_handler_)
     {
         auto handler = tab_move_handler_;
+        auto* wm = this;
         ui->tab_drag_controller.set_on_drop_on_window(
-            [handler](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
-            { handler(fid, target_wid); });
+            [handler, wm](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
+            {
+                // Use the last computed cross-window drop zone (updated each frame
+                // during drag by TabDragController → compute_cross_window_drop_zone)
+                auto info = wm->cross_window_drop_info();
+                handler(fid, target_wid, info.zone, info.hx, info.hy);
+            });
     }
 
     // Wire DataInteraction

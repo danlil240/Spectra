@@ -155,6 +155,9 @@ void VulkanBackend::shutdown()
 
     vkDeviceWaitIdle(ctx_.device);
 
+    // GPU is fully idle — flush all deferred buffer deletions
+    flush_pending_buffer_frees(/*force_all=*/true);
+
     // Destroy pipelines
     for (auto& [id, pipeline] : pipelines_)
     {
@@ -732,14 +735,54 @@ void VulkanBackend::destroy_buffer(BufferHandle handle)
     auto it = buffers_.find(handle.id);
     if (it != buffers_.end())
     {
-        // Free the descriptor set back to the pool so it can be reused.
-        // The pool was created with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT.
-        if (it->second.descriptor_set != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE)
-        {
-            vkFreeDescriptorSets(ctx_.device, descriptor_pool_, 1, &it->second.descriptor_set);
-        }
+        // Defer both the VkBuffer destruction and descriptor set free.
+        // The entry is stamped with the current frame counter and will only
+        // be freed once flight_count_ frames have elapsed, guaranteeing
+        // every in-flight command buffer has completed.
+        // VUID-vkDestroyBuffer-buffer-00922 / VUID-vkFreeDescriptorSets-00309
+        pending_buffer_frees_.push_back({std::move(it->second), frame_counter_});
         buffers_.erase(it);
     }
+}
+
+void VulkanBackend::flush_pending_buffer_frees(bool force_all)
+{
+    if (pending_buffer_frees_.empty())
+        return;
+
+    // Only free entries that are old enough: destroyed at least
+    // flight_count_ frames ago, so every flight slot has cycled.
+    uint64_t safe_frame = (frame_counter_ > flight_count_) ? frame_counter_ - flight_count_ : 0;
+
+    size_t write = 0;
+    for (size_t read = 0; read < pending_buffer_frees_.size(); ++read)
+    {
+        auto& d = pending_buffer_frees_[read];
+        if (force_all || d.frame_destroyed <= safe_frame)
+        {
+            // Free descriptor set first (it references the buffer)
+            if (d.entry.descriptor_set != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE)
+            {
+                vkFreeDescriptorSets(ctx_.device, descriptor_pool_, 1, &d.entry.descriptor_set);
+                d.entry.descriptor_set = VK_NULL_HANDLE;
+            }
+            // GpuBuffer destructor fires when d goes out of scope (overwritten or erased)
+        }
+        else
+        {
+            // Keep this entry — not old enough yet
+            if (write != read)
+                pending_buffer_frees_[write] = std::move(pending_buffer_frees_[read]);
+            ++write;
+        }
+    }
+    pending_buffer_frees_.resize(write);
+}
+
+void VulkanBackend::advance_deferred_deletion()
+{
+    ++frame_counter_;
+    flush_pending_buffer_frees();
 }
 
 void VulkanBackend::upload_buffer(BufferHandle handle,
@@ -1570,6 +1613,10 @@ void VulkanBackend::create_sync_objects()
     active_window_->render_finished_semaphores.resize(count);
     active_window_->in_flight_fences.resize(count);
 
+    // Track actual flight frame count for deferred deletion
+    if (count > flight_count_)
+        flight_count_ = count;
+
     VkSemaphoreCreateInfo sem_info{};
     sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -2006,6 +2053,10 @@ void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
     wctx.image_available_semaphores.resize(count);
     wctx.render_finished_semaphores.resize(count);
     wctx.in_flight_fences.resize(count);
+
+    // Track actual flight frame count for deferred deletion
+    if (count > flight_count_)
+        flight_count_ = count;
 
     VkSemaphoreCreateInfo sem_info{};
     sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;

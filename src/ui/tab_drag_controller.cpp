@@ -105,6 +105,23 @@ void TabDragController::update(
 
                 // Publish the drag target so target windows can draw dock highlights
                 window_manager_->set_drag_target_window(last_hovered_window_id_);
+
+                // Compute directional drop zone on the target window's DockSystem
+                if (last_hovered_window_id_ != 0)
+                {
+                    // Get cursor position in target window's local coordinates
+                    auto* target_wctx = window_manager_->find_window(last_hovered_window_id_);
+                    if (target_wctx && target_wctx->glfw_window)
+                    {
+                        auto* tw = static_cast<GLFWwindow*>(target_wctx->glfw_window);
+                        double lcx, lcy;
+                        glfwGetCursorPos(tw, &lcx, &lcy);
+                        window_manager_->compute_cross_window_drop_zone(
+                            last_hovered_window_id_,
+                            static_cast<float>(lcx),
+                            static_cast<float>(lcy));
+                    }
+                }
             }
 
             if (!mouse_down)

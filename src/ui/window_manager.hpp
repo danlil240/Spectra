@@ -188,12 +188,28 @@ class WindowManager
     void set_drag_target_window(uint32_t wid) { drag_target_window_id_ = wid; }
     uint32_t drag_target_window() const { return drag_target_window_id_; }
 
+    // Compute the drop zone on a target window's DockSystem given cursor
+    // position in that window's local coordinates.  Returns the DropZone
+    // enum cast to int (0=None,1=Left,2=Right,3=Top,4=Bottom,5=Center).
+    // Also stores the highlight rect for overlay rendering.
+    int compute_cross_window_drop_zone(uint32_t target_wid, float local_x, float local_y);
+
+    // Query the last computed cross-window drop highlight rect (in target window local coords).
+    // Returns {0,0,0,0} if no valid zone.
+    struct CrossWindowDropInfo
+    {
+        int zone = 0;        // DropZone cast to int
+        float hx = 0, hy = 0, hw = 0, hh = 0;  // highlight rect
+    };
+    CrossWindowDropInfo cross_window_drop_info() const { return cross_drop_info_; }
+
     // Tab drag handlers — stored and applied to every new window's
     // TabDragController in init_window_ui().  Set these before creating
     // windows so all windows get the same drag behavior.
     using TabDetachHandler = std::function<void(
         FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
-    using TabMoveHandler = std::function<void(FigureId fid, uint32_t target_window_id)>;
+    using TabMoveHandler = std::function<void(
+        FigureId fid, uint32_t target_window_id, int drop_zone, float local_x, float local_y)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
@@ -253,6 +269,7 @@ class WindowManager
 
     // Cross-window drag target tracking
     uint32_t drag_target_window_id_ = 0;
+    CrossWindowDropInfo cross_drop_info_;
 
     // Callback-based mouse release tracking (tab drag)
     bool mouse_release_tracking_ = false;

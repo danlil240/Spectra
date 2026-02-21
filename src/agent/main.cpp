@@ -38,7 +38,6 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
-    #include "../ui/theme.hpp"
 #endif
 
 #include <algorithm>
@@ -564,8 +563,8 @@ int main(int argc, char* argv[])
             session.queue_detach({fid, w, h, title, sx, sy});
         });
     window_mgr->set_tab_move_handler(
-        [&session](spectra::FigureId fid, uint32_t target_wid) {
-            session.queue_move({fid, target_wid});
+        [&session](spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y) {
+            session.queue_move({fid, target_wid, drop_zone, local_x, local_y});
         });
 
     auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
@@ -750,11 +749,20 @@ int main(int argc, char* argv[])
             });
 
         tab_drag_controller.set_on_drop_on_window(
-            [&session](spectra::FigureId index,
+            [&session, &window_mgr](spectra::FigureId index,
                        uint32_t target_window_id,
                        float /*screen_x*/,
                        float /*screen_y*/) {
-                session.queue_move({index, target_window_id});
+                int zone = 0;
+                float lx = 0.0f, ly = 0.0f;
+                if (window_mgr)
+                {
+                    auto info = window_mgr->cross_window_drop_info();
+                    zone = info.zone;
+                    lx = info.hx;
+                    ly = info.hy;
+                }
+                session.queue_move({index, target_window_id, zone, lx, ly});
             });
 
         if (imgui_ui)

@@ -424,6 +424,10 @@ class ImGuiIntegration
     // Deferred tooltip rendering to ensure tooltips appear above all UI elements
     const char* deferred_tooltip_ = nullptr;
 
+    // Knobs panel screen rect (updated each frame) — used to suppress tab bar
+    // foreground rendering when the mouse is over the knobs panel.
+    struct { float x = 0, y = 0, w = 0, h = 0; } knobs_panel_rect_;
+
     #if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar drag state
     bool toolbar_dragging_ = false;

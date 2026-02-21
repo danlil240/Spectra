@@ -272,12 +272,6 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_curve_editor_panel();
     }
 
-    // Draw knobs panel (interactive parameter controls overlay)
-    if (knob_manager_ && !knob_manager_->empty())
-    {
-        draw_knobs_panel();
-    }
-
     // Draw deferred tooltip (command bar) on top of everything
     if (deferred_tooltip_)
     {
@@ -441,6 +435,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
         dl->AddText(ImVec2(lx, ly), IM_COL32(80, 160, 255, 255), label);
     }
 
+    // Draw knobs panel last (above all other windows, user-moveable)
+    if (knob_manager_ && !knob_manager_->empty())
+    {
+        draw_knobs_panel();
+    }
+
     // Draw command palette overlay (Agent F) — must be last to render on top
     if (command_palette_)
     {
@@ -492,9 +492,9 @@ bool ImGuiIntegration::wants_capture_mouse() const
         if (mouse.x >= canvas.x && mouse.x <= canvas.x + canvas.w && mouse.y >= canvas.y
             && mouse.y <= canvas.y + canvas.h)
         {
-            // Only capture if an actual interactive item (button, slider, etc.)
-            // is hovered — not just a passive window background.
-            return any_item_hovered;
+            // Capture if an interactive item is hovered OR if the mouse is over
+            // any ImGui window (e.g. the knobs panel title bar being dragged).
+            return any_item_hovered || any_window_hovered;
         }
     }
 
@@ -2022,10 +2022,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     // Normally use GetForegroundDrawList() so tab headers render on top of the
     // canvas and other UI. But when any popup is open (menus, context menus),
-    // fall back to GetBackgroundDrawList() so the popup renders on top of tabs.
+    // or when the mouse is over the knobs panel, fall back to
+    // GetBackgroundDrawList() so those elements render on top of tabs.
     bool any_popup =
         ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
-    auto* draw_list = any_popup ? ImGui::GetBackgroundDrawList() : ImGui::GetForegroundDrawList();
+    // If the knobs panel has non-zero size, it's visible and overlaps the tab
+    // bar area — use background draw list so the knobs panel (an ImGui window)
+    // renders visually above the tab bar draw calls.
+    bool knobs_panel_visible =
+        knob_manager_ && !knob_manager_->empty() && knobs_panel_rect_.w > 0.0f;
+    auto* draw_list = (any_popup || knobs_panel_visible)
+                          ? ImGui::GetBackgroundDrawList()
+                          : ImGui::GetForegroundDrawList();
 
     auto& theme = ui::theme();
     float dt = ImGui::GetIO().DeltaTime;
@@ -4321,7 +4329,7 @@ void ImGuiIntegration::draw_knobs_panel()
     auto& theme = ui::theme();
     auto& knobs = knob_manager_->knobs();
 
-    // Position: top-right of canvas with padding
+    // Initial position: top-right of canvas with padding (user can drag it anywhere).
     float canvas_x = layout_manager_ ? layout_manager_->canvas_rect().x : 0.0f;
     float canvas_y = layout_manager_ ? layout_manager_->canvas_rect().y : 0.0f;
     float canvas_w = layout_manager_ ? layout_manager_->canvas_rect().w : ImGui::GetIO().DisplaySize.x;
@@ -4331,12 +4339,11 @@ void ImGuiIntegration::draw_knobs_panel()
     float pos_x = canvas_x + canvas_w - panel_w - pad;
     float pos_y = canvas_y + pad;
 
-    ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f));  // auto-height
-    ImGui::SetNextWindowBgAlpha(0.88f);
+    ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0.92f);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
-                           | ImGuiWindowFlags_NoResize
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize
                            | ImGuiWindowFlags_AlwaysAutoResize
                            | ImGuiWindowFlags_NoSavedSettings
                            | ImGuiWindowFlags_NoFocusOnAppearing
@@ -4345,6 +4352,7 @@ void ImGuiIntegration::draw_knobs_panel()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2(0.0f, 0.5f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
                           ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
                                  theme.bg_elevated.b, 0.92f));
@@ -4354,59 +4362,47 @@ void ImGuiIntegration::draw_knobs_panel()
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImVec4(theme.text_primary.r, theme.text_primary.g,
                                  theme.text_primary.b, theme.text_primary.a));
-
-    bool collapsed = knob_manager_->is_collapsed();
     ImGui::PushStyleColor(ImGuiCol_TitleBg,
                           ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
                                  theme.bg_tertiary.b, 0.95f));
     ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
-                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                 theme.bg_tertiary.b, 0.95f));
+                          ImVec4(theme.accent.r * 0.3f, theme.accent.g * 0.3f,
+                                 theme.accent.b * 0.3f, 0.95f));
     ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed,
                           ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                 theme.bg_tertiary.b, 0.8f));
+                                 theme.bg_tertiary.b, 0.7f));
 
+    bool collapsed = knob_manager_->is_collapsed();
     ImGui::SetNextWindowCollapsed(collapsed, ImGuiCond_Once);
 
-    if (!ImGui::Begin("##knobs_panel", nullptr, flags | ImGuiWindowFlags_NoTitleBar))
+    if (!ImGui::Begin(" Parameters", nullptr, flags | ImGuiWindowFlags_NoScrollbar))
     {
+        // Window is collapsed — record rect (title bar only) and sync state
+        ImVec2 wpos = ImGui::GetWindowPos();
+        ImVec2 wsz  = ImGui::GetWindowSize();
+        knobs_panel_rect_ = { wpos.x, wpos.y, wsz.x, wsz.y };
+        bool now_collapsed = ImGui::IsWindowCollapsed();
+        if (now_collapsed != collapsed)
+            knob_manager_->set_collapsed(now_collapsed);
         ImGui::End();
         ImGui::PopStyleColor(6);
-        ImGui::PopStyleVar(3);
+        ImGui::PopStyleVar(4);
         return;
     }
 
-    // Header with collapse toggle
+    // Record full panel rect for tab-bar occlusion check
     {
-        ImGui::PushFont(font_heading_);
-        float header_h = ImGui::GetFontSize() + 4.0f;
+        ImVec2 wpos = ImGui::GetWindowPos();
+        ImVec2 wsz  = ImGui::GetWindowSize();
+        knobs_panel_rect_ = { wpos.x, wpos.y, wsz.x, wsz.y };
+    }
 
-        // Collapse arrow
-        const char* arrow = collapsed ? "\xE2\x96\xB6" : "\xE2\x96\xBC";  // ▶ / ▼
-        ImVec2 arrow_size = ImGui::CalcTextSize(arrow);
-        if (ImGui::InvisibleButton("##knob_collapse", ImVec2(arrow_size.x + 8, header_h)))
-        {
-            collapsed = !collapsed;
-            knob_manager_->set_collapsed(collapsed);
-        }
-        ImGui::SameLine(0, 0);
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - header_h);
-        ImGui::TextColored(ImVec4(theme.text_secondary.r, theme.text_secondary.g,
-                                   theme.text_secondary.b, 0.7f), "%s", arrow);
-        ImGui::SameLine(0, 6);
-
-        // Title
-        ImGui::TextColored(ImVec4(theme.text_secondary.r, theme.text_secondary.g,
-                                   theme.text_secondary.b, theme.text_secondary.a),
-                           "PARAMETERS");
-        ImGui::PopFont();
-
-        // Separator
-        ImGui::PushStyleColor(ImGuiCol_Separator,
-                              ImVec4(theme.border_subtle.r, theme.border_subtle.g,
-                                     theme.border_subtle.b, 0.3f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
+    // Sync collapse state (user may have clicked the collapse arrow)
+    {
+        bool now_collapsed = ImGui::IsWindowCollapsed();
+        if (now_collapsed != collapsed)
+            knob_manager_->set_collapsed(now_collapsed);
+        collapsed = now_collapsed;
     }
 
     if (!collapsed)
@@ -4562,7 +4558,7 @@ void ImGuiIntegration::draw_knobs_panel()
 
     ImGui::End();
     ImGui::PopStyleColor(6);
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar(4);
 }
 
 }  // namespace spectra

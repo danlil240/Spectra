@@ -112,6 +112,7 @@ class Figure
    private:
     friend class AnimationBuilder;
     friend class App;
+    friend class FigureManager;
     friend class WindowRuntime;
     friend class SessionRuntime;
 

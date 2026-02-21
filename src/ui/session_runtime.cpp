@@ -191,6 +191,16 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_update");
                 win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, window_mgr);
             }
+
+            // Sync WindowContext::assigned_figures with FigureManager.
+            // process_pending() (called inside update) may create, close, or
+            // duplicate figures — keep assigned_figures in lockstep so that
+            // detach/move operations can find the figure's owning window.
+            if (wctx->ui_ctx->fig_mgr)
+            {
+                wctx->assigned_figures = wctx->ui_ctx->fig_mgr->figure_ids();
+            }
+
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_render");
                 win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);

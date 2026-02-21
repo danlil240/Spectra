@@ -131,6 +131,7 @@ class _EasyState:
         self._current_axes3d = None
         self._current_axes_key = (1, 1, 1)  # (rows, cols, index)
         self._figures: List = []
+        self._pending_show: set = set()  # figure ids needing show()
         self._live_threads: List[threading.Thread] = []
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
@@ -143,15 +144,22 @@ class _EasyState:
         return self._session
 
     def _ensure_figure(self):
-        """Lazily create a figure and show it."""
+        """Lazily create a figure (show is deferred until data is ready)."""
         if self._current_fig is None:
             s = self._ensure_session()
             self._current_fig = s.figure()
             self._current_axes = None
             self._current_axes_key = (1, 1, 1)
             self._figures.append(self._current_fig)
-            self._current_fig.show()
+            self._pending_show.add(id(self._current_fig))
         return self._current_fig
+
+    def _show_if_pending(self):
+        """Show the current figure if it hasn't been shown yet."""
+        fig = self._current_fig
+        if fig is not None and id(fig) in self._pending_show:
+            self._pending_show.discard(id(fig))
+            fig.show()
 
     def _ensure_axes(self):
         """Lazily create axes on the current figure."""
@@ -200,6 +208,8 @@ def figure(title: str = "", width: int = 1280, height: int = 720):
 
     Returns the Figure object for advanced use.
     """
+    # Show any pending previous figure before creating a new one
+    _state._show_if_pending()
     s = _state._ensure_session()
     fig = s.figure(title=title, width=width, height=height)
     _state._current_fig = fig
@@ -207,7 +217,7 @@ def figure(title: str = "", width: int = 1280, height: int = 720):
     _state._current_axes3d = None
     _state._current_axes_key = (1, 1, 1)
     _state._figures.append(fig)
-    fig.show()
+    _state._pending_show.add(id(fig))
     return fig
 
 
@@ -270,6 +280,7 @@ def plot(
     series = ax.line(x, y, label=label)
     _apply_series_style(series, color=color, width=width, **kwargs)
     _auto_fit_axes(ax, x, y)
+    _state._show_if_pending()
     return series
 
 
@@ -296,6 +307,7 @@ def scatter(
     series = ax.scatter(x, y, label=label)
     _apply_series_style(series, color=color, size=size, **kwargs)
     _auto_fit_axes(ax, x, y)
+    _state._show_if_pending()
     return series
 
 
@@ -322,6 +334,7 @@ def stem(
     if c:
         line.set_color(*c)
         dots.set_color(*c)
+    _state._show_if_pending()
     return line
 
 
@@ -365,6 +378,7 @@ def hist(
     c = _parse_color(color)
     if c:
         series.set_color(*c)
+    _state._show_if_pending()
     return series
 
 
@@ -397,6 +411,7 @@ def bar(
     if c:
         series.set_color(*c)
     series.set_line_width(2.0)
+    _state._show_if_pending()
     return series
 
 
@@ -490,6 +505,7 @@ def plot3(
     series = ax._add_series_3d("line3d", xv, yv, zv, label=label)
     _apply_series_style(series, color=color, width=width)
     _auto_fit_axes3d(ax, xv, yv, zv)
+    _state._show_if_pending()
     return series
 
 
@@ -515,6 +531,7 @@ def scatter3(
     series = ax._add_series_3d("scatter3d", xv, yv, zv, label=label)
     _apply_series_style(series, color=color, size=size)
     _auto_fit_axes3d(ax, xv, yv, zv)
+    _state._show_if_pending()
     return series
 
 
@@ -542,6 +559,7 @@ def surf(
     if c:
         series.set_color(*c)
     _auto_fit_axes3d(ax, xv, yv, zv)
+    _state._show_if_pending()
     return series
 
 
@@ -624,6 +642,7 @@ def live(
 
     fig_obj = _state._ensure_figure()
     ax = _state._ensure_axes()
+    _state._show_if_pending()
 
     # Detect callback signature
     sig = inspect.signature(callback)
@@ -770,6 +789,8 @@ def show():
     Call this at the end of your script to keep windows open.
     If you don't call it, windows stay open until the Python process exits.
     """
+    # Flush any pending figure shows before blocking
+    _state._show_if_pending()
     if _state._session is not None:
         _state._session.show()
 

@@ -1,6 +1,9 @@
 #include "figure_manager.hpp"
 
 #include <cassert>
+#include <spectra/axes3d.hpp>
+#include <spectra/camera.hpp>
+#include <spectra/series3d.hpp>
 
 #include "tab_bar.hpp"
 
@@ -312,18 +315,17 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     auto new_fig_ptr = std::make_unique<Figure>(cfg);
     auto& new_fig = *new_fig_ptr;
 
-    // Deep-copy all axes with their series data
+    // ── Deep-copy 2D axes with all series data ──────────────────────
     for (size_t i = 0; i < src->axes().size(); ++i)
     {
         if (!src->axes()[i])
             continue;
 
         auto& src_ax = *src->axes()[i];
-        // Create matching subplot grid (subplot uses 1-based index)
         auto& dst_ax = new_fig.subplot(src->grid_rows(), src->grid_cols(),
                                         static_cast<int>(i + 1));
 
-        // Copy axis limits
+        // Copy axis properties
         dst_ax.xlim(src_ax.x_limits().min, src_ax.x_limits().max);
         dst_ax.ylim(src_ax.y_limits().min, src_ax.y_limits().max);
         if (!src_ax.get_title().empty())
@@ -337,7 +339,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         dst_ax.autoscale_mode(src_ax.get_autoscale_mode());
         dst_ax.axis_style() = src_ax.axis_style();
 
-        // Deep-copy all series with their data
+        // Deep-copy 2D series
         for (const auto& s : src_ax.series())
         {
             if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
@@ -363,9 +365,128 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         }
     }
 
-    // Copy style
+    // ── Deep-copy 3D axes (all_axes_) with all series data ──────────
+    for (size_t i = 0; i < src->all_axes().size(); ++i)
+    {
+        if (!src->all_axes()[i])
+            continue;
+
+        auto* src_ax3d = dynamic_cast<const Axes3D*>(src->all_axes()[i].get());
+        if (!src_ax3d)
+            continue;
+
+        auto& dst_ax3d = new_fig.subplot3d(src->grid_rows(), src->grid_cols(),
+                                            static_cast<int>(i + 1));
+
+        // Copy 3D axis properties
+        dst_ax3d.xlim(src_ax3d->x_limits().min, src_ax3d->x_limits().max);
+        dst_ax3d.ylim(src_ax3d->y_limits().min, src_ax3d->y_limits().max);
+        dst_ax3d.zlim(src_ax3d->z_limits().min, src_ax3d->z_limits().max);
+        if (!src_ax3d->get_xlabel().empty())
+            dst_ax3d.xlabel(src_ax3d->get_xlabel());
+        if (!src_ax3d->get_ylabel().empty())
+            dst_ax3d.ylabel(src_ax3d->get_ylabel());
+        if (!src_ax3d->get_zlabel().empty())
+            dst_ax3d.zlabel(src_ax3d->get_zlabel());
+        if (!src_ax3d->get_title().empty())
+            dst_ax3d.title(src_ax3d->get_title());
+        dst_ax3d.grid(src_ax3d->grid_enabled());
+        dst_ax3d.grid_planes(src_ax3d->grid_planes());
+        dst_ax3d.show_bounding_box(src_ax3d->show_bounding_box());
+        dst_ax3d.light_dir(src_ax3d->light_dir());
+        dst_ax3d.lighting_enabled(src_ax3d->lighting_enabled());
+
+        // Copy camera state
+        dst_ax3d.camera().target = src_ax3d->camera().target;
+        dst_ax3d.camera().up = src_ax3d->camera().up;
+        dst_ax3d.camera().azimuth = src_ax3d->camera().azimuth;
+        dst_ax3d.camera().elevation = src_ax3d->camera().elevation;
+        dst_ax3d.camera().distance = src_ax3d->camera().distance;
+        dst_ax3d.camera().fov = src_ax3d->camera().fov;
+        dst_ax3d.camera().near_clip = src_ax3d->camera().near_clip;
+        dst_ax3d.camera().far_clip = src_ax3d->camera().far_clip;
+        dst_ax3d.camera().projection_mode = src_ax3d->camera().projection_mode;
+        dst_ax3d.camera().ortho_size = src_ax3d->camera().ortho_size;
+        dst_ax3d.camera().update_position_from_orbit();
+
+        // Deep-copy 3D series
+        for (const auto& s : src_ax3d->series())
+        {
+            if (auto* ls3 = dynamic_cast<const LineSeries3D*>(s.get()))
+            {
+                auto& dup = dst_ax3d.line3d(ls3->x_data(), ls3->y_data(), ls3->z_data());
+                dup.color(ls3->color());
+                dup.width(ls3->width());
+                if (!ls3->label().empty())
+                    dup.label(ls3->label());
+                dup.visible(ls3->visible());
+                dup.plot_style(ls3->plot_style());
+                dup.blend_mode(ls3->blend_mode());
+                dup.opacity(ls3->opacity());
+            }
+            else if (auto* ss3 = dynamic_cast<const ScatterSeries3D*>(s.get()))
+            {
+                auto& dup = dst_ax3d.scatter3d(ss3->x_data(), ss3->y_data(), ss3->z_data());
+                dup.color(ss3->color());
+                dup.size(ss3->size());
+                if (!ss3->label().empty())
+                    dup.label(ss3->label());
+                dup.visible(ss3->visible());
+                dup.plot_style(ss3->plot_style());
+                dup.blend_mode(ss3->blend_mode());
+                dup.opacity(ss3->opacity());
+            }
+            else if (auto* sf = dynamic_cast<const SurfaceSeries*>(s.get()))
+            {
+                auto& dup = dst_ax3d.surface(sf->x_grid(), sf->y_grid(), sf->z_values());
+                dup.color(sf->color());
+                if (!sf->label().empty())
+                    dup.label(sf->label());
+                dup.visible(sf->visible());
+                dup.colormap(sf->colormap_type());
+                dup.colormap_range(sf->colormap_min(), sf->colormap_max());
+                dup.ambient(sf->ambient());
+                dup.specular(sf->specular());
+                dup.shininess(sf->shininess());
+                dup.blend_mode(sf->blend_mode());
+                dup.double_sided(sf->double_sided());
+                dup.wireframe(sf->wireframe());
+                dup.colormap_alpha(sf->colormap_alpha());
+                dup.colormap_alpha_range(sf->colormap_alpha_min(), sf->colormap_alpha_max());
+                dup.opacity(sf->opacity());
+            }
+            else if (auto* ms = dynamic_cast<const MeshSeries*>(s.get()))
+            {
+                auto& dup = dst_ax3d.mesh(ms->vertices(), ms->indices());
+                dup.color(ms->color());
+                if (!ms->label().empty())
+                    dup.label(ms->label());
+                dup.visible(ms->visible());
+                dup.ambient(ms->ambient());
+                dup.specular(ms->specular());
+                dup.shininess(ms->shininess());
+                dup.blend_mode(ms->blend_mode());
+                dup.double_sided(ms->double_sided());
+                dup.wireframe(ms->wireframe());
+                dup.opacity(ms->opacity());
+            }
+        }
+    }
+
+    // Copy figure style and legend
     new_fig.style() = src->style();
     new_fig.legend() = src->legend();
+
+    // Copy animation callback (duplicate shares the same animation logic)
+    if (src->has_animation())
+    {
+        new_fig.animate()
+            .fps(src->anim_fps())
+            .duration(src->anim_duration())
+            .loop(src->anim_loop())
+            .on_frame(src->anim_on_frame_)
+            .play();
+    }
 
     auto new_id = registry_.register_figure(std::move(new_fig_ptr));
     ordered_ids_.push_back(new_id);

@@ -136,7 +136,37 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 }
                 else if (ss.type == "surface")
                 {
-                    auto& s = ax3d.surface(xs, ys, zs);
+                    // SurfaceSeries expects 1D grid vectors (unique sorted X, Y)
+                    // plus a rows*cols Z array.  The IPC data is raveled meshgrid
+                    // (all X, all Y, all Z each of length rows*cols).
+                    // Reconstruct 1D grids by extracting unique sorted values.
+                    std::vector<float> ux(xs.begin(), xs.end());
+                    std::vector<float> uy(ys.begin(), ys.end());
+                    std::sort(ux.begin(), ux.end());
+                    ux.erase(std::unique(ux.begin(), ux.end(),
+                        [](float a, float b){ return std::abs(a - b) < 1e-6f; }), ux.end());
+                    std::sort(uy.begin(), uy.end());
+                    uy.erase(std::unique(uy.begin(), uy.end(),
+                        [](float a, float b){ return std::abs(a - b) < 1e-6f; }), uy.end());
+
+                    // Reorder Z into row-major (y-row, x-col) order expected by SurfaceSeries
+                    size_t ncols = ux.size();
+                    size_t nrows = uy.size();
+                    std::vector<float> z_grid(nrows * ncols, 0.0f);
+                    for (size_t k = 0; k < xs.size(); ++k)
+                    {
+                        // Find column index for xs[k]
+                        auto cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
+                        size_t ci = static_cast<size_t>(std::distance(ux.begin(), cit));
+                        if (ci >= ncols) ci = ncols - 1;
+                        // Find row index for ys[k]
+                        auto rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
+                        size_t ri = static_cast<size_t>(std::distance(uy.begin(), rit));
+                        if (ri >= nrows) ri = nrows - 1;
+                        z_grid[ri * ncols + ci] = zs[k];
+                    }
+
+                    auto& s = ax3d.surface(ux, uy, z_grid);
                     s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
@@ -576,18 +606,6 @@ int main(int argc, char* argv[])
 
                     std::cerr << "[spectra-window] STATE_SNAPSHOT (init): rev=" << current_revision
                               << " figures=" << figure_cache.size() << "\n";
-                    for (size_t fi = 0; fi < figure_cache.size(); ++fi)
-                    {
-                        const auto& fc = figure_cache[fi];
-                        std::cerr << "[spectra-window]   fig[" << fi << "] id=" << fc.figure_id
-                                  << " axes=" << fc.axes.size()
-                                  << " series=" << fc.series.size() << "\n";
-                        for (size_t ai = 0; ai < fc.axes.size(); ++ai)
-                            std::cerr << "[spectra-window]     axes[" << ai << "] is_3d=" << fc.axes[ai].is_3d << "\n";
-                        for (size_t si = 0; si < fc.series.size(); ++si)
-                            std::cerr << "[spectra-window]     series[" << si << "] type=" << fc.series[si].type
-                                      << " data=" << fc.series[si].data.size() << " floats\n";
-                    }
                 }
             }
         }

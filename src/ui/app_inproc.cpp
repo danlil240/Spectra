@@ -69,6 +69,14 @@ void App::run_inproc()
 
     CommandQueue cmd_queue;
     FrameScheduler scheduler(active_figure->anim_fps_);
+    // Windowed mode uses VK_PRESENT_MODE_FIFO_KHR (VSync) which already
+    // provides frame pacing via vkQueuePresentKHR blocking.  Adding
+    // FrameScheduler sleep on top causes double-pacing and periodic stutters.
+    // Only use TargetFPS sleep for headless mode where there's no swapchain.
+    if (!config_.headless)
+    {
+        scheduler.set_mode(FrameScheduler::Mode::VSync);
+    }
     Animator animator;
     SessionRuntime session(*backend_, *renderer_, registry_);
 

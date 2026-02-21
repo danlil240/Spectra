@@ -127,12 +127,12 @@ bool KnobManager::empty() const
     return knobs_.empty();
 }
 
-std::vector<Knob>& KnobManager::knobs()
+std::deque<Knob>& KnobManager::knobs()
 {
     return knobs_;
 }
 
-const std::vector<Knob>& KnobManager::knobs() const
+const std::deque<Knob>& KnobManager::knobs() const
 {
     return knobs_;
 }
@@ -169,6 +169,20 @@ void KnobManager::notify_any_changed()
     }
     if (cb)
         cb();
+}
+
+void KnobManager::mark_dirty(const std::string& name, float value)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    pending_changes_.emplace_back(name, value);
+}
+
+std::vector<std::pair<std::string, float>> KnobManager::take_pending_changes()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::pair<std::string, float>> out;
+    out.swap(pending_changes_);
+    return out;
 }
 
 }  // namespace spectra

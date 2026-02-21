@@ -279,14 +279,16 @@ void Renderer::upload_series_data(Series& series)
             gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
         }
 
-        std::vector<float> interleaved(count * 2);
+        size_t floats_needed = count * 2;
+        if (upload_scratch_.size() < floats_needed)
+            upload_scratch_.resize(floats_needed);
         for (size_t i = 0; i < count; ++i)
         {
-            interleaved[i * 2] = x_data[i];
-            interleaved[i * 2 + 1] = y_data[i];
+            upload_scratch_[i * 2] = x_data[i];
+            upload_scratch_[i * 2 + 1] = y_data[i];
         }
 
-        backend_.upload_buffer(gpu.ssbo, interleaved.data(), byte_size);
+        backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
         gpu.uploaded_count = count;
         series.clear_dirty();
     }
@@ -325,16 +327,18 @@ void Renderer::upload_series_data(Series& series)
             gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
         }
 
-        std::vector<float> interleaved(count * 4);
+        size_t floats_needed = count * 4;
+        if (upload_scratch_.size() < floats_needed)
+            upload_scratch_.resize(floats_needed);
         for (size_t i = 0; i < count; ++i)
         {
-            interleaved[i * 4] = x_data[i];
-            interleaved[i * 4 + 1] = y_data[i];
-            interleaved[i * 4 + 2] = z_data[i];
-            interleaved[i * 4 + 3] = 0.0f;  // padding
+            upload_scratch_[i * 4] = x_data[i];
+            upload_scratch_[i * 4 + 1] = y_data[i];
+            upload_scratch_[i * 4 + 2] = z_data[i];
+            upload_scratch_[i * 4 + 3] = 0.0f;  // padding
         }
 
-        backend_.upload_buffer(gpu.ssbo, interleaved.data(), byte_size);
+        backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
         gpu.uploaded_count = count;
         series.clear_dirty();
     }

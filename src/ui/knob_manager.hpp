@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -97,8 +98,8 @@ class KnobManager
     bool empty() const;
 
     // Access all knobs (for ImGui rendering).
-    std::vector<Knob>& knobs();
-    const std::vector<Knob>& knobs() const;
+    std::deque<Knob>& knobs();
+    const std::deque<Knob>& knobs() const;
 
     // ── Lifecycle ────────────────────────────────────────────────────
 
@@ -125,12 +126,21 @@ class KnobManager
     // Fire the global on_any_change callback (called by ImGui draw code).
     void notify_any_changed();
 
+    // ── Dirty tracking (for IPC) ─────────────────────────────────────
+
+    // Record that a knob value changed (called by ImGui draw code).
+    void mark_dirty(const std::string& name, float value);
+
+    // Retrieve and clear pending changes (name → value).
+    std::vector<std::pair<std::string, float>> take_pending_changes();
+
    private:
     mutable std::mutex mutex_;
-    std::vector<Knob> knobs_;
+    std::deque<Knob> knobs_;
     bool visible_ = true;
     bool collapsed_ = false;
     std::function<void()> on_any_change_;
+    std::vector<std::pair<std::string, float>> pending_changes_;
 };
 
 }  // namespace spectra

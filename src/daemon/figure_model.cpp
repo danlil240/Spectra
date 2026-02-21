@@ -249,6 +249,7 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
     std::lock_guard lock(mu_);
     figures_.clear();
     figure_order_.clear();
+    knobs_ = snap.knobs;  // store knob definitions
 
     std::vector<uint64_t> ids;
     for (const auto& fig : snap.figures)
@@ -301,6 +302,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
         fig.series = fd.series;
         snap.figures.push_back(std::move(fig));
     }
+    snap.knobs = knobs_;
     return snap;
 }
 
@@ -327,6 +329,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
         fig.series = fd.series;
         snap.figures.push_back(std::move(fig));
     }
+    snap.knobs = knobs_;
     return snap;
 }
 

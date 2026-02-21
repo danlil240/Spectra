@@ -703,6 +703,43 @@ static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
     return fig;
 }
 
+// ─── Knob blob encode/decode ─────────────────────────────────────────────────
+
+static std::vector<uint8_t> encode_knob_blob(const SnapshotKnobState& k)
+{
+    PayloadEncoder enc;
+    enc.put_string(TAG_KNOB_NAME, k.name);
+    enc.put_u16(TAG_KNOB_TYPE, k.type);
+    payload_put_float(enc, TAG_KNOB_VALUE, k.value);
+    payload_put_float(enc, TAG_KNOB_MIN, k.min_val);
+    payload_put_float(enc, TAG_KNOB_MAX, k.max_val);
+    payload_put_float(enc, TAG_KNOB_STEP, k.step);
+    for (const auto& c : k.choices)
+        enc.put_string(TAG_KNOB_CHOICE, c);
+    return enc.take();
+}
+
+static SnapshotKnobState decode_knob_blob(std::span<const uint8_t> data)
+{
+    SnapshotKnobState k;
+    PayloadDecoder dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_KNOB_NAME:   k.name = dec.as_string(); break;
+            case TAG_KNOB_TYPE:   k.type = static_cast<uint8_t>(dec.as_u16()); break;
+            case TAG_KNOB_VALUE:  k.value = payload_as_float(dec); break;
+            case TAG_KNOB_MIN:    k.min_val = payload_as_float(dec); break;
+            case TAG_KNOB_MAX:    k.max_val = payload_as_float(dec); break;
+            case TAG_KNOB_STEP:   k.step = payload_as_float(dec); break;
+            case TAG_KNOB_CHOICE: k.choices.push_back(dec.as_string()); break;
+            default: break;
+        }
+    }
+    return k;
+}
+
 // ─── STATE_SNAPSHOT encode/decode ────────────────────────────────────────────
 
 std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
@@ -714,6 +751,11 @@ std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
     {
         auto blob = encode_figure_blob(fig);
         payload_put_blob(enc, TAG_FIGURE_BLOB, blob);
+    }
+    for (const auto& k : p.knobs)
+    {
+        auto blob = encode_knob_blob(k);
+        payload_put_blob(enc, TAG_KNOB_BLOB, blob);
     }
     return enc.take();
 }
@@ -732,6 +774,12 @@ std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_
             {
                 auto blob = payload_as_blob(dec);
                 p.figures.push_back(decode_figure_blob(blob));
+                break;
+            }
+            case TAG_KNOB_BLOB:
+            {
+                auto blob = payload_as_blob(dec);
+                p.knobs.push_back(decode_knob_blob(blob));
                 break;
             }
             default: break;

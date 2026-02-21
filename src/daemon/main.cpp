@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
         for (auto& c : clients)
             pfds.push_back({c.conn ? c.conn->fd() : -1, POLLIN, 0});
 
-        int poll_ret = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), 100);
+        int poll_ret = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), 1);
 
         if (poll_ret < 0)
         {
@@ -758,8 +758,7 @@ int main(int argc, char* argv[])
 
                 case spectra::ipc::MessageType::STATE_DIFF:
                 {
-                    // App client pushes incremental updates (e.g. animation frames).
-                    // Decode, apply to FigureModel, and forward to all render agents.
+                    // Decode, apply to FigureModel, and forward.
                     auto incoming_diff = spectra::ipc::decode_state_diff(msg.payload);
                     if (!incoming_diff || incoming_diff->ops.empty())
                         break;
@@ -773,12 +772,25 @@ int main(int argc, char* argv[])
                     fwd_diff.base_revision = base_rev;
                     fwd_diff.new_revision = fig_model.revision();
 
+                    bool from_source = it->is_source_client;
                     for (auto& c : clients)
                     {
-                        if (c.conn && c.handshake_done && !c.is_source_client)
+                        if (!c.conn || !c.handshake_done)
+                            continue;
+                        if (from_source)
                         {
-                            send_state_diff(*c.conn, c.window_id,
-                                            graph.session_id(), fwd_diff);
+                            // App → agents: forward to all render agents
+                            if (!c.is_source_client)
+                                send_state_diff(*c.conn, c.window_id,
+                                                graph.session_id(), fwd_diff);
+                        }
+                        else
+                        {
+                            // Agent → app: forward to source client
+                            // (e.g. knob value changes from UI)
+                            if (c.is_source_client)
+                                send_state_diff(*c.conn, c.window_id,
+                                                graph.session_id(), fwd_diff);
                         }
                     }
                     break;

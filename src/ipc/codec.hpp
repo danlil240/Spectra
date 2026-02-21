@@ -183,6 +183,16 @@ static constexpr uint8_t TAG_POINT_COUNT     = 0x76;
 static constexpr uint8_t TAG_SERIES_DATA     = 0x77;  // raw float array
 static constexpr uint8_t TAG_WINDOW_GROUP    = 0x78;  // figure window grouping
 
+// Knob blob tags
+static constexpr uint8_t TAG_KNOB_BLOB       = 0x79;  // nested TLV for a knob
+static constexpr uint8_t TAG_KNOB_NAME       = 0x7A;
+static constexpr uint8_t TAG_KNOB_TYPE       = 0x7B;
+static constexpr uint8_t TAG_KNOB_VALUE      = 0x7C;
+static constexpr uint8_t TAG_KNOB_MIN        = 0x7D;
+static constexpr uint8_t TAG_KNOB_MAX        = 0x7E;
+static constexpr uint8_t TAG_KNOB_STEP       = 0x7F;
+static constexpr uint8_t TAG_KNOB_CHOICE     = 0xA0;  // repeated string
+
 // Sub-tags for DiffOp
 static constexpr uint8_t TAG_OP_TYPE         = 0x80;
 static constexpr uint8_t TAG_AXES_INDEX      = 0x81;

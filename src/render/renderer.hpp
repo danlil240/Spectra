@@ -134,6 +134,10 @@ class Renderer
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 
+    // Reusable scratch buffer for interleaving series data before GPU upload.
+    // Avoids per-frame heap allocations for animated/streaming series.
+    std::vector<float> upload_scratch_;
+
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).
     static constexpr uint32_t DELETION_RING_SIZE = 4;  // MAX_FRAMES_IN_FLIGHT + 2

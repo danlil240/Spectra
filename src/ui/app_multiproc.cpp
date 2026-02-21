@@ -11,6 +11,8 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
+#include "knob_manager.hpp"
+
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
 #include "../ipc/message.hpp"
@@ -358,6 +360,23 @@ void App::run_multiproc()
         snap.figures.push_back(std::move(fig_snap));
     }
 
+    // Serialize knobs into the snapshot so the agent window can display them
+    if (knob_manager_ && !knob_manager_->empty())
+    {
+        for (const auto& k : knob_manager_->knobs())
+        {
+            ipc::SnapshotKnobState ks;
+            ks.name = k.name;
+            ks.type = static_cast<uint8_t>(k.type);
+            ks.value = k.value;
+            ks.min_val = k.min_val;
+            ks.max_val = k.max_val;
+            ks.step = k.step;
+            ks.choices = k.choices;
+            snap.knobs.push_back(std::move(ks));
+        }
+    }
+
     // Assign window_group: figures in the same group get the same non-zero ID
     for (uint32_t gi = 0; gi < window_groups.size(); ++gi)
     {
@@ -430,6 +449,19 @@ void App::run_multiproc()
                 auto msg = conn->recv();
                 if (!msg) { exit_requested = true; break; }
                 if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) { exit_requested = true; break; }
+                // Apply knob value changes from agent UI back to the app's KnobManager
+                if (msg->header.type == ipc::MessageType::STATE_DIFF && knob_manager_)
+                {
+                    auto diff = ipc::decode_state_diff(msg->payload);
+                    if (diff)
+                    {
+                        for (const auto& op : diff->ops)
+                        {
+                            if (op.type == ipc::DiffOp::Type::SET_KNOB_VALUE)
+                                knob_manager_->set_value(op.str_val, op.f1);
+                        }
+                    }
+                }
             }
             else {
                 break;

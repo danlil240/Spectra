@@ -73,6 +73,9 @@ void FrameScheduler::begin_frame()
 
     frame_.elapsed_sec = static_cast<float>(elapsed_since_start.count());
     frame_.number++;
+
+    // Track frame timing stats for hitch detection
+    update_stats(raw_dt * 1000.0f);
 }
 
 void FrameScheduler::end_frame()
@@ -122,6 +125,54 @@ void FrameScheduler::reset()
     first_frame_ = true;
     frame_ = Frame{};
     accumulator_ = 0.0f;
+    stats_ = FrameStats{};
+    last_dt_ms_ = 0.0f;
+    max_dt_in_window_ = 0.0f;
+    dt_sum_in_window_ = 0.0;
+    hitches_in_window_ = 0;
+    window_counter_ = 0;
+}
+
+void FrameScheduler::update_stats(float dt_ms)
+{
+    last_dt_ms_ = dt_ms;
+    if (dt_ms > max_dt_in_window_)
+        max_dt_in_window_ = dt_ms;
+    dt_sum_in_window_ += dt_ms;
+    window_counter_++;
+
+    float target_ms = (target_fps_ > 0.0f) ? (1000.0f / target_fps_) : 16.667f;
+    if (dt_ms > target_ms * 2.0f)
+    {
+        hitches_in_window_++;
+        SPECTRA_LOG_DEBUG("hitch",
+                         "Frame " + std::to_string(frame_.number)
+                             + " hitch: " + std::to_string(dt_ms) + "ms"
+                             + " (target: " + std::to_string(target_ms) + "ms)");
+    }
+
+    if (window_counter_ >= STATS_WINDOW_FRAMES)
+    {
+        stats_.max_frame_time_ms = max_dt_in_window_;
+        stats_.avg_frame_time_ms = static_cast<float>(dt_sum_in_window_ / window_counter_);
+        stats_.p95_frame_time_ms = max_dt_in_window_ * 0.8f;  // rough estimate
+        stats_.hitch_count = hitches_in_window_;
+        stats_.window_frame_count = window_counter_;
+
+        if (hitches_in_window_ > 0)
+        {
+            SPECTRA_LOG_INFO("perf",
+                            "Stats (" + std::to_string(STATS_WINDOW_FRAMES) + " frames):"
+                                + " avg=" + std::to_string(stats_.avg_frame_time_ms) + "ms"
+                                + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
+                                + " hitches=" + std::to_string(hitches_in_window_));
+        }
+
+        max_dt_in_window_ = 0.0f;
+        dt_sum_in_window_ = 0.0;
+        hitches_in_window_ = 0;
+        window_counter_ = 0;
+    }
 }
 
 }  // namespace spectra

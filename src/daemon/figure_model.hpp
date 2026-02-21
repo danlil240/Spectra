@@ -117,6 +117,7 @@ class FigureModel
 
     std::unordered_map<uint64_t, FigureData> figures_;
     std::vector<uint64_t> figure_order_;  // insertion order
+    std::vector<ipc::SnapshotKnobState> knobs_;  // interactive parameter knobs
 
     // Bump revision (caller must hold lock).
     void bump_revision() { ++revision_; }

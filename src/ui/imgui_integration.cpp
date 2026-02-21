@@ -4475,6 +4475,7 @@ void ImGuiIntegration::draw_knobs_panel()
                     if (k.value != old_val)
                     {
                         if (k.on_change) k.on_change(k.value);
+                        knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
                     break;
@@ -4491,6 +4492,7 @@ void ImGuiIntegration::draw_knobs_panel()
                     if (iv != old_iv)
                     {
                         if (k.on_change) k.on_change(k.value);
+                        knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
                     break;
@@ -4504,6 +4506,7 @@ void ImGuiIntegration::draw_knobs_panel()
                     if (bv != old_bv)
                     {
                         if (k.on_change) k.on_change(k.value);
+                        knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
                     break;
@@ -4534,6 +4537,7 @@ void ImGuiIntegration::draw_knobs_panel()
                     if (ci != old_ci)
                     {
                         if (k.on_change) k.on_change(k.value);
+                        knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
                     break;

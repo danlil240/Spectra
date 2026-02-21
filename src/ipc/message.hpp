@@ -221,12 +221,25 @@ struct SnapshotFigureState
     std::vector<SnapshotSeriesState> series;
 };
 
+// Serialized knob definition within a state snapshot.
+struct SnapshotKnobState
+{
+    std::string name;
+    uint8_t type = 0;   // 0=Float, 1=Int, 2=Bool, 3=Choice
+    float value = 0.0f;
+    float min_val = 0.0f;
+    float max_val = 1.0f;
+    float step = 0.0f;
+    std::vector<std::string> choices;  // only for type==Choice
+};
+
 // Backend → Agent: full state snapshot (sent on connect or resync).
 struct StateSnapshotPayload
 {
     Revision revision = 0;
     SessionId session_id = INVALID_SESSION;
     std::vector<SnapshotFigureState> figures;
+    std::vector<SnapshotKnobState> knobs;  // interactive parameter knobs
 };
 
 // A single property change operation within a state diff.
@@ -245,6 +258,7 @@ struct DiffOp
         ADD_FIGURE        = 10,
         REMOVE_FIGURE     = 11,
         SET_SERIES_DATA   = 12,
+        SET_KNOB_VALUE    = 20,  // str_val=knob name, f1=new value
     };
 
     Type type = Type::SET_AXIS_LIMITS;

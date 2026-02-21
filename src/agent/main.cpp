@@ -22,6 +22,7 @@
 #include "../ui/command_queue.hpp"
 #include "../ui/figure_registry.hpp"
 #include "../ui/register_commands.hpp"
+#include "../ui/knob_manager.hpp"
 #include "../ui/session_runtime.hpp"
 #include "../ui/window_runtime.hpp"
 #include "../ui/window_ui_context.hpp"
@@ -396,6 +397,7 @@ int main(int argc, char* argv[])
     std::vector<uint64_t> assigned_figures;
     uint64_t ipc_active_figure_id = 0;
     std::vector<spectra::ipc::SnapshotFigureState> figure_cache;
+    std::vector<spectra::ipc::SnapshotKnobState> knob_cache;
     spectra::ipc::Revision current_revision = 0;
     bool cache_dirty = false;
 
@@ -431,6 +433,7 @@ int main(int argc, char* argv[])
                 if (snap)
                 {
                     figure_cache = snap->figures;
+                    knob_cache = snap->knobs;
                     current_revision = snap->revision;
                     cache_dirty = true;
                     got_snapshot = true;
@@ -512,6 +515,9 @@ int main(int argc, char* argv[])
 
     spectra::CommandQueue cmd_queue;
     spectra::FrameScheduler scheduler(active_figure->anim_fps());
+    // Windowed agent uses VK_PRESENT_MODE_FIFO_KHR (VSync) — don't
+    // double-pace with FrameScheduler sleep on top.
+    scheduler.set_mode(spectra::FrameScheduler::Mode::VSync);
     spectra::Animator animator;
     spectra::SessionRuntime session(*backend, *renderer_ptr, registry);
 
@@ -568,6 +574,31 @@ int main(int argc, char* argv[])
 
         // Sync WindowContext active figure
         initial_wctx->active_figure_id = frame_state.active_figure_id;
+
+        // Reconstruct knobs from IPC cache into the window's KnobManager
+        if (!knob_cache.empty())
+        {
+            auto& km = ui_ctx_ptr->knob_manager;
+            for (const auto& ks : knob_cache)
+            {
+                switch (ks.type)
+                {
+                    case 0:  // Float
+                        km.add_float(ks.name, ks.value, ks.min_val, ks.max_val, ks.step);
+                        break;
+                    case 1:  // Int
+                        km.add_int(ks.name, static_cast<int>(ks.value),
+                                   static_cast<int>(ks.min_val), static_cast<int>(ks.max_val));
+                        break;
+                    case 2:  // Bool
+                        km.add_bool(ks.name, ks.value >= 0.5f);
+                        break;
+                    case 3:  // Choice
+                        km.add_choice(ks.name, ks.choices, static_cast<int>(ks.value));
+                        break;
+                }
+            }
+        }
     }
 #endif
 
@@ -751,27 +782,24 @@ int main(int argc, char* argv[])
 
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
-        // ── Poll IPC messages (non-blocking) ─────────────────────────────
-        bool has_data = false;
+        // ── Drain all pending IPC messages (non-blocking) ────────────────
 #ifdef __linux__
+        for (;;)
         {
             struct pollfd pfd;
             pfd.fd = conn->fd();
             pfd.events = POLLIN;
             pfd.revents = 0;
             int poll_ret = ::poll(&pfd, 1, 0);  // non-blocking
-            has_data = (poll_ret > 0 && (pfd.revents & POLLIN));
             if (poll_ret > 0 && (pfd.revents & (POLLHUP | POLLERR)))
             {
                 std::cerr << "[spectra-window] Backend connection lost\n";
                 session.request_exit();
                 break;
             }
-        }
-#endif
+            if (poll_ret <= 0 || !(pfd.revents & POLLIN))
+                break;
 
-        if (has_data)
-        {
             auto msg_opt = conn->recv();
             if (!msg_opt)
             {
@@ -790,12 +818,6 @@ int main(int argc, char* argv[])
                     {
                         assigned_figures = payload->figure_ids;
                         ipc_active_figure_id = payload->active_figure_id;
-                        // CMD_ASSIGN_FIGURES only changes which figures are
-                        // shown and which is active — it does NOT change
-                        // figure data, so do NOT set cache_dirty (which
-                        // triggers an expensive full registry rebuild).
-                        // The figure data is already in the registry from
-                        // the initial STATE_SNAPSHOT.
                     }
                     break;
                 }
@@ -865,6 +887,7 @@ int main(int argc, char* argv[])
                     break;
             }
         }
+#endif
 
         // ── Apply full rebuild if snapshot changed ───────────────────────
         if (cache_dirty)
@@ -941,6 +964,27 @@ int main(int argc, char* argv[])
 #endif
             }
             cache_dirty = false;
+        }
+
+        // ── Flush knob changes back to app via IPC ─────────────────────
+        if (ui_ctx_ptr)
+        {
+            auto changes = ui_ctx_ptr->knob_manager.take_pending_changes();
+            if (!changes.empty())
+            {
+                spectra::ipc::StateDiffPayload diff;
+                for (auto& [name, val] : changes)
+                {
+                    spectra::ipc::DiffOp op;
+                    op.type = spectra::ipc::DiffOp::Type::SET_KNOB_VALUE;
+                    op.str_val = name;
+                    op.f1 = val;
+                    diff.ops.push_back(std::move(op));
+                }
+                send_ipc(*conn, spectra::ipc::MessageType::STATE_DIFF,
+                         session_id, ipc_window_id,
+                         spectra::ipc::encode_state_diff(diff));
+            }
         }
 
         // ── Send heartbeat ───────────────────────────────────────────────

@@ -1,6 +1,6 @@
 #include <cmath>
-#include <spectra/easy.hpp>
 #include <random>
+#include <spectra/easy.hpp>
 #include <vector>
 
 int main()
@@ -37,7 +37,9 @@ int main()
         y_scatter.push_back(dist(gen));
     }
 
-    spectra::scatter(x_scatter, y_scatter).label("Random Points").color(spectra::rgb(0.2f, 0.8f, 0.4f));
+    spectra::scatter(x_scatter, y_scatter)
+        .label("Random Points")
+        .color(spectra::rgb(0.2f, 0.8f, 0.4f));
     spectra::xlabel("X Value");
     spectra::ylabel("Y Value");
     spectra::title("2D Normal Distribution");

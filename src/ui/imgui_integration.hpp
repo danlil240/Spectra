@@ -164,12 +164,17 @@ class ImGuiIntegration
 
     // Pane tab context menu callbacks (wired by App)
     using PaneTabCallback = std::function<void(FigureId figure_id)>;
-    using PaneTabDetachCallback = std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
-    using PaneTabRenameCallback = std::function<void(FigureId figure_id, const std::string& new_title)>;
+    using PaneTabDetachCallback =
+        std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
+    using PaneTabRenameCallback =
+        std::function<void(FigureId figure_id, const std::string& new_title)>;
 
     void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
     void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
-    void set_pane_tab_split_right_cb(PaneTabCallback cb) { pane_tab_split_right_cb_ = std::move(cb); }
+    void set_pane_tab_split_right_cb(PaneTabCallback cb)
+    {
+        pane_tab_split_right_cb_ = std::move(cb);
+    }
     void set_pane_tab_split_down_cb(PaneTabCallback cb) { pane_tab_split_down_cb_ = std::move(cb); }
     void set_pane_tab_detach_cb(PaneTabDetachCallback cb) { pane_tab_detach_cb_ = std::move(cb); }
     void set_pane_tab_rename_cb(PaneTabRenameCallback cb) { pane_tab_rename_cb_ = std::move(cb); }
@@ -344,14 +349,14 @@ class ImGuiIntegration
         bool dock_dragging = false;  // Dragged far enough vertically → dock system handles split
 
         // Tearoff preview card animation
-        float preview_scale = 0.0f;     // 0→1 animated scale of the preview card
-        float preview_opacity = 0.0f;   // 0→1 animated opacity
-        float preview_shadow = 0.0f;    // 0→1 animated shadow intensity
-        float source_tab_x = 0.0f;      // Source tab position (animation origin)
+        float preview_scale = 0.0f;    // 0→1 animated scale of the preview card
+        float preview_opacity = 0.0f;  // 0→1 animated opacity
+        float preview_shadow = 0.0f;   // 0→1 animated shadow intensity
+        float source_tab_x = 0.0f;     // Source tab position (animation origin)
         float source_tab_y = 0.0f;
         float source_tab_w = 0.0f;
         float source_tab_h = 0.0f;
-        bool preview_active = false;    // True once drag exceeds vertical threshold
+        bool preview_active = false;  // True once drag exceeds vertical threshold
     };
     PaneTabDragState pane_tab_drag_;
     bool pane_tab_hovered_ = false;  // True when mouse is over a pane tab header
@@ -426,7 +431,10 @@ class ImGuiIntegration
 
     // Knobs panel screen rect (updated each frame) — used to suppress tab bar
     // foreground rendering when the mouse is over the knobs panel.
-    struct { float x = 0, y = 0, w = 0, h = 0; } knobs_panel_rect_;
+    struct
+    {
+        float x = 0, y = 0, w = 0, h = 0;
+    } knobs_panel_rect_;
 
     #if SPECTRA_FLOATING_TOOLBAR
     // Floating toolbar drag state

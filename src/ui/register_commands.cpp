@@ -12,8 +12,8 @@
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
-    #include "window_manager.hpp"
     #include "../render/vulkan/window_context.hpp"
+    #include "window_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
@@ -35,31 +35,31 @@ void register_standard_commands(const CommandBindings& b)
     if (!b.ui_ctx || !b.registry || !b.active_figure || !b.active_figure_id)
         return;
 
-    auto& ui_ctx          = *b.ui_ctx;
-    auto& registry        = *b.registry;
-    auto*& active_figure  = *b.active_figure;
+    auto& ui_ctx = *b.ui_ctx;
+    auto& registry = *b.registry;
+    auto*& active_figure = *b.active_figure;
     auto& active_figure_id = *b.active_figure_id;
 
-    auto& imgui_ui        = ui_ctx.imgui_ui;
+    auto& imgui_ui = ui_ctx.imgui_ui;
     auto& data_interaction = ui_ctx.data_interaction;
-    auto& dock_system     = ui_ctx.dock_system;
+    auto& dock_system = ui_ctx.dock_system;
     auto& timeline_editor = ui_ctx.timeline_editor;
     auto& mode_transition = ui_ctx.mode_transition;
-    auto& is_in_3d_mode   = ui_ctx.is_in_3d_mode;
+    auto& is_in_3d_mode = ui_ctx.is_in_3d_mode;
     auto& saved_3d_camera = ui_ctx.saved_3d_camera;
-    auto& home_limits     = ui_ctx.home_limits;
-    auto& cmd_registry    = ui_ctx.cmd_registry;
-    auto& shortcut_mgr    = ui_ctx.shortcut_mgr;
-    auto& undo_mgr        = ui_ctx.undo_mgr;
-    auto& cmd_palette     = ui_ctx.cmd_palette;
-    auto& fig_mgr         = *ui_ctx.fig_mgr;
-    auto& input_handler   = ui_ctx.input_handler;
+    auto& home_limits = ui_ctx.home_limits;
+    auto& cmd_registry = ui_ctx.cmd_registry;
+    auto& shortcut_mgr = ui_ctx.shortcut_mgr;
+    auto& undo_mgr = ui_ctx.undo_mgr;
+    auto& cmd_palette = ui_ctx.cmd_palette;
+    auto& fig_mgr = *ui_ctx.fig_mgr;
+    auto& input_handler = ui_ctx.input_handler;
     auto& anim_controller = ui_ctx.anim_controller;
 
     SessionRuntime* session = b.session;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = b.window_mgr;
-#endif
+    #endif
 
     // ─── View commands ───────────────────────────────────────────────────
     cmd_registry.register_command(
@@ -217,7 +217,8 @@ void register_standard_commands(const CommandBindings& b)
             auto before = capture_figure_axes(*active_figure);
             for (auto& ax : active_figure->axes_mut())
             {
-                if (!ax) continue;
+                if (!ax)
+                    continue;
                 auto it = home_limits.find(ax.get());
                 if (it != home_limits.end())
                 {
@@ -247,10 +248,8 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto old_x = ax->x_limits();
                 auto old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f,
-                      xr = (old_x.max - old_x.min) * 0.375f;
-                float yc = (old_y.min + old_y.max) * 0.5f,
-                      yr = (old_y.max - old_y.min) * 0.375f;
+                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.375f;
+                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.375f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
@@ -269,10 +268,8 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto old_x = ax->x_limits();
                 auto old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f,
-                      xr = (old_x.max - old_x.min) * 0.625f;
-                float yc = (old_y.min + old_y.max) * 0.5f,
-                      yr = (old_y.max - old_y.min) * 0.625f;
+                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.625f;
+                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.625f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
@@ -389,15 +386,15 @@ void register_standard_commands(const CommandBindings& b)
             for (auto id : fig_mgr.figure_ids())
             {
                 Figure* f = registry.get(id);
-                if (f) figs.push_back(f);
+                if (f)
+                    figs.push_back(f);
             }
-            auto data =
-                Workspace::capture(figs,
-                                   fig_mgr.active_index(),
-                                   ui::ThemeManager::instance().current_theme_name(),
-                                   imgui_ui->get_layout_manager().is_inspector_visible(),
-                                   imgui_ui->get_layout_manager().inspector_width(),
-                                   imgui_ui->get_layout_manager().is_nav_rail_expanded());
+            auto data = Workspace::capture(figs,
+                                           fig_mgr.active_index(),
+                                           ui::ThemeManager::instance().current_theme_name(),
+                                           imgui_ui->get_layout_manager().is_inspector_visible(),
+                                           imgui_ui->get_layout_manager().inspector_width(),
+                                           imgui_ui->get_layout_manager().is_nav_rail_expanded());
             if (data_interaction)
             {
                 data.interaction.crosshair_enabled = data_interaction->crosshair_active();
@@ -439,7 +436,8 @@ void register_standard_commands(const CommandBindings& b)
                 for (auto id : fig_mgr.figure_ids())
                 {
                     Figure* f = registry.get(id);
-                    if (f) figs.push_back(f);
+                    if (f)
+                        figs.push_back(f);
                 }
                 Workspace::apply(data, figs);
                 auto after_snap = capture_figure_axes(*active_figure);
@@ -879,11 +877,7 @@ void register_standard_commands(const CommandBindings& b)
         "View");
 
     cmd_registry.register_command(
-        "view.reset_splits",
-        "Reset All Splits",
-        [&]() { dock_system.reset_splits(); },
-        "",
-        "View");
+        "view.reset_splits", "Reset All Splits", [&]() { dock_system.reset_splits(); }, "", "View");
 
     // ─── Tool mode commands ──────────────────────────────────────────────
     cmd_registry.register_command(
@@ -903,7 +897,7 @@ void register_standard_commands(const CommandBindings& b)
         static_cast<uint16_t>(ui::Icon::ZoomIn));
 
     // ─── Window commands ─────────────────────────────────────────────────
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     cmd_registry.register_command(
         "app.new_window",
         "New Window",
@@ -934,7 +928,8 @@ void register_standard_commands(const CommandBindings& b)
             if (!window_mgr || window_mgr->windows().empty())
                 return;
             auto* src_wctx = window_mgr->focused_window();
-            if (!src_wctx) src_wctx = window_mgr->windows()[0];
+            if (!src_wctx)
+                src_wctx = window_mgr->windows()[0];
 
             FigureId fig_id = active_figure_id;
             if (fig_id == INVALID_FIGURE_ID)
@@ -942,8 +937,7 @@ void register_standard_commands(const CommandBindings& b)
 
             if (fig_mgr.count() <= 1)
             {
-                SPECTRA_LOG_WARN("window_manager",
-                                 "Cannot move last figure from window");
+                SPECTRA_LOG_WARN("window_manager", "Cannot move last figure from window");
                 return;
             }
 
@@ -989,14 +983,14 @@ void register_standard_commands(const CommandBindings& b)
         "Ctrl+Shift+M",
         "App",
         static_cast<uint16_t>(ui::Icon::Plus));
-#endif
+    #endif
 
     // Register default shortcut bindings
     shortcut_mgr.register_defaults();
 
     SPECTRA_LOG_INFO("app",
-                    "Registered " + std::to_string(cmd_registry.count()) + " commands, "
-                        + std::to_string(shortcut_mgr.count()) + " shortcuts");
+                     "Registered " + std::to_string(cmd_registry.count()) + " commands, "
+                         + std::to_string(shortcut_mgr.count()) + " shortcuts");
 #else
     (void)b;
 #endif

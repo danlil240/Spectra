@@ -1,10 +1,10 @@
 #pragma once
 
 #include <memory>
-#include <unordered_map>
-#include <vector>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
+#include <unordered_map>
+#include <vector>
 
 #include "../src/ui/figure_registry.hpp"
 

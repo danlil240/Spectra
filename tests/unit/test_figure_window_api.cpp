@@ -42,9 +42,9 @@ TEST(FigureWindowAPI, MultipleTabsInOneWindow)
 TEST(FigureWindowAPI, MixedWindowsAndTabs)
 {
     App app({.headless = true});
-    auto& fig1 = app.figure();          // window A
-    auto& fig2 = app.figure();          // window B
-    auto& fig3 = app.figure(fig1);      // tab in window A
+    auto& fig1 = app.figure();      // window A
+    auto& fig2 = app.figure();      // window B
+    auto& fig3 = app.figure(fig1);  // tab in window A
 
     auto& wf = app.window_figures();
     EXPECT_EQ(wf.size(), 2u) << "Should have 2 windows";
@@ -53,8 +53,10 @@ TEST(FigureWindowAPI, MixedWindowsAndTabs)
     bool found_two = false, found_one = false;
     for (auto& [wid, figs] : wf)
     {
-        if (figs.size() == 2) found_two = true;
-        if (figs.size() == 1) found_one = true;
+        if (figs.size() == 2)
+            found_two = true;
+        if (figs.size() == 1)
+            found_one = true;
     }
     EXPECT_TRUE(found_two);
     EXPECT_TRUE(found_one);
@@ -88,8 +90,8 @@ TEST(FigureWindowAPI, FourWindowsThreeTabs)
     auto& a1 = app.figure();
     auto& a2 = app.figure(a1);
     auto& a3 = app.figure(a1);
-    auto& b  = app.figure();
-    auto& c  = app.figure();
+    auto& b = app.figure();
+    auto& c = app.figure();
     auto& d1 = app.figure();
     auto& d2 = app.figure(d1);
 
@@ -98,7 +100,8 @@ TEST(FigureWindowAPI, FourWindowsThreeTabs)
 
     // Count total figures
     size_t total = 0;
-    for (auto& [wid, figs] : wf) total += figs.size();
+    for (auto& [wid, figs] : wf)
+        total += figs.size();
     EXPECT_EQ(total, 7u);
 }
 

@@ -74,9 +74,8 @@ class TabDragController
 
     // Called when a drop occurs inside a *different* window (cross-window move).
     // Parameters: figure_id, target_window_id, screen_x, screen_y.
-    using DropOnWindowCallback =
-        std::function<void(FigureId figure_id, uint32_t target_window_id,
-                           float screen_x, float screen_y)>;
+    using DropOnWindowCallback = std::function<void(
+        FigureId figure_id, uint32_t target_window_id, float screen_x, float screen_y)>;
 
     // Called when drag is cancelled (restore original state).
     using CancelCallback = std::function<void(FigureId figure_id)>;
@@ -122,16 +121,15 @@ class TabDragController
     // source_pane_id: the pane containing the tab.
     // figure_id: the figure being potentially dragged.
     // mouse_x, mouse_y: window-local mouse position at press time.
-    void on_mouse_down(uint32_t source_pane_id, FigureId figure_id,
-                       float mouse_x, float mouse_y);
+    void on_mouse_down(uint32_t source_pane_id, FigureId figure_id, float mouse_x, float mouse_y);
 
     // Call every frame while mouse is held (or after release to finalize).
     // mouse_x, mouse_y: current window-local mouse position.
     // mouse_down: true if left mouse button is still held.
     // screen_mouse_x, screen_mouse_y: screen-space cursor position
     //   (used for outside-window detection).
-    void update(float mouse_x, float mouse_y, bool mouse_down,
-                float screen_mouse_x, float screen_mouse_y);
+    void update(
+        float mouse_x, float mouse_y, bool mouse_down, float screen_mouse_x, float screen_mouse_y);
 
     // Call when ESC is pressed or right mouse button is clicked during drag.
     void cancel();
@@ -201,7 +199,7 @@ class TabDragController
 
     // Preview window state
     bool preview_created_ = false;
-    int preview_grace_frames_ = 0;  // Suppress drop for N frames after preview request
+    int preview_grace_frames_ = 0;      // Suppress drop for N frames after preview request
     int preview_created_recently_ = 0;  // Suppress drop for N frames after preview actually created
 
     // Thresholds

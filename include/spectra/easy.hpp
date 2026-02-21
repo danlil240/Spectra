@@ -77,6 +77,9 @@
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
+#include <cstdint>
+#include <functional>
+#include <span>
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -85,14 +88,10 @@
 #include <spectra/frame.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
-
-#include "../src/ui/knob_manager.hpp"
-
-#include <cstdint>
-#include <functional>
-#include <span>
 #include <string>
 #include <string_view>
+
+#include "../src/ui/knob_manager.hpp"
 
 namespace spectra
 {
@@ -118,7 +117,8 @@ struct EasyState
 
     // Animation callback
     std::function<void(float dt, float elapsed)> on_update_cb;
-    uint64_t on_update_frame_ = UINT64_MAX;  // frame guard: prevents double-fire when wired to multiple figures
+    uint64_t on_update_frame_ =
+        UINT64_MAX;  // frame guard: prevents double-fire when wired to multiple figures
 
     // Knob manager (shared across all figures in easy API)
     KnobManager knob_mgr;
@@ -294,9 +294,7 @@ inline LineSeries& plot(std::span<const float> x,
 }
 
 // Plot with explicit PlotStyle.
-inline LineSeries& plot(std::span<const float> x,
-                        std::span<const float> y,
-                        const PlotStyle& style)
+inline LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style)
 {
     return detail::easy_state().ensure_axes().plot(x, y, style);
 }
@@ -308,8 +306,7 @@ inline LineSeries& plot()
 }
 
 // Scatter plot.
-inline ScatterSeries& scatter(std::span<const float> x,
-                               std::span<const float> y)
+inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y)
 {
     return detail::easy_state().ensure_axes().scatter(x, y);
 }
@@ -324,31 +321,30 @@ inline ScatterSeries& scatter()
 
 // 3D line plot.
 inline LineSeries3D& plot3(std::span<const float> x,
-                            std::span<const float> y,
-                            std::span<const float> z)
+                           std::span<const float> y,
+                           std::span<const float> z)
 {
     return detail::easy_state().ensure_axes3d().line3d(x, y, z);
 }
 
 // 3D scatter plot.
 inline ScatterSeries3D& scatter3(std::span<const float> x,
-                                  std::span<const float> y,
-                                  std::span<const float> z)
+                                 std::span<const float> y,
+                                 std::span<const float> z)
 {
     return detail::easy_state().ensure_axes3d().scatter3d(x, y, z);
 }
 
 // Surface plot.
 inline SurfaceSeries& surf(std::span<const float> x_grid,
-                            std::span<const float> y_grid,
-                            std::span<const float> z_values)
+                           std::span<const float> y_grid,
+                           std::span<const float> z_values)
 {
     return detail::easy_state().ensure_axes3d().surface(x_grid, y_grid, z_values);
 }
 
 // Mesh plot.
-inline MeshSeries& mesh(std::span<const float> vertices,
-                         std::span<const uint32_t> indices)
+inline MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_t> indices)
 {
     return detail::easy_state().ensure_axes3d().mesh(vertices, indices);
 }
@@ -524,8 +520,8 @@ inline Knob& knob(const std::string& name,
                   float max_val,
                   std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_float(name, default_val, min_val, max_val, 0.0f,
-                                                    std::move(on_change));
+    return detail::easy_state().knob_mgr.add_float(
+        name, default_val, min_val, max_val, 0.0f, std::move(on_change));
 }
 
 // Float knob with explicit step size.
@@ -536,8 +532,8 @@ inline Knob& knob(const std::string& name,
                   float step,
                   std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_float(name, default_val, min_val, max_val, step,
-                                                    std::move(on_change));
+    return detail::easy_state().knob_mgr.add_float(
+        name, default_val, min_val, max_val, step, std::move(on_change));
 }
 
 // Integer slider knob.
@@ -547,8 +543,8 @@ inline Knob& knob_int(const std::string& name,
                       int max_val,
                       std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_int(name, default_val, min_val, max_val,
-                                                  std::move(on_change));
+    return detail::easy_state().knob_mgr.add_int(
+        name, default_val, min_val, max_val, std::move(on_change));
 }
 
 // Boolean checkbox knob.
@@ -565,8 +561,8 @@ inline Knob& knob_choice(const std::string& name,
                          int default_index = 0,
                          std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_choice(name, choices, default_index,
-                                                     std::move(on_change));
+    return detail::easy_state().knob_mgr.add_choice(
+        name, choices, default_index, std::move(on_change));
 }
 
 // Set a global callback that fires whenever ANY knob value changes.

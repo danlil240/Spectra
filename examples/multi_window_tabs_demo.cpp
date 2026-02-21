@@ -22,7 +22,8 @@ int main()
     spectra::figure();
     {
         std::vector<float> y(x.size());
-        for (size_t i = 0; i < x.size(); ++i) y[i] = std::sin(x[i]);
+        for (size_t i = 0; i < x.size(); ++i)
+            y[i] = std::sin(x[i]);
         spectra::plot(x, y, "b-").label("sin(x)");
         spectra::title("Sine");
         spectra::grid(true);
@@ -32,7 +33,8 @@ int main()
     spectra::tab();
     {
         std::vector<float> y(x.size());
-        for (size_t i = 0; i < x.size(); ++i) y[i] = std::cos(x[i]);
+        for (size_t i = 0; i < x.size(); ++i)
+            y[i] = std::cos(x[i]);
         spectra::plot(x, y, "r-").label("cos(x)");
         spectra::title("Cosine");
         spectra::grid(true);
@@ -42,7 +44,8 @@ int main()
     spectra::tab();
     {
         std::vector<float> y(x.size());
-        for (size_t i = 0; i < x.size(); ++i) y[i] = std::tan(x[i]);
+        for (size_t i = 0; i < x.size(); ++i)
+            y[i] = std::tan(x[i]);
         spectra::plot(x, y, "g-").label("tan(x)");
         spectra::title("Tangent");
         spectra::grid(true);
@@ -52,7 +55,8 @@ int main()
     spectra::figure();
     {
         std::vector<float> y(x.size());
-        for (size_t i = 0; i < x.size(); ++i) y[i] = std::exp(x[i] * 0.3f);
+        for (size_t i = 0; i < x.size(); ++i)
+            y[i] = std::exp(x[i] * 0.3f);
         spectra::plot(x, y, "m-").label("exp(0.3x)");
         spectra::title("Exponential");
         spectra::grid(true);

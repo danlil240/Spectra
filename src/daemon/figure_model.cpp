@@ -29,18 +29,16 @@ bool FigureModel::remove_figure(uint64_t figure_id)
     if (it == figures_.end())
         return false;
     figures_.erase(it);
-    figure_order_.erase(
-        std::remove(figure_order_.begin(), figure_order_.end(), figure_id),
-        figure_order_.end());
+    figure_order_.erase(std::remove(figure_order_.begin(), figure_order_.end(), figure_id),
+                        figure_order_.end());
     bump_revision();
     return true;
 }
 
 // --- Axes management ---
 
-uint32_t FigureModel::add_axes(uint64_t figure_id,
-                                float x_min, float x_max,
-                                float y_min, float y_max)
+uint32_t FigureModel::add_axes(
+    uint64_t figure_id, float x_min, float x_max, float y_min, float y_max)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -56,9 +54,8 @@ uint32_t FigureModel::add_axes(uint64_t figure_id,
     return static_cast<uint32_t>(it->second.axes.size() - 1);
 }
 
-ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id, uint32_t axes_index,
-                                          float x_min, float x_max,
-                                          float y_min, float y_max)
+ipc::DiffOp FigureModel::set_axis_limits(
+    uint64_t figure_id, uint32_t axes_index, float x_min, float x_max, float y_min, float y_max)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -102,8 +99,8 @@ ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_inde
 // --- Series management ---
 
 uint32_t FigureModel::add_series(uint64_t figure_id,
-                                  const std::string& name,
-                                  const std::string& type)
+                                 const std::string& name,
+                                 const std::string& type)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -117,8 +114,8 @@ uint32_t FigureModel::add_series(uint64_t figure_id,
     return static_cast<uint32_t>(it->second.series.size() - 1);
 }
 
-ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id, uint32_t series_index,
-                                           float r, float g, float b, float a)
+ipc::DiffOp FigureModel::set_series_color(
+    uint64_t figure_id, uint32_t series_index, float r, float g, float b, float a)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -207,8 +204,9 @@ ipc::DiffOp FigureModel::set_opacity(uint64_t figure_id, uint32_t series_index, 
     return op;
 }
 
-ipc::DiffOp FigureModel::set_series_data(uint64_t figure_id, uint32_t series_index,
-                                          const std::vector<float>& data)
+ipc::DiffOp FigureModel::set_series_data(uint64_t figure_id,
+                                         uint32_t series_index,
+                                         const std::vector<float>& data)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);

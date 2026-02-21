@@ -3,10 +3,10 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
-#include <span>
 #include <string>
 #include <vector>
 

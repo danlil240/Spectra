@@ -1,6 +1,6 @@
+#include <cmath>
 #include <gtest/gtest.h>
 #include <spectra/easy.hpp>
-#include <cmath>
 #include <vector>
 
 // ─── Helper: reset easy state between tests ─────────────────────────────────

@@ -189,7 +189,7 @@ bool FigureManager::close_to_right(FigureId index)
 
     // Collect IDs to the right
     std::vector<FigureId> to_remove(ordered_ids_.begin() + static_cast<std::ptrdiff_t>(pos + 1),
-                                     ordered_ids_.end());
+                                    ordered_ids_.end());
 
     for (auto id : to_remove)
     {
@@ -615,9 +615,9 @@ void FigureManager::restore_state(FigureId index)
         if (fig->axes_mut()[i])
         {
             fig->axes_mut()[i]->xlim(st.axes_snapshots[i].x_limits.min,
-                                    st.axes_snapshots[i].x_limits.max);
+                                     st.axes_snapshots[i].x_limits.max);
             fig->axes_mut()[i]->ylim(st.axes_snapshots[i].y_limits.min,
-                                    st.axes_snapshots[i].y_limits.max);
+                                     st.axes_snapshots[i].y_limits.max);
         }
     }
 }

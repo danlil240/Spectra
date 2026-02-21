@@ -1,5 +1,4 @@
 #include <benchmark/benchmark.h>
-
 #include <cmath>
 #include <memory>
 #include <spectra/app.hpp>

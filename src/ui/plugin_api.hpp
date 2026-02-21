@@ -68,7 +68,8 @@ extern "C"
 
     // Plugin entry point signature.
     // Returns 0 on success, non-zero on failure.
-    typedef int (*SpectraPluginInitFn)(const SpectraPluginContext* ctx, SpectraPluginInfo* info_out);
+    typedef int (*SpectraPluginInitFn)(const SpectraPluginContext* ctx,
+                                       SpectraPluginInfo* info_out);
 
     // Plugin cleanup signature (optional).
     typedef void (*SpectraPluginShutdownFn)(void);
@@ -86,16 +87,16 @@ extern "C"
 
     // Bind a shortcut via C ABI.
     int spectra_bind_shortcut(SpectraShortcutManager manager,
-                             const char* shortcut_str,
-                             const char* command_id);
+                              const char* shortcut_str,
+                              const char* command_id);
 
     // Push an undo action via C ABI.
     int spectra_push_undo(SpectraUndoManager manager,
-                         const char* description,
-                         SpectraCommandCallback undo_fn,
-                         void* undo_data,
-                         SpectraCommandCallback redo_fn,
-                         void* redo_data);
+                          const char* description,
+                          SpectraCommandCallback undo_fn,
+                          void* undo_data,
+                          SpectraCommandCallback redo_fn,
+                          void* redo_data);
 
 }  // extern "C"
 

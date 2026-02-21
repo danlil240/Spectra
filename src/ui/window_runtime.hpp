@@ -36,9 +36,12 @@ class WindowRuntime
     WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistry& registry);
 
     // Advance animations, build ImGui UI, compute layout for one window.
-    void update(WindowUIContext& ui_ctx, FrameState& fs, FrameScheduler& scheduler
+    void update(WindowUIContext& ui_ctx,
+                FrameState& fs,
+                FrameScheduler& scheduler
 #ifdef SPECTRA_USE_GLFW
-                , WindowManager* window_mgr = nullptr
+                ,
+                WindowManager* window_mgr = nullptr
 #endif
     );
 

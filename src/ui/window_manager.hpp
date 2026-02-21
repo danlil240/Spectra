@@ -5,10 +5,9 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
-
-#include <spectra/fwd.hpp>
 
 // Forward declarations
 struct GLFWwindow;
@@ -48,7 +47,8 @@ class WindowManager
 
     // Initialize the window manager with a reference to the Vulkan backend
     // and figure registry.  Must be called before any other method.
-    void init(VulkanBackend* backend, FigureRegistry* registry = nullptr,
+    void init(VulkanBackend* backend,
+              FigureRegistry* registry = nullptr,
               Renderer* renderer = nullptr);
 
     // Create the initial (first) window uniformly — same ownership as
@@ -102,8 +102,12 @@ class WindowManager
     // Creates a new window sized to the figure's dimensions and assigns the
     // figure to it.  Returns the new WindowContext, or nullptr on failure.
     // Will refuse to detach if it's the last figure (caller must check).
-    WindowContext* detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
-                                const std::string& title, int screen_x, int screen_y);
+    WindowContext* detach_figure(FigureId figure_id,
+                                 uint32_t width,
+                                 uint32_t height,
+                                 const std::string& title,
+                                 int screen_x,
+                                 int screen_y);
 
     // Create the very first window with full UI stack.  Unlike create_window_with_ui(),
     // this method also handles the backend's initial WindowContext handoff (the backend
@@ -113,16 +117,18 @@ class WindowManager
     // figure_ids are ALL figures to assign to this window (the first becomes active).
     // Returns the new WindowContext, or nullptr on failure.
     WindowContext* create_first_window_with_ui(void* glfw_window,
-                                                const std::vector<FigureId>& figure_ids);
+                                               const std::vector<FigureId>& figure_ids);
 
     // Create a new OS window with full UI stack (ImGui, FigureManager, DockSystem,
     // InputHandler, etc.).  The window gets its own ImGui context and can render
     // independently.  figure_id is the initial figure to assign to the window.
     // Returns the new WindowContext, or nullptr on failure.
-    WindowContext* create_window_with_ui(uint32_t width, uint32_t height,
+    WindowContext* create_window_with_ui(uint32_t width,
+                                         uint32_t height,
                                          const std::string& title,
                                          FigureId initial_figure_id,
-                                         int screen_x = 0, int screen_y = 0);
+                                         int screen_x = 0,
+                                         int screen_y = 0);
 
     // Install full input GLFW callbacks (cursor, mouse, scroll, key, char,
     // cursor_enter) on a WindowContext that already has ui_ctx set.
@@ -137,8 +143,10 @@ class WindowManager
 
     // Request creation of a preview window (deferred to avoid mutating
     // windows_ while iterating).  Safe to call from TabDragController.
-    void request_preview_window(uint32_t width, uint32_t height,
-                                int screen_x, int screen_y,
+    void request_preview_window(uint32_t width,
+                                uint32_t height,
+                                int screen_x,
+                                int screen_y,
                                 const std::string& figure_title);
 
     // Request destruction of the preview window (deferred).
@@ -183,8 +191,8 @@ class WindowManager
     // Tab drag handlers — stored and applied to every new window's
     // TabDragController in init_window_ui().  Set these before creating
     // windows so all windows get the same drag behavior.
-    using TabDetachHandler = std::function<void(FigureId fid, uint32_t w, uint32_t h,
-                                                 const std::string& title, int sx, int sy)>;
+    using TabDetachHandler = std::function<void(
+        FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
     using TabMoveHandler = std::function<void(FigureId fid, uint32_t target_window_id)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
@@ -264,9 +272,11 @@ class WindowManager
     bool pending_preview_destroy_ = false;
 
     // Internal: actually create/destroy the preview window.
-    WindowContext* create_preview_window_impl(uint32_t width, uint32_t height,
-                                               int screen_x, int screen_y,
-                                               const std::string& figure_title);
+    WindowContext* create_preview_window_impl(uint32_t width,
+                                              uint32_t height,
+                                              int screen_x,
+                                              int screen_y,
+                                              const std::string& figure_title);
     void destroy_preview_window_impl();
 };
 

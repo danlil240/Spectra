@@ -514,7 +514,8 @@ class SplitViewWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "spectra_int_split_ws.spectra").string();
+        tmp_path =
+            (std::filesystem::temp_directory_path() / "spectra_int_split_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }

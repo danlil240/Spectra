@@ -34,10 +34,8 @@ static uint16_t read_u16_le(const uint8_t* p)
 
 static uint32_t read_u32_le(const uint8_t* p)
 {
-    return static_cast<uint32_t>(p[0])
-         | (static_cast<uint32_t>(p[1]) << 8)
-         | (static_cast<uint32_t>(p[2]) << 16)
-         | (static_cast<uint32_t>(p[3]) << 24);
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8)
+           | (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
 }
 
 static uint64_t read_u64_le(const uint8_t* p)
@@ -71,12 +69,12 @@ std::optional<MessageHeader> decode_header(std::span<const uint8_t> data)
         return std::nullopt;
 
     MessageHeader hdr;
-    hdr.type        = static_cast<MessageType>(read_u16_le(&data[2]));
+    hdr.type = static_cast<MessageType>(read_u16_le(&data[2]));
     hdr.payload_len = read_u32_le(&data[4]);
-    hdr.seq         = read_u64_le(&data[8]);
-    hdr.request_id  = read_u64_le(&data[16]);
-    hdr.session_id  = read_u64_le(&data[24]);
-    hdr.window_id   = read_u64_le(&data[32]);
+    hdr.seq = read_u64_le(&data[8]);
+    hdr.request_id = read_u64_le(&data[16]);
+    hdr.session_id = read_u64_le(&data[24]);
+    hdr.window_id = read_u64_le(&data[32]);
     return hdr;
 }
 
@@ -106,8 +104,7 @@ std::optional<Message> decode_message(std::span<const uint8_t> data)
 
     Message msg;
     msg.header = hdr;
-    msg.payload.assign(data.begin() + HEADER_SIZE,
-                       data.begin() + HEADER_SIZE + hdr.payload_len);
+    msg.payload.assign(data.begin() + HEADER_SIZE, data.begin() + HEADER_SIZE + hdr.payload_len);
     return msg;
 }
 
@@ -143,10 +140,7 @@ void PayloadEncoder::put_string(uint8_t tag, const std::string& val)
 
 // ─── PayloadDecoder ──────────────────────────────────────────────────────────
 
-PayloadDecoder::PayloadDecoder(std::span<const uint8_t> data)
-    : data_(data)
-{
-}
+PayloadDecoder::PayloadDecoder(std::span<const uint8_t> data) : data_(data) {}
 
 bool PayloadDecoder::next()
 {
@@ -167,19 +161,22 @@ bool PayloadDecoder::next()
 
 uint16_t PayloadDecoder::as_u16() const
 {
-    if (len_ < 2) return 0;
+    if (len_ < 2)
+        return 0;
     return read_u16_le(&data_[val_offset_]);
 }
 
 uint32_t PayloadDecoder::as_u32() const
 {
-    if (len_ < 4) return 0;
+    if (len_ < 4)
+        return 0;
     return read_u32_le(&data_[val_offset_]);
 }
 
 uint64_t PayloadDecoder::as_u64() const
 {
-    if (len_ < 8) return 0;
+    if (len_ < 8)
+        return 0;
     return read_u64_le(&data_[val_offset_]);
 }
 
@@ -208,11 +205,20 @@ std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_PROTOCOL_MAJOR: p.protocol_major = dec.as_u16(); break;
-            case TAG_PROTOCOL_MINOR: p.protocol_minor = dec.as_u16(); break;
-            case TAG_AGENT_BUILD:    p.agent_build    = dec.as_string(); break;
-            case TAG_CAPABILITIES:   p.capabilities   = dec.as_u32(); break;
-            default: break;  // skip unknown tags (forward compat)
+            case TAG_PROTOCOL_MAJOR:
+                p.protocol_major = dec.as_u16();
+                break;
+            case TAG_PROTOCOL_MINOR:
+                p.protocol_minor = dec.as_u16();
+                break;
+            case TAG_AGENT_BUILD:
+                p.agent_build = dec.as_string();
+                break;
+            case TAG_CAPABILITIES:
+                p.capabilities = dec.as_u32();
+                break;
+            default:
+                break;  // skip unknown tags (forward compat)
         }
     }
     return p;
@@ -237,12 +243,23 @@ std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_SESSION_ID:   p.session_id   = dec.as_u64(); break;
-            case TAG_WINDOW_ID:    p.window_id    = dec.as_u64(); break;
-            case TAG_PROCESS_ID:   p.process_id   = dec.as_u64(); break;
-            case TAG_HEARTBEAT_MS: p.heartbeat_ms = dec.as_u32(); break;
-            case TAG_MODE:         p.mode         = dec.as_string(); break;
-            default: break;
+            case TAG_SESSION_ID:
+                p.session_id = dec.as_u64();
+                break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_PROCESS_ID:
+                p.process_id = dec.as_u64();
+                break;
+            case TAG_HEARTBEAT_MS:
+                p.heartbeat_ms = dec.as_u32();
+                break;
+            case TAG_MODE:
+                p.mode = dec.as_string();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -263,8 +280,11 @@ std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_REQUEST_ID: p.request_id = dec.as_u64(); break;
-            default: break;
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -287,10 +307,17 @@ std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_REQUEST_ID:    p.request_id = dec.as_u64(); break;
-            case TAG_ERROR_CODE:    p.code       = dec.as_u32(); break;
-            case TAG_ERROR_MESSAGE: p.message    = dec.as_string(); break;
-            default: break;
+            case TAG_REQUEST_ID:
+                p.request_id = dec.as_u64();
+                break;
+            case TAG_ERROR_CODE:
+                p.code = dec.as_u32();
+                break;
+            case TAG_ERROR_MESSAGE:
+                p.message = dec.as_string();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -317,11 +344,19 @@ std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID:     p.window_id = dec.as_u64(); break;
-            case TAG_FIGURE_IDS:    p.figure_ids.push_back(dec.as_u64()); break;
-            case TAG_ACTIVE_FIGURE: p.active_figure_id = dec.as_u64(); break;
-            case TAG_FIGURE_COUNT:  break;  // informational only
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_IDS:
+                p.figure_ids.push_back(dec.as_u64());
+                break;
+            case TAG_ACTIVE_FIGURE:
+                p.active_figure_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_COUNT:
+                break;  // informational only
+            default:
+                break;
         }
     }
     return p;
@@ -342,8 +377,11 @@ std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const u
     {
         switch (dec.tag())
         {
-            case TAG_TEMPLATE_WINDOW: p.template_window_id = dec.as_u64(); break;
-            default: break;
+            case TAG_TEMPLATE_WINDOW:
+                p.template_window_id = dec.as_u64();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -365,9 +403,14 @@ std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uin
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID: p.window_id = dec.as_u64(); break;
-            case TAG_REASON:    p.reason    = dec.as_string(); break;
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_REASON:
+                p.reason = dec.as_string();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -389,9 +432,14 @@ std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const u
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID: p.window_id = dec.as_u64(); break;
-            case TAG_FIGURE_ID: p.figure_id = dec.as_u64(); break;
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -413,9 +461,14 @@ std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID:     p.window_id = dec.as_u64(); break;
-            case TAG_ACTIVE_FIGURE: p.figure_id = dec.as_u64(); break;
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_ACTIVE_FIGURE:
+                p.figure_id = dec.as_u64();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -437,9 +490,14 @@ std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uin
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID: p.window_id = dec.as_u64(); break;
-            case TAG_REASON:    p.reason    = dec.as_string(); break;
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_REASON:
+                p.reason = dec.as_string();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -467,13 +525,26 @@ std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const u
     {
         switch (dec.tag())
         {
-            case TAG_SOURCE_WINDOW: p.source_window_id = dec.as_u64(); break;
-            case TAG_FIGURE_ID:     p.figure_id = dec.as_u64(); break;
-            case TAG_WIDTH:         p.width = dec.as_u32(); break;
-            case TAG_HEIGHT:        p.height = dec.as_u32(); break;
-            case TAG_SCREEN_X:      p.screen_x = static_cast<int32_t>(payload_as_float(dec)); break;
-            case TAG_SCREEN_Y:      p.screen_y = static_cast<int32_t>(payload_as_float(dec)); break;
-            default: break;
+            case TAG_SOURCE_WINDOW:
+                p.source_window_id = dec.as_u64();
+                break;
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_WIDTH:
+                p.width = dec.as_u32();
+                break;
+            case TAG_HEIGHT:
+                p.height = dec.as_u32();
+                break;
+            case TAG_SCREEN_X:
+                p.screen_x = static_cast<int32_t>(payload_as_float(dec));
+                break;
+            case TAG_SCREEN_Y:
+                p.screen_y = static_cast<int32_t>(payload_as_float(dec));
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -583,15 +654,32 @@ static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_X_MIN:        ax.x_min = payload_as_float(dec); break;
-            case TAG_X_MAX:        ax.x_max = payload_as_float(dec); break;
-            case TAG_Y_MIN:        ax.y_min = payload_as_float(dec); break;
-            case TAG_Y_MAX:        ax.y_max = payload_as_float(dec); break;
-            case TAG_GRID_VISIBLE: ax.grid_visible = payload_as_bool(dec); break;
-            case TAG_X_LABEL:      ax.x_label = dec.as_string(); break;
-            case TAG_Y_LABEL:      ax.y_label = dec.as_string(); break;
-            case TAG_TITLE:        ax.title = dec.as_string(); break;
-            default: break;
+            case TAG_X_MIN:
+                ax.x_min = payload_as_float(dec);
+                break;
+            case TAG_X_MAX:
+                ax.x_max = payload_as_float(dec);
+                break;
+            case TAG_Y_MIN:
+                ax.y_min = payload_as_float(dec);
+                break;
+            case TAG_Y_MAX:
+                ax.y_max = payload_as_float(dec);
+                break;
+            case TAG_GRID_VISIBLE:
+                ax.grid_visible = payload_as_bool(dec);
+                break;
+            case TAG_X_LABEL:
+                ax.x_label = dec.as_string();
+                break;
+            case TAG_Y_LABEL:
+                ax.y_label = dec.as_string();
+                break;
+            case TAG_TITLE:
+                ax.title = dec.as_string();
+                break;
+            default:
+                break;
         }
     }
     return ax;
@@ -626,19 +714,44 @@ static SnapshotSeriesState decode_series_blob(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_SERIES_NAME:  s.name = dec.as_string(); break;
-            case TAG_SERIES_TYPE:  s.type = dec.as_string(); break;
-            case TAG_COLOR_R:      s.color_r = payload_as_float(dec); break;
-            case TAG_COLOR_G:      s.color_g = payload_as_float(dec); break;
-            case TAG_COLOR_B:      s.color_b = payload_as_float(dec); break;
-            case TAG_COLOR_A:      s.color_a = payload_as_float(dec); break;
-            case TAG_LINE_WIDTH:   s.line_width = payload_as_float(dec); break;
-            case TAG_MARKER_SIZE:  s.marker_size = payload_as_float(dec); break;
-            case TAG_VISIBLE:      s.visible = payload_as_bool(dec); break;
-            case TAG_OPACITY_VAL:  s.opacity = payload_as_float(dec); break;
-            case TAG_POINT_COUNT:  s.point_count = dec.as_u32(); break;
-            case TAG_SERIES_DATA:  s.data = payload_as_float_array(dec); break;
-            default: break;
+            case TAG_SERIES_NAME:
+                s.name = dec.as_string();
+                break;
+            case TAG_SERIES_TYPE:
+                s.type = dec.as_string();
+                break;
+            case TAG_COLOR_R:
+                s.color_r = payload_as_float(dec);
+                break;
+            case TAG_COLOR_G:
+                s.color_g = payload_as_float(dec);
+                break;
+            case TAG_COLOR_B:
+                s.color_b = payload_as_float(dec);
+                break;
+            case TAG_COLOR_A:
+                s.color_a = payload_as_float(dec);
+                break;
+            case TAG_LINE_WIDTH:
+                s.line_width = payload_as_float(dec);
+                break;
+            case TAG_MARKER_SIZE:
+                s.marker_size = payload_as_float(dec);
+                break;
+            case TAG_VISIBLE:
+                s.visible = payload_as_bool(dec);
+                break;
+            case TAG_OPACITY_VAL:
+                s.opacity = payload_as_float(dec);
+                break;
+            case TAG_POINT_COUNT:
+                s.point_count = dec.as_u32();
+                break;
+            case TAG_SERIES_DATA:
+                s.data = payload_as_float_array(dec);
+                break;
+            default:
+                break;
         }
     }
     return s;
@@ -678,13 +791,27 @@ static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_FIGURE_ID:   fig.figure_id = dec.as_u64(); break;
-            case TAG_TITLE:       fig.title = dec.as_string(); break;
-            case TAG_WIDTH:       fig.width = dec.as_u32(); break;
-            case TAG_HEIGHT:      fig.height = dec.as_u32(); break;
-            case TAG_GRID_ROWS:   fig.grid_rows = static_cast<int32_t>(dec.as_u32()); break;
-            case TAG_GRID_COLS:   fig.grid_cols = static_cast<int32_t>(dec.as_u32()); break;
-            case TAG_WINDOW_GROUP: fig.window_group = dec.as_u32(); break;
+            case TAG_FIGURE_ID:
+                fig.figure_id = dec.as_u64();
+                break;
+            case TAG_TITLE:
+                fig.title = dec.as_string();
+                break;
+            case TAG_WIDTH:
+                fig.width = dec.as_u32();
+                break;
+            case TAG_HEIGHT:
+                fig.height = dec.as_u32();
+                break;
+            case TAG_GRID_ROWS:
+                fig.grid_rows = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_GRID_COLS:
+                fig.grid_cols = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_WINDOW_GROUP:
+                fig.window_group = dec.as_u32();
+                break;
             case TAG_AXIS_BLOB:
             {
                 auto blob = payload_as_blob(dec);
@@ -697,7 +824,8 @@ static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
                 fig.series.push_back(decode_series_blob(blob));
                 break;
             }
-            default: break;
+            default:
+                break;
         }
     }
     return fig;
@@ -727,14 +855,29 @@ static SnapshotKnobState decode_knob_blob(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_KNOB_NAME:   k.name = dec.as_string(); break;
-            case TAG_KNOB_TYPE:   k.type = static_cast<uint8_t>(dec.as_u16()); break;
-            case TAG_KNOB_VALUE:  k.value = payload_as_float(dec); break;
-            case TAG_KNOB_MIN:    k.min_val = payload_as_float(dec); break;
-            case TAG_KNOB_MAX:    k.max_val = payload_as_float(dec); break;
-            case TAG_KNOB_STEP:   k.step = payload_as_float(dec); break;
-            case TAG_KNOB_CHOICE: k.choices.push_back(dec.as_string()); break;
-            default: break;
+            case TAG_KNOB_NAME:
+                k.name = dec.as_string();
+                break;
+            case TAG_KNOB_TYPE:
+                k.type = static_cast<uint8_t>(dec.as_u16());
+                break;
+            case TAG_KNOB_VALUE:
+                k.value = payload_as_float(dec);
+                break;
+            case TAG_KNOB_MIN:
+                k.min_val = payload_as_float(dec);
+                break;
+            case TAG_KNOB_MAX:
+                k.max_val = payload_as_float(dec);
+                break;
+            case TAG_KNOB_STEP:
+                k.step = payload_as_float(dec);
+                break;
+            case TAG_KNOB_CHOICE:
+                k.choices.push_back(dec.as_string());
+                break;
+            default:
+                break;
         }
     }
     return k;
@@ -768,8 +911,12 @@ std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_
     {
         switch (dec.tag())
         {
-            case TAG_REVISION:    p.revision = dec.as_u64(); break;
-            case TAG_SESSION_ID:  p.session_id = dec.as_u64(); break;
+            case TAG_REVISION:
+                p.revision = dec.as_u64();
+                break;
+            case TAG_SESSION_ID:
+                p.session_id = dec.as_u64();
+                break;
             case TAG_FIGURE_BLOB:
             {
                 auto blob = payload_as_blob(dec);
@@ -782,7 +929,8 @@ std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_
                 p.knobs.push_back(decode_knob_blob(blob));
                 break;
             }
-            default: break;
+            default:
+                break;
         }
     }
     return p;
@@ -817,18 +965,41 @@ static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_OP_TYPE:      op.type = static_cast<DiffOp::Type>(dec.as_u16()); break;
-            case TAG_FIGURE_ID:    op.figure_id = dec.as_u64(); break;
-            case TAG_AXES_INDEX:   op.axes_index = dec.as_u32(); break;
-            case TAG_SERIES_INDEX: op.series_index = dec.as_u32(); break;
-            case TAG_F1:           op.f1 = payload_as_float(dec); break;
-            case TAG_F2:           op.f2 = payload_as_float(dec); break;
-            case TAG_F3:           op.f3 = payload_as_float(dec); break;
-            case TAG_F4:           op.f4 = payload_as_float(dec); break;
-            case TAG_BOOL_VAL:     op.bool_val = payload_as_bool(dec); break;
-            case TAG_STR_VAL:      op.str_val = dec.as_string(); break;
-            case TAG_OP_DATA:      op.data = payload_as_float_array(dec); break;
-            default: break;
+            case TAG_OP_TYPE:
+                op.type = static_cast<DiffOp::Type>(dec.as_u16());
+                break;
+            case TAG_FIGURE_ID:
+                op.figure_id = dec.as_u64();
+                break;
+            case TAG_AXES_INDEX:
+                op.axes_index = dec.as_u32();
+                break;
+            case TAG_SERIES_INDEX:
+                op.series_index = dec.as_u32();
+                break;
+            case TAG_F1:
+                op.f1 = payload_as_float(dec);
+                break;
+            case TAG_F2:
+                op.f2 = payload_as_float(dec);
+                break;
+            case TAG_F3:
+                op.f3 = payload_as_float(dec);
+                break;
+            case TAG_F4:
+                op.f4 = payload_as_float(dec);
+                break;
+            case TAG_BOOL_VAL:
+                op.bool_val = payload_as_bool(dec);
+                break;
+            case TAG_STR_VAL:
+                op.str_val = dec.as_string();
+                break;
+            case TAG_OP_DATA:
+                op.data = payload_as_float_array(dec);
+                break;
+            default:
+                break;
         }
     }
     return op;
@@ -857,15 +1028,20 @@ std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_BASE_REVISION: p.base_revision = dec.as_u64(); break;
-            case TAG_NEW_REVISION:  p.new_revision = dec.as_u64(); break;
+            case TAG_BASE_REVISION:
+                p.base_revision = dec.as_u64();
+                break;
+            case TAG_NEW_REVISION:
+                p.new_revision = dec.as_u64();
+                break;
             case TAG_DIFF_OP_BLOB:
             {
                 auto blob = payload_as_blob(dec);
                 p.ops.push_back(decode_diff_op_blob(blob));
                 break;
             }
-            default: break;
+            default:
+                break;
         }
     }
     return p;
@@ -888,8 +1064,11 @@ std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_REVISION: p.revision = dec.as_u64(); break;
-            default: break;
+            case TAG_REVISION:
+                p.revision = dec.as_u64();
+                break;
+            default:
+                break;
         }
     }
     return p;
@@ -919,15 +1098,32 @@ std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
     {
         switch (dec.tag())
         {
-            case TAG_WINDOW_ID:  p.window_id = dec.as_u64(); break;
-            case TAG_INPUT_TYPE: p.input_type = static_cast<EvtInputPayload::InputType>(dec.as_u16()); break;
-            case TAG_KEY_CODE:   p.key = static_cast<int32_t>(dec.as_u32()); break;
-            case TAG_MODS:       p.mods = static_cast<int32_t>(dec.as_u32()); break;
-            case TAG_CURSOR_X:   p.x = payload_as_double(dec); break;
-            case TAG_CURSOR_Y:   p.y = payload_as_double(dec); break;
-            case TAG_FIGURE_ID:  p.figure_id = dec.as_u64(); break;
-            case TAG_AXES_INDEX: p.axes_index = dec.as_u32(); break;
-            default: break;
+            case TAG_WINDOW_ID:
+                p.window_id = dec.as_u64();
+                break;
+            case TAG_INPUT_TYPE:
+                p.input_type = static_cast<EvtInputPayload::InputType>(dec.as_u16());
+                break;
+            case TAG_KEY_CODE:
+                p.key = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_MODS:
+                p.mods = static_cast<int32_t>(dec.as_u32());
+                break;
+            case TAG_CURSOR_X:
+                p.x = payload_as_double(dec);
+                break;
+            case TAG_CURSOR_Y:
+                p.y = payload_as_double(dec);
+                break;
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_AXES_INDEX:
+                p.axes_index = dec.as_u32();
+                break;
+            default:
+                break;
         }
     }
     return p;

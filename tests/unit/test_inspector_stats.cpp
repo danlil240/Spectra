@@ -2,10 +2,10 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <numeric>
+#include <span>
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
-#include <span>
 #include <vector>
 
 using namespace spectra;

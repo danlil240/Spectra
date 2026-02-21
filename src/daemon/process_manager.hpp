@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../ipc/message.hpp"
-
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "../ipc/message.hpp"
 
 namespace spectra::daemon
 {

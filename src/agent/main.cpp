@@ -6,10 +6,6 @@
 // the ONLY difference from app_inproc.  One line in CMake controls which
 // mode is used.
 
-#include "../ipc/codec.hpp"
-#include "../ipc/message.hpp"
-#include "../ipc/transport.hpp"
-
 #include <spectra/animator.hpp>
 #include <spectra/color.hpp>
 #include <spectra/figure.hpp>
@@ -17,12 +13,15 @@
 #include <spectra/series.hpp>
 
 #include "../anim/frame_scheduler.hpp"
+#include "../ipc/codec.hpp"
+#include "../ipc/message.hpp"
+#include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
 #include "../ui/command_queue.hpp"
 #include "../ui/figure_registry.hpp"
-#include "../ui/register_commands.hpp"
 #include "../ui/knob_manager.hpp"
+#include "../ui/register_commands.hpp"
 #include "../ui/session_runtime.hpp"
 #include "../ui/window_runtime.hpp"
 #include "../ui/window_ui_context.hpp"
@@ -31,12 +30,14 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+
     #include "../ui/glfw_adapter.hpp"
     #include "../ui/window_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+
     #include "../ui/theme.hpp"
 #endif
 
@@ -70,7 +71,8 @@ void signal_handler(int /*sig*/)
 // ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
 std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     const spectra::ipc::SnapshotFigureState& snap,
-    uint32_t override_width = 0, uint32_t override_height = 0)
+    uint32_t override_width = 0,
+    uint32_t override_height = 0)
 {
     spectra::FigureConfig cfg;
     cfg.width = (override_width > 0) ? override_width : snap.width;
@@ -90,9 +92,12 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
             ax.xlim(sa.x_min, sa.x_max);
             ax.ylim(sa.y_min, sa.y_max);
             ax.grid(sa.grid_visible);
-            if (!sa.x_label.empty()) ax.xlabel(sa.x_label);
-            if (!sa.y_label.empty()) ax.ylabel(sa.y_label);
-            if (!sa.title.empty()) ax.title(sa.title);
+            if (!sa.x_label.empty())
+                ax.xlabel(sa.x_label);
+            if (!sa.y_label.empty())
+                ax.ylabel(sa.y_label);
+            if (!sa.title.empty())
+                ax.title(sa.title);
         }
     }
 
@@ -114,7 +119,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 s.visible(ss.visible);
                 s.opacity(ss.opacity);
                 s.size(ss.marker_size);
-                if (!ss.name.empty()) s.label(ss.name);
+                if (!ss.name.empty())
+                    s.label(ss.name);
             }
             else
             {
@@ -123,7 +129,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 s.visible(ss.visible);
                 s.opacity(ss.opacity);
                 s.width(ss.line_width);
-                if (!ss.name.empty()) s.label(ss.name);
+                if (!ss.name.empty())
+                    s.label(ss.name);
             }
         }
     }
@@ -132,8 +139,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
 }
 
 // ─── Apply a DiffOp to a cached SnapshotFigureState ─────────────────────────
-void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig,
-                            const spectra::ipc::DiffOp& op)
+void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectra::ipc::DiffOp& op)
 {
     switch (op.type)
     {
@@ -182,8 +188,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig,
             if (op.series_index < fig.series.size())
             {
                 fig.series[op.series_index].data = op.data;
-                fig.series[op.series_index].point_count =
-                    static_cast<uint32_t>(op.data.size() / 2);
+                fig.series[op.series_index].point_count = static_cast<uint32_t>(op.data.size() / 2);
             }
             break;
         default:
@@ -192,8 +197,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig,
 }
 
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
-void apply_diff_op_to_figure(spectra::Figure& fig,
-                             const spectra::ipc::DiffOp& op)
+void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& op)
 {
     switch (op.type)
     {
@@ -264,9 +268,12 @@ void send_evt_input(spectra::ipc::Connection& conn,
                     spectra::ipc::SessionId session_id,
                     spectra::ipc::WindowId window_id,
                     spectra::ipc::EvtInputPayload::InputType input_type,
-                    uint64_t figure_id, uint32_t axes_index,
-                    int32_t key, int32_t mods,
-                    double x, double y)
+                    uint64_t figure_id,
+                    uint32_t axes_index,
+                    int32_t key,
+                    int32_t mods,
+                    double x,
+                    double y)
 {
     spectra::ipc::EvtInputPayload evt;
     evt.window_id = window_id;
@@ -277,8 +284,10 @@ void send_evt_input(spectra::ipc::Connection& conn,
     evt.mods = mods;
     evt.x = x;
     evt.y = y;
-    send_ipc(conn, spectra::ipc::MessageType::EVT_INPUT,
-             session_id, window_id,
+    send_ipc(conn,
+             spectra::ipc::MessageType::EVT_INPUT,
+             session_id,
+             window_id,
              spectra::ipc::encode_evt_input(evt));
 }
 
@@ -288,7 +297,8 @@ void send_evt_input(spectra::ipc::Connection& conn,
 std::vector<spectra::FigureId> rebuild_registry_from_cache(
     spectra::FigureRegistry& registry,
     const std::vector<spectra::ipc::SnapshotFigureState>& cache,
-    uint32_t width, uint32_t height)
+    uint32_t width,
+    uint32_t height)
 {
     // Clear existing figures
     for (auto id : registry.all_ids())
@@ -336,7 +346,9 @@ int main(int argc, char* argv[])
         std::string log_path = std::filesystem::temp_directory_path() / "spectra_agent.log";
         logger.add_sink(spectra::sinks::file_sink(log_path));
     }
-    catch (...) {}
+    catch (...)
+    {
+    }
 
     std::cerr << "[spectra-window] Connecting to backend: " << socket_path << "\n";
 
@@ -389,8 +401,7 @@ int main(int argc, char* argv[])
     spectra::ipc::WindowId ipc_window_id = welcome->window_id;
     uint32_t heartbeat_ms = welcome->heartbeat_ms;
 
-    std::cerr << "[spectra-window] WELCOME: session=" << session_id
-              << " window=" << ipc_window_id
+    std::cerr << "[spectra-window] WELCOME: session=" << session_id << " window=" << ipc_window_id
               << " heartbeat=" << heartbeat_ms << "ms\n";
 
     // Track IPC state
@@ -416,7 +427,8 @@ int main(int argc, char* argv[])
                 continue;
 #endif
             auto msg_opt = conn->recv();
-            if (!msg_opt) break;
+            if (!msg_opt)
+                break;
             auto& msg = *msg_opt;
             if (msg.header.type == spectra::ipc::MessageType::CMD_ASSIGN_FIGURES)
             {
@@ -440,13 +452,14 @@ int main(int argc, char* argv[])
 
                     spectra::ipc::AckStatePayload ack;
                     ack.revision = current_revision;
-                    send_ipc(*conn, spectra::ipc::MessageType::ACK_STATE,
-                             session_id, ipc_window_id,
+                    send_ipc(*conn,
+                             spectra::ipc::MessageType::ACK_STATE,
+                             session_id,
+                             ipc_window_id,
                              spectra::ipc::encode_ack_state(ack));
 
-                    std::cerr << "[spectra-window] STATE_SNAPSHOT (init): rev="
-                              << current_revision << " figures="
-                              << figure_cache.size() << "\n";
+                    std::cerr << "[spectra-window] STATE_SNAPSHOT (init): rev=" << current_revision
+                              << " figures=" << figure_cache.size() << "\n";
                 }
             }
         }
@@ -462,8 +475,8 @@ int main(int argc, char* argv[])
     constexpr uint32_t INITIAL_HEIGHT = 720;
 
     spectra::FigureRegistry registry;
-    auto all_ids = rebuild_registry_from_cache(registry, figure_cache,
-                                               INITIAL_WIDTH, INITIAL_HEIGHT);
+    auto all_ids =
+        rebuild_registry_from_cache(registry, figure_cache, INITIAL_WIDTH, INITIAL_HEIGHT);
     cache_dirty = false;
 
     if (registry.count() == 0)
@@ -540,20 +553,22 @@ int main(int argc, char* argv[])
     backend->create_swapchain(active_figure->width(), active_figure->height());
 
     window_mgr = std::make_unique<spectra::WindowManager>();
-    window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
-                     &registry, renderer_ptr.get());
+    window_mgr->init(
+        static_cast<spectra::VulkanBackend*>(backend.get()), &registry, renderer_ptr.get());
 
     // Set tab drag handlers BEFORE creating windows so all windows get them
     window_mgr->set_tab_detach_handler(
-        [&session](spectra::FigureId fid, uint32_t w, uint32_t h,
-                   const std::string& title, int sx, int sy)
-        { session.queue_detach({fid, w, h, title, sx, sy}); });
+        [&session](
+            spectra::FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)
+        {
+            session.queue_detach({fid, w, h, title, sx, sy});
+        });
     window_mgr->set_tab_move_handler(
-        [&session](spectra::FigureId fid, uint32_t target_wid)
-        { session.queue_move({fid, target_wid}); });
+        [&session](spectra::FigureId fid, uint32_t target_wid) {
+            session.queue_move({fid, target_wid});
+        });
 
-    auto* initial_wctx = window_mgr->create_first_window_with_ui(
-        glfw->native_window(), all_ids);
+    auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
 
     if (initial_wctx && initial_wctx->ui_ctx)
     {
@@ -587,8 +602,10 @@ int main(int argc, char* argv[])
                         km.add_float(ks.name, ks.value, ks.min_val, ks.max_val, ks.step);
                         break;
                     case 1:  // Int
-                        km.add_int(ks.name, static_cast<int>(ks.value),
-                                   static_cast<int>(ks.min_val), static_cast<int>(ks.max_val));
+                        km.add_int(ks.name,
+                                   static_cast<int>(ks.value),
+                                   static_cast<int>(ks.min_val),
+                                   static_cast<int>(ks.max_val));
                         break;
                     case 2:  // Bool
                         km.add_bool(ks.name, ks.value >= 0.5f);
@@ -607,8 +624,7 @@ int main(int argc, char* argv[])
     if (!ui_ctx_ptr)
     {
         headless_ui_ctx = std::make_unique<spectra::WindowUIContext>();
-        headless_ui_ctx->fig_mgr_owned =
-            std::make_unique<spectra::FigureManager>(registry);
+        headless_ui_ctx->fig_mgr_owned = std::make_unique<spectra::FigureManager>(registry);
         headless_ui_ctx->fig_mgr = headless_ui_ctx->fig_mgr_owned.get();
         ui_ctx_ptr = headless_ui_ctx.get();
     }
@@ -619,19 +635,19 @@ int main(int argc, char* argv[])
     // ═══════════════════════════════════════════════════════════════════════
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui        = ui_ctx_ptr->imgui_ui;
-    auto& figure_tabs     = ui_ctx_ptr->figure_tabs;
-    auto& dock_system     = ui_ctx_ptr->dock_system;
+    auto& imgui_ui = ui_ctx_ptr->imgui_ui;
+    auto& figure_tabs = ui_ctx_ptr->figure_tabs;
+    auto& dock_system = ui_ctx_ptr->dock_system;
     auto& timeline_editor = ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor    = ui_ctx_ptr->curve_editor;
-    auto& shortcut_mgr    = ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette     = ui_ctx_ptr->cmd_palette;
-    auto& cmd_registry    = ui_ctx_ptr->cmd_registry;
+    auto& curve_editor = ui_ctx_ptr->curve_editor;
+    auto& shortcut_mgr = ui_ctx_ptr->shortcut_mgr;
+    auto& cmd_palette = ui_ctx_ptr->cmd_palette;
+    auto& cmd_registry = ui_ctx_ptr->cmd_registry;
     auto& tab_drag_controller = ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr         = *ui_ctx_ptr->fig_mgr;
-    auto& input_handler   = ui_ctx_ptr->input_handler;
-    auto& home_limits     = ui_ctx_ptr->home_limits;
+    auto& fig_mgr = *ui_ctx_ptr->fig_mgr;
+    auto& input_handler = ui_ctx_ptr->input_handler;
+    auto& home_limits = ui_ctx_ptr->home_limits;
 
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
@@ -652,7 +668,7 @@ int main(int argc, char* argv[])
     cmd_palette.set_command_registry(&cmd_registry);
     cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
         tab_drag_controller.set_window_manager(window_mgr.get());
@@ -664,7 +680,7 @@ int main(int argc, char* argv[])
             input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
         }
     }
-#endif
+    #endif
 
     // Tab/pane detach callbacks — forward to session.queue_detach()
     if (figure_tabs)
@@ -672,35 +688,45 @@ int main(int argc, char* argv[])
         figure_tabs->set_tab_split_right_callback(
             [&dock_system, &fig_mgr](size_t pos)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 spectra::FigureId id = fig_mgr.figure_ids()[pos];
                 spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == spectra::INVALID_FIGURE_ID) return;
+                if (new_fig == spectra::INVALID_FIGURE_ID)
+                    return;
                 dock_system.split_figure_right(id, new_fig);
                 dock_system.set_active_figure_index(id);
             });
         figure_tabs->set_tab_split_down_callback(
             [&dock_system, &fig_mgr](size_t pos)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 spectra::FigureId id = fig_mgr.figure_ids()[pos];
                 spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == spectra::INVALID_FIGURE_ID) return;
+                if (new_fig == spectra::INVALID_FIGURE_ID)
+                    return;
                 dock_system.split_figure_down(id, new_fig);
                 dock_system.set_active_figure_index(id);
             });
         figure_tabs->set_tab_detach_callback(
             [&fig_mgr, &session, &registry](size_t pos, float screen_x, float screen_y)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 spectra::FigureId id = fig_mgr.figure_ids()[pos];
                 auto* fig = registry.get(id);
-                if (!fig || fig_mgr.count() <= 1) return;
+                if (!fig || fig_mgr.count() <= 1)
+                    return;
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(id);
-                session.queue_detach({id, win_w, win_h, title,
-                    static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                session.queue_detach({id,
+                                      win_w,
+                                      win_h,
+                                      title,
+                                      static_cast<int>(screen_x),
+                                      static_cast<int>(screen_y)});
             });
     }
 
@@ -710,33 +736,45 @@ int main(int argc, char* argv[])
             [&fig_mgr, &session, &registry](spectra::FigureId index, float screen_x, float screen_y)
             {
                 auto* fig = registry.get(index);
-                if (!fig) return;
+                if (!fig)
+                    return;
                 uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(index);
-                session.queue_detach({index, win_w, win_h, title,
-                    static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                session.queue_detach({index,
+                                      win_w,
+                                      win_h,
+                                      title,
+                                      static_cast<int>(screen_x),
+                                      static_cast<int>(screen_y)});
             });
 
         tab_drag_controller.set_on_drop_on_window(
-            [&session](spectra::FigureId index, uint32_t target_window_id,
-                       float /*screen_x*/, float /*screen_y*/)
-            {
+            [&session](spectra::FigureId index,
+                       uint32_t target_window_id,
+                       float /*screen_x*/,
+                       float /*screen_y*/) {
                 session.queue_move({index, target_window_id});
             });
 
         if (imgui_ui)
         {
             imgui_ui->set_pane_tab_detach_cb(
-                [&fig_mgr, &session, &registry](spectra::FigureId index, float screen_x, float screen_y)
+                [&fig_mgr, &session, &registry](
+                    spectra::FigureId index, float screen_x, float screen_y)
                 {
                     auto* fig = registry.get(index);
-                    if (!fig) return;
+                    if (!fig)
+                        return;
                     uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
                     uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                     std::string title = fig_mgr.get_title(index);
-                    session.queue_detach({index, win_w, win_h, title,
-                        static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                    session.queue_detach({index,
+                                          win_w,
+                                          win_h,
+                                          title,
+                                          static_cast<int>(screen_x),
+                                          static_cast<int>(screen_y)});
                 });
         }
 
@@ -750,9 +788,9 @@ int main(int argc, char* argv[])
         cb.active_figure = &active_figure;
         cb.active_figure_id = &active_figure_id;
         cb.session = &session;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
         cb.window_mgr = window_mgr.get();
-#endif
+    #endif
         spectra::register_standard_commands(cb);
     }
 #endif
@@ -763,7 +801,8 @@ int main(int argc, char* argv[])
     for (auto id : registry.all_ids())
     {
         spectra::Figure* fig_ptr = registry.get(id);
-        if (!fig_ptr) continue;
+        if (!fig_ptr)
+            continue;
         for (auto& ax : fig_ptr->axes_mut())
         {
             if (ax)
@@ -837,8 +876,10 @@ int main(int argc, char* argv[])
 
                         spectra::ipc::AckStatePayload ack;
                         ack.revision = current_revision;
-                        send_ipc(*conn, spectra::ipc::MessageType::ACK_STATE,
-                                 session_id, ipc_window_id,
+                        send_ipc(*conn,
+                                 spectra::ipc::MessageType::ACK_STATE,
+                                 session_id,
+                                 ipc_window_id,
                                  spectra::ipc::encode_ack_state(ack));
                     }
                     break;
@@ -862,7 +903,8 @@ int main(int argc, char* argv[])
                             // Also apply directly to the matching live Figure object
                             // (fast path for axis limits, grid toggle, series data).
                             // Map IPC figure_id → registry FigureId via assigned_figures/all_ids.
-                            for (size_t mi = 0; mi < assigned_figures.size() && mi < all_ids.size(); ++mi)
+                            for (size_t mi = 0; mi < assigned_figures.size() && mi < all_ids.size();
+                                 ++mi)
                             {
                                 if (assigned_figures[mi] == op.figure_id)
                                 {
@@ -877,8 +919,10 @@ int main(int argc, char* argv[])
 
                         spectra::ipc::AckStatePayload ack;
                         ack.revision = current_revision;
-                        send_ipc(*conn, spectra::ipc::MessageType::ACK_STATE,
-                                 session_id, ipc_window_id,
+                        send_ipc(*conn,
+                                 spectra::ipc::MessageType::ACK_STATE,
+                                 session_id,
+                                 ipc_window_id,
                                  spectra::ipc::encode_ack_state(ack));
                     }
                     break;
@@ -986,8 +1030,10 @@ int main(int argc, char* argv[])
                     op.f1 = val;
                     diff.ops.push_back(std::move(op));
                 }
-                send_ipc(*conn, spectra::ipc::MessageType::STATE_DIFF,
-                         session_id, ipc_window_id,
+                send_ipc(*conn,
+                         spectra::ipc::MessageType::STATE_DIFF,
+                         session_id,
+                         ipc_window_id,
                          spectra::ipc::encode_state_diff(diff));
             }
         }
@@ -996,8 +1042,8 @@ int main(int argc, char* argv[])
         auto now = std::chrono::steady_clock::now();
         if (now - last_heartbeat >= heartbeat_interval)
         {
-            if (!send_ipc(*conn, spectra::ipc::MessageType::EVT_HEARTBEAT,
-                          session_id, ipc_window_id))
+            if (!send_ipc(
+                    *conn, spectra::ipc::MessageType::EVT_HEARTBEAT, session_id, ipc_window_id))
             {
                 std::cerr << "[spectra-window] Lost connection to backend\n";
                 session.request_exit();
@@ -1007,8 +1053,11 @@ int main(int argc, char* argv[])
         }
 
         // ── Standard session tick (same as inproc) ───────────────────────
-        session.tick(scheduler, animator, cmd_queue,
-                     false, ui_ctx_ptr,
+        session.tick(scheduler,
+                     animator,
+                     cmd_queue,
+                     false,
+                     ui_ctx_ptr,
 #ifdef SPECTRA_USE_GLFW
                      window_mgr.get(),
 #endif
@@ -1023,8 +1072,7 @@ int main(int argc, char* argv[])
     std::cerr << "[spectra-window] Shutting down\n";
 
     // Notify backend
-    send_ipc(*conn, spectra::ipc::MessageType::EVT_WINDOW,
-             session_id, ipc_window_id);
+    send_ipc(*conn, spectra::ipc::MessageType::EVT_WINDOW, session_id, ipc_window_id);
 
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)

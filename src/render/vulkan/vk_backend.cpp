@@ -30,8 +30,7 @@ namespace spectra
 // Out-of-line destructor so unique_ptr<WindowUIContext> sees the complete type.
 WindowContext::~WindowContext() = default;
 
-VulkanBackend::VulkanBackend()
-    : initial_window_(std::make_unique<WindowContext>())
+VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>())
 {
     active_window_ = initial_window_.get();
 }
@@ -56,8 +55,8 @@ bool VulkanBackend::init(bool headless)
 #else
         bool enable_validation = true;
 #endif
-        SPECTRA_LOG_DEBUG("vulkan",
-                         "Validation layers: " + std::string(enable_validation ? "true" : "false"));
+        SPECTRA_LOG_DEBUG(
+            "vulkan", "Validation layers: " + std::string(enable_validation ? "true" : "false"));
 
         ctx_.instance = vk::create_instance(enable_validation);
 
@@ -69,7 +68,8 @@ bool VulkanBackend::init(bool headless)
 
         // For headless, pick device without surface
         ctx_.physical_device = vk::pick_physical_device(ctx_.instance, active_window_->surface);
-        ctx_.queue_families = vk::find_queue_families(ctx_.physical_device, active_window_->surface);
+        ctx_.queue_families =
+            vk::find_queue_families(ctx_.physical_device, active_window_->surface);
 
         // When not headless, force swapchain extension even though surface doesn't exist yet
         // (surface is created later by GLFW adapter, but device needs the extension at creation
@@ -238,7 +238,8 @@ bool VulkanBackend::create_surface(void* native_window)
 
 #ifdef SPECTRA_USE_GLFW
     auto* glfw_window = static_cast<GLFWwindow*>(native_window);
-    VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &active_window_->surface);
+    VkResult result =
+        glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &active_window_->surface);
     if (result != VK_SUCCESS)
     {
         std::cerr << "[Spectra] Failed to create Vulkan surface (VkResult=" << result << ")\n";
@@ -248,7 +249,8 @@ bool VulkanBackend::create_surface(void* native_window)
     // Re-query present support for the created surface, but keep device-created queue
     // family indices stable. The logical device was created before surface creation,
     // so it may not contain a separately discovered present family index.
-    const auto surface_families = vk::find_queue_families(ctx_.physical_device, active_window_->surface);
+    const auto surface_families =
+        vk::find_queue_families(ctx_.physical_device, active_window_->surface);
     if (surface_families.has_present()
         && surface_families.present.value() == ctx_.queue_families.graphics.value())
     {
@@ -260,8 +262,8 @@ bool VulkanBackend::create_surface(void* native_window)
         if (surface_families.has_present())
         {
             SPECTRA_LOG_WARN("vulkan",
-                            "Surface present queue family differs from device queue family; "
-                            "falling back to graphics queue for present operations");
+                             "Surface present queue family differs from device queue family; "
+                             "falling back to graphics queue for present operations");
         }
         ctx_.queue_families.present = ctx_.queue_families.graphics;
         ctx_.present_queue = ctx_.graphics_queue;
@@ -320,8 +322,8 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
     if (!active_window_->in_flight_fences.empty())
     {
         SPECTRA_LOG_DEBUG("vulkan",
-                         "Waiting for " + std::to_string(active_window_->in_flight_fences.size())
-                             + " in-flight fences before swapchain recreation");
+                          "Waiting for " + std::to_string(active_window_->in_flight_fences.size())
+                              + " in-flight fences before swapchain recreation");
         auto wait_start = std::chrono::high_resolution_clock::now();
         vkWaitForFences(ctx_.device,
                         static_cast<uint32_t>(active_window_->in_flight_fences.size()),
@@ -331,13 +333,13 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         auto wait_end = std::chrono::high_resolution_clock::now();
         auto wait_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(wait_end - wait_start);
-        SPECTRA_LOG_DEBUG("vulkan",
-                         "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
+        SPECTRA_LOG_DEBUG(
+            "vulkan", "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
     }
 
     SPECTRA_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
     auto old_swapchain = active_window_->swapchain.swapchain;
-    auto old_context = active_window_->swapchain;                    // Copy the entire context
+    auto old_context = active_window_->swapchain;     // Copy the entire context
     VkRenderPass reuse_rp = old_context.render_pass;  // Reuse — format doesn't change
 
     try
@@ -355,9 +357,10 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             old_swapchain,
             reuse_rp,
             vk_msaa);
-        SPECTRA_LOG_INFO("vulkan",
-                        "New swapchain created: " + std::to_string(active_window_->swapchain.extent.width) + "x"
-                            + std::to_string(active_window_->swapchain.extent.height));
+        SPECTRA_LOG_INFO(
+            "vulkan",
+            "New swapchain created: " + std::to_string(active_window_->swapchain.extent.width) + "x"
+                + std::to_string(active_window_->swapchain.extent.height));
 
         // Destroy the old swapchain context (skip render pass — we reused it)
         SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
@@ -367,9 +370,9 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         if (active_window_->swapchain.images.size() != old_context.images.size())
         {
             SPECTRA_LOG_DEBUG("vulkan",
-                             "Image count changed " + std::to_string(old_context.images.size())
-                                 + " -> " + std::to_string(active_window_->swapchain.images.size())
-                                 + ", recreating sync objects");
+                              "Image count changed " + std::to_string(old_context.images.size())
+                                  + " -> " + std::to_string(active_window_->swapchain.images.size())
+                                  + ", recreating sync objects");
             for (auto sem : active_window_->image_available_semaphores)
                 vkDestroySemaphore(ctx_.device, sem, nullptr);
             for (auto sem : active_window_->render_finished_semaphores)
@@ -1052,8 +1055,12 @@ bool VulkanBackend::begin_frame()
     }
 
     // Windowed mode — wait for this slot's previous work to finish
-    VkResult fence_status = vkWaitForFences(
-        ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame], VK_TRUE, UINT64_MAX);
+    VkResult fence_status =
+        vkWaitForFences(ctx_.device,
+                        1,
+                        &active_window_->in_flight_fences[active_window_->current_flight_frame],
+                        VK_TRUE,
+                        UINT64_MAX);
     if (fence_status == VK_ERROR_DEVICE_LOST)
     {
         device_lost_ = true;
@@ -1061,12 +1068,13 @@ bool VulkanBackend::begin_frame()
     }
 
     // Acquire next swapchain image BEFORE resetting fence
-    VkResult result = vkAcquireNextImageKHR(ctx_.device,
-                                            active_window_->swapchain.swapchain,
-                                            UINT64_MAX,
-                                            active_window_->image_available_semaphores[active_window_->current_flight_frame],
-                                            VK_NULL_HANDLE,
-                                            &active_window_->current_image_index);
+    VkResult result = vkAcquireNextImageKHR(
+        ctx_.device,
+        active_window_->swapchain.swapchain,
+        UINT64_MAX,
+        active_window_->image_available_semaphores[active_window_->current_flight_frame],
+        VK_NULL_HANDLE,
+        &active_window_->current_image_index);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
@@ -1081,9 +1089,11 @@ bool VulkanBackend::begin_frame()
     }
 
     // Only reset fence after successful acquisition
-    vkResetFences(ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame]);
+    vkResetFences(
+        ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame]);
 
-    active_window_->current_cmd = active_window_->command_buffers[active_window_->current_flight_frame];
+    active_window_->current_cmd =
+        active_window_->command_buffers[active_window_->current_flight_frame];
     vkResetCommandBuffer(active_window_->current_cmd, 0);
 
     VkCommandBufferBeginInfo begin_info{};
@@ -1110,10 +1120,13 @@ void VulkanBackend::end_frame()
 
     // Windowed submit
     // image_available: indexed by active_window_->current_flight_frame (matches acquire)
-    // render_finished: indexed by active_window_->current_image_index (tied to swapchain image lifecycle —
+    // render_finished: indexed by active_window_->current_image_index (tied to swapchain image
+    // lifecycle —
     //   only reused when that image is re-acquired, guaranteeing the previous present completed)
-    VkSemaphore wait_semaphores[] = {active_window_->image_available_semaphores[active_window_->current_flight_frame]};
-    VkSemaphore signal_semaphores[] = {active_window_->render_finished_semaphores[active_window_->current_image_index]};
+    VkSemaphore wait_semaphores[] = {
+        active_window_->image_available_semaphores[active_window_->current_flight_frame]};
+    VkSemaphore signal_semaphores[] = {
+        active_window_->render_finished_semaphores[active_window_->current_image_index]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submit{};
@@ -1126,7 +1139,10 @@ void VulkanBackend::end_frame()
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = signal_semaphores;
 
-    vkQueueSubmit(ctx_.graphics_queue, 1, &submit, active_window_->in_flight_fences[active_window_->current_flight_frame]);
+    vkQueueSubmit(ctx_.graphics_queue,
+                  1,
+                  &submit,
+                  active_window_->in_flight_fences[active_window_->current_flight_frame]);
 
     VkPresentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1139,7 +1155,8 @@ void VulkanBackend::end_frame()
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
 
     active_window_->current_flight_frame =
-        (active_window_->current_flight_frame + 1) % static_cast<uint32_t>(active_window_->in_flight_fences.size());
+        (active_window_->current_flight_frame + 1)
+        % static_cast<uint32_t>(active_window_->in_flight_fences.size());
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
@@ -1180,7 +1197,8 @@ void VulkanBackend::begin_render_pass(const Color& clear_color)
     else
     {
         info.renderPass = active_window_->swapchain.render_pass;
-        info.framebuffer = active_window_->swapchain.framebuffers[active_window_->current_image_index];
+        info.framebuffer =
+            active_window_->swapchain.framebuffers[active_window_->current_image_index];
         info.renderArea = {{0, 0}, active_window_->swapchain.extent};
     }
 
@@ -1254,7 +1272,8 @@ void VulkanBackend::bind_index_buffer(BufferHandle handle)
         return;
 
     auto& entry = it->second;
-    vkCmdBindIndexBuffer(active_window_->current_cmd, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(
+        active_window_->current_cmd, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
 void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
@@ -1402,7 +1421,13 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrier);
     }
 
     VkBufferImageCopy region{};
@@ -1410,12 +1435,8 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     region.imageSubresource.layerCount = 1;
     region.imageExtent = {width, height, 1};
 
-    vkCmdCopyImageToBuffer(cmd,
-                           src_image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           staging.buffer(),
-                           1,
-                           &region);
+    vkCmdCopyImageToBuffer(
+        cmd, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer(), 1, &region);
 
     // Transition back to original layout if we changed it
     if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
@@ -1438,7 +1459,13 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrier);
     }
 
     vkEndCommandBuffer(cmd);
@@ -1524,7 +1551,8 @@ void VulkanBackend::create_command_buffers()
     info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = count;
 
-    if (vkAllocateCommandBuffers(ctx_.device, &info, active_window_->command_buffers.data()) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(ctx_.device, &info, active_window_->command_buffers.data())
+        != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to allocate command buffers");
     }
@@ -1551,11 +1579,14 @@ void VulkanBackend::create_sync_objects()
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &active_window_->image_available_semaphores[i])
+        if (vkCreateSemaphore(
+                ctx_.device, &sem_info, nullptr, &active_window_->image_available_semaphores[i])
                 != VK_SUCCESS
-            || vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &active_window_->render_finished_semaphores[i])
+            || vkCreateSemaphore(
+                   ctx_.device, &sem_info, nullptr, &active_window_->render_finished_semaphores[i])
                    != VK_SUCCESS
-            || vkCreateFence(ctx_.device, &fence_info, nullptr, &active_window_->in_flight_fences[i])
+            || vkCreateFence(
+                   ctx_.device, &fence_info, nullptr, &active_window_->in_flight_fences[i])
                    != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create sync objects");
@@ -1650,7 +1681,9 @@ bool VulkanBackend::recreate_swapchain_for(WindowContext& wctx, uint32_t width, 
     return ok;
 }
 
-bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height)
+bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx,
+                                                      uint32_t width,
+                                                      uint32_t height)
 {
     // Fall back to plain recreate if this window has no ImGui context
     if (!wctx.imgui_context)
@@ -1672,8 +1705,7 @@ bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx, uint3
     auto* prev_imgui_ctx = ImGui::GetCurrentContext();
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx.imgui_context));
 
-    ImGui_ImplVulkan_SetMinImageCount(
-        static_cast<uint32_t>(wctx.swapchain.images.size()));
+    ImGui_ImplVulkan_SetMinImageCount(static_cast<uint32_t>(wctx.swapchain.images.size()));
 
     SPECTRA_LOG_INFO("vulkan",
                      "Window " + std::to_string(wctx.id)
@@ -1738,21 +1770,22 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
         active_window_ = prev_active;
 
         SPECTRA_LOG_INFO("vulkan",
-                         "Window context " + std::to_string(wctx.id) + " initialized: "
-                             + std::to_string(wctx.swapchain.extent.width) + "x"
+                         "Window context " + std::to_string(wctx.id)
+                             + " initialized: " + std::to_string(wctx.swapchain.extent.width) + "x"
                              + std::to_string(wctx.swapchain.extent.height));
         return true;
     }
     catch (const std::exception& e)
     {
-        SPECTRA_LOG_ERROR("vulkan",
-                          "init_window_context failed: " + std::string(e.what()));
+        SPECTRA_LOG_ERROR("vulkan", "init_window_context failed: " + std::string(e.what()));
         active_window_ = prev_active;
         return false;
     }
 }
 
-bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height)
+bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
+                                                   uint32_t width,
+                                                   uint32_t height)
 {
     // Step 1: Create Vulkan resources (surface, swapchain, cmd buffers, sync)
     if (!init_window_context(wctx, width, height))
@@ -1768,8 +1801,8 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t
     if (wctx.swapchain.image_format != initial_window_->swapchain.image_format)
     {
         SPECTRA_LOG_WARN("vulkan",
-                         "Window " + std::to_string(wctx.id)
-                             + " swapchain format (" + std::to_string(wctx.swapchain.image_format)
+                         "Window " + std::to_string(wctx.id) + " swapchain format ("
+                             + std::to_string(wctx.swapchain.image_format)
                              + ") differs from primary ("
                              + std::to_string(initial_window_->swapchain.image_format)
                              + "). Recreating swapchain with primary format.");
@@ -1800,9 +1833,9 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t
         }
         catch (const std::exception& e)
         {
-            SPECTRA_LOG_ERROR("vulkan",
-                              "Failed to recreate swapchain with primary format: "
-                                  + std::string(e.what()));
+            SPECTRA_LOG_ERROR(
+                "vulkan",
+                "Failed to recreate swapchain with primary format: " + std::string(e.what()));
             active_window_ = prev_active;
             return false;
         }
@@ -1859,8 +1892,7 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx, uint32_t
     wctx.imgui_context = new_ctx;
 
     SPECTRA_LOG_INFO("imgui",
-                     "Per-window ImGui context created for window "
-                         + std::to_string(wctx.id));
+                     "Per-window ImGui context created for window " + std::to_string(wctx.id));
 
     // Restore previous ImGui context and active window
     ImGui::SetCurrentContext(prev_imgui_ctx);
@@ -1901,9 +1933,8 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
         // Restore previous context (unless it was the one we just destroyed)
         ImGui::SetCurrentContext(prev_ctx != this_ctx ? prev_ctx : nullptr);
 
-        SPECTRA_LOG_INFO("imgui",
-                         "Per-window ImGui context destroyed for window "
-                             + std::to_string(wctx.id));
+        SPECTRA_LOG_INFO(
+            "imgui", "Per-window ImGui context destroyed for window " + std::to_string(wctx.id));
     }
 #endif
 
@@ -1939,8 +1970,7 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
         wctx.surface = VK_NULL_HANDLE;
     }
 
-    SPECTRA_LOG_INFO("vulkan",
-                     "Window context " + std::to_string(wctx.id) + " destroyed");
+    SPECTRA_LOG_INFO("vulkan", "Window context " + std::to_string(wctx.id) + " destroyed");
 }
 
 void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
@@ -1988,7 +2018,8 @@ void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
     {
         if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &wctx.image_available_semaphores[i])
                 != VK_SUCCESS
-            || vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &wctx.render_finished_semaphores[i])
+            || vkCreateSemaphore(
+                   ctx_.device, &sem_info, nullptr, &wctx.render_finished_semaphores[i])
                    != VK_SUCCESS
             || vkCreateFence(ctx_.device, &fence_info, nullptr, &wctx.in_flight_fences[i])
                    != VK_SUCCESS)

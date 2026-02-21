@@ -1,11 +1,11 @@
 #pragma once
 
-#include "message.hpp"
-
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+
+#include "message.hpp"
 
 namespace spectra::ipc
 {

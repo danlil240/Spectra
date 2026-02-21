@@ -2,8 +2,8 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
-    #include <spectra/color.hpp>
     #include <span>
+    #include <spectra/color.hpp>
     #include <string>
     #include <unordered_map>
 

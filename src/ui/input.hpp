@@ -55,7 +55,6 @@ struct BoxZoomRect
 // Callback for save-PNG shortcut (Ctrl+S)
 using SavePngCallback = std::function<void()>;
 
-
 // Input handler: maps mouse/keyboard events to axis limit mutations,
 // box zoom, keyboard shortcuts, and multi-axes hit-testing.
 class InputHandler

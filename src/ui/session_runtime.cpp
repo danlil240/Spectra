@@ -15,6 +15,7 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+
     #include "window_manager.hpp"
 #endif
 
@@ -46,16 +47,15 @@ void SessionRuntime::queue_move(PendingMove pm)
     pending_moves_.push_back(std::move(pm));
 }
 
-FrameState SessionRuntime::tick(
-    FrameScheduler& scheduler,
-    Animator& animator,
-    CommandQueue& cmd_queue,
-    bool headless,
-    WindowUIContext* headless_ui_ctx,
+FrameState SessionRuntime::tick(FrameScheduler& scheduler,
+                                Animator& animator,
+                                CommandQueue& cmd_queue,
+                                bool headless,
+                                WindowUIContext* headless_ui_ctx,
 #ifdef SPECTRA_USE_GLFW
-    WindowManager* window_mgr,
+                                WindowManager* window_mgr,
 #endif
-    FrameState& frame_state)
+                                FrameState& frame_state)
 {
     newly_created_window_ids_.clear();
 
@@ -75,7 +75,7 @@ FrameState SessionRuntime::tick(
     if (commands_processed > 0)
     {
         SPECTRA_LOG_TRACE("main_loop",
-                         "Processed " + std::to_string(commands_processed) + " commands");
+                          "Processed " + std::to_string(commands_processed) + " commands");
     }
 
     // Evaluate keyframe animations
@@ -93,9 +93,9 @@ FrameState SessionRuntime::tick(
                 continue;
 
             // Skip windows created this frame
-            if (std::find(newly_created_window_ids_.begin(),
-                          newly_created_window_ids_.end(),
-                          wctx->id) != newly_created_window_ids_.end())
+            if (std::find(
+                    newly_created_window_ids_.begin(), newly_created_window_ids_.end(), wctx->id)
+                != newly_created_window_ids_.end())
                 continue;
 
             // Handle minimized window (0x0 framebuffer): skip until restored
@@ -197,9 +197,12 @@ FrameState SessionRuntime::tick(
     // Headless path (no GLFW, no WindowManager)
     if (headless && headless_ui_ctx)
     {
-        win_rt_.update(*headless_ui_ctx, frame_state, scheduler
+        win_rt_.update(*headless_ui_ctx,
+                       frame_state,
+                       scheduler
 #ifdef SPECTRA_USE_GLFW
-                       , nullptr
+                       ,
+                       nullptr
 #endif
         );
         win_rt_.render(*headless_ui_ctx, frame_state);
@@ -223,7 +226,8 @@ FrameState SessionRuntime::tick(
             WindowContext* src_wctx = nullptr;
             for (auto* w : window_mgr->windows())
             {
-                if (!w) continue;
+                if (!w)
+                    continue;
                 for (auto fid : w->assigned_figures)
                 {
                     if (fid == pd.figure_id)
@@ -232,7 +236,8 @@ FrameState SessionRuntime::tick(
                         break;
                     }
                 }
-                if (src_wctx) break;
+                if (src_wctx)
+                    break;
             }
             if (!src_wctx || !src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
                 continue;
@@ -268,8 +273,7 @@ FrameState SessionRuntime::tick(
             }
 
             auto* new_wctx = window_mgr->detach_figure(
-                pd.figure_id, pd.width, pd.height,
-                pd.title, pd.screen_x, pd.screen_y);
+                pd.figure_id, pd.width, pd.height, pd.title, pd.screen_x, pd.screen_y);
 
             if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
             {
@@ -294,15 +298,18 @@ FrameState SessionRuntime::tick(
     {
         for (auto& pm : pending_moves_)
         {
-            fprintf(stderr, "[move] Processing: fig=%u → target_wid=%u\n",
-                    pm.figure_id, pm.target_window_id);
+            fprintf(stderr,
+                    "[move] Processing: fig=%u → target_wid=%u\n",
+                    pm.figure_id,
+                    pm.target_window_id);
 
             // Find source window (the one that has this figure)
             WindowContext* src_wctx = nullptr;
             WindowContext* dst_wctx = nullptr;
             for (auto* w : window_mgr->windows())
             {
-                if (!w) continue;
+                if (!w)
+                    continue;
                 if (w->id == pm.target_window_id)
                     dst_wctx = w;
                 for (auto fid : w->assigned_figures)
@@ -314,8 +321,10 @@ FrameState SessionRuntime::tick(
 
             if (!src_wctx || !dst_wctx || src_wctx == dst_wctx)
             {
-                fprintf(stderr, "[move]   SKIP: src=%p dst=%p same=%d\n",
-                        (void*)src_wctx, (void*)dst_wctx,
+                fprintf(stderr,
+                        "[move]   SKIP: src=%p dst=%p same=%d\n",
+                        (void*)src_wctx,
+                        (void*)dst_wctx,
                         src_wctx == dst_wctx ? 1 : 0);
                 continue;
             }
@@ -387,9 +396,12 @@ FrameState SessionRuntime::tick(
                 dst_dock.set_active_figure_index(pm.figure_id);
             }
 
-            fprintf(stderr, "[move]   DONE: fig=%u moved %u→%u "
+            fprintf(stderr,
+                    "[move]   DONE: fig=%u moved %u→%u "
                     "(src_figs=%zu dst_figs=%zu split=%d)\n",
-                    pm.figure_id, src_wctx->id, dst_wctx->id,
+                    pm.figure_id,
+                    src_wctx->id,
+                    dst_wctx->id,
                     src_wctx->assigned_figures.size(),
                     dst_wctx->assigned_figures.size(),
                     dst_dock.is_split() ? 1 : 0);

@@ -1,11 +1,3 @@
-#include "figure_model.hpp"
-#include "process_manager.hpp"
-#include "session_graph.hpp"
-
-#include "../ipc/codec.hpp"
-#include "../ipc/message.hpp"
-#include "../ipc/transport.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -15,6 +7,13 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "../ipc/codec.hpp"
+#include "../ipc/message.hpp"
+#include "../ipc/transport.hpp"
+#include "figure_model.hpp"
+#include "process_manager.hpp"
+#include "session_graph.hpp"
 
 #ifdef __linux__
     #include <cerrno>
@@ -52,12 +51,11 @@ std::string resolve_agent_path(const char* argv0)
 }
 
 // Helper: send CMD_ASSIGN_FIGURES to a specific client.
-bool send_assign_figures(
-    spectra::ipc::Connection& conn,
-    spectra::ipc::WindowId wid,
-    spectra::ipc::SessionId sid,
-    const std::vector<uint64_t>& figure_ids,
-    uint64_t active_figure_id)
+bool send_assign_figures(spectra::ipc::Connection& conn,
+                         spectra::ipc::WindowId wid,
+                         spectra::ipc::SessionId sid,
+                         const std::vector<uint64_t>& figure_ids,
+                         uint64_t active_figure_id)
 {
     spectra::ipc::CmdAssignFiguresPayload payload;
     payload.window_id = wid;
@@ -74,11 +72,10 @@ bool send_assign_figures(
 }
 
 // Helper: send STATE_SNAPSHOT to a specific client.
-bool send_state_snapshot(
-    spectra::ipc::Connection& conn,
-    spectra::ipc::WindowId wid,
-    spectra::ipc::SessionId sid,
-    const spectra::ipc::StateSnapshotPayload& snap)
+bool send_state_snapshot(spectra::ipc::Connection& conn,
+                         spectra::ipc::WindowId wid,
+                         spectra::ipc::SessionId sid,
+                         const spectra::ipc::StateSnapshotPayload& snap)
 {
     spectra::ipc::Message msg;
     msg.header.type = spectra::ipc::MessageType::STATE_SNAPSHOT;
@@ -90,11 +87,10 @@ bool send_state_snapshot(
 }
 
 // Helper: send STATE_DIFF to a specific client.
-bool send_state_diff(
-    spectra::ipc::Connection& conn,
-    spectra::ipc::WindowId wid,
-    spectra::ipc::SessionId sid,
-    const spectra::ipc::StateDiffPayload& diff)
+bool send_state_diff(spectra::ipc::Connection& conn,
+                     spectra::ipc::WindowId wid,
+                     spectra::ipc::SessionId sid,
+                     const spectra::ipc::StateDiffPayload& diff)
 {
     spectra::ipc::Message msg;
     msg.header.type = spectra::ipc::MessageType::STATE_DIFF;
@@ -106,11 +102,10 @@ bool send_state_diff(
 }
 
 // Helper: send CMD_CLOSE_WINDOW to a specific client.
-bool send_close_window(
-    spectra::ipc::Connection& conn,
-    spectra::ipc::WindowId wid,
-    spectra::ipc::SessionId sid,
-    const std::string& reason)
+bool send_close_window(spectra::ipc::Connection& conn,
+                       spectra::ipc::WindowId wid,
+                       spectra::ipc::SessionId sid,
+                       const std::string& reason)
 {
     spectra::ipc::CmdCloseWindowPayload payload;
     payload.window_id = wid;
@@ -235,9 +230,8 @@ int main(int argc, char* argv[])
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
                     auto orphaned = graph.remove_agent(it->window_id);
-                    std::cerr << "[spectra-backend] Agent disconnected (window="
-                              << it->window_id << ", orphaned_figures="
-                              << orphaned.size() << ")\n";
+                    std::cerr << "[spectra-backend] Agent disconnected (window=" << it->window_id
+                              << ", orphaned_figures=" << orphaned.size() << ")\n";
                 }
                 it = clients.erase(it);
                 continue;
@@ -269,9 +263,8 @@ int main(int argc, char* argv[])
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
                     auto orphaned = graph.remove_agent(it->window_id);
-                    std::cerr << "[spectra-backend] Agent lost (window="
-                              << it->window_id << ", orphaned_figures="
-                              << orphaned.size() << ")\n";
+                    std::cerr << "[spectra-backend] Agent lost (window=" << it->window_id
+                              << ", orphaned_figures=" << orphaned.size() << ")\n";
                 }
                 it = clients.erase(it);
                 continue;
@@ -332,16 +325,16 @@ int main(int argc, char* argv[])
                     auto assigned = graph.figures_for_window(wid);
                     if (!assigned.empty())
                     {
-                        send_assign_figures(*it->conn, wid, graph.session_id(),
-                                            assigned, assigned[0]);
+                        send_assign_figures(
+                            *it->conn, wid, graph.session_id(), assigned, assigned[0]);
                     }
 
                     // Send STATE_SNAPSHOT with full figure data
                     auto snap = fig_model.snapshot(assigned);
                     send_state_snapshot(*it->conn, wid, graph.session_id(), snap);
 
-                    std::cerr << "[spectra-backend] Assigned window_id=" << wid
-                              << " with " << assigned.size() << " figures\n";
+                    std::cerr << "[spectra-backend] Assigned window_id=" << wid << " with "
+                              << assigned.size() << " figures\n";
                     break;
                 }
 
@@ -354,8 +347,8 @@ int main(int argc, char* argv[])
 
                 case spectra::ipc::MessageType::REQ_CREATE_WINDOW:
                 {
-                    std::cerr << "[spectra-backend] REQ_CREATE_WINDOW from window="
-                              << it->window_id << "\n";
+                    std::cerr << "[spectra-backend] REQ_CREATE_WINDOW from window=" << it->window_id
+                              << "\n";
 
                     // Spawn a new agent process
                     pid_t pid = proc_mgr.spawn_agent();
@@ -395,9 +388,8 @@ int main(int argc, char* argv[])
                     if (close_req && close_req->window_id != spectra::ipc::INVALID_WINDOW)
                         target_wid = close_req->window_id;
 
-                    std::cerr << "[spectra-backend] REQ_CLOSE_WINDOW window="
-                              << target_wid << " reason="
-                              << (close_req ? close_req->reason : "unknown") << "\n";
+                    std::cerr << "[spectra-backend] REQ_CLOSE_WINDOW window=" << target_wid
+                              << " reason=" << (close_req ? close_req->reason : "unknown") << "\n";
 
                     // Remove agent from graph, get orphaned figures
                     auto orphaned = graph.remove_agent(target_wid);
@@ -421,8 +413,10 @@ int main(int argc, char* argv[])
                             {
                                 if (c.window_id == target && c.conn)
                                 {
-                                    send_assign_figures(*c.conn, target,
-                                                        graph.session_id(), figs,
+                                    send_assign_figures(*c.conn,
+                                                        target,
+                                                        graph.session_id(),
+                                                        figs,
                                                         figs.empty() ? 0 : figs[0]);
                                     break;
                                 }
@@ -450,8 +444,8 @@ int main(int argc, char* argv[])
                         {
                             if (c.window_id == target_wid && c.conn)
                             {
-                                send_close_window(*c.conn, target_wid,
-                                                  graph.session_id(), "close_ack");
+                                send_close_window(
+                                    *c.conn, target_wid, graph.session_id(), "close_ack");
                                 c.conn->close();
                                 break;
                             }
@@ -474,11 +468,9 @@ int main(int argc, char* argv[])
                     if (!detach)
                         break;
 
-                    std::cerr << "[spectra-backend] REQ_DETACH_FIGURE: figure="
-                              << detach->figure_id << " from window="
-                              << detach->source_window_id
-                              << " → new window at (" << detach->screen_x
-                              << "," << detach->screen_y << ")\n";
+                    std::cerr << "[spectra-backend] REQ_DETACH_FIGURE: figure=" << detach->figure_id
+                              << " from window=" << detach->source_window_id << " → new window at ("
+                              << detach->screen_x << "," << detach->screen_y << ")\n";
 
                     // Verify the figure exists
                     if (!fig_model.has_figure(detach->figure_id))
@@ -542,15 +534,14 @@ int main(int argc, char* argv[])
                 case spectra::ipc::MessageType::EVT_WINDOW:
                 {
                     // Agent reports window event (e.g. close_requested)
-                    std::cerr << "[spectra-backend] EVT_WINDOW from window="
-                              << it->window_id << "\n";
+                    std::cerr << "[spectra-backend] EVT_WINDOW from window=" << it->window_id
+                              << "\n";
 
                     if (it->window_id != spectra::ipc::INVALID_WINDOW)
                     {
                         auto orphaned = graph.remove_agent(it->window_id);
-                        std::cerr << "[spectra-backend] Agent closed (window="
-                                  << it->window_id << ", orphaned_figures="
-                                  << orphaned.size() << ")\n";
+                        std::cerr << "[spectra-backend] Agent closed (window=" << it->window_id
+                                  << ", orphaned_figures=" << orphaned.size() << ")\n";
 
                         // Redistribute orphaned figures
                         if (!orphaned.empty())
@@ -570,8 +561,10 @@ int main(int argc, char* argv[])
                                 {
                                     if (c.window_id == target && c.conn)
                                     {
-                                        send_assign_figures(*c.conn, target,
-                                                            graph.session_id(), figs,
+                                        send_assign_figures(*c.conn,
+                                                            target,
+                                                            graph.session_id(),
+                                                            figs,
                                                             figs.empty() ? 0 : figs[0]);
                                         break;
                                     }
@@ -606,20 +599,25 @@ int main(int argc, char* argv[])
                             // For now, treat x as x_scroll, y as y_scroll
                             // and apply a zoom factor to the current limits.
                             auto snap = fig_model.snapshot({input->figure_id});
-                            if (!snap.figures.empty() &&
-                                input->axes_index < snap.figures[0].axes.size())
+                            if (!snap.figures.empty()
+                                && input->axes_index < snap.figures[0].axes.size())
                             {
                                 const auto& ax = snap.figures[0].axes[input->axes_index];
                                 float zoom = 1.0f - static_cast<float>(input->y) * 0.1f;
-                                if (zoom < 0.1f) zoom = 0.1f;
-                                if (zoom > 10.0f) zoom = 10.0f;
+                                if (zoom < 0.1f)
+                                    zoom = 0.1f;
+                                if (zoom > 10.0f)
+                                    zoom = 10.0f;
                                 float cx = (ax.x_min + ax.x_max) * 0.5f;
                                 float cy = (ax.y_min + ax.y_max) * 0.5f;
                                 float hw = (ax.x_max - ax.x_min) * 0.5f * zoom;
                                 float hh = (ax.y_max - ax.y_min) * 0.5f * zoom;
-                                auto op = fig_model.set_axis_limits(
-                                    input->figure_id, input->axes_index,
-                                    cx - hw, cx + hw, cy - hh, cy + hh);
+                                auto op = fig_model.set_axis_limits(input->figure_id,
+                                                                    input->axes_index,
+                                                                    cx - hw,
+                                                                    cx + hw,
+                                                                    cy - hh,
+                                                                    cy + hh);
                                 diff.ops.push_back(op);
                             }
                             break;
@@ -632,8 +630,8 @@ int main(int argc, char* argv[])
                             if (input->key == 'G' || input->key == 'g')
                             {
                                 auto snap = fig_model.snapshot({input->figure_id});
-                                if (!snap.figures.empty() &&
-                                    input->axes_index < snap.figures[0].axes.size())
+                                if (!snap.figures.empty()
+                                    && input->axes_index < snap.figures[0].axes.size())
                                 {
                                     bool cur = snap.figures[0].axes[input->axes_index].grid_visible;
                                     auto op = fig_model.set_grid_visible(
@@ -662,8 +660,7 @@ int main(int argc, char* argv[])
                         {
                             if (c.conn && c.handshake_done)
                             {
-                                send_state_diff(*c.conn, c.window_id,
-                                                graph.session_id(), diff);
+                                send_state_diff(*c.conn, c.window_id, graph.session_id(), diff);
                             }
                         }
                     }
@@ -690,8 +687,9 @@ int main(int argc, char* argv[])
                     for (size_t i = 0; i < new_ids.size(); ++i)
                     {
                         const auto& fig = incoming->figures[i];
-                        graph.register_figure(new_ids[i], fig.title.empty()
-                            ? "Figure " + std::to_string(i + 1) : fig.title);
+                        graph.register_figure(
+                            new_ids[i],
+                            fig.title.empty() ? "Figure " + std::to_string(i + 1) : fig.title);
                     }
 
                     // Group figures by window_group and spawn one agent per group.
@@ -721,14 +719,14 @@ int main(int argc, char* argv[])
                         pid_t pid = proc_mgr.spawn_agent();
                         if (pid <= 0)
                         {
-                            std::cerr << "[spectra-backend] Failed to spawn agent for group "
-                                      << wg << "\n";
+                            std::cerr << "[spectra-backend] Failed to spawn agent for group " << wg
+                                      << "\n";
                         }
                         else
                         {
                             std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                                      << " for group " << wg << " with "
-                                      << fig_indices.size() << " figure(s)"
+                                      << " for group " << wg << " with " << fig_indices.size()
+                                      << " figure(s)"
                                       << " (pre-assigned window=" << pre_wid << ")\n";
                         }
                     }
@@ -781,16 +779,14 @@ int main(int argc, char* argv[])
                         {
                             // App → agents: forward to all render agents
                             if (!c.is_source_client)
-                                send_state_diff(*c.conn, c.window_id,
-                                                graph.session_id(), fwd_diff);
+                                send_state_diff(*c.conn, c.window_id, graph.session_id(), fwd_diff);
                         }
                         else
                         {
                             // Agent → app: forward to source client
                             // (e.g. knob value changes from UI)
                             if (c.is_source_client)
-                                send_state_diff(*c.conn, c.window_id,
-                                                graph.session_id(), fwd_diff);
+                                send_state_diff(*c.conn, c.window_id, graph.session_id(), fwd_diff);
                         }
                     }
                     break;
@@ -800,9 +796,9 @@ int main(int argc, char* argv[])
                     break;
 
                 default:
-                    std::cerr << "[spectra-backend] Unknown message type 0x"
-                              << std::hex << static_cast<uint16_t>(msg.header.type)
-                              << std::dec << " from window=" << it->window_id << "\n";
+                    std::cerr << "[spectra-backend] Unknown message type 0x" << std::hex
+                              << static_cast<uint16_t>(msg.header.type) << std::dec
+                              << " from window=" << it->window_id << "\n";
                     break;
             }
 
@@ -835,8 +831,10 @@ int main(int argc, char* argv[])
                         {
                             if (c.window_id == target && c.conn)
                             {
-                                send_assign_figures(*c.conn, target,
-                                                    graph.session_id(), figs,
+                                send_assign_figures(*c.conn,
+                                                    target,
+                                                    graph.session_id(),
+                                                    figs,
                                                     figs.empty() ? 0 : figs[0]);
                                 break;
                             }

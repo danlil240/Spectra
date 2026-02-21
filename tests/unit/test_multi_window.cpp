@@ -1,6 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
@@ -292,9 +291,17 @@ TEST_F(MultiWindowFixture, StubReadbackDifferentContent)
     // Both should have non-zero content
     bool has0 = false, has1 = false;
     for (auto p : pixels0)
-        if (p != 0) { has0 = true; break; }
+        if (p != 0)
+        {
+            has0 = true;
+            break;
+        }
     for (auto p : pixels1)
-        if (p != 0) { has1 = true; break; }
+        if (p != 0)
+        {
+            has1 = true;
+            break;
+        }
     EXPECT_TRUE(has0);
     EXPECT_TRUE(has1);
 }
@@ -303,9 +310,7 @@ TEST_F(MultiWindowFixture, StubNoHangMultipleWindows)
 {
     create_windows(3);
     GpuHangDetector detector(std::chrono::seconds(30));
-    detector.expect_no_hang("render 3 stub windows", [&]() {
-        render_all_windows();
-    });
+    detector.expect_no_hang("render 3 stub windows", [&]() { render_all_windows(); });
 }
 
 #endif  // !SPECTRA_HAS_WINDOW_MANAGER
@@ -368,10 +373,7 @@ class TearOffTest : public ::testing::Test
 
     void TearDown() override { app_.reset(); }
 
-    VulkanBackend* vk_backend()
-    {
-        return static_cast<VulkanBackend*>(app_->backend());
-    }
+    VulkanBackend* vk_backend() { return static_cast<VulkanBackend*>(app_->backend()); }
 
     std::unique_ptr<App> app_;
 };
@@ -502,8 +504,7 @@ TEST_F(TearOffTest, RapidDetachAttempts)
     for (int i = 0; i < 10; ++i)
     {
         auto* result = wm.detach_figure(
-            static_cast<FigureId>(i + 1), 400, 300,
-            "Rapid " + std::to_string(i), i * 50, i * 50);
+            static_cast<FigureId>(i + 1), 400, 300, "Rapid " + std::to_string(i), i * 50, i * 50);
         (void)result;
     }
     SUCCEED();
@@ -528,9 +529,11 @@ TEST_F(TearOffTest, ShutdownAfterDetachAttempts)
 TEST(TestInfrastructure, GpuHangDetectorCompletes)
 {
     GpuHangDetector detector(std::chrono::seconds(5));
-    bool ok = detector.run("trivial", []() {
-        // Instant completion
-    });
+    bool ok = detector.run("trivial",
+                           []()
+                           {
+                               // Instant completion
+                           });
     EXPECT_TRUE(ok);
     EXPECT_TRUE(detector.completed());
     EXPECT_FALSE(detector.timed_out());
@@ -540,9 +543,8 @@ TEST(TestInfrastructure, GpuHangDetectorCompletes)
 TEST(TestInfrastructure, GpuHangDetectorTimeout)
 {
     GpuHangDetector detector(std::chrono::milliseconds(50));
-    bool ok = detector.run("intentional hang", []() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    });
+    bool ok = detector.run("intentional hang",
+                           []() { std::this_thread::sleep_for(std::chrono::milliseconds(200)); });
     // The callable still completes (we can't kill threads), but the
     // detector reports timeout
     EXPECT_FALSE(ok);
@@ -552,19 +554,15 @@ TEST(TestInfrastructure, GpuHangDetectorTimeout)
 
 TEST(TestInfrastructure, TimingMeasure)
 {
-    double ms = measure_ms([]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    });
-    EXPECT_GE(ms, 5.0);   // At least 5ms (allowing for scheduling jitter)
-    EXPECT_LT(ms, 500.0); // Not absurdly long
+    double ms = measure_ms([]() { std::this_thread::sleep_for(std::chrono::milliseconds(10)); });
+    EXPECT_GE(ms, 5.0);    // At least 5ms (allowing for scheduling jitter)
+    EXPECT_LT(ms, 500.0);  // Not absurdly long
 }
 
 TEST(TestInfrastructure, StressRunner)
 {
     int counter = 0;
-    auto stats = run_stress(10, [&]() {
-        ++counter;
-    });
+    auto stats = run_stress(10, [&]() { ++counter; });
     EXPECT_EQ(counter, 10);
     EXPECT_EQ(stats.iterations, 10u);
     EXPECT_GE(stats.min_ms, 0.0);

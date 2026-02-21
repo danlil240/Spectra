@@ -15,6 +15,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include <imgui_impl_glfw.h>
+
     #include "figure_manager.hpp"
     #include "figure_registry.hpp"
     #include "imgui_integration.hpp"
@@ -31,8 +32,7 @@ WindowManager::~WindowManager()
     shutdown();
 }
 
-void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry,
-                         Renderer* renderer)
+void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry, Renderer* renderer)
 {
     backend_ = backend;
     registry_ = registry;
@@ -84,7 +84,8 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
     return ptr;
 }
 
-WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
+WindowContext* WindowManager::create_window(uint32_t width,
+                                            uint32_t height,
                                             const std::string& title)
 {
     if (!backend_)
@@ -95,7 +96,8 @@ WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
 
     if (backend_->is_headless())
     {
-        SPECTRA_LOG_WARN("window_manager", "create_window: cannot create OS windows in headless mode");
+        SPECTRA_LOG_WARN("window_manager",
+                         "create_window: cannot create OS windows in headless mode");
         return nullptr;
     }
 
@@ -119,9 +121,9 @@ WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
     // Initialize Vulkan resources (surface, swapchain, cmd buffers, sync)
     if (!backend_->init_window_context(*wctx, width, height))
     {
-        SPECTRA_LOG_ERROR("window_manager",
-                          "create_window: Vulkan resource init failed for window "
-                              + std::to_string(wctx->id));
+        SPECTRA_LOG_ERROR(
+            "window_manager",
+            "create_window: Vulkan resource init failed for window " + std::to_string(wctx->id));
         glfwDestroyWindow(glfw_win);
         return nullptr;
     }
@@ -137,9 +139,8 @@ WindowContext* WindowManager::create_window(uint32_t width, uint32_t height,
     rebuild_active_list();
 
     SPECTRA_LOG_INFO("window_manager",
-                     "Created window " + std::to_string(ptr->id) + ": "
-                         + std::to_string(width) + "x" + std::to_string(height)
-                         + " \"" + title + "\"");
+                     "Created window " + std::to_string(ptr->id) + ": " + std::to_string(width)
+                         + "x" + std::to_string(height) + " \"" + title + "\"");
     return ptr;
 #else
     (void)width;
@@ -158,7 +159,8 @@ void WindowManager::request_close(uint32_t window_id)
 void WindowManager::destroy_window(uint32_t window_id)
 {
     // Find the window in our managed list
-    auto it = std::find_if(windows_.begin(), windows_.end(),
+    auto it = std::find_if(windows_.begin(),
+                           windows_.end(),
                            [window_id](const auto& w) { return w->id == window_id; });
     if (it == windows_.end())
         return;
@@ -209,8 +211,8 @@ void WindowManager::destroy_window(uint32_t window_id)
             {
                 registry_->unregister_figure(fig_id);
                 SPECTRA_LOG_INFO("window_manager",
-                                 "Destroyed figure " + std::to_string(fig_id)
-                                     + " (last window " + std::to_string(window_id) + " closed)");
+                                 "Destroyed figure " + std::to_string(fig_id) + " (last window "
+                                     + std::to_string(window_id) + " closed)");
             }
             wctx.assigned_figures.clear();
         }
@@ -252,8 +254,7 @@ void WindowManager::destroy_window(uint32_t window_id)
     }
 #endif
 
-    SPECTRA_LOG_INFO("window_manager",
-                     "Destroyed window " + std::to_string(window_id));
+    SPECTRA_LOG_INFO("window_manager", "Destroyed window " + std::to_string(window_id));
 
     windows_.erase(it);
     rebuild_active_list();
@@ -424,8 +425,8 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow* window, int width
     wctx->resize_time = std::chrono::steady_clock::now();
 
     SPECTRA_LOG_DEBUG("window_manager",
-                      "Window " + std::to_string(wctx->id) + " resize: "
-                          + std::to_string(width) + "x" + std::to_string(height));
+                      "Window " + std::to_string(wctx->id) + " resize: " + std::to_string(width)
+                          + "x" + std::to_string(height));
 }
 
 void WindowManager::glfw_window_close_callback(GLFWwindow* window)
@@ -453,7 +454,7 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
         return;
 
     wctx->is_focused = (focused != 0);
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     // Forward focus event to ImGui for this window's context
     if (wctx->imgui_context && wctx->ui_ctx)
     {
@@ -463,12 +464,12 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
         if (prev_ctx)
             ImGui::SetCurrentContext(prev_ctx);
     }
-#endif
+    #endif
 }
 
 void WindowManager::install_input_callbacks(WindowContext& wctx)
 {
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
     if (glfw_win)
     {
@@ -484,9 +485,9 @@ void WindowManager::install_input_callbacks(WindowContext& wctx)
         glfwSetCharCallback(glfw_win, glfw_char_callback);
         glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
     }
-#else
+    #else
     (void)wctx;
-#endif
+    #endif
 }
 
 void WindowManager::set_window_position(WindowContext& wctx, int x, int y)
@@ -508,8 +509,12 @@ void WindowManager::set_window_position(WindowContext& /*wctx*/, int /*x*/, int 
 
 #endif
 
-WindowContext* WindowManager::detach_figure(FigureId figure_id, uint32_t width, uint32_t height,
-                                             const std::string& title, int screen_x, int screen_y)
+WindowContext* WindowManager::detach_figure(FigureId figure_id,
+                                            uint32_t width,
+                                            uint32_t height,
+                                            const std::string& title,
+                                            int screen_x,
+                                            int screen_y)
 {
     if (!backend_)
     {
@@ -547,9 +552,9 @@ WindowContext* WindowManager::detach_figure(FigureId figure_id, uint32_t width, 
 
     if (!wctx)
     {
-        SPECTRA_LOG_ERROR("window_manager",
-                          "detach_figure: failed to create window for figure "
-                              + std::to_string(figure_id));
+        SPECTRA_LOG_ERROR(
+            "window_manager",
+            "detach_figure: failed to create window for figure " + std::to_string(figure_id));
         return nullptr;
     }
 
@@ -562,9 +567,8 @@ WindowContext* WindowManager::detach_figure(FigureId figure_id, uint32_t width, 
 
 // ── Tearoff preview window ──────────────────────────────────────────────────
 
-void WindowManager::request_preview_window(uint32_t width, uint32_t height,
-                                           int screen_x, int screen_y,
-                                           const std::string& figure_title)
+void WindowManager::request_preview_window(
+    uint32_t width, uint32_t height, int screen_x, int screen_y, const std::string& figure_title)
 {
     pending_preview_create_ = PendingPreviewCreate{width, height, screen_x, screen_y, figure_title};
 }
@@ -599,9 +603,8 @@ bool WindowManager::has_preview_window() const
     return preview_window_id_ != 0 || pending_preview_create_.has_value();
 }
 
-WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_t height,
-                                                          int screen_x, int screen_y,
-                                                          const std::string& figure_title)
+WindowContext* WindowManager::create_preview_window_impl(
+    uint32_t width, uint32_t height, int screen_x, int screen_y, const std::string& figure_title)
 {
     // Destroy any existing preview window first
     destroy_preview_window_impl();
@@ -624,13 +627,11 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_
     // We suppress that artifact for 200ms after creation.
     if (mouse_release_tracking_)
     {
-        suppress_release_until_ = std::chrono::steady_clock::now()
-                                  + std::chrono::milliseconds(200);
+        suppress_release_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
     }
 
     GLFWwindow* glfw_win = glfwCreateWindow(
-        static_cast<int>(width), static_cast<int>(height),
-        figure_title.c_str(), nullptr, nullptr);
+        static_cast<int>(width), static_cast<int>(height), figure_title.c_str(), nullptr, nullptr);
 
     // Reset hints to defaults for future windows
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -646,8 +647,8 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_
     }
 
     // Position the window at the cursor
-    glfwSetWindowPos(glfw_win, screen_x - static_cast<int>(width) / 2,
-                     screen_y - static_cast<int>(height) / 3);
+    glfwSetWindowPos(
+        glfw_win, screen_x - static_cast<int>(width) / 2, screen_y - static_cast<int>(height) / 3);
 
     auto wctx = std::make_unique<WindowContext>();
     wctx->id = next_window_id_++;
@@ -704,11 +705,15 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t width, uint32_
     ptr->ui_ctx = std::move(ui);
 
     SPECTRA_LOG_DEBUG("window_manager",
-                      "Created preview window " + std::to_string(ptr->id)
-                          + ": " + std::to_string(width) + "x" + std::to_string(height));
+                      "Created preview window " + std::to_string(ptr->id) + ": "
+                          + std::to_string(width) + "x" + std::to_string(height));
     return ptr;
 #else
-    (void)width; (void)height; (void)screen_x; (void)screen_y; (void)figure_title;
+    (void)width;
+    (void)height;
+    (void)screen_x;
+    (void)screen_y;
+    (void)figure_title;
     return nullptr;
 #endif
 }
@@ -725,7 +730,8 @@ void WindowManager::move_preview_window(int screen_x, int screen_y)
     glfwGetWindowSize(glfw_win, &w, &h);
     glfwSetWindowPos(glfw_win, screen_x - w / 2, screen_y - h / 3);
 #else
-    (void)screen_x; (void)screen_y;
+    (void)screen_x;
+    (void)screen_y;
 #endif
 }
 
@@ -761,8 +767,8 @@ bool WindowManager::is_mouse_button_held(int glfw_button) const
     {
         if (wctx->glfw_window && !wctx->should_close)
         {
-            if (glfwGetMouseButton(static_cast<GLFWwindow*>(wctx->glfw_window),
-                                    glfw_button) == GLFW_PRESS)
+            if (glfwGetMouseButton(static_cast<GLFWwindow*>(wctx->glfw_window), glfw_button)
+                == GLFW_PRESS)
                 return true;
         }
     }
@@ -866,8 +872,7 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
     // Update source's active figure if we just removed the active one
     if (from_wctx->active_figure_id == figure_id)
     {
-        from_wctx->active_figure_id =
-            src_figs.empty() ? INVALID_FIGURE_ID : src_figs.front();
+        from_wctx->active_figure_id = src_figs.empty() ? INVALID_FIGURE_ID : src_figs.front();
     }
 
     // Update legacy single-figure field
@@ -968,7 +973,7 @@ WindowContext* WindowManager::find_by_glfw_window(GLFWwindow* window) const
 // --- create_first_window_with_ui ---
 
 WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
-                                                            const std::vector<FigureId>& figure_ids)
+                                                          const std::vector<FigureId>& figure_ids)
 {
     if (!backend_)
     {
@@ -987,7 +992,8 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
     auto wctx_ptr = backend_->release_initial_window();
     if (!wctx_ptr)
     {
-        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: no initial window to take");
+        SPECTRA_LOG_ERROR("window_manager",
+                          "create_first_window_with_ui: no initial window to take");
         return nullptr;
     }
 
@@ -1020,8 +1026,7 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
     // This is the SAME path that secondary windows use.
     if (!init_window_ui(*wctx_ptr, active_id))
     {
-        SPECTRA_LOG_ERROR("window_manager",
-                          "create_first_window_with_ui: UI init failed");
+        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: UI init failed");
     }
 
     // For the first window, FigureManager should have ALL figures, not just one.
@@ -1060,10 +1065,12 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
 
 // --- create_window_with_ui ---
 
-WindowContext* WindowManager::create_window_with_ui(uint32_t width, uint32_t height,
-                                                     const std::string& title,
-                                                     FigureId initial_figure_id,
-                                                     int screen_x, int screen_y)
+WindowContext* WindowManager::create_window_with_ui(uint32_t width,
+                                                    uint32_t height,
+                                                    const std::string& title,
+                                                    FigureId initial_figure_id,
+                                                    int screen_x,
+                                                    int screen_y)
 {
     if (!backend_)
     {
@@ -1109,16 +1116,16 @@ WindowContext* WindowManager::create_window_with_ui(uint32_t width, uint32_t hei
     // Initialize the full UI subsystem bundle
     if (!init_window_ui(*wctx, initial_figure_id))
     {
-        SPECTRA_LOG_ERROR("window_manager",
-                          "create_window_with_ui: UI init failed for window "
-                              + std::to_string(wctx->id));
+        SPECTRA_LOG_ERROR(
+            "window_manager",
+            "create_window_with_ui: UI init failed for window " + std::to_string(wctx->id));
         // Window still usable as a bare render window — don't destroy it
     }
 
     SPECTRA_LOG_INFO("window_manager",
                      "Created window with UI " + std::to_string(wctx->id) + ": "
-                         + std::to_string(width) + "x" + std::to_string(height)
-                         + " \"" + title + "\" figure=" + std::to_string(initial_figure_id));
+                         + std::to_string(width) + "x" + std::to_string(height) + " \"" + title
+                         + "\" figure=" + std::to_string(initial_figure_id));
     return wctx;
 }
 
@@ -1153,8 +1160,8 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     // Wire "close last tab → close window" callback
     uint32_t wctx_id = wctx.id;
     WindowManager* wm_self = this;
-    ui->fig_mgr->set_on_window_close_request(
-        [wm_self, wctx_id]() { wm_self->request_close(wctx_id); });
+    ui->fig_mgr->set_on_window_close_request([wm_self, wctx_id]()
+                                             { wm_self->request_close(wctx_id); });
 
     // Wire TabBar callbacks → FigureManager + DockSystem
     auto* fig_mgr_ptr = ui->fig_mgr;
@@ -1184,8 +1191,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             if (index < ids.size())
                 fig_mgr_ptr->queue_close(ids[index]);
         });
-    ui->figure_tabs->set_tab_add_callback(
-        [fig_mgr_ptr]() { fig_mgr_ptr->queue_create(); });
+    ui->figure_tabs->set_tab_add_callback([fig_mgr_ptr]() { fig_mgr_ptr->queue_create(); });
     ui->figure_tabs->set_tab_duplicate_callback(
         [fig_mgr_ptr](size_t index)
         {
@@ -1216,17 +1222,14 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         });
 
     // Tab drag-to-dock callbacks
-    ui->figure_tabs->set_tab_drag_out_callback(
-        [dock_ptr](size_t index, float mx, float my)
-        { dock_ptr->begin_drag(index, mx, my); });
-    ui->figure_tabs->set_tab_drag_update_callback(
-        [dock_ptr](size_t /*index*/, float mx, float my)
-        { dock_ptr->update_drag(mx, my); });
-    ui->figure_tabs->set_tab_drag_end_callback(
-        [dock_ptr](size_t /*index*/, float mx, float my)
-        { dock_ptr->end_drag(mx, my); });
-    ui->figure_tabs->set_tab_drag_cancel_callback(
-        [dock_ptr](size_t /*index*/) { dock_ptr->cancel_drag(); });
+    ui->figure_tabs->set_tab_drag_out_callback([dock_ptr](size_t index, float mx, float my)
+                                               { dock_ptr->begin_drag(index, mx, my); });
+    ui->figure_tabs->set_tab_drag_update_callback([dock_ptr](size_t /*index*/, float mx, float my)
+                                                  { dock_ptr->update_drag(mx, my); });
+    ui->figure_tabs->set_tab_drag_end_callback([dock_ptr](size_t /*index*/, float mx, float my)
+                                               { dock_ptr->end_drag(mx, my); });
+    ui->figure_tabs->set_tab_drag_cancel_callback([dock_ptr](size_t /*index*/)
+                                                  { dock_ptr->cancel_drag(); });
 
     // Create per-window ImGuiIntegration
     ui->imgui_ui = std::make_unique<ImGuiIntegration>();
@@ -1250,9 +1253,9 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         // switch to the correct ImGui context and forward events manually.
         if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
         {
-            SPECTRA_LOG_ERROR("window_manager",
-                              "init_window_ui: ImGui init failed for window "
-                                  + std::to_string(wctx.id));
+            SPECTRA_LOG_ERROR(
+                "window_manager",
+                "init_window_ui: ImGui init failed for window " + std::to_string(wctx.id));
             backend_->set_active_window(prev_active);
             ImGui::SetCurrentContext(prev_imgui_ctx);
             return false;
@@ -1340,10 +1343,10 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->data_interaction->set_axis_link_manager(&ui->axis_link_mgr);
 
     // Wire pane tab context menu callbacks
-    ui->imgui_ui->set_pane_tab_duplicate_cb(
-        [fig_mgr_ptr](FigureId index) { fig_mgr_ptr->duplicate_figure(index); });
-    ui->imgui_ui->set_pane_tab_close_cb(
-        [fig_mgr_ptr](FigureId index) { fig_mgr_ptr->queue_close(index); });
+    ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
+                                            { fig_mgr_ptr->duplicate_figure(index); });
+    ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
+                                        { fig_mgr_ptr->queue_close(index); });
     ui->imgui_ui->set_pane_tab_split_right_cb(
         [dock_ptr, fig_mgr_ptr](FigureId index)
         {
@@ -1362,16 +1365,13 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             dock_ptr->split_figure_down(index, new_fig);
             dock_ptr->set_active_figure_index(index);
         });
-    ui->imgui_ui->set_pane_tab_rename_cb(
-        [fig_mgr_ptr](size_t index, const std::string& t)
-        { fig_mgr_ptr->set_title(index, t); });
+    ui->imgui_ui->set_pane_tab_rename_cb([fig_mgr_ptr](size_t index, const std::string& t)
+                                         { fig_mgr_ptr->set_title(index, t); });
 
     // Figure title lookup — fig_idx is a FigureId, not a positional index
     ui->imgui_ui->set_figure_title_callback(
         [fig_mgr_ptr](size_t fig_idx) -> std::string
-        {
-            return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx));
-        });
+        { return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx)); });
 
     // Dock system → tab bar sync
     auto* figure_tabs_raw = ui->figure_tabs.get();
@@ -1420,8 +1420,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         }
     }
 
-    SPECTRA_LOG_INFO("imgui",
-                     "Created ImGui context for window " + std::to_string(wctx.id));
+    SPECTRA_LOG_INFO("imgui", "Created ImGui context for window " + std::to_string(wctx.id));
 
     wctx.ui_ctx = std::move(ui);
 #else
@@ -1446,7 +1445,7 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     auto& ui = *wctx->ui_ctx;
 
     // Switch to this window's ImGui context so input is routed correctly.
@@ -1462,10 +1461,8 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     auto& dock_system = ui.dock_system;
 
     bool input_is_dragging =
-        input_handler.mode() == InteractionMode::Dragging
-        || input_handler.is_measure_dragging()
-        || input_handler.is_middle_pan_dragging()
-        || input_handler.has_measure_result();
+        input_handler.mode() == InteractionMode::Dragging || input_handler.is_measure_dragging()
+        || input_handler.is_middle_pan_dragging() || input_handler.has_measure_result();
 
     if (!input_is_dragging && imgui_ui
         && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
@@ -1499,10 +1496,10 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     // Restore previous ImGui context
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)x;
     (void)y;
-#endif
+    #endif
 }
 
 void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
@@ -1517,8 +1514,7 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     // temporarily grabs the pointer when a new GLFW window is created/mapped,
     // sending a real ButtonRelease to the source window.  That release is an
     // artifact, not the user lifting their finger.
-    if (mgr->mouse_release_tracking_ && button == GLFW_MOUSE_BUTTON_LEFT
-        && action == GLFW_RELEASE)
+    if (mgr->mouse_release_tracking_ && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
     {
         auto now = std::chrono::steady_clock::now();
         if (now >= mgr->suppress_release_until_)
@@ -1529,7 +1525,7 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     auto& ui = *wctx->ui_ctx;
 
     // Switch to this window's ImGui context for correct input routing
@@ -1545,10 +1541,9 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
 
-    bool input_is_dragging =
-        input_handler.mode() == InteractionMode::Dragging
-        || input_handler.is_measure_dragging()
-        || input_handler.is_middle_pan_dragging();
+    bool input_is_dragging = input_handler.mode() == InteractionMode::Dragging
+                             || input_handler.is_measure_dragging()
+                             || input_handler.is_middle_pan_dragging();
 
     if (!input_is_dragging && imgui_ui
         && (imgui_ui->wants_capture_mouse() || imgui_ui->is_tab_interacting()))
@@ -1585,11 +1580,11 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     // Restore previous ImGui context
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)button;
     (void)action;
     (void)mods;
-#endif
+    #endif
 }
 
 void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, double y_offset)
@@ -1602,7 +1597,7 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     auto& ui = *wctx->ui_ctx;
 
     // Switch to this window's ImGui context for correct input routing
@@ -1656,13 +1651,14 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     // Restore previous ImGui context
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)x_offset;
     (void)y_offset;
-#endif
+    #endif
 }
 
-void WindowManager::glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void WindowManager::glfw_key_callback(
+    GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!mgr)
@@ -1672,7 +1668,7 @@ void WindowManager::glfw_key_callback(GLFWwindow* window, int key, int scancode,
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     auto& ui = *wctx->ui_ctx;
 
     // Switch to this window's ImGui context for correct input routing
@@ -1699,8 +1695,8 @@ void WindowManager::glfw_key_callback(GLFWwindow* window, int key, int scancode,
     }
 
     // Q (no modifiers) = close active tab; if last tab, close window
-    constexpr int GLFW_KEY_Q_VAL = 81;   // GLFW_KEY_Q
-    constexpr int GLFW_PRESS_VAL = 1;    // GLFW_PRESS
+    constexpr int GLFW_KEY_Q_VAL = 81;  // GLFW_KEY_Q
+    constexpr int GLFW_PRESS_VAL = 1;   // GLFW_PRESS
     if (key == GLFW_KEY_Q_VAL && action == GLFW_PRESS_VAL && mods == 0)
     {
         auto* fm = ui.fig_mgr;
@@ -1718,12 +1714,12 @@ void WindowManager::glfw_key_callback(GLFWwindow* window, int key, int scancode,
     // Restore previous ImGui context
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)scancode;
     (void)key;
     (void)action;
     (void)mods;
-#endif
+    #endif
 }
 
 void WindowManager::glfw_char_callback(GLFWwindow* window, unsigned int codepoint)
@@ -1736,7 +1732,7 @@ void WindowManager::glfw_char_callback(GLFWwindow* window, unsigned int codepoin
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     // Switch to this window's ImGui context and forward char event
     ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
     if (wctx->imgui_context)
@@ -1744,9 +1740,9 @@ void WindowManager::glfw_char_callback(GLFWwindow* window, unsigned int codepoin
     ImGui_ImplGlfw_CharCallback(window, codepoint);
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)codepoint;
-#endif
+    #endif
 }
 
 void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
@@ -1759,7 +1755,7 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     if (!wctx || !wctx->ui_ctx)
         return;
 
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
     // Switch to this window's ImGui context and forward cursor enter/leave
     ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
     if (wctx->imgui_context)
@@ -1767,9 +1763,9 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     ImGui_ImplGlfw_CursorEnterCallback(window, entered);
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
-#else
+    #else
     (void)entered;
-#endif
+    #endif
 }
 
 #else
@@ -1782,7 +1778,10 @@ void WindowManager::glfw_key_callback(GLFWwindow*, int, int, int, int) {}
 void WindowManager::glfw_char_callback(GLFWwindow*, unsigned int) {}
 void WindowManager::glfw_cursor_enter_callback(GLFWwindow*, int) {}
 
-WindowContext* WindowManager::find_by_glfw_window(GLFWwindow*) const { return nullptr; }
+WindowContext* WindowManager::find_by_glfw_window(GLFWwindow*) const
+{
+    return nullptr;
+}
 
 #endif
 

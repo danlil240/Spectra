@@ -17,14 +17,14 @@
     #include "dock_system.hpp"
     #include "figure_manager.hpp"
     #include "imgui_integration.hpp"
-    #include "tab_drag_controller.hpp"
     #include "keyframe_interpolator.hpp"
+    #include "knob_manager.hpp"
     #include "mode_transition.hpp"
     #include "shortcut_manager.hpp"
     #include "tab_bar.hpp"
+    #include "tab_drag_controller.hpp"
     #include "timeline_editor.hpp"
     #include "undo_manager.hpp"
-    #include "knob_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_GLFW

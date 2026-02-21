@@ -1,10 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <span>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/plot_style.hpp>
-#include <span>
 #include <string>
 #include <vector>
 

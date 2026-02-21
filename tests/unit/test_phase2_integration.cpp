@@ -143,7 +143,8 @@ class UndoWorkspaceIntegration : public ::testing::Test
 
     void SetUp() override
     {
-        tmp_path = (std::filesystem::temp_directory_path() / "spectra_int_undo_ws.spectra").string();
+        tmp_path =
+            (std::filesystem::temp_directory_path() / "spectra_int_undo_ws.spectra").string();
     }
 
     void TearDown() override { std::remove(tmp_path.c_str()); }
@@ -295,7 +296,8 @@ TEST_F(FigureManagerWorkspaceIntegration, MultiFigureSaveRestore)
     for (auto id : mgr->figure_ids())
     {
         Figure* f = registry.get(id);
-        if (f) fig_ptrs.push_back(f);
+        if (f)
+            fig_ptrs.push_back(f);
     }
 
     auto ws = Workspace::capture(fig_ptrs, mgr->active_index(), "dark", true, 320.0f, false);
@@ -346,7 +348,8 @@ TEST_F(FigureManagerWorkspaceIntegration, DuplicateThenSave)
     for (auto id : mgr->figure_ids())
     {
         Figure* f = registry.get(id);
-        if (f) fig_ptrs.push_back(f);
+        if (f)
+            fig_ptrs.push_back(f);
     }
 
     auto ws = Workspace::capture(fig_ptrs, first_id, "dark", true, 320.0f, false);
@@ -485,7 +488,7 @@ TEST(FigureManagerIntegration, QueuedOperationsProcessCorrectly)
     FigureId first_id = registry.register_figure(std::make_unique<Figure>());
     FigureManager mgr(registry);
 
-    mgr.create_figure();  // auto-switches
+    mgr.create_figure();                     // auto-switches
     FigureId last_id = mgr.create_figure();  // auto-switches
     EXPECT_EQ(mgr.active_index(), last_id);
 

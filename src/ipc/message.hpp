@@ -9,49 +9,49 @@ namespace spectra::ipc
 
 // ─── IPC ID types ────────────────────────────────────────────────────────────
 using SessionId = uint64_t;
-using WindowId  = uint64_t;
+using WindowId = uint64_t;
 using ProcessId = uint64_t;
 using RequestId = uint64_t;
-using Revision  = uint64_t;
+using Revision = uint64_t;
 
 static constexpr SessionId INVALID_SESSION = 0;
-static constexpr WindowId  INVALID_WINDOW  = 0;
+static constexpr WindowId INVALID_WINDOW = 0;
 static constexpr RequestId INVALID_REQUEST = 0;
 
 // ─── Message types ───────────────────────────────────────────────────────────
 enum class MessageType : uint16_t
 {
     // Handshake
-    HELLO           = 0x0001,
-    WELCOME         = 0x0002,
+    HELLO = 0x0001,
+    WELCOME = 0x0002,
 
     // Request/Response
-    RESP_OK         = 0x0010,
-    RESP_ERR        = 0x0011,
+    RESP_OK = 0x0010,
+    RESP_ERR = 0x0011,
 
     // Control (Agent → Backend)
-    REQ_CREATE_WINDOW  = 0x0100,
-    REQ_CLOSE_WINDOW   = 0x0101,
-    REQ_DETACH_FIGURE  = 0x0102,
-    REQ_MOVE_FIGURE    = 0x0103,
-    REQ_SNAPSHOT       = 0x0104,
+    REQ_CREATE_WINDOW = 0x0100,
+    REQ_CLOSE_WINDOW = 0x0101,
+    REQ_DETACH_FIGURE = 0x0102,
+    REQ_MOVE_FIGURE = 0x0103,
+    REQ_SNAPSHOT = 0x0104,
 
     // Control (Backend → Agent)
     CMD_ASSIGN_FIGURES = 0x0200,
-    CMD_REMOVE_FIGURE  = 0x0201,
-    CMD_SET_ACTIVE     = 0x0202,
-    CMD_CLOSE_WINDOW   = 0x0203,
+    CMD_REMOVE_FIGURE = 0x0201,
+    CMD_SET_ACTIVE = 0x0202,
+    CMD_CLOSE_WINDOW = 0x0203,
 
     // State sync
-    STATE_SNAPSHOT  = 0x0300,
-    STATE_DIFF      = 0x0301,
-    ACK_STATE       = 0x0302,
+    STATE_SNAPSHOT = 0x0300,
+    STATE_DIFF = 0x0301,
+    ACK_STATE = 0x0302,
 
     // Events (Agent → Backend)
-    EVT_INPUT       = 0x0400,
-    EVT_WINDOW      = 0x0401,
-    EVT_TAB_DRAG    = 0x0402,
-    EVT_HEARTBEAT   = 0x0403,
+    EVT_INPUT = 0x0400,
+    EVT_WINDOW = 0x0401,
+    EVT_TAB_DRAG = 0x0402,
+    EVT_HEARTBEAT = 0x0403,
 };
 
 // ─── Message envelope ────────────────────────────────────────────────────────
@@ -68,17 +68,17 @@ enum class MessageType : uint16_t
 
 static constexpr uint8_t MAGIC_0 = 0x53;  // 'S'
 static constexpr uint8_t MAGIC_1 = 0x50;  // 'P'
-static constexpr size_t  HEADER_SIZE = 40;
-static constexpr size_t  MAX_PAYLOAD_SIZE = 16 * 1024 * 1024;  // 16 MiB
+static constexpr size_t HEADER_SIZE = 40;
+static constexpr size_t MAX_PAYLOAD_SIZE = 16 * 1024 * 1024;  // 16 MiB
 
 struct MessageHeader
 {
-    MessageType type       = MessageType::HELLO;
-    uint32_t    payload_len = 0;
-    uint64_t    seq         = 0;
-    RequestId   request_id  = INVALID_REQUEST;
-    SessionId   session_id  = INVALID_SESSION;
-    WindowId    window_id   = INVALID_WINDOW;
+    MessageType type = MessageType::HELLO;
+    uint32_t payload_len = 0;
+    uint64_t seq = 0;
+    RequestId request_id = INVALID_REQUEST;
+    SessionId session_id = INVALID_SESSION;
+    WindowId window_id = INVALID_WINDOW;
 };
 
 struct Message
@@ -103,9 +103,9 @@ struct HelloPayload
 struct WelcomePayload
 {
     SessionId session_id = INVALID_SESSION;
-    WindowId  window_id  = INVALID_WINDOW;
+    WindowId window_id = INVALID_WINDOW;
     ProcessId process_id = 0;
-    uint32_t  heartbeat_ms = 5000;
+    uint32_t heartbeat_ms = 5000;
     std::string mode;  // "inproc" or "multiproc"
 };
 
@@ -119,7 +119,7 @@ struct RespOkPayload
 struct RespErrPayload
 {
     RequestId request_id = INVALID_REQUEST;
-    uint32_t  code = 0;
+    uint32_t code = 0;
     std::string message;
 };
 
@@ -154,7 +154,7 @@ struct ReqDetachFigurePayload
     uint64_t figure_id = 0;
     uint32_t width = 800;
     uint32_t height = 600;
-    int32_t screen_x = 0;   // drop position (screen coordinates)
+    int32_t screen_x = 0;  // drop position (screen coordinates)
     int32_t screen_y = 0;
 };
 
@@ -225,7 +225,7 @@ struct SnapshotFigureState
 struct SnapshotKnobState
 {
     std::string name;
-    uint8_t type = 0;   // 0=Float, 1=Int, 2=Bool, 3=Choice
+    uint8_t type = 0;  // 0=Float, 1=Int, 2=Bool, 3=Choice
     float value = 0.0f;
     float min_val = 0.0f;
     float max_val = 1.0f;
@@ -247,18 +247,18 @@ struct DiffOp
 {
     enum class Type : uint8_t
     {
-        SET_AXIS_LIMITS   = 1,
-        SET_SERIES_COLOR  = 2,
+        SET_AXIS_LIMITS = 1,
+        SET_SERIES_COLOR = 2,
         SET_SERIES_VISIBLE = 3,
-        SET_FIGURE_TITLE  = 4,
-        SET_GRID_VISIBLE  = 5,
-        SET_LINE_WIDTH    = 6,
-        SET_MARKER_SIZE   = 7,
-        SET_OPACITY       = 8,
-        ADD_FIGURE        = 10,
-        REMOVE_FIGURE     = 11,
-        SET_SERIES_DATA   = 12,
-        SET_KNOB_VALUE    = 20,  // str_val=knob name, f1=new value
+        SET_FIGURE_TITLE = 4,
+        SET_GRID_VISIBLE = 5,
+        SET_LINE_WIDTH = 6,
+        SET_MARKER_SIZE = 7,
+        SET_OPACITY = 8,
+        ADD_FIGURE = 10,
+        REMOVE_FIGURE = 11,
+        SET_SERIES_DATA = 12,
+        SET_KNOB_VALUE = 20,  // str_val=knob name, f1=new value
     };
 
     Type type = Type::SET_AXIS_LIMITS;
@@ -294,21 +294,21 @@ struct EvtInputPayload
 {
     enum class InputType : uint8_t
     {
-        KEY_PRESS    = 1,
-        KEY_RELEASE  = 2,
+        KEY_PRESS = 1,
+        KEY_RELEASE = 2,
         MOUSE_BUTTON = 3,
-        MOUSE_MOVE   = 4,
-        SCROLL       = 5,
+        MOUSE_MOVE = 4,
+        SCROLL = 5,
     };
 
     WindowId window_id = INVALID_WINDOW;
     InputType input_type = InputType::KEY_PRESS;
-    int32_t key = 0;       // GLFW key code or mouse button
-    int32_t mods = 0;      // modifier bits
-    double x = 0.0;        // cursor x or scroll x
-    double y = 0.0;        // cursor y or scroll y
-    uint64_t figure_id = 0;  // which figure the input targets
-    uint32_t axes_index = 0; // which axes within the figure
+    int32_t key = 0;          // GLFW key code or mouse button
+    int32_t mods = 0;         // modifier bits
+    double x = 0.0;           // cursor x or scroll x
+    double y = 0.0;           // cursor y or scroll y
+    uint64_t figure_id = 0;   // which figure the input targets
+    uint32_t axes_index = 0;  // which axes within the figure
 };
 
 }  // namespace spectra::ipc

@@ -80,7 +80,8 @@ TEST_F(FigureManagerTest, CreateMultipleFigures)
     FigureId id3 = mgr.create_figure();
     EXPECT_EQ(mgr.count(), 4u);
     EXPECT_EQ(mgr.active_index(), id3);
-    (void)id1; (void)id2;
+    (void)id1;
+    (void)id2;
 }
 
 // ─── Close Figure ─────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ TEST_F(FigureManagerTest, CloseBeforeActiveAdjustsIndex)
     FigureId id2 = mgr.create_figure();
     mgr.switch_to(id2);
 
-    mgr.close_figure(first_id_);  // Close first figure
+    mgr.close_figure(first_id_);         // Close first figure
     EXPECT_EQ(mgr.active_index(), id2);  // Active unchanged (different ID)
     EXPECT_EQ(mgr.count(), 2u);
 }
@@ -572,8 +573,8 @@ TEST_F(FigureManagerTest, RapidCreateClose)
 TEST_F(FigureManagerTest, CreateCloseCreateSequence)
 {
     FigureManager mgr(registry_);
-    mgr.create_figure();  // Now 2
-    mgr.close_figure(first_id_);  // Now 1
+    mgr.create_figure();                    // Now 2
+    mgr.close_figure(first_id_);            // Now 1
     FigureId id_new = mgr.create_figure();  // Now 2 again
     EXPECT_EQ(mgr.count(), 2u);
     EXPECT_EQ(mgr.active_index(), id_new);

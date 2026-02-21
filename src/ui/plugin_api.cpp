@@ -62,8 +62,8 @@ extern "C"
     }
 
     int spectra_bind_shortcut(SpectraShortcutManager manager,
-                             const char* shortcut_str,
-                             const char* command_id)
+                              const char* shortcut_str,
+                              const char* command_id)
     {
         if (!manager || !shortcut_str || !command_id)
             return -1;
@@ -76,11 +76,11 @@ extern "C"
     }
 
     int spectra_push_undo(SpectraUndoManager manager,
-                         const char* description,
-                         SpectraCommandCallback undo_fn,
-                         void* undo_data,
-                         SpectraCommandCallback redo_fn,
-                         void* redo_data)
+                          const char* description,
+                          SpectraCommandCallback undo_fn,
+                          void* undo_data,
+                          SpectraCommandCallback redo_fn,
+                          void* redo_data)
     {
         if (!manager || !description)
             return -1;
@@ -148,7 +148,8 @@ bool PluginManager::load_plugin(const std::string& path)
     if (!handle)
         return false;
     init_fn = reinterpret_cast<SpectraPluginInitFn>(dlsym(handle, "spectra_plugin_init"));
-    shutdown_fn = reinterpret_cast<SpectraPluginShutdownFn>(dlsym(handle, "spectra_plugin_shutdown"));
+    shutdown_fn =
+        reinterpret_cast<SpectraPluginShutdownFn>(dlsym(handle, "spectra_plugin_shutdown"));
 #endif
 
     if (!init_fn)

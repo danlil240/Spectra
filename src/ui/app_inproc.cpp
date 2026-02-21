@@ -20,6 +20,7 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+
     #include "glfw_adapter.hpp"
     #include "window_manager.hpp"
 #endif
@@ -153,21 +154,24 @@ void App::run_inproc()
             // The first group goes to the primary GLFW window; additional groups
             // each get their own OS window via create_window_with_ui().
             window_mgr = std::make_unique<WindowManager>();
-            window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
-                             &registry_, renderer_.get());
+            window_mgr->init(
+                static_cast<VulkanBackend*>(backend_.get()), &registry_, renderer_.get());
 
             // Set tab drag handlers BEFORE creating windows so all windows get them
             window_mgr->set_tab_detach_handler(
-                [&session](FigureId fid, uint32_t w, uint32_t h,
-                           const std::string& title, int sx, int sy)
-                { session.queue_detach({fid, w, h, title, sx, sy}); });
+                [&session](
+                    FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)
+                {
+                    session.queue_detach({fid, w, h, title, sx, sy});
+                });
             window_mgr->set_tab_move_handler(
-                [&session](FigureId fid, uint32_t target_wid)
-                { session.queue_move({fid, target_wid}); });
+                [&session](FigureId fid, uint32_t target_wid) {
+                    session.queue_move({fid, target_wid});
+                });
 
             // First group → primary window
-            auto* initial_wctx = window_mgr->create_first_window_with_ui(
-                glfw->native_window(), window_groups[0]);
+            auto* initial_wctx =
+                window_mgr->create_first_window_with_ui(glfw->native_window(), window_groups[0]);
 
             if (initial_wctx && initial_wctx->ui_ctx)
             {
@@ -178,14 +182,14 @@ void App::run_inproc()
             for (size_t gi = 1; gi < window_groups.size(); ++gi)
             {
                 auto& group = window_groups[gi];
-                if (group.empty()) continue;
+                if (group.empty())
+                    continue;
 
                 auto* fig0 = registry_.get(group[0]);
                 uint32_t w = fig0 ? fig0->width() : 800;
                 uint32_t h = fig0 ? fig0->height() : 600;
 
-                auto* new_wctx = window_mgr->create_window_with_ui(
-                    w, h, "Spectra", group[0]);
+                auto* new_wctx = window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
 
                 if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
                 {
@@ -212,27 +216,27 @@ void App::run_inproc()
 
 #ifdef SPECTRA_USE_IMGUI
     // Convenience aliases — reference members of ui_ctx_ptr.
-    auto& imgui_ui        = ui_ctx_ptr->imgui_ui;
+    auto& imgui_ui = ui_ctx_ptr->imgui_ui;
     auto& data_interaction = ui_ctx_ptr->data_interaction;
-    auto& figure_tabs     = ui_ctx_ptr->figure_tabs;
+    auto& figure_tabs = ui_ctx_ptr->figure_tabs;
     auto& box_zoom_overlay = ui_ctx_ptr->box_zoom_overlay;
-    auto& dock_system     = ui_ctx_ptr->dock_system;
+    auto& dock_system = ui_ctx_ptr->dock_system;
     auto& dock_tab_sync_guard = ui_ctx_ptr->dock_tab_sync_guard;
-    auto& axis_link_mgr   = ui_ctx_ptr->axis_link_mgr;
+    auto& axis_link_mgr = ui_ctx_ptr->axis_link_mgr;
     auto& timeline_editor = ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor    = ui_ctx_ptr->curve_editor;
+    auto& curve_editor = ui_ctx_ptr->curve_editor;
     auto& mode_transition = ui_ctx_ptr->mode_transition;
-    auto& is_in_3d_mode   = ui_ctx_ptr->is_in_3d_mode;
+    auto& is_in_3d_mode = ui_ctx_ptr->is_in_3d_mode;
     auto& saved_3d_camera = ui_ctx_ptr->saved_3d_camera;
-    auto& home_limits     = ui_ctx_ptr->home_limits;
-    auto& cmd_registry    = ui_ctx_ptr->cmd_registry;
-    auto& shortcut_mgr    = ui_ctx_ptr->shortcut_mgr;
-    auto& undo_mgr        = ui_ctx_ptr->undo_mgr;
-    auto& cmd_palette     = ui_ctx_ptr->cmd_palette;
+    auto& home_limits = ui_ctx_ptr->home_limits;
+    auto& cmd_registry = ui_ctx_ptr->cmd_registry;
+    auto& shortcut_mgr = ui_ctx_ptr->shortcut_mgr;
+    auto& undo_mgr = ui_ctx_ptr->undo_mgr;
+    auto& cmd_palette = ui_ctx_ptr->cmd_palette;
     auto& tab_drag_controller = ui_ctx_ptr->tab_drag_controller;
     auto& fig_mgr = *ui_ctx_ptr->fig_mgr;
-    auto& input_handler   = ui_ctx_ptr->input_handler;
+    auto& input_handler = ui_ctx_ptr->input_handler;
     auto& anim_controller = ui_ctx_ptr->anim_controller;
 
     // Point ImGui at the external knob manager (if provided by easy API or user).
@@ -272,7 +276,7 @@ void App::run_inproc()
     cmd_palette.set_command_registry(&cmd_registry);
     cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
         tab_drag_controller.set_window_manager(window_mgr.get());
@@ -284,7 +288,7 @@ void App::run_inproc()
             input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
         }
     }
-#endif
+    #endif
 #endif
 
     if (config_.headless)
@@ -304,7 +308,8 @@ void App::run_inproc()
         figure_tabs->set_tab_split_right_callback(
             [&dock_system, &fig_mgr, this](size_t pos)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 FigureId id = fig_mgr.figure_ids()[pos];
                 if (!registry_.get(id))
                     return;
@@ -318,7 +323,8 @@ void App::run_inproc()
         figure_tabs->set_tab_split_down_callback(
             [&dock_system, &fig_mgr, this](size_t pos)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 FigureId id = fig_mgr.figure_ids()[pos];
                 if (!registry_.get(id))
                     return;
@@ -333,7 +339,8 @@ void App::run_inproc()
         figure_tabs->set_tab_detach_callback(
             [&fig_mgr, &session, this](size_t pos, float screen_x, float screen_y)
             {
-                if (pos >= fig_mgr.figure_ids().size()) return;
+                if (pos >= fig_mgr.figure_ids().size())
+                    return;
                 FigureId id = fig_mgr.figure_ids()[pos];
                 auto* fig = registry_.get(id);
                 if (!fig)
@@ -346,8 +353,12 @@ void App::run_inproc()
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(id);
 
-                session.queue_detach({id, win_w, win_h, title,
-                    static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                session.queue_detach({id,
+                                      win_w,
+                                      win_h,
+                                      title,
+                                      static_cast<int>(screen_x),
+                                      static_cast<int>(screen_y)});
             });
     }
 
@@ -370,8 +381,12 @@ void App::run_inproc()
                 uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(index);
 
-                session.queue_detach({index, win_w, win_h, title,
-                    static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                session.queue_detach({index,
+                                      win_w,
+                                      win_h,
+                                      title,
+                                      static_cast<int>(screen_x),
+                                      static_cast<int>(screen_y)});
             });
 
         // Pane tab detach callback (needs session.queue_detach)
@@ -388,8 +403,12 @@ void App::run_inproc()
                     uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
                     std::string title = fig_mgr.get_title(index);
 
-                    session.queue_detach({index, win_w, win_h, title,
-                        static_cast<int>(screen_x), static_cast<int>(screen_y)});
+                    session.queue_detach({index,
+                                          win_w,
+                                          win_h,
+                                          title,
+                                          static_cast<int>(screen_x),
+                                          static_cast<int>(screen_y)});
                 });
         }
 
@@ -404,9 +423,9 @@ void App::run_inproc()
             cb.active_figure = &active_figure;
             cb.active_figure_id = &active_figure_id;
             cb.session = &session;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
             cb.window_mgr = window_mgr.get();
-#endif
+    #endif
             register_standard_commands(cb);
         }
     }
@@ -418,7 +437,8 @@ void App::run_inproc()
     for (auto id : registry_.all_ids())
     {
         Figure* fig_ptr = registry_.get(id);
-        if (!fig_ptr) continue;
+        if (!fig_ptr)
+            continue;
         for (auto& ax : fig_ptr->axes_mut())
         {
             if (ax)
@@ -429,8 +449,11 @@ void App::run_inproc()
     while (!session.should_exit())
     {
         // ── Session tick: scheduler, commands, animations, window loop, detach ──
-        session.tick(scheduler, animator, cmd_queue,
-                     config_.headless, ui_ctx_ptr,
+        session.tick(scheduler,
+                     animator,
+                     cmd_queue,
+                     config_.headless,
+                     ui_ctx_ptr,
 #ifdef SPECTRA_USE_GLFW
                      window_mgr.get(),
 #endif
@@ -453,21 +476,20 @@ void App::run_inproc()
         if (!config_.headless && active_figure && !active_figure->png_export_path_.empty())
         {
             uint32_t ew = active_figure->png_export_width_ > 0 ? active_figure->png_export_width_
-                                                                : active_figure->width();
+                                                               : active_figure->width();
             uint32_t eh = active_figure->png_export_height_ > 0 ? active_figure->png_export_height_
-                                                                 : active_figure->height();
+                                                                : active_figure->height();
             std::vector<uint8_t> px(static_cast<size_t>(ew) * eh * 4);
             if (backend_->readback_framebuffer(px.data(), ew, eh))
             {
                 if (ImageExporter::write_png(active_figure->png_export_path_, px.data(), ew, eh))
                 {
-                    SPECTRA_LOG_INFO("export",
-                                    "Saved PNG: " + active_figure->png_export_path_);
+                    SPECTRA_LOG_INFO("export", "Saved PNG: " + active_figure->png_export_path_);
                 }
                 else
                 {
                     SPECTRA_LOG_ERROR("export",
-                                     "Failed to write PNG: " + active_figure->png_export_path_);
+                                      "Failed to write PNG: " + active_figure->png_export_path_);
                 }
             }
             else
@@ -623,8 +645,8 @@ void App::render_secondary_window(WindowContext* wctx)
     if (wctx->needs_resize)
     {
         auto elapsed = std::chrono::steady_clock::now() - wctx->resize_time;
-        if (elapsed >= SECONDARY_RESIZE_DEBOUNCE
-            && wctx->pending_width > 0 && wctx->pending_height > 0)
+        if (elapsed >= SECONDARY_RESIZE_DEBOUNCE && wctx->pending_width > 0
+            && wctx->pending_height > 0)
         {
             // Use ImGui-aware swapchain recreation if this window has an ImGui context
             vk->recreate_swapchain_for_with_imgui(*wctx, wctx->pending_width, wctx->pending_height);

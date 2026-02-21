@@ -1,7 +1,6 @@
 #define SPECTRA_HAS_FIGURE_REGISTRY
 
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
@@ -162,8 +161,10 @@ TEST(FigureRegistryConstruction, DefaultEmpty)
 TEST(FigureRegistryConstruction, RegisterReturnsStableId)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     EXPECT_NE(id1, id2);
     EXPECT_NE(id1, 0u);
     EXPECT_NE(id2, 0u);
@@ -172,9 +173,12 @@ TEST(FigureRegistryConstruction, RegisterReturnsStableId)
 TEST(FigureRegistryConstruction, IdsAreMonotonic)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id3 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_LT(id1, id2);
     EXPECT_LT(id2, id3);
 }
@@ -184,7 +188,8 @@ TEST(FigureRegistryConstruction, IdsAreMonotonic)
 TEST(FigureRegistryLookup, GetValidId)
 {
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig = reg.get(id);
     EXPECT_NE(fig, nullptr);
     EXPECT_EQ(fig->width(), 320u);
@@ -199,7 +204,8 @@ TEST(FigureRegistryLookup, GetInvalidIdReturnsNull)
 TEST(FigureRegistryLookup, GetAfterUnregister)
 {
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     reg.unregister_figure(id);
     EXPECT_EQ(reg.get(id), nullptr);
 }
@@ -207,8 +213,10 @@ TEST(FigureRegistryLookup, GetAfterUnregister)
 TEST(FigureRegistryLookup, AllIdsReturnsRegistered)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     auto ids = reg.all_ids();
     EXPECT_EQ(ids.size(), 2u);
     EXPECT_EQ(ids[0], id1);
@@ -220,8 +228,10 @@ TEST(FigureRegistryLookup, AllIdsReturnsRegistered)
 TEST(FigureRegistryLifecycle, UnregisterReducesCount)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     EXPECT_EQ(reg.count(), 2u);
     reg.unregister_figure(id1);
     EXPECT_EQ(reg.count(), 1u);
@@ -240,9 +250,11 @@ TEST(FigureRegistryLifecycle, UnregisterInvalidIdNoOp)
 TEST(FigureRegistryLifecycle, IdNotReusedAfterUnregister)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     reg.unregister_figure(id1);
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_NE(id1, id2);  // IDs are never reused
     EXPECT_GT(id2, id1);
 }
@@ -250,9 +262,11 @@ TEST(FigureRegistryLifecycle, IdNotReusedAfterUnregister)
 TEST(FigureRegistryLifecycle, PointerStableAcrossRegistrations)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* ptr1 = reg.get(id1);
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     (void)id2;
     EXPECT_EQ(reg.get(id1), ptr1);  // Adding id2 doesn't invalidate id1's pointer
 }
@@ -260,7 +274,8 @@ TEST(FigureRegistryLifecycle, PointerStableAcrossRegistrations)
 TEST(FigureRegistryLifecycle, ContainsRegistered)
 {
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_TRUE(reg.contains(id));
     EXPECT_FALSE(reg.contains(999));
 }
@@ -268,7 +283,8 @@ TEST(FigureRegistryLifecycle, ContainsRegistered)
 TEST(FigureRegistryLifecycle, ReleaseReturnsOwnership)
 {
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_EQ(reg.count(), 1u);
     auto fig = reg.release(id);
     ASSERT_NE(fig, nullptr);
@@ -298,9 +314,12 @@ TEST(FigureRegistryLifecycle, ClearRemovesAll)
 TEST(FigureRegistryLifecycle, InsertionOrderPreserved)
 {
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 100, .height = 100}));
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 200, .height = 200}));
-    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 300, .height = 300}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 100, .height = 100}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 200, .height = 200}));
+    auto id3 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 300, .height = 300}));
     auto ids = reg.all_ids();
     ASSERT_EQ(ids.size(), 3u);
     EXPECT_EQ(ids[0], id1);
@@ -331,7 +350,8 @@ TEST(FigureRegistryGpu, RegisteredFigureRenderable)
 
     // Separately verify FigureRegistry can hold figures
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* rfig = reg.get(id);
     ASSERT_NE(rfig, nullptr);
     auto& rax = rfig->subplot(1, 1, 1);
@@ -345,7 +365,8 @@ TEST(FigureRegistryGpu, PointerStabilityForGpuKeying)
     // Verify that registering/unregistering other figures doesn't
     // invalidate a figure's series pointers.
     FigureRegistry reg;
-    auto id1 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id1 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig1 = reg.get(id1);
     auto& ax = fig1->subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f};
@@ -354,8 +375,10 @@ TEST(FigureRegistryGpu, PointerStabilityForGpuKeying)
     const Series* series_ptr = &series;
 
     // Register more figures
-    auto id2 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
-    auto id3 = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 800, .height = 600}));
+    auto id2 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id3 =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 800, .height = 600}));
 
     // Unregister one
     reg.unregister_figure(id2);
@@ -370,7 +393,8 @@ TEST(FigureRegistryGpu, ReleasePreservesSeriesPointers)
 {
     // Releasing a figure from the registry preserves its Series* pointers
     FigureRegistry reg;
-    auto id = reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id =
+        reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig = reg.get(id);
     auto& ax = fig->subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f};
@@ -395,7 +419,8 @@ TEST(FigureRegistryMove, MoveFigureBetweenRegistries)
     FigureRegistry reg_a;
     FigureRegistry reg_b;
 
-    auto id_a = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id_a =
+        reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig = reg_a.get(id_a);
     auto& ax = fig->subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
@@ -422,7 +447,8 @@ TEST(FigureRegistryMove, GpuDataPreservedAfterMove)
     FigureRegistry reg_a;
     FigureRegistry reg_b;
 
-    auto id_a = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id_a =
+        reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig = reg_a.get(id_a);
     auto& ax = fig->subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f};
@@ -442,8 +468,10 @@ TEST(FigureRegistryMove, SourceUnaffectedAfterMove)
 {
     // Moving figure out of registry A should not affect other figures in A.
     FigureRegistry reg_a;
-    auto id1 = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    auto id2 = reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
+    auto id1 =
+        reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
+    auto id2 =
+        reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     Figure* fig2 = reg_a.get(id2);
 
     // Move id1 out

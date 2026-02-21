@@ -26,7 +26,7 @@ struct Knob
     float value = 0.0f;
     float min_val = 0.0f;
     float max_val = 1.0f;
-    float step = 0.0f;  // 0 = continuous (Float), 1 (Int/Choice)
+    float step = 0.0f;                 // 0 = continuous (Float), 1 (Int/Choice)
     std::vector<std::string> choices;  // For KnobType::Choice
     std::function<void(float)> on_change;
 

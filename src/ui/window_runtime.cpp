@@ -15,6 +15,7 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+
     #include "window_manager.hpp"
 #endif
 
@@ -37,9 +38,12 @@ WindowRuntime::WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistr
 
 // ─── update ───────────────────────────────────────────────────────────────────
 // Per-window update: advance animations, build ImGui UI, compute layout.
-void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameScheduler& scheduler
+void WindowRuntime::update(WindowUIContext& ui_ctx,
+                           FrameState& fs,
+                           FrameScheduler& scheduler
 #ifdef SPECTRA_USE_GLFW
-                           , WindowManager* window_mgr
+                           ,
+                           WindowManager* window_mgr
 #endif
 )
 {
@@ -49,13 +53,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
     auto& anim_time = fs.anim_time;
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui        = ui_ctx.imgui_ui;
+    auto& imgui_ui = ui_ctx.imgui_ui;
     auto& data_interaction = ui_ctx.data_interaction;
-    auto& dock_system     = ui_ctx.dock_system;
+    auto& dock_system = ui_ctx.dock_system;
     auto& timeline_editor = ui_ctx.timeline_editor;
     auto& mode_transition = ui_ctx.mode_transition;
-    auto& home_limits     = ui_ctx.home_limits;
-    auto& fig_mgr         = *ui_ctx.fig_mgr;
+    auto& home_limits = ui_ctx.home_limits;
+    auto& fig_mgr = *ui_ctx.fig_mgr;
     auto& anim_controller = ui_ctx.anim_controller;
 
     // Advance timeline editor (drives interpolator evaluation)
@@ -196,8 +200,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
         if (since_last >= RESIZE_DEBOUNCE)
         {
             SPECTRA_LOG_INFO("resize",
-                            "Recreating swapchain: " + std::to_string(new_width) + "x"
-                                + std::to_string(new_height));
+                             "Recreating swapchain: " + std::to_string(new_width) + "x"
+                                 + std::to_string(new_height));
             needs_resize = false;
             auto* vk = static_cast<VulkanBackend*>(&backend_);
             vk->clear_swapchain_dirty();
@@ -327,7 +331,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
             active_figure = fig;
             scheduler.set_target_fps(active_figure->anim_fps_);
             has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
             input_handler.set_figure(active_figure);
             if (!active_figure->axes().empty() && active_figure->axes()[0])
             {
@@ -335,7 +339,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
                 const auto& vp = active_figure->axes()[0]->viewport();
                 input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
             }
-#endif
+    #endif
         }
     }
 
@@ -466,8 +470,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx, FrameState& fs, FrameSchedul
                                                           cb.x,
                                                           cb.y);
 
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size();
-                     ++i)
+                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i)
                 {
                     if (active_figure->axes_mut()[i])
                     {
@@ -524,8 +527,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
         if (aw && aw->glfw_window)
         {
             int fb_w = 0, fb_h = 0;
-            glfwGetFramebufferSize(
-                static_cast<GLFWwindow*>(aw->glfw_window), &fb_w, &fb_h);
+            glfwGetFramebufferSize(static_cast<GLFWwindow*>(aw->glfw_window), &fb_w, &fb_h);
             if (fb_w > 0 && fb_h > 0)
             {
                 target_w = static_cast<uint32_t>(fb_w);
@@ -535,13 +537,17 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
 #endif
         if (target_w == 0 || target_h == 0)
         {
-            if (aw) { target_w = aw->pending_width; target_h = aw->pending_height; }
+            if (aw)
+            {
+                target_w = aw->pending_width;
+                target_h = aw->pending_height;
+            }
         }
         if (aw && target_w > 0 && target_h > 0)
         {
             SPECTRA_LOG_INFO("resize",
-                            "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
-                                + std::to_string(target_h));
+                             "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
+                                 + std::to_string(target_h));
             aw->swapchain_invalidated = false;
             backend_.recreate_swapchain(target_w, target_h);
             vk->clear_swapchain_dirty();
@@ -628,8 +634,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs)
                 }
 #endif
                 SPECTRA_LOG_DEBUG("resize",
-                                 "Post-present OUT_OF_DATE, recreating: "
-                                     + std::to_string(rw) + "x" + std::to_string(rh));
+                                  "Post-present OUT_OF_DATE, recreating: " + std::to_string(rw)
+                                      + "x" + std::to_string(rh));
                 backend_.recreate_swapchain(rw, rh);
                 vk_post->clear_swapchain_dirty();
                 active_figure->config_.width = backend_.swapchain_width();

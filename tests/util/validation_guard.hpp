@@ -19,10 +19,9 @@
 // Day 0 scaffolding: This header compiles against the current codebase.
 // It uses the Vulkan C API directly (no dependency on WindowContext).
 
-#include <gtest/gtest.h>
-
 #include <atomic>
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -39,11 +38,11 @@ enum class ValidationSeverity : uint32_t
     Info = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
     Verbose = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
     All = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
-        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
-        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+          | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+          | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+          | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
     ErrorsAndWarnings = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
-                      | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
+                        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
 };
 
 struct ValidationMessage
@@ -83,8 +82,8 @@ class ValidationGuard
         ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         ci.messageSeverity = static_cast<VkDebugUtilsMessageSeverityFlagsEXT>(severity_filter);
         ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+                         | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                         | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         ci.pfnUserCallback = debug_callback;
         ci.pUserData = this;
 
@@ -163,19 +162,18 @@ class ValidationGuard
         if (!ok())
         {
             dump();
-            ADD_FAILURE() << "Vulkan validation errors detected"
-                          << (context[0] ? " during " : "") << context
-                          << ": " << error_count() << " error(s), "
-                          << warning_count() << " warning(s)";
+            ADD_FAILURE() << "Vulkan validation errors detected" << (context[0] ? " during " : "")
+                          << context << ": " << error_count() << " error(s), " << warning_count()
+                          << " warning(s)";
         }
     }
 
    private:
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
-        VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-        VkDebugUtilsMessageTypeFlagsEXT type,
-        const VkDebugUtilsMessengerCallbackDataEXT* data,
-        void* user_data)
+    static VKAPI_ATTR VkBool32 VKAPI_CALL
+    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                   VkDebugUtilsMessageTypeFlagsEXT type,
+                   const VkDebugUtilsMessengerCallbackDataEXT* data,
+                   void* user_data)
     {
         auto* self = static_cast<ValidationGuard*>(user_data);
 

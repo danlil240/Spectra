@@ -1,12 +1,11 @@
+#include <chrono>
+#include <filesystem>
 #include <gtest/gtest.h>
+#include <thread>
 
 #include "ipc/codec.hpp"
 #include "ipc/message.hpp"
 #include "ipc/transport.hpp"
-
-#include <thread>
-#include <chrono>
-#include <filesystem>
 
 using namespace spectra::ipc;
 
@@ -363,10 +362,7 @@ TEST(IpcTransport, ConnectionSendRecv)
 
     // Client connects in a thread
     std::unique_ptr<Connection> client_conn;
-    std::thread client_thread([&]()
-    {
-        client_conn = Client::connect(sock_path);
-    });
+    std::thread client_thread([&]() { client_conn = Client::connect(sock_path); });
 
     auto server_conn = server.accept();
     client_thread.join();
@@ -427,30 +423,31 @@ TEST(IpcTransport, FullHandshake)
     ASSERT_TRUE(server.listen(sock_path));
 
     // Simulate agent → backend handshake
-    std::thread agent_thread([&]()
-    {
-        auto conn = Client::connect(sock_path);
-        ASSERT_NE(conn, nullptr);
+    std::thread agent_thread(
+        [&]()
+        {
+            auto conn = Client::connect(sock_path);
+            ASSERT_NE(conn, nullptr);
 
-        // Agent sends HELLO
-        Message hello_msg;
-        hello_msg.header.type = MessageType::HELLO;
-        hello_msg.header.seq = 1;
-        hello_msg.payload = encode_hello({PROTOCOL_MAJOR, PROTOCOL_MINOR, "test-agent", 0});
-        ASSERT_TRUE(conn->send(hello_msg));
+            // Agent sends HELLO
+            Message hello_msg;
+            hello_msg.header.type = MessageType::HELLO;
+            hello_msg.header.seq = 1;
+            hello_msg.payload = encode_hello({PROTOCOL_MAJOR, PROTOCOL_MINOR, "test-agent", 0});
+            ASSERT_TRUE(conn->send(hello_msg));
 
-        // Agent receives WELCOME
-        auto welcome_msg = conn->recv();
-        ASSERT_TRUE(welcome_msg.has_value());
-        EXPECT_EQ(welcome_msg->header.type, MessageType::WELCOME);
+            // Agent receives WELCOME
+            auto welcome_msg = conn->recv();
+            ASSERT_TRUE(welcome_msg.has_value());
+            EXPECT_EQ(welcome_msg->header.type, MessageType::WELCOME);
 
-        auto welcome = decode_welcome(welcome_msg->payload);
-        ASSERT_TRUE(welcome.has_value());
-        EXPECT_NE(welcome->session_id, INVALID_SESSION);
-        EXPECT_NE(welcome->window_id, INVALID_WINDOW);
+            auto welcome = decode_welcome(welcome_msg->payload);
+            ASSERT_TRUE(welcome.has_value());
+            EXPECT_NE(welcome->session_id, INVALID_SESSION);
+            EXPECT_NE(welcome->window_id, INVALID_WINDOW);
 
-        conn->close();
-    });
+            conn->close();
+        });
 
     // Backend accepts and processes handshake
     auto conn = server.accept();
@@ -486,13 +483,14 @@ TEST(IpcTransport, ConnectionClosedRecvReturnsNullopt)
     Server server;
     ASSERT_TRUE(server.listen(sock_path));
 
-    std::thread client_thread([&]()
-    {
-        auto conn = Client::connect(sock_path);
-        ASSERT_NE(conn, nullptr);
-        // Close immediately — server's recv should return nullopt
-        conn->close();
-    });
+    std::thread client_thread(
+        [&]()
+        {
+            auto conn = Client::connect(sock_path);
+            ASSERT_NE(conn, nullptr);
+            // Close immediately — server's recv should return nullopt
+            conn->close();
+        });
 
     auto conn = server.accept();
     ASSERT_NE(conn, nullptr);
@@ -534,9 +532,7 @@ TEST(IpcTransport, FullMultiWindowFlow)
 
     // Agent 1 connects
     std::unique_ptr<Connection> agent1_conn;
-    std::thread agent1_thread([&]() {
-        agent1_conn = Client::connect(sock_path);
-    });
+    std::thread agent1_thread([&]() { agent1_conn = Client::connect(sock_path); });
     auto server_conn1 = server.accept();
     agent1_thread.join();
     ASSERT_NE(server_conn1, nullptr);
@@ -544,9 +540,7 @@ TEST(IpcTransport, FullMultiWindowFlow)
 
     // Agent 2 connects
     std::unique_ptr<Connection> agent2_conn;
-    std::thread agent2_thread([&]() {
-        agent2_conn = Client::connect(sock_path);
-    });
+    std::thread agent2_thread([&]() { agent2_conn = Client::connect(sock_path); });
     auto server_conn2 = server.accept();
     agent2_thread.join();
     ASSERT_NE(server_conn2, nullptr);
@@ -993,7 +987,10 @@ TEST(IpcCodec, StateDiffMultipleOps)
     DiffOp op1;
     op1.type = DiffOp::Type::SET_AXIS_LIMITS;
     op1.figure_id = 1;
-    op1.f1 = 0.0f; op1.f2 = 100.0f; op1.f3 = 0.0f; op1.f4 = 100.0f;
+    op1.f1 = 0.0f;
+    op1.f2 = 100.0f;
+    op1.f3 = 0.0f;
+    op1.f4 = 100.0f;
     p.ops.push_back(op1);
 
     DiffOp op2;

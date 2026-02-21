@@ -22,18 +22,13 @@ pid_t ProcessManager::spawn_agent()
         return -1;
 
     pid_t pid = 0;
-    const char* argv[] = {
-        agent_path_.c_str(),
-        "--socket",
-        socket_path_.c_str(),
-        nullptr
-    };
+    const char* argv[] = {agent_path_.c_str(), "--socket", socket_path_.c_str(), nullptr};
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
 
-    int ret = posix_spawn(&pid, agent_path_.c_str(), &actions, nullptr,
-                          const_cast<char* const*>(argv), environ);
+    int ret = posix_spawn(
+        &pid, agent_path_.c_str(), &actions, nullptr, const_cast<char* const*>(argv), environ);
     posix_spawn_file_actions_destroy(&actions);
 
     if (ret != 0)

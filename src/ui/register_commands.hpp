@@ -20,8 +20,8 @@ struct CommandBindings
 {
     WindowUIContext* ui_ctx = nullptr;
     FigureRegistry* registry = nullptr;
-    Figure** active_figure = nullptr;       // updated per-frame
-    FigureId* active_figure_id = nullptr;   // updated per-frame
+    Figure** active_figure = nullptr;      // updated per-frame
+    FigureId* active_figure_id = nullptr;  // updated per-frame
     SessionRuntime* session = nullptr;
 #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = nullptr;

@@ -14,12 +14,11 @@
 //
 // Day 0 scaffolding: no dependency on WindowContext or WindowManager.
 
-#include <gtest/gtest.h>
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <gtest/gtest.h>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -33,10 +32,7 @@ class GpuHangDetector
     using Clock = std::chrono::steady_clock;
     using Duration = Clock::duration;
 
-    explicit GpuHangDetector(Duration timeout = std::chrono::seconds(10))
-        : timeout_(timeout)
-    {
-    }
+    explicit GpuHangDetector(Duration timeout = std::chrono::seconds(10)) : timeout_(timeout) {}
 
     // Run a callable with hang detection.
     // Returns true if the callable completed within the timeout.
@@ -55,23 +51,24 @@ class GpuHangDetector
         std::condition_variable cv;
         bool done = false;
 
-        std::thread watchdog([&]() {
-            std::unique_lock<std::mutex> lock(mtx);
-            if (cv.wait_for(lock, timeout_, [&]() { return done; }))
+        std::thread watchdog(
+            [&]()
             {
-                // Completed in time
-                return;
-            }
-            // Timed out
-            timed_out_.store(true, std::memory_order_relaxed);
-        });
+                std::unique_lock<std::mutex> lock(mtx);
+                if (cv.wait_for(lock, timeout_, [&]() { return done; }))
+                {
+                    // Completed in time
+                    return;
+                }
+                // Timed out
+                timed_out_.store(true, std::memory_order_relaxed);
+            });
 
         // Execute the callable
         fn();
 
         auto elapsed = Clock::now() - start;
-        elapsed_ms_ =
-            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        elapsed_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 
         {
             std::lock_guard<std::mutex> lock(mtx);
@@ -82,12 +79,11 @@ class GpuHangDetector
 
         if (timed_out_.load(std::memory_order_relaxed))
         {
-            failure_reason_ = "GPU hang detected: '" + description_
-                            + "' did not complete within "
-                            + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                 timeout_)
-                                                 .count())
-                            + "ms (elapsed: " + std::to_string(elapsed_ms_) + "ms)";
+            failure_reason_ =
+                "GPU hang detected: '" + description_ + "' did not complete within "
+                + std::to_string(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(timeout_).count())
+                + "ms (elapsed: " + std::to_string(elapsed_ms_) + "ms)";
             return false;
         }
 

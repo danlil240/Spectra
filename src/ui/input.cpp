@@ -126,7 +126,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
     // SPECTRA_LOG_DEBUG("input",
     //                  "Mouse button event - button: " + std::to_string(button)
-    //                      + ", action: " + std::to_string(action) + ", mods: " + std::to_string(mods)
+    //                      + ", action: " + std::to_string(action) + ", mods: " +
+    //                      std::to_string(mods)
     //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
     // Hit-test all axes (including 3D) first
@@ -287,7 +288,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
     if (button == MOUSE_BUTTON_LEFT)
     {
-
         // Select mode: left-drag for region selection
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle
             && tool_mode_ == ToolMode::Select)
@@ -513,8 +513,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         if (speed > MIN_INERTIA_VELOCITY)
                         {
                             SPECTRA_LOG_DEBUG("input",
-                                             "Inertial pan: v=(" + std::to_string(vx_data) + ", "
-                                                 + std::to_string(vy_data) + ")");
+                                              "Inertial pan: v=(" + std::to_string(vx_data) + ", "
+                                                  + std::to_string(vy_data) + ")");
                             if (transition_engine_)
                             {
                                 transition_engine_->animate_inertial_pan(
@@ -957,7 +957,6 @@ void InputHandler::on_key(int key, int action, int mods)
         }
         return;
     }
-
 }
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────

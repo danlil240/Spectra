@@ -2,9 +2,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <spectra/color.hpp>
 #include <spectra/series.hpp>
-#include <span>
 #include <string>
 
 namespace spectra

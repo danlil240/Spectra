@@ -132,7 +132,7 @@ class SplitPane
     PaneId id_;
     FigureId figure_index_ = 0;
     std::vector<FigureId> figure_indices_;  // All figures in this pane
-    size_t active_local_ = 0;             // Index into figure_indices_
+    size_t active_local_ = 0;               // Index into figure_indices_
 
     SplitDirection split_direction_ = SplitDirection::Horizontal;
     float split_ratio_ = 0.5f;

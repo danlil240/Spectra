@@ -1,15 +1,14 @@
 // app.cpp — Shared App code: constructor, destructor, figure(), run() dispatcher.
 // Mode-specific implementations live in app_inproc.cpp and app_multiproc.cpp.
 
+#include <filesystem>
+#include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
-
-#include <filesystem>
-#include <memory>
 
 namespace spectra
 {
@@ -41,7 +40,7 @@ App::App(const AppConfig& config) : config_(config)
     SPECTRA_LOG_INFO("app",
                      "Initializing Spectra application (headless: "
                          + std::string(config_.headless ? "true" : "false") + ")");
-    
+
 #if SPECTRA_RUNTIME_MODE == 'inproc'
     SPECTRA_LOG_INFO("app", "Runtime mode: inproc");
 #elif SPECTRA_RUNTIME_MODE == 'multiproc'
@@ -86,7 +85,7 @@ Figure& App::figure(const FigureConfig& config)
 Figure& App::figure(Figure& sibling)
 {
     FigureConfig cfg;
-    cfg.width  = sibling.width();
+    cfg.width = sibling.width();
     cfg.height = sibling.height();
     auto new_id = registry_.register_figure(std::make_unique<Figure>(cfg));
 

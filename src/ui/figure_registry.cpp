@@ -21,9 +21,8 @@ void FigureRegistry::unregister_figure(IdType id)
     if (it == figures_.end())
         return;
     figures_.erase(it);
-    insertion_order_.erase(
-        std::remove(insertion_order_.begin(), insertion_order_.end(), id),
-        insertion_order_.end());
+    insertion_order_.erase(std::remove(insertion_order_.begin(), insertion_order_.end(), id),
+                           insertion_order_.end());
 }
 
 Figure* FigureRegistry::get(IdType id) const
@@ -70,9 +69,8 @@ std::unique_ptr<Figure> FigureRegistry::release(IdType id)
         return nullptr;
     auto fig = std::move(it->second);
     figures_.erase(it);
-    insertion_order_.erase(
-        std::remove(insertion_order_.begin(), insertion_order_.end(), id),
-        insertion_order_.end());
+    insertion_order_.erase(std::remove(insertion_order_.begin(), insertion_order_.end(), id),
+                           insertion_order_.end());
     return fig;
 }
 

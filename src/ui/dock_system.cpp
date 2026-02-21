@@ -26,7 +26,9 @@ SplitPane* DockSystem::split_down(FigureId new_figure_index, float ratio)
     return result;
 }
 
-SplitPane* DockSystem::split_figure_right(FigureId figure_index, FigureId new_figure_index, float ratio)
+SplitPane* DockSystem::split_figure_right(FigureId figure_index,
+                                          FigureId new_figure_index,
+                                          float ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Horizontal, new_figure_index, ratio);
@@ -35,7 +37,9 @@ SplitPane* DockSystem::split_figure_right(FigureId figure_index, FigureId new_fi
     return result;
 }
 
-SplitPane* DockSystem::split_figure_down(FigureId figure_index, FigureId new_figure_index, float ratio)
+SplitPane* DockSystem::split_figure_down(FigureId figure_index,
+                                         FigureId new_figure_index,
+                                         float ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Vertical, new_figure_index, ratio);

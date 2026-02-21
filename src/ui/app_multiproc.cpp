@@ -6,12 +6,16 @@
 //
 // This file is only compiled when SPECTRA_RUNTIME_MODE=multiproc (see CMakeLists.txt).
 
+#include <chrono>
+#include <iostream>
 #include <spectra/app.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
-
-#include "knob_manager.hpp"
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
@@ -19,13 +23,7 @@
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
-
-#include <chrono>
-#include <iostream>
-#include <string>
-#include <thread>
-#include <unordered_map>
-#include <vector>
+#include "knob_manager.hpp"
 
 #ifdef __linux__
     #include <poll.h>
@@ -84,8 +82,7 @@ static pid_t spawn_backend(const std::string& sock_path)
     if (pid == 0)
     {
         // Child: exec the backend
-        ::execlp(backend_bin.c_str(), backend_bin.c_str(),
-                 "--socket", sock_path.c_str(), nullptr);
+        ::execlp(backend_bin.c_str(), backend_bin.c_str(), "--socket", sock_path.c_str(), nullptr);
         ::_exit(127);
     }
     return pid;
@@ -108,7 +105,8 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 
     for (const auto& ax_ptr : fig.axes())
     {
-        if (!ax_ptr) continue;
+        if (!ax_ptr)
+            continue;
         const auto& ax = *ax_ptr;
         ipc::SnapshotAxisState sa;
         sa.x_min = ax.x_limits().min;
@@ -123,7 +121,8 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 
         for (const auto& s_ptr : ax.series())
         {
-            if (!s_ptr) continue;
+            if (!s_ptr)
+                continue;
             const auto& s = *s_ptr;
             ipc::SnapshotSeriesState ss;
             ss.name = s.label();
@@ -208,11 +207,13 @@ void App::run_multiproc()
         for (auto id : registry_.all_ids())
         {
             Figure* fig = registry_.get(id);
-            if (!fig) continue;
+            if (!fig)
+                continue;
             fig->compute_layout();
 
             uint32_t export_w = fig->png_export_width_ > 0 ? fig->png_export_width_ : fig->width();
-            uint32_t export_h = fig->png_export_height_ > 0 ? fig->png_export_height_ : fig->height();
+            uint32_t export_h =
+                fig->png_export_height_ > 0 ? fig->png_export_height_ : fig->height();
 
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
@@ -238,8 +239,10 @@ void App::run_multiproc()
                 std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
                 if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
                 {
-                    if (!ImageExporter::write_png(fig->png_export_path_, pixels.data(), export_w, export_h))
-                        std::cerr << "[spectra] Failed to write PNG: " << fig->png_export_path_ << "\n";
+                    if (!ImageExporter::write_png(
+                            fig->png_export_path_, pixels.data(), export_w, export_h))
+                        std::cerr << "[spectra] Failed to write PNG: " << fig->png_export_path_
+                                  << "\n";
                 }
                 else
                 {
@@ -254,7 +257,8 @@ void App::run_multiproc()
             }
         }
 
-        if (backend_) backend_->wait_idle();
+        if (backend_)
+            backend_->wait_idle();
         return;
     }
 
@@ -331,7 +335,8 @@ void App::run_multiproc()
                 break;
 #endif
             auto msg_opt = conn->recv();
-            if (!msg_opt) break;
+            if (!msg_opt)
+                break;
         }
     }
 
@@ -353,7 +358,8 @@ void App::run_multiproc()
     for (auto id : registry_.all_ids())
     {
         Figure* fig = registry_.get(id);
-        if (!fig) continue;
+        if (!fig)
+            continue;
         fig->compute_layout();
         auto fig_snap = figure_to_snapshot(*fig, reg_to_ipc[id]);
         fig_snap.title = "Figure " + std::to_string(reg_to_ipc[id] - 99);
@@ -395,8 +401,10 @@ void App::run_multiproc()
         }
     }
 
-    send_msg(*conn, ipc::MessageType::STATE_SNAPSHOT,
-             session_id, window_id,
+    send_msg(*conn,
+             ipc::MessageType::STATE_SNAPSHOT,
+             session_id,
+             window_id,
              ipc::encode_state_snapshot(snap));
 
     // The daemon spawns one agent per figure automatically when it
@@ -410,7 +418,8 @@ void App::run_multiproc()
         if (fig && fig->has_animation())
         {
             has_any_animation = true;
-            if (fig->anim_fps() > max_fps) max_fps = fig->anim_fps();
+            if (fig->anim_fps() > max_fps)
+                max_fps = fig->anim_fps();
         }
     }
 
@@ -422,18 +431,29 @@ void App::run_multiproc()
 
     // Track last-sent axis limits so we can emit SET_AXIS_LIMITS diffs
     // when the user callback changes them (e.g. live_ax->xlim(t-10, t)).
-    struct AxisLimitsKey { uint64_t ipc_fig_id; uint32_t axes_idx; };
-    struct AxisLimitsKeyHash {
-        size_t operator()(const AxisLimitsKey& k) const {
+    struct AxisLimitsKey
+    {
+        uint64_t ipc_fig_id;
+        uint32_t axes_idx;
+    };
+    struct AxisLimitsKeyHash
+    {
+        size_t operator()(const AxisLimitsKey& k) const
+        {
             return std::hash<uint64_t>{}(k.ipc_fig_id) ^ (std::hash<uint32_t>{}(k.axes_idx) << 32);
         }
     };
-    struct AxisLimitsKeyEq {
-        bool operator()(const AxisLimitsKey& a, const AxisLimitsKey& b) const {
+    struct AxisLimitsKeyEq
+    {
+        bool operator()(const AxisLimitsKey& a, const AxisLimitsKey& b) const
+        {
             return a.ipc_fig_id == b.ipc_fig_id && a.axes_idx == b.axes_idx;
         }
     };
-    struct SentLimits { float xmin, xmax, ymin, ymax; };
+    struct SentLimits
+    {
+        float xmin, xmax, ymin, ymax;
+    };
     std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
@@ -448,23 +468,40 @@ void App::run_multiproc()
         struct pollfd pfd;
         pfd.fd = conn->fd();
         pfd.events = POLLIN;
-        
+
         int timeout_ms = scheduler ? 0 : 1000;
         bool exit_requested = false;
-        
+
         while (true)
         {
             pfd.revents = 0;
             int pr = ::poll(&pfd, 1, timeout_ms);
-            if (pr < 0) { exit_requested = true; break; }
-            if (pr == 0) break; // timeout
-            
-            if (pfd.revents & (POLLHUP | POLLERR)) { exit_requested = true; break; }
+            if (pr < 0)
+            {
+                exit_requested = true;
+                break;
+            }
+            if (pr == 0)
+                break;  // timeout
+
+            if (pfd.revents & (POLLHUP | POLLERR))
+            {
+                exit_requested = true;
+                break;
+            }
             if (pfd.revents & POLLIN)
             {
                 auto msg = conn->recv();
-                if (!msg) { exit_requested = true; break; }
-                if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) { exit_requested = true; break; }
+                if (!msg)
+                {
+                    exit_requested = true;
+                    break;
+                }
+                if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW)
+                {
+                    exit_requested = true;
+                    break;
+                }
                 // Apply knob value changes from agent UI back to the app's KnobManager
                 if (msg->header.type == ipc::MessageType::STATE_DIFF && knob_manager_)
                 {
@@ -479,26 +516,29 @@ void App::run_multiproc()
                     }
                 }
             }
-            else {
+            else
+            {
                 break;
             }
-            timeout_ms = 0; // only block on the first iteration
+            timeout_ms = 0;  // only block on the first iteration
         }
-        if (exit_requested) break;
+        if (exit_requested)
+            break;
 #else
         if (!scheduler)
         {
             auto msg = conn->recv();
-            if (!msg) break;
-            if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW) break;
+            if (!msg)
+                break;
+            if (msg->header.type == ipc::MessageType::CMD_CLOSE_WINDOW)
+                break;
         }
 #endif
 
         auto now = std::chrono::steady_clock::now();
         if (now - last_heartbeat >= HEARTBEAT_INTERVAL)
         {
-            if (!send_msg(*conn, ipc::MessageType::EVT_HEARTBEAT,
-                          session_id, window_id, {}))
+            if (!send_msg(*conn, ipc::MessageType::EVT_HEARTBEAT, session_id, window_id, {}))
                 break;
             last_heartbeat = now;
         }
@@ -507,7 +547,7 @@ void App::run_multiproc()
         {
             Frame frame = scheduler->current_frame();
             ipc::StateDiffPayload diff;
-            
+
             for (auto id : registry_.all_ids())
             {
                 Figure* fig = registry_.get(id);
@@ -524,7 +564,11 @@ void App::run_multiproc()
                     uint32_t axes_idx = 0;
                     for (const auto& ax_ptr : fig->axes())
                     {
-                        if (!ax_ptr) { axes_idx++; continue; }
+                        if (!ax_ptr)
+                        {
+                            axes_idx++;
+                            continue;
+                        }
 
                         // Emit SET_AXIS_LIMITS if limits changed since last frame
                         {
@@ -532,9 +576,10 @@ void App::run_multiproc()
                             auto ylim = ax_ptr->y_limits();
                             AxisLimitsKey key{reg_to_ipc[id], axes_idx};
                             auto it = sent_limits.find(key);
-                            bool changed = (it == sent_limits.end())
-                                || it->second.xmin != xlim.min || it->second.xmax != xlim.max
-                                || it->second.ymin != ylim.min || it->second.ymax != ylim.max;
+                            bool changed = (it == sent_limits.end()) || it->second.xmin != xlim.min
+                                           || it->second.xmax != xlim.max
+                                           || it->second.ymin != ylim.min
+                                           || it->second.ymax != ylim.max;
                             if (changed)
                             {
                                 ipc::DiffOp op;
@@ -572,7 +617,8 @@ void App::run_multiproc()
                                         op.data.push_back(yd[i]);
                                     }
                                 }
-                                else if (auto* scatter = dynamic_cast<const ScatterSeries*>(s_ptr.get()))
+                                else if (auto* scatter =
+                                             dynamic_cast<const ScatterSeries*>(s_ptr.get()))
                                 {
                                     auto xd = scatter->x_data();
                                     auto yd = scatter->y_data();
@@ -596,7 +642,11 @@ void App::run_multiproc()
 
             if (!diff.ops.empty())
             {
-                send_msg(*conn, ipc::MessageType::STATE_DIFF, session_id, window_id, ipc::encode_state_diff(diff));
+                send_msg(*conn,
+                         ipc::MessageType::STATE_DIFF,
+                         session_id,
+                         window_id,
+                         ipc::encode_state_diff(diff));
             }
 
             scheduler->end_frame();
@@ -607,8 +657,10 @@ void App::run_multiproc()
     ipc::ReqCloseWindowPayload close_req;
     close_req.window_id = window_id;
     close_req.reason = "app_exit";
-    send_msg(*conn, ipc::MessageType::REQ_CLOSE_WINDOW,
-             session_id, window_id,
+    send_msg(*conn,
+             ipc::MessageType::REQ_CLOSE_WINDOW,
+             session_id,
+             window_id,
              ipc::encode_req_close_window(close_req));
     conn->close();
 }

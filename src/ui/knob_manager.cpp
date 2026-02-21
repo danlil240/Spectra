@@ -6,49 +6,67 @@ namespace spectra
 {
 
 Knob& KnobManager::add_float(const std::string& name,
-                              float default_val,
-                              float min_val,
-                              float max_val,
-                              float step,
-                              std::function<void(float)> on_change)
+                             float default_val,
+                             float min_val,
+                             float max_val,
+                             float step,
+                             std::function<void(float)> on_change)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    knobs_.push_back({name, KnobType::Float, default_val, min_val, max_val, step, {}, std::move(on_change)});
+    knobs_.push_back(
+        {name, KnobType::Float, default_val, min_val, max_val, step, {}, std::move(on_change)});
     return knobs_.back();
 }
 
 Knob& KnobManager::add_int(const std::string& name,
-                            int default_val,
-                            int min_val,
-                            int max_val,
-                            std::function<void(float)> on_change)
+                           int default_val,
+                           int min_val,
+                           int max_val,
+                           std::function<void(float)> on_change)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    knobs_.push_back({name, KnobType::Int, static_cast<float>(default_val),
-                      static_cast<float>(min_val), static_cast<float>(max_val),
-                      1.0f, {}, std::move(on_change)});
+    knobs_.push_back({name,
+                      KnobType::Int,
+                      static_cast<float>(default_val),
+                      static_cast<float>(min_val),
+                      static_cast<float>(max_val),
+                      1.0f,
+                      {},
+                      std::move(on_change)});
     return knobs_.back();
 }
 
 Knob& KnobManager::add_bool(const std::string& name,
-                             bool default_val,
-                             std::function<void(float)> on_change)
+                            bool default_val,
+                            std::function<void(float)> on_change)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    knobs_.push_back({name, KnobType::Bool, default_val ? 1.0f : 0.0f,
-                      0.0f, 1.0f, 1.0f, {}, std::move(on_change)});
+    knobs_.push_back({name,
+                      KnobType::Bool,
+                      default_val ? 1.0f : 0.0f,
+                      0.0f,
+                      1.0f,
+                      1.0f,
+                      {},
+                      std::move(on_change)});
     return knobs_.back();
 }
 
 Knob& KnobManager::add_choice(const std::string& name,
-                               const std::vector<std::string>& choices,
-                               int default_index,
-                               std::function<void(float)> on_change)
+                              const std::vector<std::string>& choices,
+                              int default_index,
+                              std::function<void(float)> on_change)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     float max_idx = choices.empty() ? 0.0f : static_cast<float>(choices.size() - 1);
-    knobs_.push_back({name, KnobType::Choice, static_cast<float>(default_index),
-                      0.0f, max_idx, 1.0f, choices, std::move(on_change)});
+    knobs_.push_back({name,
+                      KnobType::Choice,
+                      static_cast<float>(default_index),
+                      0.0f,
+                      max_idx,
+                      1.0f,
+                      choices,
+                      std::move(on_change)});
     return knobs_.back();
 }
 
@@ -146,8 +164,8 @@ void KnobManager::clear()
 bool KnobManager::remove(const std::string& name)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = std::remove_if(knobs_.begin(), knobs_.end(),
-                             [&](const Knob& k) { return k.name == name; });
+    auto it =
+        std::remove_if(knobs_.begin(), knobs_.end(), [&](const Knob& k) { return k.name == name; });
     if (it == knobs_.end())
         return false;
     knobs_.erase(it, knobs_.end());

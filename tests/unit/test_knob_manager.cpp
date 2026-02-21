@@ -47,8 +47,7 @@ TEST(KnobManagerFloat, FloatCallback)
 {
     KnobManager mgr;
     float captured = 0.0f;
-    mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f,
-                   [&](float v) { captured = v; });
+    mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f, [&](float v) { captured = v; });
     EXPECT_TRUE(mgr.set_value("X", 5.0f));
     EXPECT_FLOAT_EQ(captured, 5.0f);
 }
@@ -121,8 +120,7 @@ TEST(KnobManagerChoice, ChoiceCallback)
 {
     KnobManager mgr;
     int captured = -1;
-    mgr.add_choice("Mode", {"A", "B", "C"}, 0,
-                    [&](float v) { captured = static_cast<int>(v); });
+    mgr.add_choice("Mode", {"A", "B", "C"}, 0, [&](float v) { captured = static_cast<int>(v); });
     mgr.set_value("Mode", 2.0f);
     EXPECT_EQ(captured, 2);
 }
@@ -254,8 +252,7 @@ TEST(KnobManagerCallback, BothCallbacksFire)
     KnobManager mgr;
     float per_knob_val = 0.0f;
     int global_count = 0;
-    mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f,
-                   [&](float v) { per_knob_val = v; });
+    mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f, [&](float v) { per_knob_val = v; });
     mgr.set_on_any_change([&]() { global_count++; });
 
     // set_value fires BOTH per-knob and global callbacks
@@ -315,8 +312,7 @@ TEST(KnobManagerEdge, SetSameValueNoCallback)
 {
     KnobManager mgr;
     int call_count = 0;
-    mgr.add_float("X", 5.0f, 0.0f, 10.0f, 0.0f,
-                   [&](float) { call_count++; });
+    mgr.add_float("X", 5.0f, 0.0f, 10.0f, 0.0f, [&](float) { call_count++; });
     mgr.set_value("X", 5.0f);  // Same value — should not fire
     EXPECT_EQ(call_count, 0);
 }

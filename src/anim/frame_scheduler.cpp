@@ -146,9 +146,9 @@ void FrameScheduler::update_stats(float dt_ms)
     {
         hitches_in_window_++;
         SPECTRA_LOG_DEBUG("hitch",
-                         "Frame " + std::to_string(frame_.number)
-                             + " hitch: " + std::to_string(dt_ms) + "ms"
-                             + " (target: " + std::to_string(target_ms) + "ms)");
+                          "Frame " + std::to_string(frame_.number)
+                              + " hitch: " + std::to_string(dt_ms) + "ms"
+                              + " (target: " + std::to_string(target_ms) + "ms)");
     }
 
     if (window_counter_ >= STATS_WINDOW_FRAMES)
@@ -162,10 +162,10 @@ void FrameScheduler::update_stats(float dt_ms)
         if (hitches_in_window_ > 0)
         {
             SPECTRA_LOG_INFO("perf",
-                            "Stats (" + std::to_string(STATS_WINDOW_FRAMES) + " frames):"
-                                + " avg=" + std::to_string(stats_.avg_frame_time_ms) + "ms"
-                                + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
-                                + " hitches=" + std::to_string(hitches_in_window_));
+                             "Stats (" + std::to_string(STATS_WINDOW_FRAMES)
+                                 + " frames):" + " avg=" + std::to_string(stats_.avg_frame_time_ms)
+                                 + "ms" + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
+                                 + " hitches=" + std::to_string(hitches_in_window_));
         }
 
         max_dt_in_window_ = 0.0f;

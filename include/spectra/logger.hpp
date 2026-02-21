@@ -122,64 +122,64 @@ Logger::LogSink file_sink(const std::string& filename);
 Logger::LogSink null_sink();
 }  // namespace sinks
 
-#define SPECTRA_LOG_TRACE(category, ...)                                         \
-    do                                                                          \
-    {                                                                           \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Trace)) \
-        {                                                                       \
-            ::spectra::Logger::instance().log_formatted(                         \
-                ::spectra::LogLevel::Trace, category, __VA_ARGS__);              \
-        }                                                                       \
-    } while (0)
-
-#define SPECTRA_LOG_DEBUG(category, ...)                                         \
-    do                                                                          \
-    {                                                                           \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Debug)) \
-        {                                                                       \
-            ::spectra::Logger::instance().log_formatted(                         \
-                ::spectra::LogLevel::Debug, category, __VA_ARGS__);              \
-        }                                                                       \
-    } while (0)
-
-#define SPECTRA_LOG_INFO(category, ...)                                         \
-    do                                                                         \
-    {                                                                          \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Info)) \
-        {                                                                      \
-            ::spectra::Logger::instance().log_formatted(                        \
-                ::spectra::LogLevel::Info, category, __VA_ARGS__);              \
-        }                                                                      \
-    } while (0)
-
-#define SPECTRA_LOG_WARN(category, ...)                                            \
+#define SPECTRA_LOG_TRACE(category, ...)                                          \
     do                                                                            \
     {                                                                             \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Warning)) \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Trace)) \
         {                                                                         \
-            ::spectra::Logger::instance().log_formatted(                           \
-                ::spectra::LogLevel::Warning, category, __VA_ARGS__);              \
+            ::spectra::Logger::instance().log_formatted(                          \
+                ::spectra::LogLevel::Trace, category, __VA_ARGS__);               \
         }                                                                         \
     } while (0)
 
-#define SPECTRA_LOG_ERROR(category, ...)                                         \
-    do                                                                          \
-    {                                                                           \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Error)) \
-        {                                                                       \
-            ::spectra::Logger::instance().log_formatted(                         \
-                ::spectra::LogLevel::Error, category, __VA_ARGS__);              \
-        }                                                                       \
+#define SPECTRA_LOG_DEBUG(category, ...)                                          \
+    do                                                                            \
+    {                                                                             \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Debug)) \
+        {                                                                         \
+            ::spectra::Logger::instance().log_formatted(                          \
+                ::spectra::LogLevel::Debug, category, __VA_ARGS__);               \
+        }                                                                         \
     } while (0)
 
-#define SPECTRA_LOG_CRITICAL(category, ...)                                         \
-    do                                                                             \
-    {                                                                              \
-        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Critical)) \
-        {                                                                          \
+#define SPECTRA_LOG_INFO(category, ...)                                          \
+    do                                                                           \
+    {                                                                            \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Info)) \
+        {                                                                        \
+            ::spectra::Logger::instance().log_formatted(                         \
+                ::spectra::LogLevel::Info, category, __VA_ARGS__);               \
+        }                                                                        \
+    } while (0)
+
+#define SPECTRA_LOG_WARN(category, ...)                                             \
+    do                                                                              \
+    {                                                                               \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Warning)) \
+        {                                                                           \
             ::spectra::Logger::instance().log_formatted(                            \
-                ::spectra::LogLevel::Critical, category, __VA_ARGS__);              \
-        }                                                                          \
+                ::spectra::LogLevel::Warning, category, __VA_ARGS__);               \
+        }                                                                           \
+    } while (0)
+
+#define SPECTRA_LOG_ERROR(category, ...)                                          \
+    do                                                                            \
+    {                                                                             \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Error)) \
+        {                                                                         \
+            ::spectra::Logger::instance().log_formatted(                          \
+                ::spectra::LogLevel::Error, category, __VA_ARGS__);               \
+        }                                                                         \
+    } while (0)
+
+#define SPECTRA_LOG_CRITICAL(category, ...)                                          \
+    do                                                                               \
+    {                                                                                \
+        if (::spectra::Logger::instance().is_enabled(::spectra::LogLevel::Critical)) \
+        {                                                                            \
+            ::spectra::Logger::instance().log_formatted(                             \
+                ::spectra::LogLevel::Critical, category, __VA_ARGS__);               \
+        }                                                                            \
     } while (0)
 
 #define SPECTRA_LOG_TRACE_HERE(category, ...) \

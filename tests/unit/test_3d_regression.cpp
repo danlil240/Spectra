@@ -3,8 +3,8 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/math3d.hpp>
-#include <spectra/spectra.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 #include "render/backend.hpp"

@@ -1,6 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
@@ -41,10 +40,7 @@ class WindowManagerTest : public ::testing::Test
 
     void TearDown() override { app_.reset(); }
 
-    VulkanBackend* vk_backend()
-    {
-        return static_cast<VulkanBackend*>(app_->backend());
-    }
+    VulkanBackend* vk_backend() { return static_cast<VulkanBackend*>(app_->backend()); }
 
     std::unique_ptr<App> app_;
 };
@@ -512,10 +508,8 @@ TEST_F(WindowManagerTest, MoveFigureClearsSource)
 TEST_F(WindowManagerTest, FigureIdIsUint64)
 {
     // Verify FigureId is uint64_t (not size_t)
-    static_assert(std::is_same_v<FigureId, uint64_t>,
-                  "FigureId must be uint64_t");
-    static_assert(INVALID_FIGURE_ID == ~FigureId{0},
-                  "INVALID_FIGURE_ID must be all-ones");
+    static_assert(std::is_same_v<FigureId, uint64_t>, "FigureId must be uint64_t");
+    static_assert(INVALID_FIGURE_ID == ~FigureId{0}, "INVALID_FIGURE_ID must be all-ones");
 }
 
 // ─── Detach Figure ──────────────────────────────────────────────────────────

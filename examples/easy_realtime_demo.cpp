@@ -19,9 +19,9 @@ int main()
     // Tab 1: Raw sensor signals (time domain)
     spectra::figure();
 
-    auto& temp   = spectra::plot().label("Temperature (°C)").color(spectra::colors::red);
-    auto& press  = spectra::plot().label("Pressure (kPa)").color(spectra::colors::blue);
-    auto& vibr   = spectra::plot().label("Vibration (g)").color(spectra::colors::green);
+    auto& temp = spectra::plot().label("Temperature (°C)").color(spectra::colors::red);
+    auto& press = spectra::plot().label("Pressure (kPa)").color(spectra::colors::blue);
+    auto& vibr = spectra::plot().label("Vibration (g)").color(spectra::colors::green);
 
     spectra::ylim(-3.0f, 3.0f);
     spectra::title("Live Sensor Dashboard");
@@ -60,8 +60,8 @@ int main()
         [&](float /*dt*/, float t)
         {
             // Simulate three sensor readings
-            float t_val = std::sin(t * 0.8f) + 0.2f * std::sin(t * 5.3f)
-                          + 0.1f * std::sin(t * 13.7f);
+            float t_val =
+                std::sin(t * 0.8f) + 0.2f * std::sin(t * 5.3f) + 0.1f * std::sin(t * 13.7f);
             float p_val = std::cos(t * 0.5f) + 0.4f * std::sin(t * 3.1f);
             float v_val = 0.5f * std::sin(t * 4.0f) * std::exp(-std::fmod(t, 3.0f) * 0.5f);
 
@@ -92,8 +92,10 @@ int main()
                 }
                 // Normalize
                 float max_val = 1.0f;
-                for (float v : hist_y) max_val = std::max(max_val, v);
-                for (float& v : hist_y) v /= max_val;
+                for (float v : hist_y)
+                    max_val = std::max(max_val, v);
+                for (float& v : hist_y)
+                    v /= max_val;
                 envelope.set_y(hist_y);
             }
         });

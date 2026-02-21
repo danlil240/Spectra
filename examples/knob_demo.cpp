@@ -16,10 +16,10 @@ int main()
         x[i] = static_cast<float>(i) / (N - 1) * 4.0f * 3.14159f;
 
     // Define knobs — appear as interactive sliders on the plot
-    auto& freq  = spectra::knob("Frequency", 1.0f, 0.1f, 8.0f);
-    auto& amp   = spectra::knob("Amplitude", 1.0f, 0.0f, 3.0f);
-    auto& phase = spectra::knob("Phase",     0.0f, 0.0f, 6.283f);
-    auto& decay = spectra::knob("Decay",     0.0f, 0.0f, 1.0f);
+    auto& freq = spectra::knob("Frequency", 1.0f, 0.1f, 8.0f);
+    auto& amp = spectra::knob("Amplitude", 1.0f, 0.0f, 3.0f);
+    auto& phase = spectra::knob("Phase", 0.0f, 0.0f, 6.283f);
+    auto& decay = spectra::knob("Decay", 0.0f, 0.0f, 1.0f);
 
     // Compute initial waveform
     for (int i = 0; i < N; ++i)
@@ -35,8 +35,7 @@ int main()
         [&](float /*dt*/, float /*t*/)
         {
             for (int i = 0; i < N; ++i)
-                y[i] = amp.value
-                       * std::sin(freq.value * x[i] + phase.value)
+                y[i] = amp.value * std::sin(freq.value * x[i] + phase.value)
                        * std::exp(-decay.value * x[i]);
             line.set_y(y);
         });

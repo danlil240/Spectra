@@ -1,7 +1,7 @@
 #include <cmath>
 #include <iostream>
-#include <spectra/spectra.hpp>
 #include <random>
+#include <spectra/spectra.hpp>
 #include <vector>
 
 using namespace spectra;

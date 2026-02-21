@@ -1,9 +1,8 @@
+#include <chrono>
 #include <gtest/gtest.h>
+#include <thread>
 
 #include "daemon/session_graph.hpp"
-
-#include <chrono>
-#include <thread>
 
 using namespace spectra::daemon;
 using namespace spectra::ipc;

@@ -1,11 +1,10 @@
 #pragma once
 
-#include <spectra/figure.hpp>
-#include <spectra/fwd.hpp>
-
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <spectra/figure.hpp>
+#include <spectra/fwd.hpp>
 #include <unordered_map>
 #include <vector>
 

@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../ipc/message.hpp"
-
 #include <cstdint>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "../ipc/message.hpp"
 
 namespace spectra::daemon
 {
@@ -24,7 +24,8 @@ class FigureModel
 
     // Create a new figure with default state. Returns the figure ID.
     uint64_t create_figure(const std::string& title = "Figure",
-                           uint32_t width = 1280, uint32_t height = 720);
+                           uint32_t width = 1280,
+                           uint32_t height = 720);
 
     // Remove a figure by ID. Returns true if found and removed.
     bool remove_figure(uint64_t figure_id);
@@ -33,13 +34,18 @@ class FigureModel
 
     // Add an axes to a figure. Returns the axes index.
     uint32_t add_axes(uint64_t figure_id,
-                      float x_min = 0.0f, float x_max = 1.0f,
-                      float y_min = 0.0f, float y_max = 1.0f);
+                      float x_min = 0.0f,
+                      float x_max = 1.0f,
+                      float y_min = 0.0f,
+                      float y_max = 1.0f);
 
     // Set axis limits. Returns a DiffOp for broadcasting.
-    ipc::DiffOp set_axis_limits(uint64_t figure_id, uint32_t axes_index,
-                                float x_min, float x_max,
-                                float y_min, float y_max);
+    ipc::DiffOp set_axis_limits(uint64_t figure_id,
+                                uint32_t axes_index,
+                                float x_min,
+                                float x_max,
+                                float y_min,
+                                float y_max);
 
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
@@ -52,8 +58,8 @@ class FigureModel
                         const std::string& type = "line");
 
     // Set series color. Returns a DiffOp.
-    ipc::DiffOp set_series_color(uint64_t figure_id, uint32_t series_index,
-                                 float r, float g, float b, float a);
+    ipc::DiffOp set_series_color(
+        uint64_t figure_id, uint32_t series_index, float r, float g, float b, float a);
 
     // Set series visibility. Returns a DiffOp.
     ipc::DiffOp set_series_visible(uint64_t figure_id, uint32_t series_index, bool visible);
@@ -68,7 +74,8 @@ class FigureModel
     ipc::DiffOp set_opacity(uint64_t figure_id, uint32_t series_index, float opacity);
 
     // Set series data (raw floats). Returns a DiffOp.
-    ipc::DiffOp set_series_data(uint64_t figure_id, uint32_t series_index,
+    ipc::DiffOp set_series_data(uint64_t figure_id,
+                                uint32_t series_index,
                                 const std::vector<float>& data);
 
     // Set figure title. Returns a DiffOp.
@@ -116,7 +123,7 @@ class FigureModel
     };
 
     std::unordered_map<uint64_t, FigureData> figures_;
-    std::vector<uint64_t> figure_order_;  // insertion order
+    std::vector<uint64_t> figure_order_;         // insertion order
     std::vector<ipc::SnapshotKnobState> knobs_;  // interactive parameter knobs
 
     // Bump revision (caller must hold lock).

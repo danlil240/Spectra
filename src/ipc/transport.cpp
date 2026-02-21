@@ -1,16 +1,17 @@
 #include "transport.hpp"
-#include "codec.hpp"
 
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <unistd.h>
 
+#include "codec.hpp"
+
 #ifdef __linux__
     #include <fcntl.h>
     #include <sys/socket.h>
-    #include <sys/un.h>
     #include <sys/stat.h>
+    #include <sys/un.h>
 #endif
 
 namespace spectra::ipc
@@ -20,7 +21,10 @@ namespace spectra::ipc
 
 Connection::Connection(int fd) : fd_(fd) {}
 
-Connection::~Connection() { close(); }
+Connection::~Connection()
+{
+    close();
+}
 
 Connection::Connection(Connection&& other) noexcept : fd_(other.fd_)
 {
@@ -66,14 +70,16 @@ bool Connection::write_exact(const uint8_t* buf, size_t len)
 
 bool Connection::send(const Message& msg)
 {
-    if (fd_ < 0) return false;
+    if (fd_ < 0)
+        return false;
     auto wire = encode_message(msg);
     return write_exact(wire.data(), wire.size());
 }
 
 std::optional<Message> Connection::recv()
 {
-    if (fd_ < 0) return std::nullopt;
+    if (fd_ < 0)
+        return std::nullopt;
 
     // Read fixed header
     uint8_t hdr_buf[HEADER_SIZE];
@@ -114,7 +120,10 @@ void Connection::close()
 
 Server::Server() = default;
 
-Server::~Server() { close(); }
+Server::~Server()
+{
+    close();
+}
 
 bool Server::listen(const std::string& path)
 {
@@ -126,7 +135,9 @@ bool Server::listen(const std::string& path)
     if (fd < 0)
         return false;
 
-    struct sockaddr_un addr{};
+    struct sockaddr_un addr
+    {
+    };
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {
@@ -166,11 +177,12 @@ std::unique_ptr<Connection> Server::accept()
     if (listen_fd_ < 0)
         return nullptr;
 
-    struct sockaddr_un client_addr{};
+    struct sockaddr_un client_addr
+    {
+    };
     socklen_t client_len = sizeof(client_addr);
-    int client_fd = ::accept(listen_fd_,
-                             reinterpret_cast<struct sockaddr*>(&client_addr),
-                             &client_len);
+    int client_fd =
+        ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
     if (client_fd < 0)
         return nullptr;
 
@@ -186,7 +198,9 @@ std::unique_ptr<Connection> Server::try_accept()
     if (listen_fd_ < 0)
         return nullptr;
 
-    struct sockaddr_un client_addr{};
+    struct sockaddr_un client_addr
+    {
+    };
     socklen_t client_len = sizeof(client_addr);
     // SOCK_NONBLOCK makes accept4 return EAGAIN immediately if no connection
     int client_fd = ::accept4(listen_fd_,
@@ -230,7 +244,9 @@ std::unique_ptr<Connection> Client::connect(const std::string& path)
     if (fd < 0)
         return nullptr;
 
-    struct sockaddr_un addr{};
+    struct sockaddr_un addr
+    {
+    };
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {

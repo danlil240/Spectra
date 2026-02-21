@@ -12,6 +12,7 @@
     #include <spectra/logger.hpp>
     #include <spectra/math3d.hpp>
     #include <spectra/series.hpp>
+    #include <unordered_map>
 
     #include "../render/vulkan/vk_backend.hpp"
     #include "animation_curve_editor.hpp"
@@ -29,12 +30,10 @@
     #include "mode_transition.hpp"
     #include "tab_bar.hpp"
     #include "tab_drag_controller.hpp"
-    #include "window_manager.hpp"
     #include "theme.hpp"
     #include "timeline_editor.hpp"
     #include "widgets.hpp"
-
-    #include <unordered_map>
+    #include "window_manager.hpp"
 
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
@@ -168,8 +167,9 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
     auto current_rp_bits = reinterpret_cast<uint64_t>(current_rp);
     if (current_rp_bits != cached_render_pass_ && current_rp != VK_NULL_HANDLE)
     {
-        SPECTRA_LOG_WARN("imgui",
-                         "Render pass changed after swapchain recreation — reinitializing ImGui Vulkan backend");
+        SPECTRA_LOG_WARN(
+            "imgui",
+            "Render pass changed after swapchain recreation — reinitializing ImGui Vulkan backend");
         ImGui_ImplVulkan_Shutdown();
 
         ImGui_ImplVulkan_InitInfo ii{};
@@ -279,18 +279,16 @@ void ImGuiIntegration::build_ui(Figure& figure)
         ImGui::BeginTooltip();
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-        ImGui::PushStyleColor(
-            ImGuiCol_PopupBg,
-            ImVec4(ui::theme().bg_elevated.r,
-                   ui::theme().bg_elevated.g,
-                   ui::theme().bg_elevated.b,
-                   0.95f));
-        ImGui::PushStyleColor(
-            ImGuiCol_Border,
-            ImVec4(ui::theme().border_subtle.r,
-                   ui::theme().border_subtle.g,
-                   ui::theme().border_subtle.b,
-                   0.3f));
+        ImGui::PushStyleColor(ImGuiCol_PopupBg,
+                              ImVec4(ui::theme().bg_elevated.r,
+                                     ui::theme().bg_elevated.g,
+                                     ui::theme().bg_elevated.b,
+                                     0.95f));
+        ImGui::PushStyleColor(ImGuiCol_Border,
+                              ImVec4(ui::theme().border_subtle.r,
+                                     ui::theme().border_subtle.g,
+                                     ui::theme().border_subtle.b,
+                                     0.3f));
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(ui::theme().text_primary.r,
                                      ui::theme().text_primary.g,
@@ -349,14 +347,10 @@ void ImGuiIntegration::build_ui(Figure& figure)
             {
                 auto* dl = ImGui::GetForegroundDrawList();
                 auto accent = ui::theme().accent;
-                ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
-                                          uint8_t(accent.g * 255),
-                                          uint8_t(accent.b * 255),
-                                          220);
-                ImU32 dot_col = IM_COL32(uint8_t(accent.r * 255),
-                                         uint8_t(accent.g * 255),
-                                         uint8_t(accent.b * 255),
-                                         255);
+                ImU32 line_col = IM_COL32(
+                    uint8_t(accent.r * 255), uint8_t(accent.g * 255), uint8_t(accent.b * 255), 220);
+                ImU32 dot_col = IM_COL32(
+                    uint8_t(accent.r * 255), uint8_t(accent.g * 255), uint8_t(accent.b * 255), 255);
                 ImU32 bg_col = IM_COL32(uint8_t(ui::theme().bg_elevated.r * 255),
                                         uint8_t(ui::theme().bg_elevated.g * 255),
                                         uint8_t(ui::theme().bg_elevated.b * 255),
@@ -377,19 +371,14 @@ void ImGuiIntegration::build_ui(Figure& figure)
                 float mid_x = (scr_sx + scr_ex) * 0.5f;
                 float mid_y = (scr_sy + scr_ey) * 0.5f;
                 char label[128];
-                std::snprintf(label,
-                              sizeof(label),
-                              "dX: %.4f  dY: %.4f  dist: %.4f",
-                              mdx,
-                              mdy,
-                              dist);
+                std::snprintf(
+                    label, sizeof(label), "dX: %.4f  dY: %.4f  dist: %.4f", mdx, mdy, dist);
                 ImVec2 tsz = ImGui::CalcTextSize(label);
                 float pad = 6.0f;
-                dl->AddRectFilled(
-                    ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
-                    ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
-                    bg_col,
-                    4.0f);
+                dl->AddRectFilled(ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
+                                  ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
+                                  bg_col,
+                                  4.0f);
                 dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
                             IM_COL32(255, 255, 255, 240),
                             label);
@@ -404,8 +393,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     }
 
     // Draw dock highlight overlay when another window is dragging a tab over this one
-    if (window_manager_ && window_id_ != 0
-        && window_manager_->drag_target_window() == window_id_)
+    if (window_manager_ && window_id_ != 0 && window_manager_->drag_target_window() == window_id_)
     {
         ImGuiIO& io = ImGui::GetIO();
         ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -421,7 +409,10 @@ void ImGuiIntegration::build_ui(Figure& figure)
         // Thick colored border
         dl->AddRect(ImVec2(border * 0.5f, border * 0.5f),
                     ImVec2(w - border * 0.5f, h - border * 0.5f),
-                    highlight, 6.0f, 0, border);
+                    highlight,
+                    6.0f,
+                    0,
+                    border);
 
         // "Drop to dock" label centered
         const char* label = "Drop to add tab";
@@ -431,7 +422,8 @@ void ImGuiIntegration::build_ui(Figure& figure)
         float pad = 10.0f;
         dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
                           ImVec2(lx + tsz.x + pad, ly + tsz.y + pad),
-                          IM_COL32(30, 30, 30, 200), 6.0f);
+                          IM_COL32(30, 30, 30, 200),
+                          6.0f);
         dl->AddText(ImVec2(lx, ly), IM_COL32(80, 160, 255, 255), label);
     }
 
@@ -470,11 +462,11 @@ bool ImGuiIntegration::wants_capture_mouse() const
     bool any_item_active = ImGui::IsAnyItemActive();
 
     SPECTRA_LOG_TRACE("input",
-                     "ImGui mouse capture state - wants_capture: "
-                         + std::string(wants_capture ? "true" : "false")
-                         + ", window_hovered: " + std::string(any_window_hovered ? "true" : "false")
-                         + ", item_hovered: " + std::string(any_item_hovered ? "true" : "false")
-                         + ", item_active: " + std::string(any_item_active ? "true" : "false"));
+                      "ImGui mouse capture state - wants_capture: "
+                          + std::string(wants_capture ? "true" : "false") + ", window_hovered: "
+                          + std::string(any_window_hovered ? "true" : "false")
+                          + ", item_hovered: " + std::string(any_item_hovered ? "true" : "false")
+                          + ", item_active: " + std::string(any_item_active ? "true" : "false"));
 
     // If an ImGui item is actively being interacted with (e.g. dragging a slider),
     // always capture — regardless of cursor position.
@@ -682,7 +674,8 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     // Hover-switch: if another menu is open and user hovers this button, switch
     if (btn_hovered && !open_menu_label_.empty() && open_menu_label_ != label)
     {
-        SPECTRA_LOG_DEBUG("menu", "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
+        SPECTRA_LOG_DEBUG("menu",
+                          "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
     }
@@ -922,39 +915,38 @@ void ImGuiIntegration::draw_command_bar()
         ImGui::SameLine();
 
         // File menu
-        draw_menubar_menu(
-            "File",
-            {MenuItem("Export PNG",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("file.export_png");
-                      }),
-             MenuItem("Export SVG",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("file.export_svg");
-                      }),
-             MenuItem("Save Workspace",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("file.save_workspace");
-                      }),
-             MenuItem("Load Workspace",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("file.load_workspace");
-                      }),
-             MenuItem("", nullptr),  // Separator
-             MenuItem("Exit",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("app.cancel");
-                      })});
+        draw_menubar_menu("File",
+                          {MenuItem("Export PNG",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.export_png");
+                                    }),
+                           MenuItem("Export SVG",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.export_svg");
+                                    }),
+                           MenuItem("Save Workspace",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.save_workspace");
+                                    }),
+                           MenuItem("Load Workspace",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.load_workspace");
+                                    }),
+                           MenuItem("", nullptr),  // Separator
+                           MenuItem("Exit",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("app.cancel");
+                                    })});
 
         ImGui::SameLine();
 
@@ -973,8 +965,7 @@ void ImGuiIntegration::draw_command_bar()
                               panel_open_ = new_vis;
                           }
                       }),
-             MenuItem("Toggle Navigation Rail",
-                      [this]() { show_nav_rail_ = !show_nav_rail_; }),
+             MenuItem("Toggle Navigation Rail", [this]() { show_nav_rail_ = !show_nav_rail_; }),
              MenuItem("Toggle 2D/3D View",
                       [this]()
                       {
@@ -2031,9 +2022,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
     // renders visually above the tab bar draw calls.
     bool knobs_panel_visible =
         knob_manager_ && !knob_manager_->empty() && knobs_panel_rect_.w > 0.0f;
-    auto* draw_list = (any_popup || knobs_panel_visible)
-                          ? ImGui::GetBackgroundDrawList()
-                          : ImGui::GetForegroundDrawList();
+    auto* draw_list = (any_popup || knobs_panel_visible) ? ImGui::GetBackgroundDrawList()
+                                                         : ImGui::GetForegroundDrawList();
 
     auto& theme = ui::theme();
     float dt = ImGui::GetIO().DeltaTime;
@@ -2524,13 +2514,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
             float ghost_y = mouse.y - ghost_h * 0.5f;
             draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
                                      ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
-                                     IM_COL32(0, 0, 0, 40), 6.0f);
+                                     IM_COL32(0, 0, 0, 40),
+                                     6.0f);
             draw_list->AddRectFilled(ImVec2(ghost_x, ghost_y),
                                      ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                                     to_col(theme.bg_elevated), 6.0f);
+                                     to_col(theme.bg_elevated),
+                                     6.0f);
             draw_list->AddRect(ImVec2(ghost_x, ghost_y),
                                ImVec2(ghost_x + ghost_w, ghost_y + ghost_h),
-                               to_col(theme.accent, 0.6f), 6.0f, 0, 1.5f);
+                               to_col(theme.accent, 0.6f),
+                               6.0f,
+                               0,
+                               1.5f);
             ImVec2 gtext_pos(ghost_x + TAB_PAD, ghost_y + (ghost_h - text_sz.y) * 0.5f);
             draw_list->AddText(gtext_pos, to_col(theme.text_primary), title.c_str());
         }
@@ -2580,15 +2575,15 @@ void ImGuiIntegration::draw_pane_tab_headers()
         {
             // Check if mouse is outside the window → detach to new window
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
-            bool outside = (mouse.x < 0 || mouse.y < 0
-                            || mouse.x >= display_size.x || mouse.y >= display_size.y);
+            bool outside = (mouse.x < 0 || mouse.y < 0 || mouse.x >= display_size.x
+                            || mouse.y >= display_size.y);
 
             if (outside && pane_tab_detach_cb_)
             {
                 dock_system_->cancel_drag();
                 ImVec2 wpos = ImGui::GetMainViewport()->Pos;
-                pane_tab_detach_cb_(pane_tab_drag_.dragged_figure_index,
-                                     wpos.x + mouse.x, wpos.y + mouse.y);
+                pane_tab_detach_cb_(
+                    pane_tab_drag_.dragged_figure_index, wpos.x + mouse.x, wpos.y + mouse.y);
             }
             else
             {
@@ -2647,181 +2642,189 @@ void ImGuiIntegration::draw_pane_tab_headers()
     // OpenPopup/BeginPopup require an active ImGui window context.
     // Create an invisible overlay window for the popup scope.
     {
-    ImGuiIO& popup_io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(popup_io.DisplaySize.x, popup_io.DisplaySize.y));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGuiWindowFlags popup_host_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
-        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground
-        | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav;
-    ImGui::Begin("##pane_tab_popup_host", nullptr, popup_host_flags);
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor(2);
+        ImGuiIO& popup_io = ImGui::GetIO();
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(popup_io.DisplaySize.x, popup_io.DisplaySize.y));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGuiWindowFlags popup_host_flags =
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+            | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav;
+        ImGui::Begin("##pane_tab_popup_host", nullptr, popup_host_flags);
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(2);
 
-    // Open the popup if right-click was detected in Phase 2
-    if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
-    {
-        ImGui::OpenPopup("##pane_tab_ctx");
-        pane_ctx_menu_open_ = false;  // Only open once
-    }
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
-    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 2));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
-    ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
-                                 theme.bg_elevated.b, 0.98f));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(theme.border_default.r, theme.border_default.g,
-                                 theme.border_default.b, 0.5f));
-
-    if (ImGui::BeginPopup("##pane_tab_ctx"))
-    {
-        if (pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
+        // Open the popup if right-click was detected in Phase 2
+        if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
         {
-            auto menu_item = [&](const char* label) -> bool
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                                      ImVec4(theme.accent_subtle.r, theme.accent_subtle.g,
-                                             theme.accent_subtle.b, 0.5f));
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive,
-                                      ImVec4(theme.accent_muted.r, theme.accent_muted.g,
-                                             theme.accent_muted.b, 0.7f));
-                float item_h = ImGui::GetTextLineHeight() + 8.0f;
-                bool clicked = ImGui::Selectable(label, false, ImGuiSelectableFlags_None,
-                                                  ImVec2(0, item_h));
-                ImGui::PopStyleColor(3);
-                return clicked;
-            };
+            ImGui::OpenPopup("##pane_tab_ctx");
+            pane_ctx_menu_open_ = false;  // Only open once
+        }
 
-            if (menu_item("Rename..."))
-            {
-                pane_tab_renaming_ = true;
-                pane_tab_rename_fig_ = pane_ctx_menu_fig_;
-                std::string title = fig_title(pane_ctx_menu_fig_);
-                strncpy(pane_tab_rename_buf_, title.c_str(), sizeof(pane_tab_rename_buf_) - 1);
-                pane_tab_rename_buf_[sizeof(pane_tab_rename_buf_) - 1] = '\0';
-            }
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+        ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 2));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
+        ImGui::PushStyleColor(
+            ImGuiCol_PopupBg,
+            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.98f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Border,
+            ImVec4(theme.border_default.r, theme.border_default.g, theme.border_default.b, 0.5f));
 
-            if (menu_item("Duplicate"))
+        if (ImGui::BeginPopup("##pane_tab_ctx"))
+        {
+            if (pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
             {
-                if (pane_tab_duplicate_cb_)
-                    pane_tab_duplicate_cb_(pane_ctx_menu_fig_);
-            }
-
-            ImGui::Dummy(ImVec2(0, 2));
-            ImGui::PushStyleColor(ImGuiCol_Separator,
-                                  ImVec4(theme.border_subtle.r, theme.border_subtle.g,
-                                         theme.border_subtle.b, 0.3f));
-            ImGui::Separator();
-            ImGui::PopStyleColor();
-            ImGui::Dummy(ImVec2(0, 2));
-
-            if (menu_item("Split Right"))
-            {
-                if (pane_tab_split_right_cb_)
-                    pane_tab_split_right_cb_(pane_ctx_menu_fig_);
-            }
-
-            if (menu_item("Split Down"))
-            {
-                if (pane_tab_split_down_cb_)
-                    pane_tab_split_down_cb_(pane_ctx_menu_fig_);
-            }
-
-            if (menu_item("Detach to Window"))
-            {
-                if (pane_tab_detach_cb_)
+                auto menu_item = [&](const char* label) -> bool
                 {
-                    ImVec2 m = ImGui::GetMousePos();
-                    ImVec2 wpos = ImGui::GetMainViewport()->Pos;
-                    pane_tab_detach_cb_(pane_ctx_menu_fig_, wpos.x + m.x, wpos.y + m.y);
+                    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                                          ImVec4(theme.accent_subtle.r,
+                                                 theme.accent_subtle.g,
+                                                 theme.accent_subtle.b,
+                                                 0.5f));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderActive,
+                                          ImVec4(theme.accent_muted.r,
+                                                 theme.accent_muted.g,
+                                                 theme.accent_muted.b,
+                                                 0.7f));
+                    float item_h = ImGui::GetTextLineHeight() + 8.0f;
+                    bool clicked = ImGui::Selectable(
+                        label, false, ImGuiSelectableFlags_None, ImVec2(0, item_h));
+                    ImGui::PopStyleColor(3);
+                    return clicked;
+                };
+
+                if (menu_item("Rename..."))
+                {
+                    pane_tab_renaming_ = true;
+                    pane_tab_rename_fig_ = pane_ctx_menu_fig_;
+                    std::string title = fig_title(pane_ctx_menu_fig_);
+                    strncpy(pane_tab_rename_buf_, title.c_str(), sizeof(pane_tab_rename_buf_) - 1);
+                    pane_tab_rename_buf_[sizeof(pane_tab_rename_buf_) - 1] = '\0';
+                }
+
+                if (menu_item("Duplicate"))
+                {
+                    if (pane_tab_duplicate_cb_)
+                        pane_tab_duplicate_cb_(pane_ctx_menu_fig_);
+                }
+
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(
+                    ImGuiCol_Separator,
+                    ImVec4(
+                        theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.3f));
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
+
+                if (menu_item("Split Right"))
+                {
+                    if (pane_tab_split_right_cb_)
+                        pane_tab_split_right_cb_(pane_ctx_menu_fig_);
+                }
+
+                if (menu_item("Split Down"))
+                {
+                    if (pane_tab_split_down_cb_)
+                        pane_tab_split_down_cb_(pane_ctx_menu_fig_);
+                }
+
+                if (menu_item("Detach to Window"))
+                {
+                    if (pane_tab_detach_cb_)
+                    {
+                        ImVec2 m = ImGui::GetMousePos();
+                        ImVec2 wpos = ImGui::GetMainViewport()->Pos;
+                        pane_tab_detach_cb_(pane_ctx_menu_fig_, wpos.x + m.x, wpos.y + m.y);
+                    }
+                }
+
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(
+                    ImGuiCol_Separator,
+                    ImVec4(
+                        theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.3f));
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
+
+                if (menu_item("Close"))
+                {
+                    if (pane_tab_close_cb_)
+                        pane_tab_close_cb_(pane_ctx_menu_fig_);
                 }
             }
-
-            ImGui::Dummy(ImVec2(0, 2));
-            ImGui::PushStyleColor(ImGuiCol_Separator,
-                                  ImVec4(theme.border_subtle.r, theme.border_subtle.g,
-                                         theme.border_subtle.b, 0.3f));
-            ImGui::Separator();
-            ImGui::PopStyleColor();
-            ImGui::Dummy(ImVec2(0, 2));
-
-            if (menu_item("Close"))
-            {
-                if (pane_tab_close_cb_)
-                    pane_tab_close_cb_(pane_ctx_menu_fig_);
-            }
+            ImGui::EndPopup();
         }
-        ImGui::EndPopup();
-    }
-    else
-    {
-        pane_ctx_menu_open_ = false;
-        pane_ctx_menu_fig_ = INVALID_FIGURE_ID;
-    }
-
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(4);
-
-    // ── Rename popup ─────────────────────────────────────────────────────
-
-    if (pane_tab_renaming_ && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
-    {
-        ImGui::OpenPopup("##pane_tab_rename");
-        pane_tab_renaming_ = false;
-    }
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
-    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
-                                 theme.bg_elevated.b, 0.98f));
-
-    if (ImGui::BeginPopup("##pane_tab_rename"))
-    {
-        ImGui::TextUnformatted("Rename tab");
-        ImGui::Spacing();
-        bool enter = ImGui::InputText("##pane_rename_input", pane_tab_rename_buf_,
-                                       sizeof(pane_tab_rename_buf_),
-                                       ImGuiInputTextFlags_EnterReturnsTrue);
-        if (ImGui::IsWindowAppearing())
-            ImGui::SetKeyboardFocusHere(-1);
-        ImGui::Spacing();
-
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
-        if (enter || ImGui::Button("OK"))
+        else
         {
-            std::string new_title(pane_tab_rename_buf_);
-            if (!new_title.empty() && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
-            {
-                if (pane_tab_rename_cb_)
-                    pane_tab_rename_cb_(pane_tab_rename_fig_, new_title);
-            }
-            pane_tab_rename_fig_ = INVALID_FIGURE_ID;
-            ImGui::CloseCurrentPopup();
+            pane_ctx_menu_open_ = false;
+            pane_ctx_menu_fig_ = INVALID_FIGURE_ID;
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(4);
+
+        // ── Rename popup ─────────────────────────────────────────────────────
+
+        if (pane_tab_renaming_ && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
         {
-            pane_tab_rename_fig_ = INVALID_FIGURE_ID;
-            ImGui::CloseCurrentPopup();
+            ImGui::OpenPopup("##pane_tab_rename");
+            pane_tab_renaming_ = false;
         }
-        ImGui::PopStyleVar();
-        ImGui::EndPopup();
-    }
 
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar(3);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+        ImGui::PushStyleColor(
+            ImGuiCol_PopupBg,
+            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.98f));
 
-    ImGui::End();  // ##pane_tab_popup_host
-    }  // Phase 5 scope
+        if (ImGui::BeginPopup("##pane_tab_rename"))
+        {
+            ImGui::TextUnformatted("Rename tab");
+            ImGui::Spacing();
+            bool enter = ImGui::InputText("##pane_rename_input",
+                                          pane_tab_rename_buf_,
+                                          sizeof(pane_tab_rename_buf_),
+                                          ImGuiInputTextFlags_EnterReturnsTrue);
+            if (ImGui::IsWindowAppearing())
+                ImGui::SetKeyboardFocusHere(-1);
+            ImGui::Spacing();
+
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
+            if (enter || ImGui::Button("OK"))
+            {
+                std::string new_title(pane_tab_rename_buf_);
+                if (!new_title.empty() && pane_tab_rename_fig_ != INVALID_FIGURE_ID)
+                {
+                    if (pane_tab_rename_cb_)
+                        pane_tab_rename_cb_(pane_tab_rename_fig_, new_title);
+                }
+                pane_tab_rename_fig_ = INVALID_FIGURE_ID;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                pane_tab_rename_fig_ = INVALID_FIGURE_ID;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::PopStyleVar();
+            ImGui::EndPopup();
+        }
+
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(3);
+
+        ImGui::End();  // ##pane_tab_popup_host
+    }                  // Phase 5 scope
 }
 
     #if SPECTRA_FLOATING_TOOLBAR
@@ -2996,9 +2999,9 @@ void ImGuiIntegration::draw_plot_text(Figure& figure)
         const auto& as = axes.axis_style();
         float tl = as.tick_length;  // tick mark length in pixels
         ImU32 axis_col = IM_COL32(static_cast<uint8_t>(colors.axis_line.r * 255),
-                                   static_cast<uint8_t>(colors.axis_line.g * 255),
-                                   static_cast<uint8_t>(colors.axis_line.b * 255),
-                                   static_cast<uint8_t>(colors.axis_line.a * 255));
+                                  static_cast<uint8_t>(colors.axis_line.g * 255),
+                                  static_cast<uint8_t>(colors.axis_line.b * 255),
+                                  static_cast<uint8_t>(colors.axis_line.a * 255));
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
@@ -3944,7 +3947,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     }
                 }
                 SPECTRA_LOG_INFO("axes_link",
-                                "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
+                                 "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
             // "Link Y to all"
@@ -3960,7 +3963,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     }
                 }
                 SPECTRA_LOG_INFO("axes_link",
-                                "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
+                                 "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
             }
 
             // "Link Both to all"
@@ -3976,7 +3979,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     }
                 }
                 SPECTRA_LOG_INFO("axes_link",
-                                "Linked both axes of subplot " + std::to_string(axes_idx + 1));
+                                 "Linked both axes of subplot " + std::to_string(axes_idx + 1));
             }
         }
 
@@ -4147,43 +4150,51 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
     constexpr float PAD = 8.0f;
 
     // Card background (fills entire window)
-    dl->AddRectFilled(
-        ImVec2(0, 0), ImVec2(w, h),
-        IM_COL32(static_cast<uint8_t>(theme.bg_primary.r * 255),
-                 static_cast<uint8_t>(theme.bg_primary.g * 255),
-                 static_cast<uint8_t>(theme.bg_primary.b * 255), 255),
-        RADIUS);
+    dl->AddRectFilled(ImVec2(0, 0),
+                      ImVec2(w, h),
+                      IM_COL32(static_cast<uint8_t>(theme.bg_primary.r * 255),
+                               static_cast<uint8_t>(theme.bg_primary.g * 255),
+                               static_cast<uint8_t>(theme.bg_primary.b * 255),
+                               255),
+                      RADIUS);
 
     // Border
-    dl->AddRect(
-        ImVec2(0, 0), ImVec2(w, h),
-        IM_COL32(static_cast<uint8_t>(theme.accent.r * 255),
-                 static_cast<uint8_t>(theme.accent.g * 255),
-                 static_cast<uint8_t>(theme.accent.b * 255), 180),
-        RADIUS, 0, 2.0f);
+    dl->AddRect(ImVec2(0, 0),
+                ImVec2(w, h),
+                IM_COL32(static_cast<uint8_t>(theme.accent.r * 255),
+                         static_cast<uint8_t>(theme.accent.g * 255),
+                         static_cast<uint8_t>(theme.accent.b * 255),
+                         180),
+                RADIUS,
+                0,
+                2.0f);
 
     // Title bar
-    dl->AddRectFilled(
-        ImVec2(1, 1), ImVec2(w - 1, TB_H),
-        IM_COL32(static_cast<uint8_t>(theme.bg_tertiary.r * 255),
-                 static_cast<uint8_t>(theme.bg_tertiary.g * 255),
-                 static_cast<uint8_t>(theme.bg_tertiary.b * 255), 255),
-        RADIUS, ImDrawFlags_RoundCornersTop);
+    dl->AddRectFilled(ImVec2(1, 1),
+                      ImVec2(w - 1, TB_H),
+                      IM_COL32(static_cast<uint8_t>(theme.bg_tertiary.r * 255),
+                               static_cast<uint8_t>(theme.bg_tertiary.g * 255),
+                               static_cast<uint8_t>(theme.bg_tertiary.b * 255),
+                               255),
+                      RADIUS,
+                      ImDrawFlags_RoundCornersTop);
 
     // Title text centered
     ImVec2 tsz = ImGui::CalcTextSize(title.c_str());
-    dl->AddText(
-        ImVec2((w - tsz.x) * 0.5f, (TB_H - tsz.y) * 0.5f),
-        IM_COL32(static_cast<uint8_t>(theme.text_primary.r * 255),
-                 static_cast<uint8_t>(theme.text_primary.g * 255),
-                 static_cast<uint8_t>(theme.text_primary.b * 255), 255),
-        title.c_str());
+    dl->AddText(ImVec2((w - tsz.x) * 0.5f, (TB_H - tsz.y) * 0.5f),
+                IM_COL32(static_cast<uint8_t>(theme.text_primary.r * 255),
+                         static_cast<uint8_t>(theme.text_primary.g * 255),
+                         static_cast<uint8_t>(theme.text_primary.b * 255),
+                         255),
+                title.c_str());
 
     // Separator line below title bar
-    dl->AddLine(ImVec2(1, TB_H), ImVec2(w - 1, TB_H),
+    dl->AddLine(ImVec2(1, TB_H),
+                ImVec2(w - 1, TB_H),
                 IM_COL32(static_cast<uint8_t>(theme.border_subtle.r * 255),
                          static_cast<uint8_t>(theme.border_subtle.g * 255),
-                         static_cast<uint8_t>(theme.border_subtle.b * 255), 200),
+                         static_cast<uint8_t>(theme.border_subtle.b * 255),
+                         200),
                 1.0f);
 
     // Plot area
@@ -4196,26 +4207,25 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
         return;
 
     // Plot background
-    dl->AddRectFilled(
-        ImVec2(px, py), ImVec2(px + pw, py + ph),
-        IM_COL32(static_cast<uint8_t>(theme.bg_secondary.r * 255),
-                 static_cast<uint8_t>(theme.bg_secondary.g * 255),
-                 static_cast<uint8_t>(theme.bg_secondary.b * 255), 200),
-        4.0f);
+    dl->AddRectFilled(ImVec2(px, py),
+                      ImVec2(px + pw, py + ph),
+                      IM_COL32(static_cast<uint8_t>(theme.bg_secondary.r * 255),
+                               static_cast<uint8_t>(theme.bg_secondary.g * 255),
+                               static_cast<uint8_t>(theme.bg_secondary.b * 255),
+                               200),
+                      4.0f);
 
     // Grid lines
     uint8_t ga = 30;
     for (int gi = 1; gi < 4; ++gi)
     {
         float gy = py + ph * (static_cast<float>(gi) / 4.0f);
-        dl->AddLine(ImVec2(px, gy), ImVec2(px + pw, gy),
-                    IM_COL32(128, 128, 128, ga), 1.0f);
+        dl->AddLine(ImVec2(px, gy), ImVec2(px + pw, gy), IM_COL32(128, 128, 128, ga), 1.0f);
     }
     for (int gi = 1; gi < 5; ++gi)
     {
         float gx = px + pw * (static_cast<float>(gi) / 5.0f);
-        dl->AddLine(ImVec2(gx, py), ImVec2(gx, py + ph),
-                    IM_COL32(128, 128, 128, ga), 1.0f);
+        dl->AddLine(ImVec2(gx, py), ImVec2(gx, py + ph), IM_COL32(128, 128, 128, ga), 1.0f);
     }
 
     // Render actual figure data if available
@@ -4228,8 +4238,10 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
         AxisLimits yl = ax.y_limits();
         float x_range = xl.max - xl.min;
         float y_range = yl.max - yl.min;
-        if (x_range <= 0.0f) x_range = 1.0f;
-        if (y_range <= 0.0f) y_range = 1.0f;
+        if (x_range <= 0.0f)
+            x_range = 1.0f;
+        if (y_range <= 0.0f)
+            y_range = 1.0f;
 
         // Clip to plot area
         dl->PushClipRect(ImVec2(px, py), ImVec2(px + pw, py + ph), true);
@@ -4240,11 +4252,10 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
                 continue;
 
             const Color& sc = s->color();
-            ImU32 col = IM_COL32(
-                static_cast<uint8_t>(sc.r * 255),
-                static_cast<uint8_t>(sc.g * 255),
-                static_cast<uint8_t>(sc.b * 255),
-                static_cast<uint8_t>(sc.a * s->opacity() * 220));
+            ImU32 col = IM_COL32(static_cast<uint8_t>(sc.r * 255),
+                                 static_cast<uint8_t>(sc.g * 255),
+                                 static_cast<uint8_t>(sc.b * 255),
+                                 static_cast<uint8_t>(sc.a * s->opacity() * 220));
 
             // Try LineSeries
             auto* ls = dynamic_cast<const LineSeries*>(s.get());
@@ -4309,8 +4320,7 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
             float t1 = static_cast<float>(si + 1) / SEGMENTS;
             float y0 = py + ph * 0.5f - std::sin(t0 * 6.28f) * ph * 0.3f;
             float y1 = py + ph * 0.5f - std::sin(t1 * 6.28f) * ph * 0.3f;
-            dl->AddLine(ImVec2(px + t0 * pw, y0), ImVec2(px + t1 * pw, y1),
-                        wave_col, 2.0f);
+            dl->AddLine(ImVec2(px + t0 * pw, y0), ImVec2(px + t1 * pw, y1), wave_col, 2.0f);
         }
     }
 }
@@ -4332,7 +4342,8 @@ void ImGuiIntegration::draw_knobs_panel()
     // Initial position: top-right of canvas with padding (user can drag it anywhere).
     float canvas_x = layout_manager_ ? layout_manager_->canvas_rect().x : 0.0f;
     float canvas_y = layout_manager_ ? layout_manager_->canvas_rect().y : 0.0f;
-    float canvas_w = layout_manager_ ? layout_manager_->canvas_rect().w : ImGui::GetIO().DisplaySize.x;
+    float canvas_w =
+        layout_manager_ ? layout_manager_->canvas_rect().w : ImGui::GetIO().DisplaySize.x;
 
     float panel_w = 260.0f;
     float pad = 12.0f;
@@ -4343,34 +4354,34 @@ void ImGuiIntegration::draw_knobs_panel()
     ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.92f);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize
-                           | ImGuiWindowFlags_AlwaysAutoResize
-                           | ImGuiWindowFlags_NoSavedSettings
-                           | ImGuiWindowFlags_NoFocusOnAppearing
-                           | ImGuiWindowFlags_NoNav;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize
+                             | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2(0.0f, 0.5f));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(theme.bg_elevated.r, theme.bg_elevated.g,
-                                 theme.bg_elevated.b, 0.92f));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(theme.border_subtle.r, theme.border_subtle.g,
-                                 theme.border_subtle.b, 0.4f));
+    ImGui::PushStyleColor(
+        ImGuiCol_WindowBg,
+        ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.92f));
+    ImGui::PushStyleColor(
+        ImGuiCol_Border,
+        ImVec4(theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.4f));
     ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(theme.text_primary.r, theme.text_primary.g,
-                                 theme.text_primary.b, theme.text_primary.a));
-    ImGui::PushStyleColor(ImGuiCol_TitleBg,
-                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                 theme.bg_tertiary.b, 0.95f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
-                          ImVec4(theme.accent.r * 0.3f, theme.accent.g * 0.3f,
-                                 theme.accent.b * 0.3f, 0.95f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed,
-                          ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                 theme.bg_tertiary.b, 0.7f));
+                          ImVec4(theme.text_primary.r,
+                                 theme.text_primary.g,
+                                 theme.text_primary.b,
+                                 theme.text_primary.a));
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBg,
+        ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g, theme.bg_tertiary.b, 0.95f));
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBgActive,
+        ImVec4(theme.accent.r * 0.3f, theme.accent.g * 0.3f, theme.accent.b * 0.3f, 0.95f));
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBgCollapsed,
+        ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g, theme.bg_tertiary.b, 0.7f));
 
     bool collapsed = knob_manager_->is_collapsed();
     ImGui::SetNextWindowCollapsed(collapsed, ImGuiCond_Once);
@@ -4379,8 +4390,8 @@ void ImGuiIntegration::draw_knobs_panel()
     {
         // Window is collapsed — record rect (title bar only) and sync state
         ImVec2 wpos = ImGui::GetWindowPos();
-        ImVec2 wsz  = ImGui::GetWindowSize();
-        knobs_panel_rect_ = { wpos.x, wpos.y, wsz.x, wsz.y };
+        ImVec2 wsz = ImGui::GetWindowSize();
+        knobs_panel_rect_ = {wpos.x, wpos.y, wsz.x, wsz.y};
         bool now_collapsed = ImGui::IsWindowCollapsed();
         if (now_collapsed != collapsed)
             knob_manager_->set_collapsed(now_collapsed);
@@ -4393,8 +4404,8 @@ void ImGuiIntegration::draw_knobs_panel()
     // Record full panel rect for tab-bar occlusion check
     {
         ImVec2 wpos = ImGui::GetWindowPos();
-        ImVec2 wsz  = ImGui::GetWindowSize();
-        knobs_panel_rect_ = { wpos.x, wpos.y, wsz.x, wsz.y };
+        ImVec2 wsz = ImGui::GetWindowSize();
+        knobs_panel_rect_ = {wpos.x, wpos.y, wsz.x, wsz.y};
     }
 
     // Sync collapse state (user may have clicked the collapse arrow)
@@ -4411,23 +4422,21 @@ void ImGuiIntegration::draw_knobs_panel()
 
         // Accent color for sliders
         ImGui::PushStyleColor(ImGuiCol_SliderGrab,
-                              ImVec4(theme.accent.r, theme.accent.g,
-                                     theme.accent.b, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_SliderGrabActive,
-                              ImVec4(theme.accent.r * 0.85f, theme.accent.g * 0.85f,
-                                     theme.accent.b * 0.85f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBg,
-                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                     theme.bg_tertiary.b, 0.6f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
-                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                     theme.bg_tertiary.b, 0.8f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive,
-                              ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g,
-                                     theme.bg_tertiary.b, 1.0f));
+                              ImVec4(theme.accent.r, theme.accent.g, theme.accent.b, 1.0f));
+        ImGui::PushStyleColor(
+            ImGuiCol_SliderGrabActive,
+            ImVec4(theme.accent.r * 0.85f, theme.accent.g * 0.85f, theme.accent.b * 0.85f, 1.0f));
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBg,
+            ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g, theme.bg_tertiary.b, 0.6f));
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBgHovered,
+            ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g, theme.bg_tertiary.b, 0.8f));
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBgActive,
+            ImVec4(theme.bg_tertiary.r, theme.bg_tertiary.g, theme.bg_tertiary.b, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_CheckMark,
-                              ImVec4(theme.accent.r, theme.accent.g,
-                                     theme.accent.b, 1.0f));
+                              ImVec4(theme.accent.r, theme.accent.g, theme.accent.b, 1.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_SM);
         ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, ui::tokens::RADIUS_SM);
 
@@ -4435,7 +4444,8 @@ void ImGuiIntegration::draw_knobs_panel()
         for (auto& k : knobs)
         {
             float tw = ImGui::CalcTextSize(k.name.c_str()).x;
-            if (tw > label_w) label_w = tw;
+            if (tw > label_w)
+                label_w = tw;
         }
         label_w = std::min(label_w + 8.0f, panel_w * 0.4f);
 
@@ -4445,9 +4455,10 @@ void ImGuiIntegration::draw_knobs_panel()
             ImGui::PushID(static_cast<int>(i));
 
             // Label
-            ImGui::TextColored(ImVec4(theme.text_primary.r, theme.text_primary.g,
-                                       theme.text_primary.b, 0.9f),
-                               "%s", k.name.c_str());
+            ImGui::TextColored(
+                ImVec4(theme.text_primary.r, theme.text_primary.g, theme.text_primary.b, 0.9f),
+                "%s",
+                k.name.c_str());
 
             // Control on same line or next line depending on type
             float avail = ImGui::GetContentRegionAvail().x;
@@ -4470,7 +4481,8 @@ void ImGuiIntegration::draw_knobs_panel()
                     k.value = std::clamp(k.value, k.min_val, k.max_val);
                     if (k.value != old_val)
                     {
-                        if (k.on_change) k.on_change(k.value);
+                        if (k.on_change)
+                            k.on_change(k.value);
                         knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
@@ -4481,13 +4493,13 @@ void ImGuiIntegration::draw_knobs_panel()
                     ImGui::SetNextItemWidth(avail);
                     int iv = k.int_value();
                     int old_iv = iv;
-                    ImGui::SliderInt("##v", &iv,
-                                     static_cast<int>(k.min_val),
-                                     static_cast<int>(k.max_val));
+                    ImGui::SliderInt(
+                        "##v", &iv, static_cast<int>(k.min_val), static_cast<int>(k.max_val));
                     k.value = static_cast<float>(iv);
                     if (iv != old_iv)
                     {
-                        if (k.on_change) k.on_change(k.value);
+                        if (k.on_change)
+                            k.on_change(k.value);
                         knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
@@ -4501,7 +4513,8 @@ void ImGuiIntegration::draw_knobs_panel()
                     k.value = bv ? 1.0f : 0.0f;
                     if (bv != old_bv)
                     {
-                        if (k.on_change) k.on_change(k.value);
+                        if (k.on_change)
+                            k.on_change(k.value);
                         knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }
@@ -4532,7 +4545,8 @@ void ImGuiIntegration::draw_knobs_panel()
                     }
                     if (ci != old_ci)
                     {
-                        if (k.on_change) k.on_change(k.value);
+                        if (k.on_change)
+                            k.on_change(k.value);
                         knob_manager_->mark_dirty(k.name, k.value);
                         any_changed = true;
                     }

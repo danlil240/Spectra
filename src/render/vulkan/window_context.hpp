@@ -3,14 +3,13 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include <spectra/fwd.hpp>
-
-#include "vk_swapchain.hpp"
 #include "../backend.hpp"
+#include "vk_swapchain.hpp"
 
 namespace spectra
 {
@@ -57,7 +56,8 @@ struct WindowContext
 
     // Swapchain state
     bool swapchain_dirty = false;
-    bool swapchain_invalidated = false;  // present returned OUT_OF_DATE — must recreate before next acquire
+    bool swapchain_invalidated =
+        false;  // present returned OUT_OF_DATE — must recreate before next acquire
     bool should_close = false;
 
     // Window state
@@ -89,7 +89,6 @@ struct WindowContext
     // nullptr for legacy secondary windows that have no ImGui.
     // Set for windows created via WindowManager::create_window_with_ui().
     std::unique_ptr<WindowUIContext> ui_ctx;
-
 };
 
 }  // namespace spectra

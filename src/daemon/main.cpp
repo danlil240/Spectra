@@ -120,10 +120,6 @@ bool send_close_window(spectra::ipc::Connection& conn,
     return conn.send(msg);
 }
 
-// Helper: find a ClientSlot by window_id.
-struct ClientSlot;
-ClientSlot* find_client(std::vector<ClientSlot>& clients, spectra::ipc::WindowId wid);
-
 }  // namespace
 
 int main(int argc, char* argv[])

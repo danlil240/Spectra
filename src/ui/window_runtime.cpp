@@ -43,7 +43,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                            FrameScheduler& scheduler
 #ifdef SPECTRA_USE_GLFW
                            ,
-                           WindowManager* window_mgr
+                           WindowManager* /*window_mgr*/
 #endif
 )
 {

@@ -1,9 +1,6 @@
 #pragma once
 
-#include <functional>
-#include <memory>
 #include <spectra/fwd.hpp>
-#include <vector>
 
 namespace spectra
 {
@@ -47,9 +44,6 @@ class Animator
    public:
     Animator() = default;
 
-    void add_timeline(std::shared_ptr<Timeline> tl);
-    void remove_timeline(const std::shared_ptr<Timeline>& tl);
-
     void evaluate(float time);
 
     void pause();
@@ -59,7 +53,6 @@ class Animator
     void clear();
 
    private:
-    std::vector<std::shared_ptr<Timeline>> timelines_;
     bool paused_ = false;
 };
 

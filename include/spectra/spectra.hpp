@@ -14,7 +14,6 @@
 #include <spectra/math3d.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
-#include <spectra/timeline.hpp>
 
 // ─── Convenience API ─────────────────────────────────────────────────────────
 // For the easiest possible API with free functions (plot, scatter, show, etc.),

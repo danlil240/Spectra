@@ -56,7 +56,6 @@ void register_standard_commands(const CommandBindings& b)
     auto& input_handler = ui_ctx.input_handler;
     auto& anim_controller = ui_ctx.anim_controller;
 
-    SessionRuntime* session = b.session;
     #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = b.window_mgr;
     #endif

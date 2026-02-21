@@ -41,16 +41,10 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
-file(GLOB SPECTRA_UI_SOURCES src/ui/app.cpp)
-if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
-    list(APPEND SPECTRA_UI_SOURCES src/ui/app_multiproc.cpp)
-else()
-    list(APPEND SPECTRA_UI_SOURCES src/ui/app_inproc.cpp)
-endif()
+file(GLOB SPECTRA_UI_SOURCES src/ui/app.cpp src/ui/app_inproc.cpp src/ui/app_multiproc.cpp)
 foreach(_ui_src
     src/ui/input.cpp
     src/ui/layout_manager.cpp
-    src/ui/dock_node.cpp
     src/ui/tab_bar.cpp
     src/ui/animation_controller.cpp
     src/ui/gesture_recognizer.cpp
@@ -110,9 +104,6 @@ target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
 target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE})
-if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
-    target_compile_definitions(spectra PUBLIC SPECTRA_MULTIPROC)
-endif()
 
 # Ensure shaders are compiled before the library
 if(TARGET spectra_shaders)

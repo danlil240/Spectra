@@ -1,6 +1,7 @@
 // app.cpp — Shared App code: constructor, destructor, figure(), run() dispatcher.
 // Mode-specific implementations live in app_inproc.cpp and app_multiproc.cpp.
 
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <spectra/app.hpp>
@@ -41,11 +42,14 @@ App::App(const AppConfig& config) : config_(config)
                      "Initializing Spectra application (headless: "
                          + std::string(config_.headless ? "true" : "false") + ")");
 
-#if SPECTRA_RUNTIME_MODE == 'inproc'
-    SPECTRA_LOG_INFO("app", "Runtime mode: inproc");
-#elif SPECTRA_RUNTIME_MODE == 'multiproc'
-    SPECTRA_LOG_INFO("app", "Runtime mode: multiproc");
-#endif
+    bool multiproc = !config_.socket_path.empty();
+    if (!multiproc)
+    {
+        const char* env = std::getenv("SPECTRA_SOCKET");
+        multiproc = (env && env[0] != '\0');
+    }
+    SPECTRA_LOG_INFO("app",
+                     "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
     // Create Vulkan backend
     backend_ = std::make_unique<VulkanBackend>();
@@ -133,11 +137,17 @@ std::vector<std::vector<FigureId>> App::compute_window_groups() const
 
 void App::run()
 {
-#ifdef SPECTRA_MULTIPROC
-    run_multiproc();
-#else
-    run_inproc();
-#endif
+    bool multiproc = !config_.socket_path.empty();
+    if (!multiproc)
+    {
+        const char* env = std::getenv("SPECTRA_SOCKET");
+        multiproc = (env && env[0] != '\0');
+    }
+
+    if (multiproc)
+        run_multiproc();
+    else
+        run_inproc();
 }
 
 }  // namespace spectra

@@ -6,7 +6,7 @@
 #include <spectra/animator.hpp>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
-#include <spectra/timeline.hpp>
+
 #include <string>
 #include <vector>
 

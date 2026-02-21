@@ -3,25 +3,12 @@
 #ifdef SPECTRA_USE_GLFW
 
     #include <cstdint>
-    #include <functional>
     #include <string>
 
 struct GLFWwindow;
 
 namespace spectra
 {
-
-class Axes;
-
-// Callback types for input events
-struct InputCallbacks
-{
-    std::function<void(double x, double y)> on_mouse_move;
-    std::function<void(int button, int action, int mods, double x, double y)> on_mouse_button;
-    std::function<void(double x_offset, double y_offset)> on_scroll;
-    std::function<void(int width, int height)> on_resize;
-    std::function<void(int key, int action, int mods)> on_key;
-};
 
 class GlfwAdapter
 {
@@ -66,9 +53,6 @@ class GlfwAdapter
     // Get current framebuffer size
     void framebuffer_size(uint32_t& width, uint32_t& height) const;
 
-    // Set input callbacks
-    void set_callbacks(const InputCallbacks& callbacks);
-
     // Get current mouse position
     void mouse_position(double& x, double& y) const;
 
@@ -87,14 +71,6 @@ class GlfwAdapter
 
    private:
     GLFWwindow* window_ = nullptr;
-    InputCallbacks callbacks_;
-
-    // Static callback trampolines (GLFW uses C callbacks)
-    static void cursor_pos_callback(GLFWwindow* window, double x, double y);
-    static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
-    static void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
-    static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-    static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 };
 
 }  // namespace spectra

@@ -262,34 +262,6 @@ bool send_ipc(spectra::ipc::Connection& conn,
     return conn.send(msg);
 }
 
-// ─── Send EVT_INPUT to backend ───────────────────────────────────────────────
-void send_evt_input(spectra::ipc::Connection& conn,
-                    spectra::ipc::SessionId session_id,
-                    spectra::ipc::WindowId window_id,
-                    spectra::ipc::EvtInputPayload::InputType input_type,
-                    uint64_t figure_id,
-                    uint32_t axes_index,
-                    int32_t key,
-                    int32_t mods,
-                    double x,
-                    double y)
-{
-    spectra::ipc::EvtInputPayload evt;
-    evt.window_id = window_id;
-    evt.input_type = input_type;
-    evt.figure_id = figure_id;
-    evt.axes_index = axes_index;
-    evt.key = key;
-    evt.mods = mods;
-    evt.x = x;
-    evt.y = y;
-    send_ipc(conn,
-             spectra::ipc::MessageType::EVT_INPUT,
-             session_id,
-             window_id,
-             spectra::ipc::encode_evt_input(evt));
-}
-
 // ─── Rebuild FigureRegistry from IPC cache ───────────────────────────────────
 // Re-creates Figure objects from snapshot cache and registers them.
 // Returns the list of new FigureId values.

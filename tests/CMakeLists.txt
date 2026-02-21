@@ -47,7 +47,6 @@ endfunction()
 set(SPECTRA_UNIT_TESTS
     test_transform
     test_layout
-    test_timeline
     test_easing
     test_ring_buffer
     test_input

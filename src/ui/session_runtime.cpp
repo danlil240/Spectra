@@ -459,9 +459,9 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             }
 
             fprintf(stderr,
-                    "[move]   DONE: fig=%u moved %u→%u "
+                    "[move]   DONE: fig=%lu moved %u→%u "
                     "(src_figs=%zu dst_figs=%zu split=%d)\n",
-                    pm.figure_id,
+                    static_cast<unsigned long>(pm.figure_id),
                     src_wctx->id,
                     dst_wctx->id,
                     src_wctx->assigned_figures.size(),

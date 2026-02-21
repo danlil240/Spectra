@@ -213,7 +213,7 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
 }
 
 // Create a new figure that opens as a tab next to an existing figure.
-inline Figure& figure(Figure& tab_next_to, uint32_t width = 1280, uint32_t height = 720)
+inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /*height*/ = 720)
 {
     auto& s = detail::easy_state();
     s.ensure_app();

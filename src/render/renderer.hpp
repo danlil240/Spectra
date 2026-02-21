@@ -40,9 +40,6 @@ class Renderer
     void render_figure_content(Figure& figure);
     void end_render_pass();
 
-    // Update frame UBO (projection, viewport, time)
-    void update_frame_ubo(uint32_t width, uint32_t height, float time);
-
     // Upload series data to GPU if dirty
     void upload_series_data(Series& series);
 

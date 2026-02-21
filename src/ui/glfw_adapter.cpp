@@ -108,11 +108,6 @@ void GlfwAdapter::framebuffer_size(uint32_t& width, uint32_t& height) const
     }
 }
 
-void GlfwAdapter::set_callbacks(const InputCallbacks& callbacks)
-{
-    callbacks_ = callbacks;
-}
-
 void GlfwAdapter::mouse_position(double& x, double& y) const
 {
     if (window_)
@@ -171,55 +166,6 @@ bool GlfwAdapter::is_mouse_button_pressed(int button) const
         return glfwGetMouseButton(window_, button) == GLFW_PRESS;
     }
     return false;
-}
-
-// ─── Static callback trampolines ────────────────────────────────────────────
-
-void GlfwAdapter::cursor_pos_callback(GLFWwindow* window, double x, double y)
-{
-    auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
-    if (adapter && adapter->callbacks_.on_mouse_move)
-    {
-        adapter->callbacks_.on_mouse_move(x, y);
-    }
-}
-
-void GlfwAdapter::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-    auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
-    if (adapter && adapter->callbacks_.on_mouse_button)
-    {
-        double x, y;
-        glfwGetCursorPos(window, &x, &y);
-        adapter->callbacks_.on_mouse_button(button, action, mods, x, y);
-    }
-}
-
-void GlfwAdapter::scroll_callback(GLFWwindow* window, double x_offset, double y_offset)
-{
-    auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
-    if (adapter && adapter->callbacks_.on_scroll)
-    {
-        adapter->callbacks_.on_scroll(x_offset, y_offset);
-    }
-}
-
-void GlfwAdapter::framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
-    if (adapter && adapter->callbacks_.on_resize)
-    {
-        adapter->callbacks_.on_resize(width, height);
-    }
-}
-
-void GlfwAdapter::key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int mods)
-{
-    auto* adapter = static_cast<GlfwAdapter*>(glfwGetWindowUserPointer(window));
-    if (adapter && adapter->callbacks_.on_key)
-    {
-        adapter->callbacks_.on_key(key, action, mods);
-    }
 }
 
 }  // namespace spectra

@@ -31,7 +31,6 @@ class GpuBuffer;
 class RingBuffer;
 
 class Animator;
-class Timeline;
 class AnimationController;
 class TransitionEngine;
 class RegionSelect;

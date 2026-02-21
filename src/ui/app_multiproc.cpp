@@ -4,7 +4,7 @@
 // pushes all figures, and waits for the agent windows to close.
 // Single-terminal UX: just call app.run() — no manual backend startup needed.
 //
-// This file is only compiled when SPECTRA_RUNTIME_MODE=multiproc (see CMakeLists.txt).
+// Always compiled; selected at runtime via AppConfig::socket_path or SPECTRA_SOCKET env var.
 
 #include <chrono>
 #include <iostream>

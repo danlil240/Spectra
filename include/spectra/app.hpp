@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 #include <unordered_map>
@@ -14,6 +15,7 @@ namespace spectra
 struct AppConfig
 {
     bool headless = false;
+    std::string socket_path;  // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
 };
 
 class WindowRuntime;
@@ -49,12 +51,9 @@ class App
     KnobManager* knob_manager() const { return knob_manager_; }
 
    private:
-#ifdef SPECTRA_MULTIPROC
-    void run_multiproc();
-#else
     void run_inproc();
+    void run_multiproc();
     void render_secondary_window(struct WindowContext* wctx);
-#endif
 
     // Group figures into windows based on sibling relationships.
     // Returns a vector of groups; each group is a vector of FigureIds

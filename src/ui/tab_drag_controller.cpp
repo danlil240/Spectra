@@ -146,10 +146,10 @@ void TabDragController::update(
                     target_wid = last_hovered_window_id_;
 
                 fprintf(stderr,
-                        "[tab_drag] DROP: fig=%u src=%u target=%u "
+                        "[tab_drag] DROP: fig=%lu src=%u target=%u "
                         "(release_at=%u hover=%u) screen=(%.0f,%.0f) "
                         "has_cb=%d\n",
-                        figure_id_,
+                        static_cast<unsigned long>(figure_id_),
                         source_window_id_,
                         target_wid,
                         release_target,

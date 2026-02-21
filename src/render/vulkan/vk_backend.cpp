@@ -1860,7 +1860,6 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
         auto* prev_active = active_window_;
         active_window_ = &wctx;
 
-        auto old_swapchain = wctx.swapchain.swapchain;
         vk::destroy_swapchain(ctx_.device, wctx.swapchain);
 
         try

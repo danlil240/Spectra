@@ -230,9 +230,10 @@ class TestAPISurface:
         assert callable(append)
 
     def test_lifecycle(self):
-        from spectra import show, close, clear
+        from spectra import show, close, close_all, clear
         assert callable(show)
         assert callable(close)
+        assert callable(close_all)
         assert callable(clear)
 
     def test_plotn(self):
@@ -250,7 +251,7 @@ class TestAPISurface:
             "plot3", "scatter3", "surf", "plotn", "subplots",
             "figure", "subplot", "gcf", "gca",
             "title", "xlabel", "ylabel", "xlim", "ylim", "grid", "legend",
-            "live", "stop_live", "append", "show", "close", "clear",
+            "live", "stop_live", "append", "show", "close", "close_all", "clear",
             "line",
             "Session", "Figure", "Axes", "Series",
             "SpectraError", "ConnectionError", "ProtocolError",
@@ -284,11 +285,22 @@ class TestBackwardCompat:
 
     def test_close_without_session(self):
         """close() should not raise even if no session exists."""
+        from spectra._easy import _state
+        old_fig = _state._current_fig
+        _state._current_fig = None
+        try:
+            from spectra import close
+            close()  # should not raise
+        finally:
+            _state._current_fig = old_fig
+
+    def test_close_all_without_session(self):
+        """close_all() should not raise even if no session exists."""
         import spectra as sp
         sp._default_session = None
         sp._current_figure = None
         sp._current_axes = None
-        sp.close()  # should not raise
+        sp.close_all()  # should not raise
 
     def test_show_without_session(self):
         """show() should not raise even if no session exists."""

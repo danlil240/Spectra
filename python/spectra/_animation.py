@@ -20,6 +20,10 @@ def ipc_sleep(session: "Session", duration: float) -> None:
 
     Unlike time.sleep(), this keeps the IPC connection alive by
     processing incoming events (e.g. EVT_WINDOW_CLOSED) during the wait.
+
+    Thread-safe: acquires the session lock before reading from the socket.
+    Falls back to plain sleep if the lock is held by another thread
+    (e.g. the main thread doing a _request() or show() recv).
     """
     import select
 
@@ -40,7 +44,16 @@ def ipc_sleep(session: "Session", duration: float) -> None:
             break
 
         if ready:
-            msg = session._transport.recv()
+            # Try to acquire the lock without blocking — if another thread
+            # is doing a _request() send+recv, just skip this read.
+            acquired = session._lock.acquire(blocking=False)
+            if not acquired:
+                time.sleep(min(remaining, 0.01))
+                continue
+            try:
+                msg = session._transport.recv()
+            finally:
+                session._lock.release()
             if msg is None:
                 break
             session._handle_event(msg)

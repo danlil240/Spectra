@@ -1,7 +1,7 @@
 """Session class — manages a single connection to the spectra-backend."""
 
 import threading
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from . import _protocol as P
 from . import _codec as codec
@@ -13,6 +13,10 @@ from ._errors import (
     BackendError,
 )
 from ._blob import BlobStore
+from ._log import log
+
+if TYPE_CHECKING:
+    from ._figure import Figure
 
 
 class Session:
@@ -44,6 +48,7 @@ class Session:
         self._animators: List = []  # BackendAnimator instances
         self._blob_store = BlobStore()
         self._closed = False
+        self._live_thread_count = 0  # number of active live threads using the socket
 
         if auto_launch:
             self._socket_path = ensure_backend(self._socket_path)
@@ -52,6 +57,7 @@ class Session:
 
     def _connect(self) -> None:
         """Connect to the backend and perform HELLO/WELCOME handshake."""
+        log.debug("connecting to %s", self._socket_path)
         self._transport = Transport.connect(self._socket_path)
 
         # Send HELLO
@@ -74,24 +80,29 @@ class Session:
 
         welcome = codec.decode_welcome(msg["payload"])
         self._session_id = welcome["session_id"]
+        log.info("connected, session_id=%d", self._session_id)
 
-    def _next_req_id(self) -> int:
-        with self._lock:
-            self._next_request_id += 1
-            return self._next_request_id
+    def _next_req_id_unlocked(self) -> int:
+        """Increment and return next request ID. Caller must hold self._lock."""
+        self._next_request_id += 1
+        return self._next_request_id
 
     def _request(self, msg_type: int, payload: bytes = b"") -> dict:
         """Send a request and wait for the matching response.
 
         Returns the response message dict.
         Raises BackendError if RESP_ERR is received.
+
+        Thread-safe: holds the lock for the entire send+recv cycle so that
+        background threads (e.g. live streaming) cannot interleave recv()
+        calls on the same socket.
         """
         if self._transport is None or not self._transport.is_open:
             raise ConnectionError("Not connected to backend")
 
-        req_id = self._next_req_id()
-
         with self._lock:
+            req_id = self._next_req_id_unlocked()
+            log.debug("_request send type=0x%04X req_id=%d", msg_type, req_id)
             self._transport.send(
                 msg_type=msg_type,
                 payload=payload,
@@ -99,32 +110,35 @@ class Session:
                 session_id=self._session_id,
             )
 
-        # Read responses until we get one matching our request_id
-        while True:
-            msg = self._transport.recv()
-            if msg is None:
-                raise ConnectionError("Backend closed connection")
+            # Read responses until we get one matching our request_id
+            while True:
+                msg = self._transport.recv()
+                if msg is None:
+                    raise ConnectionError("Backend closed connection")
 
-            hdr = msg["header"]
+                hdr = msg["header"]
+                log.debug("_request recv type=0x%04X req_id=%d (waiting for %d)",
+                          hdr["type"], hdr.get("request_id", 0), req_id)
 
-            # Check for error response
-            if hdr["type"] == P.RESP_ERR:
-                rid, code, message = codec.decode_resp_err(msg["payload"])
-                if rid == req_id or rid == 0:
-                    raise BackendError(code, message)
+                # Check for error response
+                if hdr["type"] == P.RESP_ERR:
+                    rid, code, message = codec.decode_resp_err(msg["payload"])
+                    if rid == req_id or rid == 0:
+                        log.error("backend error code=%d msg=%s", code, message)
+                        raise BackendError(code, message)
 
-            # Check for matching request_id
-            if hdr["request_id"] == req_id:
-                return msg
-
-            # Check for RESP_OK matching our request
-            if hdr["type"] == P.RESP_OK:
-                rid = codec.decode_resp_ok(msg["payload"])
-                if rid == req_id:
+                # Check for matching request_id
+                if hdr["request_id"] == req_id:
                     return msg
 
-            # Otherwise it's an event or unrelated message — store for later
-            self._handle_event(msg)
+                # Check for RESP_OK matching our request
+                if hdr["type"] == P.RESP_OK:
+                    rid = codec.decode_resp_ok(msg["payload"])
+                    if rid == req_id:
+                        return msg
+
+                # Otherwise it's an event or unrelated message — store for later
+                self._handle_event(msg)
 
     def _register_animator(self, animator) -> None:
         """Register a BackendAnimator for ANIM_TICK dispatch."""
@@ -143,6 +157,8 @@ class Session:
         hdr = msg["header"]
         if hdr["type"] == P.EVT_WINDOW_CLOSED:
             figure_id, window_id, reason = codec.decode_evt_window_closed(msg["payload"])
+            log.info("EVT_WINDOW_CLOSED figure=%d window=%d reason=%s",
+                     figure_id, window_id, reason)
             # Mark figure as not visible
             for fig in self._figures:
                 if fig._id == figure_id:
@@ -248,7 +264,10 @@ class Session:
     def show(self) -> None:
         """Block until all visible figure windows are closed.
 
-        Drains events while waiting.
+        When live threads are active, they own the socket and handle all
+        IPC (including EVT_WINDOW_CLOSED).  This method just polls the
+        _visible flags.  When no live threads are running, this method
+        does its own select+recv event loop.
         """
         if self._transport is None or not self._transport.is_open:
             return
@@ -258,24 +277,37 @@ class Session:
             if not fig._visible and not fig._shown_once:
                 fig.show()
 
-        # Poll for events until all figures are not visible
         import select
+        import time
+
+        log.debug("show() blocking, live_threads=%d, figures=%d",
+                  self._live_thread_count,
+                  sum(1 for f in self._figures if f._visible))
 
         while any(f._visible for f in self._figures):
             if self._transport is None or not self._transport.is_open:
                 break
 
-            # Use select with timeout to avoid busy-waiting
+            # If live threads are running, they own the socket — just
+            # sleep and re-check _visible flags.
+            if self._live_thread_count > 0:
+                time.sleep(0.1)
+                continue
+
+            # No live threads — do our own event drain.
             try:
                 ready, _, _ = select.select([self._transport.fileno()], [], [], 0.1)
             except (ValueError, OSError):
                 break
 
             if ready:
-                msg = self._transport.recv()
+                with self._lock:
+                    msg = self._transport.recv()
                 if msg is None:
                     break
                 self._handle_event(msg)
+
+        log.debug("show() returning")
 
     @property
     def blob_store(self) -> BlobStore:

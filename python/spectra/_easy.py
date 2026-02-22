@@ -719,67 +719,48 @@ def live(
     def _loop():
         nonlocal auto_series, auto_t_data, auto_y_data
         from ._animation import FramePacer
+        from ._log import log
 
         pacer = FramePacer(fps=fps)
         t = 0.0
         dt = 1.0 / fps
         session = _state._ensure_session()
 
-        while not stop_event.is_set():
-            if _state._shutting_down:
-                break
-            if not fig_obj._visible:
-                break
+        log.info("live thread running (count=%d, fps=%.0f)",
+                 session._live_thread_count, fps)
+        try:
+            while not stop_event.is_set():
+                if _state._shutting_down:
+                    log.debug("live thread: shutting down")
+                    break
+                if not fig_obj._visible:
+                    log.debug("live thread: figure no longer visible")
+                    break
 
-            if duration > 0 and t >= duration:
-                break
+                if duration > 0 and t >= duration:
+                    log.debug("live thread: duration reached")
+                    break
 
-            try:
-                # Call with appropriate number of args
-                if nparams >= 3:
-                    result = callback(t, dt, ax)
-                elif nparams >= 2:
-                    result = callback(t, dt)
-                else:
-                    result = callback(t)
+                try:
+                    # Call with appropriate number of args
+                    if nparams >= 3:
+                        result = callback(t, dt, ax)
+                    elif nparams >= 2:
+                        result = callback(t, dt)
+                    else:
+                        result = callback(t)
 
-                # Auto-append mode: if callback returns a number
-                if result is not None and isinstance(result, (int, float)):
-                    if auto_series is None:
-                        auto_series = ax.line([], [], label=title if title != "Live" else "")
-                        try:
-                            ax.set_ylim(-2.0, 2.0)
-                        except Exception:
-                            pass
-                    auto_t_data.append(t)
-                    auto_y_data.append(float(result))
-                    # Sliding window
-                    if len(auto_t_data) > window_size:
-                        auto_t_data = auto_t_data[-window_size:]
-                        auto_y_data = auto_y_data[-window_size:]
-                    auto_series.set_data(auto_t_data, auto_y_data)
-                    if len(auto_t_data) > 1:
-                        try:
-                            ax.set_xlim(auto_t_data[0], auto_t_data[-1])
-                            ymin = min(auto_y_data)
-                            ymax = max(auto_y_data)
-                            margin = max(abs(ymax - ymin) * 0.1, 0.1)
-                            ax.set_ylim(ymin - margin, ymax + margin)
-                        except Exception:
-                            pass
-
-                # Auto-append mode: if callback returns a tuple/list of numbers
-                elif result is not None and isinstance(result, (tuple, list)):
-                    if len(result) == 2:
-                        xv, yv = result
+                    # Auto-append mode: if callback returns a number
+                    if result is not None and isinstance(result, (int, float)):
                         if auto_series is None:
                             auto_series = ax.line([], [], label=title if title != "Live" else "")
-                        if isinstance(xv, (int, float)):
-                            auto_t_data.append(float(xv))
-                            auto_y_data.append(float(yv))
-                        else:
-                            auto_t_data.extend(_to_list(xv))
-                            auto_y_data.extend(_to_list(yv))
+                            try:
+                                ax.set_ylim(-2.0, 2.0)
+                            except Exception:
+                                pass
+                        auto_t_data.append(t)
+                        auto_y_data.append(float(result))
+                        # Sliding window
                         if len(auto_t_data) > window_size:
                             auto_t_data = auto_t_data[-window_size:]
                             auto_y_data = auto_y_data[-window_size:]
@@ -794,12 +775,44 @@ def live(
                             except Exception:
                                 pass
 
-            except Exception as e:
-                import sys
-                print(f"[spectra.live] Error in callback: {e}", file=sys.stderr)
+                    # Auto-append mode: if callback returns a tuple/list of numbers
+                    elif result is not None and isinstance(result, (tuple, list)):
+                        if len(result) == 2:
+                            xv, yv = result
+                            if auto_series is None:
+                                auto_series = ax.line([], [], label=title if title != "Live" else "")
+                            if isinstance(xv, (int, float)):
+                                auto_t_data.append(float(xv))
+                                auto_y_data.append(float(yv))
+                            else:
+                                auto_t_data.extend(_to_list(xv))
+                                auto_y_data.extend(_to_list(yv))
+                            if len(auto_t_data) > window_size:
+                                auto_t_data = auto_t_data[-window_size:]
+                                auto_y_data = auto_y_data[-window_size:]
+                            auto_series.set_data(auto_t_data, auto_y_data)
+                            if len(auto_t_data) > 1:
+                                try:
+                                    ax.set_xlim(auto_t_data[0], auto_t_data[-1])
+                                    ymin = min(auto_y_data)
+                                    ymax = max(auto_y_data)
+                                    margin = max(abs(ymax - ymin) * 0.1, 0.1)
+                                    ax.set_ylim(ymin - margin, ymax + margin)
+                                except Exception:
+                                    pass
 
-            t += dt
-            pacer.pace(session)
+                except Exception as e:
+                    log.warning("live callback error: %s", e)
+
+                t += dt
+                pacer.pace(session)
+        finally:
+            session._live_thread_count -= 1
+            log.info("live thread stopped (count=%d)", session._live_thread_count)
+
+    # Increment before starting thread so show() sees it immediately
+    session = _state._ensure_session()
+    session._live_thread_count += 1
 
     thread = threading.Thread(target=_loop, daemon=True, name="spectra-live")
     thread.start()
@@ -854,7 +867,53 @@ def show():
 
 
 def close():
-    """Close all windows and clean up."""
+    """Close the current figure's window.
+
+    The figure is removed from the backend model. If there are other
+    figures open, the most recent one becomes current.
+
+    Usage::
+
+        sp.plot(x, y1)
+        sp.figure()
+        sp.plot(x, y2)
+        sp.close()       # closes the second window, first stays open
+    """
+    fig = _state._current_fig
+    if fig is None:
+        return
+    try:
+        fig.close()
+    except Exception:
+        pass
+    # Remove from tracking
+    if fig in _state._figures:
+        _state._figures.remove(fig)
+    _state._pending_show.discard(id(fig))
+    # Switch current to the most recent remaining figure, or None
+    if _state._figures:
+        _state._current_fig = _state._figures[-1]
+    else:
+        _state._current_fig = None
+    _state._current_axes = None
+    _state._current_axes3d = None
+    _state._current_axes_key = (1, 1, 1)
+
+
+def close_all():
+    """Close all windows and clean up the session.
+
+    Stops live threads, closes every figure, and disconnects from the
+    backend. After this call you can still create new plots — the
+    session will be lazily re-created.
+
+    Usage::
+
+        sp.plot(x, y1)
+        sp.figure()
+        sp.plot(x, y2)
+        sp.close_all()   # everything gone
+    """
     _state.shutdown()
 
 

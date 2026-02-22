@@ -1,0 +1,36 @@
+# linuxdeploy AppImage configuration for Spectra
+# Build: cmake --build build && packaging/AppImage/build-appimage.sh
+#
+# Prerequisites:
+#   - linuxdeploy (https://github.com/linuxdeploy/linuxdeploy)
+#   - linuxdeploy-plugin-gtk (optional, for GTK theme integration)
+
+version: 1
+
+AppDir:
+  path: ./AppDir
+
+  app_info:
+    id: org.spectra.Spectra
+    name: Spectra
+    icon: spectra
+    version: !ENV ${SPECTRA_VERSION}
+    exec: usr/bin/spectra-backend
+    exec_args: $@
+
+  files:
+    include:
+      - usr/bin/spectra-backend
+      - usr/bin/spectra-window
+      - usr/share/spectra/fonts/*
+      - usr/share/icons/hicolor/256x256/apps/spectra.png
+      - usr/share/applications/spectra.desktop
+
+  runtime:
+    env:
+      SPECTRA_DATA_DIR: "${APPDIR}/usr/share/spectra"
+
+AppImage:
+  arch: x86_64
+  file_name: Spectra-!ENV ${SPECTRA_VERSION}-x86_64.AppImage
+  update-information: gh-releases-zsync|danlil240|Spectra|latest|Spectra-*-x86_64.AppImage.zsync

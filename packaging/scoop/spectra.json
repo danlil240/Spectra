@@ -1,0 +1,26 @@
+{
+    "version": "0.1.0",
+    "description": "GPU-accelerated scientific plotting library",
+    "homepage": "https://github.com/danlil240/Spectra",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/danlil240/Spectra/releases/download/v0.1.0/spectra-0.1.0-win64.zip",
+            "hash": "PLACEHOLDER_SHA256"
+        }
+    },
+    "bin": [
+        "bin\\spectra-backend.exe",
+        "bin\\spectra-window.exe"
+    ],
+    "checkver": {
+        "github": "https://github.com/danlil240/Spectra"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/danlil240/Spectra/releases/download/v$version/spectra-$version-win64.zip"
+            }
+        }
+    }
+}

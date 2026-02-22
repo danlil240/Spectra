@@ -84,8 +84,13 @@ void TabDragController::update(float mouse_x,
             // This is done BEFORE the release check so the value is fresh at drop time.
             if (window_manager_)
             {
-                uint32_t hovered  = 0;
-                uint32_t fallback = 0;
+                // Find the non-source window with the highest z_order whose
+                // content area contains the cursor.  z_order is a monotonic
+                // counter incremented on focus — highest = most recently
+                // focused = visually frontmost.  This is reliable on X11
+                // where GLFW_HOVERED doesn't work during drag.
+                uint32_t hovered       = 0;
+                uint64_t best_z        = 0;
                 for (auto* wctx : window_manager_->windows())
                 {
                     if (!wctx || !wctx->glfw_window || wctx->is_preview)
@@ -98,21 +103,17 @@ void TabDragController::update(float mouse_x,
                     // Content area check with generous margin for title bar
                     if (cx >= -10 && cx < ww + 10 && cy >= -50 && cy < wh + 10)
                     {
-                        // Prefer focused (frontmost) window to avoid picking
-                        // a background window when windows overlap.
-                        if (glfwGetWindowAttrib(win, GLFW_FOCUSED))
+                        if (wctx->z_order > best_z)
                         {
+                            best_z  = wctx->z_order;
                             hovered = wctx->id;
-                            break;
                         }
-                        if (fallback == 0)
-                            fallback = wctx->id;
                     }
                 }
-                if (hovered == 0)
-                    hovered = fallback;
                 if (hovered != 0 && hovered != source_window_id_)
                     last_hovered_window_id_ = hovered;
+                else if (hovered == 0 || hovered == source_window_id_)
+                    last_hovered_window_id_ = 0;   // cursor left all non-source windows
 
                 // Publish the drag target so target windows can draw dock highlights
                 window_manager_->set_drag_target_window(last_hovered_window_id_);
@@ -407,8 +408,10 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
     // math issues on X11 with window decorations.
     // When multiple overlapping windows contain the cursor (common on
     // X11/Wayland where glfwGetCursorPos works for background windows),
-    // prefer the focused (frontmost) window.
-    uint32_t fallback = 0;
+    // prefer the window with the highest z_order (most recently focused
+    // = visually frontmost).
+    uint32_t best_id = 0;
+    uint64_t best_z  = 0;
     for (auto* wctx : window_manager_->windows())
     {
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
@@ -422,16 +425,15 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
 
         if (cx >= 0 && cx < ww && cy >= 0 && cy < wh)
         {
-            // Focused window is definitely the frontmost — return immediately
-            if (glfwGetWindowAttrib(win, GLFW_FOCUSED))
-                return wctx->id;
-            // Remember first match as fallback
-            if (fallback == 0)
-                fallback = wctx->id;
+            if (wctx->z_order > best_z)
+            {
+                best_z  = wctx->z_order;
+                best_id = wctx->id;
+            }
         }
     }
 
-    return fallback;
+    return best_id;
 }
 
 }   // namespace spectra

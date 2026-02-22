@@ -448,6 +448,8 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
         return;
 
     wctx->is_focused = (focused != 0);
+    if (focused)
+        wctx->z_order = mgr->next_z_order_++;
     #ifdef SPECTRA_USE_IMGUI
     // Forward focus event to ImGui for this window's context
     if (wctx->imgui_context && wctx->ui_ctx)
@@ -946,6 +948,34 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
                     auto& vp = fig->axes()[0]->viewport();
                     to_wctx->ui_ctx->input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
                 }
+            }
+        }
+
+        // Reset source window's InputHandler so it no longer references the
+        // moved figure's axes (which would cause cross-window interaction).
+        if (from_wctx->ui_ctx && from_wctx->ui_ctx->fig_mgr)
+        {
+            FigureId remaining_id = from_wctx->ui_ctx->fig_mgr->active_index();
+            Figure*  remaining    = (remaining_id != INVALID_FIGURE_ID && registry_)
+                                        ? registry_->get(remaining_id)
+                                        : nullptr;
+            if (remaining)
+            {
+                from_wctx->ui_ctx->input_handler.set_figure(remaining);
+                if (!remaining->axes().empty() && remaining->axes()[0])
+                {
+                    from_wctx->ui_ctx->input_handler.set_active_axes(
+                        remaining->axes()[0].get());
+                    auto& vp = remaining->axes()[0]->viewport();
+                    from_wctx->ui_ctx->input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+                }
+                from_wctx->ui_ctx->input_handler.set_active_axes_base(nullptr);
+            }
+            else
+            {
+                from_wctx->ui_ctx->input_handler.set_figure(nullptr);
+                from_wctx->ui_ctx->input_handler.set_active_axes(nullptr);
+                from_wctx->ui_ctx->input_handler.set_active_axes_base(nullptr);
             }
         }
     }

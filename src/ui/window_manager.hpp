@@ -277,6 +277,10 @@ class WindowManager
     uint32_t            drag_target_window_id_ = 0;
     CrossWindowDropInfo cross_drop_info_;
 
+    // Monotonic z-order counter — incremented each time any window gains focus.
+    // Each window's z_order field stores the value at its last focus event.
+    uint64_t next_z_order_ = 1;
+
     // Callback-based mouse release tracking (tab drag)
     bool                                  mouse_release_tracking_ = false;
     bool                                  mouse_release_seen_     = false;

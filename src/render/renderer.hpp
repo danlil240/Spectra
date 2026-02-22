@@ -103,7 +103,8 @@ class Renderer
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
-    PipelineHandle overlay_pipeline_;   // Triangle-list topology for filled shapes (2D arrowheads)
+    PipelineHandle overlay_pipeline_;    // Triangle-list topology for filled shapes (2D arrowheads)
+    PipelineHandle stat_fill_pipeline_; // Triangle-list, vec2+alpha, per-vertex gradient fills
     PipelineHandle arrow3d_pipeline_;   // Triangle-list, vec3, depth test ON (3D arrowheads)
 
     // 3D pipelines
@@ -192,7 +193,11 @@ class Renderer
         size_t       uploaded_count = 0;
         BufferHandle index_buffer;
         size_t       index_count = 0;
-        SeriesType   type        = SeriesType::Unknown;
+        BufferHandle fill_buffer;             // Vertex buffer for filled triangles
+        size_t       fill_vertex_count = 0;
+        BufferHandle outlier_buffer;          // SSBO for box plot outlier points
+        size_t       outlier_count = 0;
+        SeriesType   type          = SeriesType::Unknown;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 

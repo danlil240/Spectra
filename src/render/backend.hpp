@@ -41,6 +41,8 @@ enum class PipelineType
     Surface3D_Transparent,
     // Screen-space filled overlay (triangle list, vec2, same shaders as Grid)
     Overlay,
+    // Statistical series fill (triangle list, vec2+float alpha, per-vertex gradient)
+    StatFill,
     // 3D filled overlay (triangle list, vec3, depth test ON, grid3d shaders)
     Arrow3D,
     // Text rendering pipeline (screen-space textured quads)

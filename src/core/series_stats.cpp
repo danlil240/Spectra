@@ -44,6 +44,56 @@ static float gaussian_kde(float x, const std::vector<float>& data, float bandwid
 
 static constexpr float NAN_BREAK = std::numeric_limits<float>::quiet_NaN();
 
+// ─── Helper: emit vertex {x, y, alpha} into interleaved buffer ─────────────
+static void emit_vert(std::vector<float>& buf, float x, float y, float alpha)
+{
+    buf.push_back(x);
+    buf.push_back(y);
+    buf.push_back(alpha);
+}
+
+// ─── Helper: compute gradient alpha for a horizontal position ──────────────
+// Returns alpha in [lo_alpha, hi_alpha] based on where x falls in [x_min, x_max].
+// Left edge is brighter (hi_alpha), right edge is darker (lo_alpha).
+static float grad_alpha(float x, float x_min, float x_max, bool gradient,
+                        float hi_alpha = 1.0f, float lo_alpha = 0.45f)
+{
+    if (!gradient)
+        return 1.0f;
+    if (x_max <= x_min)
+        return hi_alpha;
+    float t = (x - x_min) / (x_max - x_min);   // 0 = left, 1 = right
+    return hi_alpha + t * (lo_alpha - hi_alpha);
+}
+
+// ─── Helper: emit a filled quad as 2 triangles (6 vertices) with gradient ──
+static void emit_filled_quad(std::vector<float>& buf,
+                             float x0, float y0, float x1, float y1,
+                             bool gradient)
+{
+    float a0 = gradient ? 1.0f  : 1.0f;   // left alpha (bright)
+    float a1 = gradient ? 0.45f : 1.0f;   // right alpha (dim)
+    // Triangle 1: bottom-left, bottom-right, top-left
+    emit_vert(buf, x0, y0, a0);
+    emit_vert(buf, x1, y0, a1);
+    emit_vert(buf, x0, y1, a0);
+    // Triangle 2: top-left, bottom-right, top-right
+    emit_vert(buf, x0, y1, a0);
+    emit_vert(buf, x1, y0, a1);
+    emit_vert(buf, x1, y1, a1);
+}
+
+// ─── Helper: emit a filled triangle with per-vertex alpha ──────────────────
+static void emit_filled_tri(std::vector<float>& buf,
+                            float x0, float y0, float a0,
+                            float x1, float y1, float a1,
+                            float x2, float y2, float a2)
+{
+    emit_vert(buf, x0, y0, a0);
+    emit_vert(buf, x1, y1, a1);
+    emit_vert(buf, x2, y2, a2);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BoxPlotSeries
 // ═══════════════════════════════════════════════════════════════════════════
@@ -141,6 +191,7 @@ void BoxPlotSeries::rebuild_geometry()
 {
     line_x_.clear();
     line_y_.clear();
+    fill_verts_.clear();
     outlier_x_.clear();
     outlier_y_.clear();
 
@@ -151,7 +202,10 @@ void BoxPlotSeries::rebuild_geometry()
         float               x = positions_[i];
         const BoxPlotStats& s = stats_[i];
 
-        // Box rectangle: left, bottom -> left, top -> right, top -> right, bottom -> close
+        // ── Fill: box rectangle (Q1 to Q3) ──
+        emit_filled_quad(fill_verts_, x - hw, s.q1, x + hw, s.q3, gradient_);
+
+        // ── Outline: box rectangle ──
         line_x_.push_back(x - hw);
         line_y_.push_back(s.q1);
         line_x_.push_back(x - hw);
@@ -162,11 +216,10 @@ void BoxPlotSeries::rebuild_geometry()
         line_y_.push_back(s.q1);
         line_x_.push_back(x - hw);
         line_y_.push_back(s.q1);
-        // NaN break
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Median line (horizontal across box)
+        // ── Median line (thicker, rendered as outline) ──
         line_x_.push_back(x - hw);
         line_y_.push_back(s.median);
         line_x_.push_back(x + hw);
@@ -174,16 +227,18 @@ void BoxPlotSeries::rebuild_geometry()
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Lower whisker (vertical line from q1 down to whisker_low)
-        line_x_.push_back(x);
-        line_y_.push_back(s.q1);
-        line_x_.push_back(x);
-        line_y_.push_back(s.whisker_low);
-        line_x_.push_back(NAN_BREAK);
-        line_y_.push_back(NAN_BREAK);
-
-        // Lower whisker cap (horizontal)
+        // ── Whiskers ──
         float cap_hw = hw * 0.5f;
+
+        // Lower whisker
+        line_x_.push_back(x);
+        line_y_.push_back(s.q1);
+        line_x_.push_back(x);
+        line_y_.push_back(s.whisker_low);
+        line_x_.push_back(NAN_BREAK);
+        line_y_.push_back(NAN_BREAK);
+
+        // Lower cap
         line_x_.push_back(x - cap_hw);
         line_y_.push_back(s.whisker_low);
         line_x_.push_back(x + cap_hw);
@@ -191,7 +246,7 @@ void BoxPlotSeries::rebuild_geometry()
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Upper whisker (vertical line from q3 up to whisker_high)
+        // Upper whisker
         line_x_.push_back(x);
         line_y_.push_back(s.q3);
         line_x_.push_back(x);
@@ -199,7 +254,7 @@ void BoxPlotSeries::rebuild_geometry()
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Upper whisker cap (horizontal)
+        // Upper cap
         line_x_.push_back(x - cap_hw);
         line_y_.push_back(s.whisker_high);
         line_x_.push_back(x + cap_hw);
@@ -207,7 +262,7 @@ void BoxPlotSeries::rebuild_geometry()
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Outliers
+        // ── Outliers ──
         if (show_outliers_)
         {
             for (float o : s.outliers)
@@ -244,6 +299,7 @@ void ViolinSeries::rebuild_geometry()
 {
     line_x_.clear();
     line_y_.clear();
+    fill_verts_.clear();
 
     float hw = violin_width_ * 0.5f;
 
@@ -296,13 +352,39 @@ void ViolinSeries::rebuild_geometry()
                 kde_vals[i] /= max_kde;
         }
 
-        // Draw right half of violin (going up)
+        // ── Fill: triangulated violin shape (horizontal slices) ──
+        for (int i = 0; i < resolution_ - 1; ++i)
+        {
+            float rx0 = vd.x_position + kde_vals[i] * hw;
+            float lx0 = vd.x_position - kde_vals[i] * hw;
+            float rx1 = vd.x_position + kde_vals[i + 1] * hw;
+            float lx1 = vd.x_position - kde_vals[i + 1] * hw;
+            float y0  = y_vals[i];
+            float y1  = y_vals[i + 1];
+
+            // Gradient: center is bright (1.0), edges are dim
+            float ac = gradient_ ? 1.0f : 1.0f;   // center alpha
+            float ar0 = grad_alpha(rx0, lx0, rx0, gradient_);
+            float ar1 = grad_alpha(rx1, lx1, rx1, gradient_);
+            float al0 = grad_alpha(lx0, lx0, rx0, gradient_);
+            float al1 = grad_alpha(lx1, lx1, rx1, gradient_);
+
+            // Right half quad
+            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, rx0, y0, ar0, rx1, y1, ar1);
+            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, rx1, y1, ar1, vd.x_position, y1, ac);
+            // Left half quad
+            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, lx0, y0, al0, lx1, y1, al1);
+            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, lx1, y1, al1, vd.x_position, y1, ac);
+        }
+
+        // ── Outline: violin contour ──
+        // Right half (going up)
         for (int i = 0; i < resolution_; ++i)
         {
             line_x_.push_back(vd.x_position + kde_vals[i] * hw);
             line_y_.push_back(y_vals[i]);
         }
-        // Draw left half of violin (going down)
+        // Left half (going down)
         for (int i = resolution_ - 1; i >= 0; --i)
         {
             line_x_.push_back(vd.x_position - kde_vals[i] * hw);
@@ -311,19 +393,21 @@ void ViolinSeries::rebuild_geometry()
         // Close the shape
         line_x_.push_back(vd.x_position + kde_vals[0] * hw);
         line_y_.push_back(y_vals[0]);
-        // NaN break
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
 
-        // Inner box plot (thin)
+        // ── Inner box plot (thin) ──
         if (show_box_)
         {
             float q1     = percentile(sorted, 0.25f);
             float median = percentile(sorted, 0.5f);
             float q3     = percentile(sorted, 0.75f);
-            float bw     = hw * 0.15f;   // thin inner box
+            float bw     = hw * 0.15f;
 
-            // Box
+            // Inner box fill (darker)
+            emit_filled_quad(fill_verts_, vd.x_position - bw, q1, vd.x_position + bw, q3, gradient_);
+
+            // Inner box outline
             line_x_.push_back(vd.x_position - bw);
             line_y_.push_back(q1);
             line_x_.push_back(vd.x_position - bw);
@@ -377,6 +461,7 @@ void HistogramSeries::rebuild_geometry()
 {
     line_x_.clear();
     line_y_.clear();
+    fill_verts_.clear();
     bin_edges_.clear();
     bin_counts_.clear();
 
@@ -422,8 +507,15 @@ void HistogramSeries::rebuild_geometry()
             bin_counts_[i] /= (total * bin_width);
     }
 
-    // Build step-function geometry
-    // Start from baseline
+    // ── Fill: one filled quad per bin ──
+    for (int i = 0; i < bins_; ++i)
+    {
+        if (bin_counts_[i] > 0.0f)
+            emit_filled_quad(fill_verts_, bin_edges_[i], 0.0f, bin_edges_[i + 1],
+                             bin_counts_[i], gradient_);
+    }
+
+    // ── Outline: step-function contour ──
     line_x_.push_back(bin_edges_[0]);
     line_y_.push_back(0.0f);
 
@@ -437,7 +529,6 @@ void HistogramSeries::rebuild_geometry()
         line_y_.push_back(bin_counts_[i]);
     }
 
-    // Close to baseline
     line_x_.push_back(bin_edges_[bins_]);
     line_y_.push_back(0.0f);
 }
@@ -466,6 +557,7 @@ void BarSeries::rebuild_geometry()
 {
     line_x_.clear();
     line_y_.clear();
+    fill_verts_.clear();
 
     float  hw = bar_width_ * 0.5f;
     size_t n  = std::min(positions_.size(), heights_.size());
@@ -477,7 +569,10 @@ void BarSeries::rebuild_geometry()
 
         if (orientation_ == BarOrientation::Vertical)
         {
-            // Rectangle: 5 points + NaN break
+            // ── Fill: solid bar rectangle ──
+            emit_filled_quad(fill_verts_, pos - hw, baseline_, pos + hw, h, gradient_);
+
+            // ── Outline: rectangle border ──
             line_x_.push_back(pos - hw);
             line_y_.push_back(baseline_);
             line_x_.push_back(pos - hw);
@@ -491,7 +586,10 @@ void BarSeries::rebuild_geometry()
         }
         else
         {
-            // Horizontal bars: swap x/y roles
+            // ── Fill: horizontal bar ──
+            emit_filled_quad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
+
+            // ── Outline: horizontal bar border ──
             line_x_.push_back(baseline_);
             line_y_.push_back(pos - hw);
             line_x_.push_back(h);
@@ -504,7 +602,6 @@ void BarSeries::rebuild_geometry()
             line_y_.push_back(pos - hw);
         }
 
-        // NaN break between bars
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
     }

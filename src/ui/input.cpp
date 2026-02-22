@@ -144,12 +144,21 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     //                      std::to_string(mods)
     //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
-    // Hit-test all axes (including 3D) first
-    AxesBase* hit_base = hit_test_all_axes(x, y);
-    if (hit_base)
+    // Hit-test all axes (including 3D) — but only on PRESS when no drag is
+    // active.  During an active drag the axes must stay locked to the one that
+    // was clicked, otherwise moving the cursor over a different subplot would
+    // swap the target axes mid-drag (causing jumps in 2D and broken release
+    // handling in 3D).
+    bool in_active_drag = is_3d_orbit_drag_ || is_3d_pan_drag_ || rclick_zoom_dragging_
+                          || mode_ == InteractionMode::Dragging || middle_pan_dragging_;
+    if (!in_active_drag)
     {
-        active_axes_base_ = hit_base;
-        active_axes_      = dynamic_cast<Axes*>(hit_base);
+        AxesBase* hit_base = hit_test_all_axes(x, y);
+        if (hit_base)
+        {
+            active_axes_base_ = hit_base;
+            active_axes_      = dynamic_cast<Axes*>(hit_base);
+        }
     }
 
     // Handle 3D axes camera interaction

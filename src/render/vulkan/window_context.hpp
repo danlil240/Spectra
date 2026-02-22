@@ -62,8 +62,9 @@ struct WindowContext
     bool should_close = false;
 
     // Window state
-    bool is_focused = false;
-    bool is_preview = false;   // Tearoff preview window (borderless, floating)
+    bool     is_focused = false;
+    bool     is_preview = false;   // Tearoff preview window (borderless, floating)
+    uint64_t z_order    = 0;       // Monotonic counter — higher = more recently focused (frontmost)
 
     // Figure assignment: FigureId from FigureRegistry that this window renders.
     // INVALID_FIGURE_ID means "use the primary window's active figure" (default).

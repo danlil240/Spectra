@@ -351,7 +351,10 @@ inline LineSeries3D& plot3(std::span<const float> x,
                            std::span<const float> y,
                            std::span<const float> z)
 {
-    return detail::easy_state().ensure_axes3d().line3d(x, y, z);
+    auto& ax  = detail::easy_state().ensure_axes3d();
+    auto& ref = ax.line3d(x, y, z);
+    ax.auto_fit();
+    return ref;
 }
 
 // 3D scatter plot.
@@ -359,7 +362,10 @@ inline ScatterSeries3D& scatter3(std::span<const float> x,
                                  std::span<const float> y,
                                  std::span<const float> z)
 {
-    return detail::easy_state().ensure_axes3d().scatter3d(x, y, z);
+    auto& ax  = detail::easy_state().ensure_axes3d();
+    auto& ref = ax.scatter3d(x, y, z);
+    ax.auto_fit();
+    return ref;
 }
 
 // Surface plot.
@@ -367,13 +373,19 @@ inline SurfaceSeries& surf(std::span<const float> x_grid,
                            std::span<const float> y_grid,
                            std::span<const float> z_values)
 {
-    return detail::easy_state().ensure_axes3d().surface(x_grid, y_grid, z_values);
+    auto& ax  = detail::easy_state().ensure_axes3d();
+    auto& ref = ax.surface(x_grid, y_grid, z_values);
+    ax.auto_fit();
+    return ref;
 }
 
 // Mesh plot.
 inline MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_t> indices)
 {
-    return detail::easy_state().ensure_axes3d().mesh(vertices, indices);
+    auto& ax  = detail::easy_state().ensure_axes3d();
+    auto& ref = ax.mesh(vertices, indices);
+    ax.auto_fit();
+    return ref;
 }
 
 // ─── Axes Configuration (applies to current axes) ───────────────────────────

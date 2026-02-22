@@ -42,6 +42,8 @@ set(SHADER_SOURCES
     ${SHADER_SOURCE_DIR}/scatter.vert
     ${SHADER_SOURCE_DIR}/scatter3d.frag
     ${SHADER_SOURCE_DIR}/scatter3d.vert
+    ${SHADER_SOURCE_DIR}/stat_fill.frag
+    ${SHADER_SOURCE_DIR}/stat_fill.vert
     ${SHADER_SOURCE_DIR}/surface3d.frag
     ${SHADER_SOURCE_DIR}/surface3d.vert
     ${SHADER_SOURCE_DIR}/text.frag

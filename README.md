@@ -92,6 +92,7 @@ int main() {
 ### Easy API (MATLAB-style)
 - **Progressive complexity** — From one-liners to full control in 7 levels
 - **2D functions** — `plot()`, `scatter()`, `subplot()`, `title()`, `xlabel()`, `ylabel()`, `xlim()`, `ylim()`, `grid()`, `legend()`
+- **Statistical plots** — `box_plot()`, `violin()`, `histogram()`, `bar()` with filled shapes, semi-transparent fills, and auto-computed statistics
 - **3D functions** — `plot3()`, `scatter3()`, `surf()`, `mesh()`, `subplot3d()`, `zlabel()`, `zlim()`
 - **Multi-window** — `figure()` creates new OS windows, `tab()` adds tabs
 - **Real-time** — `on_update(callback)` with configurable FPS
@@ -232,6 +233,22 @@ brew install cmake vulkan-headers vulkan-loader glslang molten-vk
 | Build examples | `-DSPECTRA_BUILD_EXAMPLES=ON` |
 | Golden image tests | `-DSPECTRA_BUILD_GOLDEN_TESTS=ON` |
 
+### Eigen Integration
+
+Spectra accepts [Eigen](https://eigen.tuxfamily.org) vectors directly — no conversions needed:
+
+```cpp
+#include <spectra/eigen_easy.hpp>  // or <spectra/eigen.hpp> for object API
+
+Eigen::VectorXf x = Eigen::VectorXf::LinSpaced(100, 0, 2 * M_PI);
+Eigen::VectorXf y = x.array().sin();
+
+spectra::plot(x, y, "r--o");  // zero-copy, direct Eigen support
+spectra::show();
+```
+
+Build with `-DSPECTRA_USE_EIGEN=ON` (requires Eigen3 headers).
+
 ### Run an Example
 
 ```bash
@@ -313,6 +330,25 @@ sp.title("Cosine")
 sp.show()
 ```
 
+### Statistical Plots
+
+```python
+import spectra as sp
+import numpy as np
+
+data = [np.random.normal(mu, 1, 200) for mu in [0, 2, 5]]
+
+sp.subplot(1, 2, 1)
+sp.boxplot(data, positions=[1, 2, 3])
+sp.title("Box Plot")
+
+sp.subplot(1, 2, 2)
+sp.violin_plot(data, positions=[1, 2, 3])
+sp.title("Violin Plot")
+
+sp.show()
+```
+
 ### 3D Plots
 
 ```python
@@ -378,6 +414,7 @@ The `examples/` directory contains 40+ runnable programs:
 | `video_record.cpp` | MP4 recording via ffmpeg |
 | `plugin_api_demo.cpp` | Plugin system demonstration |
 | `shortcut_config_demo.cpp` | Custom keybinding persistence |
+| `stats_demo.cpp` | Box plot, violin, histogram, bar chart with filled rendering |
 | `empty_launch_csv.cpp` | Empty canvas + CSV data loading |
 
 Python examples in `python/examples/`:

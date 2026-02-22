@@ -654,6 +654,17 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
+        case PipelineType::StatFill:
+            cfg.vert_spirv      = shaders::stat_fill_vert;
+            cfg.vert_spirv_size = shaders::stat_fill_vert_size;
+            cfg.frag_spirv      = shaders::stat_fill_frag;
+            cfg.frag_spirv_size = shaders::stat_fill_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            // vec2 position + float alpha = 3 floats per vertex
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});                           // position
+            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 2)});  // alpha
+            break;
         case PipelineType::Arrow3D:
             cfg.vert_spirv         = shaders::arrow3d_vert;
             cfg.vert_spirv_size    = shaders::arrow3d_vert_size;

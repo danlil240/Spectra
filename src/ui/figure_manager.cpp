@@ -4,6 +4,7 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_stats.hpp>
 
 #include "tab_bar.hpp"
 
@@ -360,6 +361,65 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                     dup.label(ss->label());
                 dup.visible(ss->visible());
                 dup.plot_style(ss->plot_style());
+            }
+            else if (auto* bp = dynamic_cast<const BoxPlotSeries*>(s.get()))
+            {
+                auto& dup = dst_ax.box_plot();
+                for (size_t bi = 0; bi < bp->positions().size(); ++bi)
+                {
+                    const auto& st = bp->stats()[bi];
+                    dup.add_box(bp->positions()[bi], st.median, st.q1, st.q3,
+                                st.whisker_low, st.whisker_high, st.outliers);
+                }
+                dup.color(bp->color());
+                dup.box_width(bp->box_width());
+                dup.show_outliers(bp->show_outliers());
+                dup.notched(bp->notched());
+                dup.gradient(bp->gradient());
+                if (!bp->label().empty())
+                    dup.label(bp->label());
+                dup.visible(bp->visible());
+                dup.opacity(bp->opacity());
+            }
+            else if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
+            {
+                auto& dup = dst_ax.violin();
+                for (const auto& vd : vn->violins())
+                    dup.add_violin(vd.x_position, vd.values);
+                dup.color(vn->color());
+                dup.violin_width(vn->violin_width());
+                dup.resolution(vn->resolution());
+                dup.show_box(vn->show_box());
+                dup.gradient(vn->gradient());
+                if (!vn->label().empty())
+                    dup.label(vn->label());
+                dup.visible(vn->visible());
+                dup.opacity(vn->opacity());
+            }
+            else if (auto* hs = dynamic_cast<const HistogramSeries*>(s.get()))
+            {
+                auto& dup = dst_ax.histogram(hs->raw_values(), hs->bins());
+                dup.color(hs->color());
+                dup.cumulative(hs->cumulative());
+                dup.density(hs->density());
+                dup.gradient(hs->gradient());
+                if (!hs->label().empty())
+                    dup.label(hs->label());
+                dup.visible(hs->visible());
+                dup.opacity(hs->opacity());
+            }
+            else if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
+            {
+                auto& dup = dst_ax.bar(bs->bar_positions(), bs->bar_heights());
+                dup.color(bs->color());
+                dup.bar_width(bs->bar_width());
+                dup.baseline(bs->baseline());
+                dup.orientation(bs->orientation());
+                dup.gradient(bs->gradient());
+                if (!bs->label().empty())
+                    dup.label(bs->label());
+                dup.visible(bs->visible());
+                dup.opacity(bs->opacity());
             }
         }
     }

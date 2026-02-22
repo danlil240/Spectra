@@ -45,6 +45,10 @@ void Renderer::flush_pending_deletions()
             backend_.destroy_buffer(gpu.ssbo);
         if (gpu.index_buffer)
             backend_.destroy_buffer(gpu.index_buffer);
+        if (gpu.fill_buffer)
+            backend_.destroy_buffer(gpu.fill_buffer);
+        if (gpu.outlier_buffer)
+            backend_.destroy_buffer(gpu.outlier_buffer);
     }
     slot.clear();
 
@@ -141,7 +145,8 @@ bool Renderer::init()
     line_pipeline_    = backend_.create_pipeline(PipelineType::Line);
     scatter_pipeline_ = backend_.create_pipeline(PipelineType::Scatter);
     grid_pipeline_    = backend_.create_pipeline(PipelineType::Grid);
-    overlay_pipeline_ = backend_.create_pipeline(PipelineType::Overlay);
+    overlay_pipeline_    = backend_.create_pipeline(PipelineType::Overlay);
+    stat_fill_pipeline_  = backend_.create_pipeline(PipelineType::StatFill);
 
     // Create 3D pipelines
     line3d_pipeline_         = backend_.create_pipeline(PipelineType::Line3D);
@@ -845,6 +850,73 @@ void Renderer::upload_series_data(Series& series)
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
         gpu.uploaded_count = count;
+
+        // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
+        std::span<const float> fill_verts;
+        size_t fill_count = 0;
+        if (boxplot && boxplot->fill_vertex_count() > 0)
+        {
+            fill_verts = boxplot->fill_verts();
+            fill_count = boxplot->fill_vertex_count();
+        }
+        else if (violin && violin->fill_vertex_count() > 0)
+        {
+            fill_verts = violin->fill_verts();
+            fill_count = violin->fill_vertex_count();
+        }
+        else if (histogram && histogram->fill_vertex_count() > 0)
+        {
+            fill_verts = histogram->fill_verts();
+            fill_count = histogram->fill_vertex_count();
+        }
+        else if (bar && bar->fill_vertex_count() > 0)
+        {
+            fill_verts = bar->fill_verts();
+            fill_count = bar->fill_vertex_count();
+        }
+
+        if (fill_count > 0)
+        {
+            // 3 floats per vertex: x, y, alpha
+            size_t fill_bytes = fill_count * 3 * sizeof(float);
+            if (!gpu.fill_buffer || gpu.fill_vertex_count < fill_count)
+            {
+                if (gpu.fill_buffer)
+                    backend_.destroy_buffer(gpu.fill_buffer);
+                gpu.fill_buffer = backend_.create_buffer(BufferUsage::Vertex, fill_bytes * 2);
+            }
+
+            backend_.upload_buffer(gpu.fill_buffer, fill_verts.data(), fill_bytes);
+            gpu.fill_vertex_count = fill_count;
+        }
+
+        // Upload outlier data for box plots (persistent buffer, avoids in-flight destruction)
+        if (boxplot && boxplot->outlier_count() > 0)
+        {
+            size_t out_count     = boxplot->outlier_count();
+            size_t out_byte_size = out_count * 2 * sizeof(float);
+            if (!gpu.outlier_buffer || gpu.outlier_count < out_count)
+            {
+                if (gpu.outlier_buffer)
+                    backend_.destroy_buffer(gpu.outlier_buffer);
+                gpu.outlier_buffer = backend_.create_buffer(BufferUsage::Storage, out_byte_size * 2);
+            }
+            size_t out_floats = out_count * 2;
+            if (upload_scratch_.size() < out_floats)
+                upload_scratch_.resize(out_floats);
+            for (size_t i = 0; i < out_count; ++i)
+            {
+                upload_scratch_[i * 2]     = boxplot->outlier_x().data()[i];
+                upload_scratch_[i * 2 + 1] = boxplot->outlier_y().data()[i];
+            }
+            backend_.upload_buffer(gpu.outlier_buffer, upload_scratch_.data(), out_byte_size);
+            gpu.outlier_count = out_count;
+        }
+        else if (boxplot)
+        {
+            gpu.outlier_count = 0;
+        }
+
         series.clear_dirty();
     }
     // Handle 3D line/scatter (vec4 interleaved: x,y,z,pad)
@@ -2181,48 +2253,52 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         case SeriesType::BoxPlot2D:
         {
             auto* bp = static_cast<BoxPlotSeries*>(&series);
+            // Draw fill with per-vertex gradient alpha
+            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            {
+                backend_.bind_pipeline(stat_fill_pipeline_);
+                SeriesPushConstants fill_pc = pc;
+                fill_pc.color[3] *= 0.45f;
+                backend_.push_constants(fill_pc);
+                backend_.bind_buffer(gpu.fill_buffer, 0);
+                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+            }
+            // Draw outline
             if (bp->point_count() > 1)
             {
                 backend_.bind_pipeline(line_pipeline_);
-                pc.line_width = 2.0f;
+                pc.line_width = 1.5f;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(bp->point_count()) - 1;
                 backend_.draw(segments * 6);
             }
-            // Render outliers as scatter points
-            if (bp->outlier_count() > 0)
+            // Render outliers as scatter points (using persistent buffer from upload)
+            if (gpu.outlier_buffer && gpu.outlier_count > 0)
             {
-                // Outliers need their own SSBO — upload inline
-                size_t out_count     = bp->outlier_count();
-                size_t out_byte_size = out_count * 2 * sizeof(float);
-                if (upload_scratch_.size() < out_count * 2)
-                    upload_scratch_.resize(out_count * 2);
-                for (size_t i = 0; i < out_count; ++i)
-                {
-                    upload_scratch_[i * 2]     = bp->outlier_x().data()[i];
-                    upload_scratch_[i * 2 + 1] = bp->outlier_y().data()[i];
-                }
-                // Reuse the main SSBO if large enough, else create temp
-                // For simplicity, use a secondary draw with the same buffer
-                // by uploading outlier data after the line data
-                BufferHandle outlier_buf =
-                    backend_.create_buffer(BufferUsage::Storage, out_byte_size);
-                backend_.upload_buffer(outlier_buf, upload_scratch_.data(), out_byte_size);
-
                 backend_.bind_pipeline(scatter_pipeline_);
-                pc.point_size  = 4.0f;
+                pc.point_size  = 5.0f;
                 pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
                 backend_.push_constants(pc);
-                backend_.bind_buffer(outlier_buf, 0);
-                backend_.draw_instanced(6, static_cast<uint32_t>(out_count));
-                backend_.destroy_buffer(outlier_buf);
+                backend_.bind_buffer(gpu.outlier_buffer, 0);
+                backend_.draw_instanced(6, static_cast<uint32_t>(gpu.outlier_count));
             }
             break;
         }
         case SeriesType::Violin2D:
         {
             auto* vn = static_cast<ViolinSeries*>(&series);
+            // Draw fill with per-vertex gradient alpha
+            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            {
+                backend_.bind_pipeline(stat_fill_pipeline_);
+                SeriesPushConstants fill_pc = pc;
+                fill_pc.color[3] *= 0.40f;
+                backend_.push_constants(fill_pc);
+                backend_.bind_buffer(gpu.fill_buffer, 0);
+                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+            }
+            // Draw outline
             if (vn->point_count() > 1)
             {
                 backend_.bind_pipeline(line_pipeline_);
@@ -2237,10 +2313,21 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         case SeriesType::Histogram2D:
         {
             auto* hist = static_cast<HistogramSeries*>(&series);
+            // Draw fill with per-vertex gradient alpha
+            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            {
+                backend_.bind_pipeline(stat_fill_pipeline_);
+                SeriesPushConstants fill_pc = pc;
+                fill_pc.color[3] *= 0.65f;
+                backend_.push_constants(fill_pc);
+                backend_.bind_buffer(gpu.fill_buffer, 0);
+                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+            }
+            // Draw outline
             if (hist->point_count() > 1)
             {
                 backend_.bind_pipeline(line_pipeline_);
-                pc.line_width = 2.0f;
+                pc.line_width = 1.0f;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(hist->point_count()) - 1;
@@ -2251,10 +2338,21 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         case SeriesType::Bar2D:
         {
             auto* bs = static_cast<BarSeries*>(&series);
+            // Draw fill with per-vertex gradient alpha
+            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            {
+                backend_.bind_pipeline(stat_fill_pipeline_);
+                SeriesPushConstants fill_pc = pc;
+                fill_pc.color[3] *= 0.75f;
+                backend_.push_constants(fill_pc);
+                backend_.bind_buffer(gpu.fill_buffer, 0);
+                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+            }
+            // Draw outline
             if (bs->point_count() > 1)
             {
                 backend_.bind_pipeline(line_pipeline_);
-                pc.line_width = 2.0f;
+                pc.line_width = 1.5f;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(bs->point_count()) - 1;

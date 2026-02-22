@@ -45,7 +45,6 @@ int main()
 
     spectra::subplot3d(2, 2, 4);
     spectra::plot3(hx, hy, hz).label("helix").color({0.2f, 0.6f, 1.0f, 1.0f});
-    spectra::gca3d()->auto_fit();
     spectra::title("3D Helix");
 
     spectra::show();

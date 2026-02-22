@@ -70,10 +70,23 @@ class BoxPlotSeries : public Series
     }
     bool notched() const { return notched_; }
 
-    // Access computed geometry (line segments for rendering)
+    // Access outline geometry (line segments with NaN breaks)
     std::span<const float> x_data() const { return line_x_; }
     std::span<const float> y_data() const { return line_y_; }
     size_t                 point_count() const { return line_x_.size(); }
+
+    // Access fill geometry (interleaved x,y,alpha per vertex)
+    std::span<const float> fill_verts() const { return fill_verts_; }
+    size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
+
+    // Enable/disable horizontal gradient on fills
+    BoxPlotSeries& gradient(bool g)
+    {
+        gradient_ = g;
+        dirty_    = true;
+        return *this;
+    }
+    bool gradient() const { return gradient_; }
 
     // Access outlier points (scatter rendering)
     std::span<const float> outlier_x() const { return outlier_x_; }
@@ -118,10 +131,12 @@ class BoxPlotSeries : public Series
     float                     box_width_     = 0.6f;
     bool                      show_outliers_ = true;
     bool                      notched_       = false;
+    bool                      gradient_      = true;
 
     // Generated geometry
     std::vector<float> line_x_;
     std::vector<float> line_y_;
+    std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
     std::vector<float> outlier_x_;
     std::vector<float> outlier_y_;
 };
@@ -164,10 +179,23 @@ class ViolinSeries : public Series
     }
     bool show_box() const { return show_box_; }
 
-    // Access computed geometry
+    // Access outline geometry
     std::span<const float> x_data() const { return line_x_; }
     std::span<const float> y_data() const { return line_y_; }
     size_t                 point_count() const { return line_x_.size(); }
+
+    // Access fill geometry (interleaved x,y,alpha per vertex)
+    std::span<const float> fill_verts() const { return fill_verts_; }
+    size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
+
+    // Enable/disable horizontal gradient on fills
+    ViolinSeries& gradient(bool g)
+    {
+        gradient_ = g;
+        dirty_    = true;
+        return *this;
+    }
+    bool gradient() const { return gradient_; }
 
     // Fluent setters
     using Series::color;
@@ -189,23 +217,28 @@ class ViolinSeries : public Series
         return *this;
     }
 
-    void record_commands(Renderer& renderer) override;
-    void rebuild_geometry();
-
-   private:
+    // Access raw violin data for duplication
     struct ViolinData
     {
         float              x_position;
         std::vector<float> values;
     };
+    const std::vector<ViolinData>& violins() const { return violins_; }
+
+    void record_commands(Renderer& renderer) override;
+    void rebuild_geometry();
+
+   private:
     std::vector<ViolinData> violins_;
     float                   violin_width_ = 0.8f;
     int                     resolution_   = 50;
     bool                    show_box_     = true;
+    bool                    gradient_     = true;
 
     // Generated geometry
     std::vector<float> line_x_;
     std::vector<float> line_y_;
+    std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
 };
 
 // ─── Histogram Series ───────────────────────────────────────────────────────
@@ -247,10 +280,23 @@ class HistogramSeries : public Series
     }
     bool density() const { return density_; }
 
-    // Access computed step-function geometry
+    // Access outline geometry (step-function)
     std::span<const float> x_data() const { return line_x_; }
     std::span<const float> y_data() const { return line_y_; }
     size_t                 point_count() const { return line_x_.size(); }
+
+    // Access fill geometry (interleaved x,y,alpha per vertex)
+    std::span<const float> fill_verts() const { return fill_verts_; }
+    size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
+
+    // Enable/disable horizontal gradient on fills
+    HistogramSeries& gradient(bool g)
+    {
+        gradient_ = g;
+        dirty_    = true;
+        return *this;
+    }
+    bool gradient() const { return gradient_; }
 
     // Access bin edges and counts
     const std::vector<float>& bin_edges() const { return bin_edges_; }
@@ -276,6 +322,9 @@ class HistogramSeries : public Series
         return *this;
     }
 
+    // Access raw values for duplication
+    const std::vector<float>& raw_values() const { return raw_values_; }
+
     void record_commands(Renderer& renderer) override;
     void rebuild_geometry();
 
@@ -284,6 +333,7 @@ class HistogramSeries : public Series
     int                bins_       = 30;
     bool               cumulative_ = false;
     bool               density_    = false;
+    bool               gradient_   = true;
 
     // Computed
     std::vector<float> bin_edges_;
@@ -292,6 +342,7 @@ class HistogramSeries : public Series
     // Generated geometry (step function)
     std::vector<float> line_x_;
     std::vector<float> line_y_;
+    std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
 };
 
 // ─── Bar Series ─────────────────────────────────────────────────────────────
@@ -339,10 +390,23 @@ class BarSeries : public Series
     }
     BarOrientation orientation() const { return orientation_; }
 
-    // Access computed geometry (rectangle outlines as line segments)
+    // Access outline geometry (rectangle outlines)
     std::span<const float> x_data() const { return line_x_; }
     std::span<const float> y_data() const { return line_y_; }
     size_t                 point_count() const { return line_x_.size(); }
+
+    // Access fill geometry (interleaved x,y,alpha per vertex)
+    std::span<const float> fill_verts() const { return fill_verts_; }
+    size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
+
+    // Enable/disable horizontal gradient on fills
+    BarSeries& gradient(bool g)
+    {
+        gradient_ = g;
+        dirty_    = true;
+        return *this;
+    }
+    bool gradient() const { return gradient_; }
 
     // Access raw positions/heights
     const std::vector<float>& bar_positions() const { return positions_; }
@@ -377,10 +441,12 @@ class BarSeries : public Series
     float              bar_width_   = 0.8f;
     float              baseline_    = 0.0f;
     BarOrientation     orientation_ = BarOrientation::Vertical;
+    bool               gradient_    = true;
 
-    // Generated geometry (rectangle outlines)
+    // Generated geometry
     std::vector<float> line_x_;
     std::vector<float> line_y_;
+    std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
 };
 
 }   // namespace spectra

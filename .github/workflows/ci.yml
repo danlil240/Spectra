@@ -86,6 +86,7 @@ jobs:
             libxcursor-dev \
             libxi-dev \
             libxkbcommon-dev \
+            libgl1-mesa-dev \
             glslang-tools
 
       - name: Verify lavapipe
@@ -99,8 +100,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
-            -DSPECTRA_BUILD_EXAMPLES=OFF \
-            -DSPECTRA_USE_GLFW=OFF
+            -DSPECTRA_BUILD_EXAMPLES=OFF
           cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
 
       - name: Run golden image tests

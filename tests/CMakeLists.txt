@@ -132,6 +132,7 @@ set(SPECTRA_GPU_TESTS
     test_multi_window
     test_window_manager
     test_figure_registry
+    test_easy_api
     test_phase2_integration
     test_phase3_integration
     test_text_renderer

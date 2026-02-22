@@ -68,6 +68,7 @@ foreach(_ui_src
     src/ui/window_runtime.cpp
     src/ui/session_runtime.cpp
     src/ui/figure_registry.cpp
+    src/ui/csv_loader.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
@@ -99,10 +100,10 @@ target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
-# Suppress warnings in third-party headers (stb_image.h tc16 array)
-target_compile_options(spectra PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=maybe-uninitialized>
-)
+# Suppress warnings in third-party headers (stb_image.h tc16 array — GCC only)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(spectra PRIVATE -Wno-error=maybe-uninitialized)
+endif()
 
 target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 

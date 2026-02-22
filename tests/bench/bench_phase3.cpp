@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <filesystem>
 #include <spectra/axes.hpp>

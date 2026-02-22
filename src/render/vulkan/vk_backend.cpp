@@ -1184,6 +1184,8 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         }
         active_window_->current_cmd = active_window_->command_buffers[0];
 
+        vkResetCommandBuffer(active_window_->current_cmd, 0);
+
         VkCommandBufferBeginInfo begin_info{};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;

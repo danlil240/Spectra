@@ -771,12 +771,25 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         subpass.pColorAttachments       = &color_ref;
         subpass.pDepthStencilAttachment = &depth_ref;
 
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass   = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
         VkRenderPassCreateInfo rp_info{};
         rp_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         rp_info.attachmentCount = 2;
         rp_info.pAttachments    = rp_attachments;
         rp_info.subpassCount    = 1;
         rp_info.pSubpasses      = &subpass;
+        rp_info.dependencyCount = 1;
+        rp_info.pDependencies   = &dependency;
 
         if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS)
         {
@@ -837,12 +850,25 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         subpass.pDepthStencilAttachment = &depth_ref;
         subpass.pResolveAttachments     = &resolve_ref;
 
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass   = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
         VkRenderPassCreateInfo rp_info{};
         rp_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         rp_info.attachmentCount = 3;
         rp_info.pAttachments    = rp_attachments;
         rp_info.subpassCount    = 1;
         rp_info.pSubpasses      = &subpass;
+        rp_info.dependencyCount = 1;
+        rp_info.pDependencies   = &dependency;
 
         if (vkCreateRenderPass(device, &rp_info, nullptr, &ctx.render_pass) != VK_SUCCESS)
         {

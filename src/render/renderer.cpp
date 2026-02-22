@@ -1757,19 +1757,13 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // Read back current UBO contents by rebuilding from axes state
         const auto& cam = axes.camera();
         {
-            float aspect = 0.0f;
+            const auto& vp = axes.viewport();
+            float aspect = vp.w / std::max(vp.h, 1.0f);
             // Copy projection
             if (cam.projection_mode == Camera::ProjectionMode::Perspective)
             {
                 float fov_rad = cam.fov * PI / 180.0f;
                 float f = 1.0f / std::tan(fov_rad * 0.5f);
-                // We need the actual viewport aspect — read from the UBO we set up
-                // in render_axes. Since we can't read it back, recompute from the
-                // viewport that was used. The viewport is set before render_arrows
-                // is called, so we use the axes viewport.
-                const auto& vp = axes.viewport();
-                aspect = vp.w / std::max(vp.h, 1.0f);
-                FrameUBO arrow_ubo{};  // Value-initializes all members to zero
                 arrow_ubo.projection[0] = f / aspect;
                 arrow_ubo.projection[5] = -f;
                 arrow_ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
@@ -1779,8 +1773,6 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
             }
             else
             {
-                const auto& vp = axes.viewport();
-                aspect = vp.w / std::max(vp.h, 1.0f);
                 float half_w = cam.ortho_size * aspect;
                 float half_h = cam.ortho_size;
                 build_ortho_projection_3d(-half_w,

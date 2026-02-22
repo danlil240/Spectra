@@ -4,10 +4,6 @@
 
 #include "shader_spirv.hpp"
 
-// Ensure shader symbols are available - this will fail at compile time if shader generation failed
-static_assert(sizeof(spectra::shaders::text_vert) != 0, "Shader generation failed - text_vert not found");
-static_assert(sizeof(spectra::shaders::text_frag) != 0, "Shader generation failed - text_frag not found");
-
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN

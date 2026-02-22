@@ -23,13 +23,37 @@ set(SHADER_HEADER     ${CMAKE_CURRENT_BINARY_DIR}/generated/shader_spirv.hpp)
 
 file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
 
-# Collect all shader source files
-file(GLOB SHADER_SOURCES
-    ${SHADER_SOURCE_DIR}/*.vert
-    ${SHADER_SOURCE_DIR}/*.frag
-    ${SHADER_SOURCE_DIR}/*.comp
-    ${SHADER_SOURCE_DIR}/*.geom
+# Explicit shader list — every shader must be listed here.
+# Using an explicit list instead of GLOB ensures new shaders are never silently skipped.
+set(SHADER_SOURCES
+    ${SHADER_SOURCE_DIR}/arrow3d.frag
+    ${SHADER_SOURCE_DIR}/arrow3d.vert
+    ${SHADER_SOURCE_DIR}/grid.frag
+    ${SHADER_SOURCE_DIR}/grid.vert
+    ${SHADER_SOURCE_DIR}/grid3d.frag
+    ${SHADER_SOURCE_DIR}/grid3d.vert
+    ${SHADER_SOURCE_DIR}/line.frag
+    ${SHADER_SOURCE_DIR}/line.vert
+    ${SHADER_SOURCE_DIR}/line3d.frag
+    ${SHADER_SOURCE_DIR}/line3d.vert
+    ${SHADER_SOURCE_DIR}/mesh3d.frag
+    ${SHADER_SOURCE_DIR}/mesh3d.vert
+    ${SHADER_SOURCE_DIR}/scatter.frag
+    ${SHADER_SOURCE_DIR}/scatter.vert
+    ${SHADER_SOURCE_DIR}/scatter3d.frag
+    ${SHADER_SOURCE_DIR}/scatter3d.vert
+    ${SHADER_SOURCE_DIR}/surface3d.frag
+    ${SHADER_SOURCE_DIR}/surface3d.vert
+    ${SHADER_SOURCE_DIR}/text.frag
+    ${SHADER_SOURCE_DIR}/text.vert
 )
+
+# Verify all listed shaders exist at configure time
+foreach(SHADER_SRC ${SHADER_SOURCES})
+    if(NOT EXISTS ${SHADER_SRC})
+        message(FATAL_ERROR "Shader source not found: ${SHADER_SRC}")
+    endif()
+endforeach()
 
 set(SPIRV_OUTPUTS "")
 
@@ -48,7 +72,8 @@ foreach(SHADER_SRC ${SHADER_SOURCES})
     list(APPEND SPIRV_OUTPUTS ${SPIRV_OUT})
 endforeach()
 
-# Generate C++ header embedding all SPIR-V bytecode
+# Generate C++ header embedding all SPIR-V bytecode.
+# The DEPENDS on all SPIRV_OUTPUTS ensures every .spv must exist before this runs.
 add_custom_command(
     OUTPUT ${SHADER_HEADER}
     COMMAND ${CMAKE_COMMAND}
@@ -60,15 +85,4 @@ add_custom_command(
     VERBATIM
 )
 
-# Verify the header was created and contains expected shaders
-add_custom_command(
-    OUTPUT ${SHADER_HEADER}.verified
-    COMMAND ${CMAKE_COMMAND} -E echo "Verifying shader header contains text shaders..."
-    COMMAND ${CMAKE_COMMAND} -E cat ${SHADER_HEADER} | grep -q "text_vert" || ${CMAKE_COMMAND} -E echo "ERROR: text_vert not found in shader header"
-    COMMAND ${CMAKE_COMMAND} -E cat ${SHADER_HEADER} | grep -q "text_frag" || ${CMAKE_COMMAND} -E echo "ERROR: text_frag not found in shader header"
-    COMMAND ${CMAKE_COMMAND} -E touch ${SHADER_HEADER}.verified
-    DEPENDS ${SHADER_HEADER}
-    COMMENT "Verifying shader header content"
-)
-
-add_custom_target(spectra_shaders DEPENDS ${SHADER_HEADER}.verified ${SPIRV_OUTPUTS})
+add_custom_target(spectra_shaders DEPENDS ${SHADER_HEADER} ${SPIRV_OUTPUTS})

@@ -38,19 +38,19 @@ AnimationBuilder& AnimationBuilder::loop(bool enabled)
 
 void AnimationBuilder::play()
 {
-    figure_.anim_fps_ = target_fps_;
+    figure_.anim_fps_      = target_fps_;
     figure_.anim_duration_ = duration_;
-    figure_.anim_loop_ = loop_;
+    figure_.anim_loop_     = loop_;
     figure_.anim_on_frame_ = on_frame_;
     // Actual playback is driven by App (Agent 4).
 }
 
 void AnimationBuilder::record(const std::string& output_path)
 {
-    figure_.anim_fps_ = target_fps_;
-    figure_.anim_duration_ = duration_;
-    figure_.anim_loop_ = false;
-    figure_.anim_on_frame_ = on_frame_;
+    figure_.anim_fps_          = target_fps_;
+    figure_.anim_duration_     = duration_;
+    figure_.anim_loop_         = false;
+    figure_.anim_on_frame_     = on_frame_;
     figure_.video_record_path_ = output_path;
 }
 
@@ -120,16 +120,16 @@ void Figure::show()
 
 void Figure::save_png(const std::string& path)
 {
-    png_export_path_ = path;
-    png_export_width_ = 0;
+    png_export_path_   = path;
+    png_export_width_  = 0;
     png_export_height_ = 0;
     compute_layout();
 }
 
 void Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
 {
-    png_export_path_ = path;
-    png_export_width_ = export_width;
+    png_export_path_   = path;
+    png_export_width_  = export_width;
     png_export_height_ = export_height;
     compute_layout();
 }
@@ -169,7 +169,6 @@ void Figure::compute_layout()
             all_axes_[i]->set_viewport(rects[i]);
         }
     }
-
 }
 
-}  // namespace spectra
+}   // namespace spectra

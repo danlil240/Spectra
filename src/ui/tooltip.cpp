@@ -15,7 +15,7 @@ namespace spectra
 
 void Tooltip::set_fonts(ImFont* body, ImFont* heading)
 {
-    font_body_ = body;
+    font_body_    = body;
     font_heading_ = heading;
 }
 
@@ -26,8 +26,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
 
     // Animate opacity
     target_opacity_ = (nearest.found && nearest.distance_px <= snap_radius_px_) ? 1.0f : 0.0f;
-    float dt = ImGui::GetIO().DeltaTime;
-    float speed = 12.0f;
+    float dt        = ImGui::GetIO().DeltaTime;
+    float speed     = 12.0f;
     opacity_ += (target_opacity_ - opacity_) * std::min(1.0f, speed * dt);
     if (std::abs(opacity_ - target_opacity_) < 0.01f)
         opacity_ = target_opacity_;
@@ -42,8 +42,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     std::snprintf(x_buf, sizeof(x_buf), "%.6g", nearest.data_x);
     std::snprintf(y_buf, sizeof(y_buf), "%.6g", nearest.data_y);
 
-    const char* series_name = "Unknown";
-    Color series_color = colors::gray;
+    const char* series_name  = "Unknown";
+    Color       series_color = colors::gray;
     if (nearest.series)
     {
         if (!nearest.series->label().empty())
@@ -52,14 +52,14 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     }
 
     // Tooltip layout constants
-    constexpr float padding = 10.0f;
+    constexpr float padding     = 10.0f;
     constexpr float swatch_size = 10.0f;
-    constexpr float row_height = 18.0f;
-    constexpr float min_width = 140.0f;
+    constexpr float row_height  = 18.0f;
+    constexpr float min_width   = 140.0f;
 
     // Measure text to size the tooltip
     ImFont* body_font = font_body_ ? font_body_ : ImGui::GetFont();
-    ImVec2 name_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, series_name);
+    ImVec2  name_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, series_name);
 
     char coord_line[192];
     std::snprintf(coord_line, sizeof(coord_line), "X: %s  Y: %s", x_buf, y_buf);
@@ -77,8 +77,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Position: offset from the snap point, clamped to window
     float offset_x = 16.0f;
     float offset_y = -tooltip_h - 8.0f;
-    float tx = nearest.screen_x + offset_x;
-    float ty = nearest.screen_y + offset_y;
+    float tx       = nearest.screen_x + offset_x;
+    float ty       = nearest.screen_y + offset_y;
 
     // Clamp to window bounds
     if (tx + tooltip_w > window_width - 4.0f)
@@ -118,13 +118,14 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
             ImGui::PushFont(font_body_);
 
         // Row 1: color swatch + series name
-        ImVec2 cursor = ImGui::GetCursorScreenPos();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        dl->AddRectFilled(ImVec2(cursor.x, cursor.y + 3.0f),
-                          ImVec2(cursor.x + swatch_size, cursor.y + 3.0f + swatch_size),
-                          ImGui::ColorConvertFloat4ToU32(ImVec4(
-                              series_color.r, series_color.g, series_color.b, series_color.a)),
-                          2.0f);
+        ImVec2      cursor = ImGui::GetCursorScreenPos();
+        ImDrawList* dl     = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(
+            ImVec2(cursor.x, cursor.y + 3.0f),
+            ImVec2(cursor.x + swatch_size, cursor.y + 3.0f + swatch_size),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(series_color.r, series_color.g, series_color.b, series_color.a)),
+            2.0f);
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + swatch_size + 6.0f);
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(colors.text_primary.r,
@@ -163,8 +164,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Draw snap indicator dot at the data point
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
-        ImDrawList* fg = ImGui::GetForegroundDrawList();
-        ImU32 dot_color = ImGui::ColorConvertFloat4ToU32(
+        ImDrawList* fg        = ImGui::GetForegroundDrawList();
+        ImU32       dot_color = ImGui::ColorConvertFloat4ToU32(
             ImVec4(series_color.r, series_color.g, series_color.b, opacity_));
         ImU32 ring_color = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, opacity_));
@@ -173,6 +174,6 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

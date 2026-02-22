@@ -52,7 +52,7 @@ vec3 LineSeries3D::compute_centroid() const
     if (x_.empty())
         return {0.0f, 0.0f, 0.0f};
 
-    vec3 sum{0.0f, 0.0f, 0.0f};
+    vec3   sum{0.0f, 0.0f, 0.0f};
     size_t n = std::min({x_.size(), y_.size(), z_.size()});
     for (size_t i = 0; i < n; ++i)
     {
@@ -72,8 +72,8 @@ void LineSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
     }
 
     size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    min_out = {x_[0], y_[0], z_[0]};
-    max_out = min_out;
+    min_out  = {x_[0], y_[0], z_[0]};
+    max_out  = min_out;
 
     for (size_t i = 1; i < n; ++i)
     {
@@ -138,7 +138,7 @@ vec3 ScatterSeries3D::compute_centroid() const
     if (x_.empty())
         return {0.0f, 0.0f, 0.0f};
 
-    vec3 sum{0.0f, 0.0f, 0.0f};
+    vec3   sum{0.0f, 0.0f, 0.0f};
     size_t n = std::min({x_.size(), y_.size(), z_.size()});
     for (size_t i = 0; i < n; ++i)
     {
@@ -158,8 +158,8 @@ void ScatterSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
     }
 
     size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    min_out = {x_[0], y_[0], z_[0]};
-    max_out = min_out;
+    min_out  = {x_[0], y_[0], z_[0]};
+    max_out  = min_out;
 
     for (size_t i = 1; i < n; ++i)
     {
@@ -199,9 +199,9 @@ void SurfaceSeries::set_data(std::span<const float> x_grid,
     cols_ = static_cast<int>(x_grid_.size());
     rows_ = static_cast<int>(y_grid_.size());
 
-    mesh_generated_ = false;
+    mesh_generated_           = false;
     wireframe_mesh_generated_ = false;
-    dirty_ = true;
+    dirty_                    = true;
 }
 
 void SurfaceSeries::generate_mesh()
@@ -237,15 +237,15 @@ void SurfaceSeries::generate_mesh()
 
             if (i > 0 && i < rows_ - 1 && j > 0 && j < cols_ - 1)
             {
-                float z_left = z_values_[i * cols_ + (j - 1)];
+                float z_left  = z_values_[i * cols_ + (j - 1)];
                 float z_right = z_values_[i * cols_ + (j + 1)];
-                float z_down = z_values_[(i - 1) * cols_ + j];
-                float z_up = z_values_[(i + 1) * cols_ + j];
+                float z_down  = z_values_[(i - 1) * cols_ + j];
+                float z_up    = z_values_[(i + 1) * cols_ + j];
 
-                float dx_left = x_grid_[j] - x_grid_[j - 1];
+                float dx_left  = x_grid_[j] - x_grid_[j - 1];
                 float dx_right = x_grid_[j + 1] - x_grid_[j];
-                float dy_down = y_grid_[i] - y_grid_[i - 1];
-                float dy_up = y_grid_[i + 1] - y_grid_[i];
+                float dy_down  = y_grid_[i] - y_grid_[i - 1];
+                float dy_up    = y_grid_[i + 1] - y_grid_[i];
 
                 float dz_dx = (z_right - z_left) / (dx_left + dx_right);
                 float dz_dy = (z_up - z_down) / (dy_down + dy_up);
@@ -348,8 +348,8 @@ void SurfaceSeries::generate_wireframe_mesh()
         }
     }
 
-    wireframe_mesh_.triangle_count = 0;  // Not triangles — line segments
-    wireframe_mesh_generated_ = true;
+    wireframe_mesh_.triangle_count = 0;   // Not triangles — line segments
+    wireframe_mesh_generated_      = true;
 }
 
 vec3 SurfaceSeries::compute_centroid() const
@@ -439,7 +439,7 @@ vec3 MeshSeries::compute_centroid() const
     if (vertices_.empty())
         return {0.0f, 0.0f, 0.0f};
 
-    vec3 sum{0.0f, 0.0f, 0.0f};
+    vec3   sum{0.0f, 0.0f, 0.0f};
     size_t vertex_count = vertices_.size() / 6;
 
     for (size_t i = 0; i < vertex_count; ++i)
@@ -519,11 +519,13 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
         case ColormapType::Viridis:
         {
             // Simplified viridis: dark purple → teal → yellow
-            float r = std::fmax(
-                0.0f, std::fmin(1.0f, -0.35f + 1.7f * t - 0.9f * t * t + 0.55f * t * t * t));
+            float r =
+                std::fmax(0.0f,
+                          std::fmin(1.0f, -0.35f + 1.7f * t - 0.9f * t * t + 0.55f * t * t * t));
             float g = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 0.7f * t + 0.3f * t * t));
-            float b = std::fmax(
-                0.0f, std::fmin(1.0f, 0.33f + 0.7f * t - 1.6f * t * t + 0.6f * t * t * t));
+            float b =
+                std::fmax(0.0f,
+                          std::fmin(1.0f, 0.33f + 0.7f * t - 1.6f * t * t + 0.6f * t * t * t));
             return {r, g, b, 1.0f};
         }
         case ColormapType::Plasma:
@@ -531,8 +533,9 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
             // Simplified plasma: dark blue → magenta → yellow
             float r = std::fmax(0.0f, std::fmin(1.0f, 0.05f + 2.2f * t - 1.3f * t * t));
             float g = std::fmax(0.0f, std::fmin(1.0f, -0.2f + 1.2f * t));
-            float b = std::fmax(
-                0.0f, std::fmin(1.0f, 0.53f + 0.5f * t - 2.0f * t * t + 1.0f * t * t * t));
+            float b =
+                std::fmax(0.0f,
+                          std::fmin(1.0f, 0.53f + 0.5f * t - 2.0f * t * t + 1.0f * t * t * t));
             return {r, g, b, 1.0f};
         }
         case ColormapType::Inferno:
@@ -549,8 +552,9 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
             // Simplified magma: black → purple → orange → white
             float r = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 2.0f * t - 0.8f * t * t));
             float g = std::fmax(0.0f, std::fmin(1.0f, -0.3f + 1.3f * t + 0.1f * t * t));
-            float b = std::fmax(
-                0.0f, std::fmin(1.0f, 0.15f + 1.5f * t - 2.5f * t * t + 1.5f * t * t * t));
+            float b =
+                std::fmax(0.0f,
+                          std::fmin(1.0f, 0.15f + 1.5f * t - 2.5f * t * t + 1.5f * t * t * t));
             return {r, g, b, 1.0f};
         }
         case ColormapType::Jet:
@@ -577,4 +581,4 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

@@ -32,9 +32,9 @@ Mat4 ortho_projection(float left, float right, float bottom, float top)
     m[7] = 0.0f;
 
     // Column 2
-    m[8] = 0.0f;
-    m[9] = 0.0f;
-    m[10] = -1.0f;  // maps z to [-1,1], but irrelevant for 2D
+    m[8]  = 0.0f;
+    m[9]  = 0.0f;
+    m[10] = -1.0f;   // maps z to [-1,1], but irrelevant for 2D
     m[11] = 0.0f;
 
     // Column 3 (translation)
@@ -65,16 +65,16 @@ Vec2 ndc_to_screen(float ndc_x, float ndc_y, const Rect& viewport)
             viewport.y + (ndc_y + 1.0f) * 0.5f * viewport.h};
 }
 
-Vec2 data_to_screen(float data_x,
-                    float data_y,
-                    float x_min,
-                    float x_max,
-                    float y_min,
-                    float y_max,
+Vec2 data_to_screen(float       data_x,
+                    float       data_y,
+                    float       x_min,
+                    float       x_max,
+                    float       y_min,
+                    float       y_max,
                     const Rect& viewport)
 {
     auto ndc = data_to_ndc(data_x, data_y, x_min, x_max, y_min, y_max);
     return ndc_to_screen(ndc.x, ndc.y, viewport);
 }
 
-}  // namespace spectra
+}   // namespace spectra

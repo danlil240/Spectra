@@ -37,7 +37,7 @@ void Renderer::flush_pending_deletions()
     // Destroy the oldest slot — these resources were queued DELETION_RING_SIZE
     // frames ago, so the GPU is guaranteed to be done with them.
     uint32_t destroy_slot = (deletion_ring_write_ + 1) % DELETION_RING_SIZE;
-    auto& slot = deletion_ring_[destroy_slot];
+    auto&    slot         = deletion_ring_[destroy_slot];
     for (auto& gpu : slot)
     {
         if (gpu.ssbo)
@@ -58,8 +58,10 @@ void Renderer::render_text(float screen_width, float screen_height)
 
     // Set full-screen viewport and scissor for text rendering
     backend_.set_viewport(0, 0, screen_width, screen_height);
-    backend_.set_scissor(
-        0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
+    backend_.set_scissor(0,
+                         0,
+                         static_cast<uint32_t>(screen_width),
+                         static_cast<uint32_t>(screen_height));
 
     // Flush depth-tested 3D text first (uses depth buffer from 3D geometry)
     text_renderer_.flush_depth(backend_, screen_width, screen_height);
@@ -135,19 +137,19 @@ Renderer::~Renderer()
 bool Renderer::init()
 {
     // Create pipelines for each series type
-    line_pipeline_ = backend_.create_pipeline(PipelineType::Line);
+    line_pipeline_    = backend_.create_pipeline(PipelineType::Line);
     scatter_pipeline_ = backend_.create_pipeline(PipelineType::Scatter);
-    grid_pipeline_ = backend_.create_pipeline(PipelineType::Grid);
+    grid_pipeline_    = backend_.create_pipeline(PipelineType::Grid);
     overlay_pipeline_ = backend_.create_pipeline(PipelineType::Overlay);
 
     // Create 3D pipelines
-    line3d_pipeline_ = backend_.create_pipeline(PipelineType::Line3D);
-    scatter3d_pipeline_ = backend_.create_pipeline(PipelineType::Scatter3D);
-    mesh3d_pipeline_ = backend_.create_pipeline(PipelineType::Mesh3D);
-    surface3d_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D);
-    grid3d_pipeline_ = backend_.create_pipeline(PipelineType::Grid3D);
+    line3d_pipeline_         = backend_.create_pipeline(PipelineType::Line3D);
+    scatter3d_pipeline_      = backend_.create_pipeline(PipelineType::Scatter3D);
+    mesh3d_pipeline_         = backend_.create_pipeline(PipelineType::Mesh3D);
+    surface3d_pipeline_      = backend_.create_pipeline(PipelineType::Surface3D);
+    grid3d_pipeline_         = backend_.create_pipeline(PipelineType::Grid3D);
     grid_overlay3d_pipeline_ = backend_.create_pipeline(PipelineType::GridOverlay3D);
-    arrow3d_pipeline_ = backend_.create_pipeline(PipelineType::Arrow3D);
+    arrow3d_pipeline_        = backend_.create_pipeline(PipelineType::Arrow3D);
 
     // Create wireframe 3D pipelines (line topology)
     surface_wireframe3d_pipeline_ = backend_.create_pipeline(PipelineType::SurfaceWireframe3D);
@@ -155,9 +157,9 @@ bool Renderer::init()
         backend_.create_pipeline(PipelineType::SurfaceWireframe3D_Transparent);
 
     // Create transparent 3D pipelines (depth test ON, depth write OFF)
-    line3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Line3D_Transparent);
+    line3d_transparent_pipeline_    = backend_.create_pipeline(PipelineType::Line3D_Transparent);
     scatter3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Scatter3D_Transparent);
-    mesh3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Mesh3D_Transparent);
+    mesh3d_transparent_pipeline_    = backend_.create_pipeline(PipelineType::Mesh3D_Transparent);
     surface3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D_Transparent);
 
     // Create frame UBO buffer
@@ -167,7 +169,7 @@ bool Renderer::init()
     // fall back to disk paths for development builds.
 #if __has_include("inter_font_embedded.hpp")
     {
-#include "inter_font_embedded.hpp"
+    #include "inter_font_embedded.hpp"
         if (text_renderer_.init(backend_, InterFont_ttf_data, InterFont_ttf_size))
         {
             SPECTRA_LOG_INFO("renderer", "TextRenderer initialized from embedded font data");
@@ -191,8 +193,7 @@ bool Renderer::init()
         {
             if (text_renderer_.init_from_file(backend_, path))
             {
-                SPECTRA_LOG_INFO("renderer",
-                                 std::string("TextRenderer initialized from ") + path);
+                SPECTRA_LOG_INFO("renderer", std::string("TextRenderer initialized from ") + path);
                 break;
             }
         }
@@ -212,12 +213,12 @@ void Renderer::begin_render_pass()
     // completed before any GPU resources are freed.
 
     const auto& theme_colors = ui::ThemeManager::instance().colors();
-    Color bg_color = Color(theme_colors.bg_primary.r,
+    Color       bg_color     = Color(theme_colors.bg_primary.r,
                            theme_colors.bg_primary.g,
                            theme_colors.bg_primary.b,
                            theme_colors.bg_primary.a);
     backend_.begin_render_pass(bg_color);
-    backend_.set_line_width(1.0f);  // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
+    backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
 
 void Renderer::render_figure_content(Figure& figure)
@@ -283,7 +284,7 @@ void Renderer::render_plot_text(Figure& figure)
                | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
     };
 
-    uint32_t tick_col = color_to_rgba(colors.tick_label);
+    uint32_t tick_col  = color_to_rgba(colors.tick_label);
     uint32_t label_col = color_to_rgba(colors.text_primary);
     uint32_t title_col = label_col;
 
@@ -294,10 +295,10 @@ void Renderer::render_plot_text(Figure& figure)
     {
         if (!axes_ptr)
             continue;
-        auto& axes = *axes_ptr;
-        const auto& vp = axes.viewport();
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        auto&       axes = *axes_ptr;
+        const auto& vp   = axes.viewport();
+        auto        xlim = axes.x_limits();
+        auto        ylim = axes.y_limits();
 
         float x_range = xlim.max - xlim.min;
         float y_range = ylim.max - ylim.min;
@@ -312,7 +313,7 @@ void Renderer::render_plot_text(Figure& figure)
         { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
 
         const auto& as = axes.axis_style();
-        float tl = as.tick_length;
+        float       tl = as.tick_length;
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
@@ -348,30 +349,38 @@ void Renderer::render_plot_text(Figure& figure)
         {
             float cx = vp.x + vp.w * 0.5f;
             float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
-            text_renderer_.draw_text(
-                axes.get_xlabel(), cx, py, FontSize::Label, label_col, TextAlign::Center);
+            text_renderer_.draw_text(axes.get_xlabel(),
+                                     cx,
+                                     py,
+                                     FontSize::Label,
+                                     label_col,
+                                     TextAlign::Center);
         }
 
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            float center_x = vp.x - tick_padding * 2.0f - 20.0f;
-            float center_y = vp.y + vp.h * 0.5f;
-            constexpr float neg_90_deg = -1.5707963f;  // -π/2
-            text_renderer_.draw_text_rotated(
-                axes.get_ylabel(), center_x, center_y, neg_90_deg, FontSize::Label, label_col);
+            float           center_x   = vp.x - tick_padding * 2.0f - 20.0f;
+            float           center_y   = vp.y + vp.h * 0.5f;
+            constexpr float neg_90_deg = -1.5707963f;   // -π/2
+            text_renderer_.draw_text_rotated(axes.get_ylabel(),
+                                             center_x,
+                                             center_y,
+                                             neg_90_deg,
+                                             FontSize::Label,
+                                             label_col);
         }
 
         // Title
         if (!axes.get_title().empty())
         {
-            auto ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
-            float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y - ext.height - tick_padding;
+            auto  ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
+            float cx  = vp.x + vp.w * 0.5f;
+            float py  = vp.y - ext.height - tick_padding;
             if (py < vp.y + 2.0f)
                 py = vp.y + 2.0f;
-            text_renderer_.draw_text(
-                axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
+            text_renderer_
+                .draw_text(axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
         }
     }
 
@@ -384,15 +393,15 @@ void Renderer::render_plot_text(Figure& figure)
         if (!axes3d)
             continue;
 
-        const auto& vp = axes3d->viewport();
+        const auto& vp  = axes3d->viewport();
         const auto& cam = axes3d->camera();
 
         // Build MVP matrix: projection * view * model
         float aspect = vp.w / std::max(vp.h, 1.0f);
-        mat4 proj = cam.projection_matrix(aspect);
-        mat4 view = cam.view_matrix();
-        mat4 model = axes3d->data_to_normalized_matrix();
-        mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
+        mat4  proj   = cam.projection_matrix(aspect);
+        mat4  view   = cam.view_matrix();
+        mat4  model  = axes3d->data_to_normalized_matrix();
+        mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));
 
         // Helper: project a 3D world point to screen coords within the viewport
         // Also outputs NDC depth in [0,1] for depth-tested text rendering.
@@ -412,7 +421,7 @@ void Renderer::render_plot_text(Figure& figure)
 
             float ndc_x = clip_x / clip_w;
             float ndc_y = clip_y / clip_w;
-            ndc_depth = clip_z / clip_w;  // Vulkan depth range [0,1]
+            ndc_depth   = clip_z / clip_w;   // Vulkan depth range [0,1]
 
             sx = vp.x + (ndc_x + 1.0f) * 0.5f * vp.w;
             sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
@@ -431,7 +440,7 @@ void Renderer::render_plot_text(Figure& figure)
 
         float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
 
-        vec3 view_dir = vec3_normalize(cam.target - cam.position);
+        vec3 view_dir       = vec3_normalize(cam.target - cam.position);
         bool looking_down_y = std::abs(view_dir.y) > 0.98f;
         bool looking_down_z = std::abs(view_dir.z) > 0.98f;
 
@@ -445,7 +454,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3 pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
+                vec3  pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(x_ticks.labels[i],
@@ -466,7 +475,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3 pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
+                vec3  pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(y_ticks.labels[i],
@@ -487,7 +496,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3 pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
+                vec3  pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(z_ticks.labels[i],
@@ -518,20 +527,20 @@ void Renderer::render_plot_text(Figure& figure)
             uint32_t vk_z_arrow_col = pack_rgba(80, 130, 255, 220);
 
             // Helper: draw arrow label text at the tip of an axis arrow
-            auto draw_arrow_label = [&](vec3 start,
-                                        vec3 end,
-                                        uint32_t vk_col,
-                                        const char* default_lbl,
+            auto draw_arrow_label = [&](vec3               start,
+                                        vec3               end,
+                                        uint32_t           vk_col,
+                                        const char*        default_lbl,
                                         const std::string& user_lbl)
             {
                 float sx0, sy0, d0, sx1, sy1, d1;
                 if (!world_to_screen(start, sx0, sy0, d0) || !world_to_screen(end, sx1, sy1, d1))
                     return;
-                const char* lbl = user_lbl.empty() ? default_lbl : user_lbl.c_str();
-                float label_offset = 8.0f;
-                float dir_x = sx1 - sx0;
-                float dir_y = sy1 - sy0;
-                float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                const char* lbl          = user_lbl.empty() ? default_lbl : user_lbl.c_str();
+                float       label_offset = 8.0f;
+                float       dir_x        = sx1 - sx0;
+                float       dir_y        = sy1 - sy0;
+                float       dir_len      = std::sqrt(dir_x * dir_x + dir_y * dir_y);
                 float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
                 float ly_center = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
                 text_renderer_.draw_text_depth(lbl,
@@ -564,13 +573,17 @@ void Renderer::render_plot_text(Figure& figure)
         // --- 3D Title ---
         if (!axes3d->get_title().empty())
         {
-            float cx = vp.x + vp.w * 0.5f;
-            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
-            float py = vp.y - ext.height - tick_padding;
+            float cx  = vp.x + vp.w * 0.5f;
+            auto  ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
+            float py  = vp.y - ext.height - tick_padding;
             if (py < vp.y + 2.0f)
                 py = vp.y + 2.0f;
-            text_renderer_.draw_text(
-                axes3d->get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
+            text_renderer_.draw_text(axes3d->get_title(),
+                                     cx,
+                                     py,
+                                     FontSize::Title,
+                                     title_col,
+                                     TextAlign::Center);
         }
     }
 }
@@ -579,8 +592,8 @@ void Renderer::render_plot_geometry(Figure& figure)
 {
     uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
-    float fw = static_cast<float>(fig_w);
-    float fh = static_cast<float>(fig_h);
+    float    fw    = static_cast<float>(fig_w);
+    float    fh    = static_cast<float>(fig_h);
 
     const auto& colors = ui::ThemeManager::instance().colors();
 
@@ -592,10 +605,10 @@ void Renderer::render_plot_geometry(Figure& figure)
     {
         if (!axes_ptr)
             continue;
-        auto& axes = *axes_ptr;
-        const auto& vp = axes.viewport();
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        auto&       axes = *axes_ptr;
+        const auto& vp   = axes.viewport();
+        auto        xlim = axes.x_limits();
+        auto        ylim = axes.y_limits();
 
         float x_range = xlim.max - xlim.min;
         float y_range = ylim.max - ylim.min;
@@ -610,7 +623,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
 
         const auto& as = axes.axis_style();
-        float tl = as.tick_length;
+        float       tl = as.tick_length;
         if (tl <= 0.0f)
             continue;
 
@@ -646,23 +659,23 @@ void Renderer::render_plot_geometry(Figure& figure)
     // Screen coordinates are Y-down (0=top, h=bottom), matching Vulkan clip space,
     // so use positive Y scale (same as TextRenderer::flush).
     // Do NOT use build_ortho_projection() — that negates Y for data-space (Y-up).
-    FrameUBO ubo{};  // Value-initializes all members to zero
-    ubo.projection[0] = 2.0f / fw;  // X: [0, fw] → [-1, +1]
-    ubo.projection[5] = 2.0f / fh;  // Y: [0, fh] → [-1, +1] (positive = Y-down)
+    FrameUBO ubo{};                   // Value-initializes all members to zero
+    ubo.projection[0]  = 2.0f / fw;   // X: [0, fw] → [-1, +1]
+    ubo.projection[5]  = 2.0f / fh;   // Y: [0, fh] → [-1, +1] (positive = Y-down)
     ubo.projection[10] = -1.0f;
     ubo.projection[12] = -1.0f;
     ubo.projection[13] = -1.0f;
     ubo.projection[15] = 1.0f;
     // Identity view + model
-    ubo.view[0] = 1.0f;
-    ubo.view[5] = 1.0f;
-    ubo.view[10] = 1.0f;
-    ubo.view[15] = 1.0f;
-    ubo.model[0] = 1.0f;
-    ubo.model[5] = 1.0f;
-    ubo.model[10] = 1.0f;
-    ubo.model[15] = 1.0f;
-    ubo.viewport_width = fw;
+    ubo.view[0]         = 1.0f;
+    ubo.view[5]         = 1.0f;
+    ubo.view[10]        = 1.0f;
+    ubo.view[15]        = 1.0f;
+    ubo.model[0]        = 1.0f;
+    ubo.model[5]        = 1.0f;
+    ubo.model[10]       = 1.0f;
+    ubo.model[15]       = 1.0f;
+    ubo.viewport_width  = fw;
     ubo.viewport_height = fh;
 
     backend_.set_viewport(0, 0, fw, fh);
@@ -679,7 +692,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         {
             if (overlay_line_buffer_)
                 backend_.destroy_buffer(overlay_line_buffer_);
-            overlay_line_buffer_ = backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
+            overlay_line_buffer_   = backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
             overlay_line_capacity_ = line_bytes * 2;
         }
         backend_.upload_buffer(overlay_line_buffer_, overlay_line_scratch_.data(), line_bytes);
@@ -687,10 +700,10 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        pc.color[0] = colors.axis_line.r;
-        pc.color[1] = colors.axis_line.g;
-        pc.color[2] = colors.axis_line.b;
-        pc.color[3] = colors.axis_line.a;
+        pc.color[0]   = colors.axis_line.r;
+        pc.color[1]   = colors.axis_line.g;
+        pc.color[2]   = colors.axis_line.b;
+        pc.color[3]   = colors.axis_line.a;
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
 
@@ -718,14 +731,14 @@ void Renderer::render_figure(Figure& figure)
 void Renderer::upload_series_data(Series& series)
 {
     // Try 2D series first
-    auto* line = dynamic_cast<LineSeries*>(&series);
+    auto* line    = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
 
     // Try 3D series
-    auto* line3d = dynamic_cast<LineSeries3D*>(&series);
+    auto* line3d    = dynamic_cast<LineSeries3D*>(&series);
     auto* scatter3d = dynamic_cast<ScatterSeries3D*>(&series);
-    auto* surface = dynamic_cast<SurfaceSeries*>(&series);
-    auto* mesh = dynamic_cast<MeshSeries*>(&series);
+    auto* surface   = dynamic_cast<SurfaceSeries*>(&series);
+    auto* mesh      = dynamic_cast<MeshSeries*>(&series);
 
     auto& gpu = series_gpu_data_[&series];
 
@@ -751,19 +764,19 @@ void Renderer::upload_series_data(Series& series)
     {
         const float* x_data = nullptr;
         const float* y_data = nullptr;
-        size_t count = 0;
+        size_t       count  = 0;
 
         if (line)
         {
             x_data = line->x_data().data();
             y_data = line->y_data().data();
-            count = line->point_count();
+            count  = line->point_count();
         }
         else if (scatter)
         {
             x_data = scatter->x_data().data();
             y_data = scatter->y_data().data();
-            count = scatter->point_count();
+            count  = scatter->point_count();
         }
 
         if (count == 0)
@@ -775,7 +788,7 @@ void Renderer::upload_series_data(Series& series)
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
             size_t alloc_size = byte_size * 2;
-            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
         }
 
         size_t floats_needed = count * 2;
@@ -783,7 +796,7 @@ void Renderer::upload_series_data(Series& series)
             upload_scratch_.resize(floats_needed);
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 2] = x_data[i];
+            upload_scratch_[i * 2]     = x_data[i];
             upload_scratch_[i * 2 + 1] = y_data[i];
         }
 
@@ -797,21 +810,21 @@ void Renderer::upload_series_data(Series& series)
         const float* x_data = nullptr;
         const float* y_data = nullptr;
         const float* z_data = nullptr;
-        size_t count = 0;
+        size_t       count  = 0;
 
         if (line3d)
         {
             x_data = line3d->x_data().data();
             y_data = line3d->y_data().data();
             z_data = line3d->z_data().data();
-            count = line3d->point_count();
+            count  = line3d->point_count();
         }
         else if (scatter3d)
         {
             x_data = scatter3d->x_data().data();
             y_data = scatter3d->y_data().data();
             z_data = scatter3d->z_data().data();
-            count = scatter3d->point_count();
+            count  = scatter3d->point_count();
         }
 
         if (count == 0)
@@ -823,7 +836,7 @@ void Renderer::upload_series_data(Series& series)
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
             size_t alloc_size = byte_size * 2;
-            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
         }
 
         size_t floats_needed = count * 4;
@@ -831,10 +844,10 @@ void Renderer::upload_series_data(Series& series)
             upload_scratch_.resize(floats_needed);
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 4] = x_data[i];
+            upload_scratch_[i * 4]     = x_data[i];
             upload_scratch_[i * 4 + 1] = y_data[i];
             upload_scratch_[i * 4 + 2] = z_data[i];
-            upload_scratch_[i * 4 + 3] = 0.0f;  // padding
+            upload_scratch_[i * 4 + 3] = 0.0f;   // padding
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
@@ -871,7 +884,7 @@ void Renderer::upload_series_data(Series& series)
             return;
 
         size_t vert_byte_size = active_mesh->vertices.size() * sizeof(float);
-        size_t idx_byte_size = active_mesh->indices.size() * sizeof(uint32_t);
+        size_t idx_byte_size  = active_mesh->indices.size() * sizeof(uint32_t);
 
         // Vertex buffer
         if (!gpu.ssbo || gpu.uploaded_count < active_mesh->vertex_count)
@@ -902,7 +915,7 @@ void Renderer::upload_series_data(Series& series)
             return;
 
         size_t vert_byte_size = mesh->vertices().size() * sizeof(float);
-        size_t idx_byte_size = mesh->indices().size() * sizeof(uint32_t);
+        size_t idx_byte_size  = mesh->indices().size() * sizeof(uint32_t);
 
         // Vertex buffer
         if (!gpu.ssbo || gpu.uploaded_count < mesh->vertex_count())
@@ -928,10 +941,10 @@ void Renderer::upload_series_data(Series& series)
     }
 }
 
-void Renderer::render_axes(AxesBase& axes,
+void Renderer::render_axes(AxesBase&   axes,
                            const Rect& viewport,
-                           uint32_t fig_width,
-                           uint32_t fig_height)
+                           uint32_t    fig_width,
+                           uint32_t    fig_height)
 {
     // Set scissor to axes viewport
     backend_.set_scissor(static_cast<int32_t>(viewport.x),
@@ -949,16 +962,16 @@ void Renderer::render_axes(AxesBase& axes,
     {
         // 3D projection with camera
         // Build perspective projection
-        float aspect = viewport.w / viewport.h;
-        const auto& cam = axes3d->camera();
+        float       aspect = viewport.w / viewport.h;
+        const auto& cam    = axes3d->camera();
 
         if (cam.projection_mode == Camera::ProjectionMode::Perspective)
         {
             // Perspective projection matrix
-            float fov_rad = cam.fov * 3.14159265f / 180.0f;
-            float f = 1.0f / tanf(fov_rad * 0.5f);
-            ubo.projection[0] = f / aspect;
-            ubo.projection[5] = -f;  // Negative for Vulkan Y-down
+            float fov_rad      = cam.fov * 3.14159265f / 180.0f;
+            float f            = 1.0f / tanf(fov_rad * 0.5f);
+            ubo.projection[0]  = f / aspect;
+            ubo.projection[5]  = -f;   // Negative for Vulkan Y-down
             ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
             ubo.projection[11] = -1.0f;
             ubo.projection[14] = (cam.far_clip * cam.near_clip) / (cam.near_clip - cam.far_clip);
@@ -970,8 +983,13 @@ void Renderer::render_axes(AxesBase& axes,
             // half_w = ortho_size * aspect, half_h = ortho_size
             float half_w = cam.ortho_size * aspect;
             float half_h = cam.ortho_size;
-            build_ortho_projection_3d(
-                -half_w, half_w, -half_h, half_h, cam.near_clip, cam.far_clip, ubo.projection);
+            build_ortho_projection_3d(-half_w,
+                                      half_w,
+                                      -half_h,
+                                      half_h,
+                                      cam.near_clip,
+                                      cam.far_clip,
+                                      ubo.projection);
         }
 
         // Camera view matrix
@@ -983,7 +1001,7 @@ void Renderer::render_axes(AxesBase& axes,
         std::memcpy(ubo.model, model.m, 16 * sizeof(float));
 
         ubo.near_plane = cam.near_clip;
-        ubo.far_plane = cam.far_clip;
+        ubo.far_plane  = cam.far_clip;
 
         // Camera position for lighting
         ubo.camera_pos[0] = cam.position.x;
@@ -993,7 +1011,7 @@ void Renderer::render_axes(AxesBase& axes,
         // Light direction from Axes3D (configurable)
         if (axes3d->lighting_enabled())
         {
-            vec3 ld = axes3d->light_dir();
+            vec3 ld          = axes3d->light_dir();
             ubo.light_dir[0] = ld.x;
             ubo.light_dir[1] = ld.y;
             ubo.light_dir[2] = ld.z;
@@ -1014,31 +1032,31 @@ void Renderer::render_axes(AxesBase& axes,
 
         build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
         // Identity view matrix (2D)
-        ubo.view[0] = 1.0f;
-        ubo.view[5] = 1.0f;
+        ubo.view[0]  = 1.0f;
+        ubo.view[5]  = 1.0f;
         ubo.view[10] = 1.0f;
         ubo.view[15] = 1.0f;
         // Identity model matrix (2D)
-        ubo.model[0] = 1.0f;
-        ubo.model[5] = 1.0f;
+        ubo.model[0]  = 1.0f;
+        ubo.model[5]  = 1.0f;
         ubo.model[10] = 1.0f;
         ubo.model[15] = 1.0f;
 
         ubo.near_plane = 0.01f;
-        ubo.far_plane = 1000.0f;
+        ubo.far_plane  = 1000.0f;
 
         // Default camera position and light for 2D
         ubo.camera_pos[0] = 0.0f;
         ubo.camera_pos[1] = 0.0f;
         ubo.camera_pos[2] = 1.0f;
-        ubo.light_dir[0] = 0.0f;
-        ubo.light_dir[1] = 0.0f;
-        ubo.light_dir[2] = 1.0f;
+        ubo.light_dir[0]  = 0.0f;
+        ubo.light_dir[1]  = 0.0f;
+        ubo.light_dir[2]  = 1.0f;
     }
 
-    ubo.viewport_width = viewport.w;
+    ubo.viewport_width  = viewport.w;
     ubo.viewport_height = viewport.h;
-    ubo.time = 0.0f;
+    ubo.time            = 0.0f;
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
@@ -1063,16 +1081,16 @@ void Renderer::render_axes(AxesBase& axes,
     // then transparent series render back-to-front (painter's algorithm).
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes))
     {
-        const auto& cam = axes3d->camera();
-        vec3 cam_pos = cam.position;
-        mat4 model_mat = axes3d->data_to_normalized_matrix();
+        const auto& cam       = axes3d->camera();
+        vec3        cam_pos   = cam.position;
+        mat4        model_mat = axes3d->data_to_normalized_matrix();
 
         // Collect visible series with their distances
         struct SortEntry
         {
             Series* series;
-            float distance;
-            bool transparent;
+            float   distance;
+            bool    transparent;
         };
         std::vector<SortEntry> opaque_entries;
         std::vector<SortEntry> transparent_entries;
@@ -1088,11 +1106,11 @@ void Renderer::render_axes(AxesBase& axes,
             }
 
             // Compute centroid distance from camera
-            vec3 centroid{0.0f, 0.0f, 0.0f};
-            auto* line3d = dynamic_cast<LineSeries3D*>(series_ptr.get());
+            vec3  centroid{0.0f, 0.0f, 0.0f};
+            auto* line3d    = dynamic_cast<LineSeries3D*>(series_ptr.get());
             auto* scatter3d = dynamic_cast<ScatterSeries3D*>(series_ptr.get());
-            auto* surface = dynamic_cast<SurfaceSeries*>(series_ptr.get());
-            auto* mesh_s = dynamic_cast<MeshSeries*>(series_ptr.get());
+            auto* surface   = dynamic_cast<SurfaceSeries*>(series_ptr.get());
+            auto* mesh_s    = dynamic_cast<MeshSeries*>(series_ptr.get());
 
             if (line3d)
                 centroid = line3d->compute_centroid();
@@ -1104,9 +1122,9 @@ void Renderer::render_axes(AxesBase& axes,
                 centroid = mesh_s->compute_centroid();
 
             // Transform centroid to world space via model matrix
-            vec4 world_c = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
-            vec3 world_pos = {world_c.x, world_c.y, world_c.z};
-            float dist = vec3_length(world_pos - cam_pos);
+            vec4  world_c   = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
+            vec3  world_pos = {world_c.x, world_c.y, world_c.z};
+            float dist      = vec3_length(world_pos - cam_pos);
 
             bool is_transparent = (series_ptr->color().a * series_ptr->opacity()) < 0.99f;
 
@@ -1168,15 +1186,15 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         if (!axes3d->grid_enabled())
             return;
 
-        auto xlim = axes3d->x_limits();
-        auto ylim = axes3d->y_limits();
-        auto zlim = axes3d->z_limits();
-        auto gp = axes3d->grid_planes();
-        auto& gpu = axes_gpu_data_[&axes];
+        auto  xlim = axes3d->x_limits();
+        auto  ylim = axes3d->y_limits();
+        auto  zlim = axes3d->z_limits();
+        auto  gp   = axes3d->grid_planes();
+        auto& gpu  = axes_gpu_data_[&axes];
 
         // Check if limits/planes changed — skip regeneration if cached
-        auto& gc = gpu.grid_cache;
-        bool limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
+        auto& gc             = gpu.grid_cache;
+        bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
                               || gc.zmax != zlim.max
                               || gpu.cached_grid_planes != static_cast<int>(gp);
@@ -1185,8 +1203,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         {
             // Generate 3D grid vertices using Axes3DRenderer helper
             Axes3DRenderer::GridPlaneData grid_gen;
-            vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-            vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+            vec3                          min_corner = {xlim.min, ylim.min, zlim.min};
+            vec3                          max_corner = {xlim.max, ylim.max, zlim.max};
 
             if (static_cast<int>(gp & Axes3D::GridPlane::XY))
                 grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
@@ -1203,7 +1221,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
                 grid_scratch_.resize(float_count);
             for (size_t i = 0; i < grid_gen.vertices.size(); ++i)
             {
-                grid_scratch_[i * 3] = grid_gen.vertices[i].x;
+                grid_scratch_[i * 3]     = grid_gen.vertices[i].x;
                 grid_scratch_[i * 3 + 1] = grid_gen.vertices[i].y;
                 grid_scratch_[i * 3 + 2] = grid_gen.vertices[i].z;
             }
@@ -1213,19 +1231,19 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             {
                 if (gpu.grid_buffer)
                     backend_.destroy_buffer(gpu.grid_buffer);
-                gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+                gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
                 gpu.grid_capacity = byte_size * 2;
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
-            gpu.grid_vertex_count = static_cast<uint32_t>(float_count / 3);
-            gc.xmin = xlim.min;
-            gc.xmax = xlim.max;
-            gc.ymin = ylim.min;
-            gc.ymax = ylim.max;
-            gc.zmin = zlim.min;
-            gc.zmax = zlim.max;
+            gpu.grid_vertex_count  = static_cast<uint32_t>(float_count / 3);
+            gc.xmin                = xlim.min;
+            gc.xmax                = xlim.max;
+            gc.ymin                = ylim.min;
+            gc.ymax                = ylim.max;
+            gc.zmin                = zlim.min;
+            gc.zmax                = zlim.max;
             gpu.cached_grid_planes = static_cast<int>(gp);
-            gc.valid = true;
+            gc.valid               = true;
         }
 
         if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
@@ -1235,15 +1253,15 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto& theme_colors = ui::ThemeManager::instance().colors();
-        float blend = 0.3f;
-        pc.color[0] = theme_colors.grid_line.r * (1.0f - blend) + blend;
-        pc.color[1] = theme_colors.grid_line.g * (1.0f - blend) + blend;
-        pc.color[2] = theme_colors.grid_line.b * (1.0f - blend) + blend;
-        pc.color[3] = 0.35f;
-        pc.line_width = 1.0f;
-        pc.data_offset_x = 0.0f;
-        pc.data_offset_y = 0.0f;
+        const auto&         theme_colors = ui::ThemeManager::instance().colors();
+        float               blend        = 0.3f;
+        pc.color[0]                      = theme_colors.grid_line.r * (1.0f - blend) + blend;
+        pc.color[1]                      = theme_colors.grid_line.g * (1.0f - blend) + blend;
+        pc.color[2]                      = theme_colors.grid_line.b * (1.0f - blend) + blend;
+        pc.color[3]                      = 0.35f;
+        pc.line_width                    = 1.0f;
+        pc.data_offset_x                 = 0.0f;
+        pc.data_offset_y                 = 0.0f;
         backend_.push_constants(pc);
 
         backend_.bind_buffer(gpu.grid_buffer, 0);
@@ -1255,13 +1273,13 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         if (!axes2d->grid_enabled())
             return;
 
-        auto xlim = axes2d->x_limits();
-        auto ylim = axes2d->y_limits();
-        auto& gpu = axes_gpu_data_[&axes];
+        auto  xlim = axes2d->x_limits();
+        auto  ylim = axes2d->y_limits();
+        auto& gpu  = axes_gpu_data_[&axes];
 
         // Check if limits changed — skip regeneration if cached
-        auto& gc = gpu.grid_cache;
-        bool limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
+        auto& gc             = gpu.grid_cache;
+        bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
                               || gc.ymin != ylim.min || gc.ymax != ylim.max;
 
         if (limits_changed)
@@ -1274,7 +1292,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             if (num_x == 0 && num_y == 0)
                 return;
 
-            size_t total_lines = num_x + num_y;
+            size_t total_lines   = num_x + num_y;
             size_t grid2d_floats = total_lines * 4;
             if (grid_scratch_.size() < grid2d_floats)
                 grid_scratch_.resize(grid2d_floats);
@@ -1282,7 +1300,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
             for (size_t i = 0; i < num_x; ++i)
             {
-                float x = x_ticks.positions[i];
+                float x             = x_ticks.positions[i];
                 grid_scratch_[wi++] = x;
                 grid_scratch_[wi++] = ylim.min;
                 grid_scratch_[wi++] = x;
@@ -1290,7 +1308,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             for (size_t i = 0; i < num_y; ++i)
             {
-                float y = y_ticks.positions[i];
+                float y             = y_ticks.positions[i];
                 grid_scratch_[wi++] = xlim.min;
                 grid_scratch_[wi++] = y;
                 grid_scratch_[wi++] = xlim.max;
@@ -1302,16 +1320,16 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             {
                 if (gpu.grid_buffer)
                     backend_.destroy_buffer(gpu.grid_buffer);
-                gpu.grid_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+                gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
                 gpu.grid_capacity = byte_size * 2;
             }
             backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
             gpu.grid_vertex_count = static_cast<uint32_t>(total_lines * 2);
-            gc.xmin = xlim.min;
-            gc.xmax = xlim.max;
-            gc.ymin = ylim.min;
-            gc.ymax = ylim.max;
-            gc.valid = true;
+            gc.xmin               = xlim.min;
+            gc.xmax               = xlim.max;
+            gc.ymin               = ylim.min;
+            gc.ymax               = ylim.max;
+            gc.valid              = true;
         }
 
         if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
@@ -1320,7 +1338,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto& as = axes2d->axis_style();
+        const auto&         as = axes2d->axis_style();
         if (as.grid_color.a > 0.0f)
         {
             pc.color[0] = as.grid_color.r;
@@ -1331,12 +1349,12 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         else
         {
             const auto& theme_colors = ui::ThemeManager::instance().colors();
-            pc.color[0] = theme_colors.grid_line.r;
-            pc.color[1] = theme_colors.grid_line.g;
-            pc.color[2] = theme_colors.grid_line.b;
-            pc.color[3] = theme_colors.grid_line.a;
+            pc.color[0]              = theme_colors.grid_line.r;
+            pc.color[1]              = theme_colors.grid_line.g;
+            pc.color[2]              = theme_colors.grid_line.b;
+            pc.color[3]              = theme_colors.grid_line.a;
         }
-        pc.line_width = as.grid_width;
+        pc.line_width    = as.grid_width;
         pc.data_offset_x = 0.0f;
         pc.data_offset_y = 0.0f;
         backend_.push_constants(pc);
@@ -1353,14 +1371,14 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     if (!axes.show_bounding_box())
         return;
 
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-    auto zlim = axes.z_limits();
-    auto& gpu = axes_gpu_data_[&axes];
+    auto  xlim = axes.x_limits();
+    auto  ylim = axes.y_limits();
+    auto  zlim = axes.z_limits();
+    auto& gpu  = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    auto& bc = gpu.bbox_cache;
-    bool limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
+    auto& bc             = gpu.bbox_cache;
+    bool  limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
                           || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
                           || bc.zmax != zlim.max;
 
@@ -1380,7 +1398,7 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
             bbox_scratch_.resize(bbox_floats);
         for (size_t i = 0; i < bbox.edge_vertices.size(); ++i)
         {
-            bbox_scratch_[i * 3] = bbox.edge_vertices[i].x;
+            bbox_scratch_[i * 3]     = bbox.edge_vertices[i].x;
             bbox_scratch_[i * 3 + 1] = bbox.edge_vertices[i].y;
             bbox_scratch_[i * 3 + 2] = bbox.edge_vertices[i].z;
         }
@@ -1390,18 +1408,18 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
         {
             if (gpu.bbox_buffer)
                 backend_.destroy_buffer(gpu.bbox_buffer);
-            gpu.bbox_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+            gpu.bbox_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size);
             gpu.bbox_capacity = byte_size;
         }
         backend_.upload_buffer(gpu.bbox_buffer, bbox_scratch_.data(), byte_size);
         gpu.bbox_vertex_count = static_cast<uint32_t>(bbox.edge_vertices.size());
-        bc.xmin = xlim.min;
-        bc.xmax = xlim.max;
-        bc.ymin = ylim.min;
-        bc.ymax = ylim.max;
-        bc.zmin = zlim.min;
-        bc.zmax = zlim.max;
-        bc.valid = true;
+        bc.xmin               = xlim.min;
+        bc.xmax               = xlim.max;
+        bc.ymin               = ylim.min;
+        bc.ymax               = ylim.max;
+        bc.zmin               = zlim.min;
+        bc.zmax               = zlim.max;
+        bc.valid              = true;
     }
 
     if (!gpu.bbox_buffer || gpu.bbox_vertex_count == 0)
@@ -1410,14 +1428,14 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0] = theme_colors.grid_line.r * 0.7f;
-    pc.color[1] = theme_colors.grid_line.g * 0.7f;
-    pc.color[2] = theme_colors.grid_line.b * 0.7f;
-    pc.color[3] = theme_colors.grid_line.a * 0.8f;
-    pc.line_width = 1.5f;
-    pc.data_offset_x = 0.0f;
-    pc.data_offset_y = 0.0f;
+    const auto&         theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0]                      = theme_colors.grid_line.r * 0.7f;
+    pc.color[1]                      = theme_colors.grid_line.g * 0.7f;
+    pc.color[2]                      = theme_colors.grid_line.b * 0.7f;
+    pc.color[3]                      = theme_colors.grid_line.a * 0.8f;
+    pc.line_width                    = 1.5f;
+    pc.data_offset_x                 = 0.0f;
+    pc.data_offset_y                 = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.bbox_buffer, 0);
@@ -1426,14 +1444,14 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
 void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 {
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-    auto zlim = axes.z_limits();
-    auto& gpu = axes_gpu_data_[&axes];
+    auto  xlim = axes.x_limits();
+    auto  ylim = axes.y_limits();
+    auto  zlim = axes.z_limits();
+    auto& gpu  = axes_gpu_data_[&axes];
 
     // Check if limits changed — skip regeneration if cached
-    auto& tc = gpu.tick_cache;
-    bool limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
+    auto& tc             = gpu.tick_cache;
+    bool  limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
                           || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
                           || tc.zmax != zlim.max;
 
@@ -1497,18 +1515,18 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         {
             if (gpu.tick_buffer)
                 backend_.destroy_buffer(gpu.tick_buffer);
-            gpu.tick_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+            gpu.tick_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
             gpu.tick_capacity = byte_size * 2;
         }
         backend_.upload_buffer(gpu.tick_buffer, tick_scratch_.data(), byte_size);
         gpu.tick_vertex_count = static_cast<uint32_t>(wi / 3);
-        tc.xmin = xlim.min;
-        tc.xmax = xlim.max;
-        tc.ymin = ylim.min;
-        tc.ymax = ylim.max;
-        tc.zmin = zlim.min;
-        tc.zmax = zlim.max;
-        tc.valid = true;
+        tc.xmin               = xlim.min;
+        tc.xmax               = xlim.max;
+        tc.ymin               = ylim.min;
+        tc.ymax               = ylim.max;
+        tc.zmin               = zlim.min;
+        tc.zmax               = zlim.max;
+        tc.valid              = true;
     }
 
     if (!gpu.tick_buffer || gpu.tick_vertex_count == 0)
@@ -1517,14 +1535,14 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0] = theme_colors.grid_line.r * 0.6f;
-    pc.color[1] = theme_colors.grid_line.g * 0.6f;
-    pc.color[2] = theme_colors.grid_line.b * 0.6f;
-    pc.color[3] = theme_colors.grid_line.a;
-    pc.line_width = 1.5f;
-    pc.data_offset_x = 0.0f;
-    pc.data_offset_y = 0.0f;
+    const auto&         theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0]                      = theme_colors.grid_line.r * 0.6f;
+    pc.color[1]                      = theme_colors.grid_line.g * 0.6f;
+    pc.color[2]                      = theme_colors.grid_line.b * 0.6f;
+    pc.color[3]                      = theme_colors.grid_line.a;
+    pc.line_width                    = 1.5f;
+    pc.data_offset_x                 = 0.0f;
+    pc.data_offset_y                 = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.tick_buffer, 0);
@@ -1533,10 +1551,10 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
 void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
 {
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
-    auto zlim = axes.z_limits();
-    auto& gpu = axes_gpu_data_[&axes];
+    auto  xlim = axes.x_limits();
+    auto  ylim = axes.y_limits();
+    auto  zlim = axes.z_limits();
+    auto& gpu  = axes_gpu_data_[&axes];
 
     float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
     float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
@@ -1548,7 +1566,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     // the cylinder/cone geometry is generated in a uniformly-scaled coordinate
     // system. The data_to_normalized_matrix applies non-uniform scale per axis
     // which would distort circular cross-sections into ellipses.
-    mat4 model = axes.data_to_normalized_matrix();
+    mat4 model    = axes.data_to_normalized_matrix();
     auto xform_pt = [&](vec3 p) -> vec3
     {
         return {model.m[0] * p.x + model.m[4] * p.y + model.m[8] * p.z + model.m[12],
@@ -1558,24 +1576,24 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
 
     // Arrow endpoints in normalized space
     vec3 n_x_start = xform_pt({x1, y0, z0});
-    vec3 n_x_end = xform_pt({x1 + arrow_len_x, y0, z0});
+    vec3 n_x_end   = xform_pt({x1 + arrow_len_x, y0, z0});
     vec3 n_y_start = xform_pt({x0, y1, z0});
-    vec3 n_y_end = xform_pt({x0, y1 + arrow_len_y, z0});
+    vec3 n_y_end   = xform_pt({x0, y1 + arrow_len_y, z0});
     vec3 n_z_start = xform_pt({x0, y0, z1});
-    vec3 n_z_end = xform_pt({x0, y0, z1 + arrow_len_z});
+    vec3 n_z_end   = xform_pt({x0, y0, z1 + arrow_len_z});
 
     // In normalized space, box_half_size is the reference for arrow thickness.
     float hs = axes.box_half_size();
 
     // Geometry parameters for solid lit 3D arrows
-    constexpr int SEGMENTS = 16;
-    constexpr float SHAFT_FRAC = 0.018f;  // shaft radius as fraction of box half-size
-    constexpr float CONE_FRAC = 0.048f;   // cone radius as fraction of box half-size
-    constexpr float CONE_LENGTH = 0.25f;  // cone length as fraction of arrow length
-    constexpr float PI = 3.14159265358979f;
+    constexpr int   SEGMENTS    = 16;
+    constexpr float SHAFT_FRAC  = 0.018f;   // shaft radius as fraction of box half-size
+    constexpr float CONE_FRAC   = 0.048f;   // cone radius as fraction of box half-size
+    constexpr float CONE_LENGTH = 0.25f;    // cone length as fraction of arrow length
+    constexpr float PI          = 3.14159265358979f;
 
     float shaft_r = hs * SHAFT_FRAC;
-    float cone_r = hs * CONE_FRAC;
+    float cone_r  = hs * CONE_FRAC;
 
     // Vertex layout: {px, py, pz, nx, ny, nz} = 6 floats per vertex
     arrow_tri_scratch_.clear();
@@ -1614,7 +1632,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     // Emit a full lit 3D arrow: cylinder shaft + cone arrowhead with normals.
     auto emit_arrow_3d = [&](vec3 start, vec3 end)
     {
-        vec3 dir = {end.x - start.x, end.y - start.y, end.z - start.z};
+        vec3  dir       = {end.x - start.x, end.y - start.y, end.z - start.z};
         float total_len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
         if (total_len < 1e-6f)
             return;
@@ -1623,7 +1641,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         vec3 u{}, v{};
         make_basis(d, u, v);
 
-        float cone_len = total_len * CONE_LENGTH;
+        float cone_len  = total_len * CONE_LENGTH;
         float shaft_len = total_len - cone_len;
 
         vec3 shaft_end = {
@@ -1637,7 +1655,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         float sin_table[SEGMENTS];
         for (int i = 0; i < SEGMENTS; ++i)
         {
-            float angle = 2.0f * PI * static_cast<float>(i) / static_cast<float>(SEGMENTS);
+            float angle  = 2.0f * PI * static_cast<float>(i) / static_cast<float>(SEGMENTS);
             cos_table[i] = std::cos(angle);
             sin_table[i] = std::sin(angle);
         }
@@ -1667,13 +1685,13 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // Normals point radially outward from the cylinder axis.
         for (int i = 0; i < SEGMENTS; ++i)
         {
-            int next = (i + 1) % SEGMENTS;
-            vec3 b0 = circle_pt(start, shaft_r, i);
-            vec3 b1 = circle_pt(start, shaft_r, next);
-            vec3 t0 = circle_pt(shaft_end, shaft_r, i);
-            vec3 t1 = circle_pt(shaft_end, shaft_r, next);
-            vec3 n0 = radial_normal(i);
-            vec3 n1 = radial_normal(next);
+            int  next = (i + 1) % SEGMENTS;
+            vec3 b0   = circle_pt(start, shaft_r, i);
+            vec3 b1   = circle_pt(start, shaft_r, next);
+            vec3 t0   = circle_pt(shaft_end, shaft_r, i);
+            vec3 t1   = circle_pt(shaft_end, shaft_r, next);
+            vec3 n0   = radial_normal(i);
+            vec3 n1   = radial_normal(next);
             // Two triangles per quad
             push_vert(b0, n0);
             push_vert(t0, n0);
@@ -1686,9 +1704,9 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // ── Shaft start cap (disc) — normal points backward ──
         for (int i = 0; i < SEGMENTS; ++i)
         {
-            int next = (i + 1) % SEGMENTS;
-            vec3 p0 = circle_pt(start, shaft_r, i);
-            vec3 p1 = circle_pt(start, shaft_r, next);
+            int  next = (i + 1) % SEGMENTS;
+            vec3 p0   = circle_pt(start, shaft_r, i);
+            vec3 p1   = circle_pt(start, shaft_r, next);
             push_vert(start, neg_d);
             push_vert(p1, neg_d);
             push_vert(p0, neg_d);
@@ -1698,7 +1716,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // Cone normal: for a cone with tip at 'end' and base at 'shaft_end',
         // the surface normal tilts outward from the axis. The tilt angle depends
         // on the cone_r / cone_len ratio.
-        float cone_slope = cone_len / std::sqrt(cone_r * cone_r + cone_len * cone_len);
+        float cone_slope  = cone_len / std::sqrt(cone_r * cone_r + cone_len * cone_len);
         float cone_radial = cone_r / std::sqrt(cone_r * cone_r + cone_len * cone_len);
         // cone_normal(seg) = radial_normal(seg) * cone_slope + d * cone_radial
         // (tilted outward from axis by the cone half-angle)
@@ -1712,11 +1730,11 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
 
         for (int i = 0; i < SEGMENTS; ++i)
         {
-            int next = (i + 1) % SEGMENTS;
-            vec3 c0 = circle_pt(shaft_end, cone_r, i);
-            vec3 c1 = circle_pt(shaft_end, cone_r, next);
-            vec3 cn0 = cone_normal(i);
-            vec3 cn1 = cone_normal(next);
+            int  next = (i + 1) % SEGMENTS;
+            vec3 c0   = circle_pt(shaft_end, cone_r, i);
+            vec3 c1   = circle_pt(shaft_end, cone_r, next);
+            vec3 cn0  = cone_normal(i);
+            vec3 cn1  = cone_normal(next);
             // Average normal at tip for smooth shading
             vec3 cn_avg = {(cn0.x + cn1.x) * 0.5f, (cn0.y + cn1.y) * 0.5f, (cn0.z + cn1.z) * 0.5f};
             push_vert(end, cn_avg);
@@ -1727,9 +1745,9 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // ── Cone base cap (disc) — normal points backward ──
         for (int i = 0; i < SEGMENTS; ++i)
         {
-            int next = (i + 1) % SEGMENTS;
-            vec3 c0 = circle_pt(shaft_end, cone_r, i);
-            vec3 c1 = circle_pt(shaft_end, cone_r, next);
+            int  next = (i + 1) % SEGMENTS;
+            vec3 c0   = circle_pt(shaft_end, cone_r, i);
+            vec3 c1   = circle_pt(shaft_end, cone_r, next);
             push_vert(shaft_end, neg_d);
             push_vert(c1, neg_d);
             push_vert(c0, neg_d);
@@ -1743,7 +1761,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     // Triangles per arrow: shaft body (SEGMENTS*2) + shaft cap (SEGMENTS)
     //                     + cone body (SEGMENTS) + cone cap (SEGMENTS)
     //                     = SEGMENTS * 5
-    constexpr uint32_t TRIS_PER_ARROW = SEGMENTS * 5;
+    constexpr uint32_t TRIS_PER_ARROW  = SEGMENTS * 5;
     constexpr uint32_t VERTS_PER_ARROW = TRIS_PER_ARROW * 3;
     // 6 floats per vertex (pos + normal)
     constexpr uint32_t FLOATS_PER_ARROW = VERTS_PER_ARROW * 6;
@@ -1751,7 +1769,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     // Upload and draw all arrow geometry (Arrow3D pipeline — lit, depth tested).
     // Geometry is in normalized space, so we temporarily set the UBO model matrix
     // to identity (the vertex shader must not re-apply the non-uniform data scale).
-    uint32_t total_floats = static_cast<uint32_t>(arrow_tri_scratch_.size());
+    uint32_t total_floats   = static_cast<uint32_t>(arrow_tri_scratch_.size());
     uint32_t tri_vert_count = total_floats / 6;
     if (tri_vert_count > 0)
     {
@@ -1760,7 +1778,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         {
             if (gpu.arrow_tri_buffer)
                 backend_.destroy_buffer(gpu.arrow_tri_buffer);
-            gpu.arrow_tri_buffer = backend_.create_buffer(BufferUsage::Vertex, tri_bytes * 2);
+            gpu.arrow_tri_buffer   = backend_.create_buffer(BufferUsage::Vertex, tri_bytes * 2);
             gpu.arrow_tri_capacity = tri_bytes * 2;
         }
         backend_.upload_buffer(gpu.arrow_tri_buffer, arrow_tri_scratch_.data(), tri_bytes);
@@ -1773,15 +1791,15 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // Read back current UBO contents by rebuilding from axes state
         const auto& cam = axes.camera();
         {
-            const auto& vp = axes.viewport();
-            float aspect = vp.w / std::max(vp.h, 1.0f);
+            const auto& vp     = axes.viewport();
+            float       aspect = vp.w / std::max(vp.h, 1.0f);
             // Copy projection
             if (cam.projection_mode == Camera::ProjectionMode::Perspective)
             {
-                float fov_rad = cam.fov * PI / 180.0f;
-                float f = 1.0f / std::tan(fov_rad * 0.5f);
-                arrow_ubo.projection[0] = f / aspect;
-                arrow_ubo.projection[5] = -f;
+                float fov_rad            = cam.fov * PI / 180.0f;
+                float f                  = 1.0f / std::tan(fov_rad * 0.5f);
+                arrow_ubo.projection[0]  = f / aspect;
+                arrow_ubo.projection[5]  = -f;
                 arrow_ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
                 arrow_ubo.projection[11] = -1.0f;
                 arrow_ubo.projection[14] =
@@ -1806,16 +1824,16 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         // Identity model matrix (geometry is already in normalized space)
         mat4 identity = mat4_identity();
         std::memcpy(arrow_ubo.model, identity.m, 16 * sizeof(float));
-        arrow_ubo.viewport_width = axes.viewport().w;
+        arrow_ubo.viewport_width  = axes.viewport().w;
         arrow_ubo.viewport_height = axes.viewport().h;
-        arrow_ubo.near_plane = cam.near_clip;
-        arrow_ubo.far_plane = cam.far_clip;
-        arrow_ubo.camera_pos[0] = cam.position.x;
-        arrow_ubo.camera_pos[1] = cam.position.y;
-        arrow_ubo.camera_pos[2] = cam.position.z;
+        arrow_ubo.near_plane      = cam.near_clip;
+        arrow_ubo.far_plane       = cam.far_clip;
+        arrow_ubo.camera_pos[0]   = cam.position.x;
+        arrow_ubo.camera_pos[1]   = cam.position.y;
+        arrow_ubo.camera_pos[2]   = cam.position.z;
         if (axes.lighting_enabled())
         {
-            vec3 ld = axes.light_dir();
+            vec3 ld                = axes.light_dir();
             arrow_ubo.light_dir[0] = ld.x;
             arrow_ubo.light_dir[1] = ld.y;
             arrow_ubo.light_dir[2] = ld.z;
@@ -1827,9 +1845,9 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(arrow3d_pipeline_);
 
         float arrow_colors[][4] = {
-            {0.902f, 0.275f, 0.275f, 1.0f},  // X: red
-            {0.275f, 0.784f, 0.275f, 1.0f},  // Y: green
-            {0.314f, 0.510f, 1.000f, 1.0f},  // Z: blue
+            {0.902f, 0.275f, 0.275f, 1.0f},   // X: red
+            {0.275f, 0.784f, 0.275f, 1.0f},   // Y: green
+            {0.314f, 0.510f, 1.000f, 1.0f},   // Z: blue
         };
 
         backend_.bind_buffer(gpu.arrow_tri_buffer, 0);
@@ -1841,7 +1859,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
             pc.color[1] = arrow_colors[i][1];
             pc.color[2] = arrow_colors[i][2];
             pc.color[3] = arrow_colors[i][3];
-            pc.opacity = 1.0f;
+            pc.opacity  = 1.0f;
             backend_.push_constants(pc);
             backend_.draw(VERTS_PER_ARROW, i * VERTS_PER_ARROW);
         }
@@ -1866,7 +1884,7 @@ void Renderer::render_axis_border(AxesBase& axes,
     // of the top/right edges on some GPUs).
     auto* axes2d = dynamic_cast<Axes*>(&axes);
     if (!axes2d)
-        return;  // Border only for 2D axes
+        return;   // Border only for 2D axes
     auto xlim = axes2d->x_limits();
     auto ylim = axes2d->y_limits();
 
@@ -1879,8 +1897,8 @@ void Renderer::render_axis_border(AxesBase& axes,
 
     // Use epsilon to prevent NDC boundary clipping
     // Slightly larger for symmetric ranges to ensure all borders visible
-    float eps_x = 0.002f * x_range;  // 0.2% of x range
-    float eps_y = 0.002f * y_range;  // 0.2% of y range
+    float       eps_x   = 0.002f * x_range;   // 0.2% of x range
+    float       eps_y   = 0.002f * y_range;   // 0.2% of y range
     const float MIN_EPS = 1e-8f;
     if (eps_x < MIN_EPS)
         eps_x = MIN_EPS;
@@ -1926,7 +1944,7 @@ void Renderer::render_axis_border(AxesBase& axes,
         {
             backend_.destroy_buffer(gpu.border_buffer);
         }
-        gpu.border_buffer = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+        gpu.border_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size);
         gpu.border_capacity = byte_size;
     }
     backend_.upload_buffer(gpu.border_buffer, border_verts, byte_size);
@@ -1934,18 +1952,18 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0] = theme_colors.axis_line.r;
-    pc.color[1] = theme_colors.axis_line.g;
-    pc.color[2] = theme_colors.axis_line.b;
-    pc.color[3] = theme_colors.axis_line.a;
-    pc.line_width = 1.0f;
-    pc.data_offset_x = 0.0f;
-    pc.data_offset_y = 0.0f;
+    const auto&         theme_colors = ui::ThemeManager::instance().colors();
+    pc.color[0]                      = theme_colors.axis_line.r;
+    pc.color[1]                      = theme_colors.axis_line.g;
+    pc.color[2]                      = theme_colors.axis_line.b;
+    pc.color[3]                      = theme_colors.axis_line.a;
+    pc.line_width                    = 1.0f;
+    pc.data_offset_x                 = 0.0f;
+    pc.data_offset_y                 = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.border_buffer, 0);
-    backend_.draw(8);  // 4 lines × 2 vertices
+    backend_.draw(8);   // 4 lines × 2 vertices
 }
 
 void Renderer::render_series(Series& series, const Rect& /*viewport*/)
@@ -1959,17 +1977,17 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         return;
 
     SeriesPushConstants pc{};
-    const auto& c = series.color();
-    pc.color[0] = c.r;
-    pc.color[1] = c.g;
-    pc.color[2] = c.b;
-    pc.color[3] = c.a * series.opacity();
+    const auto&         c = series.color();
+    pc.color[0]           = c.r;
+    pc.color[1]           = c.g;
+    pc.color[2]           = c.b;
+    pc.color[3]           = c.a * series.opacity();
 
     const auto& style = series.plot_style();
-    pc.line_style = static_cast<uint32_t>(style.line_style);
-    pc.marker_type = static_cast<uint32_t>(style.marker_style);
-    pc.marker_size = style.marker_size;
-    pc.opacity = style.opacity;
+    pc.line_style     = static_cast<uint32_t>(style.line_style);
+    pc.marker_type    = static_cast<uint32_t>(style.marker_style);
+    pc.marker_size    = style.marker_size;
+    pc.opacity        = style.opacity;
 
     // Use cached SeriesType to avoid 6x dynamic_cast per series per frame.
     // Only perform the single targeted static_cast for the known type.
@@ -2009,7 +2027,7 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         {
             auto* scatter = static_cast<ScatterSeries*>(&series);
             backend_.bind_pipeline(scatter_pipeline_);
-            pc.point_size = scatter->size();
+            pc.point_size  = scatter->size();
             pc.marker_type = static_cast<uint32_t>(style.marker_style);
             if (pc.marker_type == 0)
                 pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
@@ -2036,11 +2054,11 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
         }
         case SeriesType::Scatter3D:
         {
-            auto* scatter3d = static_cast<ScatterSeries3D*>(&series);
-            bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+            auto* scatter3d      = static_cast<ScatterSeries3D*>(&series);
+            bool  is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
             backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
                                                   : scatter3d_pipeline_);
-            pc.point_size = scatter3d->size();
+            pc.point_size  = scatter3d->size();
             pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
@@ -2136,16 +2154,21 @@ void Renderer::build_ortho_projection(float left, float right, float bottom, flo
     if (tb == 0.0f)
         tb = 1.0f;
 
-    m[0] = 2.0f / rl;
-    m[5] = -2.0f / tb;  // Negate for Vulkan Y-down clip space
+    m[0]  = 2.0f / rl;
+    m[5]  = -2.0f / tb;   // Negate for Vulkan Y-down clip space
     m[10] = -1.0f;
     m[12] = -(right + left) / rl;
-    m[13] = (top + bottom) / tb;  // Flip sign for Vulkan
+    m[13] = (top + bottom) / tb;   // Flip sign for Vulkan
     m[15] = 1.0f;
 }
 
-void Renderer::build_ortho_projection_3d(
-    float left, float right, float bottom, float top, float near_clip, float far_clip, float* m)
+void Renderer::build_ortho_projection_3d(float  left,
+                                         float  right,
+                                         float  bottom,
+                                         float  top,
+                                         float  near_clip,
+                                         float  far_clip,
+                                         float* m)
 {
     // Column-major 4x4 orthographic projection with proper depth mapping.
     // Maps [left,right] x [bottom,top] x [near,far] to Vulkan clip space.
@@ -2162,13 +2185,13 @@ void Renderer::build_ortho_projection_3d(
     if (fn == 0.0f)
         fn = 1.0f;
 
-    m[0] = 2.0f / rl;
-    m[5] = -2.0f / tb;   // Negate for Vulkan Y-down
-    m[10] = -1.0f / fn;  // Maps [near,far] → [0,1] for Vulkan depth
+    m[0]  = 2.0f / rl;
+    m[5]  = -2.0f / tb;   // Negate for Vulkan Y-down
+    m[10] = -1.0f / fn;   // Maps [near,far] → [0,1] for Vulkan depth
     m[12] = -(right + left) / rl;
     m[13] = (top + bottom) / tb;
-    m[14] = -near_clip / fn;  // Depth offset
+    m[14] = -near_clip / fn;   // Depth offset
     m[15] = 1.0f;
 }
 
-}  // namespace spectra
+}   // namespace spectra

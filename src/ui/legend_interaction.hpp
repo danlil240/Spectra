@@ -19,9 +19,9 @@ class TransitionEngine;
 // Per-series animation state for legend interaction.
 struct LegendSeriesState
 {
-    float opacity = 1.0f;         // Current animated opacity (0=hidden, 1=visible)
-    float target_opacity = 1.0f;  // Target opacity for animation
-    bool user_visible = true;     // User-toggled visibility state
+    float opacity        = 1.0f;   // Current animated opacity (0=hidden, 1=visible)
+    float target_opacity = 1.0f;   // Target opacity for animation
+    bool  user_visible   = true;   // User-toggled visibility state
 };
 
 // Legend interaction: click-to-toggle series visibility with animated opacity,
@@ -47,11 +47,11 @@ class LegendInteraction
     // Draw the interactive legend overlay for the given axes.
     // figure_id disambiguates state across figures in split mode.
     // Returns true if the legend consumed a mouse event this frame.
-    bool draw(Axes& axes,
-              const Rect& viewport,
-              size_t axes_index,
+    bool draw(Axes&               axes,
+              const Rect&         viewport,
+              size_t              axes_index,
               const LegendConfig& config,
-              uintptr_t figure_id);
+              uintptr_t           figure_id);
 
     // ─── Queries ────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ class LegendInteraction
     bool toggleable() const { return toggleable_; }
 
     // Animation duration for opacity transitions (seconds)
-    void set_toggle_duration(float d) { toggle_duration_ = d; }
+    void  set_toggle_duration(float d) { toggle_duration_ = d; }
     float toggle_duration() const { return toggle_duration_; }
 
    private:
@@ -101,11 +101,11 @@ class LegendInteraction
     std::unordered_map<OffsetKey, LegendOffset> legend_offsets_;
 
     // Drag state
-    bool dragging_ = false;
-    float drag_start_mx_ = 0.0f;
-    float drag_start_my_ = 0.0f;
-    float drag_start_ox_ = 0.0f;
-    float drag_start_oy_ = 0.0f;
+    bool   dragging_        = false;
+    float  drag_start_mx_   = 0.0f;
+    float  drag_start_my_   = 0.0f;
+    float  drag_start_ox_   = 0.0f;
+    float  drag_start_oy_   = 0.0f;
     size_t drag_axes_index_ = 0;
 
     // Fonts
@@ -113,14 +113,14 @@ class LegendInteraction
     ImFont* font_icon_ = nullptr;
 
     // Configuration
-    bool draggable_ = true;
-    bool toggleable_ = true;
+    bool  draggable_       = true;
+    bool  toggleable_      = true;
     float toggle_duration_ = 0.2f;
 
     // External systems
     TransitionEngine* transition_engine_ = nullptr;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

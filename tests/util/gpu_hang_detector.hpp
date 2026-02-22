@@ -30,7 +30,7 @@ namespace spectra::test
 class GpuHangDetector
 {
    public:
-    using Clock = std::chrono::steady_clock;
+    using Clock    = std::chrono::steady_clock;
     using Duration = Clock::duration;
 
     explicit GpuHangDetector(Duration timeout = std::chrono::seconds(10)) : timeout_(timeout) {}
@@ -48,9 +48,9 @@ class GpuHangDetector
         auto start = Clock::now();
 
         // Run the callable on the current thread, with a watchdog
-        std::mutex mtx;
+        std::mutex              mtx;
         std::condition_variable cv;
-        bool done = false;
+        bool                    done = false;
 
         std::thread watchdog(
             [&]()
@@ -69,7 +69,7 @@ class GpuHangDetector
         fn();
 
         auto elapsed = Clock::now() - start;
-        elapsed_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        elapsed_ms_  = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 
         {
             std::lock_guard<std::mutex> lock(mtx);
@@ -112,21 +112,21 @@ class GpuHangDetector
     }
 
    private:
-    Duration timeout_;
-    std::string description_;
-    std::string failure_reason_;
-    int64_t elapsed_ms_ = 0;
+    Duration          timeout_;
+    std::string       description_;
+    std::string       failure_reason_;
+    int64_t           elapsed_ms_ = 0;
     std::atomic<bool> completed_{false};
     std::atomic<bool> timed_out_{false};
 };
 
 // Convenience: run with default 10s timeout
-inline bool run_with_hang_detection(const std::string& description,
-                                    std::function<void()> fn,
+inline bool run_with_hang_detection(const std::string&        description,
+                                    std::function<void()>     fn,
                                     std::chrono::milliseconds timeout = std::chrono::seconds(10))
 {
     GpuHangDetector detector(timeout);
     return detector.run(description, std::move(fn));
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

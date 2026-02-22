@@ -8,7 +8,7 @@ namespace spectra::ease
 namespace
 {
 constexpr float PI = 3.14159265358979323846f;
-}  // anonymous namespace
+}   // anonymous namespace
 
 float linear(float t)
 {
@@ -90,7 +90,7 @@ float spring(float t)
         return 1.0f;
 
     constexpr float damping = 6.0f;
-    constexpr float freq = 4.5f;
+    constexpr float freq    = 4.5f;
     return 1.0f - std::exp(-damping * t) * std::cos(freq * PI * t);
 }
 
@@ -109,13 +109,13 @@ float CubicBezier::operator()(float t) const
     if (t >= 1.0f)
         return 1.0f;
 
-    float u = t;  // initial guess
+    float u = t;   // initial guess
     for (int i = 0; i < 8; ++i)
     {
         // bezier_x(u) = 3*(1-u)^2*u*x1 + 3*(1-u)*u^2*x2 + u^3
-        float u2 = u * u;
-        float u3 = u2 * u;
-        float inv = 1.0f - u;
+        float u2   = u * u;
+        float u3   = u2 * u;
+        float inv  = 1.0f - u;
         float inv2 = inv * inv;
 
         float bx = 3.0f * inv2 * u * x1 + 3.0f * inv * u2 * x2 + u3;
@@ -128,10 +128,10 @@ float CubicBezier::operator()(float t) const
     }
 
     // Evaluate y at parameter u
-    float inv = 1.0f - u;
+    float inv  = 1.0f - u;
     float inv2 = inv * inv;
-    float u2 = u * u;
+    float u2   = u * u;
     return 3.0f * inv2 * u * y1 + 3.0f * inv * u2 * y2 + u2 * u;
 }
 
-}  // namespace spectra::ease
+}   // namespace spectra::ease

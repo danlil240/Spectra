@@ -39,11 +39,11 @@ void Logger::clear_sinks()
     sinks_.clear();
 }
 
-void Logger::log(LogLevel level,
+void Logger::log(LogLevel         level,
                  std::string_view category,
                  std::string_view message,
                  std::string_view file,
-                 int line,
+                 int              line,
                  std::string_view function)
 {
     if (!is_enabled(level))
@@ -52,12 +52,12 @@ void Logger::log(LogLevel level,
     }
 
     LogEntry entry{.timestamp = std::chrono::system_clock::now(),
-                   .level = level,
-                   .category = std::string(category),
-                   .message = std::string(message),
-                   .file = std::string(file),
-                   .line = line,
-                   .function = std::string(function)};
+                   .level     = level,
+                   .category  = std::string(category),
+                   .message   = std::string(message),
+                   .file      = std::string(file),
+                   .line      = line,
+                   .function  = std::string(function)};
 
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& sink : sinks_)
@@ -189,6 +189,6 @@ Logger::LogSink null_sink()
     };
 }
 
-}  // namespace sinks
+}   // namespace sinks
 
-}  // namespace spectra
+}   // namespace spectra

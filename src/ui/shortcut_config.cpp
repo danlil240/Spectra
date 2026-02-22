@@ -20,15 +20,15 @@ void ShortcutConfig::set_override(const std::string& command_id, const std::stri
         if (o.command_id == command_id)
         {
             o.shortcut_str = shortcut_str;
-            o.removed = shortcut_str.empty();
+            o.removed      = shortcut_str.empty();
             notify_change();
             return;
         }
     }
     BindingOverride bo;
-    bo.command_id = command_id;
+    bo.command_id   = command_id;
     bo.shortcut_str = shortcut_str;
-    bo.removed = shortcut_str.empty();
+    bo.removed      = shortcut_str.empty();
     overrides_.push_back(std::move(bo));
     notify_change();
 }
@@ -151,7 +151,7 @@ std::string ShortcutConfig::serialize() const
 static std::string read_json_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return "";
     pos = json.find(':', pos + search.size());
@@ -173,13 +173,13 @@ static std::string read_json_string(const std::string& json, const std::string& 
 static bool read_json_bool(const std::string& json, const std::string& key, bool def)
 {
     std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return def;
     pos = json.find(':', pos + search.size());
     if (pos == std::string::npos)
         return def;
-    auto rest = json.substr(pos + 1, 10);
+    auto   rest  = json.substr(pos + 1, 10);
     size_t start = rest.find_first_not_of(" \t\n\r");
     if (start == std::string::npos)
         return def;
@@ -193,15 +193,15 @@ static bool read_json_bool(const std::string& json, const std::string& key, bool
 static std::vector<std::string> parse_binding_objects(const std::string& json)
 {
     std::vector<std::string> objects;
-    std::string search = "\"bindings\"";
-    auto pos = json.find(search);
+    std::string              search = "\"bindings\"";
+    auto                     pos    = json.find(search);
     if (pos == std::string::npos)
         return objects;
     pos = json.find('[', pos);
     if (pos == std::string::npos)
         return objects;
 
-    int depth = 0;
+    int    depth     = 0;
     size_t obj_start = 0;
     for (size_t i = pos + 1; i < json.size(); ++i)
     {
@@ -234,7 +234,7 @@ bool ShortcutConfig::deserialize(const std::string& json)
 
     // Check version
     std::string search = "\"version\"";
-    auto vpos = json.find(search);
+    auto        vpos   = json.find(search);
     if (vpos != std::string::npos)
     {
         auto cpos = json.find(':', vpos + search.size());
@@ -242,7 +242,7 @@ bool ShortcutConfig::deserialize(const std::string& json)
         {
             int ver = std::atoi(json.c_str() + cpos + 1);
             if (ver > 1)
-                return false;  // Future version
+                return false;   // Future version
         }
     }
 
@@ -251,9 +251,9 @@ bool ShortcutConfig::deserialize(const std::string& json)
     for (const auto& obj : objects)
     {
         BindingOverride bo;
-        bo.command_id = read_json_string(obj, "command");
+        bo.command_id   = read_json_string(obj, "command");
         bo.shortcut_str = read_json_string(obj, "shortcut");
-        bo.removed = read_json_bool(obj, "removed", false);
+        bo.removed      = read_json_bool(obj, "removed", false);
         if (!bo.command_id.empty())
         {
             overrides_.push_back(std::move(bo));
@@ -314,4 +314,4 @@ void ShortcutConfig::notify_change()
         on_change_();
 }
 
-}  // namespace spectra
+}   // namespace spectra

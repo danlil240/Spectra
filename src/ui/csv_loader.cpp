@@ -52,8 +52,8 @@ bool try_parse_float(const std::string& s, float& out)
 std::vector<std::string> split_line(const std::string& line, char delim)
 {
     std::vector<std::string> fields;
-    std::string field;
-    bool in_quotes = false;
+    std::string              field;
+    bool                     in_quotes = false;
 
     for (size_t i = 0; i < line.size(); ++i)
     {
@@ -65,11 +65,9 @@ std::vector<std::string> split_line(const std::string& line, char delim)
         else if (c == delim && !in_quotes)
         {
             // Trim whitespace
-            while (!field.empty()
-                   && std::isspace(static_cast<unsigned char>(field.front())))
+            while (!field.empty() && std::isspace(static_cast<unsigned char>(field.front())))
                 field.erase(field.begin());
-            while (!field.empty()
-                   && std::isspace(static_cast<unsigned char>(field.back())))
+            while (!field.empty() && std::isspace(static_cast<unsigned char>(field.back())))
                 field.pop_back();
             fields.push_back(field);
             field.clear();
@@ -89,7 +87,7 @@ std::vector<std::string> split_line(const std::string& line, char delim)
     return fields;
 }
 
-}  // namespace
+}   // namespace
 
 CsvData parse_csv(const std::string& path)
 {
@@ -104,7 +102,7 @@ CsvData parse_csv(const std::string& path)
 
     // Read all lines
     std::vector<std::string> lines;
-    std::string line;
+    std::string              line;
     while (std::getline(file, line))
     {
         // Strip trailing \r (Windows line endings)
@@ -125,7 +123,7 @@ CsvData parse_csv(const std::string& path)
 
     // Parse first line to detect if it's a header
     auto first_fields = split_line(lines[0], delim);
-    result.num_cols = first_fields.size();
+    result.num_cols   = first_fields.size();
 
     if (result.num_cols == 0)
     {
@@ -149,7 +147,7 @@ CsvData parse_csv(const std::string& path)
     if (has_header)
     {
         result.headers = first_fields;
-        data_start = 1;
+        data_start     = 1;
     }
     else
     {
@@ -189,7 +187,9 @@ std::vector<std::string> list_csv_files(const std::string& directory)
                 continue;
             auto ext = entry.path().extension().string();
             // Case-insensitive .csv check
-            std::transform(ext.begin(), ext.end(), ext.begin(),
+            std::transform(ext.begin(),
+                           ext.end(),
+                           ext.begin(),
                            [](unsigned char c) { return std::tolower(c); });
             if (ext == ".csv" || ext == ".tsv" || ext == ".txt")
                 files.push_back(entry.path().string());
@@ -203,4 +203,4 @@ std::vector<std::string> list_csv_files(const std::string& directory)
     return files;
 }
 
-}  // namespace spectra
+}   // namespace spectra

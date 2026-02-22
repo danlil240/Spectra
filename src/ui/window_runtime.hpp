@@ -21,11 +21,11 @@ class WindowManager;
 // Per-window mutable state passed between update / render.
 struct FrameState
 {
-    Figure* active_figure = nullptr;
-    FigureId active_figure_id = INVALID_FIGURE_ID;
-    bool has_animation = false;
-    float anim_time = 0.0f;
-    bool imgui_frame_started = false;
+    Figure*  active_figure       = nullptr;
+    FigureId active_figure_id    = INVALID_FIGURE_ID;
+    bool     has_animation       = false;
+    float    anim_time           = 0.0f;
+    bool     imgui_frame_started = false;
 };
 
 // Per-window event loop body.
@@ -39,9 +39,9 @@ class WindowRuntime
 
     // Advance animations, build ImGui UI, compute layout for one window.
     void update(WindowUIContext& ui_ctx,
-                FrameState& fs,
-                FrameScheduler& scheduler,
-                FrameProfiler* profiler = nullptr
+                FrameState&      fs,
+                FrameScheduler&  scheduler,
+                FrameProfiler*   profiler = nullptr
 #ifdef SPECTRA_USE_GLFW
                 ,
                 WindowManager* window_mgr = nullptr
@@ -53,9 +53,9 @@ class WindowRuntime
     bool render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler = nullptr);
 
    private:
-    Backend& backend_;
-    Renderer& renderer_;
+    Backend&        backend_;
+    Renderer&       renderer_;
     FigureRegistry& registry_;
 };
 
-}  // namespace spectra
+}   // namespace spectra

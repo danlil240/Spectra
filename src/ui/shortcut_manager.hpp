@@ -15,11 +15,11 @@ class CommandRegistry;
 // Modifier flags (matching GLFW modifier bits)
 enum class KeyMod : uint8_t
 {
-    None = 0,
-    Shift = 0x01,
+    None    = 0,
+    Shift   = 0x01,
     Control = 0x02,
-    Alt = 0x04,
-    Super = 0x08,
+    Alt     = 0x04,
+    Super   = 0x08,
 };
 
 inline KeyMod operator|(KeyMod a, KeyMod b)
@@ -38,7 +38,7 @@ inline bool has_mod(KeyMod mods, KeyMod flag)
 // A keyboard shortcut: key + modifiers.
 struct Shortcut
 {
-    int key = 0;  // GLFW key code
+    int    key  = 0;   // GLFW key code
     KeyMod mods = KeyMod::None;
 
     bool operator==(const Shortcut& o) const { return key == o.key && mods == o.mods; }
@@ -65,7 +65,7 @@ struct ShortcutHash
 // Binding: shortcut → command id.
 struct ShortcutBinding
 {
-    Shortcut shortcut;
+    Shortcut    shortcut;
     std::string command_id;
 };
 
@@ -74,14 +74,14 @@ struct ShortcutBinding
 class ShortcutManager
 {
    public:
-    ShortcutManager() = default;
+    ShortcutManager()  = default;
     ~ShortcutManager() = default;
 
-    ShortcutManager(const ShortcutManager&) = delete;
+    ShortcutManager(const ShortcutManager&)            = delete;
     ShortcutManager& operator=(const ShortcutManager&) = delete;
 
     // Set the command registry to execute commands through.
-    void set_command_registry(CommandRegistry* registry) { registry_ = registry; }
+    void             set_command_registry(CommandRegistry* registry) { registry_ = registry; }
     CommandRegistry* command_registry() const { return registry_; }
 
     // Bind a shortcut to a command id. Replaces existing binding for that shortcut.
@@ -116,8 +116,8 @@ class ShortcutManager
     void clear();
 
    private:
-    CommandRegistry* registry_ = nullptr;
-    mutable std::mutex mutex_;
+    CommandRegistry*                                        registry_ = nullptr;
+    mutable std::mutex                                      mutex_;
     std::unordered_map<Shortcut, std::string, ShortcutHash> bindings_;
 
     // GLFW action constants (to avoid including GLFW in header).
@@ -125,4 +125,4 @@ class ShortcutManager
     static constexpr int kGlfwPress = 1;
 };
 
-}  // namespace spectra
+}   // namespace spectra

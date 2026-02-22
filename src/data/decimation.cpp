@@ -10,7 +10,7 @@ namespace spectra::data
 
 std::vector<std::pair<float, float>> lttb(std::span<const float> x,
                                           std::span<const float> y,
-                                          std::size_t target_count)
+                                          std::size_t            target_count)
 {
     assert(x.size() == y.size());
     const std::size_t n = x.size();
@@ -55,7 +55,7 @@ std::vector<std::pair<float, float>> lttb(std::span<const float> x,
                                   : n;
 
         // Compute average of next bucket
-        double avg_x = 0.0, avg_y = 0.0;
+        double            avg_x = 0.0, avg_y = 0.0;
         const std::size_t next_count = std::min(next_end, n) - std::min(next_start, n);
         if (next_count > 0)
         {
@@ -70,8 +70,8 @@ std::vector<std::pair<float, float>> lttb(std::span<const float> x,
 
         // Find the point in the current bucket that forms the largest triangle
         // with the previously selected point and the average of the next bucket
-        double max_area = -1.0;
-        std::size_t best = bucket_start;
+        double      max_area = -1.0;
+        std::size_t best     = bucket_start;
 
         const double px = x[prev_selected];
         const double py = y[prev_selected];
@@ -85,7 +85,7 @@ std::vector<std::pair<float, float>> lttb(std::span<const float> x,
             if (area > max_area)
             {
                 max_area = area;
-                best = i;
+                best     = i;
             }
         }
 
@@ -101,7 +101,7 @@ std::vector<std::pair<float, float>> lttb(std::span<const float> x,
 
 std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
                                                       std::span<const float> y,
-                                                      std::size_t bucket_count)
+                                                      std::size_t            bucket_count)
 {
     assert(x.size() == y.size());
     const std::size_t n = x.size();
@@ -131,11 +131,11 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
 
     struct BucketInfo
     {
-        float min_y = std::numeric_limits<float>::max();
-        float max_y = -std::numeric_limits<float>::max();
-        float min_x = 0.0f, max_x = 0.0f;
+        float       min_y = std::numeric_limits<float>::max();
+        float       max_y = -std::numeric_limits<float>::max();
+        float       min_x = 0.0f, max_x = 0.0f;
         std::size_t min_idx = 0, max_idx = 0;
-        bool has_data = false;
+        bool        has_data = false;
     };
 
     std::vector<BucketInfo> buckets(bucket_count);
@@ -146,18 +146,18 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
         if (bi >= bucket_count)
             bi = bucket_count - 1;
 
-        auto& b = buckets[bi];
+        auto& b    = buckets[bi];
         b.has_data = true;
         if (y[i] < b.min_y)
         {
-            b.min_y = y[i];
-            b.min_x = x[i];
+            b.min_y   = y[i];
+            b.min_x   = x[i];
             b.min_idx = i;
         }
         if (y[i] > b.max_y)
         {
-            b.max_y = y[i];
-            b.max_x = x[i];
+            b.max_y   = y[i];
+            b.max_x   = x[i];
             b.max_idx = i;
         }
     }
@@ -188,7 +188,7 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
 
 std::vector<std::pair<float, float>> resample_uniform(std::span<const float> x,
                                                       std::span<const float> y,
-                                                      std::size_t output_count)
+                                                      std::size_t            output_count)
 {
     assert(x.size() == y.size());
     const std::size_t n = x.size();
@@ -202,11 +202,11 @@ std::vector<std::pair<float, float>> resample_uniform(std::span<const float> x,
     out.reserve(output_count);
 
     const float x_start = x.front();
-    const float x_end = x.back();
+    const float x_end   = x.back();
     const float step =
         (output_count > 1) ? (x_end - x_start) / static_cast<float>(output_count - 1) : 0.0f;
 
-    std::size_t j = 0;  // current index into input arrays
+    std::size_t j = 0;   // current index into input arrays
 
     for (std::size_t i = 0; i < output_count; ++i)
     {
@@ -238,4 +238,4 @@ std::vector<std::pair<float, float>> resample_uniform(std::span<const float> x,
     return out;
 }
 
-}  // namespace spectra::data
+}   // namespace spectra::data

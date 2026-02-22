@@ -15,11 +15,11 @@
 int main()
 {
     spectra::App app;
-    auto& fig = app.figure({.width = 1200, .height = 800});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&        fig = app.figure({.width = 1200, .height = 800});
+    auto&        ax  = fig.subplot(1, 1, 1);
 
     // Generate sample data
-    constexpr size_t N = 100;
+    constexpr size_t   N = 100;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {

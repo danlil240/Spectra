@@ -37,7 +37,7 @@ Connection& Connection::operator=(Connection&& other) noexcept
     if (this != &other)
     {
         close();
-        fd_ = other.fd_;
+        fd_       = other.fd_;
         other.fd_ = -1;
     }
     return *this;
@@ -50,7 +50,7 @@ bool Connection::read_exact(uint8_t* buf, size_t len)
     {
         auto n = ::read(fd_, buf + total, len - total);
         if (n <= 0)
-            return false;  // EOF or error
+            return false;   // EOF or error
         total += static_cast<size_t>(n);
     }
     return true;
@@ -164,11 +164,11 @@ bool Server::listen(const std::string& path)
     }
 
     listen_fd_ = fd;
-    path_ = path;
+    path_      = path;
     return true;
 #else
     (void)path;
-    return false;  // UDS not implemented on this platform
+    return false;   // UDS not implemented on this platform
 #endif
 }
 
@@ -182,7 +182,7 @@ std::unique_ptr<Connection> Server::accept()
     {
     };
     socklen_t client_len = sizeof(client_addr);
-    int client_fd =
+    int       client_fd =
         ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
     if (client_fd < 0)
         return nullptr;
@@ -209,7 +209,7 @@ std::unique_ptr<Connection> Server::try_accept()
                               &client_len,
                               SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (client_fd < 0)
-        return nullptr;  // EAGAIN or error — no pending connection
+        return nullptr;   // EAGAIN or error — no pending connection
 
     // Clear non-blocking on the accepted fd so recv() stays blocking
     int flags = ::fcntl(client_fd, F_GETFL, 0);
@@ -283,4 +283,4 @@ std::string default_socket_path()
     return dir + "/spectra-" + std::to_string(::getpid()) + ".sock";
 }
 
-}  // namespace spectra::ipc
+}   // namespace spectra::ipc

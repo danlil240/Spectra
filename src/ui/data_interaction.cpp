@@ -33,7 +33,7 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     last_figure_ = &figure;
 
     // Update legend animation state
-    float dt = 0.016f;  // fallback
+    float dt = 0.016f;   // fallback
     #ifdef SPECTRA_USE_IMGUI
     dt = ImGui::GetIO().DeltaTime;
     #endif
@@ -46,18 +46,18 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
         if (!axes_ptr)
             continue;
         const auto& vp = axes_ptr->viewport();
-        float sx = static_cast<float>(cursor.screen_x);
-        float sy = static_cast<float>(cursor.screen_y);
+        float       sx = static_cast<float>(cursor.screen_x);
+        float       sy = static_cast<float>(cursor.screen_y);
         if (cursor.valid && sx >= vp.x && sx <= vp.x + vp.w && sy >= vp.y && sy <= vp.y + vp.h)
         {
-            active_axes_ = axes_ptr.get();
+            active_axes_     = axes_ptr.get();
             active_viewport_ = vp;
-            auto xl = axes_ptr->x_limits();
-            auto yl = axes_ptr->y_limits();
-            xlim_min_ = xl.min;
-            xlim_max_ = xl.max;
-            ylim_min_ = yl.min;
-            ylim_max_ = yl.max;
+            auto xl          = axes_ptr->x_limits();
+            auto yl          = axes_ptr->y_limits();
+            xlim_min_        = xl.min;
+            xlim_max_        = xl.max;
+            ylim_min_        = yl.min;
+            ylim_max_        = yl.max;
             break;
         }
     }
@@ -66,15 +66,15 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     if (axis_link_mgr_ && active_axes_ && cursor.valid)
     {
         SharedCursor sc;
-        sc.valid = true;
+        sc.valid  = true;
         sc.data_x = xlim_min_
                     + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
                           / active_viewport_.w * (xlim_max_ - xlim_min_);
         sc.data_y = ylim_max_
                     - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
                           / active_viewport_.h * (ylim_max_ - ylim_min_);
-        sc.screen_x = cursor.screen_x;
-        sc.screen_y = cursor.screen_y;
+        sc.screen_x    = cursor.screen_x;
+        sc.screen_y    = cursor.screen_y;
         sc.source_axes = active_axes_;
         axis_link_mgr_->update_shared_cursor(sc);
     }
@@ -96,7 +96,7 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
         return;
 
     uintptr_t fig_id = reinterpret_cast<uintptr_t>(&figure);
-    size_t idx = 0;
+    size_t    idx    = 0;
     for (auto& axes_ptr : figure.axes_mut())
     {
         if (axes_ptr)
@@ -174,8 +174,11 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
                 {
                     if (series_ptr.get() == nearest_.series)
                     {
-                        on_series_selected_(
-                            last_figure_, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx);
+                        on_series_selected_(last_figure_,
+                                            axes_ptr.get(),
+                                            ax_idx,
+                                            series_ptr.get(),
+                                            s_idx);
                         return true;
                     }
                     s_idx++;
@@ -238,8 +241,13 @@ void DataInteraction::update_region_drag(double screen_x, double screen_y)
 {
     if (!active_axes_)
         return;
-    region_.update_drag(
-        screen_x, screen_y, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+    region_.update_drag(screen_x,
+                        screen_y,
+                        active_viewport_,
+                        xlim_min_,
+                        xlim_max_,
+                        ylim_min_,
+                        ylim_max_);
 }
 
 void DataInteraction::finish_region_select()
@@ -255,7 +263,7 @@ void DataInteraction::dismiss_region_select()
 NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Figure& figure) const
 {
     NearestPointResult best;
-    best.found = false;
+    best.found       = false;
     best.distance_px = std::numeric_limits<float>::max();
 
     if (!cursor.valid)
@@ -275,8 +283,8 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         if (cx < vp.x || cx > vp.x + vp.w || cy < vp.y || cy > vp.y + vp.h)
             continue;
 
-        auto xlim = axes_ptr->x_limits();
-        auto ylim = axes_ptr->y_limits();
+        auto  xlim    = axes_ptr->x_limits();
+        auto  ylim    = axes_ptr->y_limits();
         float x_range = xlim.max - xlim.min;
         float y_range = ylim.max - ylim.min;
         if (x_range == 0.0f)
@@ -291,19 +299,19 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
             const float* x_data = nullptr;
             const float* y_data = nullptr;
-            size_t count = 0;
+            size_t       count  = 0;
 
             if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
             {
                 x_data = ls->x_data().data();
                 y_data = ls->y_data().data();
-                count = ls->point_count();
+                count  = ls->point_count();
             }
             else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
             {
                 x_data = sc->x_data().data();
                 y_data = sc->y_data().data();
-                count = sc->point_count();
+                count  = sc->point_count();
             }
 
             if (!x_data || !y_data || count == 0)
@@ -315,22 +323,22 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                 // Convert data point to screen coordinates
                 float norm_x = (x_data[i] - xlim.min) / x_range;
                 float norm_y = (y_data[i] - ylim.min) / y_range;
-                float sx = vp.x + norm_x * vp.w;
-                float sy = vp.y + (1.0f - norm_y) * vp.h;
+                float sx     = vp.x + norm_x * vp.w;
+                float sy     = vp.y + (1.0f - norm_y) * vp.h;
 
-                float dx = cx - sx;
-                float dy = cy - sy;
+                float dx   = cx - sx;
+                float dy   = cy - sy;
                 float dist = std::sqrt(dx * dx + dy * dy);
 
                 if (dist < best.distance_px)
                 {
-                    best.found = true;
-                    best.series = series_ptr.get();
+                    best.found       = true;
+                    best.series      = series_ptr.get();
                     best.point_index = i;
-                    best.data_x = x_data[i];
-                    best.data_y = y_data[i];
-                    best.screen_x = sx;
-                    best.screen_y = sy;
+                    best.data_x      = x_data[i];
+                    best.data_y      = y_data[i];
+                    best.screen_x    = sx;
+                    best.screen_y    = sy;
                     best.distance_px = dist;
                 }
             }
@@ -340,6 +348,6 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     return best;
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

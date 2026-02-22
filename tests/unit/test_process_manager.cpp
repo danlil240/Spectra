@@ -85,7 +85,8 @@ TEST(ProcessManager, SpawnRealProcess)
 
     auto reaped = pm.reap_finished();
     EXPECT_EQ(reaped.size(), 1u);
-    if (!reaped.empty()) {
+    if (!reaped.empty())
+    {
         EXPECT_EQ(reaped[0], pid);
     }
     EXPECT_EQ(pm.process_count(), 0u);

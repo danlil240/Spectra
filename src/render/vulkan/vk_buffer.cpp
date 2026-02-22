@@ -6,8 +6,8 @@
 namespace spectra::vk
 {
 
-static uint32_t find_memory_type(VkPhysicalDevice physical_device,
-                                 uint32_t type_filter,
+static uint32_t find_memory_type(VkPhysicalDevice      physical_device,
+                                 uint32_t              type_filter,
                                  VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties mem_props;
@@ -45,11 +45,11 @@ GpuBuffer& GpuBuffer::operator=(GpuBuffer&& other) noexcept
     if (this != &other)
     {
         destroy();
-        device_ = other.device_;
-        buffer_ = other.buffer_;
-        memory_ = other.memory_;
-        size_ = other.size_;
-        mapped_ = other.mapped_;
+        device_       = other.device_;
+        buffer_       = other.buffer_;
+        memory_       = other.memory_;
+        size_         = other.size_;
+        mapped_       = other.mapped_;
         other.buffer_ = VK_NULL_HANDLE;
         other.memory_ = VK_NULL_HANDLE;
         other.mapped_ = nullptr;
@@ -57,20 +57,20 @@ GpuBuffer& GpuBuffer::operator=(GpuBuffer&& other) noexcept
     return *this;
 }
 
-GpuBuffer GpuBuffer::create(VkDevice device,
-                            VkPhysicalDevice physical_device,
-                            VkDeviceSize size,
-                            VkBufferUsageFlags usage,
+GpuBuffer GpuBuffer::create(VkDevice              device,
+                            VkPhysicalDevice      physical_device,
+                            VkDeviceSize          size,
+                            VkBufferUsageFlags    usage,
                             VkMemoryPropertyFlags memory_properties)
 {
     GpuBuffer buf;
     buf.device_ = device;
-    buf.size_ = size;
+    buf.size_   = size;
 
     VkBufferCreateInfo buffer_info{};
-    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_info.size = size;
-    buffer_info.usage = usage;
+    buffer_info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size        = size;
+    buffer_info.usage       = usage;
     buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     if (vkCreateBuffer(device, &buffer_info, nullptr, &buf.buffer_) != VK_SUCCESS)
@@ -82,7 +82,7 @@ GpuBuffer GpuBuffer::create(VkDevice device,
     vkGetBufferMemoryRequirements(device, buf.buffer_, &mem_reqs);
 
     VkMemoryAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.sType          = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_reqs.size;
     alloc_info.memoryTypeIndex =
         find_memory_type(physical_device, mem_reqs.memoryTypeBits, memory_properties);
@@ -145,14 +145,14 @@ void GpuBuffer::destroy()
 
 // --- RingBuffer ---
 
-void RingBuffer::init(VkDevice device,
-                      VkPhysicalDevice physical_device,
-                      VkDeviceSize frame_size,
-                      uint32_t frame_count,
+void RingBuffer::init(VkDevice           device,
+                      VkPhysicalDevice   physical_device,
+                      VkDeviceSize       frame_size,
+                      uint32_t           frame_count,
                       VkBufferUsageFlags usage)
 {
-    frame_size_ = frame_size;
-    frame_count_ = frame_count;
+    frame_size_    = frame_size;
+    frame_count_   = frame_count;
     current_frame_ = 0;
 
     buffer_ = GpuBuffer::create(
@@ -181,14 +181,14 @@ void RingBuffer::write(const void* data, VkDeviceSize size, VkDeviceSize offset_
 
 // --- Staging upload ---
 
-void staging_upload(VkDevice device,
+void staging_upload(VkDevice         device,
                     VkPhysicalDevice physical_device,
-                    VkCommandPool command_pool,
-                    VkQueue queue,
-                    VkBuffer dst_buffer,
-                    const void* data,
-                    VkDeviceSize size,
-                    VkDeviceSize dst_offset)
+                    VkCommandPool    command_pool,
+                    VkQueue          queue,
+                    VkBuffer         dst_buffer,
+                    const void*      data,
+                    VkDeviceSize     size,
+                    VkDeviceSize     dst_offset)
 {
     // Create staging buffer
     auto staging = GpuBuffer::create(
@@ -202,9 +202,9 @@ void staging_upload(VkDevice device,
 
     // Allocate one-shot command buffer
     VkCommandBufferAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.commandPool = command_pool;
-    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.commandPool        = command_pool;
+    alloc_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = 1;
 
     VkCommandBuffer cmd = VK_NULL_HANDLE;
@@ -218,15 +218,15 @@ void staging_upload(VkDevice device,
     VkBufferCopy copy_region{};
     copy_region.srcOffset = 0;
     copy_region.dstOffset = dst_offset;
-    copy_region.size = size;
+    copy_region.size      = size;
     vkCmdCopyBuffer(cmd, staging.buffer(), dst_buffer, 1, &copy_region);
 
     vkEndCommandBuffer(cmd);
 
     VkSubmitInfo submit_info{};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
+    submit_info.pCommandBuffers    = &cmd;
 
     vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
     vkQueueWaitIdle(queue);
@@ -235,4 +235,4 @@ void staging_upload(VkDevice device,
     staging.destroy();
 }
 
-}  // namespace spectra::vk
+}   // namespace spectra::vk

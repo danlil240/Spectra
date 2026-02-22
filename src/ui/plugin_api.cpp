@@ -25,10 +25,10 @@ extern "C"
         if (!registry || !desc || !desc->id || !desc->label)
             return -1;
 
-        auto* reg = static_cast<CommandRegistry*>(registry);
+        auto*   reg = static_cast<CommandRegistry*>(registry);
         Command cmd;
-        cmd.id = desc->id;
-        cmd.label = desc->label;
+        cmd.id       = desc->id;
+        cmd.label    = desc->label;
         cmd.category = desc->category ? desc->category : "Plugin";
         cmd.shortcut = desc->shortcut_hint ? desc->shortcut_hint : "";
 
@@ -62,25 +62,25 @@ extern "C"
     }
 
     int spectra_bind_shortcut(SpectraShortcutManager manager,
-                              const char* shortcut_str,
-                              const char* command_id)
+                              const char*            shortcut_str,
+                              const char*            command_id)
     {
         if (!manager || !shortcut_str || !command_id)
             return -1;
-        auto* mgr = static_cast<ShortcutManager*>(manager);
-        Shortcut sc = Shortcut::from_string(shortcut_str);
+        auto*    mgr = static_cast<ShortcutManager*>(manager);
+        Shortcut sc  = Shortcut::from_string(shortcut_str);
         if (!sc.valid())
             return -1;
         mgr->bind(sc, command_id);
         return 0;
     }
 
-    int spectra_push_undo(SpectraUndoManager manager,
-                          const char* description,
+    int spectra_push_undo(SpectraUndoManager     manager,
+                          const char*            description,
                           SpectraCommandCallback undo_fn,
-                          void* undo_data,
+                          void*                  undo_data,
                           SpectraCommandCallback redo_fn,
-                          void* redo_data)
+                          void*                  redo_data)
     {
         if (!manager || !description)
             return -1;
@@ -100,7 +100,7 @@ extern "C"
         return 0;
     }
 
-}  // extern "C"
+}   // extern "C"
 
 // ─── PluginManager ───────────────────────────────────────────────────────────
 
@@ -114,9 +114,9 @@ SpectraPluginContext PluginManager::make_context() const
     SpectraPluginContext ctx{};
     ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
-    ctx.command_registry = static_cast<SpectraCommandRegistry>(registry_);
-    ctx.shortcut_manager = static_cast<SpectraShortcutManager>(shortcut_mgr_);
-    ctx.undo_manager = static_cast<SpectraUndoManager>(undo_mgr_);
+    ctx.command_registry  = static_cast<SpectraCommandRegistry>(registry_);
+    ctx.shortcut_manager  = static_cast<SpectraShortcutManager>(shortcut_mgr_);
+    ctx.undo_manager      = static_cast<SpectraUndoManager>(undo_mgr_);
     return ctx;
 }
 
@@ -131,8 +131,8 @@ bool PluginManager::load_plugin(const std::string& path)
             return false;
     }
 
-    void* handle = nullptr;
-    SpectraPluginInitFn init_fn = nullptr;
+    void*                   handle      = nullptr;
+    SpectraPluginInitFn     init_fn     = nullptr;
     SpectraPluginShutdownFn shutdown_fn = nullptr;
 
 #ifdef _WIN32
@@ -163,8 +163,8 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     SpectraPluginContext ctx = make_context();
-    SpectraPluginInfo info{};
-    int result = init_fn(&ctx, &info);
+    SpectraPluginInfo    info{};
+    int                  result = init_fn(&ctx, &info);
     if (result != 0)
     {
 #ifdef _WIN32
@@ -187,14 +187,14 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     PluginEntry entry;
-    entry.name = info.name ? info.name : "Unknown";
-    entry.version = info.version ? info.version : "0.0.0";
-    entry.author = info.author ? info.author : "";
+    entry.name        = info.name ? info.name : "Unknown";
+    entry.version     = info.version ? info.version : "0.0.0";
+    entry.author      = info.author ? info.author : "";
     entry.description = info.description ? info.description : "";
-    entry.path = path;
-    entry.loaded = true;
-    entry.enabled = true;
-    entry.handle = handle;
+    entry.path        = path;
+    entry.loaded      = true;
+    entry.enabled     = true;
+    entry.handle      = handle;
     entry.shutdown_fn = shutdown_fn;
 
     plugins_.push_back(std::move(entry));
@@ -395,7 +395,7 @@ static std::string escape_json(const std::string& s)
 std::string PluginManager::serialize_state() const
 {
     std::lock_guard lock(mutex_);
-    std::string out = "{\n  \"plugins\": [\n";
+    std::string     out = "{\n  \"plugins\": [\n";
     for (size_t i = 0; i < plugins_.size(); ++i)
     {
         const auto& p = plugins_[i];
@@ -434,7 +434,7 @@ bool PluginManager::deserialize_state(const std::string& json)
             auto colon = json.find(':', enabled_pos);
             if (colon != std::string::npos)
             {
-                auto rest = json.substr(colon + 1, 10);
+                auto rest    = json.substr(colon + 1, 10);
                 bool enabled = rest.find("true") != std::string::npos;
 
                 for (auto& p : plugins_)
@@ -452,4 +452,4 @@ bool PluginManager::deserialize_state(const std::string& json)
     return true;
 }
 
-}  // namespace spectra
+}   // namespace spectra

@@ -15,7 +15,7 @@ namespace spectra::data
 /// If target_count >= input size, returns a copy of the input unchanged.
 [[nodiscard]] std::vector<std::pair<float, float>> lttb(std::span<const float> x,
                                                         std::span<const float> y,
-                                                        std::size_t target_count);
+                                                        std::size_t            target_count);
 
 /// Min-max decimation: for each of `bucket_count` equal-width buckets along x,
 /// emit the point with the minimum y and the point with the maximum y.
@@ -32,4 +32,4 @@ namespace spectra::data
                                                                     std::span<const float> y,
                                                                     std::size_t output_count);
 
-}  // namespace spectra::data
+}   // namespace spectra::data

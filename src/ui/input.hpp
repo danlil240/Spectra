@@ -20,25 +20,25 @@ class UndoManager;
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode
 {
-    Pan,      // Pan tool - left click and drag to pan
-    BoxZoom,  // Box zoom tool - right click and drag to zoom
-    Select,   // Select tool - left click and drag to region-select data points
-    Measure,  // Measure tool - left click and drag to measure distance between two points
+    Pan,       // Pan tool - left click and drag to pan
+    BoxZoom,   // Box zoom tool - right click and drag to zoom
+    Select,    // Select tool - left click and drag to region-select data points
+    Measure,   // Measure tool - left click and drag to measure distance between two points
 };
 
 // Interaction state for the input handler (dragging state)
 enum class InteractionMode
 {
     Idle,
-    Dragging,  // Currently dragging (either pan or box zoom)
+    Dragging,   // Currently dragging (either pan or box zoom)
 };
 
 // Cursor readout data (updated every mouse move)
 struct CursorReadout
 {
-    bool valid = false;
-    float data_x = 0.0f;
-    float data_y = 0.0f;
+    bool   valid    = false;
+    float  data_x   = 0.0f;
+    float  data_y   = 0.0f;
     double screen_x = 0.0;
     double screen_y = 0.0;
 };
@@ -46,11 +46,11 @@ struct CursorReadout
 // Box zoom selection rectangle (screen coordinates)
 struct BoxZoomRect
 {
-    bool active = false;
-    double x0 = 0.0;
-    double y0 = 0.0;
-    double x1 = 0.0;
-    double y1 = 0.0;
+    bool   active = false;
+    double x0     = 0.0;
+    double y0     = 0.0;
+    double x1     = 0.0;
+    double y1     = 0.0;
 };
 
 // Callback for save-PNG shortcut (Ctrl+S)
@@ -70,15 +70,15 @@ class InputHandler
     // Set the active axes that input events will affect
     void set_active_axes(Axes* axes)
     {
-        active_axes_ = axes;
+        active_axes_      = axes;
         active_axes_base_ = axes;
     }
     void set_active_axes_base(AxesBase* axes)
     {
         active_axes_base_ = axes;
-        active_axes_ = dynamic_cast<Axes*>(axes);
+        active_axes_      = dynamic_cast<Axes*>(axes);
     }
-    Axes* active_axes() const { return active_axes_; }
+    Axes*     active_axes() const { return active_axes_; }
     AxesBase* active_axes_base() const { return active_axes_base_; }
 
     // Mouse button event: begin/end drag or box zoom
@@ -94,32 +94,32 @@ class InputHandler
     void update(float dt);
 
     // Set the animation controller (owned externally, e.g. by App)
-    void set_animation_controller(AnimationController* ctrl) { anim_ctrl_ = ctrl; }
+    void                 set_animation_controller(AnimationController* ctrl) { anim_ctrl_ = ctrl; }
     AnimationController* animation_controller() const { return anim_ctrl_; }
 
     // Set the gesture recognizer (owned externally)
-    void set_gesture_recognizer(GestureRecognizer* gr) { gesture_ = gr; }
+    void               set_gesture_recognizer(GestureRecognizer* gr) { gesture_ = gr; }
     GestureRecognizer* gesture_recognizer() const { return gesture_; }
 
     // Set the data interaction layer (owned externally)
-    void set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
+    void             set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
 
     // Set the transition engine (owned externally by App)
     // When set, preferred over AnimationController for all animations.
-    void set_transition_engine(TransitionEngine* te) { transition_engine_ = te; }
+    void              set_transition_engine(TransitionEngine* te) { transition_engine_ = te; }
     TransitionEngine* transition_engine() const { return transition_engine_; }
 
     // Set the shortcut manager (owned externally by App)
-    void set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
+    void             set_shortcut_manager(ShortcutManager* sm) { shortcut_mgr_ = sm; }
     ShortcutManager* shortcut_manager() const { return shortcut_mgr_; }
 
     // Set the undo manager (owned externally by App)
-    void set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
+    void         set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
     UndoManager* undo_manager() const { return undo_mgr_; }
 
     // Set the axis link manager (owned externally by App)
-    void set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
+    void             set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
     // Lock/unlock orbit rotation (lock in 2D mode so drag = pan only)
@@ -134,11 +134,11 @@ class InputHandler
 
     // Current interaction state (dragging)
     InteractionMode mode() const { return mode_; }
-    void set_mode(InteractionMode new_mode) { mode_ = new_mode; }
+    void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
 
     // Current tool mode (selected by toolbar)
     ToolMode tool_mode() const { return tool_mode_; }
-    void set_tool_mode(ToolMode new_tool);
+    void     set_tool_mode(ToolMode new_tool);
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }
@@ -151,7 +151,7 @@ class InputHandler
     bool has_measure_result() const { return measure_click_state_ >= 1; }
 
     // Middle-mouse pan state (for callback passthrough)
-    bool is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    bool  is_middle_pan_dragging() const { return middle_pan_dragging_; }
     float measure_start_data_x() const { return measure_start_data_x_; }
     float measure_start_data_y() const { return measure_start_data_y_; }
     float measure_end_data_x() const { return measure_end_data_x_; }
@@ -182,28 +182,28 @@ class InputHandler
     // Cancel box zoom
     void cancel_box_zoom();
 
-    Figure* figure_ = nullptr;
-    Axes* active_axes_ = nullptr;
+    Figure*   figure_           = nullptr;
+    Axes*     active_axes_      = nullptr;
     AxesBase* active_axes_base_ = nullptr;
 
     // 3D orbit drag state
-    bool is_3d_orbit_drag_ = false;
-    bool is_3d_pan_drag_ = false;
-    bool orbit_locked_ = false;  // When true, orbit drag becomes pan (2D mode)
-    static constexpr int MOUSE_BUTTON_MIDDLE = 2;
-    static constexpr float ORBIT_SENSITIVITY = 0.3f;
-    static constexpr float ZOOM_3D_FACTOR = 0.1f;
+    bool                   is_3d_orbit_drag_ = false;
+    bool                   is_3d_pan_drag_   = false;
+    bool                   orbit_locked_ = false;   // When true, orbit drag becomes pan (2D mode)
+    static constexpr int   MOUSE_BUTTON_MIDDLE = 2;
+    static constexpr float ORBIT_SENSITIVITY   = 0.3f;
+    static constexpr float ZOOM_3D_FACTOR      = 0.1f;
 
-    InteractionMode mode_ = InteractionMode::Idle;
-    ToolMode tool_mode_ = ToolMode::Pan;  // Default tool mode
+    InteractionMode mode_      = InteractionMode::Idle;
+    ToolMode        tool_mode_ = ToolMode::Pan;   // Default tool mode
 
     // Pan drag state
-    double drag_start_x_ = 0.0;
-    double drag_start_y_ = 0.0;
-    float drag_start_xlim_min_ = 0.0f;
-    float drag_start_xlim_max_ = 0.0f;
-    float drag_start_ylim_min_ = 0.0f;
-    float drag_start_ylim_max_ = 0.0f;
+    double drag_start_x_        = 0.0;
+    double drag_start_y_        = 0.0;
+    float  drag_start_xlim_min_ = 0.0f;
+    float  drag_start_xlim_max_ = 0.0f;
+    float  drag_start_ylim_min_ = 0.0f;
+    float  drag_start_ylim_max_ = 0.0f;
 
     // Box zoom state
     BoxZoomRect box_zoom_;
@@ -245,8 +245,8 @@ class InputHandler
     AxisLimits drag3d_start_xlim_{};
     AxisLimits drag3d_start_ylim_{};
     AxisLimits drag3d_start_zlim_{};
-    Camera drag3d_start_camera_{};
-    Axes3D* drag3d_axes_ = nullptr;
+    Camera     drag3d_start_camera_{};
+    Axes3D*    drag3d_axes_ = nullptr;
 
     // Modifier key tracking (updated from on_key)
     int mods_ = 0;
@@ -255,24 +255,24 @@ class InputHandler
     bool region_dragging_ = false;
 
     // Measure tool state
-    bool measure_dragging_ = false;
-    int measure_click_state_ = 0;  // 0=idle, 1=first point placed, 2=second point placed
+    bool   measure_dragging_       = false;
+    int    measure_click_state_    = 0;   // 0=idle, 1=first point placed, 2=second point placed
     double measure_start_screen_x_ = 0.0;
     double measure_start_screen_y_ = 0.0;
-    float measure_start_data_x_ = 0.0f;
-    float measure_start_data_y_ = 0.0f;
-    float measure_end_data_x_ = 0.0f;
-    float measure_end_data_y_ = 0.0f;
-    bool crosshair_was_active_ = false;  // to restore crosshair state when leaving Measure
+    float  measure_start_data_x_   = 0.0f;
+    float  measure_start_data_y_   = 0.0f;
+    float  measure_end_data_x_     = 0.0f;
+    float  measure_end_data_y_     = 0.0f;
+    bool   crosshair_was_active_   = false;   // to restore crosshair state when leaving Measure
 
     // Middle-mouse pan state (works in all tool modes for 2D axes)
-    bool middle_pan_dragging_ = false;
-    double middle_pan_start_x_ = 0.0;
-    double middle_pan_start_y_ = 0.0;
-    float middle_pan_xlim_min_ = 0.0f;
-    float middle_pan_xlim_max_ = 0.0f;
-    float middle_pan_ylim_min_ = 0.0f;
-    float middle_pan_ylim_max_ = 0.0f;
+    bool   middle_pan_dragging_ = false;
+    double middle_pan_start_x_  = 0.0;
+    double middle_pan_start_y_  = 0.0;
+    float  middle_pan_xlim_min_ = 0.0f;
+    float  middle_pan_xlim_max_ = 0.0f;
+    float  middle_pan_ylim_min_ = 0.0f;
+    float  middle_pan_ylim_max_ = 0.0f;
 
     // Ctrl+drag box zoom state (allows box zoom in Pan mode via modifier)
     bool ctrl_box_zoom_active_ = false;
@@ -288,30 +288,30 @@ class InputHandler
         Y,
         Z
     };
-    bool rclick_zoom_dragging_ = false;
-    bool rclick_zoom_3d_ = false;  // true when operating on Axes3D
-    ZoomAxis rclick_zoom_axis_ = ZoomAxis::None;
-    double rclick_zoom_start_x_ = 0.0;
-    double rclick_zoom_start_y_ = 0.0;
-    double rclick_zoom_last_x_ = 0.0;
-    double rclick_zoom_last_y_ = 0.0;
-    float rclick_zoom_xlim_min_ = 0.0f;
-    float rclick_zoom_xlim_max_ = 0.0f;
-    float rclick_zoom_ylim_min_ = 0.0f;
-    float rclick_zoom_ylim_max_ = 0.0f;
-    float rclick_zoom_zlim_min_ = 0.0f;
-    float rclick_zoom_zlim_max_ = 0.0f;
+    bool     rclick_zoom_dragging_ = false;
+    bool     rclick_zoom_3d_       = false;   // true when operating on Axes3D
+    ZoomAxis rclick_zoom_axis_     = ZoomAxis::None;
+    double   rclick_zoom_start_x_  = 0.0;
+    double   rclick_zoom_start_y_  = 0.0;
+    double   rclick_zoom_last_x_   = 0.0;
+    double   rclick_zoom_last_y_   = 0.0;
+    float    rclick_zoom_xlim_min_ = 0.0f;
+    float    rclick_zoom_xlim_max_ = 0.0f;
+    float    rclick_zoom_ylim_min_ = 0.0f;
+    float    rclick_zoom_ylim_max_ = 0.0f;
+    float    rclick_zoom_zlim_min_ = 0.0f;
+    float    rclick_zoom_zlim_max_ = 0.0f;
     // Screen-space direction of each 3D axis (computed at drag start from camera MVP)
     // Stored as (dx, dy) normalized screen vectors for X, Y, Z axes
-    float rclick_zoom_axis_sx_[3] = {};  // screen X component for axes [X, Y, Z]
-    float rclick_zoom_axis_sy_[3] = {};  // screen Y component for axes [X, Y, Z]
-    static constexpr float RCLICK_ZOOM_SENSITIVITY = 0.005f;
-    static constexpr double RCLICK_AXIS_LOCK_THRESHOLD = 10.0;  // pixels before axis locks
+    float                   rclick_zoom_axis_sx_[3] = {};   // screen X component for axes [X, Y, Z]
+    float                   rclick_zoom_axis_sy_[3] = {};   // screen Y component for axes [X, Y, Z]
+    static constexpr float  RCLICK_ZOOM_SENSITIVITY = 0.005f;
+    static constexpr double RCLICK_AXIS_LOCK_THRESHOLD = 10.0;   // pixels before axis locks
 
     // Inertial pan tracking: velocity in screen px/sec at drag release
     double last_move_x_ = 0.0;
     double last_move_y_ = 0.0;
-    using Clock = std::chrono::steady_clock;
+    using Clock         = std::chrono::steady_clock;
     Clock::time_point last_move_time_{};
     Clock::time_point drag_start_time_{};
 
@@ -331,15 +331,15 @@ class InputHandler
     static constexpr float MIN_INERTIA_VELOCITY = 0.01f;
 
     // GLFW key constants (to avoid including GLFW in header)
-    static constexpr int KEY_R = 82;
-    static constexpr int KEY_G = 71;
-    static constexpr int KEY_S = 83;
-    static constexpr int KEY_C = 67;
-    static constexpr int KEY_A = 65;
-    static constexpr int KEY_Q = 81;
-    static constexpr int KEY_ESCAPE = 256;
-    static constexpr int MOD_SHIFT = 0x0001;
+    static constexpr int KEY_R       = 82;
+    static constexpr int KEY_G       = 71;
+    static constexpr int KEY_S       = 83;
+    static constexpr int KEY_C       = 67;
+    static constexpr int KEY_A       = 65;
+    static constexpr int KEY_Q       = 81;
+    static constexpr int KEY_ESCAPE  = 256;
+    static constexpr int MOD_SHIFT   = 0x0001;
     static constexpr int MOD_CONTROL = 0x0002;
 };
 
-}  // namespace spectra
+}   // namespace spectra

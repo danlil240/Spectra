@@ -15,22 +15,22 @@ class ShortcutManager;
 class ShortcutConfig
 {
    public:
-    ShortcutConfig() = default;
+    ShortcutConfig()  = default;
     ~ShortcutConfig() = default;
 
-    ShortcutConfig(const ShortcutConfig&) = delete;
+    ShortcutConfig(const ShortcutConfig&)            = delete;
     ShortcutConfig& operator=(const ShortcutConfig&) = delete;
 
     // A single keybinding override (user customization).
     struct BindingOverride
     {
-        std::string command_id;    // e.g. "view.reset"
-        std::string shortcut_str;  // e.g. "Ctrl+R" or "" to unbind
-        bool removed = false;      // true if user explicitly removed the binding
+        std::string command_id;        // e.g. "view.reset"
+        std::string shortcut_str;      // e.g. "Ctrl+R" or "" to unbind
+        bool        removed = false;   // true if user explicitly removed the binding
     };
 
     // Set the ShortcutManager to apply overrides to.
-    void set_shortcut_manager(ShortcutManager* mgr) { manager_ = mgr; }
+    void             set_shortcut_manager(ShortcutManager* mgr) { manager_ = mgr; }
     ShortcutManager* shortcut_manager() const { return manager_; }
 
     // Record a user override: rebind a command to a new shortcut.
@@ -77,11 +77,11 @@ class ShortcutConfig
     void set_on_change(ChangeCallback cb) { on_change_ = std::move(cb); }
 
    private:
-    ShortcutManager* manager_ = nullptr;
+    ShortcutManager*             manager_ = nullptr;
     std::vector<BindingOverride> overrides_;
-    ChangeCallback on_change_;
+    ChangeCallback               on_change_;
 
     void notify_change();
 };
 
-}  // namespace spectra
+}   // namespace spectra

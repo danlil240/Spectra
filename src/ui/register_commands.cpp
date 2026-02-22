@@ -35,26 +35,26 @@ void register_standard_commands(const CommandBindings& b)
     if (!b.ui_ctx || !b.registry || !b.active_figure || !b.active_figure_id)
         return;
 
-    auto& ui_ctx = *b.ui_ctx;
-    auto& registry = *b.registry;
-    auto*& active_figure = *b.active_figure;
-    auto& active_figure_id = *b.active_figure_id;
+    auto&  ui_ctx           = *b.ui_ctx;
+    auto&  registry         = *b.registry;
+    auto*& active_figure    = *b.active_figure;
+    auto&  active_figure_id = *b.active_figure_id;
 
-    auto& imgui_ui = ui_ctx.imgui_ui;
+    auto& imgui_ui         = ui_ctx.imgui_ui;
     auto& data_interaction = ui_ctx.data_interaction;
-    auto& dock_system = ui_ctx.dock_system;
-    auto& timeline_editor = ui_ctx.timeline_editor;
-    auto& mode_transition = ui_ctx.mode_transition;
-    auto& is_in_3d_mode = ui_ctx.is_in_3d_mode;
-    auto& saved_3d_camera = ui_ctx.saved_3d_camera;
-    auto& home_limits = ui_ctx.home_limits;
-    auto& cmd_registry = ui_ctx.cmd_registry;
-    auto& shortcut_mgr = ui_ctx.shortcut_mgr;
-    auto& undo_mgr = ui_ctx.undo_mgr;
-    auto& cmd_palette = ui_ctx.cmd_palette;
-    auto& fig_mgr = *ui_ctx.fig_mgr;
-    auto& input_handler = ui_ctx.input_handler;
-    auto& anim_controller = ui_ctx.anim_controller;
+    auto& dock_system      = ui_ctx.dock_system;
+    auto& timeline_editor  = ui_ctx.timeline_editor;
+    auto& mode_transition  = ui_ctx.mode_transition;
+    auto& is_in_3d_mode    = ui_ctx.is_in_3d_mode;
+    auto& saved_3d_camera  = ui_ctx.saved_3d_camera;
+    auto& home_limits      = ui_ctx.home_limits;
+    auto& cmd_registry     = ui_ctx.cmd_registry;
+    auto& shortcut_mgr     = ui_ctx.shortcut_mgr;
+    auto& undo_mgr         = ui_ctx.undo_mgr;
+    auto& cmd_palette      = ui_ctx.cmd_palette;
+    auto& fig_mgr          = *ui_ctx.fig_mgr;
+    auto& input_handler    = ui_ctx.input_handler;
+    auto& anim_controller  = ui_ctx.anim_controller;
 
     #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = b.window_mgr;
@@ -144,7 +144,7 @@ void register_standard_commands(const CommandBindings& b)
                 if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
                 {
                     auto old_planes = ax3d->grid_planes();
-                    bool was_on = (old_planes != Axes3D::GridPlane::None);
+                    bool was_on     = (old_planes != Axes3D::GridPlane::None);
                     auto new_planes = was_on ? Axes3D::GridPlane::None : Axes3D::GridPlane::All;
                     ax3d->grid_planes(new_planes);
                     Axes3D* ax = ax3d;
@@ -229,12 +229,12 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (imgui_ui)
             {
-                auto& lm = imgui_ui->get_layout_manager();
-                bool old_inspector = lm.is_inspector_visible();
-                bool old_nav = lm.is_nav_rail_expanded();
-                bool all_hidden = !old_inspector && !old_nav;
-                bool new_inspector = all_hidden;
-                bool new_nav = all_hidden;
+                auto& lm            = imgui_ui->get_layout_manager();
+                bool  old_inspector = lm.is_inspector_visible();
+                bool  old_nav       = lm.is_nav_rail_expanded();
+                bool  all_hidden    = !old_inspector && !old_nav;
+                bool  new_inspector = all_hidden;
+                bool  new_nav       = all_hidden;
                 lm.set_inspector_visible(new_inspector);
                 lm.set_nav_rail_expanded(new_nav);
                 undo_mgr.push(UndoAction{
@@ -311,8 +311,8 @@ void register_standard_commands(const CommandBindings& b)
             }
             else if (auto* ax = input_handler.active_axes())
             {
-                auto old_x = ax->x_limits();
-                auto old_y = ax->y_limits();
+                auto  old_x = ax->x_limits();
+                auto  old_y = ax->y_limits();
                 float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.375f;
                 float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.375f;
                 AxisLimits new_x{xc - xr, xc + xr};
@@ -335,8 +335,8 @@ void register_standard_commands(const CommandBindings& b)
             }
             else if (auto* ax = input_handler.active_axes())
             {
-                auto old_x = ax->x_limits();
-                auto old_y = ax->y_limits();
+                auto  old_x = ax->x_limits();
+                auto  old_y = ax->y_limits();
                 float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.625f;
                 float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.625f;
                 AxisLimits new_x{xc - xr, xc + xr};
@@ -371,10 +371,10 @@ void register_standard_commands(const CommandBindings& b)
                 saved_3d_camera = ax3d->camera();
 
                 ModeTransition3DState from;
-                from.camera = ax3d->camera();
-                from.xlim = ax3d->x_limits();
-                from.ylim = ax3d->y_limits();
-                from.zlim = ax3d->z_limits();
+                from.camera      = ax3d->camera();
+                from.xlim        = ax3d->x_limits();
+                from.ylim        = ax3d->y_limits();
+                from.zlim        = ax3d->z_limits();
                 from.grid_planes = static_cast<int>(ax3d->grid_planes());
 
                 ModeTransition2DState to;
@@ -392,10 +392,10 @@ void register_standard_commands(const CommandBindings& b)
                 from.ylim = ax3d->y_limits();
 
                 ModeTransition3DState to;
-                to.camera = saved_3d_camera;
-                to.xlim = ax3d->x_limits();
-                to.ylim = ax3d->y_limits();
-                to.zlim = ax3d->z_limits();
+                to.camera      = saved_3d_camera;
+                to.xlim        = ax3d->x_limits();
+                to.ylim        = ax3d->y_limits();
+                to.zlim        = ax3d->z_limits();
                 to.grid_planes = static_cast<int>(ax3d->grid_planes());
 
                 mode_transition.begin_to_3d(from, to);
@@ -467,21 +467,21 @@ void register_standard_commands(const CommandBindings& b)
             if (data_interaction)
             {
                 data.interaction.crosshair_enabled = data_interaction->crosshair_active();
-                data.interaction.tooltip_enabled = data_interaction->tooltip_active();
+                data.interaction.tooltip_enabled   = data_interaction->tooltip_active();
                 for (const auto& m : data_interaction->markers())
                 {
                     WorkspaceData::InteractionState::MarkerEntry me;
-                    me.data_x = m.data_x;
-                    me.data_y = m.data_y;
+                    me.data_x       = m.data_x;
+                    me.data_y       = m.data_y;
                     me.series_label = m.series ? m.series->label() : "";
-                    me.point_index = m.point_index;
+                    me.point_index  = m.point_index;
                     data.interaction.markers.push_back(std::move(me));
                 }
             }
             for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i)
             {
                 data.figures[i].custom_tab_title = fig_mgr.get_title(i);
-                data.figures[i].is_modified = fig_mgr.is_modified(i);
+                data.figures[i].is_modified      = fig_mgr.is_modified(i);
             }
             data.undo_count = undo_mgr.undo_count();
             data.redo_count = undo_mgr.redo_count();
@@ -500,7 +500,7 @@ void register_standard_commands(const CommandBindings& b)
             WorkspaceData data;
             if (Workspace::load(Workspace::default_path(), data))
             {
-                auto before_snap = capture_figure_axes(*active_figure);
+                auto                 before_snap = capture_figure_axes(*active_figure);
                 std::vector<Figure*> figs;
                 for (auto id : fig_mgr.figure_ids())
                 {
@@ -656,7 +656,11 @@ void register_standard_commands(const CommandBindings& b)
         static_cast<uint16_t>(ui::Icon::StepForward));
 
     cmd_registry.register_command(
-        "anim.stop", "Stop Playback", [&]() { timeline_editor.stop(); }, "", "Animation");
+        "anim.stop",
+        "Stop Playback",
+        [&]() { timeline_editor.stop(); },
+        "",
+        "Animation");
 
     cmd_registry.register_command(
         "anim.go_to_start",
@@ -706,7 +710,7 @@ void register_standard_commands(const CommandBindings& b)
         "Switch to Dark Theme",
         [&]()
         {
-            auto& tm = ui::ThemeManager::instance();
+            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             tm.set_theme("dark");
             tm.apply_to_imgui();
@@ -733,7 +737,7 @@ void register_standard_commands(const CommandBindings& b)
         "Switch to Light Theme",
         [&]()
         {
-            auto& tm = ui::ThemeManager::instance();
+            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             tm.set_theme("light");
             tm.apply_to_imgui();
@@ -760,7 +764,7 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Dark/Light Theme",
         [&]()
         {
-            auto& tm = ui::ThemeManager::instance();
+            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             std::string new_theme = (old_theme == "dark") ? "light" : "dark";
             tm.set_theme(new_theme);
@@ -791,8 +795,8 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (imgui_ui)
             {
-                auto& lm = imgui_ui->get_layout_manager();
-                bool old_val = lm.is_inspector_visible();
+                auto& lm      = imgui_ui->get_layout_manager();
+                bool  old_val = lm.is_inspector_visible();
                 lm.set_inspector_visible(!old_val);
                 undo_mgr.push(UndoAction{
                     old_val ? "Hide inspector" : "Show inspector",
@@ -818,8 +822,8 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (imgui_ui)
             {
-                auto& lm = imgui_ui->get_layout_manager();
-                bool old_val = lm.is_nav_rail_expanded();
+                auto& lm      = imgui_ui->get_layout_manager();
+                bool  old_val = lm.is_nav_rail_expanded();
                 lm.set_nav_rail_expanded(!old_val);
                 undo_mgr.push(UndoAction{
                     old_val ? "Collapse nav rail" : "Expand nav rail",
@@ -849,13 +853,13 @@ void register_standard_commands(const CommandBindings& b)
                 return;
 
             size_t active_local = active_pane->active_local_index();
-            size_t move_local = (active_local + 1) % active_pane->figure_count();
-            size_t move_fig = active_pane->figure_indices()[move_local];
+            size_t move_local   = (active_local + 1) % active_pane->figure_count();
+            size_t move_fig     = active_pane->figure_indices()[move_local];
 
             active_pane->remove_figure(move_fig);
 
-            size_t active_fig = active_pane->figure_index();
-            SplitPane* new_pane = nullptr;
+            size_t     active_fig = active_pane->figure_index();
+            SplitPane* new_pane   = nullptr;
             if (dir == SplitDirection::Horizontal)
                 new_pane = dock_system.split_figure_right(active_fig, move_fig);
             else
@@ -890,7 +894,7 @@ void register_standard_commands(const CommandBindings& b)
 
             if (new_pane)
             {
-                SplitPane* root = dock_system.split_view().root();
+                SplitPane* root       = dock_system.split_view().root();
                 SplitPane* first_pane = root ? root->first() : nullptr;
                 if (first_pane && first_pane->is_leaf())
                 {
@@ -950,7 +954,11 @@ void register_standard_commands(const CommandBindings& b)
         "View");
 
     cmd_registry.register_command(
-        "view.reset_splits", "Reset All Splits", [&]() { dock_system.reset_splits(); }, "", "View");
+        "view.reset_splits",
+        "Reset All Splits",
+        [&]() { dock_system.reset_splits(); },
+        "",
+        "View");
 
     // ─── Tool mode commands ──────────────────────────────────────────────
     cmd_registry.register_command(
@@ -981,9 +989,9 @@ void register_standard_commands(const CommandBindings& b)
             FigureId dup_id = fig_mgr.duplicate_figure(active_figure_id);
             if (dup_id == INVALID_FIGURE_ID)
                 return;
-            Figure* dup_fig = registry.get(dup_id);
-            uint32_t w = dup_fig ? dup_fig->width() : 800;
-            uint32_t h = dup_fig ? dup_fig->height() : 600;
+            Figure*     dup_fig   = registry.get(dup_id);
+            uint32_t    w         = dup_fig ? dup_fig->width() : 800;
+            uint32_t    h         = dup_fig ? dup_fig->height() : 600;
             std::string win_title = fig_mgr.get_title(dup_id);
             window_mgr->create_window_with_ui(w, h, win_title, dup_id);
         },
@@ -1030,9 +1038,9 @@ void register_standard_commands(const CommandBindings& b)
             }
             else
             {
-                Figure* fig = registry.get(fig_id);
-                uint32_t w = fig ? fig->width() : 800;
-                uint32_t h = fig ? fig->height() : 600;
+                Figure*     fig   = registry.get(fig_id);
+                uint32_t    w     = fig ? fig->width() : 800;
+                uint32_t    h     = fig ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(fig_id);
 
                 FigureState state = fig_mgr.remove_figure(fig_id);
@@ -1045,8 +1053,8 @@ void register_standard_commands(const CommandBindings& b)
                 auto* new_wctx = window_mgr->create_window_with_ui(w, h, title, fig_id);
                 if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
                 {
-                    auto* new_fm = new_wctx->ui_ctx->fig_mgr;
-                    new_fm->state(fig_id) = std::move(state);
+                    auto* new_fm              = new_wctx->ui_ctx->fig_mgr;
+                    new_fm->state(fig_id)     = std::move(state);
                     std::string correct_title = new_fm->get_title(fig_id);
                     if (new_fm->tab_bar())
                         new_fm->tab_bar()->set_tab_title(0, correct_title);
@@ -1069,4 +1077,4 @@ void register_standard_commands(const CommandBindings& b)
 #endif
 }
 
-}  // namespace spectra
+}   // namespace spectra

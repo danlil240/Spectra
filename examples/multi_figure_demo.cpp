@@ -28,8 +28,8 @@ int main()
     // ── Window 2: Scatter plot ───────────────────────────────────────────
     spectra::figure();
 
-    std::vector<float> x_scatter, y_scatter;
-    std::mt19937 gen(42);
+    std::vector<float>              x_scatter, y_scatter;
+    std::mt19937                    gen(42);
     std::normal_distribution<float> dist(0.0f, 1.0f);
     for (int i = 0; i < 200; ++i)
     {
@@ -73,7 +73,7 @@ int main()
     spectra::figure();
 
     std::vector<float> x_large, y_large;
-    const int N = 10000;
+    const int          N = 10000;
     for (int i = 0; i < N; ++i)
     {
         float t = i * 0.01f;

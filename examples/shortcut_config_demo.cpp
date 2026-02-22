@@ -77,7 +77,7 @@ void demo_shortcut_persistence()
     auto verify_shortcut = [&](const std::string& command_id, const std::string& expected)
     {
         auto overrides = loaded_config.overrides();
-        bool found = false;
+        bool found     = false;
         for (const auto& override : overrides)
         {
             if (override.command_id == command_id && override.shortcut_str == expected)

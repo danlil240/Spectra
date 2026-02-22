@@ -54,6 +54,6 @@ void VideoExporter::finish()
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_FFMPEG
+#endif   // SPECTRA_USE_FFMPEG

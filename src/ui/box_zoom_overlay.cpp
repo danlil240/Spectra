@@ -59,7 +59,7 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
         return;
 
     const auto& colors = ui::theme();
-    float alpha = opacity_;
+    float       alpha  = opacity_;
 
     // Normalize rect corners
     float x0 = std::min(rect_x0_, rect_x1_);
@@ -69,8 +69,8 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
 
     // Fill: accent color with low opacity
     {
-        const auto& fill = colors.selection_fill;
-        ImU32 fill_col = IM_COL32(static_cast<uint8_t>(fill.r * 255),
+        const auto& fill     = colors.selection_fill;
+        ImU32       fill_col = IM_COL32(static_cast<uint8_t>(fill.r * 255),
                                   static_cast<uint8_t>(fill.g * 255),
                                   static_cast<uint8_t>(fill.b * 255),
                                   static_cast<uint8_t>(fill_opacity_ * alpha * 255));
@@ -78,17 +78,17 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
     }
 
     // Border: dashed accent line
-    const auto& border = colors.selection_border;
-    ImU32 border_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
+    const auto& border     = colors.selection_border;
+    ImU32       border_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
                                 static_cast<uint8_t>(border.g * 255),
                                 static_cast<uint8_t>(border.b * 255),
                                 static_cast<uint8_t>(alpha * 255));
 
     // Draw dashed border (4 edges)
-    draw_dashed_line_impl(x0, y0, x1, y0, border_col, border_width_);  // top
-    draw_dashed_line_impl(x1, y0, x1, y1, border_col, border_width_);  // right
-    draw_dashed_line_impl(x1, y1, x0, y1, border_col, border_width_);  // bottom
-    draw_dashed_line_impl(x0, y1, x0, y0, border_col, border_width_);  // left
+    draw_dashed_line_impl(x0, y0, x1, y0, border_col, border_width_);   // top
+    draw_dashed_line_impl(x1, y0, x1, y1, border_col, border_width_);   // right
+    draw_dashed_line_impl(x1, y1, x0, y1, border_col, border_width_);   // bottom
+    draw_dashed_line_impl(x0, y1, x0, y0, border_col, border_width_);   // left
 
     // Corner handles
     draw_corner_handles_impl(x0, y0, x1, y1, border_col);
@@ -96,8 +96,8 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
     // Crosshair lines extending beyond the selection
     if (show_crosshair_ && input_handler_ && input_handler_->active_axes())
     {
-        const auto& vp = input_handler_->active_axes()->viewport();
-        ImU32 cross_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
+        const auto& vp        = input_handler_->active_axes()->viewport();
+        ImU32       cross_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
                                    static_cast<uint8_t>(border.g * 255),
                                    static_cast<uint8_t>(border.b * 255),
                                    static_cast<uint8_t>(alpha * 0.3f * 255));
@@ -113,20 +113,24 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
 
 // ─── Dashed line ────────────────────────────────────────────────────────────
 
-void BoxZoomOverlay::draw_dashed_line_impl(
-    float x0, float y0, float x1, float y1, unsigned int col, float thickness) const
+void BoxZoomOverlay::draw_dashed_line_impl(float        x0,
+                                           float        y0,
+                                           float        x1,
+                                           float        y1,
+                                           unsigned int col,
+                                           float        thickness) const
 {
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    float dx = x1 - x0;
-    float dy = y1 - y0;
-    float len = std::sqrt(dx * dx + dy * dy);
+    ImDrawList* dl  = ImGui::GetForegroundDrawList();
+    float       dx  = x1 - x0;
+    float       dy  = y1 - y0;
+    float       len = std::sqrt(dx * dx + dy * dy);
     if (len < 1.0f)
         return;
 
-    float nx = dx / len;
-    float ny = dy / len;
+    float nx      = dx / len;
+    float ny      = dy / len;
     float segment = dash_length_ + dash_gap_;
-    float pos = 0.0f;
+    float pos     = 0.0f;
 
     while (pos < len)
     {
@@ -141,11 +145,14 @@ void BoxZoomOverlay::draw_dashed_line_impl(
 
 // ─── Corner handles ─────────────────────────────────────────────────────────
 
-void BoxZoomOverlay::draw_corner_handles_impl(
-    float x0, float y0, float x1, float y1, unsigned int col) const
+void BoxZoomOverlay::draw_corner_handles_impl(float        x0,
+                                              float        y0,
+                                              float        x1,
+                                              float        y1,
+                                              unsigned int col) const
 {
     ImDrawList* dl = ImGui::GetForegroundDrawList();
-    float s = CORNER_HANDLE_SIZE;
+    float       s  = CORNER_HANDLE_SIZE;
     // Four corners: filled squares
     dl->AddRectFilled(ImVec2(x0 - s, y0 - s), ImVec2(x0 + s, y0 + s), col);
     dl->AddRectFilled(ImVec2(x1 - s, y0 - s), ImVec2(x1 + s, y0 + s), col);
@@ -155,12 +162,15 @@ void BoxZoomOverlay::draw_corner_handles_impl(
 
 // ─── Dimension label ────────────────────────────────────────────────────────
 
-void BoxZoomOverlay::draw_dimension_label_impl(
-    float x0, float y0, float x1, float y1, unsigned int col) const
+void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
+                                               float        y0,
+                                               float        x1,
+                                               float        y1,
+                                               unsigned int col) const
 {
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    float w_px = std::abs(x1 - x0);
-    float h_px = std::abs(y1 - y0);
+    ImDrawList* dl   = ImGui::GetForegroundDrawList();
+    float       w_px = std::abs(x1 - x0);
+    float       h_px = std::abs(y1 - y0);
 
     // Only show label if selection is large enough
     if (w_px < 30.0f || h_px < 20.0f)
@@ -187,13 +197,13 @@ void BoxZoomOverlay::draw_dimension_label_impl(
 
     // Position label below the bottom edge, centered
     ImVec2 text_size = ImGui::CalcTextSize(buf);
-    float label_x = (x0 + x1) * 0.5f - text_size.x * 0.5f;
-    float label_y = std::max(y0, y1) + 6.0f;
+    float  label_x   = (x0 + x1) * 0.5f - text_size.x * 0.5f;
+    float  label_y   = std::max(y0, y1) + 6.0f;
 
     // Background pill
-    float pad_x = 6.0f, pad_y = 2.0f;
+    float       pad_x = 6.0f, pad_y = 2.0f;
     const auto& colors = ui::theme();
-    ImU32 bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_primary.r * 255),
+    ImU32       bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_primary.r * 255),
                             static_cast<uint8_t>(colors.bg_primary.g * 255),
                             static_cast<uint8_t>(colors.bg_primary.b * 255),
                             static_cast<uint8_t>(0.85f * 255));
@@ -207,19 +217,19 @@ void BoxZoomOverlay::draw_dimension_label_impl(
 
 // ─── Zoom crosshair ─────────────────────────────────────────────────────────
 
-void BoxZoomOverlay::draw_zoom_crosshair_impl(float x0,
-                                              float y0,
-                                              float x1,
-                                              float y1,
-                                              float vp_x,
-                                              float vp_y,
-                                              float vp_w,
-                                              float vp_h,
+void BoxZoomOverlay::draw_zoom_crosshair_impl(float        x0,
+                                              float        y0,
+                                              float        x1,
+                                              float        y1,
+                                              float        vp_x,
+                                              float        vp_y,
+                                              float        vp_w,
+                                              float        vp_h,
                                               unsigned int col) const
 {
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    float vp_right = vp_x + vp_w;
-    float vp_bottom = vp_y + vp_h;
+    ImDrawList* dl        = ImGui::GetForegroundDrawList();
+    float       vp_right  = vp_x + vp_w;
+    float       vp_bottom = vp_y + vp_h;
 
     // Horizontal lines from selection edges to viewport edges
     // Top edge
@@ -238,6 +248,6 @@ void BoxZoomOverlay::draw_zoom_crosshair_impl(float x0,
     dl->AddLine(ImVec2(x1, y1), ImVec2(x1, vp_bottom), col, 0.5f);
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

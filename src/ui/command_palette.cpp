@@ -19,27 +19,27 @@ namespace spectra
 
 void CommandPalette::open()
 {
-    open_ = true;
-    focus_input_ = true;
+    open_          = true;
+    focus_input_   = true;
     search_buf_[0] = '\0';
     last_query_.clear();
     selected_index_ = 0;
     results_.clear();
-    scroll_offset_ = 0.0f;
-    scroll_target_ = 0.0f;
+    scroll_offset_   = 0.0f;
+    scroll_target_   = 0.0f;
     scroll_velocity_ = 0.0f;
-    content_height_ = 0.0f;
+    content_height_  = 0.0f;
     update_search();
 }
 
 void CommandPalette::close()
 {
-    open_ = false;
+    open_          = false;
     search_buf_[0] = '\0';
     last_query_.clear();
     results_.clear();
-    scroll_offset_ = 0.0f;
-    scroll_target_ = 0.0f;
+    scroll_offset_   = 0.0f;
+    scroll_target_   = 0.0f;
     scroll_velocity_ = 0.0f;
 }
 
@@ -67,7 +67,7 @@ void CommandPalette::update_search()
     {
         // Show recent commands first, then all
         auto recent = registry_->recent_commands(5);
-        auto all = registry_->search("", 50);
+        auto all    = registry_->search("", 50);
         results_.clear();
 
         // Add recent at top (with boosted score)
@@ -117,7 +117,7 @@ bool CommandPalette::handle_keyboard()
 
     if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
     {
-        selected_index_ = std::max(0, selected_index_ - 1);
+        selected_index_     = std::max(0, selected_index_ - 1);
         scroll_to_selected_ = true;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
@@ -152,10 +152,10 @@ bool CommandPalette::draw(float window_width, float window_height)
 {
     if (!open_)
     {
-        opacity_ = 0.0f;
-        scale_ = 0.98f;
-        scrollbar_opacity_ = 0.0f;
-        scrollbar_hover_t_ = 0.0f;
+        opacity_            = 0.0f;
+        scale_              = 0.98f;
+        scrollbar_opacity_  = 0.0f;
+        scrollbar_hover_t_  = 0.0f;
         scrollbar_dragging_ = false;
         return false;
     }
@@ -166,7 +166,7 @@ bool CommandPalette::draw(float window_width, float window_height)
 
     // Animate open
     opacity_ = std::min(1.0f, opacity_ + dt * ANIM_SPEED);
-    scale_ = scale_ + (1.0f - scale_) * std::min(1.0f, dt * ANIM_SPEED);
+    scale_   = scale_ + (1.0f - scale_) * std::min(1.0f, dt * ANIM_SPEED);
 
     const auto& colors = ui::theme();
 
@@ -181,7 +181,7 @@ bool CommandPalette::draw(float window_width, float window_height)
     else
     {
         // Estimate from constants + actual ImGui item spacing (first frame only)
-        float sp = ImGui::GetStyle().ItemSpacing.y;
+        float sp        = ImGui::GetStyle().ItemSpacing.y;
         total_content_h = 0.0f;
         std::string prev_cat;
         for (int i = 0; i < static_cast<int>(results_.size()); ++i)
@@ -202,12 +202,12 @@ bool CommandPalette::draw(float window_width, float window_height)
     // Compute palette height: overhead (input + separator + padding) + content, capped at max.
     // measured_overhead_ is updated each frame from GetContentRegionAvail; use conservative
     // fallback on first frame (before we have a measurement).
-    float overhead = (measured_overhead_ > 1.0f) ? measured_overhead_ : 80.0f;
+    float overhead  = (measured_overhead_ > 1.0f) ? measured_overhead_ : 80.0f;
     float palette_h = std::min(PALETTE_MAX_HEIGHT, overhead + total_content_h);
     // visible_height_ is refined later via GetContentRegionAvail; use estimate for scrollbar.
-    visible_height_ = palette_h - overhead;
+    visible_height_  = palette_h - overhead;
     float max_scroll = std::max(0.0f, content_height_ - visible_height_);
-    bool scrollable = max_scroll > 0.5f;
+    bool  scrollable = max_scroll > 0.5f;
 
     // ─── Palette geometry (computed early for scrollbar hit-testing) ─────────
     float palette_w = PALETTE_WIDTH * scale_;
@@ -217,9 +217,9 @@ bool CommandPalette::draw(float window_width, float window_height)
     // Scrollbar geometry
     constexpr float SB_WIDTH_THIN = 4.0f;
     constexpr float SB_WIDTH_WIDE = 7.0f;
-    constexpr float SB_MARGIN = 3.0f;
-    constexpr float SB_MIN_THUMB = 28.0f;
-    constexpr float SB_HIT_PAD = 8.0f;  // Extra hit-test padding
+    constexpr float SB_MARGIN     = 3.0f;
+    constexpr float SB_MIN_THUMB  = 28.0f;
+    constexpr float SB_HIT_PAD    = 8.0f;   // Extra hit-test padding
 
     // Results region screen coords
     float results_top_y = palette_y + INPUT_HEIGHT + ui::tokens::SPACE_2;
@@ -227,26 +227,26 @@ bool CommandPalette::draw(float window_width, float window_height)
 
     float sb_track_top = results_top_y + 4.0f;
     float sb_track_bot = results_bot_y - 4.0f;
-    float sb_track_h = sb_track_bot - sb_track_top;
+    float sb_track_h   = sb_track_bot - sb_track_top;
 
-    float sb_thumb_h = 0.0f;
+    float sb_thumb_h   = 0.0f;
     float sb_thumb_top = 0.0f;
     if (scrollable && sb_track_h > SB_MIN_THUMB)
     {
-        float ratio = visible_height_ / content_height_;
-        sb_thumb_h = std::max(SB_MIN_THUMB, sb_track_h * ratio);
+        float ratio        = visible_height_ / content_height_;
+        sb_thumb_h         = std::max(SB_MIN_THUMB, sb_track_h * ratio);
         float scroll_ratio = (max_scroll > 0.0f) ? (scroll_offset_ / max_scroll) : 0.0f;
-        sb_thumb_top = sb_track_top + scroll_ratio * (sb_track_h - sb_thumb_h);
+        sb_thumb_top       = sb_track_top + scroll_ratio * (sb_track_h - sb_thumb_h);
     }
 
     float sb_width = SB_WIDTH_THIN + (SB_WIDTH_WIDE - SB_WIDTH_THIN) * scrollbar_hover_t_;
     float sb_right = palette_x + palette_w - SB_MARGIN;
-    float sb_left = sb_right - sb_width;
+    float sb_left  = sb_right - sb_width;
 
     // ─── Scrollbar drag handling (before scroll physics) ────────────────────
     {
-        ImGuiIO& io = ImGui::GetIO();
-        ImVec2 mouse = io.MousePos;
+        ImGuiIO& io    = ImGui::GetIO();
+        ImVec2   mouse = io.MousePos;
 
         // Hit-test scrollbar region (wider than visual for easy grab)
         bool mouse_in_sb = scrollable && sb_thumb_h > 0.0f && mouse.x >= (sb_left - SB_HIT_PAD)
@@ -260,10 +260,10 @@ bool CommandPalette::draw(float window_width, float window_height)
                 float new_thumb_top = mouse.y - scrollbar_drag_offset_;
                 float clamped =
                     std::max(sb_track_top, std::min(new_thumb_top, sb_track_bot - sb_thumb_h));
-                float ratio = (sb_track_h > sb_thumb_h)
-                                  ? (clamped - sb_track_top) / (sb_track_h - sb_thumb_h)
-                                  : 0.0f;
-                scroll_target_ = ratio * max_scroll;
+                float ratio      = (sb_track_h > sb_thumb_h)
+                                       ? (clamped - sb_track_top) / (sb_track_h - sb_thumb_h)
+                                       : 0.0f;
+                scroll_target_   = ratio * max_scroll;
                 scroll_velocity_ = 0.0f;
             }
             else
@@ -276,7 +276,7 @@ bool CommandPalette::draw(float window_width, float window_height)
             // Check if click is on thumb or on track
             if (mouse.y >= sb_thumb_top && mouse.y <= sb_thumb_top + sb_thumb_h)
             {
-                scrollbar_dragging_ = true;
+                scrollbar_dragging_    = true;
                 scrollbar_drag_offset_ = mouse.y - sb_thumb_top;
             }
             else
@@ -286,8 +286,8 @@ bool CommandPalette::draw(float window_width, float window_height)
                     (sb_track_h > sb_thumb_h)
                         ? (mouse.y - sb_track_top - sb_thumb_h * 0.5f) / (sb_track_h - sb_thumb_h)
                         : 0.0f;
-                ratio = std::max(0.0f, std::min(1.0f, ratio));
-                scroll_target_ = ratio * max_scroll;
+                ratio            = std::max(0.0f, std::min(1.0f, ratio));
+                scroll_target_   = ratio * max_scroll;
                 scroll_velocity_ = 0.0f;
             }
         }
@@ -308,8 +308,8 @@ bool CommandPalette::draw(float window_width, float window_height)
             scroll_target_ += wheel * SCROLL_SPEED;
             // Give a gentle velocity for momentum (proportional to wheel, not additive)
             scroll_velocity_ = wheel * SCROLL_SPEED * 4.0f;
-            io.MouseWheel = 0.0f;
-            scrolling = true;
+            io.MouseWheel    = 0.0f;
+            scrolling        = true;
         }
     }
 
@@ -324,12 +324,12 @@ bool CommandPalette::draw(float window_width, float window_height)
         // Kill velocity at bounds to prevent bounce
         if (scroll_target_ <= 0.0f)
         {
-            scroll_target_ = 0.0f;
+            scroll_target_   = 0.0f;
             scroll_velocity_ = 0.0f;
         }
         else if (scroll_target_ >= max_scroll)
         {
-            scroll_target_ = max_scroll;
+            scroll_target_   = max_scroll;
             scroll_velocity_ = 0.0f;
         }
     }
@@ -395,8 +395,8 @@ bool CommandPalette::draw(float window_width, float window_height)
     // ─── Click outside palette to dismiss ──────────────────────────────────
     if (ImGui::IsMouseClicked(0))
     {
-        ImVec2 mp = ImGui::GetIO().MousePos;
-        bool on_palette = mp.x >= palette_x && mp.x <= palette_x + palette_w && mp.y >= palette_y
+        ImVec2 mp         = ImGui::GetIO().MousePos;
+        bool   on_palette = mp.x >= palette_x && mp.x <= palette_x + palette_w && mp.y >= palette_y
                           && mp.y <= palette_y + palette_h;
         if (!on_palette)
         {
@@ -468,11 +468,11 @@ bool CommandPalette::draw(float window_width, float window_height)
         if (input_changed)
         {
             update_search();
-            selected_index_ = 0;
-            scroll_offset_ = 0.0f;
-            scroll_target_ = 0.0f;
-            scroll_velocity_ = 0.0f;
-            measured_content_ = 0.0f;  // Force re-measurement for new result set
+            selected_index_   = 0;
+            scroll_offset_    = 0.0f;
+            scroll_target_    = 0.0f;
+            scroll_velocity_  = 0.0f;
+            measured_content_ = 0.0f;   // Force re-measurement for new result set
         }
 
         executed = handle_keyboard();
@@ -488,9 +488,9 @@ bool CommandPalette::draw(float window_width, float window_height)
         if (!results_.empty())
         {
             // Measure actual remaining space — and record overhead for next frame's sizing.
-            float avail = ImGui::GetContentRegionAvail().y;
+            float avail        = ImGui::GetContentRegionAvail().y;
             measured_overhead_ = palette_h - avail;
-            visible_height_ = avail;
+            visible_height_    = avail;
             ImGui::BeginChild("##palette_results",
                               ImVec2(0, visible_height_),
                               false,
@@ -498,7 +498,7 @@ bool CommandPalette::draw(float window_width, float window_height)
 
             ImGui::SetScrollY(scroll_offset_);
 
-            float content_start_y = ImGui::GetCursorPosY();
+            float       content_start_y = ImGui::GetCursorPosY();
             std::string current_category;
 
             for (int i = 0; i < static_cast<int>(results_.size()); ++i)
@@ -526,9 +526,9 @@ bool CommandPalette::draw(float window_width, float window_height)
                         ImGui::PopFont();
                 }
 
-                bool is_selected = (i == selected_index_);
-                ImVec2 item_pos = ImGui::GetCursorScreenPos();
-                float item_w = ImGui::GetContentRegionAvail().x;
+                bool   is_selected = (i == selected_index_);
+                ImVec2 item_pos    = ImGui::GetCursorScreenPos();
+                float  item_w      = ImGui::GetContentRegionAvail().x;
 
                 if (is_selected)
                 {
@@ -577,8 +577,8 @@ bool CommandPalette::draw(float window_width, float window_height)
                 if (!result.command->shortcut.empty())
                 {
                     ImVec2 shortcut_size = ImGui::CalcTextSize(result.command->shortcut.c_str());
-                    float badge_x = item_pos.x + item_w - shortcut_size.x - ui::tokens::SPACE_4;
-                    float badge_y = text_pos.y;
+                    float  badge_x = item_pos.x + item_w - shortcut_size.x - ui::tokens::SPACE_4;
+                    float  badge_y = text_pos.y;
 
                     ImGui::GetWindowDrawList()->AddRectFilled(
                         ImVec2(badge_x - ui::tokens::SPACE_2, badge_y - 3),
@@ -609,7 +609,7 @@ bool CommandPalette::draw(float window_width, float window_height)
                 && selected_index_ < static_cast<int>(results_.size()))
             {
                 scroll_to_selected_ = false;
-                float item_y = 0.0f;
+                float       item_y  = 0.0f;
                 std::string cat;
                 for (int i = 0; i <= selected_index_; ++i)
                 {
@@ -627,12 +627,12 @@ bool CommandPalette::draw(float window_width, float window_height)
 
                 if (item_y < scroll_target_)
                 {
-                    scroll_target_ = item_y;
+                    scroll_target_   = item_y;
                     scroll_velocity_ = 0.0f;
                 }
                 else if (item_bottom > scroll_target_ + visible_height_)
                 {
-                    scroll_target_ = item_bottom - visible_height_;
+                    scroll_target_   = item_bottom - visible_height_;
                     scroll_velocity_ = 0.0f;
                 }
                 scroll_target_ = std::max(0.0f, std::min(scroll_target_, max_scroll));
@@ -647,10 +647,11 @@ bool CommandPalette::draw(float window_width, float window_height)
         {
             if (font_body_)
                 ImGui::PushFont(font_body_);
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                ImVec4(
-                    colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 0.6f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(colors.text_tertiary.r,
+                                         colors.text_tertiary.g,
+                                         colors.text_tertiary.b,
+                                         0.6f));
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ui::tokens::SPACE_4);
             ImGui::SetCursorPosX((palette_w - ImGui::CalcTextSize("No matching commands").x)
                                  * 0.5f);
@@ -668,11 +669,11 @@ bool CommandPalette::draw(float window_width, float window_height)
     if (scrollable && sb_thumb_h > 0.0f && scrollbar_opacity_ > 0.01f)
     {
         // Recompute thumb position with final scroll_offset_ (may have changed)
-        float final_ratio = (max_scroll > 0.0f) ? (scroll_offset_ / max_scroll) : 0.0f;
+        float final_ratio     = (max_scroll > 0.0f) ? (scroll_offset_ / max_scroll) : 0.0f;
         float final_thumb_top = sb_track_top + final_ratio * (sb_track_h - sb_thumb_h);
 
         // Recalculate width with current hover_t
-        float final_sb_w = SB_WIDTH_THIN + (SB_WIDTH_WIDE - SB_WIDTH_THIN) * scrollbar_hover_t_;
+        float final_sb_w    = SB_WIDTH_THIN + (SB_WIDTH_WIDE - SB_WIDTH_THIN) * scrollbar_hover_t_;
         float final_sb_left = sb_right - final_sb_w;
 
         int alpha = static_cast<int>(scrollbar_opacity_ * opacity_ * 255);
@@ -704,6 +705,6 @@ bool CommandPalette::draw(float window_width, float window_height)
     return executed;
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

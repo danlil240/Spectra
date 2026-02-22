@@ -1,0 +1,59 @@
+.\" Man page for spectra-backend
+.TH SPECTRA-BACKEND 1 "2026-02-22" "Spectra 0.1.0" "Spectra Manual"
+.SH NAME
+spectra-backend \- GPU-accelerated scientific plotting daemon
+.SH SYNOPSIS
+.B spectra-backend
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B spectra-backend
+is the IPC daemon for the Spectra plotting library. It manages figure state,
+coordinates rendering agents, and communicates with Python and C++ clients
+over a Unix domain socket.
+.PP
+In typical usage, the backend is launched automatically by the Python
+\fBspectra\fR package or the C++ \fBApp\fR class. Manual invocation is
+only needed for debugging or custom deployments.
+.SH OPTIONS
+.TP
+.BR \-\-socket " " \fIpath\fR
+Listen on the specified Unix domain socket path instead of the default.
+.TP
+.BR \-\-version ", " \-v
+Print the version number and exit.
+.TP
+.BR \-\-help ", " \-h
+Show usage information and exit.
+.SH ENVIRONMENT
+.TP
+.B SPECTRA_SOCKET
+Override the default socket path. Equivalent to \fB\-\-socket\fR.
+.TP
+.B XDG_RUNTIME_DIR
+If set, the default socket is
+\fI$XDG_RUNTIME_DIR/spectra/spectra.sock\fR.
+Otherwise, \fI/tmp/spectra\-$USER/spectra.sock\fR is used.
+.TP
+.B SPECTRA_DEBUG_LOG
+If set to a file path, backend stderr is redirected to that file
+when auto-launched by the Python client.
+.SH FILES
+.TP
+.I $XDG_RUNTIME_DIR/spectra/spectra.sock
+Default Unix domain socket (Linux).
+.TP
+.I /tmp/spectra-$USER/spectra.sock
+Fallback socket path when XDG_RUNTIME_DIR is not set.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful execution or \fB\-\-version\fR/\fB\-\-help\fR.
+.TP
+.B 1
+Failed to bind the socket or other startup error.
+.SH SEE ALSO
+.BR spectra-window (1)
+.SH AUTHORS
+Spectra contributors.
+.SH LICENSE
+MIT License.

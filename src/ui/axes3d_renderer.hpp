@@ -12,7 +12,7 @@ class Axes3D;
 
 struct GridLineVertex
 {
-    vec3 position;
+    vec3  position;
     float padding;
 };
 
@@ -26,7 +26,7 @@ class Axes3DRenderer
     struct BoundingBoxData
     {
         std::vector<vec3> edge_vertices;
-        void generate(vec3 min_corner, vec3 max_corner);
+        void              generate(vec3 min_corner, vec3 max_corner);
     };
 
     struct GridPlaneData
@@ -39,7 +39,7 @@ class Axes3DRenderer
 
     struct TickMarkData
     {
-        std::vector<vec3> positions;
+        std::vector<vec3>        positions;
         std::vector<std::string> labels;
         void generate_x_ticks(const class Axes3D& axes, vec3 min_corner, vec3 max_corner);
         void generate_y_ticks(const class Axes3D& axes, vec3 min_corner, vec3 max_corner);
@@ -48,8 +48,8 @@ class Axes3DRenderer
 
    private:
     BoundingBoxData bbox_data_;
-    GridPlaneData grid_data_;
-    TickMarkData tick_data_;
+    GridPlaneData   grid_data_;
+    TickMarkData    tick_data_;
 };
 
-}  // namespace spectra
+}   // namespace spectra

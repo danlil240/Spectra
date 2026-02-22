@@ -57,7 +57,8 @@ bool VulkanBackend::init(bool headless)
         bool enable_validation = true;
 #endif
         SPECTRA_LOG_DEBUG(
-            "vulkan", "Validation layers: " + std::string(enable_validation ? "true" : "false"));
+            "vulkan",
+            "Validation layers: " + std::string(enable_validation ? "true" : "false"));
 
         ctx_.instance = vk::create_instance(enable_validation, headless_);
 
@@ -82,12 +83,16 @@ bool VulkanBackend::init(bool headless)
         ctx_.device =
             vk::create_logical_device(ctx_.physical_device, ctx_.queue_families, enable_validation);
 
-        vkGetDeviceQueue(
-            ctx_.device, ctx_.queue_families.graphics.value(), 0, &ctx_.graphics_queue);
+        vkGetDeviceQueue(ctx_.device,
+                         ctx_.queue_families.graphics.value(),
+                         0,
+                         &ctx_.graphics_queue);
         if (ctx_.queue_families.has_present())
         {
-            vkGetDeviceQueue(
-                ctx_.device, ctx_.queue_families.present.value(), 0, &ctx_.present_queue);
+            vkGetDeviceQueue(ctx_.device,
+                             ctx_.queue_families.present.value(),
+                             0,
+                             &ctx_.present_queue);
         }
 
         vkGetPhysicalDeviceProperties(ctx_.physical_device, &ctx_.properties);
@@ -106,7 +111,7 @@ bool VulkanBackend::init(bool headless)
         create_descriptor_pool();
 
         // Create descriptor set layouts and pipeline layouts
-        frame_desc_layout_ = vk::create_frame_descriptor_layout(ctx_.device);
+        frame_desc_layout_  = vk::create_frame_descriptor_layout(ctx_.device);
         series_desc_layout_ = vk::create_series_descriptor_layout(ctx_.device);
         pipeline_layout_ =
             vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, series_desc_layout_});
@@ -114,18 +119,20 @@ bool VulkanBackend::init(bool headless)
         // Texture descriptor set layout (combined image sampler at binding 0)
         {
             VkDescriptorSetLayoutBinding sampler_binding{};
-            sampler_binding.binding = 0;
-            sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            sampler_binding.binding         = 0;
+            sampler_binding.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             sampler_binding.descriptorCount = 1;
-            sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            sampler_binding.stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
 
             VkDescriptorSetLayoutCreateInfo layout_info{};
-            layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layout_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layout_info.bindingCount = 1;
-            layout_info.pBindings = &sampler_binding;
+            layout_info.pBindings    = &sampler_binding;
 
-            if (vkCreateDescriptorSetLayout(
-                    ctx_.device, &layout_info, nullptr, &texture_desc_layout_)
+            if (vkCreateDescriptorSetLayout(ctx_.device,
+                                            &layout_info,
+                                            nullptr,
+                                            &texture_desc_layout_)
                 != VK_SUCCESS)
             {
                 throw std::runtime_error("Failed to create texture descriptor set layout");
@@ -247,7 +254,7 @@ bool VulkanBackend::create_surface(void* native_window)
         return false;
 
 #ifdef SPECTRA_USE_GLFW
-    auto* glfw_window = static_cast<GLFWwindow*>(native_window);
+    auto*    glfw_window = static_cast<GLFWwindow*>(native_window);
     VkResult result =
         glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &active_window_->surface);
     if (result != VK_SUCCESS)
@@ -276,7 +283,7 @@ bool VulkanBackend::create_surface(void* native_window)
                              "falling back to graphics queue for present operations");
         }
         ctx_.queue_families.present = ctx_.queue_families.graphics;
-        ctx_.present_queue = ctx_.graphics_queue;
+        ctx_.present_queue          = ctx_.graphics_queue;
     }
 
     // Ensure present queue is always valid.
@@ -299,7 +306,7 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
 
     try
     {
-        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        auto vk_msaa              = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         active_window_->swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
@@ -344,18 +351,19 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         auto wait_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(wait_end - wait_start);
         SPECTRA_LOG_DEBUG(
-            "vulkan", "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
+            "vulkan",
+            "Fence wait completed in " + std::to_string(wait_duration.count()) + "ms");
     }
 
     SPECTRA_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
-    auto old_swapchain = active_window_->swapchain.swapchain;
-    auto old_context = active_window_->swapchain;     // Copy the entire context
-    VkRenderPass reuse_rp = old_context.render_pass;  // Reuse — format doesn't change
+    auto         old_swapchain = active_window_->swapchain.swapchain;
+    auto         old_context   = active_window_->swapchain;   // Copy the entire context
+    VkRenderPass reuse_rp      = old_context.render_pass;     // Reuse — format doesn't change
 
     try
     {
         SPECTRA_LOG_DEBUG("vulkan", "Creating new swapchain...");
-        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        auto vk_msaa              = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         active_window_->swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
@@ -394,7 +402,7 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             active_window_->in_flight_fences.clear();
             create_sync_objects();
         }
-        active_window_->current_flight_frame = 0;
+        active_window_->current_flight_frame  = 0;
         active_window_->swapchain_invalidated = false;
 
         SPECTRA_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
@@ -413,8 +421,11 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
     {
         vk::destroy_offscreen(ctx_.device, offscreen_);
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
-        offscreen_ = vk::create_offscreen_framebuffer(
-            ctx_.device, ctx_.physical_device, width, height, vk_msaa);
+        offscreen_   = vk::create_offscreen_framebuffer(ctx_.device,
+                                                      ctx_.physical_device,
+                                                      width,
+                                                      height,
+                                                      vk_msaa);
         create_command_buffers();
         create_sync_objects();
         return true;
@@ -435,12 +446,12 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
     if (rp == VK_NULL_HANDLE)
     {
         // Render pass not yet available — store placeholder, will be created lazily
-        pipelines_[h.id] = VK_NULL_HANDLE;
+        pipelines_[h.id]      = VK_NULL_HANDLE;
         pipeline_types_[h.id] = type;
         return h;
     }
 
-    pipelines_[h.id] = create_pipeline_for_type(type, rp);
+    pipelines_[h.id]        = create_pipeline_for_type(type, rp);
     pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth)
                                   ? text_pipeline_layout_
                                   : pipeline_layout_;
@@ -450,135 +461,135 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
 VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPass rp)
 {
     vk::PipelineConfig cfg;
-    cfg.render_pass = rp;
+    cfg.render_pass     = rp;
     cfg.pipeline_layout = pipeline_layout_;
     cfg.enable_blending = true;
-    cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     switch (type)
     {
         case PipelineType::Line:
-            cfg.vert_spirv = shaders::line_vert;
+            cfg.vert_spirv      = shaders::line_vert;
             cfg.vert_spirv_size = shaders::line_vert_size;
-            cfg.frag_spirv = shaders::line_frag;
+            cfg.frag_spirv      = shaders::line_frag;
             cfg.frag_spirv_size = shaders::line_frag_size;
             break;
         case PipelineType::Scatter:
-            cfg.vert_spirv = shaders::scatter_vert;
+            cfg.vert_spirv      = shaders::scatter_vert;
             cfg.vert_spirv_size = shaders::scatter_vert_size;
-            cfg.frag_spirv = shaders::scatter_frag;
+            cfg.frag_spirv      = shaders::scatter_frag;
             cfg.frag_spirv_size = shaders::scatter_frag_size;
             break;
         case PipelineType::Grid:
-            cfg.vert_spirv = shaders::grid_vert;
+            cfg.vert_spirv      = shaders::grid_vert;
             cfg.vert_spirv_size = shaders::grid_vert_size;
-            cfg.frag_spirv = shaders::grid_frag;
+            cfg.frag_spirv      = shaders::grid_frag;
             cfg.frag_spirv_size = shaders::grid_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
             // Grid uses vec2 vertex attribute for line endpoints
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
         case PipelineType::Line3D:
-            cfg.vert_spirv = shaders::line3d_vert;
-            cfg.vert_spirv_size = shaders::line3d_vert_size;
-            cfg.frag_spirv = shaders::line3d_frag;
-            cfg.frag_spirv_size = shaders::line3d_frag_size;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::line3d_vert;
+            cfg.vert_spirv_size    = shaders::line3d_vert_size;
+            cfg.frag_spirv         = shaders::line3d_frag;
+            cfg.frag_spirv_size    = shaders::line3d_frag_size;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             break;
         case PipelineType::Scatter3D:
-            cfg.vert_spirv = shaders::scatter3d_vert;
-            cfg.vert_spirv_size = shaders::scatter3d_vert_size;
-            cfg.frag_spirv = shaders::scatter3d_frag;
-            cfg.frag_spirv_size = shaders::scatter3d_frag_size;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::scatter3d_vert;
+            cfg.vert_spirv_size    = shaders::scatter3d_vert_size;
+            cfg.frag_spirv         = shaders::scatter3d_frag;
+            cfg.frag_spirv_size    = shaders::scatter3d_frag_size;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             break;
         case PipelineType::Grid3D:
-            cfg.vert_spirv = shaders::grid3d_vert;
-            cfg.vert_spirv_size = shaders::grid3d_vert_size;
-            cfg.frag_spirv = shaders::grid3d_frag;
-            cfg.frag_spirv_size = shaders::grid3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::grid3d_vert;
+            cfg.vert_spirv_size    = shaders::grid3d_vert_size;
+            cfg.frag_spirv         = shaders::grid3d_frag;
+            cfg.frag_spirv_size    = shaders::grid3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             // Grid3D uses vec3 vertex attribute for line endpoints
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             break;
         case PipelineType::GridOverlay3D:
-            cfg.vert_spirv = shaders::grid3d_vert;
-            cfg.vert_spirv_size = shaders::grid3d_vert_size;
-            cfg.frag_spirv = shaders::grid3d_frag;
-            cfg.frag_spirv_size = shaders::grid3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-            cfg.enable_depth_test = false;
+            cfg.vert_spirv         = shaders::grid3d_vert;
+            cfg.vert_spirv_size    = shaders::grid3d_vert_size;
+            cfg.frag_spirv         = shaders::grid3d_frag;
+            cfg.frag_spirv_size    = shaders::grid3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = false;
             cfg.enable_depth_write = false;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             break;
         case PipelineType::Surface3D:
-            cfg.vert_spirv = shaders::surface3d_vert;
-            cfg.vert_spirv_size = shaders::surface3d_vert_size;
-            cfg.frag_spirv = shaders::surface3d_frag;
-            cfg.frag_spirv_size = shaders::surface3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::surface3d_vert;
+            cfg.vert_spirv_size    = shaders::surface3d_vert_size;
+            cfg.frag_spirv         = shaders::surface3d_frag;
+            cfg.frag_spirv_size    = shaders::surface3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             // Surface vertex: {x,y,z, nx,ny,nz} = 6 floats per vertex, 2 attributes
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
-            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position
             cfg.vertex_attributes.push_back({1,
                                              0,
                                              VK_FORMAT_R32G32B32_SFLOAT,
-                                             static_cast<uint32_t>(sizeof(float) * 3)});  // normal
+                                             static_cast<uint32_t>(sizeof(float) * 3)});   // normal
             break;
         case PipelineType::Mesh3D:
-            cfg.vert_spirv = shaders::mesh3d_vert;
-            cfg.vert_spirv_size = shaders::mesh3d_vert_size;
-            cfg.frag_spirv = shaders::mesh3d_frag;
-            cfg.frag_spirv_size = shaders::mesh3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::mesh3d_vert;
+            cfg.vert_spirv_size    = shaders::mesh3d_vert_size;
+            cfg.frag_spirv         = shaders::mesh3d_frag;
+            cfg.frag_spirv_size    = shaders::mesh3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             // Mesh vertex: same layout as surface {x,y,z, nx,ny,nz}
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
-            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position
             cfg.vertex_attributes.push_back({1,
                                              0,
                                              VK_FORMAT_R32G32B32_SFLOAT,
-                                             static_cast<uint32_t>(sizeof(float) * 3)});  // normal
+                                             static_cast<uint32_t>(sizeof(float) * 3)});   // normal
             break;
         // ── Wireframe 3D pipeline variants (line topology with vertex buffer) ──
         case PipelineType::SurfaceWireframe3D:
-            cfg.vert_spirv = shaders::surface3d_vert;
-            cfg.vert_spirv_size = shaders::surface3d_vert_size;
-            cfg.frag_spirv = shaders::surface3d_frag;
-            cfg.frag_spirv_size = shaders::surface3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::surface3d_vert;
+            cfg.vert_spirv_size    = shaders::surface3d_vert_size;
+            cfg.frag_spirv         = shaders::surface3d_frag;
+            cfg.frag_spirv_size    = shaders::surface3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             cfg.vertex_attributes.push_back(
                 {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
             break;
         case PipelineType::SurfaceWireframe3D_Transparent:
-            cfg.vert_spirv = shaders::surface3d_vert;
-            cfg.vert_spirv_size = shaders::surface3d_vert_size;
-            cfg.frag_spirv = shaders::surface3d_frag;
-            cfg.frag_spirv_size = shaders::surface3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::surface3d_vert;
+            cfg.vert_spirv_size    = shaders::surface3d_vert_size;
+            cfg.frag_spirv         = shaders::surface3d_frag;
+            cfg.frag_spirv_size    = shaders::surface3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             cfg.vertex_attributes.push_back(
@@ -586,118 +597,118 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             break;
         // ── Transparent 3D pipeline variants (depth test ON, depth write OFF) ──
         case PipelineType::Line3D_Transparent:
-            cfg.vert_spirv = shaders::line3d_vert;
-            cfg.vert_spirv_size = shaders::line3d_vert_size;
-            cfg.frag_spirv = shaders::line3d_frag;
-            cfg.frag_spirv_size = shaders::line3d_frag_size;
-            cfg.enable_depth_test = true;
-            cfg.enable_depth_write = false;  // Don't write depth for transparent
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.vert_spirv         = shaders::line3d_vert;
+            cfg.vert_spirv_size    = shaders::line3d_vert_size;
+            cfg.frag_spirv         = shaders::line3d_frag;
+            cfg.frag_spirv_size    = shaders::line3d_frag_size;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;   // Don't write depth for transparent
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             break;
         case PipelineType::Scatter3D_Transparent:
-            cfg.vert_spirv = shaders::scatter3d_vert;
-            cfg.vert_spirv_size = shaders::scatter3d_vert_size;
-            cfg.frag_spirv = shaders::scatter3d_frag;
-            cfg.frag_spirv_size = shaders::scatter3d_frag_size;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::scatter3d_vert;
+            cfg.vert_spirv_size    = shaders::scatter3d_vert_size;
+            cfg.frag_spirv         = shaders::scatter3d_frag;
+            cfg.frag_spirv_size    = shaders::scatter3d_frag_size;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             break;
         case PipelineType::Surface3D_Transparent:
-            cfg.vert_spirv = shaders::surface3d_vert;
-            cfg.vert_spirv_size = shaders::surface3d_vert_size;
-            cfg.frag_spirv = shaders::surface3d_frag;
-            cfg.frag_spirv_size = shaders::surface3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::surface3d_vert;
+            cfg.vert_spirv_size    = shaders::surface3d_vert_size;
+            cfg.frag_spirv         = shaders::surface3d_frag;
+            cfg.frag_spirv_size    = shaders::surface3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             cfg.vertex_attributes.push_back(
                 {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
             break;
         case PipelineType::Mesh3D_Transparent:
-            cfg.vert_spirv = shaders::mesh3d_vert;
-            cfg.vert_spirv_size = shaders::mesh3d_vert_size;
-            cfg.frag_spirv = shaders::mesh3d_frag;
-            cfg.frag_spirv_size = shaders::mesh3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::mesh3d_vert;
+            cfg.vert_spirv_size    = shaders::mesh3d_vert_size;
+            cfg.frag_spirv         = shaders::mesh3d_frag;
+            cfg.frag_spirv_size    = shaders::mesh3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             cfg.vertex_attributes.push_back(
                 {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
             break;
         case PipelineType::Heatmap:
-            return VK_NULL_HANDLE;  // Not yet implemented
+            return VK_NULL_HANDLE;   // Not yet implemented
         case PipelineType::Overlay:
-            cfg.vert_spirv = shaders::grid_vert;
+            cfg.vert_spirv      = shaders::grid_vert;
             cfg.vert_spirv_size = shaders::grid_vert_size;
-            cfg.frag_spirv = shaders::grid_frag;
+            cfg.frag_spirv      = shaders::grid_frag;
             cfg.frag_spirv_size = shaders::grid_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
             // Same vec2 vertex attribute as Grid, but triangle topology for filled shapes
             cfg.vertex_bindings.push_back({0, sizeof(float) * 2, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});
             break;
         case PipelineType::Arrow3D:
-            cfg.vert_spirv = shaders::arrow3d_vert;
-            cfg.vert_spirv_size = shaders::arrow3d_vert_size;
-            cfg.frag_spirv = shaders::arrow3d_frag;
-            cfg.frag_spirv_size = shaders::arrow3d_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.vert_spirv         = shaders::arrow3d_vert;
+            cfg.vert_spirv_size    = shaders::arrow3d_vert_size;
+            cfg.frag_spirv         = shaders::arrow3d_frag;
+            cfg.frag_spirv_size    = shaders::arrow3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
             // Arrow vertex: {x,y,z, nx,ny,nz} = 6 floats per vertex, 2 attributes
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
-            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position
             cfg.vertex_attributes.push_back({1,
                                              0,
                                              VK_FORMAT_R32G32B32_SFLOAT,
-                                             static_cast<uint32_t>(sizeof(float) * 3)});  // normal
+                                             static_cast<uint32_t>(sizeof(float) * 3)});   // normal
             break;
         case PipelineType::Text:
-            cfg.pipeline_layout = text_pipeline_layout_;
-            cfg.vert_spirv = shaders::text_vert;
-            cfg.vert_spirv_size = shaders::text_vert_size;
-            cfg.frag_spirv = shaders::text_frag;
-            cfg.frag_spirv_size = shaders::text_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = false;
+            cfg.pipeline_layout    = text_pipeline_layout_;
+            cfg.vert_spirv         = shaders::text_vert;
+            cfg.vert_spirv_size    = shaders::text_vert_size;
+            cfg.frag_spirv         = shaders::text_frag;
+            cfg.frag_spirv_size    = shaders::text_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = false;
             cfg.enable_depth_write = false;
             // TextVertex: {float x, y, z, float u, v, uint32_t col} = 24 bytes
             cfg.vertex_bindings.push_back(
                 {0, sizeof(float) * 5 + sizeof(uint32_t), VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back(
-                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position (x, y, z)
+                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position (x, y, z)
             cfg.vertex_attributes.push_back(
-                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});  // uv
+                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});   // uv
             cfg.vertex_attributes.push_back(
-                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});  // color
+                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});   // color
             break;
         case PipelineType::TextDepth:
-            cfg.pipeline_layout = text_pipeline_layout_;
-            cfg.vert_spirv = shaders::text_vert;
-            cfg.vert_spirv_size = shaders::text_vert_size;
-            cfg.frag_spirv = shaders::text_frag;
-            cfg.frag_spirv_size = shaders::text_frag_size;
-            cfg.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            cfg.enable_depth_test = true;
+            cfg.pipeline_layout    = text_pipeline_layout_;
+            cfg.vert_spirv         = shaders::text_vert;
+            cfg.vert_spirv_size    = shaders::text_vert_size;
+            cfg.frag_spirv         = shaders::text_frag;
+            cfg.frag_spirv_size    = shaders::text_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
-            cfg.depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             // TextVertex: {float x, y, z, float u, v, uint32_t col} = 24 bytes
             cfg.vertex_bindings.push_back(
                 {0, sizeof(float) * 5 + sizeof(uint32_t), VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back(
-                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});  // position (x, y, z)
+                {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position (x, y, z)
             cfg.vertex_attributes.push_back(
-                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});  // uv
+                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});   // uv
             cfg.vertex_attributes.push_back(
-                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});  // color
+                {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});   // color
             break;
     }
 
@@ -740,31 +751,31 @@ void VulkanBackend::ensure_pipelines()
 
 BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes)
 {
-    VkBufferUsageFlags vk_usage = 0;
+    VkBufferUsageFlags    vk_usage  = 0;
     VkMemoryPropertyFlags mem_props = 0;
 
     switch (usage)
     {
         case BufferUsage::Vertex:
-            vk_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+            vk_usage  = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Index:
-            vk_usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+            vk_usage  = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Uniform:
-            vk_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+            vk_usage  = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             // Allocate enough room for UBO_MAX_SLOTS dynamic slots
             size_bytes = static_cast<size_t>(ubo_slot_alignment_) * UBO_MAX_SLOTS;
             break;
         case BufferUsage::Storage:
-            vk_usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+            vk_usage  = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
         case BufferUsage::Staging:
-            vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            vk_usage  = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
             mem_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
     }
@@ -780,7 +791,7 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes)
 
     BufferEntry entry;
     entry.gpu_buffer = std::move(buf);
-    entry.usage = usage;
+    entry.usage      = usage;
 
     // Allocate descriptor set for UBO or SSBO buffers
     if (usage == BufferUsage::Uniform)
@@ -789,8 +800,9 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes)
         if (entry.descriptor_set != VK_NULL_HANDLE)
         {
             // Descriptor range = one aligned slot (dynamic offset selects the slot)
-            update_ubo_descriptor(
-                entry.descriptor_set, entry.gpu_buffer.buffer(), ubo_slot_alignment_);
+            update_ubo_descriptor(entry.descriptor_set,
+                                  entry.gpu_buffer.buffer(),
+                                  ubo_slot_alignment_);
         }
     }
     else if (usage == BufferUsage::Storage)
@@ -864,16 +876,16 @@ void VulkanBackend::advance_deferred_deletion()
 }
 
 void VulkanBackend::upload_buffer(BufferHandle handle,
-                                  const void* data,
-                                  size_t size_bytes,
-                                  size_t offset)
+                                  const void*  data,
+                                  size_t       size_bytes,
+                                  size_t       offset)
 {
     auto it = buffers_.find(handle.id);
     if (it == buffers_.end())
         return;
 
     auto& entry = it->second;
-    auto& buf = entry.gpu_buffer;
+    auto& buf   = entry.gpu_buffer;
 
     // For dynamic UBO buffers, write to the next aligned slot
     if (entry.usage == BufferUsage::Uniform)
@@ -881,7 +893,7 @@ void VulkanBackend::upload_buffer(BufferHandle handle,
         uint32_t slot_size = static_cast<uint32_t>(ubo_slot_alignment_);
         if (ubo_next_offset_ + slot_size > slot_size * UBO_MAX_SLOTS)
         {
-            ubo_next_offset_ = 0;  // wrap around (shouldn't happen with 64 slots)
+            ubo_next_offset_ = 0;   // wrap around (shouldn't happen with 64 slots)
         }
         ubo_bound_offset_ = ubo_next_offset_;
         buf.upload(data,
@@ -910,8 +922,8 @@ void VulkanBackend::upload_buffer(BufferHandle handle,
     }
 }
 
-TextureHandle VulkanBackend::create_texture(uint32_t width,
-                                            uint32_t height,
+TextureHandle VulkanBackend::create_texture(uint32_t       width,
+                                            uint32_t       height,
                                             const uint8_t* rgba_data)
 {
     TextureHandle h;
@@ -922,16 +934,16 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
     // Create VkImage
     VkImageCreateInfo image_info{};
-    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_info.imageType = VK_IMAGE_TYPE_2D;
-    image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-    image_info.extent = {width, height, 1};
-    image_info.mipLevels = 1;
-    image_info.arrayLayers = 1;
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType     = VK_IMAGE_TYPE_2D;
+    image_info.format        = VK_FORMAT_R8G8B8A8_UNORM;
+    image_info.extent        = {width, height, 1};
+    image_info.mipLevels     = 1;
+    image_info.arrayLayers   = 1;
+    image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     if (vkCreateImage(ctx_.device, &image_info, nullptr, &tex.image) != VK_SUCCESS)
@@ -963,8 +975,8 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
     }
 
     VkMemoryAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc_info.allocationSize = mem_reqs.size;
+    alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize  = mem_reqs.size;
     alloc_info.memoryTypeIndex = mem_type_idx;
 
     if (vkAllocateMemory(ctx_.device, &alloc_info, nullptr, &tex.memory) != VK_SUCCESS)
@@ -988,9 +1000,9 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
         // One-shot command buffer for layout transition + copy
         VkCommandBufferAllocateInfo cmd_alloc{};
-        cmd_alloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        cmd_alloc.commandPool = command_pool_;
-        cmd_alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmd_alloc.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmd_alloc.commandPool        = command_pool_;
+        cmd_alloc.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         cmd_alloc.commandBufferCount = 1;
 
         VkCommandBuffer cmd = VK_NULL_HANDLE;
@@ -1003,19 +1015,19 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
         // Transition: UNDEFINED → TRANSFER_DST_OPTIMAL
         VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = tex.image;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = tex.image;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel   = 0;
+        barrier.subresourceRange.levelCount     = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.subresourceRange.layerCount     = 1;
+        barrier.srcAccessMask                   = 0;
+        barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
 
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -1030,19 +1042,23 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
         // Copy buffer to image
         VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
+        region.bufferOffset      = 0;
+        region.bufferRowLength   = 0;
         region.bufferImageHeight = 0;
-        region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.imageOffset = {0, 0, 0};
-        region.imageExtent = {width, height, 1};
+        region.imageSubresource  = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageOffset       = {0, 0, 0};
+        region.imageExtent       = {width, height, 1};
 
-        vkCmdCopyBufferToImage(
-            cmd, staging.buffer(), tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyBufferToImage(cmd,
+                               staging.buffer(),
+                               tex.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1,
+                               &region);
 
         // Transition: TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -1060,9 +1076,9 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
         vkEndCommandBuffer(cmd);
 
         VkSubmitInfo submit{};
-        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.commandBufferCount = 1;
-        submit.pCommandBuffers = &cmd;
+        submit.pCommandBuffers    = &cmd;
         vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(ctx_.graphics_queue);
 
@@ -1072,15 +1088,15 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
     // Create image view
     VkImageViewCreateInfo view_info{};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.image = tex.image;
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = 1;
+    view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image                           = tex.image;
+    view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format                          = VK_FORMAT_R8G8B8A8_UNORM;
+    view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    view_info.subresourceRange.baseMipLevel   = 0;
+    view_info.subresourceRange.levelCount     = 1;
     view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = 1;
+    view_info.subresourceRange.layerCount     = 1;
 
     if (vkCreateImageView(ctx_.device, &view_info, nullptr, &tex.view) != VK_SUCCESS)
     {
@@ -1092,14 +1108,14 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
 
     // Create sampler
     VkSamplerCreateInfo sampler_info{};
-    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_info.magFilter = VK_FILTER_LINEAR;
-    sampler_info.minFilter = VK_FILTER_LINEAR;
-    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_info.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter    = VK_FILTER_LINEAR;
+    sampler_info.minFilter    = VK_FILTER_LINEAR;
+    sampler_info.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_info.maxLod = 1.0f;
+    sampler_info.maxLod       = 1.0f;
 
     if (vkCreateSampler(ctx_.device, &sampler_info, nullptr, &tex.sampler) != VK_SUCCESS)
     {
@@ -1115,17 +1131,17 @@ TextureHandle VulkanBackend::create_texture(uint32_t width,
     if (tex.descriptor_set != VK_NULL_HANDLE)
     {
         VkDescriptorImageInfo img_info{};
-        img_info.sampler = tex.sampler;
-        img_info.imageView = tex.view;
+        img_info.sampler     = tex.sampler;
+        img_info.imageView   = tex.view;
         img_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         VkWriteDescriptorSet write{};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = tex.descriptor_set;
-        write.dstBinding = 0;
+        write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet          = tex.descriptor_set;
+        write.dstBinding      = 0;
         write.descriptorCount = 1;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write.pImageInfo = &img_info;
+        write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo      = &img_info;
 
         vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
     }
@@ -1155,7 +1171,7 @@ void VulkanBackend::destroy_texture(TextureHandle handle)
 bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 {
     // Reset dynamic UBO slot allocator for this frame
-    ubo_next_offset_ = 0;
+    ubo_next_offset_  = 0;
     ubo_bound_offset_ = 0;
 
     if (headless_)
@@ -1207,7 +1223,7 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        return false;  // Swapchain truly unusable — caller must recreate
+        return false;   // Swapchain truly unusable — caller must recreate
     }
     if (result == VK_SUBOPTIMAL_KHR)
     {
@@ -1218,8 +1234,9 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
     }
 
     // Only reset fence after successful acquisition
-    vkResetFences(
-        ctx_.device, 1, &active_window_->in_flight_fences[active_window_->current_flight_frame]);
+    vkResetFences(ctx_.device,
+                  1,
+                  &active_window_->in_flight_fences[active_window_->current_flight_frame]);
 
     active_window_->current_cmd =
         active_window_->command_buffers[active_window_->current_flight_frame];
@@ -1239,9 +1256,9 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
     if (headless_)
     {
         VkSubmitInfo submit{};
-        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.commandBufferCount = 1;
-        submit.pCommandBuffers = &active_window_->current_cmd;
+        submit.pCommandBuffers    = &active_window_->current_cmd;
         vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(ctx_.graphics_queue);
         return;
@@ -1259,14 +1276,14 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores = wait_semaphores;
-    submit.pWaitDstStageMask = wait_stages;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &active_window_->current_cmd;
+    submit.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.waitSemaphoreCount   = 1;
+    submit.pWaitSemaphores      = wait_semaphores;
+    submit.pWaitDstStageMask    = wait_stages;
+    submit.commandBufferCount   = 1;
+    submit.pCommandBuffers      = &active_window_->current_cmd;
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = signal_semaphores;
+    submit.pSignalSemaphores    = signal_semaphores;
 
     if (profiler)
         profiler->begin_stage("vk_submit");
@@ -1278,12 +1295,12 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
         profiler->end_stage("vk_submit");
 
     VkPresentInfoKHR present{};
-    present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present.waitSemaphoreCount = 1;
-    present.pWaitSemaphores = signal_semaphores;
-    present.swapchainCount = 1;
-    present.pSwapchains = &active_window_->swapchain.swapchain;
-    present.pImageIndices = &active_window_->current_image_index;
+    present.pWaitSemaphores    = signal_semaphores;
+    present.swapchainCount     = 1;
+    present.pSwapchains        = &active_window_->swapchain.swapchain;
+    present.pImageIndices      = &active_window_->current_image_index;
 
     if (profiler)
         profiler->begin_stage("vk_present");
@@ -1297,7 +1314,7 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        active_window_->swapchain_dirty = true;
+        active_window_->swapchain_dirty       = true;
         active_window_->swapchain_invalidated = true;
         SPECTRA_LOG_DEBUG("vulkan", "end_frame: present returned OUT_OF_DATE");
     }
@@ -1317,19 +1334,19 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
 void VulkanBackend::begin_render_pass(const Color& clear_color)
 {
     VkClearValue clear_values[2]{};
-    clear_values[0].color = {{clear_color.r, clear_color.g, clear_color.b, clear_color.a}};
+    clear_values[0].color        = {{clear_color.r, clear_color.g, clear_color.b, clear_color.a}};
     clear_values[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     info.clearValueCount = 2;
-    info.pClearValues = clear_values;
+    info.pClearValues    = clear_values;
 
     if (headless_)
     {
-        info.renderPass = offscreen_.render_pass;
+        info.renderPass  = offscreen_.render_pass;
         info.framebuffer = offscreen_.framebuffer;
-        info.renderArea = {{0, 0}, offscreen_.extent};
+        info.renderArea  = {{0, 0}, offscreen_.extent};
     }
     else
     {
@@ -1395,7 +1412,7 @@ void VulkanBackend::bind_buffer(BufferHandle handle, uint32_t binding)
     else if (entry.usage == BufferUsage::Vertex)
     {
         // Only actual vertex buffers may be bound as vertex buffers.
-        VkBuffer bufs[] = {entry.gpu_buffer.buffer()};
+        VkBuffer     bufs[]    = {entry.gpu_buffer.buffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(active_window_->current_cmd, binding, 1, bufs, offsets);
     }
@@ -1409,8 +1426,10 @@ void VulkanBackend::bind_index_buffer(BufferHandle handle)
         return;
 
     auto& entry = it->second;
-    vkCmdBindIndexBuffer(
-        active_window_->current_cmd, entry.gpu_buffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(active_window_->current_cmd,
+                         entry.gpu_buffer.buffer(),
+                         0,
+                         VK_INDEX_TYPE_UINT32);
 }
 
 void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
@@ -1450,10 +1469,10 @@ void VulkanBackend::push_constants(const SeriesPushConstants& pc)
 void VulkanBackend::set_viewport(float x, float y, float width, float height)
 {
     VkViewport vp{};
-    vp.x = x;
-    vp.y = y;
-    vp.width = width;
-    vp.height = height;
+    vp.x        = x;
+    vp.y        = y;
+    vp.width    = width;
+    vp.height   = height;
     vp.minDepth = 0.0f;
     vp.maxDepth = 1.0f;
     vkCmdSetViewport(active_window_->current_cmd, 0, 1, &vp);
@@ -1492,12 +1511,12 @@ void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int
 bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height)
 {
     // Determine source image and its current layout
-    VkImage src_image = VK_NULL_HANDLE;
+    VkImage       src_image  = VK_NULL_HANDLE;
     VkImageLayout src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     if (headless_)
     {
-        src_image = offscreen_.color_image;
+        src_image  = offscreen_.color_image;
         src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     }
     else
@@ -1524,9 +1543,9 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     // Record copy command
     VkCommandBufferAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.commandPool = command_pool_;
-    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.commandPool        = command_pool_;
+    alloc_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = 1;
 
     VkCommandBuffer cmd = VK_NULL_HANDLE;
@@ -1541,19 +1560,19 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
     {
         VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = src_layout;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = src_image;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = src_layout;
+        barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = src_image;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel   = 0;
+        barrier.subresourceRange.levelCount     = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.subresourceRange.layerCount     = 1;
+        barrier.srcAccessMask                   = VK_ACCESS_MEMORY_READ_BIT;
+        barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
 
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -1570,28 +1589,32 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     VkBufferImageCopy region{};
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.layerCount = 1;
-    region.imageExtent = {width, height, 1};
+    region.imageExtent                 = {width, height, 1};
 
-    vkCmdCopyImageToBuffer(
-        cmd, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer(), 1, &region);
+    vkCmdCopyImageToBuffer(cmd,
+                           src_image,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           staging.buffer(),
+                           1,
+                           &region);
 
     // Transition back to original layout if we changed it
     if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
     {
         VkImageMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = src_layout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = src_image;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout                       = src_layout;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = src_image;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel   = 0;
+        barrier.subresourceRange.levelCount     = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        barrier.subresourceRange.layerCount     = 1;
+        barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask                   = VK_ACCESS_MEMORY_READ_BIT;
 
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1608,9 +1631,9 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     vkEndCommandBuffer(cmd);
 
     VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &cmd;
+    submit.pCommandBuffers    = &cmd;
     vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
     vkQueueWaitIdle(ctx_.graphics_queue);
 
@@ -1625,7 +1648,7 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     {
         for (uint32_t i = 0; i < width * height; ++i)
         {
-            std::swap(out_rgba[i * 4 + 0], out_rgba[i * 4 + 2]);  // B↔R
+            std::swap(out_rgba[i * 4 + 0], out_rgba[i * 4 + 2]);   // B↔R
         }
     }
 
@@ -1658,8 +1681,8 @@ VkRenderPass VulkanBackend::render_pass() const
 void VulkanBackend::create_command_pool()
 {
     VkCommandPoolCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     info.queueFamilyIndex = ctx_.queue_families.graphics.value();
 
     if (vkCreateCommandPool(ctx_.device, &info, nullptr, &command_pool_) != VK_SUCCESS)
@@ -1683,9 +1706,9 @@ void VulkanBackend::create_command_buffers()
     active_window_->command_buffers.resize(count);
 
     VkCommandBufferAllocateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    info.commandPool = command_pool_;
-    info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    info.commandPool        = command_pool_;
+    info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = count;
 
     if (vkAllocateCommandBuffers(ctx_.device, &info, active_window_->command_buffers.data())
@@ -1720,14 +1743,20 @@ void VulkanBackend::create_sync_objects()
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        if (vkCreateSemaphore(
-                ctx_.device, &sem_info, nullptr, &active_window_->image_available_semaphores[i])
+        if (vkCreateSemaphore(ctx_.device,
+                              &sem_info,
+                              nullptr,
+                              &active_window_->image_available_semaphores[i])
                 != VK_SUCCESS
-            || vkCreateSemaphore(
-                   ctx_.device, &sem_info, nullptr, &active_window_->render_finished_semaphores[i])
+            || vkCreateSemaphore(ctx_.device,
+                                 &sem_info,
+                                 nullptr,
+                                 &active_window_->render_finished_semaphores[i])
                    != VK_SUCCESS
-            || vkCreateFence(
-                   ctx_.device, &fence_info, nullptr, &active_window_->in_flight_fences[i])
+            || vkCreateFence(ctx_.device,
+                             &fence_info,
+                             nullptr,
+                             &active_window_->in_flight_fences[i])
                    != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create sync objects");
@@ -1744,11 +1773,11 @@ void VulkanBackend::create_descriptor_pool()
     };
 
     VkDescriptorPoolCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    info.maxSets = 256;
+    info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    info.maxSets       = 256;
     info.poolSizeCount = 3;
-    info.pPoolSizes = pool_sizes;
+    info.pPoolSizes    = pool_sizes;
 
     if (vkCreateDescriptorPool(ctx_.device, &info, nullptr, &descriptor_pool_) != VK_SUCCESS)
     {
@@ -1762,10 +1791,10 @@ VkDescriptorSet VulkanBackend::allocate_descriptor_set(VkDescriptorSetLayout lay
         return VK_NULL_HANDLE;
 
     VkDescriptorSetAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info.descriptorPool = descriptor_pool_;
+    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool     = descriptor_pool_;
     alloc_info.descriptorSetCount = 1;
-    alloc_info.pSetLayouts = &layout;
+    alloc_info.pSetLayouts        = &layout;
 
     VkDescriptorSet set = VK_NULL_HANDLE;
     if (vkAllocateDescriptorSets(ctx_.device, &alloc_info, &set) != VK_SUCCESS)
@@ -1780,15 +1809,15 @@ void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, 
     VkDescriptorBufferInfo buf_info{};
     buf_info.buffer = buffer;
     buf_info.offset = 0;
-    buf_info.range = size;
+    buf_info.range  = size;
 
     VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = set;
-    write.dstBinding = 0;
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = set;
+    write.dstBinding      = 0;
     write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    write.pBufferInfo = &buf_info;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write.pBufferInfo     = &buf_info;
 
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
 }
@@ -1798,15 +1827,15 @@ void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer,
     VkDescriptorBufferInfo buf_info{};
     buf_info.buffer = buffer;
     buf_info.offset = 0;
-    buf_info.range = size;
+    buf_info.range  = size;
 
     VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = set;
-    write.dstBinding = 0;
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = set;
+    write.dstBinding      = 0;
     write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write.pBufferInfo = &buf_info;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo     = &buf_info;
 
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
 }
@@ -1816,15 +1845,15 @@ void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer,
 bool VulkanBackend::recreate_swapchain_for(WindowContext& wctx, uint32_t width, uint32_t height)
 {
     auto* prev_active = active_window_;
-    active_window_ = &wctx;
-    bool ok = recreate_swapchain(width, height);
-    active_window_ = prev_active;
+    active_window_    = &wctx;
+    bool ok           = recreate_swapchain(width, height);
+    active_window_    = prev_active;
     return ok;
 }
 
 bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx,
-                                                      uint32_t width,
-                                                      uint32_t height)
+                                                      uint32_t       width,
+                                                      uint32_t       height)
 {
     // Fall back to plain recreate if this window has no ImGui context
     if (!wctx.imgui_context)
@@ -1874,7 +1903,7 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
     try
     {
 #ifdef SPECTRA_USE_GLFW
-        auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
+        auto*    glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
         VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_win, nullptr, &wctx.surface);
         if (result != VK_SUCCESS)
         {
@@ -1891,7 +1920,7 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
 #endif
 
         // Create swapchain for this window
-        auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        auto vk_msaa   = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         wctx.swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
@@ -1925,8 +1954,8 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
 }
 
 bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
-                                                   uint32_t width,
-                                                   uint32_t height)
+                                                   uint32_t       width,
+                                                   uint32_t       height)
 {
     // Step 1: Create Vulkan resources (surface, swapchain, cmd buffers, sync)
     if (!init_window_context(wctx, width, height))
@@ -1952,13 +1981,13 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
         // the swapchain.  The surface must support the primary format — if not,
         // this will fail and we bail out.
         auto* prev_active = active_window_;
-        active_window_ = &wctx;
+        active_window_    = &wctx;
 
         vk::destroy_swapchain(ctx_.device, wctx.swapchain);
 
         try
         {
-            auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+            auto vk_msaa   = static_cast<VkSampleCountFlagBits>(msaa_samples_);
             wctx.swapchain = vk::create_swapchain(
                 ctx_.device,
                 ctx_.physical_device,
@@ -1995,7 +2024,7 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
     // Step 3: Initialize per-window ImGui context.
     // Each window gets its own ImGui context for complete isolation.
     auto* prev_imgui_ctx = ImGui::GetCurrentContext();
-    auto* prev_active = active_window_;
+    auto* prev_active    = active_window_;
 
     // Section 3F constraint 1: set_active_window so render_pass() returns
     // this window's render pass (not the primary's).
@@ -2013,16 +2042,16 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
 
     // Section 3F constraint 3: use per-window ImageCount
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance = ctx_.instance;
+    ii.Instance       = ctx_.instance;
     ii.PhysicalDevice = ctx_.physical_device;
-    ii.Device = ctx_.device;
-    ii.QueueFamily = ctx_.queue_families.graphics.value_or(0);
-    ii.Queue = ctx_.graphics_queue;
+    ii.Device         = ctx_.device;
+    ii.QueueFamily    = ctx_.queue_families.graphics.value_or(0);
+    ii.Queue          = ctx_.graphics_queue;
     ii.DescriptorPool = descriptor_pool_;
-    ii.MinImageCount = 2;
-    ii.ImageCount = static_cast<uint32_t>(wctx.swapchain.images.size());
-    ii.RenderPass = wctx.swapchain.render_pass;
-    ii.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    ii.MinImageCount  = 2;
+    ii.ImageCount     = static_cast<uint32_t>(wctx.swapchain.images.size());
+    ii.RenderPass     = wctx.swapchain.render_pass;
+    ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -2074,7 +2103,8 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
         ImGui::SetCurrentContext(prev_ctx != this_ctx ? prev_ctx : nullptr);
 
         SPECTRA_LOG_INFO(
-            "imgui", "Per-window ImGui context destroyed for window " + std::to_string(wctx.id));
+            "imgui",
+            "Per-window ImGui context destroyed for window " + std::to_string(wctx.id));
     }
 #endif
 
@@ -2128,9 +2158,9 @@ void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
     wctx.command_buffers.resize(count);
 
     VkCommandBufferAllocateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    info.commandPool = command_pool_;
-    info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    info.commandPool        = command_pool_;
+    info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     info.commandBufferCount = count;
 
     if (vkAllocateCommandBuffers(ctx_.device, &info, wctx.command_buffers.data()) != VK_SUCCESS)
@@ -2162,8 +2192,10 @@ void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
     {
         if (vkCreateSemaphore(ctx_.device, &sem_info, nullptr, &wctx.image_available_semaphores[i])
                 != VK_SUCCESS
-            || vkCreateSemaphore(
-                   ctx_.device, &sem_info, nullptr, &wctx.render_finished_semaphores[i])
+            || vkCreateSemaphore(ctx_.device,
+                                 &sem_info,
+                                 nullptr,
+                                 &wctx.render_finished_semaphores[i])
                    != VK_SUCCESS
             || vkCreateFence(ctx_.device, &fence_info, nullptr, &wctx.in_flight_fences[i])
                    != VK_SUCCESS)
@@ -2174,4 +2206,4 @@ void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

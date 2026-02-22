@@ -33,11 +33,11 @@ namespace spectra::test
 // Severity filter for which messages to capture
 enum class ValidationSeverity : uint32_t
 {
-    Error = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+    Error   = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
     Warning = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
-    Info = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
+    Info    = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
     Verbose = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
-    All = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+    All     = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
@@ -48,9 +48,9 @@ enum class ValidationSeverity : uint32_t
 struct ValidationMessage
 {
     VkDebugUtilsMessageSeverityFlagBitsEXT severity;
-    VkDebugUtilsMessageTypeFlagsEXT type;
-    std::string message_id;
-    std::string message;
+    VkDebugUtilsMessageTypeFlagsEXT        type;
+    std::string                            message_id;
+    std::string                            message;
 };
 
 class ValidationGuard
@@ -59,7 +59,7 @@ class ValidationGuard
     // Construct with a VkInstance. If instance is VK_NULL_HANDLE or the
     // debug utils extension is not loaded, the guard is a no-op.
     explicit ValidationGuard(
-        VkInstance instance,
+        VkInstance         instance,
         ValidationSeverity severity_filter = ValidationSeverity::ErrorsAndWarnings)
         : instance_(instance)
     {
@@ -79,18 +79,18 @@ class ValidationGuard
         }
 
         VkDebugUtilsMessengerCreateInfoEXT ci{};
-        ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        ci.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         ci.messageSeverity = static_cast<VkDebugUtilsMessageSeverityFlagsEXT>(severity_filter);
-        ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+        ci.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                          | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
                          | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         ci.pfnUserCallback = debug_callback;
-        ci.pUserData = this;
+        ci.pUserData       = this;
 
         VkResult result = create_fn(instance_, &ci, nullptr, &messenger_);
         if (result != VK_SUCCESS)
         {
-            messenger_ = VK_NULL_HANDLE;
+            messenger_  = VK_NULL_HANDLE;
             destroy_fn_ = nullptr;
         }
     }
@@ -104,7 +104,7 @@ class ValidationGuard
     }
 
     // Non-copyable, non-movable
-    ValidationGuard(const ValidationGuard&) = delete;
+    ValidationGuard(const ValidationGuard&)            = delete;
     ValidationGuard& operator=(const ValidationGuard&) = delete;
 
     // Returns true if zero errors were recorded
@@ -170,18 +170,18 @@ class ValidationGuard
 
    private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL
-    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-                   VkDebugUtilsMessageTypeFlagsEXT type,
+    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
+                   VkDebugUtilsMessageTypeFlagsEXT             type,
                    const VkDebugUtilsMessengerCallbackDataEXT* data,
-                   void* user_data)
+                   void*                                       user_data)
     {
         auto* self = static_cast<ValidationGuard*>(user_data);
 
         ValidationMessage msg;
-        msg.severity = severity;
-        msg.type = type;
+        msg.severity   = severity;
+        msg.type       = type;
         msg.message_id = data->pMessageIdName ? data->pMessageIdName : "";
-        msg.message = data->pMessage ? data->pMessage : "";
+        msg.message    = data->pMessage ? data->pMessage : "";
 
         {
             std::lock_guard<std::mutex> lock(self->mutex_);
@@ -195,18 +195,18 @@ class ValidationGuard
         if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
             self->warning_count_.fetch_add(1, std::memory_order_relaxed);
 
-        return VK_FALSE;  // Don't abort the Vulkan call
+        return VK_FALSE;   // Don't abort the Vulkan call
     }
 
-    VkInstance instance_ = VK_NULL_HANDLE;
-    VkDebugUtilsMessengerEXT messenger_ = VK_NULL_HANDLE;
+    VkInstance                          instance_   = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT            messenger_  = VK_NULL_HANDLE;
     PFN_vkDestroyDebugUtilsMessengerEXT destroy_fn_ = nullptr;
 
-    mutable std::mutex mutex_;
+    mutable std::mutex             mutex_;
     std::vector<ValidationMessage> messages_;
-    std::atomic<uint32_t> error_count_{0};
-    std::atomic<uint32_t> warning_count_{0};
-    std::atomic<uint32_t> total_count_{0};
+    std::atomic<uint32_t>          error_count_{0};
+    std::atomic<uint32_t>          warning_count_{0};
+    std::atomic<uint32_t>          total_count_{0};
 };
 
-}  // namespace spectra::test
+}   // namespace spectra::test

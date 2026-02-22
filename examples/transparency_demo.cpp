@@ -10,7 +10,7 @@ int main()
     using namespace spectra;
 
     AppConfig config;
-    App app(config);
+    App       app(config);
 
     auto& fig = app.figure();
 
@@ -22,7 +22,7 @@ int main()
         ax.zlabel("Z");
         ax.light_dir(0.5f, 0.8f, 1.0f);
 
-        const int N = 60;
+        const int          N = 60;
         std::vector<float> x(N), y(N);
         for (int i = 0; i < N; ++i)
         {
@@ -50,7 +50,7 @@ int main()
                 z2[j * N + i] = std::cos(x[i] * 0.8f) * std::sin(y[j] * 0.8f) * 1.5f + 2.0f;
 
         auto& s2 = ax.surface(x, y, z2);
-        s2.color(Color{1.0f, 0.3f, 0.2f, 0.5f})  // 50% transparent
+        s2.color(Color{1.0f, 0.3f, 0.2f, 0.5f})   // 50% transparent
             .ambient(0.2f)
             .specular(0.5f)
             .shininess(32.0f);
@@ -68,32 +68,32 @@ int main()
         ax.zlabel("Z");
 
         // Opaque helix line
-        const int N = 200;
+        const int          N = 200;
         std::vector<float> lx(N), ly(N), lz(N);
         for (int i = 0; i < N; ++i)
         {
             float t = static_cast<float>(i) / (N - 1) * 4.0f * 3.14159f;
-            lx[i] = std::cos(t) * 2.0f;
-            ly[i] = std::sin(t) * 2.0f;
-            lz[i] = t * 0.3f - 2.0f;
+            lx[i]   = std::cos(t) * 2.0f;
+            ly[i]   = std::sin(t) * 2.0f;
+            lz[i]   = t * 0.3f - 2.0f;
         }
         ax.line3d(lx, ly, lz).color(Color{0.1f, 0.8f, 0.3f, 1.0f}).width(2.5f);
 
         // Semi-transparent scatter cloud around the helix
-        const int M = 500;
+        const int          M = 500;
         std::vector<float> sx(M), sy(M), sz(M);
         for (int i = 0; i < M; ++i)
         {
-            float t = static_cast<float>(i) / (M - 1) * 4.0f * 3.14159f;
+            float t       = static_cast<float>(i) / (M - 1) * 4.0f * 3.14159f;
             float noise_x = (static_cast<float>(i * 7 % 100) / 100.0f - 0.5f) * 1.5f;
             float noise_y = (static_cast<float>(i * 13 % 100) / 100.0f - 0.5f) * 1.5f;
             float noise_z = (static_cast<float>(i * 17 % 100) / 100.0f - 0.5f) * 1.0f;
-            sx[i] = std::cos(t) * 2.0f + noise_x;
-            sy[i] = std::sin(t) * 2.0f + noise_y;
-            sz[i] = t * 0.3f - 2.0f + noise_z;
+            sx[i]         = std::cos(t) * 2.0f + noise_x;
+            sy[i]         = std::sin(t) * 2.0f + noise_y;
+            sz[i]         = t * 0.3f - 2.0f + noise_z;
         }
         ax.scatter3d(sx, sy, sz)
-            .color(Color{0.9f, 0.4f, 0.1f, 0.4f})  // 60% transparent
+            .color(Color{0.9f, 0.4f, 0.1f, 0.4f})   // 60% transparent
             .size(8.0f);
 
         ax.xlim(-4.0f, 4.0f);
@@ -108,7 +108,7 @@ int main()
         ax.ylabel("Y");
         ax.zlabel("Z");
 
-        const int N = 40;
+        const int          N = 40;
         std::vector<float> x(N), y(N);
         for (int i = 0; i < N; ++i)
         {
@@ -120,7 +120,7 @@ int main()
         for (int j = 0; j < N; ++j)
             for (int i = 0; i < N; ++i)
             {
-                float r = std::sqrt(x[i] * x[i] + y[j] * y[j]);
+                float r      = std::sqrt(x[i] * x[i] + y[j] * y[j]);
                 z[j * N + i] = std::sin(r) * 2.0f / (r + 0.5f);
             }
 
@@ -144,13 +144,13 @@ int main()
         // 12 vertices, 20 triangles
         std::vector<float> verts = {
             // pos (x,y,z), normal (nx,ny,nz)
-            0.0f,  2.0f,  0.0f,  0.0f,  1.0f,  0.0f,  // top
+            0.0f,  2.0f,  0.0f,  0.0f,  1.0f,  0.0f,   // top
             1.8f,  0.8f,  0.0f,  0.9f,  0.4f,  0.0f,  0.6f,  0.8f,  1.7f,  0.3f,  0.4f,
             0.9f,  -1.5f, 0.8f,  1.0f,  -0.7f, 0.4f,  0.5f,  -1.5f, 0.8f,  -1.0f, -0.7f,
             0.4f,  -0.5f, 0.6f,  0.8f,  -1.7f, 0.3f,  0.4f,  -0.9f, 1.5f,  -0.8f, 1.0f,
             0.7f,  -0.4f, 0.5f,  -0.6f, -0.8f, 1.7f,  -0.3f, -0.4f, 0.9f,  -1.8f, -0.8f,
             0.0f,  -0.9f, -0.4f, 0.0f,  -0.6f, -0.8f, -1.7f, -0.3f, -0.4f, -0.9f, 1.5f,
-            -0.8f, -1.0f, 0.7f,  -0.4f, -0.5f, 0.0f,  -2.0f, 0.0f,  0.0f,  -1.0f, 0.0f,  // bottom
+            -0.8f, -1.0f, 0.7f,  -0.4f, -0.5f, 0.0f,  -2.0f, 0.0f,  0.0f,  -1.0f, 0.0f,   // bottom
         };
 
         std::vector<uint32_t> indices = {
@@ -160,7 +160,7 @@ int main()
         };
 
         auto& m = ax.mesh(verts, indices);
-        m.color(Color{0.8f, 0.2f, 0.9f, 0.6f})  // 40% transparent
+        m.color(Color{0.8f, 0.2f, 0.9f, 0.6f})   // 40% transparent
             .opacity(0.7f)
             .ambient(0.2f)
             .specular(0.6f)

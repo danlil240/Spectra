@@ -29,7 +29,7 @@ SectionAnimState& get_section_anim(const char* id)
 
 void update_section_animations(float dt)
 {
-    constexpr float ANIM_SPEED = 8.0f;  // ~125ms to full open/close
+    constexpr float ANIM_SPEED = 8.0f;   // ~125ms to full open/close
     for (auto& [key, state] : section_anim_map())
     {
         float target = state.target_open ? 1.0f : 0.0f;
@@ -54,7 +54,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
     ImGui::PushID(label);
 
     // Full-width clickable area
-    float avail = ImGui::GetContentRegionAvail().x;
+    float  avail  = ImGui::GetContentRegionAvail().x;
     ImVec2 cursor = ImGui::GetCursorScreenPos();
 
     // Hover highlight
@@ -74,7 +74,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
     {
         *open = !*open;
         // Update animation target
-        auto& anim = get_section_anim(label);
+        auto& anim       = get_section_anim(label);
         anim.target_open = *open;
     }
 
@@ -87,7 +87,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
         if (*open != anim.was_open)
         {
             anim.target_open = *open;
-            anim.was_open = *open;
+            anim.was_open    = *open;
         }
     }
 
@@ -99,7 +99,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
     if (open)
     {
         auto& anim = get_section_anim(label);
-        chevron_t = anim.anim_t;
+        chevron_t  = anim.anim_t;
     }
     const char* chevron =
         (chevron_t > 0.5f) ? icon_str(Icon::ChevronDown) : icon_str(Icon::ChevronRight);
@@ -143,7 +143,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
 bool begin_animated_section(const char* id)
 {
     auto& anim = get_section_anim(id);
-    float t = anim.anim_t;
+    float t    = anim.anim_t;
 
     if (t <= 0.01f)
     {
@@ -181,7 +181,7 @@ bool begin_animated_section(const char* id)
 void end_animated_section()
 {
     ImGui::EndChild();
-    ImGui::PopStyleVar();  // Alpha
+    ImGui::PopStyleVar();   // Alpha
 }
 
 // ─── Separator ──────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ bool color_field(const char* label, spectra::Color& color)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
     float col[4] = {color.r, color.g, color.b, color.a};
-    bool changed =
+    bool  changed =
         ImGui::ColorEdit4("##color",
                           col,
                           ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel
@@ -339,8 +339,8 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed, const cha
         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
-    float v[2] = {v0, v1};
-    bool changed = ImGui::DragFloat2("##drag2", v, speed, 0.0f, 0.0f, fmt);
+    float v[2]    = {v0, v1};
+    bool  changed = ImGui::DragFloat2("##drag2", v, speed, 0.0f, 0.0f, fmt);
     if (changed)
     {
         v0 = v[0];
@@ -387,11 +387,11 @@ bool toggle_field(const char* label, bool& value)
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 36.0f);
 
     // Draw a toggle switch using ImGui draw list
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2      pos  = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
 
     float height = 18.0f;
-    float width = 34.0f;
+    float width  = 34.0f;
     float radius = height * 0.5f;
 
     // Invisible button for interaction
@@ -549,7 +549,8 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
                               ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
         ImGui::PushStyleColor(
-            ImGuiCol_Border, ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
+            ImGuiCol_Border,
+            ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
         ImGui::SetTooltip("%s", tooltip);
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(2);
@@ -576,9 +577,9 @@ void end_group()
 
 void color_swatch(const spectra::Color& color, float size)
 {
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2      pos  = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(color.r, color.g, color.b, color.a));
+    ImU32       col  = ImGui::ColorConvertFloat4ToU32(ImVec4(color.r, color.g, color.b, color.a));
     draw->AddRectFilled(pos, ImVec2(pos.x + size, pos.y + size), col, tokens::RADIUS_SM);
     ImGui::Dummy(ImVec2(size, size));
 }
@@ -598,11 +599,11 @@ void section_spacing()
 
 // ─── Sparkline ──────────────────────────────────────────────────────────────
 
-void sparkline(const char* id,
+void sparkline(const char*            id,
                std::span<const float> values,
-               float width,
-               float height,
-               const spectra::Color& color)
+               float                  width,
+               float                  height,
+               const spectra::Color&  color)
 {
     if (values.empty())
         return;
@@ -610,8 +611,8 @@ void sparkline(const char* id,
     const auto& c = theme();
     ImGui::PushID(id);
 
-    float w = (width < 0.0f) ? ImGui::GetContentRegionAvail().x : width;
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float       w    = (width < 0.0f) ? ImGui::GetContentRegionAvail().x : width;
+    ImVec2      pos  = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
 
     // Find data range
@@ -631,15 +632,15 @@ void sparkline(const char* id,
     spectra::Color line_col = (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
                                   ? color
                                   : spectra::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
-    ImU32 col32 =
+    ImU32          col32 =
         ImGui::ColorConvertFloat4ToU32(ImVec4(line_col.r, line_col.g, line_col.b, line_col.a));
     ImU32 fill_col =
         ImGui::ColorConvertFloat4ToU32(ImVec4(line_col.r, line_col.g, line_col.b, 0.15f));
 
     // Draw filled area
-    size_t n = values.size();
-    float step = w / static_cast<float>(n > 1 ? n - 1 : 1);
-    float baseline_y = pos.y + height;
+    size_t n          = values.size();
+    float  step       = w / static_cast<float>(n > 1 ? n - 1 : 1);
+    float  baseline_y = pos.y + height;
 
     // Build polyline for fill
     std::vector<ImVec2> fill_pts;
@@ -701,22 +702,23 @@ void badge(const char* text, const spectra::Color& bg, const spectra::Color& fg)
 {
     const auto& c = theme();
 
-    spectra::Color bg_col =
-        (bg.r > 0.0f || bg.g > 0.0f || bg.b > 0.0f)
-            ? bg
-            : spectra::Color{
-                c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a};
+    spectra::Color bg_col = (bg.r > 0.0f || bg.g > 0.0f || bg.b > 0.0f)
+                                ? bg
+                                : spectra::Color{c.accent_muted.r,
+                                                 c.accent_muted.g,
+                                                 c.accent_muted.b,
+                                                 c.accent_muted.a};
     spectra::Color fg_col = (fg.r > 0.0f || fg.g > 0.0f || fg.b > 0.0f)
                                 ? fg
                                 : spectra::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a};
 
     ImVec2 text_size = ImGui::CalcTextSize(text);
-    float pad_x = tokens::SPACE_2;
-    float pad_y = 2.0f;
-    float total_w = text_size.x + pad_x * 2.0f;
-    float total_h = text_size.y + pad_y * 2.0f;
+    float  pad_x     = tokens::SPACE_2;
+    float  pad_y     = 2.0f;
+    float  total_w   = text_size.x + pad_x * 2.0f;
+    float  total_h   = text_size.y + pad_y * 2.0f;
 
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2      pos  = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
 
     ImU32 bg32 = ImGui::ColorConvertFloat4ToU32(ImVec4(bg_col.r, bg_col.g, bg_col.b, bg_col.a));
@@ -728,16 +730,16 @@ void badge(const char* text, const spectra::Color& bg, const spectra::Color& fg)
     ImGui::PopStyleColor();
 
     ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + total_h + 2.0f));
-    ImGui::Dummy(ImVec2(total_w, 0));  // Advance cursor
+    ImGui::Dummy(ImVec2(total_w, 0));   // Advance cursor
 }
 
 // ─── Separator Label ────────────────────────────────────────────────────────
 
 void separator_label(const char* label, ImFont* font)
 {
-    const auto& c = theme();
-    float avail = ImGui::GetContentRegionAvail().x;
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+    const auto& c     = theme();
+    float       avail = ImGui::GetContentRegionAvail().x;
+    ImVec2      pos   = ImGui::GetCursorScreenPos();
 
     if (font)
         ImGui::PushFont(font);
@@ -746,11 +748,11 @@ void separator_label(const char* label, ImFont* font)
         ImGui::PopFont();
 
     float line_y = pos.y + text_size.y * 0.5f;
-    float gap = tokens::SPACE_2;
+    float gap    = tokens::SPACE_2;
     float text_x = (avail - text_size.x) * 0.5f;
 
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImU32 line_col = ImGui::ColorConvertFloat4ToU32(
+    ImDrawList* draw     = ImGui::GetWindowDrawList();
+    ImU32       line_col = ImGui::ColorConvertFloat4ToU32(
         ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, c.border_subtle.a));
 
     // Left line
@@ -797,8 +799,8 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
-    float fspeed = static_cast<float>(speed);
-    bool changed = ImGui::DragInt("##idrag", &value, fspeed, min, max, fmt);
+    float fspeed  = static_cast<float>(speed);
+    bool  changed = ImGui::DragInt("##idrag", &value, fspeed, min, max, fmt);
 
     ImGui::PopItemWidth();
     ImGui::PopStyleColor();
@@ -837,19 +839,19 @@ void stat_row(const char* label, const char* value, const char* unit)
     ImGui::PopStyleColor();
 }
 
-void stat_row_colored(const char* label,
-                      const char* value,
+void stat_row_colored(const char*           label,
+                      const char*           value,
                       const spectra::Color& dot_color,
-                      const char* unit)
+                      const char*           unit)
 {
     // const auto& c = theme();  // Currently unused
 
     // Color dot
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    float dot_r = 4.0f;
-    float text_h = ImGui::GetTextLineHeight();
-    ImU32 col32 =
+    ImVec2      pos    = ImGui::GetCursorScreenPos();
+    ImDrawList* draw   = ImGui::GetWindowDrawList();
+    float       dot_r  = 4.0f;
+    float       text_h = ImGui::GetTextLineHeight();
+    ImU32       col32 =
         ImGui::ColorConvertFloat4ToU32(ImVec4(dot_color.r, dot_color.g, dot_color.b, dot_color.a));
     draw->AddCircleFilled(ImVec2(pos.x + dot_r, pos.y + text_h * 0.5f), dot_r, col32);
     ImGui::Dummy(ImVec2(dot_r * 2.0f + 4.0f, 0));
@@ -858,6 +860,6 @@ void stat_row_colored(const char* label,
     stat_row(label, value, unit);
 }
 
-}  // namespace spectra::ui::widgets
+}   // namespace spectra::ui::widgets
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

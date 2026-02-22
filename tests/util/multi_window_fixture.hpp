@@ -46,7 +46,7 @@ class SingleWindowFixture : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
+        app_            = std::make_unique<App>(config);
     }
 
     void TearDown() override { app_.reset(); }
@@ -54,10 +54,10 @@ class SingleWindowFixture : public ::testing::Test
     // Create a figure with a simple line plot for smoke testing
     Figure& create_simple_figure(uint32_t width = 640, uint32_t height = 480)
     {
-        auto& fig = app_->figure({.width = width, .height = height});
-        auto& ax = fig.subplot(1, 1, 1);
-        std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
-        std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
+        auto&              fig = app_->figure({.width = width, .height = height});
+        auto&              ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x   = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+        std::vector<float> y   = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
         ax.line(x, y).label("test");
         ax.xlim(0.0f, 4.0f);
         ax.ylim(-0.5f, 2.0f);
@@ -68,7 +68,7 @@ class SingleWindowFixture : public ::testing::Test
     bool render_one_frame()
     {
         app_->run();
-        return true;  // If we get here, no crash
+        return true;   // If we get here, no crash
     }
 
     // Readback framebuffer pixels
@@ -159,9 +159,9 @@ class MultiWindowFixture : public ::testing::Test
         apps_.clear();
         for (size_t i = 0; i < count; ++i)
         {
-            auto app = std::make_unique<App>(AppConfig{.headless = true, .socket_path = ""});
+            auto  app = std::make_unique<App>(AppConfig{.headless = true, .socket_path = ""});
             auto& fig = app->figure({.width = w, .height = h});
-            auto& ax = fig.subplot(1, 1, 1);
+            auto& ax  = fig.subplot(1, 1, 1);
             std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
             std::vector<float> y;
             y.resize(x.size());
@@ -203,7 +203,7 @@ class MultiWindowFixture : public ::testing::Test
     std::vector<std::unique_ptr<App>> apps_;
 };
 
-#endif  // SPECTRA_HAS_WINDOW_MANAGER
+#endif   // SPECTRA_HAS_WINDOW_MANAGER
 
 // ─── Figure Registry Fixture (Phase 3+) ─────────────────────────────────────
 // Enabled after Agent C merges FigureRegistry.
@@ -232,9 +232,9 @@ double measure_ms(Func&& fn)
 // Run a callable N times and return (min, max, avg) durations in ms
 struct TimingStats
 {
-    double min_ms = 0.0;
-    double max_ms = 0.0;
-    double avg_ms = 0.0;
+    double min_ms     = 0.0;
+    double max_ms     = 0.0;
+    double avg_ms     = 0.0;
     size_t iterations = 0;
 };
 
@@ -243,9 +243,9 @@ TimingStats run_stress(size_t iterations, Func&& fn)
 {
     TimingStats stats;
     stats.iterations = iterations;
-    stats.min_ms = 1e9;
-    stats.max_ms = 0.0;
-    double total = 0.0;
+    stats.min_ms     = 1e9;
+    stats.max_ms     = 0.0;
+    double total     = 0.0;
 
     for (size_t i = 0; i < iterations; ++i)
     {
@@ -261,4 +261,4 @@ TimingStats run_stress(size_t iterations, Func&& fn)
     return stats;
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

@@ -5,11 +5,11 @@
 int main()
 {
     spectra::App app;
-    auto& fig = app.figure({.width = 1920, .height = 1080});
+    auto&        fig = app.figure({.width = 1920, .height = 1080});
 
     // ── 2x2 subplot grid showcasing all MATLAB-style plot customization ──
 
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.05f;
@@ -31,11 +31,11 @@ int main()
         }
 
         // MATLAB-style format strings: "color line_style"
-        ax.plot(x, y3, "r-");                          // red solid
-        ax.plot(x, y2, "b--");                         // blue dashed
-        ax.plot(x, y1, "g:");                          // green dotted
-        ax.plot(x, y4, "m-.");                         // magenta dash-dot
-        ax.plot(x, y5, "c-..").label("Dash-Dot-Dot");  // cyan dash-dot-dot
+        ax.plot(x, y3, "r-");                           // red solid
+        ax.plot(x, y2, "b--");                          // blue dashed
+        ax.plot(x, y1, "g:");                           // green dotted
+        ax.plot(x, y4, "m-.");                          // magenta dash-dot
+        ax.plot(x, y5, "c-..").label("Dash-Dot-Dot");   // cyan dash-dot-dot
 
         // Label the top ones via runtime API
         ax.series()[0]->label("Solid (-)");
@@ -86,16 +86,16 @@ int main()
             spectra::colors::cyan,
             spectra::colors::magenta,
             spectra::colors::yellow,
-            spectra::rgb(1.0f, 0.5f, 0.0f),  // orange
-            spectra::rgb(0.5f, 0.0f, 1.0f),  // purple
+            spectra::rgb(1.0f, 0.5f, 0.0f),   // orange
+            spectra::rgb(0.5f, 0.0f, 1.0f),   // purple
         };
 
         for (int i = 0; i < num_markers; ++i)
         {
-            int row = i / 6;
-            int col = i % 6;
-            float px = static_cast<float>(col) * 1.5f + 1.0f;
-            float py = static_cast<float>(2 - row) * 2.0f + 1.0f;
+            int   row = i / 6;
+            int   col = i % 6;
+            float px  = static_cast<float>(col) * 1.5f + 1.0f;
+            float py  = static_cast<float>(2 - row) * 2.0f + 1.0f;
 
             std::vector<float> sx = {px};
             std::vector<float> sy = {py};
@@ -118,7 +118,7 @@ int main()
     {
         auto& ax = fig.subplot(2, 2, 3);
 
-        constexpr size_t M = 30;
+        constexpr size_t   M = 30;
         std::vector<float> xm(M);
         std::vector<float> y1(M), y2(M), y3(M), y4(M);
         for (size_t i = 0; i < M; ++i)
@@ -149,7 +149,7 @@ int main()
     {
         auto& ax = fig.subplot(2, 2, 4);
 
-        constexpr size_t P = 150;
+        constexpr size_t   P = 150;
         std::vector<float> xp(P);
         std::vector<float> y1(P), y2(P), y3(P);
         for (size_t i = 0; i < P; ++i)
@@ -173,10 +173,10 @@ int main()
 
         // PlotStyle struct: set everything at once
         spectra::PlotStyle ps;
-        ps.line_style = spectra::LineStyle::DashDot;
+        ps.line_style   = spectra::LineStyle::DashDot;
         ps.marker_style = spectra::MarkerStyle::Star;
-        ps.marker_size = 10.0f;
-        ps.opacity = 0.85f;
+        ps.marker_size  = 10.0f;
+        ps.opacity      = 0.85f;
         s2.plot_style(ps);
 
         // Opacity demonstration

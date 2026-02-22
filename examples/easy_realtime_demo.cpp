@@ -20,9 +20,9 @@ int main()
     // Tab 1: Raw sensor signals (time domain)
     spectra::figure();
 
-    auto& temp = spectra::plot().label("Temperature (°C)").color(spectra::colors::red);
+    auto& temp  = spectra::plot().label("Temperature (°C)").color(spectra::colors::red);
     auto& press = spectra::plot().label("Pressure (kPa)").color(spectra::colors::blue);
-    auto& vibr = spectra::plot().label("Vibration (g)").color(spectra::colors::green);
+    auto& vibr  = spectra::plot().label("Vibration (g)").color(spectra::colors::green);
 
     spectra::ylim(-3.0f, 3.0f);
     spectra::title("Live Sensor Dashboard");
@@ -37,7 +37,7 @@ int main()
     // Tab 2: Histogram / envelope (computed from recent data)
     spectra::tab();
 
-    constexpr int HIST_N = 100;
+    constexpr int      HIST_N = 100;
     std::vector<float> hist_x(HIST_N), hist_y(HIST_N, 0.0f);
     for (int i = 0; i < HIST_N; ++i)
         hist_x[i] = -3.0f + 6.0f * static_cast<float>(i) / (HIST_N - 1);
@@ -52,9 +52,9 @@ int main()
     spectra::grid(true);
 
     // Ring buffer for recent temperature values (for histogram)
-    constexpr int RING_SIZE = 300;  // ~5 seconds at 60 FPS
+    constexpr int      RING_SIZE = 300;   // ~5 seconds at 60 FPS
     std::vector<float> recent_temp(RING_SIZE, 0.0f);
-    int ring_idx = 0;
+    int                ring_idx = 0;
 
     // ── Real-time update at 60 FPS ───────────────────────────────────────
     spectra::on_update(
@@ -83,7 +83,7 @@ int main()
             {
                 // Simple histogram
                 std::fill(hist_y.begin(), hist_y.end(), 0.0f);
-                int count = std::min(ring_idx, RING_SIZE);
+                int   count     = std::min(ring_idx, RING_SIZE);
                 float bin_width = 6.0f / HIST_N;
                 for (int i = 0; i < count; ++i)
                 {

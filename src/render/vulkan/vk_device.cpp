@@ -60,12 +60,12 @@ bool check_validation_layer_support()
 VkInstance create_instance(bool enable_validation, bool headless)
 {
     VkApplicationInfo app_info{};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "Spectra";
+    app_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pApplicationName   = "Spectra";
     app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.pEngineName = "Spectra Engine";
-    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.apiVersion = VK_API_VERSION_1_2;
+    app_info.pEngineName        = "Spectra Engine";
+    app_info.engineVersion      = VK_MAKE_VERSION(0, 1, 0);
+    app_info.apiVersion         = VK_API_VERSION_1_2;
 
     std::vector<const char*> extensions;
 
@@ -97,8 +97,8 @@ VkInstance create_instance(bool enable_validation, bool headless)
             std::cerr << "[Spectra] Warning: glfwInit failed during instance creation\n";
         }
         {
-            uint32_t glfw_ext_count = 0;
-            const char** glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
+            uint32_t     glfw_ext_count = 0;
+            const char** glfw_exts      = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
             if (glfw_exts)
             {
                 for (uint32_t i = 0; i < glfw_ext_count; ++i)
@@ -117,19 +117,19 @@ VkInstance create_instance(bool enable_validation, bool headless)
     }
 
     VkInstanceCreateInfo create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo = &app_info;
-    create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+    create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pApplicationInfo        = &app_info;
+    create_info.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
     if (enable_validation && check_validation_layer_support())
     {
-        create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
+        create_info.enabledLayerCount   = static_cast<uint32_t>(validation_layers.size());
         create_info.ppEnabledLayerNames = validation_layers.data();
     }
 
     VkInstance instance = VK_NULL_HANDLE;
-    VkResult result = vkCreateInstance(&create_info, nullptr, &instance);
+    VkResult   result   = vkCreateInstance(&create_info, nullptr, &instance);
     if (result != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create Vulkan instance");
@@ -146,7 +146,7 @@ VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance)
         return VK_NULL_HANDLE;
 
     VkDebugUtilsMessengerCreateInfoEXT info{};
-    info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
@@ -244,8 +244,8 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface)
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(instance, &count, devices.data());
 
-    VkPhysicalDevice best = VK_NULL_HANDLE;
-    int best_score = -1;
+    VkPhysicalDevice best       = VK_NULL_HANDLE;
+    int              best_score = -1;
 
     for (auto dev : devices)
     {
@@ -253,7 +253,7 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface)
         if (score > best_score)
         {
             best_score = score;
-            best = dev;
+            best       = dev;
         }
     }
 
@@ -279,9 +279,9 @@ std::vector<const char*> get_required_device_extensions(bool need_swapchain)
     return exts;
 }
 
-VkDevice create_logical_device(VkPhysicalDevice physical_device,
+VkDevice create_logical_device(VkPhysicalDevice          physical_device,
                                const QueueFamilyIndices& indices,
-                               bool enable_validation)
+                               bool                      enable_validation)
 {
     std::set<uint32_t> unique_families;
     if (indices.graphics.has_value())
@@ -289,14 +289,14 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
     if (indices.present.has_value())
         unique_families.insert(indices.present.value());
 
-    float priority = 1.0f;
+    float                                priority = 1.0f;
     std::vector<VkDeviceQueueCreateInfo> queue_infos;
     for (uint32_t family : unique_families)
     {
         VkDeviceQueueCreateInfo qi{};
-        qi.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        qi.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         qi.queueFamilyIndex = family;
-        qi.queueCount = 1;
+        qi.queueCount       = 1;
         qi.pQueuePriorities = &priority;
         queue_infos.push_back(qi);
     }
@@ -309,19 +309,19 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
         features.wideLines = VK_TRUE;
 
     bool need_swapchain = indices.has_present();
-    auto extensions = get_required_device_extensions(need_swapchain);
+    auto extensions     = get_required_device_extensions(need_swapchain);
 
     VkDeviceCreateInfo create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
-    create_info.pQueueCreateInfos = queue_infos.data();
-    create_info.pEnabledFeatures = &features;
-    create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+    create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.queueCreateInfoCount    = static_cast<uint32_t>(queue_infos.size());
+    create_info.pQueueCreateInfos       = queue_infos.data();
+    create_info.pEnabledFeatures        = &features;
+    create_info.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
     if (enable_validation && check_validation_layer_support())
     {
-        create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
+        create_info.enabledLayerCount   = static_cast<uint32_t>(validation_layers.size());
         create_info.ppEnabledLayerNames = validation_layers.data();
     }
 
@@ -335,4 +335,4 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
     return device;
 }
 
-}  // namespace spectra::vk
+}   // namespace spectra::vk

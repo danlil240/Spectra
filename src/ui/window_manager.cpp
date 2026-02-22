@@ -37,7 +37,7 @@ WindowManager::~WindowManager()
 
 void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry, Renderer* renderer)
 {
-    backend_ = backend;
+    backend_  = backend;
     registry_ = registry;
     renderer_ = renderer;
 }
@@ -59,9 +59,9 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
         return nullptr;
     }
 
-    wctx->id = next_window_id_++;
+    wctx->id          = next_window_id_++;
     wctx->glfw_window = glfw_window;
-    wctx->is_focused = true;
+    wctx->is_focused  = true;
 
 #ifdef SPECTRA_USE_GLFW
     // Set user pointer so WindowManager callbacks can find the manager.
@@ -87,8 +87,8 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
     return ptr;
 }
 
-WindowContext* WindowManager::create_window(uint32_t width,
-                                            uint32_t height,
+WindowContext* WindowManager::create_window(uint32_t           width,
+                                            uint32_t           height,
                                             const std::string& title)
 {
     if (!backend_)
@@ -109,8 +109,11 @@ WindowContext* WindowManager::create_window(uint32_t width,
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     set_wayland_app_id();
-    GLFWwindow* glfw_win = glfwCreateWindow(
-        static_cast<int>(width), static_cast<int>(height), title.c_str(), nullptr, nullptr);
+    GLFWwindow* glfw_win = glfwCreateWindow(static_cast<int>(width),
+                                            static_cast<int>(height),
+                                            title.c_str(),
+                                            nullptr,
+                                            nullptr);
     if (!glfw_win)
     {
         SPECTRA_LOG_ERROR("window_manager", "create_window: glfwCreateWindow failed");
@@ -118,8 +121,8 @@ WindowContext* WindowManager::create_window(uint32_t width,
     }
 
     // Create WindowContext
-    auto wctx = std::make_unique<WindowContext>();
-    wctx->id = next_window_id_++;
+    auto wctx         = std::make_unique<WindowContext>();
+    wctx->id          = next_window_id_++;
     wctx->glfw_window = glfw_win;
 
     // Initialize Vulkan resources (surface, swapchain, cmd buffers, sync)
@@ -410,10 +413,10 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow* window, int width
     if (!wctx || width <= 0 || height <= 0)
         return;
 
-    wctx->needs_resize = true;
-    wctx->pending_width = static_cast<uint32_t>(width);
+    wctx->needs_resize   = true;
+    wctx->pending_width  = static_cast<uint32_t>(width);
     wctx->pending_height = static_cast<uint32_t>(height);
-    wctx->resize_time = std::chrono::steady_clock::now();
+    wctx->resize_time    = std::chrono::steady_clock::now();
 
     SPECTRA_LOG_DEBUG("window_manager",
                       "Window " + std::to_string(wctx->id) + " resize: " + std::to_string(width)
@@ -500,12 +503,12 @@ void WindowManager::set_window_position(WindowContext& /*wctx*/, int /*x*/, int 
 
 #endif
 
-WindowContext* WindowManager::detach_figure(FigureId figure_id,
-                                            uint32_t width,
-                                            uint32_t height,
+WindowContext* WindowManager::detach_figure(FigureId           figure_id,
+                                            uint32_t           width,
+                                            uint32_t           height,
                                             const std::string& title,
-                                            int screen_x,
-                                            int screen_y)
+                                            int                screen_x,
+                                            int                screen_y)
 {
     if (!backend_)
     {
@@ -535,8 +538,8 @@ WindowContext* WindowManager::detach_figure(FigureId figure_id,
         if (wctx)
         {
             wctx->assigned_figure_index = figure_id;
-            wctx->assigned_figures = {figure_id};
-            wctx->active_figure_id = figure_id;
+            wctx->assigned_figures      = {figure_id};
+            wctx->active_figure_id      = figure_id;
             set_window_position(*wctx, screen_x, screen_y);
         }
     }
@@ -558,8 +561,11 @@ WindowContext* WindowManager::detach_figure(FigureId figure_id,
 
 // ── Tearoff preview window ──────────────────────────────────────────────────
 
-void WindowManager::request_preview_window(
-    uint32_t width, uint32_t height, int screen_x, int screen_y, const std::string& figure_title)
+void WindowManager::request_preview_window(uint32_t           width,
+                                           uint32_t           height,
+                                           int                screen_x,
+                                           int                screen_y,
+                                           const std::string& figure_title)
 {
     pending_preview_create_ = PendingPreviewCreate{width, height, screen_x, screen_y, figure_title};
 }
@@ -567,7 +573,7 @@ void WindowManager::request_preview_window(
 void WindowManager::request_destroy_preview()
 {
     pending_preview_destroy_ = true;
-    pending_preview_create_.reset();  // Cancel any pending create
+    pending_preview_create_.reset();   // Cancel any pending create
 }
 
 void WindowManager::process_deferred_preview()
@@ -594,8 +600,11 @@ bool WindowManager::has_preview_window() const
     return preview_window_id_ != 0 || pending_preview_create_.has_value();
 }
 
-WindowContext* WindowManager::create_preview_window_impl(
-    uint32_t width, uint32_t height, int screen_x, int screen_y, const std::string& figure_title)
+WindowContext* WindowManager::create_preview_window_impl(uint32_t           width,
+                                                         uint32_t           height,
+                                                         int                screen_x,
+                                                         int                screen_y,
+                                                         const std::string& figure_title)
 {
     // Destroy any existing preview window first
     destroy_preview_window_impl();
@@ -621,8 +630,11 @@ WindowContext* WindowManager::create_preview_window_impl(
         suppress_release_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
     }
 
-    GLFWwindow* glfw_win = glfwCreateWindow(
-        static_cast<int>(width), static_cast<int>(height), figure_title.c_str(), nullptr, nullptr);
+    GLFWwindow* glfw_win = glfwCreateWindow(static_cast<int>(width),
+                                            static_cast<int>(height),
+                                            figure_title.c_str(),
+                                            nullptr,
+                                            nullptr);
 
     // Reset hints to defaults for future windows
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -638,14 +650,15 @@ WindowContext* WindowManager::create_preview_window_impl(
     }
 
     // Position the window at the cursor
-    glfwSetWindowPos(
-        glfw_win, screen_x - static_cast<int>(width) / 2, screen_y - static_cast<int>(height) / 3);
+    glfwSetWindowPos(glfw_win,
+                     screen_x - static_cast<int>(width) / 2,
+                     screen_y - static_cast<int>(height) / 3);
 
-    auto wctx = std::make_unique<WindowContext>();
-    wctx->id = next_window_id_++;
+    auto wctx         = std::make_unique<WindowContext>();
+    wctx->id          = next_window_id_++;
     wctx->glfw_window = glfw_win;
-    wctx->is_preview = true;
-    wctx->title = figure_title;
+    wctx->is_preview  = true;
+    wctx->title       = figure_title;
 
     // Initialize Vulkan resources
     if (!backend_->init_window_context(*wctx, width, height))
@@ -670,7 +683,7 @@ WindowContext* WindowManager::create_preview_window_impl(
     ui->imgui_ui = std::make_unique<ImGuiIntegration>();
 
     ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
-    auto* prev_active = backend_->active_window();
+    auto*         prev_active    = backend_->active_window();
     backend_->set_active_window(wctx.get());
 
     if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
@@ -717,7 +730,7 @@ void WindowManager::move_preview_window(int screen_x, int screen_y)
         return;
 
     auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
-    int w = 0, h = 0;
+    int   w = 0, h = 0;
     glfwGetWindowSize(glfw_win, &w, &h);
     glfwSetWindowPos(glfw_win, screen_x - w / 2, screen_y - h / 3);
 #else
@@ -731,7 +744,7 @@ void WindowManager::destroy_preview_window_impl()
     if (preview_window_id_ == 0)
         return;
 
-    uint32_t id = preview_window_id_;
+    uint32_t id        = preview_window_id_;
     preview_window_id_ = 0;
     destroy_window(id);
 }
@@ -770,13 +783,13 @@ bool WindowManager::is_mouse_button_held(int glfw_button) const
 void WindowManager::begin_mouse_release_tracking()
 {
     mouse_release_tracking_ = true;
-    mouse_release_seen_ = false;
+    mouse_release_seen_     = false;
 }
 
 void WindowManager::end_mouse_release_tracking()
 {
     mouse_release_tracking_ = false;
-    mouse_release_seen_ = false;
+    mouse_release_seen_     = false;
 }
 
 bool WindowManager::get_global_cursor_pos(double& screen_x, double& screen_y) const
@@ -806,7 +819,7 @@ bool WindowManager::get_global_cursor_pos(double& screen_x, double& screen_y) co
     if (!wctx)
         return false;
 
-    auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+    auto*  glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
     double cx, cy;
     glfwGetCursorPos(glfw_win, &cx, &cy);
     int wx, wy;
@@ -826,7 +839,7 @@ bool WindowManager::get_global_cursor_pos(double& screen_x, double& screen_y) co
 bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uint32_t to_window_id)
 {
     auto* from_wctx = find_window(from_window_id);
-    auto* to_wctx = find_window(to_window_id);
+    auto* to_wctx   = find_window(to_window_id);
     if (!from_wctx || !to_wctx)
     {
         SPECTRA_LOG_ERROR("window_manager",
@@ -836,12 +849,12 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
     }
     if (from_wctx == to_wctx)
     {
-        return false;  // No-op: same window
+        return false;   // No-op: same window
     }
 
     // Verify the source window has this figure in its assigned_figures list
     auto& src_figs = from_wctx->assigned_figures;
-    auto src_it = std::find(src_figs.begin(), src_figs.end(), figure_id);
+    auto  src_it   = std::find(src_figs.begin(), src_figs.end(), figure_id);
     if (src_it == src_figs.end())
     {
         // Fallback: check legacy single-figure field
@@ -876,7 +889,7 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
     {
         dst_figs.push_back(figure_id);
     }
-    to_wctx->active_figure_id = figure_id;
+    to_wctx->active_figure_id      = figure_id;
     to_wctx->assigned_figure_index = figure_id;
 
     // Sync per-window FigureManagers if they exist
@@ -899,7 +912,7 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
         // active_figure_index to the new figure (not yet in any pane).
         if (to_wctx->ui_ctx && to_wctx->ui_ctx->fig_mgr)
         {
-            auto& dst_dock = to_wctx->ui_ctx->dock_system;
+            auto&    dst_dock         = to_wctx->ui_ctx->dock_system;
             FigureId prev_dock_active = dst_dock.active_figure_index();
 
             to_wctx->ui_ctx->fig_mgr->add_figure(figure_id, std::move(transferred_state));
@@ -1001,53 +1014,53 @@ int WindowManager::compute_cross_window_drop_zone(uint32_t target_wid, float loc
 
     float edge_w = std::max(b.w * DROP_ZONE_FRACTION, DROP_ZONE_MIN_SIZE);
     float edge_h = std::max(b.h * DROP_ZONE_FRACTION, DROP_ZONE_MIN_SIZE);
-    edge_w = std::min(edge_w, b.w * 0.4f);
-    edge_h = std::min(edge_h, b.h * 0.4f);
+    edge_w       = std::min(edge_w, b.w * 0.4f);
+    edge_h       = std::min(edge_h, b.h * 0.4f);
 
     float rel_x = local_x - b.x;
     float rel_y = local_y - b.y;
 
     // DropZone: 0=None, 1=Left, 2=Right, 3=Top, 4=Bottom, 5=Center
-    int zone = 5;  // Default: Center
+    int zone = 5;   // Default: Center
 
     if (rel_x < edge_w)
-        zone = 1;  // Left
+        zone = 1;   // Left
     else if (rel_x > b.w - edge_w)
-        zone = 2;  // Right
+        zone = 2;   // Right
     else if (rel_y < edge_h)
-        zone = 3;  // Top
+        zone = 3;   // Top
     else if (rel_y > b.h - edge_h)
-        zone = 4;  // Bottom
+        zone = 4;   // Bottom
 
     // Compute highlight rect
     float hx = b.x, hy = b.y, hw = b.w, hh = b.h;
     switch (zone)
     {
-        case 1:  // Left
+        case 1:   // Left
             hw = b.w * 0.5f;
             break;
-        case 2:  // Right
+        case 2:   // Right
             hx = b.x + b.w * 0.5f;
             hw = b.w * 0.5f;
             break;
-        case 3:  // Top
+        case 3:   // Top
             hh = b.h * 0.5f;
             break;
-        case 4:  // Bottom
+        case 4:   // Bottom
             hy = b.y + b.h * 0.5f;
             hh = b.h * 0.5f;
             break;
-        case 5:  // Center
+        case 5:   // Center
             break;
         default:
             break;
     }
 
-    cross_drop_info_.zone = zone;
-    cross_drop_info_.hx = hx;
-    cross_drop_info_.hy = hy;
-    cross_drop_info_.hw = hw;
-    cross_drop_info_.hh = hh;
+    cross_drop_info_.zone             = zone;
+    cross_drop_info_.hx               = hx;
+    cross_drop_info_.hy               = hy;
+    cross_drop_info_.hw               = hw;
+    cross_drop_info_.hh               = hh;
     cross_drop_info_.target_figure_id = target_pane->figure_index();
     return zone;
 #else
@@ -1076,7 +1089,7 @@ WindowContext* WindowManager::find_by_glfw_window(GLFWwindow* window) const
 
 // --- create_first_window_with_ui ---
 
-WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
+WindowContext* WindowManager::create_first_window_with_ui(void*                        glfw_window,
                                                           const std::vector<FigureId>& figure_ids)
 {
     if (!backend_)
@@ -1101,16 +1114,16 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
         return nullptr;
     }
 
-    wctx_ptr->id = next_window_id_++;
+    wctx_ptr->id          = next_window_id_++;
     wctx_ptr->glfw_window = glfw_window;
-    wctx_ptr->is_focused = true;
+    wctx_ptr->is_focused  = true;
 
     // Set figure assignments (all figures go to the first window)
-    FigureId active_id = figure_ids.empty() ? INVALID_FIGURE_ID : figure_ids[0];
+    FigureId active_id              = figure_ids.empty() ? INVALID_FIGURE_ID : figure_ids[0];
     wctx_ptr->assigned_figure_index = active_id;
-    wctx_ptr->assigned_figures = figure_ids;
-    wctx_ptr->active_figure_id = active_id;
-    wctx_ptr->title = "Spectra";
+    wctx_ptr->assigned_figures      = figure_ids;
+    wctx_ptr->active_figure_id      = active_id;
+    wctx_ptr->title                 = "Spectra";
 
 #ifdef SPECTRA_USE_GLFW
     auto* glfw_win = static_cast<GLFWwindow*>(glfw_window);
@@ -1168,12 +1181,12 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
 
 // --- create_window_with_ui ---
 
-WindowContext* WindowManager::create_window_with_ui(uint32_t width,
-                                                    uint32_t height,
+WindowContext* WindowManager::create_window_with_ui(uint32_t           width,
+                                                    uint32_t           height,
                                                     const std::string& title,
-                                                    FigureId initial_figure_id,
-                                                    int screen_x,
-                                                    int screen_y)
+                                                    FigureId           initial_figure_id,
+                                                    int                screen_x,
+                                                    int                screen_y)
 {
     if (!backend_)
     {
@@ -1197,9 +1210,9 @@ WindowContext* WindowManager::create_window_with_ui(uint32_t width,
 
     // Set figure assignment
     wctx->assigned_figure_index = initial_figure_id;
-    wctx->assigned_figures = {initial_figure_id};
-    wctx->active_figure_id = initial_figure_id;
-    wctx->title = title;
+    wctx->assigned_figures      = {initial_figure_id};
+    wctx->active_figure_id      = initial_figure_id;
+    wctx->title                 = title;
 
 #ifdef SPECTRA_USE_GLFW
     // Install full input callbacks (mouse, key, scroll) in addition to the
@@ -1246,9 +1259,9 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     // FigureManager's constructor imports ALL registry figures, so we
     // remove everything except the initial figure for this window.
     ui->fig_mgr_owned = std::make_unique<FigureManager>(*registry_);
-    ui->fig_mgr = ui->fig_mgr_owned.get();
+    ui->fig_mgr       = ui->fig_mgr_owned.get();
     {
-        auto all = ui->fig_mgr->figure_ids();  // copy — we'll mutate
+        auto all = ui->fig_mgr->figure_ids();   // copy — we'll mutate
         for (auto id : all)
         {
             if (id != initial_figure_id)
@@ -1261,15 +1274,15 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->fig_mgr->set_tab_bar(ui->figure_tabs.get());
 
     // Wire "close last tab → close window" callback
-    uint32_t wctx_id = wctx.id;
+    uint32_t       wctx_id = wctx.id;
     WindowManager* wm_self = this;
     ui->fig_mgr->set_on_window_close_request([wm_self, wctx_id]()
                                              { wm_self->request_close(wctx_id); });
 
     // Wire TabBar callbacks → FigureManager + DockSystem
     auto* fig_mgr_ptr = ui->fig_mgr;
-    auto* dock_ptr = &ui->dock_system;
-    auto* guard_ptr = &ui->dock_tab_sync_guard;
+    auto* dock_ptr    = &ui->dock_system;
+    auto* guard_ptr   = &ui->dock_tab_sync_guard;
 
     ui->figure_tabs->set_tab_change_callback(
         [fig_mgr_ptr, dock_ptr, guard_ptr](size_t new_index)
@@ -1399,24 +1412,24 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     // Wire stored tab drag handlers so every window supports tear-off and cross-window move
     if (tab_detach_handler_)
     {
-        auto* reg = registry_;
-        auto handler = tab_detach_handler_;
+        auto* reg     = registry_;
+        auto  handler = tab_detach_handler_;
         ui->tab_drag_controller.set_on_drop_outside(
             [fig_mgr_ptr, reg, handler](FigureId fid, float sx, float sy)
             {
                 auto* fig = reg->get(fid);
                 if (!fig)
                     return;
-                uint32_t w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t h = fig->height() > 0 ? fig->height() : 600;
+                uint32_t    w     = fig->width() > 0 ? fig->width() : 800;
+                uint32_t    h     = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr_ptr->get_title(fid);
                 handler(fid, w, h, title, static_cast<int>(sx), static_cast<int>(sy));
             });
     }
     if (tab_move_handler_)
     {
-        auto handler = tab_move_handler_;
-        auto* wm = this;
+        auto  handler = tab_move_handler_;
+        auto* wm      = this;
         ui->tab_drag_controller.set_on_drop_on_window(
             [handler, wm](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
             {
@@ -1588,8 +1601,8 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     ImGui_ImplGlfw_CursorPosCallback(window, x, y);
 
     auto& input_handler = ui.input_handler;
-    auto& imgui_ui = ui.imgui_ui;
-    auto& dock_system = ui.dock_system;
+    auto& imgui_ui      = ui.imgui_ui;
+    auto& dock_system   = ui.dock_system;
 
     bool input_is_dragging =
         input_handler.mode() == InteractionMode::Dragging || input_handler.is_measure_dragging()
@@ -1666,8 +1679,8 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
 
     auto& input_handler = ui.input_handler;
-    auto& imgui_ui = ui.imgui_ui;
-    auto& dock_system = ui.dock_system;
+    auto& imgui_ui      = ui.imgui_ui;
+    auto& dock_system   = ui.dock_system;
 
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(window, &x, &y);
@@ -1738,9 +1751,9 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     ImGui_ImplGlfw_ScrollCallback(window, x_offset, y_offset);
 
     auto& input_handler = ui.input_handler;
-    auto& imgui_ui = ui.imgui_ui;
-    auto& dock_system = ui.dock_system;
-    auto& cmd_palette = ui.cmd_palette;
+    auto& imgui_ui      = ui.imgui_ui;
+    auto& dock_system   = ui.dock_system;
+    auto& cmd_palette   = ui.cmd_palette;
 
     if (cmd_palette.is_open())
     {
@@ -1788,8 +1801,11 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     #endif
 }
 
-void WindowManager::glfw_key_callback(
-    GLFWwindow* window, int key, int scancode, int action, int mods)
+void WindowManager::glfw_key_callback(GLFWwindow* window,
+                                      int         key,
+                                      int         scancode,
+                                      int         action,
+                                      int         mods)
 {
     auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!mgr)
@@ -1809,8 +1825,8 @@ void WindowManager::glfw_key_callback(
     ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
 
     auto& input_handler = ui.input_handler;
-    auto& imgui_ui = ui.imgui_ui;
-    auto& shortcut_mgr = ui.shortcut_mgr;
+    auto& imgui_ui      = ui.imgui_ui;
+    auto& shortcut_mgr  = ui.shortcut_mgr;
 
     if (imgui_ui && imgui_ui->wants_capture_keyboard())
     {
@@ -1826,8 +1842,8 @@ void WindowManager::glfw_key_callback(
     }
 
     // Q (no modifiers) = close active tab; if last tab, close window
-    constexpr int GLFW_KEY_Q_VAL = 81;  // GLFW_KEY_Q
-    constexpr int GLFW_PRESS_VAL = 1;   // GLFW_PRESS
+    constexpr int GLFW_KEY_Q_VAL = 81;   // GLFW_KEY_Q
+    constexpr int GLFW_PRESS_VAL = 1;    // GLFW_PRESS
     if (key == GLFW_KEY_Q_VAL && action == GLFW_PRESS_VAL && mods == 0)
     {
         auto* fm = ui.fig_mgr;
@@ -1916,4 +1932,4 @@ WindowContext* WindowManager::find_by_glfw_window(GLFWwindow*) const
 
 #endif
 
-}  // namespace spectra
+}   // namespace spectra

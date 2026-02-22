@@ -18,12 +18,12 @@ using namespace spectra;
 int main()
 {
     // Generate sample data
-    const size_t N = 500;
+    const size_t       N = 500;
     std::vector<float> x(N), y_sin(N), y_cos(N), y_exp(N);
     for (size_t i = 0; i < N; ++i)
     {
-        float t = static_cast<float>(i) / static_cast<float>(N) * 4.0f * 3.14159f;
-        x[i] = t;
+        float t  = static_cast<float>(i) / static_cast<float>(N) * 4.0f * 3.14159f;
+        x[i]     = t;
         y_sin[i] = std::sin(t);
         y_cos[i] = std::cos(t);
         y_exp[i] = std::exp(-t * 0.2f) * std::sin(t * 3.0f);
@@ -34,7 +34,7 @@ int main()
     // Figure 1: Sine and Cosine
     {
         auto& fig = app.figure({.width = 800, .height = 600});
-        auto& ax = fig.subplot(1, 1, 1);
+        auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y_sin).label("sin(t)").color({0.2f, 0.5f, 1.0f, 1.0f});
         ax.line(x, y_cos).label("cos(t)").color({1.0f, 0.3f, 0.3f, 1.0f});
         ax.title("Trigonometric Functions");
@@ -45,7 +45,7 @@ int main()
     // Figure 2: Damped oscillation
     {
         auto& fig = app.figure({.width = 800, .height = 600});
-        auto& ax = fig.subplot(1, 1, 1);
+        auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y_exp).label("damped").color({0.1f, 0.8f, 0.3f, 1.0f});
         ax.title("Damped Oscillation");
         ax.xlabel("t (radians)");

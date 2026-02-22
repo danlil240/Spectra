@@ -13,14 +13,14 @@ namespace spectra
 // Result of nearest-point spatial query
 struct NearestPointResult
 {
-    bool found = false;
-    const Series* series = nullptr;
-    size_t point_index = 0;
-    float data_x = 0.0f;
-    float data_y = 0.0f;
-    float screen_x = 0.0f;
-    float screen_y = 0.0f;
-    float distance_px = 0.0f;
+    bool          found       = false;
+    const Series* series      = nullptr;
+    size_t        point_index = 0;
+    float         data_x      = 0.0f;
+    float         data_y      = 0.0f;
+    float         screen_x    = 0.0f;
+    float         screen_y    = 0.0f;
+    float         distance_px = 0.0f;
 };
 
 // Rich hover tooltip rendered via ImGui over the plot canvas.
@@ -38,23 +38,23 @@ class Tooltip
     void draw(const NearestPointResult& nearest, float window_width, float window_height);
 
     // Configuration
-    void set_snap_radius(float px) { snap_radius_px_ = px; }
+    void  set_snap_radius(float px) { snap_radius_px_ = px; }
     float snap_radius() const { return snap_radius_px_; }
 
     void set_enabled(bool e) { enabled_ = e; }
     bool enabled() const { return enabled_; }
 
    private:
-    ImFont* font_body_ = nullptr;
-    ImFont* font_heading_ = nullptr;
-    float snap_radius_px_ = 8.0f;
-    bool enabled_ = true;
+    ImFont* font_body_      = nullptr;
+    ImFont* font_heading_   = nullptr;
+    float   snap_radius_px_ = 8.0f;
+    bool    enabled_        = true;
 
     // Animation state
-    float opacity_ = 0.0f;
+    float opacity_        = 0.0f;
     float target_opacity_ = 0.0f;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

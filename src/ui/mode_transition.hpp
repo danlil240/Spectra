@@ -19,27 +19,27 @@ class Figure;
 // Transition direction for 2D↔3D mode switching.
 enum class ModeTransitionDirection
 {
-    To3D,  // 2D → 3D: camera lifts from flat top-down to orbit view
-    To2D,  // 3D → 2D: camera flattens from orbit to top-down orthographic
+    To3D,   // 2D → 3D: camera lifts from flat top-down to orbit view
+    To2D,   // 3D → 2D: camera flattens from orbit to top-down orthographic
 };
 
 // Current state of a mode transition.
 enum class ModeTransitionState
 {
-    Idle,       // No transition active
-    Animating,  // Transition in progress
-    Finished,   // Transition completed (auto-resets to Idle on next query)
+    Idle,        // No transition active
+    Animating,   // Transition in progress
+    Finished,    // Transition completed (auto-resets to Idle on next query)
 };
 
 // Snapshot of 2D axes state for transition interpolation.
 struct ModeTransition2DState
 {
-    AxisLimits xlim{0.0f, 1.0f};
-    AxisLimits ylim{0.0f, 1.0f};
+    AxisLimits  xlim{0.0f, 1.0f};
+    AxisLimits  ylim{0.0f, 1.0f};
     std::string xlabel;
     std::string ylabel;
     std::string title;
-    bool grid_enabled = true;
+    bool        grid_enabled = true;
 };
 
 // Snapshot of 3D axes state for transition interpolation.
@@ -48,11 +48,11 @@ struct ModeTransition3DState
     AxisLimits xlim{0.0f, 1.0f};
     AxisLimits ylim{0.0f, 1.0f};
     AxisLimits zlim{0.0f, 1.0f};
-    Camera camera;
-    int grid_planes = 1;  // GridPlane::XY
-    bool show_bounding_box = true;
-    bool lighting_enabled = true;
-    vec3 light_dir{1.0f, 1.0f, 1.0f};
+    Camera     camera;
+    int        grid_planes       = 1;   // GridPlane::XY
+    bool       show_bounding_box = true;
+    bool       lighting_enabled  = true;
+    vec3       light_dir{1.0f, 1.0f, 1.0f};
 };
 
 // Callback invoked each frame during a transition with progress t in [0,1].
@@ -78,16 +78,16 @@ using ModeTransitionCompleteCallback = std::function<void(ModeTransitionDirectio
 class ModeTransition
 {
    public:
-    ModeTransition() = default;
+    ModeTransition()  = default;
     ~ModeTransition() = default;
 
-    ModeTransition(const ModeTransition&) = delete;
+    ModeTransition(const ModeTransition&)            = delete;
     ModeTransition& operator=(const ModeTransition&) = delete;
 
     // ─── Configuration ──────────────────────────────────────────────────
 
     // Set the default transition duration in seconds.
-    void set_duration(float seconds);
+    void  set_duration(float seconds);
     float duration() const;
 
     // Set an easing function for the transition. Default: ease_in_out.
@@ -119,7 +119,7 @@ class ModeTransition
 
     // ─── Queries ────────────────────────────────────────────────────────
 
-    ModeTransitionState state() const;
+    ModeTransitionState     state() const;
     ModeTransitionDirection direction() const;
 
     // Progress in [0,1]. Returns 0 if idle.
@@ -154,19 +154,19 @@ class ModeTransition
     // ─── Serialization ──────────────────────────────────────────────────
 
     std::string serialize() const;
-    bool deserialize(const std::string& json);
+    bool        deserialize(const std::string& json);
 
    private:
     mutable std::mutex mutex_;
 
-    float duration_ = 0.6f;  // Default 600ms
-    EasingFunc easing_;      // nullptr = default ease_in_out
+    float      duration_ = 0.6f;   // Default 600ms
+    EasingFunc easing_;            // nullptr = default ease_in_out
 
-    ModeTransitionState state_ = ModeTransitionState::Idle;
+    ModeTransitionState     state_     = ModeTransitionState::Idle;
     ModeTransitionDirection direction_ = ModeTransitionDirection::To3D;
 
-    float elapsed_ = 0.0f;
-    uint32_t next_id_ = 1;
+    float    elapsed_    = 0.0f;
+    uint32_t next_id_    = 1;
     uint32_t current_id_ = 0;
 
     // Start/end states
@@ -174,21 +174,21 @@ class ModeTransition
     ModeTransition3DState state_3d_;
 
     // Interpolated state (updated each frame)
-    Camera interp_camera_;
+    Camera     interp_camera_;
     AxisLimits interp_xlim_;
     AxisLimits interp_ylim_;
     AxisLimits interp_zlim_;
-    int interp_grid_planes_ = 1;
-    float interp_3d_opacity_ = 0.0f;
+    int        interp_grid_planes_ = 1;
+    float      interp_3d_opacity_  = 0.0f;
 
-    ModeTransitionCallback on_progress_;
+    ModeTransitionCallback         on_progress_;
     ModeTransitionCompleteCallback on_complete_;
 
     // Internal helpers
-    float compute_eased_t() const;  // Must be called under lock
-    void interpolate_to_3d(float t);
-    void interpolate_to_2d(float t);
+    float  compute_eased_t() const;   // Must be called under lock
+    void   interpolate_to_3d(float t);
+    void   interpolate_to_2d(float t);
     Camera make_top_down_camera(const ModeTransition2DState& s2d) const;
 };
 
-}  // namespace spectra
+}   // namespace spectra

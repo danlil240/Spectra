@@ -13,9 +13,9 @@ namespace spectra
 // Pixel sizes for each FontSize preset — tuned for premium scientific visualization.
 // Slightly larger than typical UI fonts for readability at a glance.
 static constexpr float FONT_PIXEL_SIZES[] = {
-    14.0f,  // Tick  — tick labels (compact but legible)
-    16.0f,  // Label — axis labels
-    20.0f,  // Title — plot title (clearly distinguished)
+    14.0f,   // Tick  — tick labels (compact but legible)
+    16.0f,   // Label — axis labels
+    20.0f,   // Title — plot title (clearly distinguished)
 };
 
 // Oversampling factor: 2x gives excellent sub-pixel positioning with
@@ -26,7 +26,7 @@ static constexpr unsigned int OVERSAMPLE = 2;
 
 // ASCII range to bake (space through tilde)
 static constexpr int FIRST_CHAR = 32;
-static constexpr int NUM_CHARS = 95;  // 32..126 inclusive
+static constexpr int NUM_CHARS  = 95;   // 32..126 inclusive
 
 TextRenderer::TextRenderer() = default;
 
@@ -42,14 +42,14 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     uint32_t tag =
         (static_cast<uint32_t>(font_data[0]) << 24) | (static_cast<uint32_t>(font_data[1]) << 16)
         | (static_cast<uint32_t>(font_data[2]) << 8) | static_cast<uint32_t>(font_data[3]);
-    bool valid_sig = (tag == 0x00010000u)      // TrueType
-                     || (tag == 0x4F54544Fu)   // 'OTTO' (OpenType/CFF)
-                     || (tag == 0x74746366u);  // 'ttcf' (TrueType Collection)
+    bool valid_sig = (tag == 0x00010000u)       // TrueType
+                     || (tag == 0x4F54544Fu)    // 'OTTO' (OpenType/CFF)
+                     || (tag == 0x74746366u);   // 'ttcf' (TrueType Collection)
     if (!valid_sig)
         return false;
 
     // Atlas size: 1024x1024 is ample for 3 ASCII font sizes with 2x oversampling.
-    atlas_width_ = 1024;
+    atlas_width_  = 1024;
     atlas_height_ = 1024;
 
     // Allocate single-channel bitmap for the atlas
@@ -63,8 +63,8 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
                          atlas_bitmap.data(),
                          static_cast<int>(atlas_width_),
                          static_cast<int>(atlas_height_),
-                         0,  // stride_in_bytes (0 = tightly packed)
-                         1,  // padding between glyphs
+                         0,   // stride_in_bytes (0 = tightly packed)
+                         1,   // padding between glyphs
                          nullptr))
     {
         return false;
@@ -76,21 +76,21 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
 
     // Pack all 3 font sizes. Each gets its own chardata array.
     static constexpr size_t FONT_COUNT = static_cast<size_t>(FontSize::Count);
-    stbtt_packedchar chardata[FONT_COUNT][NUM_CHARS];
+    stbtt_packedchar        chardata[FONT_COUNT][NUM_CHARS];
 
     stbtt_pack_range ranges[FONT_COUNT];
     for (size_t si = 0; si < FONT_COUNT; ++si)
     {
-        ranges[si].font_size = FONT_PIXEL_SIZES[si];
+        ranges[si].font_size                        = FONT_PIXEL_SIZES[si];
         ranges[si].first_unicode_codepoint_in_range = FIRST_CHAR;
-        ranges[si].num_chars = NUM_CHARS;
-        ranges[si].chardata_for_range = chardata[si];
-        ranges[si].array_of_unicode_codepoints = nullptr;
+        ranges[si].num_chars                        = NUM_CHARS;
+        ranges[si].chardata_for_range               = chardata[si];
+        ranges[si].array_of_unicode_codepoints      = nullptr;
     }
 
     int pack_ok = stbtt_PackFontRanges(&pack_ctx,
                                        font_data,
-                                       0,  // font_index
+                                       0,   // font_index
                                        ranges,
                                        static_cast<int>(FONT_COUNT));
     stbtt_PackEnd(&pack_ctx);
@@ -102,7 +102,7 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     // stbtt_PackFontRanges produces sub-pixel-accurate quad coordinates
     // that we store in our GlyphInfo for use at draw time.
     stbtt_fontinfo font_info;
-    int offset = stbtt_GetFontOffsetForIndex(font_data, 0);
+    int            offset = stbtt_GetFontOffsetForIndex(font_data, 0);
     if (offset < 0)
         return false;
     if (!stbtt_InitFont(&font_info, font_data, offset))
@@ -111,25 +111,25 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     for (size_t si = 0; si < FONT_COUNT; ++si)
     {
         float pixel_size = FONT_PIXEL_SIZES[si];
-        float scale = stbtt_ScaleForPixelHeight(&font_info, pixel_size);
+        float scale      = stbtt_ScaleForPixelHeight(&font_info, pixel_size);
 
         int ascent_i, descent_i, line_gap_i;
         stbtt_GetFontVMetrics(&font_info, &ascent_i, &descent_i, &line_gap_i);
 
-        fonts_[si].pixel_size = pixel_size;
-        fonts_[si].ascent = static_cast<float>(ascent_i) * scale;
-        fonts_[si].descent = static_cast<float>(descent_i) * scale;
+        fonts_[si].pixel_size  = pixel_size;
+        fonts_[si].ascent      = static_cast<float>(ascent_i) * scale;
+        fonts_[si].descent     = static_cast<float>(descent_i) * scale;
         fonts_[si].line_height = (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
 
         for (int ci = 0; ci < NUM_CHARS; ++ci)
         {
-            uint32_t cp = static_cast<uint32_t>(FIRST_CHAR + ci);
+            uint32_t                cp = static_cast<uint32_t>(FIRST_CHAR + ci);
             const stbtt_packedchar& pc = chardata[si][ci];
 
             // stbtt_GetPackedQuad gives us the exact screen-space quad
             // with sub-pixel offsets baked in from oversampling.
             stbtt_aligned_quad q;
-            float dummy_x = 0.0f, dummy_y = 0.0f;
+            float              dummy_x = 0.0f, dummy_y = 0.0f;
             stbtt_GetPackedQuad(chardata[si],
                                 static_cast<int>(atlas_width_),
                                 static_cast<int>(atlas_height_),
@@ -137,7 +137,7 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
                                 &dummy_x,
                                 &dummy_y,
                                 &q,
-                                0);  // align_to_integer = 0 for sub-pixel
+                                0);   // align_to_integer = 0 for sub-pixel
 
             GlyphInfo gi{};
             gi.u0 = q.s0;
@@ -145,10 +145,10 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
             gi.u1 = q.s1;
             gi.v1 = q.t1;
             // Quad offsets from the cursor position (baseline-relative)
-            gi.x_offset = q.x0;
-            gi.y_offset = q.y0;
-            gi.width = q.x1 - q.x0;
-            gi.height = q.y1 - q.y0;
+            gi.x_offset  = q.x0;
+            gi.y_offset  = q.y0;
+            gi.width     = q.x1 - q.x0;
+            gi.height    = q.y1 - q.y0;
             gi.x_advance = pc.xadvance;
 
             fonts_[si].glyphs[cp] = gi;
@@ -160,11 +160,11 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     std::vector<uint8_t> atlas_rgba(atlas_width_ * atlas_height_ * 4);
     for (uint32_t i = 0; i < atlas_width_ * atlas_height_; ++i)
     {
-        uint8_t a = atlas_bitmap[i];
-        atlas_rgba[i * 4 + 0] = 255;  // R — white glyph
-        atlas_rgba[i * 4 + 1] = 255;  // G
-        atlas_rgba[i * 4 + 2] = 255;  // B
-        atlas_rgba[i * 4 + 3] = a;    // A — coverage from rasterizer
+        uint8_t a             = atlas_bitmap[i];
+        atlas_rgba[i * 4 + 0] = 255;   // R — white glyph
+        atlas_rgba[i * 4 + 1] = 255;   // G
+        atlas_rgba[i * 4 + 2] = 255;   // B
+        atlas_rgba[i * 4 + 3] = a;     // A — coverage from rasterizer
     }
 
     // Upload atlas texture
@@ -213,13 +213,13 @@ void TextRenderer::shutdown(Backend& backend)
     if (vertex_buffer_)
     {
         backend.destroy_buffer(vertex_buffer_);
-        vertex_buffer_ = {};
+        vertex_buffer_          = {};
         vertex_buffer_capacity_ = 0;
     }
     if (depth_vertex_buffer_)
     {
         backend.destroy_buffer(depth_vertex_buffer_);
-        depth_vertex_buffer_ = {};
+        depth_vertex_buffer_          = {};
         depth_vertex_buffer_capacity_ = 0;
     }
     if (atlas_texture_)
@@ -237,15 +237,15 @@ void TextRenderer::shutdown(Backend& backend)
 }
 
 void TextRenderer::append_glyph(std::vector<TextVertex>& target,
-                                const GlyphInfo& g,
-                                float cursor_x,
-                                float cursor_y,
-                                float z,
-                                uint32_t color,
-                                float cos_a,
-                                float sin_a,
-                                float pivot_x,
-                                float pivot_y)
+                                const GlyphInfo&         g,
+                                float                    cursor_x,
+                                float                    cursor_y,
+                                float                    z,
+                                uint32_t                 color,
+                                float                    cos_a,
+                                float                    sin_a,
+                                float                    pivot_x,
+                                float                    pivot_y)
 {
     float x0 = cursor_x + g.x_offset;
     float y0 = cursor_y + g.y_offset;
@@ -257,8 +257,8 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
     {
         float dx = px - pivot_x;
         float dy = py - pivot_y;
-        ox = pivot_x + dx * cos_a - dy * sin_a;
-        oy = pivot_y + dx * sin_a + dy * cos_a;
+        ox       = pivot_x + dx * cos_a - dy * sin_a;
+        oy       = pivot_y + dx * sin_a + dy * cos_a;
     };
 
     float rx0, ry0, rx1, ry1, rx2, ry2, rx3, ry3;
@@ -293,13 +293,13 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
 
 TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, FontSize size) const
 {
-    const auto& fd = font(size);
-    float width = 0.0f;
+    const auto& fd    = font(size);
+    float       width = 0.0f;
 
     for (char c : text)
     {
         uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
+        auto     it = fd.glyphs.find(cp);
         if (it != fd.glyphs.end())
         {
             width += it->second.x_advance;
@@ -310,12 +310,12 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, Fon
 }
 
 void TextRenderer::draw_text(const std::string& text,
-                             float x,
-                             float y,
-                             FontSize size,
-                             uint32_t color_rgba,
-                             TextAlign align,
-                             TextVAlign valign)
+                             float              x,
+                             float              y,
+                             FontSize           size,
+                             uint32_t           color_rgba,
+                             TextAlign          align,
+                             TextVAlign         valign)
 {
     if (!initialized_ || text.empty())
         return;
@@ -347,7 +347,7 @@ void TextRenderer::draw_text(const std::string& text,
     for (char c : text)
     {
         uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
+        auto     it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 
@@ -361,13 +361,13 @@ void TextRenderer::draw_text(const std::string& text,
 }
 
 void TextRenderer::draw_text_depth(const std::string& text,
-                                   float x,
-                                   float y,
-                                   float ndc_depth,
-                                   FontSize size,
-                                   uint32_t color_rgba,
-                                   TextAlign align,
-                                   TextVAlign valign)
+                                   float              x,
+                                   float              y,
+                                   float              ndc_depth,
+                                   FontSize           size,
+                                   uint32_t           color_rgba,
+                                   TextAlign          align,
+                                   TextVAlign         valign)
 {
     if (!initialized_ || text.empty())
         return;
@@ -397,7 +397,7 @@ void TextRenderer::draw_text_depth(const std::string& text,
     for (char c : text)
     {
         uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
+        auto     it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 
@@ -411,20 +411,20 @@ void TextRenderer::draw_text_depth(const std::string& text,
 }
 
 void TextRenderer::draw_text_rotated(const std::string& text,
-                                     float x,
-                                     float y,
-                                     float angle_rad,
-                                     FontSize size,
-                                     uint32_t color_rgba,
-                                     TextAlign align,
-                                     TextVAlign valign)
+                                     float              x,
+                                     float              y,
+                                     float              angle_rad,
+                                     FontSize           size,
+                                     uint32_t           color_rgba,
+                                     TextAlign          align,
+                                     TextVAlign         valign)
 {
     if (!initialized_ || text.empty())
         return;
 
-    const auto& fd = font(size);
-    float cos_a = std::cos(angle_rad);
-    float sin_a = std::sin(angle_rad);
+    const auto& fd    = font(size);
+    float       cos_a = std::cos(angle_rad);
+    float       sin_a = std::sin(angle_rad);
 
     // Compute alignment offset (in unrotated text space)
     float offset_x = 0.0f;
@@ -450,7 +450,7 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     for (char c : text)
     {
         uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
+        auto     it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 
@@ -463,13 +463,13 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     }
 }
 
-void TextRenderer::flush_batch(Backend& backend,
+void TextRenderer::flush_batch(Backend&                 backend,
                                std::vector<TextVertex>& verts,
-                               BufferHandle& vb,
-                               size_t& vb_capacity,
-                               PipelineHandle pipeline,
-                               float screen_width,
-                               float screen_height)
+                               BufferHandle&            vb,
+                               size_t&                  vb_capacity,
+                               PipelineHandle           pipeline,
+                               float                    screen_width,
+                               float                    screen_height)
 {
     if (verts.empty())
         return;
@@ -478,28 +478,28 @@ void TextRenderer::flush_batch(Backend& backend,
     // Maps (0,0)-(w,h) to Vulkan clip space [-1,1] x [-1,1]
     // Vulkan Y is top-down, so (0,0) = top-left matches screen coords.
     // Z maps [0,1] -> [0,1] for depth buffer compatibility.
-    FrameUBO ubo{};  // Value-initializes all members to zero
+    FrameUBO ubo{};   // Value-initializes all members to zero
 
     // Column-major ortho: [0, screen_width] -> [-1, 1], [0, screen_height] -> [-1, 1]
-    ubo.projection[0] = 2.0f / screen_width;
-    ubo.projection[5] = 2.0f / screen_height;  // Positive: Y-down in Vulkan
-    ubo.projection[10] = 1.0f;                 // Z passthrough: NDC z = vertex z
+    ubo.projection[0]  = 2.0f / screen_width;
+    ubo.projection[5]  = 2.0f / screen_height;   // Positive: Y-down in Vulkan
+    ubo.projection[10] = 1.0f;                   // Z passthrough: NDC z = vertex z
     ubo.projection[12] = -1.0f;
     ubo.projection[13] = -1.0f;
     ubo.projection[15] = 1.0f;
 
     // Identity view
-    ubo.view[0] = 1.0f;
-    ubo.view[5] = 1.0f;
+    ubo.view[0]  = 1.0f;
+    ubo.view[5]  = 1.0f;
     ubo.view[10] = 1.0f;
     ubo.view[15] = 1.0f;
     // Identity model
-    ubo.model[0] = 1.0f;
-    ubo.model[5] = 1.0f;
+    ubo.model[0]  = 1.0f;
+    ubo.model[5]  = 1.0f;
     ubo.model[10] = 1.0f;
     ubo.model[15] = 1.0f;
 
-    ubo.viewport_width = screen_width;
+    ubo.viewport_width  = screen_width;
     ubo.viewport_height = screen_height;
 
     // Upload UBO data (must happen before bind, but bind must happen after pipeline)
@@ -512,9 +512,9 @@ void TextRenderer::flush_batch(Backend& backend,
     {
         if (vb)
             backend.destroy_buffer(vb);
-        size_t alloc = byte_size * 2;  // 2x headroom
-        vb = backend.create_buffer(BufferUsage::Vertex, alloc);
-        vb_capacity = alloc;
+        size_t alloc = byte_size * 2;   // 2x headroom
+        vb           = backend.create_buffer(BufferUsage::Vertex, alloc);
+        vb_capacity  = alloc;
     }
     backend.upload_buffer(vb, verts.data(), byte_size);
 
@@ -525,8 +525,10 @@ void TextRenderer::flush_batch(Backend& backend,
     // Reset viewport and scissor to full screen — text coordinates are in
     // screen-pixel space and must not be clipped to the last axes viewport.
     backend.set_viewport(0, 0, screen_width, screen_height);
-    backend.set_scissor(
-        0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
+    backend.set_scissor(0,
+                        0,
+                        static_cast<uint32_t>(screen_width),
+                        static_cast<uint32_t>(screen_height));
 
     // Bind UBO at set 0 (now uses text_pipeline_layout_)
     backend.bind_buffer(text_ubo_, 0);
@@ -575,4 +577,4 @@ void TextRenderer::flush_depth(Backend& backend, float screen_width, float scree
                 screen_height);
 }
 
-}  // namespace spectra
+}   // namespace spectra

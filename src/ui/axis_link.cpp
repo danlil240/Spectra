@@ -21,7 +21,7 @@ void LinkGroup::remove(const Axes* ax)
 
 // ─── AxisLinkManager ─────────────────────────────────────────────────────────
 
-AxisLinkManager::AxisLinkManager() = default;
+AxisLinkManager::AxisLinkManager()  = default;
 AxisLinkManager::~AxisLinkManager() = default;
 
 // ─── Group lifecycle ─────────────────────────────────────────────────────────
@@ -29,21 +29,21 @@ AxisLinkManager::~AxisLinkManager() = default;
 LinkGroupId AxisLinkManager::create_group(const std::string& name, LinkAxis axis)
 {
     std::lock_guard lock(mutex_);
-    LinkGroupId id = next_id_++;
-    LinkGroup group;
-    group.id = id;
+    LinkGroupId     id = next_id_++;
+    LinkGroup       group;
+    group.id   = id;
     group.axis = axis;
     group.name = name;
     // Assign a color based on group ID for visual distinction
     static constexpr Color group_colors[] = {
-        {0.34f, 0.65f, 0.96f},  // blue
-        {0.96f, 0.49f, 0.31f},  // orange
-        {0.30f, 0.78f, 0.47f},  // green
-        {0.89f, 0.35f, 0.40f},  // red
-        {0.58f, 0.40f, 0.74f},  // purple
-        {0.09f, 0.75f, 0.81f},  // cyan
-        {0.89f, 0.47f, 0.76f},  // pink
-        {0.74f, 0.74f, 0.13f},  // olive
+        {0.34f, 0.65f, 0.96f},   // blue
+        {0.96f, 0.49f, 0.31f},   // orange
+        {0.30f, 0.78f, 0.47f},   // green
+        {0.89f, 0.35f, 0.40f},   // red
+        {0.58f, 0.40f, 0.74f},   // purple
+        {0.09f, 0.75f, 0.81f},   // cyan
+        {0.89f, 0.47f, 0.76f},   // pink
+        {0.74f, 0.74f, 0.13f},   // olive
     };
     group.color = group_colors[(id - 1) % 8];
     groups_[id] = std::move(group);
@@ -64,7 +64,7 @@ void AxisLinkManager::add_to_group(LinkGroupId id, Axes* ax)
     if (!ax)
         return;
     std::lock_guard lock(mutex_);
-    auto it = groups_.find(id);
+    auto            it = groups_.find(id);
     if (it == groups_.end())
         return;
     auto& group = it->second;
@@ -80,7 +80,7 @@ void AxisLinkManager::remove_from_group(LinkGroupId id, Axes* ax)
     if (!ax)
         return;
     std::lock_guard lock(mutex_);
-    auto it = groups_.find(id);
+    auto            it = groups_.find(id);
     if (it == groups_.end())
         return;
     it->second.remove(ax);
@@ -96,8 +96,8 @@ void AxisLinkManager::remove_from_all(Axes* ax)
 {
     if (!ax)
         return;
-    std::lock_guard lock(mutex_);
-    bool changed = false;
+    std::lock_guard          lock(mutex_);
+    bool                     changed = false;
     std::vector<LinkGroupId> empty_groups;
     for (auto& [id, group] : groups_)
     {
@@ -134,7 +134,7 @@ LinkGroupId AxisLinkManager::link(Axes* a, Axes* b, LinkAxis axis)
     {
         if (group.axis == axis && group.contains(a) && group.contains(b))
         {
-            return id;  // Already linked
+            return id;   // Already linked
         }
         // If a is in a group with this axis type, add b to it
         if (group.axis == axis && group.contains(a) && !group.contains(b))
@@ -154,10 +154,10 @@ LinkGroupId AxisLinkManager::link(Axes* a, Axes* b, LinkAxis axis)
 
     // Create a new group
     LinkGroupId id = next_id_++;
-    LinkGroup group;
-    group.id = id;
-    group.axis = axis;
-    group.name = "Link " + std::to_string(id);
+    LinkGroup   group;
+    group.id                              = id;
+    group.axis                            = axis;
+    group.name                            = "Link " + std::to_string(id);
     static constexpr Color group_colors[] = {
         {0.34f, 0.65f, 0.96f},
         {0.96f, 0.49f, 0.31f},
@@ -189,7 +189,7 @@ void AxisLinkManager::propagate_from(Axes* source, AxisLimits /*old_xlim*/, Axis
         return;
     std::lock_guard lock(mutex_);
     if (propagating_)
-        return;  // Guard re-entrant calls
+        return;   // Guard re-entrant calls
     propagating_ = true;
 
     auto new_xlim = source->x_limits();
@@ -240,14 +240,14 @@ void AxisLinkManager::propagate_zoom(Axes* source, float data_x, float data_y, f
 
             if (has_flag(group.axis, LinkAxis::X))
             {
-                auto xlim = peer->x_limits();
+                auto  xlim     = peer->x_limits();
                 float new_xmin = data_x + (xlim.min - data_x) * factor;
                 float new_xmax = data_x + (xlim.max - data_x) * factor;
                 peer->xlim(new_xmin, new_xmax);
             }
             if (has_flag(group.axis, LinkAxis::Y))
             {
-                auto ylim = peer->y_limits();
+                auto  ylim     = peer->y_limits();
                 float new_ymin = data_y + (ylim.min - data_y) * factor;
                 float new_ymax = data_y + (ylim.max - data_y) * factor;
                 peer->ylim(new_ymin, new_ymax);
@@ -330,7 +330,7 @@ void AxisLinkManager::propagate_limits(Axes* source, AxisLimits new_xlim, AxisLi
 
 std::vector<LinkGroupId> AxisLinkManager::groups_for(const Axes* ax) const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard          lock(mutex_);
     std::vector<LinkGroupId> result;
     for (const auto& [id, group] : groups_)
     {
@@ -344,7 +344,7 @@ std::vector<LinkGroupId> AxisLinkManager::groups_for(const Axes* ax) const
 
 std::vector<Axes*> AxisLinkManager::linked_peers(const Axes* ax) const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard    lock(mutex_);
     std::vector<Axes*> result;
     for (const auto& [id, group] : groups_)
     {
@@ -381,7 +381,7 @@ bool AxisLinkManager::is_linked(const Axes* ax) const
 const LinkGroup* AxisLinkManager::group(LinkGroupId id) const
 {
     std::lock_guard lock(mutex_);
-    auto it = groups_.find(id);
+    auto            it = groups_.find(id);
     return it != groups_.end() ? &it->second : nullptr;
 }
 
@@ -421,7 +421,7 @@ std::string AxisLinkManager::serialize(AxesToIndex mapper) const
         {
             int idx = mapper(ax);
             if (idx < 0)
-                continue;  // Skip unmapped axes
+                continue;   // Skip unmapped axes
             if (!first_m)
                 ss << ",";
             first_m = false;
@@ -452,8 +452,8 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
         if (pos == std::string::npos)
             return {std::string::npos, std::string::npos};
         // Find matching ]
-        int depth = 1;
-        size_t end = pos + 1;
+        int    depth = 1;
+        size_t end   = pos + 1;
         while (end < json.size() && depth > 0)
         {
             if (json[end] == '[')
@@ -478,7 +478,7 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
             break;
 
         // Find matching }
-        int depth = 1;
+        int    depth   = 1;
         size_t obj_end = obj_start + 1;
         while (obj_end < json.size() && depth > 0)
         {
@@ -523,9 +523,9 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
             return obj_str.substr(qstart + 1, qend - qstart - 1);
         };
 
-        int gid = extract_int(obj, "id");
+        int         gid   = extract_int(obj, "id");
         std::string gname = extract_string(obj, "name");
-        int gaxis = extract_int(obj, "axis");
+        int         gaxis = extract_int(obj, "axis");
 
         if (gid <= 0 || gaxis < 1 || gaxis > 3)
         {
@@ -534,7 +534,7 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
         }
 
         LinkGroup group;
-        group.id = static_cast<LinkGroupId>(gid);
+        group.id   = static_cast<LinkGroupId>(gid);
         group.name = gname;
         group.axis = static_cast<LinkAxis>(gaxis);
 
@@ -543,16 +543,16 @@ void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
         if (mem_pos != std::string::npos)
         {
             auto arr_start = obj.find('[', mem_pos);
-            auto arr_end = obj.find(']', arr_start);
+            auto arr_end   = obj.find(']', arr_start);
             if (arr_start != std::string::npos && arr_end != std::string::npos)
             {
-                std::string arr = obj.substr(arr_start + 1, arr_end - arr_start - 1);
+                std::string        arr = obj.substr(arr_start + 1, arr_end - arr_start - 1);
                 std::istringstream iss(arr);
-                std::string token;
+                std::string        token;
                 while (std::getline(iss, token, ','))
                 {
-                    int idx = std::atoi(token.c_str());
-                    Axes* ax = mapper(idx);
+                    int   idx = std::atoi(token.c_str());
+                    Axes* ax  = mapper(idx);
                     if (ax)
                     {
                         group.members.push_back(ax);
@@ -615,12 +615,12 @@ LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b, LinkAxis axis)
     // Create new 3D group
     LinkGroupId id = next_id_++;
     Link3DGroup group;
-    group.id = id;
-    group.axis = axis;
+    group.id             = id;
+    group.axis           = axis;
     std::string axis_str = has_flag(axis, LinkAxis::Z) && !has_flag(axis, LinkAxis::X) ? "Z"
                            : (axis == LinkAxis::All)                                   ? "XYZ"
                                                                                        : "3D";
-    group.name = axis_str + " Link " + std::to_string(id);
+    group.name           = axis_str + " Link " + std::to_string(id);
     static constexpr Color group_colors[] = {
         {0.34f, 0.65f, 0.96f},
         {0.96f, 0.49f, 0.31f},
@@ -644,7 +644,7 @@ void AxisLinkManager::add_to_group_3d(LinkGroupId id, Axes3D* ax)
     if (!ax)
         return;
     std::lock_guard lock(mutex_);
-    auto it = groups_3d_.find(id);
+    auto            it = groups_3d_.find(id);
     if (it == groups_3d_.end())
         return;
     if (!it->second.contains(ax))
@@ -658,8 +658,8 @@ void AxisLinkManager::remove_from_all_3d(Axes3D* ax)
 {
     if (!ax)
         return;
-    std::lock_guard lock(mutex_);
-    bool changed = false;
+    std::lock_guard          lock(mutex_);
+    bool                     changed = false;
     std::vector<LinkGroupId> empty_groups;
     for (auto& [id, group] : groups_3d_)
     {
@@ -759,7 +759,7 @@ void AxisLinkManager::notify()
 }
 
 std::vector<Axes*> AxisLinkManager::peers_in_group_unlocked(const LinkGroup& group,
-                                                            const Axes* ax) const
+                                                            const Axes*      ax) const
 {
     std::vector<Axes*> result;
     for (Axes* member : group.members)
@@ -772,4 +772,4 @@ std::vector<Axes*> AxisLinkManager::peers_in_group_unlocked(const LinkGroup& gro
     return result;
 }
 
-}  // namespace spectra
+}   // namespace spectra

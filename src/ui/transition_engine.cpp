@@ -8,9 +8,9 @@ namespace spectra
 
 // ─── Animate float ──────────────────────────────────────────────────────────
 
-TransitionEngine::AnimId TransitionEngine::animate(float& target,
-                                                   float end,
-                                                   float duration,
+TransitionEngine::AnimId TransitionEngine::animate(float&     target,
+                                                   float      end,
+                                                   float      duration,
                                                    EasingFunc easing)
 {
     std::lock_guard lock(mutex_);
@@ -24,15 +24,15 @@ TransitionEngine::AnimId TransitionEngine::animate(float& target,
         }
     }
 
-    AnimId id = next_id_++;
+    AnimId    id = next_id_++;
     FloatAnim anim;
-    anim.id = id;
-    anim.target = &target;
-    anim.start = target;
-    anim.end = end;
+    anim.id       = id;
+    anim.target   = &target;
+    anim.start    = target;
+    anim.end      = end;
     anim.duration = duration;
-    anim.easing = std::move(easing);
-    anim.elapsed = 0.0f;
+    anim.easing   = std::move(easing);
+    anim.elapsed  = 0.0f;
     anim.finished = false;
     float_anims_.push_back(std::move(anim));
     return id;
@@ -40,9 +40,9 @@ TransitionEngine::AnimId TransitionEngine::animate(float& target,
 
 // ─── Animate Color ──────────────────────────────────────────────────────────
 
-TransitionEngine::AnimId TransitionEngine::animate(Color& target,
-                                                   Color end,
-                                                   float duration,
+TransitionEngine::AnimId TransitionEngine::animate(Color&     target,
+                                                   Color      end,
+                                                   float      duration,
                                                    EasingFunc easing)
 {
     std::lock_guard lock(mutex_);
@@ -56,15 +56,15 @@ TransitionEngine::AnimId TransitionEngine::animate(Color& target,
         }
     }
 
-    AnimId id = next_id_++;
+    AnimId    id = next_id_++;
     ColorAnim anim;
-    anim.id = id;
-    anim.target = &target;
-    anim.start = target;
-    anim.end = end;
+    anim.id       = id;
+    anim.target   = &target;
+    anim.start    = target;
+    anim.end      = end;
     anim.duration = duration;
-    anim.easing = std::move(easing);
-    anim.elapsed = 0.0f;
+    anim.easing   = std::move(easing);
+    anim.elapsed  = 0.0f;
     anim.finished = false;
     color_anims_.push_back(std::move(anim));
     return id;
@@ -72,25 +72,28 @@ TransitionEngine::AnimId TransitionEngine::animate(Color& target,
 
 // ─── Animate AxisLimits ─────────────────────────────────────────────────────
 
-TransitionEngine::AnimId TransitionEngine::animate_limits(
-    Axes& axes, AxisLimits target_x, AxisLimits target_y, float duration, EasingFunc easing)
+TransitionEngine::AnimId TransitionEngine::animate_limits(Axes&      axes,
+                                                          AxisLimits target_x,
+                                                          AxisLimits target_y,
+                                                          float      duration,
+                                                          EasingFunc easing)
 {
     std::lock_guard lock(mutex_);
 
     // Cancel any existing limit animation on this axes (already under lock)
     cancel_for_axes_unlocked(&axes);
 
-    AnimId id = next_id_++;
+    AnimId    id = next_id_++;
     LimitAnim anim;
-    anim.id = id;
-    anim.axes = &axes;
-    anim.start_x = axes.x_limits();
-    anim.start_y = axes.y_limits();
+    anim.id       = id;
+    anim.axes     = &axes;
+    anim.start_x  = axes.x_limits();
+    anim.start_y  = axes.y_limits();
     anim.target_x = target_x;
     anim.target_y = target_y;
     anim.duration = duration;
-    anim.easing = std::move(easing);
-    anim.elapsed = 0.0f;
+    anim.easing   = std::move(easing);
+    anim.elapsed  = 0.0f;
     anim.finished = false;
     limit_anims_.push_back(std::move(anim));
     return id;
@@ -114,14 +117,14 @@ TransitionEngine::AnimId TransitionEngine::animate_inertial_pan(Axes& axes,
         }
     }
 
-    AnimId id = next_id_++;
+    AnimId          id = next_id_++;
     InertialPanAnim anim;
-    anim.id = id;
-    anim.axes = &axes;
-    anim.vx_data = vx_data;
-    anim.vy_data = vy_data;
+    anim.id       = id;
+    anim.axes     = &axes;
+    anim.vx_data  = vx_data;
+    anim.vy_data  = vy_data;
     anim.duration = duration;
-    anim.elapsed = 0.0f;
+    anim.elapsed  = 0.0f;
     anim.finished = false;
     inertial_anims_.push_back(std::move(anim));
     return id;
@@ -129,9 +132,9 @@ TransitionEngine::AnimId TransitionEngine::animate_inertial_pan(Axes& axes,
 
 // ─── Animate Camera ────────────────────────────────────────────────────────────
 
-TransitionEngine::AnimId TransitionEngine::animate_camera(Camera& cam,
-                                                          Camera target,
-                                                          float duration,
+TransitionEngine::AnimId TransitionEngine::animate_camera(Camera&    cam,
+                                                          Camera     target,
+                                                          float      duration,
                                                           EasingFunc easing)
 {
     std::lock_guard lock(mutex_);
@@ -145,15 +148,15 @@ TransitionEngine::AnimId TransitionEngine::animate_camera(Camera& cam,
         }
     }
 
-    AnimId id = next_id_++;
+    AnimId     id = next_id_++;
     CameraAnim anim;
-    anim.id = id;
-    anim.cam = &cam;
-    anim.start = cam;
-    anim.end = target;
+    anim.id       = id;
+    anim.cam      = &cam;
+    anim.start    = cam;
+    anim.end      = target;
     anim.duration = duration;
-    anim.easing = std::move(easing);
-    anim.elapsed = 0.0f;
+    anim.easing   = std::move(easing);
+    anim.elapsed  = 0.0f;
     anim.finished = false;
     camera_anims_.push_back(std::move(anim));
     return id;
@@ -239,14 +242,14 @@ void TransitionEngine::update(float dt)
             continue;
 
         a.elapsed += dt;
-        float t = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
+        float t     = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
         float eased = a.easing(t);
 
         *a.target = a.start + (a.end - a.start) * eased;
 
         if (t >= 1.0f)
         {
-            *a.target = a.end;  // snap to exact target
+            *a.target  = a.end;   // snap to exact target
             a.finished = true;
         }
     }
@@ -258,7 +261,7 @@ void TransitionEngine::update(float dt)
             continue;
 
         a.elapsed += dt;
-        float t = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
+        float t     = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
         float eased = a.easing(t);
 
         a.target->r = a.start.r + (a.end.r - a.start.r) * eased;
@@ -268,7 +271,7 @@ void TransitionEngine::update(float dt)
 
         if (t >= 1.0f)
         {
-            *a.target = a.end;
+            *a.target  = a.end;
             a.finished = true;
         }
     }
@@ -280,7 +283,7 @@ void TransitionEngine::update(float dt)
             continue;
 
         a.elapsed += dt;
-        float t = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
+        float t     = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
         float eased = a.easing(t);
 
         float xmin = a.start_x.min + (a.target_x.min - a.start_x.min) * eased;
@@ -311,8 +314,8 @@ void TransitionEngine::update(float dt)
 
         // Deceleration: velocity = v0 * (1 - t)^2
         float decay = (1.0f - t) * (1.0f - t);
-        float vx = a.vx_data * decay;
-        float vy = a.vy_data * decay;
+        float vx    = a.vx_data * decay;
+        float vy    = a.vy_data * decay;
 
         // Apply velocity as displacement this frame
         auto xlim = a.axes->x_limits();
@@ -334,13 +337,13 @@ void TransitionEngine::update(float dt)
             continue;
 
         a.elapsed += dt;
-        float t = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
+        float t     = std::clamp(a.elapsed / a.duration, 0.0f, 1.0f);
         float eased = a.easing(t);
 
-        a.cam->azimuth = a.start.azimuth + (a.end.azimuth - a.start.azimuth) * eased;
-        a.cam->elevation = a.start.elevation + (a.end.elevation - a.start.elevation) * eased;
-        a.cam->distance = a.start.distance + (a.end.distance - a.start.distance) * eased;
-        a.cam->fov = a.start.fov + (a.end.fov - a.start.fov) * eased;
+        a.cam->azimuth    = a.start.azimuth + (a.end.azimuth - a.start.azimuth) * eased;
+        a.cam->elevation  = a.start.elevation + (a.end.elevation - a.start.elevation) * eased;
+        a.cam->distance   = a.start.distance + (a.end.distance - a.start.distance) * eased;
+        a.cam->fov        = a.start.fov + (a.end.fov - a.start.fov) * eased;
         a.cam->ortho_size = a.start.ortho_size + (a.end.ortho_size - a.start.ortho_size) * eased;
 
         // Lerp target
@@ -353,12 +356,12 @@ void TransitionEngine::update(float dt)
         if (t >= 1.0f)
         {
             // Snap to exact target
-            a.cam->azimuth = a.end.azimuth;
-            a.cam->elevation = a.end.elevation;
-            a.cam->distance = a.end.distance;
-            a.cam->fov = a.end.fov;
+            a.cam->azimuth    = a.end.azimuth;
+            a.cam->elevation  = a.end.elevation;
+            a.cam->distance   = a.end.distance;
+            a.cam->fov        = a.end.fov;
             a.cam->ortho_size = a.end.ortho_size;
-            a.cam->target = a.end.target;
+            a.cam->target     = a.end.target;
             a.cam->update_position_from_orbit();
             a.finished = true;
         }
@@ -393,7 +396,7 @@ bool TransitionEngine::has_active_animations() const
 size_t TransitionEngine::active_count() const
 {
     std::lock_guard lock(mutex_);
-    size_t count = 0;
+    size_t          count = 0;
     for (const auto& a : float_anims_)
         if (!a.finished)
             ++count;
@@ -440,4 +443,4 @@ void TransitionEngine::gc()
     std::erase_if(camera_anims_, [](const CameraAnim& a) { return a.finished; });
 }
 
-}  // namespace spectra
+}   // namespace spectra

@@ -16,10 +16,10 @@
 struct AnimatedPlot
 {
     std::vector<float> x, y;
-    float phase = 0.0f;
-    float amplitude = 1.0f;
-    float frequency = 1.0f;
-    float y_offset = 0.0f;
+    float              phase     = 0.0f;
+    float              amplitude = 1.0f;
+    float              frequency = 1.0f;
+    float              y_offset  = 0.0f;
 
     void regenerate(size_t n_points = 200)
     {
@@ -37,8 +37,8 @@ struct AnimatedPlot
 int main()
 {
     spectra::App app;
-    auto& fig = app.figure({.width = 1400, .height = 900});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&        fig = app.figure({.width = 1400, .height = 900});
+    auto&        ax  = fig.subplot(1, 1, 1);
 
     // Create animated plot data
     AnimatedPlot plot_data;

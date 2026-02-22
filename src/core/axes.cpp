@@ -32,7 +32,7 @@ bool AxesBase::remove_series(size_t index)
 
 LineSeries& Axes::line(std::span<const float> x, std::span<const float> y)
 {
-    auto s = std::make_unique<LineSeries>(x, y);
+    auto  s   = std::make_unique<LineSeries>(x, y);
     auto& ref = *s;
     ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
@@ -41,7 +41,7 @@ LineSeries& Axes::line(std::span<const float> x, std::span<const float> y)
 
 LineSeries& Axes::line()
 {
-    auto s = std::make_unique<LineSeries>();
+    auto  s   = std::make_unique<LineSeries>();
     auto& ref = *s;
     ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
@@ -50,7 +50,7 @@ LineSeries& Axes::line()
 
 ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 {
-    auto s = std::make_unique<ScatterSeries>(x, y);
+    auto  s   = std::make_unique<ScatterSeries>(x, y);
     auto& ref = *s;
     ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
@@ -59,7 +59,7 @@ ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 
 ScatterSeries& Axes::scatter()
 {
-    auto s = std::make_unique<ScatterSeries>();
+    auto  s   = std::make_unique<ScatterSeries>();
     auto& ref = *s;
     ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
     series_.push_back(std::move(s));
@@ -127,12 +127,12 @@ void Axes::autoscale_mode(AutoscaleMode mode)
         if (!xlim_.has_value())
         {
             auto lim = x_limits();
-            xlim_ = lim;
+            xlim_    = lim;
         }
         if (!ylim_.has_value())
         {
             auto lim = y_limits();
-            ylim_ = lim;
+            ylim_    = lim;
         }
     }
     else if (mode != AutoscaleMode::Manual)
@@ -149,10 +149,10 @@ void Axes::autoscale_mode(AutoscaleMode mode)
 
 // Compute data extent across all series
 static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
-                        float& x_min,
-                        float& x_max,
-                        float& y_min,
-                        float& y_max)
+                        float&                                      x_min,
+                        float&                                      x_max,
+                        float&                                      y_min,
+                        float&                                      y_max)
 {
     x_min = std::numeric_limits<float>::max();
     x_max = -std::numeric_limits<float>::max();
@@ -217,11 +217,11 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
 }
 
 static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& series,
-                                  AutoscaleMode mode,
-                                  float& x_min,
-                                  float& x_max,
-                                  float& y_min,
-                                  float& y_max)
+                                  AutoscaleMode                               mode,
+                                  float&                                      x_min,
+                                  float&                                      x_max,
+                                  float&                                      y_min,
+                                  float&                                      y_max)
 {
     // Compute raw extent
     data_extent(series, x_min, x_max, y_min, y_max);
@@ -318,7 +318,7 @@ void Axes::auto_fit()
 static float nice_ceil(float x, bool round_flag)
 {
     float exp_v = std::floor(std::log10(x));
-    float frac = x / std::pow(10.0f, exp_v);
+    float frac  = x / std::pow(10.0f, exp_v);
     float nice;
     if (round_flag)
     {
@@ -382,7 +382,7 @@ static TickResult generate_ticks(float range_min, float range_max, int target_ti
     }
 
     float nice_range = nice_ceil(range, false);
-    float spacing = nice_ceil(nice_range / static_cast<float>(target_ticks - 1), true);
+    float spacing    = nice_ceil(nice_range / static_cast<float>(target_ticks - 1), true);
 
     // Guard against degenerate spacing
     if (spacing <= 0.0f || !std::isfinite(spacing))
@@ -399,7 +399,7 @@ static TickResult generate_ticks(float range_min, float range_max, int target_ti
 
     // Safety: cap iterations to avoid infinite loops
     int max_iters = target_ticks * 3;
-    int iters = 0;
+    int iters     = 0;
     for (float v = nice_min; v <= nice_max + spacing * 0.5f && iters < max_iters;
          v += spacing, ++iters)
     {
@@ -430,4 +430,4 @@ TickResult Axes::compute_y_ticks() const
     return generate_ticks(lim.min, lim.max);
 }
 
-}  // namespace spectra
+}   // namespace spectra

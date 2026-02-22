@@ -47,10 +47,10 @@ void SessionRuntime::queue_move(PendingMove pm)
     pending_moves_.push_back(std::move(pm));
 }
 
-FrameState SessionRuntime::tick(FrameScheduler& scheduler,
-                                Animator& animator,
-                                CommandQueue& cmd_queue,
-                                bool headless,
+FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
+                                Animator&        animator,
+                                CommandQueue&    cmd_queue,
+                                bool             headless,
                                 WindowUIContext* headless_ui_ctx,
 #ifdef SPECTRA_USE_GLFW
                                 WindowManager* window_mgr,
@@ -103,8 +103,9 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 continue;
 
             // Skip windows created this frame
-            if (std::find(
-                    newly_created_window_ids_.begin(), newly_created_window_ids_.end(), wctx->id)
+            if (std::find(newly_created_window_ids_.begin(),
+                          newly_created_window_ids_.end(),
+                          wctx->id)
                 != newly_created_window_ids_.end())
                 continue;
 
@@ -134,11 +135,11 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             // Sync WindowContext resize state → UIContext resize fields
             if (wctx->needs_resize)
             {
-                wctx->ui_ctx->needs_resize = true;
-                wctx->ui_ctx->new_width = wctx->pending_width;
-                wctx->ui_ctx->new_height = wctx->pending_height;
+                wctx->ui_ctx->needs_resize          = true;
+                wctx->ui_ctx->new_width             = wctx->pending_width;
+                wctx->ui_ctx->new_height            = wctx->pending_height;
                 wctx->ui_ctx->resize_requested_time = wctx->resize_time;
-                wctx->needs_resize = false;
+                wctx->needs_resize                  = false;
             }
 
             // Preview windows: render the preview card with actual figure data
@@ -182,7 +183,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             // Build per-window FrameState
             FrameState win_fs;
             win_fs.active_figure_id = wctx->active_figure_id;
-            win_fs.active_figure = registry_.get(win_fs.active_figure_id);
+            win_fs.active_figure    = registry_.get(win_fs.active_figure_id);
             // active_figure may be null (empty-start mode) — still render
             // ImGui chrome (menu bar, empty canvas) so the window isn't black.
             if (win_fs.active_figure)
@@ -318,20 +319,24 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 src_wctx->should_close = true;
             }
 
-            auto* new_wctx = window_mgr->detach_figure(
-                pd.figure_id, pd.width, pd.height, pd.title, pd.screen_x, pd.screen_y);
+            auto* new_wctx = window_mgr->detach_figure(pd.figure_id,
+                                                       pd.width,
+                                                       pd.height,
+                                                       pd.title,
+                                                       pd.screen_x,
+                                                       pd.screen_y);
 
             if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
             {
-                auto* new_fm = new_wctx->ui_ctx->fig_mgr;
+                auto* new_fm                = new_wctx->ui_ctx->fig_mgr;
                 new_fm->state(pd.figure_id) = std::move(detached_state);
-                std::string correct_title = new_fm->get_title(pd.figure_id);
+                std::string correct_title   = new_fm->get_title(pd.figure_id);
                 if (new_fm->tab_bar())
                     new_fm->tab_bar()->set_tab_title(0, correct_title);
             }
 
             frame_state.active_figure_id = src_fm->active_index();
-            frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+            frame_state.active_figure    = registry_.get(frame_state.active_figure_id);
 
             if (new_wctx)
                 newly_created_window_ids_.push_back(new_wctx->id);
@@ -385,7 +390,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
 
             // Remove from source
             FigureState moved_state = src_fm->remove_figure(pm.figure_id);
-            auto& src_dock = src_wctx->ui_ctx->dock_system;
+            auto&       src_dock    = src_wctx->ui_ctx->dock_system;
             if (src_dock.is_split())
             {
                 auto* pane = src_dock.split_view().pane_for_figure(pm.figure_id);
@@ -416,7 +421,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             // because add_figure → switch_to → tab bar callback will change
             // active_figure_index to the new figure (which isn't in any pane
             // yet), making active_pane() return nullptr.
-            auto& dst_dock = dst_wctx->ui_ctx->dock_system;
+            auto&    dst_dock         = dst_wctx->ui_ctx->dock_system;
             FigureId prev_dock_active = dst_dock.active_figure_index();
 
             // Add to destination
@@ -440,7 +445,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 SplitPane* split_result = nullptr;
                 switch (pm.drop_zone)
                 {
-                    case 1:  // Left — split horizontally, new figure goes left
+                    case 1:   // Left — split horizontally, new figure goes left
                         split_result = dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
@@ -449,10 +454,10 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                                 parent->first()->swap_contents(*parent->second());
                         }
                         break;
-                    case 2:  // Right — split horizontally, new figure goes right
+                    case 2:   // Right — split horizontally, new figure goes right
                         split_result = dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
                         break;
-                    case 3:  // Top — split vertically, new figure goes top
+                    case 3:   // Top — split vertically, new figure goes top
                         split_result = dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
@@ -461,7 +466,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                                 parent->first()->swap_contents(*parent->second());
                         }
                         break;
-                    case 4:  // Bottom — split vertically, new figure goes bottom
+                    case 4:   // Bottom — split vertically, new figure goes bottom
                         split_result = dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
                         break;
                 }
@@ -534,4 +539,4 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
     return frame_state;
 }
 
-}  // namespace spectra
+}   // namespace spectra

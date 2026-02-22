@@ -19,14 +19,14 @@ namespace spectra::ui::widgets
 
 struct SectionAnimState
 {
-    float anim_t = 1.0f;  // 0 = collapsed, 1 = expanded
-    bool target_open = true;
-    bool was_open = true;  // Previous frame's open state
+    float anim_t      = 1.0f;   // 0 = collapsed, 1 = expanded
+    bool  target_open = true;
+    bool  was_open    = true;   // Previous frame's open state
 };
 
 // Global section animation registry (keyed by section label pointer or ID).
 // Call update_section_animations() once per frame to advance all animations.
-void update_section_animations(float dt);
+void              update_section_animations(float dt);
 SectionAnimState& get_section_anim(const char* id);
 
 // Section header with collapsible state and smooth chevron animation.
@@ -58,15 +58,18 @@ bool slider_field(const char* label, float& value, float min, float max, const c
 
 // Float drag field with label
 bool drag_field(const char* label,
-                float& value,
-                float speed = 0.5f,
-                float min = 0.0f,
-                float max = 0.0f,
-                const char* fmt = "%.1f");
+                float&      value,
+                float       speed = 0.5f,
+                float       min   = 0.0f,
+                float       max   = 0.0f,
+                const char* fmt   = "%.1f");
 
 // Two-component float drag (e.g. axis limits)
-bool drag_field2(
-    const char* label, float& v0, float& v1, float speed = 0.01f, const char* fmt = "%.3f");
+bool drag_field2(const char* label,
+                 float&      v0,
+                 float&      v1,
+                 float       speed = 0.01f,
+                 const char* fmt   = "%.3f");
 
 // Checkbox with theme styling
 bool checkbox_field(const char* label, bool& value);
@@ -100,11 +103,11 @@ void section_spacing();
 // ─── New Widgets (Week 6) ────────────────────────────────────────────────────
 
 // Sparkline: inline mini line chart for data preview
-void sparkline(const char* id,
+void sparkline(const char*            id,
                std::span<const float> values,
-               float width = -1.0f,
-               float height = 32.0f,
-               const spectra::Color& color = {});
+               float                  width  = -1.0f,
+               float                  height = 32.0f,
+               const spectra::Color&  color  = {});
 
 // Progress bar with label
 void progress_bar(const char* label, float fraction, const char* overlay = nullptr);
@@ -116,18 +119,22 @@ void badge(const char* text, const spectra::Color& bg = {}, const spectra::Color
 void separator_label(const char* label, ImFont* font = nullptr);
 
 // Integer drag field
-bool int_drag_field(
-    const char* label, int& value, int speed = 1, int min = 0, int max = 0, const char* fmt = "%d");
+bool int_drag_field(const char* label,
+                    int&        value,
+                    int         speed = 1,
+                    int         min   = 0,
+                    int         max   = 0,
+                    const char* fmt   = "%d");
 
 // Stat row: label + value + optional unit, with monospace value
 void stat_row(const char* label, const char* value, const char* unit = nullptr);
 
 // Stat row with color indicator dot
-void stat_row_colored(const char* label,
-                      const char* value,
+void stat_row_colored(const char*           label,
+                      const char*           value,
                       const spectra::Color& dot_color,
-                      const char* unit = nullptr);
+                      const char*           unit = nullptr);
 
-}  // namespace spectra::ui::widgets
+}   // namespace spectra::ui::widgets
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

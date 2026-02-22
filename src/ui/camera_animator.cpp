@@ -158,20 +158,20 @@ void CameraAnimator::evaluate_at(float time)
 // ─── Convenience ────────────────────────────────────────────────────────────
 
 void CameraAnimator::create_orbit_animation(const Camera& base,
-                                            float start_azimuth,
-                                            float end_azimuth,
-                                            float duration_seconds)
+                                            float         start_azimuth,
+                                            float         end_azimuth,
+                                            float         duration_seconds)
 {
     std::lock_guard lock(mutex_);
     keyframes_.clear();
     path_mode_ = CameraPathMode::Orbit;
 
-    Camera start_cam = base;
+    Camera start_cam  = base;
     start_cam.azimuth = start_azimuth;
     start_cam.update_position_from_orbit();
     keyframes_.push_back(CameraKeyframe{0.0f, start_cam});
 
-    Camera end_cam = base;
+    Camera end_cam  = base;
     end_cam.azimuth = end_azimuth;
     end_cam.update_position_from_orbit();
     keyframes_.push_back(CameraKeyframe{duration_seconds, end_cam});
@@ -186,7 +186,7 @@ void CameraAnimator::create_turntable(const Camera& base, float duration_seconds
 
 std::string CameraAnimator::serialize() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard    lock(mutex_);
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(6);
 
@@ -212,16 +212,16 @@ bool CameraAnimator::deserialize(const std::string& json)
     auto mode_pos = json.find("\"path_mode\":");
     if (mode_pos == std::string::npos)
         return false;
-    mode_pos += 12;  // strlen("\"path_mode\":")
+    mode_pos += 12;   // strlen("\"path_mode\":")
     int mode_val = std::stoi(json.substr(mode_pos));
-    path_mode_ = static_cast<CameraPathMode>(mode_val);
+    path_mode_   = static_cast<CameraPathMode>(mode_val);
 
     // Parse keyframes array
     keyframes_.clear();
     auto kf_arr_pos = json.find("\"keyframes\":[");
     if (kf_arr_pos == std::string::npos)
         return false;
-    kf_arr_pos += 13;  // strlen("\"keyframes\":[")
+    kf_arr_pos += 13;   // strlen("\"keyframes\":[")
 
     // Find matching closing bracket
     size_t pos = kf_arr_pos;
@@ -233,19 +233,19 @@ bool CameraAnimator::deserialize(const std::string& json)
             break;
 
         // Parse time
-        auto time_pos = obj_start + 8;  // strlen("{\"time\":")
-        float time = std::stof(json.substr(time_pos));
+        auto  time_pos = obj_start + 8;   // strlen("{\"time\":")
+        float time     = std::stof(json.substr(time_pos));
 
         // Parse camera sub-object
         auto cam_pos = json.find("\"camera\":", obj_start);
         if (cam_pos == std::string::npos)
             break;
-        cam_pos += 9;  // strlen("\"camera\":")
+        cam_pos += 9;   // strlen("\"camera\":")
 
         // Find the camera JSON object boundaries
-        int brace_count = 0;
-        size_t cam_start = cam_pos;
-        size_t cam_end = cam_pos;
+        int    brace_count = 0;
+        size_t cam_start   = cam_pos;
+        size_t cam_end     = cam_pos;
         for (size_t i = cam_pos; i < json.size(); ++i)
         {
             if (json[i] == '{')
@@ -321,9 +321,9 @@ Camera CameraAnimator::evaluate_orbit(float time) const
     if (a == b)
         return keyframes_[a].camera;
 
-    const Camera& cam_a = keyframes_[a].camera;
-    const Camera& cam_b = keyframes_[b].camera;
-    float seg_duration = keyframes_[b].time - keyframes_[a].time;
+    const Camera& cam_a        = keyframes_[a].camera;
+    const Camera& cam_b        = keyframes_[b].camera;
+    float         seg_duration = keyframes_[b].time - keyframes_[a].time;
 
     float t = 0.0f;
     if (seg_duration > 1e-6f)
@@ -335,10 +335,10 @@ Camera CameraAnimator::evaluate_orbit(float time) const
     Camera result = cam_a;
 
     // Lerp spherical coordinates
-    result.azimuth = cam_a.azimuth + (cam_b.azimuth - cam_a.azimuth) * t;
-    result.elevation = cam_a.elevation + (cam_b.elevation - cam_a.elevation) * t;
-    result.distance = cam_a.distance + (cam_b.distance - cam_a.distance) * t;
-    result.fov = cam_a.fov + (cam_b.fov - cam_a.fov) * t;
+    result.azimuth    = cam_a.azimuth + (cam_b.azimuth - cam_a.azimuth) * t;
+    result.elevation  = cam_a.elevation + (cam_b.elevation - cam_a.elevation) * t;
+    result.distance   = cam_a.distance + (cam_b.distance - cam_a.distance) * t;
+    result.fov        = cam_a.fov + (cam_b.fov - cam_a.fov) * t;
     result.ortho_size = cam_a.ortho_size + (cam_b.ortho_size - cam_a.ortho_size) * t;
 
     // Lerp target position
@@ -361,9 +361,9 @@ Camera CameraAnimator::evaluate_free_flight(float time) const
     if (a == b)
         return keyframes_[a].camera;
 
-    const Camera& cam_a = keyframes_[a].camera;
-    const Camera& cam_b = keyframes_[b].camera;
-    float seg_duration = keyframes_[b].time - keyframes_[a].time;
+    const Camera& cam_a        = keyframes_[a].camera;
+    const Camera& cam_b        = keyframes_[b].camera;
+    float         seg_duration = keyframes_[b].time - keyframes_[a].time;
 
     float t = 0.0f;
     if (seg_duration > 1e-6f)
@@ -385,27 +385,27 @@ Camera CameraAnimator::evaluate_free_flight(float time) const
     result.target.z = cam_a.target.z + (cam_b.target.z - cam_a.target.z) * t;
 
     // Slerp orientation (up vector derived from quaternion)
-    quat q_a = orientation_from_camera(cam_a);
-    quat q_b = orientation_from_camera(cam_b);
+    quat q_a      = orientation_from_camera(cam_a);
+    quat q_b      = orientation_from_camera(cam_b);
     quat q_interp = quat_slerp(q_a, q_b, t);
 
     // Recover up vector from slerped orientation
     // The up vector is the Y axis of the rotation matrix
-    mat4 rot = quat_to_mat4(q_interp);
-    result.up.x = rot.m[4];  // Column 1, row 0
-    result.up.y = rot.m[5];  // Column 1, row 1
-    result.up.z = rot.m[6];  // Column 1, row 2
-    result.up = vec3_normalize(result.up);
+    mat4 rot    = quat_to_mat4(q_interp);
+    result.up.x = rot.m[4];   // Column 1, row 0
+    result.up.y = rot.m[5];   // Column 1, row 1
+    result.up.z = rot.m[6];   // Column 1, row 2
+    result.up   = vec3_normalize(result.up);
 
     // Lerp scalar params
-    result.fov = cam_a.fov + (cam_b.fov - cam_a.fov) * t;
-    result.distance = cam_a.distance + (cam_b.distance - cam_a.distance) * t;
+    result.fov        = cam_a.fov + (cam_b.fov - cam_a.fov) * t;
+    result.distance   = cam_a.distance + (cam_b.distance - cam_a.distance) * t;
     result.ortho_size = cam_a.ortho_size + (cam_b.ortho_size - cam_a.ortho_size) * t;
-    result.near_clip = cam_a.near_clip + (cam_b.near_clip - cam_a.near_clip) * t;
-    result.far_clip = cam_a.far_clip + (cam_b.far_clip - cam_a.far_clip) * t;
+    result.near_clip  = cam_a.near_clip + (cam_b.near_clip - cam_a.near_clip) * t;
+    result.far_clip   = cam_a.far_clip + (cam_b.far_clip - cam_a.far_clip) * t;
 
     // Lerp orbit params (so they stay in sync if user switches modes)
-    result.azimuth = cam_a.azimuth + (cam_b.azimuth - cam_a.azimuth) * t;
+    result.azimuth   = cam_a.azimuth + (cam_b.azimuth - cam_a.azimuth) * t;
     result.elevation = cam_a.elevation + (cam_b.elevation - cam_a.elevation) * t;
 
     result.projection_mode = cam_a.projection_mode;
@@ -420,14 +420,14 @@ quat CameraAnimator::orientation_from_camera(const Camera& cam)
     // Right = normalize(cross(forward, up))
     // True up = cross(right, forward)
 
-    vec3 forward = vec3_normalize(cam.target - cam.position);
-    float len = vec3_length(cam.target - cam.position);
+    vec3  forward = vec3_normalize(cam.target - cam.position);
+    float len     = vec3_length(cam.target - cam.position);
     if (len < 1e-6f)
     {
         return quat_identity();
     }
 
-    vec3 right = vec3_normalize(vec3_cross(forward, cam.up));
+    vec3  right     = vec3_normalize(vec3_cross(forward, cam.up));
     float right_len = vec3_length(vec3_cross(forward, cam.up));
     if (right_len < 1e-6f)
     {
@@ -438,53 +438,53 @@ quat CameraAnimator::orientation_from_camera(const Camera& cam)
 
     // Build rotation matrix from axes (columns: right, up, -forward)
     // Then extract quaternion.
-    mat4 rot = mat4_identity();
-    rot.m[0] = right.x;
-    rot.m[1] = right.y;
-    rot.m[2] = right.z;
-    rot.m[4] = true_up.x;
-    rot.m[5] = true_up.y;
-    rot.m[6] = true_up.z;
-    rot.m[8] = -forward.x;
-    rot.m[9] = -forward.y;
+    mat4 rot  = mat4_identity();
+    rot.m[0]  = right.x;
+    rot.m[1]  = right.y;
+    rot.m[2]  = right.z;
+    rot.m[4]  = true_up.x;
+    rot.m[5]  = true_up.y;
+    rot.m[6]  = true_up.z;
+    rot.m[8]  = -forward.x;
+    rot.m[9]  = -forward.y;
     rot.m[10] = -forward.z;
 
     // Extract quaternion from rotation matrix
     // Using Shepperd's method for numerical stability
     float trace = rot.m[0] + rot.m[5] + rot.m[10];
-    quat q;
+    quat  q;
 
     if (trace > 0.0f)
     {
         float s = std::sqrt(trace + 1.0f) * 2.0f;
-        q.w = 0.25f * s;
-        q.x = (rot.m[6] - rot.m[9]) / s;
-        q.y = (rot.m[8] - rot.m[2]) / s;
-        q.z = (rot.m[1] - rot.m[4]) / s;
+        q.w     = 0.25f * s;
+        q.x     = (rot.m[6] - rot.m[9]) / s;
+        q.y     = (rot.m[8] - rot.m[2]) / s;
+        q.z     = (rot.m[1] - rot.m[4]) / s;
     }
     else if (rot.m[0] > rot.m[5] && rot.m[0] > rot.m[10])
     {
         float s = std::sqrt(1.0f + rot.m[0] - rot.m[5] - rot.m[10]) * 2.0f;
-        q.w = (rot.m[6] - rot.m[9]) / s;
-        q.x = 0.25f * s;
-        q.y = (rot.m[4] + rot.m[1]) / s;
-        q.z = (rot.m[8] + rot.m[2]) / s;
+        q.w     = (rot.m[6] - rot.m[9]) / s;
+        q.x     = 0.25f * s;
+        q.y     = (rot.m[4] + rot.m[1]) / s;
+        q.z     = (rot.m[8] + rot.m[2]) / s;
     }
     else if (rot.m[5] > rot.m[10])
     {
         float s = std::sqrt(1.0f + rot.m[5] - rot.m[0] - rot.m[10]) * 2.0f;
-        q.w = (rot.m[8] - rot.m[2]) / s;
-        q.x = (rot.m[4] + rot.m[1]) / s;
-        q.y = 0.25f * s;
-        q.z = (rot.m[9] + rot.m[6]) / s;
+        q.w     = (rot.m[8] - rot.m[2]) / s;
+        q.x     = (rot.m[4] + rot.m[1]) / s;
+        q.y     = 0.25f * s;
+        q.z     = (rot.m[9] + rot.m[6]) / s;
     }
     else
     {
         float s = std::sqrt(1.0f + rot.m[10] - rot.m[0] - rot.m[5]) * 2.0f;
-        q.w = (rot.m[1] - rot.m[4]) / s;
-        q.x = (rot.m[8] + rot.m[2]) / s;
-        q.y = (rot.m[9] + rot.m[6]) / s;
-        q.z = 0.25f * s;
+        q.w     = (rot.m[1] - rot.m[4]) / s;
+        q.x     = (rot.m[8] + rot.m[2]) / s;
+        q.y     = (rot.m[9] + rot.m[6]) / s;
+        q.z     = 0.25f * s;
     }
 
     // Normalize
@@ -510,16 +510,16 @@ void CameraAnimator::apply_orientation(Camera& cam, const quat& q, float distanc
     forward.x = -rot.m[8];
     forward.y = -rot.m[9];
     forward.z = -rot.m[10];
-    forward = vec3_normalize(forward);
+    forward   = vec3_normalize(forward);
 
     // Up = Y column
     cam.up.x = rot.m[4];
     cam.up.y = rot.m[5];
     cam.up.z = rot.m[6];
-    cam.up = vec3_normalize(cam.up);
+    cam.up   = vec3_normalize(cam.up);
 
     // Recompute position from target and forward
     cam.position = cam.target - forward * distance;
 }
 
-}  // namespace spectra
+}   // namespace spectra

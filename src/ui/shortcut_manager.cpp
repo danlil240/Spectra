@@ -14,37 +14,37 @@ namespace spectra
 // GLFW key codes (subset needed for string conversion)
 namespace glfw_keys
 {
-constexpr int KEY_SPACE = 32;
-constexpr int KEY_APOSTROPHE = 39;
-constexpr int KEY_COMMA = 44;
-constexpr int KEY_MINUS = 45;
-constexpr int KEY_PERIOD = 46;
-constexpr int KEY_SLASH = 47;
-constexpr int KEY_0 = 48;
-constexpr int KEY_9 = 57;
-constexpr int KEY_SEMICOLON = 59;
-constexpr int KEY_EQUAL = 61;
-constexpr int KEY_A = 65;
-constexpr int KEY_Z = 90;
-constexpr int KEY_LEFT_BRACKET = 91;
-constexpr int KEY_BACKSLASH = 92;
+constexpr int KEY_SPACE         = 32;
+constexpr int KEY_APOSTROPHE    = 39;
+constexpr int KEY_COMMA         = 44;
+constexpr int KEY_MINUS         = 45;
+constexpr int KEY_PERIOD        = 46;
+constexpr int KEY_SLASH         = 47;
+constexpr int KEY_0             = 48;
+constexpr int KEY_9             = 57;
+constexpr int KEY_SEMICOLON     = 59;
+constexpr int KEY_EQUAL         = 61;
+constexpr int KEY_A             = 65;
+constexpr int KEY_Z             = 90;
+constexpr int KEY_LEFT_BRACKET  = 91;
+constexpr int KEY_BACKSLASH     = 92;
 constexpr int KEY_RIGHT_BRACKET = 93;
-constexpr int KEY_ESCAPE = 256;
-constexpr int KEY_ENTER = 257;
-constexpr int KEY_TAB = 258;
-constexpr int KEY_BACKSPACE = 259;
-constexpr int KEY_INSERT = 260;
-constexpr int KEY_DELETE = 261;
-constexpr int KEY_RIGHT = 262;
-constexpr int KEY_LEFT = 263;
-constexpr int KEY_DOWN = 264;
-constexpr int KEY_UP = 265;
-constexpr int KEY_PAGE_UP = 266;
-constexpr int KEY_PAGE_DOWN = 267;
-constexpr int KEY_HOME = 268;
-constexpr int KEY_END = 269;
-constexpr int KEY_F1 = 290;
-constexpr int KEY_F12 = 301;
+constexpr int KEY_ESCAPE        = 256;
+constexpr int KEY_ENTER         = 257;
+constexpr int KEY_TAB           = 258;
+constexpr int KEY_BACKSPACE     = 259;
+constexpr int KEY_INSERT        = 260;
+constexpr int KEY_DELETE        = 261;
+constexpr int KEY_RIGHT         = 262;
+constexpr int KEY_LEFT          = 263;
+constexpr int KEY_DOWN          = 264;
+constexpr int KEY_UP            = 265;
+constexpr int KEY_PAGE_UP       = 266;
+constexpr int KEY_PAGE_DOWN     = 267;
+constexpr int KEY_HOME          = 268;
+constexpr int KEY_END           = 269;
+constexpr int KEY_F1            = 290;
+constexpr int KEY_F12           = 301;
 
 // Named aliases for readability in register_defaults()
 constexpr int KEY_B = 66;
@@ -58,7 +58,7 @@ constexpr int KEY_R = 82;
 constexpr int KEY_S = 83;
 constexpr int KEY_T = 84;
 constexpr int KEY_W = 87;
-}  // namespace glfw_keys
+}   // namespace glfw_keys
 
 static std::string key_to_string(int key)
 {
@@ -231,9 +231,9 @@ std::string Shortcut::to_string() const
 
 Shortcut Shortcut::from_string(const std::string& str)
 {
-    Shortcut s;
-    std::istringstream iss(str);
-    std::string token;
+    Shortcut                 s;
+    std::istringstream       iss(str);
+    std::string              token;
     std::vector<std::string> parts;
 
     // Split by '+'
@@ -298,7 +298,7 @@ void ShortcutManager::unbind_command(const std::string& command_id)
 std::string ShortcutManager::command_for_shortcut(const Shortcut& shortcut) const
 {
     std::lock_guard lock(mutex_);
-    auto it = bindings_.find(shortcut);
+    auto            it = bindings_.find(shortcut);
     return it != bindings_.end() ? it->second : "";
 }
 
@@ -315,7 +315,7 @@ Shortcut ShortcutManager::shortcut_for_command(const std::string& command_id) co
 
 std::vector<ShortcutBinding> ShortcutManager::all_bindings() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard              lock(mutex_);
     std::vector<ShortcutBinding> result;
     result.reserve(bindings_.size());
     for (const auto& [sc, id] : bindings_)
@@ -333,13 +333,13 @@ bool ShortcutManager::on_key(int key, int action, int mods)
         return false;
 
     Shortcut sc;
-    sc.key = key;
-    sc.mods = static_cast<KeyMod>(mods & 0x0F);  // Mask to our modifier bits
+    sc.key  = key;
+    sc.mods = static_cast<KeyMod>(mods & 0x0F);   // Mask to our modifier bits
 
     std::string cmd_id;
     {
         std::lock_guard lock(mutex_);
-        auto it = bindings_.find(sc);
+        auto            it = bindings_.find(sc);
         if (it == bindings_.end())
             return false;
         cmd_id = it->second;
@@ -420,4 +420,4 @@ void ShortcutManager::clear()
     bindings_.clear();
 }
 
-}  // namespace spectra
+}   // namespace spectra

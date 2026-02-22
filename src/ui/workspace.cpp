@@ -330,7 +330,7 @@ static std::string unescape_json(const std::string& s)
 std::string Workspace::read_string_value(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return "";
 
@@ -354,10 +354,10 @@ std::string Workspace::read_string_value(const std::string& json, const std::str
 
 double Workspace::read_number_value(const std::string& json,
                                     const std::string& key,
-                                    double default_val)
+                                    double             default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return default_val;
 
@@ -392,7 +392,7 @@ double Workspace::read_number_value(const std::string& json,
 bool Workspace::read_bool_value(const std::string& json, const std::string& key, bool default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return default_val;
 
@@ -412,8 +412,8 @@ bool Workspace::read_bool_value(const std::string& json, const std::string& key,
 static std::vector<std::string> parse_json_array(const std::string& json, const std::string& key)
 {
     std::vector<std::string> objects;
-    std::string search = "\"" + key + "\"";
-    auto pos = json.find(search);
+    std::string              search = "\"" + key + "\"";
+    auto                     pos    = json.find(search);
     if (pos == std::string::npos)
         return objects;
 
@@ -422,7 +422,7 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
         return objects;
 
     // Find matching objects within the array
-    int depth = 0;
+    int    depth     = 0;
     size_t obj_start = 0;
     for (size_t i = pos + 1; i < json.size(); ++i)
     {
@@ -471,16 +471,16 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     for (const auto& fig_json : fig_objects)
     {
         WorkspaceData::FigureState fig;
-        fig.title = read_string_value(fig_json, "title");
-        fig.width = static_cast<uint32_t>(read_number_value(fig_json, "width", 1280));
-        fig.height = static_cast<uint32_t>(read_number_value(fig_json, "height", 720));
+        fig.title     = read_string_value(fig_json, "title");
+        fig.width     = static_cast<uint32_t>(read_number_value(fig_json, "width", 1280));
+        fig.height    = static_cast<uint32_t>(read_number_value(fig_json, "height", 720));
         fig.grid_rows = static_cast<int>(read_number_value(fig_json, "grid_rows", 1));
         fig.grid_cols = static_cast<int>(read_number_value(fig_json, "grid_cols", 1));
 
         // v2 fields (graceful defaults for v1 files)
         if (data.version >= 2)
         {
-            fig.is_modified = read_bool_value(fig_json, "is_modified", false);
+            fig.is_modified      = read_bool_value(fig_json, "is_modified", false);
             fig.custom_tab_title = read_string_value(fig_json, "custom_tab_title");
         }
 
@@ -489,15 +489,15 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         for (const auto& ax_json : ax_objects)
         {
             WorkspaceData::AxisState ax;
-            ax.x_min = static_cast<float>(read_number_value(ax_json, "x_min", 0));
-            ax.x_max = static_cast<float>(read_number_value(ax_json, "x_max", 1));
-            ax.y_min = static_cast<float>(read_number_value(ax_json, "y_min", 0));
-            ax.y_max = static_cast<float>(read_number_value(ax_json, "y_max", 1));
-            ax.auto_fit = read_bool_value(ax_json, "auto_fit", true);
+            ax.x_min        = static_cast<float>(read_number_value(ax_json, "x_min", 0));
+            ax.x_max        = static_cast<float>(read_number_value(ax_json, "x_max", 1));
+            ax.y_min        = static_cast<float>(read_number_value(ax_json, "y_min", 0));
+            ax.y_max        = static_cast<float>(read_number_value(ax_json, "y_max", 1));
+            ax.auto_fit     = read_bool_value(ax_json, "auto_fit", true);
             ax.grid_visible = read_bool_value(ax_json, "grid_visible", true);
-            ax.x_label = read_string_value(ax_json, "x_label");
-            ax.y_label = read_string_value(ax_json, "y_label");
-            ax.title = read_string_value(ax_json, "title");
+            ax.x_label      = read_string_value(ax_json, "x_label");
+            ax.y_label      = read_string_value(ax_json, "y_label");
+            ax.title        = read_string_value(ax_json, "title");
             // v4 field
             if (data.version >= 4)
             {
@@ -511,28 +511,28 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         for (const auto& ser_json : ser_objects)
         {
             WorkspaceData::SeriesState s;
-            s.name = read_string_value(ser_json, "name");
-            s.type = read_string_value(ser_json, "type");
-            s.color_r = static_cast<float>(read_number_value(ser_json, "color_r", 1));
-            s.color_g = static_cast<float>(read_number_value(ser_json, "color_g", 1));
-            s.color_b = static_cast<float>(read_number_value(ser_json, "color_b", 1));
-            s.color_a = static_cast<float>(read_number_value(ser_json, "color_a", 1));
-            s.line_width = static_cast<float>(read_number_value(ser_json, "line_width", 2));
+            s.name        = read_string_value(ser_json, "name");
+            s.type        = read_string_value(ser_json, "type");
+            s.color_r     = static_cast<float>(read_number_value(ser_json, "color_r", 1));
+            s.color_g     = static_cast<float>(read_number_value(ser_json, "color_g", 1));
+            s.color_b     = static_cast<float>(read_number_value(ser_json, "color_b", 1));
+            s.color_a     = static_cast<float>(read_number_value(ser_json, "color_a", 1));
+            s.line_width  = static_cast<float>(read_number_value(ser_json, "line_width", 2));
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
-            s.visible = read_bool_value(ser_json, "visible", true);
+            s.visible     = read_bool_value(ser_json, "visible", true);
             s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             // v3 fields
             if (data.version >= 3)
             {
-                s.line_style = static_cast<int>(read_number_value(ser_json, "line_style", 1));
+                s.line_style   = static_cast<int>(read_number_value(ser_json, "line_style", 1));
                 s.marker_style = static_cast<int>(read_number_value(ser_json, "marker_style", 0));
                 // Parse dash_pattern array
                 auto dp_pos = ser_json.find("\"dash_pattern\"");
                 if (dp_pos != std::string::npos)
                 {
-                    auto bracket = ser_json.find('[', dp_pos);
+                    auto bracket     = ser_json.find('[', dp_pos);
                     auto end_bracket = ser_json.find(']', bracket);
                     if (bracket != std::string::npos && end_bracket != std::string::npos)
                     {
@@ -546,7 +546,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                             if (p >= dp_str.size())
                                 break;
                             char* endp = nullptr;
-                            float v = std::strtof(dp_str.c_str() + p, &endp);
+                            float v    = std::strtof(dp_str.c_str() + p, &endp);
                             if (endp != dp_str.c_str() + p)
                             {
                                 s.dash_pattern.push_back(v);
@@ -562,9 +562,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             if (data.version >= 4)
             {
                 s.colormap_type = static_cast<int>(read_number_value(ser_json, "colormap_type", 0));
-                s.ambient = static_cast<float>(read_number_value(ser_json, "ambient", 0));
-                s.specular = static_cast<float>(read_number_value(ser_json, "specular", 0));
-                s.shininess = static_cast<float>(read_number_value(ser_json, "shininess", 0));
+                s.ambient       = static_cast<float>(read_number_value(ser_json, "ambient", 0));
+                s.specular      = static_cast<float>(read_number_value(ser_json, "specular", 0));
+                s.shininess     = static_cast<float>(read_number_value(ser_json, "shininess", 0));
             }
             fig.series.push_back(std::move(s));
         }
@@ -576,14 +576,14 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             for (const auto& a3_json : a3_objects)
             {
                 WorkspaceData::Axes3DState a3;
-                a3.axes_index = static_cast<size_t>(read_number_value(a3_json, "axes_index", 0));
-                a3.z_min = static_cast<float>(read_number_value(a3_json, "z_min", 0));
-                a3.z_max = static_cast<float>(read_number_value(a3_json, "z_max", 1));
-                a3.z_label = read_string_value(a3_json, "z_label");
+                a3.axes_index   = static_cast<size_t>(read_number_value(a3_json, "axes_index", 0));
+                a3.z_min        = static_cast<float>(read_number_value(a3_json, "z_min", 0));
+                a3.z_max        = static_cast<float>(read_number_value(a3_json, "z_max", 1));
+                a3.z_label      = read_string_value(a3_json, "z_label");
                 a3.camera_state = read_string_value(a3_json, "camera_state");
-                a3.grid_planes = static_cast<int>(read_number_value(a3_json, "grid_planes", 1));
+                a3.grid_planes  = static_cast<int>(read_number_value(a3_json, "grid_planes", 1));
                 a3.show_bounding_box = read_bool_value(a3_json, "show_bounding_box", true);
-                a3.lighting_enabled = read_bool_value(a3_json, "lighting_enabled", true);
+                a3.lighting_enabled  = read_bool_value(a3_json, "lighting_enabled", true);
                 a3.light_dir_x = static_cast<float>(read_number_value(a3_json, "light_dir_x", 1));
                 a3.light_dir_y = static_cast<float>(read_number_value(a3_json, "light_dir_y", 1));
                 a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
@@ -598,7 +598,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     if (data.version >= 2)
     {
         data.interaction.crosshair_enabled = read_bool_value(json, "crosshair_enabled", false);
-        data.interaction.tooltip_enabled = read_bool_value(json, "tooltip_enabled", true);
+        data.interaction.tooltip_enabled   = read_bool_value(json, "tooltip_enabled", true);
 
         // Parse markers array from interaction object
         auto interaction_pos = json.find("\"interaction\"");
@@ -608,8 +608,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             auto brace = json.find('{', interaction_pos);
             if (brace != std::string::npos)
             {
-                int depth = 0;
-                size_t end = brace;
+                int    depth = 0;
+                size_t end   = brace;
                 for (size_t i = brace; i < json.size(); ++i)
                 {
                     if (json[i] == '{')
@@ -625,12 +625,12 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                     }
                 }
                 std::string interaction_json = json.substr(brace, end - brace + 1);
-                auto marker_objects = parse_json_array(interaction_json, "markers");
+                auto        marker_objects   = parse_json_array(interaction_json, "markers");
                 for (const auto& m_json : marker_objects)
                 {
                     WorkspaceData::InteractionState::MarkerEntry m;
-                    m.data_x = static_cast<float>(read_number_value(m_json, "data_x", 0));
-                    m.data_y = static_cast<float>(read_number_value(m_json, "data_y", 0));
+                    m.data_x       = static_cast<float>(read_number_value(m_json, "data_x", 0));
+                    m.data_y       = static_cast<float>(read_number_value(m_json, "data_y", 0));
                     m.series_label = read_string_value(m_json, "series_label");
                     m.point_index =
                         static_cast<size_t>(read_number_value(m_json, "point_index", 0));
@@ -646,23 +646,23 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     // v3 fields
     if (data.version >= 3)
     {
-        data.axis_link_state = read_string_value(json, "axis_link_state");
+        data.axis_link_state   = read_string_value(json, "axis_link_state");
         data.data_palette_name = read_string_value(json, "data_palette_name");
-        data.plugin_state = read_string_value(json, "plugin_state");
+        data.plugin_state      = read_string_value(json, "plugin_state");
 
         // Parse transforms array
         auto transform_objects = parse_json_array(json, "transforms");
         for (const auto& t_json : transform_objects)
         {
             WorkspaceData::TransformState ts;
-            ts.figure_index = static_cast<size_t>(read_number_value(t_json, "figure_index", 0));
-            ts.axes_index = static_cast<size_t>(read_number_value(t_json, "axes_index", 0));
+            ts.figure_index   = static_cast<size_t>(read_number_value(t_json, "figure_index", 0));
+            ts.axes_index     = static_cast<size_t>(read_number_value(t_json, "axes_index", 0));
             auto step_objects = parse_json_array(t_json, "steps");
             for (const auto& s_json : step_objects)
             {
                 WorkspaceData::TransformState::Step step;
-                step.type = static_cast<int>(read_number_value(s_json, "type", 0));
-                step.param = static_cast<float>(read_number_value(s_json, "param", 0));
+                step.type    = static_cast<int>(read_number_value(s_json, "type", 0));
+                step.param   = static_cast<float>(read_number_value(s_json, "param", 0));
                 step.enabled = read_bool_value(s_json, "enabled", true);
                 ts.steps.push_back(std::move(step));
             }
@@ -674,9 +674,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         for (const auto& o_json : override_objects)
         {
             WorkspaceData::ShortcutOverride so;
-            so.command_id = read_string_value(o_json, "command");
+            so.command_id   = read_string_value(o_json, "command");
             so.shortcut_str = read_string_value(o_json, "shortcut");
-            so.removed = read_bool_value(o_json, "removed", false);
+            so.removed      = read_bool_value(o_json, "removed", false);
             if (!so.command_id.empty())
             {
                 data.shortcut_overrides.push_back(std::move(so));
@@ -690,8 +690,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             auto brace = json.find('{', tl_pos);
             if (brace != std::string::npos)
             {
-                int depth = 0;
-                size_t end = brace;
+                int    depth = 0;
+                size_t end   = brace;
                 for (size_t i = brace; i < json.size(); ++i)
                 {
                     if (json[i] == '{')
@@ -736,7 +736,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
 
 bool Workspace::save(const std::string& path, const WorkspaceData& data)
 {
-    std::string json = serialize_json(data);
+    std::string   json = serialize_json(data);
     std::ofstream file(path);
     if (!file.is_open())
         return false;
@@ -762,17 +762,17 @@ bool Workspace::load(const std::string& path, WorkspaceData& data)
 // ─── Capture / Apply ─────────────────────────────────────────────────────────
 
 WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
-                                 size_t active_index,
-                                 const std::string& theme_name,
-                                 bool inspector_visible,
-                                 float inspector_width,
-                                 bool nav_rail_expanded)
+                                 size_t                      active_index,
+                                 const std::string&          theme_name,
+                                 bool                        inspector_visible,
+                                 float                       inspector_width,
+                                 bool                        nav_rail_expanded)
 {
     WorkspaceData data;
-    data.theme_name = theme_name;
-    data.active_figure_index = active_index;
+    data.theme_name               = theme_name;
+    data.active_figure_index      = active_index;
     data.panels.inspector_visible = inspector_visible;
-    data.panels.inspector_width = inspector_width;
+    data.panels.inspector_width   = inspector_width;
     data.panels.nav_rail_expanded = nav_rail_expanded;
 
     for (const auto* fig : figures)
@@ -781,9 +781,9 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
             continue;
 
         WorkspaceData::FigureState fs;
-        fs.title = "";  // Figure has no title accessor yet
-        fs.width = fig->width();
-        fs.height = fig->height();
+        fs.title     = "";   // Figure has no title accessor yet
+        fs.width     = fig->width();
+        fs.height    = fig->height();
         fs.grid_rows = fig->grid_rows();
         fs.grid_cols = fig->grid_cols();
 
@@ -800,49 +800,49 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
 
             if (auto* ax3d = dynamic_cast<const Axes3D*>(ax_base))
             {
-                as.is_3d = true;
-                auto xlim = ax3d->x_limits();
-                auto ylim = ax3d->y_limits();
-                auto zlim = ax3d->z_limits();
-                as.x_min = xlim.min;
-                as.x_max = xlim.max;
-                as.y_min = ylim.min;
-                as.y_max = ylim.max;
-                as.auto_fit = false;
+                as.is_3d        = true;
+                auto xlim       = ax3d->x_limits();
+                auto ylim       = ax3d->y_limits();
+                auto zlim       = ax3d->z_limits();
+                as.x_min        = xlim.min;
+                as.x_max        = xlim.max;
+                as.y_min        = ylim.min;
+                as.y_max        = ylim.max;
+                as.auto_fit     = false;
                 as.grid_visible = ax3d->grid_enabled();
-                as.x_label = ax3d->get_xlabel();
-                as.y_label = ax3d->get_ylabel();
-                as.title = ax3d->get_title();
+                as.x_label      = ax3d->get_xlabel();
+                as.y_label      = ax3d->get_ylabel();
+                as.title        = ax3d->get_title();
 
                 WorkspaceData::Axes3DState a3;
-                a3.axes_index = axes_idx;
-                a3.z_min = zlim.min;
-                a3.z_max = zlim.max;
-                a3.z_label = ax3d->get_zlabel();
-                a3.camera_state = ax3d->camera().serialize();
-                a3.grid_planes = static_cast<int>(ax3d->grid_planes());
+                a3.axes_index        = axes_idx;
+                a3.z_min             = zlim.min;
+                a3.z_max             = zlim.max;
+                a3.z_label           = ax3d->get_zlabel();
+                a3.camera_state      = ax3d->camera().serialize();
+                a3.grid_planes       = static_cast<int>(ax3d->grid_planes());
                 a3.show_bounding_box = ax3d->show_bounding_box();
-                a3.lighting_enabled = ax3d->lighting_enabled();
-                auto ld = ax3d->light_dir();
-                a3.light_dir_x = ld.x;
-                a3.light_dir_y = ld.y;
-                a3.light_dir_z = ld.z;
+                a3.lighting_enabled  = ax3d->lighting_enabled();
+                auto ld              = ax3d->light_dir();
+                a3.light_dir_x       = ld.x;
+                a3.light_dir_y       = ld.y;
+                a3.light_dir_z       = ld.z;
                 fs.axes_3d.push_back(std::move(a3));
             }
             else if (auto* ax2d = dynamic_cast<const Axes*>(ax_base))
             {
-                as.is_3d = false;
-                auto xlim = ax2d->x_limits();
-                auto ylim = ax2d->y_limits();
-                as.x_min = xlim.min;
-                as.x_max = xlim.max;
-                as.y_min = ylim.min;
-                as.y_max = ylim.max;
-                as.auto_fit = false;
+                as.is_3d        = false;
+                auto xlim       = ax2d->x_limits();
+                auto ylim       = ax2d->y_limits();
+                as.x_min        = xlim.min;
+                as.x_max        = xlim.max;
+                as.y_min        = ylim.min;
+                as.y_max        = ylim.max;
+                as.auto_fit     = false;
                 as.grid_visible = ax2d->grid_enabled();
-                as.x_label = ax2d->get_xlabel();
-                as.y_label = ax2d->get_ylabel();
-                as.title = ax2d->get_title();
+                as.x_label      = ax2d->get_xlabel();
+                as.y_label      = ax2d->get_ylabel();
+                as.title        = ax2d->get_title();
             }
 
             fs.axes.push_back(std::move(as));
@@ -877,7 +877,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 if (!s)
                     continue;
                 WorkspaceData::SeriesState ss;
-                ss.name = s->label();
+                ss.name    = s->label();
                 ss.visible = s->visible();
                 ss.color_r = s->color().r;
                 ss.color_g = s->color().g;
@@ -887,44 +887,44 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
                 {
-                    ss.type = "line";
-                    ss.line_width = ls->width();
+                    ss.type        = "line";
+                    ss.line_width  = ls->width();
                     ss.point_count = ls->x_data().size();
                 }
                 else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
                 {
-                    ss.type = "scatter";
+                    ss.type        = "scatter";
                     ss.marker_size = sc->size();
                     ss.point_count = sc->x_data().size();
                 }
                 else if (auto* ls3 = dynamic_cast<LineSeries3D*>(s.get()))
                 {
-                    ss.type = "line3d";
-                    ss.line_width = ls3->width();
+                    ss.type        = "line3d";
+                    ss.line_width  = ls3->width();
                     ss.point_count = ls3->point_count();
                 }
                 else if (auto* sc3 = dynamic_cast<ScatterSeries3D*>(s.get()))
                 {
-                    ss.type = "scatter3d";
+                    ss.type        = "scatter3d";
                     ss.marker_size = sc3->size();
                     ss.point_count = sc3->point_count();
                 }
                 else if (auto* sf = dynamic_cast<SurfaceSeries*>(s.get()))
                 {
-                    ss.type = "surface";
-                    ss.point_count = sf->z_values().size();
+                    ss.type          = "surface";
+                    ss.point_count   = sf->z_values().size();
                     ss.colormap_type = static_cast<int>(sf->colormap_type());
-                    ss.ambient = sf->ambient();
-                    ss.specular = sf->specular();
-                    ss.shininess = sf->shininess();
+                    ss.ambient       = sf->ambient();
+                    ss.specular      = sf->specular();
+                    ss.shininess     = sf->shininess();
                 }
                 else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()))
                 {
-                    ss.type = "mesh";
+                    ss.type        = "mesh";
                     ss.point_count = ms->vertex_count();
-                    ss.ambient = ms->ambient();
-                    ss.specular = ms->specular();
-                    ss.shininess = ms->shininess();
+                    ss.ambient     = ms->ambient();
+                    ss.specular    = ms->specular();
+                    ss.shininess   = ms->shininess();
                 }
 
                 fs.series.push_back(std::move(ss));
@@ -953,8 +953,8 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
     // Apply axis limits and grid state from workspace data to matching figures
     for (size_t fi = 0; fi < data.figures.size() && fi < figures.size(); ++fi)
     {
-        const auto& fs = data.figures[fi];
-        auto* fig = figures[fi];
+        const auto& fs  = data.figures[fi];
+        auto*       fig = figures[fi];
         if (!fig)
             continue;
 
@@ -1015,8 +1015,8 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         }
 
         // Apply series visibility
-        size_t si = 0;
-        auto apply_series_vis = [&](AxesBase* ax_base)
+        size_t si               = 0;
+        auto   apply_series_vis = [&](AxesBase* ax_base)
         {
             if (!ax_base)
                 return;
@@ -1076,8 +1076,8 @@ std::string Workspace::autosave_path()
 bool Workspace::maybe_autosave(const WorkspaceData& data, float interval_seconds)
 {
     static auto last_autosave = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-    float elapsed = std::chrono::duration<float>(now - last_autosave).count();
+    auto        now           = std::chrono::steady_clock::now();
+    float       elapsed       = std::chrono::duration<float>(now - last_autosave).count();
     if (elapsed < interval_seconds)
         return false;
 
@@ -1109,4 +1109,4 @@ void Workspace::clear_autosave()
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

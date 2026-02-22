@@ -66,27 +66,27 @@ class DataInteraction
     bool on_mouse_click(int button, double screen_x, double screen_y);
 
     // Region selection (shift-drag)
-    void begin_region_select(double screen_x, double screen_y);
-    void update_region_drag(double screen_x, double screen_y);
-    void finish_region_select();
-    void dismiss_region_select();
-    bool is_region_dragging() const { return region_.is_dragging(); }
-    bool has_region_selection() const { return region_.has_selection(); }
+    void                    begin_region_select(double screen_x, double screen_y);
+    void                    update_region_drag(double screen_x, double screen_y);
+    void                    finish_region_select();
+    void                    dismiss_region_select();
+    bool                    is_region_dragging() const { return region_.is_dragging(); }
+    bool                    has_region_selection() const { return region_.has_selection(); }
     const RegionStatistics& region_statistics() const { return region_.statistics(); }
 
     // Legend interaction
-    LegendInteraction& legend() { return legend_; }
+    LegendInteraction&       legend() { return legend_; }
     const LegendInteraction& legend() const { return legend_; }
 
     // Set the transition engine for animated markers/regions
     void set_transition_engine(class TransitionEngine* te);
 
     // Set the axis link manager for shared cursor across subplots
-    void set_axis_link_manager(class AxisLinkManager* alm) { axis_link_mgr_ = alm; }
+    void             set_axis_link_manager(class AxisLinkManager* alm) { axis_link_mgr_ = alm; }
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
     // Set snap radius for nearest-point detection (in pixels)
-    void set_snap_radius(float px);
+    void  set_snap_radius(float px);
     float snap_radius() const { return tooltip_.snap_radius(); }
 
     // Series selection callback: fired when user clicks near a series.
@@ -99,11 +99,11 @@ class DataInteraction
     NearestPointResult find_nearest(const CursorReadout& cursor, Figure& figure) const;
 
     NearestPointResult nearest_;
-    Tooltip tooltip_;
-    Crosshair crosshair_;
-    DataMarkerManager markers_;
-    RegionSelect region_;
-    LegendInteraction legend_;
+    Tooltip            tooltip_;
+    Crosshair          crosshair_;
+    DataMarkerManager  markers_;
+    RegionSelect       region_;
+    LegendInteraction  legend_;
 
     // Axis link manager for shared cursor
     AxisLinkManager* axis_link_mgr_ = nullptr;
@@ -113,13 +113,13 @@ class DataInteraction
 
     // Cached state for drawing
     CursorReadout last_cursor_;
-    Figure* last_figure_ = nullptr;
-    Axes* active_axes_ = nullptr;
-    Rect active_viewport_;
-    float xlim_min_ = 0.0f, xlim_max_ = 1.0f;
-    float ylim_min_ = 0.0f, ylim_max_ = 1.0f;
+    Figure*       last_figure_ = nullptr;
+    Axes*         active_axes_ = nullptr;
+    Rect          active_viewport_;
+    float         xlim_min_ = 0.0f, xlim_max_ = 1.0f;
+    float         ylim_min_ = 0.0f, ylim_max_ = 1.0f;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

@@ -17,11 +17,11 @@ namespace spectra
 // Which axis dimensions are linked within a group
 enum class LinkAxis : uint8_t
 {
-    X = 0x01,
-    Y = 0x02,
-    Both = 0x03,  // X | Y (2D)
-    Z = 0x04,
-    All = 0x07,  // X | Y | Z (3D)
+    X    = 0x01,
+    Y    = 0x02,
+    Both = 0x03,   // X | Y (2D)
+    Z    = 0x04,
+    All  = 0x07,   // X | Y | Z (3D)
 };
 
 inline LinkAxis operator|(LinkAxis a, LinkAxis b)
@@ -43,10 +43,10 @@ using LinkGroupId = uint32_t;
 // A group of axes that are linked together
 struct LinkGroup
 {
-    LinkGroupId id = 0;
-    LinkAxis axis = LinkAxis::X;
-    std::string name;            // User-visible label (e.g. "Group 1")
-    Color color = colors::blue;  // Visual indicator color
+    LinkGroupId        id   = 0;
+    LinkAxis           axis = LinkAxis::X;
+    std::string        name;                   // User-visible label (e.g. "Group 1")
+    Color              color = colors::blue;   // Visual indicator color
     std::vector<Axes*> members;
 
     bool contains(const Axes* ax) const;
@@ -56,10 +56,10 @@ struct LinkGroup
 // A group of 3D axes that are linked together (xlim/ylim/zlim)
 struct Link3DGroup
 {
-    LinkGroupId id = 0;
-    LinkAxis axis = LinkAxis::All;  // X=xlim only, Y=ylim only, Z=zlim only, All=all three
+    LinkGroupId id   = 0;
+    LinkAxis    axis = LinkAxis::All;   // X=xlim only, Y=ylim only, Z=zlim only, All=all three
     std::string name;
-    Color color = colors::blue;
+    Color       color = colors::blue;
     std::vector<Axes3D*> members;
 
     bool contains(const Axes3D* ax) const
@@ -77,12 +77,12 @@ struct Link3DGroup
 // Stored in data coordinates of the source axes.
 struct SharedCursor
 {
-    bool valid = false;
-    float data_x = 0.0f;
-    float data_y = 0.0f;
-    double screen_x = 0.0;
-    double screen_y = 0.0;
-    const Axes* source_axes = nullptr;  // Which axes generated this cursor
+    bool        valid       = false;
+    float       data_x      = 0.0f;
+    float       data_y      = 0.0f;
+    double      screen_x    = 0.0;
+    double      screen_y    = 0.0;
+    const Axes* source_axes = nullptr;   // Which axes generated this cursor
 };
 
 // Callback fired when linked axes limits change (for UI redraw notification)
@@ -197,7 +197,7 @@ class AxisLinkManager
     using IndexToAxes = std::function<Axes*(int)>;
 
     std::string serialize(AxesToIndex mapper) const;
-    void deserialize(const std::string& json, IndexToAxes mapper);
+    void        deserialize(const std::string& json, IndexToAxes mapper);
 
     // ── Callbacks ────────────────────────────────────────────────────
 
@@ -222,11 +222,11 @@ class AxisLinkManager
     // Get peers for a given axes in a specific group (excluding the axes itself).
     std::vector<Axes*> peers_in_group_unlocked(const LinkGroup& group, const Axes* ax) const;
 
-    mutable std::mutex mutex_;
-    std::unordered_map<LinkGroupId, LinkGroup> groups_;
+    mutable std::mutex                           mutex_;
+    std::unordered_map<LinkGroupId, LinkGroup>   groups_;
     std::unordered_map<LinkGroupId, Link3DGroup> groups_3d_;
-    LinkGroupId next_id_ = 1;
-    LinkChangeCallback on_change_;
+    LinkGroupId                                  next_id_ = 1;
+    LinkChangeCallback                           on_change_;
 
     // Guard against re-entrant propagation
     bool propagating_ = false;
@@ -235,4 +235,4 @@ class AxisLinkManager
     SharedCursor shared_cursor_;
 };
 
-}  // namespace spectra
+}   // namespace spectra

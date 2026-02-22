@@ -10,11 +10,11 @@
 int main()
 {
     // ── Generate data ────────────────────────────────────────────────────────
-    constexpr int N = 200;
+    constexpr int      N = 200;
     std::vector<float> x(N), y_sin(N), y_cos(N), y_tan(N);
     for (int i = 0; i < N; ++i)
     {
-        x[i] = static_cast<float>(i) * 0.05f;
+        x[i]     = static_cast<float>(i) * 0.05f;
         y_sin[i] = std::sin(x[i]);
         y_cos[i] = std::cos(x[i]);
         y_tan[i] = std::sin(x[i]) * std::exp(-x[i] * 0.2f);

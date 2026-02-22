@@ -16,16 +16,16 @@ namespace spectra
 // Downscale RGBA image to target_size x target_size using box filter.
 // Returns empty vector if src is already <= target_size.
 inline std::vector<unsigned char> downscale_icon(const unsigned char* src,
-                                                 int src_w,
-                                                 int src_h,
-                                                 int target_size)
+                                                 int                  src_w,
+                                                 int                  src_h,
+                                                 int                  target_size)
 {
     if (src_w <= target_size && src_h <= target_size)
         return {};
 
     std::vector<unsigned char> dst(target_size * target_size * 4);
-    const float sx = static_cast<float>(src_w) / target_size;
-    const float sy = static_cast<float>(src_h) / target_size;
+    const float                sx = static_cast<float>(src_w) / target_size;
+    const float                sy = static_cast<float>(src_h) / target_size;
 
     for (int dy = 0; dy < target_size; ++dy)
     {
@@ -41,7 +41,7 @@ inline std::vector<unsigned char> downscale_icon(const unsigned char* src,
                 y1 = src_h;
 
             float r = 0, g = 0, b = 0, a = 0;
-            int count = 0;
+            int   count = 0;
             for (int py = y0; py < y1; ++py)
             {
                 for (int px = x0; px < x1; ++px)
@@ -99,26 +99,26 @@ inline void set_window_icon(GLFWwindow* window)
 
     for (const char* path : icon_paths)
     {
-        int w = 0, h = 0, channels = 0;
+        int            w = 0, h = 0, channels = 0;
         unsigned char* pixels = stbi_load(path, &w, &h, &channels, 4);
         if (pixels)
         {
-            constexpr int N = sizeof(ICON_SIZES) / sizeof(ICON_SIZES[0]);
+            constexpr int              N = sizeof(ICON_SIZES) / sizeof(ICON_SIZES[0]);
             std::vector<unsigned char> buffers[N];
-            GLFWimage images[N];
+            GLFWimage                  images[N];
 
             for (int i = 0; i < N; ++i)
             {
                 buffers[i] = downscale_icon(pixels, w, h, ICON_SIZES[i]);
                 if (!buffers[i].empty())
                 {
-                    images[i].width = ICON_SIZES[i];
+                    images[i].width  = ICON_SIZES[i];
                     images[i].height = ICON_SIZES[i];
                     images[i].pixels = buffers[i].data();
                 }
                 else
                 {
-                    images[i].width = w;
+                    images[i].width  = w;
                     images[i].height = h;
                     images[i].pixels = pixels;
                 }
@@ -133,6 +133,6 @@ inline void set_window_icon(GLFWwindow* window)
     std::cerr << "[spectra] Warning: could not load window icon (spectra_icon.png)\n";
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_GLFW
+#endif   // SPECTRA_USE_GLFW

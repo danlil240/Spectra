@@ -121,7 +121,7 @@ void UndoManager::clear()
 void UndoManager::begin_group(const std::string& description)
 {
     std::lock_guard lock(mutex_);
-    grouping_ = true;
+    grouping_          = true;
     group_description_ = description;
     group_actions_.clear();
 }
@@ -137,12 +137,12 @@ void UndoManager::end_group()
         return;
 
     // Combine all group actions into a single UndoAction
-    auto actions = std::move(group_actions_);
-    std::string desc = std::move(group_description_);
+    auto        actions = std::move(group_actions_);
+    std::string desc    = std::move(group_description_);
 
     UndoAction combined;
     combined.description = desc;
-    combined.undo_fn = [actions]()
+    combined.undo_fn     = [actions]()
     {
         // Undo in reverse order
         for (auto it = actions.rbegin(); it != actions.rend(); ++it)
@@ -177,4 +177,4 @@ bool UndoManager::in_group() const
     return grouping_;
 }
 
-}  // namespace spectra
+}   // namespace spectra

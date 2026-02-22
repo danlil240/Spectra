@@ -20,7 +20,7 @@ FigureManager::FigureManager(FigureRegistry& registry) : registry_(registry)
         ordered_ids_.push_back(id);
         FigureState st;
         st.custom_title = default_title(id);
-        states_[id] = std::move(st);
+        states_[id]     = std::move(st);
     }
     if (!ordered_ids_.empty())
     {
@@ -62,7 +62,7 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     // Add state for the new figure (use next available figure number)
     FigureState new_state;
     new_state.custom_title = default_title(next_figure_number());
-    states_[id] = std::move(new_state);
+    states_[id]            = std::move(new_state);
 
     // Sync tab bar
     if (tab_bar_)
@@ -114,7 +114,7 @@ bool FigureManager::close_figure(FigureId index)
     {
         // Switch to nearest remaining figure
         size_t new_pos = (pos < ordered_ids_.size()) ? pos : ordered_ids_.size() - 1;
-        active_index_ = ordered_ids_[new_pos];
+        active_index_  = ordered_ids_[new_pos];
     }
 
     // Sync tab bar active state
@@ -162,7 +162,7 @@ bool FigureManager::close_all_except(FigureId index)
         registry_.unregister_figure(id);
     }
 
-    ordered_ids_ = {index};
+    ordered_ids_  = {index};
     active_index_ = index;
 
     // Rebuild tab bar
@@ -236,7 +236,7 @@ FigureState FigureManager::remove_figure(FigureId id)
 
     // Extract state
     FigureState extracted;
-    auto st_it = states_.find(id);
+    auto        st_it = states_.find(id);
     if (st_it != states_.end())
     {
         extracted = std::move(st_it->second);
@@ -256,7 +256,7 @@ FigureState FigureManager::remove_figure(FigureId id)
         if (!ordered_ids_.empty())
         {
             size_t new_pos = (pos < ordered_ids_.size()) ? pos : ordered_ids_.size() - 1;
-            active_index_ = ordered_ids_[new_pos];
+            active_index_  = ordered_ids_[new_pos];
         }
         else
         {
@@ -310,10 +310,10 @@ FigureId FigureManager::duplicate_figure(FigureId index)
 
     // Create a new figure with the same dimensions
     FigureConfig cfg;
-    cfg.width = src->width();
-    cfg.height = src->height();
-    auto new_fig_ptr = std::make_unique<Figure>(cfg);
-    auto& new_fig = *new_fig_ptr;
+    cfg.width         = src->width();
+    cfg.height        = src->height();
+    auto  new_fig_ptr = std::make_unique<Figure>(cfg);
+    auto& new_fig     = *new_fig_ptr;
 
     // ── Deep-copy 2D axes with all series data ──────────────────────
     for (size_t i = 0; i < src->axes().size(); ++i)
@@ -396,16 +396,16 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         dst_ax3d.lighting_enabled(src_ax3d->lighting_enabled());
 
         // Copy camera state
-        dst_ax3d.camera().target = src_ax3d->camera().target;
-        dst_ax3d.camera().up = src_ax3d->camera().up;
-        dst_ax3d.camera().azimuth = src_ax3d->camera().azimuth;
-        dst_ax3d.camera().elevation = src_ax3d->camera().elevation;
-        dst_ax3d.camera().distance = src_ax3d->camera().distance;
-        dst_ax3d.camera().fov = src_ax3d->camera().fov;
-        dst_ax3d.camera().near_clip = src_ax3d->camera().near_clip;
-        dst_ax3d.camera().far_clip = src_ax3d->camera().far_clip;
+        dst_ax3d.camera().target          = src_ax3d->camera().target;
+        dst_ax3d.camera().up              = src_ax3d->camera().up;
+        dst_ax3d.camera().azimuth         = src_ax3d->camera().azimuth;
+        dst_ax3d.camera().elevation       = src_ax3d->camera().elevation;
+        dst_ax3d.camera().distance        = src_ax3d->camera().distance;
+        dst_ax3d.camera().fov             = src_ax3d->camera().fov;
+        dst_ax3d.camera().near_clip       = src_ax3d->camera().near_clip;
+        dst_ax3d.camera().far_clip        = src_ax3d->camera().far_clip;
         dst_ax3d.camera().projection_mode = src_ax3d->camera().projection_mode;
-        dst_ax3d.camera().ortho_size = src_ax3d->camera().ortho_size;
+        dst_ax3d.camera().ortho_size      = src_ax3d->camera().ortho_size;
         dst_ax3d.camera().update_position_from_orbit();
 
         // Deep-copy 3D series
@@ -473,7 +473,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     }
 
     // Copy figure style and legend
-    new_fig.style() = src->style();
+    new_fig.style()  = src->style();
     new_fig.legend() = src->legend();
 
     // NOTE: Animation callbacks are NOT copied to duplicates.
@@ -488,7 +488,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     // Create state with next available figure number
     FigureState new_state;
     new_state.custom_title = default_title(next_figure_number());
-    states_[new_id] = std::move(new_state);
+    states_[new_id]        = std::move(new_state);
 
     // Sync tab bar
     if (tab_bar_)
@@ -554,7 +554,7 @@ void FigureManager::switch_to_previous()
 void FigureManager::move_tab(FigureId from_index, FigureId to_index)
 {
     size_t from_pos = id_to_pos(from_index);
-    size_t to_pos = id_to_pos(to_index);
+    size_t to_pos   = id_to_pos(to_index);
     if (from_pos == SIZE_MAX || to_pos == SIZE_MAX || from_pos == to_pos)
     {
         return;
@@ -663,21 +663,21 @@ bool FigureManager::process_pending()
 
     if (pending_create_)
     {
-        Figure* current = active_figure();
+        Figure*      current = active_figure();
         FigureConfig cfg;
         if (current)
         {
-            cfg.width = current->width();
+            cfg.width  = current->width();
             cfg.height = current->height();
         }
         create_figure(cfg);
         pending_create_ = false;
-        changed = true;
+        changed         = true;
     }
 
     if (pending_close_ != INVALID_FIGURE_ID)
     {
-        FigureId idx = pending_close_;
+        FigureId idx   = pending_close_;
         pending_close_ = INVALID_FIGURE_ID;
         close_figure(idx);
         changed = true;
@@ -685,7 +685,7 @@ bool FigureManager::process_pending()
 
     if (pending_switch_ != INVALID_FIGURE_ID)
     {
-        FigureId idx = pending_switch_;
+        FigureId idx    = pending_switch_;
         pending_switch_ = INVALID_FIGURE_ID;
         if (id_to_pos(idx) != SIZE_MAX && idx != active_index_)
         {
@@ -798,7 +798,7 @@ void FigureManager::ensure_states()
         {
             FigureState st;
             st.custom_title = default_title(id);
-            states_[id] = std::move(st);
+            states_[id]     = std::move(st);
         }
     }
 }
@@ -831,4 +831,4 @@ size_t FigureManager::next_figure_number() const
     return max_num;
 }
 
-}  // namespace spectra
+}   // namespace spectra

@@ -27,7 +27,7 @@ ThemeManager& ThemeManager::instance()
 
 void ThemeManager::register_theme(const std::string& name, Theme theme)
 {
-    theme.name = name;
+    theme.name    = name;
     themes_[name] = std::move(theme);
     if (!current_theme_)
     {
@@ -41,7 +41,7 @@ void ThemeManager::set_theme(const std::string& name)
     if (it != themes_.end())
     {
         current_theme_name_ = name;
-        current_theme_ = &it->second;
+        current_theme_      = &it->second;
         apply_to_imgui();
     }
 }
@@ -81,7 +81,7 @@ void ThemeManager::set_data_palette(const std::string& palette_name)
 
 void ThemeManager::register_data_palette(const std::string& name, DataPalette palette)
 {
-    palette.name = name;
+    palette.name         = name;
     data_palettes_[name] = std::move(palette);
     palette_names_dirty_ = true;
 }
@@ -101,7 +101,7 @@ const DataPalette& ThemeManager::current_data_palette() const
 const DataPalette& ThemeManager::get_data_palette(const std::string& name) const
 {
     static DataPalette fallback;
-    auto it = data_palettes_.find(name);
+    auto               it = data_palettes_.find(name);
     if (it != data_palettes_.end())
         return it->second;
     return fallback;
@@ -133,18 +133,18 @@ void ThemeManager::transition_palette(const std::string& palette_name, float dur
         return;
     }
 
-    const auto& current_pal = current_data_palette();
-    palette_start_colors_ = current_pal.colors;
-    palette_target_colors_ = it->second.colors;
+    const auto& current_pal         = current_data_palette();
+    palette_start_colors_           = current_pal.colors;
+    palette_target_colors_          = it->second.colors;
     palette_transition_target_name_ = palette_name;
-    palette_transition_time_ = 0.0f;
-    palette_transition_duration_ = duration_sec;
-    palette_transitioning_ = true;
+    palette_transition_time_        = 0.0f;
+    palette_transition_duration_    = duration_sec;
+    palette_transitioning_          = true;
 
     // Initialize display palette from target metadata
-    display_palette_ = it->second;
+    display_palette_        = it->second;
     display_palette_.colors = palette_start_colors_;
-    display_palette_valid_ = true;
+    display_palette_valid_  = true;
 }
 
 bool ThemeManager::is_palette_transitioning() const
@@ -157,66 +157,66 @@ void ThemeManager::apply_to_imgui()
     if (!current_theme_ || ImGui::GetCurrentContext() == nullptr)
         return;
 
-    auto& style = ImGui::GetStyle();
+    auto&       style  = ImGui::GetStyle();
     const auto& colors = current_theme_->colors;
 
     // ── Modern 2026 styling ──────────────────────────────────────────────
-    style.AntiAliasedLines = true;
-    style.AntiAliasedFill = true;
+    style.AntiAliasedLines       = true;
+    style.AntiAliasedFill        = true;
     style.AntiAliasedLinesUseTex = true;
 
     // Window styling — generous rounding, subtle borders
-    style.WindowPadding = ImVec2(tokens::SPACE_4, tokens::SPACE_4);
-    style.WindowRounding = tokens::RADIUS_LG;
+    style.WindowPadding    = ImVec2(tokens::SPACE_4, tokens::SPACE_4);
+    style.WindowRounding   = tokens::RADIUS_LG;
     style.WindowBorderSize = 0.5f;
-    style.WindowMinSize = ImVec2(32, 32);
+    style.WindowMinSize    = ImVec2(32, 32);
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 
     // Frame styling — pill-like inputs and controls
-    style.FramePadding = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
-    style.FrameRounding = tokens::RADIUS_MD;
+    style.FramePadding    = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
+    style.FrameRounding   = tokens::RADIUS_MD;
     style.FrameBorderSize = 0.0f;
 
     // Item spacing — breathing room
-    style.ItemSpacing = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
+    style.ItemSpacing      = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
     style.ItemInnerSpacing = ImVec2(tokens::SPACE_2, tokens::SPACE_2);
 
     // Indent and separator
-    style.IndentSpacing = tokens::SPACE_6;
+    style.IndentSpacing           = tokens::SPACE_6;
     style.SeparatorTextBorderSize = 0.5f;
-    style.SeparatorTextAlign = ImVec2(0.5f, 0.5f);
-    style.SeparatorTextPadding = ImVec2(tokens::SPACE_5, tokens::SPACE_2);
+    style.SeparatorTextAlign      = ImVec2(0.5f, 0.5f);
+    style.SeparatorTextPadding    = ImVec2(tokens::SPACE_5, tokens::SPACE_2);
 
     // Scrollbar — thin, pill-shaped, modern
-    style.ScrollbarSize = 6.0f;
+    style.ScrollbarSize     = 6.0f;
     style.ScrollbarRounding = tokens::RADIUS_PILL;
 
     // Grab — rounded slider handles
-    style.GrabMinSize = tokens::SPACE_4;
+    style.GrabMinSize  = tokens::SPACE_4;
     style.GrabRounding = tokens::RADIUS_PILL;
 
     // Tab — rounded top corners
-    style.TabRounding = tokens::RADIUS_MD;
-    style.TabBorderSize = 0.0f;
+    style.TabRounding               = tokens::RADIUS_MD;
+    style.TabBorderSize             = 0.0f;
     style.TabMinWidthForCloseButton = 0.0f;
-    style.TabBarBorderSize = 0.5f;
+    style.TabBarBorderSize          = 0.5f;
 
     // Popup — elevated, rounded
-    style.PopupRounding = tokens::RADIUS_LG;
+    style.PopupRounding   = tokens::RADIUS_LG;
     style.PopupBorderSize = 0.5f;
 
     // Child window
-    style.ChildRounding = tokens::RADIUS_MD;
+    style.ChildRounding   = tokens::RADIUS_MD;
     style.ChildBorderSize = 0.0f;
 
     // Button
-    style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+    style.ButtonTextAlign     = ImVec2(0.5f, 0.5f);
     style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
 
     // Tooltip — modern rounded
     style.HoverStationaryDelay = 0.3f;
-    style.HoverDelayShort = 0.15f;
-    style.HoverDelayNormal = 0.4f;
+    style.HoverDelayShort      = 0.15f;
+    style.HoverDelayNormal     = 0.4f;
 
     // Display safe area padding
     style.DisplaySafeAreaPadding = ImVec2(0.0f, 0.0f);
@@ -379,7 +379,7 @@ void ThemeManager::apply_to_renderer(Renderer& renderer)
     // - colors.crosshair for crosshair
     // - colors.selection_fill/border for selections
 
-    (void)renderer;  // Suppress unused parameter warning
+    (void)renderer;   // Suppress unused parameter warning
 }
 
 void ThemeManager::transition_to(const std::string& name, float duration_sec)
@@ -387,14 +387,14 @@ void ThemeManager::transition_to(const std::string& name, float duration_sec)
     auto it = themes_.find(name);
     if (it != themes_.end() && current_theme_)
     {
-        transitioning_ = true;
-        transition_time_ = 0.0f;
-        transition_duration_ = duration_sec;
-        transition_start_colors_ = colors();  // Use display colors (may already be mid-transition)
+        transitioning_           = true;
+        transition_time_         = 0.0f;
+        transition_duration_     = duration_sec;
+        transition_start_colors_ = colors();   // Use display colors (may already be mid-transition)
         transition_target_colors_ = it->second.colors;
-        transition_target_name_ = name;
-        display_colors_valid_ = true;
-        display_colors_ = transition_start_colors_;
+        transition_target_name_   = name;
+        display_colors_valid_     = true;
+        display_colors_           = transition_start_colors_;
     }
 }
 
@@ -416,7 +416,7 @@ void ThemeManager::update(float dt)
 
         if (transition_time_ >= transition_duration_)
         {
-            transitioning_ = false;
+            transitioning_        = false;
             display_colors_valid_ = false;
             // Switch to target theme (stored data is pristine)
             set_theme(transition_target_name_);
@@ -428,7 +428,7 @@ void ThemeManager::update(float dt)
     {
         palette_transition_time_ += dt;
         float t = std::min(palette_transition_time_ / palette_transition_duration_, 1.0f);
-        t = t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
+        t       = t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
 
         // Interpolate palette colors
         size_t count = std::min(palette_start_colors_.size(), palette_target_colors_.size());
@@ -494,7 +494,7 @@ Color ThemeManager::get_color(const std::string& color_name) const
     if (color_name == "info")
         return c.info;
 
-    return Color();  // Return transparent if not found
+    return Color();   // Return transparent if not found
 }
 
 Color ThemeManager::lerp_color(const std::string& color_name, const Color& target, float t) const
@@ -536,7 +536,7 @@ std::string escape_json_string(const std::string& s)
 
 std::string theme_colors_to_json(const ThemeColors& c, int indent = 4)
 {
-    std::string pad(indent, ' ');
+    std::string        pad(indent, ' ');
     std::ostringstream os;
     os << "{\n";
 #define TC_FIELD(name) \
@@ -586,8 +586,8 @@ bool parse_float_array(const std::string& s, size_t& pos, float* out, int count)
         while (pos < s.size() && (s[pos] == ' ' || s[pos] == ','))
             ++pos;
         char* end = nullptr;
-        out[i] = std::strtof(s.c_str() + pos, &end);
-        pos = static_cast<size_t>(end - s.c_str());
+        out[i]    = std::strtof(s.c_str() + pos, &end);
+        pos       = static_cast<size_t>(end - s.c_str());
     }
     while (pos < s.size() && s[pos] != ']')
         ++pos;
@@ -657,7 +657,7 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
     return true;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 bool ThemeManager::export_theme(const std::string& path) const
 {
@@ -726,8 +726,8 @@ bool ThemeManager::import_theme(const std::string& path)
         size_t brace = json.find('{', colors_pos + 8);
         if (brace != std::string::npos)
         {
-            int depth = 1;
-            size_t end = brace + 1;
+            int    depth = 1;
+            size_t end   = brace + 1;
             while (end < json.size() && depth > 0)
             {
                 if (json[end] == '{')
@@ -744,14 +744,14 @@ bool ThemeManager::import_theme(const std::string& path)
     auto parse_float = [&](const char* key, float& out)
     {
         std::string needle = std::string("\"") + key + "\"";
-        size_t p = json.find(needle);
+        size_t      p      = json.find(needle);
         if (p != std::string::npos)
         {
             p = json.find(':', p);
             if (p != std::string::npos)
             {
                 char* end = nullptr;
-                float v = std::strtof(json.c_str() + p + 1, &end);
+                float v   = std::strtof(json.c_str() + p + 1, &end);
                 if (end != json.c_str() + p + 1)
                     out = v;
             }
@@ -760,7 +760,7 @@ bool ThemeManager::import_theme(const std::string& path)
     auto parse_bool = [&](const char* key, bool& out)
     {
         std::string needle = std::string("\"") + key + "\"";
-        size_t p = json.find(needle);
+        size_t      p      = json.find(needle);
         if (p != std::string::npos)
         {
             size_t t_pos = json.find("true", p);
@@ -821,9 +821,9 @@ void ThemeManager::load_default()
         if (import_theme(default_theme_path_))
         {
             std::ifstream lf(default_theme_path_);
-            std::string json((std::istreambuf_iterator<char>(lf)),
+            std::string   json((std::istreambuf_iterator<char>(lf)),
                              std::istreambuf_iterator<char>());
-            size_t np = json.find("\"name\"");
+            size_t        np = json.find("\"name\"");
             if (np != std::string::npos)
             {
                 std::string n = extract_string_value(json, np + 6);
@@ -838,134 +838,134 @@ void ThemeManager::initialize_default_themes()
 {
     // Dark theme (default)
     Theme dark;
-    dark.name = "dark";
+    dark.name   = "dark";
     dark.colors = {// Surfaces
-                   .bg_primary = Color::from_hex(0x0D1117),
+                   .bg_primary   = Color::from_hex(0x0D1117),
                    .bg_secondary = Color::from_hex(0x161B22),
-                   .bg_tertiary = Color::from_hex(0x1C2128),
-                   .bg_elevated = Color::from_hex(0x2D333B),
-                   .bg_overlay = Color::from_hex(0x80000000),
+                   .bg_tertiary  = Color::from_hex(0x1C2128),
+                   .bg_elevated  = Color::from_hex(0x2D333B),
+                   .bg_overlay   = Color::from_hex(0x80000000),
 
                    // Text
-                   .text_primary = Color::from_hex(0xE6EDF3),
+                   .text_primary   = Color::from_hex(0xE6EDF3),
                    .text_secondary = Color::from_hex(0x8B949E),
-                   .text_tertiary = Color::from_hex(0x484F58),
-                   .text_inverse = Color::from_hex(0x0D1117),
+                   .text_tertiary  = Color::from_hex(0x484F58),
+                   .text_inverse   = Color::from_hex(0x0D1117),
 
                    // Borders
                    .border_default = Color::from_hex(0x30363D),
-                   .border_subtle = Color::from_hex(0x21262D),
-                   .border_strong = Color::from_hex(0x6E7681),
+                   .border_subtle  = Color::from_hex(0x21262D),
+                   .border_strong  = Color::from_hex(0x6E7681),
 
                    // Interactive
-                   .accent = Color::from_hex(0x58A6FF),
-                   .accent_hover = Color::from_hex(0x79C0FF),
-                   .accent_muted = Color::from_hex(0x4D1F6FEB),
+                   .accent        = Color::from_hex(0x58A6FF),
+                   .accent_hover  = Color::from_hex(0x79C0FF),
+                   .accent_muted  = Color::from_hex(0x4D1F6FEB),
                    .accent_subtle = Color::from_hex(0x1A1F6FEB),
 
                    // Semantic
                    .success = Color::from_hex(0x3FB950),
                    .warning = Color::from_hex(0xD29922),
-                   .error = Color::from_hex(0xF85149),
-                   .info = Color::from_hex(0x58A6FF),
+                   .error   = Color::from_hex(0xF85149),
+                   .info    = Color::from_hex(0x58A6FF),
 
                    // Plot-specific
-                   .grid_line = Color::from_hex(0x21262D),
-                   .axis_line = Color::from_hex(0x30363D),
-                   .tick_label = Color::from_hex(0x8B949E),
-                   .crosshair = Color::from_hex(0xB358A6FF),
-                   .selection_fill = Color::from_hex(0x3358A6FF),
+                   .grid_line        = Color::from_hex(0x21262D),
+                   .axis_line        = Color::from_hex(0x30363D),
+                   .tick_label       = Color::from_hex(0x8B949E),
+                   .crosshair        = Color::from_hex(0xB358A6FF),
+                   .selection_fill   = Color::from_hex(0x3358A6FF),
                    .selection_border = Color::from_hex(0x58A6FF),
-                   .tooltip_bg = Color::from_hex(0x2D333B),
-                   .tooltip_border = Color::from_hex(0x30363D)};
+                   .tooltip_bg       = Color::from_hex(0x2D333B),
+                   .tooltip_border   = Color::from_hex(0x30363D)};
     register_theme("dark", dark);
 
     // Light theme
     Theme light;
-    light.name = "light";
+    light.name   = "light";
     light.colors = {// Surfaces
-                    .bg_primary = Color::from_hex(0xFFFFFF),
+                    .bg_primary   = Color::from_hex(0xFFFFFF),
                     .bg_secondary = Color::from_hex(0xF6F8FA),
-                    .bg_tertiary = Color::from_hex(0xF0F2F5),
-                    .bg_elevated = Color::from_hex(0xFFFFFF),
-                    .bg_overlay = Color::from_hex(0x4D000000),
+                    .bg_tertiary  = Color::from_hex(0xF0F2F5),
+                    .bg_elevated  = Color::from_hex(0xFFFFFF),
+                    .bg_overlay   = Color::from_hex(0x4D000000),
 
                     // Text
-                    .text_primary = Color::from_hex(0x1F2328),
+                    .text_primary   = Color::from_hex(0x1F2328),
                     .text_secondary = Color::from_hex(0x656D76),
-                    .text_tertiary = Color::from_hex(0x6E7781),
-                    .text_inverse = Color::from_hex(0xFFFFFF),
+                    .text_tertiary  = Color::from_hex(0x6E7781),
+                    .text_inverse   = Color::from_hex(0xFFFFFF),
 
                     // Borders
                     .border_default = Color::from_hex(0xD0D7DE),
-                    .border_subtle = Color::from_hex(0xE8ECF0),
-                    .border_strong = Color::from_hex(0x8C959F),
+                    .border_subtle  = Color::from_hex(0xE8ECF0),
+                    .border_strong  = Color::from_hex(0x8C959F),
 
                     // Interactive
-                    .accent = Color::from_hex(0x0969DA),
-                    .accent_hover = Color::from_hex(0x0860CA),
-                    .accent_muted = Color::from_hex(0x260969DA),
+                    .accent        = Color::from_hex(0x0969DA),
+                    .accent_hover  = Color::from_hex(0x0860CA),
+                    .accent_muted  = Color::from_hex(0x260969DA),
                     .accent_subtle = Color::from_hex(0x0D0969DA),
 
                     // Semantic
                     .success = Color::from_hex(0x1A7F37),
                     .warning = Color::from_hex(0x9A6700),
-                    .error = Color::from_hex(0xD1242F),
-                    .info = Color::from_hex(0x0969DA),
+                    .error   = Color::from_hex(0xD1242F),
+                    .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific
-                    .grid_line = Color::from_hex(0xE8ECF0),
-                    .axis_line = Color::from_hex(0xD0D7DE),
-                    .tick_label = Color::from_hex(0x656D76),
-                    .crosshair = Color::from_hex(0xB30969DA),
-                    .selection_fill = Color::from_hex(0x260969DA),
+                    .grid_line        = Color::from_hex(0xE8ECF0),
+                    .axis_line        = Color::from_hex(0xD0D7DE),
+                    .tick_label       = Color::from_hex(0x656D76),
+                    .crosshair        = Color::from_hex(0xB30969DA),
+                    .selection_fill   = Color::from_hex(0x260969DA),
                     .selection_border = Color::from_hex(0x0969DA),
-                    .tooltip_bg = Color::from_hex(0xFFFFFF),
-                    .tooltip_border = Color::from_hex(0xD0D7DE)};
+                    .tooltip_bg       = Color::from_hex(0xFFFFFF),
+                    .tooltip_border   = Color::from_hex(0xD0D7DE)};
     register_theme("light", light);
 
     // High contrast theme
     Theme high_contrast;
-    high_contrast.name = "high_contrast";
+    high_contrast.name   = "high_contrast";
     high_contrast.colors = {// Surfaces
-                            .bg_primary = Color::from_hex(0x000000),
+                            .bg_primary   = Color::from_hex(0x000000),
                             .bg_secondary = Color::from_hex(0x1C1C1C),
-                            .bg_tertiary = Color::from_hex(0x2D2D2D),
-                            .bg_elevated = Color::from_hex(0x3D3D3D),
-                            .bg_overlay = Color::from_hex(0xCC000000),
+                            .bg_tertiary  = Color::from_hex(0x2D2D2D),
+                            .bg_elevated  = Color::from_hex(0x3D3D3D),
+                            .bg_overlay   = Color::from_hex(0xCC000000),
 
                             // Text
-                            .text_primary = Color::from_hex(0xFFFFFF),
+                            .text_primary   = Color::from_hex(0xFFFFFF),
                             .text_secondary = Color::from_hex(0xE0E0E0),
-                            .text_tertiary = Color::from_hex(0xB0B0B0),
-                            .text_inverse = Color::from_hex(0x000000),
+                            .text_tertiary  = Color::from_hex(0xB0B0B0),
+                            .text_inverse   = Color::from_hex(0x000000),
 
                             // Borders
                             .border_default = Color::from_hex(0xFFFFFF),
-                            .border_subtle = Color::from_hex(0xCCCCCC),
-                            .border_strong = Color::from_hex(0xFFFFFF),
+                            .border_subtle  = Color::from_hex(0xCCCCCC),
+                            .border_strong  = Color::from_hex(0xFFFFFF),
 
                             // Interactive
-                            .accent = Color::from_hex(0xFFD700),
-                            .accent_hover = Color::from_hex(0xFFED4E),
-                            .accent_muted = Color::from_hex(0x4DFFD700),
+                            .accent        = Color::from_hex(0xFFD700),
+                            .accent_hover  = Color::from_hex(0xFFED4E),
+                            .accent_muted  = Color::from_hex(0x4DFFD700),
                             .accent_subtle = Color::from_hex(0x1AFFD700),
 
                             // Semantic
                             .success = Color::from_hex(0x00FF00),
                             .warning = Color::from_hex(0xFFFF00),
-                            .error = Color::from_hex(0xFF0000),
-                            .info = Color::from_hex(0xFFD700),
+                            .error   = Color::from_hex(0xFF0000),
+                            .info    = Color::from_hex(0xFFD700),
 
                             // Plot-specific
-                            .grid_line = Color::from_hex(0x666666),
-                            .axis_line = Color::from_hex(0xFFFFFF),
-                            .tick_label = Color::from_hex(0xFFFFFF),
-                            .crosshair = Color::from_hex(0xCCFFD700),
-                            .selection_fill = Color::from_hex(0x4DFFD700),
+                            .grid_line        = Color::from_hex(0x666666),
+                            .axis_line        = Color::from_hex(0xFFFFFF),
+                            .tick_label       = Color::from_hex(0xFFFFFF),
+                            .crosshair        = Color::from_hex(0xCCFFD700),
+                            .selection_fill   = Color::from_hex(0x4DFFD700),
                             .selection_border = Color::from_hex(0xFFD700),
-                            .tooltip_bg = Color::from_hex(0x1C1C1C),
-                            .tooltip_border = Color::from_hex(0xFFFFFF)};
+                            .tooltip_bg       = Color::from_hex(0x1C1C1C),
+                            .tooltip_border   = Color::from_hex(0xFFFFFF)};
     register_theme("high_contrast", high_contrast);
 }
 
@@ -973,147 +973,149 @@ void ThemeManager::initialize_data_palettes()
 {
     // Default palette (Tableau 10 — perceptually uniform)
     DataPalette default_palette;
-    default_palette.name = "default";
-    default_palette.description = "Tableau 10 — perceptually balanced for general use";
+    default_palette.name            = "default";
+    default_palette.description     = "Tableau 10 — perceptually balanced for general use";
     default_palette.colorblind_safe = false;
-    default_palette.colors = {
-        Color::from_hex(0x4E79A7),  // steel blue
-        Color::from_hex(0xF28E2B),  // orange
-        Color::from_hex(0xE15759),  // red
-        Color::from_hex(0x76B7B2),  // teal
-        Color::from_hex(0x59A14F),  // green
-        Color::from_hex(0xEDC948),  // gold
-        Color::from_hex(0xB07AA1),  // purple
-        Color::from_hex(0xFF9DA7),  // pink
-        Color::from_hex(0x9C755F),  // brown
-        Color::from_hex(0xBAB0AC)   // gray
+    default_palette.colors          = {
+                 Color::from_hex(0x4E79A7),   // steel blue
+                 Color::from_hex(0xF28E2B),   // orange
+                 Color::from_hex(0xE15759),   // red
+                 Color::from_hex(0x76B7B2),   // teal
+                 Color::from_hex(0x59A14F),   // green
+                 Color::from_hex(0xEDC948),   // gold
+                 Color::from_hex(0xB07AA1),   // purple
+                 Color::from_hex(0xFF9DA7),   // pink
+                 Color::from_hex(0x9C755F),   // brown
+                 Color::from_hex(0xBAB0AC)    // gray
     };
     data_palettes_["default"] = default_palette;
 
     // Okabe-Ito — the gold standard for colorblind-safe palettes
     DataPalette okabe_ito;
-    okabe_ito.name = "colorblind";
-    okabe_ito.description = "Okabe-Ito — universally safe for all CVD types";
+    okabe_ito.name            = "colorblind";
+    okabe_ito.description     = "Okabe-Ito — universally safe for all CVD types";
     okabe_ito.colorblind_safe = true;
-    okabe_ito.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
-    okabe_ito.colors = {
-        Color::from_hex(0xE69F00),  // orange
-        Color::from_hex(0x56B4E9),  // sky blue
-        Color::from_hex(0x009E73),  // bluish green
-        Color::from_hex(0xF0E442),  // yellow
-        Color::from_hex(0x0072B2),  // blue
-        Color::from_hex(0xD55E00),  // vermillion
-        Color::from_hex(0xCC79A7),  // reddish purple
-        Color::from_hex(0x000000)   // black
+    okabe_ito.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
+    okabe_ito.colors          = {
+                 Color::from_hex(0xE69F00),   // orange
+                 Color::from_hex(0x56B4E9),   // sky blue
+                 Color::from_hex(0x009E73),   // bluish green
+                 Color::from_hex(0xF0E442),   // yellow
+                 Color::from_hex(0x0072B2),   // blue
+                 Color::from_hex(0xD55E00),   // vermillion
+                 Color::from_hex(0xCC79A7),   // reddish purple
+                 Color::from_hex(0x000000)    // black
     };
     data_palettes_["colorblind"] = okabe_ito;
 
     // Tol Bright — Paul Tol's bright qualitative scheme
     DataPalette tol_bright;
-    tol_bright.name = "tol_bright";
-    tol_bright.description = "Paul Tol Bright — vivid, CVD-safe qualitative palette";
+    tol_bright.name            = "tol_bright";
+    tol_bright.description     = "Paul Tol Bright — vivid, CVD-safe qualitative palette";
     tol_bright.colorblind_safe = true;
-    tol_bright.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia};
-    tol_bright.colors = {
-        Color::from_hex(0x4477AA),  // blue
-        Color::from_hex(0xEE6677),  // red
-        Color::from_hex(0x228833),  // green
-        Color::from_hex(0xCCBB44),  // yellow
-        Color::from_hex(0x66CCEE),  // cyan
-        Color::from_hex(0xAA3377),  // purple
-        Color::from_hex(0xBBBBBB)   // grey
+    tol_bright.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
+    tol_bright.colors          = {
+                 Color::from_hex(0x4477AA),   // blue
+                 Color::from_hex(0xEE6677),   // red
+                 Color::from_hex(0x228833),   // green
+                 Color::from_hex(0xCCBB44),   // yellow
+                 Color::from_hex(0x66CCEE),   // cyan
+                 Color::from_hex(0xAA3377),   // purple
+                 Color::from_hex(0xBBBBBB)    // grey
     };
     data_palettes_["tol_bright"] = tol_bright;
 
     // Tol Muted — Paul Tol's muted qualitative scheme
     DataPalette tol_muted;
-    tol_muted.name = "tol_muted";
-    tol_muted.description = "Paul Tol Muted — softer tones, CVD-safe";
+    tol_muted.name            = "tol_muted";
+    tol_muted.description     = "Paul Tol Muted — softer tones, CVD-safe";
     tol_muted.colorblind_safe = true;
-    tol_muted.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia};
-    tol_muted.colors = {
-        Color::from_hex(0x332288),  // indigo
-        Color::from_hex(0x88CCEE),  // cyan
-        Color::from_hex(0x44AA99),  // teal
-        Color::from_hex(0x117733),  // green
-        Color::from_hex(0x999933),  // olive
-        Color::from_hex(0xDDCC77),  // sand
-        Color::from_hex(0xCC6677),  // rose
-        Color::from_hex(0x882255),  // wine
-        Color::from_hex(0xAA4499)   // purple
+    tol_muted.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
+    tol_muted.colors          = {
+                 Color::from_hex(0x332288),   // indigo
+                 Color::from_hex(0x88CCEE),   // cyan
+                 Color::from_hex(0x44AA99),   // teal
+                 Color::from_hex(0x117733),   // green
+                 Color::from_hex(0x999933),   // olive
+                 Color::from_hex(0xDDCC77),   // sand
+                 Color::from_hex(0xCC6677),   // rose
+                 Color::from_hex(0x882255),   // wine
+                 Color::from_hex(0xAA4499)    // purple
     };
     data_palettes_["tol_muted"] = tol_muted;
 
     // IBM Design — accessible palette from IBM's design system
     DataPalette ibm;
-    ibm.name = "ibm";
-    ibm.description = "IBM Design Language — enterprise-grade accessible palette";
+    ibm.name            = "ibm";
+    ibm.description     = "IBM Design Language — enterprise-grade accessible palette";
     ibm.colorblind_safe = true;
-    ibm.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia};
-    ibm.colors = {
-        Color::from_hex(0x648FFF),  // ultramarine
-        Color::from_hex(0x785EF0),  // indigo
-        Color::from_hex(0xDC267F),  // magenta
-        Color::from_hex(0xFE6100),  // orange
-        Color::from_hex(0xFFB000),  // gold
+    ibm.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
+    ibm.colors          = {
+                 Color::from_hex(0x648FFF),   // ultramarine
+                 Color::from_hex(0x785EF0),   // indigo
+                 Color::from_hex(0xDC267F),   // magenta
+                 Color::from_hex(0xFE6100),   // orange
+                 Color::from_hex(0xFFB000),   // gold
     };
     data_palettes_["ibm"] = ibm;
 
     // Wong — Bang Wong's Nature Methods palette
     DataPalette wong;
-    wong.name = "wong";
-    wong.description = "Bang Wong (Nature Methods) — optimized for scientific figures";
+    wong.name            = "wong";
+    wong.description     = "Bang Wong (Nature Methods) — optimized for scientific figures";
     wong.colorblind_safe = true;
-    wong.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
-    wong.colors = {
-        Color::from_hex(0x000000),  // black
-        Color::from_hex(0xE69F00),  // orange
-        Color::from_hex(0x56B4E9),  // sky blue
-        Color::from_hex(0x009E73),  // bluish green
-        Color::from_hex(0xF0E442),  // yellow
-        Color::from_hex(0x0072B2),  // blue
-        Color::from_hex(0xD55E00),  // vermillion
-        Color::from_hex(0xCC79A7)   // reddish purple
+    wong.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
+    wong.colors          = {
+                 Color::from_hex(0x000000),   // black
+                 Color::from_hex(0xE69F00),   // orange
+                 Color::from_hex(0x56B4E9),   // sky blue
+                 Color::from_hex(0x009E73),   // bluish green
+                 Color::from_hex(0xF0E442),   // yellow
+                 Color::from_hex(0x0072B2),   // blue
+                 Color::from_hex(0xD55E00),   // vermillion
+                 Color::from_hex(0xCC79A7)    // reddish purple
     };
     data_palettes_["wong"] = wong;
 
     // Viridis-inspired discrete palette (perceptually uniform, CVD-safe)
     DataPalette viridis;
-    viridis.name = "viridis";
-    viridis.description = "Viridis-inspired discrete — perceptually uniform, print-safe";
+    viridis.name            = "viridis";
+    viridis.description     = "Viridis-inspired discrete — perceptually uniform, print-safe";
     viridis.colorblind_safe = true;
-    viridis.safe_for = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
-    viridis.colors = {
-        Color::from_hex(0x440154),  // deep purple
-        Color::from_hex(0x482878),  // purple
-        Color::from_hex(0x3E4989),  // blue-purple
-        Color::from_hex(0x31688E),  // blue
-        Color::from_hex(0x26828E),  // teal-blue
-        Color::from_hex(0x1F9E89),  // teal
-        Color::from_hex(0x35B779),  // green
-        Color::from_hex(0x6DCD59),  // lime
-        Color::from_hex(0xB4DE2C),  // yellow-green
-        Color::from_hex(0xFDE725)   // yellow
+    viridis.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
+    viridis.colors          = {
+                 Color::from_hex(0x440154),   // deep purple
+                 Color::from_hex(0x482878),   // purple
+                 Color::from_hex(0x3E4989),   // blue-purple
+                 Color::from_hex(0x31688E),   // blue
+                 Color::from_hex(0x26828E),   // teal-blue
+                 Color::from_hex(0x1F9E89),   // teal
+                 Color::from_hex(0x35B779),   // green
+                 Color::from_hex(0x6DCD59),   // lime
+                 Color::from_hex(0xB4DE2C),   // yellow-green
+                 Color::from_hex(0xFDE725)    // yellow
     };
     data_palettes_["viridis"] = viridis;
 
     // High-contrast monochrome (for achromatopsia / grayscale printing)
     DataPalette mono;
-    mono.name = "monochrome";
-    mono.description = "Monochrome — grayscale-safe, works for total color blindness";
+    mono.name            = "monochrome";
+    mono.description     = "Monochrome — grayscale-safe, works for total color blindness";
     mono.colorblind_safe = true;
-    mono.safe_for = {
-        CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia, CVDType::Achromatopsia};
-    mono.colors = {
-        Color::from_hex(0x000000),  // black
-        Color::from_hex(0x404040),  // dark gray
-        Color::from_hex(0x808080),  // mid gray
-        Color::from_hex(0xB0B0B0),  // light gray
-        Color::from_hex(0xD0D0D0),  // very light gray
+    mono.safe_for        = {CVDType::Protanopia,
+                            CVDType::Deuteranopia,
+                            CVDType::Tritanopia,
+                            CVDType::Achromatopsia};
+    mono.colors          = {
+                 Color::from_hex(0x000000),   // black
+                 Color::from_hex(0x404040),   // dark gray
+                 Color::from_hex(0x808080),   // mid gray
+                 Color::from_hex(0xB0B0B0),   // light gray
+                 Color::from_hex(0xD0D0D0),   // very light gray
     };
     data_palettes_["monochrome"] = mono;
 
-    palette_names_dirty_ = true;
+    palette_names_dirty_       = true;
     current_data_palette_name_ = "default";
 }
 
@@ -1169,44 +1171,44 @@ Color simulate_cvd(const Color& c, CVDType type)
 
 ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
                                              const ThemeColors& end,
-                                             float t) const
+                                             float              t) const
 {
     ThemeColors result;
-    result.bg_primary = start.bg_primary.lerp(end.bg_primary, t);
+    result.bg_primary   = start.bg_primary.lerp(end.bg_primary, t);
     result.bg_secondary = start.bg_secondary.lerp(end.bg_secondary, t);
-    result.bg_tertiary = start.bg_tertiary.lerp(end.bg_tertiary, t);
-    result.bg_elevated = start.bg_elevated.lerp(end.bg_elevated, t);
-    result.bg_overlay = start.bg_overlay.lerp(end.bg_overlay, t);
+    result.bg_tertiary  = start.bg_tertiary.lerp(end.bg_tertiary, t);
+    result.bg_elevated  = start.bg_elevated.lerp(end.bg_elevated, t);
+    result.bg_overlay   = start.bg_overlay.lerp(end.bg_overlay, t);
 
-    result.text_primary = start.text_primary.lerp(end.text_primary, t);
+    result.text_primary   = start.text_primary.lerp(end.text_primary, t);
     result.text_secondary = start.text_secondary.lerp(end.text_secondary, t);
-    result.text_tertiary = start.text_tertiary.lerp(end.text_tertiary, t);
-    result.text_inverse = start.text_inverse.lerp(end.text_inverse, t);
+    result.text_tertiary  = start.text_tertiary.lerp(end.text_tertiary, t);
+    result.text_inverse   = start.text_inverse.lerp(end.text_inverse, t);
 
     result.border_default = start.border_default.lerp(end.border_default, t);
-    result.border_subtle = start.border_subtle.lerp(end.border_subtle, t);
-    result.border_strong = start.border_strong.lerp(end.border_strong, t);
+    result.border_subtle  = start.border_subtle.lerp(end.border_subtle, t);
+    result.border_strong  = start.border_strong.lerp(end.border_strong, t);
 
-    result.accent = start.accent.lerp(end.accent, t);
-    result.accent_hover = start.accent_hover.lerp(end.accent_hover, t);
-    result.accent_muted = start.accent_muted.lerp(end.accent_muted, t);
+    result.accent        = start.accent.lerp(end.accent, t);
+    result.accent_hover  = start.accent_hover.lerp(end.accent_hover, t);
+    result.accent_muted  = start.accent_muted.lerp(end.accent_muted, t);
     result.accent_subtle = start.accent_subtle.lerp(end.accent_subtle, t);
 
     result.success = start.success.lerp(end.success, t);
     result.warning = start.warning.lerp(end.warning, t);
-    result.error = start.error.lerp(end.error, t);
-    result.info = start.info.lerp(end.info, t);
+    result.error   = start.error.lerp(end.error, t);
+    result.info    = start.info.lerp(end.info, t);
 
-    result.grid_line = start.grid_line.lerp(end.grid_line, t);
-    result.axis_line = start.axis_line.lerp(end.axis_line, t);
-    result.tick_label = start.tick_label.lerp(end.tick_label, t);
-    result.crosshair = start.crosshair.lerp(end.crosshair, t);
-    result.selection_fill = start.selection_fill.lerp(end.selection_fill, t);
+    result.grid_line        = start.grid_line.lerp(end.grid_line, t);
+    result.axis_line        = start.axis_line.lerp(end.axis_line, t);
+    result.tick_label       = start.tick_label.lerp(end.tick_label, t);
+    result.crosshair        = start.crosshair.lerp(end.crosshair, t);
+    result.selection_fill   = start.selection_fill.lerp(end.selection_fill, t);
     result.selection_border = start.selection_border.lerp(end.selection_border, t);
-    result.tooltip_bg = start.tooltip_bg.lerp(end.tooltip_bg, t);
-    result.tooltip_border = start.tooltip_border.lerp(end.tooltip_border, t);
+    result.tooltip_bg       = start.tooltip_bg.lerp(end.tooltip_bg, t);
+    result.tooltip_border   = start.tooltip_border.lerp(end.tooltip_border, t);
 
     return result;
 }
 
-}  // namespace spectra::ui
+}   // namespace spectra::ui

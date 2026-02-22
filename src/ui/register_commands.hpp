@@ -18,11 +18,11 @@ class WindowManager;
 // they change every frame and the lambdas must always read the latest value.
 struct CommandBindings
 {
-    WindowUIContext* ui_ctx = nullptr;
-    FigureRegistry* registry = nullptr;
-    Figure** active_figure = nullptr;      // updated per-frame
-    FigureId* active_figure_id = nullptr;  // updated per-frame
-    SessionRuntime* session = nullptr;
+    WindowUIContext* ui_ctx           = nullptr;
+    FigureRegistry*  registry         = nullptr;
+    Figure**         active_figure    = nullptr;   // updated per-frame
+    FigureId*        active_figure_id = nullptr;   // updated per-frame
+    SessionRuntime*  session          = nullptr;
 #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = nullptr;
 #endif
@@ -34,4 +34,4 @@ struct CommandBindings
 // Both app_inproc and spectra-window agent call this so the UI is identical.
 void register_standard_commands(const CommandBindings& bindings);
 
-}  // namespace spectra
+}   // namespace spectra

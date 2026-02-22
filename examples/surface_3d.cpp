@@ -6,13 +6,13 @@ using namespace spectra;
 
 int main()
 {
-    App app;
+    App   app;
     auto& fig = app.figure({.width = 800, .height = 600});
 
     auto& ax = fig.subplot3d(1, 1, 1);
 
     // Create a grid for the surface
-    const int nx = 40, ny = 40;
+    const int          nx = 40, ny = 40;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
 
     // Define grid coordinates
@@ -30,14 +30,14 @@ int main()
     {
         for (int i = 0; i < nx; ++i)
         {
-            float x = x_grid[i];
-            float y = y_grid[j];
+            float x              = x_grid[i];
+            float y              = y_grid[j];
             z_values[j * nx + i] = std::sin(x) * std::cos(y);
         }
     }
 
     // Create surface plot with colormap
-    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis);  // .opacity(0.9f);
+    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis);   // .opacity(0.9f);
 
     ax.auto_fit();
 

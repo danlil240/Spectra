@@ -25,10 +25,10 @@ class TransitionEngine
     // Supports both free functions (EasingFn) and stateful objects (CubicBezier).
     using EasingFunc = std::function<float(float)>;
 
-    TransitionEngine() = default;
+    TransitionEngine()  = default;
     ~TransitionEngine() = default;
 
-    TransitionEngine(const TransitionEngine&) = delete;
+    TransitionEngine(const TransitionEngine&)            = delete;
     TransitionEngine& operator=(const TransitionEngine&) = delete;
 
     // ─── Animate float ──────────────────────────────────────────────────
@@ -44,10 +44,10 @@ class TransitionEngine
     // ─── Animate AxisLimits ─────────────────────────────────────────────
     // Transitions both X and Y limits of an Axes simultaneously.
     // Cancels any existing limit animation on the same Axes.
-    AnimId animate_limits(Axes& axes,
+    AnimId animate_limits(Axes&      axes,
                           AxisLimits target_x,
                           AxisLimits target_y,
-                          float duration,
+                          float      duration,
                           EasingFunc easing = ease::ease_out);
 
     // ─── Animate inertial pan ───────────────────────────────────────────
@@ -56,9 +56,9 @@ class TransitionEngine
     // Smoothly transitions a Camera from its current state to `target`
     // over `duration` seconds. Interpolates azimuth, elevation, distance,
     // fov, and ortho_size, then calls update_position_from_orbit().
-    AnimId animate_camera(Camera& cam,
-                          Camera target,
-                          float duration,
+    AnimId animate_camera(Camera&    cam,
+                          Camera     target,
+                          float      duration,
                           EasingFunc easing = ease::ease_out);
 
     AnimId animate_inertial_pan(Axes& axes, float vx_data, float vy_data, float duration);
@@ -95,75 +95,75 @@ class TransitionEngine
 
     struct FloatAnim
     {
-        AnimId id;
-        float* target;
-        float start;
-        float end;
-        float elapsed = 0.0f;
-        float duration = 0.15f;
+        AnimId     id;
+        float*     target;
+        float      start;
+        float      end;
+        float      elapsed  = 0.0f;
+        float      duration = 0.15f;
         EasingFunc easing;
-        bool finished = false;
+        bool       finished = false;
     };
 
     struct ColorAnim
     {
-        AnimId id;
-        Color* target;
-        Color start;
-        Color end;
-        float elapsed = 0.0f;
-        float duration = 0.15f;
+        AnimId     id;
+        Color*     target;
+        Color      start;
+        Color      end;
+        float      elapsed  = 0.0f;
+        float      duration = 0.15f;
         EasingFunc easing;
-        bool finished = false;
+        bool       finished = false;
     };
 
     struct LimitAnim
     {
-        AnimId id;
-        Axes* axes;
+        AnimId     id;
+        Axes*      axes;
         AxisLimits start_x, start_y;
         AxisLimits target_x, target_y;
-        float elapsed = 0.0f;
-        float duration = 0.15f;
+        float      elapsed  = 0.0f;
+        float      duration = 0.15f;
         EasingFunc easing;
-        bool finished = false;
+        bool       finished = false;
     };
 
     struct InertialPanAnim
     {
         AnimId id;
-        Axes* axes;
-        float vx_data;
-        float vy_data;
-        float elapsed = 0.0f;
-        float duration = 0.3f;
-        bool finished = false;
+        Axes*  axes;
+        float  vx_data;
+        float  vy_data;
+        float  elapsed  = 0.0f;
+        float  duration = 0.3f;
+        bool   finished = false;
     };
 
     struct CameraAnim
     {
-        AnimId id;
-        Camera* cam;
-        Camera start;
-        Camera end;
-        float elapsed = 0.0f;
-        float duration = 0.3f;
+        AnimId     id;
+        Camera*    cam;
+        Camera     start;
+        Camera     end;
+        float      elapsed  = 0.0f;
+        float      duration = 0.3f;
         EasingFunc easing;
-        bool finished = false;
+        bool       finished = false;
     };
 
     AnimId next_id_ = 1;
 
-    std::vector<FloatAnim> float_anims_;
-    std::vector<ColorAnim> color_anims_;
-    std::vector<LimitAnim> limit_anims_;
+    std::vector<FloatAnim>       float_anims_;
+    std::vector<ColorAnim>       color_anims_;
+    std::vector<LimitAnim>       limit_anims_;
     std::vector<InertialPanAnim> inertial_anims_;
-    std::vector<CameraAnim> camera_anims_;
+    std::vector<CameraAnim>      camera_anims_;
 
     mutable std::mutex mutex_;
 
-    void gc();                                  // Remove finished animations (called under lock)
-    void cancel_for_axes_unlocked(Axes* axes);  // Internal: caller must hold mutex_
+    void gc();                                   // Remove finished animations (called under lock)
+    void cancel_for_axes_unlocked(Axes* axes);   // Internal: caller must hold mutex_
 };
 
-}  // namespace spectra
+}   // namespace spectra

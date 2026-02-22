@@ -30,9 +30,9 @@ void Inspector::set_context(const SelectionContext& ctx)
 
 void Inspector::set_fonts(ImFont* body, ImFont* heading, ImFont* title)
 {
-    font_body_ = body;
+    font_body_    = body;
     font_heading_ = heading;
-    font_title_ = title;
+    font_title_   = title;
 }
 
 // ─── Main Draw ──────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ void Inspector::draw_figure_properties(Figure& fig)
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     char subtitle[64];
-    int total_series = 0;
+    int  total_series = 0;
     for (const auto& ax : fig.axes())
     {
         if (ax)
@@ -159,9 +159,12 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.visible = show_legend;
             }
 
-            const char* positions[] = {
-                "Top Right", "Top Left", "Bottom Right", "Bottom Left", "Hidden"};
-            int pos = static_cast<int>(leg.position);
+            const char* positions[] = {"Top Right",
+                                       "Top Left",
+                                       "Bottom Right",
+                                       "Bottom Left",
+                                       "Hidden"};
+            int         pos         = static_cast<int>(leg.position);
             if (widgets::combo_field("Position", pos, positions, 5))
             {
                 leg.position = static_cast<LegendPosition>(pos);
@@ -248,14 +251,14 @@ void Inspector::draw_series_browser(Figure& fig)
 
             // Color swatch
             {
-                const auto& sc = s->color();
+                const auto&    sc = s->color();
                 spectra::Color sw{sc.r, sc.g, sc.b, sc.a};
                 widgets::color_swatch(sw, 12.0f);
             }
             ImGui::SameLine(0.0f, tokens::SPACE_2);
 
             // Visibility toggle
-            bool vis = s->visible();
+            bool    vis    = s->visible();
             ImFont* icon_f = icon_font(tokens::ICON_SM);
             if (icon_f)
                 ImGui::PushFont(icon_f);
@@ -427,7 +430,7 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
         {
             widgets::begin_group("autoscale");
             const char* modes[] = {"Fit", "Tight", "Padded", "Manual"};
-            int mode = static_cast<int>(ax.get_autoscale_mode());
+            int         mode    = static_cast<int>(ax.get_autoscale_mode());
             if (widgets::combo_field("Mode", mode, modes, 4))
             {
                 ax.autoscale_mode(static_cast<AutoscaleMode>(mode));
@@ -476,7 +479,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
         type_name = "Scatter Series";
 
     const char* name = s.label().empty() ? "Unnamed" : s.label().c_str();
-    char title[128];
+    char        title[128];
     std::snprintf(title, sizeof(title), "%s: %s", type_name, name);
     ImGui::TextUnformatted(title);
     ImGui::PopStyleColor();
@@ -487,7 +490,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
 
     // Color swatch + type badge
     {
-        const auto& sc = s.color();
+        const auto&    sc = s.color();
         spectra::Color swatch_col{sc.r, sc.g, sc.b, sc.a};
         widgets::color_swatch(swatch_col, 16.0f);
     }
@@ -523,8 +526,8 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
 
             // Line style dropdown (all series types)
             {
-                static const char* line_style_names[] = {
-                    "None", "Solid", "Dashed", "Dotted", "Dash-Dot", "Dash-Dot-Dot"};
+                static const char* line_style_names[] =
+                    {"None", "Solid", "Dashed", "Dotted", "Dash-Dot", "Dash-Dot-Dot"};
                 int ls_idx = static_cast<int>(s.line_style());
                 if (widgets::combo_field("Line Style", ls_idx, line_style_names, 6))
                 {
@@ -552,7 +555,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                                                            "Filled Square",
                                                            "Filled Diamond",
                                                            "Filled Triangle Up"};
-                int ms_idx = static_cast<int>(s.marker_style());
+                int                ms_idx               = static_cast<int>(s.marker_style());
                 if (widgets::combo_field("Marker", ms_idx, marker_style_names, 18))
                 {
                     s.marker_style(static_cast<spectra::MarkerStyle>(ms_idx));
@@ -659,8 +662,8 @@ static double compute_percentile(const std::vector<float>& sorted, double p)
     if (sorted.size() == 1)
         return static_cast<double>(sorted[0]);
     double idx = p * static_cast<double>(sorted.size() - 1);
-    size_t lo = static_cast<size_t>(idx);
-    size_t hi = lo + 1;
+    size_t lo  = static_cast<size_t>(idx);
+    size_t hi  = lo + 1;
     if (hi >= sorted.size())
         return static_cast<double>(sorted.back());
     double frac = idx - static_cast<double>(lo);
@@ -669,25 +672,25 @@ static double compute_percentile(const std::vector<float>& sorted, double p)
 
 // ─── Helper: get data spans from any series type ────────────────────────────
 
-static void get_series_data(const Series& s,
+static void get_series_data(const Series&           s,
                             std::span<const float>& x_data,
                             std::span<const float>& y_data,
-                            size_t& count)
+                            size_t&                 count)
 {
     x_data = {};
     y_data = {};
-    count = 0;
+    count  = 0;
     if (const auto* line = dynamic_cast<const LineSeries*>(&s))
     {
         x_data = line->x_data();
         y_data = line->y_data();
-        count = line->point_count();
+        count  = line->point_count();
     }
     else if (const auto* scatter = dynamic_cast<const ScatterSeries*>(&s))
     {
         x_data = scatter->x_data();
         y_data = scatter->y_data();
-        count = scatter->point_count();
+        count  = scatter->point_count();
     }
 }
 
@@ -699,7 +702,7 @@ void Inspector::draw_series_statistics(const Series& s)
 
     std::span<const float> x_data;
     std::span<const float> y_data;
-    size_t count = 0;
+    size_t                 count = 0;
     get_series_data(s, x_data, y_data, count);
 
     // Point count with badge
@@ -717,8 +720,8 @@ void Inspector::draw_series_statistics(const Series& s)
     if (!x_data.empty())
     {
         auto [xmin_it, xmax_it] = std::minmax_element(x_data.begin(), x_data.end());
-        float xmin = *xmin_it;
-        float xmax = *xmax_it;
+        float xmin              = *xmin_it;
+        float xmax              = *xmax_it;
 
         std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(xmin));
         widgets::stat_row("Min", buf);
@@ -729,7 +732,7 @@ void Inspector::draw_series_statistics(const Series& s)
         widgets::stat_row("Range", buf);
 
         // X mean
-        double x_sum = std::accumulate(x_data.begin(), x_data.end(), 0.0);
+        double x_sum  = std::accumulate(x_data.begin(), x_data.end(), 0.0);
         double x_mean = x_sum / static_cast<double>(count);
         std::snprintf(buf, sizeof(buf), "%.6g", x_mean);
         widgets::stat_row("Mean", buf);
@@ -743,8 +746,8 @@ void Inspector::draw_series_statistics(const Series& s)
     if (!y_data.empty())
     {
         auto [ymin_it, ymax_it] = std::minmax_element(y_data.begin(), y_data.end());
-        float ymin = *ymin_it;
-        float ymax = *ymax_it;
+        float ymin              = *ymin_it;
+        float ymax              = *ymax_it;
 
         std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(ymin));
         widgets::stat_row("Min", buf);
@@ -755,7 +758,7 @@ void Inspector::draw_series_statistics(const Series& s)
         widgets::stat_row("Range", buf);
 
         // Mean
-        double sum = std::accumulate(y_data.begin(), y_data.end(), 0.0);
+        double sum  = std::accumulate(y_data.begin(), y_data.end(), 0.0);
         double mean = sum / static_cast<double>(count);
         std::snprintf(buf, sizeof(buf), "%.6g", mean);
         widgets::stat_row("Mean", buf);
@@ -814,7 +817,7 @@ void Inspector::draw_series_sparkline(const Series& s)
 {
     std::span<const float> x_data;
     std::span<const float> y_data;
-    size_t count = 0;
+    size_t                 count = 0;
     get_series_data(s, x_data, y_data, count);
 
     if (y_data.empty())
@@ -824,7 +827,7 @@ void Inspector::draw_series_sparkline(const Series& s)
     }
 
     // Downsample to max ~200 points for the sparkline
-    constexpr size_t MAX_SPARKLINE = 200;
+    constexpr size_t   MAX_SPARKLINE = 200;
     std::vector<float> downsampled;
     if (count <= MAX_SPARKLINE)
     {
@@ -840,7 +843,7 @@ void Inspector::draw_series_sparkline(const Series& s)
         }
     }
 
-    const auto& sc = s.color();
+    const auto&    sc = s.color();
     spectra::Color line_col{sc.r, sc.g, sc.b, sc.a};
     widgets::sparkline("##series_spark", downsampled, -1.0f, 40.0f, line_col);
 }
@@ -851,9 +854,9 @@ void Inspector::draw_axes_statistics(const Axes& ax)
 {
     char buf[96];
 
-    size_t total_points = 0;
+    size_t total_points   = 0;
     size_t visible_series = 0;
-    size_t total_series = ax.series().size();
+    size_t total_series   = ax.series().size();
 
     double global_ymin = std::numeric_limits<double>::max();
     double global_ymax = std::numeric_limits<double>::lowest();
@@ -869,21 +872,21 @@ void Inspector::draw_axes_statistics(const Axes& ax)
 
         std::span<const float> x_data;
         std::span<const float> y_data;
-        size_t count = 0;
+        size_t                 count = 0;
         get_series_data(*s, x_data, y_data, count);
         total_points += count;
 
         if (!x_data.empty())
         {
             auto [xmin_it, xmax_it] = std::minmax_element(x_data.begin(), x_data.end());
-            global_xmin = std::min(global_xmin, static_cast<double>(*xmin_it));
-            global_xmax = std::max(global_xmax, static_cast<double>(*xmax_it));
+            global_xmin             = std::min(global_xmin, static_cast<double>(*xmin_it));
+            global_xmax             = std::max(global_xmax, static_cast<double>(*xmax_it));
         }
         if (!y_data.empty())
         {
             auto [ymin_it, ymax_it] = std::minmax_element(y_data.begin(), y_data.end());
-            global_ymin = std::min(global_ymin, static_cast<double>(*ymin_it));
-            global_ymax = std::max(global_ymax, static_cast<double>(*ymax_it));
+            global_ymin             = std::min(global_ymin, static_cast<double>(*ymin_it));
+            global_ymax             = std::max(global_ymax, static_cast<double>(*ymax_it));
         }
     }
 
@@ -910,6 +913,6 @@ void Inspector::draw_axes_statistics(const Axes& ax)
     }
 }
 
-}  // namespace spectra::ui
+}   // namespace spectra::ui
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

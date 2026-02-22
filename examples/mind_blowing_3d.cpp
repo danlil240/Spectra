@@ -10,9 +10,9 @@ using namespace spectra;
 Color get_spectral_color(float t, float intensity = 1.0f)
 {
     float hue = t * 360.0f;
-    float h = hue / 60.0f;
-    float c = intensity;
-    float x = c * (1.0f - std::abs(std::fmod(h, 2.0f) - 1.0f));
+    float h   = hue / 60.0f;
+    float c   = intensity;
+    float x   = c * (1.0f - std::abs(std::fmod(h, 2.0f) - 1.0f));
 
     float r, g, b;
     if (h < 1.0f)
@@ -68,7 +68,7 @@ struct ParticleSystem
     std::vector<float> px, py, pz;
     std::vector<float> vx, vy, vz;
     std::vector<Color> colors;
-    std::mt19937 rng;
+    std::mt19937       rng;
 
     ParticleSystem(int count) : rng(42)
     {
@@ -83,12 +83,12 @@ struct ParticleSystem
         std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
         for (int i = 0; i < count; ++i)
         {
-            px[i] = dist(rng) * 2.0f;
-            py[i] = dist(rng) * 2.0f;
-            pz[i] = dist(rng) * 2.0f;
-            vx[i] = dist(rng) * 0.1f;
-            vy[i] = dist(rng) * 0.1f;
-            vz[i] = dist(rng) * 0.1f;
+            px[i]     = dist(rng) * 2.0f;
+            py[i]     = dist(rng) * 2.0f;
+            pz[i]     = dist(rng) * 2.0f;
+            vx[i]     = dist(rng) * 0.1f;
+            vy[i]     = dist(rng) * 0.1f;
+            vz[i]     = dist(rng) * 0.1f;
             colors[i] = get_spectral_color(dist(rng) * 0.5f + 0.5f, 0.6f);
         }
     }
@@ -132,14 +132,14 @@ struct ParticleSystem
 
 int main()
 {
-    App app;
+    App   app;
     auto& fig = app.figure({.width = 1920, .height = 1080});
 
     // Create the main 3D axes
     auto& ax = fig.subplot3d(1, 1, 1);
 
     // Initialize data structures
-    const int SPIRAL_POINTS = 500;
+    const int SPIRAL_POINTS  = 500;
     const int PARTICLE_COUNT = 200;
 
     std::vector<float> x1(SPIRAL_POINTS), y1(SPIRAL_POINTS), z1(SPIRAL_POINTS);
@@ -183,50 +183,50 @@ int main()
             [&](Frame& frame)
             {
                 float time = std::fmod(frame.elapsed_sec, 10.0f);
-                float t = time / 10.0f;  // Normalize to [0, 1]
-                float dt = frame.dt;
+                float t    = time / 10.0f;   // Normalize to [0, 1]
+                float dt   = frame.dt;
 
                 // === GENERATE MIND-BLOWING SPIRALS ===
 
                 // Spiral 1: Primary DNA Helix
-                float amp1 = 0.8f + 0.4f * std::sin(t * 4.0f * M_PI);
-                float freq1 = 3.0f + 2.0f * std::sin(t * 3.0f * M_PI);
+                float amp1   = 0.8f + 0.4f * std::sin(t * 4.0f * M_PI);
+                float freq1  = 3.0f + 2.0f * std::sin(t * 3.0f * M_PI);
                 float phase1 = t * 6.0f * M_PI;
 
                 for (int i = 0; i < SPIRAL_POINTS; ++i)
                 {
                     float point_t = static_cast<float>(i) * 0.02f;
-                    float angle = point_t * freq1 + phase1;
-                    x1[i] = std::cos(angle) * amp1 * point_t;
-                    y1[i] = std::sin(angle) * amp1 * point_t;
-                    z1[i] = point_t * 0.3f + 0.2f * std::sin(point_t * 2.0f + time * 2.0f);
+                    float angle   = point_t * freq1 + phase1;
+                    x1[i]         = std::cos(angle) * amp1 * point_t;
+                    y1[i]         = std::sin(angle) * amp1 * point_t;
+                    z1[i]         = point_t * 0.3f + 0.2f * std::sin(point_t * 2.0f + time * 2.0f);
                 }
 
                 // Spiral 2: Interlocking Helix (offset)
-                float amp2 = 0.7f + 0.3f * std::cos(t * 5.0f * M_PI);
-                float freq2 = 2.5f + 1.5f * std::cos(t * 2.0f * M_PI);
+                float amp2   = 0.7f + 0.3f * std::cos(t * 5.0f * M_PI);
+                float freq2  = 2.5f + 1.5f * std::cos(t * 2.0f * M_PI);
                 float phase2 = t * 4.0f * M_PI + M_PI / 3.0f;
 
                 for (int i = 0; i < SPIRAL_POINTS; ++i)
                 {
                     float point_t = static_cast<float>(i) * 0.02f;
-                    float angle = point_t * freq2 + phase2;
-                    x2[i] = std::cos(angle) * amp2 * point_t * 1.2f;
-                    y2[i] = std::sin(angle) * amp2 * point_t * 1.2f;
+                    float angle   = point_t * freq2 + phase2;
+                    x2[i]         = std::cos(angle) * amp2 * point_t * 1.2f;
+                    y2[i]         = std::sin(angle) * amp2 * point_t * 1.2f;
                     z2[i] = point_t * 0.25f + 0.15f * std::cos(point_t * 3.0f + time * 3.0f);
                 }
 
                 // Spiral 3: Wild Helix
-                float amp3 = 0.6f + 0.5f * std::sin(t * 6.0f * M_PI);
-                float freq3 = 4.0f + 3.0f * std::sin(t * 4.0f * M_PI);
+                float amp3   = 0.6f + 0.5f * std::sin(t * 6.0f * M_PI);
+                float freq3  = 4.0f + 3.0f * std::sin(t * 4.0f * M_PI);
                 float phase3 = t * 8.0f * M_PI + 2.0f * M_PI / 3.0f;
 
                 for (int i = 0; i < SPIRAL_POINTS; ++i)
                 {
                     float point_t = static_cast<float>(i) * 0.02f;
-                    float angle = point_t * freq3 + phase3;
-                    x3[i] = std::cos(angle) * amp3 * point_t * 0.8f;
-                    y3[i] = std::sin(angle) * amp3 * point_t * 0.8f;
+                    float angle   = point_t * freq3 + phase3;
+                    x3[i]         = std::cos(angle) * amp3 * point_t * 0.8f;
+                    y3[i]         = std::sin(angle) * amp3 * point_t * 0.8f;
                     z3[i] = point_t * 0.35f + 0.25f * std::sin(point_t * 4.0f - time * 2.0f);
                 }
 
@@ -258,13 +258,13 @@ int main()
                     .label("Plasma Cloud");
 
                 // === INSANE CAMERA MOVEMENT ===
-                float cam_phase = t * 2.0f * M_PI;
-                float cam_radius = 8.0f + 3.0f * std::sin(t * 3.0f * M_PI);
+                float cam_phase     = t * 2.0f * M_PI;
+                float cam_radius    = 8.0f + 3.0f * std::sin(t * 3.0f * M_PI);
                 ax.camera().azimuth = cam_phase * 180.0f / M_PI + 90.0f * std::sin(t * 4.0f * M_PI);
                 ax.camera().elevation =
                     45.0f + 30.0f * std::sin(t * 2.0f * M_PI) + 15.0f * std::cos(t * 5.0f * M_PI);
                 ax.camera().distance = cam_radius;
-                ax.camera().fov = 60.0f + 20.0f * std::sin(t * 6.0f * M_PI);
+                ax.camera().fov      = 60.0f + 20.0f * std::sin(t * 6.0f * M_PI);
                 ax.camera().update_position_from_orbit();
             })
         .play();

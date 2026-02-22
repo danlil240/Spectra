@@ -16,7 +16,7 @@ class GlfwAdapter
     GlfwAdapter() = default;
     ~GlfwAdapter();
 
-    GlfwAdapter(const GlfwAdapter&) = delete;
+    GlfwAdapter(const GlfwAdapter&)            = delete;
     GlfwAdapter& operator=(const GlfwAdapter&) = delete;
 
     // Initialize GLFW and create a window
@@ -73,6 +73,6 @@ class GlfwAdapter
     GLFWwindow* window_ = nullptr;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_GLFW
+#endif   // SPECTRA_USE_GLFW

@@ -14,16 +14,16 @@ LayoutManager::LayoutManager()
 float LayoutManager::smooth_toward(float current, float target, float speed, float dt)
 {
     if (dt <= 0.0f)
-        return target;  // No dt → snap instantly
+        return target;   // No dt → snap instantly
     float diff = target - current;
     if (std::abs(diff) < 0.5f)
-        return target;  // Close enough → snap
+        return target;   // Close enough → snap
     return current + diff * std::min(1.0f, speed * dt);
 }
 
 void LayoutManager::update(float window_width, float window_height, float dt)
 {
-    window_width_ = window_width;
+    window_width_  = window_width;
     window_height_ = window_height;
 
     // Compute animation targets
@@ -33,7 +33,7 @@ void LayoutManager::update(float window_width, float window_height, float dt)
 
     // Animate toward targets
     inspector_anim_width_ = smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
-    nav_rail_anim_width_ = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
+    nav_rail_anim_width_  = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
 
     compute_zones();
 }
@@ -41,11 +41,11 @@ void LayoutManager::update(float window_width, float window_height, float dt)
 void LayoutManager::compute_zones()
 {
     command_bar_rect_ = compute_command_bar();
-    nav_rail_rect_ = compute_nav_rail();
-    inspector_rect_ = compute_inspector();
-    status_bar_rect_ = compute_status_bar();
-    tab_bar_rect_ = compute_tab_bar();
-    canvas_rect_ = compute_canvas();
+    nav_rail_rect_    = compute_nav_rail();
+    inspector_rect_   = compute_inspector();
+    status_bar_rect_  = compute_status_bar();
+    tab_bar_rect_     = compute_tab_bar();
+    canvas_rect_      = compute_canvas();
 }
 
 Rect LayoutManager::compute_command_bar() const
@@ -183,4 +183,4 @@ void LayoutManager::set_tab_bar_visible(bool visible)
     tab_bar_visible_ = visible;
 }
 
-}  // namespace spectra
+}   // namespace spectra

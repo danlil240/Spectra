@@ -75,7 +75,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     if (!window)
         return false;
 
-    glfw_window_ = window;
+    glfw_window_    = window;
     layout_manager_ = std::make_unique<LayoutManager>();
 
     IMGUI_CHECKVERSION();
@@ -83,7 +83,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     // window mid-frame doesn't hit the "locked ImFontAtlas" assertion
     // (the primary window's shared atlas is locked between NewFrame/EndFrame).
     owned_font_atlas_ = std::make_unique<ImFontAtlas>();
-    imgui_context_ = ImGui::CreateContext(owned_font_atlas_.get());
+    imgui_context_    = ImGui::CreateContext(owned_font_atlas_.get());
     // CreateContext() restores the previous context if one exists (ImGui 1.90+).
     // We must explicitly switch to the new context so load_fonts() and
     // backend init operate on the correct context/atlas.
@@ -109,22 +109,22 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ImGui_ImplGlfw_InitForVulkan(window, install_callbacks);
 
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance = backend.instance();
+    ii.Instance       = backend.instance();
     ii.PhysicalDevice = backend.physical_device();
-    ii.Device = backend.device();
-    ii.QueueFamily = backend.graphics_queue_family();
-    ii.Queue = backend.graphics_queue();
+    ii.Device         = backend.device();
+    ii.QueueFamily    = backend.graphics_queue_family();
+    ii.Queue          = backend.graphics_queue();
     ii.DescriptorPool = backend.descriptor_pool();
-    ii.MinImageCount = backend.min_image_count();
-    ii.ImageCount = backend.image_count();
-    ii.RenderPass = backend.render_pass();
-    ii.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    ii.MinImageCount  = backend.min_image_count();
+    ii.ImageCount     = backend.image_count();
+    ii.RenderPass     = backend.render_pass();
+    ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
     cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
-    initialized_ = true;
+    initialized_        = true;
     return true;
 }
 
@@ -167,8 +167,8 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
     // change on multi-monitor), ImGui holds a stale VkRenderPass.  Re-init the
     // Vulkan backend to pick up the new render pass.  This is a no-op in the
     // common case where recreate_swapchain reuses the render pass handle.
-    VkRenderPass current_rp = backend.render_pass();
-    auto current_rp_bits = reinterpret_cast<uint64_t>(current_rp);
+    VkRenderPass current_rp      = backend.render_pass();
+    auto         current_rp_bits = reinterpret_cast<uint64_t>(current_rp);
     if (current_rp_bits != cached_render_pass_ && current_rp != VK_NULL_HANDLE)
     {
         SPECTRA_LOG_WARN(
@@ -177,16 +177,16 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
         ImGui_ImplVulkan_Shutdown();
 
         ImGui_ImplVulkan_InitInfo ii{};
-        ii.Instance = backend.instance();
+        ii.Instance       = backend.instance();
         ii.PhysicalDevice = backend.physical_device();
-        ii.Device = backend.device();
-        ii.QueueFamily = backend.graphics_queue_family();
-        ii.Queue = backend.graphics_queue();
+        ii.Device         = backend.device();
+        ii.QueueFamily    = backend.graphics_queue_family();
+        ii.Queue          = backend.graphics_queue();
         ii.DescriptorPool = backend.descriptor_pool();
-        ii.MinImageCount = backend.min_image_count();
-        ii.ImageCount = backend.image_count();
-        ii.RenderPass = current_rp;
-        ii.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        ii.MinImageCount  = backend.min_image_count();
+        ii.ImageCount     = backend.image_count();
+        ii.RenderPass     = current_rp;
+        ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
 
         ImGui_ImplVulkan_Init(&ii);
         ImGui_ImplVulkan_CreateFontsTexture();
@@ -239,8 +239,8 @@ void ImGuiIntegration::build_ui(Figure& figure)
     if (layout_manager_)
     {
         float target_h = (show_timeline_ && timeline_editor_) ? 200.0f : 0.0f;
-        float cur_h = layout_manager_->bottom_panel_height();
-        float new_h = cur_h + (target_h - cur_h) * std::min(1.0f, 12.0f * dt);
+        float cur_h    = layout_manager_->bottom_panel_height();
+        float new_h    = cur_h + (target_h - cur_h) * std::min(1.0f, 12.0f * dt);
         if (std::abs(new_h - target_h) < 0.5f)
             new_h = target_h;
         layout_manager_->set_bottom_panel_height(new_h);
@@ -258,7 +258,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_inspector(figure);
     }
     draw_status_bar();
-    draw_pane_tab_headers();  // Must run before splitters so pane_tab_hovered_ is set
+    draw_pane_tab_headers();   // Must run before splitters so pane_tab_hovered_ is set
     draw_split_view_splitters();
 
     // Draw timeline panel (Agent G — bottom dock)
@@ -299,7 +299,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
         ImGui::EndTooltip();
-        deferred_tooltip_ = nullptr;  // Clear for next frame
+        deferred_tooltip_ = nullptr;   // Clear for next frame
     }
 
     // Draw data interaction overlays (tooltip, crosshair, markers) on top of everything
@@ -341,14 +341,14 @@ void ImGuiIntegration::build_ui(Figure& figure)
     // Crosshair is handled by data_interaction (auto-enabled when entering Measure mode)
     if (input_handler_ && input_handler_->tool_mode() == ToolMode::Measure)
     {
-        Axes* ax = input_handler_->active_axes();
-        bool dragging = input_handler_->is_measure_dragging();
-        bool has_result = input_handler_->has_measure_result();
+        Axes* ax         = input_handler_->active_axes();
+        bool  dragging   = input_handler_->is_measure_dragging();
+        bool  has_result = input_handler_->has_measure_result();
         if (ax && (dragging || has_result))
         {
-            const auto& vp = ax->viewport();
-            auto xlim = ax->x_limits();
-            auto ylim = ax->y_limits();
+            const auto& vp   = ax->viewport();
+            auto        xlim = ax->x_limits();
+            auto        ylim = ax->y_limits();
 
             auto data_to_screen = [&](float dx_, float dy_, float& scr_x, float& scr_y)
             {
@@ -361,18 +361,22 @@ void ImGuiIntegration::build_ui(Figure& figure)
             float ex = input_handler_->measure_end_data_x();
             float ey = input_handler_->measure_end_data_y();
 
-            float mdx = ex - sx;
-            float mdy = ey - sy;
+            float mdx  = ex - sx;
+            float mdy  = ey - sy;
             float dist = std::sqrt(mdx * mdx + mdy * mdy);
             if (dist > 1e-6f)
             {
-                auto* dl = ImGui::GetForegroundDrawList();
-                auto accent = ui::theme().accent;
-                ImU32 line_col = IM_COL32(
-                    uint8_t(accent.r * 255), uint8_t(accent.g * 255), uint8_t(accent.b * 255), 220);
-                ImU32 dot_col = IM_COL32(
-                    uint8_t(accent.r * 255), uint8_t(accent.g * 255), uint8_t(accent.b * 255), 255);
-                ImU32 bg_col = IM_COL32(uint8_t(ui::theme().bg_elevated.r * 255),
+                auto* dl       = ImGui::GetForegroundDrawList();
+                auto  accent   = ui::theme().accent;
+                ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
+                                          uint8_t(accent.g * 255),
+                                          uint8_t(accent.b * 255),
+                                          220);
+                ImU32 dot_col  = IM_COL32(uint8_t(accent.r * 255),
+                                         uint8_t(accent.g * 255),
+                                         uint8_t(accent.b * 255),
+                                         255);
+                ImU32 bg_col   = IM_COL32(uint8_t(ui::theme().bg_elevated.r * 255),
                                         uint8_t(ui::theme().bg_elevated.g * 255),
                                         uint8_t(ui::theme().bg_elevated.b * 255),
                                         230);
@@ -391,11 +395,15 @@ void ImGuiIntegration::build_ui(Figure& figure)
                 // Distance label at midpoint
                 float mid_x = (scr_sx + scr_ex) * 0.5f;
                 float mid_y = (scr_sy + scr_ey) * 0.5f;
-                char label[128];
-                std::snprintf(
-                    label, sizeof(label), "dX: %.4f  dY: %.4f  dist: %.4f", mdx, mdy, dist);
+                char  label[128];
+                std::snprintf(label,
+                              sizeof(label),
+                              "dX: %.4f  dY: %.4f  dist: %.4f",
+                              mdx,
+                              mdy,
+                              dist);
                 ImVec2 tsz = ImGui::CalcTextSize(label);
-                float pad = 6.0f;
+                float  pad = 6.0f;
                 dl->AddRectFilled(ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
                                   ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
                                   bg_col,
@@ -422,14 +430,14 @@ void ImGuiIntegration::build_ui(Figure& figure)
     // Draw directional dock highlight overlay when another window is dragging a tab over this one
     if (window_manager_ && window_id_ != 0 && window_manager_->drag_target_window() == window_id_)
     {
-        auto& theme = ui::theme();
-        auto drop_info = window_manager_->cross_window_drop_info();
-        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        auto&       theme     = ui::theme();
+        auto        drop_info = window_manager_->cross_window_drop_info();
+        ImDrawList* dl        = ImGui::GetForegroundDrawList();
 
         if (drop_info.zone >= 1 && drop_info.zone <= 5)
         {
             // Draw highlight rect for the active drop zone
-            ImU32 highlight_color = IM_COL32(static_cast<int>(theme.accent.r * 255),
+            ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                              static_cast<int>(theme.accent.g * 255),
                                              static_cast<int>(theme.accent.b * 255),
                                              40);
@@ -469,9 +477,9 @@ void ImGuiIntegration::build_ui(Figure& figure)
             if (label)
             {
                 ImVec2 lsz = ImGui::CalcTextSize(label);
-                float lx = hx + (hw - lsz.x) * 0.5f;
-                float ly = hy + (hh - lsz.y) * 0.5f;
-                float pad = 10.0f;
+                float  lx  = hx + (hw - lsz.x) * 0.5f;
+                float  ly  = hy + (hh - lsz.y) * 0.5f;
+                float  pad = 10.0f;
                 dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
                                   ImVec2(lx + lsz.x + pad, ly + lsz.y + pad),
                                   IM_COL32(30, 30, 30, 200),
@@ -514,10 +522,11 @@ void ImGuiIntegration::build_empty_ui()
     draw_command_bar();
 
     // Fill the rest with the background color
-    auto& theme = ui::theme();
-    ImDrawList* bg = ImGui::GetBackgroundDrawList();
-    ImGuiIO& io = ImGui::GetIO();
-    bg->AddRectFilled(ImVec2(0, 0), ImVec2(io.DisplaySize.x, io.DisplaySize.y),
+    auto&       theme = ui::theme();
+    ImDrawList* bg    = ImGui::GetBackgroundDrawList();
+    ImGuiIO&    io    = ImGui::GetIO();
+    bg->AddRectFilled(ImVec2(0, 0),
+                      ImVec2(io.DisplaySize.x, io.DisplaySize.y),
                       IM_COL32(static_cast<int>(theme.bg_primary.r * 255),
                                static_cast<int>(theme.bg_primary.g * 255),
                                static_cast<int>(theme.bg_primary.b * 255),
@@ -543,10 +552,10 @@ bool ImGuiIntegration::wants_capture_mouse() const
     if (!initialized_)
         return false;
 
-    bool wants_capture = ImGui::GetIO().WantCaptureMouse;
+    bool wants_capture      = ImGui::GetIO().WantCaptureMouse;
     bool any_window_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
-    bool any_item_hovered = ImGui::IsAnyItemHovered();
-    bool any_item_active = ImGui::IsAnyItemActive();
+    bool any_item_hovered   = ImGui::IsAnyItemHovered();
+    bool any_item_active    = ImGui::IsAnyItemActive();
 
     SPECTRA_LOG_TRACE("input",
                       "ImGui mouse capture state - wants_capture: "
@@ -566,8 +575,8 @@ bool ImGuiIntegration::wants_capture_mouse() const
     // but adjacent/overlapping windows cause false positives.
     if (layout_manager_)
     {
-        Rect canvas = layout_manager_->canvas_rect();
-        ImVec2 mouse = ImGui::GetIO().MousePos;
+        Rect   canvas = layout_manager_->canvas_rect();
+        ImVec2 mouse  = ImGui::GetIO().MousePos;
         if (mouse.x >= canvas.x && mouse.x <= canvas.x + canvas.w && mouse.y >= canvas.y
             && mouse.y <= canvas.y + canvas.h)
         {
@@ -595,44 +604,69 @@ void ImGuiIntegration::load_fonts()
     static const ImWchar icon_ranges[] = {0xE001, 0xE063, 0};
 
     ImFontConfig cfg;
-    cfg.FontDataOwnedByAtlas = false;  // we own the static data
+    cfg.FontDataOwnedByAtlas = false;   // we own the static data
 
     ImFontConfig icon_cfg;
     icon_cfg.FontDataOwnedByAtlas = false;
-    icon_cfg.MergeMode = true;  // merge into previous font
-    icon_cfg.GlyphMinAdvanceX = 0.0f;
-    icon_cfg.PixelSnapH = true;
+    icon_cfg.MergeMode            = true;   // merge into previous font
+    icon_cfg.GlyphMinAdvanceX     = 0.0f;
+    icon_cfg.PixelSnapH           = true;
 
     // Body font (16px) + icon merge
     cfg.SizePixels = 0;
-    font_body_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 16.0f, &cfg);
-    io.Fonts->AddFontFromMemoryTTF(
-        (void*)SpectraIcons_data, SpectraIcons_size, 16.0f, &icon_cfg, icon_ranges);
+    font_body_     = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
+                                                          InterFont_compressed_size,
+                                                          16.0f,
+                                                          &cfg);
+    io.Fonts->AddFontFromMemoryTTF((void*)SpectraIcons_data,
+                                   SpectraIcons_size,
+                                   16.0f,
+                                   &icon_cfg,
+                                   icon_ranges);
 
     // Heading font (12.5px) + icon merge
-    font_heading_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 12.5f, &cfg);
-    io.Fonts->AddFontFromMemoryTTF(
-        (void*)SpectraIcons_data, SpectraIcons_size, 12.5f, &icon_cfg, icon_ranges);
+    font_heading_ = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
+                                                             InterFont_compressed_size,
+                                                             12.5f,
+                                                             &cfg);
+    io.Fonts->AddFontFromMemoryTTF((void*)SpectraIcons_data,
+                                   SpectraIcons_size,
+                                   12.5f,
+                                   &icon_cfg,
+                                   icon_ranges);
 
     // Icon font (20px) — primary icon font with Inter merged in
-    font_icon_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 20.0f, &cfg);
-    io.Fonts->AddFontFromMemoryTTF(
-        (void*)SpectraIcons_data, SpectraIcons_size, 20.0f, &icon_cfg, icon_ranges);
+    font_icon_ = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
+                                                          InterFont_compressed_size,
+                                                          20.0f,
+                                                          &cfg);
+    io.Fonts->AddFontFromMemoryTTF((void*)SpectraIcons_data,
+                                   SpectraIcons_size,
+                                   20.0f,
+                                   &icon_cfg,
+                                   icon_ranges);
 
     // Title font (18px) + icon merge
-    font_title_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 18.0f, &cfg);
-    io.Fonts->AddFontFromMemoryTTF(
-        (void*)SpectraIcons_data, SpectraIcons_size, 18.0f, &icon_cfg, icon_ranges);
+    font_title_ = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
+                                                           InterFont_compressed_size,
+                                                           18.0f,
+                                                           &cfg);
+    io.Fonts->AddFontFromMemoryTTF((void*)SpectraIcons_data,
+                                   SpectraIcons_size,
+                                   18.0f,
+                                   &icon_cfg,
+                                   icon_ranges);
 
     // Menubar font (15px) + icon merge
-    font_menubar_ = io.Fonts->AddFontFromMemoryCompressedTTF(
-        InterFont_compressed_data, InterFont_compressed_size, 15.0f, &cfg);
-    io.Fonts->AddFontFromMemoryTTF(
-        (void*)SpectraIcons_data, SpectraIcons_size, 15.0f, &icon_cfg, icon_ranges);
+    font_menubar_ = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
+                                                             InterFont_compressed_size,
+                                                             15.0f,
+                                                             &cfg);
+    io.Fonts->AddFontFromMemoryTTF((void*)SpectraIcons_data,
+                                   SpectraIcons_size,
+                                   15.0f,
+                                   &icon_cfg,
+                                   icon_ranges);
 
     io.FontDefault = font_body_;
 }
@@ -744,11 +778,11 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     // Remember button rect for popup positioning and auto-close
-    ImVec2 btn_pos = ImGui::GetCursorScreenPos();
-    bool clicked = ImGui::Button(label);
-    ImVec2 btn_size = ImGui::GetItemRectSize();
-    ImVec2 btn_max = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
-    bool btn_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+    ImVec2 btn_pos     = ImGui::GetCursorScreenPos();
+    bool   clicked     = ImGui::Button(label);
+    ImVec2 btn_size    = ImGui::GetItemRectSize();
+    ImVec2 btn_max     = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
+    bool   btn_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
 
     // Click opens this menu
     if (clicked)
@@ -788,10 +822,10 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         open_menu_label_ = label;
 
         // ── Auto-close: dismiss when mouse moves away from button + popup ──
-        ImVec2 mouse = ImGui::GetIO().MousePos;
-        ImVec2 popup_pos = ImGui::GetWindowPos();
+        ImVec2 mouse      = ImGui::GetIO().MousePos;
+        ImVec2 popup_pos  = ImGui::GetWindowPos();
         ImVec2 popup_size = ImGui::GetWindowSize();
-        float margin = 20.0f;
+        float  margin     = 20.0f;
 
         // Combined rect of button + popup + margin
         float combined_min_x = std::min(btn_pos.x, popup_pos.x) - margin;
@@ -843,15 +877,18 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                                              colors.accent_subtle.g,
                                              colors.accent_subtle.b,
                                              0.5f));
-                ImGui::PushStyleColor(
-                    ImGuiCol_HeaderActive,
-                    ImVec4(
-                        colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive,
+                                      ImVec4(colors.accent_muted.r,
+                                             colors.accent_muted.g,
+                                             colors.accent_muted.b,
+                                             0.7f));
                 ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
                 float item_h = ImGui::GetTextLineHeight() + 10.0f;
-                if (ImGui::Selectable(
-                        item.label.c_str(), false, ImGuiSelectableFlags_None, ImVec2(0, item_h)))
+                if (ImGui::Selectable(item.label.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_None,
+                                      ImVec2(0, item_h)))
                 {
                     if (item.callback)
                         item.callback();
@@ -882,10 +919,10 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 }
 
 // Helper for drawing toolbar buttons with modern hover styling and themed tooltips
-void ImGuiIntegration::draw_toolbar_button(const char* icon,
+void ImGuiIntegration::draw_toolbar_button(const char*           icon,
                                            std::function<void()> callback,
-                                           const char* tooltip,
-                                           bool is_active)
+                                           const char*           tooltip,
+                                           bool                  is_active)
 {
     const auto& colors = ui::theme();
     // Use per-instance font_icon_ (not the IconFont singleton) so that
@@ -980,8 +1017,8 @@ void ImGuiIntegration::draw_command_bar()
         // ── Draw subtle bottom border line for menu bar separation ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
-            ImVec2 wpos = ImGui::GetWindowPos();
-            ImVec2 wsz = ImGui::GetWindowSize();
+            ImVec2      wpos   = ImGui::GetWindowPos();
+            ImVec2      wsz    = ImGui::GetWindowSize();
             bar_dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
                             ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
                             IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
@@ -993,16 +1030,16 @@ void ImGuiIntegration::draw_command_bar()
 
         // ── App title/brand on the left — polished programmatic logo + styled text ──
         {
-            auto accent = ui::theme().accent;
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            float bar_h = ImGui::GetWindowSize().y;
-            ImVec2 cursor = ImGui::GetCursorScreenPos();
-            float cy = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
+            auto        accent = ui::theme().accent;
+            ImDrawList* dl     = ImGui::GetWindowDrawList();
+            float       bar_h  = ImGui::GetWindowSize().y;
+            ImVec2      cursor = ImGui::GetCursorScreenPos();
+            float       cy     = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
 
             // ── Stylized "S" logo mark (enhanced bezier curves) ──
-            float logo_sz = 26.0f;  // Larger for more impact
-            float lx = cursor.x + 2.0f;
-            float ly = cy - logo_sz * 0.5f;
+            float logo_sz = 26.0f;   // Larger for more impact
+            float lx      = cursor.x + 2.0f;
+            float ly      = cy - logo_sz * 0.5f;
 
             // Accent colors at different opacities for layered glow
             auto ac = [&](uint8_t a) -> ImU32
@@ -1017,7 +1054,7 @@ void ImGuiIntegration::draw_command_bar()
             float hr = accent.r + (1.0f - accent.r) * 0.55f;
             float hg = accent.g + (1.0f - accent.g) * 0.55f;
             float hb = accent.b + (1.0f - accent.b) * 0.55f;
-            auto hi = [&](uint8_t a) -> ImU32
+            auto  hi = [&](uint8_t a) -> ImU32
             {
                 return IM_COL32(static_cast<uint8_t>(hr * 255),
                                 static_cast<uint8_t>(hg * 255),
@@ -1027,9 +1064,9 @@ void ImGuiIntegration::draw_command_bar()
 
             // Smooth multi-layer glow behind logo for depth
             ImVec2 logo_center = ImVec2(lx + logo_sz * 0.5f, ly + logo_sz * 0.5f);
-            dl->AddCircleFilled(logo_center, logo_sz * 0.85f, ac(8));   // Outer soft glow
-            dl->AddCircleFilled(logo_center, logo_sz * 0.70f, ac(15));  // Mid glow
-            dl->AddCircleFilled(logo_center, logo_sz * 0.55f, ac(22));  // Inner glow
+            dl->AddCircleFilled(logo_center, logo_sz * 0.85f, ac(8));    // Outer soft glow
+            dl->AddCircleFilled(logo_center, logo_sz * 0.70f, ac(15));   // Mid glow
+            dl->AddCircleFilled(logo_center, logo_sz * 0.55f, ac(22));   // Inner glow
 
             // Draw stylized S with more dynamic curves
             float sw = logo_sz * 0.75f;
@@ -1086,9 +1123,9 @@ void ImGuiIntegration::draw_command_bar()
             // ── "SPECTRA" text with enhanced letter-spacing and multi-layer glow ──
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
-            float font_sz = font_title_->FontSize;
-            float text_y = cy - font_sz * 0.5f;
-            float spacing = 3.2f;  // Increased letter spacing for elegance
+            float       font_sz = font_title_->FontSize;
+            float       text_y  = cy - font_sz * 0.5f;
+            float       spacing = 3.2f;   // Increased letter spacing for elegance
 
             // Measure total width for Dummy advance
             float total_w = 0.0f;
@@ -1097,15 +1134,15 @@ void ImGuiIntegration::draw_command_bar()
                 char ch[2] = {*p, 0};
                 total_w += ImGui::CalcTextSize(ch).x + (*p ? spacing : 0.0f);
             }
-            total_w -= spacing;  // no trailing space
+            total_w -= spacing;   // no trailing space
 
             // Layer 1: Soft glow behind text (reduced intensity for smooth edges)
             {
                 float gx = text_x;
                 for (const char* p = letters; *p; ++p)
                 {
-                    char ch[2] = {*p, 0};
-                    float cw = ImGui::CalcTextSize(ch).x;
+                    char  ch[2] = {*p, 0};
+                    float cw    = ImGui::CalcTextSize(ch).x;
                     // Gentle bloom effect with lower opacity
                     dl->AddText(font_title_, font_sz, ImVec2(gx - 0.8f, text_y - 0.8f), ac(10), ch);
                     dl->AddText(font_title_, font_sz, ImVec2(gx + 0.8f, text_y + 0.8f), ac(10), ch);
@@ -1117,21 +1154,21 @@ void ImGuiIntegration::draw_command_bar()
 
             // Layer 2: Main text with enhanced gradient (more vibrant transition)
             {
-                float gx = text_x;
-                int idx = 0;
-                int len = static_cast<int>(strlen(letters));
+                float gx  = text_x;
+                int   idx = 0;
+                int   len = static_cast<int>(strlen(letters));
                 for (const char* p = letters; *p; ++p, ++idx)
                 {
-                    char ch[2] = {*p, 0};
-                    float cw = ImGui::CalcTextSize(ch).x;
+                    char  ch[2] = {*p, 0};
+                    float cw    = ImGui::CalcTextSize(ch).x;
                     // Enhanced gradient: more dramatic transition from bright to accent
                     float t = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
                     // Use a more pronounced curve for the gradient
-                    float curve = t * t;  // Quadratic curve for more dramatic effect
-                    uint8_t cr = static_cast<uint8_t>((hr + (accent.r - hr) * curve) * 255);
-                    uint8_t cg = static_cast<uint8_t>((hg + (accent.g - hg) * curve) * 255);
-                    uint8_t cb = static_cast<uint8_t>((hb + (accent.b - hb) * curve) * 255);
-                    ImU32 col = IM_COL32(cr, cg, cb, 255);  // Full opacity
+                    float   curve = t * t;   // Quadratic curve for more dramatic effect
+                    uint8_t cr    = static_cast<uint8_t>((hr + (accent.r - hr) * curve) * 255);
+                    uint8_t cg    = static_cast<uint8_t>((hg + (accent.g - hg) * curve) * 255);
+                    uint8_t cb    = static_cast<uint8_t>((hb + (accent.b - hb) * curve) * 255);
+                    ImU32   col   = IM_COL32(cr, cg, cb, 255);   // Full opacity
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
                 }
@@ -1139,13 +1176,13 @@ void ImGuiIntegration::draw_command_bar()
 
             // Layer 3: Subtle highlight on first few letters for extra pop
             {
-                float gx = text_x;
-                int idx = 0;
-                for (const char* p = letters; *p && idx < 3; ++p, ++idx)  // Only first 3 letters
+                float gx  = text_x;
+                int   idx = 0;
+                for (const char* p = letters; *p && idx < 3; ++p, ++idx)   // Only first 3 letters
                 {
-                    char ch[2] = {*p, 0};
-                    float cw = ImGui::CalcTextSize(ch).x;
-                    ImU32 highlight = hi(180);  // Bright highlight
+                    char  ch[2]     = {*p, 0};
+                    float cw        = ImGui::CalcTextSize(ch).x;
+                    ImU32 highlight = hi(180);   // Bright highlight
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), highlight, ch);
                     gx += cw + spacing;
                 }
@@ -1179,7 +1216,7 @@ void ImGuiIntegration::draw_command_bar()
                                         if (command_registry_)
                                             command_registry_->execute("figure.new");
                                     }),
-                           MenuItem("", nullptr),  // Separator
+                           MenuItem("", nullptr),   // Separator
                            MenuItem("Export PNG",
                                     [this]()
                                     {
@@ -1204,7 +1241,7 @@ void ImGuiIntegration::draw_command_bar()
                                         if (command_registry_)
                                             command_registry_->execute("file.load_workspace");
                                     }),
-                           MenuItem("", nullptr),  // Separator
+                           MenuItem("", nullptr),   // Separator
                            MenuItem("Exit",
                                     [this]()
                                     {
@@ -1215,27 +1252,29 @@ void ImGuiIntegration::draw_command_bar()
         ImGui::SameLine();
 
         // Data menu
-        draw_menubar_menu("Data",
-                          {MenuItem("Load from CSV...",
-                                    [this]()
-                                    {
-                                        // Open native OS file dialog
-                                        char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                                        char const* result = tinyfd_openFileDialog(
-                                            "Open CSV File", "", 3, filters, "CSV files", 0);
-                                        if (result)
-                                        {
-                                            csv_file_path_ = result;
-                                            csv_data_ = parse_csv(csv_file_path_);
-                                            csv_data_loaded_ = csv_data_.error.empty();
-                                            csv_error_ = csv_data_.error;
-                                            csv_col_x_ = 0;
-                                            csv_col_y_ = (csv_data_.num_cols > 1) ? 1 : 0;
-                                            csv_col_z_ = -1;
-                                            if (csv_data_loaded_)
-                                                csv_dialog_open_ = true;
-                                        }
-                                    })});
+        draw_menubar_menu(
+            "Data",
+            {MenuItem(
+                "Load from CSV...",
+                [this]()
+                {
+                    // Open native OS file dialog
+                    char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
+                    char const* result =
+                        tinyfd_openFileDialog("Open CSV File", "", 3, filters, "CSV files", 0);
+                    if (result)
+                    {
+                        csv_file_path_   = result;
+                        csv_data_        = parse_csv(csv_file_path_);
+                        csv_data_loaded_ = csv_data_.error.empty();
+                        csv_error_       = csv_data_.error;
+                        csv_col_x_       = 0;
+                        csv_col_y_       = (csv_data_.num_cols > 1) ? 1 : 0;
+                        csv_col_z_       = -1;
+                        if (csv_data_loaded_)
+                            csv_dialog_open_ = true;
+                    }
+                })});
 
         ImGui::SameLine();
 
@@ -1285,7 +1324,7 @@ void ImGuiIntegration::draw_command_bar()
                           if (command_registry_)
                               command_registry_->execute("view.toggle_legend");
                       }),
-             MenuItem("", nullptr),  // Separator
+             MenuItem("", nullptr),   // Separator
              MenuItem("Toggle Timeline",
                       [this]()
                       {
@@ -1370,23 +1409,23 @@ void ImGuiIntegration::draw_command_bar()
                     }
                     SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
                 });
-            axes_items.emplace_back("Link Z Axes",
-                                    [this, has_enough_axes]()
-                                    {
-                                        if (!has_enough_axes())
-                                            return;
-                                        // Z-axis linking is only meaningful for 3D axes
-                                        std::vector<Axes3D*> axes3d_list;
-                                        for (auto& ab : current_figure_->all_axes_mut())
-                                        {
-                                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
-                                                axes3d_list.push_back(a3);
-                                        }
-                                        for (size_t i = 1; i < axes3d_list.size(); ++i)
-                                            axis_link_mgr_->link_3d(
-                                                axes3d_list[0], axes3d_list[i], LinkAxis::Z);
-                                        SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
-                                    });
+            axes_items.emplace_back(
+                "Link Z Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    // Z-axis linking is only meaningful for 3D axes
+                    std::vector<Axes3D*> axes3d_list;
+                    for (auto& ab : current_figure_->all_axes_mut())
+                    {
+                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                            axes3d_list.push_back(a3);
+                    }
+                    for (size_t i = 1; i < axes3d_list.size(); ++i)
+                        axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::Z);
+                    SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
+                });
             axes_items.emplace_back(
                 "Link All Axes",
                 [this, has_enough_axes]()
@@ -1416,7 +1455,7 @@ void ImGuiIntegration::draw_command_bar()
                     }
                     SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y+Z");
                 });
-            axes_items.emplace_back("", nullptr);  // separator
+            axes_items.emplace_back("", nullptr);   // separator
             axes_items.emplace_back("Unlink All",
                                     [this]()
                                     {
@@ -1453,8 +1492,8 @@ void ImGuiIntegration::draw_command_bar()
         // Transforms menu — apply data transforms to series
         {
             std::vector<MenuItem> xform_items;
-            auto& registry = TransformRegistry::instance();
-            auto names = registry.available_transforms();
+            auto&                 registry = TransformRegistry::instance();
+            auto                  names    = registry.available_transforms();
 
             // Built-in transforms
             for (const auto& name : names)
@@ -1524,7 +1563,7 @@ void ImGuiIntegration::draw_command_bar()
                           if (command_registry_)
                               command_registry_->execute("edit.redo");
                       }),
-             MenuItem("", nullptr),  // Separator
+             MenuItem("", nullptr),   // Separator
              MenuItem("Theme Settings", [this]() { show_theme_settings_ = !show_theme_settings_; }),
              MenuItem("Command Palette",
                       [this]()
@@ -1615,27 +1654,27 @@ void ImGuiIntegration::draw_nav_rail()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
 
-    float btn_size = 32.0f;
-    float spacing = ui::tokens::SPACE_2;
-    float margin = ui::tokens::SPACE_3;
+    float btn_size  = 32.0f;
+    float spacing   = ui::tokens::SPACE_2;
+    float margin    = ui::tokens::SPACE_3;
     float toolbar_w = btn_size + margin * 2.0f;
 
     // Compute floating toolbar height: 3 nav + separator + 4 tools + separator + 1 settings
-    float section_gap = ui::tokens::SPACE_4;
-    float nav_section_h = btn_size * 3.0f + spacing * 2.0f;
-    float tool_section_h = btn_size * 4.0f + spacing * 3.0f;
+    float section_gap        = ui::tokens::SPACE_4;
+    float nav_section_h      = btn_size * 3.0f + spacing * 2.0f;
+    float tool_section_h     = btn_size * 4.0f + spacing * 3.0f;
     float settings_section_h = btn_size;
     // Each separator: 2× Dummy of (section_gap - spacing)*0.5 + implicit item spacing around them
     float separator_h = section_gap + spacing;
     float total_content_h =
         nav_section_h + separator_h + tool_section_h + separator_h + settings_section_h;
-    float vert_pad = ui::tokens::SPACE_4;  // generous top/bottom padding
+    float vert_pad  = ui::tokens::SPACE_4;   // generous top/bottom padding
     float toolbar_h = total_content_h + vert_pad * 2.0f;
 
     // Position: floating with a left margin, vertically centered in the content area
     float left_margin = ui::tokens::SPACE_3;
-    float float_x = left_margin;
-    float float_y = bounds.y + (bounds.h - toolbar_h) * 0.5f;
+    float float_x     = left_margin;
+    float float_y     = bounds.y + (bounds.h - toolbar_h) * 0.5f;
     // Clamp within content area
     float_y = std::clamp(float_y,
                          bounds.y + ui::tokens::SPACE_3,
@@ -1659,9 +1698,9 @@ void ImGuiIntegration::draw_nav_rail()
                                  0.5f));
 
     // Draw shadow behind the toolbar via background draw list
-    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-    float shadow_offset = 4.0f;
-    float shadow_radius = ui::tokens::RADIUS_LG + 2.0f;
+    ImDrawList* bg_dl         = ImGui::GetBackgroundDrawList();
+    float       shadow_offset = 4.0f;
+    float       shadow_radius = ui::tokens::RADIUS_LG + 2.0f;
     bg_dl->AddRectFilled(
         ImVec2(float_x + shadow_offset, float_y + shadow_offset),
         ImVec2(float_x + toolbar_w + shadow_offset, float_y + toolbar_h + shadow_offset),
@@ -1720,7 +1759,7 @@ void ImGuiIntegration::draw_nav_rail()
                 else
                 {
                     active_section_ = section;
-                    panel_open_ = true;
+                    panel_open_     = true;
                     layout_manager_->set_inspector_visible(true);
                 }
             }
@@ -1734,7 +1773,7 @@ void ImGuiIntegration::draw_nav_rail()
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
         {
-            float sep_pad = 6.0f;
+            float  sep_pad = 6.0f;
             ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_pad, ImGui::GetCursorScreenPos().y);
             ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + toolbar_w - sep_pad, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
@@ -1777,7 +1816,7 @@ void ImGuiIntegration::draw_nav_rail()
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
         {
-            float sep_pad = 6.0f;
+            float  sep_pad = 6.0f;
             ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_pad, ImGui::GetCursorScreenPos().y);
             ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + toolbar_w - sep_pad, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
@@ -1792,8 +1831,10 @@ void ImGuiIntegration::draw_nav_rail()
 
         // ── Settings at bottom ──
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
-        if (icon_button(
-                ui::icon_str(ui::Icon::Settings), show_theme_settings_, font_icon_, btn_size))
+        if (icon_button(ui::icon_str(ui::Icon::Settings),
+                        show_theme_settings_,
+                        font_icon_,
+                        btn_size))
         {
             show_theme_settings_ = !show_theme_settings_;
         }
@@ -1842,7 +1883,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
 
     Rect bounds = layout_manager_->inspector_rect();
     if (bounds.w < 1.0f)
-        return;  // Fully collapsed
+        return;   // Fully collapsed
 
     // Draw resize handle as a separate invisible window so it extends outside the inspector
     {
@@ -1860,7 +1901,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             ImGui::SetCursorScreenPos(ImVec2(handle_x, bounds.y));
             ImGui::InvisibleButton("##resize_grip", ImVec2(handle_w, bounds.h));
             bool hovered = ImGui::IsItemHovered();
-            bool active = ImGui::IsItemActive();
+            bool active  = ImGui::IsItemActive();
             layout_manager_->set_inspector_resize_hovered(hovered);
 
             if (hovered || active)
@@ -1874,7 +1915,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             if (active)
             {
                 float right_edge = bounds.x + bounds.w;
-                float new_width = right_edge - ImGui::GetIO().MousePos.x;
+                float new_width  = right_edge - ImGui::GetIO().MousePos.x;
                 layout_manager_->set_inspector_width(new_width);
             }
             if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -1885,14 +1926,14 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             // Visual resize indicator line
             if (hovered || active)
             {
-                ImDrawList* dl = ImGui::GetWindowDrawList();
-                float line_x = bounds.x;
-                auto accent = ui::theme().accent;
-                ImU32 line_col = active ? IM_COL32(uint8_t(accent.r * 255),
+                ImDrawList* dl       = ImGui::GetWindowDrawList();
+                float       line_x   = bounds.x;
+                auto        accent   = ui::theme().accent;
+                ImU32       line_col = active ? IM_COL32(uint8_t(accent.r * 255),
                                                    uint8_t(accent.g * 255),
                                                    uint8_t(accent.b * 255),
                                                    255)
-                                        : IM_COL32(uint8_t(accent.r * 255),
+                                              : IM_COL32(uint8_t(accent.r * 255),
                                                    uint8_t(accent.g * 255),
                                                    uint8_t(accent.b * 255),
                                                    120);
@@ -1949,8 +1990,10 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
         ImGui::PopStyleColor(2);
 
         // Scrollable content area
-        ImGui::BeginChild(
-            "##inspector_content", ImVec2(0, 0), false, ImGuiWindowFlags_NoBackground);
+        ImGui::BeginChild("##inspector_content",
+                          ImVec2(0, 0),
+                          false,
+                          ImGuiWindowFlags_NoBackground);
 
         if (panel_open_)
         {
@@ -1992,8 +2035,9 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         int target_idx = selection_ctx_.axes_index;
                         if (target_idx >= 0 && target_idx < static_cast<int>(figure.axes().size()))
                         {
-                            selection_ctx_.select_axes(
-                                &figure, figure.axes_mut()[target_idx].get(), target_idx);
+                            selection_ctx_.select_axes(&figure,
+                                                       figure.axes_mut()[target_idx].get(),
+                                                       target_idx);
                         }
                         else
                         {
@@ -2054,8 +2098,8 @@ void ImGuiIntegration::draw_status_bar()
         // ── Draw subtle top border line for status bar separation ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
-            ImVec2 wpos = ImGui::GetWindowPos();
-            ImVec2 wsz = ImGui::GetWindowSize();
+            ImVec2      wpos   = ImGui::GetWindowPos();
+            ImVec2      wsz    = ImGui::GetWindowSize();
             bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
                             ImVec2(wpos.x + wsz.x, wpos.y),
                             IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
@@ -2069,8 +2113,8 @@ void ImGuiIntegration::draw_status_bar()
         ImGui::PushFont(font_heading_);
 
         // Vertically center all text in the status bar
-        float bar_h = bounds.h;
-        float text_h = ImGui::GetTextLineHeight();
+        float bar_h    = bounds.h;
+        float text_h   = ImGui::GetTextLineHeight();
         float y_offset = (bar_h - text_h) * 0.5f;
         ImGui::SetCursorPosY(y_offset);
 
@@ -2081,8 +2125,11 @@ void ImGuiIntegration::draw_status_bar()
                                      ui::theme().text_secondary.b,
                                      ui::theme().text_secondary.a));
         char cursor_buf[64];
-        std::snprintf(
-            cursor_buf, sizeof(cursor_buf), "X: %.4f  Y: %.4f", cursor_data_x_, cursor_data_y_);
+        std::snprintf(cursor_buf,
+                      sizeof(cursor_buf),
+                      "X: %.4f  Y: %.4f",
+                      cursor_data_x_,
+                      cursor_data_y_);
         ImGui::TextUnformatted(cursor_buf);
         ImGui::PopStyleColor();
 
@@ -2090,7 +2137,7 @@ void ImGuiIntegration::draw_status_bar()
         ImGui::SameLine(0.0f, ui::tokens::SPACE_6);
         {
             const char* mode_label = "Navigate";
-            auto mode_color = ui::theme().text_secondary;
+            auto        mode_color = ui::theme().text_secondary;
             switch (interaction_mode_)
             {
                 case ToolMode::Pan:
@@ -2136,19 +2183,21 @@ void ImGuiIntegration::draw_status_bar()
                                      ui::theme().text_secondary.b,
                                      ui::theme().text_secondary.a));
         char zoom_buf[32];
-        std::snprintf(
-            zoom_buf, sizeof(zoom_buf), "Zoom: %d%%", static_cast<int>(zoom_level_ * 100.0f));
+        std::snprintf(zoom_buf,
+                      sizeof(zoom_buf),
+                      "Zoom: %d%%",
+                      static_cast<int>(zoom_level_ * 100.0f));
         ImGui::TextUnformatted(zoom_buf);
         ImGui::PopStyleColor();
 
         // Right side: performance info — anchor to right edge of window
         float perf_width = 160.0f;
-        float abs_x = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
+        float abs_x      = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
         ImGui::SameLine(abs_x > 0.0f ? abs_x : 0.0f);
 
         // FPS with color coding
-        float fps_val = io.Framerate;
-        auto fps_color = ui::theme().success;
+        float fps_val   = io.Framerate;
+        auto  fps_color = ui::theme().success;
         if (fps_val < 30.0f)
             fps_color = ui::theme().error;
         else if (fps_val < 55.0f)
@@ -2185,9 +2234,9 @@ void ImGuiIntegration::draw_split_view_splitters()
     if (!dock_system_)
         return;
 
-    auto* draw_list = ImGui::GetForegroundDrawList();
-    auto& theme = ui::theme();
-    ImVec2 mouse = ImGui::GetMousePos();
+    auto*  draw_list = ImGui::GetForegroundDrawList();
+    auto&  theme     = ui::theme();
+    ImVec2 mouse     = ImGui::GetMousePos();
 
     // ── Non-split drag-to-split overlay ──────────────────────────────────
     // When NOT split and a tab is being dock-dragged, show edge zone
@@ -2198,8 +2247,8 @@ void ImGuiIntegration::draw_split_view_splitters()
         // Only show edge zones (Left/Right/Top/Bottom), not Center
         if (target.zone != DropZone::None && target.zone != DropZone::Center)
         {
-            Rect hr = target.highlight_rect;
-            ImU32 highlight_color = IM_COL32(static_cast<int>(theme.accent.r * 255),
+            Rect  hr               = target.highlight_rect;
+            ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                              static_cast<int>(theme.accent.g * 255),
                                              static_cast<int>(theme.accent.b * 255),
                                              40);
@@ -2208,8 +2257,10 @@ void ImGuiIntegration::draw_split_view_splitters()
                                               static_cast<int>(theme.accent.b * 255),
                                               160);
 
-            draw_list->AddRectFilled(
-                ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h), highlight_color, 4.0f);
+            draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
+                                     ImVec2(hr.x + hr.w, hr.y + hr.h),
+                                     highlight_color,
+                                     4.0f);
             draw_list->AddRect(ImVec2(hr.x, hr.y),
                                ImVec2(hr.x + hr.w, hr.y + hr.h),
                                highlight_border,
@@ -2239,8 +2290,8 @@ void ImGuiIntegration::draw_split_view_splitters()
             if (label)
             {
                 ImVec2 lsz = ImGui::CalcTextSize(label);
-                float lx = hr.x + (hr.w - lsz.x) * 0.5f;
-                float ly = hr.y + (hr.h - lsz.y) * 0.5f;
+                float  lx  = hr.x + (hr.w - lsz.x) * 0.5f;
+                float  ly  = hr.y + (hr.h - lsz.y) * 0.5f;
                 draw_list->AddText(ImVec2(lx, ly),
                                    IM_COL32(static_cast<int>(theme.accent.r * 255),
                                             static_cast<int>(theme.accent.g * 255),
@@ -2249,7 +2300,7 @@ void ImGuiIntegration::draw_split_view_splitters()
                                    label);
             }
         }
-        return;  // No splitters to draw in non-split mode
+        return;   // No splitters to draw in non-split mode
     }
 
     if (!dock_system_->is_split())
@@ -2302,7 +2353,7 @@ void ImGuiIntegration::draw_split_view_splitters()
         if (!node || node->is_leaf())
             return;
 
-        Rect sr = node->splitter_rect();
+        Rect sr          = node->splitter_rect();
         bool is_dragging = dock_system_->is_dragging_splitter()
                            && dock_system_->split_view().dragging_splitter() == node;
 
@@ -2323,12 +2374,13 @@ void ImGuiIntegration::draw_split_view_splitters()
                                       120);
         }
 
-        draw_list->AddRectFilled(
-            ImVec2(sr.x, sr.y), ImVec2(sr.x + sr.w, sr.y + sr.h), splitter_color);
+        draw_list->AddRectFilled(ImVec2(sr.x, sr.y),
+                                 ImVec2(sr.x + sr.w, sr.y + sr.h),
+                                 splitter_color);
 
         // Draw a subtle grip indicator in the center of the splitter
-        float cx = sr.x + sr.w * 0.5f;
-        float cy = sr.y + sr.h * 0.5f;
+        float cx         = sr.x + sr.w * 0.5f;
+        float cy         = sr.y + sr.h * 0.5f;
         ImU32 grip_color = IM_COL32(static_cast<int>(theme.text_tertiary.r * 255),
                                     static_cast<int>(theme.text_tertiary.g * 255),
                                     static_cast<int>(theme.text_tertiary.b * 255),
@@ -2382,8 +2434,8 @@ void ImGuiIntegration::draw_split_view_splitters()
         auto target = dock_system_->current_drop_target();
         if (target.zone != DropZone::None)
         {
-            Rect hr = target.highlight_rect;
-            ImU32 highlight_color = IM_COL32(static_cast<int>(theme.accent.r * 255),
+            Rect  hr               = target.highlight_rect;
+            ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                              static_cast<int>(theme.accent.g * 255),
                                              static_cast<int>(theme.accent.b * 255),
                                              60);
@@ -2392,8 +2444,9 @@ void ImGuiIntegration::draw_split_view_splitters()
                                               static_cast<int>(theme.accent.b * 255),
                                               180);
 
-            draw_list->AddRectFilled(
-                ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h), highlight_color);
+            draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
+                                     ImVec2(hr.x + hr.w, hr.y + hr.h),
+                                     highlight_color);
             draw_list->AddRect(ImVec2(hr.x, hr.y),
                                ImVec2(hr.x + hr.w, hr.y + hr.h),
                                highlight_border,
@@ -2420,20 +2473,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
     // the tab headers.  Previously we used GetForegroundDrawList() which
     // renders above ALL windows including popups — causing the z-order bug.
 
-    auto& theme = ui::theme();
-    float dt = ImGui::GetIO().DeltaTime;
+    auto&  theme = ui::theme();
+    float  dt    = ImGui::GetIO().DeltaTime;
     ImVec2 mouse = ImGui::GetMousePos();
 
-    constexpr float TAB_H = SplitPane::PANE_TAB_HEIGHT;
-    constexpr float TAB_PAD = 8.0f;
-    constexpr float TAB_MIN_W = 60.0f;
-    constexpr float TAB_MAX_W = 150.0f;
-    constexpr float CLOSE_SZ = 12.0f;
-    constexpr float ANIM_SPEED = 14.0f;
+    constexpr float TAB_H          = SplitPane::PANE_TAB_HEIGHT;
+    constexpr float TAB_PAD        = 8.0f;
+    constexpr float TAB_MIN_W      = 60.0f;
+    constexpr float TAB_MAX_W      = 150.0f;
+    constexpr float CLOSE_SZ       = 12.0f;
+    constexpr float ANIM_SPEED     = 14.0f;
     constexpr float DRAG_THRESHOLD = 5.0f;
 
     auto panes = dock_system_->split_view().all_panes();
-    (void)dock_system_->active_figure_index();  // Available if needed
+    (void)dock_system_->active_figure_index();   // Available if needed
 
     // Helper: get figure title
     auto fig_title = [&](size_t fig_idx) -> std::string
@@ -2447,8 +2500,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
     auto to_col = [](const ui::Color& c, float a = -1.0f) -> ImU32
     {
         float alpha = a >= 0.0f ? a : c.a;
-        return IM_COL32(
-            uint8_t(c.r * 255), uint8_t(c.g * 255), uint8_t(c.b * 255), uint8_t(alpha * 255));
+        return IM_COL32(uint8_t(c.r * 255),
+                        uint8_t(c.g * 255),
+                        uint8_t(c.b * 255),
+                        uint8_t(alpha * 255));
     };
 
     // ── Phase 1: Compute tab layouts per pane ────────────────────────────
@@ -2456,15 +2511,15 @@ void ImGuiIntegration::draw_pane_tab_headers()
     struct TabRect
     {
         size_t figure_index;
-        float x, y, w, h;
-        bool is_active;
-        bool is_hovered;
+        float  x, y, w, h;
+        bool   is_active;
+        bool   is_hovered;
     };
 
     struct PaneHeader
     {
-        SplitPane* pane;
-        Rect header_rect;
+        SplitPane*           pane;
+        Rect                 header_rect;
         std::vector<TabRect> tabs;
     };
 
@@ -2473,10 +2528,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     // Compute insertion gap: when dragging a tab over a pane header,
     // determine which position the tab would be inserted at
-    constexpr float GAP_WIDTH = 60.0f;  // Width of the insertion gap
-    bool has_active_gap = false;
-    uint32_t gap_pane_id = 0;
-    size_t gap_insert_after = SIZE_MAX;  // Insert after this local index
+    constexpr float GAP_WIDTH        = 60.0f;   // Width of the insertion gap
+    bool            has_active_gap   = false;
+    uint32_t        gap_pane_id      = 0;
+    size_t          gap_insert_after = SIZE_MAX;   // Insert after this local index
 
     if (pane_tab_drag_.dragging && pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID)
     {
@@ -2493,20 +2548,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 // Mouse is over this pane's header — compute insertion index
                 if (pane->id() != pane_tab_drag_.source_pane_id || pane->figure_count() > 1)
                 {
-                    gap_pane_id = pane->id();
-                    has_active_gap = true;
-                    gap_insert_after = SIZE_MAX;  // Before first tab by default
+                    gap_pane_id      = pane->id();
+                    has_active_gap   = true;
+                    gap_insert_after = SIZE_MAX;   // Before first tab by default
                     const auto& figs = pane->figure_indices();
-                    float cx = hr.x + 2.0f;
+                    float       cx   = hr.x + 2.0f;
                     for (size_t li = 0; li < figs.size(); ++li)
                     {
                         if (figs[li] == pane_tab_drag_.dragged_figure_index)
                         {
-                            cx += 0;  // Skip the dragged tab's width
+                            cx += 0;   // Skip the dragged tab's width
                             continue;
                         }
-                        std::string t = fig_title(figs[li]);
-                        ImVec2 tsz = ImGui::CalcTextSize(t.c_str());
+                        std::string t   = fig_title(figs[li]);
+                        ImVec2      tsz = ImGui::CalcTextSize(t.c_str());
                         float w = std::clamp(tsz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
                         if (mouse.x > cx + w * 0.5f)
                         {
@@ -2524,9 +2579,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
     float lerp_t_gap = std::min(1.0f, ANIM_SPEED * dt);
     if (has_active_gap)
     {
-        insertion_gap_.target_pane_id = gap_pane_id;
+        insertion_gap_.target_pane_id   = gap_pane_id;
         insertion_gap_.insert_after_idx = gap_insert_after;
-        insertion_gap_.target_gap = GAP_WIDTH;
+        insertion_gap_.target_gap       = GAP_WIDTH;
     }
     else
     {
@@ -2536,8 +2591,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         (insertion_gap_.target_gap - insertion_gap_.current_gap) * lerp_t_gap;
     if (insertion_gap_.current_gap < 0.5f && insertion_gap_.target_gap == 0.0f)
     {
-        insertion_gap_.current_gap = 0.0f;
-        insertion_gap_.target_pane_id = 0;
+        insertion_gap_.current_gap      = 0.0f;
+        insertion_gap_.target_pane_id   = 0;
         insertion_gap_.insert_after_idx = SIZE_MAX;
     }
 
@@ -2551,11 +2606,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
         Rect hr{b.x, b.y, b.w, TAB_H};
 
         PaneHeader ph;
-        ph.pane = pane;
+        ph.pane        = pane;
         ph.header_rect = hr;
 
-        const auto& figs = pane->figure_indices();
-        float cur_x = hr.x + 2.0f;
+        const auto& figs  = pane->figure_indices();
+        float       cur_x = hr.x + 2.0f;
 
         // Check if this pane has an active insertion gap
         bool pane_has_gap =
@@ -2563,11 +2618,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         for (size_t li = 0; li < figs.size(); ++li)
         {
-            size_t fig_idx = figs[li];
-            std::string title = fig_title(fig_idx);
+            size_t      fig_idx = figs[li];
+            std::string title   = fig_title(fig_idx);
 
             ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-            float tw = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            float  tw      = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
 
             // Add insertion gap before this tab if needed
             if (pane_has_gap && insertion_gap_.insert_after_idx == SIZE_MAX && li == 0)
@@ -2580,11 +2635,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
             }
 
             // Animate position (keyed by pane+figure to avoid cross-pane interference)
-            auto& anim = pane_tab_anims_[{ph.pane->id(), fig_idx}];
+            auto& anim    = pane_tab_anims_[{ph.pane->id(), fig_idx}];
             anim.target_x = cur_x;
             if (anim.current_x == 0.0f && anim.target_x != 0.0f)
             {
-                anim.current_x = anim.target_x;  // First frame: snap
+                anim.current_x = anim.target_x;   // First frame: snap
             }
             float lerp_t = std::min(1.0f, ANIM_SPEED * dt);
             anim.current_x += (anim.target_x - anim.current_x) * lerp_t;
@@ -2593,17 +2648,17 @@ void ImGuiIntegration::draw_pane_tab_headers()
             float draw_x = anim.current_x;
 
             bool is_active_local = (li == pane->active_local_index());
-            bool hovered = (mouse.x >= draw_x && mouse.x < draw_x + tw && mouse.y >= hr.y
+            bool hovered         = (mouse.x >= draw_x && mouse.x < draw_x + tw && mouse.y >= hr.y
                             && mouse.y < hr.y + TAB_H);
 
             TabRect tr;
             tr.figure_index = fig_idx;
-            tr.x = draw_x;
-            tr.y = hr.y;
-            tr.w = tw;
-            tr.h = TAB_H;
-            tr.is_active = is_active_local;
-            tr.is_hovered = hovered;
+            tr.x            = draw_x;
+            tr.y            = hr.y;
+            tr.w            = tw;
+            tr.h            = TAB_H;
+            tr.is_active    = is_active_local;
+            tr.is_hovered   = hovered;
             ph.tabs.push_back(tr);
 
             cur_x += tw + 1.0f;
@@ -2637,7 +2692,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                              ImVec4(0, 0, 0, 0));  // transparent — we draw bg ourselves
+                              ImVec4(0, 0, 0, 0));   // transparent — we draw bg ourselves
 
         if (!ImGui::Begin(win_id, nullptr, pane_win_flags))
         {
@@ -2652,8 +2707,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
         // Draw header background (skip when menus are open to avoid z-order issues)
         if (!is_menu_open())
         {
-            draw_list->AddRectFilled(
-                ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h), to_col(theme.bg_secondary));
+            draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
+                                     ImVec2(hr.x + hr.w, hr.y + hr.h),
+                                     to_col(theme.bg_secondary));
         }
         draw_list->AddLine(ImVec2(hr.x, hr.y + hr.h - 1),
                            ImVec2(hr.x + hr.w, hr.y + hr.h - 1),
@@ -2672,8 +2728,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
             // Tab background
             ImU32 bg;
-            bool is_active_styled =
-                tr.is_active && !is_menu_open();  // Don't show active styling when menus are open
+            bool  is_active_styled =
+                tr.is_active && !is_menu_open();   // Don't show active styling when menus are open
             if (is_being_dragged)
             {
                 bg = to_col(theme.bg_elevated);
@@ -2691,7 +2747,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 bg = to_col(theme.bg_secondary, 0.0f);
             }
 
-            float inset_y = 3.0f;
+            float  inset_y = 3.0f;
             ImVec2 tl(tr.x, tr.y + inset_y);
             ImVec2 br(tr.x + tr.w, tr.y + tr.h);
             draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
@@ -2706,12 +2762,13 @@ void ImGuiIntegration::draw_pane_tab_headers()
             }
 
             // Title text
-            std::string title = fig_title(tr.figure_index);
-            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-            ImVec2 text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
+            std::string title   = fig_title(tr.figure_index);
+            ImVec2      text_sz = ImGui::CalcTextSize(title.c_str());
+            ImVec2      text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
 
-            draw_list->PushClipRect(
-                ImVec2(tr.x, tr.y), ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h), true);
+            draw_list->PushClipRect(ImVec2(tr.x, tr.y),
+                                    ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h),
+                                    true);
             draw_list->AddText(
                 text_pos,
                 is_active_styled ? to_col(theme.text_primary) : to_col(theme.text_secondary),
@@ -2729,8 +2786,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
                                       && std::abs(mouse.y - cy) < CLOSE_SZ * 0.5f);
                 if (close_hovered)
                 {
-                    draw_list->AddCircleFilled(
-                        ImVec2(cx, cy), CLOSE_SZ * 0.5f, to_col(theme.error, 0.15f));
+                    draw_list->AddCircleFilled(ImVec2(cx, cy),
+                                               CLOSE_SZ * 0.5f,
+                                               to_col(theme.error, 0.15f));
                 }
                 ImU32 x_col = close_hovered ? to_col(theme.error) : to_col(theme.text_tertiary);
                 draw_list->AddLine(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), x_col, 1.5f);
@@ -2765,33 +2823,35 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     // Start potential drag via TabDragController
                     if (tab_drag_controller_)
                     {
-                        tab_drag_controller_->on_mouse_down(
-                            ph.pane->id(), tr.figure_index, mouse.x, mouse.y);
+                        tab_drag_controller_->on_mouse_down(ph.pane->id(),
+                                                            tr.figure_index,
+                                                            mouse.x,
+                                                            mouse.y);
                         tab_drag_controller_->set_ghost_title(fig_title(tr.figure_index));
                     }
                     // Sync to legacy state for rendering compatibility
-                    pane_tab_drag_.dragging = false;
-                    pane_tab_drag_.source_pane_id = ph.pane->id();
+                    pane_tab_drag_.dragging             = false;
+                    pane_tab_drag_.source_pane_id       = ph.pane->id();
                     pane_tab_drag_.dragged_figure_index = tr.figure_index;
-                    pane_tab_drag_.drag_start_x = mouse.x;
-                    pane_tab_drag_.drag_start_y = mouse.y;
-                    pane_tab_drag_.cross_pane = false;
-                    pane_tab_drag_.dock_dragging = false;
+                    pane_tab_drag_.drag_start_x         = mouse.x;
+                    pane_tab_drag_.drag_start_y         = mouse.y;
+                    pane_tab_drag_.cross_pane           = false;
+                    pane_tab_drag_.dock_dragging        = false;
                     // Capture source tab rect for preview animation origin
-                    pane_tab_drag_.source_tab_x = tr.x;
-                    pane_tab_drag_.source_tab_y = tr.y;
-                    pane_tab_drag_.source_tab_w = tr.w;
-                    pane_tab_drag_.source_tab_h = tr.h;
-                    pane_tab_drag_.preview_active = false;
-                    pane_tab_drag_.preview_scale = 0.0f;
+                    pane_tab_drag_.source_tab_x    = tr.x;
+                    pane_tab_drag_.source_tab_y    = tr.y;
+                    pane_tab_drag_.source_tab_w    = tr.w;
+                    pane_tab_drag_.source_tab_h    = tr.h;
+                    pane_tab_drag_.preview_active  = false;
+                    pane_tab_drag_.preview_scale   = 0.0f;
                     pane_tab_drag_.preview_opacity = 0.0f;
-                    pane_tab_drag_.preview_shadow = 0.0f;
+                    pane_tab_drag_.preview_shadow  = 0.0f;
                 }
 
                 // Right-click context menu
                 if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 {
-                    pane_ctx_menu_fig_ = tr.figure_index;
+                    pane_ctx_menu_fig_  = tr.figure_index;
                     pane_ctx_menu_open_ = true;
                     ImGui::OpenPopup("##pane_tab_ctx");
                 }
@@ -2825,8 +2885,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
             else
             {
                 ImVec2 wpos = ImGui::GetMainViewport()->Pos;
-                screen_mx = wpos.x + mouse.x;
-                screen_my = wpos.y + mouse.y;
+                screen_mx   = wpos.x + mouse.x;
+                screen_my   = wpos.y + mouse.y;
             }
         }
 
@@ -2842,8 +2902,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         // Sync controller state → legacy pane_tab_drag_ for rendering
         if (tab_drag_controller_->is_dragging())
         {
-            pane_tab_drag_.dragging = true;
-            pane_tab_drag_.cross_pane = tab_drag_controller_->is_cross_pane();
+            pane_tab_drag_.dragging      = true;
+            pane_tab_drag_.cross_pane    = tab_drag_controller_->is_cross_pane();
             pane_tab_drag_.dock_dragging = tab_drag_controller_->is_dock_dragging();
         }
 
@@ -2851,18 +2911,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
         // via callbacks — reset legacy state.
         if (!tab_drag_controller_->is_active())
         {
-            pane_tab_drag_.dragging = false;
+            pane_tab_drag_.dragging             = false;
             pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
-            pane_tab_drag_.cross_pane = false;
-            pane_tab_drag_.dock_dragging = false;
+            pane_tab_drag_.cross_pane           = false;
+            pane_tab_drag_.dock_dragging        = false;
         }
     }
     else if (pane_tab_drag_.dragged_figure_index != INVALID_FIGURE_ID
              && ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         // Fallback: no controller — use legacy inline logic
-        float dx = mouse.x - pane_tab_drag_.drag_start_x;
-        float dy = mouse.y - pane_tab_drag_.drag_start_y;
+        float dx   = mouse.x - pane_tab_drag_.drag_start_x;
+        float dy   = mouse.y - pane_tab_drag_.drag_start_y;
         float dist = std::sqrt(dx * dx + dy * dy);
 
         if (!pane_tab_drag_.dragging && dist > DRAG_THRESHOLD)
@@ -2931,7 +2991,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         }
 
         // ── Ghost tab / preview sync ──────────────────────────────────
-        auto* draw_list = ImGui::GetForegroundDrawList();  // Ghost/drop overlays always on top
+        auto* draw_list   = ImGui::GetForegroundDrawList();   // Ghost/drop overlays always on top
         std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
 
         // Sync preview_active from TabDragController's preview state
@@ -2943,10 +3003,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
         {
             // Preview window not yet created — draw small ghost tab at cursor
             ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-            float ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
-            float ghost_h = TAB_H;
-            float ghost_x = mouse.x - ghost_w * 0.5f;
-            float ghost_y = mouse.y - ghost_h * 0.5f;
+            float  ghost_w = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            float  ghost_h = TAB_H;
+            float  ghost_x = mouse.x - ghost_w * 0.5f;
+            float  ghost_y = mouse.y - ghost_h * 0.5f;
             draw_list->AddRectFilled(ImVec2(ghost_x + 2, ghost_y + 2),
                                      ImVec2(ghost_x + ghost_w + 2, ghost_y + ghost_h + 2),
                                      IM_COL32(0, 0, 0, 40),
@@ -3010,15 +3070,16 @@ void ImGuiIntegration::draw_pane_tab_headers()
         {
             // Check if mouse is outside the window → detach to new window
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
-            bool outside = (mouse.x < 0 || mouse.y < 0 || mouse.x >= display_size.x
+            bool   outside      = (mouse.x < 0 || mouse.y < 0 || mouse.x >= display_size.x
                             || mouse.y >= display_size.y);
 
             if (outside && pane_tab_detach_cb_)
             {
                 dock_system_->cancel_drag();
                 ImVec2 wpos = ImGui::GetMainViewport()->Pos;
-                pane_tab_detach_cb_(
-                    pane_tab_drag_.dragged_figure_index, wpos.x + mouse.x, wpos.y + mouse.y);
+                pane_tab_detach_cb_(pane_tab_drag_.dragged_figure_index,
+                                    wpos.x + mouse.x,
+                                    wpos.y + mouse.y);
             }
             else
             {
@@ -3046,10 +3107,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
         }
 
         // Reset drag state
-        pane_tab_drag_.dragging = false;
+        pane_tab_drag_.dragging             = false;
         pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
-        pane_tab_drag_.cross_pane = false;
-        pane_tab_drag_.dock_dragging = false;
+        pane_tab_drag_.cross_pane           = false;
+        pane_tab_drag_.dock_dragging        = false;
     }
 
     // Cancel drag on escape or right-click
@@ -3067,10 +3128,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 dock_system_->cancel_drag();
             }
         }
-        pane_tab_drag_.dragging = false;
+        pane_tab_drag_.dragging             = false;
         pane_tab_drag_.dragged_figure_index = INVALID_FIGURE_ID;
-        pane_tab_drag_.cross_pane = false;
-        pane_tab_drag_.dock_dragging = false;
+        pane_tab_drag_.cross_pane           = false;
+        pane_tab_drag_.dock_dragging        = false;
     }
 
     // ── Phase 5: Right-click context menu ────────────────────────────────
@@ -3096,7 +3157,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         if (pane_ctx_menu_open_ && pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
         {
             ImGui::OpenPopup("##pane_tab_ctx");
-            pane_ctx_menu_open_ = false;  // Only open once
+            pane_ctx_menu_open_ = false;   // Only open once
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
@@ -3127,18 +3188,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
                                                  theme.accent_muted.g,
                                                  theme.accent_muted.b,
                                                  0.7f));
-                    float item_h = ImGui::GetTextLineHeight() + 8.0f;
-                    bool clicked = ImGui::Selectable(
-                        label, false, ImGuiSelectableFlags_None, ImVec2(0, item_h));
+                    float item_h  = ImGui::GetTextLineHeight() + 8.0f;
+                    bool  clicked = ImGui::Selectable(label,
+                                                     false,
+                                                     ImGuiSelectableFlags_None,
+                                                     ImVec2(0, item_h));
                     ImGui::PopStyleColor(3);
                     return clicked;
                 };
 
                 if (menu_item("Rename..."))
                 {
-                    pane_tab_renaming_ = true;
+                    pane_tab_renaming_   = true;
                     pane_tab_rename_fig_ = pane_ctx_menu_fig_;
-                    std::string title = fig_title(pane_ctx_menu_fig_);
+                    std::string title    = fig_title(pane_ctx_menu_fig_);
                     strncpy(pane_tab_rename_buf_, title.c_str(), sizeof(pane_tab_rename_buf_) - 1);
                     pane_tab_rename_buf_[sizeof(pane_tab_rename_buf_) - 1] = '\0';
                 }
@@ -3150,10 +3213,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 }
 
                 ImGui::Dummy(ImVec2(0, 2));
-                ImGui::PushStyleColor(
-                    ImGuiCol_Separator,
-                    ImVec4(
-                        theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.3f));
+                ImGui::PushStyleColor(ImGuiCol_Separator,
+                                      ImVec4(theme.border_subtle.r,
+                                             theme.border_subtle.g,
+                                             theme.border_subtle.b,
+                                             0.3f));
                 ImGui::Separator();
                 ImGui::PopStyleColor();
                 ImGui::Dummy(ImVec2(0, 2));
@@ -3174,17 +3238,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 {
                     if (pane_tab_detach_cb_)
                     {
-                        ImVec2 m = ImGui::GetMousePos();
+                        ImVec2 m    = ImGui::GetMousePos();
                         ImVec2 wpos = ImGui::GetMainViewport()->Pos;
                         pane_tab_detach_cb_(pane_ctx_menu_fig_, wpos.x + m.x, wpos.y + m.y);
                     }
                 }
 
                 ImGui::Dummy(ImVec2(0, 2));
-                ImGui::PushStyleColor(
-                    ImGuiCol_Separator,
-                    ImVec4(
-                        theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.3f));
+                ImGui::PushStyleColor(ImGuiCol_Separator,
+                                      ImVec4(theme.border_subtle.r,
+                                             theme.border_subtle.g,
+                                             theme.border_subtle.b,
+                                             0.3f));
                 ImGui::Separator();
                 ImGui::PopStyleColor();
                 ImGui::Dummy(ImVec2(0, 2));
@@ -3200,7 +3265,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         else
         {
             pane_ctx_menu_open_ = false;
-            pane_ctx_menu_fig_ = INVALID_FIGURE_ID;
+            pane_ctx_menu_fig_  = INVALID_FIGURE_ID;
         }
 
         ImGui::PopStyleColor(2);
@@ -3258,8 +3323,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PopStyleColor();
         ImGui::PopStyleVar(3);
 
-        ImGui::End();  // ##pane_tab_popup_host
-    }                  // Phase 5 scope
+        ImGui::End();   // ##pane_tab_popup_host
+    }                   // Phase 5 scope
 }
 
 void ImGuiIntegration::draw_plot_overlays(Figure& figure)
@@ -3267,7 +3332,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     if (!layout_manager_)
         return;
 
-    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    ImDrawList* dl     = ImGui::GetBackgroundDrawList();
     const auto& colors = ui::ThemeManager::instance().colors();
 
     // ── Subplot separation: draw subtle divider lines between subplot cells ──
@@ -3275,16 +3340,16 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     int cols = figure.grid_cols();
     if (rows > 1 || cols > 1)
     {
-        Rect canvas = layout_manager_->canvas_rect();
+        Rect  canvas = layout_manager_->canvas_rect();
         float cell_w = canvas.w / static_cast<float>(cols);
         float cell_h = canvas.h / static_cast<float>(rows);
 
-        ImU32 sep_col = IM_COL32(static_cast<uint8_t>(colors.border_subtle.r * 255),
+        ImU32 sep_col       = IM_COL32(static_cast<uint8_t>(colors.border_subtle.r * 255),
                                  static_cast<uint8_t>(colors.border_subtle.g * 255),
                                  static_cast<uint8_t>(colors.border_subtle.b * 255),
                                  50);
         float sep_thickness = 1.0f;
-        float inset = 12.0f;
+        float inset         = 12.0f;
 
         // Vertical dividers between columns
         for (int c = 1; c < cols; ++c)
@@ -3310,11 +3375,11 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
 // ─── Timeline Panel ──────────────────────────────────────────────────────────
 
 // Helper: transport icon button with modern styling
-static bool transport_button(const char* icon_label,
-                             bool active,
-                             bool accent,
-                             ImFont* font,
-                             float size,
+static bool transport_button(const char*            icon_label,
+                             bool                   active,
+                             bool                   accent,
+                             ImFont*                font,
+                             float                  size,
                              const ui::ThemeColors& colors)
 {
     ImGui::PushFont(font);
@@ -3322,7 +3387,7 @@ static bool transport_button(const char* icon_label,
     ImVec4 bg, bg_hover, bg_active, text_col;
     if (accent)
     {
-        bg = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.9f);
+        bg       = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.9f);
         bg_hover = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
         bg_active =
             ImVec4(colors.accent.r * 0.8f, colors.accent.g * 0.8f, colors.accent.b * 0.8f, 1.0f);
@@ -3344,8 +3409,10 @@ static bool transport_button(const char* icon_label,
             ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.1f);
         bg_active =
             ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.2f);
-        text_col = ImVec4(
-            colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.85f);
+        text_col = ImVec4(colors.text_secondary.r,
+                          colors.text_secondary.g,
+                          colors.text_secondary.b,
+                          0.85f);
     }
 
     ImGui::PushStyleColor(ImGuiCol_Button, bg);
@@ -3370,29 +3437,30 @@ void ImGuiIntegration::draw_timeline_panel()
         return;
 
     const auto& colors = ui::theme();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO&    io     = ImGui::GetIO();
 
     float panel_height = layout_manager_ ? layout_manager_->bottom_panel_height() : 200.0f;
     if (panel_height < 1.0f)
-        return;  // Animating closed
+        return;   // Animating closed
 
     float status_bar_h = LayoutManager::STATUS_BAR_HEIGHT;
-    float panel_y = io.DisplaySize.y - status_bar_h - panel_height;
-    float nav_w = layout_manager_ ? layout_manager_->nav_rail_animated_width() : 48.0f;
-    float inspector_w = (layout_manager_ && layout_manager_->is_inspector_visible())
-                            ? layout_manager_->inspector_animated_width()
-                            : 0.0f;
-    float panel_x = nav_w;
-    float panel_w = io.DisplaySize.x - nav_w - inspector_w;
+    float panel_y      = io.DisplaySize.y - status_bar_h - panel_height;
+    float nav_w        = layout_manager_ ? layout_manager_->nav_rail_animated_width() : 48.0f;
+    float inspector_w  = (layout_manager_ && layout_manager_->is_inspector_visible())
+                             ? layout_manager_->inspector_animated_width()
+                             : 0.0f;
+    float panel_x      = nav_w;
+    float panel_w      = io.DisplaySize.x - nav_w - inspector_w;
 
     // Draw top-border accent line via background draw list
-    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-    ImU32 accent_col = IM_COL32(static_cast<int>(colors.accent.r * 255),
+    ImDrawList* bg_dl      = ImGui::GetBackgroundDrawList();
+    ImU32       accent_col = IM_COL32(static_cast<int>(colors.accent.r * 255),
                                 static_cast<int>(colors.accent.g * 255),
                                 static_cast<int>(colors.accent.b * 255),
                                 180);
-    bg_dl->AddRectFilled(
-        ImVec2(panel_x, panel_y - 1.0f), ImVec2(panel_x + panel_w, panel_y + 1.0f), accent_col);
+    bg_dl->AddRectFilled(ImVec2(panel_x, panel_y - 1.0f),
+                         ImVec2(panel_x + panel_w, panel_y + 1.0f),
+                         accent_col);
 
     ImGui::SetNextWindowPos(ImVec2(panel_x, panel_y));
     ImGui::SetNextWindowSize(ImVec2(panel_w, panel_height));
@@ -3413,27 +3481,35 @@ void ImGuiIntegration::draw_timeline_panel()
 
     if (ImGui::Begin("##timeline_panel", nullptr, flags))
     {
-        float btn_sz = 28.0f;
+        float btn_sz  = 28.0f;
         float btn_gap = 4.0f;
 
         // ── Header row: transport controls (left) + time display (right) ──
-        auto pb_state = timeline_editor_->playback_state();
+        auto pb_state   = timeline_editor_->playback_state();
         bool is_playing = (pb_state == PlaybackState::Playing);
-        bool is_paused = (pb_state == PlaybackState::Paused);
+        bool is_paused  = (pb_state == PlaybackState::Paused);
 
         // Step backward
         if (font_icon_)
         {
-            if (transport_button(
-                    ui::icon_str(ui::Icon::StepBackward), false, false, font_icon_, btn_sz, colors))
+            if (transport_button(ui::icon_str(ui::Icon::StepBackward),
+                                 false,
+                                 false,
+                                 font_icon_,
+                                 btn_sz,
+                                 colors))
             {
                 timeline_editor_->step_backward();
             }
             ImGui::SameLine(0, btn_gap);
 
             // Stop
-            if (transport_button(
-                    ui::icon_str(ui::Icon::Stop), false, false, font_icon_, btn_sz, colors))
+            if (transport_button(ui::icon_str(ui::Icon::Stop),
+                                 false,
+                                 false,
+                                 font_icon_,
+                                 btn_sz,
+                                 colors))
             {
                 timeline_editor_->stop();
             }
@@ -3449,8 +3525,12 @@ void ImGuiIntegration::draw_timeline_panel()
             ImGui::SameLine(0, btn_gap);
 
             // Step forward
-            if (transport_button(
-                    ui::icon_str(ui::Icon::StepForward), false, false, font_icon_, btn_sz, colors))
+            if (transport_button(ui::icon_str(ui::Icon::StepForward),
+                                 false,
+                                 false,
+                                 font_icon_,
+                                 btn_sz,
+                                 colors))
             {
                 timeline_editor_->step_forward();
             }
@@ -3464,7 +3544,7 @@ void ImGuiIntegration::draw_timeline_panel()
                      "%.2f / %.2f",
                      timeline_editor_->playhead(),
                      timeline_editor_->duration());
-            float time_w = ImGui::CalcTextSize(time_buf).x;
+            float time_w  = ImGui::CalcTextSize(time_buf).x;
             float avail_w = ImGui::GetContentRegionAvail().x;
             ImGui::SameLine(0, 0);
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail_w - time_w - 8.0f);
@@ -3483,7 +3563,7 @@ void ImGuiIntegration::draw_timeline_panel()
         ImGui::Spacing();
         {
             ImVec2 p = ImGui::GetCursorScreenPos();
-            float w = ImGui::GetContentRegionAvail().x;
+            float  w = ImGui::GetContentRegionAvail().x;
             ImGui::GetWindowDrawList()->AddLine(
                 ImVec2(p.x, p.y),
                 ImVec2(p.x + w, p.y),
@@ -3511,10 +3591,10 @@ void ImGuiIntegration::draw_curve_editor_panel()
         return;
 
     const auto& colors = ui::theme();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO&    io     = ImGui::GetIO();
 
-    float win_w = 560.0f;
-    float win_h = 380.0f;
+    float win_w    = 560.0f;
+    float win_h    = 380.0f;
     float center_x = io.DisplaySize.x * 0.5f - win_w * 0.5f;
     float center_y = io.DisplaySize.y * 0.4f - win_h * 0.5f;
 
@@ -3543,14 +3623,18 @@ void ImGuiIntegration::draw_curve_editor_panel()
     bool still_open = show_curve_editor_;
     if (ImGui::Begin("Curve Editor", &still_open, flags))
     {
-        float btn_sz = 24.0f;
+        float btn_sz  = 24.0f;
         float btn_gap = 4.0f;
 
         // Toolbar row with icon buttons
         if (font_icon_)
         {
-            if (transport_button(
-                    ui::icon_str(ui::Icon::Fullscreen), false, false, font_icon_, btn_sz, colors))
+            if (transport_button(ui::icon_str(ui::Icon::Fullscreen),
+                                 false,
+                                 false,
+                                 font_icon_,
+                                 btn_sz,
+                                 colors))
             {
                 curve_editor_->fit_view();
             }
@@ -3558,8 +3642,12 @@ void ImGuiIntegration::draw_curve_editor_panel()
                 ImGui::SetTooltip("Fit View");
             ImGui::SameLine(0, btn_gap);
 
-            if (transport_button(
-                    ui::icon_str(ui::Icon::Home), false, false, font_icon_, btn_sz, colors))
+            if (transport_button(ui::icon_str(ui::Icon::Home),
+                                 false,
+                                 false,
+                                 font_icon_,
+                                 btn_sz,
+                                 colors))
             {
                 curve_editor_->reset_view();
             }
@@ -3569,13 +3657,13 @@ void ImGuiIntegration::draw_curve_editor_panel()
         }
 
         // Toggle buttons with modern pill style
-        bool show_grid = curve_editor_->show_grid();
+        bool show_grid     = curve_editor_->show_grid();
         bool show_tangents = curve_editor_->show_tangents();
 
         auto toggle_pill = [&](const char* label, bool* value)
         {
-            ImVec4 bg = *value ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.15f)
-                               : ImVec4(0, 0, 0, 0);
+            ImVec4 bg   = *value ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.15f)
+                                 : ImVec4(0, 0, 0, 0);
             ImVec4 text = *value ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)
                                  : ImVec4(colors.text_secondary.r,
                                           colors.text_secondary.g,
@@ -3583,10 +3671,11 @@ void ImGuiIntegration::draw_curve_editor_panel()
                                           0.7f);
 
             ImGui::PushStyleColor(ImGuiCol_Button, bg);
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                ImVec4(
-                    colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.3f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  ImVec4(colors.accent_subtle.r,
+                                         colors.accent_subtle.g,
+                                         colors.accent_subtle.b,
+                                         0.3f));
             ImGui::PushStyleColor(
                 ImGuiCol_ButtonActive,
                 ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.4f));
@@ -3625,7 +3714,7 @@ void ImGuiIntegration::draw_curve_editor_panel()
         ImGui::Spacing();
         {
             ImVec2 p = ImGui::GetCursorScreenPos();
-            float w = ImGui::GetContentRegionAvail().x;
+            float  w = ImGui::GetContentRegionAvail().x;
             ImGui::GetWindowDrawList()->AddLine(
                 ImVec2(p.x, p.y),
                 ImVec2(p.x + w, p.y),
@@ -3668,41 +3757,33 @@ void ImGuiIntegration::draw_csv_dialog()
 {
     const auto& colors = ui::theme();
 
-    ImGuiIO& io = ImGui::GetIO();
-    float dialog_w = 480.0f;
-    float dialog_h = 380.0f;
+    ImGuiIO& io       = ImGui::GetIO();
+    float    dialog_w = 480.0f;
+    float    dialog_h = 380.0f;
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                             ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(dialog_w, dialog_h), ImGuiCond_Appearing);
 
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(colors.bg_elevated.r,
-                                 colors.bg_elevated.g,
-                                 colors.bg_elevated.b,
-                                 0.98f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBg,
-                          ImVec4(colors.bg_secondary.r,
-                                 colors.bg_secondary.g,
-                                 colors.bg_secondary.b,
-                                 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
-                          ImVec4(colors.bg_secondary.r,
-                                 colors.bg_secondary.g,
-                                 colors.bg_secondary.b,
-                                 1.0f));
+    ImGui::PushStyleColor(
+        ImGuiCol_WindowBg,
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBg,
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBgActive,
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
 
     bool open = csv_dialog_open_;
-    if (ImGui::Begin("CSV Column Picker##csv_dialog", &open,
-                     ImGuiWindowFlags_NoCollapse))
+    if (ImGui::Begin("CSV Column Picker##csv_dialog", &open, ImGuiWindowFlags_NoCollapse))
     {
         // File info
-        ImGui::TextColored(ImVec4(colors.text_secondary.r,
-                                  colors.text_secondary.g,
-                                  colors.text_secondary.b, 1.0f),
-                           "File:");
+        ImGui::TextColored(
+            ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 1.0f),
+            "File:");
         ImGui::SameLine();
         ImGui::TextWrapped("%s", csv_file_path_.c_str());
 
@@ -3721,10 +3802,11 @@ void ImGuiIntegration::draw_csv_dialog()
             auto combo_item = [&](const char* label, int* current, bool allow_none = false)
             {
                 ImGui::SetNextItemWidth(220.0f);
-                if (ImGui::BeginCombo(label,
-                                      (*current >= 0 && *current < static_cast<int>(csv_data_.headers.size()))
-                                          ? csv_data_.headers[*current].c_str()
-                                          : (allow_none ? "(none)" : "---")))
+                if (ImGui::BeginCombo(
+                        label,
+                        (*current >= 0 && *current < static_cast<int>(csv_data_.headers.size()))
+                            ? csv_data_.headers[*current].c_str()
+                            : (allow_none ? "(none)" : "---")))
                 {
                     if (allow_none)
                     {
@@ -3754,19 +3836,22 @@ void ImGuiIntegration::draw_csv_dialog()
             {
                 ImGui::TextColored(ImVec4(colors.text_secondary.r,
                                           colors.text_secondary.g,
-                                          colors.text_secondary.b, 1.0f),
+                                          colors.text_secondary.b,
+                                          1.0f),
                                    "Preview (first 5 rows):");
                 if (ImGui::BeginChild("##csv_preview", ImVec2(0, 90), ImGuiChildFlags_Borders))
                 {
                     size_t preview_rows = std::min(csv_data_.num_rows, size_t(5));
                     for (size_t r = 0; r < preview_rows; ++r)
                     {
-                        float xv = (csv_col_x_ >= 0 && csv_col_x_ < static_cast<int>(csv_data_.num_cols))
-                                       ? csv_data_.columns[csv_col_x_][r]
-                                       : 0.0f;
-                        float yv = (csv_col_y_ >= 0 && csv_col_y_ < static_cast<int>(csv_data_.num_cols))
-                                       ? csv_data_.columns[csv_col_y_][r]
-                                       : 0.0f;
+                        float xv =
+                            (csv_col_x_ >= 0 && csv_col_x_ < static_cast<int>(csv_data_.num_cols))
+                                ? csv_data_.columns[csv_col_x_][r]
+                                : 0.0f;
+                        float yv =
+                            (csv_col_y_ >= 0 && csv_col_y_ < static_cast<int>(csv_data_.num_cols))
+                                ? csv_data_.columns[csv_col_y_][r]
+                                : 0.0f;
                         if (csv_col_z_ >= 0 && csv_col_z_ < static_cast<int>(csv_data_.num_cols))
                         {
                             float zv = csv_data_.columns[csv_col_z_][r];
@@ -3784,10 +3869,10 @@ void ImGuiIntegration::draw_csv_dialog()
             ImGui::Spacing();
 
             // Plot / Cancel buttons
-            bool can_plot = (csv_col_x_ >= 0 && csv_col_y_ >= 0
-                             && csv_col_x_ < static_cast<int>(csv_data_.num_cols)
-                             && csv_col_y_ < static_cast<int>(csv_data_.num_cols)
-                             && csv_data_.num_rows > 0);
+            bool can_plot =
+                (csv_col_x_ >= 0 && csv_col_y_ >= 0
+                 && csv_col_x_ < static_cast<int>(csv_data_.num_cols)
+                 && csv_col_y_ < static_cast<int>(csv_data_.num_cols) && csv_data_.num_rows > 0);
 
             if (!can_plot)
                 ImGui::BeginDisabled();
@@ -3801,13 +3886,13 @@ void ImGuiIntegration::draw_csv_dialog()
             {
                 if (csv_plot_cb_)
                 {
-                    const std::vector<float>* z_ptr = nullptr;
-                    const std::string* z_label_ptr = nullptr;
-                    std::string z_label;
+                    const std::vector<float>* z_ptr       = nullptr;
+                    const std::string*        z_label_ptr = nullptr;
+                    std::string               z_label;
                     if (csv_col_z_ >= 0 && csv_col_z_ < static_cast<int>(csv_data_.num_cols))
                     {
-                        z_ptr = &csv_data_.columns[csv_col_z_];
-                        z_label = csv_data_.headers[csv_col_z_];
+                        z_ptr       = &csv_data_.columns[csv_col_z_];
+                        z_label     = csv_data_.headers[csv_col_z_];
                         z_label_ptr = &z_label;
                     }
                     csv_plot_cb_(csv_file_path_,
@@ -3842,15 +3927,15 @@ void ImGuiIntegration::draw_csv_dialog()
 
 void ImGuiIntegration::draw_theme_settings()
 {
-    const auto& colors = ui::theme();
-    auto& theme_manager = ui::ThemeManager::instance();
+    const auto& colors        = ui::theme();
+    auto&       theme_manager = ui::ThemeManager::instance();
 
     // Center the modal window
-    ImGuiIO& io = ImGui::GetIO();
-    float window_width = 360.0f;
-    float window_height = 320.0f;
-    float wx = (io.DisplaySize.x - window_width) * 0.5f;
-    float wy = (io.DisplaySize.y - window_height) * 0.5f;
+    ImGuiIO& io            = ImGui::GetIO();
+    float    window_width  = 360.0f;
+    float    window_height = 320.0f;
+    float    wx            = (io.DisplaySize.x - window_width) * 0.5f;
+    float    wy            = (io.DisplaySize.y - window_height) * 0.5f;
     ImGui::SetNextWindowPos(ImVec2(wx, wy), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
 
@@ -3915,23 +4000,26 @@ void ImGuiIntegration::draw_theme_settings()
                                              colors.accent_muted.b,
                                              0.35f));
                 ImGui::PushStyleColor(
-                    ImGuiCol_Text, ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+                    ImGuiCol_Text,
+                    ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
             }
             else
             {
                 ImGui::PushStyleColor(
                     ImGuiCol_Button,
                     ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.6f));
-                ImGui::PushStyleColor(
-                    ImGuiCol_Text,
-                    ImVec4(
-                        colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(colors.text_primary.r,
+                                             colors.text_primary.g,
+                                             colors.text_primary.b,
+                                             1.0f));
             }
 
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                ImVec4(
-                    colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  ImVec4(colors.accent_subtle.r,
+                                         colors.accent_subtle.g,
+                                         colors.accent_subtle.b,
+                                         0.5f));
             ImGui::PushStyleColor(
                 ImGuiCol_ButtonActive,
                 ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.6f));
@@ -3944,7 +4032,7 @@ void ImGuiIntegration::draw_theme_settings()
             if (!display_name.empty())
             {
                 display_name[0] = static_cast<char>(std::toupper(display_name[0]));
-                size_t pos = 0;
+                size_t pos      = 0;
                 while ((pos = display_name.find('_', pos)) != std::string::npos)
                 {
                     display_name.replace(pos, 1, " ");
@@ -4053,7 +4141,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         }
 
         // Determine if this is a 2D or 3D axes
-        Axes* ax_2d = dynamic_cast<Axes*>(ax_base);
+        Axes*   ax_2d = dynamic_cast<Axes*>(ax_base);
         Axes3D* ax_3d = dynamic_cast<Axes3D*>(ax_base);
 
         // Find axes index in all_axes for display
@@ -4073,10 +4161,11 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
 
         // Header
         ImGui::PushFont(font_heading_);
-        ImGui::PushStyleColor(
-            ImGuiCol_Text,
-            ImVec4(
-                colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 0.7f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_secondary.r,
+                                     colors.text_secondary.g,
+                                     colors.text_secondary.b,
+                                     0.7f));
         ImGui::TextUnformatted(axes_label.c_str());
         ImGui::PopStyleColor();
         ImGui::PopFont();
@@ -4096,7 +4185,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
         bool is_linked_2d = ax_2d && axis_link_mgr_->is_linked(ax_2d);
-        bool has_multi = figure.all_axes().size() > 1;
+        bool has_multi    = figure.all_axes().size() > 1;
 
         if (has_multi && ax_2d)
         {
@@ -4193,13 +4282,13 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     std::string axis_str = (grp->axis == LinkAxis::X)   ? "X"
                                            : (grp->axis == LinkAxis::Y) ? "Y"
                                                                         : "XY";
-                    ImU32 grp_col = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
+                    ImU32       grp_col  = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
                                              static_cast<uint8_t>(grp->color.g * 255),
                                              static_cast<uint8_t>(grp->color.b * 255),
                                              255);
 
-                    ImVec2 cursor = ImGui::GetCursorScreenPos();
-                    ImDrawList* dl = ImGui::GetWindowDrawList();
+                    ImVec2      cursor = ImGui::GetCursorScreenPos();
+                    ImDrawList* dl     = ImGui::GetWindowDrawList();
                     dl->AddCircleFilled(ImVec2(cursor.x + 8, cursor.y + 10), 5.0f, grp_col);
                     ImGui::Dummy(ImVec2(20, 0));
                     ImGui::SameLine();
@@ -4217,10 +4306,11 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             }
 
             ImGui::Dummy(ImVec2(0, 2));
-            ImGui::PushStyleColor(
-                ImGuiCol_Separator,
-                ImVec4(
-                    colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(colors.border_subtle.r,
+                                         colors.border_subtle.g,
+                                         colors.border_subtle.b,
+                                         0.3f));
             ImGui::Separator();
             ImGui::PopStyleColor();
             ImGui::Dummy(ImVec2(0, 2));
@@ -4277,14 +4367,14 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             ImGui::PopStyleColor();
         }
 
-        ImGui::PopStyleVar();     // SelectableTextAlign
-        ImGui::PopStyleColor(2);  // Header, HeaderHovered
+        ImGui::PopStyleVar();      // SelectableTextAlign
+        ImGui::PopStyleColor(2);   // Header, HeaderHovered
 
         ImGui::EndPopup();
     }
 
-    ImGui::PopStyleColor(2);  // PopupBg, Border
-    ImGui::PopStyleVar(4);    // WindowPadding, PopupRounding, PopupBorderSize, ItemSpacing
+    ImGui::PopStyleColor(2);   // PopupBg, Border
+    ImGui::PopStyleVar(4);     // WindowPadding, PopupRounding, PopupBorderSize, ItemSpacing
 }
 
 // ─── Axis Link Indicators (colored chain icon on linked axes) ────────────────
@@ -4304,8 +4394,8 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
         if (!axis_link_mgr_->is_linked(ax))
             continue;
 
-        const auto& vp = ax->viewport();
-        auto group_ids = axis_link_mgr_->groups_for(ax);
+        const auto& vp        = ax->viewport();
+        auto        group_ids = axis_link_mgr_->groups_for(ax);
         if (group_ids.empty())
             continue;
 
@@ -4319,7 +4409,7 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
             if (!grp)
                 continue;
 
-            ImU32 col = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
+            ImU32 col    = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
                                  static_cast<uint8_t>(grp->color.g * 255),
                                  static_cast<uint8_t>(grp->color.b * 255),
                                  200);
@@ -4339,7 +4429,7 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
             std::string axis_str = (grp->axis == LinkAxis::X)   ? "X"
                                    : (grp->axis == LinkAxis::Y) ? "Y"
                                                                 : "XY";
-            ImVec2 sz = ImGui::CalcTextSize(axis_str.c_str());
+            ImVec2      sz       = ImGui::CalcTextSize(axis_str.c_str());
             dl->AddText(ImVec2(cx - sz.x * 0.5f, cy + 10), col, axis_str.c_str());
         }
     }
@@ -4350,15 +4440,15 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
 void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure)
 {
     const auto& theme = ui::ThemeManager::instance().colors();
-    ImDrawList* dl = ImGui::GetBackgroundDrawList();
-    ImVec2 disp = ImGui::GetIO().DisplaySize;
+    ImDrawList* dl    = ImGui::GetBackgroundDrawList();
+    ImVec2      disp  = ImGui::GetIO().DisplaySize;
 
     float w = disp.x;
     float h = disp.y;
 
     constexpr float RADIUS = 10.0f;
-    constexpr float TB_H = 28.0f;
-    constexpr float PAD = 8.0f;
+    constexpr float TB_H   = 28.0f;
+    constexpr float PAD    = 8.0f;
 
     // Card background (fills entire window)
     dl->AddRectFilled(ImVec2(0, 0),
@@ -4444,11 +4534,11 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
     if (figure && !figure->axes().empty())
     {
         // Use the first (active) axes
-        const auto& ax = *figure->axes()[0];
-        AxisLimits xl = ax.x_limits();
-        AxisLimits yl = ax.y_limits();
-        float x_range = xl.max - xl.min;
-        float y_range = yl.max - yl.min;
+        const auto& ax      = *figure->axes()[0];
+        AxisLimits  xl      = ax.x_limits();
+        AxisLimits  yl      = ax.y_limits();
+        float       x_range = xl.max - xl.min;
+        float       y_range = yl.max - yl.min;
         if (x_range <= 0.0f)
             x_range = 1.0f;
         if (y_range <= 0.0f)
@@ -4462,8 +4552,8 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
             if (!s || !s->visible())
                 continue;
 
-            const Color& sc = s->color();
-            ImU32 col = IM_COL32(static_cast<uint8_t>(sc.r * 255),
+            const Color& sc  = s->color();
+            ImU32        col = IM_COL32(static_cast<uint8_t>(sc.r * 255),
                                  static_cast<uint8_t>(sc.g * 255),
                                  static_cast<uint8_t>(sc.b * 255),
                                  static_cast<uint8_t>(sc.a * s->opacity() * 220));
@@ -4473,20 +4563,20 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
             if (ls && ls->point_count() >= 2)
             {
                 drew_real_data = true;
-                auto xd = ls->x_data();
-                auto yd = ls->y_data();
-                size_t n = ls->point_count();
+                auto   xd      = ls->x_data();
+                auto   yd      = ls->y_data();
+                size_t n       = ls->point_count();
 
                 // Downsample to fit preview width (max ~200 segments)
                 size_t step = std::max<size_t>(1, n / 200);
 
                 for (size_t i = 0; i + step < n; i += step)
                 {
-                    size_t j = std::min(i + step, n - 1);
-                    float sx0 = px + ((xd[i] - xl.min) / x_range) * pw;
-                    float sy0 = py + ph - ((yd[i] - yl.min) / y_range) * ph;
-                    float sx1 = px + ((xd[j] - xl.min) / x_range) * pw;
-                    float sy1 = py + ph - ((yd[j] - yl.min) / y_range) * ph;
+                    size_t j   = std::min(i + step, n - 1);
+                    float  sx0 = px + ((xd[i] - xl.min) / x_range) * pw;
+                    float  sy0 = py + ph - ((yd[i] - yl.min) / y_range) * ph;
+                    float  sx1 = px + ((xd[j] - xl.min) / x_range) * pw;
+                    float  sy1 = py + ph - ((yd[j] - yl.min) / y_range) * ph;
                     dl->AddLine(ImVec2(sx0, sy0), ImVec2(sx1, sy1), col, 1.5f);
                 }
                 continue;
@@ -4497,13 +4587,13 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
             if (ss && ss->point_count() >= 1)
             {
                 drew_real_data = true;
-                auto xd = ss->x_data();
-                auto yd = ss->y_data();
-                size_t n = ss->point_count();
+                auto   xd      = ss->x_data();
+                auto   yd      = ss->y_data();
+                size_t n       = ss->point_count();
 
                 // Downsample for preview
                 size_t step = std::max<size_t>(1, n / 150);
-                float r = std::max(1.5f, std::min(3.0f, pw / 100.0f));
+                float  r    = std::max(1.5f, std::min(3.0f, pw / 100.0f));
 
                 for (size_t i = 0; i < n; i += step)
                 {
@@ -4520,10 +4610,10 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
     // Fallback: generic sine wave if no real data
     if (!drew_real_data)
     {
-        uint8_t ar = static_cast<uint8_t>(theme.accent.r * 255);
-        uint8_t ag = static_cast<uint8_t>(theme.accent.g * 255);
-        uint8_t ab = static_cast<uint8_t>(theme.accent.b * 255);
-        ImU32 wave_col = IM_COL32(ar, ag, ab, 200);
+        uint8_t       ar       = static_cast<uint8_t>(theme.accent.r * 255);
+        uint8_t       ag       = static_cast<uint8_t>(theme.accent.g * 255);
+        uint8_t       ab       = static_cast<uint8_t>(theme.accent.b * 255);
+        ImU32         wave_col = IM_COL32(ar, ag, ab, 200);
         constexpr int SEGMENTS = 40;
         for (int si = 0; si < SEGMENTS; ++si)
         {
@@ -4557,9 +4647,9 @@ void ImGuiIntegration::draw_knobs_panel()
         layout_manager_ ? layout_manager_->canvas_rect().w : ImGui::GetIO().DisplaySize.x;
 
     float panel_w = 260.0f;
-    float pad = 12.0f;
-    float pos_x = canvas_x + canvas_w - panel_w - pad;
-    float pos_y = canvas_y + pad;
+    float pad     = 12.0f;
+    float pos_x   = canvas_x + canvas_w - panel_w - pad;
+    float pos_y   = canvas_y + pad;
 
     ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f), ImGuiCond_FirstUseEver);
@@ -4600,9 +4690,9 @@ void ImGuiIntegration::draw_knobs_panel()
     if (!ImGui::Begin(" Parameters", nullptr, flags | ImGuiWindowFlags_NoScrollbar))
     {
         // Window is collapsed — record rect (title bar only) and sync state
-        ImVec2 wpos = ImGui::GetWindowPos();
-        ImVec2 wsz = ImGui::GetWindowSize();
-        knobs_panel_rect_ = {wpos.x, wpos.y, wsz.x, wsz.y};
+        ImVec2 wpos        = ImGui::GetWindowPos();
+        ImVec2 wsz         = ImGui::GetWindowSize();
+        knobs_panel_rect_  = {wpos.x, wpos.y, wsz.x, wsz.y};
         bool now_collapsed = ImGui::IsWindowCollapsed();
         if (now_collapsed != collapsed)
             knob_manager_->set_collapsed(now_collapsed);
@@ -4614,8 +4704,8 @@ void ImGuiIntegration::draw_knobs_panel()
 
     // Record full panel rect for tab-bar occlusion check
     {
-        ImVec2 wpos = ImGui::GetWindowPos();
-        ImVec2 wsz = ImGui::GetWindowSize();
+        ImVec2 wpos       = ImGui::GetWindowPos();
+        ImVec2 wsz        = ImGui::GetWindowSize();
         knobs_panel_rect_ = {wpos.x, wpos.y, wsz.x, wsz.y};
     }
 
@@ -4702,10 +4792,12 @@ void ImGuiIntegration::draw_knobs_panel()
                 case KnobType::Int:
                 {
                     ImGui::SetNextItemWidth(avail);
-                    int iv = k.int_value();
+                    int iv     = k.int_value();
                     int old_iv = iv;
-                    ImGui::SliderInt(
-                        "##v", &iv, static_cast<int>(k.min_val), static_cast<int>(k.max_val));
+                    ImGui::SliderInt("##v",
+                                     &iv,
+                                     static_cast<int>(k.min_val),
+                                     static_cast<int>(k.max_val));
                     k.value = static_cast<float>(iv);
                     if (iv != old_iv)
                     {
@@ -4718,7 +4810,7 @@ void ImGuiIntegration::draw_knobs_panel()
                 }
                 case KnobType::Bool:
                 {
-                    bool bv = k.bool_value();
+                    bool bv     = k.bool_value();
                     bool old_bv = bv;
                     ImGui::Checkbox("##v", &bv);
                     k.value = bv ? 1.0f : 0.0f;
@@ -4734,7 +4826,7 @@ void ImGuiIntegration::draw_knobs_panel()
                 case KnobType::Choice:
                 {
                     ImGui::SetNextItemWidth(avail);
-                    int ci = k.choice_index();
+                    int ci     = k.choice_index();
                     int old_ci = ci;
                     if (ImGui::BeginCombo("##v",
                                           (ci >= 0 && ci < static_cast<int>(k.choices.size()))
@@ -4746,7 +4838,7 @@ void ImGuiIntegration::draw_knobs_panel()
                             bool selected = (j == ci);
                             if (ImGui::Selectable(k.choices[j].c_str(), selected))
                             {
-                                ci = j;
+                                ci      = j;
                                 k.value = static_cast<float>(j);
                             }
                             if (selected)
@@ -4786,6 +4878,6 @@ void ImGuiIntegration::draw_knobs_panel()
     ImGui::PopStyleVar(4);
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

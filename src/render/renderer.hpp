@@ -26,7 +26,7 @@ class Renderer
     explicit Renderer(Backend& backend);
     ~Renderer();
 
-    Renderer(const Renderer&) = delete;
+    Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;
 
     // Initialize pipelines for all series types
@@ -57,7 +57,7 @@ class Renderer
     Backend& backend() { return backend_; }
 
     // Text renderer for Vulkan-based plot text
-    TextRenderer& text_renderer() { return text_renderer_; }
+    TextRenderer&       text_renderer() { return text_renderer_; }
     const TextRenderer& text_renderer() const { return text_renderer_; }
 
     // Queue all plot text (tick labels, axis labels, titles) for a figure.
@@ -83,28 +83,28 @@ class Renderer
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
     // Build orthographic projection with proper near/far depth (for 3D ortho views)
-    void build_ortho_projection_3d(float left,
-                                   float right,
-                                   float bottom,
-                                   float top,
-                                   float near_clip,
-                                   float far_clip,
+    void build_ortho_projection_3d(float  left,
+                                   float  right,
+                                   float  bottom,
+                                   float  top,
+                                   float  near_clip,
+                                   float  far_clip,
                                    float* out_mat4);
 
     void render_arrows(Axes3D& axes, const Rect& viewport);
 
-    void render_axis_border(AxesBase& axes,
-                            const Rect& viewport,
-                            uint32_t fig_width,
-                            uint32_t fig_height);
-    Backend& backend_;
+    void         render_axis_border(AxesBase&   axes,
+                                    const Rect& viewport,
+                                    uint32_t    fig_width,
+                                    uint32_t    fig_height);
+    Backend&     backend_;
     TextRenderer text_renderer_;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
-    PipelineHandle overlay_pipeline_;  // Triangle-list topology for filled shapes (2D arrowheads)
-    PipelineHandle arrow3d_pipeline_;  // Triangle-list, vec3, depth test ON (3D arrowheads)
+    PipelineHandle overlay_pipeline_;   // Triangle-list topology for filled shapes (2D arrowheads)
+    PipelineHandle arrow3d_pipeline_;   // Triangle-list, vec3, depth test ON (3D arrowheads)
 
     // 3D pipelines
     PipelineHandle line3d_pipeline_;
@@ -132,25 +132,25 @@ class Renderer
     struct AxesGpuData
     {
         BufferHandle grid_buffer;
-        size_t grid_capacity = 0;
-        uint32_t grid_vertex_count = 0;
+        size_t       grid_capacity     = 0;
+        uint32_t     grid_vertex_count = 0;
         BufferHandle border_buffer;
-        size_t border_capacity = 0;
+        size_t       border_capacity = 0;
         // 3D bounding box edges (12 lines = 24 vec3 vertices)
         BufferHandle bbox_buffer;
-        size_t bbox_capacity = 0;
-        uint32_t bbox_vertex_count = 0;
+        size_t       bbox_capacity     = 0;
+        uint32_t     bbox_vertex_count = 0;
         // 3D tick mark lines
         BufferHandle tick_buffer;
-        size_t tick_capacity = 0;
-        uint32_t tick_vertex_count = 0;
+        size_t       tick_capacity     = 0;
+        uint32_t     tick_vertex_count = 0;
         // 3D arrow shaft lines + arrowhead triangles
         BufferHandle arrow_line_buffer;
-        size_t arrow_line_capacity = 0;
-        uint32_t arrow_line_vertex_count = 0;
+        size_t       arrow_line_capacity     = 0;
+        uint32_t     arrow_line_vertex_count = 0;
         BufferHandle arrow_tri_buffer;
-        size_t arrow_tri_capacity = 0;
-        uint32_t arrow_tri_vertex_count = 0;
+        size_t       arrow_tri_capacity     = 0;
+        uint32_t     arrow_tri_vertex_count = 0;
 
         // Per-function cached axis limits — each render function (grid, bbox,
         // ticks) needs its own cache because they run sequentially and would
@@ -160,12 +160,12 @@ class Renderer
             float xmin = 0, xmax = 0;
             float ymin = 0, ymax = 0;
             float zmin = 0, zmax = 0;
-            bool valid = false;
+            bool  valid = false;
         };
         CachedLimits grid_cache;
         CachedLimits bbox_cache;
         CachedLimits tick_cache;
-        int cached_grid_planes = 0;  // for 3D grid plane mask
+        int          cached_grid_planes = 0;   // for 3D grid plane mask
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
 
@@ -185,10 +185,10 @@ class Renderer
     struct SeriesGpuData
     {
         BufferHandle ssbo;
-        size_t uploaded_count = 0;
+        size_t       uploaded_count = 0;
         BufferHandle index_buffer;
-        size_t index_count = 0;
-        SeriesType type = SeriesType::Unknown;
+        size_t       index_count = 0;
+        SeriesType   type        = SeriesType::Unknown;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 
@@ -205,18 +205,18 @@ class Renderer
     std::vector<float> arrow_tri_scratch_;
 
     // Screen-space overlay geometry buffers (tick marks, arrow lines, arrowheads)
-    BufferHandle overlay_line_buffer_;  // Line-list vertices (tick marks + arrow shafts)
-    size_t overlay_line_capacity_ = 0;
-    BufferHandle overlay_tri_buffer_;  // Triangle-list vertices (arrowheads)
-    size_t overlay_tri_capacity_ = 0;
+    BufferHandle       overlay_line_buffer_;   // Line-list vertices (tick marks + arrow shafts)
+    size_t             overlay_line_capacity_ = 0;
+    BufferHandle       overlay_tri_buffer_;   // Triangle-list vertices (arrowheads)
+    size_t             overlay_tri_capacity_ = 0;
     std::vector<float> overlay_line_scratch_;
     std::vector<float> overlay_tri_scratch_;
 
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).
-    static constexpr uint32_t DELETION_RING_SIZE = 4;  // MAX_FRAMES_IN_FLIGHT + 2
+    static constexpr uint32_t DELETION_RING_SIZE = 4;   // MAX_FRAMES_IN_FLIGHT + 2
     std::array<std::vector<SeriesGpuData>, DELETION_RING_SIZE> deletion_ring_;
-    uint32_t deletion_ring_write_ = 0;
+    uint32_t                                                   deletion_ring_write_ = 0;
 };
 
-}  // namespace spectra
+}   // namespace spectra

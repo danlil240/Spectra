@@ -18,9 +18,9 @@ TEST(LTTB, EmptyInput)
 
 TEST(LTTB, TargetLargerThanInput)
 {
-    std::vector<float> x = {0, 1, 2, 3, 4};
-    std::vector<float> y = {0, 1, 4, 9, 16};
-    auto result = lttb(x, y, 100);
+    std::vector<float> x      = {0, 1, 2, 3, 4};
+    std::vector<float> y      = {0, 1, 4, 9, 16};
+    auto               result = lttb(x, y, 100);
     ASSERT_EQ(result.size(), 5u);
     for (std::size_t i = 0; i < 5; ++i)
     {
@@ -31,9 +31,9 @@ TEST(LTTB, TargetLargerThanInput)
 
 TEST(LTTB, TargetEqualsInput)
 {
-    std::vector<float> x = {0, 1, 2};
-    std::vector<float> y = {0, 1, 0};
-    auto result = lttb(x, y, 3);
+    std::vector<float> x      = {0, 1, 2};
+    std::vector<float> y      = {0, 1, 0};
+    auto               result = lttb(x, y, 3);
     ASSERT_EQ(result.size(), 3u);
 }
 
@@ -69,7 +69,7 @@ TEST(LTTB, PreservesKeyPoints)
     std::vector<float> x(100), y(100);
     std::iota(x.begin(), x.end(), 0.0f);
     std::fill(y.begin(), y.end(), 0.0f);
-    y[50] = 100.0f;  // big spike
+    y[50] = 100.0f;   // big spike
 
     auto result = lttb(x, y, 20);
 
@@ -88,10 +88,10 @@ TEST(LTTB, PreservesKeyPoints)
 
 TEST(LTTB, TargetLessThan3ReturnsAll)
 {
-    std::vector<float> x = {0, 1, 2, 3, 4};
-    std::vector<float> y = {0, 1, 2, 3, 4};
-    auto result = lttb(x, y, 2);
-    EXPECT_EQ(result.size(), 5u);  // returns all when target < 3
+    std::vector<float> x      = {0, 1, 2, 3, 4};
+    std::vector<float> y      = {0, 1, 2, 3, 4};
+    auto               result = lttb(x, y, 2);
+    EXPECT_EQ(result.size(), 5u);   // returns all when target < 3
 }
 
 // --- Min-max decimation tests ---
@@ -104,17 +104,17 @@ TEST(MinMaxDecimate, EmptyInput)
 
 TEST(MinMaxDecimate, ZeroBuckets)
 {
-    std::vector<float> x = {0, 1, 2};
-    std::vector<float> y = {0, 1, 0};
-    auto result = min_max_decimate(x, y, 0);
+    std::vector<float> x      = {0, 1, 2};
+    std::vector<float> y      = {0, 1, 0};
+    auto               result = min_max_decimate(x, y, 0);
     EXPECT_TRUE(result.empty());
 }
 
 TEST(MinMaxDecimate, SmallInputReturnedUnchanged)
 {
-    std::vector<float> x = {0, 1, 2};
-    std::vector<float> y = {5, 10, 3};
-    auto result = min_max_decimate(x, y, 5);
+    std::vector<float> x      = {0, 1, 2};
+    std::vector<float> y      = {5, 10, 3};
+    auto               result = min_max_decimate(x, y, 5);
     ASSERT_EQ(result.size(), 3u);
 }
 
@@ -151,7 +151,7 @@ TEST(MinMaxDecimate, OutputSizeBounded)
         v = 1.0f;
 
     auto result = min_max_decimate(x, y, 50);
-    EXPECT_LE(result.size(), 100u);  // at most 2 * bucket_count
+    EXPECT_LE(result.size(), 100u);   // at most 2 * bucket_count
 }
 
 // --- Resample uniform tests ---
@@ -164,9 +164,9 @@ TEST(ResampleUniform, EmptyInput)
 
 TEST(ResampleUniform, SinglePoint)
 {
-    std::vector<float> x = {5.0f};
-    std::vector<float> y = {3.0f};
-    auto result = resample_uniform(x, y, 1);
+    std::vector<float> x      = {5.0f};
+    std::vector<float> y      = {3.0f};
+    auto               result = resample_uniform(x, y, 1);
     ASSERT_EQ(result.size(), 1u);
     EXPECT_FLOAT_EQ(result[0].first, 5.0f);
     EXPECT_FLOAT_EQ(result[0].second, 3.0f);
@@ -205,8 +205,8 @@ TEST(ResampleUniform, PreservesEndpoints)
 
 TEST(ResampleUniform, OutputCountRespected)
 {
-    std::vector<float> x = {0, 1, 5, 10};
-    std::vector<float> y = {0, 1, 5, 10};
-    auto result = resample_uniform(x, y, 200);
+    std::vector<float> x      = {0, 1, 5, 10};
+    std::vector<float> y      = {0, 1, 5, 10};
+    auto               result = resample_uniform(x, y, 200);
     EXPECT_EQ(result.size(), 200u);
 }

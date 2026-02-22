@@ -74,17 +74,17 @@ class TabDragController
 
     // Called when a drop occurs inside a *different* window (cross-window move).
     // Parameters: figure_id, target_window_id, screen_x, screen_y.
-    using DropOnWindowCallback = std::function<void(
-        FigureId figure_id, uint32_t target_window_id, float screen_x, float screen_y)>;
+    using DropOnWindowCallback = std::function<
+        void(FigureId figure_id, uint32_t target_window_id, float screen_x, float screen_y)>;
 
     // Called when drag is cancelled (restore original state).
     using CancelCallback = std::function<void(FigureId figure_id)>;
 
-    TabDragController() = default;
+    TabDragController()  = default;
     ~TabDragController() = default;
 
     // Non-copyable
-    TabDragController(const TabDragController&) = delete;
+    TabDragController(const TabDragController&)            = delete;
     TabDragController& operator=(const TabDragController&) = delete;
 
     // ── Configuration ───────────────────────────────────────────────────
@@ -128,8 +128,11 @@ class TabDragController
     // mouse_down: true if left mouse button is still held.
     // screen_mouse_x, screen_mouse_y: screen-space cursor position
     //   (used for outside-window detection).
-    void update(
-        float mouse_x, float mouse_y, bool mouse_down, float screen_mouse_x, float screen_mouse_y);
+    void update(float mouse_x,
+                float mouse_y,
+                bool  mouse_down,
+                float screen_mouse_x,
+                float screen_mouse_y);
 
     // Call when ESC is pressed or right mouse button is clicked during drag.
     void cancel();
@@ -137,8 +140,8 @@ class TabDragController
     // ── Queries ─────────────────────────────────────────────────────────
 
     State state() const { return state_; }
-    bool is_dragging() const { return state_ == State::DraggingDetached; }
-    bool is_active() const { return state_ != State::Idle; }
+    bool  is_dragging() const { return state_ == State::DraggingDetached; }
+    bool  is_active() const { return state_ != State::Idle; }
 
     FigureId dragged_figure() const { return figure_id_; }
     uint32_t source_pane_id() const { return source_pane_id_; }
@@ -157,7 +160,7 @@ class TabDragController
     // ── Ghost tab info (for rendering by ImGuiIntegration) ──────────────
 
     // Title to display on the ghost tab.
-    void set_ghost_title(const std::string& title) { ghost_title_ = title; }
+    void               set_ghost_title(const std::string& title) { ghost_title_ = title; }
     const std::string& ghost_title() const { return ghost_title_; }
 
    private:
@@ -180,34 +183,35 @@ class TabDragController
 
     // Drag origin
     uint32_t source_pane_id_ = 0;
-    FigureId figure_id_ = INVALID_FIGURE_ID;
-    float start_mouse_x_ = 0.0f;
-    float start_mouse_y_ = 0.0f;
+    FigureId figure_id_      = INVALID_FIGURE_ID;
+    float    start_mouse_x_  = 0.0f;
+    float    start_mouse_y_  = 0.0f;
 
     // Current position
-    float current_mouse_x_ = 0.0f;
-    float current_mouse_y_ = 0.0f;
+    float current_mouse_x_  = 0.0f;
+    float current_mouse_y_  = 0.0f;
     float current_screen_x_ = 0.0f;
     float current_screen_y_ = 0.0f;
 
     // Sub-states
-    bool cross_pane_ = false;
+    bool cross_pane_    = false;
     bool dock_dragging_ = false;
 
     // Ghost tab
     std::string ghost_title_;
 
     // Preview window state
-    bool preview_created_ = false;
-    int preview_grace_frames_ = 0;      // Suppress drop for N frames after preview request
-    int preview_created_recently_ = 0;  // Suppress drop for N frames after preview actually created
+    bool preview_created_      = false;
+    int  preview_grace_frames_ = 0;   // Suppress drop for N frames after preview request
+    int  preview_created_recently_ =
+        0;   // Suppress drop for N frames after preview actually created
 
     // Thresholds
-    float drag_threshold_ = 10.0f;
+    float drag_threshold_      = 10.0f;
     float dock_drag_threshold_ = 30.0f;
 
     // External references (not owned)
-    DockSystem* dock_system_ = nullptr;
+    DockSystem*    dock_system_    = nullptr;
     WindowManager* window_manager_ = nullptr;
 
     // Source window tracking for cross-window drops
@@ -219,12 +223,12 @@ class TabDragController
     uint32_t last_hovered_window_id_ = 0;
 
     // Callbacks
-    DropInsideCallback on_drop_inside_;
-    DropOutsideCallback on_drop_outside_;
+    DropInsideCallback   on_drop_inside_;
+    DropOutsideCallback  on_drop_outside_;
     DropOnWindowCallback on_drop_on_window_;
-    CancelCallback on_cancel_;
+    CancelCallback       on_cancel_;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

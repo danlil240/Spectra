@@ -20,15 +20,15 @@ struct QueueFamilyIndices
 
 struct DeviceContext
 {
-    VkInstance instance = VK_NULL_HANDLE;
+    VkInstance               instance        = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT debug_messenger = VK_NULL_HANDLE;
-    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    VkQueue graphics_queue = VK_NULL_HANDLE;
-    VkQueue present_queue = VK_NULL_HANDLE;
-    QueueFamilyIndices queue_families;
+    VkPhysicalDevice         physical_device = VK_NULL_HANDLE;
+    VkDevice                 device          = VK_NULL_HANDLE;
+    VkQueue                  graphics_queue  = VK_NULL_HANDLE;
+    VkQueue                  present_queue   = VK_NULL_HANDLE;
+    QueueFamilyIndices       queue_families;
 
-    VkPhysicalDeviceProperties properties{};
+    VkPhysicalDeviceProperties       properties{};
     VkPhysicalDeviceMemoryProperties memory_properties{};
 };
 
@@ -44,12 +44,12 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface 
 
 // Queue family discovery
 QueueFamilyIndices find_queue_families(VkPhysicalDevice device,
-                                       VkSurfaceKHR surface = VK_NULL_HANDLE);
+                                       VkSurfaceKHR     surface = VK_NULL_HANDLE);
 
 // Logical device creation
-VkDevice create_logical_device(VkPhysicalDevice physical_device,
+VkDevice create_logical_device(VkPhysicalDevice          physical_device,
                                const QueueFamilyIndices& indices,
-                               bool enable_validation);
+                               bool                      enable_validation);
 
 // Validation layer support check
 bool check_validation_layer_support();
@@ -57,4 +57,4 @@ bool check_validation_layer_support();
 // Required device extensions
 std::vector<const char*> get_required_device_extensions(bool need_swapchain);
 
-}  // namespace spectra::vk
+}   // namespace spectra::vk

@@ -24,4 +24,4 @@ void Animator::clear()
     paused_ = false;
 }
 
-}  // namespace spectra
+}   // namespace spectra

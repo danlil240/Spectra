@@ -44,8 +44,8 @@ void Camera::orbit(float d_azimuth, float d_elevation)
 void Camera::pan(float dx, float dy, float /*viewport_width*/, float /*viewport_height*/)
 {
     vec3 forward = vec3_normalize(target - position);
-    vec3 right = vec3_normalize(vec3_cross(forward, up));
-    vec3 cam_up = vec3_cross(right, forward);
+    vec3 right   = vec3_normalize(vec3_cross(forward, up));
+    vec3 cam_up  = vec3_cross(right, forward);
 
     float scale = distance * 0.002f;
     if (projection_mode == ProjectionMode::Orthographic)
@@ -75,8 +75,8 @@ void Camera::zoom(float factor)
 
 void Camera::dolly(float amount)
 {
-    vec3 forward = vec3_normalize(target - position);
-    vec3 new_pos = position + forward * amount;
+    vec3  forward  = vec3_normalize(target - position);
+    vec3  new_pos  = position + forward * amount;
     float new_dist = vec3_length(new_pos - target);
 
     if (new_dist >= 0.1f && new_dist <= 10000.0f)
@@ -88,8 +88,8 @@ void Camera::dolly(float amount)
 
 void Camera::fit_to_bounds(vec3 min_bound, vec3 max_bound)
 {
-    vec3 center = (min_bound + max_bound) * 0.5f;
-    vec3 extent = max_bound - min_bound;
+    vec3  center     = (min_bound + max_bound) * 0.5f;
+    vec3  extent     = max_bound - min_bound;
     float max_extent = std::max({extent.x, extent.y, extent.z});
 
     if (max_extent < 1e-6f)
@@ -102,12 +102,12 @@ void Camera::fit_to_bounds(vec3 min_bound, vec3 max_bound)
     if (projection_mode == ProjectionMode::Perspective)
     {
         float fov_rad = deg_to_rad(fov);
-        distance = max_extent / (2.0f * std::tan(fov_rad * 0.5f)) * 1.5f;
+        distance      = max_extent / (2.0f * std::tan(fov_rad * 0.5f)) * 1.5f;
     }
     else
     {
         ortho_size = max_extent * 0.6f;
-        distance = max_extent * 2.0f;
+        distance   = max_extent * 2.0f;
     }
 
     update_position_from_orbit();
@@ -115,14 +115,14 @@ void Camera::fit_to_bounds(vec3 min_bound, vec3 max_bound)
 
 void Camera::reset()
 {
-    position = {0.0f, 0.0f, 5.0f};
-    target = {0.0f, 0.0f, 0.0f};
-    up = {0.0f, 1.0f, 0.0f};
-    azimuth = 45.0f;
-    elevation = 30.0f;
-    distance = 5.0f;
-    fov = 45.0f;
-    ortho_size = 10.0f;
+    position        = {0.0f, 0.0f, 5.0f};
+    target          = {0.0f, 0.0f, 0.0f};
+    up              = {0.0f, 1.0f, 0.0f};
+    azimuth         = 45.0f;
+    elevation       = 30.0f;
+    distance        = 5.0f;
+    fov             = 45.0f;
+    ortho_size      = 10.0f;
     projection_mode = ProjectionMode::Perspective;
 }
 
@@ -132,7 +132,7 @@ void Camera::update_position_from_orbit()
     float el_rad = deg_to_rad(elevation);
 
     float cos_el = std::cos(el_rad);
-    vec3 offset{distance * cos_el * std::cos(az_rad),
+    vec3  offset{distance * cos_el * std::cos(az_rad),
                 distance * std::sin(el_rad),
                 distance * cos_el * std::sin(az_rad)};
 
@@ -168,11 +168,11 @@ void Camera::deserialize(const std::string& json)
         pos++;
 
         float x = std::stof(s.substr(pos));
-        pos = s.find(',', pos) + 1;
+        pos     = s.find(',', pos) + 1;
         float y = std::stof(s.substr(pos));
-        pos = s.find(',', pos) + 1;
+        pos     = s.find(',', pos) + 1;
         float z = std::stof(s.substr(pos));
-        pos = s.find(']', pos) + 1;
+        pos     = s.find(']', pos) + 1;
 
         return {x, y, z};
     };
@@ -212,7 +212,7 @@ void Camera::deserialize(const std::string& json)
     pos = json.find("\"projection_mode\"");
     if (pos != std::string::npos)
     {
-        int mode = parse_int(json, pos);
+        int mode        = parse_int(json, pos);
         projection_mode = mode == 0 ? ProjectionMode::Perspective : ProjectionMode::Orthographic;
     }
 
@@ -245,4 +245,4 @@ void Camera::deserialize(const std::string& json)
         distance = parse_float(json, pos);
 }
 
-}  // namespace spectra
+}   // namespace spectra

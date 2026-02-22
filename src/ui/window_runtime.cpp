@@ -40,28 +40,28 @@ WindowRuntime::WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistr
 // ─── update ───────────────────────────────────────────────────────────────────
 // Per-window update: advance animations, build ImGui UI, compute layout.
 void WindowRuntime::update(WindowUIContext& ui_ctx,
-                           FrameState& fs,
-                           FrameScheduler& scheduler,
-                           FrameProfiler* profiler
+                           FrameState&      fs,
+                           FrameScheduler&  scheduler,
+                           FrameProfiler*   profiler
 #ifdef SPECTRA_USE_GLFW
                            ,
                            WindowManager* /*window_mgr*/
 #endif
 )
 {
-    auto* active_figure = fs.active_figure;
+    auto* active_figure    = fs.active_figure;
     auto& active_figure_id = fs.active_figure_id;
-    auto& has_animation = fs.has_animation;
+    auto& has_animation    = fs.has_animation;
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui = ui_ctx.imgui_ui;
+    auto& imgui_ui         = ui_ctx.imgui_ui;
     auto& data_interaction = ui_ctx.data_interaction;
-    auto& dock_system = ui_ctx.dock_system;
-    auto& timeline_editor = ui_ctx.timeline_editor;
-    auto& mode_transition = ui_ctx.mode_transition;
-    auto& home_limits = ui_ctx.home_limits;
-    auto& fig_mgr = *ui_ctx.fig_mgr;
-    auto& anim_controller = ui_ctx.anim_controller;
+    auto& dock_system      = ui_ctx.dock_system;
+    auto& timeline_editor  = ui_ctx.timeline_editor;
+    auto& mode_transition  = ui_ctx.mode_transition;
+    auto& home_limits      = ui_ctx.home_limits;
+    auto& fig_mgr          = *ui_ctx.fig_mgr;
+    auto& anim_controller  = ui_ctx.anim_controller;
 
     // Advance timeline editor (drives interpolator evaluation)
     // When Playing, we control the playhead ourselves to avoid double-speed
@@ -90,15 +90,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             Camera interp_cam = mode_transition.interpolated_camera();
             // Set position directly (not via orbit) because the
             // top-down camera is on the Z axis, not an orbit position.
-            ax3d->camera().position = interp_cam.position;
-            ax3d->camera().target = interp_cam.target;
-            ax3d->camera().up = interp_cam.up;
-            ax3d->camera().fov = interp_cam.fov;
-            ax3d->camera().ortho_size = interp_cam.ortho_size;
+            ax3d->camera().position        = interp_cam.position;
+            ax3d->camera().target          = interp_cam.target;
+            ax3d->camera().up              = interp_cam.up;
+            ax3d->camera().fov             = interp_cam.fov;
+            ax3d->camera().ortho_size      = interp_cam.ortho_size;
             ax3d->camera().projection_mode = interp_cam.projection_mode;
-            ax3d->camera().near_clip = interp_cam.near_clip;
-            ax3d->camera().far_clip = interp_cam.far_clip;
-            ax3d->camera().distance = interp_cam.distance;
+            ax3d->camera().near_clip       = interp_cam.near_clip;
+            ax3d->camera().far_clip        = interp_cam.far_clip;
+            ax3d->camera().distance        = interp_cam.distance;
         }
     }
 #endif
@@ -148,7 +148,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             if (tl_state == PlaybackState::Playing)
             {
                 float tl_playhead = timeline_editor.playhead();
-                float diff = tl_playhead - fig->anim_time_;
+                float diff        = tl_playhead - fig->anim_time_;
                 // If the figure's anim_time_ has advanced past the timeline
                 // playhead (e.g. it was running as non-active while a different
                 // tab was selected), sync the playhead forward to the figure
@@ -174,16 +174,16 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             }
             else if (tl_state == PlaybackState::Paused)
             {
-                fig->anim_time_ = timeline_editor.playhead();
+                fig->anim_time_   = timeline_editor.playhead();
                 frame.elapsed_sec = fig->anim_time_;
-                frame.dt = 0.0f;
+                frame.dt          = 0.0f;
                 fig->anim_on_frame_(frame);
             }
             else
             {
-                fig->anim_time_ = 0.0f;
+                fig->anim_time_   = 0.0f;
                 frame.elapsed_sec = 0.0f;
-                frame.dt = 0.0f;
+                frame.dt          = 0.0f;
                 fig->anim_on_frame_(frame);
             }
         }
@@ -215,7 +215,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         for (const auto& pinfo : pane_infos)
         {
             if (pinfo.figure_index == fs.active_figure_id)
-                continue;  // already driven above
+                continue;   // already driven above
             Figure* pfig = registry_.get(pinfo.figure_index);
             if (!pfig || !pfig->anim_on_frame_)
                 continue;
@@ -240,11 +240,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
     // we keep rendering with the old swapchain (slightly stretched but
     // no black flash). swapchain_dirty_ is set by present OUT_OF_DATE/SUBOPTIMAL.
-    static constexpr auto RESIZE_DEBOUNCE = std::chrono::milliseconds(50);
-    auto& needs_resize = ui_ctx.needs_resize;
-    auto& new_width = ui_ctx.new_width;
-    auto& new_height = ui_ctx.new_height;
-    auto& resize_requested_time = ui_ctx.resize_requested_time;
+    static constexpr auto RESIZE_DEBOUNCE       = std::chrono::milliseconds(50);
+    auto&                 needs_resize          = ui_ctx.needs_resize;
+    auto&                 new_width             = ui_ctx.new_width;
+    auto&                 new_height            = ui_ctx.new_height;
+    auto&                 resize_requested_time = ui_ctx.resize_requested_time;
     if (needs_resize)
     {
         auto now_resize = std::chrono::steady_clock::now();
@@ -255,13 +255,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                              "Recreating swapchain: " + std::to_string(new_width) + "x"
                                  + std::to_string(new_height));
             needs_resize = false;
-            auto* vk = static_cast<VulkanBackend*>(&backend_);
+            auto* vk     = static_cast<VulkanBackend*>(&backend_);
             vk->clear_swapchain_dirty();
             backend_.recreate_swapchain(new_width, new_height);
 
             if (active_figure)
             {
-                active_figure->config_.width = backend_.swapchain_width();
+                active_figure->config_.width  = backend_.swapchain_width();
                 active_figure->config_.height = backend_.swapchain_height();
             }
     #ifdef SPECTRA_USE_IMGUI
@@ -309,8 +309,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     if (it != home_limits.end())
                     {
                         // Animate back to the user's original limits
-                        anim_controller.animate_axis_limits(
-                            *ax, it->second.x, it->second.y, 0.25f, ease::ease_out);
+                        anim_controller.animate_axis_limits(*ax,
+                                                            it->second.x,
+                                                            it->second.y,
+                                                            0.25f,
+                                                            ease::ease_out);
                     }
                     else
                     {
@@ -322,8 +325,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         AxisLimits target_y = ax->y_limits();
                         ax->xlim(old_xlim.min, old_xlim.max);
                         ax->ylim(old_ylim.min, old_ylim.max);
-                        anim_controller.animate_axis_limits(
-                            *ax, target_x, target_y, 0.25f, ease::ease_out);
+                        anim_controller.animate_axis_limits(*ax,
+                                                            target_x,
+                                                            target_y,
+                                                            0.25f,
+                                                            ease::ease_out);
                     }
                 }
             }
@@ -356,13 +362,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Cache data_range to avoid O(n) minmax_element scan every frame.
         if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
         {
-            auto& ax = active_figure->axes()[0];
-            auto xlim = ax->x_limits();
+            auto& ax         = active_figure->axes()[0];
+            auto  xlim       = ax->x_limits();
             float view_range = xlim.max - xlim.min;
 
             // Invalidate cache when series count changes or any series is dirty
             size_t series_count = ax->series().size();
-            bool needs_recompute =
+            bool   needs_recompute =
                 !ui_ctx.zoom_cache_valid || series_count != ui_ctx.cached_zoom_series_count;
             if (!needs_recompute)
             {
@@ -391,14 +397,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     if (!xd.empty())
                     {
                         auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
-                        data_min = std::min(data_min, *it_min);
-                        data_max = std::max(data_max, *it_max);
+                        data_min              = std::min(data_min, *it_min);
+                        data_max              = std::max(data_max, *it_max);
                     }
                 }
-                ui_ctx.cached_data_min = data_min;
-                ui_ctx.cached_data_max = data_max;
+                ui_ctx.cached_data_min          = data_min;
+                ui_ctx.cached_data_max          = data_max;
                 ui_ctx.cached_zoom_series_count = series_count;
-                ui_ctx.zoom_cache_valid = true;
+                ui_ctx.zoom_cache_valid         = true;
             }
 
             float data_range = ui_ctx.cached_data_max - ui_ctx.cached_data_min;
@@ -428,11 +434,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (mgr_active != active_figure_id)
         {
             active_figure_id = mgr_active;
-            Figure* fig = registry_.get(active_figure_id);
+            Figure* fig      = registry_.get(active_figure_id);
             if (fig)
             {
                 fs.active_figure = fig;
-                active_figure = fig;
+                active_figure    = fig;
                 scheduler.set_target_fps(active_figure->anim_fps_);
                 has_animation = static_cast<bool>(active_figure->anim_on_frame_);
     #ifdef SPECTRA_USE_GLFW
@@ -456,9 +462,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (root && root->is_leaf())
         {
             // Ensure root has exactly the right figures
-            const auto& current = root->figure_indices();
-            const auto& mgr_ids = fig_mgr.figure_ids();
-            bool needs_sync_dock = (current.size() != mgr_ids.size());
+            const auto& current         = root->figure_indices();
+            const auto& mgr_ids         = fig_mgr.figure_ids();
+            bool        needs_sync_dock = (current.size() != mgr_ids.size());
             if (!needs_sync_dock)
             {
                 for (auto id : mgr_ids)
@@ -541,8 +547,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             continue;
                         // Use figure's style margins, clamped to fit pane bounds
                         const auto& fs_style = fig->style();
-                        Margins pane_margins;
-                        pane_margins.left = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
+                        Margins     pane_margins;
+                        pane_margins.left  = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
                         pane_margins.right = std::min(fs_style.margin_right, pinfo.bounds.w * 0.2f);
                         pane_margins.bottom =
                             std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
@@ -574,15 +580,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             else if (active_figure)
             {
                 SplitPane* root = dock_system.split_view().root();
-                Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
+                Rect       cb   = (root && root->is_leaf()) ? root->content_bounds() : canvas;
                 // Use figure's style margins for layout
                 const auto& af_style = active_figure->style();
-                Margins fig_margins;
-                fig_margins.left = af_style.margin_left;
-                fig_margins.right = af_style.margin_right;
-                fig_margins.top = af_style.margin_top;
+                Margins     fig_margins;
+                fig_margins.left   = af_style.margin_left;
+                fig_margins.right  = af_style.margin_right;
+                fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
-                const auto rects = compute_subplot_layout(cb.w,
+                const auto rects   = compute_subplot_layout(cb.w,
                                                           cb.h,
                                                           active_figure->grid_rows_,
                                                           active_figure->grid_cols_,
@@ -625,7 +631,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 // Returns true if the frame was successfully presented.
 bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler)
 {
-    auto* active_figure = fs.active_figure;
+    auto* active_figure       = fs.active_figure;
     auto& imgui_frame_started = fs.imgui_frame_started;
 
     // Render frame. If begin_frame fails (OUT_OF_DATE), recreate and
@@ -647,8 +653,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         }
 #endif
         // Try to recover by recreating swapchain using actual framebuffer size
-        auto* vk = static_cast<VulkanBackend*>(&backend_);
-        auto* aw = vk->active_window();
+        auto*    vk       = static_cast<VulkanBackend*>(&backend_);
+        auto*    aw       = vk->active_window();
         uint32_t target_w = 0, target_h = 0;
 #ifdef SPECTRA_USE_GLFW
         if (aw && aw->glfw_window)
@@ -682,7 +688,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             vk->clear_swapchain_dirty();
             if (active_figure)
             {
-                active_figure->config_.width = backend_.swapchain_width();
+                active_figure->config_.width  = backend_.swapchain_width();
                 active_figure->config_.height = backend_.swapchain_height();
             }
             ui_ctx.needs_resize = false;
@@ -772,14 +778,15 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             if (aw_post && aw_post->swapchain_invalidated)
             {
                 aw_post->swapchain_invalidated = false;
-                uint32_t rw = aw_post->swapchain.extent.width;
-                uint32_t rh = aw_post->swapchain.extent.height;
+                uint32_t rw                    = aw_post->swapchain.extent.width;
+                uint32_t rh                    = aw_post->swapchain.extent.height;
 #ifdef SPECTRA_USE_GLFW
                 if (aw_post->glfw_window)
                 {
                     int fb_w = 0, fb_h = 0;
-                    glfwGetFramebufferSize(
-                        static_cast<GLFWwindow*>(aw_post->glfw_window), &fb_w, &fb_h);
+                    glfwGetFramebufferSize(static_cast<GLFWwindow*>(aw_post->glfw_window),
+                                           &fb_w,
+                                           &fb_h);
                     if (fb_w > 0 && fb_h > 0)
                     {
                         rw = static_cast<uint32_t>(fb_w);
@@ -794,7 +801,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 vk_post->clear_swapchain_dirty();
                 if (active_figure)
                 {
-                    active_figure->config_.width = backend_.swapchain_width();
+                    active_figure->config_.width  = backend_.swapchain_width();
                     active_figure->config_.height = backend_.swapchain_height();
                 }
                 ui_ctx.needs_resize = false;
@@ -811,4 +818,4 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
     return frame_ok;
 }
 
-}  // namespace spectra
+}   // namespace spectra

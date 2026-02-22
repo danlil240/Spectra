@@ -40,15 +40,15 @@ void GestureRecognizer::on_scroll(double dx, double dy, bool is_trackpad)
 
 void GestureRecognizer::on_pinch(float scale, float cx, float cy)
 {
-    pinching_ = true;
+    pinching_    = true;
     pinch_scale_ = scale;
-    pinch_cx_ = cx;
-    pinch_cy_ = cy;
+    pinch_cx_    = cx;
+    pinch_cy_    = cy;
 }
 
 void GestureRecognizer::end_pinch()
 {
-    pinching_ = false;
+    pinching_    = false;
     pinch_scale_ = 1.0f;
 }
 
@@ -56,14 +56,14 @@ void GestureRecognizer::end_pinch()
 
 float GestureRecognizer::consumed_scroll_dx()
 {
-    float v = scroll_accum_dx_;
+    float v          = scroll_accum_dx_;
     scroll_accum_dx_ = 0.0f;
     return v;
 }
 
 float GestureRecognizer::consumed_scroll_dy()
 {
-    float v = scroll_accum_dy_;
+    float v          = scroll_accum_dy_;
     scroll_accum_dy_ = 0.0f;
     return v;
 }
@@ -82,10 +82,10 @@ bool GestureRecognizer::on_click(double x, double y)
     bool is_double = (elapsed < double_click_time_ms_) && (dist < double_click_dist_);
 
     last_click_time_ = now;
-    last_click_x_ = x;
-    last_click_y_ = y;
+    last_click_x_    = x;
+    last_click_y_    = y;
 
     return is_double;
 }
 
-}  // namespace spectra
+}   // namespace spectra

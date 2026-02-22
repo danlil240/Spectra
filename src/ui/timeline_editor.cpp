@@ -26,7 +26,7 @@ void TimelineEditor::play()
     std::lock_guard lock(mutex_);
     if (state_ == PlaybackState::Stopped)
     {
-        playhead_ = 0.0f;
+        playhead_      = 0.0f;
         ping_pong_dir_ = 1;
     }
     state_ = PlaybackState::Playing;
@@ -46,8 +46,8 @@ void TimelineEditor::pause()
 void TimelineEditor::stop()
 {
     std::lock_guard lock(mutex_);
-    state_ = PlaybackState::Stopped;
-    playhead_ = 0.0f;
+    state_         = PlaybackState::Stopped;
+    playhead_      = 0.0f;
     ping_pong_dir_ = 1;
     fire_playback_change();
 }
@@ -63,7 +63,7 @@ void TimelineEditor::toggle_play()
     {
         if (state_ == PlaybackState::Stopped)
         {
-            playhead_ = 0.0f;
+            playhead_      = 0.0f;
             ping_pong_dir_ = 1;
         }
         state_ = PlaybackState::Playing;
@@ -112,7 +112,7 @@ bool TimelineEditor::advance(float dt)
         return false;
     }
 
-    float loop_end = effective_loop_out();
+    float loop_end   = effective_loop_out();
     float loop_start = has_loop_region_ ? loop_in_ : 0.0f;
 
     if (loop_mode_ == LoopMode::PingPong)
@@ -121,12 +121,12 @@ bool TimelineEditor::advance(float dt)
 
         if (playhead_ >= loop_end)
         {
-            playhead_ = loop_end - (playhead_ - loop_end);
+            playhead_      = loop_end - (playhead_ - loop_end);
             ping_pong_dir_ = -1;
         }
         else if (playhead_ <= loop_start)
         {
-            playhead_ = loop_start + (loop_start - playhead_);
+            playhead_      = loop_start + (loop_start - playhead_);
             ping_pong_dir_ = 1;
         }
         clamp_playhead();
@@ -142,7 +142,7 @@ bool TimelineEditor::advance(float dt)
         if (loop_mode_ == LoopMode::Loop)
         {
             float overshoot = playhead_ - loop_end;
-            playhead_ = loop_start + std::fmod(overshoot, loop_end - loop_start);
+            playhead_       = loop_start + std::fmod(overshoot, loop_end - loop_start);
             clamp_playhead();
             if (interpolator_)
                 interpolator_->evaluate(playhead_);
@@ -283,7 +283,7 @@ float TimelineEditor::loop_out() const
 void TimelineEditor::set_loop_region(float in, float out)
 {
     std::lock_guard lock(mutex_);
-    loop_in_ = std::max(0.0f, in);
+    loop_in_  = std::max(0.0f, in);
     loop_out_ = std::min(out, duration_);
     if (loop_out_ <= loop_in_)
     {
@@ -296,8 +296,8 @@ void TimelineEditor::clear_loop_region()
 {
     std::lock_guard lock(mutex_);
     has_loop_region_ = false;
-    loop_in_ = 0.0f;
-    loop_out_ = 0.0f;
+    loop_in_         = 0.0f;
+    loop_out_        = 0.0f;
 }
 
 // ─── Snap ────────────────────────────────────────────────────────────────────
@@ -355,10 +355,10 @@ float TimelineEditor::snap_time(float time) const
 uint32_t TimelineEditor::add_track(const std::string& name, Color color)
 {
     std::lock_guard lock(mutex_);
-    uint32_t id = next_track_id_++;
-    TimelineTrack track;
-    track.id = id;
-    track.name = name;
+    uint32_t        id = next_track_id_++;
+    TimelineTrack   track;
+    track.id    = id;
+    track.name  = name;
     track.color = color;
     tracks_.push_back(std::move(track));
     return id;
@@ -463,7 +463,7 @@ void TimelineEditor::add_keyframe(uint32_t track_id, float time)
             }
 
             KeyframeMarker kf;
-            kf.time = time;
+            kf.time     = time;
             kf.track_id = track_id;
             t.keyframes.push_back(kf);
 
@@ -552,7 +552,7 @@ void TimelineEditor::clear_keyframes(uint32_t track_id)
 size_t TimelineEditor::total_keyframe_count() const
 {
     std::lock_guard lock(mutex_);
-    size_t count = 0;
+    size_t          count = 0;
     for (const auto& t : tracks_)
     {
         count += t.keyframes.size();
@@ -565,7 +565,7 @@ size_t TimelineEditor::total_keyframe_count() const
 void TimelineEditor::select_keyframe(uint32_t track_id, float time)
 {
     std::lock_guard lock(mutex_);
-    auto* kf = find_keyframe(track_id, time);
+    auto*           kf = find_keyframe(track_id, time);
     if (kf)
     {
         kf->selected = true;
@@ -576,7 +576,7 @@ void TimelineEditor::select_keyframe(uint32_t track_id, float time)
 void TimelineEditor::deselect_keyframe(uint32_t track_id, float time)
 {
     std::lock_guard lock(mutex_);
-    auto* kf = find_keyframe(track_id, time);
+    auto*           kf = find_keyframe(track_id, time);
     if (kf)
     {
         kf->selected = false;
@@ -628,7 +628,7 @@ void TimelineEditor::select_keyframes_in_range(float t_min, float t_max)
 
 std::vector<KeyframeMarker*> TimelineEditor::selected_keyframes()
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard              lock(mutex_);
     std::vector<KeyframeMarker*> result;
     for (auto& t : tracks_)
     {
@@ -646,7 +646,7 @@ std::vector<KeyframeMarker*> TimelineEditor::selected_keyframes()
 size_t TimelineEditor::selected_count() const
 {
     std::lock_guard lock(mutex_);
-    size_t count = 0;
+    size_t          count = 0;
     for (const auto& t : tracks_)
     {
         for (const auto& kf : t.keyframes)
@@ -688,7 +688,7 @@ void TimelineEditor::set_view_range(float start, float end)
 {
     std::lock_guard lock(mutex_);
     view_start_ = std::max(0.0f, start);
-    view_end_ = std::max(view_start_ + 0.01f, end);
+    view_end_   = std::max(view_start_ + 0.01f, end);
 }
 
 float TimelineEditor::zoom() const
@@ -708,28 +708,28 @@ void TimelineEditor::zoom_in()
     std::lock_guard lock(mutex_);
     zoom_ = std::min(zoom_ * 1.25f, 10000.0f);
     // Narrow view range around playhead
-    float center = playhead_;
+    float center     = playhead_;
     float half_range = (view_end_ - view_start_) * 0.5f / 1.25f;
-    view_start_ = std::max(0.0f, center - half_range);
-    view_end_ = center + half_range;
+    view_start_      = std::max(0.0f, center - half_range);
+    view_end_        = center + half_range;
 }
 
 void TimelineEditor::zoom_out()
 {
     std::lock_guard lock(mutex_);
-    zoom_ = std::max(zoom_ / 1.25f, 10.0f);
-    float center = (view_start_ + view_end_) * 0.5f;
+    zoom_            = std::max(zoom_ / 1.25f, 10.0f);
+    float center     = (view_start_ + view_end_) * 0.5f;
     float half_range = (view_end_ - view_start_) * 0.5f * 1.25f;
-    view_start_ = std::max(0.0f, center - half_range);
-    view_end_ = center + half_range;
+    view_start_      = std::max(0.0f, center - half_range);
+    view_end_        = center + half_range;
 }
 
 void TimelineEditor::scroll_to_playhead()
 {
     std::lock_guard lock(mutex_);
-    float range = view_end_ - view_start_;
-    view_start_ = std::max(0.0f, playhead_ - range * 0.5f);
-    view_end_ = view_start_ + range;
+    float           range = view_end_ - view_start_;
+    view_start_           = std::max(0.0f, playhead_ - range * 0.5f);
+    view_end_             = view_start_ + range;
 }
 
 // ─── Callbacks ───────────────────────────────────────────────────────────────
@@ -869,16 +869,16 @@ void TimelineEditor::evaluate_at_playhead()
 }
 
 uint32_t TimelineEditor::add_animated_track(const std::string& name,
-                                            float default_value,
-                                            Color color)
+                                            float              default_value,
+                                            Color              color)
 {
     std::lock_guard lock(mutex_);
 
     // Add the visual track
-    uint32_t id = next_track_id_++;
+    uint32_t      id = next_track_id_++;
     TimelineTrack track;
-    track.id = id;
-    track.name = name;
+    track.id    = id;
+    track.name  = name;
     track.color = color;
     tracks_.push_back(std::move(track));
 
@@ -896,9 +896,9 @@ uint32_t TimelineEditor::add_animated_track(const std::string& name,
 }
 
 void TimelineEditor::add_animated_keyframe(uint32_t track_id,
-                                           float time,
-                                           float value,
-                                           int interp_mode)
+                                           float    time,
+                                           float    value,
+                                           int      interp_mode)
 {
     std::lock_guard lock(mutex_);
 
@@ -926,7 +926,7 @@ void TimelineEditor::add_animated_keyframe(uint32_t track_id,
             }
 
             KeyframeMarker kf;
-            kf.time = time;
+            kf.time     = time;
             kf.track_id = track_id;
             t.keyframes.push_back(kf);
 
@@ -953,7 +953,7 @@ void TimelineEditor::add_animated_keyframe(uint32_t track_id,
 
 std::string TimelineEditor::serialize() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard    lock(mutex_);
     std::ostringstream ss;
     ss << "{\"duration\":" << duration_ << ",\"fps\":" << fps_
        << ",\"loop_mode\":" << static_cast<int>(loop_mode_)
@@ -1005,7 +1005,7 @@ bool TimelineEditor::deserialize(const std::string& json)
     auto extract_float = [&](const std::string& key, float def) -> float
     {
         std::string search = "\"" + key + "\":";
-        auto pos = json.find(search);
+        auto        pos    = json.find(search);
         if (pos == std::string::npos)
             return def;
         pos += search.size();
@@ -1022,7 +1022,7 @@ bool TimelineEditor::deserialize(const std::string& json)
     auto extract_int = [&](const std::string& key, int def) -> int
     {
         std::string search = "\"" + key + "\":";
-        auto pos = json.find(search);
+        auto        pos    = json.find(search);
         if (pos == std::string::npos)
             return def;
         pos += search.size();
@@ -1036,18 +1036,18 @@ bool TimelineEditor::deserialize(const std::string& json)
         }
     };
 
-    duration_ = extract_float("duration", 10.0f);
-    fps_ = extract_float("fps", 60.0f);
-    loop_mode_ = static_cast<LoopMode>(extract_int("loop_mode", 0));
-    snap_mode_ = static_cast<SnapMode>(extract_int("snap_mode", 1));
+    duration_      = extract_float("duration", 10.0f);
+    fps_           = extract_float("fps", 60.0f);
+    loop_mode_     = static_cast<LoopMode>(extract_int("loop_mode", 0));
+    snap_mode_     = static_cast<SnapMode>(extract_int("snap_mode", 1));
     snap_interval_ = extract_float("snap_interval", 0.1f);
 
     float li = extract_float("loop_in", -1.0f);
     float lo = extract_float("loop_out", -1.0f);
     if (li >= 0.0f && lo > li)
     {
-        loop_in_ = li;
-        loop_out_ = lo;
+        loop_in_         = li;
+        loop_out_        = lo;
         has_loop_region_ = true;
     }
 
@@ -1059,9 +1059,9 @@ bool TimelineEditor::deserialize(const std::string& json)
         auto interp_pos = json.find("\"interpolator\":");
         if (interp_pos != std::string::npos)
         {
-            interp_pos += 16;  // skip "interpolator":
+            interp_pos += 16;   // skip "interpolator":
             // Find matching closing brace
-            int depth = 0;
+            int    depth = 0;
             size_t start = interp_pos;
             for (size_t i = interp_pos; i < json.size(); ++i)
             {
@@ -1094,15 +1094,15 @@ void TimelineEditor::draw(float width, float height)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::BeginChild("##timeline_editor", ImVec2(width, height), true);
 
-    const float track_height = 28.0f;
-    const float ruler_height = 24.0f;
+    const float track_height      = 28.0f;
+    const float ruler_height      = 24.0f;
     const float track_label_width = 140.0f;
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImVec2      origin    = ImGui::GetCursorScreenPos();
 
     float timeline_width = width - track_label_width;
-    float time_range = view_end_ - view_start_;
+    float time_range     = view_end_ - view_start_;
     if (time_range <= 0.0f)
         time_range = 1.0f;
     float px_per_sec = timeline_width / time_range;
@@ -1117,7 +1117,7 @@ void TimelineEditor::draw(float width, float height)
                              IM_COL32(40, 40, 40, 255));
 
     // Tick marks
-    float tick_spacing = 1.0f;  // 1 second
+    float tick_spacing = 1.0f;   // 1 second
     if (px_per_sec < 30.0f)
         tick_spacing = 5.0f;
     else if (px_per_sec < 60.0f)
@@ -1130,8 +1130,8 @@ void TimelineEditor::draw(float width, float height)
     float t = std::floor(view_start_ / tick_spacing) * tick_spacing;
     while (t <= view_end_)
     {
-        float px = origin.x + time_to_px(t);
-        bool major = std::abs(std::fmod(t, tick_spacing * 5.0f)) < 0.001f;
+        float px     = origin.x + time_to_px(t);
+        bool  major  = std::abs(std::fmod(t, tick_spacing * 5.0f)) < 0.001f;
         float tick_h = major ? ruler_height : ruler_height * 0.5f;
         draw_list->AddLine(ImVec2(px, ruler_y + ruler_height - tick_h),
                            ImVec2(px, ruler_y + ruler_height),
@@ -1150,12 +1150,13 @@ void TimelineEditor::draw(float width, float height)
     for (size_t i = 0; i < tracks_.size(); ++i)
     {
         auto& track = tracks_[i];
-        float y = track_y + static_cast<float>(i) * track_height;
+        float y     = track_y + static_cast<float>(i) * track_height;
 
         // Track label background
         ImU32 bg = (i % 2 == 0) ? IM_COL32(30, 30, 30, 255) : IM_COL32(35, 35, 35, 255);
-        draw_list->AddRectFilled(
-            ImVec2(origin.x, y), ImVec2(origin.x + width, y + track_height), bg);
+        draw_list->AddRectFilled(ImVec2(origin.x, y),
+                                 ImVec2(origin.x + width, y + track_height),
+                                 bg);
 
         // Track label
         ImU32 label_col =
@@ -1179,7 +1180,7 @@ void TimelineEditor::draw(float width, float height)
         {
             float kf_px = origin.x + time_to_px(kf.time);
             float kf_cy = y + track_height * 0.5f;
-            float sz = kf.selected ? 6.0f : 4.5f;
+            float sz    = kf.selected ? 6.0f : 4.5f;
 
             // Diamond shape
             draw_list->AddQuadFilled(ImVec2(kf_px, kf_cy - sz),
@@ -1228,9 +1229,9 @@ void TimelineEditor::draw(float width, float height)
     ImGui::InvisibleButton("##ruler_scrub", ImVec2(timeline_width, ruler_height));
     if (ImGui::IsItemActive())
     {
-        float mx = ImGui::GetIO().MousePos.x - origin.x;
+        float mx      = ImGui::GetIO().MousePos.x - origin.x;
         float t_click = view_start_ + (mx - track_label_width) / px_per_sec;
-        playhead_ = std::clamp(t_click, 0.0f, duration_);
+        playhead_     = std::clamp(t_click, 0.0f, duration_);
         if (on_scrub_)
             on_scrub_(playhead_);
     }
@@ -1239,6 +1240,6 @@ void TimelineEditor::draw(float width, float height)
     ImGui::PopStyleVar();
 }
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
-}  // namespace spectra
+}   // namespace spectra

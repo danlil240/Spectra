@@ -3,26 +3,29 @@
 namespace spectra
 {
 
-std::vector<Rect> compute_subplot_layout(
-    float figure_width, float figure_height, int rows, int cols, const Margins& margins)
+std::vector<Rect> compute_subplot_layout(float          figure_width,
+                                         float          figure_height,
+                                         int            rows,
+                                         int            cols,
+                                         const Margins& margins)
 {
     return compute_subplot_layout(figure_width, figure_height, rows, cols, margins, 0.0f, 0.0f);
 }
 
-std::vector<Rect> compute_subplot_layout(float figure_width,
-                                         float figure_height,
-                                         int rows,
-                                         int cols,
+std::vector<Rect> compute_subplot_layout(float          figure_width,
+                                         float          figure_height,
+                                         int            rows,
+                                         int            cols,
                                          const Margins& margins,
-                                         float origin_x,
-                                         float origin_y)
+                                         float          origin_x,
+                                         float          origin_y)
 {
     std::vector<Rect> rects;
     rects.reserve(static_cast<size_t>(rows * cols));
 
     // Total available space for the grid of subplots
     // Each cell gets an equal share of the figure, then margins are applied inside each cell.
-    float cell_width = figure_width / static_cast<float>(cols);
+    float cell_width  = figure_width / static_cast<float>(cols);
     float cell_height = figure_height / static_cast<float>(rows);
 
     // Row 0 is the top row. subplot(rows, cols, index) uses 1-based index,
@@ -54,4 +57,4 @@ std::vector<Rect> compute_subplot_layout(float figure_width,
     return rects;
 }
 
-}  // namespace spectra
+}   // namespace spectra

@@ -6,11 +6,11 @@
 int main()
 {
     spectra::App app({.headless = true, .socket_path = ""});
-    auto& fig = app.figure({.width = 1920, .height = 1080});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&        fig = app.figure({.width = 1920, .height = 1080});
+    auto&        ax  = fig.subplot(1, 1, 1);
 
     // Generate data
-    constexpr size_t N = 500;
+    constexpr size_t   N = 500;
     std::vector<float> x(N);
     std::vector<float> y(N);
     for (size_t i = 0; i < N; ++i)

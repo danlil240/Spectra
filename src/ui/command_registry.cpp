@@ -14,20 +14,20 @@ void CommandRegistry::register_command(Command cmd)
     commands_[cmd.id] = std::move(cmd);
 }
 
-void CommandRegistry::register_command(const std::string& id,
-                                       const std::string& label,
+void CommandRegistry::register_command(const std::string&    id,
+                                       const std::string&    label,
                                        std::function<void()> callback,
-                                       const std::string& shortcut,
-                                       const std::string& category,
-                                       uint16_t icon)
+                                       const std::string&    shortcut,
+                                       const std::string&    category,
+                                       uint16_t              icon)
 {
     Command cmd;
-    cmd.id = id;
-    cmd.label = label;
+    cmd.id       = id;
+    cmd.label    = label;
     cmd.callback = std::move(callback);
     cmd.shortcut = shortcut;
     cmd.category = category;
-    cmd.icon = icon;
+    cmd.icon     = icon;
     register_command(std::move(cmd));
 }
 
@@ -44,7 +44,7 @@ bool CommandRegistry::execute(const std::string& id)
     std::function<void()> cb;
     {
         std::lock_guard lock(mutex_);
-        auto it = commands_.find(id);
+        auto            it = commands_.find(id);
         if (it == commands_.end() || !it->second.enabled || !it->second.callback)
         {
             return false;
@@ -88,17 +88,17 @@ int CommandRegistry::fuzzy_score(const std::string& query, const std::string& te
     {
         int score = 100;
         if (pos == 0)
-            score += 50;  // Prefix bonus
+            score += 50;   // Prefix bonus
         if (q_lower.size() == t_lower.size())
-            score += 25;  // Exact match bonus
+            score += 25;   // Exact match bonus
         return score;
     }
 
     // Fuzzy character matching
-    size_t qi = 0;
-    int score = 0;
-    bool prev_matched = false;
-    int consecutive_bonus = 0;
+    size_t qi                = 0;
+    int    score             = 0;
+    bool   prev_matched      = false;
+    int    consecutive_bonus = 0;
 
     for (size_t ti = 0; ti < t_lower.size() && qi < q_lower.size(); ++ti)
     {
@@ -130,7 +130,7 @@ int CommandRegistry::fuzzy_score(const std::string& query, const std::string& te
         }
         else
         {
-            prev_matched = false;
+            prev_matched      = false;
             consecutive_bonus = 0;
         }
     }
@@ -143,9 +143,9 @@ int CommandRegistry::fuzzy_score(const std::string& query, const std::string& te
 }
 
 std::vector<CommandSearchResult> CommandRegistry::search(const std::string& query,
-                                                         size_t max_results) const
+                                                         size_t             max_results) const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard                  lock(mutex_);
     std::vector<CommandSearchResult> results;
     results.reserve(commands_.size());
 
@@ -153,8 +153,8 @@ std::vector<CommandSearchResult> CommandRegistry::search(const std::string& quer
     {
         // Score against label, id, and category
         int label_score = fuzzy_score(query, cmd.label);
-        int id_score = fuzzy_score(query, cmd.id);
-        int cat_score = fuzzy_score(query, cmd.category) / 2;  // Category match worth less
+        int id_score    = fuzzy_score(query, cmd.id);
+        int cat_score   = fuzzy_score(query, cmd.category) / 2;   // Category match worth less
 
         int best = std::max({label_score, id_score, cat_score});
         if (best > 0)
@@ -187,13 +187,13 @@ std::vector<CommandSearchResult> CommandRegistry::search(const std::string& quer
 const Command* CommandRegistry::find(const std::string& id) const
 {
     std::lock_guard lock(mutex_);
-    auto it = commands_.find(id);
+    auto            it = commands_.find(id);
     return it != commands_.end() ? &it->second : nullptr;
 }
 
 std::vector<const Command*> CommandRegistry::all_commands() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard             lock(mutex_);
     std::vector<const Command*> result;
     result.reserve(commands_.size());
     for (const auto& [id, cmd] : commands_)
@@ -213,7 +213,7 @@ std::vector<const Command*> CommandRegistry::all_commands() const
 
 std::vector<const Command*> CommandRegistry::commands_in_category(const std::string& category) const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard             lock(mutex_);
     std::vector<const Command*> result;
     for (const auto& [id, cmd] : commands_)
     {
@@ -230,7 +230,7 @@ std::vector<const Command*> CommandRegistry::commands_in_category(const std::str
 
 std::vector<std::string> CommandRegistry::categories() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard          lock(mutex_);
     std::vector<std::string> cats;
     for (const auto& [id, cmd] : commands_)
     {
@@ -252,7 +252,7 @@ size_t CommandRegistry::count() const
 void CommandRegistry::set_enabled(const std::string& id, bool enabled)
 {
     std::lock_guard lock(mutex_);
-    auto it = commands_.find(id);
+    auto            it = commands_.find(id);
     if (it != commands_.end())
     {
         it->second.enabled = enabled;
@@ -277,7 +277,7 @@ void CommandRegistry::record_execution(const std::string& id)
 
 std::vector<const Command*> CommandRegistry::recent_commands(size_t max_count) const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard             lock(mutex_);
     std::vector<const Command*> result;
     for (const auto& id : recent_ids_)
     {
@@ -298,4 +298,4 @@ void CommandRegistry::clear_recent()
     recent_ids_.clear();
 }
 
-}  // namespace spectra
+}   // namespace spectra

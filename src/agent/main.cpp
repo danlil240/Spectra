@@ -47,8 +47,13 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
+
+#if __has_include(<spectra/version.hpp>)
+    #include <spectra/version.hpp>
+#endif
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -78,13 +83,13 @@ static bool is_3d_series_type(const std::string& t)
 // ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
 std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     const spectra::ipc::SnapshotFigureState& snap,
-    uint32_t override_width = 0,
-    uint32_t override_height = 0)
+    uint32_t                                 override_width  = 0,
+    uint32_t                                 override_height = 0)
 {
     spectra::FigureConfig cfg;
-    cfg.width = (override_width > 0) ? override_width : snap.width;
+    cfg.width  = (override_width > 0) ? override_width : snap.width;
     cfg.height = (override_height > 0) ? override_height : snap.height;
-    auto fig = std::make_unique<spectra::Figure>(cfg);
+    auto fig   = std::make_unique<spectra::Figure>(cfg);
 
     int rows = std::max(snap.grid_rows, int32_t(1));
     int cols = std::max(snap.grid_cols, int32_t(1));
@@ -96,8 +101,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
 
         if (axes_is_3d)
         {
-            auto& ax3d = fig->subplot3d(rows, cols, static_cast<int>(i + 1));
-            const auto& sa = snap.axes[i];
+            auto&       ax3d = fig->subplot3d(rows, cols, static_cast<int>(i + 1));
+            const auto& sa   = snap.axes[i];
             ax3d.xlim(sa.x_min, sa.x_max);
             ax3d.ylim(sa.y_min, sa.y_max);
             ax3d.zlim(sa.z_min, sa.z_max);
@@ -156,19 +161,19 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                              uy.end());
 
                     // Reorder Z into row-major (y-row, x-col) order expected by SurfaceSeries
-                    size_t ncols = ux.size();
-                    size_t nrows = uy.size();
+                    size_t             ncols = ux.size();
+                    size_t             nrows = uy.size();
                     std::vector<float> z_grid(nrows * ncols, 0.0f);
                     for (size_t k = 0; k < xs.size(); ++k)
                     {
                         // Find column index for xs[k]
-                        auto cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
-                        size_t ci = static_cast<size_t>(std::distance(ux.begin(), cit));
+                        auto   cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
+                        size_t ci  = static_cast<size_t>(std::distance(ux.begin(), cit));
                         if (ci >= ncols)
                             ci = ncols - 1;
                         // Find row index for ys[k]
-                        auto rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
-                        size_t ri = static_cast<size_t>(std::distance(uy.begin(), rit));
+                        auto   rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
+                        size_t ri  = static_cast<size_t>(std::distance(uy.begin(), rit));
                         if (ri >= nrows)
                             ri = nrows - 1;
                         z_grid[ri * ncols + ci] = zs[k];
@@ -192,7 +197,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     if (!ss.name.empty())
                         s.label(ss.name);
                 }
-                else  // "line3d"
+                else   // "line3d"
                 {
                     auto& s = ax3d.line3d(xs, ys, zs);
                     s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
@@ -311,7 +316,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].data = op.data;
+                fig.series[op.series_index].data        = op.data;
                 fig.series[op.series_index].point_count = static_cast<uint32_t>(op.data.size() / 2);
             }
             break;
@@ -325,7 +330,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::ADD_SERIES:
         {
             spectra::ipc::SnapshotSeriesState s;
-            s.type = op.str_val;
+            s.type       = op.str_val;
             s.axes_index = op.axes_index;
             // Grow series list to accommodate the new index
             while (fig.series.size() <= op.series_index)
@@ -395,7 +400,7 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
             // Add a placeholder so the series_index slot exists in the live figure.
             if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
             {
-                auto* ax = fig.axes_mut()[op.axes_index].get();
+                auto* ax   = fig.axes_mut()[op.axes_index].get();
                 auto* ax3d = dynamic_cast<spectra::Axes3D*>(ax);
                 if (ax3d)
                 {
@@ -422,7 +427,7 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                 if (op.series_index < series_vec.size() && series_vec[op.series_index])
                 {
                     // Deinterleave [x0,y0,x1,y1,...] into separate x/y vectors
-                    size_t n = op.data.size() / 2;
+                    size_t             n = op.data.size() / 2;
                     std::vector<float> xv(n), yv(n);
                     for (size_t i = 0; i < n; ++i)
                     {
@@ -471,15 +476,15 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
 // ─── Send an IPC message helper ──────────────────────────────────────────────
 bool send_ipc(spectra::ipc::Connection& conn,
               spectra::ipc::MessageType type,
-              spectra::ipc::SessionId session_id,
-              spectra::ipc::WindowId window_id,
-              std::vector<uint8_t> payload = {})
+              spectra::ipc::SessionId   session_id,
+              spectra::ipc::WindowId    window_id,
+              std::vector<uint8_t>      payload = {})
 {
     spectra::ipc::Message msg;
-    msg.header.type = type;
-    msg.header.session_id = session_id;
-    msg.header.window_id = window_id;
-    msg.payload = std::move(payload);
+    msg.header.type        = type;
+    msg.header.session_id  = session_id;
+    msg.header.window_id   = window_id;
+    msg.payload            = std::move(payload);
     msg.header.payload_len = static_cast<uint32_t>(msg.payload.size());
     return conn.send(msg);
 }
@@ -488,10 +493,10 @@ bool send_ipc(spectra::ipc::Connection& conn,
 // Re-creates Figure objects from snapshot cache and registers them.
 // Returns the list of new FigureId values.
 std::vector<spectra::FigureId> rebuild_registry_from_cache(
-    spectra::FigureRegistry& registry,
+    spectra::FigureRegistry&                              registry,
     const std::vector<spectra::ipc::SnapshotFigureState>& cache,
-    uint32_t width,
-    uint32_t height)
+    uint32_t                                              width,
+    uint32_t                                              height)
 {
     // Clear existing figures
     for (auto id : registry.all_ids())
@@ -501,16 +506,40 @@ std::vector<spectra::FigureId> rebuild_registry_from_cache(
     for (const auto& snap : cache)
     {
         auto fig = build_figure_from_snapshot(snap, width, height);
-        auto id = registry.register_figure(std::move(fig));
+        auto id  = registry.register_figure(std::move(fig));
         ids.push_back(id);
     }
     return ids;
 }
 
-}  // namespace
+}   // namespace
 
 int main(int argc, char* argv[])
 {
+    // Handle --version and --help before anything else
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0)
+        {
+#ifdef SPECTRA_VERSION_STRING
+            std::cout << "spectra-window " << SPECTRA_VERSION_STRING << "\n";
+#else
+            std::cout << "spectra-window (version unknown)\n";
+#endif
+            return 0;
+        }
+        if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0)
+        {
+            std::cout << "Usage: spectra-window [OPTIONS]\n"
+                      << "\n"
+                      << "Options:\n"
+                      << "  --socket <path>  Unix socket path to connect to\n"
+                      << "  --version, -v    Print version and exit\n"
+                      << "  --help, -h       Show this help\n";
+            return 0;
+        }
+    }
+
     // Parse --socket <path> argument
     std::string socket_path;
     for (int i = 1; i < argc - 1; ++i)
@@ -562,12 +591,12 @@ int main(int argc, char* argv[])
     spectra::ipc::HelloPayload hello;
     hello.protocol_major = spectra::ipc::PROTOCOL_MAJOR;
     hello.protocol_minor = spectra::ipc::PROTOCOL_MINOR;
-    hello.agent_build = "spectra-window/0.1.0";
-    hello.capabilities = 0;
+    hello.agent_build    = "spectra-window/0.1.0";
+    hello.capabilities   = 0;
     {
         spectra::ipc::Message hello_msg;
-        hello_msg.header.type = spectra::ipc::MessageType::HELLO;
-        hello_msg.payload = spectra::ipc::encode_hello(hello);
+        hello_msg.header.type        = spectra::ipc::MessageType::HELLO;
+        hello_msg.payload            = spectra::ipc::encode_hello(hello);
         hello_msg.header.payload_len = static_cast<uint32_t>(hello_msg.payload.size());
         if (!conn->send(hello_msg))
         {
@@ -590,31 +619,31 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    spectra::ipc::SessionId session_id = welcome->session_id;
-    spectra::ipc::WindowId ipc_window_id = welcome->window_id;
-    uint32_t heartbeat_ms = welcome->heartbeat_ms;
+    spectra::ipc::SessionId session_id    = welcome->session_id;
+    spectra::ipc::WindowId  ipc_window_id = welcome->window_id;
+    uint32_t                heartbeat_ms  = welcome->heartbeat_ms;
 
     std::cerr << "[spectra-window] WELCOME: session=" << session_id << " window=" << ipc_window_id
               << " heartbeat=" << heartbeat_ms << "ms\n";
 
     // Track IPC state
-    std::vector<uint64_t> assigned_figures;
-    uint64_t ipc_active_figure_id = 0;
+    std::vector<uint64_t>                          assigned_figures;
+    uint64_t                                       ipc_active_figure_id = 0;
     std::vector<spectra::ipc::SnapshotFigureState> figure_cache;
-    std::vector<spectra::ipc::SnapshotKnobState> knob_cache;
-    spectra::ipc::Revision current_revision = 0;
-    bool cache_dirty = false;
+    std::vector<spectra::ipc::SnapshotKnobState>   knob_cache;
+    spectra::ipc::Revision                         current_revision = 0;
+    bool                                           cache_dirty      = false;
 
     // Drain initial messages (CMD_ASSIGN_FIGURES + STATE_SNAPSHOT)
     {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        auto deadline     = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         bool got_snapshot = false;
         while (!got_snapshot && std::chrono::steady_clock::now() < deadline)
         {
 #ifdef __linux__
             struct pollfd pfd;
-            pfd.fd = conn->fd();
-            pfd.events = POLLIN;
+            pfd.fd      = conn->fd();
+            pfd.events  = POLLIN;
             pfd.revents = 0;
             if (::poll(&pfd, 1, 100) <= 0 || !(pfd.revents & POLLIN))
                 continue;
@@ -628,7 +657,7 @@ int main(int argc, char* argv[])
                 auto payload = spectra::ipc::decode_cmd_assign_figures(msg.payload);
                 if (payload)
                 {
-                    assigned_figures = payload->figure_ids;
+                    assigned_figures     = payload->figure_ids;
                     ipc_active_figure_id = payload->active_figure_id;
                 }
             }
@@ -637,11 +666,11 @@ int main(int argc, char* argv[])
                 auto snap = spectra::ipc::decode_state_snapshot(msg.payload);
                 if (snap)
                 {
-                    figure_cache = snap->figures;
-                    knob_cache = snap->knobs;
+                    figure_cache     = snap->figures;
+                    knob_cache       = snap->knobs;
                     current_revision = snap->revision;
-                    cache_dirty = true;
-                    got_snapshot = true;
+                    cache_dirty      = true;
+                    got_snapshot     = true;
 
                     spectra::ipc::AckStatePayload ack;
                     ack.revision = current_revision;
@@ -664,11 +693,11 @@ int main(int argc, char* argv[])
     // Phase 2: Build figures into FigureRegistry
     // ═══════════════════════════════════════════════════════════════════════
 
-    constexpr uint32_t INITIAL_WIDTH = 1280;
+    constexpr uint32_t INITIAL_WIDTH  = 1280;
     constexpr uint32_t INITIAL_HEIGHT = 720;
 
     spectra::FigureRegistry registry;
-    auto all_ids =
+    auto                    all_ids =
         rebuild_registry_from_cache(registry, figure_cache, INITIAL_WIDTH, INITIAL_HEIGHT);
     cache_dirty = false;
 
@@ -701,8 +730,8 @@ int main(int argc, char* argv[])
         }
         frame_state.active_figure_id = initial_active;
     }
-    frame_state.active_figure = registry.get(frame_state.active_figure_id);
-    spectra::Figure* active_figure = frame_state.active_figure;
+    frame_state.active_figure           = registry.get(frame_state.active_figure_id);
+    spectra::Figure*   active_figure    = frame_state.active_figure;
     spectra::FigureId& active_figure_id = frame_state.active_figure_id;
 
     auto backend = std::make_unique<spectra::VulkanBackend>();
@@ -719,12 +748,12 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    spectra::CommandQueue cmd_queue;
+    spectra::CommandQueue   cmd_queue;
     spectra::FrameScheduler scheduler(active_figure->anim_fps());
     // Windowed agent uses VK_PRESENT_MODE_FIFO_KHR (VSync) — don't
     // double-pace with FrameScheduler sleep on top.
     scheduler.set_mode(spectra::FrameScheduler::Mode::VSync);
-    spectra::Animator animator;
+    spectra::Animator       animator;
     spectra::SessionRuntime session(*backend, *renderer_ptr, registry);
 
     frame_state.has_animation = active_figure->has_animation();
@@ -732,7 +761,7 @@ int main(int argc, char* argv[])
     spectra::WindowUIContext* ui_ctx_ptr = nullptr;
 
 #ifdef SPECTRA_USE_GLFW
-    std::unique_ptr<spectra::GlfwAdapter> glfw;
+    std::unique_ptr<spectra::GlfwAdapter>   glfw;
     std::unique_ptr<spectra::WindowManager> window_mgr;
 
     glfw = std::make_unique<spectra::GlfwAdapter>();
@@ -746,22 +775,26 @@ int main(int argc, char* argv[])
     backend->create_swapchain(active_figure->width(), active_figure->height());
 
     window_mgr = std::make_unique<spectra::WindowManager>();
-    window_mgr->init(
-        static_cast<spectra::VulkanBackend*>(backend.get()), &registry, renderer_ptr.get());
+    window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
+                     &registry,
+                     renderer_ptr.get());
 
     // Set tab drag handlers BEFORE creating windows so all windows get them
     window_mgr->set_tab_detach_handler(
-        [&session](
-            spectra::FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)
-        {
+        [&session](spectra::FigureId  fid,
+                   uint32_t           w,
+                   uint32_t           h,
+                   const std::string& title,
+                   int                sx,
+                   int                sy) {
             session.queue_detach({fid, w, h, title, sx, sy});
         });
     window_mgr->set_tab_move_handler(
         [&session](spectra::FigureId fid,
-                   uint32_t target_wid,
-                   int drop_zone,
-                   float local_x,
-                   float local_y,
+                   uint32_t          target_wid,
+                   int               drop_zone,
+                   float             local_x,
+                   float             local_y,
                    spectra::FigureId target_figure_id) {
             session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
         });
@@ -796,19 +829,19 @@ int main(int argc, char* argv[])
             {
                 switch (ks.type)
                 {
-                    case 0:  // Float
+                    case 0:   // Float
                         km.add_float(ks.name, ks.value, ks.min_val, ks.max_val, ks.step);
                         break;
-                    case 1:  // Int
+                    case 1:   // Int
                         km.add_int(ks.name,
                                    static_cast<int>(ks.value),
                                    static_cast<int>(ks.min_val),
                                    static_cast<int>(ks.max_val));
                         break;
-                    case 2:  // Bool
+                    case 2:   // Bool
                         km.add_bool(ks.name, ks.value >= 0.5f);
                         break;
-                    case 3:  // Choice
+                    case 3:   // Choice
                         km.add_choice(ks.name, ks.choices, static_cast<int>(ks.value));
                         break;
                 }
@@ -821,10 +854,10 @@ int main(int argc, char* argv[])
     std::unique_ptr<spectra::WindowUIContext> headless_ui_ctx;
     if (!ui_ctx_ptr)
     {
-        headless_ui_ctx = std::make_unique<spectra::WindowUIContext>();
+        headless_ui_ctx                = std::make_unique<spectra::WindowUIContext>();
         headless_ui_ctx->fig_mgr_owned = std::make_unique<spectra::FigureManager>(registry);
-        headless_ui_ctx->fig_mgr = headless_ui_ctx->fig_mgr_owned.get();
-        ui_ctx_ptr = headless_ui_ctx.get();
+        headless_ui_ctx->fig_mgr       = headless_ui_ctx->fig_mgr_owned.get();
+        ui_ctx_ptr                     = headless_ui_ctx.get();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -833,19 +866,19 @@ int main(int argc, char* argv[])
     // ═══════════════════════════════════════════════════════════════════════
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui = ui_ctx_ptr->imgui_ui;
-    auto& figure_tabs = ui_ctx_ptr->figure_tabs;
-    auto& dock_system = ui_ctx_ptr->dock_system;
-    auto& timeline_editor = ui_ctx_ptr->timeline_editor;
+    auto& imgui_ui              = ui_ctx_ptr->imgui_ui;
+    auto& figure_tabs           = ui_ctx_ptr->figure_tabs;
+    auto& dock_system           = ui_ctx_ptr->dock_system;
+    auto& timeline_editor       = ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor = ui_ctx_ptr->curve_editor;
-    auto& shortcut_mgr = ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette = ui_ctx_ptr->cmd_palette;
-    auto& cmd_registry = ui_ctx_ptr->cmd_registry;
-    auto& tab_drag_controller = ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr = *ui_ctx_ptr->fig_mgr;
-    auto& input_handler = ui_ctx_ptr->input_handler;
-    auto& home_limits = ui_ctx_ptr->home_limits;
+    auto& curve_editor          = ui_ctx_ptr->curve_editor;
+    auto& shortcut_mgr          = ui_ctx_ptr->shortcut_mgr;
+    auto& cmd_palette           = ui_ctx_ptr->cmd_palette;
+    auto& cmd_registry          = ui_ctx_ptr->cmd_registry;
+    auto& tab_drag_controller   = ui_ctx_ptr->tab_drag_controller;
+    auto& fig_mgr               = *ui_ctx_ptr->fig_mgr;
+    auto& input_handler         = ui_ctx_ptr->input_handler;
+    auto& home_limits           = ui_ctx_ptr->home_limits;
 
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
@@ -888,7 +921,7 @@ int main(int argc, char* argv[])
             {
                 if (pos >= fig_mgr.figure_ids().size())
                     return;
-                spectra::FigureId id = fig_mgr.figure_ids()[pos];
+                spectra::FigureId id      = fig_mgr.figure_ids()[pos];
                 spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
                 if (new_fig == spectra::INVALID_FIGURE_ID)
                     return;
@@ -900,7 +933,7 @@ int main(int argc, char* argv[])
             {
                 if (pos >= fig_mgr.figure_ids().size())
                     return;
-                spectra::FigureId id = fig_mgr.figure_ids()[pos];
+                spectra::FigureId id      = fig_mgr.figure_ids()[pos];
                 spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
                 if (new_fig == spectra::INVALID_FIGURE_ID)
                     return;
@@ -912,12 +945,12 @@ int main(int argc, char* argv[])
             {
                 if (pos >= fig_mgr.figure_ids().size())
                     return;
-                spectra::FigureId id = fig_mgr.figure_ids()[pos];
-                auto* fig = registry.get(id);
+                spectra::FigureId id  = fig_mgr.figure_ids()[pos];
+                auto*             fig = registry.get(id);
                 if (!fig || fig_mgr.count() <= 1)
                     return;
-                uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
+                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
+                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(id);
                 session.queue_detach({id,
                                       win_w,
@@ -936,8 +969,8 @@ int main(int argc, char* argv[])
                 auto* fig = registry.get(index);
                 if (!fig)
                     return;
-                uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
+                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
+                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
                 std::string title = fig_mgr.get_title(index);
                 session.queue_detach({index,
                                       win_w,
@@ -949,18 +982,18 @@ int main(int argc, char* argv[])
 
         tab_drag_controller.set_on_drop_on_window(
             [&session, &window_mgr](spectra::FigureId index,
-                                    uint32_t target_window_id,
+                                    uint32_t          target_window_id,
                                     float /*screen_x*/,
                                     float /*screen_y*/)
             {
-                int zone = 0;
+                int   zone = 0;
                 float lx = 0.0f, ly = 0.0f;
                 if (window_mgr)
                 {
                     auto info = window_mgr->cross_window_drop_info();
-                    zone = info.zone;
-                    lx = info.hx;
-                    ly = info.hy;
+                    zone      = info.zone;
+                    lx        = info.hx;
+                    ly        = info.hy;
                 }
                 session.queue_move({index, target_window_id, zone, lx, ly});
             });
@@ -968,14 +1001,15 @@ int main(int argc, char* argv[])
         if (imgui_ui)
         {
             imgui_ui->set_pane_tab_detach_cb(
-                [&fig_mgr, &session, &registry](
-                    spectra::FigureId index, float screen_x, float screen_y)
+                [&fig_mgr, &session, &registry](spectra::FigureId index,
+                                                float             screen_x,
+                                                float             screen_y)
                 {
                     auto* fig = registry.get(index);
                     if (!fig)
                         return;
-                    uint32_t win_w = fig->width() > 0 ? fig->width() : 800;
-                    uint32_t win_h = fig->height() > 0 ? fig->height() : 600;
+                    uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
+                    uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
                     std::string title = fig_mgr.get_title(index);
                     session.queue_detach({index,
                                           win_w,
@@ -991,11 +1025,11 @@ int main(int argc, char* argv[])
 
         // Register ALL standard commands (same as inproc)
         spectra::CommandBindings cb;
-        cb.ui_ctx = ui_ctx_ptr;
-        cb.registry = &registry;
-        cb.active_figure = &active_figure;
+        cb.ui_ctx           = ui_ctx_ptr;
+        cb.registry         = &registry;
+        cb.active_figure    = &active_figure;
         cb.active_figure_id = &active_figure_id;
-        cb.session = &session;
+        cb.session          = &session;
     #ifdef SPECTRA_USE_GLFW
         cb.window_mgr = window_mgr.get();
     #endif
@@ -1024,7 +1058,7 @@ int main(int argc, char* argv[])
     // Phase 5: Main loop — SessionRuntime + IPC polling
     // ═══════════════════════════════════════════════════════════════════════
 
-    auto last_heartbeat = std::chrono::steady_clock::now();
+    auto last_heartbeat     = std::chrono::steady_clock::now();
     auto heartbeat_interval = std::chrono::milliseconds(heartbeat_ms);
 
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
@@ -1034,10 +1068,10 @@ int main(int argc, char* argv[])
         for (;;)
         {
             struct pollfd pfd;
-            pfd.fd = conn->fd();
-            pfd.events = POLLIN;
-            pfd.revents = 0;
-            int poll_ret = ::poll(&pfd, 1, 0);  // non-blocking
+            pfd.fd       = conn->fd();
+            pfd.events   = POLLIN;
+            pfd.revents  = 0;
+            int poll_ret = ::poll(&pfd, 1, 0);   // non-blocking
             if (poll_ret > 0 && (pfd.revents & (POLLHUP | POLLERR)))
             {
                 std::cerr << "[spectra-window] Backend connection lost\n";
@@ -1063,7 +1097,7 @@ int main(int argc, char* argv[])
                     auto payload = spectra::ipc::decode_cmd_assign_figures(msg.payload);
                     if (payload)
                     {
-                        assigned_figures = payload->figure_ids;
+                        assigned_figures     = payload->figure_ids;
                         ipc_active_figure_id = payload->active_figure_id;
                     }
                     break;
@@ -1078,9 +1112,9 @@ int main(int argc, char* argv[])
                     auto snap = spectra::ipc::decode_state_snapshot(msg.payload);
                     if (snap)
                     {
-                        figure_cache = snap->figures;
+                        figure_cache     = snap->figures;
                         current_revision = snap->revision;
-                        cache_dirty = true;
+                        cache_dirty      = true;
 
                         spectra::ipc::AckStatePayload ack;
                         ack.revision = current_revision;
@@ -1163,7 +1197,7 @@ int main(int argc, char* argv[])
         {
             uint32_t sw = backend->swapchain_width();
             uint32_t sh = backend->swapchain_height();
-            all_ids = rebuild_registry_from_cache(registry, figure_cache, sw, sh);
+            all_ids     = rebuild_registry_from_cache(registry, figure_cache, sw, sh);
             if (!all_ids.empty())
             {
                 // Use ipc_active_figure_id to find the correct figure.
@@ -1182,8 +1216,8 @@ int main(int argc, char* argv[])
                     }
                 }
                 frame_state.active_figure_id = target_id;
-                frame_state.active_figure = registry.get(target_id);
-                active_figure = frame_state.active_figure;
+                frame_state.active_figure    = registry.get(target_id);
+                active_figure                = frame_state.active_figure;
 
                 // Sync FigureManager so tab bar reflects the new figures
 #ifdef SPECTRA_USE_IMGUI
@@ -1245,9 +1279,9 @@ int main(int argc, char* argv[])
                 for (auto& [name, val] : changes)
                 {
                     spectra::ipc::DiffOp op;
-                    op.type = spectra::ipc::DiffOp::Type::SET_KNOB_VALUE;
+                    op.type    = spectra::ipc::DiffOp::Type::SET_KNOB_VALUE;
                     op.str_val = name;
-                    op.f1 = val;
+                    op.f1      = val;
                     diff.ops.push_back(std::move(op));
                 }
                 send_ipc(*conn,
@@ -1262,8 +1296,10 @@ int main(int argc, char* argv[])
         auto now = std::chrono::steady_clock::now();
         if (now - last_heartbeat >= heartbeat_interval)
         {
-            if (!send_ipc(
-                    *conn, spectra::ipc::MessageType::EVT_HEARTBEAT, session_id, ipc_window_id))
+            if (!send_ipc(*conn,
+                          spectra::ipc::MessageType::EVT_HEARTBEAT,
+                          session_id,
+                          ipc_window_id))
             {
                 std::cerr << "[spectra-window] Lost connection to backend\n";
                 session.request_exit();

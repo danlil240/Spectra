@@ -26,9 +26,9 @@ namespace spectra
 {
 
 bool ImageExporter::write_png(const std::string& path,
-                              const uint8_t* rgba_data,
-                              uint32_t width,
-                              uint32_t height)
+                              const uint8_t*     rgba_data,
+                              uint32_t           width,
+                              uint32_t           height)
 {
     if (!rgba_data || width == 0 || height == 0)
     {
@@ -46,4 +46,4 @@ bool ImageExporter::write_png(const std::string& path,
     return result != 0;
 }
 
-}  // namespace spectra
+}   // namespace spectra

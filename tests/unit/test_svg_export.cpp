@@ -18,7 +18,7 @@ namespace
 Figure make_line_figure()
 {
     Figure fig({.width = 800, .height = 600});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&  ax = fig.subplot(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f, 1.0f};
@@ -35,7 +35,7 @@ Figure make_line_figure()
 Figure make_scatter_figure()
 {
     Figure fig({.width = 640, .height = 480});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&  ax = fig.subplot(1, 1, 1);
 
     std::vector<float> x = {1.0f, 2.0f, 3.0f};
     std::vector<float> y = {1.0f, 4.0f, 2.0f};
@@ -47,7 +47,7 @@ Figure make_scatter_figure()
 
 TEST(SvgExport, ToStringProducesValidSvg)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     // Must start with XML declaration and SVG root
@@ -58,7 +58,7 @@ TEST(SvgExport, ToStringProducesValidSvg)
 
 TEST(SvgExport, ContainsViewBoxDimensions)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("width=\"800\""), std::string::npos);
@@ -68,7 +68,7 @@ TEST(SvgExport, ContainsViewBoxDimensions)
 
 TEST(SvgExport, ContainsPolylineForLineSeries)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("<polyline"), std::string::npos);
@@ -78,12 +78,12 @@ TEST(SvgExport, ContainsPolylineForLineSeries)
 
 TEST(SvgExport, ContainsCirclesForScatterSeries)
 {
-    auto fig = make_scatter_figure();
+    auto        fig = make_scatter_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     // Should have 3 circle elements
-    size_t pos = 0;
-    int circle_count = 0;
+    size_t pos          = 0;
+    int    circle_count = 0;
     while ((pos = svg.find("<circle", pos)) != std::string::npos)
     {
         ++circle_count;
@@ -95,7 +95,7 @@ TEST(SvgExport, ContainsCirclesForScatterSeries)
 
 TEST(SvgExport, ContainsTitleText)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("Test Title"), std::string::npos);
@@ -103,7 +103,7 @@ TEST(SvgExport, ContainsTitleText)
 
 TEST(SvgExport, ContainsAxisLabels)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("X Label"), std::string::npos);
@@ -112,7 +112,7 @@ TEST(SvgExport, ContainsAxisLabels)
 
 TEST(SvgExport, ContainsLegendEntry)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("test-line"), std::string::npos);
@@ -120,7 +120,7 @@ TEST(SvgExport, ContainsLegendEntry)
 
 TEST(SvgExport, ContainsGridLines)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     // Grid group should exist
@@ -129,7 +129,7 @@ TEST(SvgExport, ContainsGridLines)
 
 TEST(SvgExport, ContainsBorderRect)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     // Should have a rect with stroke for the border
@@ -138,7 +138,7 @@ TEST(SvgExport, ContainsBorderRect)
 
 TEST(SvgExport, ContainsTickLabels)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("class=\"tick-labels\""), std::string::npos);
@@ -146,7 +146,7 @@ TEST(SvgExport, ContainsTickLabels)
 
 TEST(SvgExport, ContainsClipPath)
 {
-    auto fig = make_line_figure();
+    auto        fig = make_line_figure();
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("<clipPath"), std::string::npos);
@@ -155,7 +155,7 @@ TEST(SvgExport, ContainsClipPath)
 
 TEST(SvgExport, WriteToFile)
 {
-    auto fig = make_line_figure();
+    auto        fig  = make_line_figure();
     std::string path = "/tmp/spectra_test_export.svg";
 
     bool ok = SvgExporter::write_svg(path, fig);
@@ -175,10 +175,10 @@ TEST(SvgExport, WriteToFile)
 TEST(SvgExport, MultiSubplotProducesMultipleAxesGroups)
 {
     Figure fig({.width = 1200, .height = 600});
-    auto& ax1 = fig.subplot(1, 2, 1);
-    auto& ax2 = fig.subplot(1, 2, 2);
+    auto&  ax1 = fig.subplot(1, 2, 1);
+    auto&  ax2 = fig.subplot(1, 2, 2);
 
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    std::vector<float> x  = {0.0f, 1.0f, 2.0f};
     std::vector<float> y1 = {0.0f, 1.0f, 0.5f};
     std::vector<float> y2 = {1.0f, 0.5f, 1.5f};
 
@@ -192,8 +192,8 @@ TEST(SvgExport, MultiSubplotProducesMultipleAxesGroups)
     std::string svg = SvgExporter::to_string(fig);
 
     // Should have two axes groups
-    size_t pos = 0;
-    int axes_count = 0;
+    size_t pos        = 0;
+    int    axes_count = 0;
     while ((pos = svg.find("class=\"axes\"", pos)) != std::string::npos)
     {
         ++axes_count;
@@ -222,7 +222,7 @@ TEST(SvgExport, EmptyFigureProducesMinimalSvg)
 TEST(SvgExport, XmlEscapesSpecialCharacters)
 {
     Figure fig({.width = 800, .height = 600});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&  ax = fig.subplot(1, 1, 1);
     ax.title("A < B & C > D");
 
     std::vector<float> x = {0.0f, 1.0f};
@@ -242,7 +242,7 @@ TEST(SvgExport, XmlEscapesSpecialCharacters)
 TEST(SvgExport, GridDisabledOmitsGridGroup)
 {
     Figure fig({.width = 800, .height = 600});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto&  ax = fig.subplot(1, 1, 1);
     ax.grid(false);
 
     std::vector<float> x = {0.0f, 1.0f};
@@ -257,5 +257,5 @@ TEST(SvgExport, GridDisabledOmitsGridGroup)
     EXPECT_EQ(svg.find("class=\"grid\""), std::string::npos);
 }
 
-}  // namespace
-}  // namespace spectra
+}   // namespace
+}   // namespace spectra

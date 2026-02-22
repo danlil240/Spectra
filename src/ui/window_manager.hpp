@@ -43,14 +43,14 @@ class WindowManager
     WindowManager() = default;
     ~WindowManager();
 
-    WindowManager(const WindowManager&) = delete;
+    WindowManager(const WindowManager&)            = delete;
     WindowManager& operator=(const WindowManager&) = delete;
 
     // Initialize the window manager with a reference to the Vulkan backend
     // and figure registry.  Must be called before any other method.
-    void init(VulkanBackend* backend,
+    void init(VulkanBackend*  backend,
               FigureRegistry* registry = nullptr,
-              Renderer* renderer = nullptr);
+              Renderer*       renderer = nullptr);
 
     // Create the initial (first) window uniformly — same ownership as
     // secondary windows.  Takes ownership of the backend's initial
@@ -103,12 +103,12 @@ class WindowManager
     // Creates a new window sized to the figure's dimensions and assigns the
     // figure to it.  Returns the new WindowContext, or nullptr on failure.
     // Will refuse to detach if it's the last figure (caller must check).
-    WindowContext* detach_figure(FigureId figure_id,
-                                 uint32_t width,
-                                 uint32_t height,
+    WindowContext* detach_figure(FigureId           figure_id,
+                                 uint32_t           width,
+                                 uint32_t           height,
                                  const std::string& title,
-                                 int screen_x,
-                                 int screen_y);
+                                 int                screen_x,
+                                 int                screen_y);
 
     // Create the very first window with full UI stack.  Unlike create_window_with_ui(),
     // this method also handles the backend's initial WindowContext handoff (the backend
@@ -117,19 +117,19 @@ class WindowManager
     // The glfw_window handle must already exist (created by GlfwAdapter or caller).
     // figure_ids are ALL figures to assign to this window (the first becomes active).
     // Returns the new WindowContext, or nullptr on failure.
-    WindowContext* create_first_window_with_ui(void* glfw_window,
+    WindowContext* create_first_window_with_ui(void*                        glfw_window,
                                                const std::vector<FigureId>& figure_ids);
 
     // Create a new OS window with full UI stack (ImGui, FigureManager, DockSystem,
     // InputHandler, etc.).  The window gets its own ImGui context and can render
     // independently.  figure_id is the initial figure to assign to the window.
     // Returns the new WindowContext, or nullptr on failure.
-    WindowContext* create_window_with_ui(uint32_t width,
-                                         uint32_t height,
+    WindowContext* create_window_with_ui(uint32_t           width,
+                                         uint32_t           height,
                                          const std::string& title,
-                                         FigureId initial_figure_id,
-                                         int screen_x = 0,
-                                         int screen_y = 0);
+                                         FigureId           initial_figure_id,
+                                         int                screen_x = 0,
+                                         int                screen_y = 0);
 
     // Install full input GLFW callbacks (cursor, mouse, scroll, key, char,
     // cursor_enter) on a WindowContext that already has ui_ctx set.
@@ -144,10 +144,10 @@ class WindowManager
 
     // Request creation of a preview window (deferred to avoid mutating
     // windows_ while iterating).  Safe to call from TabDragController.
-    void request_preview_window(uint32_t width,
-                                uint32_t height,
-                                int screen_x,
-                                int screen_y,
+    void request_preview_window(uint32_t           width,
+                                uint32_t           height,
+                                int                screen_x,
+                                int                screen_y,
                                 const std::string& figure_title);
 
     // Request destruction of the preview window (deferred).
@@ -186,7 +186,7 @@ class WindowManager
 
     // Cross-window drag target — set each frame by the active
     // TabDragController so target windows can draw dock highlights.
-    void set_drag_target_window(uint32_t wid) { drag_target_window_id_ = wid; }
+    void     set_drag_target_window(uint32_t wid) { drag_target_window_id_ = wid; }
     uint32_t drag_target_window() const { return drag_target_window_id_; }
 
     // Compute the drop zone on a target window's DockSystem given cursor
@@ -199,22 +199,22 @@ class WindowManager
     // Returns {0,0,0,0} if no valid zone.
     struct CrossWindowDropInfo
     {
-        int zone = 0;                                   // DropZone cast to int
-        float hx = 0, hy = 0, hw = 0, hh = 0;           // highlight rect
-        FigureId target_figure_id = INVALID_FIGURE_ID;  // figure in the pane under cursor
+        int      zone = 0;                               // DropZone cast to int
+        float    hx = 0, hy = 0, hw = 0, hh = 0;         // highlight rect
+        FigureId target_figure_id = INVALID_FIGURE_ID;   // figure in the pane under cursor
     };
     CrossWindowDropInfo cross_window_drop_info() const { return cross_drop_info_; }
 
     // Tab drag handlers — stored and applied to every new window's
     // TabDragController in init_window_ui().  Set these before creating
     // windows so all windows get the same drag behavior.
-    using TabDetachHandler = std::function<void(
-        FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
+    using TabDetachHandler = std::function<
+        void(FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
     using TabMoveHandler = std::function<void(FigureId fid,
                                               uint32_t target_window_id,
-                                              int drop_zone,
-                                              float local_x,
-                                              float local_y,
+                                              int      drop_zone,
+                                              float    local_x,
+                                              float    local_y,
                                               FigureId target_figure_id)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
@@ -255,52 +255,52 @@ class WindowManager
     // Creates ImGuiIntegration, FigureManager, DockSystem, InputHandler, etc.
     bool init_window_ui(WindowContext& wctx, FigureId initial_figure_id);
 
-    VulkanBackend* backend_ = nullptr;
-    FigureRegistry* registry_ = nullptr;
-    Renderer* renderer_ = nullptr;
+    VulkanBackend*                              backend_  = nullptr;
+    FigureRegistry*                             registry_ = nullptr;
+    Renderer*                                   renderer_ = nullptr;
     std::vector<std::unique_ptr<WindowContext>> windows_;
-    std::vector<WindowContext*> active_ptrs_;  // cache of raw pointers for fast iteration
-    uint32_t next_window_id_ = 1;
+    std::vector<WindowContext*> active_ptrs_;   // cache of raw pointers for fast iteration
+    uint32_t                    next_window_id_ = 1;
 
     // IDs of windows pending destruction (deferred to avoid mutation during iteration)
     std::vector<uint32_t> pending_close_ids_;
 
     // Tearoff preview window (0 = none active)
     uint32_t preview_window_id_ = 0;
-    bool preview_rendered_ = false;  // True after preview has been rendered at least once
+    bool     preview_rendered_  = false;   // True after preview has been rendered at least once
 
     // Tab drag handlers (applied to every new window's TabDragController)
     TabDetachHandler tab_detach_handler_;
-    TabMoveHandler tab_move_handler_;
+    TabMoveHandler   tab_move_handler_;
 
     // Cross-window drag target tracking
-    uint32_t drag_target_window_id_ = 0;
+    uint32_t            drag_target_window_id_ = 0;
     CrossWindowDropInfo cross_drop_info_;
 
     // Callback-based mouse release tracking (tab drag)
-    bool mouse_release_tracking_ = false;
-    bool mouse_release_seen_ = false;
+    bool                                  mouse_release_tracking_ = false;
+    bool                                  mouse_release_seen_     = false;
     std::chrono::steady_clock::time_point suppress_release_until_{};
 
     // Deferred preview window requests
     struct PendingPreviewCreate
     {
-        uint32_t width = 0;
-        uint32_t height = 0;
-        int screen_x = 0;
-        int screen_y = 0;
+        uint32_t    width    = 0;
+        uint32_t    height   = 0;
+        int         screen_x = 0;
+        int         screen_y = 0;
         std::string title;
     };
     std::optional<PendingPreviewCreate> pending_preview_create_;
-    bool pending_preview_destroy_ = false;
+    bool                                pending_preview_destroy_ = false;
 
     // Internal: actually create/destroy the preview window.
-    WindowContext* create_preview_window_impl(uint32_t width,
-                                              uint32_t height,
-                                              int screen_x,
-                                              int screen_y,
+    WindowContext* create_preview_window_impl(uint32_t           width,
+                                              uint32_t           height,
+                                              int                screen_x,
+                                              int                screen_y,
                                               const std::string& figure_title);
-    void destroy_preview_window_impl();
+    void           destroy_preview_window_impl();
 };
 
-}  // namespace spectra
+}   // namespace spectra

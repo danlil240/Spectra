@@ -27,8 +27,8 @@ struct FigureState
     std::vector<AxesSnapshot> axes_snapshots;
 
     // Inspector selection state
-    int selected_series_index = -1;  // -1 = none
-    int selected_axes_index = -1;    // -1 = none
+    int selected_series_index = -1;   // -1 = none
+    int selected_axes_index   = -1;   // -1 = none
 
     // Scroll positions
     float inspector_scroll_y = 0.0f;
@@ -50,26 +50,26 @@ struct FigureState
 class FigureManager
 {
    public:
-    using FigureChangeCallback = std::function<void(FigureId new_id, Figure* fig)>;
-    using FigureCloseCallback = std::function<void(FigureId id)>;
+    using FigureChangeCallback       = std::function<void(FigureId new_id, Figure* fig)>;
+    using FigureCloseCallback        = std::function<void(FigureId id)>;
     using WindowCloseRequestCallback = std::function<void()>;
 
     explicit FigureManager(FigureRegistry& registry);
     ~FigureManager() = default;
 
     // Disable copying
-    FigureManager(const FigureManager&) = delete;
+    FigureManager(const FigureManager&)            = delete;
     FigureManager& operator=(const FigureManager&) = delete;
 
     // Wire to TabBar for synchronized UI
-    void set_tab_bar(TabBar* tab_bar);
+    void    set_tab_bar(TabBar* tab_bar);
     TabBar* tab_bar() const { return tab_bar_; }
 
     // Figure lifecycle
     FigureId create_figure(const FigureConfig& config = {});
-    bool close_figure(FigureId index);
-    bool close_all_except(FigureId index);
-    bool close_to_right(FigureId index);
+    bool     close_figure(FigureId index);
+    bool     close_all_except(FigureId index);
+    bool     close_to_right(FigureId index);
     FigureId duplicate_figure(FigureId index);
 
     // Cross-window figure transfer (does NOT unregister from FigureRegistry)
@@ -90,25 +90,25 @@ class FigureManager
 
     // State queries
     FigureId active_index() const { return active_index_; }
-    Figure* active_figure() const;
-    size_t count() const { return ordered_ids_.size(); }
-    bool can_close(FigureId index) const;
+    Figure*  active_figure() const;
+    size_t   count() const { return ordered_ids_.size(); }
+    bool     can_close(FigureId index) const;
 
     // Figure access by positional index (for backward compatibility)
-    Figure* get_figure(FigureId id) const;
+    Figure*                      get_figure(FigureId id) const;
     const std::vector<FigureId>& figure_ids() const { return ordered_ids_; }
-    FigureRegistry& registry() { return registry_; }
+    FigureRegistry&              registry() { return registry_; }
 
     // Per-figure state
-    FigureState& state(FigureId index);
+    FigureState&       state(FigureId index);
     const FigureState& state(FigureId index) const;
-    FigureState& active_state();
+    FigureState&       active_state();
 
     // Title management
     std::string get_title(FigureId index) const;
-    void set_title(FigureId index, const std::string& title);
-    void mark_modified(FigureId index, bool modified = true);
-    bool is_modified(FigureId index) const;
+    void        set_title(FigureId index, const std::string& title);
+    void        mark_modified(FigureId index, bool modified = true);
+    bool        is_modified(FigureId index) const;
 
     // Callbacks
     void set_on_figure_changed(FigureChangeCallback cb) { on_figure_changed_ = std::move(cb); }
@@ -135,30 +135,30 @@ class FigureManager
     static std::string default_title(FigureId index);
 
    private:
-    FigureRegistry& registry_;
-    std::vector<FigureId> ordered_ids_;  // Ordered list of registry IDs (tab order)
+    FigureRegistry&       registry_;
+    std::vector<FigureId> ordered_ids_;   // Ordered list of registry IDs (tab order)
     std::unordered_map<FigureId, FigureState> states_;
-    FigureId active_index_ = INVALID_FIGURE_ID;
-    TabBar* tab_bar_ = nullptr;
+    FigureId                                  active_index_ = INVALID_FIGURE_ID;
+    TabBar*                                   tab_bar_      = nullptr;
 
     // Convert positional index to FigureId and vice versa
-    size_t id_to_pos(FigureId id) const;
+    size_t   id_to_pos(FigureId id) const;
     FigureId pos_to_id(size_t pos) const;
 
     // Pending operations (processed in process_pending())
     FigureId pending_switch_ = INVALID_FIGURE_ID;
-    FigureId pending_close_ = INVALID_FIGURE_ID;
-    bool pending_create_ = false;
+    FigureId pending_close_  = INVALID_FIGURE_ID;
+    bool     pending_create_ = false;
 
     // Callbacks
-    FigureChangeCallback on_figure_changed_;
-    FigureCloseCallback on_figure_closed_;
+    FigureChangeCallback       on_figure_changed_;
+    FigureCloseCallback        on_figure_closed_;
     WindowCloseRequestCallback on_window_close_request_;
 
     // Internal helpers
-    void sync_tab_bar();
-    void ensure_states();
+    void   sync_tab_bar();
+    void   ensure_states();
     size_t next_figure_number() const;
 };
 
-}  // namespace spectra
+}   // namespace spectra

@@ -26,11 +26,11 @@ class Crosshair
     // Draw crosshair lines and axis labels for the given cursor position.
     // viewport is the axes Rect in screen coordinates.
     void draw(const CursorReadout& cursor,
-              const Rect& viewport,
-              float xlim_min,
-              float xlim_max,
-              float ylim_min,
-              float ylim_max);
+              const Rect&          viewport,
+              float                xlim_min,
+              float                xlim_max,
+              float                ylim_min,
+              float                ylim_max);
 
     // Draw crosshair across ALL subplots in the figure.
     // The vertical line is drawn at the same data-X on every axes;
@@ -38,20 +38,20 @@ class Crosshair
     // If an AxisLinkManager is provided, the shared cursor is used to
     // draw horizontal lines on linked non-hovered axes as well.
     void draw_all_axes(const CursorReadout& cursor,
-                       Figure& figure,
-                       AxisLinkManager* link_mgr = nullptr);
+                       Figure&              figure,
+                       AxisLinkManager*     link_mgr = nullptr);
 
     // Configuration
     void set_dash_length(float px) { dash_length_ = px; }
     void set_gap_length(float px) { gap_length_ = px; }
 
    private:
-    bool enabled_ = false;
+    bool  enabled_     = false;
     float dash_length_ = 6.0f;
-    float gap_length_ = 4.0f;
-    float opacity_ = 0.0f;
+    float gap_length_  = 4.0f;
+    float opacity_     = 0.0f;
 };
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

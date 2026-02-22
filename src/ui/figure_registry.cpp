@@ -8,8 +8,8 @@ namespace spectra
 FigureRegistry::IdType FigureRegistry::register_figure(std::unique_ptr<Figure> fig)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    IdType id = next_id_++;
-    figures_[id] = std::move(fig);
+    IdType                      id = next_id_++;
+    figures_[id]                   = std::move(fig);
     insertion_order_.push_back(id);
     return id;
 }
@@ -17,7 +17,7 @@ FigureRegistry::IdType FigureRegistry::register_figure(std::unique_ptr<Figure> f
 void FigureRegistry::unregister_figure(IdType id)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = figures_.find(id);
+    auto                        it = figures_.find(id);
     if (it == figures_.end())
         return;
     figures_.erase(it);
@@ -28,7 +28,7 @@ void FigureRegistry::unregister_figure(IdType id)
 Figure* FigureRegistry::get(IdType id) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = figures_.find(id);
+    auto                        it = figures_.find(id);
     return (it != figures_.end()) ? it->second.get() : nullptr;
 }
 
@@ -64,7 +64,7 @@ FigureRegistry::IdType FigureRegistry::find_id(const Figure* fig) const
 std::unique_ptr<Figure> FigureRegistry::release(IdType id)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = figures_.find(id);
+    auto                        it = figures_.find(id);
     if (it == figures_.end())
         return nullptr;
     auto fig = std::move(it->second);
@@ -81,4 +81,4 @@ void FigureRegistry::clear()
     insertion_order_.clear();
 }
 
-}  // namespace spectra
+}   // namespace spectra

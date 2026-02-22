@@ -60,15 +60,15 @@ void fft_radix2(std::vector<std::complex<float>>& buf)
             {
                 std::complex<float> u = buf[i + j];
                 std::complex<float> v = buf[i + j + len / 2] * w;
-                buf[i + j] = u + v;
-                buf[i + j + len / 2] = u - v;
+                buf[i + j]            = u + v;
+                buf[i + j + len / 2]  = u - v;
                 w *= wn;
             }
         }
     }
 }
 
-}  // namespace
+}   // namespace
 
 // ─── DataTransform construction ─────────────────────────────────────────────
 
@@ -91,8 +91,8 @@ DataTransform::DataTransform(const std::string& name, CustomXYFunc func)
 
 void DataTransform::apply_y(std::span<const float> x_in,
                             std::span<const float> y_in,
-                            std::vector<float>& x_out,
-                            std::vector<float>& y_out) const
+                            std::vector<float>&    x_out,
+                            std::vector<float>&    y_out) const
 {
     switch (type_)
     {
@@ -222,9 +222,9 @@ bool DataTransform::changes_length() const
             return true;
         case TransformType::Log10:
         case TransformType::Ln:
-            return true;  // May skip non-positive values
+            return true;   // May skip non-positive values
         case TransformType::FFT:
-            return true;  // Output is N/2+1 frequency bins (left-sided)
+            return true;   // Output is N/2+1 frequency bins (left-sided)
         case TransformType::Custom:
             return custom_xy_func_ != nullptr;
         default:
@@ -292,8 +292,8 @@ std::string DataTransform::description() const
 
 void DataTransform::apply_identity(std::span<const float> x_in,
                                    std::span<const float> y_in,
-                                   std::vector<float>& x_out,
-                                   std::vector<float>& y_out) const
+                                   std::vector<float>&    x_out,
+                                   std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -302,8 +302,8 @@ void DataTransform::apply_identity(std::span<const float> x_in,
 
 void DataTransform::apply_log10(std::span<const float> x_in,
                                 std::span<const float> y_in,
-                                std::vector<float>& x_out,
-                                std::vector<float>& y_out) const
+                                std::vector<float>&    x_out,
+                                std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.clear();
@@ -322,8 +322,8 @@ void DataTransform::apply_log10(std::span<const float> x_in,
 
 void DataTransform::apply_ln(std::span<const float> x_in,
                              std::span<const float> y_in,
-                             std::vector<float>& x_out,
-                             std::vector<float>& y_out) const
+                             std::vector<float>&    x_out,
+                             std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.clear();
@@ -342,8 +342,8 @@ void DataTransform::apply_ln(std::span<const float> x_in,
 
 void DataTransform::apply_abs(std::span<const float> x_in,
                               std::span<const float> y_in,
-                              std::vector<float>& x_out,
-                              std::vector<float>& y_out) const
+                              std::vector<float>&    x_out,
+                              std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -356,8 +356,8 @@ void DataTransform::apply_abs(std::span<const float> x_in,
 
 void DataTransform::apply_negate(std::span<const float> x_in,
                                  std::span<const float> y_in,
-                                 std::vector<float>& x_out,
-                                 std::vector<float>& y_out) const
+                                 std::vector<float>&    x_out,
+                                 std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -370,8 +370,8 @@ void DataTransform::apply_negate(std::span<const float> x_in,
 
 void DataTransform::apply_normalize(std::span<const float> x_in,
                                     std::span<const float> y_in,
-                                    std::vector<float>& x_out,
-                                    std::vector<float>& y_out) const
+                                    std::vector<float>&    x_out,
+                                    std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -406,8 +406,8 @@ void DataTransform::apply_normalize(std::span<const float> x_in,
 
 void DataTransform::apply_standardize(std::span<const float> x_in,
                                       std::span<const float> y_in,
-                                      std::vector<float>& x_out,
-                                      std::vector<float>& y_out) const
+                                      std::vector<float>&    x_out,
+                                      std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -446,8 +446,8 @@ void DataTransform::apply_standardize(std::span<const float> x_in,
 
 void DataTransform::apply_derivative(std::span<const float> x_in,
                                      std::span<const float> y_in,
-                                     std::vector<float>& x_out,
-                                     std::vector<float>& y_out) const
+                                     std::vector<float>&    x_out,
+                                     std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     if (n < 2)
@@ -474,8 +474,8 @@ void DataTransform::apply_derivative(std::span<const float> x_in,
 
 void DataTransform::apply_cumulative_sum(std::span<const float> x_in,
                                          std::span<const float> y_in,
-                                         std::vector<float>& x_out,
-                                         std::vector<float>& y_out) const
+                                         std::vector<float>&    x_out,
+                                         std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -494,8 +494,8 @@ void DataTransform::apply_cumulative_sum(std::span<const float> x_in,
 
 void DataTransform::apply_diff(std::span<const float> x_in,
                                std::span<const float> y_in,
-                               std::vector<float>& x_out,
-                               std::vector<float>& y_out) const
+                               std::vector<float>&    x_out,
+                               std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     if (n < 2)
@@ -518,8 +518,8 @@ void DataTransform::apply_diff(std::span<const float> x_in,
 
 void DataTransform::apply_scale(std::span<const float> x_in,
                                 std::span<const float> y_in,
-                                std::vector<float>& x_out,
-                                std::vector<float>& y_out) const
+                                std::vector<float>&    x_out,
+                                std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -532,8 +532,8 @@ void DataTransform::apply_scale(std::span<const float> x_in,
 
 void DataTransform::apply_offset(std::span<const float> x_in,
                                  std::span<const float> y_in,
-                                 std::vector<float>& x_out,
-                                 std::vector<float>& y_out) const
+                                 std::vector<float>&    x_out,
+                                 std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -546,8 +546,8 @@ void DataTransform::apply_offset(std::span<const float> x_in,
 
 void DataTransform::apply_clamp(std::span<const float> x_in,
                                 std::span<const float> y_in,
-                                std::vector<float>& x_out,
-                                std::vector<float>& y_out) const
+                                std::vector<float>&    x_out,
+                                std::vector<float>&    y_out) const
 {
     const size_t n = std::min(x_in.size(), y_in.size());
     x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
@@ -570,8 +570,8 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
 
 void DataTransform::apply_fft(std::span<const float> x_in,
                               std::span<const float> y_in,
-                              std::vector<float>& x_out,
-                              std::vector<float>& y_out) const
+                              std::vector<float>&    x_out,
+                              std::vector<float>&    y_out) const
 {
     const size_t n = y_in.size();
     if (n == 0)
@@ -596,27 +596,32 @@ void DataTransform::apply_fft(std::span<const float> x_in,
 
     // Left-sided: output bins 0..N/2 (DC to Nyquist inclusive)
     const size_t out_n = N / 2 + 1;
-    const float inv_n = 1.0f / static_cast<float>(N);
-    
+    const float  inv_n = 1.0f / static_cast<float>(N);
+
     // Calculate sampling rate: use explicit parameter if provided, otherwise infer from x data
-    float sample_rate = 1.0f;  // default fallback
-    if (params_.fft_sample_rate > 0.0f) {
+    float sample_rate = 1.0f;   // default fallback
+    if (params_.fft_sample_rate > 0.0f)
+    {
         sample_rate = params_.fft_sample_rate;
-    } else if (x_in.size() >= 2) {
+    }
+    else if (x_in.size() >= 2)
+    {
         // Infer sampling rate from x data: 1 / (x[1] - x[0])
 
         // calculat mean dt:
         float dt = 0.0f;
-        for (size_t i = 1; i < x_in.size(); ++i) {
+        for (size_t i = 1; i < x_in.size(); ++i)
+        {
             dt += x_in[i] - x_in[i - 1];
         }
         dt /= static_cast<float>(x_in.size() - 1);
-        
-        if (dt > 0.0f) {
+
+        if (dt > 0.0f)
+        {
             sample_rate = 1.0f / dt;
         }
     }
-    
+
     const float freq_step = sample_rate / static_cast<float>(N);
 
     x_out.resize(out_n);
@@ -703,8 +708,8 @@ bool TransformPipeline::is_enabled(size_t index) const
 
 void TransformPipeline::apply(std::span<const float> x_in,
                               std::span<const float> y_in,
-                              std::vector<float>& x_out,
-                              std::vector<float>& y_out) const
+                              std::vector<float>&    x_out,
+                              std::vector<float>&    y_out) const
 {
     if (is_identity())
     {
@@ -716,7 +721,7 @@ void TransformPipeline::apply(std::span<const float> x_in,
 
     // Apply first enabled step
     std::vector<float> tmp_x1, tmp_y1, tmp_x2, tmp_y2;
-    bool first_step = true;
+    bool               first_step = true;
 
     for (const auto& step : steps_)
     {
@@ -757,7 +762,7 @@ std::string TransformPipeline::description() const
         return "Empty pipeline";
 
     std::ostringstream ss;
-    bool first = true;
+    bool               first = true;
     for (const auto& step : steps_)
     {
         if (!step.enabled)
@@ -797,17 +802,17 @@ TransformRegistry& TransformRegistry::instance()
     return inst;
 }
 
-void TransformRegistry::register_transform(const std::string& name,
+void TransformRegistry::register_transform(const std::string&        name,
                                            DataTransform::CustomFunc func,
-                                           const std::string& desc)
+                                           const std::string&        desc)
 {
     std::lock_guard lock(mutex_);
     custom_transforms_[name] = {DataTransform(name, std::move(func)), desc};
 }
 
-void TransformRegistry::register_xy_transform(const std::string& name,
+void TransformRegistry::register_xy_transform(const std::string&          name,
                                               DataTransform::CustomXYFunc func,
-                                              const std::string& desc)
+                                              const std::string&          desc)
 {
     std::lock_guard lock(mutex_);
     custom_transforms_[name] = {DataTransform(name, std::move(func)), desc};
@@ -854,7 +859,7 @@ bool TransformRegistry::get_transform(const std::string& name, DataTransform& ou
 
 std::vector<std::string> TransformRegistry::available_transforms() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard          lock(mutex_);
     std::vector<std::string> names;
 
     // Built-in transforms
@@ -891,7 +896,7 @@ void TransformRegistry::save_pipeline(const std::string& name, const TransformPi
 bool TransformRegistry::load_pipeline(const std::string& name, TransformPipeline& out) const
 {
     std::lock_guard lock(mutex_);
-    auto it = saved_pipelines_.find(name);
+    auto            it = saved_pipelines_.find(name);
     if (it != saved_pipelines_.end())
     {
         out = it->second;
@@ -902,7 +907,7 @@ bool TransformRegistry::load_pipeline(const std::string& name, TransformPipeline
 
 std::vector<std::string> TransformRegistry::saved_pipelines() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard          lock(mutex_);
     std::vector<std::string> names;
     for (const auto& [k, _] : saved_pipelines_)
     {
@@ -928,23 +933,35 @@ void TransformRegistry::register_builtins()
     // Built-in convenience transforms registered as custom entries
     // so they can be looked up by name
     register_transform(
-        "square", [](float v) { return v * v; }, "y²");
+        "square",
+        [](float v) { return v * v; },
+        "y²");
     register_transform(
-        "sqrt", [](float v) { return (v >= 0.0f) ? std::sqrt(v) : 0.0f; }, "√y");
+        "sqrt",
+        [](float v) { return (v >= 0.0f) ? std::sqrt(v) : 0.0f; },
+        "√y");
     register_transform(
-        "reciprocal", [](float v) { return (v != 0.0f) ? (1.0f / v) : 0.0f; }, "1/y");
+        "reciprocal",
+        [](float v) { return (v != 0.0f) ? (1.0f / v) : 0.0f; },
+        "1/y");
     register_transform(
-        "exp", [](float v) { return std::exp(v); }, "e^y");
+        "exp",
+        [](float v) { return std::exp(v); },
+        "e^y");
     register_transform(
-        "sin", [](float v) { return std::sin(v); }, "sin(y)");
+        "sin",
+        [](float v) { return std::sin(v); },
+        "sin(y)");
     register_transform(
-        "cos", [](float v) { return std::cos(v); }, "cos(y)");
+        "cos",
+        [](float v) { return std::cos(v); },
+        "cos(y)");
 }
 
 // ─── Free functions ─────────────────────────────────────────────────────────
 
 std::vector<float> transform_y(std::span<const float> y,
-                               TransformType type,
+                               TransformType          type,
                                const TransformParams& params)
 {
     DataTransform t(type, params);
@@ -959,9 +976,9 @@ std::vector<float> transform_y(std::span<const float> y,
 
 void transform_xy(std::span<const float> x_in,
                   std::span<const float> y_in,
-                  std::vector<float>& x_out,
-                  std::vector<float>& y_out,
-                  TransformType type,
+                  std::vector<float>&    x_out,
+                  std::vector<float>&    y_out,
+                  TransformType          type,
                   const TransformParams& params)
 {
     DataTransform t(type, params);
@@ -1006,4 +1023,4 @@ const char* transform_type_name(TransformType type)
     return "Unknown";
 }
 
-}  // namespace spectra
+}   // namespace spectra

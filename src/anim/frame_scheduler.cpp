@@ -23,14 +23,14 @@ void FrameScheduler::set_target_fps(float fps)
 void FrameScheduler::set_fixed_timestep(float dt)
 {
     use_fixed_timestep_ = true;
-    fixed_dt_ = dt;
-    accumulator_ = 0.0f;
+    fixed_dt_           = dt;
+    accumulator_        = 0.0f;
 }
 
 void FrameScheduler::clear_fixed_timestep()
 {
     use_fixed_timestep_ = false;
-    accumulator_ = 0.0f;
+    accumulator_        = 0.0f;
 }
 
 void FrameScheduler::begin_frame()
@@ -40,19 +40,19 @@ void FrameScheduler::begin_frame()
 
     if (first_frame_)
     {
-        first_frame_ = false;
-        start_time_ = frame_start_;
-        last_frame_start_ = frame_start_;
-        last_frame_end_ = frame_start_;
-        frame_.dt = 0.0f;
+        first_frame_       = false;
+        start_time_        = frame_start_;
+        last_frame_start_  = frame_start_;
+        last_frame_end_    = frame_start_;
+        frame_.dt          = 0.0f;
         frame_.elapsed_sec = 0.0f;
-        frame_.number = 0;
+        frame_.number      = 0;
         return;
     }
 
     Duration elapsed_since_start = frame_start_ - start_time_;
-    Duration dt_duration = frame_start_ - last_frame_start_;
-    last_frame_start_ = frame_start_;
+    Duration dt_duration         = frame_start_ - last_frame_start_;
+    last_frame_start_            = frame_start_;
 
     float raw_dt = static_cast<float>(dt_duration.count());
 
@@ -109,7 +109,7 @@ void FrameScheduler::end_frame()
                 // Busy wait
                 auto spin_duration = Clock::now() - spin_start;
                 if (spin_duration.count() > 0.01)
-                {  // Log if spinning for more than 10ms
+                {   // Log if spinning for more than 10ms
                     // This could indicate a problem with timing or high CPU load
                     break;
                 }
@@ -123,15 +123,15 @@ void FrameScheduler::end_frame()
 
 void FrameScheduler::reset()
 {
-    first_frame_ = true;
-    frame_ = Frame{};
-    accumulator_ = 0.0f;
-    stats_ = FrameStats{};
-    last_dt_ms_ = 0.0f;
-    max_dt_in_window_ = 0.0f;
-    dt_sum_in_window_ = 0.0;
+    first_frame_       = true;
+    frame_             = Frame{};
+    accumulator_       = 0.0f;
+    stats_             = FrameStats{};
+    last_dt_ms_        = 0.0f;
+    max_dt_in_window_  = 0.0f;
+    dt_sum_in_window_  = 0.0;
     hitches_in_window_ = 0;
-    window_counter_ = 0;
+    window_counter_    = 0;
 }
 
 void FrameScheduler::update_stats(float dt_ms)
@@ -170,7 +170,7 @@ void FrameScheduler::update_stats(float dt_ms)
         std::nth_element(dt_sorted_.begin(), dt_sorted_.begin() + p95_idx, dt_sorted_.begin() + n);
         stats_.p95_frame_time_ms = dt_sorted_[p95_idx];
 
-        stats_.hitch_count = hitches_in_window_;
+        stats_.hitch_count        = hitches_in_window_;
         stats_.window_frame_count = window_counter_;
 
         if (hitches_in_window_ > 0)
@@ -183,11 +183,11 @@ void FrameScheduler::update_stats(float dt_ms)
                                  + " hitches=" + std::to_string(hitches_in_window_));
         }
 
-        max_dt_in_window_ = 0.0f;
-        dt_sum_in_window_ = 0.0;
+        max_dt_in_window_  = 0.0f;
+        dt_sum_in_window_  = 0.0;
         hitches_in_window_ = 0;
-        window_counter_ = 0;
+        window_counter_    = 0;
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

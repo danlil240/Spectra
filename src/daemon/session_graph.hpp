@@ -15,20 +15,20 @@ namespace spectra::daemon
 // Tracks a connected window-agent process.
 struct AgentEntry
 {
-    ipc::WindowId window_id = ipc::INVALID_WINDOW;
-    ipc::ProcessId process_id = 0;
-    int connection_fd = -1;
-    std::vector<uint64_t> assigned_figures;
+    ipc::WindowId                         window_id     = ipc::INVALID_WINDOW;
+    ipc::ProcessId                        process_id    = 0;
+    int                                   connection_fd = -1;
+    std::vector<uint64_t>                 assigned_figures;
     std::chrono::steady_clock::time_point last_heartbeat;
-    bool alive = true;
+    bool                                  alive = true;
 };
 
 // Tracks a figure in the session.
 struct FigureEntry
 {
-    uint64_t figure_id = 0;
+    uint64_t      figure_id       = 0;
     ipc::WindowId assigned_window = ipc::INVALID_WINDOW;
-    std::string title;
+    std::string   title;
 };
 
 // Session graph: the backend daemon's model of the world.
@@ -99,12 +99,12 @@ class SessionGraph
     ipc::SessionId session_id() const { return session_id_; }
 
    private:
-    mutable std::mutex mu_;
-    ipc::SessionId session_id_ = 1;  // single session for now
-    ipc::WindowId next_window_id_ = 1;
-    uint64_t next_figure_id_ = 1;
+    mutable std::mutex                            mu_;
+    ipc::SessionId                                session_id_     = 1;   // single session for now
+    ipc::WindowId                                 next_window_id_ = 1;
+    uint64_t                                      next_figure_id_ = 1;
     std::unordered_map<ipc::WindowId, AgentEntry> agents_;
-    std::unordered_map<uint64_t, FigureEntry> figures_;
+    std::unordered_map<uint64_t, FigureEntry>     figures_;
 };
 
-}  // namespace spectra::daemon
+}   // namespace spectra::daemon

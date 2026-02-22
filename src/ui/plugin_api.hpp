@@ -35,22 +35,22 @@ extern "C"
     // Plugin context passed to plugin_init.
     struct SpectraPluginContext
     {
-        uint32_t api_version_major;
-        uint32_t api_version_minor;
+        uint32_t               api_version_major;
+        uint32_t               api_version_minor;
         SpectraCommandRegistry command_registry;
         SpectraShortcutManager shortcut_manager;
-        SpectraUndoManager undo_manager;
+        SpectraUndoManager     undo_manager;
     };
 
     // Plugin info returned by plugin_init.
     struct SpectraPluginInfo
     {
-        const char* name;            // Human-readable plugin name
-        const char* version;         // Plugin version string
-        const char* author;          // Author name
-        const char* description;     // Short description
-        uint32_t api_version_major;  // API version the plugin was built against
-        uint32_t api_version_minor;
+        const char* name;                // Human-readable plugin name
+        const char* version;             // Plugin version string
+        const char* author;              // Author name
+        const char* description;         // Short description
+        uint32_t    api_version_major;   // API version the plugin was built against
+        uint32_t    api_version_minor;
     };
 
     // C ABI functions for command registration
@@ -58,18 +58,18 @@ extern "C"
 
     struct SpectraCommandDesc
     {
-        const char* id;
-        const char* label;
-        const char* category;
-        const char* shortcut_hint;
+        const char*            id;
+        const char*            label;
+        const char*            category;
+        const char*            shortcut_hint;
         SpectraCommandCallback callback;
-        void* user_data;
+        void*                  user_data;
     };
 
     // Plugin entry point signature.
     // Returns 0 on success, non-zero on failure.
     typedef int (*SpectraPluginInitFn)(const SpectraPluginContext* ctx,
-                                       SpectraPluginInfo* info_out);
+                                       SpectraPluginInfo*          info_out);
 
     // Plugin cleanup signature (optional).
     typedef void (*SpectraPluginShutdownFn)(void);
@@ -87,34 +87,34 @@ extern "C"
 
     // Bind a shortcut via C ABI.
     int spectra_bind_shortcut(SpectraShortcutManager manager,
-                              const char* shortcut_str,
-                              const char* command_id);
+                              const char*            shortcut_str,
+                              const char*            command_id);
 
     // Push an undo action via C ABI.
-    int spectra_push_undo(SpectraUndoManager manager,
-                          const char* description,
+    int spectra_push_undo(SpectraUndoManager     manager,
+                          const char*            description,
                           SpectraCommandCallback undo_fn,
-                          void* undo_data,
+                          void*                  undo_data,
                           SpectraCommandCallback redo_fn,
-                          void* redo_data);
+                          void*                  redo_data);
 
-}  // extern "C"
+}   // extern "C"
 
 // ─── C++ Plugin Manager ──────────────────────────────────────────────────────
 
 // Represents a loaded plugin.
 struct PluginEntry
 {
-    std::string name;
-    std::string version;
-    std::string author;
-    std::string description;
-    std::string path;  // Path to the shared library
-    bool loaded = false;
-    bool enabled = true;
-    void* handle = nullptr;  // dlopen/LoadLibrary handle
-    SpectraPluginShutdownFn shutdown_fn = nullptr;
-    std::vector<std::string> registered_commands;  // Commands registered by this plugin
+    std::string              name;
+    std::string              version;
+    std::string              author;
+    std::string              description;
+    std::string              path;   // Path to the shared library
+    bool                     loaded      = false;
+    bool                     enabled     = true;
+    void*                    handle      = nullptr;   // dlopen/LoadLibrary handle
+    SpectraPluginShutdownFn  shutdown_fn = nullptr;
+    std::vector<std::string> registered_commands;   // Commands registered by this plugin
 };
 
 // Manages plugin lifecycle: discovery, loading, unloading.
@@ -125,7 +125,7 @@ class PluginManager
     PluginManager() = default;
     ~PluginManager();
 
-    PluginManager(const PluginManager&) = delete;
+    PluginManager(const PluginManager&)            = delete;
     PluginManager& operator=(const PluginManager&) = delete;
 
     // Set the host services that plugins can access.
@@ -168,13 +168,13 @@ class PluginManager
     bool deserialize_state(const std::string& json);
 
    private:
-    CommandRegistry* registry_ = nullptr;
-    ShortcutManager* shortcut_mgr_ = nullptr;
-    UndoManager* undo_mgr_ = nullptr;
-    mutable std::mutex mutex_;
+    CommandRegistry*         registry_     = nullptr;
+    ShortcutManager*         shortcut_mgr_ = nullptr;
+    UndoManager*             undo_mgr_     = nullptr;
+    mutable std::mutex       mutex_;
     std::vector<PluginEntry> plugins_;
 
     SpectraPluginContext make_context() const;
 };
 
-}  // namespace spectra
+}   // namespace spectra

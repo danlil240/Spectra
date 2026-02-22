@@ -30,12 +30,12 @@ Vec2 data_to_ndc(float data_x, float data_y, float x_min, float x_max, float y_m
 Vec2 ndc_to_screen(float ndc_x, float ndc_y, const Rect& viewport);
 
 // Convenience: data → screen in one step.
-Vec2 data_to_screen(float data_x,
-                    float data_y,
-                    float x_min,
-                    float x_max,
-                    float y_min,
-                    float y_max,
+Vec2 data_to_screen(float       data_x,
+                    float       data_y,
+                    float       x_min,
+                    float       x_max,
+                    float       y_min,
+                    float       y_max,
                     const Rect& viewport);
 
-}  // namespace spectra
+}   // namespace spectra

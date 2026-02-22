@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <functional>
 #include <spectra/fwd.hpp>
-#include <spectra/series.hpp>  // For Rect
+#include <spectra/series.hpp>   // For Rect
 #include <string>
 #include <vector>
 
@@ -21,14 +21,14 @@ enum class DropZone
     Right,
     Top,
     Bottom,
-    Center  // Tab into existing pane (no split)
+    Center   // Tab into existing pane (no split)
 };
 
 struct DropTarget
 {
-    DropZone zone = DropZone::None;
+    DropZone   zone        = DropZone::None;
     SplitPane* target_pane = nullptr;
-    Rect highlight_rect{};  // Visual indicator rect
+    Rect       highlight_rect{};   // Visual indicator rect
 };
 
 // ─── DockSystem ──────────────────────────────────────────────────────────────
@@ -51,12 +51,12 @@ class DockSystem
     ~DockSystem() = default;
 
     // Non-copyable
-    DockSystem(const DockSystem&) = delete;
+    DockSystem(const DockSystem&)            = delete;
     DockSystem& operator=(const DockSystem&) = delete;
 
     // ── Split view access ───────────────────────────────────────────────
 
-    SplitViewManager& split_view() { return split_view_; }
+    SplitViewManager&       split_view() { return split_view_; }
     const SplitViewManager& split_view() const { return split_view_; }
 
     // ── Convenience split operations ────────────────────────────────────
@@ -91,8 +91,8 @@ class DockSystem
     // Cancel drag without docking
     void cancel_drag();
 
-    bool is_dragging() const { return is_dragging_; }
-    FigureId dragging_figure() const { return dragging_figure_index_; }
+    bool       is_dragging() const { return is_dragging_; }
+    FigureId   dragging_figure() const { return dragging_figure_index_; }
     DropTarget current_drop_target() const { return current_drop_target_; }
 
     // ── Layout ──────────────────────────────────────────────────────────
@@ -103,9 +103,9 @@ class DockSystem
     // Get all leaf pane rects for rendering
     struct PaneInfo
     {
-        FigureId figure_index;
-        Rect bounds;
-        bool is_active;
+        FigureId          figure_index;
+        Rect              bounds;
+        bool              is_active;
         SplitPane::PaneId pane_id;
     };
     std::vector<PaneInfo> get_pane_infos() const;
@@ -127,7 +127,7 @@ class DockSystem
     // ── Active pane ─────────────────────────────────────────────────────
 
     FigureId active_figure_index() const { return split_view_.active_figure_index(); }
-    void set_active_figure_index(FigureId idx) { split_view_.set_active_figure_index(idx); }
+    void     set_active_figure_index(FigureId idx) { split_view_.set_active_figure_index(idx); }
 
     // Click in a pane to activate it
     void activate_pane_at(float x, float y);
@@ -140,13 +140,13 @@ class DockSystem
 
     // ── State queries ───────────────────────────────────────────────────
 
-    bool is_split() const { return split_view_.is_split(); }
+    bool   is_split() const { return split_view_.is_split(); }
     size_t pane_count() const { return split_view_.pane_count(); }
 
     // ── Serialization ───────────────────────────────────────────────────
 
     std::string serialize() const;
-    bool deserialize(const std::string& data);
+    bool        deserialize(const std::string& data);
 
     // ── Callbacks ───────────────────────────────────────────────────────
 
@@ -156,10 +156,10 @@ class DockSystem
     SplitViewManager split_view_;
 
     // Drag-to-dock state
-    bool is_dragging_ = false;
-    FigureId dragging_figure_index_ = 0;
-    float drag_mouse_x_ = 0.0f;
-    float drag_mouse_y_ = 0.0f;
+    bool       is_dragging_           = false;
+    FigureId   dragging_figure_index_ = 0;
+    float      drag_mouse_x_          = 0.0f;
+    float      drag_mouse_y_          = 0.0f;
     DropTarget current_drop_target_;
 
     // Callbacks
@@ -167,11 +167,11 @@ class DockSystem
 
     // Internal helpers
     DropTarget compute_drop_target(float x, float y) const;
-    Rect compute_drop_highlight(const SplitPane* pane, DropZone zone) const;
+    Rect       compute_drop_highlight(const SplitPane* pane, DropZone zone) const;
 
     // Drop zone detection constants
-    static constexpr float DROP_ZONE_FRACTION = 0.25f;  // Edge fraction for drop zones
-    static constexpr float DROP_ZONE_MIN_SIZE = 40.0f;  // Minimum drop zone size in pixels
+    static constexpr float DROP_ZONE_FRACTION = 0.25f;   // Edge fraction for drop zones
+    static constexpr float DROP_ZONE_MIN_SIZE = 40.0f;   // Minimum drop zone size in pixels
 };
 
-}  // namespace spectra
+}   // namespace spectra

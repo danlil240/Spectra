@@ -28,10 +28,10 @@ std::vector<float> moving_average(std::span<const float> values, std::size_t win
 
     for (std::size_t i = 0; i < n; ++i)
     {
-        const std::size_t lo = (i >= half) ? (i - half) : 0;
-        const std::size_t hi = std::min(i + half, n - 1);
-        const auto count = static_cast<double>(hi - lo + 1);
-        out[i] = static_cast<float>((prefix[hi + 1] - prefix[lo]) / count);
+        const std::size_t lo    = (i >= half) ? (i - half) : 0;
+        const std::size_t hi    = std::min(i + half, n - 1);
+        const auto        count = static_cast<double>(hi - lo + 1);
+        out[i]                  = static_cast<float>((prefix[hi + 1] - prefix[lo]) / count);
     }
 
     return out;
@@ -69,14 +69,14 @@ std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, s
         radius = static_cast<std::size_t>(std::ceil(3.0f * sigma));
 
     // Build kernel
-    const std::size_t kernel_size = 2 * radius + 1;
+    const std::size_t  kernel_size = 2 * radius + 1;
     std::vector<float> kernel(kernel_size);
-    const float inv_2sigma2 = 1.0f / (2.0f * sigma * sigma);
-    float sum = 0.0f;
+    const float        inv_2sigma2 = 1.0f / (2.0f * sigma * sigma);
+    float              sum         = 0.0f;
     for (std::size_t k = 0; k < kernel_size; ++k)
     {
         const auto d = static_cast<float>(static_cast<int>(k) - static_cast<int>(radius));
-        kernel[k] = std::exp(-d * d * inv_2sigma2);
+        kernel[k]    = std::exp(-d * d * inv_2sigma2);
         sum += kernel[k];
     }
     // Normalize
@@ -87,7 +87,7 @@ std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, s
     std::vector<float> out(n);
     for (std::size_t i = 0; i < n; ++i)
     {
-        float acc = 0.0f;
+        float acc   = 0.0f;
         float w_sum = 0.0f;
         for (std::size_t k = 0; k < kernel_size; ++k)
         {
@@ -105,4 +105,4 @@ std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, s
     return out;
 }
 
-}  // namespace spectra::data
+}   // namespace spectra::data

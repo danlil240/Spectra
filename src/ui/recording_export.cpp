@@ -41,9 +41,9 @@ namespace spectra
 
 static float get_wall_time()
 {
-    using Clock = std::chrono::steady_clock;
+    using Clock       = std::chrono::steady_clock;
     static auto start = Clock::now();
-    auto now = Clock::now();
+    auto        now   = Clock::now();
     return std::chrono::duration<float>(now - start).count();
 }
 
@@ -82,10 +82,10 @@ bool RecordingSession::begin(const RecordingConfig& config, FrameRenderCallback 
         return false;
     }
 
-    config_ = config;
+    config_    = config;
     render_cb_ = std::move(render_cb);
     error_.clear();
-    current_frame_ = 0;
+    current_frame_   = 0;
     start_wall_time_ = get_wall_time();
 
     if (!render_cb_)
@@ -115,7 +115,7 @@ bool RecordingSession::begin(const RecordingConfig& config, FrameRenderCallback 
 
     // Compute digit count for PNG filenames
     png_frame_digits_ = 1;
-    uint32_t n = total_frames_;
+    uint32_t n        = total_frames_;
     while (n >= 10)
     {
         n /= 10;
@@ -149,11 +149,11 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
         return false;
     }
 
-    config_ = config;
+    config_         = config;
     pane_render_cb_ = std::move(pane_cb);
-    multi_pane_ = true;
+    multi_pane_     = true;
     error_.clear();
-    current_frame_ = 0;
+    current_frame_   = 0;
     start_wall_time_ = get_wall_time();
 
     if (!pane_render_cb_)
@@ -178,8 +178,8 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
         uint32_t cols =
             static_cast<uint32_t>(std::ceil(std::sqrt(static_cast<float>(config_.pane_count))));
         uint32_t rows = (config_.pane_count + cols - 1) / cols;
-        float pw = 1.0f / static_cast<float>(cols);
-        float ph = 1.0f / static_cast<float>(rows);
+        float    pw   = 1.0f / static_cast<float>(cols);
+        float    ph   = 1.0f / static_cast<float>(rows);
         for (uint32_t i = 0; i < config_.pane_count; ++i)
         {
             RecordingConfig::PaneRect r;
@@ -196,18 +196,20 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
     }
 
     // Create a wrapper FrameRenderCallback that composites panes
-    render_cb_ =
-        [this](
-            uint32_t frame_index, float time, uint8_t* rgba_buffer, uint32_t w, uint32_t h) -> bool
+    render_cb_ = [this](uint32_t frame_index,
+                        float    time,
+                        uint8_t* rgba_buffer,
+                        uint32_t w,
+                        uint32_t h) -> bool
     {
         // Clear the composite buffer
         std::memset(rgba_buffer, 0, static_cast<size_t>(w) * h * 4);
 
         for (uint32_t pi = 0; pi < config_.pane_count; ++pi)
         {
-            const auto& rect = resolved_pane_rects_[pi];
-            uint32_t pane_w = static_cast<uint32_t>(rect.w * static_cast<float>(w));
-            uint32_t pane_h = static_cast<uint32_t>(rect.h * static_cast<float>(h));
+            const auto& rect   = resolved_pane_rects_[pi];
+            uint32_t    pane_w = static_cast<uint32_t>(rect.w * static_cast<float>(w));
+            uint32_t    pane_h = static_cast<uint32_t>(rect.h * static_cast<float>(h));
             if (pane_w == 0 || pane_h == 0)
                 continue;
 
@@ -231,7 +233,7 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
             {
                 uint32_t src_offset = row * pane_w * 4;
                 uint32_t dst_offset = ((dst_y + row) * w + dst_x) * 4;
-                uint32_t copy_w = std::min(pane_w, w - dst_x);
+                uint32_t copy_w     = std::min(pane_w, w - dst_x);
                 std::memcpy(rgba_buffer + dst_offset,
                             pane_buffer_.data() + src_offset,
                             static_cast<size_t>(copy_w) * 4);
@@ -259,7 +261,7 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
         total_frames_ = 1;
 
     png_frame_digits_ = 1;
-    uint32_t n = total_frames_;
+    uint32_t n        = total_frames_;
     while (n >= 10)
     {
         n /= 10;
@@ -457,10 +459,10 @@ const RecordingConfig& RecordingSession::config() const
 
 RecordingProgress RecordingSession::progress() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard   lock(mutex_);
     RecordingProgress p;
     p.current_frame = current_frame_;
-    p.total_frames = total_frames_;
+    p.total_frames  = total_frames_;
     p.percent =
         total_frames_ > 0
             ? (static_cast<float>(current_frame_) / static_cast<float>(total_frames_)) * 100.0f
@@ -468,7 +470,7 @@ RecordingProgress RecordingSession::progress() const
     p.elapsed_sec = get_wall_time() - start_wall_time_;
     if (current_frame_ > 0 && current_frame_ < total_frames_)
     {
-        float per_frame = p.elapsed_sec / static_cast<float>(current_frame_);
+        float per_frame           = p.elapsed_sec / static_cast<float>(current_frame_);
         p.estimated_remaining_sec = per_frame * static_cast<float>(total_frames_ - current_frame_);
     }
     p.cancelled = (state_ == RecordingState::Cancelled);
@@ -520,8 +522,8 @@ void RecordingSession::set_on_complete(std::function<void(bool)> cb)
 // ─── GIF utilities (static) ──────────────────────────────────────────────────
 
 std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
-                                                size_t pixel_count,
-                                                uint32_t max_colors)
+                                                size_t         pixel_count,
+                                                uint32_t       max_colors)
 {
     if (pixel_count == 0 || max_colors == 0)
         return {};
@@ -529,7 +531,7 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
     struct ColorBox
     {
         std::vector<uint32_t> indices;
-        uint8_t r_min, r_max, g_min, g_max, b_min, b_max;
+        uint8_t               r_min, r_max, g_min, g_max, b_min, b_max;
 
         void compute_bounds(const uint8_t* data)
         {
@@ -540,12 +542,12 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
                 uint8_t r = data[idx * 4 + 0];
                 uint8_t g = data[idx * 4 + 1];
                 uint8_t b = data[idx * 4 + 2];
-                r_min = std::min(r_min, r);
-                r_max = std::max(r_max, r);
-                g_min = std::min(g_min, g);
-                g_max = std::max(g_max, g);
-                b_min = std::min(b_min, b);
-                b_max = std::max(b_max, b);
+                r_min     = std::min(r_min, r);
+                r_max     = std::max(r_max, r);
+                g_min     = std::min(g_min, g);
+                g_max     = std::max(g_max, g);
+                b_min     = std::min(b_min, b);
+                b_max     = std::max(b_max, b);
             }
         }
 
@@ -593,7 +595,7 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
     while (boxes.size() < max_colors)
     {
         // Find box with most pixels (and non-trivial range)
-        size_t best = 0;
+        size_t best      = 0;
         size_t best_size = 0;
         for (size_t i = 0; i < boxes.size(); ++i)
         {
@@ -601,14 +603,14 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
                 && (boxes[i].r_max > boxes[i].r_min || boxes[i].g_max > boxes[i].g_min
                     || boxes[i].b_max > boxes[i].b_min))
             {
-                best = i;
+                best      = i;
                 best_size = boxes[i].indices.size();
             }
         }
         if (best_size <= 1)
             break;
 
-        auto& box = boxes[best];
+        auto&   box  = boxes[best];
         uint8_t axis = box.longest_axis();
 
         // Sort by the longest axis
@@ -618,7 +620,7 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
                   { return rgba[a * 4 + axis] < rgba[b * 4 + axis]; });
 
         // Split at median
-        size_t mid = box.indices.size() / 2;
+        size_t   mid = box.indices.size() / 2;
         ColorBox box2;
         box2.indices.assign(box.indices.begin() + static_cast<ptrdiff_t>(mid), box.indices.end());
         box.indices.resize(mid);
@@ -640,9 +642,9 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
 }
 
 uint8_t RecordingSession::nearest_palette_index(const std::vector<Color>& palette,
-                                                uint8_t r,
-                                                uint8_t g,
-                                                uint8_t b)
+                                                uint8_t                   r,
+                                                uint8_t                   g,
+                                                uint8_t                   b)
 {
     if (palette.empty())
         return 0;
@@ -651,27 +653,27 @@ uint8_t RecordingSession::nearest_palette_index(const std::vector<Color>& palett
     float fg = static_cast<float>(g) / 255.0f;
     float fb = static_cast<float>(b) / 255.0f;
 
-    uint8_t best = 0;
-    float best_dist = 1e30f;
+    uint8_t best      = 0;
+    float   best_dist = 1e30f;
     for (size_t i = 0; i < palette.size(); ++i)
     {
-        float dr = fr - palette[i].r;
-        float dg = fg - palette[i].g;
-        float db = fb - palette[i].b;
+        float dr   = fr - palette[i].r;
+        float dg   = fg - palette[i].g;
+        float db   = fb - palette[i].b;
         float dist = dr * dr + dg * dg + db * db;
         if (dist < best_dist)
         {
             best_dist = dist;
-            best = static_cast<uint8_t>(i);
+            best      = static_cast<uint8_t>(i);
         }
     }
     return best;
 }
 
-void RecordingSession::quantize_frame(const uint8_t* rgba,
-                                      uint32_t width,
-                                      uint32_t height,
-                                      uint32_t max_colors,
+void RecordingSession::quantize_frame(const uint8_t*        rgba,
+                                      uint32_t              width,
+                                      uint32_t              height,
+                                      uint32_t              max_colors,
                                       std::vector<uint8_t>& palette_out,
                                       std::vector<uint8_t>& indexed_out)
 {
@@ -679,8 +681,8 @@ void RecordingSession::quantize_frame(const uint8_t* rgba,
 
     // Subsample for palette computation (max 10000 pixels)
     std::vector<uint8_t> sample_rgba;
-    const uint8_t* palette_src = rgba;
-    size_t palette_pixel_count = pixel_count;
+    const uint8_t*       palette_src         = rgba;
+    size_t               palette_pixel_count = pixel_count;
 
     if (pixel_count > 10000)
     {
@@ -693,7 +695,7 @@ void RecordingSession::quantize_frame(const uint8_t* rgba,
             sample_rgba.push_back(rgba[i * 4 + 2]);
             sample_rgba.push_back(rgba[i * 4 + 3]);
         }
-        palette_src = sample_rgba.data();
+        palette_src         = sample_rgba.data();
         palette_pixel_count = sample_rgba.size() / 4;
     }
 
@@ -818,7 +820,7 @@ bool RecordingSession::write_png_frame()
     int result = stbi_write_png(filename.str().c_str(),
                                 static_cast<int>(config_.width),
                                 static_cast<int>(config_.height),
-                                4,  // RGBA
+                                4,   // RGBA
                                 frame_buffer_.data(),
                                 static_cast<int>(config_.width * 4));
 
@@ -853,8 +855,8 @@ bool RecordingSession::accumulate_gif_frame()
     }
 
     // Quantize this frame using the global palette
-    size_t pixel_count = static_cast<size_t>(config_.width) * config_.height;
-    auto palette_colors = median_cut(frame_buffer_.data(), pixel_count, config_.gif_palette_size);
+    size_t pixel_count    = static_cast<size_t>(config_.width) * config_.height;
+    auto   palette_colors = median_cut(frame_buffer_.data(), pixel_count, config_.gif_palette_size);
 
     std::vector<uint8_t> indexed(pixel_count);
     for (size_t i = 0; i < pixel_count; ++i)
@@ -886,9 +888,9 @@ bool RecordingSession::write_gif()
         return false;
     }
 
-    uint16_t w = static_cast<uint16_t>(config_.width);
-    uint16_t h = static_cast<uint16_t>(config_.height);
-    size_t palette_count = gif_state_->global_palette.size() / 3;
+    uint16_t w             = static_cast<uint16_t>(config_.width);
+    uint16_t h             = static_cast<uint16_t>(config_.height);
+    size_t   palette_count = gif_state_->global_palette.size() / 3;
     if (palette_count == 0)
         palette_count = 1;
 
@@ -908,7 +910,7 @@ bool RecordingSession::write_gif()
     // Logical Screen Descriptor
     std::fwrite(&w, 2, 1, fp);
     std::fwrite(&h, 2, 1, fp);
-    uint8_t packed = 0x80 | ((color_table_bits - 1) & 0x07);  // Global color table flag + size
+    uint8_t packed = 0x80 | ((color_table_bits - 1) & 0x07);   // Global color table flag + size
     std::fwrite(&packed, 1, 1, fp);
     uint8_t bg_index = 0;
     std::fwrite(&bg_index, 1, 1, fp);
@@ -917,7 +919,7 @@ bool RecordingSession::write_gif()
 
     // Global Color Table
     std::vector<uint8_t> gct(color_table_size * 3, 0);
-    size_t copy_bytes =
+    size_t               copy_bytes =
         std::min(gif_state_->global_palette.size(), static_cast<size_t>(color_table_size * 3));
     std::memcpy(gct.data(), gif_state_->global_palette.data(), copy_bytes);
     std::fwrite(gct.data(), 1, gct.size(), fp);
@@ -942,8 +944,8 @@ bool RecordingSession::write_gif()
             0x03,
             0x01,
             0x00,
-            0x00,  // Loop count (0 = infinite)
-            0x00   // Block terminator
+            0x00,   // Loop count (0 = infinite)
+            0x00    // Block terminator
         };
         std::fwrite(ext, 1, sizeof(ext), fp);
     }
@@ -951,7 +953,7 @@ bool RecordingSession::write_gif()
     // Frame delay in centiseconds
     uint16_t delay_cs = static_cast<uint16_t>(std::round(100.0f / config_.fps));
     if (delay_cs < 2)
-        delay_cs = 2;  // Minimum GIF delay
+        delay_cs = 2;   // Minimum GIF delay
 
     int min_code_size = color_table_bits;
     if (min_code_size < 2)
@@ -966,11 +968,11 @@ bool RecordingSession::write_gif()
             0x21,
             0xF9,
             0x04,
-            0x00,  // Disposal method: none
+            0x00,   // Disposal method: none
             static_cast<uint8_t>(delay_cs & 0xFF),
             static_cast<uint8_t>((delay_cs >> 8) & 0xFF),
-            0x00,  // Transparent color index (unused)
-            0x00   // Block terminator
+            0x00,   // Transparent color index (unused)
+            0x00    // Block terminator
         };
         std::fwrite(gce, 1, sizeof(gce), fp);
 
@@ -982,7 +984,7 @@ bool RecordingSession::write_gif()
         std::fwrite(&top, 2, 1, fp);
         std::fwrite(&w, 2, 1, fp);
         std::fwrite(&h, 2, 1, fp);
-        uint8_t img_packed = 0x00;  // No local color table
+        uint8_t img_packed = 0x00;   // No local color table
         std::fwrite(&img_packed, 1, 1, fp);
 
         // LZW Minimum Code Size
@@ -993,14 +995,14 @@ bool RecordingSession::write_gif()
         // For simplicity, we use a basic approach that outputs clear codes
         // frequently to avoid building a large dictionary.
         int clear_code = 1 << min_code_size;
-        int eoi_code = clear_code + 1;
-        int code_size = min_code_size + 1;
+        int eoi_code   = clear_code + 1;
+        int code_size  = min_code_size + 1;
 
         // Bit packing state
         std::vector<uint8_t> sub_block;
         sub_block.reserve(256);
         uint32_t bit_buffer = 0;
-        int bit_count = 0;
+        int      bit_count  = 0;
 
         auto emit_code = [&](int code)
         {
@@ -1027,7 +1029,7 @@ bool RecordingSession::write_gif()
             {
                 sub_block.push_back(static_cast<uint8_t>(bit_buffer & 0xFF));
                 bit_buffer = 0;
-                bit_count = 0;
+                bit_count  = 0;
             }
             if (!sub_block.empty())
             {
@@ -1043,7 +1045,7 @@ bool RecordingSession::write_gif()
 
         // Emit each pixel as a literal code, resetting dictionary frequently
         int next_code = eoi_code + 1;
-        int max_code = (1 << code_size) - 1;
+        int max_code  = (1 << code_size) - 1;
 
         for (size_t pi = 0; pi < indexed.size(); ++pi)
         {
@@ -1062,7 +1064,7 @@ bool RecordingSession::write_gif()
                     emit_code(clear_code);
                     code_size = min_code_size + 1;
                     next_code = eoi_code + 1;
-                    max_code = (1 << code_size) - 1;
+                    max_code  = (1 << code_size) - 1;
                 }
             }
         }
@@ -1096,7 +1098,7 @@ bool RecordingSession::write_mp4_frame()
     }
 
     size_t frame_bytes = static_cast<size_t>(config_.width) * config_.height * 4;
-    size_t written = std::fwrite(frame_buffer_.data(), 1, frame_bytes, ffmpeg_pipe_);
+    size_t written     = std::fwrite(frame_buffer_.data(), 1, frame_bytes, ffmpeg_pipe_);
     if (written != frame_bytes)
     {
         set_error("Failed to write frame to ffmpeg pipe");
@@ -1115,7 +1117,7 @@ bool RecordingSession::finalize_mp4()
 #ifdef SPECTRA_USE_FFMPEG
     if (ffmpeg_pipe_)
     {
-        int result = pclose(ffmpeg_pipe_);
+        int result   = pclose(ffmpeg_pipe_);
         ffmpeg_pipe_ = nullptr;
         if (result != 0)
         {
@@ -1136,7 +1138,7 @@ void RecordingSession::update_progress()
     {
         RecordingProgress p;
         p.current_frame = current_frame_;
-        p.total_frames = total_frames_;
+        p.total_frames  = total_frames_;
         p.percent =
             total_frames_ > 0
                 ? (static_cast<float>(current_frame_) / static_cast<float>(total_frames_)) * 100.0f
@@ -1164,4 +1166,4 @@ float RecordingSession::wall_time() const
     return get_wall_time();
 }
 
-}  // namespace spectra
+}   // namespace spectra

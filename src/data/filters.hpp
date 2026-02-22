@@ -12,7 +12,7 @@ namespace spectra::data
 /// (centered window).  Output has the same length as input.
 /// Edge samples use a smaller, asymmetric window (no padding).
 [[nodiscard]] std::vector<float> moving_average(std::span<const float> values,
-                                                std::size_t window_size);
+                                                std::size_t            window_size);
 
 /// Exponential moving average (EMA) filter.
 /// alpha ∈ (0, 1] controls smoothing: higher alpha = less smoothing.
@@ -24,7 +24,7 @@ namespace spectra::data
 /// `radius` is the half-width of the kernel window (kernel size = 2*radius + 1).
 /// If radius == 0, it is automatically set to ceil(3 * sigma).
 [[nodiscard]] std::vector<float> gaussian_smooth(std::span<const float> values,
-                                                 float sigma,
-                                                 std::size_t radius = 0);
+                                                 float                  sigma,
+                                                 std::size_t            radius = 0);
 
-}  // namespace spectra::data
+}   // namespace spectra::data

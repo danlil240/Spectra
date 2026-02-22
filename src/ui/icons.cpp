@@ -35,7 +35,7 @@ std::string codepoint_to_utf8(uint32_t cp)
     return s;
 }
 
-}  // namespace
+}   // namespace
 
 IconFont& IconFont::instance()
 {
@@ -71,7 +71,7 @@ bool IconFont::initialize()
             else if (sz >= 19.5f && sz <= 20.5f)
                 font_20_ = font;
             else if (sz >= 17.5f && sz <= 18.5f)
-                font_24_ = font;  // use 18px as closest to 24
+                font_24_ = font;   // use 18px as closest to 24
         }
         // font_32_ falls back to the largest available
         if (atlas->Fonts.Size > 0)
@@ -188,10 +188,10 @@ void IconFont::build_icon_map()
     // Build the map for every icon from 0xE001 to 0xE062.
     for (uint32_t cp = 0xE001; cp <= 0xE062; ++cp)
     {
-        Icon icon = static_cast<Icon>(cp);
-        icon_map_[icon] = cp;
+        Icon icon              = static_cast<Icon>(cp);
+        icon_map_[icon]        = cp;
         codepoint_strings_[cp] = codepoint_to_utf8(cp);
     }
 }
 
-}  // namespace spectra::ui
+}   // namespace spectra::ui

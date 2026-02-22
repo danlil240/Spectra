@@ -21,7 +21,7 @@ App::App(const AppConfig& config) : config_(config)
     // Initialize logger for debugging
     // Set to Trace for maximum debugging, Debug for normal debugging, Info for production
     auto& logger = spectra::Logger::instance();
-    logger.set_level(spectra::LogLevel::Debug);  // Change to Trace to see all frame-by-frame logs
+    logger.set_level(spectra::LogLevel::Debug);   // Change to Trace to see all frame-by-frame logs
 
     // Add console sink with timestamps
     logger.add_sink(spectra::sinks::console_sink());
@@ -46,7 +46,7 @@ App::App(const AppConfig& config) : config_(config)
     if (!multiproc)
     {
         const char* env = std::getenv("SPECTRA_SOCKET");
-        multiproc = (env && env[0] != '\0');
+        multiproc       = (env && env[0] != '\0');
     }
     SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
@@ -88,8 +88,8 @@ Figure& App::figure(const FigureConfig& config)
 Figure& App::figure(Figure& sibling)
 {
     FigureConfig cfg;
-    cfg.width = sibling.width();
-    cfg.height = sibling.height();
+    cfg.width   = sibling.width();
+    cfg.height  = sibling.height();
     auto new_id = registry_.register_figure(std::make_unique<Figure>(cfg));
 
     // Record that the new figure should be a tab in the sibling's window
@@ -115,12 +115,12 @@ std::vector<std::vector<FigureId>> App::compute_window_groups() const
     }
 
     // Group by root, preserving insertion order
-    std::vector<std::vector<FigureId>> groups;
+    std::vector<std::vector<FigureId>>   groups;
     std::unordered_map<FigureId, size_t> root_to_group;
     for (auto id : all_ids)
     {
         FigureId root = root_map[id];
-        auto it = root_to_group.find(root);
+        auto     it   = root_to_group.find(root);
         if (it == root_to_group.end())
         {
             root_to_group[root] = groups.size();
@@ -140,7 +140,7 @@ void App::run()
     if (!multiproc)
     {
         const char* env = std::getenv("SPECTRA_SOCKET");
-        multiproc = (env && env[0] != '\0');
+        multiproc       = (env && env[0] != '\0');
     }
 
     if (multiproc)
@@ -149,4 +149,4 @@ void App::run()
         run_inproc();
 }
 
-}  // namespace spectra
+}   // namespace spectra

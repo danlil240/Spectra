@@ -8,14 +8,14 @@ namespace spectra::daemon
 ipc::WindowId SessionGraph::add_agent(ipc::ProcessId pid, int connection_fd)
 {
     std::lock_guard lock(mu_);
-    ipc::WindowId wid = next_window_id_++;
-    AgentEntry entry;
-    entry.window_id = wid;
-    entry.process_id = pid;
-    entry.connection_fd = connection_fd;
+    ipc::WindowId   wid = next_window_id_++;
+    AgentEntry      entry;
+    entry.window_id      = wid;
+    entry.process_id     = pid;
+    entry.connection_fd  = connection_fd;
     entry.last_heartbeat = std::chrono::steady_clock::now();
-    entry.alive = true;
-    agents_[wid] = std::move(entry);
+    entry.alive          = true;
+    agents_[wid]         = std::move(entry);
     return wid;
 }
 
@@ -26,7 +26,7 @@ ipc::WindowId SessionGraph::claim_pending_agent(int connection_fd)
     {
         if (agent.connection_fd == -1)
         {
-            agent.connection_fd = connection_fd;
+            agent.connection_fd  = connection_fd;
             agent.last_heartbeat = std::chrono::steady_clock::now();
             return wid;
         }
@@ -37,7 +37,7 @@ ipc::WindowId SessionGraph::claim_pending_agent(int connection_fd)
 std::vector<uint64_t> SessionGraph::remove_agent(ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
-    auto it = agents_.find(wid);
+    auto            it = agents_.find(wid);
     if (it == agents_.end())
         return {};
 
@@ -58,15 +58,15 @@ std::vector<uint64_t> SessionGraph::remove_agent(ipc::WindowId wid)
 void SessionGraph::heartbeat(ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
-    auto it = agents_.find(wid);
+    auto            it = agents_.find(wid);
     if (it != agents_.end())
         it->second.last_heartbeat = std::chrono::steady_clock::now();
 }
 
 std::vector<ipc::WindowId> SessionGraph::stale_agents(std::chrono::milliseconds timeout) const
 {
-    std::lock_guard lock(mu_);
-    auto now = std::chrono::steady_clock::now();
+    std::lock_guard            lock(mu_);
+    auto                       now = std::chrono::steady_clock::now();
     std::vector<ipc::WindowId> result;
     for (auto& [wid, agent] : agents_)
     {
@@ -79,20 +79,20 @@ std::vector<ipc::WindowId> SessionGraph::stale_agents(std::chrono::milliseconds 
 uint64_t SessionGraph::add_figure(const std::string& title)
 {
     std::lock_guard lock(mu_);
-    uint64_t id = next_figure_id_++;
-    FigureEntry entry;
+    uint64_t        id = next_figure_id_++;
+    FigureEntry     entry;
     entry.figure_id = id;
-    entry.title = title;
-    figures_[id] = std::move(entry);
+    entry.title     = title;
+    figures_[id]    = std::move(entry);
     return id;
 }
 
 void SessionGraph::register_figure(uint64_t figure_id, const std::string& title)
 {
     std::lock_guard lock(mu_);
-    FigureEntry entry;
-    entry.figure_id = figure_id;
-    entry.title = title;
+    FigureEntry     entry;
+    entry.figure_id     = figure_id;
+    entry.title         = title;
     figures_[figure_id] = std::move(entry);
     // Keep next_figure_id_ above any registered ID to avoid collisions
     if (figure_id >= next_figure_id_)
@@ -102,7 +102,7 @@ void SessionGraph::register_figure(uint64_t figure_id, const std::string& title)
 bool SessionGraph::assign_figure(uint64_t figure_id, ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
-    auto fit = figures_.find(figure_id);
+    auto            fit = figures_.find(figure_id);
     if (fit == figures_.end())
         return false;
 
@@ -123,7 +123,7 @@ bool SessionGraph::assign_figure(uint64_t figure_id, ipc::WindowId wid)
     }
 
     fit->second.assigned_window = wid;
-    auto& af = ait->second.assigned_figures;
+    auto& af                    = ait->second.assigned_figures;
     if (std::find(af.begin(), af.end(), figure_id) == af.end())
         af.push_back(figure_id);
 
@@ -133,7 +133,7 @@ bool SessionGraph::assign_figure(uint64_t figure_id, ipc::WindowId wid)
 bool SessionGraph::unassign_figure(uint64_t figure_id, ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
-    auto fit = figures_.find(figure_id);
+    auto            fit = figures_.find(figure_id);
     if (fit == figures_.end())
         return false;
 
@@ -156,7 +156,7 @@ bool SessionGraph::unassign_figure(uint64_t figure_id, ipc::WindowId wid)
 void SessionGraph::remove_figure(uint64_t figure_id)
 {
     std::lock_guard lock(mu_);
-    auto fit = figures_.find(figure_id);
+    auto            fit = figures_.find(figure_id);
     if (fit == figures_.end())
         return;
 
@@ -178,7 +178,7 @@ void SessionGraph::remove_figure(uint64_t figure_id)
 std::vector<uint64_t> SessionGraph::figures_for_window(ipc::WindowId wid) const
 {
     std::lock_guard lock(mu_);
-    auto it = agents_.find(wid);
+    auto            it = agents_.find(wid);
     if (it == agents_.end())
         return {};
     return it->second.assigned_figures;
@@ -205,7 +205,7 @@ bool SessionGraph::is_empty() const
 const AgentEntry* SessionGraph::agent(ipc::WindowId wid) const
 {
     std::lock_guard lock(mu_);
-    auto it = agents_.find(wid);
+    auto            it = agents_.find(wid);
     if (it == agents_.end())
         return nullptr;
     return &it->second;
@@ -213,7 +213,7 @@ const AgentEntry* SessionGraph::agent(ipc::WindowId wid) const
 
 std::vector<ipc::WindowId> SessionGraph::all_window_ids() const
 {
-    std::lock_guard lock(mu_);
+    std::lock_guard            lock(mu_);
     std::vector<ipc::WindowId> result;
     result.reserve(agents_.size());
     for (auto& [wid, _] : agents_)
@@ -221,4 +221,4 @@ std::vector<ipc::WindowId> SessionGraph::all_window_ids() const
     return result;
 }
 
-}  // namespace spectra::daemon
+}   // namespace spectra::daemon

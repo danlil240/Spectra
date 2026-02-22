@@ -8,7 +8,7 @@
 
 #include "design_tokens.hpp"
 
-struct ImVec4;  // Forward declaration for ImGui
+struct ImVec4;   // Forward declaration for ImGui
 
 namespace spectra::ui
 {
@@ -78,10 +78,10 @@ struct Color
     // WCAG 2.1 contrast ratio (1:1 to 21:1)
     constexpr float contrast_ratio(const Color& other) const
     {
-        float l1 = luminance();
-        float l2 = other.luminance();
+        float l1      = luminance();
+        float l2      = other.luminance();
         float lighter = (l1 > l2) ? l1 : l2;
-        float darker = (l1 > l2) ? l2 : l1;
+        float darker  = (l1 > l2) ? l2 : l1;
         return (lighter + 0.05f) / (darker + 0.05f);
     }
 
@@ -110,7 +110,7 @@ struct Color
     {
         float max_c = (r > g) ? ((r > b) ? r : b) : ((g > b) ? g : b);
         float min_c = (r < g) ? ((r < b) ? r : b) : ((g < b) ? g : b);
-        float l = (max_c + min_c) * 0.5f;
+        float l     = (max_c + min_c) * 0.5f;
         if (max_c == min_c)
             return {0.0f, 0.0f, l};
         float d = max_c - min_c;
@@ -144,11 +144,13 @@ struct Color
                 return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
             return p;
         };
-        float q = (l < 0.5f) ? l * (1.0f + s) : l + s - l * s;
-        float p = 2.0f * l - q;
+        float q  = (l < 0.5f) ? l * (1.0f + s) : l + s - l * s;
+        float p  = 2.0f * l - q;
         float hn = h / 360.0f;
-        return Color(
-            hue2rgb(p, q, hn + 1.0f / 3.0f), hue2rgb(p, q, hn), hue2rgb(p, q, hn - 1.0f / 3.0f), a);
+        return Color(hue2rgb(p, q, hn + 1.0f / 3.0f),
+                     hue2rgb(p, q, hn),
+                     hue2rgb(p, q, hn - 1.0f / 3.0f),
+                     a);
     }
 
     constexpr bool operator==(const Color& o) const
@@ -161,28 +163,28 @@ struct Color
 struct ThemeColors
 {
     // Surfaces
-    Color bg_primary;    // Main canvas background
-    Color bg_secondary;  // Panel backgrounds
-    Color bg_tertiary;   // Card/section backgrounds
-    Color bg_elevated;   // Floating elements (tooltips, popups)
-    Color bg_overlay;    // Modal overlay (semi-transparent)
+    Color bg_primary;     // Main canvas background
+    Color bg_secondary;   // Panel backgrounds
+    Color bg_tertiary;    // Card/section backgrounds
+    Color bg_elevated;    // Floating elements (tooltips, popups)
+    Color bg_overlay;     // Modal overlay (semi-transparent)
 
     // Text
-    Color text_primary;    // Main text
-    Color text_secondary;  // Labels, descriptions
-    Color text_tertiary;   // Placeholders, disabled
-    Color text_inverse;    // Text on accent backgrounds
+    Color text_primary;     // Main text
+    Color text_secondary;   // Labels, descriptions
+    Color text_tertiary;    // Placeholders, disabled
+    Color text_inverse;     // Text on accent backgrounds
 
     // Borders
-    Color border_default;  // Standard borders
-    Color border_subtle;   // Subtle dividers
-    Color border_strong;   // Focused elements
+    Color border_default;   // Standard borders
+    Color border_subtle;    // Subtle dividers
+    Color border_strong;    // Focused elements
 
     // Interactive
-    Color accent;         // Primary accent (buttons, links, active states)
-    Color accent_hover;   // Accent hover state
-    Color accent_muted;   // Accent backgrounds (selected items)
-    Color accent_subtle;  // Very subtle accent tint
+    Color accent;          // Primary accent (buttons, links, active states)
+    Color accent_hover;    // Accent hover state
+    Color accent_muted;    // Accent backgrounds (selected items)
+    Color accent_subtle;   // Very subtle accent tint
 
     // Semantic
     Color success;
@@ -204,20 +206,20 @@ struct ThemeColors
 // Color Vision Deficiency types
 enum class CVDType
 {
-    None,          // Normal vision
-    Protanopia,    // Red-blind
-    Deuteranopia,  // Green-blind
-    Tritanopia,    // Blue-blind
-    Achromatopsia  // Total color blindness
+    None,           // Normal vision
+    Protanopia,     // Red-blind
+    Deuteranopia,   // Green-blind
+    Tritanopia,     // Blue-blind
+    Achromatopsia   // Total color blindness
 };
 
 struct DataPalette
 {
-    std::string name;
-    std::string description;
-    std::vector<Color> colors;
-    bool colorblind_safe = false;
-    std::vector<CVDType> safe_for;  // Which CVD types this palette is safe for
+    std::string          name;
+    std::string          description;
+    std::vector<Color>   colors;
+    bool                 colorblind_safe = false;
+    std::vector<CVDType> safe_for;   // Which CVD types this palette is safe for
 
     // Get color by index (wraps around)
     const Color& operator[](size_t index) const { return colors[index % colors.size()]; }
@@ -244,15 +246,15 @@ struct Theme
     DataPalette data_palette;
 
     // Visual properties
-    float opacity_panel = 0.95f;                       // Panel background opacity (for blur effect)
-    float opacity_tooltip = 0.98f;                     // Tooltip background opacity
-    float shadow_intensity = 1.0f;                     // Shadow alpha multiplier
-    float border_width = tokens::BORDER_WIDTH_NORMAL;  // Default border width
-    bool use_blur = true;                              // Enable backdrop blur effects
+    float opacity_panel    = 0.95f;   // Panel background opacity (for blur effect)
+    float opacity_tooltip  = 0.98f;   // Tooltip background opacity
+    float shadow_intensity = 1.0f;    // Shadow alpha multiplier
+    float border_width     = tokens::BORDER_WIDTH_NORMAL;   // Default border width
+    bool  use_blur         = true;                          // Enable backdrop blur effects
 
     // Animation settings
-    float animation_speed = 1.0f;   // Global animation speed multiplier
-    bool enable_animations = true;  // Master animation toggle
+    float animation_speed   = 1.0f;   // Global animation speed multiplier
+    bool  enable_animations = true;   // Master animation toggle
 };
 
 class ThemeManager
@@ -261,15 +263,15 @@ class ThemeManager
     static ThemeManager& instance();
 
     // Theme registration and switching
-    void register_theme(const std::string& name, Theme theme);
-    void set_theme(const std::string& name);
-    const Theme& current() const;
+    void               register_theme(const std::string& name, Theme theme);
+    void               set_theme(const std::string& name);
+    const Theme&       current() const;
     const ThemeColors& colors() const;
     const std::string& current_theme_name() const;
 
     // Data palette management
-    void set_data_palette(const std::string& palette_name);
-    void register_data_palette(const std::string& name, DataPalette palette);
+    void               set_data_palette(const std::string& palette_name);
+    void               register_data_palette(const std::string& name, DataPalette palette);
     const DataPalette& current_data_palette() const;
     const DataPalette& get_data_palette(const std::string& name) const;
     const std::vector<std::string>& available_data_palettes() const;
@@ -277,16 +279,16 @@ class ThemeManager
 
     // Animated palette transition
     void transition_palette(const std::string& palette_name,
-                            float duration_sec = tokens::DURATION_SLOW);
+                            float              duration_sec = tokens::DURATION_SLOW);
     bool is_palette_transitioning() const;
 
     // Theme application
-    void apply_to_imgui();                             // Updates all ImGui style colors
-    void apply_to_renderer(class Renderer& renderer);  // Updates plot colors
+    void apply_to_imgui();                              // Updates all ImGui style colors
+    void apply_to_renderer(class Renderer& renderer);   // Updates plot colors
 
     // Animated theme transition
     void transition_to(const std::string& name, float duration_sec = tokens::DURATION_SLOW);
-    void update(float dt);  // Update ongoing transitions
+    void update(float dt);   // Update ongoing transitions
     bool is_transitioning() const;
 
     // Theme persistence
@@ -303,39 +305,39 @@ class ThemeManager
     ThemeManager() = default;
 
     std::unordered_map<std::string, Theme> themes_;
-    std::string current_theme_name_ = "dark";
-    Theme* current_theme_ = nullptr;
+    std::string                            current_theme_name_ = "dark";
+    Theme*                                 current_theme_      = nullptr;
 
     std::unordered_map<std::string, DataPalette> data_palettes_;
-    mutable std::vector<std::string> palette_names_cache_;
-    mutable bool palette_names_dirty_ = true;
-    std::string current_data_palette_name_ = "default";
+    mutable std::vector<std::string>             palette_names_cache_;
+    mutable bool                                 palette_names_dirty_       = true;
+    std::string                                  current_data_palette_name_ = "default";
 
     // Theme transition state (does NOT mutate stored themes)
-    bool transitioning_ = false;
-    float transition_time_ = 0.0f;
-    float transition_duration_ = 0.0f;
+    bool        transitioning_       = false;
+    float       transition_time_     = 0.0f;
+    float       transition_duration_ = 0.0f;
     ThemeColors transition_start_colors_;
     ThemeColors transition_target_colors_;
     std::string transition_target_name_;
-    ThemeColors display_colors_;  // Current colors for rendering (may be mid-transition)
-    bool display_colors_valid_ = false;
+    ThemeColors display_colors_;   // Current colors for rendering (may be mid-transition)
+    bool        display_colors_valid_ = false;
 
     // Palette transition state
-    bool palette_transitioning_ = false;
-    float palette_transition_time_ = 0.0f;
-    float palette_transition_duration_ = 0.0f;
+    bool               palette_transitioning_       = false;
+    float              palette_transition_time_     = 0.0f;
+    float              palette_transition_duration_ = 0.0f;
     std::vector<Color> palette_start_colors_;
     std::vector<Color> palette_target_colors_;
-    std::string palette_transition_target_name_;
-    DataPalette display_palette_;  // Current palette for rendering
-    bool display_palette_valid_ = false;
+    std::string        palette_transition_target_name_;
+    DataPalette        display_palette_;   // Current palette for rendering
+    bool               display_palette_valid_ = false;
 
     // Default theme persistence
     std::string default_theme_path_;
 
-    void initialize_default_themes();
-    void initialize_data_palettes();
+    void        initialize_default_themes();
+    void        initialize_data_palettes();
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
 };
 
@@ -349,4 +351,4 @@ inline const DataPalette& data_palette()
     return ThemeManager::instance().current_data_palette();
 }
 
-}  // namespace spectra::ui
+}   // namespace spectra::ui

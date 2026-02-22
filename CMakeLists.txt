@@ -275,6 +275,7 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
         target_compile_features(spectra-window PRIVATE cxx_std_20)
         target_include_directories(spectra-window PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
         )
         if(SPECTRA_USE_IMGUI)
             target_include_directories(spectra-window PRIVATE
@@ -337,6 +338,25 @@ install(FILES icons/spectra_icon.png
 )
 install(FILES icons/spectra.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+
+# Man page
+install(FILES docs/man/spectra-backend.1
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1
+)
+
+# Shell completions
+install(FILES packaging/completions/spectra-backend.bash
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions
+    RENAME spectra-backend
+)
+install(FILES packaging/completions/spectra-backend.zsh
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions
+    RENAME _spectra-backend
+)
+install(FILES packaging/completions/spectra-backend.fish
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/fish/vendor_completions.d
+    RENAME spectra-backend.fish
 )
 
 # CMake package config (find_package(spectra) support)

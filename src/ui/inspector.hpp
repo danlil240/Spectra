@@ -16,7 +16,7 @@ class Inspector
    public:
     Inspector() = default;
 
-    void set_context(const SelectionContext& ctx);
+    void                    set_context(const SelectionContext& ctx);
     const SelectionContext& context() const { return ctx_; }
 
     // Draw the inspector content within the given rect.
@@ -43,25 +43,25 @@ class Inspector
 
     // Collapsible section states
     bool sec_appearance_ = true;
-    bool sec_margins_ = true;
-    bool sec_legend_ = true;
-    bool sec_data_ = true;
-    bool sec_transform_ = false;
-    bool sec_axis_x_ = true;
-    bool sec_axis_y_ = true;
-    bool sec_grid_ = true;
-    bool sec_style_ = true;
-    bool sec_stats_ = true;
-    bool sec_quick_ = false;
-    bool sec_preview_ = true;     // Sparkline preview
-    bool sec_axes_stats_ = true;  // Per-axes aggregate stats
+    bool sec_margins_    = true;
+    bool sec_legend_     = true;
+    bool sec_data_       = true;
+    bool sec_transform_  = false;
+    bool sec_axis_x_     = true;
+    bool sec_axis_y_     = true;
+    bool sec_grid_       = true;
+    bool sec_style_      = true;
+    bool sec_stats_      = true;
+    bool sec_quick_      = false;
+    bool sec_preview_    = true;   // Sparkline preview
+    bool sec_axes_stats_ = true;   // Per-axes aggregate stats
 
     // Fonts
-    ImFont* font_body_ = nullptr;
+    ImFont* font_body_    = nullptr;
     ImFont* font_heading_ = nullptr;
-    ImFont* font_title_ = nullptr;
+    ImFont* font_title_   = nullptr;
 };
 
-}  // namespace spectra::ui
+}   // namespace spectra::ui
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

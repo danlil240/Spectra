@@ -21,7 +21,7 @@ class Connection
     explicit Connection(int fd);
     ~Connection();
 
-    Connection(const Connection&) = delete;
+    Connection(const Connection&)            = delete;
     Connection& operator=(const Connection&) = delete;
     Connection(Connection&& other) noexcept;
     Connection& operator=(Connection&& other) noexcept;
@@ -59,7 +59,7 @@ class Server
     Server();
     ~Server();
 
-    Server(const Server&) = delete;
+    Server(const Server&)            = delete;
     Server& operator=(const Server&) = delete;
 
     // Bind and listen on the given socket path.
@@ -77,12 +77,12 @@ class Server
     // Close the listening socket and remove the socket file.
     void close();
 
-    bool is_listening() const { return listen_fd_ >= 0; }
-    int listen_fd() const { return listen_fd_; }
+    bool               is_listening() const { return listen_fd_ >= 0; }
+    int                listen_fd() const { return listen_fd_; }
     const std::string& path() const { return path_; }
 
    private:
-    int listen_fd_ = -1;
+    int         listen_fd_ = -1;
     std::string path_;
 };
 
@@ -92,7 +92,7 @@ class Server
 class Client
 {
    public:
-    Client() = default;
+    Client()  = default;
     ~Client() = default;
 
     // Connect to the server at the given socket path.
@@ -107,4 +107,4 @@ class Client
 // Falls back to /tmp/spectra-<pid>.sock if XDG_RUNTIME_DIR is not set.
 std::string default_socket_path();
 
-}  // namespace spectra::ipc
+}   // namespace spectra::ipc

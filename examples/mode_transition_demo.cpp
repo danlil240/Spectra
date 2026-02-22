@@ -11,14 +11,14 @@
 int main()
 {
     // Generate helix data
-    const int N = 500;
+    const int          N = 500;
     std::vector<float> x(N), y(N), z(N);
     for (int i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) / (N - 1) * 4.0f * 3.14159f;
-        x[i] = std::cos(t);
-        y[i] = std::sin(t);
-        z[i] = t / (4.0f * 3.14159f) * 2.0f - 1.0f;
+        x[i]    = std::cos(t);
+        y[i]    = std::sin(t);
+        z[i]    = t / (4.0f * 3.14159f) * 2.0f - 1.0f;
     }
 
     // Create figure with a 3D plot
@@ -30,7 +30,7 @@ int main()
     spectra::gca3d()->auto_fit();
 
     // Set camera to a nice viewing angle
-    spectra::gca3d()->camera().azimuth = 45.0f;
+    spectra::gca3d()->camera().azimuth   = 45.0f;
     spectra::gca3d()->camera().elevation = 25.0f;
     spectra::gca3d()->camera().update_position_from_orbit();
 

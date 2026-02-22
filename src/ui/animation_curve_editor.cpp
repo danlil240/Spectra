@@ -43,18 +43,18 @@ float CurveViewTransform::y_to_value(float y) const
 
 void CurveViewTransform::zoom_time(float factor, float center_time)
 {
-    float left = center_time - time_min;
+    float left  = center_time - time_min;
     float right = time_max - center_time;
-    time_min = center_time - left / factor;
-    time_max = center_time + right / factor;
+    time_min    = center_time - left / factor;
+    time_max    = center_time + right / factor;
 }
 
 void CurveViewTransform::zoom_value(float factor, float center_value)
 {
     float below = center_value - value_min;
     float above = value_max - center_value;
-    value_min = center_value - below / factor;
-    value_max = center_value + above / factor;
+    value_min   = center_value - below / factor;
+    value_max   = center_value + above / factor;
 }
 
 void CurveViewTransform::zoom(float factor, float center_x, float center_y)
@@ -79,8 +79,8 @@ void CurveViewTransform::fit_to_channel(const AnimationChannel& channel, float p
 {
     if (channel.empty())
     {
-        time_min = 0.0f;
-        time_max = 10.0f;
+        time_min  = 0.0f;
+        time_max  = 10.0f;
         value_min = -0.1f;
         value_max = 1.1f;
         return;
@@ -104,8 +104,8 @@ void CurveViewTransform::fit_to_channel(const AnimationChannel& channel, float p
     if (v_range < 0.01f)
         v_range = 1.0f;
 
-    time_min = t_min - t_range * padding;
-    time_max = t_max + t_range * padding;
+    time_min  = t_min - t_range * padding;
+    time_max  = t_max + t_range * padding;
     value_min = v_min - v_range * padding;
     value_max = v_max + v_range * padding;
 }
@@ -177,7 +177,7 @@ void AnimationCurveEditor::fit_view()
 
     float t_min = 1e30f, t_max = -1e30f;
     float v_min = 1e30f, v_max = -1e30f;
-    bool found = false;
+    bool  found = false;
 
     for (const auto& [id, ch] : channels)
     {
@@ -209,16 +209,16 @@ void AnimationCurveEditor::fit_view()
     if (v_range < 0.01f)
         v_range = 1.0f;
 
-    view_.time_min = t_min - t_range * 0.1f;
-    view_.time_max = t_max + t_range * 0.1f;
+    view_.time_min  = t_min - t_range * 0.1f;
+    view_.time_max  = t_max + t_range * 0.1f;
     view_.value_min = v_min - v_range * 0.1f;
     view_.value_max = v_max + v_range * 0.1f;
 }
 
 void AnimationCurveEditor::reset_view()
 {
-    view_.time_min = 0.0f;
-    view_.time_max = 10.0f;
+    view_.time_min  = 0.0f;
+    view_.time_max  = 10.0f;
     view_.value_min = -0.1f;
     view_.value_max = 1.1f;
 }
@@ -333,7 +333,7 @@ void AnimationCurveEditor::set_selected_tangent_mode(TangentMode mode)
                 kf.tangent_mode = mode;
                 if (mode == TangentMode::Flat)
                 {
-                    kf.in_tangent = TangentHandle{0.0f, 0.0f};
+                    kf.in_tangent  = TangentHandle{0.0f, 0.0f};
                     kf.out_tangent = TangentHandle{0.0f, 0.0f};
                 }
             }
@@ -350,7 +350,7 @@ void AnimationCurveEditor::set_selected_tangent_mode(TangentMode mode)
 CurveHitResult AnimationCurveEditor::hit_test(float screen_x, float screen_y, float tolerance) const
 {
     CurveHitResult best;
-    best.type = CurveHitType::Background;
+    best.type       = CurveHitType::Background;
     float best_dist = tolerance;
 
     if (!interpolator_)
@@ -373,46 +373,46 @@ CurveHitResult AnimationCurveEditor::hit_test(float screen_x, float screen_y, fl
                 std::sqrt((screen_x - kx) * (screen_x - kx) + (screen_y - ky) * (screen_y - ky));
             if (dist < best_dist)
             {
-                best_dist = dist;
-                best.type = CurveHitType::Keyframe;
-                best.channel_id = id;
+                best_dist           = dist;
+                best.type           = CurveHitType::Keyframe;
+                best.channel_id     = id;
                 best.keyframe_index = i;
-                best.time = kf.time;
-                best.value = kf.value;
+                best.time           = kf.time;
+                best.value          = kf.value;
             }
 
             // Test tangent handles (only if tangents are shown)
             if (show_tangents_)
             {
                 // In tangent
-                float in_x = view_.time_to_x(kf.time + kf.in_tangent.dt);
-                float in_y = view_.value_to_y(kf.value + kf.in_tangent.dv);
+                float in_x    = view_.time_to_x(kf.time + kf.in_tangent.dt);
+                float in_y    = view_.value_to_y(kf.value + kf.in_tangent.dv);
                 float in_dist = std::sqrt((screen_x - in_x) * (screen_x - in_x)
                                           + (screen_y - in_y) * (screen_y - in_y));
                 if (in_dist < best_dist && (kf.in_tangent.dt != 0.0f || kf.in_tangent.dv != 0.0f))
                 {
-                    best_dist = in_dist;
-                    best.type = CurveHitType::InTangent;
-                    best.channel_id = id;
+                    best_dist           = in_dist;
+                    best.type           = CurveHitType::InTangent;
+                    best.channel_id     = id;
                     best.keyframe_index = i;
-                    best.time = kf.time;
-                    best.value = kf.value;
+                    best.time           = kf.time;
+                    best.value          = kf.value;
                 }
 
                 // Out tangent
-                float out_x = view_.time_to_x(kf.time + kf.out_tangent.dt);
-                float out_y = view_.value_to_y(kf.value + kf.out_tangent.dv);
+                float out_x    = view_.time_to_x(kf.time + kf.out_tangent.dt);
+                float out_y    = view_.value_to_y(kf.value + kf.out_tangent.dv);
                 float out_dist = std::sqrt((screen_x - out_x) * (screen_x - out_x)
                                            + (screen_y - out_y) * (screen_y - out_y));
                 if (out_dist < best_dist
                     && (kf.out_tangent.dt != 0.0f || kf.out_tangent.dv != 0.0f))
                 {
-                    best_dist = out_dist;
-                    best.type = CurveHitType::OutTangent;
-                    best.channel_id = id;
+                    best_dist           = out_dist;
+                    best.type           = CurveHitType::OutTangent;
+                    best.channel_id     = id;
                     best.keyframe_index = i;
-                    best.time = kf.time;
-                    best.value = kf.value;
+                    best.time           = kf.time;
+                    best.value          = kf.value;
                 }
             }
         }
@@ -429,14 +429,14 @@ void AnimationCurveEditor::begin_drag(float screen_x, float screen_y)
     if (hit.type == CurveHitType::None || hit.type == CurveHitType::Background)
         return;
 
-    drag_.active = true;
-    drag_.dragging = hit.type;
-    drag_.channel_id = hit.channel_id;
+    drag_.active         = true;
+    drag_.dragging       = hit.type;
+    drag_.channel_id     = hit.channel_id;
     drag_.keyframe_index = hit.keyframe_index;
-    drag_.start_time = hit.time;
-    drag_.start_value = hit.value;
-    drag_.start_mouse_x = screen_x;
-    drag_.start_mouse_y = screen_y;
+    drag_.start_time     = hit.time;
+    drag_.start_value    = hit.value;
+    drag_.start_mouse_x  = screen_x;
+    drag_.start_mouse_y  = screen_y;
 }
 
 void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
@@ -458,7 +458,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
         return;
     }
 
-    float new_time = view_.x_to_time(screen_x);
+    float new_time  = view_.x_to_time(screen_x);
     float new_value = view_.y_to_value(screen_y);
 
     auto& kf = kfs[drag_.keyframe_index];
@@ -468,8 +468,8 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
         case CurveHitType::Keyframe:
         {
             float old_value = kf.value;
-            kf.time = new_time;
-            kf.value = new_value;
+            kf.time         = new_time;
+            kf.value        = new_value;
             // Re-sort after time change
             std::sort(kfs.begin(),
                       kfs.end(),
@@ -501,7 +501,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
                 // Mirror to out tangent (co-linear)
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
-                float len_in = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
+                float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 if (len_in > 0.0001f)
                 {
@@ -523,7 +523,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
             kf.out_tangent.dv = new_value - kf.value;
             if (kf.tangent_mode == TangentMode::Aligned)
             {
-                float len_in = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
+                float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
@@ -608,8 +608,8 @@ AnimationCurveEditor::ChannelDisplay& AnimationCurveEditor::ensure_display(uint3
 
     ChannelDisplay nd;
     nd.channel_id = channel_id;
-    nd.color = kChannelColors[channel_displays_.size() % kChannelColorCount];
-    nd.visible = true;
+    nd.color      = kChannelColors[channel_displays_.size() % kChannelColorCount];
+    nd.visible    = true;
     channel_displays_.push_back(nd);
     return channel_displays_.back();
 }
@@ -623,31 +623,32 @@ void AnimationCurveEditor::draw(float width, float height)
     if (!interpolator_)
         return;
 
-    view_.width = width;
+    view_.width  = width;
     view_.height = height;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::BeginChild("##curve_editor", ImVec2(width, height), true);
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    ImVec2 origin = ImGui::GetCursorScreenPos();
-    view_.origin_x = origin.x;
-    view_.origin_y = origin.y;
+    ImVec2      origin    = ImGui::GetCursorScreenPos();
+    view_.origin_x        = origin.x;
+    view_.origin_y        = origin.y;
 
     // ─── Background ──────────────────────────────────────────────
-    draw_list->AddRectFilled(
-        origin, ImVec2(origin.x + width, origin.y + height), IM_COL32(25, 25, 30, 255));
+    draw_list->AddRectFilled(origin,
+                             ImVec2(origin.x + width, origin.y + height),
+                             IM_COL32(25, 25, 30, 255));
 
     // ─── Grid ────────────────────────────────────────────────────
     if (show_grid_)
     {
-        float time_range = view_.time_max - view_.time_min;
+        float time_range  = view_.time_max - view_.time_min;
         float value_range = view_.value_max - view_.value_min;
 
         // Adaptive tick spacing
         auto compute_tick = [](float range, float pixels) -> float
         {
-            float ideal = range / (pixels / 60.0f);
+            float ideal     = range / (pixels / 60.0f);
             float magnitude = std::pow(10.0f, std::floor(std::log10(ideal)));
             if (ideal / magnitude < 2.0f)
                 return magnitude;
@@ -656,7 +657,7 @@ void AnimationCurveEditor::draw(float width, float height)
             return magnitude * 5.0f;
         };
 
-        float time_tick = compute_tick(time_range, width);
+        float time_tick  = compute_tick(time_range, width);
         float value_tick = compute_tick(value_range, height);
 
         // Vertical grid lines (time)
@@ -664,8 +665,9 @@ void AnimationCurveEditor::draw(float width, float height)
         while (t <= view_.time_max)
         {
             float x = view_.time_to_x(t);
-            draw_list->AddLine(
-                ImVec2(x, origin.y), ImVec2(x, origin.y + height), IM_COL32(50, 50, 55, 255));
+            draw_list->AddLine(ImVec2(x, origin.y),
+                               ImVec2(x, origin.y + height),
+                               IM_COL32(50, 50, 55, 255));
             t += time_tick;
         }
 
@@ -674,8 +676,9 @@ void AnimationCurveEditor::draw(float width, float height)
         while (v <= view_.value_max)
         {
             float y = view_.value_to_y(v);
-            draw_list->AddLine(
-                ImVec2(origin.x, y), ImVec2(origin.x + width, y), IM_COL32(50, 50, 55, 255));
+            draw_list->AddLine(ImVec2(origin.x, y),
+                               ImVec2(origin.x + width, y),
+                               IM_COL32(50, 50, 55, 255));
             v += value_tick;
         }
 
@@ -704,14 +707,14 @@ void AnimationCurveEditor::draw(float width, float height)
         if (ch.empty())
             continue;
 
-        Color col = channel_color(id);
+        Color col       = channel_color(id);
         ImU32 curve_col = IM_COL32(static_cast<int>(col.r * 255),
                                    static_cast<int>(col.g * 255),
                                    static_cast<int>(col.b * 255),
                                    200);
 
         // Sample the curve
-        auto samples = ch.sample(view_.time_min, view_.time_max, curve_resolution_);
+        auto  samples = ch.sample(view_.time_min, view_.time_max, curve_resolution_);
         float step = (view_.time_max - view_.time_min) / static_cast<float>(curve_resolution_ - 1);
 
         for (size_t i = 0; i + 1 < samples.size(); ++i)
@@ -730,8 +733,8 @@ void AnimationCurveEditor::draw(float width, float height)
         for (size_t i = 0; i < kfs.size(); ++i)
         {
             const auto& kf = kfs[i];
-            float kx = view_.time_to_x(kf.time);
-            float ky = view_.value_to_y(kf.value);
+            float       kx = view_.time_to_x(kf.time);
+            float       ky = view_.value_to_y(kf.value);
 
             // Tangent handles
             if (show_tangents_ && kf.interp == InterpMode::CubicBezier)
@@ -741,8 +744,10 @@ void AnimationCurveEditor::draw(float width, float height)
                 {
                     float ix = view_.time_to_x(kf.time + kf.in_tangent.dt);
                     float iy = view_.value_to_y(kf.value + kf.in_tangent.dv);
-                    draw_list->AddLine(
-                        ImVec2(kx, ky), ImVec2(ix, iy), IM_COL32(150, 150, 150, 150), 1.0f);
+                    draw_list->AddLine(ImVec2(kx, ky),
+                                       ImVec2(ix, iy),
+                                       IM_COL32(150, 150, 150, 150),
+                                       1.0f);
                     draw_list->AddCircleFilled(ImVec2(ix, iy), 3.0f, IM_COL32(180, 180, 180, 200));
                 }
 
@@ -751,14 +756,16 @@ void AnimationCurveEditor::draw(float width, float height)
                 {
                     float ox = view_.time_to_x(kf.time + kf.out_tangent.dt);
                     float oy = view_.value_to_y(kf.value + kf.out_tangent.dv);
-                    draw_list->AddLine(
-                        ImVec2(kx, ky), ImVec2(ox, oy), IM_COL32(150, 150, 150, 150), 1.0f);
+                    draw_list->AddLine(ImVec2(kx, ky),
+                                       ImVec2(ox, oy),
+                                       IM_COL32(150, 150, 150, 150),
+                                       1.0f);
                     draw_list->AddCircleFilled(ImVec2(ox, oy), 3.0f, IM_COL32(180, 180, 180, 200));
                 }
             }
 
             // Diamond keyframe marker
-            float sz = kf.selected ? 6.0f : 4.5f;
+            float sz     = kf.selected ? 6.0f : 4.5f;
             ImU32 kf_col = kf.selected ? IM_COL32(255, 255, 100, 255) : curve_col;
             draw_list->AddQuadFilled(ImVec2(kx, ky - sz),
                                      ImVec2(kx + sz, ky),
@@ -799,6 +806,6 @@ void AnimationCurveEditor::draw(float width, float height)
     ImGui::PopStyleVar();
 }
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
-}  // namespace spectra
+}   // namespace spectra

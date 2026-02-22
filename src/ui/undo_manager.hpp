@@ -12,9 +12,9 @@ namespace spectra
 // A single undoable action with forward (redo) and backward (undo) operations.
 struct UndoAction
 {
-    std::string description;        // Human-readable description, e.g. "Change line color"
-    std::function<void()> undo_fn;  // Restores previous state
-    std::function<void()> redo_fn;  // Re-applies the change
+    std::string           description;   // Human-readable description, e.g. "Change line color"
+    std::function<void()> undo_fn;       // Restores previous state
+    std::function<void()> redo_fn;       // Re-applies the change
 };
 
 // Manages an undo/redo stack for property changes.
@@ -25,10 +25,10 @@ class UndoManager
    public:
     static constexpr size_t MAX_STACK_SIZE = 100;
 
-    UndoManager() = default;
+    UndoManager()  = default;
     ~UndoManager() = default;
 
-    UndoManager(const UndoManager&) = delete;
+    UndoManager(const UndoManager&)            = delete;
     UndoManager& operator=(const UndoManager&) = delete;
 
     // Push a new undoable action. Clears the redo stack.
@@ -38,15 +38,15 @@ class UndoManager
     // Convenience: push with captured before/after values.
     // setter is called with `before` on undo and `after` on redo.
     template <typename T>
-    void push_value(const std::string& description,
-                    T before,
-                    T after,
+    void push_value(const std::string&            description,
+                    T                             before,
+                    T                             after,
                     std::function<void(const T&)> setter)
     {
         UndoAction action;
         action.description = description;
-        action.undo_fn = [setter, before]() { setter(before); };
-        action.redo_fn = [setter, after]() { setter(after); };
+        action.undo_fn     = [setter, before]() { setter(before); };
+        action.redo_fn     = [setter, after]() { setter(after); };
         push(std::move(action));
     }
 
@@ -78,14 +78,14 @@ class UndoManager
     bool in_group() const;
 
    private:
-    mutable std::mutex mutex_;
+    mutable std::mutex      mutex_;
     std::vector<UndoAction> undo_stack_;
     std::vector<UndoAction> redo_stack_;
 
     // Group state
-    bool grouping_ = false;
-    std::string group_description_;
+    bool                    grouping_ = false;
+    std::string             group_description_;
     std::vector<UndoAction> group_actions_;
 };
 
-}  // namespace spectra
+}   // namespace spectra

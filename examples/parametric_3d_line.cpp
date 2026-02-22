@@ -6,7 +6,7 @@ using namespace spectra;
 
 int main()
 {
-    App app;
+    App   app;
     auto& fig = app.figure({.width = 800, .height = 600});
 
     auto& ax = fig.subplot3d(1, 1, 1);

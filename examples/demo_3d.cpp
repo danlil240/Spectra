@@ -8,13 +8,13 @@ using namespace spectra;
 // Global animation state
 struct AnimationState
 {
-    float time = 0.0f;
-    bool animate = true;
+    float time    = 0.0f;
+    bool  animate = true;
 } g_anim;
 
 int main()
 {
-    App app;
+    App   app;
     auto& fig = app.figure({.width = 1600, .height = 1200});
 
     // --- Subplot 1: 3D Scatter Plot (Spiral) ---
@@ -66,7 +66,7 @@ int main()
     // --- Subplot 3: Surface Plot (Mathematical Function) ---
     auto& ax3 = fig.subplot3d(2, 2, 3);
 
-    const int nx = 50, ny = 50;
+    const int          nx = 50, ny = 50;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
 
     for (int i = 0; i < nx; ++i)
@@ -82,9 +82,9 @@ int main()
     {
         for (int i = 0; i < nx; ++i)
         {
-            float x = x_grid[i];
-            float y = y_grid[j];
-            float r = std::sqrt(x * x + y * y);
+            float x              = x_grid[i];
+            float y              = y_grid[j];
+            float r              = std::sqrt(x * x + y * y);
             z_values[j * nx + i] = std::sin(r) * std::cos(x * 0.5f) / (r + 0.5f);
         }
     }

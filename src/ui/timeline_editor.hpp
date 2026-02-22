@@ -26,44 +26,44 @@ enum class PlaybackState
 // Loop mode for playback.
 enum class LoopMode
 {
-    None,      // Play once and stop
-    Loop,      // Loop back to start
-    PingPong,  // Reverse direction at each end
+    None,       // Play once and stop
+    Loop,       // Loop back to start
+    PingPong,   // Reverse direction at each end
 };
 
 // Snap mode for playhead and keyframe placement.
 enum class SnapMode
 {
-    None,   // Free positioning
-    Frame,  // Snap to frame boundaries
-    Beat,   // Snap to beat grid (custom interval)
+    None,    // Free positioning
+    Frame,   // Snap to frame boundaries
+    Beat,    // Snap to beat grid (custom interval)
 };
 
 // A single keyframe entry visible in the timeline UI.
 struct KeyframeMarker
 {
-    float time = 0.0f;
+    float    time     = 0.0f;
     uint32_t track_id = 0;
-    bool selected = false;
+    bool     selected = false;
 };
 
 // A named track in the timeline (e.g., "X Position", "Color", "Opacity").
 struct TimelineTrack
 {
-    uint32_t id = 0;
+    uint32_t    id = 0;
     std::string name;
-    Color color = colors::cyan;
-    bool visible = true;
-    bool locked = false;
-    bool expanded = true;
+    Color       color    = colors::cyan;
+    bool        visible  = true;
+    bool        locked   = false;
+    bool        expanded = true;
 
     std::vector<KeyframeMarker> keyframes;
 };
 
 // Callback types for timeline editor events.
-using PlaybackCallback = std::function<void(PlaybackState)>;
-using ScrubCallback = std::function<void(float time)>;
-using KeyframeCallback = std::function<void(uint32_t track_id, float time)>;
+using PlaybackCallback  = std::function<void(PlaybackState)>;
+using ScrubCallback     = std::function<void(float time)>;
+using KeyframeCallback  = std::function<void(uint32_t track_id, float time)>;
 using SelectionCallback = std::function<void(const std::vector<KeyframeMarker*>&)>;
 
 // TimelineEditor — UI-independent timeline editing logic.
@@ -79,7 +79,7 @@ class TimelineEditor
     TimelineEditor();
     ~TimelineEditor() = default;
 
-    TimelineEditor(const TimelineEditor&) = delete;
+    TimelineEditor(const TimelineEditor&)            = delete;
     TimelineEditor& operator=(const TimelineEditor&) = delete;
 
     // ─── Playback ────────────────────────────────────────────────────────
@@ -90,8 +90,8 @@ class TimelineEditor
     void toggle_play();
 
     PlaybackState playback_state() const;
-    bool is_playing() const;
-    bool is_recording() const;
+    bool          is_playing() const;
+    bool          is_recording() const;
 
     // ─── Playhead ────────────────────────────────────────────────────────
 
@@ -115,10 +115,10 @@ class TimelineEditor
     // ─── Duration & FPS ──────────────────────────────────────────────────
 
     float duration() const;
-    void set_duration(float seconds);
+    void  set_duration(float seconds);
 
     float fps() const;
-    void set_fps(float target_fps);
+    void  set_fps(float target_fps);
 
     // Frame count derived from duration * fps.
     uint32_t frame_count() const;
@@ -135,21 +135,21 @@ class TimelineEditor
     // ─── Loop ────────────────────────────────────────────────────────────
 
     LoopMode loop_mode() const;
-    void set_loop_mode(LoopMode mode);
+    void     set_loop_mode(LoopMode mode);
 
     // In/out points for loop region (defaults to [0, duration]).
     float loop_in() const;
     float loop_out() const;
-    void set_loop_region(float in, float out);
-    void clear_loop_region();
+    void  set_loop_region(float in, float out);
+    void  clear_loop_region();
 
     // ─── Snap ────────────────────────────────────────────────────────────
 
     SnapMode snap_mode() const;
-    void set_snap_mode(SnapMode mode);
+    void     set_snap_mode(SnapMode mode);
 
     float snap_interval() const;
-    void set_snap_interval(float interval);
+    void  set_snap_interval(float interval);
 
     // Snap a time value according to current snap settings.
     float snap_time(float time) const;
@@ -157,14 +157,14 @@ class TimelineEditor
     // ─── Tracks ──────────────────────────────────────────────────────────
 
     uint32_t add_track(const std::string& name, Color color = colors::cyan);
-    void remove_track(uint32_t track_id);
-    void rename_track(uint32_t track_id, const std::string& name);
+    void     remove_track(uint32_t track_id);
+    void     rename_track(uint32_t track_id, const std::string& name);
 
-    TimelineTrack* get_track(uint32_t track_id);
+    TimelineTrack*       get_track(uint32_t track_id);
     const TimelineTrack* get_track(uint32_t track_id) const;
 
     const std::vector<TimelineTrack>& tracks() const;
-    size_t track_count() const;
+    size_t                            track_count() const;
 
     void set_track_visible(uint32_t track_id, bool visible);
     void set_track_locked(uint32_t track_id, bool locked);
@@ -195,7 +195,7 @@ class TimelineEditor
     void select_keyframes_in_range(float t_min, float t_max);
 
     std::vector<KeyframeMarker*> selected_keyframes();
-    size_t selected_count() const;
+    size_t                       selected_count() const;
 
     // Delete all selected keyframes.
     void delete_selected();
@@ -205,13 +205,13 @@ class TimelineEditor
     // Visible time range in the timeline view.
     float view_start() const;
     float view_end() const;
-    void set_view_range(float start, float end);
+    void  set_view_range(float start, float end);
 
     // Zoom level (pixels per second). Default = 100.
     float zoom() const;
-    void set_zoom(float pixels_per_second);
-    void zoom_in();
-    void zoom_out();
+    void  set_zoom(float pixels_per_second);
+    void  zoom_in();
+    void  zoom_out();
 
     // Scroll to center the playhead in view.
     void scroll_to_playhead();
@@ -228,7 +228,7 @@ class TimelineEditor
 
     // Set the KeyframeInterpolator to drive property animation.
     // When set, advance() will also evaluate the interpolator at the playhead.
-    void set_interpolator(KeyframeInterpolator* interp);
+    void                  set_interpolator(KeyframeInterpolator* interp);
     KeyframeInterpolator* interpolator() const;
 
     // Evaluate the interpolator at the current playhead time.
@@ -236,14 +236,14 @@ class TimelineEditor
     void evaluate_at_playhead();
 
     // Camera animator integration
-    void set_camera_animator(CameraAnimator* anim);
+    void            set_camera_animator(CameraAnimator* anim);
     CameraAnimator* camera_animator() const;
 
     // Create a track and a matching interpolator channel, linked by track_id.
     // Returns the track_id (which also serves as the channel_id).
     uint32_t add_animated_track(const std::string& name,
-                                float default_value = 0.0f,
-                                Color color = colors::cyan);
+                                float              default_value = 0.0f,
+                                Color              color         = colors::cyan);
 
     // Add a keyframe to both the track (visual marker) and the interpolator channel.
     // interp_mode: 0=Step, 1=Linear, 2=CubicBezier, 3=Spring, 4=EaseIn, 5=EaseOut, 6=EaseInOut
@@ -265,48 +265,48 @@ class TimelineEditor
     mutable std::mutex mutex_;
 
     // Playback
-    PlaybackState state_ = PlaybackState::Stopped;
-    float playhead_ = 0.0f;
-    float duration_ = 10.0f;
-    float fps_ = 60.0f;
-    LoopMode loop_mode_ = LoopMode::None;
-    int ping_pong_dir_ = 1;  // +1 forward, -1 backward
+    PlaybackState state_         = PlaybackState::Stopped;
+    float         playhead_      = 0.0f;
+    float         duration_      = 10.0f;
+    float         fps_           = 60.0f;
+    LoopMode      loop_mode_     = LoopMode::None;
+    int           ping_pong_dir_ = 1;   // +1 forward, -1 backward
 
     // Loop region
-    float loop_in_ = 0.0f;
-    float loop_out_ = 0.0f;  // 0 = use duration
-    bool has_loop_region_ = false;
+    float loop_in_         = 0.0f;
+    float loop_out_        = 0.0f;   // 0 = use duration
+    bool  has_loop_region_ = false;
 
     // Snap
-    SnapMode snap_mode_ = SnapMode::Frame;
-    float snap_interval_ = 0.1f;  // For Beat mode
+    SnapMode snap_mode_     = SnapMode::Frame;
+    float    snap_interval_ = 0.1f;   // For Beat mode
 
     // Tracks
     std::vector<TimelineTrack> tracks_;
-    uint32_t next_track_id_ = 1;
+    uint32_t                   next_track_id_ = 1;
 
     // View
     float view_start_ = 0.0f;
-    float view_end_ = 10.0f;
-    float zoom_ = 100.0f;  // pixels per second
+    float view_end_   = 10.0f;
+    float zoom_       = 100.0f;   // pixels per second
 
     // KeyframeInterpolator (optional, not owned)
-    KeyframeInterpolator* interpolator_ = nullptr;
-    CameraAnimator* camera_animator_ = nullptr;
+    KeyframeInterpolator* interpolator_    = nullptr;
+    CameraAnimator*       camera_animator_ = nullptr;
 
     // Callbacks
-    PlaybackCallback on_playback_change_;
-    ScrubCallback on_scrub_;
-    KeyframeCallback on_keyframe_added_;
-    KeyframeCallback on_keyframe_removed_;
+    PlaybackCallback  on_playback_change_;
+    ScrubCallback     on_scrub_;
+    KeyframeCallback  on_keyframe_added_;
+    KeyframeCallback  on_keyframe_removed_;
     SelectionCallback on_selection_change_;
 
     // Internal helpers
-    float effective_loop_out() const;
-    void clamp_playhead();
-    void fire_playback_change();
-    void fire_selection_change();
+    float           effective_loop_out() const;
+    void            clamp_playhead();
+    void            fire_playback_change();
+    void            fire_selection_change();
     KeyframeMarker* find_keyframe(uint32_t track_id, float time, float tolerance = 0.001f);
 };
 
-}  // namespace spectra
+}   // namespace spectra

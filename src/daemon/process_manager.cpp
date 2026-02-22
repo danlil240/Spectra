@@ -21,14 +21,18 @@ pid_t ProcessManager::spawn_agent()
     if (agent_path_.empty() || socket_path_.empty())
         return -1;
 
-    pid_t pid = 0;
+    pid_t       pid    = 0;
     const char* argv[] = {agent_path_.c_str(), "--socket", socket_path_.c_str(), nullptr};
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
 
-    int ret = posix_spawn(
-        &pid, agent_path_.c_str(), &actions, nullptr, const_cast<char* const*>(argv), environ);
+    int ret = posix_spawn(&pid,
+                          agent_path_.c_str(),
+                          &actions,
+                          nullptr,
+                          const_cast<char* const*>(argv),
+                          environ);
     posix_spawn_file_actions_destroy(&actions);
 
     if (ret != 0)
@@ -38,10 +42,10 @@ pid_t ProcessManager::spawn_agent()
     }
 
     ProcessEntry entry;
-    entry.pid = pid;
+    entry.pid         = pid;
     entry.socket_path = socket_path_;
-    entry.alive = true;
-    processes_[pid] = std::move(entry);
+    entry.alive       = true;
+    processes_[pid]   = std::move(entry);
 
     std::cerr << "[ProcessManager] Spawned agent pid=" << pid << "\n";
     return pid;
@@ -56,7 +60,7 @@ pid_t ProcessManager::spawn_agent_for_window(ipc::WindowId wid)
     if (pid > 0)
     {
         std::lock_guard lock(mu_);
-        auto it = processes_.find(pid);
+        auto            it = processes_.find(pid);
         if (it != processes_.end())
             it->second.window_id = wid;
     }
@@ -66,9 +70,9 @@ pid_t ProcessManager::spawn_agent_for_window(ipc::WindowId wid)
 bool ProcessManager::is_alive(pid_t pid) const
 {
 #ifdef __linux__
-    int status = 0;
+    int   status = 0;
     pid_t result = ::waitpid(pid, &status, WNOHANG);
-    return result == 0;  // 0 means still running
+    return result == 0;   // 0 means still running
 #else
     (void)pid;
     return false;
@@ -78,12 +82,12 @@ bool ProcessManager::is_alive(pid_t pid) const
 std::vector<pid_t> ProcessManager::reap_finished()
 {
 #ifdef __linux__
-    std::lock_guard lock(mu_);
+    std::lock_guard    lock(mu_);
     std::vector<pid_t> reaped;
 
     for (auto it = processes_.begin(); it != processes_.end();)
     {
-        int status = 0;
+        int   status = 0;
         pid_t result = ::waitpid(it->first, &status, WNOHANG);
         if (result > 0)
         {
@@ -116,7 +120,7 @@ size_t ProcessManager::process_count() const
 
 std::vector<ProcessEntry> ProcessManager::all_processes() const
 {
-    std::lock_guard lock(mu_);
+    std::lock_guard           lock(mu_);
     std::vector<ProcessEntry> result;
     result.reserve(processes_.size());
     for (auto& [_, entry] : processes_)
@@ -133,7 +137,7 @@ void ProcessManager::remove_process(pid_t pid)
 void ProcessManager::set_window_id(pid_t pid, ipc::WindowId wid)
 {
     std::lock_guard lock(mu_);
-    auto it = processes_.find(pid);
+    auto            it = processes_.find(pid);
     if (it != processes_.end())
         it->second.window_id = wid;
 }
@@ -149,4 +153,4 @@ pid_t ProcessManager::pid_for_window(ipc::WindowId wid) const
     return 0;
 }
 
-}  // namespace spectra::daemon
+}   // namespace spectra::daemon

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <spectra/series.hpp>  // For Rect definition
+#include <spectra/series.hpp>   // For Rect definition
 
 namespace spectra
 {
@@ -19,7 +19,7 @@ class LayoutManager
     ~LayoutManager() = default;
 
     // Disable copying
-    LayoutManager(const LayoutManager&) = delete;
+    LayoutManager(const LayoutManager&)            = delete;
     LayoutManager& operator=(const LayoutManager&) = delete;
 
     /**
@@ -45,18 +45,18 @@ class LayoutManager
     void reset_inspector_width();
 
     // Bottom panel (timeline)
-    void set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
+    void  set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
     float bottom_panel_height() const { return bottom_panel_height_; }
 
     // State queries
-    bool is_inspector_visible() const { return inspector_visible_; }
+    bool  is_inspector_visible() const { return inspector_visible_; }
     float inspector_width() const { return inspector_width_; }
     float inspector_animated_width() const { return inspector_anim_width_; }
-    bool is_nav_rail_expanded() const { return nav_rail_expanded_; }
+    bool  is_nav_rail_expanded() const { return nav_rail_expanded_; }
     float nav_rail_width() const;
     float nav_rail_animated_width() const { return nav_rail_anim_width_; }
-    bool is_tab_bar_visible() const { return tab_bar_visible_; }
-    bool is_animating() const;
+    bool  is_tab_bar_visible() const { return tab_bar_visible_; }
+    bool  is_animating() const;
 
     // Inspector resize interaction helpers
     bool is_inspector_resize_hovered() const { return inspector_resize_hovered_; }
@@ -65,24 +65,24 @@ class LayoutManager
     void set_inspector_resize_active(bool active) { inspector_resize_active_ = active; }
 
     // Layout constants (matching the design spec)
-    static constexpr float COMMAND_BAR_HEIGHT = 48.0f;
-    static constexpr float STATUS_BAR_HEIGHT = 28.0f;
+    static constexpr float COMMAND_BAR_HEIGHT       = 48.0f;
+    static constexpr float STATUS_BAR_HEIGHT        = 28.0f;
     static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 48.0f;
-    static constexpr float NAV_RAIL_EXPANDED_WIDTH = 200.0f;
+    static constexpr float NAV_RAIL_EXPANDED_WIDTH  = 200.0f;
     static constexpr float NAV_TOOLBAR_INSET =
-        68.0f;  // Space reserved for floating nav toolbar (margin + toolbar + gap)
+        68.0f;   // Space reserved for floating nav toolbar (margin + toolbar + gap)
     static constexpr float PLOT_LEFT_MARGIN =
-        100.0f;  // Default plot left margin (matches Margins::left) for tab alignment
+        100.0f;   // Default plot left margin (matches Margins::left) for tab alignment
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
-    static constexpr float INSPECTOR_MIN_WIDTH = 240.0f;
-    static constexpr float INSPECTOR_MAX_WIDTH = 480.0f;
-    static constexpr float TAB_BAR_HEIGHT = 36.0f;
-    static constexpr float RESIZE_HANDLE_WIDTH = 6.0f;
-    static constexpr float ANIM_SPEED = 12.0f;
+    static constexpr float INSPECTOR_MIN_WIDTH     = 240.0f;
+    static constexpr float INSPECTOR_MAX_WIDTH     = 480.0f;
+    static constexpr float TAB_BAR_HEIGHT          = 36.0f;
+    static constexpr float RESIZE_HANDLE_WIDTH     = 6.0f;
+    static constexpr float ANIM_SPEED              = 12.0f;
 
    private:
     // Window dimensions
-    float window_width_ = 1280.0f;
+    float window_width_  = 1280.0f;
     float window_height_ = 720.0f;
 
     // Zone rectangles (computed in update())
@@ -94,21 +94,21 @@ class LayoutManager
     Rect tab_bar_rect_;
 
     // Configuration state
-    bool inspector_visible_ = false;
-    float inspector_width_ = INSPECTOR_DEFAULT_WIDTH;
-    bool nav_rail_expanded_ = false;
+    bool  inspector_visible_        = false;
+    float inspector_width_          = INSPECTOR_DEFAULT_WIDTH;
+    bool  nav_rail_expanded_        = false;
     float nav_rail_collapsed_width_ = NAV_RAIL_COLLAPSED_WIDTH;
-    float nav_rail_expanded_width_ = NAV_RAIL_EXPANDED_WIDTH;
-    bool tab_bar_visible_ = false;
-    float bottom_panel_height_ = 0.0f;  // Timeline panel height (0 when hidden)
+    float nav_rail_expanded_width_  = NAV_RAIL_EXPANDED_WIDTH;
+    bool  tab_bar_visible_          = false;
+    float bottom_panel_height_      = 0.0f;   // Timeline panel height (0 when hidden)
 
     // Animated state (smoothly interpolated toward targets)
-    float inspector_anim_width_ = 0.0f;  // 0 when hidden
-    float nav_rail_anim_width_ = NAV_RAIL_COLLAPSED_WIDTH;
+    float inspector_anim_width_ = 0.0f;   // 0 when hidden
+    float nav_rail_anim_width_  = NAV_RAIL_COLLAPSED_WIDTH;
 
     // Inspector resize interaction state
     bool inspector_resize_hovered_ = false;
-    bool inspector_resize_active_ = false;
+    bool inspector_resize_active_  = false;
     // Helper: exponential smoothing toward target
     static float smooth_toward(float current, float target, float speed, float dt);
 
@@ -122,4 +122,4 @@ class LayoutManager
     Rect compute_tab_bar() const;
 };
 
-}  // namespace spectra
+}   // namespace spectra

@@ -38,16 +38,16 @@ class VulkanBackend : public Backend
     PipelineHandle create_pipeline(PipelineType type) override;
 
     BufferHandle create_buffer(BufferUsage usage, size_t size_bytes) override;
-    void destroy_buffer(BufferHandle handle) override;
-    void upload_buffer(BufferHandle handle,
-                       const void* data,
-                       size_t size_bytes,
-                       size_t offset) override;
+    void         destroy_buffer(BufferHandle handle) override;
+    void         upload_buffer(BufferHandle handle,
+                               const void*  data,
+                               size_t       size_bytes,
+                               size_t       offset) override;
 
-    TextureHandle create_texture(uint32_t width,
-                                 uint32_t height,
+    TextureHandle create_texture(uint32_t       width,
+                                 uint32_t       height,
                                  const uint8_t* rgba_data) override;
-    void destroy_texture(TextureHandle handle) override;
+    void          destroy_texture(TextureHandle handle) override;
 
     bool begin_frame(FrameProfiler* profiler = nullptr) override;
     void end_frame(FrameProfiler* profiler = nullptr) override;
@@ -80,7 +80,7 @@ class VulkanBackend : public Backend
 
     // Multi-window support: set the active window context for frame operations.
     // All begin_frame/end_frame/render pass calls target the active context.
-    void set_active_window(WindowContext* ctx) { active_window_ = ctx; }
+    void           set_active_window(WindowContext* ctx) { active_window_ = ctx; }
     WindowContext* active_window() const { return active_window_; }
     // Transfer ownership of the initial WindowContext to the caller.
     // After this call, initial_window_ is nullptr.
@@ -132,26 +132,26 @@ class VulkanBackend : public Backend
     bool is_device_lost() const { return device_lost_; }
 
     // Vulkan-specific accessors
-    VkDevice device() const { return ctx_.device; }
+    VkDevice         device() const { return ctx_.device; }
     VkPhysicalDevice physical_device() const { return ctx_.physical_device; }
-    VkInstance instance() const { return ctx_.instance; }
-    VkQueue graphics_queue() const { return ctx_.graphics_queue; }
-    uint32_t graphics_queue_family() const { return ctx_.queue_families.graphics.value_or(0); }
-    VkRenderPass render_pass() const;
+    VkInstance       instance() const { return ctx_.instance; }
+    VkQueue          graphics_queue() const { return ctx_.graphics_queue; }
+    uint32_t      graphics_queue_family() const { return ctx_.queue_families.graphics.value_or(0); }
+    VkRenderPass  render_pass() const;
     VkCommandPool command_pool() const { return command_pool_; }
     VkDescriptorPool descriptor_pool() const { return descriptor_pool_; }
-    uint32_t image_count() const
+    uint32_t         image_count() const
     {
         return headless_ ? 1 : static_cast<uint32_t>(active_window_->swapchain.images.size());
     }
-    uint32_t min_image_count() const { return headless_ ? 1 : 2; }
+    uint32_t        min_image_count() const { return headless_ ? 1 : 2; }
     VkCommandBuffer current_command_buffer() const { return active_window_->current_cmd; }
 
    private:
-    void create_command_pool();
-    void create_command_buffers();
-    void create_sync_objects();
-    void create_descriptor_pool();
+    void       create_command_pool();
+    void       create_command_buffers();
+    void       create_sync_objects();
+    void       create_descriptor_pool();
     VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
 
    public:
@@ -159,44 +159,44 @@ class VulkanBackend : public Backend
     bool is_headless() const { return headless_; }
 
    private:
-    vk::DeviceContext ctx_;
+    vk::DeviceContext    ctx_;
     vk::OffscreenContext offscreen_;
-    bool headless_ = false;
-    bool device_lost_ = false;  // set on VK_ERROR_DEVICE_LOST — unrecoverable
+    bool                 headless_    = false;
+    bool                 device_lost_ = false;   // set on VK_ERROR_DEVICE_LOST — unrecoverable
 
     // Initial window context (heap-allocated for uniform ownership).
     // All per-window resources (surface, swapchain, command buffers, sync
     // objects) live here.  active_window_ points to the context that
     // begin_frame/end_frame currently target.
     std::unique_ptr<WindowContext> initial_window_;
-    WindowContext* active_window_ = nullptr;
+    WindowContext*                 active_window_ = nullptr;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
 
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
     // Descriptor management
-    VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
-    VkDescriptorSetLayout frame_desc_layout_ = VK_NULL_HANDLE;
-    VkDescriptorSetLayout series_desc_layout_ = VK_NULL_HANDLE;
-    VkDescriptorSetLayout texture_desc_layout_ = VK_NULL_HANDLE;
-    VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
-    VkPipelineLayout text_pipeline_layout_ = VK_NULL_HANDLE;
+    VkDescriptorPool      descriptor_pool_      = VK_NULL_HANDLE;
+    VkDescriptorSetLayout frame_desc_layout_    = VK_NULL_HANDLE;
+    VkDescriptorSetLayout series_desc_layout_   = VK_NULL_HANDLE;
+    VkDescriptorSetLayout texture_desc_layout_  = VK_NULL_HANDLE;
+    VkPipelineLayout      pipeline_layout_      = VK_NULL_HANDLE;
+    VkPipelineLayout      text_pipeline_layout_ = VK_NULL_HANDLE;
 
     // Resource tracking
-    uint64_t next_buffer_id_ = 1;
+    uint64_t next_buffer_id_   = 1;
     uint64_t next_pipeline_id_ = 1;
-    uint64_t next_texture_id_ = 1;
+    uint64_t next_texture_id_  = 1;
 
     struct BufferEntry
     {
-        vk::GpuBuffer gpu_buffer;
+        vk::GpuBuffer   gpu_buffer;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-        BufferUsage usage = BufferUsage::Vertex;
+        BufferUsage     usage          = BufferUsage::Vertex;
     };
-    std::unordered_map<uint64_t, BufferEntry> buffers_;
-    std::unordered_map<uint64_t, VkPipeline> pipelines_;
-    std::unordered_map<uint64_t, PipelineType> pipeline_types_;
+    std::unordered_map<uint64_t, BufferEntry>      buffers_;
+    std::unordered_map<uint64_t, VkPipeline>       pipelines_;
+    std::unordered_map<uint64_t, PipelineType>     pipeline_types_;
     std::unordered_map<uint64_t, VkPipelineLayout> pipeline_layouts_;
 
     // Deferred buffer+descriptor deletion.  Each entry is stamped with the
@@ -206,12 +206,12 @@ class VulkanBackend : public Backend
     struct DeferredBufferFree
     {
         BufferEntry entry;
-        uint64_t frame_destroyed;  // value of frame_counter_ when queued
+        uint64_t    frame_destroyed;   // value of frame_counter_ when queued
     };
     std::vector<DeferredBufferFree> pending_buffer_frees_;
-    uint64_t frame_counter_ = 0;
-    uint32_t flight_count_ = 2;  // updated from in_flight_fences.size()
-    void flush_pending_buffer_frees(bool force_all = false);
+    uint64_t                        frame_counter_ = 0;
+    uint32_t                        flight_count_  = 2;   // updated from in_flight_fences.size()
+    void                            flush_pending_buffer_frees(bool force_all = false);
 
    public:
     // Call once per application tick (NOT per window) to advance the
@@ -220,27 +220,27 @@ class VulkanBackend : public Backend
 
    private:
     VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
-    void update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
-    void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
+    void            update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
+    void            update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
 
     struct TextureEntry
     {
-        VkImage image = VK_NULL_HANDLE;
-        VkDeviceMemory memory = VK_NULL_HANDLE;
-        VkImageView view = VK_NULL_HANDLE;
-        VkSampler sampler = VK_NULL_HANDLE;
+        VkImage         image          = VK_NULL_HANDLE;
+        VkDeviceMemory  memory         = VK_NULL_HANDLE;
+        VkImageView     view           = VK_NULL_HANDLE;
+        VkSampler       sampler        = VK_NULL_HANDLE;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
     };
     std::unordered_map<uint64_t, TextureEntry> textures_;
 
     // Dynamic UBO state (per-draw projection slots)
-    VkDeviceSize ubo_slot_alignment_ = 256;  // minUniformBufferOffsetAlignment
-    uint32_t ubo_next_offset_ = 0;           // next write offset in dynamic UBO
-    uint32_t ubo_bound_offset_ = 0;          // offset of last-written slot (for bind)
-    static constexpr uint32_t UBO_MAX_SLOTS = 64;
+    VkDeviceSize              ubo_slot_alignment_ = 256;   // minUniformBufferOffsetAlignment
+    uint32_t                  ubo_next_offset_    = 0;     // next write offset in dynamic UBO
+    uint32_t                  ubo_bound_offset_   = 0;     // offset of last-written slot (for bind)
+    static constexpr uint32_t UBO_MAX_SLOTS       = 64;
 
     // Current frame state
     VkPipelineLayout current_pipeline_layout_ = VK_NULL_HANDLE;
 };
 
-}  // namespace spectra
+}   // namespace spectra

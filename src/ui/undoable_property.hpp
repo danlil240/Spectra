@@ -20,10 +20,10 @@ namespace spectra
 
 // Generic: push a value change with a setter lambda
 template <typename T>
-void undoable_set(UndoManager* mgr,
-                  const std::string& description,
-                  T before,
-                  T after,
+void undoable_set(UndoManager*                  mgr,
+                  const std::string&            description,
+                  T                             before,
+                  T                             after,
                   std::function<void(const T&)> setter)
 {
     if (setter)
@@ -40,7 +40,7 @@ inline void undoable_xlim(UndoManager* mgr, Axes& ax, float new_min, float new_m
     ax.xlim(new_min, new_max);
     if (mgr)
     {
-        Axes* ptr = &ax;
+        Axes*      ptr    = &ax;
         AxisLimits before = old;
         AxisLimits after{new_min, new_max};
         mgr->push(UndoAction{"Change X limits",
@@ -55,7 +55,7 @@ inline void undoable_ylim(UndoManager* mgr, Axes& ax, float new_min, float new_m
     ax.ylim(new_min, new_max);
     if (mgr)
     {
-        Axes* ptr = &ax;
+        Axes*      ptr    = &ax;
         AxisLimits before = old;
         AxisLimits after{new_min, new_max};
         mgr->push(UndoAction{"Change Y limits",
@@ -128,7 +128,7 @@ inline void undoable_toggle_series_visibility(UndoManager* mgr, Series& s)
     s.visible(new_val);
     if (mgr)
     {
-        Series* ptr = &s;
+        Series*     ptr  = &s;
         std::string name = s.label().empty() ? "series" : s.label();
         mgr->push(UndoAction{new_val ? "Show " + name : "Hide " + name,
                              [ptr, old_val]() { ptr->visible(old_val); },
@@ -245,8 +245,8 @@ inline void undoable_set_opacity(UndoManager* mgr, Series& s, float new_opacity)
 
 inline void undoable_toggle_legend(UndoManager* mgr, Figure& fig)
 {
-    bool old_val = fig.legend().visible;
-    bool new_val = !old_val;
+    bool old_val         = fig.legend().visible;
+    bool new_val         = !old_val;
     fig.legend().visible = new_val;
     if (mgr)
     {
@@ -336,17 +336,17 @@ struct FigureAxisSnapshot
 {
     struct Entry2D
     {
-        Axes* axes;
+        Axes*      axes;
         AxisLimits x_limits;
         AxisLimits y_limits;
     };
     struct Entry3D
     {
-        Axes3D* axes;
+        Axes3D*    axes;
         AxisLimits x_limits;
         AxisLimits y_limits;
         AxisLimits z_limits;
-        Camera camera;
+        Camera     camera;
     };
     std::vector<Entry2D> entries;
     std::vector<Entry3D> entries3d;
@@ -418,4 +418,4 @@ inline void undoable_reset_view(UndoManager* mgr, Figure& fig)
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

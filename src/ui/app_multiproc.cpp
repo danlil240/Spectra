@@ -38,12 +38,12 @@ namespace spectra
 static std::string self_dir()
 {
 #ifdef __linux__
-    char buf[4096] = {};
-    ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    char    buf[4096] = {};
+    ssize_t n         = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (n > 0)
     {
         std::string path(buf, static_cast<size_t>(n));
-        auto slash = path.rfind('/');
+        auto        slash = path.rfind('/');
         if (slash != std::string::npos)
             return path.substr(0, slash + 1);
     }
@@ -55,7 +55,7 @@ static std::string self_dir()
 static pid_t spawn_backend(const std::string& sock_path)
 {
 #ifdef __linux__
-    std::string dir = self_dir();
+    std::string dir         = self_dir();
     std::string backend_bin = dir + "spectra-backend";
     if (::access(backend_bin.c_str(), X_OK) != 0)
     {
@@ -65,14 +65,14 @@ static pid_t spawn_backend(const std::string& sock_path)
             auto parent_slash = dir.rfind('/', dir.size() - 2);
             if (parent_slash != std::string::npos)
             {
-                std::string parent = dir.substr(0, parent_slash + 1);
+                std::string parent    = dir.substr(0, parent_slash + 1);
                 std::string candidate = parent + "spectra-backend";
                 if (::access(candidate.c_str(), X_OK) == 0)
                     backend_bin = candidate;
             }
         }
         if (::access(backend_bin.c_str(), X_OK) != 0)
-            backend_bin = "spectra-backend";  // fall back to PATH
+            backend_bin = "spectra-backend";   // fall back to PATH
     }
 
     pid_t pid = ::fork();
@@ -94,9 +94,9 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 {
     ipc::SnapshotFigureState snap;
     snap.figure_id = figure_id;
-    snap.title = "";
-    snap.width = fig.width();
-    snap.height = fig.height();
+    snap.title     = "";
+    snap.width     = fig.width();
+    snap.height    = fig.height();
     snap.grid_rows = fig.grid_rows();
     snap.grid_cols = fig.grid_cols();
 
@@ -104,25 +104,25 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
     {
         if (!ax_ptr)
             continue;
-        const auto& ax = *ax_ptr;
+        const auto&            ax = *ax_ptr;
         ipc::SnapshotAxisState sa;
-        sa.x_min = ax.x_limits().min;
-        sa.x_max = ax.x_limits().max;
-        sa.y_min = ax.y_limits().min;
-        sa.y_max = ax.y_limits().max;
+        sa.x_min        = ax.x_limits().min;
+        sa.x_max        = ax.x_limits().max;
+        sa.y_min        = ax.y_limits().min;
+        sa.y_max        = ax.y_limits().max;
         sa.grid_visible = ax.grid_enabled();
-        sa.x_label = ax.xlabel();
-        sa.y_label = ax.ylabel();
-        sa.title = ax.title();
+        sa.x_label      = ax.xlabel();
+        sa.y_label      = ax.ylabel();
+        sa.title        = ax.title();
         snap.axes.push_back(std::move(sa));
 
         for (const auto& s_ptr : ax.series())
         {
             if (!s_ptr)
                 continue;
-            const auto& s = *s_ptr;
+            const auto&              s = *s_ptr;
             ipc::SnapshotSeriesState ss;
-            ss.name = s.label();
+            ss.name    = s.label();
             ss.color_r = s.color().r;
             ss.color_g = s.color().g;
             ss.color_b = s.color().b;
@@ -132,11 +132,11 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 
             if (auto* line = dynamic_cast<const LineSeries*>(&s))
             {
-                ss.type = "line";
-                ss.line_width = line->width();
+                ss.type        = "line";
+                ss.line_width  = line->width();
                 ss.marker_size = s.marker_size();
-                auto xd = line->x_data();
-                auto yd = line->y_data();
+                auto xd        = line->x_data();
+                auto yd        = line->y_data();
                 ss.data.reserve(xd.size() * 2);
                 for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
                 {
@@ -147,11 +147,11 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             }
             else if (auto* scatter = dynamic_cast<const ScatterSeries*>(&s))
             {
-                ss.type = "scatter";
+                ss.type        = "scatter";
                 ss.marker_size = scatter->size();
-                ss.line_width = 2.0f;
-                auto xd = scatter->x_data();
-                auto yd = scatter->y_data();
+                ss.line_width  = 2.0f;
+                auto xd        = scatter->x_data();
+                auto yd        = scatter->y_data();
                 ss.data.reserve(xd.size() * 2);
                 for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
                 {
@@ -169,17 +169,17 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 }
 
 // ─── Send an IPC message helper ─────────────────────────────────────────────
-static bool send_msg(ipc::Connection& conn,
-                     ipc::MessageType type,
-                     ipc::SessionId session_id,
-                     ipc::WindowId window_id,
+static bool send_msg(ipc::Connection&     conn,
+                     ipc::MessageType     type,
+                     ipc::SessionId       session_id,
+                     ipc::WindowId        window_id,
                      std::vector<uint8_t> payload = {})
 {
     ipc::Message msg;
-    msg.header.type = type;
-    msg.header.session_id = session_id;
-    msg.header.window_id = window_id;
-    msg.payload = std::move(payload);
+    msg.header.type        = type;
+    msg.header.session_id  = session_id;
+    msg.header.window_id   = window_id;
+    msg.payload            = std::move(payload);
     msg.header.payload_len = static_cast<uint32_t>(msg.payload.size());
     return conn.send(msg);
 }
@@ -215,9 +215,9 @@ void App::run_multiproc()
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
-            uint32_t orig_w = fig->config_.width;
-            uint32_t orig_h = fig->config_.height;
-            fig->config_.width = export_w;
+            uint32_t orig_w     = fig->config_.width;
+            uint32_t orig_h     = fig->config_.height;
+            fig->config_.width  = export_w;
             fig->config_.height = export_h;
             fig->compute_layout();
 
@@ -227,7 +227,7 @@ void App::run_multiproc()
                 backend_->end_frame();
             }
 
-            fig->config_.width = orig_w;
+            fig->config_.width  = orig_w;
             fig->config_.height = orig_h;
             fig->compute_layout();
 
@@ -236,8 +236,10 @@ void App::run_multiproc()
                 std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
                 if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
                 {
-                    if (!ImageExporter::write_png(
-                            fig->png_export_path_, pixels.data(), export_w, export_h))
+                    if (!ImageExporter::write_png(fig->png_export_path_,
+                                                  pixels.data(),
+                                                  export_w,
+                                                  export_h))
                         std::cerr << "[spectra] Failed to write PNG: " << fig->png_export_path_
                                   << "\n";
                 }
@@ -300,7 +302,7 @@ void App::run_multiproc()
 
     // Wait for WELCOME
     ipc::SessionId session_id = 0;
-    ipc::WindowId window_id = 0;
+    ipc::WindowId  window_id  = 0;
     {
         auto welcome_msg = conn->recv();
         if (!welcome_msg || welcome_msg->header.type != ipc::MessageType::WELCOME)
@@ -315,7 +317,7 @@ void App::run_multiproc()
             return;
         }
         session_id = wp->session_id;
-        window_id = wp->window_id;
+        window_id  = wp->window_id;
     }
 
     // Drain any initial messages (CMD_ASSIGN_FIGURES, STATE_SNAPSHOT for default figure)
@@ -325,8 +327,8 @@ void App::run_multiproc()
         {
 #ifdef __linux__
             struct pollfd pfd;
-            pfd.fd = conn->fd();
-            pfd.events = POLLIN;
+            pfd.fd      = conn->fd();
+            pfd.events  = POLLIN;
             pfd.revents = 0;
             if (::poll(&pfd, 1, 50) <= 0 || !(pfd.revents & POLLIN))
                 break;
@@ -340,14 +342,14 @@ void App::run_multiproc()
     // Serialize and push all figures as a STATE_SNAPSHOT.
     // Assign window_group so the daemon groups sibling figures into one agent.
     ipc::StateSnapshotPayload snap;
-    snap.revision = 1;
+    snap.revision   = 1;
     snap.session_id = session_id;
 
     auto window_groups = compute_window_groups();
 
     // Map registry FigureId → IPC figure_id (starting at 100)
     std::unordered_map<FigureId, uint64_t> reg_to_ipc;
-    uint64_t fig_counter = 100;
+    uint64_t                               fig_counter = 100;
     for (auto id : registry_.all_ids())
         reg_to_ipc[id] = fig_counter++;
 
@@ -358,7 +360,7 @@ void App::run_multiproc()
         if (!fig)
             continue;
         fig->compute_layout();
-        auto fig_snap = figure_to_snapshot(*fig, reg_to_ipc[id]);
+        auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
         fig_snap.title = "Figure " + std::to_string(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
@@ -369,12 +371,12 @@ void App::run_multiproc()
         for (const auto& k : knob_manager_->knobs())
         {
             ipc::SnapshotKnobState ks;
-            ks.name = k.name;
-            ks.type = static_cast<uint8_t>(k.type);
-            ks.value = k.value;
+            ks.name    = k.name;
+            ks.type    = static_cast<uint8_t>(k.type);
+            ks.value   = k.value;
             ks.min_val = k.min_val;
             ks.max_val = k.max_val;
-            ks.step = k.step;
+            ks.step    = k.step;
             ks.choices = k.choices;
             snap.knobs.push_back(std::move(ks));
         }
@@ -383,7 +385,7 @@ void App::run_multiproc()
     // Assign window_group: figures in the same group get the same non-zero ID
     for (uint32_t gi = 0; gi < window_groups.size(); ++gi)
     {
-        uint32_t group_id = gi + 1;  // 1-based group IDs
+        uint32_t group_id = gi + 1;   // 1-based group IDs
         for (auto reg_id : window_groups[gi])
         {
             uint64_t ipc_id = reg_to_ipc[reg_id];
@@ -407,8 +409,8 @@ void App::run_multiproc()
     // The daemon spawns one agent per figure automatically when it
     // receives the STATE_SNAPSHOT.  No need to send REQ_CREATE_WINDOW.
 
-    bool has_any_animation = false;
-    float max_fps = 60.0f;
+    bool  has_any_animation = false;
+    float max_fps           = 60.0f;
     for (auto id : registry_.all_ids())
     {
         Figure* fig = registry_.get(id);
@@ -454,7 +456,7 @@ void App::run_multiproc()
     std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
-    auto last_heartbeat = std::chrono::steady_clock::now();
+    auto                  last_heartbeat     = std::chrono::steady_clock::now();
     static constexpr auto HEARTBEAT_INTERVAL = std::chrono::milliseconds(5000);
     while (true)
     {
@@ -463,23 +465,23 @@ void App::run_multiproc()
 
 #ifdef __linux__
         struct pollfd pfd;
-        pfd.fd = conn->fd();
+        pfd.fd     = conn->fd();
         pfd.events = POLLIN;
 
-        int timeout_ms = scheduler ? 0 : 1000;
+        int  timeout_ms     = scheduler ? 0 : 1000;
         bool exit_requested = false;
 
         while (true)
         {
             pfd.revents = 0;
-            int pr = ::poll(&pfd, 1, timeout_ms);
+            int pr      = ::poll(&pfd, 1, timeout_ms);
             if (pr < 0)
             {
                 exit_requested = true;
                 break;
             }
             if (pr == 0)
-                break;  // timeout
+                break;   // timeout
 
             if (pfd.revents & (POLLHUP | POLLERR))
             {
@@ -517,7 +519,7 @@ void App::run_multiproc()
             {
                 break;
             }
-            timeout_ms = 0;  // only block on the first iteration
+            timeout_ms = 0;   // only block on the first iteration
         }
         if (exit_requested)
             break;
@@ -542,7 +544,7 @@ void App::run_multiproc()
 
         if (scheduler)
         {
-            Frame frame = scheduler->current_frame();
+            Frame                 frame = scheduler->current_frame();
             ipc::StateDiffPayload diff;
 
             for (auto id : registry_.all_ids())
@@ -569,10 +571,10 @@ void App::run_multiproc()
 
                         // Emit SET_AXIS_LIMITS if limits changed since last frame
                         {
-                            auto xlim = ax_ptr->x_limits();
-                            auto ylim = ax_ptr->y_limits();
+                            auto          xlim = ax_ptr->x_limits();
+                            auto          ylim = ax_ptr->y_limits();
                             AxisLimitsKey key{reg_to_ipc[id], axes_idx};
-                            auto it = sent_limits.find(key);
+                            auto          it = sent_limits.find(key);
                             bool changed = (it == sent_limits.end()) || it->second.xmin != xlim.min
                                            || it->second.xmax != xlim.max
                                            || it->second.ymin != ylim.min
@@ -580,13 +582,13 @@ void App::run_multiproc()
                             if (changed)
                             {
                                 ipc::DiffOp op;
-                                op.type = ipc::DiffOp::Type::SET_AXIS_LIMITS;
-                                op.figure_id = reg_to_ipc[id];
+                                op.type       = ipc::DiffOp::Type::SET_AXIS_LIMITS;
+                                op.figure_id  = reg_to_ipc[id];
                                 op.axes_index = axes_idx;
-                                op.f1 = xlim.min;
-                                op.f2 = xlim.max;
-                                op.f3 = ylim.min;
-                                op.f4 = ylim.max;
+                                op.f1         = xlim.min;
+                                op.f2         = xlim.max;
+                                op.f3         = ylim.min;
+                                op.f4         = ylim.max;
                                 diff.ops.push_back(std::move(op));
                                 sent_limits[key] = {xlim.min, xlim.max, ylim.min, ylim.max};
                             }
@@ -598,9 +600,9 @@ void App::run_multiproc()
                             if (s_ptr && s_ptr->is_dirty())
                             {
                                 ipc::DiffOp op;
-                                op.type = ipc::DiffOp::Type::SET_SERIES_DATA;
-                                op.figure_id = reg_to_ipc[id];
-                                op.axes_index = axes_idx;
+                                op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
+                                op.figure_id    = reg_to_ipc[id];
+                                op.axes_index   = axes_idx;
                                 op.series_index = series_idx;
 
                                 if (auto* line = dynamic_cast<const LineSeries*>(s_ptr.get()))
@@ -653,7 +655,7 @@ void App::run_multiproc()
     // Notify backend we are done — it will kill all agents and exit
     ipc::ReqCloseWindowPayload close_req;
     close_req.window_id = window_id;
-    close_req.reason = "app_exit";
+    close_req.reason    = "app_exit";
     send_msg(*conn,
              ipc::MessageType::REQ_CLOSE_WINDOW,
              session_id,
@@ -662,4 +664,4 @@ void App::run_multiproc()
     conn->close();
 }
 
-}  // namespace spectra
+}   // namespace spectra

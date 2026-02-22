@@ -20,94 +20,94 @@ struct WorkspaceData
 
     struct AxisState
     {
-        float x_min = 0.0f, x_max = 1.0f;
-        float y_min = 0.0f, y_max = 1.0f;
-        bool auto_fit = true;
-        bool grid_visible = true;
+        float       x_min = 0.0f, x_max = 1.0f;
+        float       y_min = 0.0f, y_max = 1.0f;
+        bool        auto_fit     = true;
+        bool        grid_visible = true;
         std::string x_label;
         std::string y_label;
         std::string title;
-        bool is_3d = false;  // v4: true if this axes is an Axes3D
+        bool        is_3d = false;   // v4: true if this axes is an Axes3D
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
     struct Axes3DState
     {
-        size_t axes_index = 0;  // Index into FigureState::axes
-        float z_min = 0.0f, z_max = 1.0f;
+        size_t      axes_index = 0;   // Index into FigureState::axes
+        float       z_min = 0.0f, z_max = 1.0f;
         std::string z_label;
-        std::string camera_state;  // Camera::serialize() JSON
-        int grid_planes = 1;       // Axes3D::GridPlane bitmask
-        bool show_bounding_box = true;
-        bool lighting_enabled = true;
-        float light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
+        std::string camera_state;            // Camera::serialize() JSON
+        int         grid_planes       = 1;   // Axes3D::GridPlane bitmask
+        bool        show_bounding_box = true;
+        bool        lighting_enabled  = true;
+        float       light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
     };
 
     struct SeriesState
     {
         std::string name;
-        std::string type;  // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
-        float color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
-        float line_width = 2.0f;
-        float marker_size = 6.0f;
-        bool visible = true;
+        std::string type;   // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
+        float       color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
+        float       line_width  = 2.0f;
+        float       marker_size = 6.0f;
+        bool        visible     = true;
         // Data is NOT saved (too large); only metadata
         size_t point_count = 0;
         // Series-level opacity (for legend interaction fade)
         float opacity = 1.0f;
         // Plot style (line style + marker style)
-        int line_style = 1;    // LineStyle enum value (default Solid)
-        int marker_style = 0;  // MarkerStyle enum value (default None)
+        int line_style   = 1;   // LineStyle enum value (default Solid)
+        int marker_style = 0;   // MarkerStyle enum value (default None)
         // v3: dash pattern
         std::vector<float> dash_pattern;
         // v4: 3D series fields
-        int colormap_type = 0;  // ColormapType enum
-        float ambient = 0.0f;
-        float specular = 0.0f;
-        float shininess = 0.0f;
+        int   colormap_type = 0;   // ColormapType enum
+        float ambient       = 0.0f;
+        float specular      = 0.0f;
+        float shininess     = 0.0f;
     };
 
     struct FigureState
     {
-        std::string title;
-        uint32_t width = 1280;
-        uint32_t height = 720;
-        int grid_rows = 1;
-        int grid_cols = 1;
-        bool is_modified = false;
-        std::string custom_tab_title;  // Tab title from FigureManager
-        std::vector<AxisState> axes;
+        std::string              title;
+        uint32_t                 width       = 1280;
+        uint32_t                 height      = 720;
+        int                      grid_rows   = 1;
+        int                      grid_cols   = 1;
+        bool                     is_modified = false;
+        std::string              custom_tab_title;   // Tab title from FigureManager
+        std::vector<AxisState>   axes;
         std::vector<SeriesState> series;
-        std::vector<Axes3DState> axes_3d;  // v4: 3D axes state
+        std::vector<Axes3DState> axes_3d;   // v4: 3D axes state
     };
 
     struct PanelState
     {
-        bool inspector_visible = true;
-        float inspector_width = 320.0f;
-        bool nav_rail_expanded = false;
+        bool  inspector_visible = true;
+        float inspector_width   = 320.0f;
+        bool  nav_rail_expanded = false;
     };
 
     struct InteractionState
     {
         bool crosshair_enabled = false;
-        bool tooltip_enabled = true;
+        bool tooltip_enabled   = true;
         // Persistent data markers (screen-independent, stored in data coords)
         struct MarkerEntry
         {
-            float data_x = 0.0f;
-            float data_y = 0.0f;
+            float       data_x = 0.0f;
+            float       data_y = 0.0f;
             std::string series_label;
-            size_t point_index = 0;
+            size_t      point_index = 0;
         };
         std::vector<MarkerEntry> markers;
     };
 
-    uint32_t version = FORMAT_VERSION;
-    std::string theme_name = "dark";
-    FigureId active_figure_index = 0;
-    PanelState panels;
-    InteractionState interaction;
+    uint32_t                 version             = FORMAT_VERSION;
+    std::string              theme_name          = "dark";
+    FigureId                 active_figure_index = 0;
+    PanelState               panels;
+    InteractionState         interaction;
     std::vector<FigureState> figures;
 
     // Undo history metadata (not the actual actions — just count for UI display)
@@ -124,12 +124,12 @@ struct WorkspaceData
     struct TransformState
     {
         FigureId figure_index = 0;
-        size_t axes_index = 0;
+        size_t   axes_index   = 0;
         struct Step
         {
-            int type = 0;        // DataTransform::Type enum value
-            float param = 0.0f;  // Scale/offset/clamp parameter
-            bool enabled = true;
+            int   type    = 0;      // DataTransform::Type enum value
+            float param   = 0.0f;   // Scale/offset/clamp parameter
+            bool  enabled = true;
         };
         std::vector<Step> steps;
     };
@@ -139,21 +139,21 @@ struct WorkspaceData
     struct ShortcutOverride
     {
         std::string command_id;
-        std::string shortcut_str;  // "" means unbound
-        bool removed = false;
+        std::string shortcut_str;   // "" means unbound
+        bool        removed = false;
     };
     std::vector<ShortcutOverride> shortcut_overrides;
 
     // v3: Timeline editor state
     struct TimelineState
     {
-        float playhead = 0.0f;
-        float duration = 10.0f;
-        float fps = 30.0f;
-        int loop_mode = 0;  // 0=None, 1=Loop, 2=PingPong
+        float playhead   = 0.0f;
+        float duration   = 10.0f;
+        float fps        = 30.0f;
+        int   loop_mode  = 0;   // 0=None, 1=Loop, 2=PingPong
         float loop_start = 0.0f;
-        float loop_end = 0.0f;
-        bool playing = false;
+        float loop_end   = 0.0f;
+        bool  playing    = false;
     };
     TimelineState timeline;
 
@@ -181,11 +181,11 @@ class Workspace
     // Capture current application state into WorkspaceData.
     // figures: all open figures. active_index: currently active figure.
     static WorkspaceData capture(const std::vector<Figure*>& figures,
-                                 size_t active_index,
-                                 const std::string& theme_name,
-                                 bool inspector_visible,
-                                 float inspector_width,
-                                 bool nav_rail_expanded);
+                                 size_t                      active_index,
+                                 const std::string&          theme_name,
+                                 bool                        inspector_visible,
+                                 float                       inspector_width,
+                                 bool                        nav_rail_expanded);
 
     // Apply loaded workspace data to figures (restores axis limits, etc.).
     // Returns false if data is incompatible.
@@ -211,16 +211,16 @@ class Workspace
    private:
     // JSON serialization helpers (minimal, no external dependency)
     static std::string serialize_json(const WorkspaceData& data);
-    static bool deserialize_json(const std::string& json, WorkspaceData& data);
+    static bool        deserialize_json(const std::string& json, WorkspaceData& data);
 
     // Simple JSON value parser
     static std::string read_string_value(const std::string& json, const std::string& key);
-    static double read_number_value(const std::string& json,
-                                    const std::string& key,
-                                    double default_val = 0.0);
-    static bool read_bool_value(const std::string& json,
-                                const std::string& key,
-                                bool default_val = false);
+    static double      read_number_value(const std::string& json,
+                                         const std::string& key,
+                                         double             default_val = 0.0);
+    static bool        read_bool_value(const std::string& json,
+                                       const std::string& key,
+                                       bool               default_val = false);
 };
 
-}  // namespace spectra
+}   // namespace spectra

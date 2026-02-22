@@ -25,38 +25,38 @@ enum class CurveHitType : uint8_t
 
 struct CurveHitResult
 {
-    CurveHitType type = CurveHitType::None;
-    uint32_t channel_id = 0;
-    size_t keyframe_index = 0;
-    float time = 0.0f;
-    float value = 0.0f;
+    CurveHitType type           = CurveHitType::None;
+    uint32_t     channel_id     = 0;
+    size_t       keyframe_index = 0;
+    float        time           = 0.0f;
+    float        value          = 0.0f;
 };
 
 // Drag state for interactive editing.
 struct CurveDragState
 {
-    bool active = false;
-    CurveHitType dragging = CurveHitType::None;
-    uint32_t channel_id = 0;
-    size_t keyframe_index = 0;
-    float start_time = 0.0f;
-    float start_value = 0.0f;
-    float start_mouse_x = 0.0f;
-    float start_mouse_y = 0.0f;
+    bool         active         = false;
+    CurveHitType dragging       = CurveHitType::None;
+    uint32_t     channel_id     = 0;
+    size_t       keyframe_index = 0;
+    float        start_time     = 0.0f;
+    float        start_value    = 0.0f;
+    float        start_mouse_x  = 0.0f;
+    float        start_mouse_y  = 0.0f;
 };
 
 // View transform for the curve editor coordinate space.
 struct CurveViewTransform
 {
-    float time_min = 0.0f;
-    float time_max = 10.0f;
+    float time_min  = 0.0f;
+    float time_max  = 10.0f;
     float value_min = -0.1f;
     float value_max = 1.1f;
 
     // Viewport pixel dimensions
-    float width = 400.0f;
-    float height = 200.0f;
-    float origin_x = 0.0f;  // Screen-space origin
+    float width    = 400.0f;
+    float height   = 200.0f;
+    float origin_x = 0.0f;   // Screen-space origin
     float origin_y = 0.0f;
 
     // Convert time/value to screen coordinates
@@ -103,13 +103,13 @@ class AnimationCurveEditor
     AnimationCurveEditor();
     ~AnimationCurveEditor() = default;
 
-    AnimationCurveEditor(const AnimationCurveEditor&) = delete;
+    AnimationCurveEditor(const AnimationCurveEditor&)            = delete;
     AnimationCurveEditor& operator=(const AnimationCurveEditor&) = delete;
 
     // ─── Interpolator binding ────────────────────────────────────────
 
     // Set the KeyframeInterpolator to visualize/edit.
-    void set_interpolator(KeyframeInterpolator* interp);
+    void                  set_interpolator(KeyframeInterpolator* interp);
     KeyframeInterpolator* interpolator() const { return interpolator_; }
 
     // ─── Channel visibility ──────────────────────────────────────────
@@ -119,7 +119,7 @@ class AnimationCurveEditor
     bool is_channel_visible(uint32_t channel_id) const;
 
     // Set the color for a channel's curve.
-    void set_channel_color(uint32_t channel_id, Color color);
+    void  set_channel_color(uint32_t channel_id, Color color);
     Color channel_color(uint32_t channel_id) const;
 
     // Solo a channel (hide all others).
@@ -130,7 +130,7 @@ class AnimationCurveEditor
 
     // ─── View ────────────────────────────────────────────────────────
 
-    CurveViewTransform& view() { return view_; }
+    CurveViewTransform&       view() { return view_; }
     const CurveViewTransform& view() const { return view_; }
 
     // Fit view to show all visible channels.
@@ -175,7 +175,7 @@ class AnimationCurveEditor
 
     // Curve sampling resolution (points per visible time unit).
     uint32_t curve_resolution() const { return curve_resolution_; }
-    void set_curve_resolution(uint32_t res) { curve_resolution_ = res; }
+    void     set_curve_resolution(uint32_t res) { curve_resolution_ = res; }
 
     // Show/hide grid.
     bool show_grid() const { return show_grid_; }
@@ -191,7 +191,7 @@ class AnimationCurveEditor
 
     // Playhead time (drawn as vertical line).
     float playhead_time() const { return playhead_time_; }
-    void set_playhead_time(float t) { playhead_time_ = t; }
+    void  set_playhead_time(float t) { playhead_time_ = t; }
 
     // ─── Callbacks ───────────────────────────────────────────────────
 
@@ -208,45 +208,45 @@ class AnimationCurveEditor
     KeyframeInterpolator* interpolator_ = nullptr;
 
     CurveViewTransform view_;
-    CurveDragState drag_;
+    CurveDragState     drag_;
 
     // Per-channel display state
     struct ChannelDisplay
     {
         uint32_t channel_id = 0;
-        Color color = colors::cyan;
-        bool visible = true;
+        Color    color      = colors::cyan;
+        bool     visible    = true;
     };
     std::vector<ChannelDisplay> channel_displays_;
 
     // Display options
-    uint32_t curve_resolution_ = 200;
-    bool show_grid_ = true;
-    bool show_tangents_ = true;
-    bool show_value_labels_ = false;
-    float playhead_time_ = 0.0f;
+    uint32_t curve_resolution_  = 200;
+    bool     show_grid_         = true;
+    bool     show_tangents_     = true;
+    bool     show_value_labels_ = false;
+    float    playhead_time_     = 0.0f;
 
     // Callbacks
-    CurveEditCallback on_keyframe_moved_;
+    CurveEditCallback        on_keyframe_moved_;
     CurveValueChangeCallback on_value_changed_;
-    CurveEditCallback on_tangent_changed_;
+    CurveEditCallback        on_tangent_changed_;
 
     // Default channel colors (cycle through these)
     static constexpr Color kChannelColors[] = {
-        {0.40f, 0.76f, 1.00f, 1.0f},  // Light blue
-        {1.00f, 0.60f, 0.30f, 1.0f},  // Orange
-        {0.50f, 0.90f, 0.50f, 1.0f},  // Green
-        {1.00f, 0.40f, 0.40f, 1.0f},  // Red
-        {0.80f, 0.60f, 1.00f, 1.0f},  // Purple
-        {1.00f, 0.85f, 0.30f, 1.0f},  // Yellow
-        {0.40f, 1.00f, 0.85f, 1.0f},  // Teal
-        {1.00f, 0.50f, 0.75f, 1.0f},  // Pink
+        {0.40f, 0.76f, 1.00f, 1.0f},   // Light blue
+        {1.00f, 0.60f, 0.30f, 1.0f},   // Orange
+        {0.50f, 0.90f, 0.50f, 1.0f},   // Green
+        {1.00f, 0.40f, 0.40f, 1.0f},   // Red
+        {0.80f, 0.60f, 1.00f, 1.0f},   // Purple
+        {1.00f, 0.85f, 0.30f, 1.0f},   // Yellow
+        {0.40f, 1.00f, 0.85f, 1.0f},   // Teal
+        {1.00f, 0.50f, 0.75f, 1.0f},   // Pink
     };
     static constexpr size_t kChannelColorCount = sizeof(kChannelColors) / sizeof(kChannelColors[0]);
 
-    ChannelDisplay* find_display(uint32_t channel_id);
+    ChannelDisplay*       find_display(uint32_t channel_id);
     const ChannelDisplay* find_display(uint32_t channel_id) const;
-    ChannelDisplay& ensure_display(uint32_t channel_id);
+    ChannelDisplay&       ensure_display(uint32_t channel_id);
 };
 
-}  // namespace spectra
+}   // namespace spectra

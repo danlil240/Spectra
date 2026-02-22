@@ -69,12 +69,12 @@ std::optional<MessageHeader> decode_header(std::span<const uint8_t> data)
         return std::nullopt;
 
     MessageHeader hdr;
-    hdr.type = static_cast<MessageType>(read_u16_le(&data[2]));
+    hdr.type        = static_cast<MessageType>(read_u16_le(&data[2]));
     hdr.payload_len = read_u32_le(&data[4]);
-    hdr.seq = read_u64_le(&data[8]);
-    hdr.request_id = read_u64_le(&data[16]);
-    hdr.session_id = read_u64_le(&data[24]);
-    hdr.window_id = read_u64_le(&data[32]);
+    hdr.seq         = read_u64_le(&data[8]);
+    hdr.request_id  = read_u64_le(&data[16]);
+    hdr.session_id  = read_u64_le(&data[24]);
+    hdr.window_id   = read_u64_le(&data[32]);
     return hdr;
 }
 
@@ -83,8 +83,8 @@ std::optional<MessageHeader> decode_header(std::span<const uint8_t> data)
 std::vector<uint8_t> encode_message(const Message& msg)
 {
     std::vector<uint8_t> out;
-    MessageHeader hdr = msg.header;
-    hdr.payload_len = static_cast<uint32_t>(msg.payload.size());
+    MessageHeader        hdr = msg.header;
+    hdr.payload_len          = static_cast<uint32_t>(msg.payload.size());
     encode_header(hdr, out);
     out.insert(out.end(), msg.payload.begin(), msg.payload.end());
     return out;
@@ -148,8 +148,8 @@ bool PayloadDecoder::next()
     if (pos_ + 5 > data_.size())
         return false;
 
-    tag_ = data_[pos_];
-    len_ = read_u32_le(&data_[pos_ + 1]);
+    tag_        = data_[pos_];
+    len_        = read_u32_le(&data_[pos_ + 1]);
     val_offset_ = pos_ + 5;
 
     if (val_offset_ + len_ > data_.size())
@@ -201,7 +201,7 @@ std::vector<uint8_t> encode_hello(const HelloPayload& p)
 
 std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
 {
-    HelloPayload p;
+    HelloPayload   p;
     PayloadDecoder dec(data);
     while (dec.next())
     {
@@ -223,7 +223,7 @@ std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
                 p.client_type = dec.as_string();
                 break;
             default:
-                break;  // skip unknown tags (forward compat)
+                break;   // skip unknown tags (forward compat)
         }
     }
     return p;
@@ -279,7 +279,7 @@ std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
 
 std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
 {
-    RespOkPayload p;
+    RespOkPayload  p;
     PayloadDecoder dec(data);
     while (dec.next())
     {
@@ -344,7 +344,7 @@ std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p)
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data)
 {
     CmdAssignFiguresPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder          dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -359,7 +359,7 @@ std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const
                 p.active_figure_id = dec.as_u64();
                 break;
             case TAG_FIGURE_COUNT:
-                break;  // informational only
+                break;   // informational only
             default:
                 break;
         }
@@ -377,7 +377,7 @@ std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
 std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const uint8_t> data)
 {
     ReqCreateWindowPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -403,7 +403,7 @@ std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
 std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uint8_t> data)
 {
     ReqCloseWindowPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder        dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -432,7 +432,7 @@ std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
 std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const uint8_t> data)
 {
     CmdRemoveFigurePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -461,7 +461,7 @@ std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
 std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t> data)
 {
     CmdSetActivePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder      dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -490,7 +490,7 @@ std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data)
 {
     CmdCloseWindowPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder        dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -525,7 +525,7 @@ std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
 std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
 {
     ReqDetachFigurePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -585,7 +585,7 @@ void payload_put_float_array(PayloadEncoder& enc, uint8_t tag, const std::vector
 {
     // Encode as raw bytes: [count_u32] [float0] [float1] ...
     std::vector<uint8_t> raw;
-    uint32_t count = static_cast<uint32_t>(arr.size());
+    uint32_t             count = static_cast<uint32_t>(arr.size());
     raw.resize(4 + count * 4);
     std::memcpy(raw.data(), &count, 4);
     if (!arr.empty())
@@ -596,7 +596,7 @@ void payload_put_float_array(PayloadEncoder& enc, uint8_t tag, const std::vector
 float payload_as_float(const PayloadDecoder& dec)
 {
     uint32_t bits = dec.as_u32();
-    float val;
+    float    val;
     std::memcpy(&val, &bits, 4);
     return val;
 }
@@ -604,7 +604,7 @@ float payload_as_float(const PayloadDecoder& dec)
 double payload_as_double(const PayloadDecoder& dec)
 {
     uint64_t bits = dec.as_u64();
-    double val;
+    double   val;
     std::memcpy(&val, &bits, 8);
     return val;
 }
@@ -660,7 +660,7 @@ static std::vector<uint8_t> encode_axis_blob(const SnapshotAxisState& ax)
 static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
 {
     SnapshotAxisState ax;
-    PayloadDecoder dec(data);
+    PayloadDecoder    dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -730,7 +730,7 @@ static std::vector<uint8_t> encode_series_blob(const SnapshotSeriesState& s)
 static SnapshotSeriesState decode_series_blob(std::span<const uint8_t> data)
 {
     SnapshotSeriesState s;
-    PayloadDecoder dec(data);
+    PayloadDecoder      dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -810,7 +810,7 @@ static std::vector<uint8_t> encode_figure_blob(const SnapshotFigureState& fig)
 static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
 {
     SnapshotFigureState fig;
-    PayloadDecoder dec(data);
+    PayloadDecoder      dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -874,7 +874,7 @@ static std::vector<uint8_t> encode_knob_blob(const SnapshotKnobState& k)
 static SnapshotKnobState decode_knob_blob(std::span<const uint8_t> data)
 {
     SnapshotKnobState k;
-    PayloadDecoder dec(data);
+    PayloadDecoder    dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -930,7 +930,7 @@ std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
 std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_t> data)
 {
     StateSnapshotPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder       dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -983,7 +983,7 @@ static std::vector<uint8_t> encode_diff_op_blob(const DiffOp& op)
 
 static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
 {
-    DiffOp op;
+    DiffOp         op;
     PayloadDecoder dec(data);
     while (dec.next())
     {
@@ -1047,7 +1047,7 @@ std::vector<uint8_t> encode_state_diff(const StateDiffPayload& p)
 std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
 {
     StateDiffPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder   dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1083,7 +1083,7 @@ std::vector<uint8_t> encode_ack_state(const AckStatePayload& p)
 std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
 {
     AckStatePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder  dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1117,7 +1117,7 @@ std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p)
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
 {
     EvtInputPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder  dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1167,7 +1167,7 @@ std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
 std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
 {
     ReqCreateFigurePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1198,7 +1198,7 @@ std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
 std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
 {
     ReqDestroyFigurePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder          dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1228,7 +1228,7 @@ std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
 std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
 {
     ReqCreateAxesPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder       dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1268,7 +1268,7 @@ std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
 std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
 {
     ReqAddSeriesPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder      dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1303,7 +1303,7 @@ std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
 std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
 {
     ReqRemoveSeriesPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1335,7 +1335,7 @@ std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
 std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data)
 {
     ReqSetDataPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder    dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1372,7 +1372,7 @@ std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p)
 std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data)
 {
     ReqAppendDataPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder       dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1413,7 +1413,7 @@ std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& 
 std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
 {
     ReqUpdatePropertyPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder           dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1495,7 +1495,7 @@ std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
 {
     ReqCloseFigurePayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder        dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1524,7 +1524,7 @@ std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
 std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data)
 {
     ReqUpdateBatchPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder        dec(data);
     while (dec.next())
     {
         if (dec.tag() == TAG_BATCH_ITEM)
@@ -1550,7 +1550,7 @@ std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
 {
     ReqReconnectPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder      dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1579,7 +1579,7 @@ std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& 
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
 {
     RespFigureCreatedPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder           dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1608,7 +1608,7 @@ std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
 std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
 {
     RespAxesCreatedPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1637,7 +1637,7 @@ std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
 std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
 {
     RespSeriesAddedPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1668,7 +1668,7 @@ std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
 std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
 {
     RespFigureListPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder        dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1680,7 +1680,7 @@ std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uin
                 p.figure_ids.push_back(dec.as_u64());
                 break;
             case TAG_FIGURE_COUNT:
-                break;  // informational only
+                break;   // informational only
             default:
                 break;
         }
@@ -1700,7 +1700,7 @@ std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
 std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
 {
     EvtWindowClosedPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder         dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1732,7 +1732,7 @@ std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)
 {
     EvtFigureDestroyedPayload p;
-    PayloadDecoder dec(data);
+    PayloadDecoder            dec(data);
     while (dec.next())
     {
         switch (dec.tag())
@@ -1750,4 +1750,4 @@ std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<c
     return p;
 }
 
-}  // namespace spectra::ipc
+}   // namespace spectra::ipc

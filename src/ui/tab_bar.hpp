@@ -25,8 +25,8 @@ class TabBar
     struct TabInfo
     {
         std::string title;
-        bool can_close = true;
-        bool is_modified = false;  // For future: show dirty state
+        bool        can_close   = true;
+        bool        is_modified = false;   // For future: show dirty state
 
         TabInfo(const std::string& t, bool close = true, bool modified = false)
             : title(t), can_close(close), is_modified(modified)
@@ -34,41 +34,41 @@ class TabBar
         }
     };
 
-    using TabChangeCallback = std::function<void(size_t new_index)>;
-    using TabCloseCallback = std::function<void(size_t index)>;
-    using TabAddCallback = std::function<void()>;
-    using TabReorderCallback = std::function<void(size_t old_index, size_t new_index)>;
-    using TabDuplicateCallback = std::function<void(size_t index)>;
+    using TabChangeCallback         = std::function<void(size_t new_index)>;
+    using TabCloseCallback          = std::function<void(size_t index)>;
+    using TabAddCallback            = std::function<void()>;
+    using TabReorderCallback        = std::function<void(size_t old_index, size_t new_index)>;
+    using TabDuplicateCallback      = std::function<void(size_t index)>;
     using TabCloseAllExceptCallback = std::function<void(size_t index)>;
-    using TabCloseToRightCallback = std::function<void(size_t index)>;
-    using TabRenameCallback = std::function<void(size_t index, const std::string& new_title)>;
+    using TabCloseToRightCallback   = std::function<void(size_t index)>;
+    using TabRenameCallback     = std::function<void(size_t index, const std::string& new_title)>;
     using TabSplitRightCallback = std::function<void(size_t index)>;
-    using TabSplitDownCallback = std::function<void(size_t index)>;
-    using TabDetachCallback = std::function<void(size_t index, float screen_x, float screen_y)>;
-    using TabDragOutCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
+    using TabSplitDownCallback  = std::function<void(size_t index)>;
+    using TabDetachCallback     = std::function<void(size_t index, float screen_x, float screen_y)>;
+    using TabDragOutCallback    = std::function<void(size_t index, float mouse_x, float mouse_y)>;
     using TabDragUpdateCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
-    using TabDragEndCallback = std::function<void(size_t index, float mouse_x, float mouse_y)>;
+    using TabDragEndCallback    = std::function<void(size_t index, float mouse_x, float mouse_y)>;
     using TabDragCancelCallback = std::function<void(size_t index)>;
 
     TabBar();
     ~TabBar() = default;
 
     // Disable copying
-    TabBar(const TabBar&) = delete;
+    TabBar(const TabBar&)            = delete;
     TabBar& operator=(const TabBar&) = delete;
 
     // Tab management
-    size_t add_tab(const std::string& title, bool can_close = true);
-    void remove_tab(size_t index);
-    void clear_tabs();
-    void set_tab_title(size_t index, const std::string& title);
+    size_t             add_tab(const std::string& title, bool can_close = true);
+    void               remove_tab(size_t index);
+    void               clear_tabs();
+    void               set_tab_title(size_t index, const std::string& title);
     const std::string& get_tab_title(size_t index) const;
 
     // State queries
     size_t get_tab_count() const { return tabs_.size(); }
     size_t get_active_tab() const { return active_tab_; }
-    void set_active_tab(size_t index);
-    bool has_active_tab() const { return active_tab_ < tabs_.size(); }
+    void   set_active_tab(size_t index);
+    bool   has_active_tab() const { return active_tab_ < tabs_.size(); }
 
     // Callbacks
     void set_tab_change_callback(TabChangeCallback callback) { on_tab_change_ = callback; }
@@ -118,48 +118,48 @@ class TabBar
 
    private:
     std::vector<TabInfo> tabs_;
-    size_t active_tab_ = 0;
+    size_t               active_tab_ = 0;
 
     // Interaction state
-    size_t hovered_tab_ = SIZE_MAX;
-    size_t hovered_close_ = SIZE_MAX;
-    bool is_dragging_ = false;
-    size_t dragged_tab_ = SIZE_MAX;
-    float drag_offset_x_ = 0.0f;
-    float drag_start_y_ = 0.0f;
-    bool is_dock_dragging_ = false;  // Tab has been dragged out of bar → dock mode
+    size_t hovered_tab_      = SIZE_MAX;
+    size_t hovered_close_    = SIZE_MAX;
+    bool   is_dragging_      = false;
+    size_t dragged_tab_      = SIZE_MAX;
+    float  drag_offset_x_    = 0.0f;
+    float  drag_start_y_     = 0.0f;
+    bool   is_dock_dragging_ = false;   // Tab has been dragged out of bar → dock mode
 
     // Callbacks
-    TabChangeCallback on_tab_change_;
-    TabCloseCallback on_tab_close_;
-    TabAddCallback on_tab_add_;
-    TabReorderCallback on_tab_reorder_;
-    TabDuplicateCallback on_tab_duplicate_;
+    TabChangeCallback         on_tab_change_;
+    TabCloseCallback          on_tab_close_;
+    TabAddCallback            on_tab_add_;
+    TabReorderCallback        on_tab_reorder_;
+    TabDuplicateCallback      on_tab_duplicate_;
     TabCloseAllExceptCallback on_tab_close_all_except_;
-    TabCloseToRightCallback on_tab_close_to_right_;
-    TabRenameCallback on_tab_rename_;
-    TabSplitRightCallback on_tab_split_right_;
-    TabSplitDownCallback on_tab_split_down_;
-    TabDetachCallback on_tab_detach_;
-    TabDragOutCallback on_tab_drag_out_;
-    TabDragUpdateCallback on_tab_drag_update_;
-    TabDragEndCallback on_tab_drag_end_;
-    TabDragCancelCallback on_tab_drag_cancel_;
+    TabCloseToRightCallback   on_tab_close_to_right_;
+    TabRenameCallback         on_tab_rename_;
+    TabSplitRightCallback     on_tab_split_right_;
+    TabSplitDownCallback      on_tab_split_down_;
+    TabDetachCallback         on_tab_detach_;
+    TabDragOutCallback        on_tab_drag_out_;
+    TabDragUpdateCallback     on_tab_drag_update_;
+    TabDragEndCallback        on_tab_drag_end_;
+    TabDragCancelCallback     on_tab_drag_cancel_;
 
     // Layout constants
-    static constexpr float TAB_HEIGHT = 32.0f;
-    static constexpr float TAB_MIN_WIDTH = 80.0f;
-    static constexpr float TAB_MAX_WIDTH = 200.0f;
-    static constexpr float TAB_PADDING = 12.0f;
+    static constexpr float TAB_HEIGHT        = 32.0f;
+    static constexpr float TAB_MIN_WIDTH     = 80.0f;
+    static constexpr float TAB_MAX_WIDTH     = 200.0f;
+    static constexpr float TAB_PADDING       = 12.0f;
     static constexpr float CLOSE_BUTTON_SIZE = 16.0f;
-    static constexpr float ADD_BUTTON_WIDTH = 32.0f;
+    static constexpr float ADD_BUTTON_WIDTH  = 32.0f;
 
     // Context menu state
-    size_t context_menu_tab_ = SIZE_MAX;
-    bool context_menu_open_ = false;
-    bool renaming_tab_ = false;
-    size_t rename_tab_index_ = SIZE_MAX;
-    char rename_buffer_[256] = {};
+    size_t context_menu_tab_   = SIZE_MAX;
+    bool   context_menu_open_  = false;
+    bool   renaming_tab_       = false;
+    size_t rename_tab_index_   = SIZE_MAX;
+    char   rename_buffer_[256] = {};
 
     // Internal helpers
     void handle_input(const Rect& bounds);
@@ -177,7 +177,7 @@ class TabBar
 
     std::vector<TabLayout> compute_tab_layouts(const Rect& bounds) const;
     size_t get_tab_at_position(const ImVec2& pos, const std::vector<TabLayout>& layouts) const;
-    size_t get_close_button_at_position(const ImVec2& pos,
+    size_t get_close_button_at_position(const ImVec2&                 pos,
                                         const std::vector<TabLayout>& layouts) const;
 
     void start_drag(size_t tab_index, float mouse_x);
@@ -186,9 +186,9 @@ class TabBar
 
     // Scrolling (for when tabs overflow)
     float scroll_offset_ = 0.0f;
-    bool needs_scroll_buttons(const Rect& bounds) const;
-    void draw_scroll_buttons(const Rect& bounds);
-    void scroll_to_tab(size_t index);
+    bool  needs_scroll_buttons(const Rect& bounds) const;
+    void  draw_scroll_buttons(const Rect& bounds);
+    void  scroll_to_tab(size_t index);
 };
 
-}  // namespace spectra
+}   // namespace spectra

@@ -27,7 +27,7 @@ class CommandQueue
 
     ~CommandQueue() { delete[] buffer_; }
 
-    CommandQueue(const CommandQueue&) = delete;
+    CommandQueue(const CommandQueue&)            = delete;
     CommandQueue& operator=(const CommandQueue&) = delete;
 
     // Producer side: enqueue a command. Returns false if the queue is full.
@@ -38,7 +38,7 @@ class CommandQueue
 
         if (next == tail_.load(std::memory_order_acquire))
         {
-            return false;  // Full
+            return false;   // Full
         }
 
         buffer_[head].command = std::move(cmd);
@@ -53,7 +53,7 @@ class CommandQueue
 
         if (tail == head_.load(std::memory_order_acquire))
         {
-            return false;  // Empty
+            return false;   // Empty
         }
 
         out = std::move(buffer_[tail].command);
@@ -64,7 +64,7 @@ class CommandQueue
     // Consumer side: drain all pending commands, executing each one.
     size_t drain()
     {
-        size_t count = 0;
+        size_t                count = 0;
         std::function<void()> cmd;
         while (pop(cmd))
         {
@@ -91,11 +91,11 @@ class CommandQueue
     };
 
     const size_t capacity_;
-    Slot* buffer_;
+    Slot*        buffer_;
 
     // Cache-line aligned to avoid false sharing
     alignas(64) std::atomic<size_t> head_{0};
     alignas(64) std::atomic<size_t> tail_{0};
 };
 
-}  // namespace spectra
+}   // namespace spectra

@@ -18,14 +18,14 @@ TickResult compute_ticks_for_range(float min, float max)
     if (max <= min)
     {
         result.positions = {min};
-        result.labels = {std::to_string(min)};
+        result.labels    = {std::to_string(min)};
         return result;
     }
 
-    float range = max - min;
+    float range      = max - min;
     float rough_step = range / 5.0f;
 
-    float magnitude = std::pow(10.0f, std::floor(std::log10(rough_step)));
+    float magnitude  = std::pow(10.0f, std::floor(std::log10(rough_step)));
     float normalized = rough_step / magnitude;
 
     float nice_step;
@@ -71,15 +71,15 @@ TickResult compute_ticks_for_range(float min, float max)
     return result;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 Axes3D::Axes3D() : camera_(std::make_unique<Camera>())
 {
-    camera_->target = {0.0f, 0.0f, 0.0f};
-    camera_->up = {0.0f, 1.0f, 0.0f};
-    camera_->azimuth = 45.0f;
+    camera_->target    = {0.0f, 0.0f, 0.0f};
+    camera_->up        = {0.0f, 1.0f, 0.0f};
+    camera_->azimuth   = 45.0f;
     camera_->elevation = 30.0f;
-    camera_->distance = box_half_size() * 2.0f * 2.2f;
+    camera_->distance  = box_half_size() * 2.0f * 2.2f;
     camera_->update_position_from_orbit();
 }
 
@@ -165,9 +165,9 @@ void Axes3D::auto_fit()
     }
 
     constexpr float INF = 1e30f;
-    vec3 global_min{INF, INF, INF};
-    vec3 global_max{-INF, -INF, -INF};
-    bool has_bounds = false;
+    vec3            global_min{INF, INF, INF};
+    vec3            global_max{-INF, -INF, -INF};
+    bool            has_bounds = false;
 
     for (auto& s : series_)
     {
@@ -215,7 +215,7 @@ void Axes3D::auto_fit()
 
     // Add 5% padding
     vec3 extent = global_max - global_min;
-    vec3 pad = extent * 0.05f;
+    vec3 pad    = extent * 0.05f;
     for (int i = 0; i < 3; ++i)
     {
         if (pad[i] < 1e-6f)
@@ -232,7 +232,7 @@ void Axes3D::auto_fit()
     camera_->target = {0.0f, 0.0f, 0.0f};
 
     // Distance based on fixed cube size, not data extent
-    float cube_size = box_half_size() * 2.0f;
+    float cube_size   = box_half_size() * 2.0f;
     camera_->distance = cube_size * 2.2f;
     camera_->update_position_from_orbit();
 }
@@ -241,8 +241,8 @@ LineSeries3D& Axes3D::line3d(std::span<const float> x,
                              std::span<const float> y,
                              std::span<const float> z)
 {
-    auto series = std::make_unique<LineSeries3D>(x, y, z);
-    auto* ptr = series.get();
+    auto  series = std::make_unique<LineSeries3D>(x, y, z);
+    auto* ptr    = series.get();
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -251,8 +251,8 @@ ScatterSeries3D& Axes3D::scatter3d(std::span<const float> x,
                                    std::span<const float> y,
                                    std::span<const float> z)
 {
-    auto series = std::make_unique<ScatterSeries3D>(x, y, z);
-    auto* ptr = series.get();
+    auto  series = std::make_unique<ScatterSeries3D>(x, y, z);
+    auto* ptr    = series.get();
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -261,16 +261,16 @@ SurfaceSeries& Axes3D::surface(std::span<const float> x_grid,
                                std::span<const float> y_grid,
                                std::span<const float> z_values)
 {
-    auto series = std::make_unique<SurfaceSeries>(x_grid, y_grid, z_values);
-    auto* ptr = series.get();
+    auto  series = std::make_unique<SurfaceSeries>(x_grid, y_grid, z_values);
+    auto* ptr    = series.get();
     series_.push_back(std::move(series));
     return *ptr;
 }
 
 MeshSeries& Axes3D::mesh(std::span<const float> vertices, std::span<const uint32_t> indices)
 {
-    auto series = std::make_unique<MeshSeries>(vertices, indices);
-    auto* ptr = series.get();
+    auto  series = std::make_unique<MeshSeries>(vertices, indices);
+    auto* ptr    = series.get();
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -296,13 +296,13 @@ mat4 Axes3D::data_to_normalized_matrix() const
     // Model = Scale * Translate(-center)
     // result = S * (p - c) = S*p - S*c
     // Column-major mat4:
-    mat4 m = mat4_identity();
-    m.m[0] = sx;
-    m.m[5] = sy;
+    mat4 m  = mat4_identity();
+    m.m[0]  = sx;
+    m.m[5]  = sy;
     m.m[10] = sz;
-    m.m[12] = -sx * cx;  // translation x
-    m.m[13] = -sy * cy;  // translation y
-    m.m[14] = -sz * cz;  // translation z
+    m.m[12] = -sx * cx;   // translation x
+    m.m[13] = -sy * cy;   // translation y
+    m.m[14] = -sz * cz;   // translation z
     m.m[15] = 1.0f;
     return m;
 }
@@ -315,7 +315,7 @@ void Axes3D::zoom_limits(float factor)
 
     auto zoom_range = [&](AxisLimits lim) -> AxisLimits
     {
-        float center = (lim.min + lim.max) * 0.5f;
+        float center     = (lim.min + lim.max) * 0.5f;
         float half_range = (lim.max - lim.min) * 0.5f * factor;
         if (half_range < 1e-10f)
             half_range = 1e-10f;
@@ -333,8 +333,8 @@ void Axes3D::zoom_limits(float factor)
 
 void Axes3D::zoom_limits_x(float factor)
 {
-    auto xl = x_limits();
-    float center = (xl.min + xl.max) * 0.5f;
+    auto  xl         = x_limits();
+    float center     = (xl.min + xl.max) * 0.5f;
     float half_range = (xl.max - xl.min) * 0.5f * factor;
     if (half_range < 1e-10f)
         half_range = 1e-10f;
@@ -343,8 +343,8 @@ void Axes3D::zoom_limits_x(float factor)
 
 void Axes3D::zoom_limits_y(float factor)
 {
-    auto yl = y_limits();
-    float center = (yl.min + yl.max) * 0.5f;
+    auto  yl         = y_limits();
+    float center     = (yl.min + yl.max) * 0.5f;
     float half_range = (yl.max - yl.min) * 0.5f * factor;
     if (half_range < 1e-10f)
         half_range = 1e-10f;
@@ -353,22 +353,22 @@ void Axes3D::zoom_limits_y(float factor)
 
 void Axes3D::zoom_limits_z(float factor)
 {
-    auto zl = z_limits();
-    float center = (zl.min + zl.max) * 0.5f;
+    auto  zl         = z_limits();
+    float center     = (zl.min + zl.max) * 0.5f;
     float half_range = (zl.max - zl.min) * 0.5f * factor;
     if (half_range < 1e-10f)
         half_range = 1e-10f;
     zlim(center - half_range, center + half_range);
 }
 
-void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h)
+void Axes3D::pan_limits(float dx_screen, float dy_screen, float /* vp_w */, float /* vp_h */)
 {
     const auto& cam = camera();
 
     // Camera right and up vectors in world (normalized) space
     vec3 forward = vec3_normalize(cam.target - cam.position);
-    vec3 right = vec3_normalize(vec3_cross(forward, cam.up));
-    vec3 up = vec3_cross(right, forward);
+    vec3 right   = vec3_normalize(vec3_cross(forward, cam.up));
+    vec3 up      = vec3_cross(right, forward);
 
     // Scale: how much world-space movement per pixel
     // Match Camera::pan() scale so drag feels consistent
@@ -384,9 +384,9 @@ void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h
     // Model matrix maps data range [min,max] to [-hs, +hs], so:
     //   scale_x = (2*hs) / (xmax - xmin)
     //   data_delta_x = world_delta_x / scale_x = world_delta_x * (xmax-xmin) / (2*hs)
-    auto xl = x_limits();
-    auto yl = y_limits();
-    auto zl = z_limits();
+    auto  xl = x_limits();
+    auto  yl = y_limits();
+    auto  zl = z_limits();
     float hs = box_half_size();
 
     float x_range = xl.max - xl.min;
@@ -402,4 +402,4 @@ void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h
     zlim(zl.min + ddz, zl.max + ddz);
 }
 
-}  // namespace spectra
+}   // namespace spectra

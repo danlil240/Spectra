@@ -12,28 +12,28 @@ namespace spectra
 // Type of interactive knob control.
 enum class KnobType
 {
-    Float,   // Continuous float slider
-    Int,     // Integer slider (value stored as float, displayed as int)
-    Bool,    // Checkbox toggle (0.0 = false, 1.0 = true)
-    Choice,  // Dropdown from a list of named options (value = selected index)
+    Float,    // Continuous float slider
+    Int,      // Integer slider (value stored as float, displayed as int)
+    Bool,     // Checkbox toggle (0.0 = false, 1.0 = true)
+    Choice,   // Dropdown from a list of named options (value = selected index)
 };
 
 // A single interactive knob parameter.
 struct Knob
 {
-    std::string name;
-    KnobType type = KnobType::Float;
-    float value = 0.0f;
-    float min_val = 0.0f;
-    float max_val = 1.0f;
-    float step = 0.0f;                 // 0 = continuous (Float), 1 (Int/Choice)
-    std::vector<std::string> choices;  // For KnobType::Choice
+    std::string                name;
+    KnobType                   type    = KnobType::Float;
+    float                      value   = 0.0f;
+    float                      min_val = 0.0f;
+    float                      max_val = 1.0f;
+    float                      step    = 0.0f;   // 0 = continuous (Float), 1 (Int/Choice)
+    std::vector<std::string>   choices;          // For KnobType::Choice
     std::function<void(float)> on_change;
 
     // Convenience accessors
-    int int_value() const { return static_cast<int>(value); }
+    int  int_value() const { return static_cast<int>(value); }
     bool bool_value() const { return value >= 0.5f; }
-    int choice_index() const { return static_cast<int>(value); }
+    int  choice_index() const { return static_cast<int>(value); }
 };
 
 // Manages a collection of interactive knob parameters that appear as
@@ -45,44 +45,44 @@ struct Knob
 class KnobManager
 {
    public:
-    KnobManager() = default;
+    KnobManager()  = default;
     ~KnobManager() = default;
 
-    KnobManager(const KnobManager&) = delete;
+    KnobManager(const KnobManager&)            = delete;
     KnobManager& operator=(const KnobManager&) = delete;
 
     // ── Add knobs ────────────────────────────────────────────────────
 
     // Add a float slider knob.  Returns reference to the created Knob.
-    Knob& add_float(const std::string& name,
-                    float default_val,
-                    float min_val,
-                    float max_val,
-                    float step = 0.0f,
+    Knob& add_float(const std::string&         name,
+                    float                      default_val,
+                    float                      min_val,
+                    float                      max_val,
+                    float                      step      = 0.0f,
                     std::function<void(float)> on_change = nullptr);
 
     // Add an integer slider knob.
-    Knob& add_int(const std::string& name,
-                  int default_val,
-                  int min_val,
-                  int max_val,
+    Knob& add_int(const std::string&         name,
+                  int                        default_val,
+                  int                        min_val,
+                  int                        max_val,
                   std::function<void(float)> on_change = nullptr);
 
     // Add a boolean checkbox knob.
-    Knob& add_bool(const std::string& name,
-                   bool default_val,
+    Knob& add_bool(const std::string&         name,
+                   bool                       default_val,
                    std::function<void(float)> on_change = nullptr);
 
     // Add a choice dropdown knob.
-    Knob& add_choice(const std::string& name,
+    Knob& add_choice(const std::string&              name,
                      const std::vector<std::string>& choices,
-                     int default_index = 0,
-                     std::function<void(float)> on_change = nullptr);
+                     int                             default_index = 0,
+                     std::function<void(float)>      on_change     = nullptr);
 
     // ── Query ────────────────────────────────────────────────────────
 
     // Find a knob by name.  Returns nullptr if not found.
-    Knob* find(const std::string& name);
+    Knob*       find(const std::string& name);
     const Knob* find(const std::string& name) const;
 
     // Get value of a knob by name.  Returns default_val if not found.
@@ -98,7 +98,7 @@ class KnobManager
     bool empty() const;
 
     // Access all knobs (for ImGui rendering).
-    std::deque<Knob>& knobs();
+    std::deque<Knob>&       knobs();
     const std::deque<Knob>& knobs() const;
 
     // ── Lifecycle ────────────────────────────────────────────────────
@@ -135,12 +135,12 @@ class KnobManager
     std::vector<std::pair<std::string, float>> take_pending_changes();
 
    private:
-    mutable std::mutex mutex_;
-    std::deque<Knob> knobs_;
-    bool visible_ = true;
-    bool collapsed_ = false;
-    std::function<void()> on_any_change_;
+    mutable std::mutex                         mutex_;
+    std::deque<Knob>                           knobs_;
+    bool                                       visible_   = true;
+    bool                                       collapsed_ = false;
+    std::function<void()>                      on_any_change_;
     std::vector<std::pair<std::string, float>> pending_changes_;
 };
 
-}  // namespace spectra
+}   // namespace spectra

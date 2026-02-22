@@ -138,9 +138,9 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
     auto x_ticks = axes.compute_x_ticks();
     auto y_ticks = axes.compute_y_ticks();
 
-    constexpr float tick_len = 5.0f;
+    constexpr float tick_len     = 5.0f;
     constexpr float label_offset = 14.0f;
-    constexpr float font_size = 10.0f;
+    constexpr float font_size    = 10.0f;
 
     svg << "    <g class=\"tick-labels\" font-family=\"sans-serif\" "
            "font-size=\""
@@ -149,7 +149,7 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
     // X-axis tick marks and labels (bottom)
     for (size_t i = 0; i < x_ticks.positions.size(); ++i)
     {
-        float sx = m.map_x(x_ticks.positions[i]);
+        float sx     = m.map_x(x_ticks.positions[i]);
         float bottom = m.vp_y + m.vp_h;
         // Tick mark
         svg << "      <line x1=\"" << fmt(sx) << "\" y1=\"" << fmt(bottom) << "\" x2=\"" << fmt(sx)
@@ -225,8 +225,8 @@ void emit_line_series(std::ostringstream& svg, const LineSeries& series, const D
     if (series.point_count() < 2)
         return;
 
-    auto x = series.x_data();
-    auto y = series.y_data();
+    auto        x = series.x_data();
+    auto        y = series.y_data();
     const auto& c = static_cast<const Series&>(series).color();
 
     svg << "    <polyline fill=\"none\" stroke=\"" << svg_color(c) << "\" stroke-width=\""
@@ -249,9 +249,9 @@ void emit_scatter_series(std::ostringstream& svg, const ScatterSeries& series, c
     if (series.point_count() == 0)
         return;
 
-    auto x = series.x_data();
-    auto y = series.y_data();
-    float r = series.size();
+    auto        x = series.x_data();
+    auto        y = series.y_data();
+    float       r = series.size();
     const auto& c = static_cast<const Series&>(series).color();
 
     svg << "    <g fill=\"" << svg_color(c) << "\" fill-opacity=\"" << fmt(c.a) << "\">\n";
@@ -272,8 +272,8 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
     struct LegendEntry
     {
         std::string label;
-        Color color;
-        bool is_line;
+        Color       color;
+        bool        is_line;
     };
     std::vector<LegendEntry> entries;
 
@@ -288,16 +288,16 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
     if (entries.empty())
         return;
 
-    constexpr float entry_h = 18.0f;
-    constexpr float padding = 8.0f;
-    constexpr float swatch_w = 20.0f;
-    constexpr float gap = 6.0f;
+    constexpr float entry_h   = 18.0f;
+    constexpr float padding   = 8.0f;
+    constexpr float swatch_w  = 20.0f;
+    constexpr float gap       = 6.0f;
     constexpr float font_size = 10.0f;
 
     float legend_h = padding * 2.0f + static_cast<float>(entries.size()) * entry_h;
-    float legend_w = 120.0f;  // approximate; could measure text
-    float lx = m.vp_x + m.vp_w - legend_w - 10.0f;
-    float ly = m.vp_y + 10.0f;
+    float legend_w = 120.0f;   // approximate; could measure text
+    float lx       = m.vp_x + m.vp_w - legend_w - 10.0f;
+    float ly       = m.vp_y + 10.0f;
 
     // Background box
     svg << "    <rect x=\"" << fmt(lx) << "\" y=\"" << fmt(ly) << "\" width=\"" << fmt(legend_w)
@@ -341,10 +341,10 @@ void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
     auto ylim = axes.y_limits();
 
     DataToSvg m;
-    m.vp_x = viewport.x;
-    m.vp_y = viewport.y;
-    m.vp_w = viewport.w;
-    m.vp_h = viewport.h;
+    m.vp_x  = viewport.x;
+    m.vp_y  = viewport.y;
+    m.vp_w  = viewport.w;
+    m.vp_h  = viewport.h;
     m.x_min = xlim.min;
     m.x_max = xlim.max;
     m.y_min = ylim.min;
@@ -398,7 +398,7 @@ void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
     svg << "  </g>\n";
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 // ─── SvgExporter ────────────────────────────────────────────────────────────
 
@@ -447,4 +447,4 @@ bool SvgExporter::write_svg(const std::string& path, const Figure& figure)
     return file.good();
 }
 
-}  // namespace spectra
+}   // namespace spectra

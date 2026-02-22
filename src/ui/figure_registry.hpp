@@ -26,10 +26,10 @@ class FigureRegistry
    public:
     using IdType = uint64_t;
 
-    FigureRegistry() = default;
+    FigureRegistry()  = default;
     ~FigureRegistry() = default;
 
-    FigureRegistry(const FigureRegistry&) = delete;
+    FigureRegistry(const FigureRegistry&)            = delete;
     FigureRegistry& operator=(const FigureRegistry&) = delete;
 
     // Register a figure and return its stable ID.
@@ -64,10 +64,10 @@ class FigureRegistry
     void clear();
 
    private:
-    mutable std::mutex mutex_;
+    mutable std::mutex                                  mutex_;
     std::unordered_map<IdType, std::unique_ptr<Figure>> figures_;
-    std::vector<IdType> insertion_order_;  // preserves iteration order
-    IdType next_id_ = 1;
+    std::vector<IdType> insertion_order_;   // preserves iteration order
+    IdType              next_id_ = 1;
 };
 
-}  // namespace spectra
+}   // namespace spectra

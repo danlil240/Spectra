@@ -10,7 +10,7 @@ int main()
 
     try
     {
-        App app;
+        App   app;
         auto& fig = app.figure();
 
         // Create a 3D subplot

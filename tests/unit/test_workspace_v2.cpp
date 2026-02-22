@@ -37,55 +37,55 @@ class WorkspaceV2Test : public ::testing::Test
     WorkspaceData make_v2_data()
     {
         WorkspaceData data;
-        data.theme_name = "dark";
-        data.active_figure_index = 0;
+        data.theme_name               = "dark";
+        data.active_figure_index      = 0;
         data.panels.inspector_visible = true;
-        data.panels.inspector_width = 350.0f;
+        data.panels.inspector_width   = 350.0f;
         data.panels.nav_rail_expanded = true;
 
         // Interaction state
         data.interaction.crosshair_enabled = true;
-        data.interaction.tooltip_enabled = false;
+        data.interaction.tooltip_enabled   = false;
         WorkspaceData::InteractionState::MarkerEntry m;
-        m.data_x = 3.14f;
-        m.data_y = 2.71f;
+        m.data_x       = 3.14f;
+        m.data_y       = 2.71f;
         m.series_label = "sin(x)";
-        m.point_index = 42;
+        m.point_index  = 42;
         data.interaction.markers.push_back(m);
 
         // Figure with v2 fields
         WorkspaceData::FigureState fig;
-        fig.title = "Test Figure";
-        fig.width = 1920;
-        fig.height = 1080;
-        fig.grid_rows = 1;
-        fig.grid_cols = 1;
-        fig.is_modified = true;
+        fig.title            = "Test Figure";
+        fig.width            = 1920;
+        fig.height           = 1080;
+        fig.grid_rows        = 1;
+        fig.grid_cols        = 1;
+        fig.is_modified      = true;
         fig.custom_tab_title = "My Custom Tab";
 
         WorkspaceData::AxisState ax;
-        ax.x_min = -10.0f;
-        ax.x_max = 10.0f;
-        ax.y_min = -1.0f;
-        ax.y_max = 1.0f;
-        ax.auto_fit = false;
+        ax.x_min        = -10.0f;
+        ax.x_max        = 10.0f;
+        ax.y_min        = -1.0f;
+        ax.y_max        = 1.0f;
+        ax.auto_fit     = false;
         ax.grid_visible = false;
-        ax.x_label = "Time (s)";
-        ax.y_label = "Amplitude";
-        ax.title = "Signal Plot";
+        ax.x_label      = "Time (s)";
+        ax.y_label      = "Amplitude";
+        ax.title        = "Signal Plot";
         fig.axes.push_back(ax);
 
         WorkspaceData::SeriesState ser;
-        ser.name = "sin(x)";
-        ser.type = "line";
-        ser.color_r = 0.2f;
-        ser.color_g = 0.6f;
-        ser.color_b = 0.9f;
-        ser.color_a = 1.0f;
-        ser.line_width = 3.0f;
-        ser.visible = false;
+        ser.name        = "sin(x)";
+        ser.type        = "line";
+        ser.color_r     = 0.2f;
+        ser.color_g     = 0.6f;
+        ser.color_b     = 0.9f;
+        ser.color_a     = 1.0f;
+        ser.line_width  = 3.0f;
+        ser.visible     = false;
         ser.point_count = 500;
-        ser.opacity = 0.15f;
+        ser.opacity     = 0.15f;
         fig.series.push_back(ser);
 
         data.figures.push_back(fig);
@@ -195,16 +195,16 @@ TEST_F(WorkspaceV2Test, MultipleFiguresWithTabTitles)
 {
     WorkspaceData data;
     data.figures.resize(3);
-    data.figures[0].title = "Fig A";
+    data.figures[0].title            = "Fig A";
     data.figures[0].custom_tab_title = "Analysis";
-    data.figures[0].is_modified = true;
-    data.figures[1].title = "Fig B";
+    data.figures[0].is_modified      = true;
+    data.figures[1].title            = "Fig B";
     data.figures[1].custom_tab_title = "Comparison";
-    data.figures[1].is_modified = false;
-    data.figures[2].title = "Fig C";
+    data.figures[1].is_modified      = false;
+    data.figures[2].title            = "Fig C";
     data.figures[2].custom_tab_title = "";
-    data.figures[2].is_modified = false;
-    data.active_figure_index = 1;
+    data.figures[2].is_modified      = false;
+    data.active_figure_index         = 1;
 
     ASSERT_TRUE(Workspace::save(tmp_path, data));
 
@@ -228,10 +228,10 @@ TEST_F(WorkspaceV2Test, MultipleMarkers)
     for (int i = 0; i < 5; ++i)
     {
         WorkspaceData::InteractionState::MarkerEntry m;
-        m.data_x = static_cast<float>(i) * 1.5f;
-        m.data_y = static_cast<float>(i) * 0.5f;
+        m.data_x       = static_cast<float>(i) * 1.5f;
+        m.data_y       = static_cast<float>(i) * 0.5f;
         m.series_label = "series_" + std::to_string(i);
-        m.point_index = static_cast<size_t>(i * 10);
+        m.point_index  = static_cast<size_t>(i * 10);
         data.interaction.markers.push_back(m);
     }
 
@@ -253,18 +253,18 @@ TEST_F(WorkspaceV2Test, MultipleMarkers)
 
 TEST_F(WorkspaceV2Test, SeriesVisibilityRoundTrip)
 {
-    WorkspaceData data;
+    WorkspaceData              data;
     WorkspaceData::FigureState fig;
     fig.title = "Visibility Test";
 
     WorkspaceData::SeriesState s1;
-    s1.name = "visible_series";
+    s1.name    = "visible_series";
     s1.visible = true;
     s1.opacity = 1.0f;
     fig.series.push_back(s1);
 
     WorkspaceData::SeriesState s2;
-    s2.name = "hidden_series";
+    s2.name    = "hidden_series";
     s2.visible = false;
     s2.opacity = 0.15f;
     fig.series.push_back(s2);
@@ -287,7 +287,7 @@ TEST_F(WorkspaceV2Test, SeriesVisibilityRoundTrip)
 
 TEST_F(WorkspaceV2Test, GridVisibilityRoundTrip)
 {
-    WorkspaceData data;
+    WorkspaceData              data;
     WorkspaceData::FigureState fig;
 
     WorkspaceData::AxisState ax1;
@@ -361,7 +361,7 @@ TEST_F(WorkspaceV2Test, ClearAutosaveNoError)
 {
     // Should not throw even if file doesn't exist
     Workspace::clear_autosave();
-    Workspace::clear_autosave();  // Double clear
+    Workspace::clear_autosave();   // Double clear
 }
 
 // ─── Version rejection ──────────────────────────────────────────────────────
@@ -399,7 +399,7 @@ TEST_F(WorkspaceV2Test, EmptyInteractionState)
 
 TEST_F(WorkspaceV2Test, SpecialCharsInTabTitle)
 {
-    WorkspaceData data;
+    WorkspaceData              data;
     WorkspaceData::FigureState fig;
     fig.custom_tab_title = "Test \"quoted\" tab\nwith newline";
     data.figures.push_back(fig);
@@ -441,15 +441,15 @@ TEST_F(WorkspaceV2Test, LargeWorkspace)
     for (int fi = 0; fi < 10; ++fi)
     {
         WorkspaceData::FigureState fig;
-        fig.title = "Figure " + std::to_string(fi);
+        fig.title            = "Figure " + std::to_string(fi);
         fig.custom_tab_title = "Tab " + std::to_string(fi);
-        fig.is_modified = (fi % 2 == 0);
+        fig.is_modified      = (fi % 2 == 0);
 
         for (int ai = 0; ai < 4; ++ai)
         {
             WorkspaceData::AxisState ax;
-            ax.x_min = static_cast<float>(fi * 10 + ai);
-            ax.x_max = ax.x_min + 10.0f;
+            ax.x_min        = static_cast<float>(fi * 10 + ai);
+            ax.x_max        = ax.x_min + 10.0f;
             ax.grid_visible = (ai % 2 == 0);
             fig.axes.push_back(ax);
         }
@@ -457,7 +457,7 @@ TEST_F(WorkspaceV2Test, LargeWorkspace)
         for (int si = 0; si < 3; ++si)
         {
             WorkspaceData::SeriesState ser;
-            ser.name = "Series " + std::to_string(fi) + "." + std::to_string(si);
+            ser.name    = "Series " + std::to_string(fi) + "." + std::to_string(si);
             ser.visible = (si != 1);
             ser.opacity = (si == 1) ? 0.15f : 1.0f;
             fig.series.push_back(ser);

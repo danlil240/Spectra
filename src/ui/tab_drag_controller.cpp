@@ -20,21 +20,21 @@ namespace spectra
 
 void TabDragController::on_mouse_down(uint32_t source_pane_id,
                                       FigureId figure_id,
-                                      float mouse_x,
-                                      float mouse_y)
+                                      float    mouse_x,
+                                      float    mouse_y)
 {
     if (state_ != State::Idle)
         return;
 
-    state_ = State::DragStartCandidate;
-    source_pane_id_ = source_pane_id;
-    figure_id_ = figure_id;
-    start_mouse_x_ = mouse_x;
-    start_mouse_y_ = mouse_y;
+    state_           = State::DragStartCandidate;
+    source_pane_id_  = source_pane_id;
+    figure_id_       = figure_id;
+    start_mouse_x_   = mouse_x;
+    start_mouse_y_   = mouse_y;
     current_mouse_x_ = mouse_x;
     current_mouse_y_ = mouse_y;
-    cross_pane_ = false;
-    dock_dragging_ = false;
+    cross_pane_      = false;
+    dock_dragging_   = false;
 
     // Begin callback-based mouse release tracking so we don't lose
     // the button state when creating preview windows on X11.
@@ -42,11 +42,14 @@ void TabDragController::on_mouse_down(uint32_t source_pane_id,
         window_manager_->begin_mouse_release_tracking();
 }
 
-void TabDragController::update(
-    float mouse_x, float mouse_y, bool mouse_down, float screen_mouse_x, float screen_mouse_y)
+void TabDragController::update(float mouse_x,
+                               float mouse_y,
+                               bool  mouse_down,
+                               float screen_mouse_x,
+                               float screen_mouse_y)
 {
-    current_mouse_x_ = mouse_x;
-    current_mouse_y_ = mouse_y;
+    current_mouse_x_  = mouse_x;
+    current_mouse_y_  = mouse_y;
     current_screen_x_ = screen_mouse_x;
     current_screen_y_ = screen_mouse_y;
 
@@ -64,8 +67,8 @@ void TabDragController::update(
                 return;
             }
 
-            float dx = mouse_x - start_mouse_x_;
-            float dy = mouse_y - start_mouse_y_;
+            float dx   = mouse_x - start_mouse_x_;
+            float dy   = mouse_y - start_mouse_y_;
             float dist = std::sqrt(dx * dx + dy * dy);
 
             if (dist > drag_threshold_)
@@ -86,7 +89,7 @@ void TabDragController::update(
                 {
                     if (!wctx || !wctx->glfw_window || wctx->is_preview)
                         continue;
-                    auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                    auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
                     double cx, cy;
                     glfwGetCursorPos(win, &cx, &cy);
                     int ww, wh;
@@ -113,7 +116,7 @@ void TabDragController::update(
                     auto* target_wctx = window_manager_->find_window(last_hovered_window_id_);
                     if (target_wctx && target_wctx->glfw_window)
                     {
-                        auto* tw = static_cast<GLFWwindow*>(target_wctx->glfw_window);
+                        auto*  tw = static_cast<GLFWwindow*>(target_wctx->glfw_window);
                         double lcx, lcy;
                         glfwGetCursorPos(tw, &lcx, &lcy);
                         window_manager_->compute_cross_window_drop_zone(last_hovered_window_id_,
@@ -164,7 +167,7 @@ void TabDragController::update(
                     {
                         if (!wctx || !wctx->glfw_window || wctx->is_preview)
                             continue;
-                        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
                         double cx, cy;
                         glfwGetCursorPos(win, &cx, &cy);
                         int ww, wh;
@@ -278,15 +281,15 @@ bool TabDragController::get_screen_cursor(double& sx, double& sy) const
 
 void TabDragController::transition_to_idle()
 {
-    state_ = State::Idle;
-    figure_id_ = INVALID_FIGURE_ID;
-    source_pane_id_ = 0;
-    cross_pane_ = false;
-    dock_dragging_ = false;
-    preview_created_ = false;
-    preview_grace_frames_ = 0;
+    state_                    = State::Idle;
+    figure_id_                = INVALID_FIGURE_ID;
+    source_pane_id_           = 0;
+    cross_pane_               = false;
+    dock_dragging_            = false;
+    preview_created_          = false;
+    preview_grace_frames_     = 0;
     preview_created_recently_ = 0;
-    last_hovered_window_id_ = 0;
+    last_hovered_window_id_   = 0;
     ghost_title_.clear();
 
     if (window_manager_)
@@ -363,14 +366,14 @@ bool TabDragController::is_outside_all_windows(float /*screen_x*/, float /*scree
     // Include a margin above the content area for the title bar so that
     // drops near the top of a window are not treated as "outside".
     constexpr double TITLE_BAR_MARGIN = 50.0;
-    constexpr double SIDE_MARGIN = 10.0;
+    constexpr double SIDE_MARGIN      = 10.0;
 
     for (auto* wctx : window_manager_->windows())
     {
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
         double cx, cy;
         glfwGetCursorPos(win, &cx, &cy);
         int ww, wh;
@@ -379,7 +382,7 @@ bool TabDragController::is_outside_all_windows(float /*screen_x*/, float /*scree
         if (cx >= -SIDE_MARGIN && cx < ww + SIDE_MARGIN && cy >= -TITLE_BAR_MARGIN
             && cy < wh + SIDE_MARGIN)
         {
-            return false;  // Inside (or near) this window
+            return false;   // Inside (or near) this window
         }
     }
 
@@ -399,7 +402,7 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
         double cx, cy;
         glfwGetCursorPos(win, &cx, &cy);
         int ww, wh;
@@ -414,6 +417,6 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
     return 0;
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

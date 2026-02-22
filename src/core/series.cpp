@@ -49,8 +49,8 @@ void LineSeries::append(float x, float y)
 
 LineSeries& LineSeries::format(std::string_view fmt)
 {
-    PlotStyle ps = parse_format_string(fmt);
-    style_.line_style = ps.line_style;
+    PlotStyle ps        = parse_format_string(fmt);
+    style_.line_style   = ps.line_style;
     style_.marker_style = ps.marker_style;
     if (ps.color.has_value())
     {
@@ -98,8 +98,8 @@ void ScatterSeries::append(float x, float y)
 
 ScatterSeries& ScatterSeries::format(std::string_view fmt)
 {
-    PlotStyle ps = parse_format_string(fmt);
-    style_.line_style = ps.line_style;
+    PlotStyle ps        = parse_format_string(fmt);
+    style_.line_style   = ps.line_style;
     style_.marker_style = ps.marker_style;
     if (ps.color.has_value())
     {
@@ -114,4 +114,4 @@ void ScatterSeries::record_commands(Renderer& /*renderer*/)
     // Actual GPU command recording is handled by the Renderer (Agent 1).
 }
 
-}  // namespace spectra
+}   // namespace spectra

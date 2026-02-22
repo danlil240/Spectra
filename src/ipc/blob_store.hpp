@@ -20,13 +20,13 @@ namespace spectra::ipc
 // Tracks a single shared memory blob reference.
 struct BlobEntry
 {
-    std::string name;                                  // shm segment name
-    size_t size = 0;                                   // byte size
-    uint64_t figure_id = 0;                            // owning figure
-    uint32_t series_index = 0;                         // owning series
-    int pending_acks = 0;                              // agents that haven't ACK'd yet
-    std::chrono::steady_clock::time_point created_at;  // for TTL enforcement
-    bool released = false;                             // BLOB_RELEASE sent to Python
+    std::string                           name;               // shm segment name
+    size_t                                size         = 0;   // byte size
+    uint64_t                              figure_id    = 0;   // owning figure
+    uint32_t                              series_index = 0;   // owning series
+    int                                   pending_acks = 0;   // agents that haven't ACK'd yet
+    std::chrono::steady_clock::time_point created_at;         // for TTL enforcement
+    bool                                  released = false;   // BLOB_RELEASE sent to Python
 };
 
 // Manages shared memory blob references for the backend daemon.
@@ -45,20 +45,20 @@ class BlobStore
     // Register a new blob reference (called when Python sends TAG_BLOB_SHM).
     // Returns true if registered successfully.
     bool register_blob(const std::string& name,
-                       size_t size,
-                       uint64_t figure_id,
-                       uint32_t series_index,
-                       int agent_count)
+                       size_t             size,
+                       uint64_t           figure_id,
+                       uint32_t           series_index,
+                       int                agent_count)
     {
         std::lock_guard<std::mutex> lock(mu_);
-        BlobEntry entry;
-        entry.name = name;
-        entry.size = size;
-        entry.figure_id = figure_id;
+        BlobEntry                   entry;
+        entry.name         = name;
+        entry.size         = size;
+        entry.figure_id    = figure_id;
         entry.series_index = series_index;
         entry.pending_acks = agent_count;
-        entry.created_at = std::chrono::steady_clock::now();
-        blobs_[name] = entry;
+        entry.created_at   = std::chrono::steady_clock::now();
+        blobs_[name]       = entry;
         return true;
     }
 
@@ -67,7 +67,7 @@ class BlobStore
     bool ack_blob(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mu_);
-        auto it = blobs_.find(name);
+        auto                        it = blobs_.find(name);
         if (it == blobs_.end())
             return false;
         it->second.pending_acks--;
@@ -78,7 +78,7 @@ class BlobStore
     void mark_released(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mu_);
-        auto it = blobs_.find(name);
+        auto                        it = blobs_.find(name);
         if (it != blobs_.end())
         {
             it->second.released = true;
@@ -90,8 +90,8 @@ class BlobStore
     std::vector<std::string> cleanup_expired()
     {
         std::lock_guard<std::mutex> lock(mu_);
-        auto now = std::chrono::steady_clock::now();
-        std::vector<std::string> expired;
+        auto                        now = std::chrono::steady_clock::now();
+        std::vector<std::string>    expired;
 
         for (auto it = blobs_.begin(); it != blobs_.end();)
         {
@@ -122,7 +122,7 @@ class BlobStore
     std::vector<std::string> releasable_blobs() const
     {
         std::lock_guard<std::mutex> lock(mu_);
-        std::vector<std::string> result;
+        std::vector<std::string>    result;
         for (auto& [name, entry] : blobs_)
         {
             if (entry.pending_acks <= 0 && !entry.released)
@@ -138,7 +138,7 @@ class BlobStore
     }
 
    private:
-    mutable std::mutex mu_;
+    mutable std::mutex                         mu_;
     std::unordered_map<std::string, BlobEntry> blobs_;
 
     static void unlink_shm([[maybe_unused]] const std::string& name)
@@ -149,4 +149,4 @@ class BlobStore
     }
 };
 
-}  // namespace spectra::ipc
+}   // namespace spectra::ipc

@@ -17,21 +17,21 @@ namespace spectra
 
 void RegionSelect::set_fonts(ImFont* body, ImFont* heading)
 {
-    font_body_ = body;
+    font_body_    = body;
     font_heading_ = heading;
 }
 
 // ─── Coordinate conversion ──────────────────────────────────────────────────
 
-void RegionSelect::data_to_screen(float data_x,
-                                  float data_y,
+void RegionSelect::data_to_screen(float       data_x,
+                                  float       data_y,
                                   const Rect& viewport,
-                                  float xlim_min,
-                                  float xlim_max,
-                                  float ylim_min,
-                                  float ylim_max,
-                                  float& screen_x,
-                                  float& screen_y)
+                                  float       xlim_min,
+                                  float       xlim_max,
+                                  float       ylim_min,
+                                  float       ylim_max,
+                                  float&      screen_x,
+                                  float&      screen_y)
 {
     float x_range = xlim_max - xlim_min;
     float y_range = ylim_max - ylim_min;
@@ -47,15 +47,15 @@ void RegionSelect::data_to_screen(float data_x,
     screen_y = viewport.y + (1.0f - norm_y) * viewport.h;
 }
 
-void RegionSelect::screen_to_data(double screen_x,
-                                  double screen_y,
+void RegionSelect::screen_to_data(double      screen_x,
+                                  double      screen_y,
                                   const Rect& viewport,
-                                  float xlim_min,
-                                  float xlim_max,
-                                  float ylim_min,
-                                  float ylim_max,
-                                  float& data_x,
-                                  float& data_y)
+                                  float       xlim_min,
+                                  float       xlim_max,
+                                  float       ylim_min,
+                                  float       ylim_max,
+                                  float&      data_x,
+                                  float&      data_y)
 {
     float x_range = xlim_max - xlim_min;
     float y_range = ylim_max - ylim_min;
@@ -69,39 +69,46 @@ void RegionSelect::screen_to_data(double screen_x,
 
 // ─── Selection lifecycle ────────────────────────────────────────────────────
 
-void RegionSelect::begin(double screen_x,
-                         double screen_y,
+void RegionSelect::begin(double      screen_x,
+                         double      screen_y,
                          const Rect& viewport,
-                         float xlim_min,
-                         float xlim_max,
-                         float ylim_min,
-                         float ylim_max)
+                         float       xlim_min,
+                         float       xlim_max,
+                         float       ylim_min,
+                         float       ylim_max)
 {
-    dragging_ = true;
+    dragging_      = true;
     has_selection_ = false;
     selected_points_.clear();
     stats_ = {};
 
     screen_start_x_ = screen_x;
     screen_start_y_ = screen_y;
-    screen_end_x_ = screen_x;
-    screen_end_y_ = screen_y;
+    screen_end_x_   = screen_x;
+    screen_end_y_   = screen_y;
 
-    screen_to_data(
-        screen_x, screen_y, viewport, xlim_min, xlim_max, ylim_min, ylim_max, data_x0_, data_y0_);
+    screen_to_data(screen_x,
+                   screen_y,
+                   viewport,
+                   xlim_min,
+                   xlim_max,
+                   ylim_min,
+                   ylim_max,
+                   data_x0_,
+                   data_y0_);
     data_x1_ = data_x0_;
     data_y1_ = data_y0_;
 
     opacity_ = 0.0f;
 }
 
-void RegionSelect::update_drag(double screen_x,
-                               double screen_y,
+void RegionSelect::update_drag(double      screen_x,
+                               double      screen_y,
                                const Rect& viewport,
-                               float xlim_min,
-                               float xlim_max,
-                               float ylim_min,
-                               float ylim_max)
+                               float       xlim_min,
+                               float       xlim_max,
+                               float       ylim_min,
+                               float       ylim_max)
 {
     if (!dragging_)
         return;
@@ -109,8 +116,15 @@ void RegionSelect::update_drag(double screen_x,
     screen_end_x_ = screen_x;
     screen_end_y_ = screen_y;
 
-    screen_to_data(
-        screen_x, screen_y, viewport, xlim_min, xlim_max, ylim_min, ylim_max, data_x1_, data_y1_);
+    screen_to_data(screen_x,
+                   screen_y,
+                   viewport,
+                   xlim_min,
+                   xlim_max,
+                   ylim_min,
+                   ylim_max,
+                   data_x1_,
+                   data_y1_);
 }
 
 void RegionSelect::finish(const Axes* axes)
@@ -139,10 +153,10 @@ void RegionSelect::finish(const Axes* axes)
 
 void RegionSelect::dismiss()
 {
-    dragging_ = false;
+    dragging_      = false;
     has_selection_ = false;
     selected_points_.clear();
-    stats_ = {};
+    stats_   = {};
     opacity_ = 0.0f;
 }
 
@@ -166,19 +180,19 @@ void RegionSelect::collect_points(const Axes* axes)
 
         const float* x_data = nullptr;
         const float* y_data = nullptr;
-        size_t count = 0;
+        size_t       count  = 0;
 
         if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
         {
             x_data = ls->x_data().data();
             y_data = ls->y_data().data();
-            count = ls->point_count();
+            count  = ls->point_count();
         }
         else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
         {
             x_data = sc->x_data().data();
             y_data = sc->y_data().data();
-            count = sc->point_count();
+            count  = sc->point_count();
         }
 
         if (!x_data || !y_data || count == 0)
@@ -201,10 +215,10 @@ void RegionSelect::compute_statistics()
         return;
 
     stats_.point_count = selected_points_.size();
-    stats_.x_min = selected_points_[0].data_x;
-    stats_.x_max = selected_points_[0].data_x;
-    stats_.y_min = selected_points_[0].data_y;
-    stats_.y_max = selected_points_[0].data_y;
+    stats_.x_min       = selected_points_[0].data_x;
+    stats_.x_max       = selected_points_[0].data_x;
+    stats_.y_min       = selected_points_[0].data_y;
+    stats_.y_max       = selected_points_[0].data_y;
 
     double sum_y = 0.0;
     for (const auto& pt : selected_points_)
@@ -235,18 +249,18 @@ void RegionSelect::compute_statistics()
 // ─── Drawing ────────────────────────────────────────────────────────────────
 
 void RegionSelect::draw(const Rect& viewport,
-                        float xlim_min,
-                        float xlim_max,
-                        float ylim_min,
-                        float ylim_max,
-                        float window_width,
-                        float window_height)
+                        float       xlim_min,
+                        float       xlim_max,
+                        float       ylim_min,
+                        float       ylim_max,
+                        float       window_width,
+                        float       window_height)
 {
     bool visible = dragging_ || has_selection_;
 
     // Animate opacity
     float target = visible ? 1.0f : 0.0f;
-    float dt = ImGui::GetIO().DeltaTime;
+    float dt     = ImGui::GetIO().DeltaTime;
     opacity_ += (target - opacity_) * std::min(1.0f, 12.0f * dt);
     if (std::abs(opacity_ - target) < 0.01f)
         opacity_ = target;
@@ -254,7 +268,7 @@ void RegionSelect::draw(const Rect& viewport,
         return;
 
     const auto& colors = ui::ThemeManager::instance().colors();
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
     // Convert data rect to screen rect
     float sx0, sy0, sx1, sy1;
@@ -289,8 +303,8 @@ void RegionSelect::draw(const Rect& viewport,
 
     // Corner handles (small squares)
     float handle_size = 4.0f;
-    ImU32 handle_col = border_col;
-    auto draw_handle = [&](float hx, float hy)
+    ImU32 handle_col  = border_col;
+    auto  draw_handle = [&](float hx, float hy)
     {
         fg->AddRectFilled(ImVec2(hx - handle_size, hy - handle_size),
                           ImVec2(hx + handle_size, hy + handle_size),
@@ -309,8 +323,12 @@ void RegionSelect::draw(const Rect& viewport,
     }
 }
 
-void RegionSelect::draw_mini_toolbar(
-    float rx0, float ry0, float rx1, float ry1, float window_width, float window_height)
+void RegionSelect::draw_mini_toolbar(float rx0,
+                                     float ry0,
+                                     float rx1,
+                                     float ry1,
+                                     float window_width,
+                                     float window_height)
 {
     const auto& colors = ui::ThemeManager::instance().colors();
 
@@ -333,16 +351,16 @@ void RegionSelect::draw_mini_toolbar(
                   stats_.y_min,
                   stats_.y_max);
 
-    ImFont* font = font_body_ ? font_body_ : ImGui::GetFont();
-    float font_size = font->FontSize * 0.85f;
+    ImFont* font      = font_body_ ? font_body_ : ImGui::GetFont();
+    float   font_size = font->FontSize * 0.85f;
 
     ImVec2 count_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, count_buf);
-    ImVec2 mean_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, mean_buf);
-    ImVec2 std_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, std_buf);
+    ImVec2 mean_sz  = font->CalcTextSizeA(font_size, 400.0f, 0.0f, mean_buf);
+    ImVec2 std_sz   = font->CalcTextSizeA(font_size, 400.0f, 0.0f, std_buf);
     ImVec2 range_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, range_buf);
 
-    constexpr float pad = 10.0f;
-    constexpr float row_h = 16.0f;
+    constexpr float pad           = 10.0f;
+    constexpr float row_h         = 16.0f;
     constexpr float dismiss_row_h = 20.0f;
 
     float content_w = std::max({count_sz.x, mean_sz.x, std_sz.x, range_sz.x, 120.0f});
@@ -388,7 +406,7 @@ void RegionSelect::draw_mini_toolbar(
 
     if (ImGui::Begin("##region_stats", nullptr, flags))
     {
-        ImU32 text_primary = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+        ImU32 text_primary   = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
                                                                    colors.text_primary.g,
                                                                    colors.text_primary.b,
                                                                    colors.text_primary.a));
@@ -396,11 +414,11 @@ void RegionSelect::draw_mini_toolbar(
                                                                      colors.text_secondary.g,
                                                                      colors.text_secondary.b,
                                                                      colors.text_secondary.a));
-        ImU32 accent_col = ImGui::ColorConvertFloat4ToU32(
+        ImU32 accent_col     = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, colors.accent.a));
 
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        ImVec2 cursor = ImGui::GetCursorScreenPos();
+        ImDrawList* dl     = ImGui::GetWindowDrawList();
+        ImVec2      cursor = ImGui::GetCursorScreenPos();
 
         // Row 1: Point count (accent color, bold)
         dl->AddText(font, font_size, cursor, accent_col, count_buf);
@@ -448,6 +466,6 @@ void RegionSelect::draw_mini_toolbar(
     ImGui::PopStyleVar(4);
 }
 
-}  // namespace spectra
+}   // namespace spectra
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI

@@ -26,22 +26,22 @@ namespace spectra
 class FrameProfiler
 {
    public:
-    using Clock = std::chrono::steady_clock;
+    using Clock     = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
 
     // Per-stage accumulated time for current frame
     struct StageTimer
     {
         TimePoint start;
-        double accumulated_us = 0.0;  // microseconds
+        double    accumulated_us = 0.0;   // microseconds
     };
 
     // Rolling statistics for one stage
     struct StageStats
     {
-        double avg_us = 0.0;
-        double p95_us = 0.0;
-        double max_us = 0.0;
+        double   avg_us       = 0.0;
+        double   p95_us       = 0.0;
+        double   max_us       = 0.0;
         uint32_t sample_count = 0;
     };
 
@@ -74,7 +74,7 @@ class FrameProfiler
 
     void end_frame()
     {
-        auto frame_end = Clock::now();
+        auto   frame_end = Clock::now();
         double frame_us =
             std::chrono::duration<double, std::micro>(frame_end - frame_start_).count();
 
@@ -125,7 +125,7 @@ class FrameProfiler
         auto total_it = history_.find("_total_frame");
         if (total_it != history_.end())
         {
-            auto stats = compute_stats(total_it->second);
+            auto   stats   = compute_stats(total_it->second);
             double avg_fps = (stats.avg_us > 0.0) ? (1000000.0 / stats.avg_us) : 0.0;
             report += "  Total frame:  avg=" + format_us(stats.avg_us)
                       + "  p95=" + format_us(stats.p95_us) + "  max=" + format_us(stats.max_us)
@@ -136,13 +136,13 @@ class FrameProfiler
         struct RankedStage
         {
             std::string name;
-            StageStats stats;
+            StageStats  stats;
         };
         std::vector<RankedStage> ranked;
         for (auto& [name, samples] : history_)
         {
             if (name[0] == '_')
-                continue;  // skip _total_frame
+                continue;   // skip _total_frame
             ranked.push_back({name, compute_stats(samples)});
         }
         std::sort(ranked.begin(),
@@ -193,7 +193,7 @@ class FrameProfiler
         s.sample_count = static_cast<uint32_t>(samples.size());
 
         double sum = 0.0;
-        s.max_us = 0.0;
+        s.max_us   = 0.0;
         for (double v : samples)
         {
             sum += v;
@@ -232,24 +232,24 @@ class FrameProfiler
         return s + std::string(width - s.size(), ' ');
     }
 
-    TimePoint frame_start_;
-    std::unordered_map<std::string, StageTimer> current_stages_;
+    TimePoint                                            frame_start_;
+    std::unordered_map<std::string, StageTimer>          current_stages_;
     std::unordered_map<std::string, std::vector<double>> history_;
-    std::map<std::string, uint32_t> counters_;
-    std::map<std::string, uint32_t> history_counters_;
+    std::map<std::string, uint32_t>                      counters_;
+    std::map<std::string, uint32_t>                      history_counters_;
 
-    uint32_t log_interval_ = 600;
-    uint32_t frame_count_ = 0;
+    uint32_t log_interval_      = 600;
+    uint32_t frame_count_       = 0;
     uint64_t total_frame_count_ = 0;
-    uint32_t hitch_count_ = 0;
-    double target_frame_ms_ = 16.667;  // 60 FPS default
+    uint32_t hitch_count_       = 0;
+    double   target_frame_ms_   = 16.667;   // 60 FPS default
 };
 
 // RAII scope timer
 struct ProfileScope
 {
     FrameProfiler& profiler;
-    const char* name;
+    const char*    name;
     ProfileScope(FrameProfiler& p, const char* n) : profiler(p), name(n)
     {
         profiler.begin_stage(n);
@@ -260,29 +260,29 @@ struct ProfileScope
     #define SPECTRA_PROFILE_SCOPE(profiler, name) \
         spectra::ProfileScope _profile_##__LINE__(profiler, name)
     #define SPECTRA_PROFILE_BEGIN(profiler, name) profiler.begin_stage(name)
-    #define SPECTRA_PROFILE_END(profiler, name) profiler.end_stage(name)
+    #define SPECTRA_PROFILE_END(profiler, name)   profiler.end_stage(name)
 
-#else  // NDEBUG — Release builds: zero overhead
+#else   // NDEBUG — Release builds: zero overhead
 
 class FrameProfiler
 {
    public:
     explicit FrameProfiler(uint32_t = 600) {}
-    void begin_frame() {}
-    void begin_stage(const char*) {}
-    void end_stage(const char*) {}
-    void end_frame() {}
-    void set_target_fps(float) {}
-    void increment_counter(const char*, uint32_t = 1) {}
-    void log_if_ready() {}
+    void     begin_frame() {}
+    void     begin_stage(const char*) {}
+    void     end_stage(const char*) {}
+    void     end_frame() {}
+    void     set_target_fps(float) {}
+    void     increment_counter(const char*, uint32_t = 1) {}
+    void     log_if_ready() {}
     uint64_t total_frame_count() const { return 0; }
     uint32_t hitch_count() const { return 0; }
 };
 
     #define SPECTRA_PROFILE_SCOPE(profiler, name) ((void)0)
     #define SPECTRA_PROFILE_BEGIN(profiler, name) ((void)0)
-    #define SPECTRA_PROFILE_END(profiler, name) ((void)0)
+    #define SPECTRA_PROFILE_END(profiler, name)   ((void)0)
 
-#endif  // NDEBUG
+#endif   // NDEBUG
 
-}  // namespace spectra
+}   // namespace spectra

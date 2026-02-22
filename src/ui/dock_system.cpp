@@ -28,7 +28,7 @@ SplitPane* DockSystem::split_down(FigureId new_figure_index, float ratio)
 
 SplitPane* DockSystem::split_figure_right(FigureId figure_index,
                                           FigureId new_figure_index,
-                                          float ratio)
+                                          float    ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Horizontal, new_figure_index, ratio);
@@ -39,7 +39,7 @@ SplitPane* DockSystem::split_figure_right(FigureId figure_index,
 
 SplitPane* DockSystem::split_figure_down(FigureId figure_index,
                                          FigureId new_figure_index,
-                                         float ratio)
+                                         float    ratio)
 {
     auto* result =
         split_view_.split_pane(figure_index, SplitDirection::Vertical, new_figure_index, ratio);
@@ -67,11 +67,11 @@ void DockSystem::reset_splits()
 
 void DockSystem::begin_drag(FigureId figure_index, float mouse_x, float mouse_y)
 {
-    is_dragging_ = true;
+    is_dragging_           = true;
     dragging_figure_index_ = figure_index;
-    drag_mouse_x_ = mouse_x;
-    drag_mouse_y_ = mouse_y;
-    current_drop_target_ = DropTarget{};
+    drag_mouse_x_          = mouse_x;
+    drag_mouse_y_          = mouse_y;
+    current_drop_target_   = DropTarget{};
 }
 
 DropTarget DockSystem::update_drag(float mouse_x, float mouse_y)
@@ -79,8 +79,8 @@ DropTarget DockSystem::update_drag(float mouse_x, float mouse_y)
     if (!is_dragging_)
         return DropTarget{};
 
-    drag_mouse_x_ = mouse_x;
-    drag_mouse_y_ = mouse_y;
+    drag_mouse_x_        = mouse_x;
+    drag_mouse_y_        = mouse_y;
     current_drop_target_ = compute_drop_target(mouse_x, mouse_y);
     return current_drop_target_;
 }
@@ -90,8 +90,8 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
     if (!is_dragging_)
         return false;
 
-    auto target = compute_drop_target(mouse_x, mouse_y);
-    is_dragging_ = false;
+    auto target          = compute_drop_target(mouse_x, mouse_y);
+    is_dragging_         = false;
     current_drop_target_ = DropTarget{};
 
     if (target.zone == DropZone::None || !target.target_pane)
@@ -116,28 +116,36 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
         return false;
     }
 
-    SplitPane* result = nullptr;
-    bool needs_swap = false;  // True for Left/Top where dragged figure should be first
+    SplitPane* result     = nullptr;
+    bool       needs_swap = false;   // True for Left/Top where dragged figure should be first
 
     switch (target.zone)
     {
         case DropZone::Left:
-            result = split_view_.split_pane(
-                target_figure, SplitDirection::Horizontal, dragging_figure_index_, 0.5f);
+            result     = split_view_.split_pane(target_figure,
+                                            SplitDirection::Horizontal,
+                                            dragging_figure_index_,
+                                            0.5f);
             needs_swap = true;
             break;
         case DropZone::Right:
-            result = split_view_.split_pane(
-                target_figure, SplitDirection::Horizontal, dragging_figure_index_, 0.5f);
+            result = split_view_.split_pane(target_figure,
+                                            SplitDirection::Horizontal,
+                                            dragging_figure_index_,
+                                            0.5f);
             break;
         case DropZone::Top:
-            result = split_view_.split_pane(
-                target_figure, SplitDirection::Vertical, dragging_figure_index_, 0.5f);
+            result     = split_view_.split_pane(target_figure,
+                                            SplitDirection::Vertical,
+                                            dragging_figure_index_,
+                                            0.5f);
             needs_swap = true;
             break;
         case DropZone::Bottom:
-            result = split_view_.split_pane(
-                target_figure, SplitDirection::Vertical, dragging_figure_index_, 0.5f);
+            result = split_view_.split_pane(target_figure,
+                                            SplitDirection::Vertical,
+                                            dragging_figure_index_,
+                                            0.5f);
             break;
         case DropZone::Center:
             // Add figure to this pane as a new tab
@@ -159,7 +167,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
         auto* parent = result->parent();
         if (parent)
         {
-            auto* first = parent->first();
+            auto* first  = parent->first();
             auto* second = parent->second();
 
             if (needs_swap && first && second)
@@ -202,7 +210,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
                 {
                     bool keep_first = (p->second() == leaf);
                     p->unsplit(keep_first);
-                    break;  // Tree changed, stop iterating
+                    break;   // Tree changed, stop iterating
                 }
             }
         }
@@ -232,7 +240,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
                 {
                     bool keep_first = (p->second() == leaf);
                     p->unsplit(keep_first);
-                    break;  // Tree changed, stop iterating
+                    break;   // Tree changed, stop iterating
                 }
             }
         }
@@ -251,7 +259,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
 
 void DockSystem::cancel_drag()
 {
-    is_dragging_ = false;
+    is_dragging_         = false;
     current_drop_target_ = DropTarget{};
 }
 
@@ -265,16 +273,16 @@ void DockSystem::update_layout(const Rect& canvas_bounds)
 std::vector<DockSystem::PaneInfo> DockSystem::get_pane_infos() const
 {
     std::vector<PaneInfo> result;
-    auto panes = split_view_.all_panes();
-    FigureId active = split_view_.active_figure_index();
+    auto                  panes  = split_view_.all_panes();
+    FigureId              active = split_view_.active_figure_index();
 
     for (const auto* pane : panes)
     {
         PaneInfo info;
         info.figure_index = pane->figure_index();
-        info.bounds = pane->content_bounds();  // Excludes per-pane tab header
-        info.is_active = (pane->figure_index() == active);
-        info.pane_id = pane->id();
+        info.bounds       = pane->content_bounds();   // Excludes per-pane tab header
+        info.is_active    = (pane->figure_index() == active);
+        info.pane_id      = pane->id();
         result.push_back(info);
     }
     return result;
@@ -291,7 +299,7 @@ bool DockSystem::is_over_splitter(float x, float y) const
 
 SplitDirection DockSystem::splitter_direction_at(float x, float y) const
 {
-    auto* self = const_cast<DockSystem*>(this);
+    auto* self     = const_cast<DockSystem*>(this);
     auto* splitter = self->split_view_.splitter_at_point(x, y);
     if (splitter)
     {
@@ -342,7 +350,7 @@ bool DockSystem::move_figure_to_pane(FigureId figure_index, SplitPane::PaneId ta
         return false;
 
     // Find the source pane that currently holds this figure
-    auto panes = split_view_.all_panes();
+    auto       panes  = split_view_.all_panes();
     SplitPane* source = nullptr;
     for (auto* p : panes)
     {
@@ -364,9 +372,9 @@ bool DockSystem::move_figure_to_pane(FigureId figure_index, SplitPane::PaneId ta
     // If source is now empty, collapse it (unsplit its parent, keeping sibling)
     if (source->figure_count() == 0 && source->parent())
     {
-        auto* parent = source->parent();
-        bool source_is_first = (parent->first() == source);
-        parent->unsplit(!source_is_first);  // Keep the sibling
+        auto* parent          = source->parent();
+        bool  source_is_first = (parent->first() == source);
+        parent->unsplit(!source_is_first);   // Keep the sibling
     }
 
     split_view_.set_active_figure_index(figure_index);
@@ -450,8 +458,8 @@ DropTarget DockSystem::compute_drop_target(float x, float y) const
     }
 
     DropTarget target;
-    target.zone = zone;
-    target.target_pane = pane;
+    target.zone           = zone;
+    target.target_pane    = pane;
     target.highlight_rect = compute_drop_highlight(pane, zone);
     return target;
 }
@@ -481,4 +489,4 @@ Rect DockSystem::compute_drop_highlight(const SplitPane* pane, DropZone zone) co
     return Rect{};
 }
 
-}  // namespace spectra
+}   // namespace spectra

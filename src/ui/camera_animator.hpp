@@ -13,7 +13,7 @@ namespace spectra
 // Camera keyframe — stores a full camera snapshot at a point in time.
 struct CameraKeyframe
 {
-    float time = 0.0f;
+    float  time = 0.0f;
     Camera camera;
 
     CameraKeyframe() = default;
@@ -23,8 +23,8 @@ struct CameraKeyframe
 // Animation path mode for camera keyframe interpolation.
 enum class CameraPathMode
 {
-    Orbit,       // Interpolates azimuth, elevation, distance, fov (spherical coords)
-    FreeFlight,  // Interpolates position, target, up via slerp for orientation
+    Orbit,        // Interpolates azimuth, elevation, distance, fov (spherical coords)
+    FreeFlight,   // Interpolates position, target, up via slerp for orientation
 };
 
 // CameraAnimator — manages camera keyframe animation with orbit or free-flight paths.
@@ -39,16 +39,16 @@ enum class CameraPathMode
 class CameraAnimator
 {
    public:
-    CameraAnimator() = default;
+    CameraAnimator()  = default;
     ~CameraAnimator() = default;
 
-    CameraAnimator(const CameraAnimator&) = delete;
+    CameraAnimator(const CameraAnimator&)            = delete;
     CameraAnimator& operator=(const CameraAnimator&) = delete;
 
     // ─── Path mode ──────────────────────────────────────────────────────
 
     CameraPathMode path_mode() const;
-    void set_path_mode(CameraPathMode mode);
+    void           set_path_mode(CameraPathMode mode);
 
     // ─── Keyframe management ────────────────────────────────────────────
 
@@ -65,8 +65,8 @@ class CameraAnimator
     // ─── Queries ────────────────────────────────────────────────────────
 
     const std::vector<CameraKeyframe>& keyframes() const;
-    size_t keyframe_count() const;
-    bool empty() const;
+    size_t                             keyframe_count() const;
+    bool                               empty() const;
 
     // Total duration (time of last keyframe).
     float duration() const;
@@ -83,7 +83,7 @@ class CameraAnimator
     // ─── Target camera binding ──────────────────────────────────────
 
     // Set a target camera that evaluate_at() will write to.
-    void set_target_camera(Camera* cam);
+    void    set_target_camera(Camera* cam);
     Camera* target_camera() const;
 
     // Evaluate at the given time and apply to the bound target camera.
@@ -96,9 +96,9 @@ class CameraAnimator
     // over the given duration, using the camera's current state as base.
     // Adds two keyframes (start and end).
     void create_orbit_animation(const Camera& base,
-                                float start_azimuth,
-                                float end_azimuth,
-                                float duration_seconds);
+                                float         start_azimuth,
+                                float         end_azimuth,
+                                float         duration_seconds);
 
     // Create a full 360° turntable orbit animation.
     void create_turntable(const Camera& base, float duration_seconds);
@@ -106,14 +106,14 @@ class CameraAnimator
     // ─── Serialization ──────────────────────────────────────────────────
 
     std::string serialize() const;
-    bool deserialize(const std::string& json);
+    bool        deserialize(const std::string& json);
 
    private:
     mutable std::mutex mutex_;
 
-    CameraPathMode path_mode_ = CameraPathMode::Orbit;
-    std::vector<CameraKeyframe> keyframes_;  // Always sorted by time
-    Camera* target_camera_ = nullptr;
+    CameraPathMode              path_mode_ = CameraPathMode::Orbit;
+    std::vector<CameraKeyframe> keyframes_;   // Always sorted by time
+    Camera*                     target_camera_ = nullptr;
 
     void sort_keyframes();
 
@@ -133,4 +133,4 @@ class CameraAnimator
     static void apply_orientation(Camera& cam, const quat& q, float distance);
 };
 
-}  // namespace spectra
+}   // namespace spectra

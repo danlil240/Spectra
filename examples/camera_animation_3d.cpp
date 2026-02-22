@@ -7,7 +7,7 @@ using namespace spectra;
 
 int main()
 {
-    App app;
+    App   app;
     auto& fig = app.figure({.width = 1600, .height = 900});
 
     // Create a single 3D axes for the animation demo
@@ -56,7 +56,7 @@ int main()
         .on_frame(
             [&ax](Frame& frame)
             {
-                float t = frame.elapsed_sec / 8.0f;  // Normalize to [0, 1]
+                float t = frame.elapsed_sec / 8.0f;   // Normalize to [0, 1]
 
                 // Azimuth: full rotation (0° → 360°)
                 ax.camera().azimuth = t * 360.0f;

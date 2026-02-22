@@ -28,23 +28,23 @@ class WindowManager;
 // Deferred tab-detach request (queued during ImGui frame, processed after).
 struct PendingDetach
 {
-    FigureId figure_id = INVALID_FIGURE_ID;
-    uint32_t width = 800;
-    uint32_t height = 600;
+    FigureId    figure_id = INVALID_FIGURE_ID;
+    uint32_t    width     = 800;
+    uint32_t    height    = 600;
     std::string title;
-    int screen_x = 0;
-    int screen_y = 0;
+    int         screen_x = 0;
+    int         screen_y = 0;
 };
 
 // Deferred cross-window move request.
 struct PendingMove
 {
-    FigureId figure_id = INVALID_FIGURE_ID;
+    FigureId figure_id        = INVALID_FIGURE_ID;
     uint32_t target_window_id = 0;
-    int drop_zone = 0;     // 0=None/Center(add tab), 1=Left, 2=Right, 3=Top, 4=Bottom
-    float local_x = 0.0f;  // Cursor position in target window's local coords
-    float local_y = 0.0f;
-    FigureId target_figure_id = INVALID_FIGURE_ID;  // figure in the pane under cursor
+    int      drop_zone        = 0;      // 0=None/Center(add tab), 1=Left, 2=Right, 3=Top, 4=Bottom
+    float    local_x          = 0.0f;   // Cursor position in target window's local coords
+    float    local_y          = 0.0f;
+    FigureId target_figure_id = INVALID_FIGURE_ID;   // figure in the pane under cursor
 };
 
 // Session-level orchestration.
@@ -59,7 +59,7 @@ class SessionRuntime
     ~SessionRuntime();
 
     // Non-copyable, non-movable
-    SessionRuntime(const SessionRuntime&) = delete;
+    SessionRuntime(const SessionRuntime&)            = delete;
     SessionRuntime& operator=(const SessionRuntime&) = delete;
 
     // Access the window runtime (for callers that need per-window control).
@@ -83,10 +83,10 @@ class SessionRuntime
     //   6. poll events + process pending closes
     // The caller provides the GLFW/WindowManager pointers and the
     // headless flag.  Returns the updated FrameState for the initial window.
-    FrameState tick(FrameScheduler& scheduler,
-                    Animator& animator,
-                    CommandQueue& cmd_queue,
-                    bool headless,
+    FrameState tick(FrameScheduler&  scheduler,
+                    Animator&        animator,
+                    CommandQueue&    cmd_queue,
+                    bool             headless,
                     WindowUIContext* headless_ui_ctx,
 #ifdef SPECTRA_USE_GLFW
                     WindowManager* window_mgr,
@@ -107,10 +107,10 @@ class SessionRuntime
     }
 
    private:
-    Backend& backend_;
-    Renderer& renderer_;
+    Backend&        backend_;
+    Renderer&       renderer_;
     FigureRegistry& registry_;
-    WindowRuntime win_rt_;
+    WindowRuntime   win_rt_;
 
     bool running_ = true;
 
@@ -127,4 +127,4 @@ class SessionRuntime
     FrameProfiler profiler_{600};
 };
 
-}  // namespace spectra
+}   // namespace spectra

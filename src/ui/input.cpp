@@ -18,11 +18,11 @@ namespace spectra
 // Mouse button constants (matching GLFW)
 namespace
 {
-constexpr int MOUSE_BUTTON_LEFT = 0;
+constexpr int MOUSE_BUTTON_LEFT  = 0;
 constexpr int MOUSE_BUTTON_RIGHT = 1;
-constexpr int ACTION_PRESS = 1;
-constexpr int ACTION_RELEASE = 0;
-}  // anonymous namespace
+constexpr int ACTION_PRESS       = 1;
+constexpr int ACTION_RELEASE     = 0;
+}   // anonymous namespace
 
 // ─── Tool mode ──────────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
     {
         if (data_interaction_)
             data_interaction_->set_crosshair(crosshair_was_active_);
-        measure_dragging_ = false;
+        measure_dragging_    = false;
         measure_click_state_ = 0;
     }
 
@@ -115,7 +115,7 @@ AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) cons
 
 // ─── Constructor / Destructor ────────────────────────────────────────────────
 
-InputHandler::InputHandler() = default;
+InputHandler::InputHandler()  = default;
 InputHandler::~InputHandler() = default;
 
 // ─── Mouse button ───────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     if (hit_base)
     {
         active_axes_base_ = hit_base;
-        active_axes_ = dynamic_cast<Axes*>(hit_base);
+        active_axes_      = dynamic_cast<Axes*>(hit_base);
     }
 
     // Handle 3D axes camera interaction
@@ -145,30 +145,30 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (button == MOUSE_BUTTON_LEFT && action == ACTION_PRESS)
         {
             is_3d_orbit_drag_ = true;
-            drag_start_x_ = x;
-            drag_start_y_ = y;
-            mode_ = InteractionMode::Dragging;
+            drag_start_x_     = x;
+            drag_start_y_     = y;
+            mode_             = InteractionMode::Dragging;
             // Capture state for undo
-            drag3d_axes_ = axes3d;
-            drag3d_start_xlim_ = axes3d->x_limits();
-            drag3d_start_ylim_ = axes3d->y_limits();
-            drag3d_start_zlim_ = axes3d->z_limits();
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
             drag3d_start_camera_ = axes3d->camera();
             return;
         }
         if (button == MOUSE_BUTTON_LEFT && action == ACTION_RELEASE && is_3d_orbit_drag_)
         {
             is_3d_orbit_drag_ = false;
-            mode_ = InteractionMode::Idle;
+            mode_             = InteractionMode::Idle;
             // Push undo for orbit drag
             if (undo_mgr_ && drag3d_axes_ == axes3d)
             {
-                auto before_xlim = drag3d_start_xlim_;
-                auto before_ylim = drag3d_start_ylim_;
-                auto before_zlim = drag3d_start_zlim_;
-                auto before_camera = drag3d_start_camera_;
-                auto after_camera = axes3d->camera();
-                Axes3D* ax = axes3d;
+                auto    before_xlim   = drag3d_start_xlim_;
+                auto    before_ylim   = drag3d_start_ylim_;
+                auto    before_zlim   = drag3d_start_zlim_;
+                auto    before_camera = drag3d_start_camera_;
+                auto    after_camera  = axes3d->camera();
+                Axes3D* ax            = axes3d;
                 undo_mgr_->push(
                     UndoAction{"Orbit 3D",
                                [ax, before_xlim, before_ylim, before_zlim, before_camera]()
@@ -191,35 +191,35 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (button == MOUSE_BUTTON_RIGHT && action == ACTION_PRESS)
         {
             rclick_zoom_dragging_ = true;
-            rclick_zoom_3d_ = true;
-            rclick_zoom_axis_ = ZoomAxis::None;
-            rclick_zoom_start_x_ = x;
-            rclick_zoom_start_y_ = y;
-            rclick_zoom_last_x_ = x;
-            rclick_zoom_last_y_ = y;
+            rclick_zoom_3d_       = true;
+            rclick_zoom_axis_     = ZoomAxis::None;
+            rclick_zoom_start_x_  = x;
+            rclick_zoom_start_y_  = y;
+            rclick_zoom_last_x_   = x;
+            rclick_zoom_last_y_   = y;
             rclick_zoom_xlim_min_ = axes3d->x_limits().min;
             rclick_zoom_xlim_max_ = axes3d->x_limits().max;
             rclick_zoom_ylim_min_ = axes3d->y_limits().min;
             rclick_zoom_ylim_max_ = axes3d->y_limits().max;
             rclick_zoom_zlim_min_ = axes3d->z_limits().min;
             rclick_zoom_zlim_max_ = axes3d->z_limits().max;
-            mode_ = InteractionMode::Dragging;
+            mode_                 = InteractionMode::Dragging;
             // Capture state for undo
-            drag3d_axes_ = axes3d;
-            drag3d_start_xlim_ = axes3d->x_limits();
-            drag3d_start_ylim_ = axes3d->y_limits();
-            drag3d_start_zlim_ = axes3d->z_limits();
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
             drag3d_start_camera_ = axes3d->camera();
             // Project each data axis direction to screen space so we can later
             // pick the axis most aligned with the drag direction.
             {
-                const auto& vp = axes3d->viewport();
-                const auto& cam = axes3d->camera();
-                float aspect = vp.w / std::max(vp.h, 1.0f);
-                mat4 proj = cam.projection_matrix(aspect);
-                mat4 view = cam.view_matrix();
-                mat4 model = axes3d->data_to_normalized_matrix();
-                mat4 mvp = mat4_mul(proj, mat4_mul(view, model));
+                const auto& vp     = axes3d->viewport();
+                const auto& cam    = axes3d->camera();
+                float       aspect = vp.w / std::max(vp.h, 1.0f);
+                mat4        proj   = cam.projection_matrix(aspect);
+                mat4        view   = cam.view_matrix();
+                mat4        model  = axes3d->data_to_normalized_matrix();
+                mat4        mvp    = mat4_mul(proj, mat4_mul(view, model));
 
                 // Project a normalized-cube point to viewport screen coords.
                 auto project = [&](vec3 p, float& sx, float& sy) -> bool
@@ -235,13 +235,13 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 };
 
                 // Origin of the normalized cube
-                vec3 origin{0.0f, 0.0f, 0.0f};
+                vec3  origin{0.0f, 0.0f, 0.0f};
                 float ox, oy;
                 if (project(origin, ox, oy))
                 {
                     // Unit steps along each normalized-cube axis
-                    const float step = 1.0f;
-                    vec3 axis_tips[3] = {{step, 0, 0}, {0, step, 0}, {0, 0, step}};
+                    const float step         = 1.0f;
+                    vec3        axis_tips[3] = {{step, 0, 0}, {0, step, 0}, {0, 0, step}};
                     for (int i = 0; i < 3; ++i)
                     {
                         float tx, ty;
@@ -281,19 +281,19 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             && rclick_zoom_3d_)
         {
             rclick_zoom_dragging_ = false;
-            rclick_zoom_3d_ = false;
-            rclick_zoom_axis_ = ZoomAxis::None;
-            mode_ = InteractionMode::Idle;
+            rclick_zoom_3d_       = false;
+            rclick_zoom_axis_     = ZoomAxis::None;
+            mode_                 = InteractionMode::Idle;
             // Push undo for 1D zoom
             if (undo_mgr_ && drag3d_axes_ == axes3d)
             {
-                auto before_xlim = drag3d_start_xlim_;
-                auto before_ylim = drag3d_start_ylim_;
-                auto before_zlim = drag3d_start_zlim_;
-                auto after_xlim = axes3d->x_limits();
-                auto after_ylim = axes3d->y_limits();
-                auto after_zlim = axes3d->z_limits();
-                Axes3D* ax = axes3d;
+                auto    before_xlim = drag3d_start_xlim_;
+                auto    before_ylim = drag3d_start_ylim_;
+                auto    before_zlim = drag3d_start_zlim_;
+                auto    after_xlim  = axes3d->x_limits();
+                auto    after_ylim  = axes3d->y_limits();
+                auto    after_zlim  = axes3d->z_limits();
+                Axes3D* ax          = axes3d;
                 undo_mgr_->push(UndoAction{"Zoom 1D 3D",
                                            [ax, before_xlim, before_ylim, before_zlim]()
                                            {
@@ -314,31 +314,31 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_PRESS)
         {
             is_3d_pan_drag_ = true;
-            drag_start_x_ = x;
-            drag_start_y_ = y;
-            mode_ = InteractionMode::Dragging;
+            drag_start_x_   = x;
+            drag_start_y_   = y;
+            mode_           = InteractionMode::Dragging;
             // Capture state for undo
-            drag3d_axes_ = axes3d;
-            drag3d_start_xlim_ = axes3d->x_limits();
-            drag3d_start_ylim_ = axes3d->y_limits();
-            drag3d_start_zlim_ = axes3d->z_limits();
+            drag3d_axes_         = axes3d;
+            drag3d_start_xlim_   = axes3d->x_limits();
+            drag3d_start_ylim_   = axes3d->y_limits();
+            drag3d_start_zlim_   = axes3d->z_limits();
             drag3d_start_camera_ = axes3d->camera();
             return;
         }
         if (button == MOUSE_BUTTON_MIDDLE && action == ACTION_RELEASE && is_3d_pan_drag_)
         {
             is_3d_pan_drag_ = false;
-            mode_ = InteractionMode::Idle;
+            mode_           = InteractionMode::Idle;
             // Push undo for middle-mouse pan
             if (undo_mgr_ && drag3d_axes_ == axes3d)
             {
-                auto before_xlim = drag3d_start_xlim_;
-                auto before_ylim = drag3d_start_ylim_;
-                auto before_zlim = drag3d_start_zlim_;
-                auto after_xlim = axes3d->x_limits();
-                auto after_ylim = axes3d->y_limits();
-                auto after_zlim = axes3d->z_limits();
-                Axes3D* ax = axes3d;
+                auto    before_xlim = drag3d_start_xlim_;
+                auto    before_ylim = drag3d_start_ylim_;
+                auto    before_zlim = drag3d_start_zlim_;
+                auto    after_xlim  = axes3d->x_limits();
+                auto    after_ylim  = axes3d->y_limits();
+                auto    after_zlim  = axes3d->z_limits();
+                Axes3D* ax          = axes3d;
                 undo_mgr_->push(UndoAction{"Pan 3D",
                                            [ax, before_xlim, before_ylim, before_zlim]()
                                            {
@@ -356,21 +356,21 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             drag3d_axes_ = nullptr;
             return;
         }
-        return;  // 3D axes don't support other interactions
+        return;   // 3D axes don't support other interactions
     }
 
     // 2D hit-test (fallback for callers that need Axes*)
     Axes* hit = hit_test_axes(x, y);
     if (hit)
     {
-        active_axes_ = hit;
+        active_axes_      = hit;
         active_axes_base_ = hit;
         // Sync viewport so screen_to_data works correctly for this axes
         const auto& vp = hit->viewport();
-        vp_x_ = vp.x;
-        vp_y_ = vp.y;
-        vp_w_ = vp.w;
-        vp_h_ = vp.h;
+        vp_x_          = vp.x;
+        vp_y_          = vp.y;
+        vp_w_          = vp.w;
+        vp_h_          = vp.h;
     }
 
     if (!active_axes_)
@@ -388,10 +388,10 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 anim_ctrl_->cancel_for_axes(active_axes_);
 
             middle_pan_dragging_ = true;
-            middle_pan_start_x_ = x;
-            middle_pan_start_y_ = y;
-            auto xlim = active_axes_->x_limits();
-            auto ylim = active_axes_->y_limits();
+            middle_pan_start_x_  = x;
+            middle_pan_start_y_  = y;
+            auto xlim            = active_axes_->x_limits();
+            auto ylim            = active_axes_->y_limits();
             middle_pan_xlim_min_ = xlim.min;
             middle_pan_xlim_max_ = xlim.max;
             middle_pan_ylim_min_ = ylim.min;
@@ -417,14 +417,14 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 anim_ctrl_->cancel_for_axes(active_axes_);
 
             rclick_zoom_dragging_ = true;
-            rclick_zoom_3d_ = false;
-            rclick_zoom_axis_ = ZoomAxis::None;
-            rclick_zoom_start_x_ = x;
-            rclick_zoom_start_y_ = y;
-            rclick_zoom_last_x_ = x;
-            rclick_zoom_last_y_ = y;
-            auto xlim = active_axes_->x_limits();
-            auto ylim = active_axes_->y_limits();
+            rclick_zoom_3d_       = false;
+            rclick_zoom_axis_     = ZoomAxis::None;
+            rclick_zoom_start_x_  = x;
+            rclick_zoom_start_y_  = y;
+            rclick_zoom_last_x_   = x;
+            rclick_zoom_last_y_   = y;
+            auto xlim             = active_axes_->x_limits();
+            auto ylim             = active_axes_->y_limits();
             rclick_zoom_xlim_min_ = xlim.min;
             rclick_zoom_xlim_max_ = xlim.max;
             rclick_zoom_ylim_min_ = ylim.min;
@@ -434,7 +434,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         if (action == ACTION_RELEASE && rclick_zoom_dragging_ && !rclick_zoom_3d_)
         {
             rclick_zoom_dragging_ = false;
-            rclick_zoom_axis_ = ZoomAxis::None;
+            rclick_zoom_axis_     = ZoomAxis::None;
             return;
         }
     }
@@ -456,26 +456,26 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
             // First press: start measurement (could be drag or first click)
             SPECTRA_LOG_DEBUG("input", "Starting measure (press)");
-            measure_dragging_ = true;
-            measure_click_state_ = 0;
+            measure_dragging_       = true;
+            measure_click_state_    = 0;
             measure_start_screen_x_ = x;
             measure_start_screen_y_ = y;
             screen_to_data(x, y, measure_start_data_x_, measure_start_data_y_);
             measure_end_data_x_ = measure_start_data_x_;
             measure_end_data_y_ = measure_start_data_y_;
-            mode_ = InteractionMode::Dragging;
+            mode_               = InteractionMode::Dragging;
             return;
         }
         if (action == ACTION_RELEASE && measure_dragging_)
         {
             screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
             measure_dragging_ = false;
-            mode_ = InteractionMode::Idle;
+            mode_             = InteractionMode::Idle;
 
             // Check if the mouse barely moved — treat as a click (first point)
-            float dx_px = static_cast<float>(x - measure_start_screen_x_);
-            float dy_px = static_cast<float>(y - measure_start_screen_y_);
-            float move_dist = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+            float           dx_px              = static_cast<float>(x - measure_start_screen_x_);
+            float           dy_px              = static_cast<float>(y - measure_start_screen_y_);
+            float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
             constexpr float CLICK_THRESHOLD_PX = 5.0f;
             if (move_dist < CLICK_THRESHOLD_PX)
             {
@@ -533,12 +533,12 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 anim_ctrl_->cancel_for_axes(active_axes_);
             }
             SPECTRA_LOG_DEBUG("input", "Starting box zoom (BoxZoom tool)");
-            mode_ = InteractionMode::Dragging;
+            mode_            = InteractionMode::Dragging;
             box_zoom_.active = true;
-            box_zoom_.x0 = x;
-            box_zoom_.y0 = y;
-            box_zoom_.x1 = x;
-            box_zoom_.y1 = y;
+            box_zoom_.x0     = x;
+            box_zoom_.y0     = y;
+            box_zoom_.x1     = x;
+            box_zoom_.y1     = y;
             return;
         }
 
@@ -567,13 +567,13 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             if (mods & MOD_CONTROL)
             {
                 SPECTRA_LOG_DEBUG("input", "Ctrl+left-click — starting box zoom in Pan mode");
-                mode_ = InteractionMode::Dragging;
+                mode_                 = InteractionMode::Dragging;
                 ctrl_box_zoom_active_ = true;
-                box_zoom_.active = true;
-                box_zoom_.x0 = x;
-                box_zoom_.y0 = y;
-                box_zoom_.x1 = x;
-                box_zoom_.y1 = y;
+                box_zoom_.active      = true;
+                box_zoom_.x0          = x;
+                box_zoom_.y0          = y;
+                box_zoom_.x1          = x;
+                box_zoom_.y1          = y;
                 return;
             }
 
@@ -588,7 +588,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                     {
                         // 3D: auto_fit resets limits + camera in one call
                         axes3d->auto_fit();
-                        return;  // Don't start a pan drag on double-click
+                        return;   // Don't start a pan drag on double-click
                     }
                     else if (active_axes_ && (transition_engine_ || anim_ctrl_))
                     {
@@ -622,22 +622,22 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         {
                             axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
                         }
-                        return;  // Don't start a pan drag on double-click
+                        return;   // Don't start a pan drag on double-click
                     }
                 }
             }
 
             // Begin pan drag
-            mode_ = InteractionMode::Dragging;
-            drag_start_x_ = x;
-            drag_start_y_ = y;
-            last_move_x_ = x;
-            last_move_y_ = y;
-            last_move_time_ = Clock::now();
+            mode_            = InteractionMode::Dragging;
+            drag_start_x_    = x;
+            drag_start_y_    = y;
+            last_move_x_     = x;
+            last_move_y_     = y;
+            last_move_time_  = Clock::now();
             drag_start_time_ = last_move_time_;
 
-            auto xlim = active_axes_->x_limits();
-            auto ylim = active_axes_->y_limits();
+            auto xlim            = active_axes_->x_limits();
+            auto ylim            = active_axes_->y_limits();
             drag_start_xlim_min_ = xlim.min;
             drag_start_xlim_max_ = xlim.max;
             drag_start_ylim_min_ = ylim.min;
@@ -651,7 +651,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             {
                 SPECTRA_LOG_DEBUG("input", "Ending Ctrl+drag box zoom");
                 apply_box_zoom();
-                mode_ = InteractionMode::Idle;
+                mode_                 = InteractionMode::Idle;
                 ctrl_box_zoom_active_ = false;
                 return;
             }
@@ -661,9 +661,9 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             // Detect click-without-drag: if the mouse barely moved, treat as a
             // click for series selection rather than a pan gesture.
             {
-                float dx_px = static_cast<float>(x - drag_start_x_);
-                float dy_px = static_cast<float>(y - drag_start_y_);
-                float move_dist = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                float           dx_px              = static_cast<float>(x - drag_start_x_);
+                float           dy_px              = static_cast<float>(y - drag_start_y_);
+                float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
                 constexpr float CLICK_THRESHOLD_PX = 5.0f;
                 if (move_dist < CLICK_THRESHOLD_PX && data_interaction_)
                 {
@@ -675,7 +675,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                     }
                     if (data_interaction_->on_mouse_click(0, x, y))
                     {
-                        return;  // Click consumed by data interaction (series selected)
+                        return;   // Click consumed by data interaction (series selected)
                     }
                 }
             }
@@ -683,8 +683,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             // Compute release velocity for inertial pan
             if ((transition_engine_ || anim_ctrl_) && active_axes_)
             {
-                auto now = Clock::now();
-                float dt_sec = std::chrono::duration<float>(now - last_move_time_).count();
+                auto  now        = Clock::now();
+                float dt_sec     = std::chrono::duration<float>(now - last_move_time_).count();
                 float drag_total = std::chrono::duration<float>(now - drag_start_time_).count();
 
                 // Only apply inertia if the drag was short and recent movement exists
@@ -692,31 +692,31 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 {
                     // Skip inertia if mouse barely moved — prevents spurious
                     // acceleration from sub-pixel or 1-2 px jitter on release
-                    float dx_px = static_cast<float>(x - last_move_x_);
-                    float dy_px = static_cast<float>(y - last_move_y_);
-                    float dist_px = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                    float           dx_px               = static_cast<float>(x - last_move_x_);
+                    float           dy_px               = static_cast<float>(y - last_move_y_);
+                    float           dist_px             = std::sqrt(dx_px * dx_px + dy_px * dy_px);
                     constexpr float MIN_RELEASE_DIST_PX = 2.0f;
 
                     if (dist_px >= MIN_RELEASE_DIST_PX)
                     {
-                        const auto& vp = viewport_for_axes(active_axes_);
-                        auto xlim = active_axes_->x_limits();
-                        auto ylim = active_axes_->y_limits();
+                        const auto& vp   = viewport_for_axes(active_axes_);
+                        auto        xlim = active_axes_->x_limits();
+                        auto        ylim = active_axes_->y_limits();
 
                         float x_range = xlim.max - xlim.min;
                         float y_range = ylim.max - ylim.min;
 
                         // Use a minimum dt floor to prevent velocity blow-up from
                         // sub-millisecond intervals between last move and release
-                        constexpr float MIN_DT_SEC = 0.008f;  // 8ms floor
-                        float effective_dt = std::max(dt_sec, MIN_DT_SEC);
+                        constexpr float MIN_DT_SEC   = 0.008f;   // 8ms floor
+                        float           effective_dt = std::max(dt_sec, MIN_DT_SEC);
 
                         // Screen velocity → data velocity
                         float vx_screen = dx_px / effective_dt;
                         float vy_screen = dy_px / effective_dt;
 
                         // Clamp screen velocity as a safety net
-                        constexpr float MAX_SCREEN_VEL = 3000.0f;  // px/sec
+                        constexpr float MAX_SCREEN_VEL = 3000.0f;   // px/sec
                         vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
                         vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
 
@@ -731,13 +731,17 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                                                   + std::to_string(vy_data) + ")");
                             if (transition_engine_)
                             {
-                                transition_engine_->animate_inertial_pan(
-                                    *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                                transition_engine_->animate_inertial_pan(*active_axes_,
+                                                                         vx_data,
+                                                                         vy_data,
+                                                                         PAN_INERTIA_DURATION);
                             }
                             else if (anim_ctrl_)
                             {
-                                anim_ctrl_->animate_inertial_pan(
-                                    *active_axes_, vx_data, vy_data, PAN_INERTIA_DURATION);
+                                anim_ctrl_->animate_inertial_pan(*active_axes_,
+                                                                 vx_data,
+                                                                 vy_data,
+                                                                 PAN_INERTIA_DURATION);
                             }
                         }
                     }
@@ -752,7 +756,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 void InputHandler::on_mouse_move(double x, double y)
 {
     SPECTRA_LOG_TRACE(
-        "input", "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+        "input",
+        "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
     // Handle 3D camera drag (orbit or pan)
     if (is_3d_orbit_drag_ || is_3d_pan_drag_)
@@ -760,8 +765,8 @@ void InputHandler::on_mouse_move(double x, double y)
         if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
         {
             auto& cam = axes3d->camera();
-            float dx = static_cast<float>(x - drag_start_x_);
-            float dy = static_cast<float>(y - drag_start_y_);
+            float dx  = static_cast<float>(x - drag_start_x_);
+            float dy  = static_cast<float>(y - drag_start_y_);
 
             if (is_3d_orbit_drag_ && !orbit_locked_)
             {
@@ -790,10 +795,10 @@ void InputHandler::on_mouse_move(double x, double y)
     // Handle right-click 1D zoom drag (both 2D and 3D)
     if (rclick_zoom_dragging_)
     {
-        double dx_total = x - rclick_zoom_start_x_;
-        double dy_total = y - rclick_zoom_start_y_;
-        double dx_delta = x - rclick_zoom_last_x_;
-        double dy_delta = y - rclick_zoom_last_y_;
+        double dx_total     = x - rclick_zoom_start_x_;
+        double dy_total     = y - rclick_zoom_start_y_;
+        double dx_delta     = x - rclick_zoom_last_x_;
+        double dy_delta     = y - rclick_zoom_last_y_;
         rclick_zoom_last_x_ = x;
         rclick_zoom_last_y_ = y;
 
@@ -812,10 +817,10 @@ void InputHandler::on_mouse_move(double x, double y)
                         static_cast<float>(std::sqrt(abs_dx * abs_dx + abs_dy * abs_dy));
                     if (drag_len > 1e-4f)
                     {
-                        float ndx = static_cast<float>(dx_total) / drag_len;
-                        float ndy = static_cast<float>(dy_total) / drag_len;
+                        float ndx      = static_cast<float>(dx_total) / drag_len;
+                        float ndy      = static_cast<float>(dy_total) / drag_len;
                         float best_dot = -1.0f;
-                        int best_i = 0;
+                        int   best_i   = 0;
                         for (int i = 0; i < 3; ++i)
                         {
                             // Use absolute dot product — axis direction or its opposite both zoom
@@ -824,11 +829,11 @@ void InputHandler::on_mouse_move(double x, double y)
                             if (d > best_dot)
                             {
                                 best_dot = d;
-                                best_i = i;
+                                best_i   = i;
                             }
                         }
                         static constexpr ZoomAxis kMap[3] = {ZoomAxis::X, ZoomAxis::Y, ZoomAxis::Z};
-                        rclick_zoom_axis_ = kMap[best_i];
+                        rclick_zoom_axis_                 = kMap[best_i];
                     }
                 }
                 else
@@ -848,12 +853,12 @@ void InputHandler::on_mouse_move(double x, double y)
             if (rclick_zoom_axis_ == ZoomAxis::X)
                 pixel_delta = static_cast<float>(dx_delta);
             else if (rclick_zoom_axis_ == ZoomAxis::Y)
-                pixel_delta = static_cast<float>(-dy_delta);  // screen Y inverted
+                pixel_delta = static_cast<float>(-dy_delta);   // screen Y inverted
             else if (rclick_zoom_axis_ == ZoomAxis::Z)
                 pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
 
             float factor = 1.0f - pixel_delta * RCLICK_ZOOM_SENSITIVITY;
-            factor = std::clamp(factor, 0.9f, 1.1f);  // limit per-frame zoom step
+            factor       = std::clamp(factor, 0.9f, 1.1f);   // limit per-frame zoom step
 
             if (rclick_zoom_3d_)
             {
@@ -873,25 +878,26 @@ void InputHandler::on_mouse_move(double x, double y)
             {
                 if (rclick_zoom_axis_ == ZoomAxis::X)
                 {
-                    auto xlim = active_axes_->x_limits();
+                    auto  xlim   = active_axes_->x_limits();
                     float center = (xlim.min + xlim.max) * 0.5f;
-                    float half = (xlim.max - xlim.min) * 0.5f * factor;
+                    float half   = (xlim.max - xlim.min) * 0.5f * factor;
                     if (half < 1e-10f)
                         half = 1e-10f;
                     active_axes_->xlim(center - half, center + half);
                 }
                 else if (rclick_zoom_axis_ == ZoomAxis::Y)
                 {
-                    auto ylim = active_axes_->y_limits();
+                    auto  ylim   = active_axes_->y_limits();
                     float center = (ylim.min + ylim.max) * 0.5f;
-                    float half = (ylim.max - ylim.min) * 0.5f * factor;
+                    float half   = (ylim.max - ylim.min) * 0.5f * factor;
                     if (half < 1e-10f)
                         half = 1e-10f;
                     active_axes_->ylim(center - half, center + half);
                 }
                 if (axis_link_mgr_)
-                    axis_link_mgr_->propagate_limits(
-                        active_axes_, active_axes_->x_limits(), active_axes_->y_limits());
+                    axis_link_mgr_->propagate_limits(active_axes_,
+                                                     active_axes_->x_limits(),
+                                                     active_axes_->y_limits());
             }
         }
         return;
@@ -903,17 +909,17 @@ void InputHandler::on_mouse_move(double x, double y)
     {
         SPECTRA_LOG_TRACE("input", "Mouse move hit axes");
         // Temporarily use hit axes for screen_to_data conversion
-        Axes* prev = active_axes_;
-        active_axes_ = hit;
-        const auto& vp = viewport_for_axes(hit);
-        float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
-        float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
+        Axes* prev             = active_axes_;
+        active_axes_           = hit;
+        const auto& vp         = viewport_for_axes(hit);
+        float       saved_vp_x = vp_x_, saved_vp_y = vp_y_;
+        float       saved_vp_w = vp_w_, saved_vp_h = vp_h_;
         vp_x_ = vp.x;
         vp_y_ = vp.y;
         vp_w_ = vp.w;
         vp_h_ = vp.h;
 
-        cursor_readout_.valid = true;
+        cursor_readout_.valid    = true;
         cursor_readout_.screen_x = x;
         cursor_readout_.screen_y = y;
         screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
@@ -923,10 +929,10 @@ void InputHandler::on_mouse_move(double x, double y)
         if (mode_ == InteractionMode::Dragging || middle_pan_dragging_ || measure_dragging_)
         {
             active_axes_ = prev;
-            vp_x_ = saved_vp_x;
-            vp_y_ = saved_vp_y;
-            vp_w_ = saved_vp_w;
-            vp_h_ = saved_vp_h;
+            vp_x_        = saved_vp_x;
+            vp_y_        = saved_vp_y;
+            vp_w_        = saved_vp_w;
+            vp_h_        = saved_vp_h;
         }
         else
         {
@@ -950,18 +956,19 @@ void InputHandler::on_mouse_move(double x, double y)
     // Middle-mouse pan (works in all tool modes)
     if (middle_pan_dragging_ && active_axes_)
     {
-        const auto& vp = viewport_for_axes(active_axes_);
-        double dx_screen = x - middle_pan_start_x_;
-        double dy_screen = y - middle_pan_start_y_;
-        float x_range = middle_pan_xlim_max_ - middle_pan_xlim_min_;
-        float y_range = middle_pan_ylim_max_ - middle_pan_ylim_min_;
-        float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
-        float dy_data = static_cast<float>(dy_screen) * y_range / vp.h;
+        const auto& vp        = viewport_for_axes(active_axes_);
+        double      dx_screen = x - middle_pan_start_x_;
+        double      dy_screen = y - middle_pan_start_y_;
+        float       x_range   = middle_pan_xlim_max_ - middle_pan_xlim_min_;
+        float       y_range   = middle_pan_ylim_max_ - middle_pan_ylim_min_;
+        float       dx_data   = -static_cast<float>(dx_screen) * x_range / vp.w;
+        float       dy_data   = static_cast<float>(dy_screen) * y_range / vp.h;
         active_axes_->xlim(middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
         active_axes_->ylim(middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
         if (axis_link_mgr_)
-            axis_link_mgr_->propagate_limits(
-                active_axes_, active_axes_->x_limits(), active_axes_->y_limits());
+            axis_link_mgr_->propagate_limits(active_axes_,
+                                             active_axes_->x_limits(),
+                                             active_axes_->y_limits());
         // Don't return — allow cursor readout and other overlays to update too
     }
 
@@ -999,8 +1006,8 @@ void InputHandler::on_mouse_move(double x, double y)
         if (tool_mode_ == ToolMode::Pan)
         {
             // Track velocity for inertial pan
-            last_move_x_ = x;
-            last_move_y_ = y;
+            last_move_x_    = x;
+            last_move_y_    = y;
             last_move_time_ = Clock::now();
 
             // Pan logic
@@ -1023,8 +1030,9 @@ void InputHandler::on_mouse_move(double x, double y)
             // Propagate pan to linked axes
             if (axis_link_mgr_)
             {
-                axis_link_mgr_->propagate_limits(
-                    active_axes_, active_axes_->x_limits(), active_axes_->y_limits());
+                axis_link_mgr_->propagate_limits(active_axes_,
+                                                 active_axes_->x_limits(),
+                                                 active_axes_->y_limits());
             }
         }
         else if (tool_mode_ == ToolMode::BoxZoom)
@@ -1045,25 +1053,25 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     if (hit_base)
     {
         active_axes_base_ = hit_base;
-        active_axes_ = dynamic_cast<Axes*>(hit_base);
+        active_axes_      = dynamic_cast<Axes*>(hit_base);
     }
 
     // Handle 3D zoom by scaling axis limits (box stays fixed visual size)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
     {
-        auto before_xlim = axes3d->x_limits();
-        auto before_ylim = axes3d->y_limits();
-        auto before_zlim = axes3d->z_limits();
-        float factor = (y_offset > 0) ? (1.0f - ZOOM_3D_FACTOR) : (1.0f + ZOOM_3D_FACTOR);
+        auto  before_xlim = axes3d->x_limits();
+        auto  before_ylim = axes3d->y_limits();
+        auto  before_zlim = axes3d->z_limits();
+        float factor      = (y_offset > 0) ? (1.0f - ZOOM_3D_FACTOR) : (1.0f + ZOOM_3D_FACTOR);
         axes3d->zoom_limits(factor);
         if (axis_link_mgr_)
             axis_link_mgr_->propagate_from_3d(axes3d);
         if (undo_mgr_)
         {
-            auto after_xlim = axes3d->x_limits();
-            auto after_ylim = axes3d->y_limits();
-            auto after_zlim = axes3d->z_limits();
-            Axes3D* ax = axes3d;
+            auto    after_xlim = axes3d->x_limits();
+            auto    after_ylim = axes3d->y_limits();
+            auto    after_zlim = axes3d->z_limits();
+            Axes3D* ax         = axes3d;
             undo_mgr_->push(UndoAction{"Zoom 3D",
                                        [ax, before_xlim, before_ylim, before_zlim]()
                                        {
@@ -1124,7 +1132,7 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     // Exponential zoom: symmetric in both directions.
     // scroll up (y_offset>0) → factor<1 (zoom in), scroll down → factor>1 (zoom out)
     float factor = std::pow(1.0f / (1.0f + ZOOM_FACTOR), static_cast<float>(y_offset));
-    factor = std::clamp(factor, 0.1f, 10.0f);
+    factor       = std::clamp(factor, 0.1f, 10.0f);
 
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
@@ -1193,13 +1201,19 @@ void InputHandler::on_key(int key, int action, int mods)
                     axes_ptr->ylim(old_ylim.min, old_ylim.max);
                     if (transition_engine_)
                     {
-                        transition_engine_->animate_limits(
-                            *axes_ptr, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                        transition_engine_->animate_limits(*axes_ptr,
+                                                           target_x,
+                                                           target_y,
+                                                           AUTOFIT_ANIM_DURATION,
+                                                           ease::ease_out);
                     }
                     else
                     {
-                        anim_ctrl_->animate_axis_limits(
-                            *axes_ptr, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                        anim_ctrl_->animate_axis_limits(*axes_ptr,
+                                                        target_x,
+                                                        target_y,
+                                                        AUTOFIT_ANIM_DURATION,
+                                                        ease::ease_out);
                     }
                 }
                 else
@@ -1230,8 +1244,11 @@ void InputHandler::on_key(int key, int action, int mods)
                 AxisLimits target_y = active_axes_->y_limits();
                 active_axes_->xlim(old_xlim.min, old_xlim.max);
                 active_axes_->ylim(old_ylim.min, old_ylim.max);
-                transition_engine_->animate_limits(
-                    *active_axes_, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                transition_engine_->animate_limits(*active_axes_,
+                                                   target_x,
+                                                   target_y,
+                                                   AUTOFIT_ANIM_DURATION,
+                                                   ease::ease_out);
             }
             else if (anim_ctrl_)
             {
@@ -1242,8 +1259,11 @@ void InputHandler::on_key(int key, int action, int mods)
                 AxisLimits target_y = active_axes_->y_limits();
                 active_axes_->xlim(old_xlim.min, old_xlim.max);
                 active_axes_->ylim(old_ylim.min, old_ylim.max);
-                anim_ctrl_->animate_axis_limits(
-                    *active_axes_, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                anim_ctrl_->animate_axis_limits(*active_axes_,
+                                                target_x,
+                                                target_y,
+                                                AUTOFIT_ANIM_DURATION,
+                                                ease::ease_out);
             }
             else
             {
@@ -1301,8 +1321,11 @@ void InputHandler::on_key(int key, int action, int mods)
                 AxisLimits target_y = active_axes_->y_limits();
                 active_axes_->xlim(old_xlim.min, old_xlim.max);
                 active_axes_->ylim(old_ylim.min, old_ylim.max);
-                transition_engine_->animate_limits(
-                    *active_axes_, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                transition_engine_->animate_limits(*active_axes_,
+                                                   target_x,
+                                                   target_y,
+                                                   AUTOFIT_ANIM_DURATION,
+                                                   ease::ease_out);
             }
             else if (anim_ctrl_)
             {
@@ -1313,8 +1336,11 @@ void InputHandler::on_key(int key, int action, int mods)
                 AxisLimits target_y = active_axes_->y_limits();
                 active_axes_->xlim(old_xlim.min, old_xlim.max);
                 active_axes_->ylim(old_ylim.min, old_ylim.max);
-                anim_ctrl_->animate_axis_limits(
-                    *active_axes_, target_x, target_y, AUTOFIT_ANIM_DURATION, ease::ease_out);
+                anim_ctrl_->animate_axis_limits(*active_axes_,
+                                                target_x,
+                                                target_y,
+                                                AUTOFIT_ANIM_DURATION,
+                                                ease::ease_out);
             }
             else
             {
@@ -1362,8 +1388,8 @@ void InputHandler::apply_box_zoom()
 
     // Only apply if the selection is large enough (avoid accidental clicks)
     constexpr float MIN_SELECTION_PIXELS = 5.0f;
-    float dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
-    float dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
+    float           dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
+    float           dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
 
     if (dx_screen > MIN_SELECTION_PIXELS && dy_screen > MIN_SELECTION_PIXELS)
     {
@@ -1372,13 +1398,19 @@ void InputHandler::apply_box_zoom()
         AxisLimits target_y{ymin, ymax};
         if (transition_engine_)
         {
-            transition_engine_->animate_limits(
-                *active_axes_, target_x, target_y, ZOOM_ANIM_DURATION, ease::ease_out);
+            transition_engine_->animate_limits(*active_axes_,
+                                               target_x,
+                                               target_y,
+                                               ZOOM_ANIM_DURATION,
+                                               ease::ease_out);
         }
         else if (anim_ctrl_)
         {
-            anim_ctrl_->animate_axis_limits(
-                *active_axes_, target_x, target_y, ZOOM_ANIM_DURATION, ease::ease_out);
+            anim_ctrl_->animate_axis_limits(*active_axes_,
+                                            target_x,
+                                            target_y,
+                                            ZOOM_ANIM_DURATION,
+                                            ease::ease_out);
         }
         else
         {
@@ -1403,7 +1435,7 @@ void InputHandler::cancel_box_zoom()
     {
         mode_ = InteractionMode::Idle;
     }
-    box_zoom_.active = false;
+    box_zoom_.active      = false;
     ctrl_box_zoom_active_ = false;
 }
 
@@ -1467,4 +1499,4 @@ bool InputHandler::has_active_animations() const
     return anim_ctrl_ && anim_ctrl_->has_active_animations();
 }
 
-}  // namespace spectra
+}   // namespace spectra

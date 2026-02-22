@@ -9,7 +9,7 @@
 int main()
 {
     spectra::App app;
-    auto& fig = app.figure({.width = 1200, .height = 800});
+    auto&        fig = app.figure({.width = 1200, .height = 800});
 
     // Create 4 subplots for different animation types
     auto& ax1 = fig.subplot(2, 2, 1);
@@ -34,7 +34,7 @@ int main()
     ax4.ylabel("Value");
 
     // Generate base data
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x_base(N), y_base(N);
     std::vector<float> t_line(N), y_line(N);
     std::vector<float> t_fade(N), y_fade(N);
@@ -60,7 +60,7 @@ int main()
     auto& scatter =
         ax2.scatter(scatter_x, scatter_y).color(spectra::rgb(1.0f, 0.4f, 0.0f)).size(20.0f);
     auto& style_line = ax3.line(t_line, y_line).width(2.0f);
-    auto& fade_line = ax4.line(t_fade, y_fade).width(3.0f);
+    auto& fade_line  = ax4.line(t_fade, y_fade).width(3.0f);
 
     // Set axis limits
     ax1.xlim(0.0f, 6.28f);
@@ -81,7 +81,7 @@ int main()
                 float t = f.elapsed_seconds();
 
                 // Animate frequency modulation
-                float freq_mod = 1.0f + 0.5f * std::sin(t * 0.5f);
+                float              freq_mod = 1.0f + 0.5f * std::sin(t * 0.5f);
                 std::vector<float> y_mod(N);
                 for (size_t i = 0; i < N; ++i)
                 {
@@ -90,15 +90,15 @@ int main()
                 sine_wave.set_y(y_mod);
 
                 // Animate scatter position and size
-                scatter_x[0] = 0.5f + 0.3f * std::cos(t * 0.7f);
-                scatter_y[0] = 0.5f + 0.3f * std::sin(t * 0.7f);
+                scatter_x[0]       = 0.5f + 0.3f * std::cos(t * 0.7f);
+                scatter_y[0]       = 0.5f + 0.3f * std::sin(t * 0.7f);
                 float scatter_size = 20.0f + 15.0f * std::sin(t * 1.2f);
                 scatter.set_x(scatter_x);
                 scatter.set_y(scatter_y);
                 scatter.size(scatter_size);
 
                 // Animate line color (simple RGB interpolation) and width
-                float hue = std::fmod(t * 0.3f, 1.0f);
+                float hue        = std::fmod(t * 0.3f, 1.0f);
                 float line_width = 2.0f + 3.0f * (std::sin(t * 0.8f) * 0.5f + 0.5f);
                 // Simple HSV to RGB conversion for demo
                 float r = std::abs(std::cos(hue * 6.28f));

@@ -99,7 +99,7 @@ SplitPane* SplitPane::split(SplitDirection direction, FigureId new_figure_index,
 {
     if (is_split())
     {
-        return nullptr;  // Already split
+        return nullptr;   // Already split
     }
 
     ratio = std::clamp(ratio, MIN_RATIO, MAX_RATIO);
@@ -108,18 +108,18 @@ SplitPane* SplitPane::split(SplitDirection direction, FigureId new_figure_index,
     auto first_child = std::make_unique<SplitPane>(figure_index_);
     // Transfer the full figure list (not just the primary figure_index_)
     first_child->figure_indices_ = figure_indices_;
-    first_child->active_local_ = active_local_;
-    first_child->figure_index_ = figure_index_;
+    first_child->active_local_   = active_local_;
+    first_child->figure_index_   = figure_index_;
 
     auto second_child = std::make_unique<SplitPane>(new_figure_index);
 
-    first_child->parent_ = this;
+    first_child->parent_  = this;
     second_child->parent_ = this;
 
     split_direction_ = direction;
-    split_ratio_ = ratio;
+    split_ratio_     = ratio;
 
-    first_ = std::move(first_child);
+    first_  = std::move(first_child);
     second_ = std::move(second_child);
 
     // This node is now internal — clear leaf state
@@ -152,9 +152,9 @@ bool SplitPane::unsplit(bool keep_first)
     if (kept->is_leaf())
     {
         // Simple case: kept child is a leaf — absorb ALL its figures
-        figure_index_ = kept->figure_index_;
+        figure_index_   = kept->figure_index_;
         figure_indices_ = kept->figure_indices_;
-        active_local_ = kept->active_local_;
+        active_local_   = kept->active_local_;
         first_.reset();
         second_.reset();
     }
@@ -162,16 +162,16 @@ bool SplitPane::unsplit(bool keep_first)
     {
         // Kept child is an internal node — adopt its children
         split_direction_ = kept->split_direction_;
-        split_ratio_ = kept->split_ratio_;
-        figure_index_ = kept->figure_index_;
-        figure_indices_ = kept->figure_indices_;
-        active_local_ = kept->active_local_;
+        split_ratio_     = kept->split_ratio_;
+        figure_index_    = kept->figure_index_;
+        figure_indices_  = kept->figure_indices_;
+        active_local_    = kept->active_local_;
 
         // Move grandchildren up
-        auto new_first = std::move(kept->first_);
+        auto new_first  = std::move(kept->first_);
         auto new_second = std::move(kept->second_);
 
-        first_ = std::move(new_first);
+        first_  = std::move(new_first);
         second_ = std::move(new_second);
 
         if (first_)
@@ -208,12 +208,12 @@ void SplitPane::compute_layout(const Rect& bounds)
     if (split_direction_ == SplitDirection::Horizontal)
     {
         // Left | Right
-        float split_x = bounds_.x + bounds_.w * split_ratio_;
-        float first_w = split_x - bounds_.x - half_splitter;
+        float split_x  = bounds_.x + bounds_.w * split_ratio_;
+        float first_w  = split_x - bounds_.x - half_splitter;
         float second_x = split_x + half_splitter;
         float second_w = bounds_.x + bounds_.w - second_x;
 
-        first_w = std::max(first_w, 0.0f);
+        first_w  = std::max(first_w, 0.0f);
         second_w = std::max(second_w, 0.0f);
 
         if (first_)
@@ -228,12 +228,12 @@ void SplitPane::compute_layout(const Rect& bounds)
     else
     {
         // Top / Bottom
-        float split_y = bounds_.y + bounds_.h * split_ratio_;
-        float first_h = split_y - bounds_.y - half_splitter;
+        float split_y  = bounds_.y + bounds_.h * split_ratio_;
+        float first_h  = split_y - bounds_.y - half_splitter;
         float second_y = split_y + half_splitter;
         float second_h = bounds_.y + bounds_.h - second_y;
 
-        first_h = std::max(first_h, 0.0f);
+        first_h  = std::max(first_h, 0.0f);
         second_h = std::max(second_h, 0.0f);
 
         if (first_)
@@ -428,7 +428,7 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
     auto find_value = [&](const std::string& key) -> std::string
     {
         std::string search = "\"" + key + "\":";
-        auto pos = data.find(search);
+        auto        pos    = data.find(search);
         if (pos == std::string::npos)
             return "";
         pos += search.size();
@@ -449,7 +449,7 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
         else if (data[pos] == '{')
         {
             // Object value — find matching brace
-            int depth = 0;
+            int    depth = 0;
             size_t start = pos;
             for (size_t i = pos; i < data.size(); ++i)
             {
@@ -478,7 +478,7 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
 
     if (is_leaf)
     {
-        FigureId fig_idx = 0;
+        FigureId    fig_idx = 0;
         std::string fig_str = find_value("figure");
         if (!fig_str.empty())
         {
@@ -488,35 +488,35 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
     }
 
     // Internal node
-    std::string dir_str = find_value("dir");
+    std::string    dir_str = find_value("dir");
     SplitDirection dir = (dir_str == "v") ? SplitDirection::Vertical : SplitDirection::Horizontal;
 
-    float ratio = 0.5f;
+    float       ratio     = 0.5f;
     std::string ratio_str = find_value("ratio");
     if (!ratio_str.empty())
     {
         ratio = std::stof(ratio_str);
     }
 
-    std::string first_str = find_value("first");
+    std::string first_str  = find_value("first");
     std::string second_str = find_value("second");
 
-    auto first_child = deserialize(first_str);
+    auto first_child  = deserialize(first_str);
     auto second_child = deserialize(second_str);
 
     if (!first_child || !second_child)
         return nullptr;
 
     // Build internal node: create a dummy pane, then manually set children
-    auto node = std::make_unique<SplitPane>(INVALID_FIGURE_ID);
+    auto node              = std::make_unique<SplitPane>(INVALID_FIGURE_ID);
     node->split_direction_ = dir;
-    node->split_ratio_ = ratio;
-    node->figure_index_ = INVALID_FIGURE_ID;
+    node->split_ratio_     = ratio;
+    node->figure_index_    = INVALID_FIGURE_ID;
 
-    first_child->parent_ = node.get();
+    first_child->parent_  = node.get();
     second_child->parent_ = node.get();
 
-    node->first_ = std::move(first_child);
+    node->first_  = std::move(first_child);
     node->second_ = std::move(second_child);
 
     return node;
@@ -526,10 +526,10 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
 
 SplitViewManager::SplitViewManager() : root_(std::make_unique<SplitPane>(0)) {}
 
-SplitPane* SplitViewManager::split_pane(FigureId figure_index,
+SplitPane* SplitViewManager::split_pane(FigureId       figure_index,
                                         SplitDirection direction,
-                                        FigureId new_figure_index,
-                                        float ratio)
+                                        FigureId       new_figure_index,
+                                        float          ratio)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -555,8 +555,8 @@ SplitPane* SplitViewManager::split_pane(FigureId figure_index,
 }
 
 SplitPane* SplitViewManager::split_active(SplitDirection direction,
-                                          FigureId new_figure_index,
-                                          float ratio)
+                                          FigureId       new_figure_index,
+                                          float          ratio)
 {
     return split_pane(active_figure_index_, direction, new_figure_index, ratio);
 }
@@ -587,8 +587,8 @@ bool SplitViewManager::close_pane(FigureId figure_index)
     bool keep_first = (parent->second() == pane);
 
     // Get the figure index of the kept pane (for active pane update)
-    SplitPane* kept = keep_first ? parent->first() : parent->second();
-    FigureId kept_figure = INVALID_FIGURE_ID;
+    SplitPane* kept        = keep_first ? parent->first() : parent->second();
+    FigureId   kept_figure = INVALID_FIGURE_ID;
     if (kept && kept->is_leaf())
     {
         kept_figure = kept->figure_index();
@@ -626,7 +626,7 @@ void SplitViewManager::unsplit_all()
     std::lock_guard<std::mutex> lock(mutex_);
 
     size_t fig = active_figure_index_;
-    root_ = std::make_unique<SplitPane>(fig);
+    root_      = std::make_unique<SplitPane>(fig);
     recompute_layout();
 }
 
@@ -688,7 +688,7 @@ size_t SplitViewManager::pane_count() const
 std::vector<SplitPane*> SplitViewManager::all_panes()
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<SplitPane*> result;
+    std::vector<SplitPane*>     result;
     if (root_)
         root_->collect_leaves(result);
     return result;
@@ -696,7 +696,7 @@ std::vector<SplitPane*> SplitViewManager::all_panes()
 
 std::vector<const SplitPane*> SplitViewManager::all_panes() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex>   lock(mutex_);
     std::vector<const SplitPane*> result;
     if (root_)
         root_->collect_leaves(result);
@@ -750,8 +750,8 @@ void SplitViewManager::begin_splitter_drag(SplitPane* splitter_pane, float mouse
 {
     std::lock_guard<std::mutex> lock(mutex_);
     dragging_splitter_ = splitter_pane;
-    drag_start_pos_ = mouse_pos;
-    drag_start_ratio_ = splitter_pane ? splitter_pane->split_ratio() : 0.5f;
+    drag_start_pos_    = mouse_pos;
+    drag_start_ratio_  = splitter_pane ? splitter_pane->split_ratio() : 0.5f;
 }
 
 void SplitViewManager::update_splitter_drag(float mouse_pos)
@@ -760,7 +760,7 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
     if (!dragging_splitter_)
         return;
 
-    Rect b = dragging_splitter_->bounds();
+    Rect  b     = dragging_splitter_->bounds();
     float delta = mouse_pos - drag_start_pos_;
 
     float total_size;
@@ -777,12 +777,12 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
         return;
 
     float delta_ratio = delta / total_size;
-    float new_ratio = drag_start_ratio_ + delta_ratio;
+    float new_ratio   = drag_start_ratio_ + delta_ratio;
 
     // Enforce minimum pane sizes
     float min_ratio = SplitPane::MIN_PANE_SIZE / total_size;
     float max_ratio = 1.0f - min_ratio;
-    new_ratio = std::clamp(new_ratio,
+    new_ratio       = std::clamp(new_ratio,
                            std::max(SplitPane::MIN_RATIO, min_ratio),
                            std::min(SplitPane::MAX_RATIO, max_ratio));
 
@@ -799,7 +799,7 @@ void SplitViewManager::end_splitter_drag()
 std::string SplitViewManager::serialize() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::ostringstream ss;
+    std::ostringstream          ss;
     ss << "{\"active\":" << active_figure_index_;
     if (root_)
     {
@@ -835,7 +835,7 @@ bool SplitViewManager::deserialize(const std::string& data)
     {
         root_pos += 7;
         // Find matching brace
-        int depth = 0;
+        int    depth = 0;
         size_t start = root_pos;
         for (size_t i = root_pos; i < data.size(); ++i)
         {
@@ -847,7 +847,7 @@ bool SplitViewManager::deserialize(const std::string& data)
                 if (depth == 0)
                 {
                     auto root_data = data.substr(start, i - start + 1);
-                    auto new_root = SplitPane::deserialize(root_data);
+                    auto new_root  = SplitPane::deserialize(root_data);
                     if (new_root)
                     {
                         root_ = std::move(new_root);
@@ -871,4 +871,4 @@ void SplitViewManager::recompute_layout()
     }
 }
 
-}  // namespace spectra
+}   // namespace spectra

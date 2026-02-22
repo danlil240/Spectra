@@ -71,11 +71,11 @@ void AnimationChannel::add_keyframe(const TypedKeyframe& kf)
     {
         if (std::abs(existing.time - kf.time) < 0.001f)
         {
-            existing.value = kf.value;
-            existing.interp = kf.interp;
+            existing.value        = kf.value;
+            existing.interp       = kf.interp;
             existing.tangent_mode = kf.tangent_mode;
-            existing.in_tangent = kf.in_tangent;
-            existing.out_tangent = kf.out_tangent;
+            existing.in_tangent   = kf.in_tangent;
+            existing.out_tangent  = kf.out_tangent;
             compute_auto_tangents();
             return;
         }
@@ -131,16 +131,16 @@ bool AnimationChannel::set_keyframe_interp(float time, InterpMode mode, float to
     return true;
 }
 
-bool AnimationChannel::set_keyframe_tangents(float time,
+bool AnimationChannel::set_keyframe_tangents(float         time,
                                              TangentHandle in,
                                              TangentHandle out,
-                                             float tolerance)
+                                             float         tolerance)
 {
     auto* kf = find_keyframe(time, tolerance);
     if (!kf)
         return false;
-    kf->in_tangent = in;
-    kf->out_tangent = out;
+    kf->in_tangent   = in;
+    kf->out_tangent  = out;
     kf->tangent_mode = TangentMode::Free;
     return true;
 }
@@ -153,7 +153,7 @@ bool AnimationChannel::set_keyframe_tangent_mode(float time, TangentMode mode, f
     kf->tangent_mode = mode;
     if (mode == TangentMode::Flat)
     {
-        kf->in_tangent = TangentHandle{0.0f, 0.0f};
+        kf->in_tangent  = TangentHandle{0.0f, 0.0f};
         kf->out_tangent = TangentHandle{0.0f, 0.0f};
     }
     else if (mode == TangentMode::Auto)
@@ -267,9 +267,9 @@ float AnimationChannel::evaluate(float time) const
 float AnimationChannel::evaluate_derivative(float time) const
 {
     // Numerical derivative via central difference
-    constexpr float h = 0.001f;
-    float v_plus = evaluate(time + h);
-    float v_minus = evaluate(time - h);
+    constexpr float h       = 0.001f;
+    float           v_plus  = evaluate(time + h);
+    float           v_minus = evaluate(time - h);
     return (v_plus - v_minus) / (2.0f * h);
 }
 
@@ -318,7 +318,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
     // Catmull-Rom style: slope = (next.value - prev.value) / (next.time - prev.time)
     if (keyframes_.size() < 2)
     {
-        kf.in_tangent = TangentHandle{0.0f, 0.0f};
+        kf.in_tangent  = TangentHandle{0.0f, 0.0f};
         kf.out_tangent = TangentHandle{0.0f, 0.0f};
         return;
     }
@@ -329,7 +329,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
     {
         // First keyframe: use forward difference
         const auto& next = keyframes_[index + 1];
-        float dt = next.time - kf.time;
+        float       dt   = next.time - kf.time;
         if (dt > 0.0f)
         {
             slope = (next.value - kf.value) / dt;
@@ -339,7 +339,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
     {
         // Last keyframe: use backward difference
         const auto& prev = keyframes_[index - 1];
-        float dt = kf.time - prev.time;
+        float       dt   = kf.time - prev.time;
         if (dt > 0.0f)
         {
             slope = (kf.value - prev.value) / dt;
@@ -350,7 +350,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
         // Interior: Catmull-Rom
         const auto& prev = keyframes_[index - 1];
         const auto& next = keyframes_[index + 1];
-        float dt = next.time - prev.time;
+        float       dt   = next.time - prev.time;
         if (dt > 0.0f)
         {
             slope = (next.value - prev.value) / dt;
@@ -358,7 +358,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
     }
 
     // Set tangent handles: 1/3 of segment length in each direction
-    float in_dt = 0.0f;
+    float in_dt  = 0.0f;
     float out_dt = 0.0f;
 
     if (index > 0)
@@ -370,7 +370,7 @@ void AnimationChannel::compute_auto_tangent_at(size_t index)
         out_dt = (keyframes_[index + 1].time - kf.time) / 3.0f;
     }
 
-    kf.in_tangent = TangentHandle{-in_dt, -slope * in_dt};
+    kf.in_tangent  = TangentHandle{-in_dt, -slope * in_dt};
     kf.out_tangent = TangentHandle{out_dt, slope * out_dt};
 }
 
@@ -405,9 +405,9 @@ float AnimationChannel::interp_cubic_bezier(const TypedKeyframe& a, const TypedK
     float p3 = b.value;
 
     // De Casteljau / cubic Bezier evaluation
-    float u = 1.0f - t;
-    float tt = t * t;
-    float uu = u * u;
+    float u   = 1.0f - t;
+    float tt  = t * t;
+    float uu  = u * u;
     float uuu = uu * u;
     float ttt = tt * t;
 
@@ -418,10 +418,10 @@ float AnimationChannel::interp_spring(const TypedKeyframe& a, const TypedKeyfram
 {
     // Damped spring: overshoots then settles
     // Based on critically damped spring with slight underdamping
-    constexpr float omega = 10.0f;  // Natural frequency
-    constexpr float zeta = 0.6f;    // Damping ratio (< 1 = underdamped)
+    constexpr float omega = 10.0f;   // Natural frequency
+    constexpr float zeta  = 0.6f;    // Damping ratio (< 1 = underdamped)
 
-    float decay = std::exp(-zeta * omega * t);
+    float decay   = std::exp(-zeta * omega * t);
     float omega_d = omega * std::sqrt(1.0f - zeta * zeta);
     float spring_t =
         1.0f - decay * (std::cos(omega_d * t) + (zeta * omega / omega_d) * std::sin(omega_d * t));
@@ -460,7 +460,7 @@ float AnimationChannel::interp_ease_in_out(const TypedKeyframe& a, const TypedKe
 uint32_t KeyframeInterpolator::add_channel(const std::string& name, float default_value)
 {
     std::lock_guard lock(mutex_);
-    uint32_t id = next_channel_id_++;
+    uint32_t        id = next_channel_id_++;
     channels_.emplace_back(id, AnimationChannel(name, default_value));
     return id;
 }
@@ -500,49 +500,55 @@ size_t KeyframeInterpolator::channel_count() const
 
 // ─── Property bindings ───────────────────────────────────────────────────────
 
-void KeyframeInterpolator::bind(
-    uint32_t channel_id, const std::string& prop_name, float* target, float scale, float offset)
+void KeyframeInterpolator::bind(uint32_t           channel_id,
+                                const std::string& prop_name,
+                                float*             target,
+                                float              scale,
+                                float              offset)
 {
     std::lock_guard lock(mutex_);
     PropertyBinding b;
-    b.channel_id = channel_id;
+    b.channel_id    = channel_id;
     b.property_name = prop_name;
-    b.target = target;
-    b.scale = scale;
-    b.offset = offset;
+    b.target        = target;
+    b.scale         = scale;
+    b.offset        = offset;
     bindings_.push_back(std::move(b));
 }
 
-void KeyframeInterpolator::bind_color(uint32_t channel_id,
+void KeyframeInterpolator::bind_color(uint32_t           channel_id,
                                       const std::string& prop_name,
-                                      Color* target)
+                                      Color*             target)
 {
     std::lock_guard lock(mutex_);
     PropertyBinding b;
-    b.channel_id = channel_id;
+    b.channel_id    = channel_id;
     b.property_name = prop_name;
-    b.target = target;
+    b.target        = target;
     bindings_.push_back(std::move(b));
 }
 
-void KeyframeInterpolator::bind_callback(uint32_t channel_id,
-                                         const std::string& prop_name,
+void KeyframeInterpolator::bind_callback(uint32_t                   channel_id,
+                                         const std::string&         prop_name,
                                          std::function<void(float)> callback,
-                                         float scale,
-                                         float offset)
+                                         float                      scale,
+                                         float                      offset)
 {
     std::lock_guard lock(mutex_);
     PropertyBinding b;
-    b.channel_id = channel_id;
+    b.channel_id    = channel_id;
     b.property_name = prop_name;
-    b.target = std::move(callback);
-    b.scale = scale;
-    b.offset = offset;
+    b.target        = std::move(callback);
+    b.scale         = scale;
+    b.offset        = offset;
     bindings_.push_back(std::move(b));
 }
 
-void KeyframeInterpolator::bind_camera(
-    Camera* cam, uint32_t az_ch, uint32_t el_ch, uint32_t dist_ch, uint32_t fov_ch)
+void KeyframeInterpolator::bind_camera(Camera*  cam,
+                                       uint32_t az_ch,
+                                       uint32_t el_ch,
+                                       uint32_t dist_ch,
+                                       uint32_t fov_ch)
 {
     std::lock_guard lock(mutex_);
     // Remove existing binding for this camera if any
@@ -551,10 +557,10 @@ void KeyframeInterpolator::bind_camera(
 
     CameraBinding b;
     b.target_camera = cam;
-    b.azimuth_id = az_ch;
-    b.elevation_id = el_ch;
-    b.distance_id = dist_ch;
-    b.fov_id = fov_ch;
+    b.azimuth_id    = az_ch;
+    b.elevation_id  = el_ch;
+    b.distance_id   = dist_ch;
+    b.fov_id        = fov_ch;
     camera_bindings_.push_back(std::move(b));
 }
 
@@ -597,7 +603,7 @@ void KeyframeInterpolator::evaluate(float time)
         if (!ch)
             continue;
 
-        float raw = ch->evaluate(time);
+        float raw   = ch->evaluate(time);
         float value = raw * binding.scale + binding.offset;
 
         std::visit(
@@ -636,7 +642,7 @@ void KeyframeInterpolator::evaluate(float time)
             if (const auto* ch = find_channel_unlocked(binding.azimuth_id))
             {
                 binding.target_camera->azimuth = ch->evaluate(time);
-                changed = true;
+                changed                        = true;
             }
         }
         if (binding.elevation_id != 0)
@@ -644,7 +650,7 @@ void KeyframeInterpolator::evaluate(float time)
             if (const auto* ch = find_channel_unlocked(binding.elevation_id))
             {
                 binding.target_camera->elevation = ch->evaluate(time);
-                changed = true;
+                changed                          = true;
             }
         }
         if (binding.distance_id != 0)
@@ -652,7 +658,7 @@ void KeyframeInterpolator::evaluate(float time)
             if (const auto* ch = find_channel_unlocked(binding.distance_id))
             {
                 binding.target_camera->distance = ch->evaluate(time);
-                changed = true;
+                changed                         = true;
             }
         }
         if (binding.fov_id != 0)
@@ -674,7 +680,7 @@ void KeyframeInterpolator::evaluate(float time)
 float KeyframeInterpolator::evaluate_channel(uint32_t channel_id, float time) const
 {
     std::lock_guard lock(mutex_);
-    const auto* ch = find_channel_unlocked(channel_id);
+    const auto*     ch = find_channel_unlocked(channel_id);
     if (!ch)
         return 0.0f;
     return ch->evaluate(time);
@@ -685,7 +691,7 @@ float KeyframeInterpolator::evaluate_channel(uint32_t channel_id, float time) co
 void KeyframeInterpolator::add_keyframe(uint32_t channel_id, const TypedKeyframe& kf)
 {
     std::lock_guard lock(mutex_);
-    auto* ch = find_channel_unlocked(channel_id);
+    auto*           ch = find_channel_unlocked(channel_id);
     if (ch)
         ch->add_keyframe(kf);
 }
@@ -693,7 +699,7 @@ void KeyframeInterpolator::add_keyframe(uint32_t channel_id, const TypedKeyframe
 bool KeyframeInterpolator::remove_keyframe(uint32_t channel_id, float time)
 {
     std::lock_guard lock(mutex_);
-    auto* ch = find_channel_unlocked(channel_id);
+    auto*           ch = find_channel_unlocked(channel_id);
     if (!ch)
         return false;
     return ch->remove_keyframe(time);
@@ -744,7 +750,7 @@ void json_escape(std::ostringstream& ss, const std::string& s)
 std::string extract_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\":\"";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return "";
     pos += search.size();
@@ -757,7 +763,7 @@ std::string extract_string(const std::string& json, const std::string& key)
 float extract_float(const std::string& json, const std::string& key, float def = 0.0f)
 {
     std::string search = "\"" + key + "\":";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return def;
     pos += search.size();
@@ -774,7 +780,7 @@ float extract_float(const std::string& json, const std::string& key, float def =
 int extract_int(const std::string& json, const std::string& key, int def = 0)
 {
     std::string search = "\"" + key + "\":";
-    auto pos = json.find(search);
+    auto        pos    = json.find(search);
     if (pos == std::string::npos)
         return def;
     pos += search.size();
@@ -788,11 +794,11 @@ int extract_int(const std::string& json, const std::string& key, int def = 0)
     }
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 std::string KeyframeInterpolator::serialize() const
 {
-    std::lock_guard lock(mutex_);
+    std::lock_guard    lock(mutex_);
     std::ostringstream ss;
     ss << "{\"channels\":[";
 
@@ -843,7 +849,7 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
         return false;
     pos++;
 
-    int depth = 0;
+    int    depth       = 0;
     size_t block_start = pos;
 
     while (pos < json.size())
@@ -862,9 +868,9 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                 // Parse this channel block
                 std::string block = json.substr(block_start, pos - block_start + 1);
 
-                uint32_t id = static_cast<uint32_t>(extract_int(block, "id"));
+                uint32_t    id   = static_cast<uint32_t>(extract_int(block, "id"));
                 std::string name = extract_string(block, "name");
-                float def = extract_float(block, "default");
+                float       def  = extract_float(block, "default");
 
                 AnimationChannel ch(name, def);
 
@@ -876,7 +882,7 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                     if (kf_arr != std::string::npos)
                     {
                         kf_arr++;
-                        int kf_depth = 0;
+                        int    kf_depth = 0;
                         size_t kf_start = kf_arr;
 
                         while (kf_arr < block.size())
@@ -896,8 +902,8 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                                         block.substr(kf_start, kf_arr - kf_start + 1);
 
                                     TypedKeyframe kf;
-                                    kf.time = extract_float(kf_block, "t");
-                                    kf.value = extract_float(kf_block, "v");
+                                    kf.time   = extract_float(kf_block, "t");
+                                    kf.value  = extract_float(kf_block, "v");
                                     kf.interp = static_cast<InterpMode>(extract_int(kf_block, "i"));
                                     kf.tangent_mode =
                                         static_cast<TangentMode>(extract_int(kf_block, "tm"));
@@ -907,11 +913,11 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                                         [&](const std::string& key) -> TangentHandle
                                     {
                                         std::string search = "\"" + key + "\":[";
-                                        auto tpos = kf_block.find(search);
+                                        auto        tpos   = kf_block.find(search);
                                         if (tpos == std::string::npos)
                                             return {};
                                         tpos += search.size();
-                                        auto comma = kf_block.find(',', tpos);
+                                        auto comma   = kf_block.find(',', tpos);
                                         auto bracket = kf_block.find(']', tpos);
                                         if (comma == std::string::npos
                                             || bracket == std::string::npos)
@@ -930,7 +936,7 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                                         }
                                     };
 
-                                    kf.in_tangent = parse_tangent("it");
+                                    kf.in_tangent  = parse_tangent("it");
                                     kf.out_tangent = parse_tangent("ot");
 
                                     ch.add_keyframe(kf);
@@ -965,7 +971,7 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
 float KeyframeInterpolator::duration() const
 {
     std::lock_guard lock(mutex_);
-    float max_end = 0.0f;
+    float           max_end = 0.0f;
     for (const auto& [id, ch] : channels_)
     {
         max_end = std::max(max_end, ch.end_time());
@@ -976,7 +982,7 @@ float KeyframeInterpolator::duration() const
 size_t KeyframeInterpolator::total_keyframe_count() const
 {
     std::lock_guard lock(mutex_);
-    size_t count = 0;
+    size_t          count = 0;
     for (const auto& [id, ch] : channels_)
     {
         count += ch.keyframe_count();
@@ -1006,4 +1012,4 @@ const AnimationChannel* KeyframeInterpolator::find_channel_unlocked(uint32_t id)
     return nullptr;
 }
 
-}  // namespace spectra
+}   // namespace spectra

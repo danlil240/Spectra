@@ -13,10 +13,10 @@ namespace spectra::daemon
 // Tracks a spawned agent process.
 struct ProcessEntry
 {
-    pid_t pid = 0;
+    pid_t         pid       = 0;
     ipc::WindowId window_id = ipc::INVALID_WINDOW;
-    std::string socket_path;
-    bool alive = true;
+    std::string   socket_path;
+    bool          alive = true;
 };
 
 // Manages spawning and tracking of window-agent processes.
@@ -27,7 +27,7 @@ class ProcessManager
     ProcessManager() = default;
 
     // Set the path to the agent binary.
-    void set_agent_path(const std::string& path) { agent_path_ = path; }
+    void               set_agent_path(const std::string& path) { agent_path_ = path; }
     const std::string& agent_path() const { return agent_path_; }
 
     // Set the socket path that agents should connect to.
@@ -62,10 +62,10 @@ class ProcessManager
     pid_t pid_for_window(ipc::WindowId wid) const;
 
    private:
-    mutable std::mutex mu_;
-    std::string agent_path_;
-    std::string socket_path_;
+    mutable std::mutex                      mu_;
+    std::string                             agent_path_;
+    std::string                             socket_path_;
     std::unordered_map<pid_t, ProcessEntry> processes_;
 };
 
-}  // namespace spectra::daemon
+}   // namespace spectra::daemon

@@ -458,6 +458,216 @@ def bar(
     return series
 
 
+def boxplot(
+    datasets: List[ArrayLike],
+    positions: Optional[List[float]] = None,
+    widths: float = 0.6,
+    color: Union[str, Tuple, List, None] = None,
+    label: str = "",
+    show_outliers: bool = True,
+):
+    """Box-and-whisker plot from one or more datasets.
+
+    Usage::
+
+        sp.boxplot([data1, data2, data3])
+        sp.boxplot([data1, data2], positions=[1, 3], color="blue")
+
+    Each dataset is a list/array of values. Statistics (median, Q1, Q3,
+    whiskers, outliers) are computed automatically.
+    """
+    import math
+
+    if positions is None:
+        positions = [float(i + 1) for i in range(len(datasets))]
+
+    hw = widths / 2.0
+    all_x: List[float] = []
+    all_y: List[float] = []
+    out_x: List[float] = []
+    out_y: List[float] = []
+
+    for pos, data in zip(positions, datasets):
+        values = sorted([float(v) for v in _to_list(data) if not math.isnan(float(v))])
+        if not values:
+            continue
+
+        def _percentile(sorted_vals, p):
+            idx = p * (len(sorted_vals) - 1)
+            lo = int(math.floor(idx))
+            hi = int(math.ceil(idx))
+            if lo == hi:
+                return sorted_vals[lo]
+            frac = idx - lo
+            return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
+
+        q1 = _percentile(values, 0.25)
+        median = _percentile(values, 0.5)
+        q3 = _percentile(values, 0.75)
+        iqr = q3 - q1
+        low_fence = q1 - 1.5 * iqr
+        high_fence = q3 + 1.5 * iqr
+
+        wlo = values[0]
+        whi = values[-1]
+        for v in values:
+            if v >= low_fence:
+                wlo = v
+                break
+        for v in reversed(values):
+            if v <= high_fence:
+                whi = v
+                break
+
+        nan = float("nan")
+        cap_hw = hw * 0.5
+
+        # Box
+        all_x.extend([pos - hw, pos - hw, pos + hw, pos + hw, pos - hw, nan])
+        all_y.extend([q1, q3, q3, q1, q1, nan])
+        # Median
+        all_x.extend([pos - hw, pos + hw, nan])
+        all_y.extend([median, median, nan])
+        # Lower whisker
+        all_x.extend([pos, pos, nan])
+        all_y.extend([q1, wlo, nan])
+        all_x.extend([pos - cap_hw, pos + cap_hw, nan])
+        all_y.extend([wlo, wlo, nan])
+        # Upper whisker
+        all_x.extend([pos, pos, nan])
+        all_y.extend([q3, whi, nan])
+        all_x.extend([pos - cap_hw, pos + cap_hw, nan])
+        all_y.extend([whi, whi, nan])
+
+        # Outliers
+        if show_outliers:
+            for v in values:
+                if v < low_fence or v > high_fence:
+                    out_x.append(pos)
+                    out_y.append(v)
+
+    ax = _state._ensure_axes()
+    series = ax.line(all_x, all_y, label=label)
+    c = _parse_color(color)
+    if c:
+        series.set_color(*c)
+    series.set_line_width(2.0)
+
+    if out_x:
+        dots = ax.scatter(out_x, out_y, label="")
+        if c:
+            dots.set_color(*c)
+
+    _auto_fit_axes(ax, all_x, all_y)
+    if out_y:
+        _auto_fit_axes(ax, out_x, out_y)
+    _state._show_if_pending()
+    return series
+
+
+def violin_plot(
+    datasets: List[ArrayLike],
+    positions: Optional[List[float]] = None,
+    widths: float = 0.8,
+    color: Union[str, Tuple, List, None] = None,
+    label: str = "",
+    show_box: bool = True,
+    resolution: int = 50,
+):
+    """Violin plot from one or more datasets.
+
+    Usage::
+
+        sp.violin_plot([data1, data2, data3])
+        sp.violin_plot([data1, data2], positions=[1, 3])
+
+    Draws a mirrored kernel density estimate for each dataset.
+    """
+    import math
+
+    if positions is None:
+        positions = [float(i + 1) for i in range(len(datasets))]
+
+    hw = widths / 2.0
+    all_x: List[float] = []
+    all_y: List[float] = []
+
+    for pos, data in zip(positions, datasets):
+        values = sorted([float(v) for v in _to_list(data) if not math.isnan(float(v))])
+        if not values:
+            continue
+        n = len(values)
+        data_min, data_max = values[0], values[-1]
+        data_range = data_max - data_min
+        if data_range == 0:
+            data_range = 1.0
+
+        # Silverman's rule
+        mean = sum(values) / n
+        std_dev = math.sqrt(sum((v - mean) ** 2 for v in values) / n)
+        if std_dev == 0:
+            std_dev = 1.0
+        bandwidth = 1.06 * std_dev * (n ** -0.2)
+
+        def _kde(x):
+            s = 0.0
+            for d in values:
+                z = (x - d) / bandwidth
+                s += math.exp(-0.5 * z * z)
+            return s * 0.3989422804014327 / (n * bandwidth)
+
+        y_vals = [data_min + (i / (resolution - 1)) * data_range for i in range(resolution)]
+        kde_vals = [_kde(y) for y in y_vals]
+        max_kde = max(kde_vals) if kde_vals else 1.0
+        if max_kde > 0:
+            kde_vals = [k / max_kde for k in kde_vals]
+
+        nan = float("nan")
+
+        # Right half (going up)
+        for i in range(resolution):
+            all_x.append(pos + kde_vals[i] * hw)
+            all_y.append(y_vals[i])
+        # Left half (going down)
+        for i in range(resolution - 1, -1, -1):
+            all_x.append(pos - kde_vals[i] * hw)
+            all_y.append(y_vals[i])
+        # Close
+        all_x.append(pos + kde_vals[0] * hw)
+        all_y.append(y_vals[0])
+        all_x.append(nan)
+        all_y.append(nan)
+
+        # Inner box
+        if show_box:
+            def _percentile(sorted_vals, p):
+                idx = p * (len(sorted_vals) - 1)
+                lo = int(math.floor(idx))
+                hi = int(math.ceil(idx))
+                if lo == hi:
+                    return sorted_vals[lo]
+                frac = idx - lo
+                return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
+
+            q1 = _percentile(values, 0.25)
+            median = _percentile(values, 0.5)
+            q3 = _percentile(values, 0.75)
+            bw = hw * 0.15
+            all_x.extend([pos - bw, pos - bw, pos + bw, pos + bw, pos - bw, nan])
+            all_y.extend([q1, q3, q3, q1, q1, nan])
+            all_x.extend([pos - bw, pos + bw, nan])
+            all_y.extend([median, median, nan])
+
+    ax = _state._ensure_axes()
+    series = ax.line(all_x, all_y, label=label)
+    c = _parse_color(color)
+    if c:
+        series.set_color(*c)
+    _auto_fit_axes(ax, all_x, all_y)
+    _state._show_if_pending()
+    return series
+
+
 def hline(y: float, color: Union[str, Tuple, List, None] = "gray", label: str = ""):
     """Draw a horizontal line across the plot."""
     ax = _state._ensure_axes()

@@ -99,7 +99,20 @@ AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) cons
     if (!figure_)
         return nullptr;
 
+    // Search 3D axes first (all_axes_ holds only 3D)
     for (auto& axes_ptr : figure_->all_axes())
+    {
+        if (!axes_ptr)
+            continue;
+        const auto& vp = axes_ptr->viewport();
+        if (static_cast<float>(screen_x) >= vp.x && static_cast<float>(screen_x) <= vp.x + vp.w
+            && static_cast<float>(screen_y) >= vp.y && static_cast<float>(screen_y) <= vp.y + vp.h)
+        {
+            return axes_ptr.get();
+        }
+    }
+    // Search 2D axes (axes_ holds only 2D)
+    for (auto& axes_ptr : figure_->axes())
     {
         if (!axes_ptr)
             continue;

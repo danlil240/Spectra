@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <spectra/axes.hpp>
+#include <spectra/series_stats.hpp>
 
 namespace spectra
 {
@@ -79,6 +80,44 @@ LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y, const
 {
     auto& ref = line(x, y);
     ref.plot_style(style);
+    return ref;
+}
+
+// --- Statistical series creation ---
+
+BoxPlotSeries& Axes::box_plot()
+{
+    auto  s   = std::make_unique<BoxPlotSeries>();
+    auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+ViolinSeries& Axes::violin()
+{
+    auto  s   = std::make_unique<ViolinSeries>();
+    auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+HistogramSeries& Axes::histogram(std::span<const float> values, int bins)
+{
+    auto  s   = std::make_unique<HistogramSeries>(values, bins);
+    auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    series_.push_back(std::move(s));
+    return ref;
+}
+
+BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> heights)
+{
+    auto  s   = std::make_unique<BarSeries>(positions, heights);
+    auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    series_.push_back(std::move(s));
     return ref;
 }
 
@@ -189,6 +228,42 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
                 y_max = std::max(y_max, v);
             }
         }
+        // Try statistical series (all expose x_data/y_data with NaN breaks)
+        auto try_stat = [&](std::span<const float> xd, std::span<const float> yd)
+        {
+            for (auto v : xd)
+            {
+                if (!std::isnan(v))
+                {
+                    x_min = std::min(x_min, v);
+                    x_max = std::max(x_max, v);
+                }
+            }
+            for (auto v : yd)
+            {
+                if (!std::isnan(v))
+                {
+                    y_min = std::min(y_min, v);
+                    y_max = std::max(y_max, v);
+                }
+            }
+        };
+        if (auto* bp = dynamic_cast<const BoxPlotSeries*>(s.get()))
+        {
+            try_stat(bp->x_data(), bp->y_data());
+            // Include outlier extents
+            for (auto v : bp->outlier_y())
+            {
+                y_min = std::min(y_min, v);
+                y_max = std::max(y_max, v);
+            }
+        }
+        if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
+            try_stat(vn->x_data(), vn->y_data());
+        if (auto* hs = dynamic_cast<const HistogramSeries*>(s.get()))
+            try_stat(hs->x_data(), hs->y_data());
+        if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
+            try_stat(bs->x_data(), bs->y_data());
     }
 
     // Fallback if no data

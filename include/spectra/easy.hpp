@@ -88,6 +88,7 @@
 #include <spectra/frame.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_stats.hpp>
 #include <string>
 #include <string_view>
 
@@ -315,6 +316,32 @@ inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y
 inline ScatterSeries& scatter()
 {
     return detail::easy_state().ensure_axes().scatter();
+}
+
+// ─── Statistical Plots ──────────────────────────────────────────────────────
+
+// Create an empty box plot series. Add boxes with .add_box(x, data).
+inline BoxPlotSeries& box_plot()
+{
+    return detail::easy_state().ensure_axes().box_plot();
+}
+
+// Create an empty violin series. Add violins with .add_violin(x, data).
+inline ViolinSeries& violin()
+{
+    return detail::easy_state().ensure_axes().violin();
+}
+
+// Histogram from raw data values.
+inline HistogramSeries& histogram(std::span<const float> values, int bins = 30)
+{
+    return detail::easy_state().ensure_axes().histogram(values, bins);
+}
+
+// Bar chart from positions and heights.
+inline BarSeries& bar(std::span<const float> positions, std::span<const float> heights)
+{
+    return detail::easy_state().ensure_axes().bar(positions, heights);
 }
 
 // ─── 3D Plotting ────────────────────────────────────────────────────────────

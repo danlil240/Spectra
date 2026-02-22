@@ -9,6 +9,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_stats.hpp>
 #include <vector>
 
 #include "../ui/axes3d_renderer.hpp"
@@ -740,9 +741,15 @@ void Renderer::upload_series_data(Series& series)
     auto* surface   = dynamic_cast<SurfaceSeries*>(&series);
     auto* mesh      = dynamic_cast<MeshSeries*>(&series);
 
+    // Try statistical series
+    auto* boxplot   = dynamic_cast<BoxPlotSeries*>(&series);
+    auto* violin    = dynamic_cast<ViolinSeries*>(&series);
+    auto* histogram = dynamic_cast<HistogramSeries*>(&series);
+    auto* bar       = dynamic_cast<BarSeries*>(&series);
+
     auto& gpu = series_gpu_data_[&series];
 
-    // Tag series type on first encounter (avoids 6x dynamic_cast in render_series)
+    // Tag series type on first encounter (avoids dynamic_cast in render_series)
     if (gpu.type == SeriesType::Unknown)
     {
         if (line)
@@ -757,10 +764,18 @@ void Renderer::upload_series_data(Series& series)
             gpu.type = SeriesType::Surface3D;
         else if (mesh)
             gpu.type = SeriesType::Mesh3D;
+        else if (boxplot)
+            gpu.type = SeriesType::BoxPlot2D;
+        else if (violin)
+            gpu.type = SeriesType::Violin2D;
+        else if (histogram)
+            gpu.type = SeriesType::Histogram2D;
+        else if (bar)
+            gpu.type = SeriesType::Bar2D;
     }
 
-    // Handle 2D line/scatter (vec2 interleaved)
-    if (line || scatter)
+    // Handle 2D line/scatter and statistical series (vec2 interleaved)
+    if (line || scatter || boxplot || violin || histogram || bar)
     {
         const float* x_data = nullptr;
         const float* y_data = nullptr;
@@ -777,6 +792,34 @@ void Renderer::upload_series_data(Series& series)
             x_data = scatter->x_data().data();
             y_data = scatter->y_data().data();
             count  = scatter->point_count();
+        }
+        else if (boxplot)
+        {
+            boxplot->rebuild_geometry();
+            x_data = boxplot->x_data().data();
+            y_data = boxplot->y_data().data();
+            count  = boxplot->point_count();
+        }
+        else if (violin)
+        {
+            violin->rebuild_geometry();
+            x_data = violin->x_data().data();
+            y_data = violin->y_data().data();
+            count  = violin->point_count();
+        }
+        else if (histogram)
+        {
+            histogram->rebuild_geometry();
+            x_data = histogram->x_data().data();
+            y_data = histogram->y_data().data();
+            count  = histogram->point_count();
+        }
+        else if (bar)
+        {
+            bar->rebuild_geometry();
+            x_data = bar->x_data().data();
+            y_data = bar->y_data().data();
+            count  = bar->point_count();
         }
 
         if (count == 0)
@@ -2132,6 +2175,90 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.bind_index_buffer(gpu.index_buffer);
                 backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
+            }
+            break;
+        }
+        case SeriesType::BoxPlot2D:
+        {
+            auto* bp = static_cast<BoxPlotSeries*>(&series);
+            if (bp->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = 2.0f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(bp->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            // Render outliers as scatter points
+            if (bp->outlier_count() > 0)
+            {
+                // Outliers need their own SSBO — upload inline
+                size_t out_count     = bp->outlier_count();
+                size_t out_byte_size = out_count * 2 * sizeof(float);
+                if (upload_scratch_.size() < out_count * 2)
+                    upload_scratch_.resize(out_count * 2);
+                for (size_t i = 0; i < out_count; ++i)
+                {
+                    upload_scratch_[i * 2]     = bp->outlier_x().data()[i];
+                    upload_scratch_[i * 2 + 1] = bp->outlier_y().data()[i];
+                }
+                // Reuse the main SSBO if large enough, else create temp
+                // For simplicity, use a secondary draw with the same buffer
+                // by uploading outlier data after the line data
+                BufferHandle outlier_buf =
+                    backend_.create_buffer(BufferUsage::Storage, out_byte_size);
+                backend_.upload_buffer(outlier_buf, upload_scratch_.data(), out_byte_size);
+
+                backend_.bind_pipeline(scatter_pipeline_);
+                pc.point_size  = 4.0f;
+                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+                backend_.push_constants(pc);
+                backend_.bind_buffer(outlier_buf, 0);
+                backend_.draw_instanced(6, static_cast<uint32_t>(out_count));
+                backend_.destroy_buffer(outlier_buf);
+            }
+            break;
+        }
+        case SeriesType::Violin2D:
+        {
+            auto* vn = static_cast<ViolinSeries*>(&series);
+            if (vn->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = 1.5f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(vn->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            break;
+        }
+        case SeriesType::Histogram2D:
+        {
+            auto* hist = static_cast<HistogramSeries*>(&series);
+            if (hist->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = 2.0f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(hist->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            break;
+        }
+        case SeriesType::Bar2D:
+        {
+            auto* bs = static_cast<BarSeries*>(&series);
+            if (bs->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = 2.0f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(bs->point_count()) - 1;
+                backend_.draw(segments * 6);
             }
             break;
         }

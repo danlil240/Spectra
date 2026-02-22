@@ -466,16 +466,16 @@ SwapchainContext create_swapchain(VkDevice              device,
         if (use_msaa)
         {
             // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (swapchain image)
-            fb_attachments[0]  = ctx.msaa_color_view;
-            fb_attachments[1]  = ctx.depth_view;
-            fb_attachments[2]  = ctx.image_views[i];
+            fb_attachments[0]   = ctx.msaa_color_view;
+            fb_attachments[1]   = ctx.depth_view;
+            fb_attachments[2]   = ctx.image_views[i];
             fb_attachment_count = 3;
         }
         else
         {
             // Non-MSAA: attachment 0 = color (swapchain image), 1 = depth
-            fb_attachments[0]  = ctx.image_views[i];
-            fb_attachments[1]  = ctx.depth_view;
+            fb_attachments[0]   = ctx.image_views[i];
+            fb_attachments[1]   = ctx.depth_view;
             fb_attachment_count = 2;
         }
 

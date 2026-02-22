@@ -84,7 +84,8 @@ void TabDragController::update(float mouse_x,
             // This is done BEFORE the release check so the value is fresh at drop time.
             if (window_manager_)
             {
-                uint32_t hovered = 0;
+                uint32_t hovered  = 0;
+                uint32_t fallback = 0;
                 for (auto* wctx : window_manager_->windows())
                 {
                     if (!wctx || !wctx->glfw_window || wctx->is_preview)
@@ -97,12 +98,19 @@ void TabDragController::update(float mouse_x,
                     // Content area check with generous margin for title bar
                     if (cx >= -10 && cx < ww + 10 && cy >= -50 && cy < wh + 10)
                     {
-                        hovered = wctx->id;
-                        // Prefer the non-source window if cursor is over it
-                        if (hovered != source_window_id_)
+                        // Prefer focused (frontmost) window to avoid picking
+                        // a background window when windows overlap.
+                        if (glfwGetWindowAttrib(win, GLFW_FOCUSED))
+                        {
+                            hovered = wctx->id;
                             break;
+                        }
+                        if (fallback == 0)
+                            fallback = wctx->id;
                     }
                 }
+                if (hovered == 0)
+                    hovered = fallback;
                 if (hovered != 0 && hovered != source_window_id_)
                     last_hovered_window_id_ = hovered;
 
@@ -397,6 +405,10 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
     // Query each window directly via glfwGetCursorPos to check if the
     // cursor is inside its content area.  This avoids screen-coordinate
     // math issues on X11 with window decorations.
+    // When multiple overlapping windows contain the cursor (common on
+    // X11/Wayland where glfwGetCursorPos works for background windows),
+    // prefer the focused (frontmost) window.
+    uint32_t fallback = 0;
     for (auto* wctx : window_manager_->windows())
     {
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
@@ -410,11 +422,16 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
 
         if (cx >= 0 && cx < ww && cy >= 0 && cy < wh)
         {
-            return wctx->id;
+            // Focused window is definitely the frontmost — return immediately
+            if (glfwGetWindowAttrib(win, GLFW_FOCUSED))
+                return wctx->id;
+            // Remember first match as fallback
+            if (fallback == 0)
+                fallback = wctx->id;
         }
     }
 
-    return 0;
+    return fallback;
 }
 
 }   // namespace spectra

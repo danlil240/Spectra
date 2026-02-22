@@ -225,8 +225,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    spectra::daemon::SessionGraph   graph;
-    spectra::daemon::FigureModel    fig_model;
+    spectra::daemon::SessionGraph graph;
+    spectra::daemon::FigureModel fig_model;
     spectra::daemon::ProcessManager proc_mgr;
     proc_mgr.set_agent_path(agent_path);
     proc_mgr.set_socket_path(socket_path);
@@ -238,16 +238,16 @@ int main(int argc, char* argv[])
     // How often to check for stale agents
     static constexpr auto STALE_CHECK_INTERVAL = std::chrono::milliseconds(5000);
     // How often to reap finished child processes
-    static constexpr auto REAP_INTERVAL    = std::chrono::milliseconds(2000);
-    auto                  last_stale_check = std::chrono::steady_clock::now();
-    auto                  last_reap_check  = std::chrono::steady_clock::now();
+    static constexpr auto REAP_INTERVAL = std::chrono::milliseconds(2000);
+    auto last_stale_check = std::chrono::steady_clock::now();
+    auto last_reap_check = std::chrono::steady_clock::now();
 
     // Track active connections (non-owning — Connection objects stored here)
     struct ClientSlot
     {
         std::unique_ptr<spectra::ipc::Connection> conn;
-        spectra::ipc::WindowId                    window_id      = spectra::ipc::INVALID_WINDOW;
-        bool                                      handshake_done = false;
+        spectra::ipc::WindowId window_id = spectra::ipc::INVALID_WINDOW;
+        bool handshake_done = false;
         bool is_source_client = false;   // true = app pushing figures (not a render agent)
         spectra::daemon::ClientType client_type = spectra::daemon::ClientType::UNKNOWN;
     };
@@ -307,8 +307,8 @@ int main(int argc, char* argv[])
             }
 
             // Only recv() when poll() says data is ready (index offset by 1 for listen fd)
-            size_t pfd_idx  = 1 + static_cast<size_t>(it - clients.begin());
-            bool   has_data = (pfd_idx < pfds.size()) && (pfds[pfd_idx].revents & POLLIN);
+            size_t pfd_idx = 1 + static_cast<size_t>(it - clients.begin());
+            bool has_data = (pfd_idx < pfds.size()) && (pfds[pfd_idx].revents & POLLIN);
             if (!has_data)
             {
                 ++it;
@@ -345,15 +345,15 @@ int main(int argc, char* argv[])
             {
                 case spectra::ipc::MessageType::HELLO:
                 {
-                    auto                        hello = spectra::ipc::decode_hello(msg.payload);
+                    auto hello = spectra::ipc::decode_hello(msg.payload);
                     spectra::daemon::ClientType ctype = spectra::daemon::ClientType::AGENT;
                     if (hello)
                     {
                         ctype = spectra::daemon::classify_client(*hello);
                         std::cerr << "[spectra-backend] HELLO from "
                                   << (ctype == spectra::daemon::ClientType::PYTHON ? "python"
-                                      : ctype == spectra::daemon::ClientType::APP  ? "app"
-                                                                                   : "agent")
+                                      : ctype == spectra::daemon::ClientType::APP ? "app"
+                                                                                  : "agent")
                                   << " (build=" << hello->agent_build
                                   << ", client_type=" << hello->client_type << ")\n";
                     }
@@ -374,22 +374,22 @@ int main(int argc, char* argv[])
                         if (wid == spectra::ipc::INVALID_WINDOW)
                             wid = graph.add_agent(0, it->conn->fd());
                     }
-                    it->window_id      = wid;
+                    it->window_id = wid;
                     it->handshake_done = true;
 
                     // Send WELCOME
                     spectra::ipc::WelcomePayload wp;
-                    wp.session_id   = graph.session_id();
-                    wp.window_id    = wid;
-                    wp.process_id   = static_cast<spectra::ipc::ProcessId>(::getpid());
+                    wp.session_id = graph.session_id();
+                    wp.window_id = wid;
+                    wp.process_id = static_cast<spectra::ipc::ProcessId>(::getpid());
                     wp.heartbeat_ms = 5000;
-                    wp.mode         = "multiproc";
+                    wp.mode = "multiproc";
 
                     spectra::ipc::Message reply;
-                    reply.header.type        = spectra::ipc::MessageType::WELCOME;
-                    reply.header.session_id  = wp.session_id;
-                    reply.header.window_id   = wid;
-                    reply.payload            = spectra::ipc::encode_welcome(wp);
+                    reply.header.type = spectra::ipc::MessageType::WELCOME;
+                    reply.header.session_id = wp.session_id;
+                    reply.header.window_id = wid;
+                    reply.payload = spectra::ipc::encode_welcome(wp);
                     reply.header.payload_len = static_cast<uint32_t>(reply.payload.size());
                     it->conn->send(reply);
 
@@ -434,9 +434,9 @@ int main(int argc, char* argv[])
                         std::cerr << "[spectra-backend] Spawned new agent pid=" << pid << "\n";
                         // Send RESP_OK to the requesting agent
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
-                        ok_msg.header.window_id  = it->window_id;
+                        ok_msg.header.window_id = it->window_id;
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
                         ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
@@ -446,11 +446,11 @@ int main(int argc, char* argv[])
                     {
                         std::cerr << "[spectra-backend] Failed to spawn agent\n";
                         spectra::ipc::Message err_msg;
-                        err_msg.header.type       = spectra::ipc::MessageType::RESP_ERR;
+                        err_msg.header.type = spectra::ipc::MessageType::RESP_ERR;
                         err_msg.header.session_id = graph.session_id();
-                        err_msg.header.window_id  = it->window_id;
+                        err_msg.header.window_id = it->window_id;
                         err_msg.header.request_id = msg.header.request_id;
-                        err_msg.payload           = spectra::ipc::encode_resp_err(
+                        err_msg.payload = spectra::ipc::encode_resp_err(
                             {msg.header.request_id, 500, "Failed to spawn agent"});
                         err_msg.header.payload_len = static_cast<uint32_t>(err_msg.payload.size());
                         it->conn->send(err_msg);
@@ -531,7 +531,7 @@ int main(int argc, char* argv[])
                         }
                         // Send RESP_OK to requester
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -568,10 +568,10 @@ int main(int argc, char* argv[])
                         rm.window_id = detach->source_window_id;
                         rm.figure_id = detach->figure_id;
                         spectra::ipc::Message rm_msg;
-                        rm_msg.header.type        = spectra::ipc::MessageType::CMD_REMOVE_FIGURE;
-                        rm_msg.header.session_id  = graph.session_id();
-                        rm_msg.header.window_id   = detach->source_window_id;
-                        rm_msg.payload            = spectra::ipc::encode_cmd_remove_figure(rm);
+                        rm_msg.header.type = spectra::ipc::MessageType::CMD_REMOVE_FIGURE;
+                        rm_msg.header.session_id = graph.session_id();
+                        rm_msg.header.window_id = detach->source_window_id;
+                        rm_msg.payload = spectra::ipc::encode_cmd_remove_figure(rm);
                         rm_msg.header.payload_len = static_cast<uint32_t>(rm_msg.payload.size());
                         for (auto& c : clients)
                         {
@@ -600,7 +600,7 @@ int main(int argc, char* argv[])
                     // Send RESP_OK to the requesting agent
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -626,9 +626,9 @@ int main(int argc, char* argv[])
                         for (auto fid : orphaned)
                         {
                             spectra::ipc::EvtWindowClosedPayload evt;
-                            evt.figure_id    = fid;
-                            evt.window_id    = it->window_id;
-                            evt.reason       = "user_close";
+                            evt.figure_id = fid;
+                            evt.window_id = it->window_id;
+                            evt.reason = "user_close";
                             auto evt_payload = spectra::ipc::encode_evt_window_closed(evt);
 
                             for (auto& c : clients)
@@ -640,7 +640,7 @@ int main(int argc, char* argv[])
                                     evt_msg.header.type =
                                         spectra::ipc::MessageType::EVT_WINDOW_CLOSED;
                                     evt_msg.header.session_id = graph.session_id();
-                                    evt_msg.payload           = evt_payload;
+                                    evt_msg.payload = evt_payload;
                                     evt_msg.header.payload_len =
                                         static_cast<uint32_t>(evt_msg.payload.size());
                                     c.conn->send(evt_msg);
@@ -692,7 +692,7 @@ int main(int argc, char* argv[])
                     // The agent sends raw input events; the backend interprets
                     // them and applies the appropriate mutation.
                     spectra::ipc::StateDiffPayload diff;
-                    auto                           base_rev = fig_model.revision();
+                    auto base_rev = fig_model.revision();
 
                     switch (input->input_type)
                     {
@@ -707,8 +707,8 @@ int main(int argc, char* argv[])
                             if (!snap.figures.empty()
                                 && input->axes_index < snap.figures[0].axes.size())
                             {
-                                const auto& ax   = snap.figures[0].axes[input->axes_index];
-                                float       zoom = 1.0f - static_cast<float>(input->y) * 0.1f;
+                                const auto& ax = snap.figures[0].axes[input->axes_index];
+                                float zoom = 1.0f - static_cast<float>(input->y) * 0.1f;
                                 if (zoom < 0.1f)
                                     zoom = 0.1f;
                                 if (zoom > 10.0f)
@@ -717,7 +717,7 @@ int main(int argc, char* argv[])
                                 float cy = (ax.y_min + ax.y_max) * 0.5f;
                                 float hw = (ax.x_max - ax.x_min) * 0.5f * zoom;
                                 float hh = (ax.y_max - ax.y_min) * 0.5f * zoom;
-                                auto  op = fig_model.set_axis_limits(input->figure_id,
+                                auto op = fig_model.set_axis_limits(input->figure_id,
                                                                     input->axes_index,
                                                                     cx - hw,
                                                                     cx + hw,
@@ -739,7 +739,7 @@ int main(int argc, char* argv[])
                                     && input->axes_index < snap.figures[0].axes.size())
                                 {
                                     bool cur = snap.figures[0].axes[input->axes_index].grid_visible;
-                                    auto op  = fig_model.set_grid_visible(input->figure_id,
+                                    auto op = fig_model.set_grid_visible(input->figure_id,
                                                                          input->axes_index,
                                                                          !cur);
                                     diff.ops.push_back(op);
@@ -760,7 +760,7 @@ int main(int argc, char* argv[])
                     if (!diff.ops.empty())
                     {
                         diff.base_revision = base_rev;
-                        diff.new_revision  = fig_model.revision();
+                        diff.new_revision = fig_model.revision();
 
                         for (auto& c : clients)
                         {
@@ -802,7 +802,7 @@ int main(int argc, char* argv[])
                     // Figures with the same non-zero window_group share one agent window.
                     // Figures with window_group==0 each get their own agent.
                     std::unordered_map<uint32_t, std::vector<size_t>> groups;
-                    std::vector<size_t>                               ungrouped;
+                    std::vector<size_t> ungrouped;
                     for (size_t fi = 0; fi < new_ids.size(); ++fi)
                     {
                         uint32_t wg = incoming->figures[fi].window_group;
@@ -872,9 +872,9 @@ int main(int argc, char* argv[])
                         fig_model.apply_diff_op(op);
 
                     spectra::ipc::StateDiffPayload fwd_diff;
-                    fwd_diff.ops           = incoming_diff->ops;
+                    fwd_diff.ops = incoming_diff->ops;
                     fwd_diff.base_revision = base_rev;
-                    fwd_diff.new_revision  = fig_model.revision();
+                    fwd_diff.new_revision = fig_model.revision();
 
                     bool from_source = it->is_source_client;
                     for (auto& c : clients)
@@ -926,7 +926,7 @@ int main(int argc, char* argv[])
 
                     spectra::ipc::RespFigureCreatedPayload resp;
                     resp.request_id = msg.header.request_id;
-                    resp.figure_id  = fid;
+                    resp.figure_id = fid;
                     send_python_response(*it->conn,
                                          spectra::ipc::MessageType::RESP_FIGURE_CREATED,
                                          graph.session_id(),
@@ -962,14 +962,14 @@ int main(int argc, char* argv[])
                     // Broadcast ADD_AXES diff to all agents
                     {
                         spectra::ipc::DiffOp add_op;
-                        add_op.type       = spectra::ipc::DiffOp::Type::ADD_AXES;
-                        add_op.figure_id  = req->figure_id;
+                        add_op.type = spectra::ipc::DiffOp::Type::ADD_AXES;
+                        add_op.figure_id = req->figure_id;
                         add_op.axes_index = axes_idx;
-                        add_op.bool_val   = req->is_3d;
+                        add_op.bool_val = req->is_3d;
 
                         spectra::ipc::StateDiffPayload diff;
                         diff.base_revision = fig_model.revision() - 1;
-                        diff.new_revision  = fig_model.revision();
+                        diff.new_revision = fig_model.revision();
                         diff.ops.push_back(add_op);
                         for (auto& c : clients)
                         {
@@ -1006,7 +1006,7 @@ int main(int argc, char* argv[])
                     }
 
                     uint32_t series_idx = 0;
-                    auto     add_op     = fig_model.add_series_with_diff(req->figure_id,
+                    auto add_op = fig_model.add_series_with_diff(req->figure_id,
                                                                  req->label,
                                                                  req->series_type,
                                                                  req->axes_index,
@@ -1020,7 +1020,7 @@ int main(int argc, char* argv[])
                     {
                         spectra::ipc::StateDiffPayload diff;
                         diff.base_revision = fig_model.revision() - 1;
-                        diff.new_revision  = fig_model.revision();
+                        diff.new_revision = fig_model.revision();
                         diff.ops.push_back(add_op);
 
                         // If the series was created with a label, also send
@@ -1029,10 +1029,10 @@ int main(int argc, char* argv[])
                         if (!req->label.empty())
                         {
                             spectra::ipc::DiffOp label_op;
-                            label_op.type         = spectra::ipc::DiffOp::Type::SET_SERIES_LABEL;
-                            label_op.figure_id    = req->figure_id;
+                            label_op.type = spectra::ipc::DiffOp::Type::SET_SERIES_LABEL;
+                            label_op.figure_id = req->figure_id;
                             label_op.series_index = series_idx;
-                            label_op.str_val      = req->label;
+                            label_op.str_val = req->label;
                             diff.ops.push_back(label_op);
                         }
 
@@ -1047,7 +1047,7 @@ int main(int argc, char* argv[])
                     }
 
                     spectra::ipc::RespSeriesAddedPayload resp;
-                    resp.request_id   = msg.header.request_id;
+                    resp.request_id = msg.header.request_id;
                     resp.series_index = series_idx;
                     send_python_response(*it->conn,
                                          spectra::ipc::MessageType::RESP_SERIES_ADDED,
@@ -1076,7 +1076,7 @@ int main(int argc, char* argv[])
                     // Broadcast diff to all agents rendering this figure
                     spectra::ipc::StateDiffPayload diff;
                     diff.base_revision = fig_model.revision() - 1;
-                    diff.new_revision  = fig_model.revision();
+                    diff.new_revision = fig_model.revision();
                     diff.ops.push_back(op);
 
                     for (auto& c : clients)
@@ -1090,7 +1090,7 @@ int main(int argc, char* argv[])
 
                     // Send RESP_OK to Python
                     spectra::ipc::Message ok_msg;
-                    ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                    ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                     ok_msg.header.session_id = graph.session_id();
                     ok_msg.header.request_id = msg.header.request_id;
                     ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1113,7 +1113,7 @@ int main(int argc, char* argv[])
                     }
 
                     spectra::ipc::StateDiffPayload diff;
-                    auto                           base_rev = fig_model.revision();
+                    auto base_rev = fig_model.revision();
 
                     // Dispatch property updates to FigureModel
                     if (req->property == "color")
@@ -1241,7 +1241,7 @@ int main(int argc, char* argv[])
                     if (!diff.ops.empty())
                     {
                         diff.base_revision = base_rev;
-                        diff.new_revision  = fig_model.revision();
+                        diff.new_revision = fig_model.revision();
                         for (auto& c : clients)
                         {
                             if (c.conn && c.handshake_done
@@ -1255,7 +1255,7 @@ int main(int argc, char* argv[])
                     // Send RESP_OK to Python
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1313,10 +1313,10 @@ int main(int argc, char* argv[])
 
                         // Send RESP_OK with the window_id so Python can track it
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
-                        ok_msg.header.window_id  = req->window_id;
+                        ok_msg.header.window_id = req->window_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
                         ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
                         it->conn->send(ok_msg);
@@ -1339,10 +1339,10 @@ int main(int argc, char* argv[])
                                       << ")\n";
 
                             spectra::ipc::Message ok_msg;
-                            ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                            ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                             ok_msg.header.session_id = graph.session_id();
                             ok_msg.header.request_id = msg.header.request_id;
-                            ok_msg.header.window_id  = new_wid;
+                            ok_msg.header.window_id = new_wid;
                             ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
                             ok_msg.header.payload_len =
                                 static_cast<uint32_t>(ok_msg.payload.size());
@@ -1380,7 +1380,7 @@ int main(int argc, char* argv[])
                     // Broadcast diff to all agents rendering this figure
                     spectra::ipc::StateDiffPayload diff;
                     diff.base_revision = fig_model.revision() - 1;
-                    diff.new_revision  = fig_model.revision();
+                    diff.new_revision = fig_model.revision();
                     diff.ops.push_back(op);
 
                     for (auto& c : clients)
@@ -1394,7 +1394,7 @@ int main(int argc, char* argv[])
 
                     // Send RESP_OK to Python
                     spectra::ipc::Message ok_msg;
-                    ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                    ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                     ok_msg.header.session_id = graph.session_id();
                     ok_msg.header.request_id = msg.header.request_id;
                     ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1424,7 +1424,7 @@ int main(int argc, char* argv[])
                     // Broadcast diff to all agents
                     spectra::ipc::StateDiffPayload diff;
                     diff.base_revision = fig_model.revision() - 1;
-                    diff.new_revision  = fig_model.revision();
+                    diff.new_revision = fig_model.revision();
                     diff.ops.push_back(op);
 
                     for (auto& c : clients)
@@ -1439,7 +1439,7 @@ int main(int argc, char* argv[])
                     // Send RESP_OK to Python
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1468,7 +1468,7 @@ int main(int argc, char* argv[])
                     // Find and close agent windows displaying this figure
                     for (auto wid : graph.all_window_ids())
                     {
-                        auto figs    = graph.figures_for_window(wid);
+                        auto figs = graph.figures_for_window(wid);
                         bool has_fig = false;
                         for (auto fid : figs)
                         {
@@ -1487,9 +1487,9 @@ int main(int argc, char* argv[])
                             {
                                 spectra::ipc::Message close_msg;
                                 close_msg.header.type = spectra::ipc::MessageType::CMD_CLOSE_WINDOW;
-                                close_msg.header.session_id  = graph.session_id();
-                                close_msg.header.window_id   = wid;
-                                close_msg.payload            = {};
+                                close_msg.header.session_id = graph.session_id();
+                                close_msg.header.window_id = wid;
+                                close_msg.payload = {};
                                 close_msg.header.payload_len = 0;
                                 c.conn->send(close_msg);
                                 break;
@@ -1500,7 +1500,7 @@ int main(int argc, char* argv[])
                     // Notify Python client
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1524,7 +1524,7 @@ int main(int argc, char* argv[])
                     }
 
                     spectra::ipc::StateDiffPayload diff;
-                    auto                           base_rev = fig_model.revision();
+                    auto base_rev = fig_model.revision();
 
                     for (const auto& upd : req->updates)
                     {
@@ -1642,7 +1642,7 @@ int main(int argc, char* argv[])
                     if (!diff.ops.empty())
                     {
                         diff.base_revision = base_rev;
-                        diff.new_revision  = fig_model.revision();
+                        diff.new_revision = fig_model.revision();
                         for (auto& c : clients)
                         {
                             if (c.conn && c.handshake_done
@@ -1656,7 +1656,7 @@ int main(int argc, char* argv[])
                     // Send RESP_OK to Python
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1688,7 +1688,7 @@ int main(int argc, char* argv[])
                     // Send RESP_OK
                     {
                         spectra::ipc::Message ok_msg;
-                        ok_msg.header.type       = spectra::ipc::MessageType::RESP_OK;
+                        ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
                         ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
@@ -1783,7 +1783,7 @@ int main(int argc, char* argv[])
         if (now - last_stale_check >= STALE_CHECK_INTERVAL)
         {
             last_stale_check = now;
-            auto stale       = graph.stale_agents(HEARTBEAT_TIMEOUT);
+            auto stale = graph.stale_agents(HEARTBEAT_TIMEOUT);
             for (auto wid : stale)
             {
                 std::cerr << "[spectra-backend] Agent timed out (window=" << wid << ")\n";

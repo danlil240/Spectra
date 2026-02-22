@@ -11,22 +11,42 @@
     #include <io.h>
     #include <process.h>
     #define getpid _getpid
-namespace { // POSIX fd compat wrappers for Windows
-inline auto fd_read(int fd, void* buf, unsigned len) { return ::_read(fd, buf, len); }
-inline auto fd_write(int fd, const void* buf, unsigned len) { return ::_write(fd, buf, len); }
-inline void fd_close(int fd) { ::_close(fd); }
-} // namespace
+namespace
+{   // POSIX fd compat wrappers for Windows
+inline auto fd_read(int fd, void* buf, unsigned len)
+{
+    return ::_read(fd, buf, len);
+}
+inline auto fd_write(int fd, const void* buf, unsigned len)
+{
+    return ::_write(fd, buf, len);
+}
+inline void fd_close(int fd)
+{
+    ::_close(fd);
+}
+}   // namespace
 #else
     #include <fcntl.h>
     #include <sys/socket.h>
     #include <sys/stat.h>
     #include <sys/un.h>
     #include <unistd.h>
-namespace {
-inline auto fd_read(int fd, void* buf, size_t len) { return ::read(fd, buf, len); }
-inline auto fd_write(int fd, const void* buf, size_t len) { return ::write(fd, buf, len); }
-inline void fd_close(int fd) { ::close(fd); }
-} // namespace
+namespace
+{
+inline auto fd_read(int fd, void* buf, size_t len)
+{
+    return ::read(fd, buf, len);
+}
+inline auto fd_write(int fd, const void* buf, size_t len)
+{
+    return ::write(fd, buf, len);
+}
+inline void fd_close(int fd)
+{
+    ::close(fd);
+}
+}   // namespace
 #endif
 
 namespace spectra::ipc
@@ -222,9 +242,8 @@ std::unique_ptr<Connection> Server::try_accept()
     {
     };
     socklen_t client_len = sizeof(client_addr);
-    int client_fd = ::accept(listen_fd_,
-                             reinterpret_cast<struct sockaddr*>(&client_addr),
-                             &client_len);
+    int       client_fd =
+        ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
 
     // Restore listen socket to blocking
     if (listen_flags >= 0)

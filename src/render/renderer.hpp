@@ -179,6 +179,10 @@ class Renderer
         Scatter3D,
         Surface3D,
         Mesh3D,
+        BoxPlot2D,
+        Violin2D,
+        Histogram2D,
+        Bar2D,
     };
 
     // Per-series GPU buffers (keyed by series pointer address)

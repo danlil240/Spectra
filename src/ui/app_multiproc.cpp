@@ -29,7 +29,7 @@
 #ifdef _WIN32
     #include <process.h>
     #define getpid _getpid
-    using pid_t = int;
+using pid_t = int;
 #else
     #include <csignal>
     #include <poll.h>

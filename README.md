@@ -3,19 +3,23 @@
     <img src="icons/spectra_banner.png" alt="Spectra Banner" width="600">
   </p>
   <p align="center">
-    <strong>GPU-accelerated plotting for C++20</strong>
+    <strong>GPU-accelerated scientific plotting for C++20 and Python</strong>
   </p>
   <p align="center">
-    Real-time visualization · Animation · Streaming data · Headless export
+    2D &amp; 3D visualization · Real-time animation · Multi-window · Python IPC · Headless export
   </p>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#python-api">Python API</a> •
   <a href="#examples">Examples</a> •
   <a href="#building">Building</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#docker">Docker</a> •
   <a href="#architecture">Architecture</a> •
+  <a href="#testing">Testing</a> •
   <a href="#roadmap">Roadmap</a> •
   <a href="#license">License</a>
 </p>
@@ -24,7 +28,24 @@
 
 ## What is Spectra?
 
-Spectra is a **C++20 GPU-accelerated plotting library** built on **Vulkan 1.2+**, designed for scientific and engineering visualization. It renders anti-aliased lines, scatter plots, and text directly on the GPU — with first-class support for animation, live-streaming data, and headless offscreen export.
+Spectra is a **C++20 GPU-accelerated plotting library** built on **Vulkan 1.2+**, designed for scientific and engineering visualization. It renders anti-aliased 2D and 3D plots directly on the GPU — with first-class support for animation, live-streaming data, multi-window workflows, a Python IPC bridge, and headless offscreen export.
+
+```cpp
+#include <spectra/easy.hpp>
+
+int main() {
+    std::vector<float> x = { /* ... */ };
+    std::vector<float> y = { /* ... */ };
+
+    spectra::plot(x, y, "r--o").label("sin(x)");
+    spectra::title("Sensor Data");
+    spectra::xlabel("Time (s)");
+    spectra::ylabel("Amplitude");
+    spectra::show();
+}
+```
+
+Or use the full object API for maximum control:
 
 ```cpp
 #include <spectra/spectra.hpp>
@@ -33,9 +54,6 @@ int main() {
     spectra::App app;
     auto& fig = app.figure({.width = 1280, .height = 720});
     auto& ax  = fig.subplot(1, 1, 1);
-
-    std::vector<float> x = { /* ... */ };
-    std::vector<float> y = { /* ... */ };
 
     ax.line(x, y).label("signal").color(spectra::rgb(0.2f, 0.8f, 1.0f));
     ax.title("Sensor Data");
@@ -51,58 +69,99 @@ int main() {
 ## Features
 
 ### Core Rendering
-- **Vulkan-powered rendering** — Explicit GPU control, multi-buffered frames, async buffer uploads, depth buffer support
+- **Vulkan-powered rendering** — Explicit GPU control, multi-buffered frames, async buffer uploads, depth buffer, MSAA up to 4x
 - **Anti-aliased lines** — Screen-space quad expansion with SDF smoothing, resolution-independent
 - **18 marker types** — SDF-based markers (circle, square, diamond, triangles, pentagon, hexagon, star, plus, cross, filled variants)
 - **Dash patterns** — GPU-accelerated dash rendering with 8 customizable dash values
-- **MSDF text** — Crisp text at any scale via multi-channel signed distance field atlas
-- **MATLAB-style plot API** — Format strings like `"r--o"`, `"b:*"` for quick styling
+- **GPU text rendering** — Vulkan text pipeline with stb_truetype atlas (Inter font), depth-tested 3D labels, ImGui fallback
+- **MATLAB-style plot API** — Format strings like `"r--o"`, `"b:*"` for quick styling, plus `PlotStyle` struct for full control
+
+### 3D Visualization (Complete)
+- **Full 3D pipeline** — Model-View-Projection transforms, depth buffer, 10+ dedicated 3D shaders
+- **3D series types** — `ScatterSeries3D`, `LineSeries3D`, `SurfaceSeries`, `MeshSeries` with colormaps (Viridis, Plasma, Inferno, Magma, Jet, Coolwarm, Grayscale)
+- **Orbit camera** — Arcball controls with quaternion-based rotation, pan, zoom, orthographic/perspective modes
+- **Blinn-Phong lighting** — Configurable light direction, ambient/specular/shininess material properties per series
+- **Transparency & painter's sort** — Alpha blending with opaque front-to-back, transparent back-to-front ordering
+- **Wireframe rendering** — Toggle wireframe mode on surfaces and meshes
+- **MSAA 4x** — Opt-in multisample anti-aliasing for 3D scenes
+- **3D axes** — Grid planes (XY/XZ/YZ), bounding box, 3D tick labels with depth occlusion, axis arrows
+- **Camera animation** — Orbit paths, turntable, free-flight with quaternion slerp, timeline integration
+- **2D↔3D mode transition** — Animated camera/axis/grid interpolation between 2D and 3D views
+- **Header-only math** — Self-contained `math3d.hpp` (~350 LOC): vec3, vec4, mat4, quat with all operations (no GLM dependency)
+
+### Easy API (MATLAB-style)
+- **Progressive complexity** — From one-liners to full control in 7 levels
+- **2D functions** — `plot()`, `scatter()`, `subplot()`, `title()`, `xlabel()`, `ylabel()`, `xlim()`, `ylim()`, `grid()`, `legend()`
+- **3D functions** — `plot3()`, `scatter3()`, `surf()`, `mesh()`, `subplot3d()`, `zlabel()`, `zlim()`
+- **Multi-window** — `figure()` creates new OS windows, `tab()` adds tabs
+- **Real-time** — `on_update(callback)` with configurable FPS
+- **State accessors** — `gcf()`, `gca()`, `gca3d()`, `cla()` for MATLAB-style workflows
 
 ### Animation & Recording
 - **Real-time animation** — `on_frame` callbacks, configurable FPS, frame scheduling with delta time
 - **Live data streaming** — O(1) ring-buffer append with automatic sliding window
-- **Timeline editor** — Playback controls, keyframe tracks, scrubbing, snap modes, loop modes (None/Loop/PingPong)
-- **Keyframe interpolator** — 7 interpolation modes (Step, Linear, CubicBezier, Spring, EaseIn/Out, EaseInOut) with tangent control
-- **Animation curve editor** — Visual curve editing with Bézier handles, multi-channel support
-- **Recording export** — PNG sequences, GIF (median-cut quantization), MP4 (ffmpeg pipe)
-- **Multi-pane recording** — Composite rendering with auto-grid layout
+- **Timeline editor** — Playback state machine, keyframe tracks, scrubbing, snap modes (Frame/Beat/None), loop modes (None/Loop/PingPong)
+- **Keyframe interpolator** — 7 interpolation modes (Step, Linear, CubicBezier, Spring, EaseIn/Out, EaseInOut) with tangent control and auto-tangent (Catmull-Rom)
+- **Animation curve editor** — Visual curve editing with Bezier handles, multi-channel support, hit-testing, tangent drag
+- **Camera animator** — Orbit and free-flight keyframe paths with slerp interpolation, turntable presets
+- **Transition engine** — Unified animation for float, Color, AxisLimits, inertial pan, camera parameters
+- **Recording export** — PNG sequences, GIF (custom GIF89a writer with median-cut quantization), MP4 (ffmpeg pipe)
+- **Multi-pane recording** — Composite rendering with auto-grid layout for split-view captures
 
 ### UI & Productivity
-- **Command palette** — Fuzzy search (Ctrl+K), 30+ registered commands, recent tracking
-- **Configurable shortcuts** — Rebindable keybindings with persistence
-- **Undo/redo system** — Full property change history with grouped operations
-- **Multi-figure tabs** — Tab switching, duplication, context menus, per-figure state
-- **Docking & split view** — Horizontal/vertical splits, drag-to-dock, splitter handles
-- **Inspector panel** — Series statistics (min/max/mean/median/percentiles), sparkline preview, style editing
-- **Workspace management** — Save/load full state (v3 format), autosave, backward compatibility
+- **Command palette** — Fuzzy search (Ctrl+K), 30+ registered commands, recent tracking, category headers
+- **Configurable shortcuts** — Rebindable keybindings with JSON persistence (`~/.config/spectra/keybindings.json`)
+- **Undo/redo system** — Full property change history with grouped operations, undoable property helpers
+- **Multi-figure tabs** — Tab switching (Ctrl+Tab), duplication, context menus (rename, close others, close to right), per-figure state preservation
+- **Docking & split view** — Horizontal/vertical splits (Ctrl+\\), drag-to-dock with edge detection, splitter handles with grip dots, max 8 panes
+- **Inspector panel** — Series statistics (min/max/mean/median/std/percentiles/count), sparkline preview, style editing, axes aggregate stats
+- **CSV data loading** — File→Data→Load from CSV with column picker, delimiter auto-detection, data preview
+- **Workspace management** — Save/load full state (v4 format with 3D support), autosave, backward compatibility (v1–v3)
+- **Plugin architecture** — C ABI for binary-compatible extensions, `PluginManager` with dlopen/LoadLibrary, auto-discovery
 
 ### Data Interaction
 - **Hover tooltips** — Nearest-point query with series name, coordinates, color swatch
-- **Crosshair overlay** — Shared across subplots with axis-intersection labels
+- **Crosshair overlay** — Shared across linked subplots with Y-value interpolation from series data
 - **Data markers** — Pin/remove persistent markers, survive zoom/pan
 - **Region selection** — Shift-drag rectangular selection with statistics mini-toolbar
 - **Legend interaction** — Click-to-toggle visibility, drag-to-reposition, animated opacity
-- **Multi-axis linking** — Link X/Y/Both axes across subplots, synchronized zoom/pan
-- **Data transforms** — 14 built-in types (Log10, Normalize, Derivative, etc.) with pipeline support
+- **Multi-axis linking** — Link X/Y/Both axes across subplots, synchronized zoom/pan/box-zoom/auto-fit
+- **Shared cursor** — Linked subplots show interpolated crosshair values from source axes
+- **Data transforms** — 14 built-in types (Identity, Log10, Ln, Abs, Negate, Normalize, Standardize, Derivative, CumulativeSum, Diff, Scale, Offset, Clamp, Custom) with pipeline chaining and transform registry
 
 ### Themes & Accessibility
-- **Dark/light themes** — Smooth animated transitions between themes
+- **Dark/light themes** — Smooth animated transitions (non-mutating display colors)
 - **8 colorblind-safe palettes** — Okabe-Ito, Tol Bright/Muted, IBM, Wong, Viridis, Monochrome
-- **CVD simulation** — Test designs for Protanopia, Deuteranopia, Tritanopia, Achromatopsia
-- **Theme export/import** — JSON-based theme customization
+- **CVD simulation** — Test designs for Protanopia, Deuteranopia, Tritanopia, Achromatopsia (Vienot/Brettel matrices)
+- **Theme export/import** — JSON-based theme customization with save/load
 - **Design tokens** — Consistent spacing, typography, color system
+- **WCAG contrast checking** — Color utility methods (luminance, contrast ratio, sRGB/linear/HSL conversions)
 
-### 3D Foundation (Phase 1 Complete)
-- **3D transform pipeline** — Full MVP (Model-View-Projection) with depth buffer
-- **Math library** — Header-only vec3, vec4, mat4, quat with all operations (no GLM dependency)
-- **Depth testing** — Proper occlusion with configurable depth compare operations
+### Multi-Window & Multi-Process
+- **Multi-window support** — Independent OS windows with per-window Vulkan swapchain, no "primary window" concept
+- **Tab tear-off** — Detach tabs into new windows, in-process window creation
+- **Dual-mode architecture** — Runtime selection between inproc (single-process) and multiproc (daemon + agents) modes
+- **Window manager** — Uniform window lifecycle, figure-to-window assignment, per-window resize handling
+- **FigureRegistry** — Stable `FigureId`-based figure ownership (no positional indexing)
+
+### Python API
+- **Full IPC bridge** — Python ↔ `spectra-backend` daemon via Unix socket with TLV binary protocol
+- **Session-based** — `Session` object manages connection, handshake, request/response, event handling
+- **Figure/Axes/Series proxies** — `figure()`, `subplot()`, `line()`, `scatter()`, `set_data()`, `show()`
+- **Easy API** — `spectra.plot()`, `spectra.scatter()`, `spectra.show()` one-liners with auto-session
+- **3D support** — `spectra.plot3()`, `spectra.scatter3()`, `spectra.surf()`, `spectra.mesh()`
+- **Live streaming** — Thread-safe `spectra.live()` with concurrent socket access protection
+- **NumPy fast path** — Zero-copy data transfer for numpy arrays
+- **Auto-launch** — Backend auto-started on first connection
 
 ### Export & Integration
 - **Headless mode** — Offscreen rendering without a window (ideal for CI, servers, batch export)
 - **PNG export** — Render to image via `stb_image_write`
+- **GIF export** — Custom GIF89a writer with LZW encoding and median-cut color quantization
+- **MP4 export** — Frame piping to ffmpeg (behind `SPECTRA_USE_FFMPEG` flag)
 - **Subplot layouts** — Grid-based multi-axes figures with automatic margin/tick layout
 - **Zero-copy data** — `std::span<const float>` interfaces avoid unnecessary copies
-- **Plugin-ready architecture** — C ABI for binary-compatible extensions
+- **CMake find_package** — `find_package(spectra)` + `target_link_libraries(myapp PRIVATE spectra::spectra)`
 - **Optional Eigen support** — Adapters for `Eigen::VectorXf` behind a feature flag
 
 ---
@@ -116,261 +175,486 @@ int main() {
 | **C++20 compiler** | Yes | GCC 12+, Clang 15+, MSVC 2022+ |
 | **CMake 3.20+** | Yes | Build system |
 | **Vulkan drivers** | Yes | Usually installed with graphics drivers |
-| **Vulkan SDK** | Optional | Only needed for development/debugging |
-
-> **Note:** Most modern systems already have Vulkan drivers. The full Vulkan SDK is only needed if you want to debug or develop Vulkan features.
+| **Vulkan SDK** | Optional | Only needed for validation layers / debugging |
+| **Python 3.9+** | Optional | For the Python API |
 
 ### Quick Install
 
 ```bash
-# Clone and build
 git clone https://github.com/danlil240/spectra.git
 cd spectra
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
 ```
 
-That's it! The build system will automatically fetch any missing dependencies.
+The build system automatically fetches GLFW and Google Test via `FetchContent`.
 
-### Platform-Specific Tips
+### Using the Makefile
 
-**Linux:**
 ```bash
-# Install build tools (Ubuntu/Debian)
-sudo apt install build-essential cmake git
+make build          # Configure + build (Release)
+make test           # Build + run tests
+make install        # Install to /usr/local
+make package        # Create .deb/.rpm/.tar.gz via CPack
+make clean          # Remove build directory
+make format         # Run clang-format
+```
 
-# Install Vulkan drivers if missing
-sudo apt install vulkan-tools libvulkan-dev
+### Platform-Specific Setup
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install build-essential cmake git \
+    vulkan-tools libvulkan-dev \
+    libwayland-dev libxrandr-dev libxinerama-dev \
+    libxcursor-dev libxi-dev libxkbcommon-dev \
+    libgl1-mesa-dev glslang-tools
 ```
 
 **macOS:**
 ```bash
-# Install Xcode Command Line Tools
 xcode-select --install
-
-# Install dependencies with Homebrew
-brew install cmake git
+brew install cmake vulkan-headers vulkan-loader glslang molten-vk
 ```
 
 **Windows:**
-- Install Visual Studio 2022 with C++ development tools
-- Install CMake from cmake.org or via Visual Studio Installer
+- Install Visual Studio 2022 with C++ workload
+- Install [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) (1.2+)
+- CMake auto-detects MSVC and Vulkan SDK path
 
 ### Optional Features
 
-| Feature | How to enable |
-|---|---|---|
-| Video export | Install `ffmpeg` and rebuild with `-DSPECTRA_USE_FFMPEG=ON` |
-| Eigen support | Install `eigen3` and rebuild with `-DSPECTRA_USE_EIGEN=ON` |
-| Debug tools | Install Vulkan SDK and rebuild with debug flags |
+| Feature | CMake Flag |
+|---|---|
+| Video export (MP4) | `-DSPECTRA_USE_FFMPEG=ON` (requires `ffmpeg` in PATH) |
+| Eigen support | `-DSPECTRA_USE_EIGEN=ON` |
+| Build tests | `-DSPECTRA_BUILD_TESTS=ON` |
+| Build examples | `-DSPECTRA_BUILD_EXAMPLES=ON` |
+| Golden image tests | `-DSPECTRA_BUILD_GOLDEN_TESTS=ON` |
 
 ### Run an Example
 
 ```bash
 # Linux/macOS
 ./build/examples/basic_line
+./build/examples/easy_api_demo
+./build/examples/demo_3d
 
 # Windows
-./build/examples/Release/basic_line.exe
+.\build\examples\Release\basic_line.exe
 ```
 
 ### Verify Installation
 
 ```bash
-# Run tests to verify everything works
-cd build
-ctest --output-on-failure
-
-# Check Vulkan support
+cd build && ctest --output-on-failure
 vulkaninfo --summary
+```
+
+---
+
+## Python API
+
+### Install
+
+```bash
+cd python
+pip install -e ".[dev]"
+```
+
+The Python package (`spectra-plot`) communicates with the `spectra-backend` daemon over Unix sockets. The backend is auto-launched on first connection.
+
+### Quick Example
+
+```python
+import spectra as sp
+
+# One-liner
+sp.plot([1, 4, 9, 16, 25])
+sp.show()
+```
+
+### Session API
+
+```python
+import spectra as sp
+
+s = sp.Session()
+fig = s.figure("My Plot")
+ax = fig.subplot(1, 1, 1)
+
+import numpy as np
+x = np.linspace(0, 10, 1000)
+line = ax.line(x, np.sin(x), label="sin(x)")
+ax.set_title("Trigonometry")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+
+s.show()  # blocks until all windows closed
+```
+
+### Easy API
+
+```python
+import spectra as sp
+import numpy as np
+
+x = np.linspace(0, 10, 500)
+
+# Subplots
+sp.subplot(2, 1, 1)
+sp.plot(x, np.sin(x), label="sin")
+sp.title("Sine")
+
+sp.subplot(2, 1, 2)
+sp.plot(x, np.cos(x), label="cos")
+sp.title("Cosine")
+
+sp.show()
+```
+
+### 3D Plots
+
+```python
+import spectra as sp
+import numpy as np
+
+t = np.linspace(0, 4 * np.pi, 500)
+sp.plot3(np.cos(t), np.sin(t), t / (4 * np.pi), label="helix")
+sp.show()
+```
+
+### Live Streaming
+
+```python
+import spectra as sp
+import numpy as np
+
+fig = sp.figure("Live Dashboard")
+ax = fig.subplot(1, 1, 1)
+line = ax.line([], [], label="sensor")
+
+def update(dt, t):
+    line.append(t, np.sin(t) + np.random.normal(0, 0.1))
+    ax.set_xlim(max(0, t - 10), t)
+
+sp.live(update, fps=30)
+sp.show()
+```
+
+### Run Python Tests
+
+```bash
+cd python && pytest tests/ -v
 ```
 
 ---
 
 ## Examples
 
-### Basic Line Plot
+The `examples/` directory contains 40+ runnable programs:
 
-```cpp
-spectra::App app;
-auto& fig = app.figure({.width = 1280, .height = 720});
-auto& ax  = fig.subplot(1, 1, 1);
+| Example | Description |
+|---|---|
+| `basic_line.cpp` | Minimal line plot |
+| `easy_api_demo.cpp` | Easy API progressive complexity showcase |
+| `easy_realtime_demo.cpp` | Multi-signal sensor dashboard with tabs |
+| `live_stream.cpp` | Real-time streaming data |
+| `animated_scatter.cpp` | Animated scatter plot |
+| `multi_subplot.cpp` | Grid-based subplot layout |
+| `multi_figure_demo.cpp` | Multiple figures with tabs |
+| `multi_window_tabs_demo.cpp` | Tab tear-off and multi-window |
+| `plot_styles_demo.cpp` | All 18 markers, dash patterns, format strings |
+| `demo_3d.cpp` | 3D scatter, line, surface, mesh showcase |
+| `surface_3d.cpp` | 3D surface with colormap |
+| `lit_surface_demo.cpp` | Blinn-Phong lit surface with materials |
+| `transparency_demo.cpp` | Transparent surfaces, wireframe, painter's sort |
+| `camera_animator_demo.cpp` | Camera orbit and turntable animation |
+| `mode_transition_demo.cpp` | Animated 2D↔3D view switching |
+| `mind_blowing_3d.cpp` | Advanced 3D visualization |
+| `timeline_animation_demo.cpp` | Timeline editor with keyframes |
+| `timeline_curve_demo.cpp` | Animation curve editor |
+| `offscreen_export.cpp` | Headless PNG export |
+| `video_record.cpp` | MP4 recording via ffmpeg |
+| `plugin_api_demo.cpp` | Plugin system demonstration |
+| `shortcut_config_demo.cpp` | Custom keybinding persistence |
+| `empty_launch_csv.cpp` | Empty canvas + CSV data loading |
 
-ax.line(x, y).label("sin(x)").color(spectra::rgb(0.2f, 0.8f, 1.0f));
-ax.xlim(0.0f, 10.0f);
-ax.ylim(-1.5f, 1.5f);
-ax.title("Basic Line Plot");
+Python examples in `python/examples/`:
 
-fig.show();
+| Example | Description |
+|---|---|
+| `basic_line.py` | Simple line plot |
+| `easy_3d.py` | 3D plotting from Python |
+| `easy_live_dashboard.py` | Live streaming dashboard |
+| `easy_multi_live.py` | Multi-signal live streams |
+| `easy_subplots.py` | Subplot layouts |
+
+---
+
+## Building
+
+### CMake Options
+
+```bash
+cmake -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSPECTRA_BUILD_TESTS=ON \
+    -DSPECTRA_BUILD_EXAMPLES=ON \
+    -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
+    -DSPECTRA_USE_FFMPEG=ON
 ```
 
-### Live Streaming Data
+### CMake Integration (Downstream Projects)
 
-```cpp
-auto& line = ax.line().label("live").color(spectra::colors::cyan);
+After installing Spectra (`cmake --install build`), use it from your project:
 
-fig.animate()
-   .fps(60)
-   .on_frame([&](spectra::Frame& f) {
-       float t = f.elapsed_seconds();
-       line.append(t, sensor.read());       // O(1) ring buffer append
-       ax.xlim(t - 10.0f, t);              // sliding window
-   })
-   .play();
+```cmake
+find_package(spectra 0.1 REQUIRED)
+target_link_libraries(myapp PRIVATE spectra::spectra)
 ```
 
-### Animated Scatter
+### Build Targets
 
-```cpp
-auto& scatter = ax.scatter(x, y).color(spectra::rgb(1, 0.4, 0)).size(4.0f);
+| Target | Description |
+|---|---|
+| `spectra` | Core library (static) |
+| `spectra-backend` | Multiproc daemon (IPC server) |
+| `spectra-window` | Multiproc window agent |
+| `examples/*` | All example programs |
+| `unit_test_*` | Individual unit test executables |
 
-fig.animate()
-   .fps(60)
-   .on_frame([&](spectra::Frame& f) {
-       float t = f.elapsed_seconds();
-       for (size_t i = 0; i < x.size(); ++i)
-           y[i] = std::sin(x[i] + t);
-       scatter.set_y(y);
-   })
-   .play();
+---
+
+## Deployment
+
+### Install from Source
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+sudo cmake --install build --prefix /usr/local
 ```
 
-### Multiple Subplots
+This installs:
+- Library to `lib/`
+- Headers to `include/spectra/`
+- Binaries (`spectra-backend`, `spectra-window`) to `bin/`
+- Fonts and icons to `share/spectra/`
+- Desktop entry and icon for Linux
 
-```cpp
-auto& fig = app.figure({.width = 1920, .height = 1080});
-auto& ax1 = fig.subplot(2, 1, 1);
-auto& ax2 = fig.subplot(2, 1, 2);
+### CPack Packages
 
-ax1.line(x1, y1).label("temperature");
-ax2.line(x2, y2).label("pressure");
+```bash
+cd build
 
-fig.show();
+# Debian package
+cpack -G DEB    # → spectra_0.1.0_amd64.deb
+
+# RPM package
+cpack -G RPM    # → spectra-0.1.0-1.x86_64.rpm
+
+# Tarball
+cpack -G TGZ    # → spectra-0.1.0-Linux.tar.gz
+
+# Windows installer
+cpack -G NSIS   # → spectra-0.1.0-win64.exe
+
+# macOS disk image
+cpack -G DragNDrop  # → spectra-0.1.0.dmg
 ```
 
-### Headless PNG Export
+### Python Package
 
-```cpp
-spectra::App app({.headless = true});
-auto& fig = app.figure({.width = 1920, .height = 1080});
-auto& ax  = fig.subplot(1, 1, 1);
-ax.line(x, y);
-fig.save_png("output.png");
+```bash
+# Development install
+cd python && pip install -e ".[dev]"
+
+# Build wheel
+pip install build && python -m build
+
+# The spectra-plot package auto-launches spectra-backend
+pip install spectra-plot
+python -c "import spectra; spectra.plot([1,4,9]); spectra.show()"
 ```
 
-### Video Recording
+### Homebrew (macOS)
 
-```cpp
-fig.animate()
-   .fps(60)
-   .duration(10.0f)
-   .on_frame([&](spectra::Frame& f) { /* update data */ })
-   .record("output.mp4");  // pipes frames to ffmpeg
+```bash
+brew install spectra  # (when published to tap)
 ```
 
-### MATLAB-Style Plot Customization
+Formula at `packaging/homebrew/spectra.rb`.
 
-```cpp
-// Format strings: "[color][line_style][marker]"
-ax.plot(x, y1, "r--o");   // Red dashed line with circle markers
-ax.plot(x, y2, "b:*");    // Blue dotted line with star markers
-ax.plot(x, y3, "g-^");    // Green solid line with triangle markers
+### AUR (Arch Linux)
 
-// Or use PlotStyle struct for full control
-PlotStyle style;
-style.line_style = LineStyle::Dashed;
-style.marker_style = MarkerStyle::Diamond;
-style.color = rgb(1.0f, 0.5f, 0.0f);
-style.line_width = 2.5f;
-style.marker_size = 8.0f;
-style.opacity = 0.8f;
-style.dash_pattern = {10.0f, 5.0f, 2.0f, 5.0f};  // Custom dash
+PKGBUILD at `packaging/aur/PKGBUILD`.
 
-ax.plot(x, y4, style);
+### AppImage (Portable Linux)
+
+Built via the release workflow using `linuxdeploy`. Configuration at `packaging/AppImage/AppImageBuilder.yml`.
+
+---
+
+### Deployment Test Script
+
+```bash
+# Full deployment test: build image + run all tests
+./docker/ubuntu22/run_tests.sh
+
+# With GPU tests (requires GPU in container)
+RUN_GPU_TESTS=1 ./docker/ubuntu22/run_tests.sh
 ```
 
-### Timeline & Keyframe Animation
+---
 
-```cpp
-// Timeline editor with playback controls
-TimelineEditor timeline;
-timeline.set_duration(10.0f);
-timeline.set_fps(60);
-timeline.add_track("Camera", Color{1,0,0});
+## CI/CD
 
-// Keyframe interpolator with 7 modes
-KeyframeInterpolator interp;
-interp.add_channel("opacity", &series.opacity());
-interp.add_keyframe("opacity", 0.0f, 0.0f, InterpMode::EaseIn);
-interp.add_keyframe("opacity", 2.0f, 1.0f, InterpMode::CubicBezier);
-interp.add_keyframe("opacity", 4.0f, 0.0f, InterpMode::EaseOut);
+### Continuous Integration (`.github/workflows/ci.yml`)
 
-timeline.set_interpolator(&interp);
-timeline.play();
+Every push and PR triggers:
+
+| Job | Platform | Description |
+|---|---|---|
+| **build-linux** | Ubuntu 24.04 | GCC 13 + Clang 17 matrix, unit tests |
+| **build-macos** | macOS 14/15 (ARM) | Apple Clang, unit tests (no GPU) |
+| **build-windows** | Windows 2022 | MSVC, Vulkan SDK install, unit tests |
+| **golden-tests** | Ubuntu 24.04 | Headless golden image tests with lavapipe software Vulkan |
+| **sanitizers** | Ubuntu 24.04 | ASan + UBSan matrix with leak detection |
+
+### Release Pipeline (`.github/workflows/release.yml`)
+
+Triggered on `v*` tag push:
+
+1. **package-linux** — Builds `.deb`, `.rpm`, `.tar.gz`, AppImage
+2. **package-macos** — Builds `.tar.gz` for ARM64
+3. **package-windows** — Builds `.zip` with Vulkan SDK
+4. **python-wheels** — Builds wheels via `cibuildwheel` for Linux/macOS/Windows × Python 3.9–3.13
+5. **python-sdist** — Source distribution
+6. **release** — Creates GitHub Release with all artifacts, publishes to PyPI
+
+```bash
+# Trigger a release
+git tag v0.1.0 && git push origin v0.1.0
 ```
-
-See the [`examples/`](examples/) directory for complete, runnable programs.
 
 ---
 
 ## Architecture
 
-```
-App
- ├── FigureManager (multi-figure tabs, per-figure state)
- ├── CommandRegistry (30+ commands, fuzzy search)
- ├── ShortcutManager (configurable keybindings)
- ├── UndoManager (property change history)
- ├── ThemeManager (dark/light, 8 colorblind palettes)
- ├── TransitionEngine (unified animation system)
- ├── TimelineEditor (playback, keyframes, scrubbing)
- ├── DockSystem (split view, drag-to-dock)
- └── Figure
-      ├── Axes (2D subplot) / Axes3D (3D subplot)
-      │    ├── Camera (3D only: orbit, pan, zoom)
-      │    └── Series (LineSeries, ScatterSeries, …)
-      └── AxisLinkManager (synchronized zoom/pan)
+### System Topology
 
-┌─────────────┐     lock-free queue     ┌──────────────┐
-│  App Thread  │ ─────────────────────▶  │ Render Thread │
-│  (user code) │                         │ (Vulkan/GPU)  │
-└─────────────┘                         └──────────────┘
 ```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Inproc Mode (default)                         │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │  App                                                          │    │
+│  │  ├── FigureRegistry (stable FigureId ownership)               │    │
+│  │  ├── FigureManager (tabs, per-figure state, queued ops)       │    │
+│  │  ├── WindowManager (multi-window, per-window swapchain)       │    │
+│  │  ├── DockSystem → SplitViewManager (binary tree panes)        │    │
+│  │  ├── CommandRegistry (30+ commands, fuzzy search)             │    │
+│  │  ├── ShortcutManager + ShortcutConfig (persistent bindings)   │    │
+│  │  ├── UndoManager (push/undo/redo, grouped operations)         │    │
+│  │  ├── ThemeManager (dark/light, 8 palettes, CVD simulation)    │    │
+│  │  ├── TransitionEngine (float/Color/AxisLimits/Camera anims)   │    │
+│  │  ├── TimelineEditor → KeyframeInterpolator (7 interp modes)   │    │
+│  │  ├── AxisLinkManager (linked axes, shared cursor)             │    │
+│  │  ├── DataInteraction (tooltips, crosshair, markers, regions)  │    │
+│  │  └── Renderer (Vulkan backend, TextRenderer, GPU pipelines)   │    │
+│  │       └── Figure                                               │    │
+│  │            ├── Axes (2D) / Axes3D (3D + Camera + Lighting)    │    │
+│  │            └── Series (Line, Scatter, Surface, Mesh, 3D...)   │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Multiproc Mode (IPC)                             │
+│                                                                      │
+│  ┌───────────┐  Unix socket  ┌──────────────────┐                   │
+│  │  Python    │──────────────▶│  spectra-backend  │                   │
+│  │  client    │◀──────────────│  (daemon)         │                   │
+│  └───────────┘               │  FigureModel      │                   │
+│                              │  SessionGraph     │                   │
+│  ┌───────────┐               │  ClientRouter     │                   │
+│  │  C++ App  │──────────────▶│  ProcessManager   │                   │
+│  │ (multiproc)│◀──────────────└────┬────┬────┬───┘                   │
+│  └───────────┘                    │    │    │                        │
+│                        ┌──────────┘    │    └──────────┐             │
+│                        ▼               ▼               ▼             │
+│                 ┌───────────┐   ┌───────────┐   ┌───────────┐       │
+│                 │  spectra-  │   │  spectra-  │   │  spectra-  │       │
+│                 │  window    │   │  window    │   │  window    │       │
+│                 │  (agent)   │   │  (agent)   │   │  (agent)   │       │
+│                 │  Vulkan    │   │  Vulkan    │   │  Vulkan    │       │
+│                 └───────────┘   └───────────┘   └───────────┘       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Mode Selection
+
+| Condition | Mode |
+|---|---|
+| `AppConfig::socket_path` is set | Multiproc (connects to `spectra-backend`) |
+| `SPECTRA_SOCKET` env var is set | Multiproc |
+| Neither | Inproc (default, single-process) |
 
 ### Key Design Decisions
 
-- **Vulkan 1.2+** — Explicit memory management, headless rendering without a display, async buffer uploads, depth buffer for 3D
-- **Screen-space SDF rendering** — Lines and markers use signed-distance-field anti-aliasing; resolution-independent at any zoom level
-- **GPU-accelerated styling** — Dash patterns and 18 marker types rendered entirely in shaders via SDF
-- **MSDF text** — Pre-baked multi-channel signed distance field font atlas; crisp text rendering in a single draw call
+- **Vulkan 1.2+** — Explicit memory management, headless rendering, async buffer uploads, depth buffer for 3D, MSAA
+- **Screen-space SDF rendering** — Lines and markers use signed-distance-field anti-aliasing; resolution-independent at any zoom
+- **GPU-accelerated styling** — Dash patterns and 18 marker types rendered entirely in fragment shaders
+- **GPU text pipeline** — Vulkan text rendering with stb_truetype atlas, depth-tested 3D labels
 - **Lock-free threading** — SPSC ring buffer decouples the user's app thread from the GPU render thread
-- **No global state** — All managers are stack-allocated and passed by pointer; thread-safe via std::mutex
+- **No global state** — All managers are stack-allocated and passed by pointer; thread-safe via `std::mutex`
+- **No primary window** — All OS windows are peer-equivalent, managed uniformly by `WindowManager`
+- **Stable figure IDs** — `FigureId` typedef with `FigureRegistry` replaces positional indexing
+- **Runtime dual-mode** — Inproc vs multiproc selected at runtime (no `#ifdef`), both code paths always compiled
 - **Header-only math** — Self-contained vec3/vec4/mat4/quat library (~350 LOC); no GLM dependency
-- **Backward compatibility** — Workspace v3 format loads v1/v2 files with sensible defaults
+- **Workspace backward compat** — v4 format loads v1/v2/v3 files with sensible defaults
+- **IPC protocol** — Versioned TLV binary protocol with `request_id` correlation, `seq` ordering, snapshot + diff
 
 ### Project Structure
 
 ```
 spectra/
-├── include/spectra/       # Public API headers (spectra.hpp, math3d.hpp, plot_style.hpp)
+├── include/spectra/       # Public headers: spectra.hpp, easy.hpp, math3d.hpp, plot_style.hpp,
+│                          #   axes.hpp, axes3d.hpp, series.hpp, series3d.hpp, fwd.hpp, ...
 ├── src/
-│   ├── core/             # Figure, Axes, Series, layout, coordinate transforms
-│   ├── render/           # Renderer + abstract Backend interface
-│   │   └── vulkan/       # VulkanBackend, device, swapchain, pipeline, buffers, depth
-│   ├── gpu/shaders/      # GLSL 450 shaders (line, scatter, grid, text) with dash/marker support
-│   ├── text/             # MSDF font atlas + text renderer
-│   ├── anim/             # Animator, easing, frame scheduler, transition engine
-│   ├── ui/               # App, input, theme, inspector, timeline, docking, commands
-│   └── io/               # PNG, GIF, MP4 export, workspace serialization
-├── examples/             # Runnable demo programs (plot_styles_demo, etc.)
+│   ├── core/             # Figure, Axes, Axes3D, Series, Series3D, layout, coordinate transforms
+│   ├── render/           # Renderer, TextRenderer, abstract Backend interface
+│   │   └── vulkan/       # VulkanBackend, device, swapchain, pipeline, buffers, WindowContext
+│   ├── gpu/shaders/      # GLSL 450 shaders: line, scatter, grid, text, surface3d, mesh3d, ...
+│   ├── anim/             # Animator, easing, frame scheduler, frame profiler
+│   ├── ui/               # App (inproc + multiproc), WindowManager, FigureManager, DockSystem,
+│   │                     #   ThemeManager, CommandRegistry, ShortcutManager, UndoManager,
+│   │                     #   TransitionEngine, TimelineEditor, KeyframeInterpolator,
+│   │                     #   AnimationCurveEditor, CameraAnimator, ModeTransition,
+│   │                     #   Inspector, DataInteraction, AxisLinkManager, DataTransform,
+│   │                     #   RecordingExport, Workspace, PluginAPI, CsvLoader, ...
+│   ├── ipc/              # IPC protocol: message types, TLV codec, transport
+│   ├── daemon/           # spectra-backend: FigureModel, SessionGraph, ClientRouter, ProcessManager
+│   └── agent/            # spectra-window: agent main loop, snapshot→Figure builder
+├── python/
+│   ├── spectra/          # Python package: Session, Figure, Axes, Series, easy API, codec, transport
+│   ├── examples/         # Python example scripts
+│   └── tests/            # Python test suite (50+ tests)
+├── examples/             # 40+ C++ example programs
 ├── tests/
-│   ├── unit/             # 700+ unit tests (Google Test)
-│   ├── golden/           # Golden image tests (Phase 1/2/3)
-│   └── bench/            # Performance benchmarks
-├── third_party/          # stb, VMA (header-only, bundled)
+│   ├── unit/             # 1,200+ unit tests (Google Test)
+│   ├── golden/           # Golden image tests (2D Phase 1/2/3 + 3D Phase 1/2/3)
+│   ├── bench/            # Performance benchmarks (100+)
+│   └── util/             # Test utilities: MultiWindowFixture, ValidationGuard, GpuHangDetector
+├── docker/               # Docker Compose + Dockerfile for reproducible builds
+├── packaging/            # AppImage, AUR, Homebrew, shell completions
+├── third_party/          # stb_image, stb_image_write, stb_truetype, VMA (header-only, bundled)
 ├── plans/                # Architecture plans, roadmap, UI redesign spec
-└── cmake/                # Shader compilation helpers
+├── cmake/                # CompileShaders, EmbedShaders, EmbedAssets, spectraConfig
+├── .github/workflows/    # CI (Linux/macOS/Windows + sanitizers) + Release pipeline
+├── version.txt           # Single source of truth: 0.1.0
+├── Makefile              # Developer workflow shortcuts
+└── CMakeLists.txt        # Root build configuration
 ```
 
 ---
@@ -378,51 +662,132 @@ spectra/
 ## Testing
 
 ```bash
-cd build
-cmake .. -DSPECTRA_BUILD_TESTS=ON
-make -j$(nproc)
-ctest --output-on-failure
+cmake -B build -DSPECTRA_BUILD_TESTS=ON -DSPECTRA_BUILD_GOLDEN_TESTS=ON
+cmake --build build -j$(nproc)
+cd build && ctest --output-on-failure
 ```
 
-Tests include:
-- **700+ unit tests** — All core systems, UI components, animation, serialization, edge cases
-- **Golden image tests** — Headless renders compared pixel-by-pixel against baseline PNGs (Phase 1/2/3)
-- **Integration tests** — Cross-component workflows (command+undo, workspace+figures, timeline+recording)
-- **Benchmarks** — CommandRegistry, TransitionEngine, InspectorStats, SparklineDownsample, FigureManager, axis linking
+### Test Suite Summary
+
+| Category | Count | Description |
+|---|---|---|
+| **Unit tests** | 1,200+ | All core systems, UI components, animation, serialization, 3D, IPC |
+| **Golden image tests** | 50+ | Headless renders compared pixel-by-pixel against baselines (2D + 3D) |
+| **Integration tests** | 100+ | Cross-component workflows, phase integration, 3D regression |
+| **Benchmarks** | 100+ | Rendering performance, data structures, animation, 3D series scaling |
+| **Python tests** | 50+ | Codec, transport, cross-codec, session, easy API |
+
+### Key Test Suites
+
+- **Math3D** (60 tests) — vec3, vec4, mat4, quat operations, unproject, FrameUBO layout
+- **3D Integration** (45+ tests) — Camera, grid, bounding box, series, colormap, auto-fit, render smoke
+- **3D Regression** (88 tests) — Lighting, materials, transparency, wireframe, MSAA, painter's sort
+- **Plot Style** (86 tests) — Format strings, line styles, marker types, dash patterns
+- **Timeline/Keyframe** (148 tests) — Playback, tracks, interpolation modes, tangents, serialization
+- **Theme/Colorblind** (126 tests) — Palettes, CVD simulation, transitions, export/import, WCAG contrast
+- **Workspace** (60+ tests) — v1–v4 round-trip, 3D state, backward compatibility
+- **IPC/Python** (29 C++ + 50 Python) — Codec round-trips, payload encoding, session management
+
+### Running Specific Tests
+
+```bash
+# Run a single test suite
+cd build && ./tests/unit/unit_test_math3d
+
+# Run tests matching a pattern
+ctest -R "3d" --output-on-failure
+
+# Run benchmarks
+./tests/bench/bench_3d
+
+# Run Python tests
+cd python && pytest tests/ -v
+
+# Run with sanitizers
+cmake -B build-asan -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+cmake --build build-asan && cd build-asan && ctest --output-on-failure
+```
 
 ---
 
 ## Roadmap
 
-| Phase | Status | Scope |
-|---|---|---|
-| **Phase 1 — Modern Foundation** | ✅ Complete | Theme system, layout manager, inspector, animated interactions, data tooltips, transition engine |
-| **Phase 2 — Power User Features** | ✅ Complete | Command palette, undo/redo, workspace v3, timeline editor, recording export, colorblind palettes, multi-figure tabs |
-| **Phase 3 — Elite Differentiators** | ✅ Complete | Docking system, MATLAB-style plot API, axis linking, data transforms, shortcut persistence, plugin architecture |
-| **3D Visualization** | 🚧 Phase 1 Complete | 3D transform pipeline, depth buffer, math library, camera system (in progress) |
+### UI Redesign (Complete)
 
-See [`plans/ROADMAP.md`](plans/ROADMAP.md) for detailed progress tracking.
+| Phase | Status | Highlights |
+|---|---|---|
+| **Phase 1 — Modern Foundation** | ✅ Complete | Theme system, layout manager, inspector, animated interactions (zoom/pan/inertia), data tooltips, crosshair, transition engine |
+| **Phase 2 — Power User Features** | ✅ Complete | Command palette, undo/redo, workspace v2, timeline editor, recording export, colorblind palettes, multi-figure tabs, statistics inspector |
+| **Phase 3 — Elite Differentiators** | ✅ Complete | Docking/split view, MATLAB-style plot API (18 markers, dash patterns), axis linking, shared cursor, data transforms, shortcut persistence, plugin architecture, workspace v3 |
+
+### 3D Visualization (Complete)
+
+| Phase | Status | Highlights |
+|---|---|---|
+| **3D Phase 1** | ✅ Complete | Math library, FrameUBO expansion, depth buffer, 3D pipeline types, shader MVP, Camera class, Axes3D |
+| **3D Phase 2** | ✅ Complete | ScatterSeries3D, LineSeries3D, SurfaceSeries, MeshSeries, colormaps, index buffers, camera animation |
+| **3D Phase 3** | ✅ Complete | Blinn-Phong lighting, transparency + painter's sort, MSAA 4x, wireframe, material properties, 2D↔3D mode transition, workspace v4 with 3D state |
+
+### Multi-Window & IPC (Complete)
+
+| Milestone | Status | Highlights |
+|---|---|---|
+| **WindowContext extraction** | ✅ Complete | Per-window Vulkan resources, no primary window assumption |
+| **Multi-window rendering** | ✅ Complete | Tab tear-off, per-window swapchain, figure-to-window assignment |
+| **FigureRegistry** | ✅ Complete | Stable FigureId-based ownership, replaces positional indexing |
+| **Python IPC** | ✅ Complete | Full protocol (20+ message types), Session/Figure/Axes/Series proxies, easy API, live streaming |
+| **Multiproc daemon** | ✅ Complete | spectra-backend + spectra-window agent architecture |
+
+### Deployment (Complete)
+
+| Milestone | Status | Highlights |
+|---|---|---|
+| **Cross-platform CI** | ✅ Complete | Linux (GCC+Clang), macOS (ARM), Windows (MSVC), sanitizers |
+| **Release pipeline** | ✅ Complete | Tag-triggered: .deb, .rpm, .tar.gz, AppImage, .zip, Python wheels, PyPI |
+| **Docker** | ✅ Complete | Multi-stage build, headless (Xvfb) + X11 forwarding modes |
+| **Packaging** | ✅ Complete | CPack, AppImage, Homebrew formula, AUR PKGBUILD, shell completions |
+
+See [`plans/ROADMAP.md`](plans/ROADMAP.md) for detailed weekly progress tracking.
 
 ---
 
 ## Contributing
 
-Contributions are welcome! The codebase is organized into independent modules with clear ownership boundaries — see [`agents_plan.md`](agents_plan.md) for the module decomposition.
+Contributions are welcome! The codebase is organized into independent modules — see [`plans/agents_plan.md`](plans/agents_plan.md) for the module decomposition.
 
-When submitting changes:
-1. Follow C++20 style with no global state and RAII throughout
-2. Keep public headers in `include/spectra/` minimal (pimpl in Phase 3)
-3. Add unit tests for new functionality
-4. Run `ctest` before submitting
+### Guidelines
+
+1. **C++20** — No global state, RAII throughout, thread-safe via `std::mutex`
+2. **Public headers** — Keep `include/spectra/` minimal; implementation in `src/`
+3. **Tests required** — Add unit tests for new functionality; run `ctest` before submitting
+4. **No speculative fixes** — Measure first (add instrumentation, capture timing) before optimizing
+5. **Vulkan safety** — Never destroy resources without waiting on fences; follow the safe resize sequence
+6. **Window independence** — No "primary window" assumptions; all windows must behave identically
+
+### Development Workflow
+
+```bash
+# Build + test
+make build test
+
+# Format code
+make format
+
+# Python development
+make pip-dev pip-test
+
+# Docker-based testing
+cd docker && docker compose up --build spectra-xvfb
+```
 
 ---
 
 ## License
 
-This project is under development. License TBD.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  Built with Vulkan · C++20 · ❤️
+  Built with Vulkan 1.2 · C++20 · Python 3.9+
 </p>

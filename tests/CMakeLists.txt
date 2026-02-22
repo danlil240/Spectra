@@ -119,6 +119,8 @@ set(SPECTRA_UNIT_TESTS
     test_python_ipc
     test_cross_codec
     test_text_renderer
+    test_eigen_support
+    test_series_stats
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
@@ -140,11 +142,19 @@ set(SPECTRA_GPU_TESTS
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
+    # Eigen tests require SPECTRA_USE_EIGEN
+    if(_test STREQUAL "test_eigen_support" AND NOT SPECTRA_USE_EIGEN)
+        continue()
+    endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
         add_spectra_test(unit ${_test})
         # Tag GPU-dependent tests so they can be excluded with -LE gpu
         if(_test IN_LIST SPECTRA_GPU_TESTS)
             set_tests_properties(unit_${_test} PROPERTIES LABELS "gpu")
+        endif()
+        # Link Eigen3 for Eigen-specific tests
+        if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
+            target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
     endif()
 endforeach()

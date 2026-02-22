@@ -7,7 +7,7 @@
 
 #ifdef _WIN32
     #include <process.h>
-    using pid_t = int;
+using pid_t = int;
 #else
     #include <sys/types.h>
 #endif

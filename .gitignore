@@ -61,3 +61,7 @@ __pycache__
 
 # Docker test environment (local only)
 docker/
+
+CLAUDE.md
+
+.vscode

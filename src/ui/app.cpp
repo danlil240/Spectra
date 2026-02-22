@@ -29,7 +29,8 @@ App::App(const AppConfig& config) : config_(config)
     // Add file sink in temp directory with error handling
     try
     {
-        std::string log_path = (std::filesystem::temp_directory_path() / "spectra_app.log").string();
+        std::string log_path =
+            (std::filesystem::temp_directory_path() / "spectra_app.log").string();
         logger.add_sink(spectra::sinks::file_sink(log_path));
         SPECTRA_LOG_INFO("app", "Log file: " + log_path);
     }

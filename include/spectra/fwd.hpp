@@ -25,6 +25,11 @@ class ScatterSeries3D;
 class SurfaceSeries;
 class MeshSeries;
 
+class BoxPlotSeries;
+class ViolinSeries;
+class HistogramSeries;
+class BarSeries;
+
 class Renderer;
 class Backend;
 class GpuBuffer;

@@ -45,7 +45,7 @@ static void BM_SingleWindow_EmptyFigure(benchmark::State& state)
 {
     for (auto _ : state)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 640, .height = 480});
         fig.subplot(1, 1, 1);
         app.run();
@@ -60,7 +60,7 @@ static void BM_SingleWindow_Line1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 640, .height = 480});
         auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y);
@@ -78,7 +78,7 @@ static void BM_SingleWindow_Line10K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 640, .height = 480});
         auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y);
@@ -96,7 +96,7 @@ static void BM_SingleWindow_Scatter1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 640, .height = 480});
         auto& ax  = fig.subplot(1, 1, 1);
         ax.scatter(x, y);
@@ -114,7 +114,7 @@ static void BM_SingleWindow_MultiFigure_2(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App app({.headless = true, .socket_path = ""});
         for (int i = 0; i < 2; ++i)
         {
             auto& fig = app.figure({.width = 640, .height = 480});
@@ -135,7 +135,7 @@ static void BM_SingleWindow_MultiFigure_4(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App app({.headless = true, .socket_path = ""});
         for (int i = 0; i < 4; ++i)
         {
             auto& fig = app.figure({.width = 640, .height = 480});
@@ -156,7 +156,7 @@ static void BM_SingleWindow_Subplot2x2(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 800, .height = 600});
         for (int i = 1; i <= 4; ++i)
         {
@@ -174,7 +174,7 @@ static void BM_SingleWindow_AppCreateDestroy(benchmark::State& state)
 {
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App app({.headless = true, .socket_path = ""});
         app.figure({.width = 320, .height = 240}).subplot(1, 1, 1);
         app.run();
     }
@@ -183,7 +183,7 @@ BENCHMARK(BM_SingleWindow_AppCreateDestroy)->Unit(benchmark::kMillisecond);
 
 static void BM_SingleWindow_PipelineCreation(benchmark::State& state)
 {
-    App app({.headless = true});
+    App app({.headless = true, .socket_path = ""});
     app.figure({.width = 320, .height = 240}).subplot(1, 1, 1);
     app.run();
     auto* backend = app.backend();
@@ -202,7 +202,7 @@ BENCHMARK(BM_SingleWindow_PipelineCreation)->Unit(benchmark::kMicrosecond);
 
 static void BM_SingleWindow_BufferCreateDestroy(benchmark::State& state)
 {
-    App app({.headless = true});
+    App app({.headless = true, .socket_path = ""});
     app.figure({.width = 320, .height = 240}).subplot(1, 1, 1);
     app.run();
     auto* backend = app.backend();
@@ -217,7 +217,7 @@ BENCHMARK(BM_SingleWindow_BufferCreateDestroy)->Unit(benchmark::kMicrosecond);
 
 static void BM_SingleWindow_Readback(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 640, .height = 480});
     auto& ax  = fig.subplot(1, 1, 1);
     auto  x   = gen_x(100);
@@ -267,7 +267,7 @@ static void BM_StubMultiWindow_2Apps(benchmark::State& state)
     {
         for (int i = 0; i < 2; ++i)
         {
-            App   app({.headless = true});
+            App   app({.headless = true, .socket_path = ""});
             auto& fig = app.figure({.width = 640, .height = 480});
             auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
@@ -288,7 +288,7 @@ static void BM_StubMultiWindow_4Apps(benchmark::State& state)
     {
         for (int i = 0; i < 4; ++i)
         {
-            App   app({.headless = true});
+            App   app({.headless = true, .socket_path = ""});
             auto& fig = app.figure({.width = 640, .height = 480});
             auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
@@ -306,7 +306,7 @@ static void BM_StubMultiWindow_SequentialCreateDestroy(benchmark::State& state)
     {
         for (int i = 0; i < 5; ++i)
         {
-            App app({.headless = true});
+            App app({.headless = true, .socket_path = ""});
             app.figure({.width = 320, .height = 240}).subplot(1, 1, 1);
             app.run();
         }

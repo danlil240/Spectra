@@ -8,7 +8,7 @@ using namespace spectra;
 
 TEST(FigureWindowAPI, EachFigureGetsOwnWindow)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure();
 
@@ -18,7 +18,7 @@ TEST(FigureWindowAPI, EachFigureGetsOwnWindow)
 
 TEST(FigureWindowAPI, TabGoesInSameWindow)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
 
@@ -29,7 +29,7 @@ TEST(FigureWindowAPI, TabGoesInSameWindow)
 
 TEST(FigureWindowAPI, MultipleTabsInOneWindow)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
     auto& fig3 = app.figure(fig1);
@@ -41,7 +41,7 @@ TEST(FigureWindowAPI, MultipleTabsInOneWindow)
 
 TEST(FigureWindowAPI, MixedWindowsAndTabs)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure();       // window A
     auto& fig2 = app.figure();       // window B
     auto& fig3 = app.figure(fig1);   // tab in window A
@@ -64,7 +64,7 @@ TEST(FigureWindowAPI, MixedWindowsAndTabs)
 
 TEST(FigureWindowAPI, TabNextToUnknownFigureCreatesNewWindow)
 {
-    App    app({.headless = true});
+    App    app({.headless = true, .socket_path = ""});
     Figure orphan;
     auto&  fig = app.figure(orphan);
 
@@ -74,7 +74,7 @@ TEST(FigureWindowAPI, TabNextToUnknownFigureCreatesNewWindow)
 
 TEST(FigureWindowAPI, ChainedTabs)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
     auto& fig3 = app.figure(fig2);   // tab next to fig2 = same window as fig1
@@ -86,7 +86,7 @@ TEST(FigureWindowAPI, ChainedTabs)
 
 TEST(FigureWindowAPI, FourWindowsThreeTabs)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& a1 = app.figure();
     auto& a2 = app.figure(a1);
     auto& a3 = app.figure(a1);

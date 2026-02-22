@@ -6,12 +6,13 @@ find_program(GLSLANG_VALIDATOR
     NAMES glslangValidator glslang
     HINTS $ENV{VULKAN_SDK}/bin
           ${Vulkan_INCLUDE_DIR}/../bin
+          /usr/bin
+          /usr/local/bin
 )
 
 if(NOT GLSLANG_VALIDATOR)
-    message(WARNING "glslangValidator not found — shaders will not be compiled. "
-                    "Install the Vulkan SDK or set VULKAN_SDK environment variable.")
-    return()
+    message(FATAL_ERROR "glslangValidator not found — shaders cannot be compiled. "
+                    "Install glslang-tools package or Vulkan SDK.")
 endif()
 
 message(STATUS "Found glslangValidator: ${GLSLANG_VALIDATOR}")
@@ -59,4 +60,15 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_target(spectra_shaders DEPENDS ${SHADER_HEADER} ${SPIRV_OUTPUTS})
+# Verify the header was created and contains expected shaders
+add_custom_command(
+    OUTPUT ${SHADER_HEADER}.verified
+    COMMAND ${CMAKE_COMMAND} -E echo "Verifying shader header contains text shaders..."
+    COMMAND ${CMAKE_COMMAND} -E cat ${SHADER_HEADER} | grep -q "text_vert" || ${CMAKE_COMMAND} -E echo "ERROR: text_vert not found in shader header"
+    COMMAND ${CMAKE_COMMAND} -E cat ${SHADER_HEADER} | grep -q "text_frag" || ${CMAKE_COMMAND} -E echo "ERROR: text_frag not found in shader header"
+    COMMAND ${CMAKE_COMMAND} -E touch ${SHADER_HEADER}.verified
+    DEPENDS ${SHADER_HEADER}
+    COMMENT "Verifying shader header content"
+)
+
+add_custom_target(spectra_shaders DEPENDS ${SHADER_HEADER}.verified ${SPIRV_OUTPUTS})

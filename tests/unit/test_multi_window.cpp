@@ -176,7 +176,7 @@ TEST(WindowContextPhase1, SetActiveWindow)
 TEST(WindowContextPhase1, SingleWindowUnchanged)
 {
     // After Agent A refactor, single window must still work identically
-    App                app({.headless = true});
+    App                app({.headless = true, .socket_path = ""});
     auto&              fig = app.figure({.width = 640, .height = 480});
     auto&              ax  = fig.subplot(1, 1, 1);
     std::vector<float> x   = {0.0f, 1.0f, 2.0f};
@@ -197,7 +197,7 @@ TEST(WindowContextPhase1, GlfwTerminateNotCalledOnShutdown)
     // called prematurely).
     for (int i = 0; i < 3; ++i)
     {
-        App   app({.headless = true});
+        App   app({.headless = true, .socket_path = ""});
         auto& fig = app.figure({.width = 320, .height = 240});
         fig.subplot(1, 1, 1);
         app.run();
@@ -448,7 +448,7 @@ TEST_F(TearOffTest, LastFigureProtection)
     // The app.cpp callback checks registry_.count() <= 1 before detaching.
     // Verify the semantic contract: a single-figure app should not allow detach.
     // We test this by verifying that a single figure app creates exactly one figure.
-    App   single_app({.headless = true});
+    App   single_app({.headless = true, .socket_path = ""});
     auto& fig = single_app.figure({.width = 320, .height = 240});
     fig.subplot(1, 1, 1);
     single_app.run();
@@ -463,7 +463,7 @@ TEST_F(TearOffTest, MultipleFiguresAllowDetach)
 {
     // With 2+ figures, detach should be allowed.
     // Verify both figures are created and renderable.
-    App   multi_app({.headless = true});
+    App   multi_app({.headless = true, .socket_path = ""});
     auto& fig1 = multi_app.figure({.width = 320, .height = 240});
     fig1.subplot(1, 1, 1);
     auto& fig2 = multi_app.figure({.width = 320, .height = 240});

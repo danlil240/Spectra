@@ -630,8 +630,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // Screen coordinates are Y-down (0=top, h=bottom), matching Vulkan clip space,
     // so use positive Y scale (same as TextRenderer::flush).
     // Do NOT use build_ortho_projection() — that negates Y for data-space (Y-up).
-    FrameUBO ubo{};
-    std::memset(&ubo, 0, sizeof(ubo));
+    FrameUBO ubo{};  // Value-initializes all members to zero
     ubo.projection[0] = 2.0f / fw;  // X: [0, fw] → [-1, +1]
     ubo.projection[5] = 2.0f / fh;  // Y: [0, fh] → [-1, +1] (positive = Y-down)
     ubo.projection[10] = -1.0f;
@@ -942,7 +941,6 @@ void Renderer::render_axes(AxesBase& axes,
             // Perspective projection matrix
             float fov_rad = cam.fov * 3.14159265f / 180.0f;
             float f = 1.0f / tanf(fov_rad * 0.5f);
-            std::memset(ubo.projection, 0, 16 * sizeof(float));
             ubo.projection[0] = f / aspect;
             ubo.projection[5] = -f;  // Negative for Vulkan Y-down
             ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
@@ -1758,8 +1756,8 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         FrameUBO arrow_ubo{};
         // Read back current UBO contents by rebuilding from axes state
         const auto& cam = axes.camera();
-        float aspect = 1.0f;  // aspect was set when UBO was first uploaded
         {
+            float aspect = 0.0f;
             // Copy projection
             if (cam.projection_mode == Camera::ProjectionMode::Perspective)
             {
@@ -1771,7 +1769,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
                 // is called, so we use the axes viewport.
                 const auto& vp = axes.viewport();
                 aspect = vp.w / std::max(vp.h, 1.0f);
-                std::memset(arrow_ubo.projection, 0, 16 * sizeof(float));
+                FrameUBO arrow_ubo{};  // Value-initializes all members to zero
                 arrow_ubo.projection[0] = f / aspect;
                 arrow_ubo.projection[5] = -f;
                 arrow_ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);

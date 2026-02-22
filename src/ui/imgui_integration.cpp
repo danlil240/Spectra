@@ -958,7 +958,6 @@ void ImGuiIntegration::draw_command_bar()
         // ── App title/brand on the left — polished programmatic logo + styled text ──
         {
             auto accent = ui::theme().accent;
-            auto bg = ui::theme().bg_secondary;
             ImDrawList* dl = ImGui::GetWindowDrawList();
             float bar_h = ImGui::GetWindowSize().y;
             ImVec2 cursor = ImGui::GetCursorScreenPos();

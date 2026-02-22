@@ -478,8 +478,7 @@ void TextRenderer::flush_batch(Backend& backend,
     // Maps (0,0)-(w,h) to Vulkan clip space [-1,1] x [-1,1]
     // Vulkan Y is top-down, so (0,0) = top-left matches screen coords.
     // Z maps [0,1] -> [0,1] for depth buffer compatibility.
-    FrameUBO ubo{};
-    std::memset(&ubo, 0, sizeof(ubo));
+    FrameUBO ubo{};  // Value-initializes all members to zero
 
     // Column-major ortho: [0, screen_width] -> [-1, 1], [0, screen_height] -> [-1, 1]
     ubo.projection[0] = 2.0f / screen_width;

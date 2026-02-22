@@ -5,7 +5,7 @@
 
 int main()
 {
-    spectra::App app({.headless = true});
+    spectra::App app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 1920, .height = 1080});
     auto& ax = fig.subplot(1, 1, 1);
 

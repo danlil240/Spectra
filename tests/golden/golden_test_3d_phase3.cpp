@@ -67,7 +67,7 @@ static void run_golden_test_3d_p3(const std::string&                 scene_name,
 
     fs::create_directories(output_dir());
 
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);

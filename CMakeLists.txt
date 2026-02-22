@@ -99,6 +99,12 @@ target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
+# Suppress warnings for third-party code
+target_compile_options(spectra PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=maybe-uninitialized>
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=unused-but-set-variable>
+)
+
 target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 
 target_compile_definitions(spectra PRIVATE
@@ -111,6 +117,9 @@ target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME
 if(TARGET spectra_shaders)
     add_dependencies(spectra spectra_shaders)
 endif()
+
+# Add explicit include directory for generated shaders to ensure they're found
+target_include_directories(spectra PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 
 # GLFW adapter (optional)
 if(SPECTRA_USE_GLFW)

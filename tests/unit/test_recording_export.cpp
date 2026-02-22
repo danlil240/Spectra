@@ -598,7 +598,7 @@ TEST(RecordingSessionGIF, BasicGifExport)
     FILE* fp = std::fopen(path.c_str(), "rb");
     ASSERT_NE(fp, nullptr);
     char header[6];
-    std::fread(header, 1, 6, fp);
+    ASSERT_EQ(std::fread(header, 1, 6, fp), 6u);
     std::fclose(fp);
     EXPECT_EQ(std::string(header, 6), "GIF89a");
 

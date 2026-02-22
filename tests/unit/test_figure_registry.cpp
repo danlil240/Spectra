@@ -29,7 +29,7 @@ using namespace spectra::test;
 
 TEST(FigureBaseline, CreateSingleFigure)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 640, .height = 480});
     EXPECT_EQ(fig.width(), 640u);
     EXPECT_EQ(fig.height(), 480u);
@@ -37,7 +37,7 @@ TEST(FigureBaseline, CreateSingleFigure)
 
 TEST(FigureBaseline, CreateMultipleFigures)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig1 = app.figure({.width = 320, .height = 240});
     auto& fig2 = app.figure({.width = 640, .height = 480});
     auto& fig3 = app.figure({.width = 800, .height = 600});
@@ -49,7 +49,7 @@ TEST(FigureBaseline, CreateMultipleFigures)
 
 TEST(FigureBaseline, FigureOwnsAxes)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 640, .height = 480});
     auto& ax  = fig.subplot(1, 1, 1);
 
@@ -62,7 +62,7 @@ TEST(FigureBaseline, FigureOwnsAxes)
 
 TEST(FigureBaseline, FigureSubplotGrid)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     fig.subplot(2, 2, 1);
     fig.subplot(2, 2, 2);
@@ -75,7 +75,7 @@ TEST(FigureBaseline, FigureSubplotGrid)
 
 TEST(FigureBaseline, FigureRenderAndReadback)
 {
-    App                app({.headless = true});
+    App                app({.headless = true, .socket_path = ""});
     auto&              fig = app.figure({.width = 320, .height = 240});
     auto&              ax  = fig.subplot(1, 1, 1);
     std::vector<float> x   = {0.0f, 1.0f, 2.0f, 3.0f};
@@ -110,7 +110,7 @@ TEST(FigureBaseline, SeriesGpuDataKeyedByPointer)
     // Verify that series GPU data is keyed by Series* pointer.
     // This is important because Agent C must preserve this invariant
     // when moving figures between windows.
-    App                app({.headless = true});
+    App                app({.headless = true, .socket_path = ""});
     auto&              fig    = app.figure({.width = 320, .height = 240});
     auto&              ax     = fig.subplot(1, 1, 1);
     std::vector<float> x      = {0.0f, 1.0f, 2.0f};
@@ -135,7 +135,7 @@ TEST(FigureBaseline, MultipleAppsSequential)
     // for multi-window where windows are created/destroyed at runtime.
     for (int i = 0; i < 5; ++i)
     {
-        App                app({.headless = true});
+        App                app({.headless = true, .socket_path = ""});
         auto&              fig = app.figure({.width = 320, .height = 240});
         auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x   = {0.0f, 1.0f};
@@ -340,7 +340,7 @@ TEST(FigureRegistryLifecycle, InsertionOrderPreserved)
 TEST(FigureRegistryGpu, RegisteredFigureRenderable)
 {
     // Verify a figure from the registry can be rendered via App's renderer
-    App                app({.headless = true});
+    App                app({.headless = true, .socket_path = ""});
     auto&              fig = app.figure({.width = 320, .height = 240});
     auto&              ax  = fig.subplot(1, 1, 1);
     std::vector<float> x   = {0.0f, 1.0f, 2.0f};

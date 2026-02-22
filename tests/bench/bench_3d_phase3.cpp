@@ -85,7 +85,7 @@ static MeshGrid make_mesh(int nx, int ny)
 
 static void BM_LitSurface_50x50(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -108,7 +108,7 @@ BENCHMARK(BM_LitSurface_50x50);
 
 static void BM_LitSurface_100x100(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -127,7 +127,7 @@ BENCHMARK(BM_LitSurface_100x100);
 
 static void BM_LitSurface_500x500(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -153,7 +153,7 @@ BENCHMARK(BM_LitSurface_500x500);
 
 static void BM_LitMesh_1K(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -175,7 +175,7 @@ BENCHMARK(BM_LitMesh_1K);
 
 static void BM_LitMesh_100K(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -201,7 +201,7 @@ BENCHMARK(BM_LitMesh_100K);
 
 static void BM_TransparentScatter3D_10K(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -229,7 +229,7 @@ BENCHMARK(BM_TransparentScatter3D_10K);
 
 static void BM_TransparentSurface_50x50(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -251,7 +251,7 @@ BENCHMARK(BM_TransparentSurface_50x50);
 
 static void BM_TransparentSurface_100x100(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -273,7 +273,7 @@ BENCHMARK(BM_TransparentSurface_100x100);
 
 static void BM_TransparentMesh_10K(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -299,7 +299,7 @@ BENCHMARK(BM_TransparentMesh_10K);
 
 static void BM_MixedOpaqueTransparent(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -333,7 +333,7 @@ BENCHMARK(BM_MixedOpaqueTransparent);
 
 static void BM_MultipleTransparentLayers(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -372,7 +372,7 @@ BENCHMARK(BM_MultipleTransparentLayers);
 
 static void BM_WireframeSurface_50x50(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -390,7 +390,7 @@ BENCHMARK(BM_WireframeSurface_50x50);
 
 static void BM_WireframeSurface_100x100(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 600});
     auto& ax  = fig.subplot3d(1, 1, 1);
 
@@ -664,7 +664,7 @@ BENCHMARK(BM_CameraDeserialize);
 
 static void BM_DataToNormalizedMatrix(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure();
     auto& ax  = fig.subplot3d(1, 1, 1);
     ax.xlim(-5.0f, 5.0f);
@@ -686,7 +686,7 @@ BENCHMARK(BM_DataToNormalizedMatrix);
 
 static void BM_Mixed2D3D_LitSurface(benchmark::State& state)
 {
-    App   app({.headless = true});
+    App   app({.headless = true, .socket_path = ""});
     auto& fig = app.figure({.width = 800, .height = 1200});
 
     auto&              ax2d = fig.subplot(2, 1, 1);

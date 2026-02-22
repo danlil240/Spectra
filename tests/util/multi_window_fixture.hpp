@@ -113,7 +113,7 @@ class MultiWindowFixture : public ::testing::Test
     void SetUp() override
     {
         // Will be implemented when WindowManager exists:
-        // app_ = std::make_unique<App>(AppConfig{.headless = true});
+        // app_ = std::make_unique<App>(AppConfig{.headless = true, .socket_path = ""});
         // window_mgr_ will be extracted from app_ or created alongside it
     }
 
@@ -158,7 +158,7 @@ class MultiWindowFixture : public ::testing::Test
         apps_.clear();
         for (size_t i = 0; i < count; ++i)
         {
-            auto app = std::make_unique<App>(AppConfig{.headless = true});
+            auto app = std::make_unique<App>(AppConfig{.headless = true, .socket_path = ""});
             auto& fig = app->figure({.width = w, .height = h});
             auto& ax = fig.subplot(1, 1, 1);
             std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};

@@ -11,6 +11,8 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+
+    #include "glfw_utils.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
@@ -106,6 +108,7 @@ WindowContext* WindowManager::create_window(uint32_t width,
     // Create GLFW window (shared context not needed — Vulkan doesn't use GL contexts)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    set_wayland_app_id();
     GLFWwindow* glfw_win = glfwCreateWindow(
         static_cast<int>(width), static_cast<int>(height), title.c_str(), nullptr, nullptr);
     if (!glfw_win)
@@ -128,6 +131,8 @@ WindowContext* WindowManager::create_window(uint32_t width,
         glfwDestroyWindow(glfw_win);
         return nullptr;
     }
+
+    set_window_icon(glfw_win);
 
     // Set GLFW callbacks for this window
     glfwSetWindowUserPointer(glfw_win, this);

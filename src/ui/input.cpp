@@ -622,7 +622,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             }
 
             // Begin pan drag
-            SPECTRA_LOG_DEBUG("input", "Starting pan drag");
             mode_ = InteractionMode::Dragging;
             drag_start_x_ = x;
             drag_start_y_ = y;
@@ -651,7 +650,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                 return;
             }
 
-            SPECTRA_LOG_DEBUG("input", "Ending pan drag");
             mode_ = InteractionMode::Idle;
 
             // Detect click-without-drag: if the mouse barely moved, treat as a

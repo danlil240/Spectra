@@ -2,6 +2,8 @@
 
     #include "glfw_adapter.hpp"
 
+    #include "glfw_utils.hpp"
+
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
@@ -32,6 +34,7 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // No OpenGL context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    set_wayland_app_id();
 
     window_ = glfwCreateWindow(
         static_cast<int>(width), static_cast<int>(height), title.c_str(), nullptr, nullptr);
@@ -48,6 +51,8 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
     // callbacks here would cause ImGui's callback chaining to invoke them
     // with the wrong user-pointer type (WindowManager* vs GlfwAdapter*),
     // resulting in a segfault.
+
+    set_window_icon(window_);
 
     return true;
 }

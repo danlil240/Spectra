@@ -934,39 +934,136 @@ void ImGuiIntegration::draw_command_bar()
                             1.0f);
         }
 
-        // ── App title/brand on the left — gradient accent text with glow ──
+        // ── App title/brand on the left — programmatic logo + styled text ──
         {
-            ImGui::PushFont(font_title_);
-            const char* brand = "Spectra";
-            ImVec2 text_sz = ImGui::CalcTextSize(brand);
-            ImVec2 cursor = ImGui::GetCursorScreenPos();
-            // Vertically center in the bar
-            float bar_h = ImGui::GetWindowSize().y;
-            float text_y = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f - text_sz.y) * 0.5f;
-            ImVec2 text_pos(cursor.x, text_y);
-
-            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
-
-            // Subtle glow behind text
             auto accent = ui::theme().accent;
-            ImU32 glow_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                      static_cast<uint8_t>(accent.g * 255),
-                                      static_cast<uint8_t>(accent.b * 255),
-                                      18);
-            bar_dl->AddRectFilled(ImVec2(text_pos.x - 6.0f, text_pos.y - 2.0f),
-                                  ImVec2(text_pos.x + text_sz.x + 6.0f, text_pos.y + text_sz.y + 2.0f),
-                                  glow_col,
-                                  ui::tokens::RADIUS_SM);
+            auto bg = ui::theme().bg_secondary;
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            float bar_h = ImGui::GetWindowSize().y;
+            ImVec2 cursor = ImGui::GetCursorScreenPos();
+            float cy = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
 
-            // Draw text with accent color
-            ImU32 brand_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                       static_cast<uint8_t>(accent.g * 255),
-                                       static_cast<uint8_t>(accent.b * 255),
-                                       255);
-            bar_dl->AddText(font_title_, font_title_->FontSize, text_pos, brand_col, brand);
+            // ── Stylized "S" logo mark (bezier wave) ──
+            float logo_sz = 22.0f;
+            float lx = cursor.x + 2.0f;
+            float ly = cy - logo_sz * 0.5f;
 
-            // Advance ImGui cursor past the brand text
-            ImGui::Dummy(text_sz);
+            // Accent colors at different opacities for layered glow
+            auto ac = [&](uint8_t a) -> ImU32
+            {
+                return IM_COL32(static_cast<uint8_t>(accent.r * 255),
+                                static_cast<uint8_t>(accent.g * 255),
+                                static_cast<uint8_t>(accent.b * 255),
+                                a);
+            };
+
+            // Brighter highlight for the logo (shift accent toward white)
+            float hr = accent.r + (1.0f - accent.r) * 0.45f;
+            float hg = accent.g + (1.0f - accent.g) * 0.45f;
+            float hb = accent.b + (1.0f - accent.b) * 0.45f;
+            auto hi = [&](uint8_t a) -> ImU32
+            {
+                return IM_COL32(static_cast<uint8_t>(hr * 255),
+                                static_cast<uint8_t>(hg * 255),
+                                static_cast<uint8_t>(hb * 255),
+                                a);
+            };
+
+            // Outer glow behind logo
+            dl->AddCircleFilled(ImVec2(lx + logo_sz * 0.5f, ly + logo_sz * 0.5f),
+                                logo_sz * 0.7f,
+                                ac(18));
+
+            // Draw stylized S as two opposing bezier arcs
+            float sw = logo_sz * 0.7f;
+            float sh = logo_sz;
+            float sx = lx + (logo_sz - sw) * 0.5f;
+            float sy = ly;
+
+            // Top arc of S (curves right)
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
+                               ImVec2(sx + sw * 1.1f, sy - sh * 0.05f),
+                               ImVec2(sx + sw * 1.1f, sy + sh * 0.52f),
+                               ImVec2(sx + sw * 0.5f, sy + sh * 0.48f),
+                               hi(220),
+                               2.4f);
+
+            // Bottom arc of S (curves left)
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.52f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 0.48f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 1.05f),
+                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
+                               ac(220),
+                               2.4f);
+
+            // Bright center highlight stroke (thinner, brighter)
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
+                               ImVec2(sx + sw * 1.1f, sy - sh * 0.05f),
+                               ImVec2(sx + sw * 1.1f, sy + sh * 0.52f),
+                               ImVec2(sx + sw * 0.5f, sy + sh * 0.48f),
+                               hi(100),
+                               4.0f);
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.52f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 0.48f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 1.05f),
+                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
+                               ac(100),
+                               4.0f);
+
+            float text_x = lx + logo_sz + 6.0f;
+
+            // ── "SPECTRA" text with letter-spacing and glow ──
+            ImGui::PushFont(font_title_);
+            const char* letters = "SPECTRA";
+            float font_sz = font_title_->FontSize;
+            float text_y = cy - font_sz * 0.5f;
+            float spacing = 2.8f;  // extra px between letters
+
+            // Measure total width for Dummy advance
+            float total_w = 0.0f;
+            for (const char* p = letters; *p; ++p)
+            {
+                char ch[2] = {*p, 0};
+                total_w += ImGui::CalcTextSize(ch).x + (*p ? spacing : 0.0f);
+            }
+            total_w -= spacing;  // no trailing space
+
+            // Layer 1: Soft wide glow behind text
+            {
+                float gx = text_x;
+                for (const char* p = letters; *p; ++p)
+                {
+                    char ch[2] = {*p, 0};
+                    float cw = ImGui::CalcTextSize(ch).x;
+                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.5f, text_y - 0.5f), ac(20), ch);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.5f, text_y + 0.5f), ac(20), ch);
+                    gx += cw + spacing;
+                }
+            }
+
+            // Layer 2: Main text — gradient from bright highlight to accent
+            {
+                float gx = text_x;
+                int idx = 0;
+                int len = static_cast<int>(strlen(letters));
+                for (const char* p = letters; *p; ++p, ++idx)
+                {
+                    char ch[2] = {*p, 0};
+                    float cw = ImGui::CalcTextSize(ch).x;
+                    // Gradient: first letters are bright highlight, last letters are pure accent
+                    float t = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
+                    uint8_t cr = static_cast<uint8_t>((hr + (accent.r - hr) * t) * 255);
+                    uint8_t cg = static_cast<uint8_t>((hg + (accent.g - hg) * t) * 255);
+                    uint8_t cb = static_cast<uint8_t>((hb + (accent.b - hb) * t) * 255);
+                    ImU32 col = IM_COL32(cr, cg, cb, 245);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
+                    gx += cw + spacing;
+                }
+            }
+
+            // Advance ImGui cursor past the entire brand block
+            float brand_w = (text_x - cursor.x) + total_w + 4.0f;
+            ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
 

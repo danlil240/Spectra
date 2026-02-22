@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Spectra
+Comment=GPU-accelerated scientific visualization
+Icon=spectra
+Exec=spectra
+Terminal=false
+Categories=Science;DataVisualization;Graphics;
+StartupWMClass=Spectra

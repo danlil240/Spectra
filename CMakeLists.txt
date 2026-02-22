@@ -142,6 +142,12 @@ target_compile_definitions(spectra PRIVATE
 )
 target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE})
 
+# MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
+# PUBLIC so examples and tests also get it (transitive via linking spectra).
+if(MSVC)
+    target_compile_definitions(spectra PUBLIC _USE_MATH_DEFINES)
+endif()
+
 # Ensure shaders are compiled before the library
 if(TARGET spectra_shaders)
     add_dependencies(spectra spectra_shaders)

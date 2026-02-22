@@ -58,3 +58,6 @@ __pycache__
 *.pyc
 
 *.log
+
+# Docker test environment (local only)
+docker/

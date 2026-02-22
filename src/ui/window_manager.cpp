@@ -206,7 +206,13 @@ void WindowManager::destroy_window(uint32_t window_id)
             auto* prev_active = backend_->active_window();
             backend_->set_active_window(&wctx);
             wctx.ui_ctx->imgui_ui->shutdown();
-            backend_->set_active_window(prev_active);
+            // Restore previous active window, but NOT if it was the window
+            // we are destroying — that would leave a dangling pointer after
+            // windows_.erase(it) frees the WindowContext.
+            if (prev_active != &wctx)
+                backend_->set_active_window(prev_active);
+            else
+                backend_->set_active_window(nullptr);
         }
         // ImGuiIntegration::shutdown() already destroyed the ImGui context.
         // Null it out so destroy_window_context() doesn't double-shutdown.

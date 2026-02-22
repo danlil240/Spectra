@@ -2,7 +2,6 @@
 
 #include <cstring>
 #include <stdexcept>
-#include <utility>
 
 namespace spectra::vk
 {

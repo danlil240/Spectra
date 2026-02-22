@@ -1,11 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <memory>
-#include <span>
 #include <spectra/color.hpp>
 #include <spectra/series.hpp>
-#include <string>
 
 namespace spectra
 {

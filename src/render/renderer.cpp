@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>

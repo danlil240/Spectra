@@ -568,7 +568,7 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
 //   - Y-axis: magnitude (or dB if params_.fft_db is true)
 //   - Magnitudes are normalized by 2/N (except DC and Nyquist which are 1/N)
 
-void DataTransform::apply_fft(std::span<const float> /*x_in*/,
+void DataTransform::apply_fft(std::span<const float> x_in,
                               std::span<const float> y_in,
                               std::vector<float>& x_out,
                               std::vector<float>& y_out) const
@@ -597,7 +597,26 @@ void DataTransform::apply_fft(std::span<const float> /*x_in*/,
     // Left-sided: output bins 0..N/2 (DC to Nyquist inclusive)
     const size_t out_n = N / 2 + 1;
     const float inv_n = 1.0f / static_cast<float>(N);
-    const float sample_rate = (params_.fft_sample_rate > 0.0f) ? params_.fft_sample_rate : 1.0f;
+    
+    // Calculate sampling rate: use explicit parameter if provided, otherwise infer from x data
+    float sample_rate = 1.0f;  // default fallback
+    if (params_.fft_sample_rate > 0.0f) {
+        sample_rate = params_.fft_sample_rate;
+    } else if (x_in.size() >= 2) {
+        // Infer sampling rate from x data: 1 / (x[1] - x[0])
+
+        // calculat mean dt:
+        float dt = 0.0f;
+        for (size_t i = 1; i < x_in.size(); ++i) {
+            dt += x_in[i] - x_in[i - 1];
+        }
+        dt /= static_cast<float>(x_in.size() - 1);
+        
+        if (dt > 0.0f) {
+            sample_rate = 1.0f / dt;
+        }
+    }
+    
     const float freq_step = sample_rate / static_cast<float>(N);
 
     x_out.resize(out_n);

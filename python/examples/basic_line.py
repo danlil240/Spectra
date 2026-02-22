@@ -20,10 +20,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import spectra as sp
 
+frequency = 5.0 # Hz
+amplitude = 2.0
+w = 2 * math.pi * frequency
+
+
+sample_rate = 200.0 # Hz
+sampling_time = 4.0 # Seconds
+
 # Generate data: sine wave
-n = 200
-x = [i * 0.05 for i in range(n)]
-y = [math.sin(xi) for xi in x]
+n = int(sample_rate * sampling_time)
+x = [i / sample_rate for i in range(n)]
+y = [amplitude * math.sin(w * xi) for xi in x]
 
 # Create session (auto-launches backend if needed)
 s = sp.Session()
@@ -40,8 +48,8 @@ line = ax.line(x, y, label="sin(x)")
 # Set axis labels and limits
 ax.set_xlabel("x")
 ax.set_ylabel("y")
-ax.set_xlim(0.0, 10.0)
-ax.set_ylim(-1.5, 1.5)
+ax.set_xlim(0.0, sampling_time)
+ax.set_ylim(-amplitude - 0.5, amplitude + 0.5)
 ax.grid(True)
 
 # Show the figure (spawns a window agent)

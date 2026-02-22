@@ -54,22 +54,28 @@ void App::run_inproc()
         return;
     }
 
-    if (registry_.count() == 0)
-    {
-        return;
-    }
-
-    // Multi-figure support - track active figure via FrameState
+    // Multi-figure support - track active figure via FrameState.
+    // Spectra can launch with zero figures — the user creates them via
+    // File → New Figure or Data → Load from CSV.
     auto all_ids = registry_.all_ids();
     auto window_groups = compute_window_groups();
+    const bool empty_start = all_ids.empty();
+
     FrameState frame_state;
-    frame_state.active_figure_id = all_ids[0];
-    frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+    if (!empty_start)
+    {
+        frame_state.active_figure_id = all_ids[0];
+        frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+    }
     Figure* active_figure = frame_state.active_figure;
     FigureId& active_figure_id = frame_state.active_figure_id;
 
+    // Default window size when no figures exist
+    uint32_t init_w = active_figure ? active_figure->width() : 1280;
+    uint32_t init_h = active_figure ? active_figure->height() : 720;
+
     CommandQueue cmd_queue;
-    FrameScheduler scheduler(active_figure->anim_fps_);
+    FrameScheduler scheduler(active_figure ? active_figure->anim_fps_ : 60.0f);
     // Windowed mode uses VK_PRESENT_MODE_FIFO_KHR (VSync) which already
     // provides frame pacing via vkQueuePresentKHR blocking.  Adding
     // FrameScheduler sleep on top causes double-pacing and periodic stutters.
@@ -81,13 +87,15 @@ void App::run_inproc()
     Animator animator;
     SessionRuntime session(*backend_, *renderer_, registry_);
 
-    frame_state.has_animation = static_cast<bool>(active_figure->anim_on_frame_);
+    frame_state.has_animation = active_figure
+                                    ? static_cast<bool>(active_figure->anim_on_frame_)
+                                    : false;
     bool& has_animation = frame_state.has_animation;
 
 #ifdef SPECTRA_USE_FFMPEG
-    bool is_recording = !active_figure->video_record_path_.empty();
+    bool is_recording = active_figure && !active_figure->video_record_path_.empty();
 #else
-    if (!active_figure->video_record_path_.empty())
+    if (active_figure && !active_figure->video_record_path_.empty())
     {
         std::cerr << "[spectra] Video recording requested but SPECTRA_USE_FFMPEG is not enabled\n";
     }
@@ -139,7 +147,7 @@ void App::run_inproc()
     if (!config_.headless)
     {
         glfw = std::make_unique<GlfwAdapter>();
-        if (!glfw->init(active_figure->width(), active_figure->height(), "Spectra"))
+        if (!glfw->init(init_w, init_h, "Spectra"))
         {
             std::cerr << "[spectra] Failed to create GLFW window\n";
             glfw.reset();
@@ -148,7 +156,7 @@ void App::run_inproc()
         {
             // Create Vulkan surface from GLFW window
             backend_->create_surface(glfw->native_window());
-            backend_->create_swapchain(active_figure->width(), active_figure->height());
+            backend_->create_swapchain(init_w, init_h);
 
             // Initialize WindowManager and create windows based on figure grouping.
             // The first group goes to the primary GLFW window; additional groups
@@ -175,9 +183,12 @@ void App::run_inproc()
                         {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                 });
 
-            // First group → primary window
+            // First group → primary window (empty vector for empty-start mode)
+            std::vector<FigureId> first_group = window_groups.empty()
+                                                    ? std::vector<FigureId>{}
+                                                    : window_groups[0];
             auto* initial_wctx =
-                window_mgr->create_first_window_with_ui(glfw->native_window(), window_groups[0]);
+                window_mgr->create_first_window_with_ui(glfw->native_window(), first_group);
 
             if (initial_wctx && initial_wctx->ui_ctx)
             {
@@ -247,25 +258,28 @@ void App::run_inproc()
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
     curve_editor.set_interpolator(&keyframe_interpolator);
-    if (active_figure->anim_duration_ > 0.0f)
+    if (active_figure)
     {
-        timeline_editor.set_duration(active_figure->anim_duration_);
-    }
-    else if (has_animation)
-    {
-        timeline_editor.set_duration(60.0f);
-    }
-    if (active_figure->anim_loop_)
-    {
-        timeline_editor.set_loop_mode(LoopMode::Loop);
-    }
-    if (active_figure->anim_fps_ > 0.0f)
-    {
-        timeline_editor.set_fps(active_figure->anim_fps_);
-    }
-    if (has_animation)
-    {
-        timeline_editor.play();
+        if (active_figure->anim_duration_ > 0.0f)
+        {
+            timeline_editor.set_duration(active_figure->anim_duration_);
+        }
+        else if (has_animation)
+        {
+            timeline_editor.set_duration(60.0f);
+        }
+        if (active_figure->anim_loop_)
+        {
+            timeline_editor.set_loop_mode(LoopMode::Loop);
+        }
+        if (active_figure->anim_fps_ > 0.0f)
+        {
+            timeline_editor.set_fps(active_figure->anim_fps_);
+        }
+        if (has_animation)
+        {
+            timeline_editor.play();
+        }
     }
 
     shortcut_mgr.set_command_registry(&cmd_registry);
@@ -277,12 +291,15 @@ void App::run_inproc()
     if (window_mgr)
     {
         tab_drag_controller.set_window_manager(window_mgr.get());
-        input_handler.set_figure(active_figure);
-        if (!active_figure->axes().empty() && active_figure->axes()[0])
+        if (active_figure)
         {
-            input_handler.set_active_axes(active_figure->axes()[0].get());
-            auto& vp = active_figure->axes()[0]->viewport();
-            input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+            input_handler.set_figure(active_figure);
+            if (!active_figure->axes().empty() && active_figure->axes()[0])
+            {
+                input_handler.set_active_axes(active_figure->axes()[0].get());
+                auto& vp = active_figure->axes()[0]->viewport();
+                input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+            }
         }
     }
     #endif
@@ -290,7 +307,7 @@ void App::run_inproc()
 
     if (config_.headless)
     {
-        backend_->create_offscreen_framebuffer(active_figure->width(), active_figure->height());
+        backend_->create_offscreen_framebuffer(init_w, init_h);
         static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
     }
 
@@ -416,6 +433,37 @@ void App::run_inproc()
                                           title,
                                           static_cast<int>(screen_x),
                                           static_cast<int>(screen_y)});
+                });
+        }
+
+        // CSV plot callback: append data to the current active figure
+        if (imgui_ui)
+        {
+            imgui_ui->set_csv_plot_callback(
+                [&fig_mgr, this](const std::string& /*path*/,
+                                 const std::vector<float>& x,
+                                 const std::vector<float>& y,
+                                 const std::string& x_label,
+                                 const std::string& y_label,
+                                 const std::vector<float>* /*z*/,
+                                 const std::string* /*z_label*/)
+                {
+                    // Use the active figure, or create one if none exists
+                    FigureId active_id = fig_mgr.active_index();
+                    Figure* fig = registry_.get(active_id);
+                    if (!fig)
+                    {
+                        active_id = fig_mgr.create_figure(FigureConfig{});
+                        fig = registry_.get(active_id);
+                        if (!fig)
+                            return;
+                    }
+
+                    // subplot(1,1,1) gets existing axes or creates them
+                    auto& ax = fig->subplot(1, 1, 1);
+                    auto& line = ax.line(x, y);
+                    line.label(y_label);
+                    ax.auto_fit();
                 });
         }
 

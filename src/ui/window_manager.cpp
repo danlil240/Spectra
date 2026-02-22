@@ -1085,9 +1085,9 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
         return nullptr;
     }
 
-    if (!registry_ || figure_ids.empty())
+    if (!registry_)
     {
-        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: no registry or figures");
+        SPECTRA_LOG_ERROR("window_manager", "create_first_window_with_ui: no registry");
         return nullptr;
     }
 
@@ -1106,7 +1106,7 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
     wctx_ptr->is_focused = true;
 
     // Set figure assignments (all figures go to the first window)
-    FigureId active_id = figure_ids[0];
+    FigureId active_id = figure_ids.empty() ? INVALID_FIGURE_ID : figure_ids[0];
     wctx_ptr->assigned_figure_index = active_id;
     wctx_ptr->assigned_figures = figure_ids;
     wctx_ptr->active_figure_id = active_id;
@@ -1136,7 +1136,7 @@ WindowContext* WindowManager::create_first_window_with_ui(void* glfw_window,
     // For the first window, FigureManager should have ALL figures, not just one.
     // init_window_ui() strips all but the initial figure, so re-add the rest.
 #ifdef SPECTRA_USE_IMGUI
-    if (wctx_ptr->ui_ctx && wctx_ptr->ui_ctx->fig_mgr)
+    if (wctx_ptr->ui_ctx && wctx_ptr->ui_ctx->fig_mgr && !figure_ids.empty())
     {
         auto* fm = wctx_ptr->ui_ctx->fig_mgr;
         for (size_t i = 1; i < figure_ids.size(); ++i)

@@ -49,6 +49,8 @@
     #include <cstdio>
     #include <string>
 
+    #include "../../third_party/tinyfiledialogs.h"
+
     #include "../../third_party/icon_font_data.hpp"
 // text_renderer.hpp removed — plot text now rendered by Renderer::render_plot_text
 
@@ -405,6 +407,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
         }
     }
 
+    // Draw CSV load dialog if open
+    if (csv_dialog_open_)
+    {
+        draw_csv_dialog();
+    }
+
     // Draw theme settings window if open
     if (show_theme_settings_)
     {
@@ -490,6 +498,34 @@ void ImGuiIntegration::build_ui(Figure& figure)
         ImGuiIO& io = ImGui::GetIO();
         command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
     }
+}
+
+void ImGuiIntegration::build_empty_ui()
+{
+    if (!initialized_)
+        return;
+
+    current_figure_ = nullptr;
+
+    float dt = ImGui::GetIO().DeltaTime;
+    ui::ThemeManager::instance().update(dt);
+
+    // Draw command bar (menu) so user can create figures / load CSV
+    draw_command_bar();
+
+    // Fill the rest with the background color
+    auto& theme = ui::theme();
+    ImDrawList* bg = ImGui::GetBackgroundDrawList();
+    ImGuiIO& io = ImGui::GetIO();
+    bg->AddRectFilled(ImVec2(0, 0), ImVec2(io.DisplaySize.x, io.DisplaySize.y),
+                      IM_COL32(static_cast<int>(theme.bg_primary.r * 255),
+                               static_cast<int>(theme.bg_primary.g * 255),
+                               static_cast<int>(theme.bg_primary.b * 255),
+                               255));
+
+    // Draw CSV dialog if open (user may have opened it from the menu)
+    if (csv_dialog_open_)
+        draw_csv_dialog();
 }
 
 void ImGuiIntegration::render(VulkanBackend& backend)
@@ -1137,7 +1173,14 @@ void ImGuiIntegration::draw_command_bar()
 
         // File menu
         draw_menubar_menu("File",
-                          {MenuItem("Export PNG",
+                          {MenuItem("New Figure",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("figure.new");
+                                    }),
+                           MenuItem("", nullptr),  // Separator
+                           MenuItem("Export PNG",
                                     [this]()
                                     {
                                         if (command_registry_)
@@ -1167,6 +1210,31 @@ void ImGuiIntegration::draw_command_bar()
                                     {
                                         if (command_registry_)
                                             command_registry_->execute("app.cancel");
+                                    })});
+
+        ImGui::SameLine();
+
+        // Data menu
+        draw_menubar_menu("Data",
+                          {MenuItem("Load from CSV...",
+                                    [this]()
+                                    {
+                                        // Open native OS file dialog
+                                        char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
+                                        char const* result = tinyfd_openFileDialog(
+                                            "Open CSV File", "", 3, filters, "CSV files", 0);
+                                        if (result)
+                                        {
+                                            csv_file_path_ = result;
+                                            csv_data_ = parse_csv(csv_file_path_);
+                                            csv_data_loaded_ = csv_data_.error.empty();
+                                            csv_error_ = csv_data_.error;
+                                            csv_col_x_ = 0;
+                                            csv_col_y_ = (csv_data_.num_cols > 1) ? 1 : 0;
+                                            csv_col_z_ = -1;
+                                            if (csv_data_loaded_)
+                                                csv_dialog_open_ = true;
+                                        }
                                     })});
 
         ImGui::SameLine();
@@ -3594,6 +3662,182 @@ void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* 
         layout_manager_->set_inspector_visible(true);
     }
     SPECTRA_LOG_INFO("ui", "Series selected from canvas: " + s->label());
+}
+
+void ImGuiIntegration::draw_csv_dialog()
+{
+    const auto& colors = ui::theme();
+
+    ImGuiIO& io = ImGui::GetIO();
+    float dialog_w = 480.0f;
+    float dialog_h = 380.0f;
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+                            ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(dialog_w, dialog_h), ImGuiCond_Appearing);
+
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(colors.bg_elevated.r,
+                                 colors.bg_elevated.g,
+                                 colors.bg_elevated.b,
+                                 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg,
+                          ImVec4(colors.bg_secondary.r,
+                                 colors.bg_secondary.g,
+                                 colors.bg_secondary.b,
+                                 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
+                          ImVec4(colors.bg_secondary.r,
+                                 colors.bg_secondary.g,
+                                 colors.bg_secondary.b,
+                                 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+
+    bool open = csv_dialog_open_;
+    if (ImGui::Begin("CSV Column Picker##csv_dialog", &open,
+                     ImGuiWindowFlags_NoCollapse))
+    {
+        // File info
+        ImGui::TextColored(ImVec4(colors.text_secondary.r,
+                                  colors.text_secondary.g,
+                                  colors.text_secondary.b, 1.0f),
+                           "File:");
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", csv_file_path_.c_str());
+
+        if (!csv_error_.empty())
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Error: %s", csv_error_.c_str());
+        }
+
+        if (csv_data_loaded_ && csv_data_.num_cols > 0)
+        {
+            ImGui::Separator();
+            ImGui::Text("Columns: %zu  |  Rows: %zu", csv_data_.num_cols, csv_data_.num_rows);
+            ImGui::Spacing();
+
+            // Column combo helper
+            auto combo_item = [&](const char* label, int* current, bool allow_none = false)
+            {
+                ImGui::SetNextItemWidth(220.0f);
+                if (ImGui::BeginCombo(label,
+                                      (*current >= 0 && *current < static_cast<int>(csv_data_.headers.size()))
+                                          ? csv_data_.headers[*current].c_str()
+                                          : (allow_none ? "(none)" : "---")))
+                {
+                    if (allow_none)
+                    {
+                        if (ImGui::Selectable("(none)", *current == -1))
+                            *current = -1;
+                    }
+                    for (int c = 0; c < static_cast<int>(csv_data_.headers.size()); ++c)
+                    {
+                        bool is_sel = (*current == c);
+                        if (ImGui::Selectable(csv_data_.headers[c].c_str(), is_sel))
+                            *current = c;
+                        if (is_sel)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+            };
+
+            combo_item("X Column", &csv_col_x_);
+            combo_item("Y Column", &csv_col_y_);
+            combo_item("Z Column (optional)", &csv_col_z_, true);
+
+            ImGui::Spacing();
+
+            // Data preview
+            if (csv_data_.num_rows > 0)
+            {
+                ImGui::TextColored(ImVec4(colors.text_secondary.r,
+                                          colors.text_secondary.g,
+                                          colors.text_secondary.b, 1.0f),
+                                   "Preview (first 5 rows):");
+                if (ImGui::BeginChild("##csv_preview", ImVec2(0, 90), ImGuiChildFlags_Borders))
+                {
+                    size_t preview_rows = std::min(csv_data_.num_rows, size_t(5));
+                    for (size_t r = 0; r < preview_rows; ++r)
+                    {
+                        float xv = (csv_col_x_ >= 0 && csv_col_x_ < static_cast<int>(csv_data_.num_cols))
+                                       ? csv_data_.columns[csv_col_x_][r]
+                                       : 0.0f;
+                        float yv = (csv_col_y_ >= 0 && csv_col_y_ < static_cast<int>(csv_data_.num_cols))
+                                       ? csv_data_.columns[csv_col_y_][r]
+                                       : 0.0f;
+                        if (csv_col_z_ >= 0 && csv_col_z_ < static_cast<int>(csv_data_.num_cols))
+                        {
+                            float zv = csv_data_.columns[csv_col_z_][r];
+                            ImGui::Text("  x=%.4f  y=%.4f  z=%.4f", xv, yv, zv);
+                        }
+                        else
+                        {
+                            ImGui::Text("  x=%.4f  y=%.4f", xv, yv);
+                        }
+                    }
+                }
+                ImGui::EndChild();
+            }
+
+            ImGui::Spacing();
+
+            // Plot / Cancel buttons
+            bool can_plot = (csv_col_x_ >= 0 && csv_col_y_ >= 0
+                             && csv_col_x_ < static_cast<int>(csv_data_.num_cols)
+                             && csv_col_y_ < static_cast<int>(csv_data_.num_cols)
+                             && csv_data_.num_rows > 0);
+
+            if (!can_plot)
+                ImGui::BeginDisabled();
+
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+            ImGui::PushStyleColor(
+                ImGuiCol_ButtonHovered,
+                ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
+            if (ImGui::Button("Plot", ImVec2(120, 32)))
+            {
+                if (csv_plot_cb_)
+                {
+                    const std::vector<float>* z_ptr = nullptr;
+                    const std::string* z_label_ptr = nullptr;
+                    std::string z_label;
+                    if (csv_col_z_ >= 0 && csv_col_z_ < static_cast<int>(csv_data_.num_cols))
+                    {
+                        z_ptr = &csv_data_.columns[csv_col_z_];
+                        z_label = csv_data_.headers[csv_col_z_];
+                        z_label_ptr = &z_label;
+                    }
+                    csv_plot_cb_(csv_file_path_,
+                                 csv_data_.columns[csv_col_x_],
+                                 csv_data_.columns[csv_col_y_],
+                                 csv_data_.headers[csv_col_x_],
+                                 csv_data_.headers[csv_col_y_],
+                                 z_ptr,
+                                 z_label_ptr);
+                }
+                csv_dialog_open_ = false;
+            }
+            ImGui::PopStyleColor(2);
+
+            if (!can_plot)
+                ImGui::EndDisabled();
+
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 32)))
+            {
+                csv_dialog_open_ = false;
+            }
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(3);
+
+    if (!open)
+        csv_dialog_open_ = false;
 }
 
 void ImGuiIntegration::draw_theme_settings()

@@ -71,7 +71,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     }
 
     // Update mode transition animation — only animate camera, never axis limits
-    if (mode_transition.is_active())
+    if (active_figure && mode_transition.is_active())
     {
         mode_transition.update(scheduler.dt());
 
@@ -129,7 +129,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         }
     };
 
-    wire_series_callbacks(active_figure);
+    if (active_figure)
+        wire_series_callbacks(active_figure);
 
     // Helper: drive animation for a single figure using its own anim_time_.
     // is_active controls whether this figure syncs with the timeline editor.
@@ -201,7 +202,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     };
 
     // Drive animation for the active figure
-    if (has_animation)
+    if (active_figure && has_animation)
     {
         drive_figure_anim(active_figure, /*is_active=*/true);
     }
@@ -258,8 +259,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             vk->clear_swapchain_dirty();
             backend_.recreate_swapchain(new_width, new_height);
 
-            active_figure->config_.width = backend_.swapchain_width();
-            active_figure->config_.height = backend_.swapchain_height();
+            if (active_figure)
+            {
+                active_figure->config_.width = backend_.swapchain_width();
+                active_figure->config_.height = backend_.swapchain_height();
+            }
     #ifdef SPECTRA_USE_IMGUI
             if (imgui_ui)
             {
@@ -270,7 +274,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     }
 
     // Update input handler with current active axes viewport
-    if (!active_figure->axes().empty() && active_figure->axes()[0])
+    if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
     {
         auto& vp = active_figure->axes()[0]->viewport();
         input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
@@ -283,7 +287,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     {
         if (profiler)
             profiler->begin_stage("imgui_build");
-        imgui_ui->build_ui(*active_figure);
+        if (active_figure)
+            imgui_ui->build_ui(*active_figure);
+        else
+            imgui_ui->build_empty_ui();
 
         // Old TabBar is replaced by unified pane tab headers
         // (drawn by draw_pane_tab_headers in ImGuiIntegration)
@@ -292,7 +299,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         imgui_ui->get_layout_manager().set_tab_bar_visible(false);
 
         // Handle interaction state from UI — Home restores original view
-        if (imgui_ui->should_reset_view())
+        if (active_figure && imgui_ui->should_reset_view())
         {
             for (auto& ax : active_figure->axes_mut())
             {
@@ -340,14 +347,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
 
         // Update data interaction layer (nearest-point query, tooltip state)
-        if (data_interaction)
+        if (active_figure && data_interaction)
         {
             data_interaction->update(readout, *active_figure);
         }
 
         // Feed zoom level (approximate: based on data bounds vs view)
         // Cache data_range to avoid O(n) minmax_element scan every frame.
-        if (!active_figure->axes().empty() && active_figure->axes()[0])
+        if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
         {
             auto& ax = active_figure->axes()[0];
             auto xlim = ax->x_limits();
@@ -564,7 +571,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     }
                 }
             }
-            else
+            else if (active_figure)
             {
                 SplitPane* root = dock_system.split_view().root();
                 Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
@@ -600,12 +607,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 }
             }
         }
-        else
+        else if (active_figure)
         {
             active_figure->compute_layout();
         }
 #else
-        active_figure->compute_layout();
+        if (active_figure)
+            active_figure->compute_layout();
 #endif
         if (profiler)
             profiler->end_stage("scene_update");
@@ -672,8 +680,11 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             aw->swapchain_invalidated = false;
             backend_.recreate_swapchain(target_w, target_h);
             vk->clear_swapchain_dirty();
-            active_figure->config_.width = backend_.swapchain_width();
-            active_figure->config_.height = backend_.swapchain_height();
+            if (active_figure)
+            {
+                active_figure->config_.width = backend_.swapchain_width();
+                active_figure->config_.height = backend_.swapchain_height();
+            }
             ui_ctx.needs_resize = false;
 #ifdef SPECTRA_USE_IMGUI
             if (ui_ctx.imgui_ui)
@@ -699,7 +710,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             profiler->begin_stage("cmd_record");
 #ifdef SPECTRA_USE_IMGUI
         auto& dock_system = ui_ctx.dock_system;
-        if (dock_system.is_split())
+        if (active_figure && dock_system.is_split())
         {
             auto pane_infos = dock_system.get_pane_infos();
             for (const auto& pinfo : pane_infos)
@@ -711,12 +722,13 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 }
             }
         }
-        else
+        else if (active_figure)
         {
             renderer_.render_figure_content(*active_figure);
         }
 #else
-        renderer_.render_figure_content(*active_figure);
+        if (active_figure)
+            renderer_.render_figure_content(*active_figure);
 #endif
         if (profiler)
             profiler->end_stage("cmd_record");
@@ -780,8 +792,11 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                                       + "x" + std::to_string(rh));
                 backend_.recreate_swapchain(rw, rh);
                 vk_post->clear_swapchain_dirty();
-                active_figure->config_.width = backend_.swapchain_width();
-                active_figure->config_.height = backend_.swapchain_height();
+                if (active_figure)
+                {
+                    active_figure->config_.width = backend_.swapchain_width();
+                    active_figure->config_.height = backend_.swapchain_height();
+                }
                 ui_ctx.needs_resize = false;
 #ifdef SPECTRA_USE_IMGUI
                 if (ui_ctx.imgui_ui)

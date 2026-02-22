@@ -79,6 +79,7 @@ endforeach()
 add_library(spectra STATIC
     ${SPECTRA_CORE_SOURCES}
     ${SPECTRA_RENDER_SOURCES}
+    third_party/tinyfiledialogs.cpp
     ${SPECTRA_ANIM_SOURCES}
     ${SPECTRA_IO_SOURCES}
     ${SPECTRA_DATA_SOURCES}

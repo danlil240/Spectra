@@ -1,0 +1,21 @@
+{
+  "rules": [
+    "Always read files before editing them. Never propose changes to code you haven't seen.",
+    "Follow C++20 conventions: use std::span, std::string_view, constexpr, RAII, no raw new/delete.",
+    "No global state. All state belongs to manager instances passed by pointer.",
+    "No exceptions in rendering code (src/render/, src/gpu/). Use return codes.",
+    "Public API headers in include/spectra/ must stay minimal. Implementation details go in src/.",
+    "Use snake_case for functions/variables, PascalCase for classes, trailing _ for member variables.",
+    "GPU resources must be cleaned up on the render thread via deferred cleanup, never on the app thread.",
+    "Run clang-format on any modified C++ files before committing.",
+    "Add Google Test unit tests for new functionality in tests/unit/.",
+    "Mark tests requiring Vulkan + a window with the 'gpu' CTest label.",
+    "Shaders are GLSL 450. Any new shaders need entries in cmake/CompileShaders.cmake.",
+    "Use std::span<const float> for data input interfaces, not std::vector copies.",
+    "Thread safety: use SPSC ring buffer for app-to-render communication, std::mutex elsewhere.",
+    "Follow conventional commit format: 'type: description' (feat/fix/refactor/test/docs/ci/perf).",
+    "Never introduce OWASP vulnerabilities. Validate at system boundaries only.",
+    "Keep solutions simple. Don't add abstractions, error handling, or features beyond what's asked.",
+    "Allman brace style, 4-space indent, 100-column limit per .clang-format."
+  ]
+}

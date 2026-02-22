@@ -44,7 +44,7 @@ struct TransformParams
     float log_base = 10.0f;        // For custom log base (unused by Log10/Ln)
     bool skip_nan = true;          // Skip NaN values in output
     bool fft_db = false;           // For FFT: output in dB (20*log10(mag))
-    float fft_sample_rate = 1.0f;  // For FFT: sample rate for frequency axis
+    float fft_sample_rate = 0.0f;  // For FFT: sample rate for frequency axis
 };
 
 // ─── Single transform step ──────────────────────────────────────────────────

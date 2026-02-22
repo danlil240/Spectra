@@ -183,13 +183,17 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             FrameState win_fs;
             win_fs.active_figure_id = wctx->active_figure_id;
             win_fs.active_figure = registry_.get(win_fs.active_figure_id);
-            if (!win_fs.active_figure)
-                continue;
-            win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
+            // active_figure may be null (empty-start mode) — still render
+            // ImGui chrome (menu bar, empty canvas) so the window isn't black.
+            if (win_fs.active_figure)
+            {
+                win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
+            }
 
             // Also check split-view pane figures — animation must continue
             // even when the active tab is not the animated one.
-            if (!win_fs.has_animation && wctx->ui_ctx->dock_system.is_split())
+            if (!win_fs.has_animation && win_fs.active_figure
+                && wctx->ui_ctx->dock_system.is_split())
             {
                 for (const auto& pinfo : wctx->ui_ctx->dock_system.get_pane_infos())
                 {

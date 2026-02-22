@@ -9,6 +9,8 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "csv_loader.hpp"
+
     #include "dock_system.hpp"
     #include "input.hpp"
     #include "inspector.hpp"
@@ -62,6 +64,7 @@ class ImGuiIntegration
 
     void new_frame();
     void build_ui(Figure& figure);
+    void build_empty_ui();  // Render menu bar only (no figure)
     void render(VulkanBackend& backend);
 
     // Render a tearoff preview card into a preview window.
@@ -182,6 +185,18 @@ class ImGuiIntegration
     void set_pane_tab_detach_cb(PaneTabDetachCallback cb) { pane_tab_detach_cb_ = std::move(cb); }
     void set_pane_tab_rename_cb(PaneTabRenameCallback cb) { pane_tab_rename_cb_ = std::move(cb); }
 
+    // CSV data load callback: called when user confirms column selection.
+    // Args: file path, x column data, y column data, x header, y header,
+    //       optional z column data, optional z header.
+    using CsvPlotCallback = std::function<void(const std::string& path,
+                                               const std::vector<float>& x,
+                                               const std::vector<float>& y,
+                                               const std::string& x_label,
+                                               const std::string& y_label,
+                                               const std::vector<float>* z,
+                                               const std::string* z_label)>;
+    void set_csv_plot_callback(CsvPlotCallback cb) { csv_plot_cb_ = std::move(cb); }
+
     // Panel visibility toggles
     bool is_timeline_visible() const { return show_timeline_; }
     void set_timeline_visible(bool v) { show_timeline_ = v; }
@@ -209,6 +224,7 @@ class ImGuiIntegration
     void draw_curve_editor_panel();
     void draw_theme_settings();
     void draw_knobs_panel();
+    void draw_csv_dialog();
 
     void draw_plot_overlays(Figure& figure);
     void draw_toolbar_button(const char* icon,
@@ -432,6 +448,19 @@ class ImGuiIntegration
    private:
     // Theme settings window state
     bool show_theme_settings_ = false;
+
+    // CSV plot callback (set by App)
+    CsvPlotCallback csv_plot_cb_;
+
+    // CSV column picker dialog state (file selected via native OS dialog)
+    bool csv_dialog_open_ = false;
+    std::string csv_file_path_;
+    CsvData csv_data_;
+    bool csv_data_loaded_ = false;
+    int csv_col_x_ = 0;
+    int csv_col_y_ = 1;
+    int csv_col_z_ = -1;  // -1 = no Z column (2D plot)
+    std::string csv_error_;
 
     // Menubar hover-switch state: tracks which menu popup is currently open
     // so hovering another menu button auto-opens it

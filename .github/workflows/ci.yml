@@ -92,7 +92,9 @@ jobs:
 
       - name: Verify lavapipe
         run: |
-          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+          echo "Available Vulkan ICDs:"
+          ls /usr/share/vulkan/icd.d/ 2>/dev/null || true
+          find /usr -name '*lvp*' -o -name '*lavapipe*' 2>/dev/null || true
           vulkaninfo --summary || echo "vulkaninfo not available, continuing..."
 
       - name: Configure + Build
@@ -106,7 +108,6 @@ jobs:
 
       - name: Run golden image tests
         env:
-          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
           SPECTRA_UPDATE_BASELINES: "0"
         run: |
           cd build

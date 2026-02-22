@@ -166,4 +166,4 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           cd build
-          ctest --output-on-failure -j$(nproc)
+          ctest --output-on-failure -LE gpu -j$(nproc)

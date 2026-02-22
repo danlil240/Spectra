@@ -22,7 +22,10 @@
 #include "process_manager.hpp"
 #include "session_graph.hpp"
 
-#ifdef __linux__
+#ifdef _WIN32
+    #include <process.h>
+    #define getpid _getpid
+#else
     #include <cerrno>
     #include <poll.h>
     #include <sys/wait.h>

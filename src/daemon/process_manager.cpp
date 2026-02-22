@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#ifdef __linux__
+#ifndef _WIN32
     #include <spawn.h>
     #include <sys/wait.h>
     #include <unistd.h>
@@ -15,7 +15,7 @@ namespace spectra::daemon
 
 pid_t ProcessManager::spawn_agent()
 {
-#ifdef __linux__
+#ifndef _WIN32
     std::lock_guard lock(mu_);
 
     if (agent_path_.empty() || socket_path_.empty())
@@ -69,7 +69,7 @@ pid_t ProcessManager::spawn_agent_for_window(ipc::WindowId wid)
 
 bool ProcessManager::is_alive(pid_t pid) const
 {
-#ifdef __linux__
+#ifndef _WIN32
     int   status = 0;
     pid_t result = ::waitpid(pid, &status, WNOHANG);
     return result == 0;   // 0 means still running
@@ -81,7 +81,7 @@ bool ProcessManager::is_alive(pid_t pid) const
 
 std::vector<pid_t> ProcessManager::reap_finished()
 {
-#ifdef __linux__
+#ifndef _WIN32
     std::lock_guard    lock(mu_);
     std::vector<pid_t> reaped;
 

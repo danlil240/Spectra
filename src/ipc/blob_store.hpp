@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef __linux__
+#ifndef _WIN32
     #include <fcntl.h>
     #include <sys/mman.h>
     #include <sys/stat.h>
@@ -143,7 +143,7 @@ class BlobStore
 
     static void unlink_shm([[maybe_unused]] const std::string& name)
     {
-#ifdef __linux__
+#ifndef _WIN32
         ::shm_unlink(name.c_str());
 #endif
     }

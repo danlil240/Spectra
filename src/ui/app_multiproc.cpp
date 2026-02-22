@@ -26,10 +26,16 @@
 #include "../render/vulkan/vk_backend.hpp"
 #include "knob_manager.hpp"
 
-#ifdef __linux__
+#ifdef _WIN32
+    #include <process.h>
+    #define getpid _getpid
+#else
     #include <poll.h>
     #include <sys/wait.h>
     #include <unistd.h>
+    #ifdef __APPLE__
+        #include <mach-o/dyld.h>
+    #endif
 #endif
 
 namespace spectra
@@ -37,12 +43,22 @@ namespace spectra
 // ─── Find own binary directory ───────────────────────────────────────────────
 static std::string self_dir()
 {
-#ifdef __linux__
+#if defined(__linux__)
     char    buf[4096] = {};
     ssize_t n         = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (n > 0)
     {
         std::string path(buf, static_cast<size_t>(n));
+        auto        slash = path.rfind('/');
+        if (slash != std::string::npos)
+            return path.substr(0, slash + 1);
+    }
+#elif defined(__APPLE__)
+    char     buf[4096] = {};
+    uint32_t size      = sizeof(buf);
+    if (::_NSGetExecutablePath(buf, &size) == 0)
+    {
+        std::string path(buf);
         auto        slash = path.rfind('/');
         if (slash != std::string::npos)
             return path.substr(0, slash + 1);
@@ -54,7 +70,7 @@ static std::string self_dir()
 // ─── Spawn spectra-backend and return its PID ────────────────────────────────
 static pid_t spawn_backend(const std::string& sock_path)
 {
-#ifdef __linux__
+#ifndef _WIN32
     std::string dir         = self_dir();
     std::string backend_bin = dir + "spectra-backend";
     if (::access(backend_bin.c_str(), X_OK) != 0)
@@ -288,7 +304,7 @@ void App::run_multiproc()
         if (!conn || !conn->is_open())
         {
             std::cerr << "[spectra] Timed out waiting for spectra-backend to start\n";
-#ifdef __linux__
+#ifndef _WIN32
             ::kill(backend_pid, SIGTERM);
 #endif
             return;
@@ -325,7 +341,7 @@ void App::run_multiproc()
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
         while (std::chrono::steady_clock::now() < deadline)
         {
-#ifdef __linux__
+#ifndef _WIN32
             struct pollfd pfd;
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
@@ -463,7 +479,7 @@ void App::run_multiproc()
         if (scheduler)
             scheduler->begin_frame();
 
-#ifdef __linux__
+#ifndef _WIN32
         struct pollfd pfd;
         pfd.fd     = conn->fd();
         pfd.events = POLLIN;

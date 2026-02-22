@@ -4,15 +4,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <unistd.h>
 
 #include "codec.hpp"
 
-#ifdef __linux__
+#ifdef _WIN32
+    #include <process.h>
+    #define getpid _getpid
+#else
     #include <fcntl.h>
     #include <sys/socket.h>
     #include <sys/stat.h>
     #include <sys/un.h>
+    #include <unistd.h>
 #endif
 
 namespace spectra::ipc
@@ -128,7 +131,7 @@ Server::~Server()
 
 bool Server::listen(const std::string& path)
 {
-#ifdef __linux__
+#ifndef _WIN32
     // Remove stale socket file
     ::unlink(path.c_str());
 
@@ -174,7 +177,7 @@ bool Server::listen(const std::string& path)
 
 std::unique_ptr<Connection> Server::accept()
 {
-#ifdef __linux__
+#ifndef _WIN32
     if (listen_fd_ < 0)
         return nullptr;
 
@@ -195,23 +198,31 @@ std::unique_ptr<Connection> Server::accept()
 
 std::unique_ptr<Connection> Server::try_accept()
 {
-#ifdef __linux__
+#ifndef _WIN32
     if (listen_fd_ < 0)
         return nullptr;
+
+    // Set listen socket to non-blocking for this accept attempt
+    int listen_flags = ::fcntl(listen_fd_, F_GETFL, 0);
+    if (listen_flags >= 0)
+        ::fcntl(listen_fd_, F_SETFL, listen_flags | O_NONBLOCK);
 
     struct sockaddr_un client_addr
     {
     };
     socklen_t client_len = sizeof(client_addr);
-    // SOCK_NONBLOCK makes accept4 return EAGAIN immediately if no connection
-    int client_fd = ::accept4(listen_fd_,
-                              reinterpret_cast<struct sockaddr*>(&client_addr),
-                              &client_len,
-                              SOCK_NONBLOCK | SOCK_CLOEXEC);
+    int client_fd = ::accept(listen_fd_,
+                             reinterpret_cast<struct sockaddr*>(&client_addr),
+                             &client_len);
+
+    // Restore listen socket to blocking
+    if (listen_flags >= 0)
+        ::fcntl(listen_fd_, F_SETFL, listen_flags);
+
     if (client_fd < 0)
         return nullptr;   // EAGAIN or error — no pending connection
 
-    // Clear non-blocking on the accepted fd so recv() stays blocking
+    // Ensure accepted fd is blocking so recv() stays blocking
     int flags = ::fcntl(client_fd, F_GETFL, 0);
     if (flags >= 0)
         ::fcntl(client_fd, F_SETFL, flags & ~O_NONBLOCK);
@@ -240,7 +251,7 @@ void Server::close()
 
 std::unique_ptr<Connection> Client::connect(const std::string& path)
 {
-#ifdef __linux__
+#ifndef _WIN32
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
         return nullptr;

@@ -59,7 +59,7 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef __linux__
+#ifndef _WIN32
     #include <poll.h>
     #include <unistd.h>
 #endif
@@ -640,7 +640,7 @@ int main(int argc, char* argv[])
         bool got_snapshot = false;
         while (!got_snapshot && std::chrono::steady_clock::now() < deadline)
         {
-#ifdef __linux__
+#ifndef _WIN32
             struct pollfd pfd;
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
@@ -1064,7 +1064,7 @@ int main(int argc, char* argv[])
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
         // ── Drain all pending IPC messages (non-blocking) ────────────────
-#ifdef __linux__
+#ifndef _WIN32
         for (;;)
         {
             struct pollfd pfd;

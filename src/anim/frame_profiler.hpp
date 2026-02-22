@@ -12,11 +12,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <spectra/logger.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <map>
 
 namespace spectra
 {

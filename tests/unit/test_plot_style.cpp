@@ -195,8 +195,8 @@ TEST(DashPatternTest, DashedPattern)
     DashPattern dp = get_dash_pattern(LineStyle::Dashed, 2.0f);
     EXPECT_EQ(dp.count, 2);
     EXPECT_GT(dp.total, 0.0f);
-    EXPECT_GT(dp.segments[0], 0.0f);  // dash
-    EXPECT_GT(dp.segments[1], 0.0f);  // gap
+    EXPECT_GT(dp.segments[0], 0.0f);   // dash
+    EXPECT_GT(dp.segments[1], 0.0f);   // gap
 }
 
 TEST(DashPatternTest, DottedPattern)
@@ -237,7 +237,7 @@ TEST(FormatParserTest, ColorOnly_Red)
     auto ps = parse_format_string("r");
     EXPECT_TRUE(ps.color.has_value());
     EXPECT_TRUE(color_eq(*ps.color, colors::red));
-    EXPECT_EQ(ps.line_style, LineStyle::Solid);  // default when only color
+    EXPECT_EQ(ps.line_style, LineStyle::Solid);   // default when only color
     EXPECT_EQ(ps.marker_style, MarkerStyle::None);
 }
 
@@ -327,7 +327,7 @@ TEST(FormatParserTest, MarkerOnly_Circle)
 {
     auto ps = parse_format_string("o");
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
-    EXPECT_EQ(ps.line_style, LineStyle::None);  // marker-only = no line
+    EXPECT_EQ(ps.line_style, LineStyle::None);   // marker-only = no line
 }
 
 TEST(FormatParserTest, MarkerOnly_Point)
@@ -476,7 +476,7 @@ TEST(FormatParserTest, ColorAndMarkerNoLine)
     auto ps = parse_format_string("ro");
     EXPECT_TRUE(color_eq(*ps.color, colors::red));
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
-    EXPECT_EQ(ps.line_style, LineStyle::None);  // marker-only
+    EXPECT_EQ(ps.line_style, LineStyle::None);   // marker-only
 }
 
 TEST(FormatParserTest, LineAndMarkerNoColor)
@@ -509,7 +509,7 @@ TEST(FormatParserTest, FlexibleOrder_MarkerColorLine)
 TEST(FormatParserTest, EmptyString)
 {
     auto ps = parse_format_string("");
-    EXPECT_EQ(ps.line_style, LineStyle::Solid);  // default
+    EXPECT_EQ(ps.line_style, LineStyle::Solid);   // default
     EXPECT_EQ(ps.marker_style, MarkerStyle::None);
     EXPECT_FALSE(ps.color.has_value());
 }
@@ -540,35 +540,35 @@ TEST(FormatParserTest, LastMarkerWins)
 
 TEST(FormatStringTest, RoundTrip_RedDashedCircle)
 {
-    auto ps = parse_format_string("r--o");
+    auto        ps  = parse_format_string("r--o");
     std::string fmt = to_format_string(ps);
     EXPECT_EQ(fmt, "r--o");
 }
 
 TEST(FormatStringTest, RoundTrip_BlueDotted)
 {
-    auto ps = parse_format_string("b:");
+    auto        ps  = parse_format_string("b:");
     std::string fmt = to_format_string(ps);
     EXPECT_EQ(fmt, "b:");
 }
 
 TEST(FormatStringTest, RoundTrip_BlackStar)
 {
-    auto ps = parse_format_string("k*");
+    auto        ps  = parse_format_string("k*");
     std::string fmt = to_format_string(ps);
     EXPECT_EQ(fmt, "k*");
 }
 
 TEST(FormatStringTest, NoColor)
 {
-    auto ps = parse_format_string("--o");
+    auto        ps  = parse_format_string("--o");
     std::string fmt = to_format_string(ps);
     EXPECT_EQ(fmt, "--o");
 }
 
 TEST(FormatStringTest, SolidOnly)
 {
-    auto ps = parse_format_string("-");
+    auto        ps  = parse_format_string("-");
     std::string fmt = to_format_string(ps);
     EXPECT_EQ(fmt, "-");
 }
@@ -590,7 +590,7 @@ TEST(LineSeriesFormatTest, FormatPreservesData)
 {
     std::vector<float> x = {1, 2, 3};
     std::vector<float> y = {4, 5, 6};
-    LineSeries ls(x, y);
+    LineSeries         ls(x, y);
     ls.format("b:*");
     EXPECT_EQ(ls.point_count(), 3u);
     EXPECT_TRUE(color_eq(ls.color(), colors::blue));
@@ -671,11 +671,11 @@ TEST(ScatterSeriesFormatTest, RuntimeStyleChange)
 TEST(SeriesPlotStyleTest, ApplyPlotStyle)
 {
     PlotStyle ps;
-    ps.line_style = LineStyle::DashDot;
+    ps.line_style   = LineStyle::DashDot;
     ps.marker_style = MarkerStyle::Diamond;
-    ps.color = colors::cyan;
-    ps.marker_size = 10.0f;
-    ps.opacity = 0.7f;
+    ps.color        = colors::cyan;
+    ps.marker_size  = 10.0f;
+    ps.opacity      = 0.7f;
 
     LineSeries ls;
     ls.plot_style(ps);
@@ -702,7 +702,7 @@ TEST(SeriesPlotStyleTest, PlotStyleWithoutColor)
 TEST(SeriesPlotStyleTest, PlotStyleMutAccess)
 {
     LineSeries ls;
-    ls.plot_style_mut().line_style = LineStyle::Dotted;
+    ls.plot_style_mut().line_style   = LineStyle::Dotted;
     ls.plot_style_mut().marker_style = MarkerStyle::Star;
     EXPECT_EQ(ls.line_style(), LineStyle::Dotted);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Star);
@@ -714,10 +714,10 @@ TEST(SeriesPlotStyleTest, PlotStyleMutAccess)
 
 TEST(AxesPlotTest, PlotWithFormatString)
 {
-    Axes ax;
-    std::vector<float> x = {0, 1, 2};
-    std::vector<float> y = {0, 1, 4};
-    auto& ls = ax.plot(x, y, "r--o");
+    Axes               ax;
+    std::vector<float> x  = {0, 1, 2};
+    std::vector<float> y  = {0, 1, 4};
+    auto&              ls = ax.plot(x, y, "r--o");
     EXPECT_TRUE(color_eq(ls.color(), colors::red));
     EXPECT_EQ(ls.line_style(), LineStyle::Dashed);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Circle);
@@ -727,14 +727,14 @@ TEST(AxesPlotTest, PlotWithFormatString)
 
 TEST(AxesPlotTest, PlotWithPlotStyle)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> x = {0, 1};
     std::vector<float> y = {0, 1};
-    PlotStyle ps;
-    ps.line_style = LineStyle::Dotted;
+    PlotStyle          ps;
+    ps.line_style   = LineStyle::Dotted;
     ps.marker_style = MarkerStyle::Star;
-    ps.color = colors::magenta;
-    auto& ls = ax.plot(x, y, ps);
+    ps.color        = colors::magenta;
+    auto& ls        = ax.plot(x, y, ps);
     EXPECT_TRUE(color_eq(ls.color(), colors::magenta));
     EXPECT_EQ(ls.line_style(), LineStyle::Dotted);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Star);
@@ -742,17 +742,17 @@ TEST(AxesPlotTest, PlotWithPlotStyle)
 
 TEST(AxesPlotTest, PlotDefaultIsSolid)
 {
-    Axes ax;
-    std::vector<float> x = {0, 1};
-    std::vector<float> y = {0, 1};
-    auto& ls = ax.plot(x, y);
+    Axes               ax;
+    std::vector<float> x  = {0, 1};
+    std::vector<float> y  = {0, 1};
+    auto&              ls = ax.plot(x, y);
     EXPECT_EQ(ls.line_style(), LineStyle::Solid);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::None);
 }
 
 TEST(AxesPlotTest, MultiplePlots)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> x = {0, 1};
     std::vector<float> y = {0, 1};
     ax.plot(x, y, "r-");
@@ -815,8 +815,8 @@ TEST(MatlabCompatTest, AllColorLineMarkerCombinations)
     struct TestCase
     {
         const char* fmt;
-        Color expected_color;
-        LineStyle expected_line;
+        Color       expected_color;
+        LineStyle   expected_line;
         MarkerStyle expected_marker;
     };
 

@@ -132,7 +132,7 @@ TEST(AnimChannelKeyframes, FindKeyframe)
     ch.add_keyframe(TypedKeyframe(1.0f, 5.0f));
     EXPECT_NE(ch.find_keyframe(1.0f), nullptr);
     EXPECT_EQ(ch.find_keyframe(2.0f), nullptr);
-    EXPECT_NE(ch.find_keyframe(1.0005f), nullptr);  // Within tolerance
+    EXPECT_NE(ch.find_keyframe(1.0005f), nullptr);   // Within tolerance
 }
 
 TEST(AnimChannelKeyframes, TimeRange)
@@ -216,9 +216,9 @@ TEST(AnimChannelInterpEase, EaseInStartsSlow)
     ch.add_keyframe(TypedKeyframe(0.0f, 0.0f, InterpMode::EaseIn));
     ch.add_keyframe(TypedKeyframe(1.0f, 10.0f));
 
-    float at_quarter = ch.evaluate(0.25f);
+    float at_quarter     = ch.evaluate(0.25f);
     float linear_quarter = 2.5f;
-    EXPECT_LT(at_quarter, linear_quarter);  // Ease-in is slower at start
+    EXPECT_LT(at_quarter, linear_quarter);   // Ease-in is slower at start
 }
 
 TEST(AnimChannelInterpEase, EaseOutStartsFast)
@@ -227,9 +227,9 @@ TEST(AnimChannelInterpEase, EaseOutStartsFast)
     ch.add_keyframe(TypedKeyframe(0.0f, 0.0f, InterpMode::EaseOut));
     ch.add_keyframe(TypedKeyframe(1.0f, 10.0f));
 
-    float at_quarter = ch.evaluate(0.25f);
+    float at_quarter     = ch.evaluate(0.25f);
     float linear_quarter = 2.5f;
-    EXPECT_GT(at_quarter, linear_quarter);  // Ease-out is faster at start
+    EXPECT_GT(at_quarter, linear_quarter);   // Ease-out is faster at start
 }
 
 TEST(AnimChannelInterpEase, EaseInOutEndpoints)
@@ -282,7 +282,7 @@ TEST(AnimChannelInterpSpring, SettlesToTarget)
 TEST(AnimChannelInterpBezier, Endpoints)
 {
     AnimationChannel ch("X");
-    TypedKeyframe kf0(0.0f, 0.0f, InterpMode::CubicBezier);
+    TypedKeyframe    kf0(0.0f, 0.0f, InterpMode::CubicBezier);
     kf0.out_tangent = TangentHandle{0.3f, 5.0f};
     TypedKeyframe kf1(1.0f, 10.0f, InterpMode::CubicBezier);
     kf1.in_tangent = TangentHandle{-0.3f, -5.0f};
@@ -297,12 +297,12 @@ TEST(AnimChannelInterpBezier, Endpoints)
 TEST(AnimChannelInterpBezier, MidpointInfluencedByTangents)
 {
     AnimationChannel ch("X");
-    TypedKeyframe kf0(0.0f, 0.0f, InterpMode::CubicBezier);
+    TypedKeyframe    kf0(0.0f, 0.0f, InterpMode::CubicBezier);
     kf0.tangent_mode = TangentMode::Free;
-    kf0.out_tangent = TangentHandle{0.3f, 10.0f};  // Strong upward pull
+    kf0.out_tangent  = TangentHandle{0.3f, 10.0f};   // Strong upward pull
     TypedKeyframe kf1(1.0f, 0.0f, InterpMode::CubicBezier);
     kf1.tangent_mode = TangentMode::Free;
-    kf1.in_tangent = TangentHandle{-0.3f, 10.0f};  // Strong upward pull
+    kf1.in_tangent   = TangentHandle{-0.3f, 10.0f};   // Strong upward pull
 
     ch.add_keyframe(kf0);
     ch.add_keyframe(kf1);
@@ -367,7 +367,7 @@ TEST(AnimChannelDerivative, LinearSlope)
     ch.add_keyframe(TypedKeyframe(1.0f, 10.0f));
 
     float deriv = ch.evaluate_derivative(0.5f);
-    EXPECT_NEAR(deriv, 10.0f, 0.1f);  // Slope = 10/1 = 10
+    EXPECT_NEAR(deriv, 10.0f, 0.1f);   // Slope = 10/1 = 10
 }
 
 TEST(AnimChannelSample, CorrectCount)
@@ -386,7 +386,7 @@ TEST(AnimChannelSample, CorrectCount)
 TEST(AnimChannelSample, SingleSample)
 {
     AnimationChannel ch("X", 42.0f);
-    auto samples = ch.sample(0.0f, 1.0f, 1);
+    auto             samples = ch.sample(0.0f, 1.0f, 1);
     EXPECT_EQ(samples.size(), 1u);
     EXPECT_FLOAT_EQ(samples[0], 42.0f);
 }
@@ -394,7 +394,7 @@ TEST(AnimChannelSample, SingleSample)
 TEST(AnimChannelSample, ZeroCount)
 {
     AnimationChannel ch("X");
-    auto samples = ch.sample(0.0f, 1.0f, 0);
+    auto             samples = ch.sample(0.0f, 1.0f, 0);
     EXPECT_TRUE(samples.empty());
 }
 
@@ -405,7 +405,7 @@ TEST(AnimChannelSample, ZeroCount)
 TEST(KeyframeInterp, AddChannel)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("Opacity", 1.0f);
+    uint32_t             id = ki.add_channel("Opacity", 1.0f);
     EXPECT_EQ(ki.channel_count(), 1u);
     auto* ch = ki.channel(id);
     EXPECT_NE(ch, nullptr);
@@ -416,7 +416,7 @@ TEST(KeyframeInterp, AddChannel)
 TEST(KeyframeInterp, RemoveChannel)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.remove_channel(id);
     EXPECT_EQ(ki.channel_count(), 0u);
     EXPECT_EQ(ki.channel(id), nullptr);
@@ -425,9 +425,9 @@ TEST(KeyframeInterp, RemoveChannel)
 TEST(KeyframeInterp, MultipleChannels)
 {
     KeyframeInterpolator ki;
-    uint32_t a = ki.add_channel("X");
-    uint32_t b = ki.add_channel("Y");
-    uint32_t c = ki.add_channel("Z");
+    uint32_t             a = ki.add_channel("X");
+    uint32_t             b = ki.add_channel("Y");
+    uint32_t             c = ki.add_channel("Z");
     EXPECT_EQ(ki.channel_count(), 3u);
     EXPECT_NE(a, b);
     EXPECT_NE(b, c);
@@ -440,7 +440,7 @@ TEST(KeyframeInterp, MultipleChannels)
 TEST(KeyframeInterpEval, EvaluateChannel)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
 
@@ -456,7 +456,7 @@ TEST(KeyframeInterpEval, EvaluateNonExistent)
 TEST(KeyframeInterpEval, EvaluateBindFloat)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
 
@@ -469,20 +469,20 @@ TEST(KeyframeInterpEval, EvaluateBindFloat)
 TEST(KeyframeInterpEval, EvaluateBindWithScale)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 1.0f));
 
     float target = 0.0f;
     ki.bind(id, "scaled", &target, 100.0f, 5.0f);
     ki.evaluate(0.5f);
-    EXPECT_FLOAT_EQ(target, 55.0f);  // 0.5 * 100 + 5
+    EXPECT_FLOAT_EQ(target, 55.0f);   // 0.5 * 100 + 5
 }
 
 TEST(KeyframeInterpEval, EvaluateBindCallback)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
 
@@ -495,7 +495,7 @@ TEST(KeyframeInterpEval, EvaluateBindCallback)
 TEST(KeyframeInterpEval, UnbindChannel)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
 
@@ -503,15 +503,15 @@ TEST(KeyframeInterpEval, UnbindChannel)
     ki.bind(id, "x", &target);
     ki.unbind(id);
     ki.evaluate(0.5f);
-    EXPECT_FLOAT_EQ(target, 0.0f);  // Not updated after unbind
+    EXPECT_FLOAT_EQ(target, 0.0f);   // Not updated after unbind
 }
 
 TEST(KeyframeInterpEval, UnbindAll)
 {
     KeyframeInterpolator ki;
-    uint32_t a = ki.add_channel("X");
-    uint32_t b = ki.add_channel("Y");
-    float tx = 0.0f, ty = 0.0f;
+    uint32_t             a  = ki.add_channel("X");
+    uint32_t             b  = ki.add_channel("Y");
+    float                tx = 0.0f, ty = 0.0f;
     ki.bind(a, "x", &tx);
     ki.bind(b, "y", &ty);
     ki.unbind_all();
@@ -525,7 +525,7 @@ TEST(KeyframeInterpEval, UnbindAll)
 TEST(KeyframeInterpBatch, AddKeyframe)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
     EXPECT_EQ(ki.total_keyframe_count(), 2u);
@@ -534,7 +534,7 @@ TEST(KeyframeInterpBatch, AddKeyframe)
 TEST(KeyframeInterpBatch, RemoveKeyframe)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
+    uint32_t             id = ki.add_channel("X");
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 10.0f));
     EXPECT_TRUE(ki.remove_keyframe(id, 0.0f));
@@ -544,8 +544,8 @@ TEST(KeyframeInterpBatch, RemoveKeyframe)
 TEST(KeyframeInterpBatch, Duration)
 {
     KeyframeInterpolator ki;
-    uint32_t a = ki.add_channel("X");
-    uint32_t b = ki.add_channel("Y");
+    uint32_t             a = ki.add_channel("X");
+    uint32_t             b = ki.add_channel("Y");
     ki.add_keyframe(a, TypedKeyframe(0.0f, 0.0f));
     ki.add_keyframe(a, TypedKeyframe(5.0f, 10.0f));
     ki.add_keyframe(b, TypedKeyframe(0.0f, 0.0f));
@@ -560,7 +560,7 @@ TEST(KeyframeInterpBatch, Duration)
 TEST(KeyframeInterpSerial, RoundTrip)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("Opacity", 1.0f);
+    uint32_t             id = ki.add_channel("Opacity", 1.0f);
     ki.add_keyframe(id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     ki.add_keyframe(id, TypedKeyframe(1.0f, 1.0f, InterpMode::EaseOut));
 
@@ -594,7 +594,7 @@ TEST(KeyframeInterpSerial, MultiChannel)
     ki.add_channel("Y");
     ki.add_channel("Z");
 
-    std::string json = ki.serialize();
+    std::string          json = ki.serialize();
     KeyframeInterpolator ki2;
     EXPECT_TRUE(ki2.deserialize(json));
     EXPECT_EQ(ki2.channel_count(), 3u);
@@ -632,7 +632,7 @@ TEST(CurveViewTransform, TimeToX)
     CurveViewTransform v;
     v.time_min = 0.0f;
     v.time_max = 10.0f;
-    v.width = 100.0f;
+    v.width    = 100.0f;
     v.origin_x = 0.0f;
 
     EXPECT_FLOAT_EQ(v.time_to_x(0.0f), 0.0f);
@@ -645,8 +645,8 @@ TEST(CurveViewTransform, ValueToY)
     CurveViewTransform v;
     v.value_min = 0.0f;
     v.value_max = 1.0f;
-    v.height = 200.0f;
-    v.origin_y = 0.0f;
+    v.height    = 200.0f;
+    v.origin_y  = 0.0f;
 
     // Y is inverted: higher values = lower screen Y
     EXPECT_FLOAT_EQ(v.value_to_y(0.0f), 200.0f);
@@ -657,19 +657,19 @@ TEST(CurveViewTransform, ValueToY)
 TEST(CurveViewTransform, RoundTrip)
 {
     CurveViewTransform v;
-    v.time_min = 2.0f;
-    v.time_max = 8.0f;
+    v.time_min  = 2.0f;
+    v.time_max  = 8.0f;
     v.value_min = -1.0f;
     v.value_max = 1.0f;
-    v.width = 300.0f;
-    v.height = 150.0f;
-    v.origin_x = 10.0f;
-    v.origin_y = 20.0f;
+    v.width     = 300.0f;
+    v.height    = 150.0f;
+    v.origin_x  = 10.0f;
+    v.origin_y  = 20.0f;
 
-    float t = 5.0f;
+    float t   = 5.0f;
     float val = 0.5f;
-    float x = v.time_to_x(t);
-    float y = v.value_to_y(val);
+    float x   = v.time_to_x(t);
+    float y   = v.value_to_y(val);
     EXPECT_NEAR(v.x_to_time(x), t, 0.001f);
     EXPECT_NEAR(v.y_to_value(y), val, 0.001f);
 }
@@ -677,12 +677,12 @@ TEST(CurveViewTransform, RoundTrip)
 TEST(CurveViewTransform, Zoom)
 {
     CurveViewTransform v;
-    v.time_min = 0.0f;
-    v.time_max = 10.0f;
+    v.time_min  = 0.0f;
+    v.time_max  = 10.0f;
     v.value_min = 0.0f;
     v.value_max = 1.0f;
-    v.width = 100.0f;
-    v.height = 100.0f;
+    v.width     = 100.0f;
+    v.height    = 100.0f;
 
     v.zoom_time(2.0f, 5.0f);
     EXPECT_FLOAT_EQ(v.time_min, 2.5f);
@@ -692,22 +692,22 @@ TEST(CurveViewTransform, Zoom)
 TEST(CurveViewTransform, Pan)
 {
     CurveViewTransform v;
-    v.time_min = 0.0f;
-    v.time_max = 10.0f;
+    v.time_min  = 0.0f;
+    v.time_max  = 10.0f;
     v.value_min = 0.0f;
     v.value_max = 1.0f;
-    v.width = 100.0f;
-    v.height = 100.0f;
+    v.width     = 100.0f;
+    v.height    = 100.0f;
 
     float old_tmin = v.time_min;
-    v.pan(10.0f, 0.0f);               // Pan right by 10px
-    EXPECT_LT(v.time_min, old_tmin);  // Time shifts left (pan right = see earlier times)
+    v.pan(10.0f, 0.0f);                // Pan right by 10px
+    EXPECT_LT(v.time_min, old_tmin);   // Time shifts left (pan right = see earlier times)
 }
 
 TEST(CurveViewTransform, FitToChannel)
 {
     CurveViewTransform v;
-    AnimationChannel ch("X");
+    AnimationChannel   ch("X");
     ch.add_keyframe(TypedKeyframe(1.0f, 5.0f));
     ch.add_keyframe(TypedKeyframe(3.0f, 15.0f));
 
@@ -725,7 +725,7 @@ TEST(CurveViewTransform, FitToChannel)
 TEST(CurveEditor, HitTestNoInterpolator)
 {
     AnimationCurveEditor editor;
-    auto result = editor.hit_test(50.0f, 50.0f);
+    auto                 result = editor.hit_test(50.0f, 50.0f);
     EXPECT_EQ(result.type, CurveHitType::Background);
 }
 
@@ -805,7 +805,7 @@ TEST(CurveEditorDrag, CancelDrag)
 
 TEST(TimelineInterpInteg, SetInterpolator)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
     EXPECT_EQ(te.interpolator(), &ki);
@@ -815,12 +815,12 @@ TEST(TimelineInterpInteg, NullInterpolatorSafe)
 {
     TimelineEditor te;
     te.set_interpolator(nullptr);
-    te.evaluate_at_playhead();  // Should not crash
+    te.evaluate_at_playhead();   // Should not crash
 }
 
 TEST(TimelineInterpInteg, AddAnimatedTrack)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
 
@@ -832,7 +832,7 @@ TEST(TimelineInterpInteg, AddAnimatedTrack)
 
 TEST(TimelineInterpInteg, AddAnimatedKeyframe)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
 
@@ -846,7 +846,7 @@ TEST(TimelineInterpInteg, AddAnimatedKeyframe)
 
 TEST(TimelineInterpInteg, AdvanceEvaluates)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
     te.set_duration(2.0f);
@@ -860,7 +860,7 @@ TEST(TimelineInterpInteg, AdvanceEvaluates)
     ki.bind(1, "x", &target);
 
     te.play();
-    te.advance(1.0f);  // Advance to t=1.0
+    te.advance(1.0f);   // Advance to t=1.0
 
     // At t=1.0, linear interp from 0 to 100 over 2s = 50
     EXPECT_NEAR(target, 50.0f, 1.0f);
@@ -868,7 +868,7 @@ TEST(TimelineInterpInteg, AdvanceEvaluates)
 
 TEST(TimelineInterpInteg, Serialize)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
     te.set_duration(5.0f);
@@ -886,7 +886,7 @@ TEST(TimelineInterpInteg, Serialize)
 
 TEST(TimelineInterpInteg, Deserialize)
 {
-    TimelineEditor te;
+    TimelineEditor       te;
     KeyframeInterpolator ki;
     te.set_interpolator(&ki);
     te.set_duration(5.0f);
@@ -897,7 +897,7 @@ TEST(TimelineInterpInteg, Deserialize)
 
     std::string json = te.serialize();
 
-    TimelineEditor te2;
+    TimelineEditor       te2;
     KeyframeInterpolator ki2;
     te2.set_interpolator(&ki2);
     EXPECT_TRUE(te2.deserialize(json));
@@ -912,11 +912,11 @@ TEST(TimelineInterpInteg, Deserialize)
 TEST(MultiPaneRecording, BeginWithNullCallback)
 {
     RecordingSession rs;
-    RecordingConfig config;
+    RecordingConfig  config;
     config.output_path = "/tmp/spectra_test_multipane";
-    config.start_time = 0.0f;
-    config.end_time = 1.0f;
-    config.pane_count = 2;
+    config.start_time  = 0.0f;
+    config.end_time    = 1.0f;
+    config.pane_count  = 2;
     EXPECT_FALSE(rs.begin_multi_pane(config, nullptr));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
@@ -924,17 +924,17 @@ TEST(MultiPaneRecording, BeginWithNullCallback)
 TEST(MultiPaneRecording, AutoGridLayout2Panes)
 {
     RecordingSession rs;
-    RecordingConfig config;
+    RecordingConfig  config;
     config.output_path = "/tmp/spectra_test_multipane_grid";
-    config.start_time = 0.0f;
-    config.end_time = 0.5f;
-    config.fps = 10.0f;
-    config.width = 100;
-    config.height = 100;
-    config.pane_count = 2;
+    config.start_time  = 0.0f;
+    config.end_time    = 0.5f;
+    config.fps         = 10.0f;
+    config.width       = 100;
+    config.height      = 100;
+    config.pane_count  = 2;
 
     std::vector<uint32_t> rendered_panes;
-    auto pane_cb = [&](uint32_t pane_idx,
+    auto                  pane_cb = [&](uint32_t pane_idx,
                        uint32_t /*frame*/,
                        float /*time*/,
                        uint8_t* rgba,
@@ -955,7 +955,7 @@ TEST(MultiPaneRecording, AutoGridLayout2Panes)
     };
 
     EXPECT_TRUE(rs.begin_multi_pane(config, pane_cb));
-    EXPECT_TRUE(rs.advance());  // First frame
+    EXPECT_TRUE(rs.advance());   // First frame
     // Should have rendered 2 panes for the first frame
     EXPECT_GE(rendered_panes.size(), 2u);
     EXPECT_EQ(rendered_panes[0], 0u);
@@ -967,21 +967,21 @@ TEST(MultiPaneRecording, AutoGridLayout2Panes)
 TEST(MultiPaneRecording, CustomPaneRects)
 {
     RecordingSession rs;
-    RecordingConfig config;
+    RecordingConfig  config;
     config.output_path = "/tmp/spectra_test_multipane_custom";
-    config.start_time = 0.0f;
-    config.end_time = 0.1f;
-    config.fps = 10.0f;
-    config.width = 200;
-    config.height = 100;
-    config.pane_count = 2;
-    config.pane_rects = {
-        {0.0f, 0.0f, 0.5f, 1.0f},  // Left half
-        {0.5f, 0.0f, 0.5f, 1.0f},  // Right half
+    config.start_time  = 0.0f;
+    config.end_time    = 0.1f;
+    config.fps         = 10.0f;
+    config.width       = 200;
+    config.height      = 100;
+    config.pane_count  = 2;
+    config.pane_rects  = {
+         {0.0f, 0.0f, 0.5f, 1.0f},   // Left half
+         {0.5f, 0.0f, 0.5f, 1.0f},   // Right half
     };
 
     uint32_t pane_call_count = 0;
-    auto pane_cb = [&](uint32_t /*pane_idx*/,
+    auto     pane_cb         = [&](uint32_t /*pane_idx*/,
                        uint32_t /*frame*/,
                        float /*time*/,
                        uint8_t* rgba,
@@ -1002,17 +1002,17 @@ TEST(MultiPaneRecording, CustomPaneRects)
 TEST(MultiPaneRecording, SinglePaneFallback)
 {
     RecordingSession rs;
-    RecordingConfig config;
+    RecordingConfig  config;
     config.output_path = "/tmp/spectra_test_multipane_single";
-    config.start_time = 0.0f;
-    config.end_time = 0.1f;
-    config.fps = 10.0f;
-    config.width = 100;
-    config.height = 100;
-    config.pane_count = 1;
+    config.start_time  = 0.0f;
+    config.end_time    = 0.1f;
+    config.fps         = 10.0f;
+    config.width       = 100;
+    config.height      = 100;
+    config.pane_count  = 1;
 
-    uint32_t calls = 0;
-    auto pane_cb = [&](uint32_t pane_idx,
+    uint32_t calls   = 0;
+    auto     pane_cb = [&](uint32_t pane_idx,
                        uint32_t /*frame*/,
                        float /*time*/,
                        uint8_t* rgba,
@@ -1038,8 +1038,8 @@ TEST(MultiPaneRecording, SinglePaneFallback)
 TEST(EdgeCases, RemoveChannelRemovesBindings)
 {
     KeyframeInterpolator ki;
-    uint32_t id = ki.add_channel("X");
-    float target = 0.0f;
+    uint32_t             id     = ki.add_channel("X");
+    float                target = 0.0f;
     ki.bind(id, "x", &target);
     EXPECT_EQ(ki.bindings().size(), 1u);
     ki.remove_channel(id);
@@ -1059,7 +1059,7 @@ TEST(EdgeCases, ZeroDurationSegment)
 {
     AnimationChannel ch("X");
     ch.add_keyframe(TypedKeyframe(1.0f, 5.0f, InterpMode::Linear));
-    ch.add_keyframe(TypedKeyframe(1.0f, 10.0f));  // Same time — updates
+    ch.add_keyframe(TypedKeyframe(1.0f, 10.0f));   // Same time — updates
     EXPECT_EQ(ch.keyframe_count(), 1u);
     EXPECT_FLOAT_EQ(ch.evaluate(1.0f), 10.0f);
 }

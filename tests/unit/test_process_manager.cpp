@@ -56,14 +56,14 @@ TEST(ProcessManager, PidForWindowNotFound)
 TEST(ProcessManager, RemoveNonexistentProcess)
 {
     ProcessManager pm;
-    pm.remove_process(12345);  // Should not crash
+    pm.remove_process(12345);   // Should not crash
     EXPECT_EQ(pm.process_count(), 0u);
 }
 
 TEST(ProcessManager, ReapFinishedEmpty)
 {
     ProcessManager pm;
-    auto reaped = pm.reap_finished();
+    auto           reaped = pm.reap_finished();
     EXPECT_TRUE(reaped.empty());
 }
 
@@ -123,4 +123,4 @@ TEST(ProcessManager, AllProcesses)
     pm.reap_finished();
 }
 
-#endif  // __linux__
+#endif   // __linux__

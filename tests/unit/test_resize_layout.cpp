@@ -11,7 +11,7 @@ using namespace spectra;
 TEST(ResizeLayout, SingleCellShrink)
 {
     auto before = compute_subplot_layout(1280.0f, 720.0f, 1, 1);
-    auto after = compute_subplot_layout(800.0f, 600.0f, 1, 1);
+    auto after  = compute_subplot_layout(800.0f, 600.0f, 1, 1);
     ASSERT_EQ(before.size(), 1u);
     ASSERT_EQ(after.size(), 1u);
 
@@ -73,7 +73,7 @@ TEST(ResizeLayout, ConsecutiveResizesProduceDeterministicLayout)
     // Same dimensions must always produce the same layout
     auto a = compute_subplot_layout(1024.0f, 768.0f, 1, 2);
     auto b = compute_subplot_layout(640.0f, 480.0f, 1, 2);
-    auto c = compute_subplot_layout(1024.0f, 768.0f, 1, 2);  // back to original
+    auto c = compute_subplot_layout(1024.0f, 768.0f, 1, 2);   // back to original
 
     ASSERT_EQ(a.size(), c.size());
     for (size_t i = 0; i < a.size(); ++i)

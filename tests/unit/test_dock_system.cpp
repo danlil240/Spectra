@@ -21,7 +21,7 @@ TEST(DockSystemConstruction, DefaultState)
 TEST(DockSystemSplit, SplitRight)
 {
     DockSystem ds;
-    auto* pane = ds.split_right(1);
+    auto*      pane = ds.split_right(1);
     EXPECT_NE(pane, nullptr);
     EXPECT_TRUE(ds.is_split());
     EXPECT_EQ(ds.pane_count(), 2u);
@@ -30,7 +30,7 @@ TEST(DockSystemSplit, SplitRight)
 TEST(DockSystemSplit, SplitDown)
 {
     DockSystem ds;
-    auto* pane = ds.split_down(1);
+    auto*      pane = ds.split_down(1);
     EXPECT_NE(pane, nullptr);
     EXPECT_TRUE(ds.is_split());
     EXPECT_EQ(ds.pane_count(), 2u);
@@ -85,7 +85,7 @@ TEST(DockSystemSplit, ResetSplits)
 TEST(DockSystemSplit, LayoutChangedCallback)
 {
     DockSystem ds;
-    int callback_count = 0;
+    int        callback_count = 0;
     ds.set_on_layout_changed([&]() { callback_count++; });
 
     ds.split_right(1);
@@ -127,7 +127,7 @@ TEST(DockSystemDrag, UpdateDragComputesDropTarget)
     ds.update_layout(Rect{0, 0, 1000, 600});
 
     ds.begin_drag(0, 500.0f, 300.0f);
-    auto target = ds.update_drag(50.0f, 300.0f);  // Near left edge
+    auto target = ds.update_drag(50.0f, 300.0f);   // Near left edge
 
     // Should detect a drop zone
     EXPECT_NE(target.zone, DropZone::None);
@@ -158,7 +158,7 @@ TEST(DockSystemDrag, EndDragOnDifferentPane)
     // This should attempt a dock operation
     // Whether it succeeds depends on drop zone detection
     EXPECT_FALSE(ds.is_dragging());
-    (void)result;  // Result depends on exact drop zone hit
+    (void)result;   // Result depends on exact drop zone hit
 }
 
 TEST(DockSystemDrag, EndDragOutsideBounds)
@@ -174,7 +174,7 @@ TEST(DockSystemDrag, EndDragOutsideBounds)
 TEST(DockSystemDrag, DragWithoutBeginReturnsEmpty)
 {
     DockSystem ds;
-    auto target = ds.update_drag(500.0f, 300.0f);
+    auto       target = ds.update_drag(500.0f, 300.0f);
     EXPECT_EQ(target.zone, DropZone::None);
 }
 
@@ -288,7 +288,7 @@ TEST(DockSystemSplitter, BeginSplitterDragMiss)
     ds.split_right(1, 0.5f);
     ds.update_layout(Rect{0, 0, 1000, 600});
 
-    ds.begin_splitter_drag(100.0f, 300.0f);  // Not on a splitter
+    ds.begin_splitter_drag(100.0f, 300.0f);   // Not on a splitter
     EXPECT_FALSE(ds.is_dragging_splitter());
 }
 
@@ -353,7 +353,7 @@ TEST(DockSystemSerialization, DeserializeCallsLayoutChanged)
     std::string data = ds.serialize();
 
     DockSystem ds2;
-    int callback_count = 0;
+    int        callback_count = 0;
     ds2.set_on_layout_changed([&]() { callback_count++; });
     ds2.update_layout(Rect{0, 0, 1000, 600});
     ds2.deserialize(data);

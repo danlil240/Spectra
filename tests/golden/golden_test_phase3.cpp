@@ -57,20 +57,20 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
-static void run_golden_test(const std::string& scene_name,
+static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
-                            uint32_t width = 640,
-                            uint32_t height = 480,
-                            double tolerance_percent = 1.0,
-                            double max_mae = 2.0)
+                            uint32_t                           width             = 640,
+                            uint32_t                           height            = 480,
+                            double                             tolerance_percent = 1.0,
+                            double                             max_mae           = 2.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
 
     fs::create_directories(output_dir());
 
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);
@@ -99,7 +99,7 @@ static void run_golden_test(const std::string& scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t bw = 0, bh = 0;
+    uint32_t             bw = 0, bh = 0;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, bw, bh))
         << "Failed to load baseline: " << baseline_path;
 
@@ -129,7 +129,7 @@ static void scene_line_styles(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.05f;
@@ -138,9 +138,9 @@ static void scene_line_styles(App& /*app*/, Figure& fig)
     struct StyleDef
     {
         const char* label;
-        LineStyle ls;
-        float offset;
-        Color color;
+        LineStyle   ls;
+        float       offset;
+        Color       color;
     };
     StyleDef styles[] = {
         {"Solid", LineStyle::Solid, 0.0f, rgb(0.2f, 0.6f, 1.0f)},
@@ -239,15 +239,15 @@ static void scene_filled_markers(App& /*app*/, Figure& fig)
         for (size_t i = 0; i < N; ++i)
         {
             float t = static_cast<float>(i) / static_cast<float>(N);
-            x[i] = t * 10.0f;
-            y[i] = static_cast<float>(m) * 2.0f + std::sin(t * 6.28f);
+            x[i]    = t * 10.0f;
+            y[i]    = static_cast<float>(m) * 2.0f + std::sin(t * 6.28f);
         }
-        auto& s =
-            ax.scatter(x, y)
-                .label(marker_style_name(markers[m]))
-                .color(rgb(
-                    0.2f + 0.2f * static_cast<float>(m), 0.5f, 0.9f - 0.2f * static_cast<float>(m)))
-                .size(10.0f);
+        auto& s = ax.scatter(x, y)
+                      .label(marker_style_name(markers[m]))
+                      .color(rgb(0.2f + 0.2f * static_cast<float>(m),
+                                 0.5f,
+                                 0.9f - 0.2f * static_cast<float>(m)))
+                      .size(10.0f);
         s.marker_style(markers[m]);
     }
 
@@ -262,7 +262,7 @@ static void scene_line_with_markers(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 30;
+    constexpr size_t   N = 30;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.33f;
@@ -318,7 +318,7 @@ static void scene_opacity_layers(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.05f;
@@ -346,14 +346,14 @@ static void scene_opacity_layers(App& /*app*/, Figure& fig)
 // Split subplot: 2x2 with different styles per subplot
 static void scene_styled_subplots(App& /*app*/, Figure& fig)
 {
-    constexpr size_t N = 100;
+    constexpr size_t   N = 100;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.1f;
 
     // Top-left: solid blue
     {
-        auto& ax = fig.subplot(2, 2, 1);
+        auto&              ax = fig.subplot(2, 2, 1);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i]);
@@ -365,7 +365,7 @@ static void scene_styled_subplots(App& /*app*/, Figure& fig)
     }
     // Top-right: dashed red
     {
-        auto& ax = fig.subplot(2, 2, 2);
+        auto&              ax = fig.subplot(2, 2, 2);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::cos(x[i]);
@@ -378,7 +378,7 @@ static void scene_styled_subplots(App& /*app*/, Figure& fig)
     }
     // Bottom-left: dotted with markers
     {
-        auto& ax = fig.subplot(2, 2, 3);
+        auto&              ax = fig.subplot(2, 2, 3);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i] * 2.0f) * 0.5f;
@@ -393,13 +393,13 @@ static void scene_styled_subplots(App& /*app*/, Figure& fig)
     }
     // Bottom-right: scatter only
     {
-        auto& ax = fig.subplot(2, 2, 4);
+        auto&              ax = fig.subplot(2, 2, 4);
         std::vector<float> sx(50), sy(50);
         for (size_t i = 0; i < 50; ++i)
         {
             float t = static_cast<float>(i) / 50.0f;
-            sx[i] = t * 10.0f;
-            sy[i] = std::sin(t * 6.28f) + 0.2f * std::cos(t * 31.0f);
+            sx[i]   = t * 10.0f;
+            sy[i]   = std::sin(t * 6.28f) + 0.2f * std::cos(t * 31.0f);
         }
         auto& s = ax.scatter(sx, sy).label("scatter").color(rgb(0.8f, 0.3f, 0.8f)).size(6.0f);
         s.marker_style(MarkerStyle::Star);
@@ -415,7 +415,7 @@ static void scene_dense_styled(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 150;
+    constexpr size_t   N = 150;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.067f;
@@ -425,22 +425,22 @@ static void scene_dense_styled(App& /*app*/, Figure& fig)
                                LineStyle::Dotted,
                                LineStyle::DashDot,
                                LineStyle::DashDotDot};
-    Color line_colors[] = {
-        rgb(0.2f, 0.6f, 1.0f),
-        rgb(1.0f, 0.4f, 0.2f),
-        rgb(0.3f, 0.9f, 0.4f),
-        rgb(0.9f, 0.2f, 0.8f),
-        rgb(0.8f, 0.7f, 0.1f),
-        rgb(0.1f, 0.8f, 0.8f),
-        rgb(0.6f, 0.3f, 0.9f),
-        rgb(0.9f, 0.6f, 0.3f),
+    Color     line_colors[] = {
+            rgb(0.2f, 0.6f, 1.0f),
+            rgb(1.0f, 0.4f, 0.2f),
+            rgb(0.3f, 0.9f, 0.4f),
+            rgb(0.9f, 0.2f, 0.8f),
+            rgb(0.8f, 0.7f, 0.1f),
+            rgb(0.1f, 0.8f, 0.8f),
+            rgb(0.6f, 0.3f, 0.9f),
+            rgb(0.9f, 0.6f, 0.3f),
     };
 
     for (int s_idx = 0; s_idx < 8; ++s_idx)
     {
         std::vector<float> y(N);
-        float freq = 1.0f + static_cast<float>(s_idx) * 0.3f;
-        float phase = static_cast<float>(s_idx) * 0.5f;
+        float              freq  = 1.0f + static_cast<float>(s_idx) * 0.3f;
+        float              phase = static_cast<float>(s_idx) * 0.5f;
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i] * freq + phase) * 0.8f + static_cast<float>(s_idx) * 0.25f;
 
@@ -460,7 +460,7 @@ static void scene_format_strings(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 60;
+    constexpr size_t   N = 60;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.167f;
@@ -470,8 +470,8 @@ static void scene_format_strings(App& /*app*/, Figure& fig)
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i]);
-        auto style = parse_format_string("r--o");
-        auto& s = ax.line(x, y).label("r--o").width(2.0f);
+        auto  style = parse_format_string("r--o");
+        auto& s     = ax.line(x, y).label("r--o").width(2.0f);
         if (style.color)
             s.color(*style.color);
         s.line_style(style.line_style);
@@ -483,8 +483,8 @@ static void scene_format_strings(App& /*app*/, Figure& fig)
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::cos(x[i]);
-        auto style = parse_format_string("b:*");
-        auto& s = ax.line(x, y).label("b:*").width(2.0f);
+        auto  style = parse_format_string("b:*");
+        auto& s     = ax.line(x, y).label("b:*").width(2.0f);
         if (style.color)
             s.color(*style.color);
         s.line_style(style.line_style);
@@ -496,8 +496,8 @@ static void scene_format_strings(App& /*app*/, Figure& fig)
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i] * 0.5f) * 0.7f;
-        auto style = parse_format_string("g-.s");
-        auto& s = ax.line(x, y).label("g-.s").width(2.0f);
+        auto  style = parse_format_string("g-.s");
+        auto& s     = ax.line(x, y).label("g-.s").width(2.0f);
         if (style.color)
             s.color(*style.color);
         s.line_style(style.line_style);
@@ -552,4 +552,4 @@ TEST(GoldenImagePhase3, FormatStrings)
     run_golden_test("p3_format_strings", scene_format_strings);
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

@@ -23,7 +23,7 @@ class Regression3DTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
+        app_            = std::make_unique<App>(config);
     }
     void TearDown() override { app_.reset(); }
 
@@ -33,7 +33,7 @@ class Regression3DTest : public ::testing::Test
     struct SurfaceData
     {
         std::vector<float> x, y, z;
-        int nx, ny;
+        int                nx, ny;
     };
 
     SurfaceData make_surface(int nx, int ny, float x0, float x1, float y0, float y1)
@@ -57,7 +57,7 @@ class Regression3DTest : public ::testing::Test
     // Helper: generate a mesh grid (vertices + indices)
     struct MeshData
     {
-        std::vector<float> vertices;
+        std::vector<float>    vertices;
         std::vector<uint32_t> indices;
     };
 
@@ -112,7 +112,7 @@ TEST_F(Regression3DTest, LightingDefaultEnabled)
 TEST_F(Regression3DTest, LightingDefaultDirection)
 {
     auto& ax = app_->figure().subplot3d(1, 1, 1);
-    vec3 ld = ax.light_dir();
+    vec3  ld = ax.light_dir();
     EXPECT_FLOAT_EQ(ld.x, 1.0f);
     EXPECT_FLOAT_EQ(ld.y, 1.0f);
     EXPECT_FLOAT_EQ(ld.z, 1.0f);
@@ -203,7 +203,7 @@ TEST_F(Regression3DTest, MeshMaterialSetAndGet)
 TEST_F(Regression3DTest, SurfaceMaterialChainingWithColor)
 {
     SurfaceSeries s;
-    auto& ref = s.color(Color{1.0f, 0.0f, 0.0f, 1.0f})
+    auto&         ref = s.color(Color{1.0f, 0.0f, 0.0f, 1.0f})
                     .ambient(0.3f)
                     .specular(0.5f)
                     .shininess(32.0f)
@@ -217,7 +217,7 @@ TEST_F(Regression3DTest, SurfaceMaterialChainingWithColor)
 TEST_F(Regression3DTest, MeshMaterialChainingWithColor)
 {
     MeshSeries m;
-    auto& ref = m.color(Color{0.0f, 0.0f, 1.0f, 1.0f})
+    auto&      ref = m.color(Color{0.0f, 0.0f, 1.0f, 1.0f})
                     .ambient(0.1f)
                     .specular(0.8f)
                     .shininess(256.0f)
@@ -284,10 +284,10 @@ TEST_F(Regression3DTest, MeshTransparentCombinedAlphaOpacity)
 
 TEST_F(Regression3DTest, BlendModeDefaults)
 {
-    LineSeries3D line;
+    LineSeries3D    line;
     ScatterSeries3D scatter;
-    SurfaceSeries surface;
-    MeshSeries mesh;
+    SurfaceSeries   surface;
+    MeshSeries      mesh;
 
     EXPECT_EQ(line.blend_mode(), BlendMode::Alpha);
     EXPECT_EQ(scatter.blend_mode(), BlendMode::Alpha);
@@ -327,7 +327,7 @@ TEST_F(Regression3DTest, SurfaceWireframeToggle)
 
 TEST_F(Regression3DTest, SurfaceWireframeMeshGeneration)
 {
-    auto sd = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
+    auto          sd = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
     SurfaceSeries s(sd.x, sd.y, sd.z);
     s.wireframe(true);
     s.generate_wireframe_mesh();
@@ -338,7 +338,7 @@ TEST_F(Regression3DTest, SurfaceWireframeMeshGeneration)
 
 TEST_F(Regression3DTest, SurfaceWireframeMeshResetOnDataChange)
 {
-    auto sd = make_surface(4, 4, -1.0f, 1.0f, -1.0f, 1.0f);
+    auto          sd = make_surface(4, 4, -1.0f, 1.0f, -1.0f, 1.0f);
     SurfaceSeries s(sd.x, sd.y, sd.z);
     s.generate_wireframe_mesh();
     EXPECT_TRUE(s.is_wireframe_mesh_generated());
@@ -450,11 +450,11 @@ TEST_F(Regression3DTest, MSAASetBack1x)
 
 TEST_F(Regression3DTest, TransparentPipelineEnumsExist)
 {
-    [[maybe_unused]] PipelineType lt = PipelineType::Line3D_Transparent;
-    [[maybe_unused]] PipelineType st = PipelineType::Scatter3D_Transparent;
-    [[maybe_unused]] PipelineType mt = PipelineType::Mesh3D_Transparent;
+    [[maybe_unused]] PipelineType lt  = PipelineType::Line3D_Transparent;
+    [[maybe_unused]] PipelineType st  = PipelineType::Scatter3D_Transparent;
+    [[maybe_unused]] PipelineType mt  = PipelineType::Mesh3D_Transparent;
     [[maybe_unused]] PipelineType sft = PipelineType::Surface3D_Transparent;
-    [[maybe_unused]] PipelineType sw = PipelineType::SurfaceWireframe3D;
+    [[maybe_unused]] PipelineType sw  = PipelineType::SurfaceWireframe3D;
     [[maybe_unused]] PipelineType swt = PipelineType::SurfaceWireframe3D_Transparent;
     SUCCEED();
 }
@@ -490,7 +490,7 @@ TEST_F(Regression3DTest, LineSeries3DCentroid)
     std::vector<float> x = {0.0f, 2.0f, 4.0f};
     std::vector<float> y = {0.0f, 2.0f, 4.0f};
     std::vector<float> z = {0.0f, 2.0f, 4.0f};
-    LineSeries3D line;
+    LineSeries3D       line;
     line.set_x(x).set_y(y).set_z(z);
     vec3 c = line.compute_centroid();
     EXPECT_FLOAT_EQ(c.x, 2.0f);
@@ -503,7 +503,7 @@ TEST_F(Regression3DTest, ScatterSeries3DCentroid)
     std::vector<float> x = {1.0f, 3.0f};
     std::vector<float> y = {2.0f, 4.0f};
     std::vector<float> z = {5.0f, 7.0f};
-    ScatterSeries3D scatter;
+    ScatterSeries3D    scatter;
     scatter.set_x(x).set_y(y).set_z(z);
     vec3 c = scatter.compute_centroid();
     EXPECT_FLOAT_EQ(c.x, 2.0f);
@@ -513,9 +513,9 @@ TEST_F(Regression3DTest, ScatterSeries3DCentroid)
 
 TEST_F(Regression3DTest, SurfaceCentroid)
 {
-    auto sd = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
+    auto          sd = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
     SurfaceSeries s(sd.x, sd.y, sd.z);
-    vec3 c = s.compute_centroid();
+    vec3          c = s.compute_centroid();
     // Symmetric grid centered at origin — centroid should be near 0
     EXPECT_NEAR(c.x, 0.0f, 0.5f);
     EXPECT_NEAR(c.y, 0.0f, 0.5f);
@@ -544,8 +544,8 @@ TEST_F(Regression3DTest, MeshCentroid)
         1.0f,
     };
     std::vector<uint32_t> indices = {0, 1, 2};
-    MeshSeries m(vertices, indices);
-    vec3 c = m.compute_centroid();
+    MeshSeries            m(vertices, indices);
+    vec3                  c = m.compute_centroid();
     EXPECT_FLOAT_EQ(c.x, 1.0f);
     EXPECT_FLOAT_EQ(c.y, 1.0f);
     EXPECT_FLOAT_EQ(c.z, 0.0f);
@@ -562,8 +562,8 @@ TEST_F(Regression3DTest, DataToNormalizedMatrixNonIdentity)
     ax.ylim(-5.0f, 5.0f);
     ax.zlim(-5.0f, 5.0f);
 
-    mat4 model = ax.data_to_normalized_matrix();
-    mat4 identity = mat4_identity();
+    mat4 model       = ax.data_to_normalized_matrix();
+    mat4 identity    = mat4_identity();
     bool is_identity = true;
     for (int i = 0; i < 16; ++i)
     {
@@ -621,15 +621,15 @@ TEST_F(Regression3DTest, CameraDefaultProjection)
 
 TEST_F(Regression3DTest, CameraOrthographicSwitch)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
+    auto& ax                    = app_->figure().subplot3d(1, 1, 1);
     ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
     EXPECT_EQ(ax.camera().projection_mode, Camera::ProjectionMode::Orthographic);
 }
 
 TEST_F(Regression3DTest, CameraOrbitChangesPosition)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    ax.camera().azimuth = 0.0f;
+    auto& ax              = app_->figure().subplot3d(1, 1, 1);
+    ax.camera().azimuth   = 0.0f;
     ax.camera().elevation = 0.0f;
     ax.camera().update_position_from_orbit();
     vec3 before = ax.camera().position;
@@ -642,11 +642,11 @@ TEST_F(Regression3DTest, CameraOrbitChangesPosition)
 
 TEST_F(Regression3DTest, CameraSerializationRoundTrip)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    ax.camera().azimuth = 123.0f;
+    auto& ax              = app_->figure().subplot3d(1, 1, 1);
+    ax.camera().azimuth   = 123.0f;
     ax.camera().elevation = 45.0f;
-    ax.camera().distance = 7.5f;
-    ax.camera().fov = 60.0f;
+    ax.camera().distance  = 7.5f;
+    ax.camera().fov       = 60.0f;
 
     std::string json = ax.camera().serialize();
     EXPECT_FALSE(json.empty());
@@ -662,10 +662,10 @@ TEST_F(Regression3DTest, CameraSerializationRoundTrip)
 
 TEST_F(Regression3DTest, CameraReset)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    ax.camera().azimuth = 200.0f;
+    auto& ax              = app_->figure().subplot3d(1, 1, 1);
+    ax.camera().azimuth   = 200.0f;
     ax.camera().elevation = 80.0f;
-    ax.camera().distance = 50.0f;
+    ax.camera().distance  = 50.0f;
     ax.camera().reset();
 
     EXPECT_FLOAT_EQ(ax.camera().azimuth, 45.0f);
@@ -688,13 +688,13 @@ TEST_F(Regression3DTest, CameraIndependenceAcrossSubplots)
 
 TEST_F(Regression3DTest, CameraViewMatrixNonZero)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    ax.camera().azimuth = 45.0f;
+    auto& ax              = app_->figure().subplot3d(1, 1, 1);
+    ax.camera().azimuth   = 45.0f;
     ax.camera().elevation = 30.0f;
-    ax.camera().distance = 5.0f;
+    ax.camera().distance  = 5.0f;
     ax.camera().update_position_from_orbit();
 
-    mat4 view = ax.camera().view_matrix();
+    mat4 view        = ax.camera().view_matrix();
     bool has_nonzero = false;
     for (int i = 0; i < 16; ++i)
     {
@@ -717,14 +717,14 @@ TEST_F(Regression3DTest, CameraAnimatorOrbitInterpolation)
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam1;
-    cam1.azimuth = 0.0f;
+    cam1.azimuth   = 0.0f;
     cam1.elevation = 30.0f;
-    cam1.distance = 5.0f;
+    cam1.distance  = 5.0f;
 
     Camera cam2;
-    cam2.azimuth = 180.0f;
+    cam2.azimuth   = 180.0f;
     cam2.elevation = 30.0f;
-    cam2.distance = 5.0f;
+    cam2.distance  = 5.0f;
 
     animator.add_keyframe(0.0f, cam1);
     animator.add_keyframe(2.0f, cam2);
@@ -742,14 +742,14 @@ TEST_F(Regression3DTest, CameraAnimatorTargetBinding)
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam1;
-    cam1.azimuth = 0.0f;
+    cam1.azimuth   = 0.0f;
     cam1.elevation = 30.0f;
-    cam1.distance = 5.0f;
+    cam1.distance  = 5.0f;
 
     Camera cam2;
-    cam2.azimuth = 360.0f;
+    cam2.azimuth   = 360.0f;
     cam2.elevation = 30.0f;
-    cam2.distance = 5.0f;
+    cam2.distance  = 5.0f;
 
     animator.add_keyframe(0.0f, cam1);
     animator.add_keyframe(4.0f, cam2);
@@ -766,9 +766,9 @@ TEST_F(Regression3DTest, CameraAnimatorTurntable)
     CameraAnimator animator;
 
     Camera base;
-    base.azimuth = 0.0f;
+    base.azimuth   = 0.0f;
     base.elevation = 30.0f;
-    base.distance = 5.0f;
+    base.distance  = 5.0f;
 
     animator.create_turntable(base, 4.0f);
     EXPECT_EQ(animator.keyframe_count(), 2u);
@@ -783,9 +783,9 @@ TEST_F(Regression3DTest, CameraAnimatorSerializationRoundTrip)
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam;
-    cam.azimuth = 45.0f;
+    cam.azimuth   = 45.0f;
     cam.elevation = 30.0f;
-    cam.distance = 7.0f;
+    cam.distance  = 7.0f;
     animator.add_keyframe(0.0f, cam);
 
     cam.azimuth = 135.0f;
@@ -847,8 +847,8 @@ TEST_F(Regression3DTest, BoundingBoxToggle)
 
 TEST_F(Regression3DTest, ColormapSetAndGet)
 {
-    auto sd = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
+    auto  sd   = make_surface(5, 5, -2.0f, 2.0f, -2.0f, 2.0f);
+    auto& ax   = app_->figure().subplot3d(1, 1, 1);
     auto& surf = ax.surface(sd.x, sd.y, sd.z);
 
     surf.colormap(ColormapType::Viridis);
@@ -862,9 +862,9 @@ TEST_F(Regression3DTest, ColormapSamplingAllTypes)
 {
     for (int cm = 0; cm <= static_cast<int>(ColormapType::Grayscale); ++cm)
     {
-        auto type = static_cast<ColormapType>(cm);
-        Color c0 = SurfaceSeries::sample_colormap(type, 0.0f);
-        Color c1 = SurfaceSeries::sample_colormap(type, 1.0f);
+        auto  type = static_cast<ColormapType>(cm);
+        Color c0   = SurfaceSeries::sample_colormap(type, 0.0f);
+        Color c1   = SurfaceSeries::sample_colormap(type, 1.0f);
 
         EXPECT_GE(c0.r, 0.0f);
         EXPECT_LE(c0.r, 1.0f);
@@ -891,10 +891,10 @@ TEST_F(Regression3DTest, ColormapRangeSetAndGet)
 
 TEST_F(Regression3DTest, AutoFitEncompassesData)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    std::vector<float> x = {-5.0f, 5.0f};
-    std::vector<float> y = {-10.0f, 10.0f};
-    std::vector<float> z = {-2.0f, 2.0f};
+    auto&              ax = app_->figure().subplot3d(1, 1, 1);
+    std::vector<float> x  = {-5.0f, 5.0f};
+    std::vector<float> y  = {-10.0f, 10.0f};
+    std::vector<float> z  = {-2.0f, 2.0f};
     ax.scatter3d(x, y, z);
     ax.auto_fit();
 
@@ -908,7 +908,7 @@ TEST_F(Regression3DTest, AutoFitEncompassesData)
 
 TEST_F(Regression3DTest, AutoFitMultipleSeries)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
+    auto&              ax = app_->figure().subplot3d(1, 1, 1);
     std::vector<float> x1 = {0.0f, 1.0f};
     std::vector<float> y1 = {0.0f, 1.0f};
     std::vector<float> z1 = {0.0f, 1.0f};
@@ -936,10 +936,10 @@ TEST_F(Regression3DTest, AutoFitEmptyAxesNoCrash)
 
 TEST_F(Regression3DTest, ClearSeries3D)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f};
-    std::vector<float> y = {0.0f, 1.0f};
-    std::vector<float> z = {0.0f, 1.0f};
+    auto&              ax = app_->figure().subplot3d(1, 1, 1);
+    std::vector<float> x  = {0.0f, 1.0f};
+    std::vector<float> y  = {0.0f, 1.0f};
+    std::vector<float> z  = {0.0f, 1.0f};
     ax.scatter3d(x, y, z);
     ax.line3d(x, y, z);
     EXPECT_EQ(ax.series().size(), 2u);
@@ -950,10 +950,10 @@ TEST_F(Regression3DTest, ClearSeries3D)
 
 TEST_F(Regression3DTest, RemoveSingleSeries3D)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f};
-    std::vector<float> y = {0.0f, 1.0f};
-    std::vector<float> z = {0.0f, 1.0f};
+    auto&              ax = app_->figure().subplot3d(1, 1, 1);
+    std::vector<float> x  = {0.0f, 1.0f};
+    std::vector<float> y  = {0.0f, 1.0f};
+    std::vector<float> z  = {0.0f, 1.0f};
     ax.scatter3d(x, y, z).label("first");
     ax.line3d(x, y, z).label("second");
     EXPECT_EQ(ax.series().size(), 2u);
@@ -971,15 +971,15 @@ TEST_F(Regression3DTest, Mixed2DAnd3DFigure)
 {
     auto& fig = app_->figure();
 
-    auto& ax2d = fig.subplot(2, 1, 1);
-    std::vector<float> x2d = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y2d = {0.0f, 1.0f, 0.5f, 1.5f};
+    auto&              ax2d = fig.subplot(2, 1, 1);
+    std::vector<float> x2d  = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y2d  = {0.0f, 1.0f, 0.5f, 1.5f};
     ax2d.line(x2d, y2d).color(colors::blue);
 
-    auto& ax3d = fig.subplot3d(2, 1, 2);
-    std::vector<float> x3d = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y3d = {0.0f, 1.0f, 0.5f};
-    std::vector<float> z3d = {0.0f, 0.5f, 1.0f};
+    auto&              ax3d = fig.subplot3d(2, 1, 2);
+    std::vector<float> x3d  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y3d  = {0.0f, 1.0f, 0.5f};
+    std::vector<float> z3d  = {0.0f, 0.5f, 1.0f};
     ax3d.scatter3d(x3d, y3d, z3d).color(colors::red);
 
     EXPECT_EQ(ax2d.series().size(), 1u);
@@ -988,11 +988,11 @@ TEST_F(Regression3DTest, Mixed2DAnd3DFigure)
 
 TEST_F(Regression3DTest, No2DRegressions)
 {
-    auto& ax = app_->figure().subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {0.0f, 1.0f, 4.0f, 9.0f};
+    auto&              ax = app_->figure().subplot(1, 1, 1);
+    std::vector<float> x  = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y  = {0.0f, 1.0f, 4.0f, 9.0f};
 
-    auto& line = ax.line(x, y).color(colors::blue).width(2.0f);
+    auto& line    = ax.line(x, y).color(colors::blue).width(2.0f);
     auto& scatter = ax.scatter(x, y).color(colors::red).size(5.0f);
 
     EXPECT_EQ(line.point_count(), 4u);
@@ -1020,7 +1020,7 @@ TEST_F(Regression3DTest, SeriesPushConstantsSize)
 TEST_F(Regression3DTest, RenderLitSurfaceSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sd = make_surface(10, 10, -2.0f, 2.0f, -2.0f, 2.0f);
     ax.surface(sd.x, sd.y, sd.z)
@@ -1038,7 +1038,7 @@ TEST_F(Regression3DTest, RenderLitSurfaceSmoke)
 TEST_F(Regression3DTest, RenderTransparentScatterSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x, y, z;
     for (int i = 0; i < 100; ++i)
@@ -1059,7 +1059,7 @@ TEST_F(Regression3DTest, RenderTransparentScatterSmoke)
 TEST_F(Regression3DTest, RenderWireframeSurfaceSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sd = make_surface(10, 10, -2.0f, 2.0f, -2.0f, 2.0f);
     ax.surface(sd.x, sd.y, sd.z).color(colors::green).wireframe(true);
@@ -1070,7 +1070,7 @@ TEST_F(Regression3DTest, RenderWireframeSurfaceSmoke)
 TEST_F(Regression3DTest, RenderLitMeshSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto md = make_mesh_grid(10, 10);
     ax.mesh(md.vertices, md.indices)
@@ -1085,7 +1085,7 @@ TEST_F(Regression3DTest, RenderLitMeshSmoke)
 TEST_F(Regression3DTest, RenderTransparentSurfaceSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sd = make_surface(10, 10, -2.0f, 2.0f, -2.0f, 2.0f);
     ax.surface(sd.x, sd.y, sd.z)
@@ -1100,7 +1100,7 @@ TEST_F(Regression3DTest, RenderTransparentSurfaceSmoke)
 TEST_F(Regression3DTest, RenderMixedOpaqueAndTransparentSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     // Opaque scatter
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
@@ -1118,21 +1118,21 @@ TEST_F(Regression3DTest, RenderMultiSubplot3DSmoke)
 {
     auto& fig = app_->figure({.width = 256, .height = 256});
 
-    auto& ax1 = fig.subplot3d(2, 2, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f};
-    std::vector<float> z = {0.0f, 0.5f, 1.0f};
+    auto&              ax1 = fig.subplot3d(2, 2, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 0.5f};
+    std::vector<float> z   = {0.0f, 0.5f, 1.0f};
     ax1.scatter3d(x, y, z).color(colors::red);
 
     auto& ax2 = fig.subplot3d(2, 2, 2);
     ax2.line3d(x, y, z).color(colors::green);
 
     auto& ax3 = fig.subplot3d(2, 2, 3);
-    auto sd = make_surface(8, 8, -2.0f, 2.0f, -2.0f, 2.0f);
+    auto  sd  = make_surface(8, 8, -2.0f, 2.0f, -2.0f, 2.0f);
     ax3.surface(sd.x, sd.y, sd.z).color(colors::orange);
 
     auto& ax4 = fig.subplot3d(2, 2, 4);
-    auto md = make_mesh_grid(8, 8);
+    auto  md  = make_mesh_grid(8, 8);
     ax4.mesh(md.vertices, md.indices).color(colors::cyan);
 
     EXPECT_NO_FATAL_FAILURE(app_->run());
@@ -1144,11 +1144,11 @@ TEST_F(Regression3DTest, RenderMultiSubplot3DSmoke)
 
 TEST_F(Regression3DTest, SinglePoint3D)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    std::vector<float> x = {1.0f};
-    std::vector<float> y = {2.0f};
-    std::vector<float> z = {3.0f};
-    auto& scatter = ax.scatter3d(x, y, z);
+    auto&              ax      = app_->figure().subplot3d(1, 1, 1);
+    std::vector<float> x       = {1.0f};
+    std::vector<float> y       = {2.0f};
+    std::vector<float> z       = {3.0f};
+    auto&              scatter = ax.scatter3d(x, y, z);
     EXPECT_EQ(scatter.point_count(), 1u);
     vec3 c = scatter.compute_centroid();
     EXPECT_FLOAT_EQ(c.x, 1.0f);
@@ -1158,15 +1158,15 @@ TEST_F(Regression3DTest, SinglePoint3D)
 
 TEST_F(Regression3DTest, LargeDataset10K)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
-    const size_t N = 10000;
+    auto&              ax = app_->figure().subplot3d(1, 1, 1);
+    const size_t       N  = 10000;
     std::vector<float> x(N), y(N), z(N);
     for (size_t i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) * 0.001f;
-        x[i] = std::cos(t) * t;
-        y[i] = std::sin(t) * t;
-        z[i] = t;
+        x[i]    = std::cos(t) * t;
+        y[i]    = std::sin(t) * t;
+        z[i]    = t;
     }
     auto& scatter = ax.scatter3d(x, y, z);
     EXPECT_EQ(scatter.point_count(), N);
@@ -1217,10 +1217,10 @@ TEST_F(Regression3DTest, TickComputation3D)
 
 TEST_F(Regression3DTest, SurfaceMeshTopologyCorrect)
 {
-    auto& ax = app_->figure().subplot3d(1, 1, 1);
+    auto&     ax = app_->figure().subplot3d(1, 1, 1);
     const int nx = 6, ny = 4;
-    auto sd = make_surface(nx, ny, -1.0f, 1.0f, -1.0f, 1.0f);
-    auto& surf = ax.surface(sd.x, sd.y, sd.z);
+    auto      sd   = make_surface(nx, ny, -1.0f, 1.0f, -1.0f, 1.0f);
+    auto&     surf = ax.surface(sd.x, sd.y, sd.z);
     surf.generate_mesh();
     EXPECT_EQ(surf.mesh().triangle_count, static_cast<size_t>((nx - 1) * (ny - 1) * 2));
 }
@@ -1248,7 +1248,7 @@ TEST_F(Regression3DTest, MeshCustomGeometryTriangleCount)
         1.0f,
     };
     std::vector<uint32_t> indices = {0, 1, 2};
-    MeshSeries m(vertices, indices);
+    MeshSeries            m(vertices, indices);
     EXPECT_EQ(m.vertex_count(), 3u);
     EXPECT_EQ(m.triangle_count(), 1u);
 }

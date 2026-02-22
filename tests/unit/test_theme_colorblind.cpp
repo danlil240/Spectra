@@ -34,7 +34,7 @@ TEST(ColorUtils, ContrastRatioBlackWhite)
     Color black(0.0f, 0.0f, 0.0f);
     Color white(1.0f, 1.0f, 1.0f);
     float ratio = black.contrast_ratio(white);
-    EXPECT_GT(ratio, 15.0f);  // Should be ~21:1
+    EXPECT_GT(ratio, 15.0f);   // Should be ~21:1
 }
 
 TEST(ColorUtils, ContrastRatioSymmetric)
@@ -62,7 +62,7 @@ TEST(ColorUtils, ToLinearAndBack)
 {
     Color original(0.5f, 0.3f, 0.8f, 0.9f);
     Color linear = original.to_linear();
-    Color back = linear.to_srgb();
+    Color back   = linear.to_srgb();
     EXPECT_NEAR(back.r, original.r, 0.01f);
     EXPECT_NEAR(back.g, original.g, 0.01f);
     EXPECT_NEAR(back.b, original.b, 0.01f);
@@ -98,7 +98,7 @@ TEST(ColorUtils, LinearIsLowerThanSRGB)
 TEST(ColorUtils, HSLRoundTrip)
 {
     Color original(0.8f, 0.3f, 0.5f);
-    auto hsl = original.to_hsl();
+    auto  hsl  = original.to_hsl();
     Color back = Color::from_hsl(hsl.h, hsl.s, hsl.l);
     EXPECT_NEAR(back.r, original.r, 0.01f);
     EXPECT_NEAR(back.g, original.g, 0.01f);
@@ -108,29 +108,29 @@ TEST(ColorUtils, HSLRoundTrip)
 TEST(ColorUtils, HSLRedHue)
 {
     Color red(1.0f, 0.0f, 0.0f);
-    auto hsl = red.to_hsl();
-    EXPECT_NEAR(hsl.h, 0.0f, 1.0f);  // Red is at 0 degrees
+    auto  hsl = red.to_hsl();
+    EXPECT_NEAR(hsl.h, 0.0f, 1.0f);   // Red is at 0 degrees
     EXPECT_NEAR(hsl.s, 1.0f, 0.01f);
 }
 
 TEST(ColorUtils, HSLGreenHue)
 {
     Color green(0.0f, 1.0f, 0.0f);
-    auto hsl = green.to_hsl();
+    auto  hsl = green.to_hsl();
     EXPECT_NEAR(hsl.h, 120.0f, 1.0f);
 }
 
 TEST(ColorUtils, HSLBlueHue)
 {
     Color blue(0.0f, 0.0f, 1.0f);
-    auto hsl = blue.to_hsl();
+    auto  hsl = blue.to_hsl();
     EXPECT_NEAR(hsl.h, 240.0f, 1.0f);
 }
 
 TEST(ColorUtils, HSLGrayHasZeroSaturation)
 {
     Color gray(0.5f, 0.5f, 0.5f);
-    auto hsl = gray.to_hsl();
+    auto  hsl = gray.to_hsl();
     EXPECT_FLOAT_EQ(hsl.s, 0.0f);
     EXPECT_NEAR(hsl.l, 0.5f, 0.01f);
 }
@@ -251,8 +251,8 @@ TEST(DataPaletteStruct, IndexWrapsAround)
     DataPalette dp;
     dp.colors = {Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)};
     EXPECT_FLOAT_EQ(dp[0].r, 1.0f);
-    EXPECT_FLOAT_EQ(dp[3].r, 1.0f);  // wraps to index 0
-    EXPECT_FLOAT_EQ(dp[4].g, 1.0f);  // wraps to index 1
+    EXPECT_FLOAT_EQ(dp[3].r, 1.0f);   // wraps to index 0
+    EXPECT_FLOAT_EQ(dp[4].g, 1.0f);   // wraps to index 1
 }
 
 TEST(DataPaletteStruct, IsSafeForNoneAlwaysTrue)
@@ -277,8 +277,8 @@ class ColorblindPaletteTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm = ThemeManager::instance();
-        original_theme_ = tm.current_theme_name();
+        auto& tm          = ThemeManager::instance();
+        original_theme_   = tm.current_theme_name();
         original_palette_ = tm.current_data_palette_name();
     }
     void TearDown() override
@@ -297,8 +297,8 @@ class ColorblindPaletteTest : public ::testing::Test
 
 TEST_F(ColorblindPaletteTest, AllExpectedPalettesExist)
 {
-    auto& tm = ThemeManager::instance();
-    const auto& names = tm.available_data_palettes();
+    auto&                 tm    = ThemeManager::instance();
+    const auto&           names = tm.available_data_palettes();
     std::set<std::string> name_set(names.begin(), names.end());
 
     EXPECT_TRUE(name_set.count("default"));
@@ -313,7 +313,7 @@ TEST_F(ColorblindPaletteTest, AllExpectedPalettesExist)
 
 TEST_F(ColorblindPaletteTest, PaletteNamesAreSorted)
 {
-    auto& tm = ThemeManager::instance();
+    auto&       tm    = ThemeManager::instance();
     const auto& names = tm.available_data_palettes();
     for (size_t i = 1; i < names.size(); ++i)
     {
@@ -379,7 +379,7 @@ TEST_F(ColorblindPaletteTest, MonochromeHas5Colors)
 
 TEST_F(ColorblindPaletteTest, MonochromeSafeForAchromatopsia)
 {
-    auto& tm = ThemeManager::instance();
+    auto&       tm   = ThemeManager::instance();
     const auto& mono = tm.get_data_palette("monochrome");
     EXPECT_TRUE(mono.is_safe_for(CVDType::Achromatopsia));
 }
@@ -452,9 +452,9 @@ TEST_F(ColorblindPaletteTest, CVDSafeColorsRemainDistinguishable)
             {
                 for (size_t j = i + 1; j < simulated.size(); ++j)
                 {
-                    float dr = simulated[i].r - simulated[j].r;
-                    float dg = simulated[i].g - simulated[j].g;
-                    float db = simulated[i].b - simulated[j].b;
+                    float dr   = simulated[i].r - simulated[j].r;
+                    float dg   = simulated[i].g - simulated[j].g;
+                    float db   = simulated[i].b - simulated[j].b;
                     float dist = std::sqrt(dr * dr + dg * dg + db * db);
                     EXPECT_GT(dist, 0.02f)
                         << "Palette '" << name << "' colors " << i << " and " << j
@@ -467,7 +467,7 @@ TEST_F(ColorblindPaletteTest, CVDSafeColorsRemainDistinguishable)
 
 TEST_F(ColorblindPaletteTest, GetDataPaletteByName)
 {
-    auto& tm = ThemeManager::instance();
+    auto&       tm  = ThemeManager::instance();
     const auto& pal = tm.get_data_palette("colorblind");
     EXPECT_EQ(pal.name, "colorblind");
     EXPECT_FALSE(pal.colors.empty());
@@ -475,24 +475,24 @@ TEST_F(ColorblindPaletteTest, GetDataPaletteByName)
 
 TEST_F(ColorblindPaletteTest, GetDataPaletteInvalidReturnsEmpty)
 {
-    auto& tm = ThemeManager::instance();
+    auto&       tm  = ThemeManager::instance();
     const auto& pal = tm.get_data_palette("nonexistent_palette_xyz");
     EXPECT_TRUE(pal.colors.empty());
 }
 
 TEST_F(ColorblindPaletteTest, RegisterCustomPalette)
 {
-    auto& tm = ThemeManager::instance();
+    auto&       tm = ThemeManager::instance();
     DataPalette custom;
-    custom.name = "custom_test_pal";
-    custom.description = "Test palette";
-    custom.colors = {Color(1, 0, 0), Color(0, 1, 0)};
+    custom.name            = "custom_test_pal";
+    custom.description     = "Test palette";
+    custom.colors          = {Color(1, 0, 0), Color(0, 1, 0)};
     custom.colorblind_safe = false;
 
     tm.register_data_palette("custom_test_pal", custom);
 
     const auto& names = tm.available_data_palettes();
-    bool found = false;
+    bool        found = false;
     for (const auto& n : names)
     {
         if (n == "custom_test_pal")
@@ -657,9 +657,9 @@ class ThemeExportImportTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm = ThemeManager::instance();
+        auto& tm        = ThemeManager::instance();
         original_theme_ = tm.current_theme_name();
-        test_dir_ = std::filesystem::temp_directory_path() / "spectra_test_themes";
+        test_dir_       = std::filesystem::temp_directory_path() / "spectra_test_themes";
         std::filesystem::create_directories(test_dir_);
     }
     void TearDown() override
@@ -670,7 +670,7 @@ class ThemeExportImportTest : public ::testing::Test
         tm.set_theme(original_theme_);
         std::filesystem::remove_all(test_dir_);
     }
-    std::string original_theme_;
+    std::string           original_theme_;
     std::filesystem::path test_dir_;
 };
 
@@ -694,7 +694,7 @@ TEST_F(ThemeExportImportTest, ExportContainsThemeName)
     tm.export_theme(path.string());
 
     std::ifstream f(path);
-    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::string   content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT_NE(content.find("\"dark\""), std::string::npos);
 }
 
@@ -707,7 +707,7 @@ TEST_F(ThemeExportImportTest, ExportContainsColorFields)
     tm.export_theme(path.string());
 
     std::ifstream f(path);
-    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::string   content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT_NE(content.find("bg_primary"), std::string::npos);
     EXPECT_NE(content.find("accent"), std::string::npos);
     EXPECT_NE(content.find("text_primary"), std::string::npos);
@@ -732,7 +732,7 @@ TEST_F(ThemeExportImportTest, ExportImportRoundTrip)
 
     // Record original colors
     float orig_accent_r = tm.colors().accent.r;
-    float orig_bg_r = tm.colors().bg_primary.r;
+    float orig_bg_r     = tm.colors().bg_primary.r;
 
     auto path = test_dir_ / "roundtrip.json";
     tm.export_theme(path.string());
@@ -740,7 +740,7 @@ TEST_F(ThemeExportImportTest, ExportImportRoundTrip)
     // Modify the theme name in the file to avoid collision
     {
         std::ifstream fin(path);
-        std::string content((std::istreambuf_iterator<char>(fin)),
+        std::string   content((std::istreambuf_iterator<char>(fin)),
                             std::istreambuf_iterator<char>());
         fin.close();
 
@@ -811,7 +811,7 @@ TEST_F(ThemeExportImportTest, ExportContainsScalarProperties)
     tm.export_theme(path.string());
 
     std::ifstream f(path);
-    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::string   content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT_NE(content.find("opacity_panel"), std::string::npos);
     EXPECT_NE(content.find("animation_speed"), std::string::npos);
     EXPECT_NE(content.find("enable_animations"), std::string::npos);

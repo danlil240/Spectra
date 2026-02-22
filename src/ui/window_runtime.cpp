@@ -281,7 +281,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // Build ImGui UI (new_frame was already called above before layout computation)
     if (imgui_ui && fs.imgui_frame_started)
     {
-        if (profiler) profiler->begin_stage("imgui_build");
+        if (profiler)
+            profiler->begin_stage("imgui_build");
         imgui_ui->build_ui(*active_figure);
 
         // Old TabBar is replaced by unified pane tab headers
@@ -403,31 +404,40 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Always hide old tab bar — unified pane tab headers handle all tabs
         imgui_ui->get_layout_manager().set_tab_bar_visible(false);
 
-        if (profiler) profiler->end_stage("imgui_build");
+        if (profiler)
+            profiler->end_stage("imgui_build");
     }
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
     // Process queued figure operations (create, close, switch)
-    if (fig_mgr.process_pending())
+    fig_mgr.process_pending();
+
+    // Always sync active figure with FigureManager.  build_ui() may trigger
+    // operations that call switch_to() directly (e.g. duplicate_figure),
+    // bypassing the pending queue.  Detect any mismatch and update.
     {
-        active_figure_id = fig_mgr.active_index();
-        Figure* fig = registry_.get(active_figure_id);
-        if (fig)
+        FigureId mgr_active = fig_mgr.active_index();
+        if (mgr_active != active_figure_id)
         {
-            fs.active_figure = fig;
-            active_figure = fig;
-            scheduler.set_target_fps(active_figure->anim_fps_);
-            has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-    #ifdef SPECTRA_USE_GLFW
-            input_handler.set_figure(active_figure);
-            if (!active_figure->axes().empty() && active_figure->axes()[0])
+            active_figure_id = mgr_active;
+            Figure* fig = registry_.get(active_figure_id);
+            if (fig)
             {
-                input_handler.set_active_axes(active_figure->axes()[0].get());
-                const auto& vp = active_figure->axes()[0]->viewport();
-                input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-            }
+                fs.active_figure = fig;
+                active_figure = fig;
+                scheduler.set_target_fps(active_figure->anim_fps_);
+                has_animation = static_cast<bool>(active_figure->anim_on_frame_);
+    #ifdef SPECTRA_USE_GLFW
+                input_handler.set_figure(active_figure);
+                if (!active_figure->axes().empty() && active_figure->axes()[0])
+                {
+                    input_handler.set_active_axes(active_figure->axes()[0].get());
+                    const auto& vp = active_figure->axes()[0]->viewport();
+                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+                }
     #endif
+            }
         }
     }
 
@@ -502,7 +512,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // Compute subplot layout AFTER build_ui() so that nav rail / inspector
     // toggles from the current frame are immediately reflected.
     {
-        if (profiler) profiler->begin_stage("scene_update");
+        if (profiler)
+            profiler->begin_stage("scene_update");
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
         {
@@ -526,7 +537,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         Margins pane_margins;
                         pane_margins.left = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
                         pane_margins.right = std::min(fs_style.margin_right, pinfo.bounds.w * 0.2f);
-                        pane_margins.bottom = std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
+                        pane_margins.bottom =
+                            std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
                         pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
                         const auto rects = compute_subplot_layout(pinfo.bounds.w,
                                                                   pinfo.bounds.h,
@@ -542,8 +554,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                 fig->axes_mut()[i]->set_viewport(rects[i]);
                             }
                         }
-                        for (size_t i = 0; i < fig->all_axes_mut().size() && i < rects.size();
-                             ++i)
+                        for (size_t i = 0; i < fig->all_axes_mut().size() && i < rects.size(); ++i)
                         {
                             if (fig->all_axes_mut()[i])
                             {
@@ -596,7 +607,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #else
         active_figure->compute_layout();
 #endif
-        if (profiler) profiler->end_stage("scene_update");
+        if (profiler)
+            profiler->end_stage("scene_update");
     }
 }
 
@@ -655,7 +667,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             SPECTRA_LOG_INFO("resize",
                              "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
                                  + std::to_string(target_h));
-            if (profiler) profiler->increment_counter("swapchain_recreate");
+            if (profiler)
+                profiler->increment_counter("swapchain_recreate");
             aw->swapchain_invalidated = false;
             backend_.recreate_swapchain(target_w, target_h);
             vk->clear_swapchain_dirty();

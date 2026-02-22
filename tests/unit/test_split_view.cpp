@@ -37,7 +37,7 @@ TEST(SplitPaneConstruction, FigureIndexAssignment)
 TEST(SplitPaneSplit, HorizontalSplit)
 {
     SplitPane pane(0);
-    auto* second = pane.split(SplitDirection::Horizontal, 1, 0.5f);
+    auto*     second = pane.split(SplitDirection::Horizontal, 1, 0.5f);
 
     EXPECT_NE(second, nullptr);
     EXPECT_TRUE(pane.is_split());
@@ -56,7 +56,7 @@ TEST(SplitPaneSplit, HorizontalSplit)
 TEST(SplitPaneSplit, VerticalSplit)
 {
     SplitPane pane(0);
-    auto* second = pane.split(SplitDirection::Vertical, 1, 0.3f);
+    auto*     second = pane.split(SplitDirection::Vertical, 1, 0.3f);
 
     EXPECT_NE(second, nullptr);
     EXPECT_EQ(pane.split_direction(), SplitDirection::Vertical);
@@ -152,7 +152,7 @@ TEST(SplitPaneUnsplit, UnsplitNestedKeepsSubtree)
 TEST(SplitPaneLayout, LeafBounds)
 {
     SplitPane pane(0);
-    Rect bounds{100.0f, 50.0f, 800.0f, 600.0f};
+    Rect      bounds{100.0f, 50.0f, 800.0f, 600.0f};
     pane.compute_layout(bounds);
 
     EXPECT_FLOAT_EQ(pane.bounds().x, 100.0f);
@@ -167,7 +167,7 @@ TEST(SplitPaneLayout, HorizontalSplitLayout)
     pane.split(SplitDirection::Horizontal, 1, 0.5f);
     pane.compute_layout(Rect{0.0f, 0.0f, 1000.0f, 600.0f});
 
-    auto* first = pane.first();
+    auto* first  = pane.first();
     auto* second = pane.second();
 
     // First child should be on the left
@@ -193,7 +193,7 @@ TEST(SplitPaneLayout, VerticalSplitLayout)
     pane.split(SplitDirection::Vertical, 1, 0.5f);
     pane.compute_layout(Rect{0.0f, 0.0f, 800.0f, 1000.0f});
 
-    auto* first = pane.first();
+    auto* first  = pane.first();
     auto* second = pane.second();
 
     // First child should be on top
@@ -224,7 +224,7 @@ TEST(SplitPaneLayout, SplitterRect)
 TEST(SplitPaneLayout, LeafSplitterRectIsZero)
 {
     SplitPane pane(0);
-    Rect sr = pane.splitter_rect();
+    Rect      sr = pane.splitter_rect();
     EXPECT_FLOAT_EQ(sr.w, 0.0f);
     EXPECT_FLOAT_EQ(sr.h, 0.0f);
 }
@@ -289,9 +289,9 @@ TEST(SplitPaneTraversal, FindById)
 
 TEST(SplitPaneSerialization, LeafRoundTrip)
 {
-    SplitPane pane(42);
-    std::string data = pane.serialize();
-    auto restored = SplitPane::deserialize(data);
+    SplitPane   pane(42);
+    std::string data     = pane.serialize();
+    auto        restored = SplitPane::deserialize(data);
 
     ASSERT_NE(restored, nullptr);
     EXPECT_TRUE(restored->is_leaf());
@@ -302,8 +302,8 @@ TEST(SplitPaneSerialization, SplitRoundTrip)
 {
     SplitPane root(0);
     root.split(SplitDirection::Horizontal, 1, 0.6f);
-    std::string data = root.serialize();
-    auto restored = SplitPane::deserialize(data);
+    std::string data     = root.serialize();
+    auto        restored = SplitPane::deserialize(data);
 
     ASSERT_NE(restored, nullptr);
     EXPECT_TRUE(restored->is_split());
@@ -319,8 +319,8 @@ TEST(SplitPaneSerialization, NestedRoundTrip)
     root.split(SplitDirection::Horizontal, 1);
     root.first()->split(SplitDirection::Vertical, 2);
 
-    std::string data = root.serialize();
-    auto restored = SplitPane::deserialize(data);
+    std::string data     = root.serialize();
+    auto        restored = SplitPane::deserialize(data);
 
     ASSERT_NE(restored, nullptr);
     EXPECT_EQ(restored->count_leaves(), 3u);
@@ -350,7 +350,7 @@ TEST(SplitViewManager, DefaultState)
 TEST(SplitViewManagerSplit, SplitActive)
 {
     SplitViewManager mgr;
-    auto* pane = mgr.split_active(SplitDirection::Horizontal, 1);
+    auto*            pane = mgr.split_active(SplitDirection::Horizontal, 1);
 
     EXPECT_NE(pane, nullptr);
     EXPECT_TRUE(mgr.is_split());
@@ -360,7 +360,7 @@ TEST(SplitViewManagerSplit, SplitActive)
 TEST(SplitViewManagerSplit, SplitByFigure)
 {
     SplitViewManager mgr;
-    auto* pane = mgr.split_pane(0, SplitDirection::Vertical, 1, 0.4f);
+    auto*            pane = mgr.split_pane(0, SplitDirection::Vertical, 1, 0.4f);
 
     EXPECT_NE(pane, nullptr);
     EXPECT_EQ(mgr.pane_count(), 2u);
@@ -369,7 +369,7 @@ TEST(SplitViewManagerSplit, SplitByFigure)
 TEST(SplitViewManagerSplit, SplitNonExistentFigure)
 {
     SplitViewManager mgr;
-    auto* pane = mgr.split_pane(99, SplitDirection::Horizontal, 1);
+    auto*            pane = mgr.split_pane(99, SplitDirection::Horizontal, 1);
     EXPECT_EQ(pane, nullptr);
 }
 
@@ -464,7 +464,7 @@ TEST(SplitViewManagerActive, SetActive)
 TEST(SplitViewManagerActive, ActiveCallback)
 {
     SplitViewManager mgr;
-    size_t callback_idx = SIZE_MAX;
+    size_t           callback_idx = SIZE_MAX;
     mgr.set_on_active_changed([&](size_t idx) { callback_idx = idx; });
 
     mgr.split_active(SplitDirection::Horizontal, 1);
@@ -557,7 +557,7 @@ TEST(SplitViewManagerSplitter, DragSplitter)
     mgr.begin_splitter_drag(splitter, 500.0f);
     EXPECT_TRUE(mgr.is_dragging_splitter());
 
-    mgr.update_splitter_drag(600.0f);  // Drag right
+    mgr.update_splitter_drag(600.0f);   // Drag right
     EXPECT_GT(splitter->split_ratio(), original_ratio);
 
     mgr.end_splitter_drag();
@@ -574,7 +574,7 @@ TEST(SplitViewManagerSplitter, DragRespectsMinSize)
     ASSERT_NE(splitter, nullptr);
 
     mgr.begin_splitter_drag(splitter, 500.0f);
-    mgr.update_splitter_drag(950.0f);  // Drag far right
+    mgr.update_splitter_drag(950.0f);   // Drag far right
 
     EXPECT_LE(splitter->split_ratio(), SplitPane::MAX_RATIO);
     mgr.end_splitter_drag();
@@ -612,7 +612,7 @@ TEST(SplitViewManagerSerialization, EmptyStringFails)
 TEST(SplitViewManagerCallbacks, OnSplit)
 {
     SplitViewManager mgr;
-    SplitPane* split_pane = nullptr;
+    SplitPane*       split_pane = nullptr;
     mgr.set_on_split([&](SplitPane* p) { split_pane = p; });
 
     mgr.split_active(SplitDirection::Horizontal, 1);
@@ -622,7 +622,7 @@ TEST(SplitViewManagerCallbacks, OnSplit)
 TEST(SplitViewManagerCallbacks, OnUnsplit)
 {
     SplitViewManager mgr;
-    bool unsplit_called = false;
+    bool             unsplit_called = false;
     mgr.set_on_unsplit([&](SplitPane*) { unsplit_called = true; });
 
     mgr.split_active(SplitDirection::Horizontal, 1);
@@ -672,7 +672,7 @@ TEST(SplitViewEdgeCases, ConstCollectLeaves)
     SplitPane root(0);
     root.split(SplitDirection::Horizontal, 1);
 
-    const SplitPane& croot = root;
+    const SplitPane&              croot = root;
     std::vector<const SplitPane*> leaves;
     croot.collect_leaves(leaves);
     EXPECT_EQ(leaves.size(), 2u);

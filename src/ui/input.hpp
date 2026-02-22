@@ -245,8 +245,8 @@ class InputHandler
     AxisLimits drag3d_start_xlim_{};
     AxisLimits drag3d_start_ylim_{};
     AxisLimits drag3d_start_zlim_{};
-    Camera     drag3d_start_camera_{};
-    Axes3D*    drag3d_axes_ = nullptr;
+    Camera drag3d_start_camera_{};
+    Axes3D* drag3d_axes_ = nullptr;
 
     // Modifier key tracking (updated from on_key)
     int mods_ = 0;
@@ -281,7 +281,13 @@ class InputHandler
     // Drag direction determines which axis to zoom:
     //   2D: horizontal drag = X zoom, vertical drag = Y zoom
     //   3D: axis whose screen-projected direction best aligns with drag direction
-    enum class ZoomAxis { None, X, Y, Z };
+    enum class ZoomAxis
+    {
+        None,
+        X,
+        Y,
+        Z
+    };
     bool rclick_zoom_dragging_ = false;
     bool rclick_zoom_3d_ = false;  // true when operating on Axes3D
     ZoomAxis rclick_zoom_axis_ = ZoomAxis::None;

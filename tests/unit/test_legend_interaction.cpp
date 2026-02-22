@@ -21,9 +21,9 @@ namespace
 
 struct LegendSeriesState
 {
-    float opacity = 1.0f;
+    float opacity        = 1.0f;
     float target_opacity = 1.0f;
-    bool user_visible = true;
+    bool  user_visible   = true;
 };
 
 class TestLegendLogic
@@ -35,16 +35,16 @@ class TestLegendLogic
         if (it != states_.end())
             return it->second;
         LegendSeriesState state;
-        state.user_visible = s ? s->visible() : true;
-        state.opacity = state.user_visible ? 1.0f : 0.0f;
+        state.user_visible   = s ? s->visible() : true;
+        state.opacity        = state.user_visible ? 1.0f : 0.0f;
         state.target_opacity = state.opacity;
         return states_.emplace(s, state).first->second;
     }
 
     void toggle(Series* s)
     {
-        auto& state = get_state(s);
-        state.user_visible = !state.user_visible;
+        auto& state          = get_state(s);
+        state.user_visible   = !state.user_visible;
         state.target_opacity = state.user_visible ? 1.0f : 0.15f;
         if (s)
             s->visible(state.user_visible);
@@ -89,10 +89,10 @@ class TestLegendLogic
 
    private:
     std::unordered_map<const Series*, LegendSeriesState> states_;
-    float toggle_duration_ = 0.2f;
+    float                                                toggle_duration_ = 0.2f;
 };
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ class LegendInteractionTest : public ::testing::Test
         axes_->xlim(0.0f, 10.0f);
         axes_->ylim(0.0f, 10.0f);
 
-        std::vector<float> x = {0.0f, 5.0f, 10.0f};
+        std::vector<float> x  = {0.0f, 5.0f, 10.0f};
         std::vector<float> y1 = {0.0f, 5.0f, 0.0f};
         std::vector<float> y2 = {10.0f, 5.0f, 10.0f};
         std::vector<float> y3 = {5.0f, 5.0f, 5.0f};
@@ -131,7 +131,7 @@ TEST_F(LegendInteractionTest, InitialStateAllVisible)
 TEST_F(LegendInteractionTest, ToggleHidesSeries)
 {
     TestLegendLogic legend;
-    Series* s = axes_->series_mut()[0].get();
+    Series*         s = axes_->series_mut()[0].get();
 
     legend.toggle(s);
 
@@ -144,7 +144,7 @@ TEST_F(LegendInteractionTest, ToggleHidesSeries)
 TEST_F(LegendInteractionTest, ToggleTwiceRestoresVisibility)
 {
     TestLegendLogic legend;
-    Series* s = axes_->series_mut()[0].get();
+    Series*         s = axes_->series_mut()[0].get();
 
     legend.toggle(s);
     legend.toggle(s);
@@ -161,7 +161,7 @@ TEST_F(LegendInteractionTest, OpacityAnimatesOverTime)
     legend.set_toggle_duration(0.2f);
     Series* s = axes_->series_mut()[0].get();
 
-    legend.toggle(s);  // target = 0.15
+    legend.toggle(s);   // target = 0.15
 
     // Opacity should start at 1.0 and decrease toward 0.15
     float prev = legend.series_opacity(s);
@@ -170,7 +170,7 @@ TEST_F(LegendInteractionTest, OpacityAnimatesOverTime)
     // Simulate several frames
     for (int i = 0; i < 60; ++i)
     {
-        legend.update(0.016f);  // ~60fps
+        legend.update(0.016f);   // ~60fps
     }
 
     float after = legend.series_opacity(s);
@@ -198,11 +198,11 @@ TEST_F(LegendInteractionTest, OpacityConvergesToTarget)
 TEST_F(LegendInteractionTest, MultipleSeriesIndependent)
 {
     TestLegendLogic legend;
-    Series* s0 = axes_->series_mut()[0].get();
-    Series* s1 = axes_->series_mut()[1].get();
-    Series* s2 = axes_->series_mut()[2].get();
+    Series*         s0 = axes_->series_mut()[0].get();
+    Series*         s1 = axes_->series_mut()[1].get();
+    Series*         s2 = axes_->series_mut()[2].get();
 
-    legend.toggle(s0);  // Hide first series
+    legend.toggle(s0);   // Hide first series
 
     EXPECT_FALSE(legend.is_series_visible(s0));
     EXPECT_TRUE(legend.is_series_visible(s1));
@@ -212,7 +212,7 @@ TEST_F(LegendInteractionTest, MultipleSeriesIndependent)
 TEST_F(LegendInteractionTest, UntrackedSeriesDefaultsToVisible)
 {
     TestLegendLogic legend;
-    Series* s = axes_->series_mut()[0].get();
+    Series*         s = axes_->series_mut()[0].get();
 
     // Before any interaction, opacity should be 1.0
     EXPECT_FLOAT_EQ(legend.series_opacity(s), 1.0f);
@@ -292,7 +292,7 @@ TEST_F(LegendInteractionTest, ToggleAllSeries)
 TEST_F(LegendInteractionTest, RapidToggleDoesNotCorrupt)
 {
     TestLegendLogic legend;
-    Series* s = axes_->series_mut()[0].get();
+    Series*         s = axes_->series_mut()[0].get();
 
     // Rapid toggle 10 times
     for (int i = 0; i < 10; ++i)
@@ -311,7 +311,7 @@ TEST_F(LegendInteractionTest, AnimationMidwayInterrupt)
     legend.set_toggle_duration(0.5f);
     Series* s = axes_->series_mut()[0].get();
 
-    legend.toggle(s);  // Start hiding
+    legend.toggle(s);   // Start hiding
 
     // Animate partway
     for (int i = 0; i < 5; ++i)

@@ -27,11 +27,15 @@ static void register_test_commands(CommandRegistry& reg, int count)
 {
     for (int i = 0; i < count; ++i)
     {
-        std::string id = "cmd." + std::to_string(i);
-        std::string label = "Command Number " + std::to_string(i);
+        std::string id       = "cmd." + std::to_string(i);
+        std::string label    = "Command Number " + std::to_string(i);
         std::string category = "Category" + std::to_string(i % 5);
         reg.register_command(
-            id, label, []() {}, "", category);
+            id,
+            label,
+            []() {},
+            "",
+            category);
     }
 }
 
@@ -88,7 +92,7 @@ BENCHMARK(BM_CommandRegistry_FuzzySearch_Specific)->Unit(benchmark::kMicrosecond
 static void BM_CommandRegistry_Execute(benchmark::State& state)
 {
     CommandRegistry reg;
-    int counter = 0;
+    int             counter = 0;
     reg.register_command("bench.cmd", "Bench", [&counter]() { ++counter; });
 
     for (auto _ : state)
@@ -147,16 +151,16 @@ BENCHMARK(BM_ShortcutManager_Lookup)->Unit(benchmark::kNanosecond);
 static void BM_ShortcutManager_OnKey_Hit(benchmark::State& state)
 {
     CommandRegistry reg;
-    int counter = 0;
+    int             counter = 0;
     reg.register_command("bench.shortcut", "Bench Shortcut", [&counter]() { ++counter; });
 
     ShortcutManager mgr;
     mgr.set_command_registry(&reg);
-    mgr.bind(Shortcut{75, KeyMod::Control}, "bench.shortcut");  // Ctrl+K
+    mgr.bind(Shortcut{75, KeyMod::Control}, "bench.shortcut");   // Ctrl+K
 
     for (auto _ : state)
     {
-        mgr.on_key(75, 1, 0x02);  // GLFW_PRESS, GLFW_MOD_CONTROL
+        mgr.on_key(75, 1, 0x02);   // GLFW_PRESS, GLFW_MOD_CONTROL
     }
     benchmark::DoNotOptimize(counter);
 }
@@ -172,7 +176,7 @@ static void BM_ShortcutManager_OnKey_Miss(benchmark::State& state)
 
     for (auto _ : state)
     {
-        bool hit = mgr.on_key(999, 1, 0);  // Unbound key
+        bool hit = mgr.on_key(999, 1, 0);   // Unbound key
         benchmark::DoNotOptimize(hit);
     }
 }
@@ -183,7 +187,7 @@ BENCHMARK(BM_ShortcutManager_OnKey_Miss)->Unit(benchmark::kNanosecond);
 static void BM_UndoManager_Push(benchmark::State& state)
 {
     UndoManager mgr;
-    int val = 0;
+    int         val = 0;
 
     for (auto _ : state)
     {
@@ -196,7 +200,7 @@ BENCHMARK(BM_UndoManager_Push)->Unit(benchmark::kNanosecond);
 static void BM_UndoManager_PushUndo(benchmark::State& state)
 {
     UndoManager mgr;
-    int val = 0;
+    int         val = 0;
 
     for (auto _ : state)
     {
@@ -210,7 +214,7 @@ BENCHMARK(BM_UndoManager_PushUndo)->Unit(benchmark::kNanosecond);
 static void BM_UndoManager_PushUndoRedo(benchmark::State& state)
 {
     UndoManager mgr;
-    int val = 0;
+    int         val = 0;
 
     for (auto _ : state)
     {
@@ -225,7 +229,7 @@ BENCHMARK(BM_UndoManager_PushUndoRedo)->Unit(benchmark::kNanosecond);
 static void BM_UndoManager_PushValue(benchmark::State& state)
 {
     UndoManager mgr;
-    float val = 0.0f;
+    float       val = 0.0f;
 
     for (auto _ : state)
     {
@@ -238,7 +242,7 @@ BENCHMARK(BM_UndoManager_PushValue)->Unit(benchmark::kNanosecond);
 static void BM_UndoManager_GroupedPush(benchmark::State& state)
 {
     UndoManager mgr;
-    int val = 0;
+    int         val = 0;
 
     for (auto _ : state)
     {
@@ -257,7 +261,7 @@ static void BM_UndoManager_StackOverflow(benchmark::State& state)
 {
     // Benchmark behavior when stack is at capacity
     UndoManager mgr;
-    int val = 0;
+    int         val = 0;
 
     // Fill to capacity
     for (size_t i = 0; i < UndoManager::MAX_STACK_SIZE; ++i)
@@ -278,29 +282,29 @@ BENCHMARK(BM_UndoManager_StackOverflow)->Unit(benchmark::kNanosecond);
 static WorkspaceData make_workspace_data(int num_figures, int series_per_fig)
 {
     WorkspaceData data;
-    data.theme_name = "dark";
-    data.active_figure_index = 0;
-    data.panels.inspector_visible = true;
-    data.panels.inspector_width = 320.0f;
+    data.theme_name                    = "dark";
+    data.active_figure_index           = 0;
+    data.panels.inspector_visible      = true;
+    data.panels.inspector_width        = 320.0f;
     data.interaction.crosshair_enabled = true;
-    data.interaction.tooltip_enabled = true;
+    data.interaction.tooltip_enabled   = true;
 
     for (int f = 0; f < num_figures; ++f)
     {
         WorkspaceData::FigureState fig;
-        fig.title = "Figure " + std::to_string(f + 1);
-        fig.width = 1280;
-        fig.height = 720;
-        fig.grid_rows = 1;
-        fig.grid_cols = 1;
+        fig.title            = "Figure " + std::to_string(f + 1);
+        fig.width            = 1280;
+        fig.height           = 720;
+        fig.grid_rows        = 1;
+        fig.grid_cols        = 1;
         fig.custom_tab_title = "Tab " + std::to_string(f + 1);
 
         WorkspaceData::AxisState ax;
-        ax.x_min = 0.0f;
-        ax.x_max = 10.0f;
-        ax.y_min = -1.0f;
-        ax.y_max = 1.0f;
-        ax.title = "Axes " + std::to_string(f);
+        ax.x_min   = 0.0f;
+        ax.x_max   = 10.0f;
+        ax.y_min   = -1.0f;
+        ax.y_max   = 1.0f;
+        ax.title   = "Axes " + std::to_string(f);
         ax.x_label = "X";
         ax.y_label = "Y";
         fig.axes.push_back(ax);
@@ -308,14 +312,14 @@ static WorkspaceData make_workspace_data(int num_figures, int series_per_fig)
         for (int s = 0; s < series_per_fig; ++s)
         {
             WorkspaceData::SeriesState ss;
-            ss.name = "Series " + std::to_string(s);
-            ss.type = (s % 2 == 0) ? "line" : "scatter";
-            ss.color_r = 0.2f + 0.1f * static_cast<float>(s);
-            ss.color_g = 0.5f;
-            ss.color_b = 0.8f;
-            ss.line_width = 2.0f;
+            ss.name        = "Series " + std::to_string(s);
+            ss.type        = (s % 2 == 0) ? "line" : "scatter";
+            ss.color_r     = 0.2f + 0.1f * static_cast<float>(s);
+            ss.color_g     = 0.5f;
+            ss.color_b     = 0.8f;
+            ss.line_width  = 2.0f;
             ss.point_count = 1000;
-            ss.visible = true;
+            ss.visible     = true;
             fig.series.push_back(ss);
         }
 
@@ -434,7 +438,7 @@ static void BM_FigureManager_SwitchTab(benchmark::State& state)
         mgr.create_figure();
 
     const auto& ids = mgr.figure_ids();
-    size_t pos = 0;
+    size_t      pos = 0;
     for (auto _ : state)
     {
         mgr.switch_to(ids[pos]);
@@ -466,8 +470,8 @@ static void BM_FigureManager_Duplicate(benchmark::State& state)
     {
         state.PauseTiming();
         FigureRegistry registry;
-        FigureId first_id = registry.register_figure(std::make_unique<Figure>());
-        FigureManager mgr(registry);
+        FigureId       first_id = registry.register_figure(std::make_unique<Figure>());
+        FigureManager  mgr(registry);
         state.ResumeTiming();
 
         mgr.duplicate_figure(first_id);
@@ -484,8 +488,8 @@ static void BM_FigureManager_ProcessPending(benchmark::State& state)
     for (int i = 0; i < 5; ++i)
         mgr.create_figure();
 
-    const auto& ids = mgr.figure_ids();
-    FigureId target_id = ids.size() > 3 ? ids[3] : ids.back();
+    const auto& ids       = mgr.figure_ids();
+    FigureId    target_id = ids.size() > 3 ? ids[3] : ids.back();
     for (auto _ : state)
     {
         mgr.queue_switch(target_id);
@@ -499,7 +503,7 @@ BENCHMARK(BM_FigureManager_ProcessPending)->Unit(benchmark::kNanosecond);
 
 static void BM_TransitionEngine_AnimateFloat_10(benchmark::State& state)
 {
-    TransitionEngine te;
+    TransitionEngine   te;
     std::vector<float> targets(10, 0.0f);
 
     for (auto _ : state)
@@ -521,7 +525,7 @@ BENCHMARK(BM_TransitionEngine_AnimateFloat_10)->Unit(benchmark::kMicrosecond);
 
 static void BM_TransitionEngine_AnimateLimits_10(benchmark::State& state)
 {
-    TransitionEngine te;
+    TransitionEngine  te;
     std::vector<Axes> axes(10);
     for (auto& ax : axes)
     {
@@ -551,7 +555,7 @@ BENCHMARK(BM_TransitionEngine_AnimateLimits_10)->Unit(benchmark::kMicrosecond);
 
 static void BM_TransitionEngine_CancelAll(benchmark::State& state)
 {
-    TransitionEngine te;
+    TransitionEngine   te;
     std::vector<float> targets(50, 0.0f);
 
     for (auto _ : state)
@@ -580,8 +584,8 @@ double compute_percentile_bench(const std::vector<float>& sorted, double p)
     if (sorted.size() == 1)
         return static_cast<double>(sorted[0]);
     double idx = p * static_cast<double>(sorted.size() - 1);
-    size_t lo = static_cast<size_t>(idx);
-    size_t hi = lo + 1;
+    size_t lo  = static_cast<size_t>(idx);
+    size_t hi  = lo + 1;
     if (hi >= sorted.size())
         return static_cast<double>(sorted.back());
     double frac = idx - static_cast<double>(lo);
@@ -605,11 +609,11 @@ FullStats compute_full_stats(const float* x, const float* y, size_t n)
     std::vector<float> y_sorted(y, y + n);
     std::sort(y_sorted.begin(), y_sorted.end());
 
-    s.y_min = y_sorted.front();
-    s.y_max = y_sorted.back();
+    s.y_min      = y_sorted.front();
+    s.y_max      = y_sorted.back();
     double y_sum = std::accumulate(y_sorted.begin(), y_sorted.end(), 0.0);
-    s.y_mean = static_cast<float>(y_sum / static_cast<double>(n));
-    s.y_median = static_cast<float>(compute_percentile_bench(y_sorted, 0.5));
+    s.y_mean     = static_cast<float>(y_sum / static_cast<double>(n));
+    s.y_median   = static_cast<float>(compute_percentile_bench(y_sorted, 0.5));
 
     double var_sum = 0.0;
     for (size_t i = 0; i < n; ++i)
@@ -619,27 +623,27 @@ FullStats compute_full_stats(const float* x, const float* y, size_t n)
     }
     s.y_std = static_cast<float>(std::sqrt(var_sum / static_cast<double>(n)));
 
-    s.p5 = static_cast<float>(compute_percentile_bench(y_sorted, 0.05));
+    s.p5  = static_cast<float>(compute_percentile_bench(y_sorted, 0.05));
     s.p25 = static_cast<float>(compute_percentile_bench(y_sorted, 0.25));
     s.p75 = static_cast<float>(compute_percentile_bench(y_sorted, 0.75));
     s.p95 = static_cast<float>(compute_percentile_bench(y_sorted, 0.95));
     s.iqr = s.p75 - s.p25;
 
     // X stats
-    s.x_min = *std::min_element(x, x + n);
-    s.x_max = *std::max_element(x, x + n);
-    s.x_range = s.x_max - s.x_min;
+    s.x_min      = *std::min_element(x, x + n);
+    s.x_max      = *std::max_element(x, x + n);
+    s.x_range    = s.x_max - s.x_min;
     double x_sum = std::accumulate(x, x + n, 0.0);
-    s.x_mean = static_cast<float>(x_sum / static_cast<double>(n));
+    s.x_mean     = static_cast<float>(x_sum / static_cast<double>(n));
 
     return s;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 static void BM_InspectorStats_1K(benchmark::State& state)
 {
-    constexpr size_t N = 1000;
+    constexpr size_t   N = 1000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -657,7 +661,7 @@ BENCHMARK(BM_InspectorStats_1K)->Unit(benchmark::kMicrosecond);
 
 static void BM_InspectorStats_10K(benchmark::State& state)
 {
-    constexpr size_t N = 10000;
+    constexpr size_t   N = 10000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -675,7 +679,7 @@ BENCHMARK(BM_InspectorStats_10K)->Unit(benchmark::kMicrosecond);
 
 static void BM_InspectorStats_100K(benchmark::State& state)
 {
-    constexpr size_t N = 100000;
+    constexpr size_t   N = 100000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -695,7 +699,7 @@ BENCHMARK(BM_InspectorStats_100K)->Unit(benchmark::kMicrosecond);
 
 static void BM_SparklineDownsample(benchmark::State& state)
 {
-    const size_t N = static_cast<size_t>(state.range(0));
+    const size_t     N             = static_cast<size_t>(state.range(0));
     constexpr size_t MAX_SPARKLINE = 200;
 
     std::vector<float> data(N);

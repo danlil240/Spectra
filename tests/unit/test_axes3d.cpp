@@ -92,9 +92,9 @@ void test_axes3d_camera()
 
     Camera& cam = axes.camera();
 
-    cam.azimuth = 90.0f;
+    cam.azimuth   = 90.0f;
     cam.elevation = 45.0f;
-    cam.distance = 10.0f;
+    cam.distance  = 10.0f;
     cam.update_position_from_orbit();
 
     assert(axes.camera().azimuth == 90.0f);
@@ -249,8 +249,8 @@ void test_axes3d_bounding_box_vertices()
 {
     // Test that BoundingBoxData::generate produces 24 vertices (12 edges × 2 endpoints)
     Axes3DRenderer::BoundingBoxData bbox;
-    vec3 min_corner = {-1.0f, -2.0f, -3.0f};
-    vec3 max_corner = {1.0f, 2.0f, 3.0f};
+    vec3                            min_corner = {-1.0f, -2.0f, -3.0f};
+    vec3                            max_corner = {1.0f, 2.0f, 3.0f};
     bbox.generate(min_corner, max_corner);
 
     assert(bbox.edge_vertices.size() == 24);
@@ -275,8 +275,8 @@ void test_axes3d_tick_mark_positions()
     axes.zlim(0.0f, 100.0f);
 
     Axes3DRenderer::TickMarkData tick_data;
-    vec3 min_corner = {0.0f, -5.0f, 0.0f};
-    vec3 max_corner = {10.0f, 5.0f, 100.0f};
+    vec3                         min_corner = {0.0f, -5.0f, 0.0f};
+    vec3                         max_corner = {10.0f, 5.0f, 100.0f};
 
     tick_data.generate_x_ticks(axes, min_corner, max_corner);
     auto x_ticks = axes.compute_x_ticks();
@@ -310,17 +310,17 @@ void test_axes3d_world_to_screen_projection()
     cam.update_position_from_orbit();
 
     float aspect = 16.0f / 9.0f;
-    mat4 proj = cam.projection_matrix(aspect);
-    mat4 view = cam.view_matrix();
-    mat4 mvp = mat4_mul(proj, view);
+    mat4  proj   = cam.projection_matrix(aspect);
+    mat4  view   = cam.view_matrix();
+    mat4  mvp    = mat4_mul(proj, view);
 
     // Project the camera target (origin) — should map to roughly center of NDC
-    vec3 origin = {0.0f, 0.0f, 0.0f};
+    vec3  origin = {0.0f, 0.0f, 0.0f};
     float clip_x = mvp.m[0] * origin.x + mvp.m[4] * origin.y + mvp.m[8] * origin.z + mvp.m[12];
     float clip_y = mvp.m[1] * origin.x + mvp.m[5] * origin.y + mvp.m[9] * origin.z + mvp.m[13];
     float clip_w = mvp.m[3] * origin.x + mvp.m[7] * origin.y + mvp.m[11] * origin.z + mvp.m[15];
 
-    assert(clip_w > 0.0f);  // Should be in front of camera
+    assert(clip_w > 0.0f);   // Should be in front of camera
 
     float ndc_x = clip_x / clip_w;
     float ndc_y = clip_y / clip_w;
@@ -330,7 +330,7 @@ void test_axes3d_world_to_screen_projection()
     assert(std::abs(ndc_y) < 0.5f);
 
     // Project a point behind the camera — should have negative or near-zero w
-    vec3 behind = cam.position + (cam.position - cam.target) * 2.0f;
+    vec3  behind   = cam.position + (cam.position - cam.target) * 2.0f;
     float behind_w = mvp.m[3] * behind.x + mvp.m[7] * behind.y + mvp.m[11] * behind.z + mvp.m[15];
     // Behind should have w <= 0 or very small
     assert(behind_w <= 0.1f);

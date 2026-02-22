@@ -13,8 +13,8 @@ TEST(SubplotLayout, SingleCell)
     auto& r = rects[0];
     EXPECT_FLOAT_EQ(r.x, 60.0f);
     EXPECT_FLOAT_EQ(r.y, 40.0f);
-    EXPECT_FLOAT_EQ(r.w, 1280.0f - 60.0f - 40.0f);  // 1180
-    EXPECT_FLOAT_EQ(r.h, 720.0f - 40.0f - 50.0f);   // 630
+    EXPECT_FLOAT_EQ(r.w, 1280.0f - 60.0f - 40.0f);   // 1180
+    EXPECT_FLOAT_EQ(r.h, 720.0f - 40.0f - 50.0f);    // 630
 }
 
 TEST(SubplotLayout, TwoByOneGrid)
@@ -22,7 +22,7 @@ TEST(SubplotLayout, TwoByOneGrid)
     auto rects = compute_subplot_layout(1920.0f, 1080.0f, 2, 1);
     ASSERT_EQ(rects.size(), 2u);
 
-    float cell_h = 1080.0f / 2.0f;  // 540
+    float cell_h = 1080.0f / 2.0f;   // 540
 
     // Row 0, Col 0 (top)
     EXPECT_FLOAT_EQ(rects[0].x, 60.0f);
@@ -42,7 +42,7 @@ TEST(SubplotLayout, OneByTwoGrid)
     auto rects = compute_subplot_layout(1000.0f, 500.0f, 1, 2);
     ASSERT_EQ(rects.size(), 2u);
 
-    float cell_w = 1000.0f / 2.0f;  // 500
+    float cell_w = 1000.0f / 2.0f;   // 500
 
     // Row 0, Col 0 (left)
     EXPECT_FLOAT_EQ(rects[0].x, 60.0f);
@@ -93,7 +93,7 @@ TEST(SubplotLayout, TwoByTwoGrid)
 TEST(SubplotLayout, CustomMargins)
 {
     Margins m{10.0f, 10.0f, 10.0f, 10.0f};
-    auto rects = compute_subplot_layout(100.0f, 100.0f, 1, 1, m);
+    auto    rects = compute_subplot_layout(100.0f, 100.0f, 1, 1, m);
     ASSERT_EQ(rects.size(), 1u);
     EXPECT_FLOAT_EQ(rects[0].x, 10.0f);
     EXPECT_FLOAT_EQ(rects[0].y, 10.0f);

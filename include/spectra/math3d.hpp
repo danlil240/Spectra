@@ -15,11 +15,11 @@ struct vec3
     constexpr vec3() = default;
     constexpr vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
 
-    constexpr vec3 operator+(vec3 b) const { return {x + b.x, y + b.y, z + b.z}; }
-    constexpr vec3 operator-(vec3 b) const { return {x - b.x, y - b.y, z - b.z}; }
-    constexpr vec3 operator*(float s) const { return {x * s, y * s, z * s}; }
-    constexpr vec3 operator/(float s) const { return {x / s, y / s, z / s}; }
-    constexpr vec3 operator-() const { return {-x, -y, -z}; }
+    constexpr vec3  operator+(vec3 b) const { return {x + b.x, y + b.y, z + b.z}; }
+    constexpr vec3  operator-(vec3 b) const { return {x - b.x, y - b.y, z - b.z}; }
+    constexpr vec3  operator*(float s) const { return {x * s, y * s, z * s}; }
+    constexpr vec3  operator/(float s) const { return {x / s, y / s, z / s}; }
+    constexpr vec3  operator-() const { return {-x, -y, -z}; }
     constexpr vec3& operator+=(vec3 b)
     {
         x += b.x;
@@ -44,7 +44,7 @@ struct vec3
     constexpr bool operator==(vec3 b) const { return x == b.x && y == b.y && z == b.z; }
     constexpr bool operator!=(vec3 b) const { return !(*this == b); }
 
-    float& operator[](int i) { return (&x)[i]; }
+    float&       operator[](int i) { return (&x)[i]; }
     const float& operator[](int i) const { return (&x)[i]; }
 };
 
@@ -110,7 +110,7 @@ struct vec4
     constexpr vec4 operator-(vec4 b) const { return {x - b.x, y - b.y, z - b.z, w - b.w}; }
     constexpr vec4 operator*(float s) const { return {x * s, y * s, z * s, w * s}; }
 
-    float& operator[](int i) { return (&x)[i]; }
+    float&       operator[](int i) { return (&x)[i]; }
     const float& operator[](int i) const { return (&x)[i]; }
 };
 
@@ -124,7 +124,7 @@ struct mat4
 
     constexpr mat4() = default;
 
-    constexpr float& operator()(int row, int col) { return m[col * 4 + row]; }
+    constexpr float&       operator()(int row, int col) { return m[col * 4 + row]; }
     constexpr const float& operator()(int row, int col) const { return m[col * 4 + row]; }
 
     constexpr bool operator==(const mat4& b) const
@@ -140,8 +140,8 @@ struct mat4
 inline constexpr mat4 mat4_identity()
 {
     mat4 r;
-    r.m[0] = 1.0f;
-    r.m[5] = 1.0f;
+    r.m[0]  = 1.0f;
+    r.m[5]  = 1.0f;
     r.m[10] = 1.0f;
     r.m[15] = 1.0f;
     return r;
@@ -177,7 +177,7 @@ inline constexpr vec4 mat4_mul_vec4(const mat4& m, vec4 v)
 
 inline constexpr mat4 mat4_translate(vec3 t)
 {
-    mat4 r = mat4_identity();
+    mat4 r  = mat4_identity();
     r.m[12] = t.x;
     r.m[13] = t.y;
     r.m[14] = t.z;
@@ -187,8 +187,8 @@ inline constexpr mat4 mat4_translate(vec3 t)
 inline constexpr mat4 mat4_scale(vec3 s)
 {
     mat4 r;
-    r.m[0] = s.x;
-    r.m[5] = s.y;
+    r.m[0]  = s.x;
+    r.m[5]  = s.y;
     r.m[10] = s.z;
     r.m[15] = 1.0f;
     return r;
@@ -197,10 +197,10 @@ inline constexpr mat4 mat4_scale(vec3 s)
 inline mat4 mat4_rotate_x(float angle_rad)
 {
     float c = std::cos(angle_rad), s = std::sin(angle_rad);
-    mat4 r = mat4_identity();
-    r.m[5] = c;
-    r.m[9] = -s;
-    r.m[6] = s;
+    mat4  r = mat4_identity();
+    r.m[5]  = c;
+    r.m[9]  = -s;
+    r.m[6]  = s;
     r.m[10] = c;
     return r;
 }
@@ -208,10 +208,10 @@ inline mat4 mat4_rotate_x(float angle_rad)
 inline mat4 mat4_rotate_y(float angle_rad)
 {
     float c = std::cos(angle_rad), s = std::sin(angle_rad);
-    mat4 r = mat4_identity();
-    r.m[0] = c;
-    r.m[8] = s;
-    r.m[2] = -s;
+    mat4  r = mat4_identity();
+    r.m[0]  = c;
+    r.m[8]  = s;
+    r.m[2]  = -s;
     r.m[10] = c;
     return r;
 }
@@ -219,11 +219,11 @@ inline mat4 mat4_rotate_y(float angle_rad)
 inline mat4 mat4_rotate_z(float angle_rad)
 {
     float c = std::cos(angle_rad), s = std::sin(angle_rad);
-    mat4 r = mat4_identity();
-    r.m[0] = c;
-    r.m[4] = -s;
-    r.m[1] = s;
-    r.m[5] = c;
+    mat4  r = mat4_identity();
+    r.m[0]  = c;
+    r.m[4]  = -s;
+    r.m[1]  = s;
+    r.m[5]  = c;
     return r;
 }
 
@@ -233,15 +233,15 @@ inline mat4 mat4_look_at(vec3 eye, vec3 target, vec3 up)
     vec3 r = vec3_normalize(vec3_cross(f, up));
     vec3 u = vec3_cross(r, f);
 
-    mat4 m = mat4_identity();
-    m.m[0] = r.x;
-    m.m[4] = r.y;
-    m.m[8] = r.z;
-    m.m[1] = u.x;
-    m.m[5] = u.y;
-    m.m[9] = u.z;
-    m.m[2] = -f.x;
-    m.m[6] = -f.y;
+    mat4 m  = mat4_identity();
+    m.m[0]  = r.x;
+    m.m[4]  = r.y;
+    m.m[8]  = r.z;
+    m.m[1]  = u.x;
+    m.m[5]  = u.y;
+    m.m[9]  = u.z;
+    m.m[2]  = -f.x;
+    m.m[6]  = -f.y;
     m.m[10] = -f.z;
     m.m[12] = -vec3_dot(r, eye);
     m.m[13] = -vec3_dot(u, eye);
@@ -252,9 +252,9 @@ inline mat4 mat4_look_at(vec3 eye, vec3 target, vec3 up)
 inline mat4 mat4_perspective(float fov_y_rad, float aspect, float near, float far)
 {
     float t = std::tan(fov_y_rad * 0.5f);
-    mat4 m;
-    m.m[0] = 1.0f / (aspect * t);
-    m.m[5] = -1.0f / t;  // Vulkan Y-flip
+    mat4  m;
+    m.m[0]  = 1.0f / (aspect * t);
+    m.m[5]  = -1.0f / t;   // Vulkan Y-flip
     m.m[10] = far / (near - far);
     m.m[11] = -1.0f;
     m.m[14] = (near * far) / (near - far);
@@ -263,7 +263,7 @@ inline mat4 mat4_perspective(float fov_y_rad, float aspect, float near, float fa
 
 inline mat4 mat4_ortho(float left, float right, float bottom, float top, float near, float far)
 {
-    mat4 m;
+    mat4  m;
     float rl = right - left;
     float tb = top - bottom;
     float fn = far - near;
@@ -274,8 +274,8 @@ inline mat4 mat4_ortho(float left, float right, float bottom, float top, float n
     if (fn == 0.0f)
         fn = 1.0f;
 
-    m.m[0] = 2.0f / rl;
-    m.m[5] = -2.0f / tb;  // Vulkan Y-flip
+    m.m[0]  = 2.0f / rl;
+    m.m[5]  = -2.0f / tb;   // Vulkan Y-flip
     m.m[10] = -1.0f / fn;
     m.m[12] = -(right + left) / rl;
     m.m[13] = (top + bottom) / tb;
@@ -339,16 +339,16 @@ inline mat4 mat4_inverse(const mat4& m)
     float inv_det = 1.0f / det;
 
     mat4 r;
-    r.m[0] = (a11 * b11 - a12 * b10 + a13 * b09) * inv_det;
-    r.m[1] = (-a10 * b11 + a12 * b08 - a13 * b07) * inv_det;
-    r.m[2] = (a10 * b10 - a11 * b08 + a13 * b06) * inv_det;
-    r.m[3] = (-a10 * b09 + a11 * b07 - a12 * b06) * inv_det;
-    r.m[4] = (-a01 * b11 + a02 * b10 - a03 * b09) * inv_det;
-    r.m[5] = (a00 * b11 - a02 * b08 + a03 * b07) * inv_det;
-    r.m[6] = (-a00 * b10 + a01 * b08 - a03 * b06) * inv_det;
-    r.m[7] = (a00 * b09 - a01 * b07 + a02 * b06) * inv_det;
-    r.m[8] = (a31 * b05 - a32 * b04 + a33 * b03) * inv_det;
-    r.m[9] = (-a30 * b05 + a32 * b02 - a33 * b01) * inv_det;
+    r.m[0]  = (a11 * b11 - a12 * b10 + a13 * b09) * inv_det;
+    r.m[1]  = (-a10 * b11 + a12 * b08 - a13 * b07) * inv_det;
+    r.m[2]  = (a10 * b10 - a11 * b08 + a13 * b06) * inv_det;
+    r.m[3]  = (-a10 * b09 + a11 * b07 - a12 * b06) * inv_det;
+    r.m[4]  = (-a01 * b11 + a02 * b10 - a03 * b09) * inv_det;
+    r.m[5]  = (a00 * b11 - a02 * b08 + a03 * b07) * inv_det;
+    r.m[6]  = (-a00 * b10 + a01 * b08 - a03 * b06) * inv_det;
+    r.m[7]  = (a00 * b09 - a01 * b07 + a02 * b06) * inv_det;
+    r.m[8]  = (a31 * b05 - a32 * b04 + a33 * b03) * inv_det;
+    r.m[9]  = (-a30 * b05 + a32 * b02 - a33 * b01) * inv_det;
     r.m[10] = (a30 * b04 - a31 * b02 + a33 * b00) * inv_det;
     r.m[11] = (-a30 * b03 + a31 * b01 - a32 * b00) * inv_det;
     r.m[12] = (-a21 * b05 + a22 * b04 - a23 * b03) * inv_det;
@@ -408,9 +408,9 @@ inline constexpr quat quat_mul(quat a, quat b)
 
 inline quat quat_from_axis_angle(vec3 axis, float angle_rad)
 {
-    vec3 n = vec3_normalize(axis);
+    vec3  n    = vec3_normalize(axis);
     float half = angle_rad * 0.5f;
-    float s = std::sin(half);
+    float s    = std::sin(half);
     return {n.x * s, n.y * s, n.z * s, std::cos(half)};
 }
 
@@ -429,14 +429,14 @@ inline mat4 quat_to_mat4(quat q)
     float wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
 
     mat4 m;
-    m.m[0] = 1.0f - 2.0f * (yy + zz);
-    m.m[1] = 2.0f * (xy + wz);
-    m.m[2] = 2.0f * (xz - wy);
-    m.m[4] = 2.0f * (xy - wz);
-    m.m[5] = 1.0f - 2.0f * (xx + zz);
-    m.m[6] = 2.0f * (yz + wx);
-    m.m[8] = 2.0f * (xz + wy);
-    m.m[9] = 2.0f * (yz - wx);
+    m.m[0]  = 1.0f - 2.0f * (yy + zz);
+    m.m[1]  = 2.0f * (xy + wz);
+    m.m[2]  = 2.0f * (xz - wy);
+    m.m[4]  = 2.0f * (xy - wz);
+    m.m[5]  = 1.0f - 2.0f * (xx + zz);
+    m.m[6]  = 2.0f * (yz + wx);
+    m.m[8]  = 2.0f * (xz + wy);
+    m.m[9]  = 2.0f * (yz - wx);
     m.m[10] = 1.0f - 2.0f * (xx + yy);
     m.m[15] = 1.0f;
     return m;
@@ -445,38 +445,38 @@ inline mat4 quat_to_mat4(quat q)
 inline quat quat_from_mat4(const mat4& m)
 {
     float trace = m.m[0] + m.m[5] + m.m[10];
-    quat q;
+    quat  q;
     if (trace > 0.0f)
     {
         float s = 0.5f / std::sqrt(trace + 1.0f);
-        q.w = 0.25f / s;
-        q.x = (m.m[6] - m.m[9]) * s;
-        q.y = (m.m[8] - m.m[2]) * s;
-        q.z = (m.m[1] - m.m[4]) * s;
+        q.w     = 0.25f / s;
+        q.x     = (m.m[6] - m.m[9]) * s;
+        q.y     = (m.m[8] - m.m[2]) * s;
+        q.z     = (m.m[1] - m.m[4]) * s;
     }
     else if (m.m[0] > m.m[5] && m.m[0] > m.m[10])
     {
         float s = 2.0f * std::sqrt(1.0f + m.m[0] - m.m[5] - m.m[10]);
-        q.w = (m.m[6] - m.m[9]) / s;
-        q.x = 0.25f * s;
-        q.y = (m.m[4] + m.m[1]) / s;
-        q.z = (m.m[8] + m.m[2]) / s;
+        q.w     = (m.m[6] - m.m[9]) / s;
+        q.x     = 0.25f * s;
+        q.y     = (m.m[4] + m.m[1]) / s;
+        q.z     = (m.m[8] + m.m[2]) / s;
     }
     else if (m.m[5] > m.m[10])
     {
         float s = 2.0f * std::sqrt(1.0f + m.m[5] - m.m[0] - m.m[10]);
-        q.w = (m.m[8] - m.m[2]) / s;
-        q.x = (m.m[4] + m.m[1]) / s;
-        q.y = 0.25f * s;
-        q.z = (m.m[9] + m.m[6]) / s;
+        q.w     = (m.m[8] - m.m[2]) / s;
+        q.x     = (m.m[4] + m.m[1]) / s;
+        q.y     = 0.25f * s;
+        q.z     = (m.m[9] + m.m[6]) / s;
     }
     else
     {
         float s = 2.0f * std::sqrt(1.0f + m.m[10] - m.m[0] - m.m[5]);
-        q.w = (m.m[1] - m.m[4]) / s;
-        q.x = (m.m[8] + m.m[2]) / s;
-        q.y = (m.m[9] + m.m[6]) / s;
-        q.z = 0.25f * s;
+        q.w     = (m.m[1] - m.m[4]) / s;
+        q.x     = (m.m[8] + m.m[2]) / s;
+        q.y     = (m.m[9] + m.m[6]) / s;
+        q.z     = 0.25f * s;
     }
     return quat_normalize(q);
 }
@@ -488,7 +488,7 @@ inline quat quat_slerp(quat a, quat b, float t)
     // If dot is negative, negate one quaternion to take the shorter path
     if (dot < 0.0f)
     {
-        b = {-b.x, -b.y, -b.z, -b.w};
+        b   = {-b.x, -b.y, -b.z, -b.w};
         dot = -dot;
     }
 
@@ -504,10 +504,10 @@ inline quat quat_slerp(quat a, quat b, float t)
         return quat_normalize(r);
     }
 
-    float theta = std::acos(dot);
+    float theta     = std::acos(dot);
     float sin_theta = std::sin(theta);
-    float wa = std::sin((1.0f - t) * theta) / sin_theta;
-    float wb = std::sin(t * theta) / sin_theta;
+    float wa        = std::sin((1.0f - t) * theta) / sin_theta;
+    float wb        = std::sin(t * theta) / sin_theta;
 
     return {
         a.x * wa + b.x * wb,
@@ -525,21 +525,24 @@ struct Ray
     vec3 direction;
 };
 
-inline Ray unproject(
-    float screen_x, float screen_y, const mat4& mvp_inv, float viewport_w, float viewport_h)
+inline Ray unproject(float       screen_x,
+                     float       screen_y,
+                     const mat4& mvp_inv,
+                     float       viewport_w,
+                     float       viewport_h)
 {
     // Screen to NDC (Vulkan: Y is flipped, Z range [0,1])
     float ndc_x = (2.0f * screen_x / viewport_w) - 1.0f;
     float ndc_y = (2.0f * screen_y / viewport_h) - 1.0f;
 
     vec4 near_pt = mat4_mul_vec4(mvp_inv, {ndc_x, ndc_y, 0.0f, 1.0f});
-    vec4 far_pt = mat4_mul_vec4(mvp_inv, {ndc_x, ndc_y, 1.0f, 1.0f});
+    vec4 far_pt  = mat4_mul_vec4(mvp_inv, {ndc_x, ndc_y, 1.0f, 1.0f});
 
     if (std::fabs(near_pt.w) < 1e-12f || std::fabs(far_pt.w) < 1e-12f)
         return {{0, 0, 0}, {0, 0, -1}};
 
     vec3 near3 = near_pt.xyz() / near_pt.w;
-    vec3 far3 = far_pt.xyz() / far_pt.w;
+    vec3 far3  = far_pt.xyz() / far_pt.w;
 
     return {near3, vec3_normalize(far3 - near3)};
 }
@@ -560,4 +563,4 @@ inline constexpr float clampf(float v, float lo, float hi)
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-}  // namespace spectra
+}   // namespace spectra

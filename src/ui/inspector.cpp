@@ -172,19 +172,19 @@ void Inspector::draw_figure_properties(Figure& fig)
             {
                 leg.font_size = font_size;
             }
-            
+
             float padding = leg.padding;
             if (widgets::drag_field("Padding", padding, 0.5f, 0.0f, 40.0f, "%.0f px"))
             {
                 leg.padding = padding;
             }
-            
+
             spectra::Color bg_color = leg.bg_color;
             if (widgets::color_field("Background", bg_color))
             {
                 leg.bg_color = bg_color;
             }
-            
+
             spectra::Color border_color = leg.border_color;
             if (widgets::color_field("Border", border_color))
             {

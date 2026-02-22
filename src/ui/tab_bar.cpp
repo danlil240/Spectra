@@ -267,7 +267,8 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
 
         // Tab background color from theme
         ImU32 bg_color;
-        bool is_active_styled = is_active && !menus_open;  // Don't show active styling when menus are open
+        bool is_active_styled =
+            is_active && !menus_open;  // Don't show active styling when menus are open
         if (is_active_styled)
         {
             bg_color = to_imcol(colors.bg_tertiary);

@@ -20,13 +20,13 @@ namespace spectra::ipc
 // Tracks a single shared memory blob reference.
 struct BlobEntry
 {
-    std::string name;                                           // shm segment name
-    size_t size = 0;                                            // byte size
-    uint64_t figure_id = 0;                                     // owning figure
-    uint32_t series_index = 0;                                  // owning series
-    int pending_acks = 0;                                       // agents that haven't ACK'd yet
-    std::chrono::steady_clock::time_point created_at;           // for TTL enforcement
-    bool released = false;                                      // BLOB_RELEASE sent to Python
+    std::string name;                                  // shm segment name
+    size_t size = 0;                                   // byte size
+    uint64_t figure_id = 0;                            // owning figure
+    uint32_t series_index = 0;                         // owning series
+    int pending_acks = 0;                              // agents that haven't ACK'd yet
+    std::chrono::steady_clock::time_point created_at;  // for TTL enforcement
+    bool released = false;                             // BLOB_RELEASE sent to Python
 };
 
 // Manages shared memory blob references for the backend daemon.

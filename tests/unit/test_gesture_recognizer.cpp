@@ -9,7 +9,7 @@ using namespace spectra;
 TEST(GestureRecognizer, SingleClickNotDouble)
 {
     GestureRecognizer gr;
-    bool result = gr.on_click(100.0, 100.0);
+    bool              result = gr.on_click(100.0, 100.0);
     EXPECT_FALSE(result);
 }
 
@@ -35,10 +35,10 @@ TEST(GestureRecognizer, ThirdClickAfterDoubleIsNotDouble)
 {
     GestureRecognizer gr;
     gr.on_click(100.0, 100.0);
-    gr.on_click(101.0, 101.0);  // double
+    gr.on_click(101.0, 101.0);   // double
     // Third click should NOT be a double (resets)
     bool result = gr.on_click(101.0, 101.0);
-    EXPECT_TRUE(result);  // Actually this is still within time+distance, so it's another double
+    EXPECT_TRUE(result);   // Actually this is still within time+distance, so it's another double
 }
 
 // ─── Scroll accumulation ────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ TEST(GestureRecognizer, EndPinchResetsState)
 TEST(GestureRecognizer, CustomDoubleClickDistance)
 {
     GestureRecognizer gr;
-    gr.set_double_click_distance(2.0f);  // Very tight
+    gr.set_double_click_distance(2.0f);   // Very tight
 
     gr.on_click(100.0, 100.0);
     // 3px away — should NOT be double with 2px threshold

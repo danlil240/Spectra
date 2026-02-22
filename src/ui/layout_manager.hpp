@@ -45,60 +45,24 @@ class LayoutManager
     void reset_inspector_width();
 
     // Bottom panel (timeline)
-    void set_bottom_panel_height(float h)
-    {
-        bottom_panel_height_ = h;
-    }
-    float bottom_panel_height() const
-    {
-        return bottom_panel_height_;
-    }
+    void set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
+    float bottom_panel_height() const { return bottom_panel_height_; }
 
     // State queries
-    bool is_inspector_visible() const
-    {
-        return inspector_visible_;
-    }
-    float inspector_width() const
-    {
-        return inspector_width_;
-    }
-    float inspector_animated_width() const
-    {
-        return inspector_anim_width_;
-    }
-    bool is_nav_rail_expanded() const
-    {
-        return nav_rail_expanded_;
-    }
+    bool is_inspector_visible() const { return inspector_visible_; }
+    float inspector_width() const { return inspector_width_; }
+    float inspector_animated_width() const { return inspector_anim_width_; }
+    bool is_nav_rail_expanded() const { return nav_rail_expanded_; }
     float nav_rail_width() const;
-    float nav_rail_animated_width() const
-    {
-        return nav_rail_anim_width_;
-    }
-    bool is_tab_bar_visible() const
-    {
-        return tab_bar_visible_;
-    }
+    float nav_rail_animated_width() const { return nav_rail_anim_width_; }
+    bool is_tab_bar_visible() const { return tab_bar_visible_; }
     bool is_animating() const;
 
     // Inspector resize interaction helpers
-    bool is_inspector_resize_hovered() const
-    {
-        return inspector_resize_hovered_;
-    }
-    void set_inspector_resize_hovered(bool hovered)
-    {
-        inspector_resize_hovered_ = hovered;
-    }
-    bool is_inspector_resize_active() const
-    {
-        return inspector_resize_active_;
-    }
-    void set_inspector_resize_active(bool active)
-    {
-        inspector_resize_active_ = active;
-    }
+    bool is_inspector_resize_hovered() const { return inspector_resize_hovered_; }
+    void set_inspector_resize_hovered(bool hovered) { inspector_resize_hovered_ = hovered; }
+    bool is_inspector_resize_active() const { return inspector_resize_active_; }
+    void set_inspector_resize_active(bool active) { inspector_resize_active_ = active; }
 
     // Layout constants (matching the design spec)
     static constexpr float COMMAND_BAR_HEIGHT = 48.0f;

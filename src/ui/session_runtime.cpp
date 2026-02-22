@@ -425,9 +425,8 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
             // Use the figure in the pane the cursor was actually over (target_figure_id)
             // rather than the dock's globally active figure (prev_dock_active).
             // Fall back to prev_dock_active if target_figure_id wasn't set.
-            FigureId anchor_fig = (pm.target_figure_id != INVALID_FIGURE_ID)
-                                      ? pm.target_figure_id
-                                      : prev_dock_active;
+            FigureId anchor_fig =
+                (pm.target_figure_id != INVALID_FIGURE_ID) ? pm.target_figure_id : prev_dock_active;
 
             bool did_split = false;
             if (pm.drop_zone >= 1 && pm.drop_zone <= 4 && anchor_fig != INVALID_FIGURE_ID)
@@ -438,8 +437,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 switch (pm.drop_zone)
                 {
                     case 1:  // Left — split horizontally, new figure goes left
-                        split_result =
-                            dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
+                        split_result = dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
                             auto* parent = split_result->parent();
@@ -448,12 +446,10 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                         }
                         break;
                     case 2:  // Right — split horizontally, new figure goes right
-                        split_result =
-                            dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
+                        split_result = dst_dock.split_figure_right(anchor_fig, pm.figure_id, 0.5f);
                         break;
                     case 3:  // Top — split vertically, new figure goes top
-                        split_result =
-                            dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
+                        split_result = dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
                         if (split_result && split_result->parent())
                         {
                             auto* parent = split_result->parent();
@@ -462,8 +458,7 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                         }
                         break;
                     case 4:  // Bottom — split vertically, new figure goes bottom
-                        split_result =
-                            dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
+                        split_result = dst_dock.split_figure_down(anchor_fig, pm.figure_id, 0.5f);
                         break;
                 }
                 if (split_result)

@@ -18,7 +18,7 @@ class DepthBufferTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
+        app_            = std::make_unique<App>(config);
     }
 
     void TearDown() override { app_.reset(); }
@@ -41,7 +41,7 @@ TEST_F(DepthBufferTest, DepthBufferExistsForMultiplePipelines)
 {
     auto* backend = app_->backend();
 
-    auto line3d = backend->create_pipeline(PipelineType::Line3D);
+    auto line3d    = backend->create_pipeline(PipelineType::Line3D);
     auto scatter3d = backend->create_pipeline(PipelineType::Scatter3D);
 
     EXPECT_TRUE(line3d);
@@ -52,9 +52,9 @@ TEST_F(DepthBufferTest, DepthTestingEnabledFor3D)
 {
     auto* backend = app_->backend();
 
-    auto line3d = backend->create_pipeline(PipelineType::Line3D);
+    auto line3d    = backend->create_pipeline(PipelineType::Line3D);
     auto scatter3d = backend->create_pipeline(PipelineType::Scatter3D);
-    auto grid3d = backend->create_pipeline(PipelineType::Grid3D);
+    auto grid3d    = backend->create_pipeline(PipelineType::Grid3D);
 
     EXPECT_TRUE(line3d);
     EXPECT_TRUE(scatter3d);
@@ -65,9 +65,9 @@ TEST_F(DepthBufferTest, DepthTestingDisabledFor2D)
 {
     auto* backend = app_->backend();
 
-    auto line2d = backend->create_pipeline(PipelineType::Line);
+    auto line2d    = backend->create_pipeline(PipelineType::Line);
     auto scatter2d = backend->create_pipeline(PipelineType::Scatter);
-    auto grid2d = backend->create_pipeline(PipelineType::Grid);
+    auto grid2d    = backend->create_pipeline(PipelineType::Grid);
 
     EXPECT_TRUE(line2d);
     EXPECT_TRUE(scatter2d);
@@ -78,12 +78,12 @@ TEST_F(DepthBufferTest, AllPipelineTypesSupported)
 {
     auto* backend = app_->backend();
 
-    auto line2d = backend->create_pipeline(PipelineType::Line);
+    auto line2d    = backend->create_pipeline(PipelineType::Line);
     auto scatter2d = backend->create_pipeline(PipelineType::Scatter);
-    auto grid2d = backend->create_pipeline(PipelineType::Grid);
-    auto line3d = backend->create_pipeline(PipelineType::Line3D);
+    auto grid2d    = backend->create_pipeline(PipelineType::Grid);
+    auto line3d    = backend->create_pipeline(PipelineType::Line3D);
     auto scatter3d = backend->create_pipeline(PipelineType::Scatter3D);
-    auto grid3d = backend->create_pipeline(PipelineType::Grid3D);
+    auto grid3d    = backend->create_pipeline(PipelineType::Grid3D);
 
     EXPECT_TRUE(line2d);
     EXPECT_TRUE(scatter2d);
@@ -104,7 +104,7 @@ TEST_F(DepthBufferTest, DepthBufferFormatSupported)
 
 TEST_F(DepthBufferTest, MeshAndSurfacePipelineTypes)
 {
-    [[maybe_unused]] PipelineType mesh3d = PipelineType::Mesh3D;
+    [[maybe_unused]] PipelineType mesh3d    = PipelineType::Mesh3D;
     [[maybe_unused]] PipelineType surface3d = PipelineType::Surface3D;
 
     SUCCEED();
@@ -125,7 +125,7 @@ TEST_F(DepthBufferTest, OffscreenFramebufferHasDepth)
 TEST_F(DepthBufferTest, OffscreenRenderWith3DContent)
 {
     auto& fig = app_->figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 0.5f};
@@ -143,7 +143,7 @@ TEST_F(DepthBufferTest, DepthClearedOnRenderPassBegin)
     // Render a 3D scene — the depth buffer must be cleared to 1.0 at the start
     // of each render pass. If not, geometry from previous frames would occlude.
     auto& fig = app_->figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f};
     std::vector<float> y = {0.0f};
@@ -160,7 +160,7 @@ TEST_F(DepthBufferTest, DepthClearedOnRenderPassBegin)
 TEST_F(DepthBufferTest, ReadbackFramebufferWith3D)
 {
     auto& fig = app_->figure({.width = 64, .height = 64});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f};
     std::vector<float> y = {0.0f};
@@ -170,7 +170,7 @@ TEST_F(DepthBufferTest, ReadbackFramebufferWith3D)
     app_->run();
 
     std::vector<uint8_t> pixels(64 * 64 * 4);
-    auto* backend = app_->backend();
+    auto*                backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
     bool ok = backend->readback_framebuffer(pixels.data(), 64, 64);
@@ -229,8 +229,8 @@ TEST_F(DepthBufferTest, PushConstantsDefaults)
     EXPECT_FLOAT_EQ(pc.line_width, 2.0f);
     EXPECT_FLOAT_EQ(pc.point_size, 4.0f);
     EXPECT_FLOAT_EQ(pc.opacity, 1.0f);
-    EXPECT_EQ(pc.line_style, 1u);   // Solid
-    EXPECT_EQ(pc.marker_type, 0u);  // None
+    EXPECT_EQ(pc.line_style, 1u);    // Solid
+    EXPECT_EQ(pc.marker_type, 0u);   // None
 }
 
 // ─── PipelineType Enum Completeness ─────────────────────────────────────────
@@ -259,16 +259,16 @@ TEST_F(DepthBufferTest, Mixed2DAnd3DRendering)
     auto& fig = app_->figure({.width = 320, .height = 480});
 
     // 2D subplot
-    auto& ax2d = fig.subplot(2, 1, 1);
-    std::vector<float> x2d = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y2d = {0.0f, 1.0f, 0.5f};
+    auto&              ax2d = fig.subplot(2, 1, 1);
+    std::vector<float> x2d  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y2d  = {0.0f, 1.0f, 0.5f};
     ax2d.line(x2d, y2d).color(colors::blue);
 
     // 3D subplot
-    auto& ax3d = fig.subplot3d(2, 1, 2);
-    std::vector<float> x3d = {0.0f, 1.0f};
-    std::vector<float> y3d = {0.0f, 1.0f};
-    std::vector<float> z3d = {0.0f, 1.0f};
+    auto&              ax3d = fig.subplot3d(2, 1, 2);
+    std::vector<float> x3d  = {0.0f, 1.0f};
+    std::vector<float> y3d  = {0.0f, 1.0f};
+    std::vector<float> z3d  = {0.0f, 1.0f};
     ax3d.scatter3d(x3d, y3d, z3d).color(colors::red);
 
     // Must not crash — 2D pipelines have depth disabled, 3D enabled
@@ -319,16 +319,16 @@ TEST_F(DepthBufferTest, Multiple3DSubplotsShareDepthBuffer)
 {
     auto& fig = app_->figure({.width = 640, .height = 480});
 
-    auto& ax1 = fig.subplot3d(1, 2, 1);
-    std::vector<float> x1 = {0.0f, 1.0f};
-    std::vector<float> y1 = {0.0f, 1.0f};
-    std::vector<float> z1 = {0.0f, 1.0f};
+    auto&              ax1 = fig.subplot3d(1, 2, 1);
+    std::vector<float> x1  = {0.0f, 1.0f};
+    std::vector<float> y1  = {0.0f, 1.0f};
+    std::vector<float> z1  = {0.0f, 1.0f};
     ax1.scatter3d(x1, y1, z1).color(colors::red);
 
-    auto& ax2 = fig.subplot3d(1, 2, 2);
-    std::vector<float> x2 = {0.0f, 1.0f};
-    std::vector<float> y2 = {0.0f, 1.0f};
-    std::vector<float> z2 = {0.0f, 1.0f};
+    auto&              ax2 = fig.subplot3d(1, 2, 2);
+    std::vector<float> x2  = {0.0f, 1.0f};
+    std::vector<float> y2  = {0.0f, 1.0f};
+    std::vector<float> z2  = {0.0f, 1.0f};
     ax2.line3d(x2, y2, z2).color(colors::green);
 
     // Both subplots use the same depth buffer — must not interfere
@@ -340,7 +340,7 @@ TEST_F(DepthBufferTest, Multiple3DSubplotsShareDepthBuffer)
 TEST_F(DepthBufferTest, Empty3DAxesRender)
 {
     auto& fig = app_->figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
     ax.title("Empty 3D");
 
     // Empty 3D axes should render bounding box + grid without crashing

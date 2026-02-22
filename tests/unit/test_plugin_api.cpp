@@ -14,14 +14,14 @@ TEST(PluginCAPI, RegisterCommand)
 {
     CommandRegistry registry;
 
-    bool called = false;
+    bool               called = false;
     SpectraCommandDesc desc{};
-    desc.id = "plugin.test";
-    desc.label = "Test Command";
-    desc.category = "Plugin";
+    desc.id            = "plugin.test";
+    desc.label         = "Test Command";
+    desc.category      = "Plugin";
     desc.shortcut_hint = "Ctrl+T";
-    desc.callback = [](void* ud) { *static_cast<bool*>(ud) = true; };
-    desc.user_data = &called;
+    desc.callback      = [](void* ud) { *static_cast<bool*>(ud) = true; };
+    desc.user_data     = &called;
 
     int result = spectra_register_command(&registry, &desc);
     EXPECT_EQ(result, 0);
@@ -38,7 +38,7 @@ TEST(PluginCAPI, RegisterCommand)
 TEST(PluginCAPI, RegisterCommandNullRegistry)
 {
     SpectraCommandDesc desc{};
-    desc.id = "test";
+    desc.id    = "test";
     desc.label = "Test";
     EXPECT_EQ(spectra_register_command(nullptr, &desc), -1);
 }
@@ -51,9 +51,9 @@ TEST(PluginCAPI, RegisterCommandNullDesc)
 
 TEST(PluginCAPI, RegisterCommandNullId)
 {
-    CommandRegistry registry;
+    CommandRegistry    registry;
     SpectraCommandDesc desc{};
-    desc.id = nullptr;
+    desc.id    = nullptr;
     desc.label = "Test";
     EXPECT_EQ(spectra_register_command(&registry, &desc), -1);
 }
@@ -79,7 +79,7 @@ TEST(PluginCAPI, UnregisterCommandNull)
 TEST(PluginCAPI, ExecuteCommand)
 {
     CommandRegistry registry;
-    bool called = false;
+    bool            called = false;
     registry.register_command("plugin.test", "Test", [&]() { called = true; });
 
     int result = spectra_execute_command(&registry, "plugin.test");
@@ -103,7 +103,7 @@ TEST(PluginCAPI, ExecuteCommandNull)
 TEST(PluginCAPI, BindShortcut)
 {
     ShortcutManager mgr;
-    int result = spectra_bind_shortcut(&mgr, "Ctrl+T", "test.cmd");
+    int             result = spectra_bind_shortcut(&mgr, "Ctrl+T", "test.cmd");
     EXPECT_EQ(result, 0);
     EXPECT_EQ(mgr.command_for_shortcut(Shortcut::from_string("Ctrl+T")), "test.cmd");
 }
@@ -125,7 +125,7 @@ TEST(PluginCAPI, BindShortcutNull)
 TEST(PluginCAPI, PushUndo)
 {
     UndoManager undo;
-    int value = 0;
+    int         value = 0;
 
     int result = spectra_push_undo(
         &undo,
@@ -190,7 +190,7 @@ TEST(PluginManagerTest, UnloadAll)
 TEST(PluginManagerTest, DiscoverNonexistentDir)
 {
     PluginManager mgr;
-    auto paths = mgr.discover("/nonexistent/plugin/dir");
+    auto          paths = mgr.discover("/nonexistent/plugin/dir");
     EXPECT_TRUE(paths.empty());
 }
 
@@ -200,7 +200,7 @@ TEST(PluginManagerTest, DiscoverEmptyDir)
     std::filesystem::create_directories(tmp);
 
     PluginManager mgr;
-    auto paths = mgr.discover(tmp.string());
+    auto          paths = mgr.discover(tmp.string());
     EXPECT_TRUE(paths.empty());
 
     std::filesystem::remove(tmp);
@@ -218,7 +218,7 @@ TEST(PluginManagerTest, DefaultPluginDir)
 TEST(PluginManagerSerialize, EmptyState)
 {
     PluginManager mgr;
-    std::string json = mgr.serialize_state();
+    std::string   json = mgr.serialize_state();
     EXPECT_FALSE(json.empty());
     EXPECT_NE(json.find("\"plugins\""), std::string::npos);
 }
@@ -266,10 +266,10 @@ TEST(PluginContextTest, ContextStruct)
 TEST(PluginContextTest, InfoStruct)
 {
     SpectraPluginInfo info{};
-    info.name = "TestPlugin";
-    info.version = "1.0.0";
-    info.author = "Test Author";
-    info.description = "A test plugin";
+    info.name              = "TestPlugin";
+    info.version           = "1.0.0";
+    info.author            = "Test Author";
+    info.description       = "A test plugin";
     info.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     info.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
@@ -296,10 +296,10 @@ TEST(PluginCAPI, RegisterCommandDefaultCategory)
     CommandRegistry registry;
 
     SpectraCommandDesc desc{};
-    desc.id = "plugin.nocategory";
-    desc.label = "No Category";
-    desc.category = nullptr;  // Should default to "Plugin"
-    desc.callback = nullptr;
+    desc.id        = "plugin.nocategory";
+    desc.label     = "No Category";
+    desc.category  = nullptr;   // Should default to "Plugin"
+    desc.callback  = nullptr;
     desc.user_data = nullptr;
 
     int result = spectra_register_command(&registry, &desc);
@@ -315,8 +315,8 @@ TEST(PluginCAPI, RegisterCommandNoCallback)
     CommandRegistry registry;
 
     SpectraCommandDesc desc{};
-    desc.id = "plugin.nocb";
-    desc.label = "No Callback";
+    desc.id       = "plugin.nocb";
+    desc.label    = "No Callback";
     desc.callback = nullptr;
 
     int result = spectra_register_command(&registry, &desc);

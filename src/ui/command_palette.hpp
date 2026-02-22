@@ -70,13 +70,13 @@ class CommandPalette
     float scale_ = 0.98f;
 
     // Smooth scroll state
-    float scroll_offset_ = 0.0f;    // Current smooth scroll position (pixels)
-    float scroll_target_ = 0.0f;    // Target scroll position (pixels)
-    float scroll_velocity_ = 0.0f;  // Inertial velocity (pixels/sec)
+    float scroll_offset_ = 0.0f;      // Current smooth scroll position (pixels)
+    float scroll_target_ = 0.0f;      // Target scroll position (pixels)
+    float scroll_velocity_ = 0.0f;    // Inertial velocity (pixels/sec)
     float content_height_ = 0.0f;     // Total content height used for scroll math
     float visible_height_ = 0.0f;     // Visible region height
-    float measured_overhead_ = 0.0f;   // Non-results space (input + separator + padding), measured
-    float measured_content_ = 0.0f;    // Actual rendered content height, measured from ImGui cursor
+    float measured_overhead_ = 0.0f;  // Non-results space (input + separator + padding), measured
+    float measured_content_ = 0.0f;   // Actual rendered content height, measured from ImGui cursor
 
     // Scrollbar state
     float scrollbar_opacity_ = 0.0f;  // Animated opacity (fades in on scroll, out on idle)

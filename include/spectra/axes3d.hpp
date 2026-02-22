@@ -45,19 +45,19 @@ class Axes3D : public AxesBase
 
     void auto_fit() override;
 
-    Camera& camera() { return *camera_; }
+    Camera&       camera() { return *camera_; }
     const Camera& camera() const { return *camera_; }
 
     enum class GridPlane
     {
         None = 0,
-        XY = 1 << 0,
-        XZ = 1 << 1,
-        YZ = 1 << 2,
-        All = XY | XZ | YZ
+        XY   = 1 << 0,
+        XZ   = 1 << 1,
+        YZ   = 1 << 2,
+        All  = XY | XZ | YZ
     };
 
-    void grid_planes(GridPlane planes) { grid_planes_ = static_cast<int>(planes); }
+    void      grid_planes(GridPlane planes) { grid_planes_ = static_cast<int>(planes); }
     GridPlane grid_planes() const { return static_cast<GridPlane>(grid_planes_); }
 
     // Deprecated: use grid_planes(GridPlane) instead
@@ -99,16 +99,16 @@ class Axes3D : public AxesBase
     // dx_screen/dy_screen are pixel deltas, vp_w/vp_h are viewport dimensions.
     void pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h);
 
-    LineSeries3D& line3d(std::span<const float> x,
-                         std::span<const float> y,
-                         std::span<const float> z);
+    LineSeries3D&    line3d(std::span<const float> x,
+                            std::span<const float> y,
+                            std::span<const float> z);
     ScatterSeries3D& scatter3d(std::span<const float> x,
                                std::span<const float> y,
                                std::span<const float> z);
-    SurfaceSeries& surface(std::span<const float> x_grid,
-                           std::span<const float> y_grid,
-                           std::span<const float> z_values);
-    MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_t> indices);
+    SurfaceSeries&   surface(std::span<const float> x_grid,
+                             std::span<const float> y_grid,
+                             std::span<const float> z_values);
+    MeshSeries&      mesh(std::span<const float> vertices, std::span<const uint32_t> indices);
 
    private:
     std::optional<AxisLimits> xlim_;
@@ -120,10 +120,10 @@ class Axes3D : public AxesBase
     std::string zlabel_;
 
     std::unique_ptr<Camera> camera_;
-    int grid_planes_ = static_cast<int>(GridPlane::All);
-    bool show_bounding_box_ = true;
-    vec3 light_dir_ = {1.0f, 1.0f, 1.0f};  // Default: top-right-front
-    bool lighting_enabled_ = true;
+    int                     grid_planes_       = static_cast<int>(GridPlane::All);
+    bool                    show_bounding_box_ = true;
+    vec3                    light_dir_         = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
+    bool                    lighting_enabled_  = true;
 };
 
 inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b)
@@ -141,4 +141,4 @@ inline Axes3D::GridPlane operator~(Axes3D::GridPlane a)
     return static_cast<Axes3D::GridPlane>(~static_cast<int>(a));
 }
 
-}  // namespace spectra
+}   // namespace spectra

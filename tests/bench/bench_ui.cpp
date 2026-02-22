@@ -62,7 +62,7 @@ BENCHMARK(BM_LayoutUpdate_Animating)->Unit(benchmark::kMicrosecond);
 static void BM_AnimationController_Update_1Anim(benchmark::State& state)
 {
     AnimationController ctrl;
-    Axes ax;
+    Axes                ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
@@ -83,7 +83,7 @@ BENCHMARK(BM_AnimationController_Update_1Anim)->Unit(benchmark::kMicrosecond);
 static void BM_AnimationController_Update_50Anims(benchmark::State& state)
 {
     AnimationController ctrl;
-    std::vector<Axes> axes(50);
+    std::vector<Axes>   axes(50);
 
     for (auto _ : state)
     {
@@ -124,25 +124,25 @@ namespace
 
 struct NearestResult
 {
-    bool found = false;
-    size_t index = 0;
-    float distance = 1e30f;
+    bool   found    = false;
+    size_t index    = 0;
+    float  distance = 1e30f;
 };
 
-NearestResult find_nearest_bench(float cursor_x,
-                                 float cursor_y,
+NearestResult find_nearest_bench(float        cursor_x,
+                                 float        cursor_y,
                                  const float* x_data,
                                  const float* y_data,
-                                 size_t count,
-                                 const Rect& viewport,
-                                 float xlim_min,
-                                 float xlim_max,
-                                 float ylim_min,
-                                 float ylim_max)
+                                 size_t       count,
+                                 const Rect&  viewport,
+                                 float        xlim_min,
+                                 float        xlim_max,
+                                 float        ylim_min,
+                                 float        ylim_max)
 {
     NearestResult best;
-    float x_range = xlim_max - xlim_min;
-    float y_range = ylim_max - ylim_min;
+    float         x_range = xlim_max - xlim_min;
+    float         y_range = ylim_max - ylim_min;
     if (x_range == 0.0f)
         x_range = 1.0f;
     if (y_range == 0.0f)
@@ -152,28 +152,28 @@ NearestResult find_nearest_bench(float cursor_x,
     {
         float norm_x = (x_data[i] - xlim_min) / x_range;
         float norm_y = (y_data[i] - ylim_min) / y_range;
-        float sx = viewport.x + norm_x * viewport.w;
-        float sy = viewport.y + (1.0f - norm_y) * viewport.h;
+        float sx     = viewport.x + norm_x * viewport.w;
+        float sy     = viewport.y + (1.0f - norm_y) * viewport.h;
 
-        float dx = cursor_x - sx;
-        float dy = cursor_y - sy;
+        float dx   = cursor_x - sx;
+        float dy   = cursor_y - sy;
         float dist = std::sqrt(dx * dx + dy * dy);
 
         if (dist < best.distance)
         {
-            best.found = true;
-            best.index = i;
+            best.found    = true;
+            best.index    = i;
             best.distance = dist;
         }
     }
     return best;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 static void BM_NearestPoint_1K(benchmark::State& state)
 {
-    const size_t N = 1000;
+    const size_t       N = 1000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -192,7 +192,7 @@ BENCHMARK(BM_NearestPoint_1K)->Unit(benchmark::kMicrosecond);
 
 static void BM_NearestPoint_10K(benchmark::State& state)
 {
-    const size_t N = 10000;
+    const size_t       N = 10000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -211,7 +211,7 @@ BENCHMARK(BM_NearestPoint_10K)->Unit(benchmark::kMicrosecond);
 
 static void BM_NearestPoint_100K(benchmark::State& state)
 {
-    const size_t N = 100000;
+    const size_t       N = 100000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -233,7 +233,7 @@ BENCHMARK(BM_NearestPoint_100K)->Unit(benchmark::kMicrosecond);
 static void BM_CommandQueue_PushPop(benchmark::State& state)
 {
     CommandQueue q;
-    int counter = 0;
+    int          counter = 0;
 
     for (auto _ : state)
     {
@@ -249,7 +249,7 @@ BENCHMARK(BM_CommandQueue_PushPop)->Unit(benchmark::kNanosecond);
 static void BM_CommandQueue_Drain_100(benchmark::State& state)
 {
     CommandQueue q;
-    int counter = 0;
+    int          counter = 0;
 
     for (auto _ : state)
     {

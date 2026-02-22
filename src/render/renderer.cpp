@@ -58,7 +58,8 @@ void Renderer::render_text(float screen_width, float screen_height)
 
     // Set full-screen viewport and scissor for text rendering
     backend_.set_viewport(0, 0, screen_width, screen_height);
-    backend_.set_scissor(0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
+    backend_.set_scissor(
+        0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
 
     // Flush depth-tested 3D text first (uses depth buffer from 3D geometry)
     text_renderer_.flush_depth(backend_, screen_width, screen_height);
@@ -341,12 +342,8 @@ void Renderer::render_plot_text(Figure& figure)
             float center_x = vp.x - tick_padding * 2.0f - 20.0f;
             float center_y = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;  // -π/2
-            text_renderer_.draw_text_rotated(axes.get_ylabel(),
-                                             center_x,
-                                             center_y,
-                                             neg_90_deg,
-                                             FontSize::Label,
-                                             label_col);
+            text_renderer_.draw_text_rotated(
+                axes.get_ylabel(), center_x, center_y, neg_90_deg, FontSize::Label, label_col);
         }
 
         // Title
@@ -357,12 +354,8 @@ void Renderer::render_plot_text(Figure& figure)
             float py = vp.y - ext.height - tick_padding;
             if (py < vp.y + 2.0f)
                 py = vp.y + 2.0f;
-            text_renderer_.draw_text(axes.get_title(),
-                                     cx,
-                                     py,
-                                     FontSize::Title,
-                                     title_col,
-                                     TextAlign::Center);
+            text_renderer_.draw_text(
+                axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
         }
     }
 
@@ -389,14 +382,14 @@ void Renderer::render_plot_text(Figure& figure)
         // Also outputs NDC depth in [0,1] for depth-tested text rendering.
         auto world_to_screen = [&](vec3 world_pos, float& sx, float& sy, float& ndc_depth) -> bool
         {
-            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y
-                           + mvp.m[8] * world_pos.z + mvp.m[12];
-            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y
-                           + mvp.m[9] * world_pos.z + mvp.m[13];
-            float clip_z = mvp.m[2] * world_pos.x + mvp.m[6] * world_pos.y
-                           + mvp.m[10] * world_pos.z + mvp.m[14];
-            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y
-                           + mvp.m[11] * world_pos.z + mvp.m[15];
+            float clip_x = mvp.m[0] * world_pos.x + mvp.m[4] * world_pos.y + mvp.m[8] * world_pos.z
+                           + mvp.m[12];
+            float clip_y = mvp.m[1] * world_pos.x + mvp.m[5] * world_pos.y + mvp.m[9] * world_pos.z
+                           + mvp.m[13];
+            float clip_z = mvp.m[2] * world_pos.x + mvp.m[6] * world_pos.y + mvp.m[10] * world_pos.z
+                           + mvp.m[14];
+            float clip_w = mvp.m[3] * world_pos.x + mvp.m[7] * world_pos.y + mvp.m[11] * world_pos.z
+                           + mvp.m[15];
 
             if (clip_w <= 0.001f)
                 return false;
@@ -440,13 +433,13 @@ void Renderer::render_plot_text(Figure& figure)
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(x_ticks.labels[i],
-                                              sx,
-                                              sy,
-                                              depth,
-                                              FontSize::Tick,
-                                              tick_col,
-                                              TextAlign::Center,
-                                              TextVAlign::Top);
+                                               sx,
+                                               sy,
+                                               depth,
+                                               FontSize::Tick,
+                                               tick_col,
+                                               TextAlign::Center,
+                                               TextVAlign::Top);
             }
         }
 
@@ -461,13 +454,13 @@ void Renderer::render_plot_text(Figure& figure)
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(y_ticks.labels[i],
-                                              sx,
-                                              sy,
-                                              depth,
-                                              FontSize::Tick,
-                                              tick_col,
-                                              TextAlign::Right,
-                                              TextVAlign::Middle);
+                                               sx,
+                                               sy,
+                                               depth,
+                                               FontSize::Tick,
+                                               tick_col,
+                                               TextAlign::Right,
+                                               TextVAlign::Middle);
             }
         }
 
@@ -482,13 +475,13 @@ void Renderer::render_plot_text(Figure& figure)
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 text_renderer_.draw_text_depth(z_ticks.labels[i],
-                                              sx - tick_padding,
-                                              sy,
-                                              depth,
-                                              FontSize::Tick,
-                                              tick_col,
-                                              TextAlign::Right,
-                                              TextVAlign::Middle);
+                                               sx - tick_padding,
+                                               sy,
+                                               depth,
+                                               FontSize::Tick,
+                                               tick_col,
+                                               TextAlign::Right,
+                                               TextVAlign::Middle);
             }
         }
 
@@ -523,18 +516,16 @@ void Renderer::render_plot_text(Figure& figure)
                 float dir_x = sx1 - sx0;
                 float dir_y = sy1 - sy0;
                 float dir_len = std::sqrt(dir_x * dir_x + dir_y * dir_y);
-                float lx =
-                    sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
-                float ly_center =
-                    sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
+                float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
+                float ly_center = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
                 text_renderer_.draw_text_depth(lbl,
-                                              lx,
-                                              ly_center,
-                                              d1,
-                                              FontSize::Label,
-                                              vk_col,
-                                              TextAlign::Left,
-                                              TextVAlign::Middle);
+                                               lx,
+                                               ly_center,
+                                               d1,
+                                               FontSize::Label,
+                                               vk_col,
+                                               TextAlign::Left,
+                                               TextVAlign::Middle);
             };
 
             draw_arrow_label({x1, y0, z0},
@@ -562,12 +553,8 @@ void Renderer::render_plot_text(Figure& figure)
             float py = vp.y - ext.height - tick_padding;
             if (py < vp.y + 2.0f)
                 py = vp.y + 2.0f;
-            text_renderer_.draw_text(axes3d->get_title(),
-                                     cx,
-                                     py,
-                                     FontSize::Title,
-                                     title_col,
-                                     TextAlign::Center);
+            text_renderer_.draw_text(
+                axes3d->get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
         }
     }
 }
@@ -645,8 +632,8 @@ void Renderer::render_plot_geometry(Figure& figure)
     // Do NOT use build_ortho_projection() — that negates Y for data-space (Y-up).
     FrameUBO ubo{};
     std::memset(&ubo, 0, sizeof(ubo));
-    ubo.projection[0] = 2.0f / fw;            // X: [0, fw] → [-1, +1]
-    ubo.projection[5] = 2.0f / fh;            // Y: [0, fh] → [-1, +1] (positive = Y-down)
+    ubo.projection[0] = 2.0f / fw;  // X: [0, fw] → [-1, +1]
+    ubo.projection[5] = 2.0f / fh;  // Y: [0, fh] → [-1, +1] (positive = Y-down)
     ubo.projection[10] = -1.0f;
     ubo.projection[12] = -1.0f;
     ubo.projection[13] = -1.0f;
@@ -669,8 +656,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
     // Draw 2D tick mark lines
-    uint32_t line_vert_count =
-        static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
+    uint32_t line_vert_count = static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
     if (line_vert_count > 0)
     {
         size_t line_bytes = overlay_line_scratch_.size() * sizeof(float);
@@ -681,8 +667,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             overlay_line_buffer_ = backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
             overlay_line_capacity_ = line_bytes * 2;
         }
-        backend_.upload_buffer(
-            overlay_line_buffer_, overlay_line_scratch_.data(), line_bytes);
+        backend_.upload_buffer(overlay_line_buffer_, overlay_line_scratch_.data(), line_bytes);
 
         backend_.bind_pipeline(grid_pipeline_);
 
@@ -1177,9 +1162,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc = gpu.grid_cache;
-        bool limits_changed = !gc.valid || gc.xmin != xlim.min
-                              || gc.xmax != xlim.max || gc.ymin != ylim.min
-                              || gc.ymax != ylim.max || gc.zmin != zlim.min
+        bool limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
+                              || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
                               || gc.zmax != zlim.max
                               || gpu.cached_grid_planes != static_cast<int>(gp);
 
@@ -1263,9 +1247,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
         // Check if limits changed — skip regeneration if cached
         auto& gc = gpu.grid_cache;
-        bool limits_changed = !gc.valid || gc.xmin != xlim.min
-                              || gc.xmax != xlim.max || gc.ymin != ylim.min
-                              || gc.ymax != ylim.max;
+        bool limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
+                              || gc.ymin != ylim.min || gc.ymax != ylim.max;
 
         if (limits_changed)
         {
@@ -1363,9 +1346,8 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
     // Check if limits changed — skip regeneration if cached
     auto& bc = gpu.bbox_cache;
-    bool limits_changed = !bc.valid || bc.xmin != xlim.min
-                          || bc.xmax != xlim.max || bc.ymin != ylim.min
-                          || bc.ymax != ylim.max || bc.zmin != zlim.min
+    bool limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
+                          || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
                           || bc.zmax != zlim.max;
 
     if (limits_changed)
@@ -1437,9 +1419,8 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
     // Check if limits changed — skip regeneration if cached
     auto& tc = gpu.tick_cache;
-    bool limits_changed = !tc.valid || tc.xmin != xlim.min
-                          || tc.xmax != xlim.max || tc.ymin != ylim.min
-                          || tc.ymax != ylim.max || tc.zmin != zlim.min
+    bool limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
+                          || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
                           || tc.zmax != zlim.max;
 
     if (limits_changed)
@@ -1574,9 +1555,9 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
 
     // Geometry parameters for solid lit 3D arrows
     constexpr int SEGMENTS = 16;
-    constexpr float SHAFT_FRAC = 0.018f;    // shaft radius as fraction of box half-size
-    constexpr float CONE_FRAC = 0.048f;     // cone radius as fraction of box half-size
-    constexpr float CONE_LENGTH = 0.25f;    // cone length as fraction of arrow length
+    constexpr float SHAFT_FRAC = 0.018f;  // shaft radius as fraction of box half-size
+    constexpr float CONE_FRAC = 0.048f;   // cone radius as fraction of box half-size
+    constexpr float CONE_LENGTH = 0.25f;  // cone length as fraction of arrow length
     constexpr float PI = 3.14159265358979f;
 
     float shaft_r = hs * SHAFT_FRAC;
@@ -1606,18 +1587,14 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         d.y /= len;
         d.z /= len;
         vec3 ref = (std::abs(d.y) < 0.9f) ? vec3{0, 1, 0} : vec3{1, 0, 0};
-        u = {d.y * ref.z - d.z * ref.y,
-             d.z * ref.x - d.x * ref.z,
-             d.x * ref.y - d.y * ref.x};
+        u = {d.y * ref.z - d.z * ref.y, d.z * ref.x - d.x * ref.z, d.x * ref.y - d.y * ref.x};
         float ul = std::sqrt(u.x * u.x + u.y * u.y + u.z * u.z);
         if (ul < 1e-8f)
             return;
         u.x /= ul;
         u.y /= ul;
         u.z /= ul;
-        v = {d.y * u.z - d.z * u.y,
-             d.z * u.x - d.x * u.z,
-             d.x * u.y - d.y * u.x};
+        v = {d.y * u.z - d.z * u.y, d.z * u.x - d.x * u.z, d.x * u.y - d.y * u.x};
     };
 
     // Emit a full lit 3D arrow: cylinder shaft + cone arrowhead with normals.
@@ -1666,9 +1643,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         {
             float cs = cos_table[seg];
             float sn = sin_table[seg];
-            return {u.x * cs + v.x * sn,
-                    u.y * cs + v.y * sn,
-                    u.z * cs + v.z * sn};
+            return {u.x * cs + v.x * sn, u.y * cs + v.y * sn, u.z * cs + v.z * sn};
         };
 
         // Negative axis direction (for back-facing caps)
@@ -1729,9 +1704,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
             vec3 cn0 = cone_normal(i);
             vec3 cn1 = cone_normal(next);
             // Average normal at tip for smooth shading
-            vec3 cn_avg = {(cn0.x + cn1.x) * 0.5f,
-                           (cn0.y + cn1.y) * 0.5f,
-                           (cn0.z + cn1.z) * 0.5f};
+            vec3 cn_avg = {(cn0.x + cn1.x) * 0.5f, (cn0.y + cn1.y) * 0.5f, (cn0.z + cn1.z) * 0.5f};
             push_vert(end, cn_avg);
             push_vert(c0, cn0);
             push_vert(c1, cn1);
@@ -1812,9 +1785,13 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
                 aspect = vp.w / std::max(vp.h, 1.0f);
                 float half_w = cam.ortho_size * aspect;
                 float half_h = cam.ortho_size;
-                build_ortho_projection_3d(
-                    -half_w, half_w, -half_h, half_h, cam.near_clip, cam.far_clip,
-                    arrow_ubo.projection);
+                build_ortho_projection_3d(-half_w,
+                                          half_w,
+                                          -half_h,
+                                          half_h,
+                                          cam.near_clip,
+                                          cam.far_clip,
+                                          arrow_ubo.projection);
             }
         }
         // View matrix

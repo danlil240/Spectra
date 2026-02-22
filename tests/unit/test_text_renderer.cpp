@@ -18,11 +18,11 @@ using namespace spectra;
 static std::vector<uint8_t> load_font()
 {
     std::string abs_path = std::string(SPECTRA_SOURCE_DIR) + "/third_party/Inter-Regular.ttf";
-    const char* paths[] = {
-        abs_path.c_str(),
-        "third_party/Inter-Regular.ttf",
-        "../third_party/Inter-Regular.ttf",
-        "../../third_party/Inter-Regular.ttf",
+    const char* paths[]  = {
+         abs_path.c_str(),
+         "third_party/Inter-Regular.ttf",
+         "../third_party/Inter-Regular.ttf",
+         "../../third_party/Inter-Regular.ttf",
     };
     for (const char* p : paths)
     {
@@ -98,7 +98,7 @@ TEST_F(TextRendererCPUTest, TextVertexLayout)
 
     // Verify offsets
     TextVertex v{};
-    auto base = reinterpret_cast<uintptr_t>(&v);
+    auto       base = reinterpret_cast<uintptr_t>(&v);
     EXPECT_EQ(reinterpret_cast<uintptr_t>(&v.x) - base, 0u);
     EXPECT_EQ(reinterpret_cast<uintptr_t>(&v.y) - base, 4u);
     EXPECT_EQ(reinterpret_cast<uintptr_t>(&v.z) - base, 8u);
@@ -116,8 +116,8 @@ class TextRendererGPUTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
-        font_data_ = load_font();
+        app_            = std::make_unique<App>(config);
+        font_data_      = load_font();
     }
 
     void TearDown() override { app_.reset(); }
@@ -161,11 +161,11 @@ TEST_F(TextRendererGPUTest, InitFromFile)
     ASSERT_NE(backend, nullptr);
 
     TextRenderer tr;
-    const char* paths[] = {
-        "third_party/Inter-Regular.ttf",
-        "../third_party/Inter-Regular.ttf",
-        "../../third_party/Inter-Regular.ttf",
-        "../../../third_party/Inter-Regular.ttf",
+    const char*  paths[] = {
+         "third_party/Inter-Regular.ttf",
+         "../third_party/Inter-Regular.ttf",
+         "../../third_party/Inter-Regular.ttf",
+         "../../../third_party/Inter-Regular.ttf",
     };
     bool ok = false;
     for (const char* p : paths)
@@ -198,7 +198,7 @@ TEST_F(TextRendererGPUTest, InitFailsWithGarbage)
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
-    uint8_t garbage[64] = {};
+    uint8_t      garbage[64] = {};
     TextRenderer tr;
     EXPECT_FALSE(tr.init(*backend, garbage, sizeof(garbage)));
     EXPECT_FALSE(tr.is_initialized());
@@ -254,7 +254,13 @@ TEST_F(TextRendererGPUTest, DrawTextQueuesVertices)
     // (we can't directly inspect the vertex count, but we can verify no crash)
     tr.draw_text("Hello", 100, 200, FontSize::Tick, 0xFFFFFFFF);
     tr.draw_text("World", 100, 220, FontSize::Label, 0xFF0000FF, TextAlign::Center);
-    tr.draw_text("Title", 400, 50, FontSize::Title, 0x00FF00FF, TextAlign::Right, TextVAlign::Bottom);
+    tr.draw_text("Title",
+                 400,
+                 50,
+                 FontSize::Title,
+                 0x00FF00FF,
+                 TextAlign::Right,
+                 TextVAlign::Bottom);
 
     // draw_text_rotated should not crash
     tr.draw_text_rotated("Rotated", 50, 300, -1.5707963f, FontSize::Label, 0xFFFFFFFF);

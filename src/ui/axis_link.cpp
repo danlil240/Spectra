@@ -618,13 +618,18 @@ LinkGroupId AxisLinkManager::link_3d(Axes3D* a, Axes3D* b, LinkAxis axis)
     group.id = id;
     group.axis = axis;
     std::string axis_str = has_flag(axis, LinkAxis::Z) && !has_flag(axis, LinkAxis::X) ? "Z"
-                         : (axis == LinkAxis::All)                                      ? "XYZ"
-                         : "3D";
+                           : (axis == LinkAxis::All)                                   ? "XYZ"
+                                                                                       : "3D";
     group.name = axis_str + " Link " + std::to_string(id);
     static constexpr Color group_colors[] = {
-        {0.34f, 0.65f, 0.96f}, {0.96f, 0.49f, 0.31f}, {0.30f, 0.78f, 0.47f},
-        {0.89f, 0.35f, 0.40f}, {0.58f, 0.40f, 0.74f}, {0.09f, 0.75f, 0.81f},
-        {0.89f, 0.47f, 0.76f}, {0.74f, 0.74f, 0.13f},
+        {0.34f, 0.65f, 0.96f},
+        {0.96f, 0.49f, 0.31f},
+        {0.30f, 0.78f, 0.47f},
+        {0.89f, 0.35f, 0.40f},
+        {0.58f, 0.40f, 0.74f},
+        {0.09f, 0.75f, 0.81f},
+        {0.89f, 0.47f, 0.76f},
+        {0.74f, 0.74f, 0.13f},
     };
     group.color = group_colors[(id - 1) % 8];
     group.members.push_back(a);

@@ -25,7 +25,7 @@ TEST(KnobManagerConstruction, VisibleByDefault)
 TEST(KnobManagerFloat, AddFloat)
 {
     KnobManager mgr;
-    auto& k = mgr.add_float("Frequency", 1.0f, 0.1f, 10.0f);
+    auto&       k = mgr.add_float("Frequency", 1.0f, 0.1f, 10.0f);
     EXPECT_EQ(mgr.count(), 1u);
     EXPECT_FALSE(mgr.empty());
     EXPECT_EQ(k.name, "Frequency");
@@ -39,14 +39,14 @@ TEST(KnobManagerFloat, AddFloat)
 TEST(KnobManagerFloat, AddFloatWithStep)
 {
     KnobManager mgr;
-    auto& k = mgr.add_float("Gain", 5.0f, 0.0f, 20.0f, 0.5f);
+    auto&       k = mgr.add_float("Gain", 5.0f, 0.0f, 20.0f, 0.5f);
     EXPECT_FLOAT_EQ(k.step, 0.5f);
 }
 
 TEST(KnobManagerFloat, FloatCallback)
 {
     KnobManager mgr;
-    float captured = 0.0f;
+    float       captured = 0.0f;
     mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f, [&](float v) { captured = v; });
     EXPECT_TRUE(mgr.set_value("X", 5.0f));
     EXPECT_FLOAT_EQ(captured, 5.0f);
@@ -57,7 +57,7 @@ TEST(KnobManagerFloat, FloatCallback)
 TEST(KnobManagerInt, AddInt)
 {
     KnobManager mgr;
-    auto& k = mgr.add_int("Harmonics", 3, 1, 10);
+    auto&       k = mgr.add_int("Harmonics", 3, 1, 10);
     EXPECT_EQ(k.type, KnobType::Int);
     EXPECT_EQ(k.int_value(), 3);
     EXPECT_FLOAT_EQ(k.min_val, 1.0f);
@@ -68,7 +68,7 @@ TEST(KnobManagerInt, AddInt)
 TEST(KnobManagerInt, IntCallback)
 {
     KnobManager mgr;
-    int captured = 0;
+    int         captured = 0;
     mgr.add_int("N", 2, 0, 100, [&](float v) { captured = static_cast<int>(v); });
     mgr.set_value("N", 42.0f);
     EXPECT_EQ(captured, 42);
@@ -79,7 +79,7 @@ TEST(KnobManagerInt, IntCallback)
 TEST(KnobManagerBool, AddBoolTrue)
 {
     KnobManager mgr;
-    auto& k = mgr.add_bool("Show Grid", true);
+    auto&       k = mgr.add_bool("Show Grid", true);
     EXPECT_EQ(k.type, KnobType::Bool);
     EXPECT_TRUE(k.bool_value());
     EXPECT_FLOAT_EQ(k.value, 1.0f);
@@ -88,7 +88,7 @@ TEST(KnobManagerBool, AddBoolTrue)
 TEST(KnobManagerBool, AddBoolFalse)
 {
     KnobManager mgr;
-    auto& k = mgr.add_bool("Muted", false);
+    auto&       k = mgr.add_bool("Muted", false);
     EXPECT_FALSE(k.bool_value());
     EXPECT_FLOAT_EQ(k.value, 0.0f);
 }
@@ -96,7 +96,7 @@ TEST(KnobManagerBool, AddBoolFalse)
 TEST(KnobManagerBool, BoolCallback)
 {
     KnobManager mgr;
-    bool captured = false;
+    bool        captured = false;
     mgr.add_bool("Toggle", false, [&](float v) { captured = v >= 0.5f; });
     mgr.set_value("Toggle", 1.0f);
     EXPECT_TRUE(captured);
@@ -107,7 +107,7 @@ TEST(KnobManagerBool, BoolCallback)
 TEST(KnobManagerChoice, AddChoice)
 {
     KnobManager mgr;
-    auto& k = mgr.add_choice("Waveform", {"Sine", "Square", "Triangle"}, 1);
+    auto&       k = mgr.add_choice("Waveform", {"Sine", "Square", "Triangle"}, 1);
     EXPECT_EQ(k.type, KnobType::Choice);
     EXPECT_EQ(k.choice_index(), 1);
     EXPECT_EQ(k.choices.size(), 3u);
@@ -119,7 +119,7 @@ TEST(KnobManagerChoice, AddChoice)
 TEST(KnobManagerChoice, ChoiceCallback)
 {
     KnobManager mgr;
-    int captured = -1;
+    int         captured = -1;
     mgr.add_choice("Mode", {"A", "B", "C"}, 0, [&](float v) { captured = static_cast<int>(v); });
     mgr.set_value("Mode", 2.0f);
     EXPECT_EQ(captured, 2);
@@ -128,7 +128,7 @@ TEST(KnobManagerChoice, ChoiceCallback)
 TEST(KnobManagerChoice, EmptyChoices)
 {
     KnobManager mgr;
-    auto& k = mgr.add_choice("Empty", {});
+    auto&       k = mgr.add_choice("Empty", {});
     EXPECT_EQ(k.choices.size(), 0u);
     EXPECT_FLOAT_EQ(k.max_val, 0.0f);
 }
@@ -157,7 +157,7 @@ TEST(KnobManagerFind, FindConst)
     KnobManager mgr;
     mgr.add_float("X", 1.0f, 0.0f, 10.0f);
     const auto& cmgr = mgr;
-    const auto* k = cmgr.find("X");
+    const auto* k    = cmgr.find("X");
     ASSERT_NE(k, nullptr);
     EXPECT_FLOAT_EQ(k->value, 1.0f);
 }
@@ -236,7 +236,7 @@ TEST(KnobManagerRemove, Clear)
 TEST(KnobManagerCallback, OnAnyChange)
 {
     KnobManager mgr;
-    int call_count = 0;
+    int         call_count = 0;
     mgr.set_on_any_change([&]() { call_count++; });
     mgr.add_float("X", 1.0f, 0.0f, 10.0f);
     // set_value fires the global callback internally
@@ -250,8 +250,8 @@ TEST(KnobManagerCallback, OnAnyChange)
 TEST(KnobManagerCallback, BothCallbacksFire)
 {
     KnobManager mgr;
-    float per_knob_val = 0.0f;
-    int global_count = 0;
+    float       per_knob_val = 0.0f;
+    int         global_count = 0;
     mgr.add_float("X", 1.0f, 0.0f, 10.0f, 0.0f, [&](float v) { per_knob_val = v; });
     mgr.set_on_any_change([&]() { global_count++; });
 
@@ -311,32 +311,32 @@ TEST(KnobManagerMultiple, KnobsAccessor)
 TEST(KnobManagerEdge, SetSameValueNoCallback)
 {
     KnobManager mgr;
-    int call_count = 0;
+    int         call_count = 0;
     mgr.add_float("X", 5.0f, 0.0f, 10.0f, 0.0f, [&](float) { call_count++; });
-    mgr.set_value("X", 5.0f);  // Same value — should not fire
+    mgr.set_value("X", 5.0f);   // Same value — should not fire
     EXPECT_EQ(call_count, 0);
 }
 
 TEST(KnobManagerEdge, IntAccessorsOnFloat)
 {
     KnobManager mgr;
-    auto& k = mgr.add_float("X", 3.7f, 0.0f, 10.0f);
-    EXPECT_EQ(k.int_value(), 3);  // Truncates
+    auto&       k = mgr.add_float("X", 3.7f, 0.0f, 10.0f);
+    EXPECT_EQ(k.int_value(), 3);   // Truncates
 }
 
 TEST(KnobManagerEdge, BoolAccessorOnFloat)
 {
     KnobManager mgr;
-    auto& k = mgr.add_float("X", 0.3f, 0.0f, 1.0f);
-    EXPECT_FALSE(k.bool_value());  // < 0.5
+    auto&       k = mgr.add_float("X", 0.3f, 0.0f, 1.0f);
+    EXPECT_FALSE(k.bool_value());   // < 0.5
     k.value = 0.7f;
-    EXPECT_TRUE(k.bool_value());  // >= 0.5
+    EXPECT_TRUE(k.bool_value());   // >= 0.5
 }
 
 TEST(KnobManagerEdge, ChoiceClampedIndex)
 {
     KnobManager mgr;
     mgr.add_choice("Mode", {"A", "B", "C"}, 0);
-    mgr.set_value("Mode", 10.0f);  // Clamped to max=2
+    mgr.set_value("Mode", 10.0f);   // Clamped to max=2
     EXPECT_FLOAT_EQ(mgr.value("Mode"), 2.0f);
 }

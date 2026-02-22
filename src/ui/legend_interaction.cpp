@@ -37,7 +37,7 @@ LegendSeriesState& LegendInteraction::get_state(const Series* s)
 }
 
 LegendInteraction::LegendOffset& LegendInteraction::get_offset(uintptr_t figure_id,
-                                                                 size_t axes_index)
+                                                               size_t axes_index)
 {
     return legend_offsets_[make_offset_key(figure_id, axes_index)];
 }
@@ -115,8 +115,11 @@ bool LegendInteraction::is_series_visible(const Series* series) const
 
 // ─── Drawing ────────────────────────────────────────────────────────────────
 
-bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index,
-                             const LegendConfig& config, uintptr_t figure_id)
+bool LegendInteraction::draw(Axes& axes,
+                             const Rect& viewport,
+                             size_t axes_index,
+                             const LegendConfig& config,
+                             uintptr_t figure_id)
 {
     const auto& series_list = axes.series();
     if (series_list.empty())
@@ -199,27 +202,37 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
     char win_id[64];
-    std::snprintf(win_id, sizeof(win_id), "##legend_%lx_%zu",
-                  static_cast<unsigned long>(figure_id), axes_index);
+    std::snprintf(win_id,
+                  sizeof(win_id),
+                  "##legend_%lx_%zu",
+                  static_cast<unsigned long>(figure_id),
+                  axes_index);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
 
     // Use LegendConfig colors; fall back to theme colors if sentinel (all zeros)
-    auto is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f && c.a == 0.0f; };
+    auto is_sentinel = [](const Color& c)
+    { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f && c.a == 0.0f; };
     ImVec4 bg_col;
     if (is_sentinel(config.bg_color))
-        bg_col = ImVec4(theme_colors.bg_elevated.r, theme_colors.bg_elevated.g,
-                        theme_colors.bg_elevated.b, 0.92f);
+        bg_col = ImVec4(theme_colors.bg_elevated.r,
+                        theme_colors.bg_elevated.g,
+                        theme_colors.bg_elevated.b,
+                        0.92f);
     else
         bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
 
     ImVec4 border_col;
     if (is_sentinel(config.border_color))
-        border_col = ImVec4(theme_colors.border_subtle.r, theme_colors.border_subtle.g,
-                            theme_colors.border_subtle.b, theme_colors.border_subtle.a);
+        border_col = ImVec4(theme_colors.border_subtle.r,
+                            theme_colors.border_subtle.g,
+                            theme_colors.border_subtle.b,
+                            theme_colors.border_subtle.a);
     else
-        border_col = ImVec4(config.border_color.r, config.border_color.g, config.border_color.b,
+        border_col = ImVec4(config.border_color.r,
+                            config.border_color.g,
+                            config.border_color.b,
                             config.border_color.a);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
@@ -302,20 +315,25 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
                               2.0f);
 
             // Series label
-            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(
-                theme_colors.text_primary.r, theme_colors.text_primary.g, theme_colors.text_primary.b, vis_alpha));
+            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_primary.r,
+                                                                   theme_colors.text_primary.g,
+                                                                   theme_colors.text_primary.b,
+                                                                   vis_alpha));
             float label_x = row_x + swatch_size + swatch_gap;
             float label_y = row_y + (row_height - font_size) * 0.5f;
-            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col,
-                        s->label().c_str());
+            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
 
             // Click-to-toggle: invisible button over the row
             if (toggleable_)
             {
                 ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
                 char btn_id[80];
-                std::snprintf(btn_id, sizeof(btn_id), "##legend_toggle_%lx_%zu_%d",
-                              static_cast<unsigned long>(figure_id), axes_index, row);
+                std::snprintf(btn_id,
+                              sizeof(btn_id),
+                              "##legend_toggle_%lx_%zu_%d",
+                              static_cast<unsigned long>(figure_id),
+                              axes_index,
+                              row);
 
                 float btn_w = swatch_size + swatch_gap + max_label_w;
                 if (ImGui::InvisibleButton(btn_id, ImVec2(btn_w, row_height)))
@@ -331,10 +349,11 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
                 // Hover highlight
                 if (ImGui::IsItemHovered())
                 {
-                    ImU32 hover_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
-                                                                            theme_colors.accent_subtle.g,
-                                                                            theme_colors.accent_subtle.b,
-                                                                            0.3f));
+                    ImU32 hover_col =
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
+                                                              theme_colors.accent_subtle.g,
+                                                              theme_colors.accent_subtle.b,
+                                                              0.3f));
                     dl->AddRectFilled(ImVec2(row_x - 4.0f, row_y),
                                       ImVec2(row_x + btn_w + 4.0f, row_y + row_height),
                                       hover_col,
@@ -348,10 +367,11 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
                 float eye_x = row_x + btn_w + 4.0f;
                 float eye_y = row_y + (row_height - font_size * 0.7f) * 0.5f;
                 const char* eye_label = state.user_visible ? "o" : "-";
-                ImU32 eye_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
-                                                                      theme_colors.text_tertiary.g,
-                                                                      theme_colors.text_tertiary.b,
-                                                                      theme_colors.text_tertiary.a));
+                ImU32 eye_col =
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
+                                                          theme_colors.text_tertiary.g,
+                                                          theme_colors.text_tertiary.b,
+                                                          theme_colors.text_tertiary.a));
                 dl->AddText(font, font_size * 0.7f, ImVec2(eye_x, eye_y), eye_col, eye_label);
             }
 

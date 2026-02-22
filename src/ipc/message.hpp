@@ -402,7 +402,7 @@ struct ReqSetDataPayload
 {
     uint64_t figure_id = 0;
     uint32_t series_index = 0;
-    uint8_t dtype = 0;  // 0=float32, 1=float64
+    uint8_t dtype = 0;        // 0=float32, 1=float64
     std::vector<float> data;  // interleaved x,y (or x,y,z for 3D)
 };
 

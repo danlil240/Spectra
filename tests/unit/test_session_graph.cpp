@@ -12,9 +12,9 @@ using namespace spectra::ipc;
 TEST(SessionGraph, AddAgentReturnsUniqueIds)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(100, 10);
-    auto w2 = g.add_agent(200, 11);
-    auto w3 = g.add_agent(300, 12);
+    auto         w1 = g.add_agent(100, 10);
+    auto         w2 = g.add_agent(200, 11);
+    auto         w3 = g.add_agent(300, 12);
     EXPECT_NE(w1, w2);
     EXPECT_NE(w2, w3);
     EXPECT_NE(w1, w3);
@@ -25,9 +25,9 @@ TEST(SessionGraph, AddAgentReturnsUniqueIds)
 TEST(SessionGraph, RemoveAgentReturnsOrphanedFigures)
 {
     SessionGraph g;
-    auto wid = g.add_agent(100, 10);
-    auto f1 = g.add_figure("Fig 1");
-    auto f2 = g.add_figure("Fig 2");
+    auto         wid = g.add_agent(100, 10);
+    auto         f1  = g.add_figure("Fig 1");
+    auto         f2  = g.add_figure("Fig 2");
     g.assign_figure(f1, wid);
     g.assign_figure(f2, wid);
 
@@ -39,15 +39,15 @@ TEST(SessionGraph, RemoveAgentReturnsOrphanedFigures)
 TEST(SessionGraph, RemoveNonexistentAgentReturnsEmpty)
 {
     SessionGraph g;
-    auto orphaned = g.remove_agent(999);
+    auto         orphaned = g.remove_agent(999);
     EXPECT_TRUE(orphaned.empty());
 }
 
 TEST(SessionGraph, AgentLookup)
 {
     SessionGraph g;
-    auto wid = g.add_agent(42, 5);
-    auto* entry = g.agent(wid);
+    auto         wid   = g.add_agent(42, 5);
+    auto*        entry = g.agent(wid);
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(entry->process_id, 42u);
     EXPECT_EQ(entry->connection_fd, 5);
@@ -59,9 +59,9 @@ TEST(SessionGraph, AgentLookup)
 TEST(SessionGraph, AllWindowIds)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(1, 1);
-    auto w2 = g.add_agent(2, 2);
-    auto ids = g.all_window_ids();
+    auto         w1  = g.add_agent(1, 1);
+    auto         w2  = g.add_agent(2, 2);
+    auto         ids = g.all_window_ids();
     EXPECT_EQ(ids.size(), 2u);
     EXPECT_TRUE(std::find(ids.begin(), ids.end(), w1) != ids.end());
     EXPECT_TRUE(std::find(ids.begin(), ids.end(), w2) != ids.end());
@@ -72,8 +72,8 @@ TEST(SessionGraph, AllWindowIds)
 TEST(SessionGraph, AddFigureReturnsUniqueIds)
 {
     SessionGraph g;
-    auto f1 = g.add_figure("A");
-    auto f2 = g.add_figure("B");
+    auto         f1 = g.add_figure("A");
+    auto         f2 = g.add_figure("B");
     EXPECT_NE(f1, f2);
     EXPECT_NE(f1, 0u);
     EXPECT_EQ(g.figure_count(), 2u);
@@ -82,8 +82,8 @@ TEST(SessionGraph, AddFigureReturnsUniqueIds)
 TEST(SessionGraph, AssignFigureToWindow)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
-    auto f1 = g.add_figure("Fig");
+    auto         wid = g.add_agent(1, 1);
+    auto         f1  = g.add_figure("Fig");
     EXPECT_TRUE(g.assign_figure(f1, wid));
 
     auto figs = g.figures_for_window(wid);
@@ -94,23 +94,23 @@ TEST(SessionGraph, AssignFigureToWindow)
 TEST(SessionGraph, AssignFigureToNonexistentWindowFails)
 {
     SessionGraph g;
-    auto f1 = g.add_figure("Fig");
+    auto         f1 = g.add_figure("Fig");
     EXPECT_FALSE(g.assign_figure(f1, 999));
 }
 
 TEST(SessionGraph, AssignNonexistentFigureFails)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
+    auto         wid = g.add_agent(1, 1);
     EXPECT_FALSE(g.assign_figure(999, wid));
 }
 
 TEST(SessionGraph, ReassignFigureMovesIt)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(1, 1);
-    auto w2 = g.add_agent(2, 2);
-    auto f1 = g.add_figure("Fig");
+    auto         w1 = g.add_agent(1, 1);
+    auto         w2 = g.add_agent(2, 2);
+    auto         f1 = g.add_figure("Fig");
 
     g.assign_figure(f1, w1);
     EXPECT_EQ(g.figures_for_window(w1).size(), 1u);
@@ -124,8 +124,8 @@ TEST(SessionGraph, ReassignFigureMovesIt)
 TEST(SessionGraph, RemoveFigure)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
-    auto f1 = g.add_figure("Fig");
+    auto         wid = g.add_agent(1, 1);
+    auto         f1  = g.add_figure("Fig");
     g.assign_figure(f1, wid);
 
     g.remove_figure(f1);
@@ -144,7 +144,7 @@ TEST(SessionGraph, FiguresForNonexistentWindow)
 TEST(SessionGraph, HeartbeatUpdatesTimestamp)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
+    auto         wid = g.add_agent(1, 1);
 
     // Initially fresh
     EXPECT_TRUE(g.stale_agents(std::chrono::milliseconds(100)).empty());
@@ -185,11 +185,11 @@ TEST(SessionGraph, SessionIdIsNonZero)
 TEST(SessionGraph, MultipleFiguresMultipleWindows)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(1, 1);
-    auto w2 = g.add_agent(2, 2);
-    auto f1 = g.add_figure("A");
-    auto f2 = g.add_figure("B");
-    auto f3 = g.add_figure("C");
+    auto         w1 = g.add_agent(1, 1);
+    auto         w2 = g.add_agent(2, 2);
+    auto         f1 = g.add_figure("A");
+    auto         f2 = g.add_figure("B");
+    auto         f3 = g.add_figure("C");
 
     g.assign_figure(f1, w1);
     g.assign_figure(f2, w1);
@@ -202,16 +202,16 @@ TEST(SessionGraph, MultipleFiguresMultipleWindows)
     auto orphaned = g.remove_agent(w1);
     EXPECT_EQ(orphaned.size(), 2u);
     EXPECT_EQ(g.figures_for_window(w2).size(), 1u);
-    EXPECT_EQ(g.figure_count(), 3u);  // figures still exist
+    EXPECT_EQ(g.figure_count(), 3u);   // figures still exist
 }
 
 TEST(SessionGraph, DuplicateAssignIsIdempotent)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
-    auto f1 = g.add_figure("Fig");
+    auto         wid = g.add_agent(1, 1);
+    auto         f1  = g.add_figure("Fig");
     g.assign_figure(f1, wid);
-    g.assign_figure(f1, wid);  // duplicate
+    g.assign_figure(f1, wid);   // duplicate
     EXPECT_EQ(g.figures_for_window(wid).size(), 1u);
 }
 
@@ -220,8 +220,8 @@ TEST(SessionGraph, DuplicateAssignIsIdempotent)
 TEST(SessionGraph, UnassignFigureRemovesFromWindow)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
-    auto f1 = g.add_figure("Fig");
+    auto         wid = g.add_agent(1, 1);
+    auto         f1  = g.add_figure("Fig");
     g.assign_figure(f1, wid);
     EXPECT_EQ(g.figures_for_window(wid).size(), 1u);
 
@@ -234,9 +234,9 @@ TEST(SessionGraph, UnassignFigureRemovesFromWindow)
 TEST(SessionGraph, UnassignFigureWrongWindowFails)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(1, 1);
-    auto w2 = g.add_agent(2, 2);
-    auto f1 = g.add_figure("Fig");
+    auto         w1 = g.add_agent(1, 1);
+    auto         w2 = g.add_agent(2, 2);
+    auto         f1 = g.add_figure("Fig");
     g.assign_figure(f1, w1);
 
     // Try to unassign from wrong window
@@ -248,16 +248,16 @@ TEST(SessionGraph, UnassignFigureWrongWindowFails)
 TEST(SessionGraph, UnassignNonexistentFigureFails)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
+    auto         wid = g.add_agent(1, 1);
     EXPECT_FALSE(g.unassign_figure(999, wid));
 }
 
 TEST(SessionGraph, UnassignThenReassign)
 {
     SessionGraph g;
-    auto w1 = g.add_agent(1, 1);
-    auto w2 = g.add_agent(2, 2);
-    auto f1 = g.add_figure("Fig");
+    auto         w1 = g.add_agent(1, 1);
+    auto         w2 = g.add_agent(2, 2);
+    auto         f1 = g.add_figure("Fig");
 
     g.assign_figure(f1, w1);
     EXPECT_TRUE(g.unassign_figure(f1, w1));
@@ -272,10 +272,10 @@ TEST(SessionGraph, UnassignThenReassign)
 TEST(SessionGraph, UnassignMultipleFigures)
 {
     SessionGraph g;
-    auto wid = g.add_agent(1, 1);
-    auto f1 = g.add_figure("A");
-    auto f2 = g.add_figure("B");
-    auto f3 = g.add_figure("C");
+    auto         wid = g.add_agent(1, 1);
+    auto         f1  = g.add_figure("A");
+    auto         f2  = g.add_figure("B");
+    auto         f3  = g.add_figure("C");
     g.assign_figure(f1, wid);
     g.assign_figure(f2, wid);
     g.assign_figure(f3, wid);

@@ -94,8 +94,10 @@ ipc::DiffOp FigureModel::set_axis_limits(
     return op;
 }
 
-ipc::DiffOp FigureModel::set_axis_zlimits(
-    uint64_t figure_id, uint32_t axes_index, float z_min, float z_max)
+ipc::DiffOp FigureModel::set_axis_zlimits(uint64_t figure_id,
+                                          uint32_t axes_index,
+                                          float z_min,
+                                          float z_max)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -132,7 +134,9 @@ ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_inde
     return op;
 }
 
-ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label)
+ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t figure_id,
+                                         uint32_t axes_index,
+                                         const std::string& label)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -148,7 +152,9 @@ ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t figure_id, uint32_t axes_index
     return op;
 }
 
-ipc::DiffOp FigureModel::set_axis_ylabel(uint64_t figure_id, uint32_t axes_index, const std::string& label)
+ipc::DiffOp FigureModel::set_axis_ylabel(uint64_t figure_id,
+                                         uint32_t axes_index,
+                                         const std::string& label)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -164,7 +170,9 @@ ipc::DiffOp FigureModel::set_axis_ylabel(uint64_t figure_id, uint32_t axes_index
     return op;
 }
 
-ipc::DiffOp FigureModel::set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title)
+ipc::DiffOp FigureModel::set_axis_title(uint64_t figure_id,
+                                        uint32_t axes_index,
+                                        const std::string& title)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -182,7 +190,9 @@ ipc::DiffOp FigureModel::set_axis_title(uint64_t figure_id, uint32_t axes_index,
 
 // --- Series management ---
 
-ipc::DiffOp FigureModel::set_series_label(uint64_t figure_id, uint32_t series_index, const std::string& label)
+ipc::DiffOp FigureModel::set_series_label(uint64_t figure_id,
+                                          uint32_t series_index,
+                                          const std::string& label)
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);
@@ -637,8 +647,12 @@ bool FigureModel::has_figure(uint64_t figure_id) const
     return figures_.count(figure_id) > 0;
 }
 
-bool FigureModel::get_axis_limits(uint64_t figure_id, uint32_t axes_index,
-                                  float& x_min, float& x_max, float& y_min, float& y_max) const
+bool FigureModel::get_axis_limits(uint64_t figure_id,
+                                  uint32_t axes_index,
+                                  float& x_min,
+                                  float& x_max,
+                                  float& y_min,
+                                  float& y_max) const
 {
     std::lock_guard lock(mu_);
     auto it = figures_.find(figure_id);

@@ -52,13 +52,13 @@ TEST(LayoutManager, InspectorOpenReducesCanvas)
 {
     LayoutManager lm;
     lm.set_inspector_visible(true);
-    lm.update(1280.0f, 720.0f);  // dt=0 snaps instantly
+    lm.update(1280.0f, 720.0f);   // dt=0 snaps instantly
 
     auto insp = lm.inspector_rect();
     EXPECT_GT(insp.w, 0.0f);
     EXPECT_FLOAT_EQ(insp.w, LayoutManager::INSPECTOR_DEFAULT_WIDTH);
 
-    auto cv = lm.canvas_rect();
+    auto  cv = lm.canvas_rect();
     float expected_canvas_w =
         1280.0f - LayoutManager::NAV_TOOLBAR_INSET - LayoutManager::INSPECTOR_DEFAULT_WIDTH;
     EXPECT_FLOAT_EQ(cv.w, expected_canvas_w);
@@ -71,12 +71,12 @@ TEST(LayoutManager, InspectorCloseExpandsCanvas)
 {
     LayoutManager lm;
     lm.set_inspector_visible(true);
-    lm.update(1280.0f, 720.0f);  // snap open
+    lm.update(1280.0f, 720.0f);   // snap open
 
     lm.set_inspector_visible(false);
-    lm.update(1280.0f, 720.0f);  // snap closed (dt=0)
+    lm.update(1280.0f, 720.0f);   // snap closed (dt=0)
 
-    auto cv = lm.canvas_rect();
+    auto  cv         = lm.canvas_rect();
     float expected_w = 1280.0f - LayoutManager::NAV_TOOLBAR_INSET;
     EXPECT_FLOAT_EQ(cv.w, expected_w);
 }
@@ -105,7 +105,7 @@ TEST(LayoutManager, InspectorResizeActiveSnaps)
 {
     LayoutManager lm;
     lm.set_inspector_visible(true);
-    lm.update(1280.0f, 720.0f);  // snap open
+    lm.update(1280.0f, 720.0f);   // snap open
 
     // Simulate active drag: animated width should snap immediately
     lm.set_inspector_resize_active(true);
@@ -133,7 +133,7 @@ TEST(LayoutManager, NavRailExpandedWidth)
     EXPECT_FLOAT_EQ(lm.nav_rail_width(), LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
 
     lm.set_nav_rail_expanded(true);
-    lm.update(1280.0f, 720.0f);  // snap (dt=0)
+    lm.update(1280.0f, 720.0f);   // snap (dt=0)
 
     EXPECT_TRUE(lm.is_nav_rail_expanded());
     auto nr = lm.nav_rail_rect();
@@ -201,7 +201,7 @@ TEST(LayoutManager, AnimationProgressesWithDt)
 
     // Now close and animate with small dt steps
     lm.set_inspector_visible(false);
-    lm.update(1280.0f, 720.0f, 0.016f);  // ~1 frame
+    lm.update(1280.0f, 720.0f, 0.016f);   // ~1 frame
 
     // Should be animating (not yet at target)
     float anim_w = lm.inspector_animated_width();
@@ -214,7 +214,7 @@ TEST(LayoutManager, AnimationConverges)
 {
     LayoutManager lm;
     lm.set_inspector_visible(true);
-    lm.update(1280.0f, 720.0f, 0.0f);  // snap open
+    lm.update(1280.0f, 720.0f, 0.0f);   // snap open
 
     lm.set_inspector_visible(false);
 
@@ -268,9 +268,9 @@ TEST(LayoutManager, AllZonesOpenSimultaneously)
     lm.set_tab_bar_visible(true);
     lm.update(1920.0f, 1080.0f);
 
-    auto cv = lm.canvas_rect();
+    auto cv   = lm.canvas_rect();
     auto insp = lm.inspector_rect();
-    auto tb = lm.tab_bar_rect();
+    auto tb   = lm.tab_bar_rect();
 
     // Canvas + inspector + nav toolbar inset should span the width
     EXPECT_NEAR(LayoutManager::NAV_TOOLBAR_INSET + cv.w + insp.w, 1920.0f, 1.0f);

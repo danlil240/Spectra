@@ -104,7 +104,7 @@ class Renderer
     PipelineHandle scatter_pipeline_;
     PipelineHandle grid_pipeline_;
     PipelineHandle overlay_pipeline_;  // Triangle-list topology for filled shapes (2D arrowheads)
-    PipelineHandle arrow3d_pipeline_;   // Triangle-list, vec3, depth test ON (3D arrowheads)
+    PipelineHandle arrow3d_pipeline_;  // Triangle-list, vec3, depth test ON (3D arrowheads)
 
     // 3D pipelines
     PipelineHandle line3d_pipeline_;
@@ -205,9 +205,9 @@ class Renderer
     std::vector<float> arrow_tri_scratch_;
 
     // Screen-space overlay geometry buffers (tick marks, arrow lines, arrowheads)
-    BufferHandle overlay_line_buffer_;   // Line-list vertices (tick marks + arrow shafts)
+    BufferHandle overlay_line_buffer_;  // Line-list vertices (tick marks + arrow shafts)
     size_t overlay_line_capacity_ = 0;
-    BufferHandle overlay_tri_buffer_;    // Triangle-list vertices (arrowheads)
+    BufferHandle overlay_tri_buffer_;  // Triangle-list vertices (arrowheads)
     size_t overlay_tri_capacity_ = 0;
     std::vector<float> overlay_line_scratch_;
     std::vector<float> overlay_tri_scratch_;

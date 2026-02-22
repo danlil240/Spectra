@@ -40,8 +40,8 @@ TEST(SeriesVisibility, ScatterSetInvisible)
 
 TEST(SeriesVisibility, FluentChaining)
 {
-    float x[] = {1.0f, 2.0f};
-    float y[] = {3.0f, 4.0f};
+    float      x[] = {1.0f, 2.0f};
+    float      y[] = {3.0f, 4.0f};
     LineSeries ls(std::span<const float>(x, 2), std::span<const float>(y, 2));
     ls.label("test").color(colors::red);
     ls.visible(false);

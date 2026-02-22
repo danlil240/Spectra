@@ -56,20 +56,20 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
-static void run_golden_test(const std::string& scene_name,
+static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
-                            uint32_t width = 640,
-                            uint32_t height = 480,
-                            double tolerance_percent = 1.0,
-                            double max_mae = 2.0)
+                            uint32_t                           width             = 640,
+                            uint32_t                           height            = 480,
+                            double                             tolerance_percent = 1.0,
+                            double                             max_mae           = 2.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
 
     fs::create_directories(output_dir());
 
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);
@@ -98,7 +98,7 @@ static void run_golden_test(const std::string& scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t bw = 0, bh = 0;
+    uint32_t             bw = 0, bh = 0;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, bw, bh))
         << "Failed to load baseline: " << baseline_path;
 
@@ -128,13 +128,13 @@ static void scene_multi_series_line(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 300;
+    constexpr size_t   N = 300;
     std::vector<float> x(N);
     std::vector<float> y1(N), y2(N), y3(N);
 
     for (size_t i = 0; i < N; ++i)
     {
-        x[i] = static_cast<float>(i) * 0.04f;
+        x[i]  = static_cast<float>(i) * 0.04f;
         y1[i] = std::sin(x[i] * 2.0f);
         y2[i] = std::cos(x[i] * 1.5f) * 0.8f;
         y3[i] = std::sin(x[i] * 3.0f + 1.0f) * 0.5f;
@@ -157,7 +157,7 @@ static void scene_dense_scatter(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 500;
+    constexpr size_t   N = 500;
     std::vector<float> x(N), y(N);
 
     for (size_t i = 0; i < N; ++i)
@@ -182,12 +182,12 @@ static void scene_mixed_series(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 100;
+    constexpr size_t   N = 100;
     std::vector<float> x(N), y_line(N), x_scatter(N / 5), y_scatter(N / 5);
 
     for (size_t i = 0; i < N; ++i)
     {
-        x[i] = static_cast<float>(i) * 0.1f;
+        x[i]      = static_cast<float>(i) * 0.1f;
         y_line[i] = std::sin(x[i]) * 2.0f;
     }
     for (size_t i = 0; i < N / 5; ++i)
@@ -211,14 +211,14 @@ static void scene_mixed_series(App& /*app*/, Figure& fig)
 // 2x2 subplot grid
 static void scene_subplot_2x2(App& /*app*/, Figure& fig)
 {
-    constexpr size_t N = 100;
+    constexpr size_t   N = 100;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.1f;
 
     // Top-left: sin
     {
-        auto& ax = fig.subplot(2, 2, 1);
+        auto&              ax = fig.subplot(2, 2, 1);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i]);
@@ -230,7 +230,7 @@ static void scene_subplot_2x2(App& /*app*/, Figure& fig)
     }
     // Top-right: cos
     {
-        auto& ax = fig.subplot(2, 2, 2);
+        auto&              ax = fig.subplot(2, 2, 2);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::cos(x[i]);
@@ -242,12 +242,12 @@ static void scene_subplot_2x2(App& /*app*/, Figure& fig)
     }
     // Bottom-left: tan (clamped)
     {
-        auto& ax = fig.subplot(2, 2, 3);
+        auto&              ax = fig.subplot(2, 2, 3);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
         {
             float v = std::tan(x[i]);
-            y[i] = std::clamp(v, -5.0f, 5.0f);
+            y[i]    = std::clamp(v, -5.0f, 5.0f);
         }
         ax.line(x, y).label("tan").color(rgb(0.3f, 0.9f, 0.3f));
         ax.xlim(0.0f, 10.0f);
@@ -257,7 +257,7 @@ static void scene_subplot_2x2(App& /*app*/, Figure& fig)
     }
     // Bottom-right: exp decay
     {
-        auto& ax = fig.subplot(2, 2, 4);
+        auto&              ax = fig.subplot(2, 2, 4);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::exp(-x[i] * 0.3f) * std::sin(x[i] * 3.0f);
@@ -274,7 +274,7 @@ static void scene_minimal_no_grid(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 80;
+    constexpr size_t   N = 80;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -297,7 +297,7 @@ static void scene_wide_aspect(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 500;
+    constexpr size_t   N = 500;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -319,7 +319,7 @@ static void scene_zoomed_region(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 1000;
+    constexpr size_t   N = 1000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -342,18 +342,18 @@ static void scene_multi_scatter(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 40;
+    constexpr size_t   N = 40;
     std::vector<float> x1(N), y1(N), x2(N), y2(N), x3(N), y3(N);
 
     for (size_t i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) / static_cast<float>(N);
-        x1[i] = t * 10.0f;
-        y1[i] = std::sin(t * 6.28f) * 2.0f + 5.0f;
-        x2[i] = t * 10.0f + 0.1f;
-        y2[i] = std::cos(t * 6.28f) * 1.5f + 5.0f;
-        x3[i] = t * 10.0f + 0.2f;
-        y3[i] = std::sin(t * 12.56f) * 1.0f + 5.0f;
+        x1[i]   = t * 10.0f;
+        y1[i]   = std::sin(t * 6.28f) * 2.0f + 5.0f;
+        x2[i]   = t * 10.0f + 0.1f;
+        y2[i]   = std::cos(t * 6.28f) * 1.5f + 5.0f;
+        x3[i]   = t * 10.0f + 0.2f;
+        y3[i]   = std::sin(t * 12.56f) * 1.0f + 5.0f;
     }
 
     ax.scatter(x1, y1).label("large").color(rgb(0.2f, 0.6f, 1.0f)).size(8.0f);
@@ -371,13 +371,13 @@ static void scene_multi_scatter(App& /*app*/, Figure& fig)
 // 3x1 vertical subplot layout
 static void scene_subplot_3x1(App& /*app*/, Figure& fig)
 {
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x(N);
     for (size_t i = 0; i < N; ++i)
         x[i] = static_cast<float>(i) * 0.05f;
 
     {
-        auto& ax = fig.subplot(3, 1, 1);
+        auto&              ax = fig.subplot(3, 1, 1);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i]);
@@ -388,7 +388,7 @@ static void scene_subplot_3x1(App& /*app*/, Figure& fig)
         ax.grid(true);
     }
     {
-        auto& ax = fig.subplot(3, 1, 2);
+        auto&              ax = fig.subplot(3, 1, 2);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i] * 2.0f) * 0.7f;
@@ -399,7 +399,7 @@ static void scene_subplot_3x1(App& /*app*/, Figure& fig)
         ax.grid(true);
     }
     {
-        auto& ax = fig.subplot(3, 1, 3);
+        auto&              ax = fig.subplot(3, 1, 3);
         std::vector<float> y(N);
         for (size_t i = 0; i < N; ++i)
             y[i] = std::sin(x[i] * 0.5f) * 1.2f;
@@ -416,13 +416,13 @@ static void scene_negative_axes(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
 
-    constexpr size_t N = 200;
+    constexpr size_t   N = 200;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) / static_cast<float>(N) * 6.28f;
-        x[i] = std::cos(t) * (1.0f + 0.5f * std::cos(5.0f * t));
-        y[i] = std::sin(t) * (1.0f + 0.5f * std::cos(5.0f * t));
+        x[i]    = std::cos(t) * (1.0f + 0.5f * std::cos(5.0f * t));
+        y[i]    = std::sin(t) * (1.0f + 0.5f * std::cos(5.0f * t));
     }
 
     ax.line(x, y).label("rose").color(rgb(0.8f, 0.2f, 0.6f)).width(2.0f);
@@ -490,7 +490,7 @@ TEST(GoldenImagePhase2, NegativeAxes)
 
 TEST(GoldenImagePhase2Framework, LargeImageIdentical)
 {
-    constexpr uint32_t W = 640, H = 480;
+    constexpr uint32_t   W = 640, H = 480;
     std::vector<uint8_t> img(W * H * 4);
     for (size_t i = 0; i < img.size(); i += 4)
     {
@@ -508,7 +508,7 @@ TEST(GoldenImagePhase2Framework, LargeImageIdentical)
 
 TEST(GoldenImagePhase2Framework, GradientDiffDetection)
 {
-    constexpr uint32_t W = 100, H = 100;
+    constexpr uint32_t   W = 100, H = 100;
     std::vector<uint8_t> a(W * H * 4, 128);
     std::vector<uint8_t> b(W * H * 4, 128);
 
@@ -518,7 +518,7 @@ TEST(GoldenImagePhase2Framework, GradientDiffDetection)
         for (uint32_t x = 0; x < W; ++x)
         {
             size_t idx = (y * W + x) * 4;
-            b[idx] = 0;  // Red channel zeroed
+            b[idx]     = 0;   // Red channel zeroed
         }
     }
 
@@ -529,7 +529,7 @@ TEST(GoldenImagePhase2Framework, GradientDiffDetection)
 
 TEST(GoldenImagePhase2Framework, DiffImageGeneration)
 {
-    constexpr uint32_t W = 8, H = 8;
+    constexpr uint32_t   W = 8, H = 8;
     std::vector<uint8_t> a(W * H * 4, 100);
     std::vector<uint8_t> b(W * H * 4, 100);
 
@@ -546,12 +546,12 @@ TEST(GoldenImagePhase2Framework, DiffImageGeneration)
     EXPECT_EQ(diff_img[3], 255);
 
     // Second pixel should be dimmed (matches)
-    EXPECT_LT(diff_img[4], 100);  // Dimmed
+    EXPECT_LT(diff_img[4], 100);   // Dimmed
 }
 
 TEST(GoldenImagePhase2Framework, RawRoundTrip)
 {
-    constexpr uint32_t W = 16, H = 16;
+    constexpr uint32_t   W = 16, H = 16;
     std::vector<uint8_t> original(W * H * 4);
     for (size_t i = 0; i < original.size(); ++i)
     {
@@ -562,7 +562,7 @@ TEST(GoldenImagePhase2Framework, RawRoundTrip)
     ASSERT_TRUE(save_raw_rgba(tmp.string(), original.data(), W, H));
 
     std::vector<uint8_t> loaded;
-    uint32_t lw = 0, lh = 0;
+    uint32_t             lw = 0, lh = 0;
     ASSERT_TRUE(load_raw_rgba(tmp.string(), loaded, lw, lh));
 
     EXPECT_EQ(lw, W);
@@ -572,4 +572,4 @@ TEST(GoldenImagePhase2Framework, RawRoundTrip)
     fs::remove(tmp);
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

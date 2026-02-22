@@ -18,11 +18,11 @@ class SpscRingBuffer
 
     bool try_push(const T& item)
     {
-        size_t h = head_.load(std::memory_order_relaxed);
+        size_t h    = head_.load(std::memory_order_relaxed);
         size_t next = (h + 1) & mask_;
         if (next == tail_.load(std::memory_order_acquire))
         {
-            return false;  // full
+            return false;   // full
         }
         buffer_[h] = item;
         head_.store(next, std::memory_order_release);
@@ -34,7 +34,7 @@ class SpscRingBuffer
         size_t t = tail_.load(std::memory_order_relaxed);
         if (t == head_.load(std::memory_order_acquire))
         {
-            return false;  // empty
+            return false;   // empty
         }
         item = buffer_[t];
         tail_.store((t + 1) & mask_, std::memory_order_release);
@@ -55,7 +55,7 @@ class SpscRingBuffer
 
     bool full() const
     {
-        size_t h = head_.load(std::memory_order_relaxed);
+        size_t h    = head_.load(std::memory_order_relaxed);
         size_t next = (h + 1) & mask_;
         return next == tail_.load(std::memory_order_acquire);
     }
@@ -63,8 +63,8 @@ class SpscRingBuffer
    private:
     static constexpr size_t mask_ = Capacity - 1;
     std::array<T, Capacity> buffer_{};
-    std::atomic<size_t> head_{0};
-    std::atomic<size_t> tail_{0};
+    std::atomic<size_t>     head_{0};
+    std::atomic<size_t>     tail_{0};
 };
 
 // --- Tests ---
@@ -100,7 +100,7 @@ TEST(RingBuffer, FillToCapacity)
         EXPECT_TRUE(rb.try_push(i)) << "push " << i;
     }
     EXPECT_TRUE(rb.full());
-    EXPECT_FALSE(rb.try_push(99));  // should fail — full
+    EXPECT_FALSE(rb.try_push(99));   // should fail — full
 }
 
 TEST(RingBuffer, FIFO_Order)
@@ -143,9 +143,9 @@ TEST(RingBuffer, WrapAround)
 TEST(RingBuffer, PopFromEmpty)
 {
     RingBuf rb;
-    int val = -1;
+    int     val = -1;
     EXPECT_FALSE(rb.try_pop(val));
-    EXPECT_EQ(val, -1);  // unchanged
+    EXPECT_EQ(val, -1);   // unchanged
 }
 
 TEST(RingBuffer, InterleavedPushPop)

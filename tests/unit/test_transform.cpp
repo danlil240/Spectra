@@ -25,10 +25,10 @@ TEST(OrthoProjection, AsymmetricRange)
 {
     // Maps [0, 100] × [0, 200]
     auto m = ortho_projection(0.0f, 100.0f, 0.0f, 200.0f);
-    EXPECT_FLOAT_EQ(m[0], 2.0f / 100.0f);  // 0.02
-    EXPECT_FLOAT_EQ(m[5], 2.0f / 200.0f);  // 0.01
-    EXPECT_FLOAT_EQ(m[12], -1.0f);         // -(100+0)/100
-    EXPECT_FLOAT_EQ(m[13], -1.0f);         // -(200+0)/200
+    EXPECT_FLOAT_EQ(m[0], 2.0f / 100.0f);   // 0.02
+    EXPECT_FLOAT_EQ(m[5], 2.0f / 200.0f);   // 0.01
+    EXPECT_FLOAT_EQ(m[12], -1.0f);          // -(100+0)/100
+    EXPECT_FLOAT_EQ(m[13], -1.0f);          // -(200+0)/200
 }
 
 TEST(OrthoProjection, ZeroRangeFallback)

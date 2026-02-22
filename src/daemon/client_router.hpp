@@ -12,9 +12,9 @@ namespace spectra::daemon
 enum class ClientType : uint8_t
 {
     UNKNOWN = 0,
-    AGENT = 1,    // spectra-window render agent
-    PYTHON = 2,   // Python client (import spectra)
-    APP = 3,      // spectra-app (legacy inproc source client)
+    AGENT = 1,   // spectra-window render agent
+    PYTHON = 2,  // Python client (import spectra)
+    APP = 3,     // spectra-app (legacy inproc source client)
 };
 
 // Classify a client based on its HELLO payload.

@@ -42,8 +42,8 @@ class SharedCursorTest : public ::testing::Test
     }
 
     std::unique_ptr<Figure> fig_;
-    AxisLinkManager mgr_;
-    LinkGroupId group_id_ = 0;
+    AxisLinkManager         mgr_;
+    LinkGroupId             group_id_ = 0;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -62,9 +62,9 @@ TEST(SharedCursorStruct, DefaultInvalid)
 TEST(SharedCursorStruct, SetValues)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
-    sc.data_y = -0.5f;
+    sc.valid    = true;
+    sc.data_x   = 5.0f;
+    sc.data_y   = -0.5f;
     sc.screen_x = 100.0;
     sc.screen_y = 200.0;
 
@@ -82,11 +82,11 @@ TEST(SharedCursorStruct, SetValues)
 TEST_F(SharedCursorTest, UpdateAndQueryLinkedAxes)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
-    sc.data_y = 0.3f;
-    sc.screen_x = 150.0;
-    sc.screen_y = 250.0;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
+    sc.data_y      = 0.3f;
+    sc.screen_x    = 150.0;
+    sc.screen_y    = 250.0;
     sc.source_axes = &ax(*fig_, 0);
 
     mgr_.update_shared_cursor(sc);
@@ -103,8 +103,8 @@ TEST_F(SharedCursorTest, UpdateAndQueryLinkedAxes)
 TEST_F(SharedCursorTest, SourceAxesSeesOwnCursor)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 3.0f;
+    sc.valid       = true;
+    sc.data_x      = 3.0f;
     sc.source_axes = &ax(*fig_, 0);
 
     mgr_.update_shared_cursor(sc);
@@ -117,8 +117,8 @@ TEST_F(SharedCursorTest, SourceAxesSeesOwnCursor)
 TEST_F(SharedCursorTest, UnlinkedAxesDoesNotSeeCursor)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax(*fig_, 0);
 
     mgr_.update_shared_cursor(sc);
@@ -131,8 +131,8 @@ TEST_F(SharedCursorTest, UnlinkedAxesDoesNotSeeCursor)
 TEST_F(SharedCursorTest, ClearCursor)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc);
 
@@ -145,7 +145,7 @@ TEST_F(SharedCursorTest, ClearCursor)
 TEST_F(SharedCursorTest, InvalidCursorNotBroadcast)
 {
     SharedCursor sc;
-    sc.valid = false;
+    sc.valid       = false;
     sc.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc);
 
@@ -156,8 +156,8 @@ TEST_F(SharedCursorTest, InvalidCursorNotBroadcast)
 TEST_F(SharedCursorTest, NullSourceNotBroadcast)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = nullptr;
     mgr_.update_shared_cursor(sc);
 
@@ -168,7 +168,7 @@ TEST_F(SharedCursorTest, NullSourceNotBroadcast)
 TEST_F(SharedCursorTest, NullQueryReturnsInvalid)
 {
     SharedCursor sc;
-    sc.valid = true;
+    sc.valid       = true;
     sc.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc);
 
@@ -188,8 +188,8 @@ TEST_F(SharedCursorTest, CursorAcrossMultipleGroups)
     mgr_.add_to_group(g2, &ax(*fig_, 2));
 
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 7.0f;
+    sc.valid       = true;
+    sc.data_x      = 7.0f;
     sc.source_axes = &ax(*fig_, 1);
     mgr_.update_shared_cursor(sc);
 
@@ -206,8 +206,8 @@ TEST_F(SharedCursorTest, CursorFromUnlinkedSource)
 {
     // ax2 is not linked to anything
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax(*fig_, 2);
     mgr_.update_shared_cursor(sc);
 
@@ -227,14 +227,14 @@ TEST_F(SharedCursorTest, CursorFromUnlinkedSource)
 TEST_F(SharedCursorTest, LatestCursorWins)
 {
     SharedCursor sc1;
-    sc1.valid = true;
-    sc1.data_x = 3.0f;
+    sc1.valid       = true;
+    sc1.data_x      = 3.0f;
     sc1.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc1);
 
     SharedCursor sc2;
-    sc2.valid = true;
-    sc2.data_x = 7.0f;
+    sc2.valid       = true;
+    sc2.data_x      = 7.0f;
     sc2.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc2);
 
@@ -246,15 +246,15 @@ TEST_F(SharedCursorTest, LatestCursorWins)
 TEST_F(SharedCursorTest, DifferentSourceOverwrites)
 {
     SharedCursor sc1;
-    sc1.valid = true;
-    sc1.data_x = 3.0f;
+    sc1.valid       = true;
+    sc1.data_x      = 3.0f;
     sc1.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc1);
 
     // Now ax1 becomes the source
     SharedCursor sc2;
-    sc2.valid = true;
-    sc2.data_x = 8.0f;
+    sc2.valid       = true;
+    sc2.data_x      = 8.0f;
     sc2.source_axes = &ax(*fig_, 1);
     mgr_.update_shared_cursor(sc2);
 
@@ -270,7 +270,7 @@ TEST_F(SharedCursorTest, DifferentSourceOverwrites)
 
 TEST_F(SharedCursorTest, ConcurrentUpdateAndQuery)
 {
-    constexpr int N = 200;
+    constexpr int            N = 200;
     std::vector<std::thread> threads;
 
     // Writer thread: rapidly update cursor
@@ -280,8 +280,8 @@ TEST_F(SharedCursorTest, ConcurrentUpdateAndQuery)
             for (int i = 0; i < N; ++i)
             {
                 SharedCursor sc;
-                sc.valid = true;
-                sc.data_x = static_cast<float>(i);
+                sc.valid       = true;
+                sc.data_x      = static_cast<float>(i);
                 sc.source_axes = &ax(*fig_, 0);
                 mgr_.update_shared_cursor(sc);
             }
@@ -322,8 +322,8 @@ TEST_F(SharedCursorTest, ConcurrentUpdateAndQuery)
 TEST_F(SharedCursorTest, UnlinkStopsCursorSharing)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc);
 
@@ -341,8 +341,8 @@ TEST_F(SharedCursorTest, UnlinkStopsCursorSharing)
 TEST_F(SharedCursorTest, RemoveGroupStopsCursorSharing)
 {
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax(*fig_, 0);
     mgr_.update_shared_cursor(sc);
 
@@ -351,10 +351,10 @@ TEST_F(SharedCursorTest, RemoveGroupStopsCursorSharing)
     // Neither ax0 nor ax1 should see cursor via group
     // (ax0 still sees its own cursor since it's the source)
     auto r0 = mgr_.shared_cursor_for(&ax(*fig_, 0));
-    EXPECT_TRUE(r0.valid);  // Source always sees own
+    EXPECT_TRUE(r0.valid);   // Source always sees own
 
     auto r1 = mgr_.shared_cursor_for(&ax(*fig_, 1));
-    EXPECT_FALSE(r1.valid);  // No longer linked
+    EXPECT_FALSE(r1.valid);   // No longer linked
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -364,11 +364,11 @@ TEST_F(SharedCursorTest, RemoveGroupStopsCursorSharing)
 TEST(SharedCursorEdge, NoGroupsAtAll)
 {
     AxisLinkManager mgr;
-    Axes ax;
+    Axes            ax;
 
     SharedCursor sc;
-    sc.valid = true;
-    sc.data_x = 5.0f;
+    sc.valid       = true;
+    sc.data_x      = 5.0f;
     sc.source_axes = &ax;
     mgr.update_shared_cursor(sc);
 
@@ -382,14 +382,14 @@ TEST(SharedCursorEdge, EmptyGroup)
     AxisLinkManager mgr;
     mgr.create_group("empty", LinkAxis::X);
 
-    Axes ax;
+    Axes         ax;
     SharedCursor sc;
-    sc.valid = true;
+    sc.valid       = true;
     sc.source_axes = &ax;
     mgr.update_shared_cursor(sc);
 
     auto result = mgr.shared_cursor_for(&ax);
-    EXPECT_TRUE(result.valid);  // Source sees own
+    EXPECT_TRUE(result.valid);   // Source sees own
 }
 
 TEST(SharedCursorEdge, ClearThenQuery)
@@ -405,16 +405,16 @@ TEST(SharedCursorEdge, ClearThenQuery)
 TEST(SharedCursorEdge, RapidUpdateClear)
 {
     AxisLinkManager mgr;
-    auto fig = make_figure(2);
-    auto gid = mgr.create_group("g", LinkAxis::X);
+    auto            fig = make_figure(2);
+    auto            gid = mgr.create_group("g", LinkAxis::X);
     mgr.add_to_group(gid, &ax(*fig, 0));
     mgr.add_to_group(gid, &ax(*fig, 1));
 
     for (int i = 0; i < 100; ++i)
     {
         SharedCursor sc;
-        sc.valid = true;
-        sc.data_x = static_cast<float>(i);
+        sc.valid       = true;
+        sc.data_x      = static_cast<float>(i);
         sc.source_axes = &ax(*fig, 0);
         mgr.update_shared_cursor(sc);
         mgr.clear_shared_cursor();

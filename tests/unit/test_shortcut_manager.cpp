@@ -11,7 +11,7 @@ using namespace spectra;
 TEST(Shortcut, ToStringSimpleKey)
 {
     Shortcut s;
-    s.key = 65;  // 'A'
+    s.key  = 65;   // 'A'
     s.mods = KeyMod::None;
     EXPECT_EQ(s.to_string(), "A");
 }
@@ -19,7 +19,7 @@ TEST(Shortcut, ToStringSimpleKey)
 TEST(Shortcut, ToStringWithCtrl)
 {
     Shortcut s;
-    s.key = 75;  // 'K'
+    s.key  = 75;   // 'K'
     s.mods = KeyMod::Control;
     EXPECT_EQ(s.to_string(), "Ctrl+K");
 }
@@ -27,7 +27,7 @@ TEST(Shortcut, ToStringWithCtrl)
 TEST(Shortcut, ToStringWithCtrlShift)
 {
     Shortcut s;
-    s.key = 90;  // 'Z'
+    s.key  = 90;   // 'Z'
     s.mods = KeyMod::Control | KeyMod::Shift;
     EXPECT_EQ(s.to_string(), "Ctrl+Shift+Z");
 }
@@ -35,7 +35,7 @@ TEST(Shortcut, ToStringWithCtrlShift)
 TEST(Shortcut, ToStringSpecialKey)
 {
     Shortcut s;
-    s.key = 256;  // Escape
+    s.key  = 256;   // Escape
     s.mods = KeyMod::None;
     EXPECT_EQ(s.to_string(), "Escape");
 }
@@ -77,11 +77,11 @@ TEST(Shortcut, FromStringF1)
 TEST(Shortcut, RoundTrip)
 {
     Shortcut original;
-    original.key = 83;  // 'S'
+    original.key  = 83;   // 'S'
     original.mods = KeyMod::Control | KeyMod::Shift;
 
-    std::string str = original.to_string();
-    Shortcut parsed = Shortcut::from_string(str);
+    std::string str    = original.to_string();
+    Shortcut    parsed = Shortcut::from_string(str);
 
     EXPECT_EQ(parsed.key, original.key);
     EXPECT_EQ(parsed.mods, original.mods);
@@ -155,14 +155,14 @@ TEST(ShortcutManager, ShortcutForCommand)
 TEST(ShortcutManager, ShortcutForUnboundCommand)
 {
     ShortcutManager mgr;
-    Shortcut sc = mgr.shortcut_for_command("nonexistent");
+    Shortcut        sc = mgr.shortcut_for_command("nonexistent");
     EXPECT_FALSE(sc.valid());
 }
 
 TEST(ShortcutManager, UnbindRemoves)
 {
     ShortcutManager mgr;
-    Shortcut sc{65, KeyMod::None};
+    Shortcut        sc{65, KeyMod::None};
     mgr.bind(sc, "test.cmd");
     EXPECT_EQ(mgr.count(), 1u);
 
@@ -186,7 +186,7 @@ TEST(ShortcutManager, UnbindCommand)
 TEST(ShortcutManager, BindOverwritesExisting)
 {
     ShortcutManager mgr;
-    Shortcut sc{65, KeyMod::Control};
+    Shortcut        sc{65, KeyMod::Control};
     mgr.bind(sc, "cmd.a");
     mgr.bind(sc, "cmd.b");
 
@@ -218,7 +218,7 @@ TEST(ShortcutManager, Clear)
 TEST(ShortcutManager, OnKeyExecutesCommand)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value = 42; });
 
     ShortcutManager mgr;
@@ -234,7 +234,7 @@ TEST(ShortcutManager, OnKeyExecutesCommand)
 TEST(ShortcutManager, OnKeyIgnoresRelease)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value = 42; });
 
     ShortcutManager mgr;
@@ -250,12 +250,12 @@ TEST(ShortcutManager, OnKeyIgnoresRelease)
 TEST(ShortcutManager, OnKeyWithModifiers)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value = 42; });
 
     ShortcutManager mgr;
     mgr.set_command_registry(&reg);
-    mgr.bind({75, KeyMod::Control}, "test.cmd");  // Ctrl+K
+    mgr.bind({75, KeyMod::Control}, "test.cmd");   // Ctrl+K
 
     // mods=0x02 is GLFW_MOD_CONTROL
     bool handled = mgr.on_key(75, 1, 0x02);
@@ -285,10 +285,10 @@ TEST(ShortcutManager, RegisterDefaultsPopulatesBindings)
 {
     ShortcutManager mgr;
     mgr.register_defaults();
-    EXPECT_GT(mgr.count(), 20u);  // Should have 20+ default bindings
+    EXPECT_GT(mgr.count(), 20u);   // Should have 20+ default bindings
 
     // Check a few specific defaults
     EXPECT_EQ(mgr.command_for_shortcut({75, KeyMod::Control}), "app.command_palette");
-    EXPECT_EQ(mgr.command_for_shortcut({82, KeyMod::None}), "view.reset");        // R
-    EXPECT_EQ(mgr.command_for_shortcut({71, KeyMod::None}), "view.toggle_grid");  // G
+    EXPECT_EQ(mgr.command_for_shortcut({82, KeyMod::None}), "view.reset");         // R
+    EXPECT_EQ(mgr.command_for_shortcut({71, KeyMod::None}), "view.toggle_grid");   // G
 }

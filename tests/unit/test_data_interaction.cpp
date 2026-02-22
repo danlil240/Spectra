@@ -18,26 +18,26 @@ namespace
 
 struct NearestPointResult
 {
-    bool found = false;
-    const Series* series = nullptr;
-    size_t point_index = 0;
-    float data_x = 0.0f, data_y = 0.0f;
-    float screen_x = 0.0f, screen_y = 0.0f;
-    float distance_px = 0.0f;
+    bool          found       = false;
+    const Series* series      = nullptr;
+    size_t        point_index = 0;
+    float         data_x = 0.0f, data_y = 0.0f;
+    float         screen_x = 0.0f, screen_y = 0.0f;
+    float         distance_px = 0.0f;
 };
 
 // Standalone nearest-point query for testing without ImGui
-NearestPointResult find_nearest_standalone(float cursor_screen_x,
-                                           float cursor_screen_y,
+NearestPointResult find_nearest_standalone(float       cursor_screen_x,
+                                           float       cursor_screen_y,
                                            const Axes& axes,
                                            const Rect& viewport)
 {
     NearestPointResult best;
-    best.found = false;
+    best.found       = false;
     best.distance_px = 1e30f;
 
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
+    auto  xlim    = axes.x_limits();
+    auto  ylim    = axes.y_limits();
     float x_range = xlim.max - xlim.min;
     float y_range = ylim.max - ylim.min;
     if (x_range == 0.0f)
@@ -52,19 +52,19 @@ NearestPointResult find_nearest_standalone(float cursor_screen_x,
 
         const float* x_data = nullptr;
         const float* y_data = nullptr;
-        size_t count = 0;
+        size_t       count  = 0;
 
         if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
         {
             x_data = ls->x_data().data();
             y_data = ls->y_data().data();
-            count = ls->point_count();
+            count  = ls->point_count();
         }
         else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
         {
             x_data = sc->x_data().data();
             y_data = sc->y_data().data();
-            count = sc->point_count();
+            count  = sc->point_count();
         }
 
         if (!x_data || !y_data || count == 0)
@@ -74,22 +74,22 @@ NearestPointResult find_nearest_standalone(float cursor_screen_x,
         {
             float norm_x = (x_data[i] - xlim.min) / x_range;
             float norm_y = (y_data[i] - ylim.min) / y_range;
-            float sx = viewport.x + norm_x * viewport.w;
-            float sy = viewport.y + (1.0f - norm_y) * viewport.h;
+            float sx     = viewport.x + norm_x * viewport.w;
+            float sy     = viewport.y + (1.0f - norm_y) * viewport.h;
 
-            float dx = cursor_screen_x - sx;
-            float dy = cursor_screen_y - sy;
+            float dx   = cursor_screen_x - sx;
+            float dy   = cursor_screen_y - sy;
             float dist = std::sqrt(dx * dx + dy * dy);
 
             if (dist < best.distance_px)
             {
-                best.found = true;
-                best.series = series_ptr.get();
+                best.found       = true;
+                best.series      = series_ptr.get();
                 best.point_index = i;
-                best.data_x = x_data[i];
-                best.data_y = y_data[i];
-                best.screen_x = sx;
-                best.screen_y = sy;
+                best.data_x      = x_data[i];
+                best.data_y      = y_data[i];
+                best.screen_x    = sx;
+                best.screen_y    = sy;
                 best.distance_px = dist;
             }
         }
@@ -98,7 +98,7 @@ NearestPointResult find_nearest_standalone(float cursor_screen_x,
     return best;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -114,9 +114,9 @@ class DataInteractionTest : public ::testing::Test
         axes_->set_viewport(Rect{100.0f, 100.0f, 800.0f, 600.0f});
 
         // Add a line series with known points
-        std::vector<float> x = {0.0f, 2.5f, 5.0f, 7.5f, 10.0f};
-        std::vector<float> y = {0.0f, 5.0f, 10.0f, 5.0f, 0.0f};
-        auto& line = axes_->line(x, y);
+        std::vector<float> x    = {0.0f, 2.5f, 5.0f, 7.5f, 10.0f};
+        std::vector<float> y    = {0.0f, 5.0f, 10.0f, 5.0f, 0.0f};
+        auto&              line = axes_->line(x, y);
         line.label("test_series");
     }
 
@@ -230,21 +230,21 @@ namespace
 
 struct TestMarker
 {
-    float data_x, data_y;
+    float         data_x, data_y;
     const Series* series;
-    size_t point_index;
+    size_t        point_index;
 };
 
 // Standalone data_to_screen for testing
-void data_to_screen(float data_x,
-                    float data_y,
+void data_to_screen(float       data_x,
+                    float       data_y,
                     const Rect& viewport,
-                    float xlim_min,
-                    float xlim_max,
-                    float ylim_min,
-                    float ylim_max,
-                    float& screen_x,
-                    float& screen_y)
+                    float       xlim_min,
+                    float       xlim_max,
+                    float       ylim_min,
+                    float       ylim_max,
+                    float&      screen_x,
+                    float&      screen_y)
 {
     float x_range = xlim_max - xlim_min;
     float y_range = ylim_max - ylim_min;
@@ -254,19 +254,19 @@ void data_to_screen(float data_x,
         y_range = 1.0f;
     float norm_x = (data_x - xlim_min) / x_range;
     float norm_y = (data_y - ylim_min) / y_range;
-    screen_x = viewport.x + norm_x * viewport.w;
-    screen_y = viewport.y + (1.0f - norm_y) * viewport.h;
+    screen_x     = viewport.x + norm_x * viewport.w;
+    screen_y     = viewport.y + (1.0f - norm_y) * viewport.h;
 }
 
 int marker_hit_test(const std::vector<TestMarker>& markers,
-                    float screen_x,
-                    float screen_y,
-                    const Rect& viewport,
-                    float xlim_min,
-                    float xlim_max,
-                    float ylim_min,
-                    float ylim_max,
-                    float radius_px = 10.0f)
+                    float                          screen_x,
+                    float                          screen_y,
+                    const Rect&                    viewport,
+                    float                          xlim_min,
+                    float                          xlim_max,
+                    float                          ylim_min,
+                    float                          ylim_max,
+                    float                          radius_px = 10.0f)
 {
     for (size_t i = 0; i < markers.size(); ++i)
     {
@@ -290,11 +290,11 @@ int marker_hit_test(const std::vector<TestMarker>& markers,
     return -1;
 }
 
-}  // anonymous namespace
+}   // anonymous namespace
 
 TEST(DataMarkerTest, HitTestFindsMarker)
 {
-    Rect vp{0.0f, 0.0f, 1000.0f, 1000.0f};
+    Rect                    vp{0.0f, 0.0f, 1000.0f, 1000.0f};
     std::vector<TestMarker> markers;
     markers.push_back({50.0f, 50.0f, nullptr, 0});
 
@@ -305,7 +305,7 @@ TEST(DataMarkerTest, HitTestFindsMarker)
 
 TEST(DataMarkerTest, HitTestMissesDistantClick)
 {
-    Rect vp{0.0f, 0.0f, 1000.0f, 1000.0f};
+    Rect                    vp{0.0f, 0.0f, 1000.0f, 1000.0f};
     std::vector<TestMarker> markers;
     markers.push_back({50.0f, 50.0f, nullptr, 0});
 
@@ -316,7 +316,7 @@ TEST(DataMarkerTest, HitTestMissesDistantClick)
 
 TEST(DataMarkerTest, HitTestMultipleMarkers)
 {
-    Rect vp{0.0f, 0.0f, 1000.0f, 1000.0f};
+    Rect                    vp{0.0f, 0.0f, 1000.0f, 1000.0f};
     std::vector<TestMarker> markers;
     markers.push_back({10.0f, 10.0f, nullptr, 0});
     markers.push_back({90.0f, 90.0f, nullptr, 1});
@@ -329,7 +329,7 @@ TEST(DataMarkerTest, HitTestMultipleMarkers)
 TEST(DataMarkerTest, MarkerPersistsThroughZoom)
 {
     // Verify that data_to_screen correctly maps after limit changes
-    Rect vp{0.0f, 0.0f, 1000.0f, 1000.0f};
+    Rect  vp{0.0f, 0.0f, 1000.0f, 1000.0f};
     float sx1, sy1, sx2, sy2;
 
     // Before zoom: limits [0, 100]
@@ -339,7 +339,7 @@ TEST(DataMarkerTest, MarkerPersistsThroughZoom)
 
     // After zoom: limits [25, 75] — marker should move to edges
     data_to_screen(50.0f, 50.0f, vp, 25.0f, 75.0f, 25.0f, 75.0f, sx2, sy2);
-    EXPECT_FLOAT_EQ(sx2, 500.0f);  // Still centered
+    EXPECT_FLOAT_EQ(sx2, 500.0f);   // Still centered
     EXPECT_FLOAT_EQ(sy2, 500.0f);
 
     // Point at (25, 25) should now be at bottom-left

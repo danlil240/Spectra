@@ -51,8 +51,8 @@ using namespace spectra;
 class DockAxisLinkIntegration : public ::testing::Test
 {
    protected:
-    DockSystem dock;
-    AxisLinkManager link_mgr;
+    DockSystem          dock;
+    AxisLinkManager     link_mgr;
     std::array<Axes, 4> axes_pool{};
 
     void SetUp() override
@@ -138,9 +138,9 @@ TEST_F(DockAxisLinkIntegration, SharedCursorAcrossSplitPanes)
 
     // Broadcast cursor from axes 0
     SharedCursor cursor;
-    cursor.valid = true;
-    cursor.data_x = 5.0f;
-    cursor.data_y = 3.0f;
+    cursor.valid       = true;
+    cursor.data_x      = 5.0f;
+    cursor.data_y      = 3.0f;
     cursor.source_axes = &axes_pool[0];
     link_mgr.update_shared_cursor(cursor);
 
@@ -158,7 +158,7 @@ class TransformLinkIntegration : public ::testing::Test
 {
    protected:
     AxisLinkManager link_mgr;
-    Axes ax1, ax2;
+    Axes            ax1, ax2;
 
     void SetUp() override
     {
@@ -194,9 +194,9 @@ TEST_F(TransformLinkIntegration, TransformPipelineIndependentOfLinks)
 
 TEST_F(TransformLinkIntegration, TransformRegistryCustomRegistration)
 {
-    auto& reg = TransformRegistry::instance();
+    auto&         reg = TransformRegistry::instance();
     DataTransform custom_dt;
-    bool found = reg.get_transform("square", custom_dt);
+    bool          found = reg.get_transform("square", custom_dt);
     EXPECT_TRUE(found);
 
     // Apply to data
@@ -211,7 +211,7 @@ TEST_F(TransformLinkIntegration, TransformRegistryCustomRegistration)
 class KeyframeTimelineIntegration : public ::testing::Test
 {
    protected:
-    TimelineEditor timeline;
+    TimelineEditor       timeline;
     KeyframeInterpolator interp;
 
     void SetUp() override
@@ -246,7 +246,7 @@ TEST_F(KeyframeTimelineIntegration, AnimatedTrackEvaluatesAtPlayhead)
 TEST_F(KeyframeTimelineIntegration, PlaybackAdvancesInterpolator)
 {
     float target = 0.0f;
-    auto ch_id = interp.add_channel("opacity", 0.0f);
+    auto  ch_id  = interp.add_channel("opacity", 0.0f);
     interp.bind(ch_id, "opacity", &target);
     interp.add_keyframe(ch_id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     interp.add_keyframe(ch_id, TypedKeyframe(1.0f, 1.0f, InterpMode::Linear));
@@ -266,7 +266,7 @@ TEST_F(KeyframeTimelineIntegration, LoopModeRestartsInterpolation)
     timeline.set_loop_region(0.0f, 1.0f);
 
     float target = 0.0f;
-    auto ch_id = interp.add_channel("val", 0.0f);
+    auto  ch_id  = interp.add_channel("val", 0.0f);
     interp.bind(ch_id, "val", &target);
     interp.add_keyframe(ch_id, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     interp.add_keyframe(ch_id, TypedKeyframe(1.0f, 10.0f, InterpMode::Linear));
@@ -294,7 +294,7 @@ TEST_F(KeyframeTimelineIntegration, SerializationRoundTrip)
     std::string json = timeline.serialize();
     EXPECT_FALSE(json.empty());
 
-    TimelineEditor loaded;
+    TimelineEditor       loaded;
     KeyframeInterpolator loaded_interp;
     loaded.set_interpolator(&loaded_interp);
     EXPECT_TRUE(loaded.deserialize(json));
@@ -331,11 +331,11 @@ TEST_F(PlotStyleWorkspaceIntegration, LineStyleSavedAndRestored)
     WorkspaceData::FigureState fig;
     fig.title = "Styled";
     WorkspaceData::SeriesState s;
-    s.name = "dashed_line";
-    s.type = "line";
-    s.line_style = static_cast<int>(LineStyle::Dashed);
+    s.name         = "dashed_line";
+    s.type         = "line";
+    s.line_style   = static_cast<int>(LineStyle::Dashed);
     s.marker_style = static_cast<int>(MarkerStyle::Circle);
-    s.opacity = 0.8f;
+    s.opacity      = 0.8f;
     s.dash_pattern = {8.0f, 4.0f};
     fig.series.push_back(s);
     data.figures.push_back(fig);
@@ -378,24 +378,24 @@ TEST_F(PlotStyleWorkspaceIntegration, MultipleStyledSeriesInWorkspace)
 
     // Solid blue line
     WorkspaceData::SeriesState s1;
-    s1.name = "solid";
-    s1.type = "line";
-    s1.line_style = static_cast<int>(LineStyle::Solid);
+    s1.name         = "solid";
+    s1.type         = "line";
+    s1.line_style   = static_cast<int>(LineStyle::Solid);
     s1.marker_style = static_cast<int>(MarkerStyle::None);
 
     // Dashed red with circle markers
     WorkspaceData::SeriesState s2;
-    s2.name = "dashed";
-    s2.type = "line";
-    s2.line_style = static_cast<int>(LineStyle::Dashed);
+    s2.name         = "dashed";
+    s2.type         = "line";
+    s2.line_style   = static_cast<int>(LineStyle::Dashed);
     s2.marker_style = static_cast<int>(MarkerStyle::Circle);
     s2.dash_pattern = {16.0f, 8.0f};
 
     // Dotted with stars
     WorkspaceData::SeriesState s3;
-    s3.name = "dotted";
-    s3.type = "line";
-    s3.line_style = static_cast<int>(LineStyle::Dotted);
+    s3.name         = "dotted";
+    s3.type         = "line";
+    s3.line_style   = static_cast<int>(LineStyle::Dotted);
     s3.marker_style = static_cast<int>(MarkerStyle::Star);
 
     fig.series = {s1, s2, s3};
@@ -422,9 +422,9 @@ class ShortcutConfigCommandIntegration : public ::testing::Test
    protected:
     CommandRegistry registry;
     ShortcutManager shortcuts;
-    ShortcutConfig config;
-    UndoManager undo;
-    int action_count = 0;
+    ShortcutConfig  config;
+    UndoManager     undo;
+    int             action_count = 0;
 
     void SetUp() override
     {
@@ -432,7 +432,11 @@ class ShortcutConfigCommandIntegration : public ::testing::Test
         config.set_shortcut_manager(&shortcuts);
 
         registry.register_command(
-            "view.split_right", "Split Right", [this]() { ++action_count; }, "Ctrl+\\", "View");
+            "view.split_right",
+            "Split Right",
+            [this]() { ++action_count; },
+            "Ctrl+\\",
+            "View");
         registry.register_command(
             "view.split_down",
             "Split Down",
@@ -487,7 +491,7 @@ TEST_F(ShortcutConfigCommandIntegration, OverrideSavedInWorkspaceV3)
     WorkspaceData data;
     data.theme_name = "dark";
     WorkspaceData::ShortcutOverride so;
-    so.command_id = "view.split_right";
+    so.command_id   = "view.split_right";
     so.shortcut_str = "Ctrl+P";
     data.shortcut_overrides.push_back(so);
 
@@ -550,7 +554,7 @@ TEST_F(SplitViewWorkspaceIntegration, AxisLinkStateSavedAndRestored)
     ax2.ylim(0, 10);
 
     AxisLinkManager mgr;
-    auto gid = mgr.create_group("Shared X", LinkAxis::X);
+    auto            gid = mgr.create_group("Shared X", LinkAxis::X);
     mgr.add_to_group(gid, &ax1);
     mgr.add_to_group(gid, &ax2);
 
@@ -567,8 +571,8 @@ TEST_F(SplitViewWorkspaceIntegration, AxisLinkStateSavedAndRestored)
 
     // Deserialize into new manager
     AxisLinkManager restored_mgr;
-    Axes restored_ax1, restored_ax2;
-    Axes* restored_ptrs[] = {&restored_ax1, &restored_ax2};
+    Axes            restored_ax1, restored_ax2;
+    Axes*           restored_ptrs[] = {&restored_ax1, &restored_ax2};
 
     restored_mgr.deserialize(link_json,
                              [&](int idx) -> Axes*
@@ -594,7 +598,7 @@ TEST(TransformWorkspaceIntegration, TransformPipelineSavedInWorkspace)
 
     WorkspaceData::TransformState ts;
     ts.figure_index = 0;
-    ts.axes_index = 0;
+    ts.axes_index   = 0;
     ts.steps.push_back({static_cast<int>(TransformType::Log10), 0.0f, true});
     ts.steps.push_back({static_cast<int>(TransformType::Scale), 2.5f, true});
     ts.steps.push_back({static_cast<int>(TransformType::Offset), -1.0f, false});
@@ -624,7 +628,7 @@ TEST(TransformWorkspaceIntegration, MultipleAxesTransforms)
     {
         WorkspaceData::TransformState ts;
         ts.figure_index = 0;
-        ts.axes_index = static_cast<size_t>(i);
+        ts.axes_index   = static_cast<size_t>(i);
         ts.steps.push_back(
             {static_cast<int>(TransformType::Scale), static_cast<float>(i + 1), true});
         data.transforms.push_back(ts);
@@ -647,14 +651,14 @@ TEST(TransformWorkspaceIntegration, MultipleAxesTransforms)
 TEST(TimelineWorkspaceIntegration, TimelineStateSavedInWorkspace)
 {
     WorkspaceData data;
-    data.theme_name = "dark";
-    data.timeline.playhead = 2.5f;
-    data.timeline.duration = 10.0f;
-    data.timeline.fps = 60.0f;
-    data.timeline.loop_mode = 1;  // Loop
+    data.theme_name          = "dark";
+    data.timeline.playhead   = 2.5f;
+    data.timeline.duration   = 10.0f;
+    data.timeline.fps        = 60.0f;
+    data.timeline.loop_mode  = 1;   // Loop
     data.timeline.loop_start = 1.0f;
-    data.timeline.loop_end = 8.0f;
-    data.timeline.playing = true;
+    data.timeline.loop_end   = 8.0f;
+    data.timeline.playing    = true;
 
     auto path = (std::filesystem::temp_directory_path() / "spectra_int_tl_ws.spectra").string();
     ASSERT_TRUE(Workspace::save(path, data));
@@ -680,15 +684,15 @@ TEST(TimelineWorkspaceIntegration, TimelineStateSavedInWorkspace)
 TEST(PluginCommandIntegration, CABIRegisterAndExecuteCommand)
 {
     CommandRegistry reg;
-    int call_count = 0;
+    int             call_count = 0;
 
     SpectraCommandDesc desc{};
-    desc.id = "plugin.hello";
-    desc.label = "Hello World";
-    desc.category = "Plugin";
+    desc.id            = "plugin.hello";
+    desc.label         = "Hello World";
+    desc.category      = "Plugin";
     desc.shortcut_hint = "";
-    desc.callback = [](void* data) { ++(*static_cast<int*>(data)); };
-    desc.user_data = &call_count;
+    desc.callback      = [](void* data) { ++(*static_cast<int*>(data)); };
+    desc.user_data     = &call_count;
 
     int result = spectra_register_command(static_cast<SpectraCommandRegistry>(&reg), &desc);
     EXPECT_EQ(result, 0);
@@ -709,20 +713,24 @@ TEST(PluginCommandIntegration, CABIRegisterAndExecuteCommand)
 TEST(PluginCommandIntegration, PluginManagerStateSerializeRoundTrip)
 {
     PluginManager mgr;
-    std::string state = mgr.serialize_state();
+    std::string   state = mgr.serialize_state();
     EXPECT_TRUE(mgr.deserialize_state(state));
 }
 
 TEST(PluginCommandIntegration, CABIPushUndo)
 {
     UndoManager undo;
-    int val = 0;
+    int         val = 0;
 
     auto undo_fn = [](void* data) { --(*static_cast<int*>(data)); };
     auto redo_fn = [](void* data) { ++(*static_cast<int*>(data)); };
 
-    int result = spectra_push_undo(
-        static_cast<SpectraUndoManager>(&undo), "Test undo", undo_fn, &val, redo_fn, &val);
+    int result = spectra_push_undo(static_cast<SpectraUndoManager>(&undo),
+                                   "Test undo",
+                                   undo_fn,
+                                   &val,
+                                   redo_fn,
+                                   &val);
     EXPECT_EQ(result, 0);
     EXPECT_EQ(undo.undo_count(), 1u);
 
@@ -740,12 +748,12 @@ TEST(PluginCommandIntegration, CABIPushUndo)
 TEST(RecordingTimelineIntegration, ConfigValidation)
 {
     RecordingConfig config;
-    config.format = RecordingFormat::PNG_Sequence;
-    config.width = 640;
-    config.height = 480;
-    config.fps = 30.0f;
-    config.start_time = 0.0f;
-    config.end_time = 2.0f;
+    config.format      = RecordingFormat::PNG_Sequence;
+    config.width       = 640;
+    config.height      = 480;
+    config.fps         = 30.0f;
+    config.start_time  = 0.0f;
+    config.end_time    = 2.0f;
     config.output_path = (std::filesystem::temp_directory_path() / "spectra_rec_test").string();
 
     RecordingSession session;
@@ -760,18 +768,18 @@ TEST(RecordingTimelineIntegration, ConfigValidation)
 TEST(RecordingTimelineIntegration, MultiPaneConfig)
 {
     RecordingConfig config;
-    config.format = RecordingFormat::PNG_Sequence;
-    config.width = 1280;
-    config.height = 720;
-    config.fps = 30.0f;
+    config.format     = RecordingFormat::PNG_Sequence;
+    config.width      = 1280;
+    config.height     = 720;
+    config.fps        = 30.0f;
     config.start_time = 0.0f;
-    config.end_time = 1.0f;
+    config.end_time   = 1.0f;
     config.pane_count = 4;
     // Auto-grid: should compute 2x2 layout
     config.output_path = (std::filesystem::temp_directory_path() / "spectra_rec_multi").string();
 
     EXPECT_EQ(config.pane_count, 4u);
-    EXPECT_TRUE(config.pane_rects.empty());  // Auto-grid when empty
+    EXPECT_TRUE(config.pane_rects.empty());   // Auto-grid when empty
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -783,21 +791,21 @@ TEST(FullPhase3WorkspaceIntegration, ComprehensiveRoundTrip)
     auto path = (std::filesystem::temp_directory_path() / "spectra_int_p3_full.spectra").string();
 
     WorkspaceData data;
-    data.theme_name = "dark";
-    data.active_figure_index = 0;
-    data.panels.inspector_visible = true;
-    data.panels.inspector_width = 350.0f;
-    data.panels.nav_rail_expanded = true;
+    data.theme_name                    = "dark";
+    data.active_figure_index           = 0;
+    data.panels.inspector_visible      = true;
+    data.panels.inspector_width        = 350.0f;
+    data.panels.nav_rail_expanded      = true;
     data.interaction.crosshair_enabled = true;
-    data.interaction.tooltip_enabled = false;
+    data.interaction.tooltip_enabled   = false;
 
     // Figure with styled series
     WorkspaceData::FigureState fig;
-    fig.title = "Full Test";
-    fig.width = 1920;
-    fig.height = 1080;
-    fig.grid_rows = 2;
-    fig.grid_cols = 1;
+    fig.title            = "Full Test";
+    fig.width            = 1920;
+    fig.height           = 1080;
+    fig.grid_rows        = 2;
+    fig.grid_cols        = 1;
     fig.custom_tab_title = "Main Plot";
 
     WorkspaceData::AxisState ax;
@@ -809,13 +817,13 @@ TEST(FullPhase3WorkspaceIntegration, ComprehensiveRoundTrip)
     fig.axes.push_back(ax);
 
     WorkspaceData::SeriesState s;
-    s.name = "signal";
-    s.type = "line";
-    s.line_style = static_cast<int>(LineStyle::DashDot);
+    s.name         = "signal";
+    s.type         = "line";
+    s.line_style   = static_cast<int>(LineStyle::DashDot);
     s.marker_style = static_cast<int>(MarkerStyle::Diamond);
-    s.opacity = 0.9f;
+    s.opacity      = 0.9f;
     s.dash_pattern = {8.0f, 3.5f, 2.0f, 3.5f};
-    s.line_width = 2.5f;
+    s.line_width   = 2.5f;
     fig.series.push_back(s);
 
     data.figures.push_back(fig);
@@ -829,23 +837,23 @@ TEST(FullPhase3WorkspaceIntegration, ComprehensiveRoundTrip)
     // Transforms
     WorkspaceData::TransformState ts;
     ts.figure_index = 0;
-    ts.axes_index = 0;
+    ts.axes_index   = 0;
     ts.steps.push_back({static_cast<int>(TransformType::Normalize), 0.0f, true});
     data.transforms.push_back(ts);
 
     // Shortcut overrides
     WorkspaceData::ShortcutOverride so;
-    so.command_id = "view.split_right";
+    so.command_id   = "view.split_right";
     so.shortcut_str = "Ctrl+Shift+R";
     data.shortcut_overrides.push_back(so);
 
     // Timeline
-    data.timeline.playhead = 1.5f;
-    data.timeline.duration = 5.0f;
-    data.timeline.fps = 60.0f;
-    data.timeline.loop_mode = 2;  // PingPong
+    data.timeline.playhead   = 1.5f;
+    data.timeline.duration   = 5.0f;
+    data.timeline.fps        = 60.0f;
+    data.timeline.loop_mode  = 2;   // PingPong
     data.timeline.loop_start = 0.5f;
-    data.timeline.loop_end = 4.5f;
+    data.timeline.loop_end   = 4.5f;
 
     // Plugin state
     data.plugin_state = "{\"plugins\":[]}";
@@ -958,7 +966,7 @@ TEST(DockSystemStressIntegration, SerializationWithMaxPanes)
 TEST(KeyframeTransformIntegration, AnimatedTransformParam)
 {
     KeyframeInterpolator interp;
-    float scale_factor = 1.0f;
+    float                scale_factor = 1.0f;
 
     auto ch = interp.add_channel("scale", 1.0f);
     interp.bind(ch, "scale_factor", &scale_factor);
@@ -1042,11 +1050,11 @@ TEST(Phase3EdgeCases, KeyframeInterpolatorEmptyChannels)
 TEST(Phase3EdgeCases, SharedCursorWithNoGroups)
 {
     AxisLinkManager mgr;
-    Axes ax;
+    Axes            ax;
 
     SharedCursor cursor;
-    cursor.valid = true;
-    cursor.data_x = 5.0f;
+    cursor.valid       = true;
+    cursor.data_x      = 5.0f;
     cursor.source_axes = &ax;
     mgr.update_shared_cursor(cursor);
 

@@ -29,7 +29,7 @@ TEST(UndoManager, PushMakesUndoAvailable)
 TEST(UndoManager, UndoCallsUndoFn)
 {
     UndoManager mgr;
-    int value = 10;
+    int         value = 10;
     mgr.push({"Set to 10", [&]() { value = 0; }, [&]() { value = 10; }});
 
     EXPECT_TRUE(mgr.undo());
@@ -39,7 +39,7 @@ TEST(UndoManager, UndoCallsUndoFn)
 TEST(UndoManager, RedoCallsRedoFn)
 {
     UndoManager mgr;
-    int value = 10;
+    int         value = 10;
     mgr.push({"Set to 10", [&]() { value = 0; }, [&]() { value = 10; }});
 
     mgr.undo();
@@ -74,15 +74,15 @@ TEST(UndoManager, UndoMakesRedoAvailable)
 TEST(UndoManager, NewPushClearsRedoStack)
 {
     UndoManager mgr;
-    int value = 0;
+    int         value = 0;
     mgr.push({"A", [&]() { value = 0; }, [&]() { value = 1; }});
     mgr.push({"B", [&]() { value = 1; }, [&]() { value = 2; }});
 
-    mgr.undo();  // Undo B
+    mgr.undo();   // Undo B
     EXPECT_TRUE(mgr.can_redo());
 
     mgr.push({"C", [&]() { value = 1; }, [&]() { value = 3; }});
-    EXPECT_FALSE(mgr.can_redo());  // Redo stack cleared
+    EXPECT_FALSE(mgr.can_redo());   // Redo stack cleared
 }
 
 // ─── Multiple undo/redo ──────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ TEST(UndoManager, NewPushClearsRedoStack)
 TEST(UndoManager, MultipleUndoRedo)
 {
     UndoManager mgr;
-    int value = 0;
+    int         value = 0;
 
     mgr.push({"Set 1", [&]() { value = 0; }, [&]() { value = 1; }});
     value = 1;
@@ -101,21 +101,21 @@ TEST(UndoManager, MultipleUndoRedo)
 
     EXPECT_EQ(mgr.undo_count(), 3u);
 
-    mgr.undo();  // value = 2
+    mgr.undo();   // value = 2
     EXPECT_EQ(value, 2);
-    mgr.undo();  // value = 1
+    mgr.undo();   // value = 1
     EXPECT_EQ(value, 1);
-    mgr.undo();  // value = 0
+    mgr.undo();   // value = 0
     EXPECT_EQ(value, 0);
 
     EXPECT_FALSE(mgr.can_undo());
     EXPECT_EQ(mgr.redo_count(), 3u);
 
-    mgr.redo();  // value = 1
+    mgr.redo();   // value = 1
     EXPECT_EQ(value, 1);
-    mgr.redo();  // value = 2
+    mgr.redo();   // value = 2
     EXPECT_EQ(value, 2);
-    mgr.redo();  // value = 3
+    mgr.redo();   // value = 3
     EXPECT_EQ(value, 3);
 
     EXPECT_FALSE(mgr.can_redo());
@@ -150,10 +150,12 @@ TEST(UndoManager, EmptyDescriptions)
 TEST(UndoManager, PushValueUndoRedo)
 {
     UndoManager mgr;
-    float line_width = 2.0f;
+    float       line_width = 2.0f;
 
-    mgr.push_value<float>(
-        "Change line width", 2.0f, 4.0f, [&line_width](const float& v) { line_width = v; });
+    mgr.push_value<float>("Change line width",
+                          2.0f,
+                          4.0f,
+                          [&line_width](const float& v) { line_width = v; });
     line_width = 4.0f;
 
     mgr.undo();
@@ -168,8 +170,10 @@ TEST(UndoManager, PushValueString)
     UndoManager mgr;
     std::string label = "new label";
 
-    mgr.push_value<std::string>(
-        "Change label", "old label", "new label", [&label](const std::string& v) { label = v; });
+    mgr.push_value<std::string>("Change label",
+                                "old label",
+                                "new label",
+                                [&label](const std::string& v) { label = v; });
 
     mgr.undo();
     EXPECT_EQ(label, "old label");
@@ -216,7 +220,7 @@ TEST(UndoManager, ClearRemovesAll)
 TEST(UndoManager, GroupCombinesActions)
 {
     UndoManager mgr;
-    int a = 0, b = 0;
+    int         a = 0, b = 0;
 
     mgr.begin_group("Multi-change");
     mgr.push({"Set A", [&]() { a = 0; }, [&]() { a = 1; }});
@@ -226,7 +230,7 @@ TEST(UndoManager, GroupCombinesActions)
     a = 1;
     b = 1;
 
-    EXPECT_EQ(mgr.undo_count(), 1u);  // Single grouped action
+    EXPECT_EQ(mgr.undo_count(), 1u);   // Single grouped action
 
     mgr.undo();
     EXPECT_EQ(a, 0);
@@ -239,7 +243,7 @@ TEST(UndoManager, GroupCombinesActions)
 
 TEST(UndoManager, GroupUndoReverseOrder)
 {
-    UndoManager mgr;
+    UndoManager      mgr;
     std::vector<int> order;
 
     mgr.begin_group("Ordered");
@@ -294,7 +298,7 @@ TEST(UndoManager, NullUndoFnSafe)
 {
     UndoManager mgr;
     mgr.push({"Test", nullptr, []() {}});
-    EXPECT_TRUE(mgr.undo());  // Should not crash
+    EXPECT_TRUE(mgr.undo());   // Should not crash
 }
 
 TEST(UndoManager, NullRedoFnSafe)
@@ -302,5 +306,5 @@ TEST(UndoManager, NullRedoFnSafe)
     UndoManager mgr;
     mgr.push({"Test", []() {}, nullptr});
     mgr.undo();
-    EXPECT_TRUE(mgr.redo());  // Should not crash
+    EXPECT_TRUE(mgr.redo());   // Should not crash
 }

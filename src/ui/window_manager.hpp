@@ -198,8 +198,8 @@ class WindowManager
     // Returns {0,0,0,0} if no valid zone.
     struct CrossWindowDropInfo
     {
-        int zone = 0;                          // DropZone cast to int
-        float hx = 0, hy = 0, hw = 0, hh = 0;  // highlight rect
+        int zone = 0;                                   // DropZone cast to int
+        float hx = 0, hy = 0, hw = 0, hh = 0;           // highlight rect
         FigureId target_figure_id = INVALID_FIGURE_ID;  // figure in the pane under cursor
     };
     CrossWindowDropInfo cross_window_drop_info() const { return cross_drop_info_; }
@@ -209,9 +209,12 @@ class WindowManager
     // windows so all windows get the same drag behavior.
     using TabDetachHandler = std::function<void(
         FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
-    using TabMoveHandler = std::function<void(
-        FigureId fid, uint32_t target_window_id, int drop_zone, float local_x, float local_y,
-        FigureId target_figure_id)>;
+    using TabMoveHandler = std::function<void(FigureId fid,
+                                              uint32_t target_window_id,
+                                              int drop_zone,
+                                              float local_x,
+                                              float local_y,
+                                              FigureId target_figure_id)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }

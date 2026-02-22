@@ -43,16 +43,16 @@ TEST(ModeTransitionConstruction, SetDurationClampsPositive)
 
 TEST(ModeTransitionTo3D, BeginReturnsNonZeroId)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
-    auto id = mt.begin_to_3d(s2d, s3d);
+    auto                  id = mt.begin_to_3d(s2d, s3d);
     EXPECT_GT(id, 0u);
 }
 
 TEST(ModeTransitionTo3D, StateBecomesAnimating)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -61,7 +61,7 @@ TEST(ModeTransitionTo3D, StateBecomesAnimating)
 
 TEST(ModeTransitionTo3D, DirectionIsTo3D)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -70,7 +70,7 @@ TEST(ModeTransitionTo3D, DirectionIsTo3D)
 
 TEST(ModeTransitionTo3D, RejectsWhileAnimating)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -80,7 +80,7 @@ TEST(ModeTransitionTo3D, RejectsWhileAnimating)
 
 TEST(ModeTransitionTo3D, InitialOpacityIsZero)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -89,7 +89,7 @@ TEST(ModeTransitionTo3D, InitialOpacityIsZero)
 
 TEST(ModeTransitionTo3D, InitialZLimMatchesTarget)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.zlim = {-5.0f, 5.0f};
@@ -128,7 +128,7 @@ TEST(ModeTransitionTo3D, OpacityReachesOneAtEnd)
 {
     ModeTransition mt;
     mt.set_duration(0.5f);
-    mt.set_easing([](float t) { return t; });  // Linear
+    mt.set_easing([](float t) { return t; });   // Linear
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -140,7 +140,7 @@ TEST(ModeTransitionTo3D, ZLimExpandsAtEnd)
 {
     ModeTransition mt;
     mt.set_duration(0.5f);
-    mt.set_easing([](float t) { return t; });  // Linear
+    mt.set_easing([](float t) { return t; });   // Linear
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.zlim = {-5.0f, 5.0f};
@@ -155,13 +155,13 @@ TEST(ModeTransitionTo3D, XLimStaysConstant)
 {
     ModeTransition mt;
     mt.set_duration(1.0f);
-    mt.set_easing([](float t) { return t; });  // Linear
+    mt.set_easing([](float t) { return t; });   // Linear
     ModeTransition2DState s2d;
     s2d.xlim = {0.0f, 10.0f};
     ModeTransition3DState s3d;
     s3d.xlim = {-5.0f, 5.0f};
     mt.begin_to_3d(s2d, s3d);
-    mt.update(0.5f);  // t=0.5
+    mt.update(0.5f);   // t=0.5
     auto xlim = mt.interpolated_xlim();
     // Axis limits stay at 3D target — never interpolated
     EXPECT_NEAR(xlim.min, -5.0f, 0.01f);
@@ -172,16 +172,16 @@ TEST(ModeTransitionTo3D, XLimStaysConstant)
 
 TEST(ModeTransitionTo2D, BeginReturnsNonZeroId)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
-    auto id = mt.begin_to_2d(s3d, s2d);
+    auto                  id = mt.begin_to_2d(s3d, s2d);
     EXPECT_GT(id, 0u);
 }
 
 TEST(ModeTransitionTo2D, DirectionIsTo2D)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
     mt.begin_to_2d(s3d, s2d);
@@ -190,7 +190,7 @@ TEST(ModeTransitionTo2D, DirectionIsTo2D)
 
 TEST(ModeTransitionTo2D, InitialOpacityIsOne)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition3DState s3d;
     ModeTransition2DState s2d;
     mt.begin_to_2d(s3d, s2d);
@@ -240,7 +240,7 @@ TEST(ModeTransitionTo2D, CompletesAfterDuration)
 
 TEST(ModeTransitionCamera, TopDownStartsOrthographic)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.camera.projection_mode = Camera::ProjectionMode::Perspective;
@@ -258,7 +258,7 @@ TEST(ModeTransitionCamera, SwitchesToPerspectiveAtMidpoint)
     ModeTransition3DState s3d;
     s3d.camera.projection_mode = Camera::ProjectionMode::Perspective;
     mt.begin_to_3d(s2d, s3d);
-    mt.update(0.6f);  // t=0.6 > 0.5 threshold
+    mt.update(0.6f);   // t=0.6 > 0.5 threshold
     auto cam = mt.interpolated_camera();
     EXPECT_EQ(cam.projection_mode, Camera::ProjectionMode::Perspective);
 }
@@ -271,7 +271,7 @@ TEST(ModeTransitionCamera, PositionInterpolatesTo3D)
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     s3d.camera.elevation = 30.0f;
-    s3d.camera.distance = 10.0f;
+    s3d.camera.distance  = 10.0f;
     s3d.camera.update_position_from_orbit();
     mt.begin_to_3d(s2d, s3d);
     mt.update(1.0f);
@@ -289,8 +289,8 @@ TEST(ModeTransitionCamera, TargetInterpolatesTo3D)
     mt.set_easing([](float t) { return t; });
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
-    s3d.camera.target = {1.0f, 2.0f, 3.0f};
-    s3d.camera.azimuth = 45.0f;
+    s3d.camera.target   = {1.0f, 2.0f, 3.0f};
+    s3d.camera.azimuth  = 45.0f;
     s3d.camera.distance = 10.0f;
     s3d.camera.update_position_from_orbit();
     mt.begin_to_3d(s2d, s3d);
@@ -306,10 +306,10 @@ TEST(ModeTransitionCamera, TargetInterpolatesTo3D)
 
 TEST(ModeTransitionGrid, StartsAtTargetPlanes)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
-    s3d.grid_planes = 7;  // All planes
+    s3d.grid_planes = 7;   // All planes
     mt.begin_to_3d(s2d, s3d);
     // Grid planes stay constant — never changed during transition
     EXPECT_EQ(mt.interpolated_grid_planes(), 7);
@@ -322,9 +322,9 @@ TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate)
     mt.set_easing([](float t) { return t; });
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
-    s3d.grid_planes = 7;  // All planes
+    s3d.grid_planes = 7;   // All planes
     mt.begin_to_3d(s2d, s3d);
-    mt.update(0.8f);  // t=0.8 > 0.7 threshold
+    mt.update(0.8f);   // t=0.8 > 0.7 threshold
     EXPECT_EQ(mt.interpolated_grid_planes(), 7);
 }
 
@@ -332,7 +332,7 @@ TEST(ModeTransitionGrid, SwitchesToTargetPlanesLate)
 
 TEST(ModeTransitionCancel, CancelStopsTransition)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -344,7 +344,7 @@ TEST(ModeTransitionCancel, CancelStopsTransition)
 
 TEST(ModeTransitionCancel, CanBeginAfterCancel)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -400,7 +400,7 @@ TEST(ModeTransitionEasing, CustomEasingApplied)
 {
     ModeTransition mt;
     mt.set_duration(1.0f);
-    mt.set_easing([](float t) { return t * t; });  // Quadratic ease-in
+    mt.set_easing([](float t) { return t * t; });   // Quadratic ease-in
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -439,7 +439,7 @@ TEST(ModeTransitionSerialization, RoundTrip)
 
 TEST(ModeTransitionSerialization, DeserializeResetsToIdle)
 {
-    ModeTransition mt;
+    ModeTransition        mt;
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -462,14 +462,14 @@ TEST(ModeTransitionSerialization, EmptyJsonHandled)
 TEST(ModeTransitionEdge, UpdateWhenIdle)
 {
     ModeTransition mt;
-    mt.update(0.1f);  // Should not crash
+    mt.update(0.1f);   // Should not crash
     EXPECT_EQ(mt.state(), ModeTransitionState::Idle);
 }
 
 TEST(ModeTransitionEdge, ZeroDuration)
 {
     ModeTransition mt;
-    mt.set_duration(0.0f);  // Clamped to 0.01
+    mt.set_duration(0.0f);   // Clamped to 0.01
     ModeTransition2DState s2d;
     ModeTransition3DState s3d;
     mt.begin_to_3d(s2d, s3d);
@@ -535,7 +535,7 @@ TEST(ModeTransitionThread, ConcurrentUpdateAndQuery)
     mt.begin_to_3d(s2d, s3d);
 
     std::atomic<bool> done{false};
-    std::thread updater(
+    std::thread       updater(
         [&]
         {
             for (int i = 0; i < 100 && !done; ++i)

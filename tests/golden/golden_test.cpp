@@ -61,22 +61,22 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
 }
 
 // Core golden test: render scene, compare against baseline
-static void run_golden_test(const std::string& scene_name,
+static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
-                            uint32_t width = 640,
-                            uint32_t height = 480,
-                            double tolerance_percent = 1.0,
-                            double max_mae = 2.0)
+                            uint32_t                           width             = 640,
+                            uint32_t                           height            = 480,
+                            double                             tolerance_percent = 1.0,
+                            double                             max_mae           = 2.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
 
     // Ensure output directory exists
     fs::create_directories(output_dir());
 
     // Set up and render
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);
@@ -108,7 +108,7 @@ static void run_golden_test(const std::string& scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t bw = 0, bh = 0;
+    uint32_t             bw = 0, bh = 0;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, bw, bh))
         << "Failed to load baseline: " << baseline_path;
 
@@ -163,8 +163,8 @@ static void scene_scatter(App& /*app*/, Figure& fig)
     for (size_t i = 0; i < x.size(); ++i)
     {
         float t = static_cast<float>(i) * 0.1f;
-        x[i] = t;
-        y[i] = std::sin(t) * 0.8f + 0.1f * static_cast<float>(i % 5);
+        x[i]    = t;
+        y[i]    = std::sin(t) * 0.8f + 0.1f * static_cast<float>(i % 5);
     }
 
     ax.scatter(x, y).label("data").color(rgb(1.0f, 0.4f, 0.0f)).size(6.0f);
@@ -180,14 +180,14 @@ static void scene_multi_subplot(App& /*app*/, Figure& fig)
     auto& ax1 = fig.subplot(2, 1, 1);
     auto& ax2 = fig.subplot(2, 1, 2);
 
-    constexpr size_t N = 150;
+    constexpr size_t   N = 150;
     std::vector<float> x(N);
     std::vector<float> y1(N);
     std::vector<float> y2(N);
 
     for (size_t i = 0; i < N; ++i)
     {
-        x[i] = static_cast<float>(i) * 0.04f;
+        x[i]  = static_cast<float>(i) * 0.04f;
         y1[i] = std::sin(x[i] * 3.0f) * std::exp(-x[i] * 0.3f);
         y2[i] = std::cos(x[i] * 2.0f);
     }
@@ -258,7 +258,7 @@ TEST(GoldenImage, GridOnly)
 
 TEST(GoldenImageFramework, DetectsDifference)
 {
-    constexpr uint32_t W = 4, H = 4;
+    constexpr uint32_t   W = 4, H = 4;
     std::vector<uint8_t> a(W * H * 4, 128);
     std::vector<uint8_t> b(W * H * 4, 128);
 
@@ -275,7 +275,7 @@ TEST(GoldenImageFramework, DetectsDifference)
 
 TEST(GoldenImageFramework, IdenticalImagesPass)
 {
-    constexpr uint32_t W = 4, H = 4;
+    constexpr uint32_t   W = 4, H = 4;
     std::vector<uint8_t> img(W * H * 4, 200);
 
     auto result = compare_images(img.data(), img.data(), W, H, 2);
@@ -286,13 +286,13 @@ TEST(GoldenImageFramework, IdenticalImagesPass)
 
 TEST(GoldenImageFramework, SmallDiffWithinTolerance)
 {
-    constexpr uint32_t W = 10, H = 10;
+    constexpr uint32_t   W = 10, H = 10;
     std::vector<uint8_t> a(W * H * 4, 100);
-    std::vector<uint8_t> b(W * H * 4, 101);  // Off by 1 everywhere
+    std::vector<uint8_t> b(W * H * 4, 101);   // Off by 1 everywhere
 
     auto result = compare_images(a.data(), b.data(), W, H, 2);
-    EXPECT_EQ(result.differing_pixels, 0u);  // Within threshold of 2
+    EXPECT_EQ(result.differing_pixels, 0u);   // Within threshold of 2
     EXPECT_TRUE(result.passed());
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

@@ -1530,8 +1530,8 @@ std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uin
         if (dec.tag() == TAG_BATCH_ITEM)
         {
             auto blob = payload_as_blob(dec);
-            auto item = decode_req_update_property(
-                std::span<const uint8_t>(blob.data(), blob.size()));
+            auto item =
+                decode_req_update_property(std::span<const uint8_t>(blob.data(), blob.size()));
             if (item)
                 p.updates.push_back(*item);
         }

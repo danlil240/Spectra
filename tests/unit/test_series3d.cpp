@@ -34,7 +34,7 @@ TEST(LineSeries3D, ConstructionWithData)
 
 TEST(LineSeries3D, SetData)
 {
-    LineSeries3D series;
+    LineSeries3D       series;
     std::vector<float> x = {1.0f, 2.0f};
     std::vector<float> y = {3.0f, 4.0f};
     std::vector<float> z = {5.0f, 6.0f};
@@ -65,7 +65,7 @@ TEST(LineSeries3D, ComputeCentroid)
     std::vector<float> z = {0.0f, 1.0f, 2.0f};
 
     LineSeries3D series(x, y, z);
-    vec3 centroid = series.compute_centroid();
+    vec3         centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 2.0f);
     EXPECT_FLOAT_EQ(centroid.y, 3.0f);
@@ -75,7 +75,7 @@ TEST(LineSeries3D, ComputeCentroid)
 TEST(LineSeries3D, ComputeCentroidEmpty)
 {
     LineSeries3D series;
-    vec3 centroid = series.compute_centroid();
+    vec3         centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 0.0f);
     EXPECT_FLOAT_EQ(centroid.y, 0.0f);
@@ -89,7 +89,7 @@ TEST(LineSeries3D, GetBounds)
     std::vector<float> z = {-2.0f, 1.0f, 3.0f};
 
     LineSeries3D series(x, y, z);
-    vec3 min_bound, max_bound;
+    vec3         min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, -1.0f);
@@ -103,7 +103,7 @@ TEST(LineSeries3D, GetBounds)
 TEST(LineSeries3D, GetBoundsEmpty)
 {
     LineSeries3D series;
-    vec3 min_bound, max_bound;
+    vec3         min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, 0.0f);
@@ -120,14 +120,14 @@ TEST(LineSeries3D, WidthProperty)
 TEST(LineSeries3D, FluentInterface)
 {
     LineSeries3D series;
-    auto& result = series.width(2.0f).color(colors::red).opacity(0.8f);
+    auto&        result = series.width(2.0f).color(colors::red).opacity(0.8f);
     EXPECT_EQ(&result, &series);
 }
 
 TEST(LineSeries3D, DirtyFlagOnConstruction)
 {
     std::vector<float> x = {1.0f}, y = {2.0f}, z = {3.0f};
-    LineSeries3D series(x, y, z);
+    LineSeries3D       series(x, y, z);
     EXPECT_TRUE(series.is_dirty());
 }
 
@@ -201,7 +201,7 @@ TEST(ScatterSeries3D, ConstructionWithData)
 
 TEST(ScatterSeries3D, SetData)
 {
-    ScatterSeries3D series;
+    ScatterSeries3D    series;
     std::vector<float> x = {1.0f};
     std::vector<float> y = {2.0f};
     std::vector<float> z = {3.0f};
@@ -227,7 +227,7 @@ TEST(ScatterSeries3D, ComputeCentroid)
     std::vector<float> z = {0.0f, 2.0f, 4.0f};
 
     ScatterSeries3D series(x, y, z);
-    vec3 centroid = series.compute_centroid();
+    vec3            centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 3.0f);
     EXPECT_FLOAT_EQ(centroid.y, 4.0f);
@@ -241,7 +241,7 @@ TEST(ScatterSeries3D, GetBounds)
     std::vector<float> z = {-1.0f, 1.0f};
 
     ScatterSeries3D series(x, y, z);
-    vec3 min_bound, max_bound;
+    vec3            min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, 0.0f);
@@ -274,7 +274,7 @@ TEST(ScatterSeries3D, LargeDataset)
 TEST(ScatterSeries3D, FluentChaining)
 {
     ScatterSeries3D series;
-    auto& result = series.size(10.0f).color(colors::green).opacity(0.5f).label("scatter");
+    auto&           result = series.size(10.0f).color(colors::green).opacity(0.5f).label("scatter");
     EXPECT_EQ(&result, &series);
     EXPECT_FLOAT_EQ(series.size(), 10.0f);
     EXPECT_EQ(series.label(), "scatter");
@@ -302,7 +302,7 @@ TEST(SurfaceSeries, ConstructionWithData)
 {
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f};
-    std::vector<float> z = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};  // 2 rows × 3 cols
+    std::vector<float> z = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};   // 2 rows × 3 cols
 
     SurfaceSeries series(x, y, z);
     EXPECT_EQ(series.cols(), 3);
@@ -311,7 +311,7 @@ TEST(SurfaceSeries, ConstructionWithData)
 
 TEST(SurfaceSeries, SetData)
 {
-    SurfaceSeries series;
+    SurfaceSeries      series;
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
     std::vector<float> z = {1.0f, 2.0f, 3.0f, 4.0f};
@@ -332,15 +332,15 @@ TEST(SurfaceSeries, GenerateMeshSimple)
 
     EXPECT_TRUE(series.is_mesh_generated());
     const auto& mesh = series.mesh();
-    EXPECT_EQ(mesh.vertex_count, 4);    // 2×2 grid
-    EXPECT_EQ(mesh.triangle_count, 2);  // 1 quad = 2 triangles
+    EXPECT_EQ(mesh.vertex_count, 4);     // 2×2 grid
+    EXPECT_EQ(mesh.triangle_count, 2);   // 1 quad = 2 triangles
 }
 
 TEST(SurfaceSeries, GenerateMeshLarger)
 {
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 2.0f};
-    std::vector<float> z(9, 0.0f);  // 3×3 grid
+    std::vector<float> z(9, 0.0f);   // 3×3 grid
 
     SurfaceSeries series(x, y, z);
     series.generate_mesh();
@@ -348,7 +348,7 @@ TEST(SurfaceSeries, GenerateMeshLarger)
     EXPECT_TRUE(series.is_mesh_generated());
     const auto& mesh = series.mesh();
     EXPECT_EQ(mesh.vertex_count, 9);
-    EXPECT_EQ(mesh.triangle_count, 8);  // 4 quads = 8 triangles
+    EXPECT_EQ(mesh.triangle_count, 8);   // 4 quads = 8 triangles
 }
 
 TEST(SurfaceSeries, MeshVertexFormat)
@@ -361,7 +361,7 @@ TEST(SurfaceSeries, MeshVertexFormat)
     series.generate_mesh();
 
     const auto& mesh = series.mesh();
-    EXPECT_EQ(mesh.vertices.size(), 24);  // 4 vertices × 6 floats (x,y,z,nx,ny,nz)
+    EXPECT_EQ(mesh.vertices.size(), 24);   // 4 vertices × 6 floats (x,y,z,nx,ny,nz)
 }
 
 TEST(SurfaceSeries, MeshIndicesFormat)
@@ -374,7 +374,7 @@ TEST(SurfaceSeries, MeshIndicesFormat)
     series.generate_mesh();
 
     const auto& mesh = series.mesh();
-    EXPECT_EQ(mesh.indices.size(), 6);  // 2 triangles × 3 indices
+    EXPECT_EQ(mesh.indices.size(), 6);   // 2 triangles × 3 indices
 }
 
 TEST(SurfaceSeries, GenerateMeshInvalidSize)
@@ -393,7 +393,7 @@ TEST(SurfaceSeries, GenerateMeshMismatchedSize)
 {
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
-    std::vector<float> z = {0.0f, 1.0f, 2.0f};  // Wrong size: should be 4
+    std::vector<float> z = {0.0f, 1.0f, 2.0f};   // Wrong size: should be 4
 
     SurfaceSeries series(x, y, z);
     series.generate_mesh();
@@ -408,7 +408,7 @@ TEST(SurfaceSeries, ComputeCentroid)
     std::vector<float> z = {0.0f, 2.0f, 4.0f, 6.0f};
 
     SurfaceSeries series(x, y, z);
-    vec3 centroid = series.compute_centroid();
+    vec3          centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 1.0f);
     EXPECT_FLOAT_EQ(centroid.y, 2.0f);
@@ -422,7 +422,7 @@ TEST(SurfaceSeries, GetBounds)
     std::vector<float> z = {-3.0f, 0.0f, 0.0f, 3.0f};
 
     SurfaceSeries series(x, y, z);
-    vec3 min_bound, max_bound;
+    vec3          min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, -1.0f);
@@ -437,7 +437,7 @@ TEST(SurfaceSeries, NormalComputation)
 {
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 2.0f};
-    std::vector<float> z(9, 0.0f);  // Flat surface
+    std::vector<float> z(9, 0.0f);   // Flat surface
 
     SurfaceSeries series(x, y, z);
     series.generate_mesh();
@@ -446,11 +446,11 @@ TEST(SurfaceSeries, NormalComputation)
     // Check that normals exist (every 6th float starting from index 3)
     for (size_t i = 0; i < mesh.vertex_count; ++i)
     {
-        float nx = mesh.vertices[i * 6 + 3];
-        float ny = mesh.vertices[i * 6 + 4];
-        float nz = mesh.vertices[i * 6 + 5];
+        float nx  = mesh.vertices[i * 6 + 3];
+        float ny  = mesh.vertices[i * 6 + 4];
+        float nz  = mesh.vertices[i * 6 + 5];
         float len = std::sqrt(nx * nx + ny * ny + nz * nz);
-        EXPECT_NEAR(len, 1.0f, 1e-5f);  // Normals should be normalized
+        EXPECT_NEAR(len, 1.0f, 1e-5f);   // Normals should be normalized
     }
 }
 
@@ -527,7 +527,7 @@ TEST(SurfaceSeries, RegenerateMeshAfterSetData)
     // generate_mesh again
     series.generate_mesh();
     EXPECT_TRUE(series.is_mesh_generated());
-    EXPECT_FLOAT_EQ(series.mesh().vertices[2], 10.0f);  // z of first vertex
+    EXPECT_FLOAT_EQ(series.mesh().vertices[2], 10.0f);   // z of first vertex
 }
 
 // ─── MeshSeries Tests ────────────────────────────────────────────────────────
@@ -547,19 +547,19 @@ TEST(MeshSeries, ConstructionWithData)
         0.0f,
         0.0f,
         0.0f,
-        1.0f,  // v0: pos + normal
+        1.0f,   // v0: pos + normal
         1.0f,
         0.0f,
         0.0f,
         0.0f,
         0.0f,
-        1.0f,  // v1
+        1.0f,   // v1
         0.0f,
         1.0f,
         0.0f,
         0.0f,
         0.0f,
-        1.0f  // v2
+        1.0f   // v2
     };
     std::vector<uint32_t> indices = {0, 1, 2};
 
@@ -570,7 +570,7 @@ TEST(MeshSeries, ConstructionWithData)
 
 TEST(MeshSeries, SetVertices)
 {
-    MeshSeries series;
+    MeshSeries         series;
     std::vector<float> verts = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
 
     series.set_vertices(verts);
@@ -579,7 +579,7 @@ TEST(MeshSeries, SetVertices)
 
 TEST(MeshSeries, SetIndices)
 {
-    MeshSeries series;
+    MeshSeries            series;
     std::vector<uint32_t> indices = {0, 1, 2, 3, 4, 5};
 
     series.set_indices(indices);
@@ -588,28 +588,28 @@ TEST(MeshSeries, SetIndices)
 
 TEST(MeshSeries, ComputeCentroid)
 {
-    std::vector<float> verts = {0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f,
-                                3.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f,
-                                0.0f,
-                                6.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f};
+    std::vector<float>    verts   = {0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     3.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     0.0f,
+                                     6.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f};
     std::vector<uint32_t> indices = {0, 1, 2};
 
     MeshSeries series(verts, indices);
-    vec3 centroid = series.compute_centroid();
+    vec3       centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 1.0f);
     EXPECT_FLOAT_EQ(centroid.y, 2.0f);
@@ -618,12 +618,12 @@ TEST(MeshSeries, ComputeCentroid)
 
 TEST(MeshSeries, GetBounds)
 {
-    std::vector<float> verts = {
-        -1.0f, -2.0f, -3.0f, 0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 1.0f};
+    std::vector<float> verts =
+        {-1.0f, -2.0f, -3.0f, 0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 1.0f};
     std::vector<uint32_t> indices = {0, 1, 0};
 
     MeshSeries series(verts, indices);
-    vec3 min_bound, max_bound;
+    vec3       min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, -1.0f);
@@ -637,7 +637,7 @@ TEST(MeshSeries, GetBounds)
 TEST(MeshSeries, EmptyMesh)
 {
     MeshSeries series;
-    vec3 centroid = series.compute_centroid();
+    vec3       centroid = series.compute_centroid();
     EXPECT_FLOAT_EQ(centroid.x, 0.0f);
 
     vec3 min_bound, max_bound;
@@ -651,12 +651,12 @@ TEST(MeshSeries, ComplexMesh)
     std::vector<float> verts;
     for (int i = 0; i < 8; ++i)
     {
-        verts.push_back((i & 1) ? 1.0f : 0.0f);  // x
-        verts.push_back((i & 2) ? 1.0f : 0.0f);  // y
-        verts.push_back((i & 4) ? 1.0f : 0.0f);  // z
-        verts.push_back(0.0f);                   // nx
-        verts.push_back(0.0f);                   // ny
-        verts.push_back(1.0f);                   // nz
+        verts.push_back((i & 1) ? 1.0f : 0.0f);   // x
+        verts.push_back((i & 2) ? 1.0f : 0.0f);   // y
+        verts.push_back((i & 4) ? 1.0f : 0.0f);   // z
+        verts.push_back(0.0f);                    // nx
+        verts.push_back(0.0f);                    // ny
+        verts.push_back(1.0f);                    // nz
     }
 
     std::vector<uint32_t> indices = {
@@ -665,13 +665,13 @@ TEST(MeshSeries, ComplexMesh)
         2,
         1,
         3,
-        2,  // 2 triangles
+        2,   // 2 triangles
         4,
         5,
         6,
         5,
         7,
-        6  // 2 more triangles
+        6   // 2 more triangles
     };
 
     MeshSeries series(verts, indices);
@@ -700,7 +700,7 @@ TEST(MeshSeries, DirtyFlagOnSetIndices)
 TEST(MeshSeries, FluentChaining)
 {
     MeshSeries series;
-    auto& result = series.label("mesh").color(colors::red).opacity(0.7f);
+    auto&      result = series.label("mesh").color(colors::red).opacity(0.7f);
     EXPECT_EQ(&result, &series);
     EXPECT_EQ(series.label(), "mesh");
 }
@@ -849,7 +849,7 @@ TEST(Colormap, ColormapMarksDirty)
 
 TEST(Axes3DIntegration, Line3dFactory)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 2.0f};
     std::vector<float> z = {0.0f, 1.0f, 2.0f};
@@ -861,7 +861,7 @@ TEST(Axes3DIntegration, Line3dFactory)
 
 TEST(Axes3DIntegration, Scatter3dFactory)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {1.0f, 2.0f};
     std::vector<float> y = {3.0f, 4.0f};
     std::vector<float> z = {5.0f, 6.0f};
@@ -873,7 +873,7 @@ TEST(Axes3DIntegration, Scatter3dFactory)
 
 TEST(Axes3DIntegration, SurfaceFactory)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
     std::vector<float> z = {0.0f, 1.0f, 2.0f, 3.0f};
@@ -886,25 +886,25 @@ TEST(Axes3DIntegration, SurfaceFactory)
 
 TEST(Axes3DIntegration, MeshFactory)
 {
-    Axes3D axes;
-    std::vector<float> verts = {0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f,
-                                1.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f,
-                                0.0f,
-                                1.0f,
-                                0.0f,
-                                0.0f,
-                                0.0f,
-                                1.0f};
+    Axes3D                axes;
+    std::vector<float>    verts   = {0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     1.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     0.0f,
+                                     1.0f,
+                                     0.0f,
+                                     0.0f,
+                                     0.0f,
+                                     1.0f};
     std::vector<uint32_t> indices = {0, 1, 2};
 
     auto& series = axes.mesh(verts, indices);
@@ -915,7 +915,7 @@ TEST(Axes3DIntegration, MeshFactory)
 
 TEST(Axes3DIntegration, MultipleSeries)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
     std::vector<float> z = {0.0f, 1.0f};
@@ -928,7 +928,7 @@ TEST(Axes3DIntegration, MultipleSeries)
 
 TEST(Axes3DIntegration, AutoFitWithLine3D)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {-5.0f, 5.0f};
     std::vector<float> y = {-10.0f, 10.0f};
     std::vector<float> z = {-1.0f, 1.0f};
@@ -951,7 +951,7 @@ TEST(Axes3DIntegration, AutoFitWithLine3D)
 
 TEST(Axes3DIntegration, AutoFitWithSurface)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {0.0f, 10.0f};
     std::vector<float> y = {0.0f, 20.0f};
     std::vector<float> z = {-5.0f, 5.0f, -5.0f, 5.0f};
@@ -986,7 +986,7 @@ TEST(Axes3DIntegration, AutoFitEmpty)
 
 TEST(Axes3DIntegration, FactoryReturnsFluent)
 {
-    Axes3D axes;
+    Axes3D             axes;
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
     std::vector<float> z = {0.0f, 1.0f};
@@ -1004,7 +1004,7 @@ TEST(Axes3DIntegration, FactoryReturnsFluent)
 TEST(FigureIntegration, Subplot3dCreation)
 {
     Figure fig;
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto&  ax = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
@@ -1048,7 +1048,7 @@ TEST(Series3D, SinglePoint)
     std::vector<float> z = {15.0f};
 
     ScatterSeries3D series(x, y, z);
-    vec3 centroid = series.compute_centroid();
+    vec3            centroid = series.compute_centroid();
 
     EXPECT_FLOAT_EQ(centroid.x, 5.0f);
     EXPECT_FLOAT_EQ(centroid.y, 10.0f);
@@ -1062,7 +1062,7 @@ TEST(Series3D, NegativeCoordinates)
     std::vector<float> z = {-30.0f, -15.0f, -7.5f};
 
     LineSeries3D series(x, y, z);
-    vec3 min_bound, max_bound;
+    vec3         min_bound, max_bound;
     series.get_bounds(min_bound, max_bound);
 
     EXPECT_FLOAT_EQ(min_bound.x, -10.0f);
@@ -1083,7 +1083,7 @@ TEST(Series3D, ZeroSizedSurface)
 
 TEST(Series3D, VeryLargeSurface)
 {
-    int size = 100;
+    int                size = 100;
     std::vector<float> x(size), y(size), z(size * size);
 
     for (int i = 0; i < size; ++i)
@@ -1107,7 +1107,7 @@ TEST(Series3D, VeryLargeSurface)
 TEST(Series3D, LargeScatter3DPerformance)
 {
     // 100k points should be handled without issues
-    const size_t N = 100000;
+    const size_t       N = 100000;
     std::vector<float> x(N), y(N), z(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -1120,19 +1120,19 @@ TEST(Series3D, LargeScatter3DPerformance)
     EXPECT_EQ(series.point_count(), N);
 
     vec3 centroid = series.compute_centroid();
-    EXPECT_NE(centroid.x, 0.0f);  // Non-trivial centroid
+    EXPECT_NE(centroid.x, 0.0f);   // Non-trivial centroid
 }
 
 TEST(Series3D, LargeLine3DPerformance)
 {
-    const size_t N = 50000;
+    const size_t       N = 50000;
     std::vector<float> x(N), y(N), z(N);
     for (size_t i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) / static_cast<float>(N);
-        x[i] = std::cos(t * 20.0f);
-        y[i] = std::sin(t * 20.0f);
-        z[i] = t * 10.0f;
+        x[i]    = std::cos(t * 20.0f);
+        y[i]    = std::sin(t * 20.0f);
+        z[i]    = t * 10.0f;
     }
 
     LineSeries3D series(x, y, z);

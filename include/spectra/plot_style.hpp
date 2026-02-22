@@ -14,12 +14,12 @@ namespace spectra
 
 enum class LineStyle : uint8_t
 {
-    None,        // No line (markers only)
-    Solid,       // '-'   ────────────
-    Dashed,      // '--'  ── ── ── ──
-    Dotted,      // ':'   ··············
-    DashDot,     // '-.'  ──·──·──·──
-    DashDotDot,  // '-..' ──··──··──··
+    None,         // No line (markers only)
+    Solid,        // '-'   ────────────
+    Dashed,       // '--'  ── ── ── ──
+    Dotted,       // ':'   ··············
+    DashDot,      // '-.'  ──·──·──·──
+    DashDotDot,   // '-..' ──··──··──··
 };
 
 // ─── Marker Styles ───────────────────────────────────────────────────────────
@@ -27,24 +27,24 @@ enum class LineStyle : uint8_t
 
 enum class MarkerStyle : uint8_t
 {
-    None,              // No marker
-    Point,             // '.'  small dot
-    Circle,            // 'o'  ○
-    Plus,              // '+'  +
-    Cross,             // 'x'  ×
-    Star,              // '*'  ✱ (six-pointed)
-    Square,            // 's'  □
-    Diamond,           // 'd'  ◇
-    TriangleUp,        // '^'  △
-    TriangleDown,      // 'v'  ▽
-    TriangleLeft,      // '<'  ◁
-    TriangleRight,     // '>'  ▷
-    Pentagon,          // 'p'  ⬠
-    Hexagon,           // 'h'  ⬡
-    FilledCircle,      // 'O'  ●  (non-MATLAB extension)
-    FilledSquare,      // 'S'  ■  (non-MATLAB extension)
-    FilledDiamond,     // 'D'  ◆  (non-MATLAB extension)
-    FilledTriangleUp,  // 'A'  ▲  (non-MATLAB extension)
+    None,               // No marker
+    Point,              // '.'  small dot
+    Circle,             // 'o'  ○
+    Plus,               // '+'  +
+    Cross,              // 'x'  ×
+    Star,               // '*'  ✱ (six-pointed)
+    Square,             // 's'  □
+    Diamond,            // 'd'  ◇
+    TriangleUp,         // '^'  △
+    TriangleDown,       // 'v'  ▽
+    TriangleLeft,       // '<'  ◁
+    TriangleRight,      // '>'  ▷
+    Pentagon,           // 'p'  ⬠
+    Hexagon,            // 'h'  ⬡
+    FilledCircle,       // 'O'  ●  (non-MATLAB extension)
+    FilledSquare,       // 'S'  ■  (non-MATLAB extension)
+    FilledDiamond,      // 'D'  ◆  (non-MATLAB extension)
+    FilledTriangleUp,   // 'A'  ▲  (non-MATLAB extension)
 };
 
 // ─── Plot Style ──────────────────────────────────────────────────────────────
@@ -52,12 +52,12 @@ enum class MarkerStyle : uint8_t
 
 struct PlotStyle
 {
-    LineStyle line_style = LineStyle::Solid;
-    MarkerStyle marker_style = MarkerStyle::None;
-    std::optional<Color> color;  // nullopt = use auto-cycle color
-    float line_width = 2.0f;
-    float marker_size = 6.0f;
-    float opacity = 1.0f;
+    LineStyle            line_style   = LineStyle::Solid;
+    MarkerStyle          marker_style = MarkerStyle::None;
+    std::optional<Color> color;   // nullopt = use auto-cycle color
+    float                line_width  = 2.0f;
+    float                marker_size = 6.0f;
+    float                opacity     = 1.0f;
 
     // Convenience: does this style draw lines?
     bool has_line() const { return line_style != LineStyle::None; }
@@ -197,7 +197,7 @@ constexpr char marker_style_symbol(MarkerStyle s)
 }
 
 // Total count of each enum (useful for UI iteration)
-constexpr int LINE_STYLE_COUNT = 6;
+constexpr int LINE_STYLE_COUNT   = 6;
 constexpr int MARKER_STYLE_COUNT = 18;
 
 // Arrays for iteration
@@ -237,15 +237,15 @@ constexpr MarkerStyle ALL_MARKER_STYLES[] = {
 
 struct DashPattern
 {
-    float segments[8]{};  // alternating on/off lengths (max 4 pairs)
-    int count = 0;        // number of segments (even number)
-    float total = 0.0f;   // sum of all segments (pattern repeat length)
+    float segments[8]{};   // alternating on/off lengths (max 4 pairs)
+    int   count = 0;       // number of segments (even number)
+    float total = 0.0f;    // sum of all segments (pattern repeat length)
 };
 
 inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f)
 {
     DashPattern p;
-    float w = line_width;
+    float       w = line_width;
     switch (style)
     {
         case LineStyle::Solid:
@@ -253,37 +253,37 @@ inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f)
             break;
         case LineStyle::Dashed:
             // Clean dashes: 8x width on, 4x width off
-            p.segments[0] = 8.0f * w;  // dash
-            p.segments[1] = 4.0f * w;  // gap
-            p.count = 2;
-            p.total = 12.0f * w;
+            p.segments[0] = 8.0f * w;   // dash
+            p.segments[1] = 4.0f * w;   // gap
+            p.count       = 2;
+            p.total       = 12.0f * w;
             break;
         case LineStyle::Dotted:
             // Round dots: 2x width on (appears as dot with round caps), 4x gap
-            p.segments[0] = 2.0f * w;  // dot
-            p.segments[1] = 4.0f * w;  // gap
-            p.count = 2;
-            p.total = 6.0f * w;
+            p.segments[0] = 2.0f * w;   // dot
+            p.segments[1] = 4.0f * w;   // gap
+            p.count       = 2;
+            p.total       = 6.0f * w;
             break;
         case LineStyle::DashDot:
             // Dash-dot: 8x dash, 3.5x gap, 2x dot, 3.5x gap
-            p.segments[0] = 8.0f * w;  // dash
-            p.segments[1] = 3.5f * w;  // gap
-            p.segments[2] = 2.0f * w;  // dot
-            p.segments[3] = 3.5f * w;  // gap
-            p.count = 4;
-            p.total = 17.0f * w;
+            p.segments[0] = 8.0f * w;   // dash
+            p.segments[1] = 3.5f * w;   // gap
+            p.segments[2] = 2.0f * w;   // dot
+            p.segments[3] = 3.5f * w;   // gap
+            p.count       = 4;
+            p.total       = 17.0f * w;
             break;
         case LineStyle::DashDotDot:
             // Dash-dot-dot: 8x dash, 3x gap, 2x dot, 3x gap, 2x dot, 3x gap
-            p.segments[0] = 8.0f * w;  // dash
-            p.segments[1] = 3.0f * w;  // gap
-            p.segments[2] = 2.0f * w;  // dot
-            p.segments[3] = 3.0f * w;  // gap
-            p.segments[4] = 2.0f * w;  // dot
-            p.segments[5] = 3.0f * w;  // gap
-            p.count = 6;
-            p.total = 21.0f * w;
+            p.segments[0] = 8.0f * w;   // dash
+            p.segments[1] = 3.0f * w;   // gap
+            p.segments[2] = 2.0f * w;   // dot
+            p.segments[3] = 3.0f * w;   // gap
+            p.segments[4] = 2.0f * w;   // dot
+            p.segments[5] = 3.0f * w;   // gap
+            p.count       = 6;
+            p.total       = 21.0f * w;
             break;
     }
     return p;
@@ -309,8 +309,8 @@ inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f)
 inline PlotStyle parse_format_string(std::string_view fmt)
 {
     PlotStyle style;
-    style.line_style = LineStyle::None;  // Will be set to Solid if line specifier found
-    bool has_line_spec = false;
+    style.line_style     = LineStyle::None;   // Will be set to Solid if line specifier found
+    bool has_line_spec   = false;
     bool has_marker_spec = false;
 
     size_t i = 0;
@@ -360,34 +360,34 @@ inline PlotStyle parse_format_string(std::string_view fmt)
                 if (i + 1 < fmt.size() && fmt[i + 1] == '-')
                 {
                     style.line_style = LineStyle::Dashed;
-                    has_line_spec = true;
+                    has_line_spec    = true;
                     i += 2;
                     return true;
                 }
                 if (i + 2 < fmt.size() && fmt[i + 1] == '.' && fmt[i + 2] == '.')
                 {
                     style.line_style = LineStyle::DashDotDot;
-                    has_line_spec = true;
+                    has_line_spec    = true;
                     i += 3;
                     return true;
                 }
                 if (i + 1 < fmt.size() && fmt[i + 1] == '.')
                 {
                     style.line_style = LineStyle::DashDot;
-                    has_line_spec = true;
+                    has_line_spec    = true;
                     i += 2;
                     return true;
                 }
                 // Single '-' = solid
                 style.line_style = LineStyle::Solid;
-                has_line_spec = true;
+                has_line_spec    = true;
                 i += 1;
                 return true;
             }
             if (c == ':')
             {
                 style.line_style = LineStyle::Dotted;
-                has_line_spec = true;
+                has_line_spec    = true;
                 i += 1;
                 return true;
             }
@@ -401,71 +401,71 @@ inline PlotStyle parse_format_string(std::string_view fmt)
             {
                 case '.':
                     style.marker_style = MarkerStyle::Point;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'o':
                     style.marker_style = MarkerStyle::Circle;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case '+':
                     style.marker_style = MarkerStyle::Plus;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'x':
                     style.marker_style = MarkerStyle::Cross;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case '*':
                     style.marker_style = MarkerStyle::Star;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 's':
                     style.marker_style = MarkerStyle::Square;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'd':
                     style.marker_style = MarkerStyle::Diamond;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case '^':
                     style.marker_style = MarkerStyle::TriangleUp;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'v':
                     style.marker_style = MarkerStyle::TriangleDown;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case '<':
                     style.marker_style = MarkerStyle::TriangleLeft;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case '>':
                     style.marker_style = MarkerStyle::TriangleRight;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'p':
                     style.marker_style = MarkerStyle::Pentagon;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'h':
                     style.marker_style = MarkerStyle::Hexagon;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'O':
                     style.marker_style = MarkerStyle::FilledCircle;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'S':
                     style.marker_style = MarkerStyle::FilledSquare;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'D':
                     style.marker_style = MarkerStyle::FilledDiamond;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 case 'A':
                     style.marker_style = MarkerStyle::FilledTriangleUp;
-                    has_marker_spec = true;
+                    has_marker_spec    = true;
                     return true;
                 default:
                     return false;
@@ -542,4 +542,4 @@ inline std::string to_format_string(const PlotStyle& style)
     return result;
 }
 
-}  // namespace spectra
+}   // namespace spectra

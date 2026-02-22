@@ -58,7 +58,7 @@ TEST(LineSeries3DTransparency, IsTransparentByOpacity)
 TEST(LineSeries3DTransparency, BlendModeChaining)
 {
     LineSeries3D s;
-    auto& ref =
+    auto&        ref =
         s.color(Color{1.0f, 0.0f, 0.0f, 0.5f}).opacity(0.7f).blend_mode(BlendMode::Premultiplied);
     EXPECT_EQ(ref.blend_mode(), BlendMode::Premultiplied);
     EXPECT_FLOAT_EQ(ref.opacity(), 0.7f);
@@ -184,7 +184,7 @@ TEST(SurfaceSeriesTransparency, ColormapAlphaRange)
 TEST(SurfaceSeriesTransparency, MaterialChaining)
 {
     SurfaceSeries s;
-    auto& ref = s.color(Color{1.0f, 0.0f, 0.0f, 0.5f})
+    auto&         ref = s.color(Color{1.0f, 0.0f, 0.0f, 0.5f})
                     .opacity(0.8f)
                     .blend_mode(BlendMode::Alpha)
                     .double_sided(true)
@@ -266,7 +266,7 @@ TEST(MeshSeriesTransparency, IsTransparentByOpacity)
 TEST(MeshSeriesTransparency, MaterialChaining)
 {
     MeshSeries m;
-    auto& ref = m.color(Color{0.5f, 0.5f, 0.5f, 0.7f})
+    auto&      ref = m.color(Color{0.5f, 0.5f, 0.5f, 0.7f})
                     .opacity(0.9f)
                     .blend_mode(BlendMode::Premultiplied)
                     .double_sided(false)
@@ -297,8 +297,8 @@ TEST(SurfaceWireframe, GenerateWireframeMesh)
 
     EXPECT_TRUE(s.is_wireframe_mesh_generated());
     const auto& wm = s.wireframe_mesh();
-    EXPECT_EQ(wm.vertex_count, 9u);      // 3x3 grid
-    EXPECT_EQ(wm.vertices.size(), 54u);  // 9 vertices * 6 floats each
+    EXPECT_EQ(wm.vertex_count, 9u);       // 3x3 grid
+    EXPECT_EQ(wm.vertices.size(), 54u);   // 9 vertices * 6 floats each
     // Line indices: 3 rows * 2 horizontal segments + 3 cols * 2 vertical segments = 12 segments * 2
     // indices
     EXPECT_EQ(wm.indices.size(), 24u);
@@ -358,11 +358,11 @@ TEST(SurfaceWireframe, WireframeIndexTopology)
 
 TEST(TransparentPipeline, EnumTypesExist)
 {
-    [[maybe_unused]] PipelineType lt = PipelineType::Line3D_Transparent;
-    [[maybe_unused]] PipelineType st = PipelineType::Scatter3D_Transparent;
-    [[maybe_unused]] PipelineType mt = PipelineType::Mesh3D_Transparent;
+    [[maybe_unused]] PipelineType lt  = PipelineType::Line3D_Transparent;
+    [[maybe_unused]] PipelineType st  = PipelineType::Scatter3D_Transparent;
+    [[maybe_unused]] PipelineType mt  = PipelineType::Mesh3D_Transparent;
     [[maybe_unused]] PipelineType sft = PipelineType::Surface3D_Transparent;
-    [[maybe_unused]] PipelineType sw = PipelineType::SurfaceWireframe3D;
+    [[maybe_unused]] PipelineType sw  = PipelineType::SurfaceWireframe3D;
     [[maybe_unused]] PipelineType swt = PipelineType::SurfaceWireframe3D_Transparent;
     SUCCEED();
 }

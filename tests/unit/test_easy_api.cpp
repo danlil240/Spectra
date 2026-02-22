@@ -15,7 +15,7 @@ class EasyAPITest : public ::testing::Test
         // Reset easy state so each test starts fresh
         auto& s = spectra::detail::easy_state();
         s.reset();
-        s.app = nullptr;  // Force re-creation
+        s.app = nullptr;   // Force re-creation
     }
 };
 
@@ -68,7 +68,7 @@ TEST_F(EasyAPITest, FigureCreatesFigure)
 {
     auto& fig = spectra::figure();
     EXPECT_EQ(spectra::gcf(), &fig);
-    EXPECT_EQ(spectra::gca(), nullptr);  // No axes yet
+    EXPECT_EQ(spectra::gca(), nullptr);   // No axes yet
 }
 
 TEST_F(EasyAPITest, FigureWithDimensions)
@@ -86,11 +86,11 @@ TEST_F(EasyAPITest, NewFigureResetsCurrent)
     auto* ax1 = spectra::gca();
 
     spectra::figure();
-    EXPECT_EQ(spectra::gca(), nullptr);  // Axes reset on new figure
+    EXPECT_EQ(spectra::gca(), nullptr);   // Axes reset on new figure
 
     spectra::plot(x, y);
     auto* ax2 = spectra::gca();
-    EXPECT_NE(ax1, ax2);  // Different axes on different figures
+    EXPECT_NE(ax1, ax2);   // Different axes on different figures
 }
 
 // ─── Subplot ────────────────────────────────────────────────────────────────
@@ -118,9 +118,9 @@ TEST_F(EasyAPITest, SubplotCreatesFigureImplicitly)
 
 TEST_F(EasyAPITest, PlotWithFormatString)
 {
-    std::vector<float> x = {0, 1, 2, 3};
-    std::vector<float> y = {0, 1, 4, 9};
-    auto& line = spectra::plot(x, y, "r--o");
+    std::vector<float> x    = {0, 1, 2, 3};
+    std::vector<float> y    = {0, 1, 4, 9};
+    auto&              line = spectra::plot(x, y, "r--o");
 
     EXPECT_EQ(line.line_style(), spectra::LineStyle::Dashed);
     EXPECT_EQ(line.marker_style(), spectra::MarkerStyle::Circle);
@@ -133,15 +133,15 @@ TEST_F(EasyAPITest, PlotWithPlotStyle)
     std::vector<float> y = {0, 1, 4};
     spectra::PlotStyle ps;
     ps.line_style = spectra::LineStyle::Dotted;
-    ps.color = spectra::colors::red;
-    auto& line = spectra::plot(x, y, ps);
+    ps.color      = spectra::colors::red;
+    auto& line    = spectra::plot(x, y, ps);
 
     EXPECT_EQ(line.line_style(), spectra::LineStyle::Dotted);
 }
 
 TEST_F(EasyAPITest, MultiplePlotsOnSameAxes)
 {
-    std::vector<float> x = {0, 1, 2};
+    std::vector<float> x  = {0, 1, 2};
     std::vector<float> y1 = {0, 1, 4};
     std::vector<float> y2 = {0, 2, 8};
     spectra::plot(x, y1);
@@ -152,9 +152,9 @@ TEST_F(EasyAPITest, MultiplePlotsOnSameAxes)
 
 TEST_F(EasyAPITest, FluentChaining)
 {
-    std::vector<float> x = {0, 1, 2};
-    std::vector<float> y = {0, 1, 4};
-    auto& line = spectra::plot(x, y, "b-").label("data").color(spectra::colors::green);
+    std::vector<float> x    = {0, 1, 2};
+    std::vector<float> y    = {0, 1, 4};
+    auto&              line = spectra::plot(x, y, "b-").label("data").color(spectra::colors::green);
 
     EXPECT_EQ(line.label(), "data");
 }
@@ -243,7 +243,7 @@ TEST_F(EasyAPITest, Plot3AutoCreates3DAxes)
     spectra::plot3(x, y, z);
 
     EXPECT_NE(spectra::gca3d(), nullptr);
-    EXPECT_EQ(spectra::gca(), nullptr);  // 2D axes should be null
+    EXPECT_EQ(spectra::gca(), nullptr);   // 2D axes should be null
 }
 
 TEST_F(EasyAPITest, Scatter3AutoCreates3DAxes)
@@ -348,7 +348,7 @@ TEST_F(EasyAPITest, SwitchBetween2DAnd3D)
 
     spectra::subplot3d(1, 2, 2);
     spectra::plot3(x, y, z);
-    EXPECT_EQ(spectra::gca(), nullptr);  // Switched away from 2D
+    EXPECT_EQ(spectra::gca(), nullptr);   // Switched away from 2D
     EXPECT_NE(spectra::gca3d(), nullptr);
 }
 
@@ -357,14 +357,14 @@ TEST_F(EasyAPITest, SwitchBetween2DAnd3D)
 TEST_F(EasyAPITest, MultipleFigures)
 {
     std::vector<float> x = {0, 1}, y1 = {0, 1}, y2 = {1, 0};
-    auto& fig1 = spectra::figure();
+    auto&              fig1 = spectra::figure();
     spectra::plot(x, y1);
 
     auto& fig2 = spectra::figure();
     spectra::plot(x, y2);
 
     EXPECT_NE(&fig1, &fig2);
-    EXPECT_EQ(spectra::gcf(), &fig2);  // Current figure is the last one created
+    EXPECT_EQ(spectra::gcf(), &fig2);   // Current figure is the last one created
 }
 
 // ─── Append for real-time ───────────────────────────────────────────────────
@@ -399,7 +399,7 @@ TEST_F(EasyAPITest, TabCreatesNewFigure)
     auto* fig2 = spectra::gcf();
     spectra::plot(x, y);
 
-    EXPECT_NE(fig1, fig2);  // Different figure objects
+    EXPECT_NE(fig1, fig2);   // Different figure objects
 }
 
 TEST_F(EasyAPITest, TabResetsAxes)
@@ -410,7 +410,7 @@ TEST_F(EasyAPITest, TabResetsAxes)
     EXPECT_NE(spectra::gca(), nullptr);
 
     spectra::tab();
-    EXPECT_EQ(spectra::gca(), nullptr);  // Axes reset — new tab has no axes yet
+    EXPECT_EQ(spectra::gca(), nullptr);   // Axes reset — new tab has no axes yet
 }
 
 TEST_F(EasyAPITest, TabWithNoFigureCreatesFigure)
@@ -447,7 +447,7 @@ TEST_F(EasyAPITest, TabThenFigureCreatesNewWindow)
     spectra::tab();
     spectra::plot(x, y);
 
-    spectra::figure();  // New OS window
+    spectra::figure();   // New OS window
     spectra::plot(x, y);
     auto* fig_w2 = spectra::gcf();
 
@@ -466,5 +466,5 @@ TEST_F(EasyAPITest, GcaReturnsCorrectAxesAfterTab)
     spectra::plot(x, y2);
     auto* ax2 = spectra::gca();
 
-    EXPECT_NE(ax1, ax2);  // Different axes on different tabs
+    EXPECT_NE(ax1, ax2);   // Different axes on different tabs
 }

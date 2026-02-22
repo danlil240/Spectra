@@ -9,10 +9,10 @@ TEST(IconFont, AllIconsListUsesEnumValues)
     const auto& icons = IconFont::instance().get_all_icons();
     ASSERT_FALSE(icons.empty());
 
-    const auto first = static_cast<uint16_t>(icons.front());
-    const auto last = static_cast<uint16_t>(icons.back());
+    const auto first      = static_cast<uint16_t>(icons.front());
+    const auto last       = static_cast<uint16_t>(icons.back());
     const auto enum_first = static_cast<uint16_t>(Icon::ChartLine);
-    const auto enum_last = static_cast<uint16_t>(Icon::Last);
+    const auto enum_last  = static_cast<uint16_t>(Icon::Last);
 
     EXPECT_GE(first, enum_first);
     EXPECT_LT(first, enum_last);

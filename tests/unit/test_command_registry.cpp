@@ -19,7 +19,7 @@ TEST(CommandQueue, InitiallyEmpty)
 TEST(CommandQueue, PushMakesNonEmpty)
 {
     CommandQueue q;
-    bool ok = q.push([]() {});
+    bool         ok = q.push([]() {});
     EXPECT_TRUE(ok);
     EXPECT_FALSE(q.empty());
 }
@@ -27,11 +27,11 @@ TEST(CommandQueue, PushMakesNonEmpty)
 TEST(CommandQueue, PopRetrievesCommand)
 {
     CommandQueue q;
-    int value = 0;
+    int          value = 0;
     q.push([&value]() { value = 42; });
 
     std::function<void()> cmd;
-    bool ok = q.pop(cmd);
+    bool                  ok = q.pop(cmd);
     EXPECT_TRUE(ok);
     EXPECT_NE(cmd, nullptr);
     cmd();
@@ -40,14 +40,14 @@ TEST(CommandQueue, PopRetrievesCommand)
 
 TEST(CommandQueue, PopFromEmptyReturnsFalse)
 {
-    CommandQueue q;
+    CommandQueue          q;
     std::function<void()> cmd;
     EXPECT_FALSE(q.pop(cmd));
 }
 
 TEST(CommandQueue, FIFOOrder)
 {
-    CommandQueue q;
+    CommandQueue     q;
     std::vector<int> order;
 
     q.push([&order]() { order.push_back(1); });
@@ -83,7 +83,7 @@ TEST(CommandQueue, EmptyAfterAllPopped)
 TEST(CommandQueue, DrainExecutesAll)
 {
     CommandQueue q;
-    int sum = 0;
+    int          sum = 0;
     q.push([&sum]() { sum += 10; });
     q.push([&sum]() { sum += 20; });
     q.push([&sum]() { sum += 30; });
@@ -102,7 +102,7 @@ TEST(CommandQueue, DrainOnEmptyReturnsZero)
 
 TEST(CommandQueue, DrainPreservesOrder)
 {
-    CommandQueue q;
+    CommandQueue     q;
     std::vector<int> order;
     for (int i = 0; i < 10; ++i)
     {
@@ -132,7 +132,7 @@ TEST(CommandQueue, CustomCapacity)
 
 TEST(CommandQueue, FullQueueRejectsPush)
 {
-    CommandQueue q(4);  // 3 usable slots
+    CommandQueue q(4);   // 3 usable slots
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
@@ -156,7 +156,7 @@ TEST(CommandQueue, FullQueueAcceptsAfterPop)
 
 TEST(CommandQueue, WraparoundCorrectness)
 {
-    CommandQueue q(4);
+    CommandQueue          q(4);
     std::function<void()> cmd;
 
     for (int cycle = 0; cycle < 10; ++cycle)
@@ -192,8 +192,8 @@ TEST(CommandQueue, DrainSkipsNullCommands)
 
 TEST(CommandQueue, SPSCProducerConsumer)
 {
-    CommandQueue q(1024);
-    constexpr int NUM_ITEMS = 500;
+    CommandQueue     q(1024);
+    constexpr int    NUM_ITEMS = 500;
     std::atomic<int> sum{0};
 
     std::thread producer(
@@ -237,8 +237,8 @@ TEST(CommandQueue, SPSCProducerConsumer)
 
 TEST(CommandQueue, SPSCDrainConsumer)
 {
-    CommandQueue q(256);
-    constexpr int NUM_ITEMS = 200;
+    CommandQueue     q(256);
+    constexpr int    NUM_ITEMS = 200;
     std::atomic<int> count{0};
 
     std::thread producer(
@@ -273,7 +273,7 @@ TEST(CommandQueue, SPSCDrainConsumer)
 TEST(CommandQueue, InterleavedPushPop)
 {
     CommandQueue q(8);
-    int total = 0;
+    int          total = 0;
 
     for (int i = 0; i < 50; ++i)
     {

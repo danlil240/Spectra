@@ -67,15 +67,15 @@ TEST_F(SingleWindowFixture, RenderProducesPixels)
 
 TEST_F(SingleWindowFixture, MultipleFiguresHeadless)
 {
-    auto& fig1 = app_->figure({.width = 320, .height = 240});
-    auto& ax1 = fig1.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y1 = {0.0f, 1.0f, 0.5f};
+    auto&              fig1 = app_->figure({.width = 320, .height = 240});
+    auto&              ax1  = fig1.subplot(1, 1, 1);
+    std::vector<float> x    = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y1   = {0.0f, 1.0f, 0.5f};
     ax1.line(x, y1);
 
-    auto& fig2 = app_->figure({.width = 320, .height = 240});
-    auto& ax2 = fig2.subplot(1, 1, 1);
-    std::vector<float> y2 = {1.0f, 0.0f, 1.5f};
+    auto&              fig2 = app_->figure({.width = 320, .height = 240});
+    auto&              ax2  = fig2.subplot(1, 1, 1);
+    std::vector<float> y2   = {1.0f, 0.0f, 1.5f};
     ax2.line(x, y2);
 
     EXPECT_TRUE(render_one_frame());
@@ -86,9 +86,9 @@ TEST_F(SingleWindowFixture, PipelineCreation2D)
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
-    auto line = backend->create_pipeline(PipelineType::Line);
+    auto line    = backend->create_pipeline(PipelineType::Line);
     auto scatter = backend->create_pipeline(PipelineType::Scatter);
-    auto grid = backend->create_pipeline(PipelineType::Grid);
+    auto grid    = backend->create_pipeline(PipelineType::Grid);
 
     EXPECT_TRUE(line);
     EXPECT_TRUE(scatter);
@@ -100,9 +100,9 @@ TEST_F(SingleWindowFixture, PipelineCreation3D)
     auto* backend = app_->backend();
     ASSERT_NE(backend, nullptr);
 
-    auto line3d = backend->create_pipeline(PipelineType::Line3D);
+    auto line3d    = backend->create_pipeline(PipelineType::Line3D);
     auto scatter3d = backend->create_pipeline(PipelineType::Scatter3D);
-    auto mesh3d = backend->create_pipeline(PipelineType::Mesh3D);
+    auto mesh3d    = backend->create_pipeline(PipelineType::Mesh3D);
     auto surface3d = backend->create_pipeline(PipelineType::Surface3D);
 
     EXPECT_TRUE(line3d);
@@ -176,11 +176,11 @@ TEST(WindowContextPhase1, SetActiveWindow)
 TEST(WindowContextPhase1, SingleWindowUnchanged)
 {
     // After Agent A refactor, single window must still work identically
-    App app({.headless = true});
-    auto& fig = app.figure({.width = 640, .height = 480});
-    auto& ax = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f};
+    App                app({.headless = true});
+    auto&              fig = app.figure({.width = 640, .height = 480});
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 0.5f};
     ax.line(x, y);
     app.run();
 
@@ -197,14 +197,14 @@ TEST(WindowContextPhase1, GlfwTerminateNotCalledOnShutdown)
     // called prematurely).
     for (int i = 0; i < 3; ++i)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 320, .height = 240});
         fig.subplot(1, 1, 1);
         app.run();
     }
 }
 
-#endif  // SPECTRA_HAS_WINDOW_CONTEXT
+#endif   // SPECTRA_HAS_WINDOW_CONTEXT
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 2 — Multi-Window Rendering (after Agent B merge)
@@ -255,7 +255,7 @@ TEST_F(MultiWindowFixture, WindowCloseOrderPermutations)
     GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
 }
 
-#endif  // SPECTRA_HAS_WINDOW_MANAGER
+#endif   // SPECTRA_HAS_WINDOW_MANAGER
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 2 STUB — Multi-Window Simulation (always runs)
@@ -313,7 +313,7 @@ TEST_F(MultiWindowFixture, StubNoHangMultipleWindows)
     detector.expect_no_hang("render 3 stub windows", [&]() { render_all_windows(); });
 }
 
-#endif  // !SPECTRA_HAS_WINDOW_MANAGER
+#endif   // !SPECTRA_HAS_WINDOW_MANAGER
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 3 — Figure Ownership (after Agent C merge)
@@ -347,7 +347,7 @@ TEST(FigureOwnership, AnimationCallbacksAfterMove)
     GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
 }
 
-#endif  // SPECTRA_HAS_FIGURE_REGISTRY
+#endif   // SPECTRA_HAS_FIGURE_REGISTRY
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 4 — Tab Tear-Off (after Agent D merge)
@@ -362,8 +362,8 @@ class TearOffTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
-        auto& fig = app_->figure({.width = 320, .height = 240});
+        app_            = std::make_unique<App>(config);
+        auto& fig       = app_->figure({.width = 320, .height = 240});
         fig.subplot(1, 1, 1);
         std::vector<float> x = {0.0f, 1.0f};
         std::vector<float> y = {0.0f, 1.0f};
@@ -438,7 +438,7 @@ TEST_F(TearOffTest, WindowContextAssignmentAfterDetach)
     WindowContext wctx{};
     EXPECT_EQ(wctx.assigned_figure_index, INVALID_FIGURE_ID);
 
-    FigureId fig_id = 42;
+    FigureId fig_id            = 42;
     wctx.assigned_figure_index = fig_id;
     EXPECT_EQ(wctx.assigned_figure_index, fig_id);
 }
@@ -448,7 +448,7 @@ TEST_F(TearOffTest, LastFigureProtection)
     // The app.cpp callback checks registry_.count() <= 1 before detaching.
     // Verify the semantic contract: a single-figure app should not allow detach.
     // We test this by verifying that a single figure app creates exactly one figure.
-    App single_app({.headless = true});
+    App   single_app({.headless = true});
     auto& fig = single_app.figure({.width = 320, .height = 240});
     fig.subplot(1, 1, 1);
     single_app.run();
@@ -463,7 +463,7 @@ TEST_F(TearOffTest, MultipleFiguresAllowDetach)
 {
     // With 2+ figures, detach should be allowed.
     // Verify both figures are created and renderable.
-    App multi_app({.headless = true});
+    App   multi_app({.headless = true});
     auto& fig1 = multi_app.figure({.width = 320, .height = 240});
     fig1.subplot(1, 1, 1);
     auto& fig2 = multi_app.figure({.width = 320, .height = 240});
@@ -479,11 +479,11 @@ TEST_F(TearOffTest, MoveFigureFieldManipulation)
 {
     // Simulate the full detach + move flow using WindowContext fields
     WindowContext source{};
-    source.id = 1;
+    source.id                    = 1;
     source.assigned_figure_index = 7;
 
     WindowContext target{};
-    target.id = 2;
+    target.id                    = 2;
     target.assigned_figure_index = INVALID_FIGURE_ID;
 
     // Detach: assign figure to target, clear source
@@ -503,8 +503,12 @@ TEST_F(TearOffTest, RapidDetachAttempts)
     // Rapidly attempt detach 10 times — should not crash
     for (int i = 0; i < 10; ++i)
     {
-        auto* result = wm.detach_figure(
-            static_cast<FigureId>(i + 1), 400, 300, "Rapid " + std::to_string(i), i * 50, i * 50);
+        auto* result = wm.detach_figure(static_cast<FigureId>(i + 1),
+                                        400,
+                                        300,
+                                        "Rapid " + std::to_string(i),
+                                        i * 50,
+                                        i * 50);
         (void)result;
     }
     SUCCEED();
@@ -529,7 +533,7 @@ TEST_F(TearOffTest, ShutdownAfterDetachAttempts)
 TEST(TestInfrastructure, GpuHangDetectorCompletes)
 {
     GpuHangDetector detector(std::chrono::seconds(5));
-    bool ok = detector.run("trivial",
+    bool            ok = detector.run("trivial",
                            []()
                            {
                                // Instant completion
@@ -543,7 +547,7 @@ TEST(TestInfrastructure, GpuHangDetectorCompletes)
 TEST(TestInfrastructure, GpuHangDetectorTimeout)
 {
     GpuHangDetector detector(std::chrono::milliseconds(50));
-    bool ok = detector.run("intentional hang",
+    bool            ok = detector.run("intentional hang",
                            []() { std::this_thread::sleep_for(std::chrono::milliseconds(200)); });
     // The callable still completes (we can't kill threads), but the
     // detector reports timeout
@@ -555,14 +559,14 @@ TEST(TestInfrastructure, GpuHangDetectorTimeout)
 TEST(TestInfrastructure, TimingMeasure)
 {
     double ms = measure_ms([]() { std::this_thread::sleep_for(std::chrono::milliseconds(10)); });
-    EXPECT_GE(ms, 5.0);    // At least 5ms (allowing for scheduling jitter)
-    EXPECT_LT(ms, 500.0);  // Not absurdly long
+    EXPECT_GE(ms, 5.0);     // At least 5ms (allowing for scheduling jitter)
+    EXPECT_LT(ms, 500.0);   // Not absurdly long
 }
 
 TEST(TestInfrastructure, StressRunner)
 {
-    int counter = 0;
-    auto stats = run_stress(10, [&]() { ++counter; });
+    int  counter = 0;
+    auto stats   = run_stress(10, [&]() { ++counter; });
     EXPECT_EQ(counter, 10);
     EXPECT_EQ(stats.iterations, 10u);
     EXPECT_GE(stats.min_ms, 0.0);

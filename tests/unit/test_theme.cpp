@@ -132,12 +132,12 @@ TEST(Color, LerpSameColorIsIdentity)
 
 TEST(Color, ToHexRoundTrip)
 {
-    Color c = Color::from_hex(0xFF8040);
+    Color    c   = Color::from_hex(0xFF8040);
     uint32_t hex = c.to_hex();
-    uint8_t r = (hex >> 24) & 0xFF;
-    uint8_t g = (hex >> 16) & 0xFF;
-    uint8_t b = (hex >> 8) & 0xFF;
-    uint8_t a = hex & 0xFF;
+    uint8_t  r   = (hex >> 24) & 0xFF;
+    uint8_t  g   = (hex >> 16) & 0xFF;
+    uint8_t  b   = (hex >> 8) & 0xFF;
+    uint8_t  a   = hex & 0xFF;
     EXPECT_EQ(r, 0xFF);
     EXPECT_EQ(g, 0x80);
     EXPECT_EQ(b, 0x40);
@@ -167,8 +167,8 @@ TEST(DataPalette, DefaultState)
 TEST(DataPalette, CanHoldColors)
 {
     DataPalette dp;
-    dp.name = "test";
-    dp.colors = {Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)};
+    dp.name            = "test";
+    dp.colors          = {Color(1, 0, 0), Color(0, 1, 0), Color(0, 0, 1)};
     dp.colorblind_safe = true;
     EXPECT_EQ(dp.colors.size(), 3u);
     EXPECT_TRUE(dp.colorblind_safe);
@@ -281,7 +281,7 @@ class ThemeManagerTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm = ThemeManager::instance();
+        auto& tm        = ThemeManager::instance();
         original_theme_ = tm.current_theme_name();
     }
     void TearDown() override
@@ -327,7 +327,7 @@ TEST_F(ThemeManagerTest, DarkThemeHasDarkBackground)
     auto& tm = ThemeManager::instance();
     tm.set_theme("dark");
     const auto& c = tm.colors();
-    float lum = 0.2126f * c.bg_primary.r + 0.7152f * c.bg_primary.g + 0.0722f * c.bg_primary.b;
+    float lum     = 0.2126f * c.bg_primary.r + 0.7152f * c.bg_primary.g + 0.0722f * c.bg_primary.b;
     EXPECT_LT(lum, 0.15f);
 }
 
@@ -336,7 +336,7 @@ TEST_F(ThemeManagerTest, LightThemeHasLightBackground)
     auto& tm = ThemeManager::instance();
     tm.set_theme("light");
     const auto& c = tm.colors();
-    float lum = 0.2126f * c.bg_primary.r + 0.7152f * c.bg_primary.g + 0.0722f * c.bg_primary.b;
+    float lum     = 0.2126f * c.bg_primary.r + 0.7152f * c.bg_primary.g + 0.0722f * c.bg_primary.b;
     EXPECT_GT(lum, 0.85f);
 }
 
@@ -383,9 +383,9 @@ TEST_F(ThemeManagerTest, RegisterCustomTheme)
 {
     auto& tm = ThemeManager::instance();
     Theme custom;
-    custom.name = "custom_test";
+    custom.name              = "custom_test";
     custom.colors.bg_primary = Color(0.5f, 0.5f, 0.5f, 1.0f);
-    custom.colors.accent = Color(1.0f, 0.0f, 1.0f, 1.0f);
+    custom.colors.accent     = Color(1.0f, 0.0f, 1.0f, 1.0f);
 
     tm.register_theme("custom_test", custom);
     tm.set_theme("custom_test");
@@ -515,9 +515,9 @@ TEST_F(ThemeManagerTest, SetInvalidPaletteIsNoOp)
 
 TEST_F(ThemeManagerTest, AvailablePalettesContainsDefaults)
 {
-    auto& tm = ThemeManager::instance();
-    const auto& names = tm.available_data_palettes();
-    bool has_default = false, has_colorblind = false;
+    auto&       tm          = ThemeManager::instance();
+    const auto& names       = tm.available_data_palettes();
+    bool        has_default = false, has_colorblind = false;
     for (const auto& n : names)
     {
         if (n == "default")
@@ -556,7 +556,7 @@ TEST_F(ThemeManagerTest, GetColorReturnsCorrectValues)
 TEST_F(ThemeManagerTest, GetColorUnknownReturnsTransparent)
 {
     auto& tm = ThemeManager::instance();
-    Color c = tm.get_color("nonexistent_color_name");
+    Color c  = tm.get_color("nonexistent_color_name");
     EXPECT_FLOAT_EQ(c.r, 0.0f);
     EXPECT_FLOAT_EQ(c.g, 0.0f);
     EXPECT_FLOAT_EQ(c.b, 0.0f);

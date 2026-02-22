@@ -39,13 +39,12 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
 
     // Validate TrueType/OpenType signature before passing to stb_truetype.
     // TrueType: 00 01 00 00, OpenType: 4F 54 54 4F ('OTTO'), TTC: 74 74 63 66
-    uint32_t tag = (static_cast<uint32_t>(font_data[0]) << 24)
-                   | (static_cast<uint32_t>(font_data[1]) << 16)
-                   | (static_cast<uint32_t>(font_data[2]) << 8)
-                   | static_cast<uint32_t>(font_data[3]);
-    bool valid_sig = (tag == 0x00010000u)    // TrueType
-                     || (tag == 0x4F54544Fu) // 'OTTO' (OpenType/CFF)
-                     || (tag == 0x74746366u); // 'ttcf' (TrueType Collection)
+    uint32_t tag =
+        (static_cast<uint32_t>(font_data[0]) << 24) | (static_cast<uint32_t>(font_data[1]) << 16)
+        | (static_cast<uint32_t>(font_data[2]) << 8) | static_cast<uint32_t>(font_data[3]);
+    bool valid_sig = (tag == 0x00010000u)      // TrueType
+                     || (tag == 0x4F54544Fu)   // 'OTTO' (OpenType/CFF)
+                     || (tag == 0x74746366u);  // 'ttcf' (TrueType Collection)
     if (!valid_sig)
         return false;
 
@@ -60,11 +59,12 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     // oversampling. This is the correct API for high-quality text — it handles
     // sub-pixel positioning, padding, and anti-aliasing automatically.
     stbtt_pack_context pack_ctx;
-    if (!stbtt_PackBegin(&pack_ctx, atlas_bitmap.data(),
+    if (!stbtt_PackBegin(&pack_ctx,
+                         atlas_bitmap.data(),
                          static_cast<int>(atlas_width_),
                          static_cast<int>(atlas_height_),
-                         0,   // stride_in_bytes (0 = tightly packed)
-                         1,   // padding between glyphs
+                         0,  // stride_in_bytes (0 = tightly packed)
+                         1,  // padding between glyphs
                          nullptr))
     {
         return false;
@@ -88,10 +88,11 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         ranges[si].array_of_unicode_codepoints = nullptr;
     }
 
-    int pack_ok = stbtt_PackFontRanges(&pack_ctx, font_data,
-                                        0, // font_index
-                                        ranges,
-                                        static_cast<int>(FONT_COUNT));
+    int pack_ok = stbtt_PackFontRanges(&pack_ctx,
+                                       font_data,
+                                       0,  // font_index
+                                       ranges,
+                                       static_cast<int>(FONT_COUNT));
     stbtt_PackEnd(&pack_ctx);
 
     if (!pack_ok)
@@ -118,8 +119,7 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         fonts_[si].pixel_size = pixel_size;
         fonts_[si].ascent = static_cast<float>(ascent_i) * scale;
         fonts_[si].descent = static_cast<float>(descent_i) * scale;
-        fonts_[si].line_height =
-            (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
+        fonts_[si].line_height = (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
 
         for (int ci = 0; ci < NUM_CHARS; ++ci)
         {
@@ -130,10 +130,14 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
             // with sub-pixel offsets baked in from oversampling.
             stbtt_aligned_quad q;
             float dummy_x = 0.0f, dummy_y = 0.0f;
-            stbtt_GetPackedQuad(chardata[si], static_cast<int>(atlas_width_),
-                                static_cast<int>(atlas_height_), ci,
-                                &dummy_x, &dummy_y, &q,
-                                0); // align_to_integer = 0 for sub-pixel
+            stbtt_GetPackedQuad(chardata[si],
+                                static_cast<int>(atlas_width_),
+                                static_cast<int>(atlas_height_),
+                                ci,
+                                &dummy_x,
+                                &dummy_y,
+                                &q,
+                                0);  // align_to_integer = 0 for sub-pixel
 
             GlyphInfo gi{};
             gi.u0 = q.s0;
@@ -479,8 +483,8 @@ void TextRenderer::flush_batch(Backend& backend,
 
     // Column-major ortho: [0, screen_width] -> [-1, 1], [0, screen_height] -> [-1, 1]
     ubo.projection[0] = 2.0f / screen_width;
-    ubo.projection[5] = 2.0f / screen_height;   // Positive: Y-down in Vulkan
-    ubo.projection[10] = 1.0f;   // Z passthrough: NDC z = vertex z
+    ubo.projection[5] = 2.0f / screen_height;  // Positive: Y-down in Vulkan
+    ubo.projection[10] = 1.0f;                 // Z passthrough: NDC z = vertex z
     ubo.projection[12] = -1.0f;
     ubo.projection[13] = -1.0f;
     ubo.projection[15] = 1.0f;
@@ -522,8 +526,8 @@ void TextRenderer::flush_batch(Backend& backend,
     // Reset viewport and scissor to full screen — text coordinates are in
     // screen-pixel space and must not be clipped to the last axes viewport.
     backend.set_viewport(0, 0, screen_width, screen_height);
-    backend.set_scissor(0, 0, static_cast<uint32_t>(screen_width),
-                        static_cast<uint32_t>(screen_height));
+    backend.set_scissor(
+        0, 0, static_cast<uint32_t>(screen_width), static_cast<uint32_t>(screen_height));
 
     // Bind UBO at set 0 (now uses text_pipeline_layout_)
     backend.bind_buffer(text_ubo_, 0);
@@ -550,16 +554,26 @@ void TextRenderer::flush(Backend& backend, float screen_width, float screen_heig
 {
     if (!initialized_)
         return;
-    flush_batch(backend, vertices_, vertex_buffer_, vertex_buffer_capacity_,
-                text_pipeline_, screen_width, screen_height);
+    flush_batch(backend,
+                vertices_,
+                vertex_buffer_,
+                vertex_buffer_capacity_,
+                text_pipeline_,
+                screen_width,
+                screen_height);
 }
 
 void TextRenderer::flush_depth(Backend& backend, float screen_width, float screen_height)
 {
     if (!initialized_)
         return;
-    flush_batch(backend, depth_vertices_, depth_vertex_buffer_, depth_vertex_buffer_capacity_,
-                text_depth_pipeline_, screen_width, screen_height);
+    flush_batch(backend,
+                depth_vertices_,
+                depth_vertex_buffer_,
+                depth_vertex_buffer_capacity_,
+                text_depth_pipeline_,
+                screen_width,
+                screen_height);
 }
 
 }  // namespace spectra

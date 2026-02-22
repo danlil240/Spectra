@@ -54,20 +54,20 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
-static void run_golden_test_3d(const std::string& scene_name,
+static void run_golden_test_3d(const std::string&                 scene_name,
                                std::function<void(App&, Figure&)> setup_scene,
-                               uint32_t width = 640,
-                               uint32_t height = 480,
-                               double tolerance_percent = 2.0,
-                               double max_mae = 3.0)
+                               uint32_t                           width             = 640,
+                               uint32_t                           height            = 480,
+                               double                             tolerance_percent = 2.0,
+                               double                             max_mae           = 3.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
 
     fs::create_directories(output_dir());
 
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);
@@ -96,7 +96,7 @@ static void run_golden_test_3d(const std::string& scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t baseline_w, baseline_h;
+    uint32_t             baseline_w, baseline_h;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, baseline_w, baseline_h))
         << "Failed to load baseline: " << baseline_path;
 
@@ -204,7 +204,7 @@ TEST(Golden3D, Surface_Basic)
                            auto& ax = fig.subplot3d(1, 1, 1);
 
                            std::vector<float> x_grid, y_grid, z_values;
-                           const int nx = 20, ny = 20;
+                           const int          nx = 20, ny = 20;
 
                            for (int i = 0; i < nx; ++i)
                            {
@@ -294,9 +294,9 @@ TEST(Golden3D, CameraAngle_Front)
                            std::vector<float> z = {0.0f, 1.0f, 0.5f};
                            ax.scatter3d(x, y, z).color(colors::magenta).size(8.0f);
 
-                           ax.camera().azimuth = 0.0f;
+                           ax.camera().azimuth   = 0.0f;
                            ax.camera().elevation = 0.0f;
-                           ax.camera().distance = 5.0f;
+                           ax.camera().distance  = 5.0f;
 
                            ax.title("Front View");
                        });
@@ -314,9 +314,9 @@ TEST(Golden3D, CameraAngle_Top)
                            std::vector<float> z = {0.0f, 1.0f, 0.5f};
                            ax.scatter3d(x, y, z).color(colors::yellow).size(8.0f);
 
-                           ax.camera().azimuth = 0.0f;
+                           ax.camera().azimuth   = 0.0f;
                            ax.camera().elevation = 90.0f;
-                           ax.camera().distance = 5.0f;
+                           ax.camera().distance  = 5.0f;
 
                            ax.title("Top View");
                        });
@@ -350,16 +350,16 @@ TEST(Golden3D, Mixed2DAnd3D)
         "3d_mixed_2d_3d",
         [](App& /*app*/, Figure& fig)
         {
-            auto& ax2d = fig.subplot(2, 1, 1);
-            std::vector<float> x2d = {0.0f, 1.0f, 2.0f, 3.0f};
-            std::vector<float> y2d = {0.0f, 1.0f, 0.5f, 1.5f};
+            auto&              ax2d = fig.subplot(2, 1, 1);
+            std::vector<float> x2d  = {0.0f, 1.0f, 2.0f, 3.0f};
+            std::vector<float> y2d  = {0.0f, 1.0f, 0.5f, 1.5f};
             ax2d.line(x2d, y2d).color(colors::green);
             ax2d.title("2D Line");
 
-            auto& ax3d = fig.subplot3d(2, 1, 2);
-            std::vector<float> x3d = {0.0f, 1.0f, 2.0f};
-            std::vector<float> y3d = {0.0f, 1.0f, 0.5f};
-            std::vector<float> z3d = {0.0f, 0.5f, 1.0f};
+            auto&              ax3d = fig.subplot3d(2, 1, 2);
+            std::vector<float> x3d  = {0.0f, 1.0f, 2.0f};
+            std::vector<float> y3d  = {0.0f, 1.0f, 0.5f};
+            std::vector<float> z3d  = {0.0f, 0.5f, 1.0f};
             ax3d.scatter3d(x3d, y3d, z3d).color(colors::blue);
             ax3d.title("3D Scatter");
         },
@@ -429,7 +429,7 @@ TEST(Golden3D, Surface_Colormap)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           const int nx = 30, ny = 30;
+                           const int          nx = 30, ny = 30;
                            std::vector<float> x_grid, y_grid, z_values;
 
                            for (int i = 0; i < nx; ++i)
@@ -468,9 +468,9 @@ TEST(Golden3D, CameraAngle_Orthographic)
                            ax.line3d(x, y, z).color(colors::blue).width(2.0f);
 
                            ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
-                           ax.camera().ortho_size = 5.0f;
-                           ax.camera().azimuth = 45.0f;
-                           ax.camera().elevation = 30.0f;
+                           ax.camera().ortho_size      = 5.0f;
+                           ax.camera().azimuth         = 45.0f;
+                           ax.camera().elevation       = 30.0f;
 
                            ax.title("Orthographic Projection");
                        });
@@ -483,14 +483,14 @@ TEST(Golden3D, MultiSubplot3D)
         [](App& /*app*/, Figure& fig)
         {
             // 2x2 grid of 3D subplots
-            auto& ax1 = fig.subplot3d(2, 2, 1);
-            std::vector<float> x1 = {0.0f, 1.0f, 2.0f};
-            std::vector<float> y1 = {0.0f, 1.0f, 0.5f};
-            std::vector<float> z1 = {0.0f, 0.5f, 1.0f};
+            auto&              ax1 = fig.subplot3d(2, 2, 1);
+            std::vector<float> x1  = {0.0f, 1.0f, 2.0f};
+            std::vector<float> y1  = {0.0f, 1.0f, 0.5f};
+            std::vector<float> z1  = {0.0f, 0.5f, 1.0f};
             ax1.scatter3d(x1, y1, z1).color(colors::red).size(6.0f);
             ax1.title("Scatter");
 
-            auto& ax2 = fig.subplot3d(2, 2, 2);
+            auto&              ax2 = fig.subplot3d(2, 2, 2);
             std::vector<float> x2, y2, z2;
             for (int i = 0; i < 100; ++i)
             {
@@ -502,8 +502,8 @@ TEST(Golden3D, MultiSubplot3D)
             ax2.line3d(x2, y2, z2).color(colors::green).width(2.0f);
             ax2.title("Helix");
 
-            auto& ax3 = fig.subplot3d(2, 2, 3);
-            const int nx = 15, ny = 15;
+            auto&              ax3 = fig.subplot3d(2, 2, 3);
+            const int          nx = 15, ny = 15;
             std::vector<float> xg, yg, zv;
             for (int i = 0; i < nx; ++i)
                 xg.push_back(static_cast<float>(i) - 7.0f);
@@ -548,4 +548,4 @@ TEST(Golden3D, CombinedLineAndScatter3D)
                        });
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

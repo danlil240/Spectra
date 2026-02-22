@@ -35,7 +35,7 @@ TEST(CommandRegistry, RegisterMultiple)
 TEST(CommandRegistry, RegisterOverwritesSameId)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Original", [&value]() { value = 1; });
     reg.register_command("test.cmd", "Replaced", [&value]() { value = 2; });
     EXPECT_EQ(reg.count(), 1u);
@@ -65,7 +65,7 @@ TEST(CommandRegistry, UnregisterNonExistentIsNoOp)
 TEST(CommandRegistry, ExecuteCallsCallback)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value = 42; });
     bool ok = reg.execute("test.cmd");
     EXPECT_TRUE(ok);
@@ -81,7 +81,7 @@ TEST(CommandRegistry, ExecuteNonExistentReturnsFalse)
 TEST(CommandRegistry, ExecuteDisabledReturnsFalse)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value = 42; });
     reg.set_enabled("test.cmd", false);
     EXPECT_FALSE(reg.execute("test.cmd"));
@@ -98,7 +98,7 @@ TEST(CommandRegistry, ExecuteNullCallbackReturnsFalse)
 TEST(CommandRegistry, SetEnabledToggle)
 {
     CommandRegistry reg;
-    int value = 0;
+    int             value = 0;
     reg.register_command("test.cmd", "Test", [&value]() { value++; });
 
     reg.set_enabled("test.cmd", false);
@@ -116,7 +116,11 @@ TEST(CommandRegistry, FindExisting)
 {
     CommandRegistry reg;
     reg.register_command(
-        "test.cmd", "Test Command", []() {}, "Ctrl+T", "Testing");
+        "test.cmd",
+        "Test Command",
+        []() {},
+        "Ctrl+T",
+        "Testing");
 
     const Command* cmd = reg.find("test.cmd");
     ASSERT_NE(cmd, nullptr);
@@ -176,7 +180,7 @@ TEST(CommandRegistry, SearchFuzzyMatch)
     reg.register_command("view.zoom", "Zoom In", []() {});
     reg.register_command("edit.undo", "Undo", []() {});
 
-    auto results = reg.search("rv");  // Fuzzy: R-eset V-iew
+    auto results = reg.search("rv");   // Fuzzy: R-eset V-iew
     ASSERT_GE(results.size(), 1u);
     // Reset View should match (has 'r' and 'v')
     bool found_reset = false;
@@ -225,13 +229,29 @@ TEST(CommandRegistry, CategoriesReturnsUnique)
 {
     CommandRegistry reg;
     reg.register_command(
-        "a", "A", []() {}, "", "View");
+        "a",
+        "A",
+        []() {},
+        "",
+        "View");
     reg.register_command(
-        "b", "B", []() {}, "", "Edit");
+        "b",
+        "B",
+        []() {},
+        "",
+        "Edit");
     reg.register_command(
-        "c", "C", []() {}, "", "View");
+        "c",
+        "C",
+        []() {},
+        "",
+        "View");
     reg.register_command(
-        "d", "D", []() {}, "", "File");
+        "d",
+        "D",
+        []() {},
+        "",
+        "File");
 
     auto cats = reg.categories();
     EXPECT_EQ(cats.size(), 3u);
@@ -241,11 +261,23 @@ TEST(CommandRegistry, CommandsInCategory)
 {
     CommandRegistry reg;
     reg.register_command(
-        "a", "A", []() {}, "", "View");
+        "a",
+        "A",
+        []() {},
+        "",
+        "View");
     reg.register_command(
-        "b", "B", []() {}, "", "Edit");
+        "b",
+        "B",
+        []() {},
+        "",
+        "Edit");
     reg.register_command(
-        "c", "C", []() {}, "", "View");
+        "c",
+        "C",
+        []() {},
+        "",
+        "View");
 
     auto view_cmds = reg.commands_in_category("View");
     EXPECT_EQ(view_cmds.size(), 2u);
@@ -315,25 +347,37 @@ TEST(CommandRegistry, AllCommandsSorted)
 {
     CommandRegistry reg;
     reg.register_command(
-        "z", "Zeta", []() {}, "", "B");
+        "z",
+        "Zeta",
+        []() {},
+        "",
+        "B");
     reg.register_command(
-        "a", "Alpha", []() {}, "", "A");
+        "a",
+        "Alpha",
+        []() {},
+        "",
+        "A");
     reg.register_command(
-        "m", "Mu", []() {}, "", "A");
+        "m",
+        "Mu",
+        []() {},
+        "",
+        "A");
 
     auto all = reg.all_commands();
     ASSERT_EQ(all.size(), 3u);
     // Sorted by category then label
-    EXPECT_EQ(all[0]->id, "a");  // A/Alpha
-    EXPECT_EQ(all[1]->id, "m");  // A/Mu
-    EXPECT_EQ(all[2]->id, "z");  // B/Zeta
+    EXPECT_EQ(all[0]->id, "a");   // A/Alpha
+    EXPECT_EQ(all[1]->id, "m");   // A/Mu
+    EXPECT_EQ(all[2]->id, "z");   // B/Zeta
 }
 
 // ─── Thread safety ───────────────────────────────────────────────────────────
 
 TEST(CommandRegistry, ConcurrentRegisterAndSearch)
 {
-    CommandRegistry reg;
+    CommandRegistry  reg;
     std::atomic<int> exec_count{0};
 
     // Register some initial commands
@@ -376,14 +420,14 @@ TEST(CommandRegistry, ConcurrentRegisterAndSearch)
 TEST(CommandRegistry, RegisterFullStruct)
 {
     CommandRegistry reg;
-    Command cmd;
-    cmd.id = "test.full";
-    cmd.label = "Full Command";
+    Command         cmd;
+    cmd.id       = "test.full";
+    cmd.label    = "Full Command";
     cmd.category = "Test";
     cmd.shortcut = "Ctrl+F";
-    cmd.icon = 42;
+    cmd.icon     = 42;
     cmd.callback = []() {};
-    cmd.enabled = true;
+    cmd.enabled  = true;
 
     reg.register_command(std::move(cmd));
 

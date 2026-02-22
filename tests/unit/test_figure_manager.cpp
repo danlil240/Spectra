@@ -23,7 +23,7 @@ class FigureManagerTest : public ::testing::Test
     }
 
     FigureRegistry registry_;
-    FigureId first_id_ = INVALID_FIGURE_ID;
+    FigureId       first_id_ = INVALID_FIGURE_ID;
 };
 
 // ─── Construction ─────────────────────────────────────────────────────────────
@@ -51,19 +51,19 @@ TEST_F(FigureManagerTest, ConstructWithMultipleFigures)
 TEST_F(FigureManagerTest, CreateFigure)
 {
     FigureManager mgr(registry_);
-    FigureId idx = mgr.create_figure();
+    FigureId      idx = mgr.create_figure();
     EXPECT_NE(idx, INVALID_FIGURE_ID);
     EXPECT_EQ(mgr.count(), 2u);
-    EXPECT_EQ(mgr.active_index(), idx);  // Auto-switches to new figure
+    EXPECT_EQ(mgr.active_index(), idx);   // Auto-switches to new figure
     EXPECT_EQ(registry_.count(), 2u);
 }
 
 TEST_F(FigureManagerTest, CreateFigureWithConfig)
 {
     FigureManager mgr(registry_);
-    FigureConfig cfg;
-    cfg.width = 1920;
-    cfg.height = 1080;
+    FigureConfig  cfg;
+    cfg.width    = 1920;
+    cfg.height   = 1080;
     FigureId idx = mgr.create_figure(cfg);
     EXPECT_NE(idx, INVALID_FIGURE_ID);
     Figure* fig = registry_.get(idx);
@@ -75,9 +75,9 @@ TEST_F(FigureManagerTest, CreateFigureWithConfig)
 TEST_F(FigureManagerTest, CreateMultipleFigures)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
-    FigureId id2 = mgr.create_figure();
-    FigureId id3 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
+    FigureId      id2 = mgr.create_figure();
+    FigureId      id3 = mgr.create_figure();
     EXPECT_EQ(mgr.count(), 4u);
     EXPECT_EQ(mgr.active_index(), id3);
     (void)id1;
@@ -89,7 +89,7 @@ TEST_F(FigureManagerTest, CreateMultipleFigures)
 TEST_F(FigureManagerTest, CloseFigure)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.create_figure();
     EXPECT_EQ(mgr.count(), 3u);
 
@@ -101,7 +101,7 @@ TEST_F(FigureManagerTest, CloseFigure)
 TEST_F(FigureManagerTest, CannotCloseLastFigure)
 {
     FigureManager mgr(registry_);
-    bool closed = mgr.close_figure(first_id_);
+    bool          closed = mgr.close_figure(first_id_);
     EXPECT_FALSE(closed);
     EXPECT_EQ(mgr.count(), 1u);
 }
@@ -109,7 +109,7 @@ TEST_F(FigureManagerTest, CannotCloseLastFigure)
 TEST_F(FigureManagerTest, CloseOutOfBounds)
 {
     FigureManager mgr(registry_);
-    bool closed = mgr.close_figure(99);
+    bool          closed = mgr.close_figure(99);
     EXPECT_FALSE(closed);
 }
 
@@ -121,7 +121,7 @@ TEST_F(FigureManagerTest, CloseActiveFigureAdjustsIndex)
     mgr.switch_to(id2);
     EXPECT_EQ(mgr.active_index(), id2);
 
-    mgr.close_figure(id2);  // Close active (last positionally)
+    mgr.close_figure(id2);   // Close active (last positionally)
     // Should move to nearest remaining figure
     EXPECT_NE(mgr.active_index(), id2);
     EXPECT_EQ(mgr.count(), 2u);
@@ -134,8 +134,8 @@ TEST_F(FigureManagerTest, CloseBeforeActiveAdjustsIndex)
     FigureId id2 = mgr.create_figure();
     mgr.switch_to(id2);
 
-    mgr.close_figure(first_id_);         // Close first figure
-    EXPECT_EQ(mgr.active_index(), id2);  // Active unchanged (different ID)
+    mgr.close_figure(first_id_);          // Close first figure
+    EXPECT_EQ(mgr.active_index(), id2);   // Active unchanged (different ID)
     EXPECT_EQ(mgr.count(), 2u);
 }
 
@@ -144,7 +144,7 @@ TEST_F(FigureManagerTest, CloseBeforeActiveAdjustsIndex)
 TEST_F(FigureManagerTest, CloseAllExcept)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.create_figure();
     mgr.create_figure();
     EXPECT_EQ(mgr.count(), 4u);
@@ -158,7 +158,7 @@ TEST_F(FigureManagerTest, CloseAllExcept)
 TEST_F(FigureManagerTest, CloseAllExceptOutOfBounds)
 {
     FigureManager mgr(registry_);
-    bool result = mgr.close_all_except(99);
+    bool          result = mgr.close_all_except(99);
     EXPECT_FALSE(result);
 }
 
@@ -167,35 +167,35 @@ TEST_F(FigureManagerTest, CloseAllExceptOutOfBounds)
 TEST_F(FigureManagerTest, CloseToRight)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.create_figure();
     mgr.create_figure();
     EXPECT_EQ(mgr.count(), 4u);
 
     bool result = mgr.close_to_right(id1);
     EXPECT_TRUE(result);
-    EXPECT_EQ(mgr.count(), 2u);  // first_id_ + id1
+    EXPECT_EQ(mgr.count(), 2u);   // first_id_ + id1
 }
 
 TEST_F(FigureManagerTest, CloseToRightLastTab)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
-    bool result = mgr.close_to_right(id1);
-    EXPECT_FALSE(result);  // Nothing to close (id1 is last positionally)
+    FigureId      id1    = mgr.create_figure();
+    bool          result = mgr.close_to_right(id1);
+    EXPECT_FALSE(result);   // Nothing to close (id1 is last positionally)
 }
 
 TEST_F(FigureManagerTest, CloseToRightAdjustsActiveIndex)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.create_figure();
     FigureId id3 = mgr.create_figure();
-    mgr.switch_to(id3);  // Active = last
+    mgr.switch_to(id3);   // Active = last
 
-    mgr.close_to_right(id1);  // Close everything after id1
+    mgr.close_to_right(id1);   // Close everything after id1
     EXPECT_EQ(mgr.count(), 2u);
-    EXPECT_EQ(mgr.active_index(), id1);  // Clamped to id1
+    EXPECT_EQ(mgr.active_index(), id1);   // Clamped to id1
 }
 
 // ─── Duplicate Figure ─────────────────────────────────────────────────────────
@@ -203,23 +203,23 @@ TEST_F(FigureManagerTest, CloseToRightAdjustsActiveIndex)
 TEST_F(FigureManagerTest, DuplicateFigure)
 {
     FigureManager mgr(registry_);
-    FigureId dup_idx = mgr.duplicate_figure(first_id_);
+    FigureId      dup_idx = mgr.duplicate_figure(first_id_);
     EXPECT_NE(dup_idx, INVALID_FIGURE_ID);
     EXPECT_EQ(mgr.count(), 2u);
-    EXPECT_EQ(mgr.active_index(), dup_idx);  // Switches to duplicate
+    EXPECT_EQ(mgr.active_index(), dup_idx);   // Switches to duplicate
 }
 
 TEST_F(FigureManagerTest, DuplicatePreservesDimensions)
 {
     FigureConfig cfg;
-    cfg.width = 1920;
+    cfg.width  = 1920;
     cfg.height = 1080;
     registry_.clear();
     FigureId src_id = registry_.register_figure(std::make_unique<Figure>(cfg));
 
     FigureManager mgr(registry_);
-    FigureId dup_id = mgr.duplicate_figure(src_id);
-    Figure* dup = registry_.get(dup_id);
+    FigureId      dup_id = mgr.duplicate_figure(src_id);
+    Figure*       dup    = registry_.get(dup_id);
     ASSERT_NE(dup, nullptr);
     EXPECT_EQ(dup->width(), 1920u);
     EXPECT_EQ(dup->height(), 1080u);
@@ -228,7 +228,7 @@ TEST_F(FigureManagerTest, DuplicatePreservesDimensions)
 TEST_F(FigureManagerTest, DuplicateOutOfBounds)
 {
     FigureManager mgr(registry_);
-    FigureId idx = mgr.duplicate_figure(99);
+    FigureId      idx = mgr.duplicate_figure(99);
     EXPECT_EQ(idx, INVALID_FIGURE_ID);
     EXPECT_EQ(mgr.count(), 1u);
 }
@@ -237,7 +237,7 @@ TEST_F(FigureManagerTest, DuplicateTitleUsesNextAvailableName)
 {
     FigureManager mgr(registry_);
     mgr.set_title(first_id_, "My Plot");
-    FigureId dup_id = mgr.duplicate_figure(first_id_);
+    FigureId    dup_id    = mgr.duplicate_figure(first_id_);
     std::string dup_title = mgr.get_title(dup_id);
     // Duplicate gets next available "Figure N" name, not a copy suffix
     EXPECT_EQ(dup_title, "Figure 2");
@@ -258,10 +258,10 @@ TEST_F(FigureManagerTest, SwitchTo)
 TEST_F(FigureManagerTest, SwitchToSameIsNoop)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.switch_to(id1);
     EXPECT_EQ(mgr.active_index(), id1);
-    mgr.switch_to(id1);  // Same index
+    mgr.switch_to(id1);   // Same index
     EXPECT_EQ(mgr.active_index(), id1);
 }
 
@@ -269,14 +269,14 @@ TEST_F(FigureManagerTest, SwitchToOutOfBounds)
 {
     FigureManager mgr(registry_);
     mgr.switch_to(99);
-    EXPECT_EQ(mgr.active_index(), first_id_);  // Unchanged
+    EXPECT_EQ(mgr.active_index(), first_id_);   // Unchanged
 }
 
 TEST_F(FigureManagerTest, SwitchToNext)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
-    FigureId id2 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
+    FigureId      id2 = mgr.create_figure();
     mgr.switch_to(first_id_);
 
     mgr.switch_to_next();
@@ -284,7 +284,7 @@ TEST_F(FigureManagerTest, SwitchToNext)
     mgr.switch_to_next();
     EXPECT_EQ(mgr.active_index(), id2);
     mgr.switch_to_next();
-    EXPECT_EQ(mgr.active_index(), first_id_);  // Wraps around
+    EXPECT_EQ(mgr.active_index(), first_id_);   // Wraps around
 }
 
 TEST_F(FigureManagerTest, SwitchToPrevious)
@@ -295,7 +295,7 @@ TEST_F(FigureManagerTest, SwitchToPrevious)
     mgr.switch_to(first_id_);
 
     mgr.switch_to_previous();
-    EXPECT_EQ(mgr.active_index(), id2);  // Wraps around
+    EXPECT_EQ(mgr.active_index(), id2);   // Wraps around
 }
 
 TEST_F(FigureManagerTest, SwitchNextSingleFigureNoop)
@@ -310,8 +310,8 @@ TEST_F(FigureManagerTest, SwitchNextSingleFigureNoop)
 TEST_F(FigureManagerTest, MoveTab)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
-    FigureId id2 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
+    FigureId      id2 = mgr.create_figure();
     mgr.set_title(first_id_, "A");
     mgr.set_title(id1, "B");
     mgr.set_title(id2, "C");
@@ -331,7 +331,7 @@ TEST_F(FigureManagerTest, MoveTabSameIndex)
 {
     FigureManager mgr(registry_);
     mgr.create_figure();
-    mgr.move_tab(first_id_, first_id_);  // Noop
+    mgr.move_tab(first_id_, first_id_);   // Noop
     EXPECT_EQ(mgr.count(), 2u);
 }
 
@@ -354,7 +354,7 @@ TEST_F(FigureManagerTest, GetSetTitle)
 TEST_F(FigureManagerTest, GetTitleOutOfBounds)
 {
     FigureManager mgr(registry_);
-    std::string title = mgr.get_title(99);
+    std::string   title = mgr.get_title(99);
     // Should return a default title, not crash
     EXPECT_FALSE(title.empty());
 }
@@ -382,7 +382,7 @@ TEST_F(FigureManagerTest, ModifiedOutOfBounds)
 TEST_F(FigureManagerTest, StateAccessor)
 {
     FigureManager mgr(registry_);
-    auto& st = mgr.state(first_id_);
+    auto&         st         = mgr.state(first_id_);
     st.selected_series_index = 3;
     EXPECT_EQ(mgr.state(first_id_).selected_series_index, 3);
 }
@@ -398,14 +398,14 @@ TEST_F(FigureManagerTest, SaveRestoreAxisState)
 {
     // Create a figure with axes
     registry_.clear();
-    auto fig = std::make_unique<Figure>();
-    auto& ax = fig->subplot(1, 1, 1);
+    auto  fig = std::make_unique<Figure>();
+    auto& ax  = fig->subplot(1, 1, 1);
     ax.xlim(10.0f, 20.0f);
     ax.ylim(30.0f, 40.0f);
     FigureId fig_id = registry_.register_figure(std::move(fig));
 
     FigureManager mgr(registry_);
-    mgr.create_figure();  // Creates new fig, switches to it
+    mgr.create_figure();   // Creates new fig, switches to it
 
     // The save should have captured fig_id's axis state
     const auto& st = mgr.state(fig_id);
@@ -426,7 +426,7 @@ TEST_F(FigureManagerTest, SwitchPreservesAndRestoresState)
     FigureId id0 = registry_.register_figure(std::move(fig0));
 
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     // Now active = id1
 
     // Switch back to fig 0, modify limits
@@ -450,7 +450,7 @@ TEST_F(FigureManagerTest, QueueCreate)
 {
     FigureManager mgr(registry_);
     mgr.queue_create();
-    EXPECT_EQ(mgr.count(), 1u);  // Not yet processed
+    EXPECT_EQ(mgr.count(), 1u);   // Not yet processed
 
     bool changed = mgr.process_pending();
     EXPECT_TRUE(changed);
@@ -464,7 +464,7 @@ TEST_F(FigureManagerTest, QueueClose)
     EXPECT_EQ(mgr.count(), 2u);
 
     mgr.queue_close(first_id_);
-    EXPECT_EQ(mgr.count(), 2u);  // Not yet processed
+    EXPECT_EQ(mgr.count(), 2u);   // Not yet processed
 
     bool changed = mgr.process_pending();
     EXPECT_TRUE(changed);
@@ -474,11 +474,11 @@ TEST_F(FigureManagerTest, QueueClose)
 TEST_F(FigureManagerTest, QueueSwitch)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.switch_to(first_id_);
 
     mgr.queue_switch(id1);
-    EXPECT_EQ(mgr.active_index(), first_id_);  // Not yet
+    EXPECT_EQ(mgr.active_index(), first_id_);   // Not yet
 
     bool changed = mgr.process_pending();
     EXPECT_TRUE(changed);
@@ -488,7 +488,7 @@ TEST_F(FigureManagerTest, QueueSwitch)
 TEST_F(FigureManagerTest, ProcessPendingNoOps)
 {
     FigureManager mgr(registry_);
-    bool changed = mgr.process_pending();
+    bool          changed = mgr.process_pending();
     EXPECT_FALSE(changed);
 }
 
@@ -497,7 +497,7 @@ TEST_F(FigureManagerTest, ProcessPendingNoOps)
 TEST_F(FigureManagerTest, CanClose)
 {
     FigureManager mgr(registry_);
-    EXPECT_FALSE(mgr.can_close(first_id_));  // Only one figure
+    EXPECT_FALSE(mgr.can_close(first_id_));   // Only one figure
 
     FigureId id1 = mgr.create_figure();
     EXPECT_TRUE(mgr.can_close(first_id_));
@@ -509,16 +509,16 @@ TEST_F(FigureManagerTest, CanClose)
 TEST_F(FigureManagerTest, FigureChangedCallback)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
     mgr.switch_to(first_id_);
 
     FigureId callback_index = INVALID_FIGURE_ID;
-    Figure* callback_fig = nullptr;
+    Figure*  callback_fig   = nullptr;
     mgr.set_on_figure_changed(
         [&](FigureId idx, Figure* fig)
         {
             callback_index = idx;
-            callback_fig = fig;
+            callback_fig   = fig;
         });
 
     mgr.switch_to(id1);
@@ -529,7 +529,7 @@ TEST_F(FigureManagerTest, FigureChangedCallback)
 TEST_F(FigureManagerTest, FigureClosedCallback)
 {
     FigureManager mgr(registry_);
-    FigureId id1 = mgr.create_figure();
+    FigureId      id1 = mgr.create_figure();
 
     FigureId closed_index = INVALID_FIGURE_ID;
     mgr.set_on_figure_closed([&](FigureId idx) { closed_index = idx; });
@@ -575,9 +575,9 @@ TEST_F(FigureManagerTest, RapidCreateClose)
 TEST_F(FigureManagerTest, CreateCloseCreateSequence)
 {
     FigureManager mgr(registry_);
-    mgr.create_figure();                    // Now 2
-    mgr.close_figure(first_id_);            // Now 1
-    FigureId id_new = mgr.create_figure();  // Now 2 again
+    mgr.create_figure();                     // Now 2
+    mgr.close_figure(first_id_);             // Now 1
+    FigureId id_new = mgr.create_figure();   // Now 2 again
     EXPECT_EQ(mgr.count(), 2u);
     EXPECT_EQ(mgr.active_index(), id_new);
 }
@@ -597,7 +597,7 @@ TEST_F(FigureManagerTest, QueueMultipleOperations)
 TEST_F(FigureManagerTest, EmptyRegistry)
 {
     FigureRegistry empty_reg;
-    FigureManager mgr(empty_reg);
+    FigureManager  mgr(empty_reg);
     EXPECT_EQ(mgr.count(), 0u);
     EXPECT_EQ(mgr.active_figure(), nullptr);
 }
@@ -626,7 +626,7 @@ TEST_F(FigureManagerTest, RemoveFigureReturnsState)
 TEST_F(FigureManagerTest, RemoveFigureInvalidId)
 {
     FigureManager mgr(registry_);
-    FigureState state = mgr.remove_figure(999);
+    FigureState   state = mgr.remove_figure(999);
     // Should return default state, no crash
     EXPECT_TRUE(state.custom_title.empty());
     EXPECT_EQ(mgr.count(), 1u);
@@ -664,7 +664,7 @@ TEST_F(FigureManagerTest, AddFigureFromAnotherManager)
 TEST_F(FigureManagerTest, AddFigureDuplicateIsNoop)
 {
     FigureManager mgr(registry_);
-    FigureState state;
+    FigureState   state;
     state.custom_title = "Duplicate";
     mgr.add_figure(first_id_, std::move(state));
     // Should be no-op — first_id_ already in manager
@@ -681,4 +681,4 @@ TEST_F(FigureManagerTest, RemoveLastFigureSetsInvalidActive)
     EXPECT_EQ(mgr.active_index(), INVALID_FIGURE_ID);
 }
 
-}  // namespace spectra
+}   // namespace spectra

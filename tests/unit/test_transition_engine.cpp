@@ -17,7 +17,7 @@ TEST(TransitionEngine, InspectorOpenConvergesWithinBudget)
 {
     LayoutManager lm;
     lm.set_inspector_visible(true);
-    lm.update(1280.0f, 720.0f, 0.0f);  // snap open
+    lm.update(1280.0f, 720.0f, 0.0f);   // snap open
 
     lm.set_inspector_visible(false);
 
@@ -73,7 +73,7 @@ TEST(TransitionEngine, NavRailCollapseConverges)
 TEST(TransitionEngine, AxisLimitAnimConverges)
 {
     AnimationController ctrl;
-    Axes ax;
+    Axes                ax;
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
 
@@ -96,7 +96,7 @@ TEST(TransitionEngine, AxisLimitAnimConverges)
 TEST(TransitionEngine, InertialPanConverges)
 {
     AnimationController ctrl;
-    Axes ax;
+    Axes                ax;
     ax.xlim(0.0f, 100.0f);
     ax.ylim(0.0f, 100.0f);
 
@@ -116,7 +116,7 @@ TEST(TransitionEngine, InertialPanConverges)
 TEST(TransitionEngine, MultipleAxesAnimateIndependently)
 {
     AnimationController ctrl;
-    Axes ax1, ax2;
+    Axes                ax1, ax2;
     ax1.xlim(0, 10);
     ax1.ylim(0, 10);
     ax2.xlim(0, 10);
@@ -144,7 +144,7 @@ TEST(TransitionEngine, MultipleAxesAnimateIndependently)
 TEST(TransitionEngine, CancelDoesNotAffectOtherAxes)
 {
     AnimationController ctrl;
-    Axes ax1, ax2;
+    Axes                ax1, ax2;
     ax1.xlim(0, 10);
     ax1.ylim(0, 10);
     ax2.xlim(0, 10);
@@ -164,14 +164,14 @@ TEST(TransitionEngine, CancelDoesNotAffectOtherAxes)
 TEST(TransitionEngine, GetPendingTargetDuringAnimation)
 {
     AnimationController ctrl;
-    Axes ax;
+    Axes                ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
     ctrl.animate_axis_limits(ax, {2, 8}, {3, 7}, 1.0f, ease::linear);
 
     AxisLimits out_x, out_y;
-    bool found = ctrl.get_pending_target(&ax, out_x, out_y);
+    bool       found = ctrl.get_pending_target(&ax, out_x, out_y);
     EXPECT_TRUE(found);
     EXPECT_FLOAT_EQ(out_x.min, 2.0f);
     EXPECT_FLOAT_EQ(out_x.max, 8.0f);
@@ -182,7 +182,7 @@ TEST(TransitionEngine, GetPendingTargetDuringAnimation)
 TEST(TransitionEngine, GetPendingTargetNoAnimation)
 {
     AnimationController ctrl;
-    Axes ax;
+    Axes                ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
@@ -211,8 +211,11 @@ TEST(TransitionEngine, AllEasingFunctionsHaveCorrectEndpoints)
 
 TEST(TransitionEngine, EasingOutputBoundedForMonotonicFunctions)
 {
-    EasingFn monotonic[] = {
-        ease::linear, ease::ease_in, ease::ease_out, ease::ease_in_out, ease::decelerate};
+    EasingFn monotonic[] = {ease::linear,
+                            ease::ease_in,
+                            ease::ease_out,
+                            ease::ease_in_out,
+                            ease::decelerate};
     for (auto fn : monotonic)
     {
         for (float t = 0.0f; t <= 1.0f; t += 0.01f)
@@ -266,7 +269,7 @@ TEST(TransitionEngine, RapidToggleDoesNotCrash)
 TEST(TransitionEngine, AnimationUpdatePerformance)
 {
     AnimationController ctrl;
-    Axes axes[50];
+    Axes                axes[50];
     for (int i = 0; i < 50; ++i)
     {
         axes[i].xlim(0, 10);
@@ -284,8 +287,8 @@ TEST(TransitionEngine, AnimationUpdatePerformance)
     {
         ctrl.update(0.016f);
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    double ms = std::chrono::duration<double, std::milli>(end - start).count();
+    auto   end = std::chrono::high_resolution_clock::now();
+    double ms  = std::chrono::duration<double, std::milli>(end - start).count();
     EXPECT_LT(ms, 50.0) << "Animation update too slow: " << ms << "ms for 100 frames";
 }
 
@@ -301,8 +304,8 @@ TEST(TransitionEngine, LayoutUpdatePerformance)
     {
         lm.update(1920.0f, 1080.0f, 0.016f);
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    double ms = std::chrono::duration<double, std::milli>(end - start).count();
+    auto   end = std::chrono::high_resolution_clock::now();
+    double ms  = std::chrono::duration<double, std::milli>(end - start).count();
     EXPECT_LT(ms, 50.0) << "Layout update too slow: " << ms << "ms for 1000 updates";
 }
 
@@ -315,7 +318,7 @@ TEST(TransitionEngine, LayoutUpdatePerformance)
 TEST(TransitionEngineUnified, FloatAnimateConverges)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 10.0f, 0.2f, ease::linear);
     EXPECT_EQ(te.active_count(), 1u);
@@ -332,7 +335,7 @@ TEST(TransitionEngineUnified, FloatAnimateConverges)
 TEST(TransitionEngineUnified, FloatAnimateMidpoint)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 100.0f, 1.0f, ease::linear);
 
@@ -343,7 +346,7 @@ TEST(TransitionEngineUnified, FloatAnimateMidpoint)
 TEST(TransitionEngineUnified, FloatAnimateReplace)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 10.0f, 1.0f, ease::linear);
     te.update(0.1f);
@@ -363,7 +366,7 @@ TEST(TransitionEngineUnified, FloatAnimateReplace)
 TEST(TransitionEngineUnified, FloatAnimateWithEaseOut)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 1.0f, 0.5f, ease::ease_out);
 
@@ -376,7 +379,7 @@ TEST(TransitionEngineUnified, FloatAnimateWithEaseOut)
 TEST(TransitionEngineUnified, ColorAnimateConverges)
 {
     TransitionEngine te;
-    Color c{0.0f, 0.0f, 0.0f, 1.0f};
+    Color            c{0.0f, 0.0f, 0.0f, 1.0f};
 
     te.animate(c, Color{1.0f, 0.5f, 0.25f, 0.8f}, 0.2f, ease::linear);
     EXPECT_EQ(te.active_count(), 1u);
@@ -396,7 +399,7 @@ TEST(TransitionEngineUnified, ColorAnimateConverges)
 TEST(TransitionEngineUnified, ColorAnimateMidpoint)
 {
     TransitionEngine te;
-    Color c{0.0f, 0.0f, 0.0f, 0.0f};
+    Color            c{0.0f, 0.0f, 0.0f, 0.0f};
 
     te.animate(c, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, ease::linear);
 
@@ -410,7 +413,7 @@ TEST(TransitionEngineUnified, ColorAnimateMidpoint)
 TEST(TransitionEngineUnified, ColorAnimateReplace)
 {
     TransitionEngine te;
-    Color c{0.0f, 0.0f, 0.0f, 1.0f};
+    Color            c{0.0f, 0.0f, 0.0f, 1.0f};
 
     te.animate(c, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, ease::linear);
     te.update(0.1f);
@@ -433,7 +436,7 @@ TEST(TransitionEngineUnified, ColorAnimateReplace)
 TEST(TransitionEngineUnified, LimitsAnimateConverges)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
 
@@ -456,7 +459,7 @@ TEST(TransitionEngineUnified, LimitsAnimateConverges)
 TEST(TransitionEngineUnified, LimitsAnimateReplacesExisting)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
 
@@ -481,7 +484,7 @@ TEST(TransitionEngineUnified, LimitsAnimateReplacesExisting)
 TEST(TransitionEngineUnified, InertialPanConverges)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0.0f, 100.0f);
     ax.ylim(0.0f, 100.0f);
 
@@ -500,7 +503,7 @@ TEST(TransitionEngineUnified, InertialPanConverges)
 TEST(TransitionEngineUnified, InertialPanReplacesExisting)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0.0f, 100.0f);
     ax.ylim(0.0f, 100.0f);
 
@@ -518,7 +521,7 @@ TEST(TransitionEngineUnified, InertialPanReplacesExisting)
 TEST(TransitionEngineUnified, CancelById)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     auto id = te.animate(val, 10.0f, 1.0f, ease::linear);
     EXPECT_TRUE(te.has_active_animations());
@@ -533,7 +536,7 @@ TEST(TransitionEngineUnified, CancelById)
 TEST(TransitionEngineUnified, CancelForAxes)
 {
     TransitionEngine te;
-    Axes ax1, ax2;
+    Axes             ax1, ax2;
     ax1.xlim(0, 10);
     ax1.ylim(0, 10);
     ax2.xlim(0, 10);
@@ -552,9 +555,9 @@ TEST(TransitionEngineUnified, CancelForAxes)
 TEST(TransitionEngineUnified, CancelAll)
 {
     TransitionEngine te;
-    float f1 = 0.0f, f2 = 0.0f;
-    Color c{0, 0, 0, 1};
-    Axes ax;
+    float            f1 = 0.0f, f2 = 0.0f;
+    Color            c{0, 0, 0, 1};
+    Axes             ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
@@ -576,14 +579,14 @@ TEST(TransitionEngineUnified, CancelAll)
 TEST(TransitionEngineUnified, GetPendingTarget)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
     te.animate_limits(ax, {2, 8}, {3, 7}, 1.0f, ease::linear);
 
     AxisLimits out_x, out_y;
-    bool found = te.get_pending_target(&ax, out_x, out_y);
+    bool       found = te.get_pending_target(&ax, out_x, out_y);
     EXPECT_TRUE(found);
     EXPECT_FLOAT_EQ(out_x.min, 2.0f);
     EXPECT_FLOAT_EQ(out_x.max, 8.0f);
@@ -594,7 +597,7 @@ TEST(TransitionEngineUnified, GetPendingTarget)
 TEST(TransitionEngineUnified, GetPendingTargetNone)
 {
     TransitionEngine te;
-    Axes ax;
+    Axes             ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
@@ -607,9 +610,9 @@ TEST(TransitionEngineUnified, GetPendingTargetNone)
 TEST(TransitionEngineUnified, MixedAnimationTypes)
 {
     TransitionEngine te;
-    float f = 0.0f;
-    Color c{0, 0, 0, 1};
-    Axes ax;
+    float            f = 0.0f;
+    Color            c{0, 0, 0, 1};
+    Axes             ax;
     ax.xlim(0, 10);
     ax.ylim(0, 10);
 
@@ -635,7 +638,7 @@ TEST(TransitionEngineUnified, MixedAnimationTypes)
 TEST(TransitionEngineUnified, CubicBezierEasing)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 1.0f, 0.5f, ease::ease_out_cubic);
 
@@ -649,7 +652,7 @@ TEST(TransitionEngineUnified, CubicBezierEasing)
 TEST(TransitionEngineUnified, SpringEasing)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 1.0f, 0.5f, ease::spring);
 
@@ -670,9 +673,9 @@ TEST(TransitionEngineUnified, SpringEasing)
 TEST(TransitionEngineUnified, UpdatePerformance50Animations)
 {
     TransitionEngine te;
-    float floats[25];
-    Color colors[10];
-    Axes axes[15];
+    float            floats[25];
+    Color            colors[10];
+    Axes             axes[15];
 
     for (int i = 0; i < 25; ++i)
     {
@@ -704,7 +707,7 @@ TEST(TransitionEngineUnified, UpdatePerformance50Animations)
     }
     auto end = std::chrono::high_resolution_clock::now();
 
-    double total_ms = std::chrono::duration<double, std::milli>(end - start).count();
+    double total_ms    = std::chrono::duration<double, std::milli>(end - start).count();
     double per_call_ms = total_ms / 100.0;
 
     EXPECT_LT(per_call_ms, 0.5) << "update() too slow: " << per_call_ms
@@ -716,7 +719,7 @@ TEST(TransitionEngineUnified, UpdatePerformance50Animations)
 TEST(TransitionEngineUnified, CompletedAnimationsAreGarbageCollected)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     for (int i = 0; i < 100; ++i)
     {
@@ -733,7 +736,7 @@ TEST(TransitionEngineUnified, CompletedAnimationsAreGarbageCollected)
 TEST(TransitionEngineUnified, ZeroDurationSnaps)
 {
     TransitionEngine te;
-    float val = 0.0f;
+    float            val = 0.0f;
 
     te.animate(val, 42.0f, 0.0001f, ease::linear);
     te.update(0.001f);

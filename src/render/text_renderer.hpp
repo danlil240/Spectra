@@ -37,18 +37,18 @@ enum class FontSize : uint8_t
 struct GlyphInfo
 {
     float u0, v0, u1, v1;  // atlas UV coordinates
-    float x_offset;         // horizontal offset from cursor to glyph left edge
-    float y_offset;         // vertical offset from baseline to glyph top edge
-    float x_advance;        // horizontal advance after this glyph
-    float width;            // glyph bitmap width in pixels
-    float height;           // glyph bitmap height in pixels
+    float x_offset;        // horizontal offset from cursor to glyph left edge
+    float y_offset;        // vertical offset from baseline to glyph top edge
+    float x_advance;       // horizontal advance after this glyph
+    float width;           // glyph bitmap width in pixels
+    float height;          // glyph bitmap height in pixels
 };
 
 struct TextVertex
 {
     float x, y, z;  // screen position in pixels (z = NDC depth for 3D text, 0 for 2D)
-    float u, v;      // atlas UV
-    uint32_t col;    // packed RGBA (R in low byte)
+    float u, v;     // atlas UV
+    uint32_t col;   // packed RGBA (R in low byte)
 };
 
 class TextRenderer

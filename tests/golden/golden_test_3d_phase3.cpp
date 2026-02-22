@@ -54,20 +54,20 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
-static void run_golden_test_3d_p3(const std::string& scene_name,
+static void run_golden_test_3d_p3(const std::string&                 scene_name,
                                   std::function<void(App&, Figure&)> setup_scene,
-                                  uint32_t width = 640,
-                                  uint32_t height = 480,
-                                  double tolerance_percent = 2.0,
-                                  double max_mae = 3.0)
+                                  uint32_t                           width             = 640,
+                                  uint32_t                           height            = 480,
+                                  double                             tolerance_percent = 2.0,
+                                  double                             max_mae           = 3.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
-    fs::path actual_path = output_dir() / (scene_name + "_actual.raw");
-    fs::path diff_path = output_dir() / (scene_name + "_diff.raw");
+    fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
+    fs::path diff_path     = output_dir() / (scene_name + "_diff.raw");
 
     fs::create_directories(output_dir());
 
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = width, .height = height});
 
     setup_scene(app, fig);
@@ -96,7 +96,7 @@ static void run_golden_test_3d_p3(const std::string& scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t baseline_w, baseline_h;
+    uint32_t             baseline_w, baseline_h;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, baseline_w, baseline_h))
         << "Failed to load baseline: " << baseline_path;
 
@@ -130,7 +130,7 @@ TEST(Golden3DPhase3, LitSurface_SinCos)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int nx = 30, ny = 30;
+                              const int          nx = 30, ny = 30;
                               std::vector<float> x_grid, y_grid, z_values;
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
@@ -160,7 +160,7 @@ TEST(Golden3DPhase3, LitSurface_HighSpecular)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int nx = 25, ny = 25;
+            const int          nx = 25, ny = 25;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -224,7 +224,7 @@ TEST(Golden3DPhase3, TransparentSurface)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int nx = 25, ny = 25;
+                              const int          nx = 25, ny = 25;
                               std::vector<float> x_grid, y_grid, z_values;
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -257,7 +257,7 @@ TEST(Golden3DPhase3, TransparentScatterOnSurface)
             auto& ax = fig.subplot3d(1, 1, 1);
 
             // Opaque surface
-            const int nx = 20, ny = 20;
+            const int          nx = 20, ny = 20;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -300,7 +300,7 @@ TEST(Golden3DPhase3, WireframeSurface)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int nx = 20, ny = 20;
+            const int          nx = 20, ny = 20;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
@@ -331,7 +331,7 @@ TEST(Golden3DPhase3, SurfaceColormapAlpha)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int nx = 30, ny = 30;
+            const int          nx = 30, ny = 30;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
@@ -364,7 +364,7 @@ TEST(Golden3DPhase3, LightingDisabled)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int nx = 20, ny = 20;
+                              const int          nx = 20, ny = 20;
                               std::vector<float> x_grid, y_grid, z_values;
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -392,7 +392,7 @@ TEST(Golden3DPhase3, MultipleTransparentSurfaces)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int nx = 20, ny = 20;
+                              const int          nx = 20, ny = 20;
                               std::vector<float> x_grid, y_grid;
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -439,7 +439,7 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D)
         [](App& /*app*/, Figure& fig)
         {
             // 2D line plot
-            auto& ax2d = fig.subplot(2, 1, 1);
+            auto&              ax2d = fig.subplot(2, 1, 1);
             std::vector<float> x2d, y2d;
             for (int i = 0; i < 200; ++i)
             {
@@ -451,8 +451,8 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D)
             ax2d.title("2D: Damped Sine");
 
             // 3D lit surface
-            auto& ax3d = fig.subplot3d(2, 1, 2);
-            const int nx = 25, ny = 25;
+            auto&              ax3d = fig.subplot3d(2, 1, 2);
+            const int          nx = 25, ny = 25;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
@@ -486,7 +486,7 @@ TEST(Golden3DPhase3, LitSurfaceColormap)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int nx = 30, ny = 30;
+            const int          nx = 30, ny = 30;
             std::vector<float> x_grid, y_grid, z_values;
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
@@ -510,4 +510,4 @@ TEST(Golden3DPhase3, LitSurfaceColormap)
         });
 }
 
-}  // namespace spectra::test
+}   // namespace spectra::test

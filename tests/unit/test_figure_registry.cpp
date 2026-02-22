@@ -29,7 +29,7 @@ using namespace spectra::test;
 
 TEST(FigureBaseline, CreateSingleFigure)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 640, .height = 480});
     EXPECT_EQ(fig.width(), 640u);
     EXPECT_EQ(fig.height(), 480u);
@@ -37,7 +37,7 @@ TEST(FigureBaseline, CreateSingleFigure)
 
 TEST(FigureBaseline, CreateMultipleFigures)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig1 = app.figure({.width = 320, .height = 240});
     auto& fig2 = app.figure({.width = 640, .height = 480});
     auto& fig3 = app.figure({.width = 800, .height = 600});
@@ -49,9 +49,9 @@ TEST(FigureBaseline, CreateMultipleFigures)
 
 TEST(FigureBaseline, FigureOwnsAxes)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 640, .height = 480});
-    auto& ax = fig.subplot(1, 1, 1);
+    auto& ax  = fig.subplot(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 0.5f};
@@ -62,7 +62,7 @@ TEST(FigureBaseline, FigureOwnsAxes)
 
 TEST(FigureBaseline, FigureSubplotGrid)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
     fig.subplot(2, 2, 1);
     fig.subplot(2, 2, 2);
@@ -75,11 +75,11 @@ TEST(FigureBaseline, FigureSubplotGrid)
 
 TEST(FigureBaseline, FigureRenderAndReadback)
 {
-    App app({.headless = true});
-    auto& fig = app.figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f};
+    App                app({.headless = true});
+    auto&              fig = app.figure({.width = 320, .height = 240});
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 0.5f, 1.5f};
     ax.line(x, y);
     ax.xlim(0.0f, 3.0f);
     ax.ylim(-0.5f, 2.0f);
@@ -110,12 +110,12 @@ TEST(FigureBaseline, SeriesGpuDataKeyedByPointer)
     // Verify that series GPU data is keyed by Series* pointer.
     // This is important because Agent C must preserve this invariant
     // when moving figures between windows.
-    App app({.headless = true});
-    auto& fig = app.figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f};
-    auto& series = ax.line(x, y);
+    App                app({.headless = true});
+    auto&              fig    = app.figure({.width = 320, .height = 240});
+    auto&              ax     = fig.subplot(1, 1, 1);
+    std::vector<float> x      = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y      = {0.0f, 1.0f, 0.5f};
+    auto&              series = ax.line(x, y);
 
     // Get the series pointer address
     const Series* series_ptr = &series;
@@ -135,11 +135,11 @@ TEST(FigureBaseline, MultipleAppsSequential)
     // for multi-window where windows are created/destroyed at runtime.
     for (int i = 0; i < 5; ++i)
     {
-        App app({.headless = true});
-        auto& fig = app.figure({.width = 320, .height = 240});
-        auto& ax = fig.subplot(1, 1, 1);
-        std::vector<float> x = {0.0f, 1.0f};
-        std::vector<float> y = {0.0f, static_cast<float>(i)};
+        App                app({.headless = true});
+        auto&              fig = app.figure({.width = 320, .height = 240});
+        auto&              ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x   = {0.0f, 1.0f};
+        std::vector<float> y   = {0.0f, static_cast<float>(i)};
         ax.line(x, y);
         app.run();
     }
@@ -161,7 +161,7 @@ TEST(FigureRegistryConstruction, DefaultEmpty)
 TEST(FigureRegistryConstruction, RegisterReturnsStableId)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
@@ -173,7 +173,7 @@ TEST(FigureRegistryConstruction, RegisterReturnsStableId)
 TEST(FigureRegistryConstruction, IdsAreMonotonic)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
@@ -188,7 +188,7 @@ TEST(FigureRegistryConstruction, IdsAreMonotonic)
 TEST(FigureRegistryLookup, GetValidId)
 {
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* fig = reg.get(id);
     EXPECT_NE(fig, nullptr);
@@ -204,7 +204,7 @@ TEST(FigureRegistryLookup, GetInvalidIdReturnsNull)
 TEST(FigureRegistryLookup, GetAfterUnregister)
 {
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     reg.unregister_figure(id);
     EXPECT_EQ(reg.get(id), nullptr);
@@ -213,7 +213,7 @@ TEST(FigureRegistryLookup, GetAfterUnregister)
 TEST(FigureRegistryLookup, AllIdsReturnsRegistered)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
@@ -228,7 +228,7 @@ TEST(FigureRegistryLookup, AllIdsReturnsRegistered)
 TEST(FigureRegistryLifecycle, UnregisterReducesCount)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
@@ -243,38 +243,38 @@ TEST(FigureRegistryLifecycle, UnregisterReducesCount)
 TEST(FigureRegistryLifecycle, UnregisterInvalidIdNoOp)
 {
     FigureRegistry reg;
-    reg.unregister_figure(999);  // Should not crash
+    reg.unregister_figure(999);   // Should not crash
     EXPECT_EQ(reg.count(), 0u);
 }
 
 TEST(FigureRegistryLifecycle, IdNotReusedAfterUnregister)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     reg.unregister_figure(id1);
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    EXPECT_NE(id1, id2);  // IDs are never reused
+    EXPECT_NE(id1, id2);   // IDs are never reused
     EXPECT_GT(id2, id1);
 }
 
 TEST(FigureRegistryLifecycle, PointerStableAcrossRegistrations)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* ptr1 = reg.get(id1);
-    auto id2 =
+    auto    id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
     (void)id2;
-    EXPECT_EQ(reg.get(id1), ptr1);  // Adding id2 doesn't invalidate id1's pointer
+    EXPECT_EQ(reg.get(id1), ptr1);   // Adding id2 doesn't invalidate id1's pointer
 }
 
 TEST(FigureRegistryLifecycle, ContainsRegistered)
 {
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_TRUE(reg.contains(id));
     EXPECT_FALSE(reg.contains(999));
@@ -283,7 +283,7 @@ TEST(FigureRegistryLifecycle, ContainsRegistered)
 TEST(FigureRegistryLifecycle, ReleaseReturnsOwnership)
 {
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     EXPECT_EQ(reg.count(), 1u);
     auto fig = reg.release(id);
@@ -296,7 +296,7 @@ TEST(FigureRegistryLifecycle, ReleaseReturnsOwnership)
 TEST(FigureRegistryLifecycle, ReleaseInvalidReturnsNull)
 {
     FigureRegistry reg;
-    auto fig = reg.release(999);
+    auto           fig = reg.release(999);
     EXPECT_EQ(fig, nullptr);
 }
 
@@ -314,7 +314,7 @@ TEST(FigureRegistryLifecycle, ClearRemovesAll)
 TEST(FigureRegistryLifecycle, InsertionOrderPreserved)
 {
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 100, .height = 100}));
     auto id2 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 200, .height = 200}));
@@ -340,17 +340,17 @@ TEST(FigureRegistryLifecycle, InsertionOrderPreserved)
 TEST(FigureRegistryGpu, RegisteredFigureRenderable)
 {
     // Verify a figure from the registry can be rendered via App's renderer
-    App app({.headless = true});
-    auto& fig = app.figure({.width = 320, .height = 240});
-    auto& ax = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f};
+    App                app({.headless = true});
+    auto&              fig = app.figure({.width = 320, .height = 240});
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 0.5f};
     ax.line(x, y);
     app.run();
 
     // Separately verify FigureRegistry can hold figures
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     Figure* rfig = reg.get(id);
     ASSERT_NE(rfig, nullptr);
@@ -365,14 +365,14 @@ TEST(FigureRegistryGpu, PointerStabilityForGpuKeying)
     // Verify that registering/unregistering other figures doesn't
     // invalidate a figure's series pointers.
     FigureRegistry reg;
-    auto id1 =
+    auto           id1 =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    Figure* fig1 = reg.get(id1);
-    auto& ax = fig1->subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f};
-    std::vector<float> y = {0.0f, 1.0f};
-    auto& series = ax.line(x, y);
-    const Series* series_ptr = &series;
+    Figure*            fig1       = reg.get(id1);
+    auto&              ax         = fig1->subplot(1, 1, 1);
+    std::vector<float> x          = {0.0f, 1.0f};
+    std::vector<float> y          = {0.0f, 1.0f};
+    auto&              series     = ax.line(x, y);
+    const Series*      series_ptr = &series;
 
     // Register more figures
     auto id2 =
@@ -393,14 +393,14 @@ TEST(FigureRegistryGpu, ReleasePreservesSeriesPointers)
 {
     // Releasing a figure from the registry preserves its Series* pointers
     FigureRegistry reg;
-    auto id =
+    auto           id =
         reg.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    Figure* fig = reg.get(id);
-    auto& ax = fig->subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f};
-    std::vector<float> y = {0.0f, 1.0f};
-    auto& series = ax.line(x, y);
-    const Series* series_ptr = &series;
+    Figure*            fig        = reg.get(id);
+    auto&              ax         = fig->subplot(1, 1, 1);
+    std::vector<float> x          = {0.0f, 1.0f};
+    std::vector<float> y          = {0.0f, 1.0f};
+    auto&              series     = ax.line(x, y);
+    const Series*      series_ptr = &series;
 
     auto released = reg.release(id);
     ASSERT_NE(released, nullptr);
@@ -421,10 +421,10 @@ TEST(FigureRegistryMove, MoveFigureBetweenRegistries)
 
     auto id_a =
         reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    Figure* fig = reg_a.get(id_a);
-    auto& ax = fig->subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y = {0.0f, 1.0f, 0.5f};
+    Figure*            fig = reg_a.get(id_a);
+    auto&              ax  = fig->subplot(1, 1, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 0.5f};
     ax.line(x, y);
 
     // Move: release from A, register in B
@@ -449,15 +449,15 @@ TEST(FigureRegistryMove, GpuDataPreservedAfterMove)
 
     auto id_a =
         reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
-    Figure* fig = reg_a.get(id_a);
-    auto& ax = fig->subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f};
-    std::vector<float> y = {0.0f, 1.0f};
-    auto& series = ax.line(x, y);
-    const Series* series_ptr = &series;
+    Figure*            fig        = reg_a.get(id_a);
+    auto&              ax         = fig->subplot(1, 1, 1);
+    std::vector<float> x          = {0.0f, 1.0f};
+    std::vector<float> y          = {0.0f, 1.0f};
+    auto&              series     = ax.line(x, y);
+    const Series*      series_ptr = &series;
 
-    auto released = reg_a.release(id_a);
-    auto id_b = reg_b.register_figure(std::move(released));
+    auto    released  = reg_a.release(id_a);
+    auto    id_b      = reg_b.register_figure(std::move(released));
     Figure* moved_fig = reg_b.get(id_b);
 
     // Series pointer must be the same (GPU data keyed by pointer)
@@ -468,7 +468,7 @@ TEST(FigureRegistryMove, SourceUnaffectedAfterMove)
 {
     // Moving figure out of registry A should not affect other figures in A.
     FigureRegistry reg_a;
-    auto id1 =
+    auto           id1 =
         reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 320, .height = 240}));
     auto id2 =
         reg_a.register_figure(std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480}));
@@ -484,4 +484,4 @@ TEST(FigureRegistryMove, SourceUnaffectedAfterMove)
     EXPECT_EQ(fig2->width(), 640u);
 }
 
-#endif  // SPECTRA_HAS_FIGURE_REGISTRY
+#endif   // SPECTRA_HAS_FIGURE_REGISTRY

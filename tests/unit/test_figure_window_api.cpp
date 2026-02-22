@@ -8,7 +8,7 @@ using namespace spectra;
 
 TEST(FigureWindowAPI, EachFigureGetsOwnWindow)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure();
 
@@ -18,7 +18,7 @@ TEST(FigureWindowAPI, EachFigureGetsOwnWindow)
 
 TEST(FigureWindowAPI, TabGoesInSameWindow)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
 
@@ -29,7 +29,7 @@ TEST(FigureWindowAPI, TabGoesInSameWindow)
 
 TEST(FigureWindowAPI, MultipleTabsInOneWindow)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
     auto& fig3 = app.figure(fig1);
@@ -41,10 +41,10 @@ TEST(FigureWindowAPI, MultipleTabsInOneWindow)
 
 TEST(FigureWindowAPI, MixedWindowsAndTabs)
 {
-    App app({.headless = true});
-    auto& fig1 = app.figure();      // window A
-    auto& fig2 = app.figure();      // window B
-    auto& fig3 = app.figure(fig1);  // tab in window A
+    App   app({.headless = true});
+    auto& fig1 = app.figure();       // window A
+    auto& fig2 = app.figure();       // window B
+    auto& fig3 = app.figure(fig1);   // tab in window A
 
     auto& wf = app.window_figures();
     EXPECT_EQ(wf.size(), 2u) << "Should have 2 windows";
@@ -64,9 +64,9 @@ TEST(FigureWindowAPI, MixedWindowsAndTabs)
 
 TEST(FigureWindowAPI, TabNextToUnknownFigureCreatesNewWindow)
 {
-    App app({.headless = true});
+    App    app({.headless = true});
     Figure orphan;
-    auto& fig = app.figure(orphan);
+    auto&  fig = app.figure(orphan);
 
     auto& wf = app.window_figures();
     EXPECT_EQ(wf.size(), 1u) << "Should fall back to new window";
@@ -74,10 +74,10 @@ TEST(FigureWindowAPI, TabNextToUnknownFigureCreatesNewWindow)
 
 TEST(FigureWindowAPI, ChainedTabs)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig1 = app.figure();
     auto& fig2 = app.figure(fig1);
-    auto& fig3 = app.figure(fig2);  // tab next to fig2 = same window as fig1
+    auto& fig3 = app.figure(fig2);   // tab next to fig2 = same window as fig1
 
     auto& wf = app.window_figures();
     EXPECT_EQ(wf.size(), 1u) << "All 3 should be in one window";
@@ -86,12 +86,12 @@ TEST(FigureWindowAPI, ChainedTabs)
 
 TEST(FigureWindowAPI, FourWindowsThreeTabs)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& a1 = app.figure();
     auto& a2 = app.figure(a1);
     auto& a3 = app.figure(a1);
-    auto& b = app.figure();
-    auto& c = app.figure();
+    auto& b  = app.figure();
+    auto& c  = app.figure();
     auto& d1 = app.figure();
     auto& d2 = app.figure(d1);
 
@@ -115,25 +115,25 @@ TEST(FigureWindowIPC, WindowIdRoundTrip)
     using namespace spectra::ipc;
 
     StateSnapshotPayload snap;
-    snap.revision = 1;
+    snap.revision   = 1;
     snap.session_id = 42;
 
     SnapshotFigureState fig1;
     fig1.figure_id = 100;
     fig1.window_id = 5;
-    fig1.title = "Fig A";
+    fig1.title     = "Fig A";
     snap.figures.push_back(fig1);
 
     SnapshotFigureState fig2;
     fig2.figure_id = 101;
-    fig2.window_id = 5;  // same window
-    fig2.title = "Fig B";
+    fig2.window_id = 5;   // same window
+    fig2.title     = "Fig B";
     snap.figures.push_back(fig2);
 
     SnapshotFigureState fig3;
     fig3.figure_id = 102;
-    fig3.window_id = 0;  // own window
-    fig3.title = "Fig C";
+    fig3.window_id = 0;   // own window
+    fig3.title     = "Fig C";
     snap.figures.push_back(fig3);
 
     auto encoded = encode_state_snapshot(snap);
@@ -158,7 +158,7 @@ TEST(FigureWindowIPC, WindowIdZeroOmittedInEncoding)
     SnapshotFigureState fig;
     fig.figure_id = 200;
     fig.window_id = 0;
-    fig.title = "Test";
+    fig.title     = "Test";
 
     StateSnapshotPayload snap;
     snap.figures.push_back(fig);

@@ -14,8 +14,8 @@ namespace spectra
 
 struct AppConfig
 {
-    bool headless = false;
-    std::string socket_path;  // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
+    bool        headless = false;
+    std::string socket_path;   // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
 };
 
 class WindowRuntime;
@@ -31,7 +31,7 @@ class App
     explicit App(const AppConfig& config = {});
     ~App();
 
-    App(const App&) = delete;
+    App(const App&)            = delete;
     App& operator=(const App&) = delete;
 
     Figure& figure(const FigureConfig& config = {});
@@ -43,11 +43,11 @@ class App
     bool is_headless() const { return config_.headless; }
 
     // Access internals (for renderer integration)
-    Backend* backend() { return backend_.get(); }
+    Backend*  backend() { return backend_.get(); }
     Renderer* renderer() { return renderer_.get(); }
 
     // Knob manager (set by easy API before run(), or by user directly)
-    void set_knob_manager(KnobManager* km) { knob_manager_ = km; }
+    void         set_knob_manager(KnobManager* km) { knob_manager_ = km; }
     KnobManager* knob_manager() const { return knob_manager_; }
 
    private:
@@ -60,9 +60,9 @@ class App
     // that should share one OS window.
     std::vector<std::vector<FigureId>> compute_window_groups() const;
 
-    AppConfig config_;
-    FigureRegistry registry_;
-    std::unique_ptr<Backend> backend_;
+    AppConfig                 config_;
+    FigureRegistry            registry_;
+    std::unique_ptr<Backend>  backend_;
     std::unique_ptr<Renderer> renderer_;
 
     // Maps a FigureId to the FigureId it should be tabbed next to.
@@ -73,4 +73,4 @@ class App
     KnobManager* knob_manager_ = nullptr;
 };
 
-}  // namespace spectra
+}   // namespace spectra

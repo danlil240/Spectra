@@ -183,7 +183,7 @@ TEST(Easing, CubicBezierEaseOutPreset)
 TEST(Easing, CubicBezierMonotonic)
 {
     ease::CubicBezier cb{0.25f, 0.1f, 0.25f, 1.0f};
-    float prev = 0.0f;
+    float             prev = 0.0f;
     for (float t = 0.01f; t <= 1.0f; t += 0.01f)
     {
         float v = cb(t);

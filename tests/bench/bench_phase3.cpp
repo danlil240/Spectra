@@ -144,9 +144,9 @@ static void BM_AxisLink_CreateGroupAndAdd(benchmark::State& state)
 {
     for (auto _ : state)
     {
-        AxisLinkManager mgr;
+        AxisLinkManager   mgr;
         std::vector<Axes> axes(10);
-        auto gid = mgr.create_group("X Link", LinkAxis::X);
+        auto              gid = mgr.create_group("X Link", LinkAxis::X);
         for (auto& ax : axes)
         {
             mgr.add_to_group(gid, &ax);
@@ -158,7 +158,7 @@ BENCHMARK(BM_AxisLink_CreateGroupAndAdd)->Unit(benchmark::kMicrosecond);
 
 static void BM_AxisLink_PropagateFrom(benchmark::State& state)
 {
-    AxisLinkManager mgr;
+    AxisLinkManager   mgr;
     std::vector<Axes> axes(static_cast<size_t>(state.range(0)));
     for (auto& ax : axes)
     {
@@ -193,9 +193,9 @@ BENCHMARK(BM_AxisLink_PropagateFrom)
 
 static void BM_AxisLink_IsLinked(benchmark::State& state)
 {
-    AxisLinkManager mgr;
+    AxisLinkManager   mgr;
     std::vector<Axes> axes(10);
-    auto gid = mgr.create_group("Link", LinkAxis::X);
+    auto              gid = mgr.create_group("Link", LinkAxis::X);
     for (auto& ax : axes)
     {
         mgr.add_to_group(gid, &ax);
@@ -212,13 +212,13 @@ BENCHMARK(BM_AxisLink_IsLinked)->Unit(benchmark::kNanosecond);
 static void BM_AxisLink_SharedCursorUpdate(benchmark::State& state)
 {
     AxisLinkManager mgr;
-    Axes ax1, ax2;
+    Axes            ax1, ax2;
     mgr.link(&ax1, &ax2, LinkAxis::Both);
 
     SharedCursor cursor;
-    cursor.valid = true;
-    cursor.data_x = 5.0f;
-    cursor.data_y = 3.0f;
+    cursor.valid       = true;
+    cursor.data_x      = 5.0f;
+    cursor.data_y      = 3.0f;
     cursor.source_axes = &ax1;
 
     for (auto _ : state)
@@ -232,10 +232,10 @@ BENCHMARK(BM_AxisLink_SharedCursorUpdate)->Unit(benchmark::kNanosecond);
 
 static void BM_AxisLink_Serialization(benchmark::State& state)
 {
-    AxisLinkManager mgr;
+    AxisLinkManager   mgr;
     std::vector<Axes> axes(6);
-    auto g1 = mgr.create_group("X Link", LinkAxis::X);
-    auto g2 = mgr.create_group("Y Link", LinkAxis::Y);
+    auto              g1 = mgr.create_group("X Link", LinkAxis::X);
+    auto              g2 = mgr.create_group("Y Link", LinkAxis::Y);
     for (int i = 0; i < 3; ++i)
         mgr.add_to_group(g1, &axes[i]);
     for (int i = 3; i < 6; ++i)
@@ -261,7 +261,7 @@ BENCHMARK(BM_AxisLink_Serialization)->Unit(benchmark::kMicrosecond);
 
 static void BM_DataTransform_SingleApply(benchmark::State& state)
 {
-    const size_t N = static_cast<size_t>(state.range(0));
+    const size_t       N = static_cast<size_t>(state.range(0));
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -269,7 +269,7 @@ static void BM_DataTransform_SingleApply(benchmark::State& state)
         y[i] = std::sin(x[i]);
     }
 
-    DataTransform tf(TransformType::Log10);
+    DataTransform      tf(TransformType::Log10);
     std::vector<float> x_out, y_out;
 
     for (auto _ : state)
@@ -287,7 +287,7 @@ BENCHMARK(BM_DataTransform_SingleApply)
 
 static void BM_DataTransform_Pipeline3Steps(benchmark::State& state)
 {
-    const size_t N = static_cast<size_t>(state.range(0));
+    const size_t       N = static_cast<size_t>(state.range(0));
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -317,7 +317,7 @@ BENCHMARK(BM_DataTransform_Pipeline3Steps)
 
 static void BM_DataTransform_Derivative(benchmark::State& state)
 {
-    const size_t N = static_cast<size_t>(state.range(0));
+    const size_t       N = static_cast<size_t>(state.range(0));
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -325,7 +325,7 @@ static void BM_DataTransform_Derivative(benchmark::State& state)
         y[i] = std::sin(x[i] * 10.0f);
     }
 
-    DataTransform tf(TransformType::Derivative);
+    DataTransform      tf(TransformType::Derivative);
     std::vector<float> x_out, y_out;
 
     for (auto _ : state)
@@ -342,7 +342,7 @@ BENCHMARK(BM_DataTransform_Derivative)
 
 static void BM_DataTransform_Normalize(benchmark::State& state)
 {
-    const size_t N = static_cast<size_t>(state.range(0));
+    const size_t       N = static_cast<size_t>(state.range(0));
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {
@@ -350,7 +350,7 @@ static void BM_DataTransform_Normalize(benchmark::State& state)
         y[i] = std::sin(static_cast<float>(i) * 0.01f) * 100.0f;
     }
 
-    DataTransform tf(TransformType::Normalize);
+    DataTransform      tf(TransformType::Normalize);
     std::vector<float> x_out, y_out;
 
     for (auto _ : state)
@@ -372,7 +372,7 @@ static void BM_DataTransform_RegistryLookup(benchmark::State& state)
     for (auto _ : state)
     {
         DataTransform dt;
-        bool found = reg.get_transform("square", dt);
+        bool          found = reg.get_transform("square", dt);
         benchmark::DoNotOptimize(found);
     }
 }
@@ -383,7 +383,7 @@ BENCHMARK(BM_DataTransform_RegistryLookup)->Unit(benchmark::kNanosecond);
 static void BM_KeyframeInterp_EvaluateLinear(benchmark::State& state)
 {
     AnimationChannel ch("bench", 0.0f);
-    int num_kf = static_cast<int>(state.range(0));
+    int              num_kf = static_cast<int>(state.range(0));
     for (int i = 0; i < num_kf; ++i)
     {
         ch.add_keyframe(
@@ -410,8 +410,9 @@ static void BM_KeyframeInterp_EvaluateCubicBezier(benchmark::State& state)
     AnimationChannel ch("bench", 0.0f);
     for (int i = 0; i < 20; ++i)
     {
-        TypedKeyframe kf(
-            static_cast<float>(i), static_cast<float>(i) * 0.5f, InterpMode::CubicBezier);
+        TypedKeyframe kf(static_cast<float>(i),
+                         static_cast<float>(i) * 0.5f,
+                         InterpMode::CubicBezier);
         kf.tangent_mode = TangentMode::Auto;
         ch.add_keyframe(kf);
     }
@@ -444,8 +445,9 @@ static void BM_KeyframeInterp_SampleChannel(benchmark::State& state)
     AnimationChannel ch("bench", 0.0f);
     for (int i = 0; i < 10; ++i)
     {
-        ch.add_keyframe(TypedKeyframe(
-            static_cast<float>(i), std::sin(static_cast<float>(i)), InterpMode::Linear));
+        ch.add_keyframe(TypedKeyframe(static_cast<float>(i),
+                                      std::sin(static_cast<float>(i)),
+                                      InterpMode::Linear));
     }
 
     for (auto _ : state)
@@ -463,7 +465,7 @@ BENCHMARK(BM_KeyframeInterp_SampleChannel)
 static void BM_KeyframeInterp_EvaluateAll(benchmark::State& state)
 {
     KeyframeInterpolator interp;
-    std::vector<float> targets(static_cast<size_t>(state.range(0)), 0.0f);
+    std::vector<float>   targets(static_cast<size_t>(state.range(0)), 0.0f);
 
     for (size_t i = 0; i < targets.size(); ++i)
     {
@@ -494,10 +496,10 @@ static void BM_KeyframeInterp_Serialization(benchmark::State& state)
         auto ch_id = interp.add_channel("ch_" + std::to_string(i));
         for (int j = 0; j < 20; ++j)
         {
-            interp.add_keyframe(
-                ch_id,
-                TypedKeyframe(
-                    static_cast<float>(j), std::sin(static_cast<float>(j)), InterpMode::Linear));
+            interp.add_keyframe(ch_id,
+                                TypedKeyframe(static_cast<float>(j),
+                                              std::sin(static_cast<float>(j)),
+                                              InterpMode::Linear));
         }
     }
 
@@ -517,10 +519,10 @@ static void BM_KeyframeInterp_Deserialization(benchmark::State& state)
         auto ch_id = interp.add_channel("ch_" + std::to_string(i));
         for (int j = 0; j < 20; ++j)
         {
-            interp.add_keyframe(
-                ch_id,
-                TypedKeyframe(
-                    static_cast<float>(j), std::sin(static_cast<float>(j)), InterpMode::Linear));
+            interp.add_keyframe(ch_id,
+                                TypedKeyframe(static_cast<float>(j),
+                                              std::sin(static_cast<float>(j)),
+                                              InterpMode::Linear));
         }
     }
     std::string json = interp.serialize();
@@ -543,7 +545,7 @@ static void BM_Timeline_Advance(benchmark::State& state)
     timeline.set_fps(60.0f);
 
     KeyframeInterpolator interp;
-    auto ch = interp.add_channel("val");
+    auto                 ch = interp.add_channel("val");
     interp.add_keyframe(ch, TypedKeyframe(0.0f, 0.0f, InterpMode::Linear));
     interp.add_keyframe(ch, TypedKeyframe(10.0f, 100.0f, InterpMode::Linear));
     timeline.set_interpolator(&interp);
@@ -607,7 +609,7 @@ BENCHMARK(BM_Timeline_Serialization)->Unit(benchmark::kMicrosecond);
 static void BM_ShortcutConfig_SetOverride(benchmark::State& state)
 {
     ShortcutConfig config;
-    int i = 0;
+    int            i = 0;
 
     for (auto _ : state)
     {
@@ -674,9 +676,9 @@ BENCHMARK(BM_PlotStyle_ParseFormatString)->Unit(benchmark::kNanosecond);
 static void BM_PlotStyle_ToFormatString(benchmark::State& state)
 {
     PlotStyle style;
-    style.line_style = LineStyle::Dashed;
+    style.line_style   = LineStyle::Dashed;
     style.marker_style = MarkerStyle::Circle;
-    style.color = colors::red;
+    style.color        = colors::red;
 
     for (auto _ : state)
     {
@@ -707,32 +709,32 @@ BENCHMARK(BM_PlotStyle_DashPattern)->Unit(benchmark::kNanosecond);
 static WorkspaceData make_phase3_workspace(int num_figures, int series_per_fig)
 {
     WorkspaceData data;
-    data.theme_name = "dark";
-    data.active_figure_index = 0;
-    data.panels.inspector_visible = true;
-    data.panels.inspector_width = 320.0f;
+    data.theme_name                    = "dark";
+    data.active_figure_index           = 0;
+    data.panels.inspector_visible      = true;
+    data.panels.inspector_width        = 320.0f;
     data.interaction.crosshair_enabled = true;
-    data.dock_state = "{\"root\":{\"leaf\":0}}";
-    data.axis_link_state = "{\"groups\":[]}";
-    data.data_palette_name = "okabe_ito";
-    data.timeline.playhead = 1.0f;
-    data.timeline.duration = 10.0f;
-    data.timeline.fps = 60.0f;
+    data.dock_state                    = "{\"root\":{\"leaf\":0}}";
+    data.axis_link_state               = "{\"groups\":[]}";
+    data.data_palette_name             = "okabe_ito";
+    data.timeline.playhead             = 1.0f;
+    data.timeline.duration             = 10.0f;
+    data.timeline.fps                  = 60.0f;
 
     for (int f = 0; f < num_figures; ++f)
     {
         WorkspaceData::FigureState fig;
-        fig.title = "Figure " + std::to_string(f + 1);
-        fig.width = 1280;
-        fig.height = 720;
+        fig.title            = "Figure " + std::to_string(f + 1);
+        fig.width            = 1280;
+        fig.height           = 720;
         fig.custom_tab_title = "Tab " + std::to_string(f + 1);
 
         WorkspaceData::AxisState ax;
-        ax.x_min = 0;
-        ax.x_max = 10;
-        ax.y_min = -1;
-        ax.y_max = 1;
-        ax.title = "Axes";
+        ax.x_min   = 0;
+        ax.x_max   = 10;
+        ax.y_min   = -1;
+        ax.y_max   = 1;
+        ax.title   = "Axes";
         ax.x_label = "X";
         ax.y_label = "Y";
         fig.axes.push_back(ax);
@@ -740,11 +742,11 @@ static WorkspaceData make_phase3_workspace(int num_figures, int series_per_fig)
         for (int s = 0; s < series_per_fig; ++s)
         {
             WorkspaceData::SeriesState ss;
-            ss.name = "Series " + std::to_string(s);
-            ss.type = (s % 2 == 0) ? "line" : "scatter";
-            ss.line_style = s % 5;
+            ss.name         = "Series " + std::to_string(s);
+            ss.type         = (s % 2 == 0) ? "line" : "scatter";
+            ss.line_style   = s % 5;
             ss.marker_style = s % 18;
-            ss.opacity = 0.8f;
+            ss.opacity      = 0.8f;
             ss.dash_pattern = {8.0f, 4.0f};
             fig.series.push_back(ss);
         }
@@ -752,7 +754,7 @@ static WorkspaceData make_phase3_workspace(int num_figures, int series_per_fig)
 
         WorkspaceData::TransformState ts;
         ts.figure_index = static_cast<size_t>(f);
-        ts.axes_index = 0;
+        ts.axes_index   = 0;
         ts.steps.push_back({1, 0.0f, true});
         data.transforms.push_back(ts);
     }
@@ -760,7 +762,7 @@ static WorkspaceData make_phase3_workspace(int num_figures, int series_per_fig)
     for (int i = 0; i < 5; ++i)
     {
         WorkspaceData::ShortcutOverride so;
-        so.command_id = "cmd." + std::to_string(i);
+        so.command_id   = "cmd." + std::to_string(i);
         so.shortcut_str = "Ctrl+" + std::to_string(i);
         data.shortcut_overrides.push_back(so);
     }
@@ -830,7 +832,7 @@ BENCHMARK(BM_WorkspaceV3_LoadLarge)->Unit(benchmark::kMicrosecond);
 
 static void BM_GIF_MedianCut(benchmark::State& state)
 {
-    constexpr uint32_t W = 320, H = 240;
+    constexpr uint32_t   W = 320, H = 240;
     std::vector<uint8_t> rgba(W * H * 4);
     for (size_t i = 0; i < rgba.size(); i += 4)
     {
@@ -850,7 +852,7 @@ BENCHMARK(BM_GIF_MedianCut)->Unit(benchmark::kMicrosecond);
 
 static void BM_GIF_QuantizeFrame(benchmark::State& state)
 {
-    constexpr uint32_t W = 320, H = 240;
+    constexpr uint32_t   W = 320, H = 240;
     std::vector<uint8_t> rgba(W * H * 4);
     for (size_t i = 0; i < rgba.size(); i += 4)
     {

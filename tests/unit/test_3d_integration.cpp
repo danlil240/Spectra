@@ -17,7 +17,7 @@ class Integration3DTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
+        app_            = std::make_unique<App>(config);
     }
 
     void TearDown() override { app_.reset(); }
@@ -31,16 +31,16 @@ TEST_F(Integration3DTest, Mixed2DAnd3DFigure)
 {
     auto& fig = app_->figure();
 
-    auto& ax2d = fig.subplot(2, 1, 1);
-    std::vector<float> x2d = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y2d = {0.0f, 1.0f, 0.5f, 1.5f};
+    auto&              ax2d = fig.subplot(2, 1, 1);
+    std::vector<float> x2d  = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y2d  = {0.0f, 1.0f, 0.5f, 1.5f};
     ax2d.line(x2d, y2d).color(colors::blue);
     ax2d.title("2D Line Plot");
 
-    auto& ax3d = fig.subplot3d(2, 1, 2);
-    std::vector<float> x3d = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y3d = {0.0f, 1.0f, 0.5f};
-    std::vector<float> z3d = {0.0f, 0.5f, 1.0f};
+    auto&              ax3d = fig.subplot3d(2, 1, 2);
+    std::vector<float> x3d  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y3d  = {0.0f, 1.0f, 0.5f};
+    std::vector<float> z3d  = {0.0f, 0.5f, 1.0f};
     ax3d.scatter3d(x3d, y3d, z3d).color(colors::red);
     ax3d.title("3D Scatter Plot");
 
@@ -51,20 +51,20 @@ TEST_F(Integration3DTest, Multiple3DSubplots)
 {
     auto& fig = app_->figure();
 
-    auto& ax1 = fig.subplot3d(2, 2, 1);
-    std::vector<float> x1 = {0.0f, 1.0f};
-    std::vector<float> y1 = {0.0f, 1.0f};
-    std::vector<float> z1 = {0.0f, 1.0f};
+    auto&              ax1 = fig.subplot3d(2, 2, 1);
+    std::vector<float> x1  = {0.0f, 1.0f};
+    std::vector<float> y1  = {0.0f, 1.0f};
+    std::vector<float> z1  = {0.0f, 1.0f};
     ax1.scatter3d(x1, y1, z1).color(colors::red);
 
-    auto& ax2 = fig.subplot3d(2, 2, 2);
-    std::vector<float> x2 = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y2 = {0.0f, 1.0f, 0.0f};
-    std::vector<float> z2 = {0.0f, 0.0f, 1.0f};
+    auto&              ax2 = fig.subplot3d(2, 2, 2);
+    std::vector<float> x2  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y2  = {0.0f, 1.0f, 0.0f};
+    std::vector<float> z2  = {0.0f, 0.0f, 1.0f};
     ax2.line3d(x2, y2, z2).color(colors::green);
 
-    auto& ax3 = fig.subplot3d(2, 2, 3);
-    const int nx = 10, ny = 10;
+    auto&              ax3 = fig.subplot3d(2, 2, 3);
+    const int          nx = 10, ny = 10;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
     for (int i = 0; i < nx; ++i)
         x_grid[i] = static_cast<float>(i);
@@ -79,10 +79,10 @@ TEST_F(Integration3DTest, Multiple3DSubplots)
     }
     ax3.surface(x_grid, y_grid, z_values).color(colors::blue);
 
-    auto& ax4 = fig.subplot3d(2, 2, 4);
-    std::vector<float> x4 = {0.0f, 1.0f, 0.5f};
-    std::vector<float> y4 = {0.0f, 0.0f, 1.0f};
-    std::vector<float> z4 = {0.0f, 1.0f, 0.5f};
+    auto&              ax4 = fig.subplot3d(2, 2, 4);
+    std::vector<float> x4  = {0.0f, 1.0f, 0.5f};
+    std::vector<float> y4  = {0.0f, 0.0f, 1.0f};
+    std::vector<float> z4  = {0.0f, 1.0f, 0.5f};
     ax4.scatter3d(x4, y4, z4).color(colors::cyan);
 
     SUCCEED();
@@ -94,12 +94,12 @@ TEST_F(Integration3DTest, CameraIndependenceAcrossSubplots)
 {
     auto& fig = app_->figure();
 
-    auto& ax1 = fig.subplot3d(1, 2, 1);
-    ax1.camera().azimuth = 45.0f;
+    auto& ax1              = fig.subplot3d(1, 2, 1);
+    ax1.camera().azimuth   = 45.0f;
     ax1.camera().elevation = 30.0f;
 
-    auto& ax2 = fig.subplot3d(1, 2, 2);
-    ax2.camera().azimuth = 90.0f;
+    auto& ax2              = fig.subplot3d(1, 2, 2);
+    ax2.camera().azimuth   = 90.0f;
     ax2.camera().elevation = 60.0f;
 
     EXPECT_FLOAT_EQ(ax1.camera().azimuth, 45.0f);
@@ -111,7 +111,7 @@ TEST_F(Integration3DTest, CameraIndependenceAcrossSubplots)
 TEST_F(Integration3DTest, GridPlaneConfiguration)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.grid_planes(Axes3D::GridPlane::XY);
     EXPECT_EQ(ax.grid_planes(), Axes3D::GridPlane::XY);
@@ -135,7 +135,7 @@ TEST_F(Integration3DTest, GridPlaneBitwiseOr)
 TEST_F(Integration3DTest, BoundingBoxToggle)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     EXPECT_TRUE(ax.show_bounding_box());
 
@@ -151,7 +151,7 @@ TEST_F(Integration3DTest, BoundingBoxToggle)
 TEST_F(Integration3DTest, AxisLimits3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(-1.0f, 1.0f);
     ax.ylim(-2.0f, 2.0f);
@@ -172,7 +172,7 @@ TEST_F(Integration3DTest, AxisLimits3D)
 TEST_F(Integration3DTest, AxisLabels3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlabel("X Axis");
     ax.ylabel("Y Axis");
@@ -188,7 +188,7 @@ TEST_F(Integration3DTest, AxisLabels3D)
 TEST_F(Integration3DTest, SeriesChaining3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 0.5f};
@@ -209,7 +209,7 @@ TEST_F(Integration3DTest, SeriesChaining3D)
 TEST_F(Integration3DTest, CameraProjectionModes)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.camera().projection_mode = Camera::ProjectionMode::Perspective;
     EXPECT_EQ(ax.camera().projection_mode, Camera::ProjectionMode::Perspective);
@@ -221,12 +221,12 @@ TEST_F(Integration3DTest, CameraProjectionModes)
 TEST_F(Integration3DTest, CameraParameters)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    ax.camera().fov = 60.0f;
+    ax.camera().fov       = 60.0f;
     ax.camera().near_clip = 0.1f;
-    ax.camera().far_clip = 100.0f;
-    ax.camera().distance = 10.0f;
+    ax.camera().far_clip  = 100.0f;
+    ax.camera().distance  = 10.0f;
 
     EXPECT_FLOAT_EQ(ax.camera().fov, 60.0f);
     EXPECT_FLOAT_EQ(ax.camera().near_clip, 0.1f);
@@ -237,11 +237,11 @@ TEST_F(Integration3DTest, CameraParameters)
 TEST_F(Integration3DTest, CameraOrbitProducesValidMatrix)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    ax.camera().azimuth = 0.0f;
+    ax.camera().azimuth   = 0.0f;
     ax.camera().elevation = 0.0f;
-    ax.camera().distance = 5.0f;
+    ax.camera().distance  = 5.0f;
     ax.camera().update_position_from_orbit();
 
     mat4 view = ax.camera().view_matrix();
@@ -261,9 +261,9 @@ TEST_F(Integration3DTest, CameraOrbitProducesValidMatrix)
 TEST_F(Integration3DTest, CameraOrbitChangesPosition)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    ax.camera().azimuth = 0.0f;
+    ax.camera().azimuth   = 0.0f;
     ax.camera().elevation = 0.0f;
     ax.camera().update_position_from_orbit();
     vec3 pos_before = ax.camera().position;
@@ -278,12 +278,12 @@ TEST_F(Integration3DTest, CameraOrbitChangesPosition)
 TEST_F(Integration3DTest, CameraSerialization)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    ax.camera().azimuth = 123.0f;
+    ax.camera().azimuth   = 123.0f;
     ax.camera().elevation = 45.0f;
-    ax.camera().distance = 7.5f;
-    ax.camera().fov = 60.0f;
+    ax.camera().distance  = 7.5f;
+    ax.camera().fov       = 60.0f;
 
     std::string json = ax.camera().serialize();
     EXPECT_FALSE(json.empty());
@@ -300,11 +300,11 @@ TEST_F(Integration3DTest, CameraSerialization)
 TEST_F(Integration3DTest, CameraReset)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    ax.camera().azimuth = 200.0f;
+    ax.camera().azimuth   = 200.0f;
     ax.camera().elevation = 80.0f;
-    ax.camera().distance = 50.0f;
+    ax.camera().distance  = 50.0f;
 
     ax.camera().reset();
 
@@ -318,9 +318,9 @@ TEST_F(Integration3DTest, CameraReset)
 TEST_F(Integration3DTest, SurfaceMeshGeneration)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const int nx = 5, ny = 5;
+    const int          nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
 
     for (int i = 0; i < nx; ++i)
@@ -352,9 +352,9 @@ TEST_F(Integration3DTest, SurfaceMeshGeneration)
 TEST_F(Integration3DTest, SurfaceMeshTopology)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const int nx = 4, ny = 3;
+    const int          nx = 4, ny = 3;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
     for (int i = 0; i < nx; ++i)
         x_grid[i] = static_cast<float>(i);
@@ -374,7 +374,7 @@ TEST_F(Integration3DTest, SurfaceMeshTopology)
 TEST_F(Integration3DTest, MeshSeriesCustomGeometry)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> vertices = {
         0.0f,
@@ -410,7 +410,7 @@ TEST_F(Integration3DTest, MeshSeriesCustomGeometry)
 TEST_F(Integration3DTest, SeriesBoundsComputation)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {-1.0f, 2.0f, 0.0f};
     std::vector<float> y = {-2.0f, 1.0f, 0.0f};
@@ -432,7 +432,7 @@ TEST_F(Integration3DTest, SeriesBoundsComputation)
 TEST_F(Integration3DTest, SeriesCentroidComputation)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 2.0f, 4.0f};
     std::vector<float> y = {0.0f, 0.0f, 0.0f};
@@ -450,14 +450,14 @@ TEST_F(Integration3DTest, SeriesCentroidComputation)
 TEST_F(Integration3DTest, ScatterBoundsSymmetric)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {-5.0f, 5.0f};
     std::vector<float> y = {-5.0f, 5.0f};
     std::vector<float> z = {-5.0f, 5.0f};
 
     auto& scatter = ax.scatter3d(x, y, z);
-    vec3 min_b, max_b;
+    vec3  min_b, max_b;
     scatter.get_bounds(min_b, max_b);
 
     EXPECT_FLOAT_EQ(min_b.x, -5.0f);
@@ -473,7 +473,7 @@ TEST_F(Integration3DTest, ScatterBoundsSymmetric)
 TEST_F(Integration3DTest, AutoFit3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {-5.0f, 5.0f};
     std::vector<float> y = {-10.0f, 10.0f};
@@ -497,7 +497,7 @@ TEST_F(Integration3DTest, AutoFit3D)
 TEST_F(Integration3DTest, AutoFitWithMultipleSeries)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x1 = {0.0f, 1.0f};
     std::vector<float> y1 = {0.0f, 1.0f};
@@ -521,7 +521,7 @@ TEST_F(Integration3DTest, AutoFitWithMultipleSeries)
 TEST_F(Integration3DTest, ZoomLimitsScalesAxes)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(-1.0f, 1.0f);
     ax.ylim(-1.0f, 1.0f);
@@ -538,7 +538,7 @@ TEST_F(Integration3DTest, ZoomLimitsScalesAxes)
 TEST_F(Integration3DTest, ZoomLimitsOutExpandsAxes)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(-1.0f, 1.0f);
     ax.ylim(-1.0f, 1.0f);
@@ -557,7 +557,7 @@ TEST_F(Integration3DTest, ZoomLimitsOutExpandsAxes)
 TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(-5.0f, 5.0f);
     ax.ylim(-5.0f, 5.0f);
@@ -566,7 +566,7 @@ TEST_F(Integration3DTest, DataToNormalizedMatrixProducesValidTransform)
     mat4 model = ax.data_to_normalized_matrix();
 
     // The model matrix should not be identity (it maps data to normalized box)
-    mat4 identity = mat4_identity();
+    mat4 identity    = mat4_identity();
     bool is_identity = true;
     for (int i = 0; i < 16; ++i)
     {
@@ -591,9 +591,9 @@ TEST_F(Integration3DTest, BoxHalfSizeConstant)
 TEST_F(Integration3DTest, SurfaceColormapSetting)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const int nx = 5, ny = 5;
+    const int          nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny, 0.0f);
     for (int i = 0; i < nx; ++i)
         x_grid[i] = static_cast<float>(i);
@@ -613,9 +613,9 @@ TEST_F(Integration3DTest, ColormapSampling)
     // Sample at t=0 and t=1 for each colormap — should produce valid colors
     for (int cm = 0; cm <= static_cast<int>(ColormapType::Grayscale); ++cm)
     {
-        auto type = static_cast<ColormapType>(cm);
-        Color c0 = SurfaceSeries::sample_colormap(type, 0.0f);
-        Color c1 = SurfaceSeries::sample_colormap(type, 1.0f);
+        auto  type = static_cast<ColormapType>(cm);
+        Color c0   = SurfaceSeries::sample_colormap(type, 0.0f);
+        Color c1   = SurfaceSeries::sample_colormap(type, 1.0f);
 
         EXPECT_GE(c0.r, 0.0f);
         EXPECT_LE(c0.r, 1.0f);
@@ -635,9 +635,9 @@ TEST_F(Integration3DTest, ColormapSampling)
 TEST_F(Integration3DTest, ColormapRange)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const int nx = 5, ny = 5;
+    const int          nx = 5, ny = 5;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny, 0.0f);
     for (int i = 0; i < nx; ++i)
         x_grid[i] = static_cast<float>(i);
@@ -659,14 +659,14 @@ TEST_F(Integration3DTest, CameraAnimatorOrbitPath)
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam1;
-    cam1.azimuth = 0.0f;
+    cam1.azimuth   = 0.0f;
     cam1.elevation = 30.0f;
-    cam1.distance = 5.0f;
+    cam1.distance  = 5.0f;
 
     Camera cam2;
-    cam2.azimuth = 180.0f;
+    cam2.azimuth   = 180.0f;
     cam2.elevation = 30.0f;
-    cam2.distance = 5.0f;
+    cam2.distance  = 5.0f;
 
     animator.add_keyframe(0.0f, cam1);
     animator.add_keyframe(2.0f, cam2);
@@ -679,20 +679,20 @@ TEST_F(Integration3DTest, CameraAnimatorOrbitPath)
 TEST_F(Integration3DTest, CameraAnimatorTargetBinding)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     CameraAnimator animator;
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam1;
-    cam1.azimuth = 0.0f;
+    cam1.azimuth   = 0.0f;
     cam1.elevation = 30.0f;
-    cam1.distance = 5.0f;
+    cam1.distance  = 5.0f;
 
     Camera cam2;
-    cam2.azimuth = 360.0f;
+    cam2.azimuth   = 360.0f;
     cam2.elevation = 30.0f;
-    cam2.distance = 5.0f;
+    cam2.distance  = 5.0f;
 
     animator.add_keyframe(0.0f, cam1);
     animator.add_keyframe(4.0f, cam2);
@@ -709,9 +709,9 @@ TEST_F(Integration3DTest, CameraAnimatorTurntable)
     CameraAnimator animator;
 
     Camera base;
-    base.azimuth = 0.0f;
+    base.azimuth   = 0.0f;
     base.elevation = 30.0f;
-    base.distance = 5.0f;
+    base.distance  = 5.0f;
 
     animator.create_turntable(base, 4.0f);
 
@@ -729,9 +729,9 @@ TEST_F(Integration3DTest, CameraAnimatorSerialization)
     animator.set_path_mode(CameraPathMode::Orbit);
 
     Camera cam;
-    cam.azimuth = 45.0f;
+    cam.azimuth   = 45.0f;
     cam.elevation = 30.0f;
-    cam.distance = 7.0f;
+    cam.distance  = 7.0f;
     animator.add_keyframe(0.0f, cam);
 
     cam.azimuth = 135.0f;
@@ -750,7 +750,7 @@ TEST_F(Integration3DTest, CameraAnimatorSerialization)
 TEST_F(Integration3DTest, TickComputation3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
@@ -771,7 +771,7 @@ TEST_F(Integration3DTest, TickComputation3D)
 TEST_F(Integration3DTest, MixedSeriesTypesIn3DAxes)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f, 2.0f};
     std::vector<float> y = {0.0f, 1.0f, 0.5f};
@@ -788,7 +788,7 @@ TEST_F(Integration3DTest, MixedSeriesTypesIn3DAxes)
 TEST_F(Integration3DTest, ClearSeries3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
@@ -805,7 +805,7 @@ TEST_F(Integration3DTest, ClearSeries3D)
 TEST_F(Integration3DTest, RemoveSingleSeries3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0.0f, 1.0f};
     std::vector<float> y = {0.0f, 1.0f};
@@ -826,11 +826,11 @@ TEST_F(Integration3DTest, No2DRegressions)
 {
     auto& fig = app_->figure();
 
-    auto& ax2d = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {0.0f, 1.0f, 4.0f, 9.0f};
+    auto&              ax2d = fig.subplot(1, 1, 1);
+    std::vector<float> x    = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y    = {0.0f, 1.0f, 4.0f, 9.0f};
 
-    auto& line = ax2d.line(x, y).color(colors::blue).width(2.0f);
+    auto& line    = ax2d.line(x, y).color(colors::blue).width(2.0f);
     auto& scatter = ax2d.scatter(x, y).color(colors::red).size(5.0f);
 
     EXPECT_EQ(line.point_count(), 4u);
@@ -844,7 +844,7 @@ TEST_F(Integration3DTest, No2DRegressions)
 TEST_F(Integration3DTest, RenderScatter3DSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x, y, z;
     for (int i = 0; i < 100; ++i)
@@ -862,7 +862,7 @@ TEST_F(Integration3DTest, RenderScatter3DSmoke)
 TEST_F(Integration3DTest, RenderLine3DSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x, y, z;
     for (int i = 0; i < 50; ++i)
@@ -880,9 +880,9 @@ TEST_F(Integration3DTest, RenderLine3DSmoke)
 TEST_F(Integration3DTest, RenderSurfaceSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const int nx = 10, ny = 10;
+    const int          nx = 10, ny = 10;
     std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
     for (int i = 0; i < nx; ++i)
         x_grid[i] = static_cast<float>(i) - 5.0f;
@@ -900,7 +900,7 @@ TEST_F(Integration3DTest, RenderSurfaceSmoke)
 TEST_F(Integration3DTest, RenderMeshSmoke)
 {
     auto& fig = app_->figure({.width = 128, .height = 128});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     // Simple quad (2 triangles)
     std::vector<float> vertices = {
@@ -918,15 +918,15 @@ TEST_F(Integration3DTest, RenderMixed2DAnd3DSmoke)
 {
     auto& fig = app_->figure({.width = 256, .height = 512});
 
-    auto& ax2d = fig.subplot(2, 1, 1);
-    std::vector<float> x2d = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> y2d = {0.0f, 1.0f, 0.5f, 1.5f};
+    auto&              ax2d = fig.subplot(2, 1, 1);
+    std::vector<float> x2d  = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<float> y2d  = {0.0f, 1.0f, 0.5f, 1.5f};
     ax2d.line(x2d, y2d).color(colors::blue);
 
-    auto& ax3d = fig.subplot3d(2, 1, 2);
-    std::vector<float> x3d = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y3d = {0.0f, 1.0f, 0.5f};
-    std::vector<float> z3d = {0.0f, 0.5f, 1.0f};
+    auto&              ax3d = fig.subplot3d(2, 1, 2);
+    std::vector<float> x3d  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y3d  = {0.0f, 1.0f, 0.5f};
+    std::vector<float> z3d  = {0.0f, 0.5f, 1.0f};
     ax3d.scatter3d(x3d, y3d, z3d).color(colors::red);
 
     EXPECT_NO_FATAL_FAILURE(app_->run());
@@ -937,7 +937,7 @@ TEST_F(Integration3DTest, RenderMixed2DAnd3DSmoke)
 TEST_F(Integration3DTest, SinglePoint3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {1.0f};
     std::vector<float> y = {2.0f};
@@ -955,7 +955,7 @@ TEST_F(Integration3DTest, SinglePoint3D)
 TEST_F(Integration3DTest, EmptyAxes3DAutoFit)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     // auto_fit on empty axes should not crash
     EXPECT_NO_FATAL_FAILURE(ax.auto_fit());
@@ -964,16 +964,16 @@ TEST_F(Integration3DTest, EmptyAxes3DAutoFit)
 TEST_F(Integration3DTest, LargeDataset3D)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    const size_t N = 10000;
+    const size_t       N = 10000;
     std::vector<float> x(N), y(N), z(N);
     for (size_t i = 0; i < N; ++i)
     {
         float t = static_cast<float>(i) * 0.001f;
-        x[i] = std::cos(t) * t;
-        y[i] = std::sin(t) * t;
-        z[i] = t;
+        x[i]    = std::cos(t) * t;
+        y[i]    = std::sin(t) * t;
+        z[i]    = t;
     }
 
     auto& scatter = ax.scatter3d(x, y, z);
@@ -983,7 +983,7 @@ TEST_F(Integration3DTest, LargeDataset3D)
 TEST_F(Integration3DTest, NegativeAxisLimits)
 {
     auto& fig = app_->figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     ax.xlim(-100.0f, -50.0f);
     ax.ylim(-200.0f, -100.0f);

@@ -93,28 +93,28 @@ TEST(Workspace3DRoundTrip, SingleAxes3D)
     fig.title = "3D Test";
 
     WorkspaceData::AxisState ax;
-    ax.is_3d = true;
-    ax.x_min = -10.0f;
-    ax.x_max = 10.0f;
-    ax.y_min = -5.0f;
-    ax.y_max = 5.0f;
+    ax.is_3d   = true;
+    ax.x_min   = -10.0f;
+    ax.x_max   = 10.0f;
+    ax.y_min   = -5.0f;
+    ax.y_max   = 5.0f;
     ax.x_label = "X Axis";
     ax.y_label = "Y Axis";
-    ax.title = "3D Plot";
+    ax.title   = "3D Plot";
     fig.axes.push_back(ax);
 
     WorkspaceData::Axes3DState a3;
-    a3.axes_index = 0;
-    a3.z_min = -3.0f;
-    a3.z_max = 3.0f;
-    a3.z_label = "Z Axis";
-    a3.camera_state = "{\"azimuth\":45,\"elevation\":30}";
-    a3.grid_planes = 7;
+    a3.axes_index        = 0;
+    a3.z_min             = -3.0f;
+    a3.z_max             = 3.0f;
+    a3.z_label           = "Z Axis";
+    a3.camera_state      = "{\"azimuth\":45,\"elevation\":30}";
+    a3.grid_planes       = 7;
     a3.show_bounding_box = true;
-    a3.lighting_enabled = false;
-    a3.light_dir_x = 0.5f;
-    a3.light_dir_y = 0.7f;
-    a3.light_dir_z = 1.0f;
+    a3.lighting_enabled  = false;
+    a3.light_dir_x       = 0.5f;
+    a3.light_dir_y       = 0.7f;
+    a3.light_dir_z       = 1.0f;
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -171,8 +171,8 @@ TEST(Workspace3DRoundTrip, Mixed2DAnd3DAxes)
 
     WorkspaceData::Axes3DState a3;
     a3.axes_index = 1;
-    a3.z_min = -2.0f;
-    a3.z_max = 2.0f;
+    a3.z_min      = -2.0f;
+    a3.z_max      = 2.0f;
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -200,25 +200,25 @@ TEST(Workspace3DRoundTrip, Series3DMetadata)
     data.version = WorkspaceData::FORMAT_VERSION;
 
     WorkspaceData::FigureState fig;
-    WorkspaceData::AxisState ax;
+    WorkspaceData::AxisState   ax;
     ax.is_3d = true;
     fig.axes.push_back(ax);
 
     WorkspaceData::SeriesState ss;
-    ss.type = "surface";
-    ss.name = "sin_cos";
-    ss.colormap_type = 1;  // Viridis
-    ss.ambient = 0.2f;
-    ss.specular = 0.5f;
-    ss.shininess = 64.0f;
-    ss.point_count = 10000;
+    ss.type          = "surface";
+    ss.name          = "sin_cos";
+    ss.colormap_type = 1;   // Viridis
+    ss.ambient       = 0.2f;
+    ss.specular      = 0.5f;
+    ss.shininess     = 64.0f;
+    ss.point_count   = 10000;
     fig.series.push_back(ss);
 
     WorkspaceData::SeriesState ms;
-    ms.type = "mesh";
-    ms.name = "custom_mesh";
-    ms.ambient = 0.1f;
-    ms.specular = 0.3f;
+    ms.type      = "mesh";
+    ms.name      = "custom_mesh";
+    ms.ambient   = 0.1f;
+    ms.specular  = 0.3f;
     ms.shininess = 32.0f;
     fig.series.push_back(ms);
 
@@ -250,7 +250,7 @@ TEST(Workspace3DRoundTrip, Series3DMetadata)
 TEST(Workspace3DRoundTrip, ModeTransitionState)
 {
     WorkspaceData data;
-    data.version = WorkspaceData::FORMAT_VERSION;
+    data.version               = WorkspaceData::FORMAT_VERSION;
     data.mode_transition_state = "{\"duration\":0.8,\"direction\":1}";
 
     std::string path = "/tmp/spectra_test_ws3d_mt.spectra";
@@ -325,7 +325,7 @@ TEST(Workspace3DBackwardCompat, V3FileLoadsWithDefaults)
 TEST(Workspace3DBackwardCompat, FutureVersionRejected)
 {
     std::string future_json = R"({"version": 99})";
-    std::string path = "/tmp/spectra_test_ws3d_future.spectra";
+    std::string path        = "/tmp/spectra_test_ws3d_future.spectra";
     {
         std::ofstream f(path);
         f << future_json;
@@ -356,9 +356,9 @@ TEST(Workspace3DMultiple, TwoAxes3DInOneFigure)
         fig.axes.push_back(ax);
 
         WorkspaceData::Axes3DState a3;
-        a3.axes_index = static_cast<size_t>(i);
-        a3.z_min = static_cast<float>(-i - 2);
-        a3.z_max = static_cast<float>(i + 2);
+        a3.axes_index  = static_cast<size_t>(i);
+        a3.z_min       = static_cast<float>(-i - 2);
+        a3.z_max       = static_cast<float>(i + 2);
         a3.grid_planes = (i == 0) ? 1 : 7;
         fig.axes_3d.push_back(a3);
     }
@@ -387,10 +387,10 @@ TEST(Workspace3DMultiple, TwoAxes3DInOneFigure)
 TEST(Workspace3DCamera, CameraStateRoundTrip)
 {
     Camera cam;
-    cam.azimuth = 60.0f;
-    cam.elevation = 45.0f;
-    cam.distance = 12.0f;
-    cam.fov = 50.0f;
+    cam.azimuth         = 60.0f;
+    cam.elevation       = 45.0f;
+    cam.distance        = 12.0f;
+    cam.fov             = 50.0f;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
     cam.update_position_from_orbit();
 
@@ -407,21 +407,21 @@ TEST(Workspace3DCamera, CameraStateRoundTrip)
 TEST(Workspace3DCamera, CameraInWorkspaceRoundTrip)
 {
     Camera cam;
-    cam.azimuth = 120.0f;
+    cam.azimuth   = 120.0f;
     cam.elevation = 15.0f;
-    cam.distance = 20.0f;
+    cam.distance  = 20.0f;
     cam.update_position_from_orbit();
 
     WorkspaceData data;
     data.version = WorkspaceData::FORMAT_VERSION;
 
     WorkspaceData::FigureState fig;
-    WorkspaceData::AxisState ax;
+    WorkspaceData::AxisState   ax;
     ax.is_3d = true;
     fig.axes.push_back(ax);
 
     WorkspaceData::Axes3DState a3;
-    a3.axes_index = 0;
+    a3.axes_index   = 0;
     a3.camera_state = cam.serialize();
     fig.axes_3d.push_back(a3);
 
@@ -451,15 +451,15 @@ TEST(Workspace3DSpecialChars, LabelsWithSpecialChars)
     data.version = WorkspaceData::FORMAT_VERSION;
 
     WorkspaceData::FigureState fig;
-    WorkspaceData::AxisState ax;
-    ax.is_3d = true;
+    WorkspaceData::AxisState   ax;
+    ax.is_3d   = true;
     ax.x_label = "X \"axis\"";
     ax.y_label = "Y\\axis";
     fig.axes.push_back(ax);
 
     WorkspaceData::Axes3DState a3;
     a3.axes_index = 0;
-    a3.z_label = "Z\nlabel";
+    a3.z_label    = "Z\nlabel";
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -485,16 +485,16 @@ TEST(Workspace3DLighting, LightingDisabled)
     data.version = WorkspaceData::FORMAT_VERSION;
 
     WorkspaceData::FigureState fig;
-    WorkspaceData::AxisState ax;
+    WorkspaceData::AxisState   ax;
     ax.is_3d = true;
     fig.axes.push_back(ax);
 
     WorkspaceData::Axes3DState a3;
-    a3.axes_index = 0;
+    a3.axes_index       = 0;
     a3.lighting_enabled = false;
-    a3.light_dir_x = 0.0f;
-    a3.light_dir_y = 1.0f;
-    a3.light_dir_z = 0.0f;
+    a3.light_dir_x      = 0.0f;
+    a3.light_dir_y      = 1.0f;
+    a3.light_dir_z      = 0.0f;
     fig.axes_3d.push_back(a3);
 
     data.figures.push_back(fig);
@@ -517,15 +517,15 @@ TEST(Workspace3DLighting, LightingDisabled)
 TEST(Workspace3DFull, CompleteStateRoundTrip)
 {
     WorkspaceData data;
-    data.version = WorkspaceData::FORMAT_VERSION;
-    data.theme_name = "light";
-    data.active_figure_index = 0;
+    data.version               = WorkspaceData::FORMAT_VERSION;
+    data.theme_name            = "light";
+    data.active_figure_index   = 0;
     data.mode_transition_state = "{\"duration\":1.0}";
 
     WorkspaceData::FigureState fig;
-    fig.title = "Full 3D Test";
-    fig.width = 1920;
-    fig.height = 1080;
+    fig.title     = "Full 3D Test";
+    fig.width     = 1920;
+    fig.height    = 1080;
     fig.grid_rows = 2;
     fig.grid_cols = 2;
 
@@ -546,15 +546,15 @@ TEST(Workspace3DFull, CompleteStateRoundTrip)
     fig.axes.push_back(ax3d);
 
     WorkspaceData::Axes3DState a3;
-    a3.axes_index = 1;
-    a3.z_min = -3;
-    a3.z_max = 3;
-    a3.z_label = "Depth";
-    a3.camera_state = "{\"az\":45}";
-    a3.grid_planes = 3;  // XY | XZ
+    a3.axes_index        = 1;
+    a3.z_min             = -3;
+    a3.z_max             = 3;
+    a3.z_label           = "Depth";
+    a3.camera_state      = "{\"az\":45}";
+    a3.grid_planes       = 3;   // XY | XZ
     a3.show_bounding_box = false;
-    a3.lighting_enabled = true;
-    a3.light_dir_x = 0.5f;
+    a3.lighting_enabled  = true;
+    a3.light_dir_x       = 0.5f;
     fig.axes_3d.push_back(a3);
 
     // 2D series
@@ -565,12 +565,12 @@ TEST(Workspace3DFull, CompleteStateRoundTrip)
 
     // 3D series
     WorkspaceData::SeriesState s3d;
-    s3d.type = "surface";
-    s3d.name = "3d_surface";
-    s3d.colormap_type = 2;  // Plasma
-    s3d.ambient = 0.15f;
-    s3d.specular = 0.4f;
-    s3d.shininess = 48.0f;
+    s3d.type          = "surface";
+    s3d.name          = "3d_surface";
+    s3d.colormap_type = 2;   // Plasma
+    s3d.ambient       = 0.15f;
+    s3d.specular      = 0.4f;
+    s3d.shininess     = 48.0f;
     fig.series.push_back(s3d);
 
     data.figures.push_back(fig);

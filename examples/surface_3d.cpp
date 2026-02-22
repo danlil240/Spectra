@@ -37,7 +37,7 @@ int main()
     }
 
     // Create surface plot with colormap
-    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis); // .opacity(0.9f);
+    ax.surface(x_grid, y_grid, z_values).colormap(ColormapType::Viridis);  // .opacity(0.9f);
 
     ax.auto_fit();
 

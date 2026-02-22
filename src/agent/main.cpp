@@ -145,11 +145,15 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     std::vector<float> ux(xs.begin(), xs.end());
                     std::vector<float> uy(ys.begin(), ys.end());
                     std::sort(ux.begin(), ux.end());
-                    ux.erase(std::unique(ux.begin(), ux.end(),
-                        [](float a, float b){ return std::abs(a - b) < 1e-6f; }), ux.end());
+                    ux.erase(std::unique(ux.begin(),
+                                         ux.end(),
+                                         [](float a, float b) { return std::abs(a - b) < 1e-6f; }),
+                             ux.end());
                     std::sort(uy.begin(), uy.end());
-                    uy.erase(std::unique(uy.begin(), uy.end(),
-                        [](float a, float b){ return std::abs(a - b) < 1e-6f; }), uy.end());
+                    uy.erase(std::unique(uy.begin(),
+                                         uy.end(),
+                                         [](float a, float b) { return std::abs(a - b) < 1e-6f; }),
+                             uy.end());
 
                     // Reorder Z into row-major (y-row, x-col) order expected by SurfaceSeries
                     size_t ncols = ux.size();
@@ -160,11 +164,13 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                         // Find column index for xs[k]
                         auto cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
                         size_t ci = static_cast<size_t>(std::distance(ux.begin(), cit));
-                        if (ci >= ncols) ci = ncols - 1;
+                        if (ci >= ncols)
+                            ci = ncols - 1;
                         // Find row index for ys[k]
                         auto rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
                         size_t ri = static_cast<size_t>(std::distance(uy.begin(), rit));
-                        if (ri >= nrows) ri = nrows - 1;
+                        if (ri >= nrows)
+                            ri = nrows - 1;
                         z_grid[ri * ncols + ci] = zs[k];
                     }
 
@@ -751,10 +757,12 @@ int main(int argc, char* argv[])
             session.queue_detach({fid, w, h, title, sx, sy});
         });
     window_mgr->set_tab_move_handler(
-        [&session](
-            spectra::FigureId fid, uint32_t target_wid, int drop_zone, float local_x, float local_y,
-            spectra::FigureId target_figure_id)
-        {
+        [&session](spectra::FigureId fid,
+                   uint32_t target_wid,
+                   int drop_zone,
+                   float local_x,
+                   float local_y,
+                   spectra::FigureId target_figure_id) {
             session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
         });
 
@@ -1112,7 +1120,8 @@ int main(int argc, char* argv[])
                                 // Apply directly to the matching live Figure object
                                 // (fast path for axis limits, grid toggle, series data).
                                 for (size_t mi = 0;
-                                     mi < assigned_figures.size() && mi < all_ids.size(); ++mi)
+                                     mi < assigned_figures.size() && mi < all_ids.size();
+                                     ++mi)
                                 {
                                     if (assigned_figures[mi] == op.figure_id)
                                     {

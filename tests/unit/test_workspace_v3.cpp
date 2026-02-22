@@ -10,46 +10,46 @@ using namespace spectra;
 static WorkspaceData make_v3_workspace()
 {
     WorkspaceData data;
-    data.version = WorkspaceData::FORMAT_VERSION;
-    data.theme_name = "dark";
+    data.version             = WorkspaceData::FORMAT_VERSION;
+    data.theme_name          = "dark";
     data.active_figure_index = 0;
-    data.data_palette_name = "okabe_ito";
+    data.data_palette_name   = "okabe_ito";
 
     WorkspaceData::FigureState fig;
-    fig.title = "Test Figure";
-    fig.width = 1920;
-    fig.height = 1080;
-    fig.grid_rows = 2;
-    fig.grid_cols = 2;
-    fig.is_modified = true;
+    fig.title            = "Test Figure";
+    fig.width            = 1920;
+    fig.height           = 1080;
+    fig.grid_rows        = 2;
+    fig.grid_cols        = 2;
+    fig.is_modified      = true;
     fig.custom_tab_title = "My Tab";
 
     WorkspaceData::AxisState ax;
-    ax.x_min = -10.0f;
-    ax.x_max = 10.0f;
-    ax.y_min = -5.0f;
-    ax.y_max = 5.0f;
-    ax.auto_fit = false;
+    ax.x_min        = -10.0f;
+    ax.x_max        = 10.0f;
+    ax.y_min        = -5.0f;
+    ax.y_max        = 5.0f;
+    ax.auto_fit     = false;
     ax.grid_visible = true;
-    ax.x_label = "Time (s)";
-    ax.y_label = "Amplitude";
-    ax.title = "Signal";
+    ax.x_label      = "Time (s)";
+    ax.y_label      = "Amplitude";
+    ax.title        = "Signal";
     fig.axes.push_back(ax);
 
     WorkspaceData::SeriesState ser;
-    ser.name = "sin(x)";
-    ser.type = "line";
-    ser.color_r = 0.2f;
-    ser.color_g = 0.4f;
-    ser.color_b = 0.8f;
-    ser.color_a = 1.0f;
-    ser.line_width = 2.5f;
-    ser.marker_size = 8.0f;
-    ser.visible = true;
-    ser.point_count = 1000;
-    ser.opacity = 0.9f;
-    ser.line_style = 2;    // Dashed
-    ser.marker_style = 1;  // Circle
+    ser.name         = "sin(x)";
+    ser.type         = "line";
+    ser.color_r      = 0.2f;
+    ser.color_g      = 0.4f;
+    ser.color_b      = 0.8f;
+    ser.color_a      = 1.0f;
+    ser.line_width   = 2.5f;
+    ser.marker_size  = 8.0f;
+    ser.visible      = true;
+    ser.point_count  = 1000;
+    ser.opacity      = 0.9f;
+    ser.line_style   = 2;   // Dashed
+    ser.marker_style = 1;   // Circle
     ser.dash_pattern = {10.0f, 5.0f, 3.0f, 5.0f};
     fig.series.push_back(ser);
 
@@ -61,7 +61,7 @@ static WorkspaceData make_v3_workspace()
 
 TEST(WorkspaceV3, RoundTrip)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_v3.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -106,20 +106,20 @@ TEST(WorkspaceV3, RoundTrip)
 
 TEST(WorkspaceV3, V2BackwardCompat)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_v2compat.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_v2compat.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
     // Save a v2-style workspace (manually set version to 2)
     WorkspaceData v2data;
-    v2data.version = 2;
+    v2data.version    = 2;
     v2data.theme_name = "light";
 
     WorkspaceData::FigureState fig;
     fig.title = "V2 Figure";
     WorkspaceData::SeriesState ser;
-    ser.name = "data";
-    ser.type = "line";
+    ser.name    = "data";
+    ser.type    = "line";
     ser.opacity = 0.5f;
     fig.series.push_back(ser);
     v2data.figures.push_back(fig);
@@ -141,8 +141,8 @@ TEST(WorkspaceV3, V2BackwardCompat)
     // Series should have default v3 fields
     ASSERT_EQ(loaded.figures.size(), 1u);
     ASSERT_EQ(loaded.figures[0].series.size(), 1u);
-    EXPECT_EQ(loaded.figures[0].series[0].line_style, 1);    // Default Solid
-    EXPECT_EQ(loaded.figures[0].series[0].marker_style, 0);  // Default None
+    EXPECT_EQ(loaded.figures[0].series[0].line_style, 1);     // Default Solid
+    EXPECT_EQ(loaded.figures[0].series[0].marker_style, 0);   // Default None
     EXPECT_TRUE(loaded.figures[0].series[0].dash_pattern.empty());
 
     std::filesystem::remove(path);
@@ -152,7 +152,7 @@ TEST(WorkspaceV3, V2BackwardCompat)
 
 TEST(WorkspaceV3, FutureVersionRejected)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_future.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_future.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -172,11 +172,11 @@ TEST(WorkspaceV3, FutureVersionRejected)
 
 TEST(WorkspaceV3, AxisLinkState)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_axislink.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_axislink.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
+    auto data            = make_v3_workspace();
     data.axis_link_state = "groups:1,axis:3,members:0,1";
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -192,7 +192,7 @@ TEST(WorkspaceV3, AxisLinkState)
 
 TEST(WorkspaceV3, TransformPipeline)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_transforms.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_transforms.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -200,10 +200,10 @@ TEST(WorkspaceV3, TransformPipeline)
 
     WorkspaceData::TransformState ts;
     ts.figure_index = 0;
-    ts.axes_index = 0;
-    ts.steps.push_back({1, 0.0f, true});     // Log10
-    ts.steps.push_back({10, 2.5f, true});    // Scale(2.5)
-    ts.steps.push_back({11, -1.0f, false});  // Offset(-1.0), disabled
+    ts.axes_index   = 0;
+    ts.steps.push_back({1, 0.0f, true});      // Log10
+    ts.steps.push_back({10, 2.5f, true});     // Scale(2.5)
+    ts.steps.push_back({11, -1.0f, false});   // Offset(-1.0), disabled
     data.transforms.push_back(ts);
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -236,15 +236,15 @@ TEST(WorkspaceV3, MultipleTransformPipelines)
 
     WorkspaceData::TransformState ts1;
     ts1.figure_index = 0;
-    ts1.axes_index = 0;
+    ts1.axes_index   = 0;
     ts1.steps.push_back({1, 0.0f, true});
     data.transforms.push_back(ts1);
 
     WorkspaceData::TransformState ts2;
     ts2.figure_index = 0;
-    ts2.axes_index = 1;
-    ts2.steps.push_back({4, 0.0f, true});  // Negate
-    ts2.steps.push_back({5, 0.0f, true});  // Normalize
+    ts2.axes_index   = 1;
+    ts2.steps.push_back({4, 0.0f, true});   // Negate
+    ts2.steps.push_back({5, 0.0f, true});   // Normalize
     data.transforms.push_back(ts2);
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -262,7 +262,7 @@ TEST(WorkspaceV3, MultipleTransformPipelines)
 
 TEST(WorkspaceV3, ShortcutOverrides)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_shortcuts.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_shortcuts.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -294,18 +294,18 @@ TEST(WorkspaceV3, ShortcutOverrides)
 
 TEST(WorkspaceV3, TimelineState)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_timeline.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_timeline.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
-    data.timeline.playhead = 3.5f;
-    data.timeline.duration = 20.0f;
-    data.timeline.fps = 60.0f;
-    data.timeline.loop_mode = 2;  // PingPong
+    auto data                = make_v3_workspace();
+    data.timeline.playhead   = 3.5f;
+    data.timeline.duration   = 20.0f;
+    data.timeline.fps        = 60.0f;
+    data.timeline.loop_mode  = 2;   // PingPong
     data.timeline.loop_start = 1.0f;
-    data.timeline.loop_end = 15.0f;
-    data.timeline.playing = true;
+    data.timeline.loop_end   = 15.0f;
+    data.timeline.playing    = true;
 
     ASSERT_TRUE(Workspace::save(path_str, data));
 
@@ -327,11 +327,11 @@ TEST(WorkspaceV3, TimelineState)
 
 TEST(WorkspaceV3, PluginState)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_plugins.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_plugins.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
+    auto data         = make_v3_workspace();
     data.plugin_state = "plugin:MyPlugin,enabled:true";
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -347,11 +347,11 @@ TEST(WorkspaceV3, PluginState)
 
 TEST(WorkspaceV3, DataPaletteName)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_palette.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_palette.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
+    auto data              = make_v3_workspace();
     data.data_palette_name = "tol_bright";
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -367,7 +367,7 @@ TEST(WorkspaceV3, DataPaletteName)
 
 TEST(WorkspaceV3, EmptyDashPattern)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_empty_dash.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_empty_dash.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -385,11 +385,11 @@ TEST(WorkspaceV3, EmptyDashPattern)
 
 TEST(WorkspaceV3, SingleDashValue)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_single_dash.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_single_dash.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
+    auto data                              = make_v3_workspace();
     data.figures[0].series[0].dash_pattern = {5.0f};
 
     ASSERT_TRUE(Workspace::save(path_str, data));
@@ -406,39 +406,39 @@ TEST(WorkspaceV3, SingleDashValue)
 
 TEST(WorkspaceV3, FullStateRoundTrip)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_full_v3.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_full_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
     auto data = make_v3_workspace();
 
     // Fill all v3 fields
-    data.axis_link_state = "groups:empty";
+    data.axis_link_state   = "groups:empty";
     data.data_palette_name = "wong";
-    data.plugin_state = "plugins:empty";
+    data.plugin_state      = "plugins:empty";
 
-    data.timeline.playhead = 5.0f;
-    data.timeline.duration = 30.0f;
-    data.timeline.fps = 24.0f;
-    data.timeline.loop_mode = 1;
+    data.timeline.playhead   = 5.0f;
+    data.timeline.duration   = 30.0f;
+    data.timeline.fps        = 24.0f;
+    data.timeline.loop_mode  = 1;
     data.timeline.loop_start = 2.0f;
-    data.timeline.loop_end = 28.0f;
-    data.timeline.playing = false;
+    data.timeline.loop_end   = 28.0f;
+    data.timeline.playing    = false;
 
     data.shortcut_overrides.push_back({"cmd.a", "Ctrl+A", false});
     data.shortcut_overrides.push_back({"cmd.b", "", true});
 
     WorkspaceData::TransformState ts;
     ts.figure_index = 0;
-    ts.axes_index = 0;
+    ts.axes_index   = 0;
     ts.steps.push_back({3, 0.0f, true});
     data.transforms.push_back(ts);
 
     data.interaction.crosshair_enabled = true;
-    data.interaction.tooltip_enabled = false;
+    data.interaction.tooltip_enabled   = false;
     WorkspaceData::InteractionState::MarkerEntry marker;
-    marker.data_x = 3.14f;
-    marker.data_y = 0.0f;
+    marker.data_x       = 3.14f;
+    marker.data_y       = 0.0f;
     marker.series_label = "sin(x)";
     data.interaction.markers.push_back(marker);
 
@@ -480,7 +480,7 @@ TEST(WorkspaceV3, FullStateRoundTrip)
 
 TEST(WorkspaceV3, EmptyWorkspace)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_empty_v3.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_empty_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -503,14 +503,14 @@ TEST(WorkspaceV3, EmptyWorkspace)
 
 TEST(WorkspaceV3, SpecialCharsInStrings)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_special_v3.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_special_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
-    auto data = make_v3_workspace();
-    data.figures[0].title = "Test \"quoted\" title";
+    auto data                      = make_v3_workspace();
+    data.figures[0].title          = "Test \"quoted\" title";
     data.figures[0].series[0].name = "sin(x) \\ cos(x)";
-    data.data_palette_name = "palette\"with\"quotes";
+    data.data_palette_name         = "palette\"with\"quotes";
 
     ASSERT_TRUE(Workspace::save(path_str, data));
 
@@ -526,7 +526,7 @@ TEST(WorkspaceV3, SpecialCharsInStrings)
 
 TEST(WorkspaceV3, MultipleFigures)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_multi_fig_v3.spectra";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_multi_fig_v3.spectra";
     auto path_str = path.string();
     std::filesystem::remove(path);
 
@@ -534,14 +534,14 @@ TEST(WorkspaceV3, MultipleFigures)
 
     // Add a second figure
     WorkspaceData::FigureState fig2;
-    fig2.title = "Figure 2";
-    fig2.width = 800;
+    fig2.title  = "Figure 2";
+    fig2.width  = 800;
     fig2.height = 600;
     WorkspaceData::SeriesState ser2;
-    ser2.name = "cos(x)";
-    ser2.type = "scatter";
-    ser2.line_style = 0;
-    ser2.marker_style = 3;  // Diamond
+    ser2.name         = "cos(x)";
+    ser2.type         = "scatter";
+    ser2.line_style   = 0;
+    ser2.marker_style = 3;   // Diamond
     fig2.series.push_back(ser2);
     data.figures.push_back(fig2);
 

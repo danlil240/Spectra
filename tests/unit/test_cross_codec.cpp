@@ -1,8 +1,7 @@
-#include <gtest/gtest.h>
-
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <string>
 #include <vector>
 
@@ -24,7 +23,7 @@ static std::string cross_dir()
 
 static std::vector<uint8_t> read_bin(const std::string& name)
 {
-    auto path = fs::path(cross_dir()) / name;
+    auto          path = fs::path(cross_dir()) / name;
     std::ifstream f(path, std::ios::binary);
     if (!f)
         return {};
@@ -35,17 +34,16 @@ static void write_bin(const std::string& name, const std::vector<uint8_t>& data)
 {
     auto dir = fs::path(cross_dir());
     fs::create_directories(dir);
-    auto path = dir / name;
+    auto          path = dir / name;
     std::ofstream f(path, std::ios::binary);
-    f.write(reinterpret_cast<const char*>(data.data()),
-            static_cast<std::streamsize>(data.size()));
+    f.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
 // ─── Phase 1: C++ writes payloads for Python to decode ───────────────────────
 
 class CrossCodecCppWrite : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override { fs::create_directories(cross_dir()); }
 };
 
@@ -54,9 +52,9 @@ TEST_F(CrossCodecCppWrite, WriteHello)
     HelloPayload hp;
     hp.protocol_major = 1;
     hp.protocol_minor = 0;
-    hp.agent_build = "test-cross-cpp";
-    hp.capabilities = 0;
-    hp.client_type = "agent";
+    hp.agent_build    = "test-cross-cpp";
+    hp.capabilities   = 0;
+    hp.client_type    = "agent";
     write_bin("cpp_hello.bin", encode_hello(hp));
 }
 
@@ -64,7 +62,7 @@ TEST_F(CrossCodecCppWrite, WriteRespFigureCreated)
 {
     RespFigureCreatedPayload rp;
     rp.request_id = 7;
-    rp.figure_id = 42;
+    rp.figure_id  = 42;
     write_bin("cpp_resp_figure_created.bin", encode_resp_figure_created(rp));
 }
 
@@ -79,7 +77,7 @@ TEST_F(CrossCodecCppWrite, WriteRespAxesCreated)
 TEST_F(CrossCodecCppWrite, WriteRespSeriesAdded)
 {
     RespSeriesAddedPayload rp;
-    rp.request_id = 9;
+    rp.request_id   = 9;
     rp.series_index = 5;
     write_bin("cpp_resp_series_added.bin", encode_resp_series_added(rp));
 }
@@ -88,8 +86,8 @@ TEST_F(CrossCodecCppWrite, WriteRespErr)
 {
     RespErrPayload rp;
     rp.request_id = 10;
-    rp.code = 404;
-    rp.message = "Figure not found";
+    rp.code       = 404;
+    rp.message    = "Figure not found";
     write_bin("cpp_resp_err.bin", encode_resp_err(rp));
 }
 
@@ -104,19 +102,19 @@ TEST_F(CrossCodecCppWrite, WriteRespFigureList)
 TEST_F(CrossCodecCppWrite, WriteWelcome)
 {
     WelcomePayload wp;
-    wp.session_id = 12345;
-    wp.window_id = 0;
-    wp.process_id = 67890;
+    wp.session_id   = 12345;
+    wp.window_id    = 0;
+    wp.process_id   = 67890;
     wp.heartbeat_ms = 5000;
-    wp.mode = "multiproc";
+    wp.mode         = "multiproc";
     write_bin("cpp_welcome.bin", encode_welcome(wp));
 }
 
 TEST_F(CrossCodecCppWrite, WriteReqCreateFigure)
 {
     ReqCreateFigurePayload rp;
-    rp.title = "Cross Test";
-    rp.width = 1024;
+    rp.title  = "Cross Test";
+    rp.width  = 1024;
     rp.height = 768;
     write_bin("cpp_req_create_figure.bin", encode_req_create_figure(rp));
 }
@@ -124,10 +122,10 @@ TEST_F(CrossCodecCppWrite, WriteReqCreateFigure)
 TEST_F(CrossCodecCppWrite, WriteReqSetData)
 {
     ReqSetDataPayload rp;
-    rp.figure_id = 42;
+    rp.figure_id    = 42;
     rp.series_index = 0;
-    rp.dtype = 0;
-    rp.data = {1.0f, 10.0f, 2.0f, 20.0f, 3.0f, 30.0f, 4.0f, 40.0f, 5.0f, 50.0f};
+    rp.dtype        = 0;
+    rp.data         = {1.0f, 10.0f, 2.0f, 20.0f, 3.0f, 30.0f, 4.0f, 40.0f, 5.0f, 50.0f};
     write_bin("cpp_req_set_data.bin", encode_req_set_data(rp));
 }
 
@@ -135,14 +133,13 @@ TEST_F(CrossCodecCppWrite, WriteReqSetData)
 
 class CrossCodecCppRead : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         // Skip if Python hasn't written the files yet
         if (!fs::exists(fs::path(cross_dir()) / "hello.bin"))
             GTEST_SKIP() << "Python payloads not found in " << cross_dir()
-                         << ". Run: python tests/test_cross_codec.py --write "
-                         << cross_dir();
+                         << ". Run: python tests/test_cross_codec.py --write " << cross_dir();
     }
 };
 

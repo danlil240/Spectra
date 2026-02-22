@@ -11,7 +11,7 @@ class InputHandlerTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        fig_ = std::make_unique<Figure>(FigureConfig{800, 600});
+        fig_     = std::make_unique<Figure>(FigureConfig{800, 600});
         auto& ax = fig_->subplot(1, 1, 1);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(0.0f, 10.0f);
@@ -26,7 +26,7 @@ class InputHandlerTest : public ::testing::Test
     Axes& axes() { return *fig_->axes()[0]; }
 
     std::unique_ptr<Figure> fig_;
-    InputHandler handler_;
+    InputHandler            handler_;
 };
 
 // ─── screen_to_data ─────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ TEST_F(InputHandlerTest, ScrollZoomIn)
 
     // Range should shrink
     float range_before = xlim_before.max - xlim_before.min;
-    float range_after = xlim_after.max - xlim_after.min;
+    float range_after  = xlim_after.max - xlim_after.min;
     EXPECT_LT(range_after, range_before);
 }
 
@@ -138,7 +138,7 @@ TEST_F(InputHandlerTest, ScrollZoomOut)
     auto xlim_after = axes().x_limits();
 
     float range_before = xlim_before.max - xlim_before.min;
-    float range_after = xlim_after.max - xlim_after.min;
+    float range_after  = xlim_after.max - xlim_after.min;
     EXPECT_GT(range_after, range_before);
 }
 
@@ -188,7 +188,7 @@ TEST_F(InputHandlerTest, BoxZoomCancelledByEscape)
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
     // Press Escape
-    handler_.on_key(256, 1, 0);  // KEY_ESCAPE = 256
+    handler_.on_key(256, 1, 0);   // KEY_ESCAPE = 256
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
 
     // Limits should be unchanged
@@ -280,7 +280,7 @@ class MultiAxesInputTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        fig_ = std::make_unique<Figure>(FigureConfig{800, 600});
+        fig_      = std::make_unique<Figure>(FigureConfig{800, 600});
         auto& ax1 = fig_->subplot(1, 2, 1);
         auto& ax2 = fig_->subplot(1, 2, 2);
         ax1.xlim(0.0f, 10.0f);
@@ -293,7 +293,7 @@ class MultiAxesInputTest : public ::testing::Test
     }
 
     std::unique_ptr<Figure> fig_;
-    InputHandler handler_;
+    InputHandler            handler_;
 };
 
 TEST_F(MultiAxesInputTest, ClickSelectsCorrectAxes)
@@ -335,6 +335,6 @@ TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes)
 
     // Second axes should have zoomed
     float range_before = xlim2_before.max - xlim2_before.min;
-    float range_after = xlim2_after.max - xlim2_after.min;
+    float range_after  = xlim2_after.max - xlim2_after.min;
     EXPECT_LT(range_after, range_before);
 }

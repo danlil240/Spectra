@@ -312,8 +312,9 @@ int main(int argc, char* argv[])
                     {
                         ctype = spectra::daemon::classify_client(*hello);
                         std::cerr << "[spectra-backend] HELLO from "
-                                  << (ctype == spectra::daemon::ClientType::PYTHON ? "python" :
-                                      ctype == spectra::daemon::ClientType::APP ? "app" : "agent")
+                                  << (ctype == spectra::daemon::ClientType::PYTHON ? "python"
+                                      : ctype == spectra::daemon::ClientType::APP  ? "app"
+                                                                                   : "agent")
                                   << " (build=" << hello->agent_build
                                   << ", client_type=" << hello->client_type << ")\n";
                     }
@@ -592,10 +593,12 @@ int main(int argc, char* argv[])
                                     && c.client_type == spectra::daemon::ClientType::PYTHON)
                                 {
                                     spectra::ipc::Message evt_msg;
-                                    evt_msg.header.type = spectra::ipc::MessageType::EVT_WINDOW_CLOSED;
+                                    evt_msg.header.type =
+                                        spectra::ipc::MessageType::EVT_WINDOW_CLOSED;
                                     evt_msg.header.session_id = graph.session_id();
                                     evt_msg.payload = evt_payload;
-                                    evt_msg.header.payload_len = static_cast<uint32_t>(evt_msg.payload.size());
+                                    evt_msg.header.payload_len =
+                                        static_cast<uint32_t>(evt_msg.payload.size());
                                     c.conn->send(evt_msg);
                                 }
                             }
@@ -853,15 +856,18 @@ int main(int argc, char* argv[])
                 case spectra::ipc::MessageType::ACK_STATE:
                     break;
 
-                // ─── Python request handlers ─────────────────────────────────
+                    // ─── Python request handlers ─────────────────────────────────
 
                 case spectra::ipc::MessageType::REQ_CREATE_FIGURE:
                 {
                     auto req = spectra::ipc::decode_req_create_figure(msg.payload);
                     if (!req)
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 400, "Bad REQ_CREATE_FIGURE payload");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      400,
+                                      "Bad REQ_CREATE_FIGURE payload");
                         break;
                     }
 
@@ -888,8 +894,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_create_axes(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
@@ -897,12 +906,12 @@ int main(int argc, char* argv[])
                     // snapshot sent to agents has the correct layout.
                     fig_model.set_grid(req->figure_id, req->grid_rows, req->grid_cols);
 
-                    auto axes_idx = fig_model.add_axes(
-                        req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
+                    auto axes_idx =
+                        fig_model.add_axes(req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
 
                     std::cerr << "[spectra-backend] Python: created axes " << axes_idx
-                              << (req->is_3d ? " (3D)" : "")
-                              << " in figure " << req->figure_id << "\n";
+                              << (req->is_3d ? " (3D)" : "") << " in figure " << req->figure_id
+                              << "\n";
 
                     // Broadcast ADD_AXES diff to all agents
                     {
@@ -942,19 +951,21 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_add_series(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
                     uint32_t series_idx = 0;
                     auto add_op = fig_model.add_series_with_diff(
-                        req->figure_id, req->label, req->series_type,
-                        req->axes_index, series_idx);
+                        req->figure_id, req->label, req->series_type, req->axes_index, series_idx);
 
                     std::cerr << "[spectra-backend] Python: added series " << series_idx
-                              << " type=" << req->series_type
-                              << " in figure " << req->figure_id << "\n";
+                              << " type=" << req->series_type << " in figure " << req->figure_id
+                              << "\n";
 
                     // Broadcast ADD_SERIES diff to all agents rendering this figure
                     {
@@ -1002,13 +1013,16 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_set_data(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
-                    auto op = fig_model.set_series_data(
-                        req->figure_id, req->series_index, req->data);
+                    auto op =
+                        fig_model.set_series_data(req->figure_id, req->series_index, req->data);
 
                     // Broadcast diff to all agents rendering this figure
                     spectra::ipc::StateDiffPayload diff;
@@ -1041,8 +1055,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_update_property(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
@@ -1053,28 +1070,25 @@ int main(int argc, char* argv[])
                     if (req->property == "color")
                     {
                         auto op = fig_model.set_series_color(
-                            req->figure_id, req->series_index,
-                            req->f1, req->f2, req->f3, req->f4);
+                            req->figure_id, req->series_index, req->f1, req->f2, req->f3, req->f4);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "xlim")
                     {
                         float cx0, cx1, cy0, cy1;
-                        fig_model.get_axis_limits(req->figure_id, req->axes_index,
-                                                  cx0, cx1, cy0, cy1);
+                        fig_model.get_axis_limits(
+                            req->figure_id, req->axes_index, cx0, cx1, cy0, cy1);
                         auto op = fig_model.set_axis_limits(
-                            req->figure_id, req->axes_index,
-                            req->f1, req->f2, cy0, cy1);
+                            req->figure_id, req->axes_index, req->f1, req->f2, cy0, cy1);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "ylim")
                     {
                         float cx0, cx1, cy0, cy1;
-                        fig_model.get_axis_limits(req->figure_id, req->axes_index,
-                                                  cx0, cx1, cy0, cy1);
+                        fig_model.get_axis_limits(
+                            req->figure_id, req->axes_index, cx0, cx1, cy0, cy1);
                         auto op = fig_model.set_axis_limits(
-                            req->figure_id, req->axes_index,
-                            cx0, cx1, req->f1, req->f2);
+                            req->figure_id, req->axes_index, cx0, cx1, req->f1, req->f2);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "zlim")
@@ -1102,20 +1116,19 @@ int main(int argc, char* argv[])
                     }
                     else if (req->property == "line_width")
                     {
-                        auto op = fig_model.set_line_width(
-                            req->figure_id, req->series_index, req->f1);
+                        auto op =
+                            fig_model.set_line_width(req->figure_id, req->series_index, req->f1);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "marker_size")
                     {
-                        auto op = fig_model.set_marker_size(
-                            req->figure_id, req->series_index, req->f1);
+                        auto op =
+                            fig_model.set_marker_size(req->figure_id, req->series_index, req->f1);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "opacity")
                     {
-                        auto op = fig_model.set_opacity(
-                            req->figure_id, req->series_index, req->f1);
+                        auto op = fig_model.set_opacity(req->figure_id, req->series_index, req->f1);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "xlabel")
@@ -1132,8 +1145,8 @@ int main(int argc, char* argv[])
                     }
                     else if (req->property == "axes_title")
                     {
-                        auto op = fig_model.set_axis_title(
-                            req->figure_id, req->axes_index, req->str_val);
+                        auto op =
+                            fig_model.set_axis_title(req->figure_id, req->axes_index, req->str_val);
                         diff.ops.push_back(op);
                     }
                     else if (req->property == "label")
@@ -1142,15 +1155,16 @@ int main(int argc, char* argv[])
                             req->figure_id, req->series_index, req->str_val);
                         diff.ops.push_back(op);
                     }
-                    else if (req->property == "legend"
-                             || req->property == "legend_visible")
+                    else if (req->property == "legend" || req->property == "legend_visible")
                     {
                         // Legend visibility is client-side UI state; acknowledge silently.
                     }
                     else
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 400,
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      400,
                                       "Unknown property: " + req->property);
                         break;
                     }
@@ -1188,8 +1202,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_show(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
@@ -1210,12 +1227,16 @@ int main(int argc, char* argv[])
                             if (c.window_id == req->window_id && c.conn)
                             {
                                 send_assign_figures(
-                                    *c.conn, req->window_id, graph.session_id(),
-                                    assigned, assigned.empty() ? req->figure_id : assigned[0]);
+                                    *c.conn,
+                                    req->window_id,
+                                    graph.session_id(),
+                                    assigned,
+                                    assigned.empty() ? req->figure_id : assigned[0]);
 
                                 // Also send updated state snapshot so agent has the new figure data
                                 auto snap = fig_model.snapshot(assigned);
-                                send_state_snapshot(*c.conn, req->window_id, graph.session_id(), snap);
+                                send_state_snapshot(
+                                    *c.conn, req->window_id, graph.session_id(), snap);
                                 break;
                             }
                         }
@@ -1244,8 +1265,8 @@ int main(int argc, char* argv[])
                         if (pid > 0)
                         {
                             std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                                      << " for figure " << req->figure_id
-                                      << " (window=" << new_wid << ")\n";
+                                      << " for figure " << req->figure_id << " (window=" << new_wid
+                                      << ")\n";
 
                             spectra::ipc::Message ok_msg;
                             ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
@@ -1253,14 +1274,18 @@ int main(int argc, char* argv[])
                             ok_msg.header.request_id = msg.header.request_id;
                             ok_msg.header.window_id = new_wid;
                             ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
-                            ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
+                            ok_msg.header.payload_len =
+                                static_cast<uint32_t>(ok_msg.payload.size());
                             it->conn->send(ok_msg);
                         }
                         else
                         {
                             graph.remove_agent(new_wid);
-                            send_resp_err(*it->conn, graph.session_id(),
-                                          msg.header.request_id, 500, "Failed to spawn agent");
+                            send_resp_err(*it->conn,
+                                          graph.session_id(),
+                                          msg.header.request_id,
+                                          500,
+                                          "Failed to spawn agent");
                         }
                     }
                     break;
@@ -1271,13 +1296,16 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_append_data(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
-                    auto op = fig_model.append_series_data(
-                        req->figure_id, req->series_index, req->data);
+                    auto op =
+                        fig_model.append_series_data(req->figure_id, req->series_index, req->data);
 
                     // Broadcast diff to all agents rendering this figure
                     spectra::ipc::StateDiffPayload diff;
@@ -1310,8 +1338,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_remove_series(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
@@ -1353,8 +1384,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_close_figure(msg.payload);
                     if (!req || !fig_model.has_figure(req->figure_id))
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 404, "Figure not found");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      404,
+                                      "Figure not found");
                         break;
                     }
 
@@ -1411,8 +1445,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_update_batch(msg.payload);
                     if (!req || req->updates.empty())
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 400, "Bad REQ_UPDATE_BATCH payload");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      400,
+                                      "Bad REQ_UPDATE_BATCH payload");
                         break;
                     }
 
@@ -1427,26 +1464,23 @@ int main(int argc, char* argv[])
                         if (upd.property == "color")
                         {
                             diff.ops.push_back(fig_model.set_series_color(
-                                upd.figure_id, upd.series_index,
-                                upd.f1, upd.f2, upd.f3, upd.f4));
+                                upd.figure_id, upd.series_index, upd.f1, upd.f2, upd.f3, upd.f4));
                         }
                         else if (upd.property == "xlim")
                         {
                             float cx0, cx1, cy0, cy1;
-                            fig_model.get_axis_limits(upd.figure_id, upd.axes_index,
-                                                      cx0, cx1, cy0, cy1);
+                            fig_model.get_axis_limits(
+                                upd.figure_id, upd.axes_index, cx0, cx1, cy0, cy1);
                             diff.ops.push_back(fig_model.set_axis_limits(
-                                upd.figure_id, upd.axes_index,
-                                upd.f1, upd.f2, cy0, cy1));
+                                upd.figure_id, upd.axes_index, upd.f1, upd.f2, cy0, cy1));
                         }
                         else if (upd.property == "ylim")
                         {
                             float cx0, cx1, cy0, cy1;
-                            fig_model.get_axis_limits(upd.figure_id, upd.axes_index,
-                                                      cx0, cx1, cy0, cy1);
+                            fig_model.get_axis_limits(
+                                upd.figure_id, upd.axes_index, cx0, cx1, cy0, cy1);
                             diff.ops.push_back(fig_model.set_axis_limits(
-                                upd.figure_id, upd.axes_index,
-                                cx0, cx1, upd.f1, upd.f2));
+                                upd.figure_id, upd.axes_index, cx0, cx1, upd.f1, upd.f2));
                         }
                         else if (upd.property == "zlim")
                         {
@@ -1470,18 +1504,18 @@ int main(int argc, char* argv[])
                         }
                         else if (upd.property == "line_width")
                         {
-                            diff.ops.push_back(fig_model.set_line_width(
-                                upd.figure_id, upd.series_index, upd.f1));
+                            diff.ops.push_back(
+                                fig_model.set_line_width(upd.figure_id, upd.series_index, upd.f1));
                         }
                         else if (upd.property == "marker_size")
                         {
-                            diff.ops.push_back(fig_model.set_marker_size(
-                                upd.figure_id, upd.series_index, upd.f1));
+                            diff.ops.push_back(
+                                fig_model.set_marker_size(upd.figure_id, upd.series_index, upd.f1));
                         }
                         else if (upd.property == "opacity")
                         {
-                            diff.ops.push_back(fig_model.set_opacity(
-                                upd.figure_id, upd.series_index, upd.f1));
+                            diff.ops.push_back(
+                                fig_model.set_opacity(upd.figure_id, upd.series_index, upd.f1));
                         }
                         else if (upd.property == "xlabel")
                         {
@@ -1524,8 +1558,7 @@ int main(int argc, char* argv[])
                             if (c.conn && c.handshake_done
                                 && c.client_type == spectra::daemon::ClientType::AGENT)
                             {
-                                send_state_diff(
-                                    *c.conn, c.window_id, graph.session_id(), diff);
+                                send_state_diff(*c.conn, c.window_id, graph.session_id(), diff);
                             }
                         }
                     }
@@ -1536,10 +1569,8 @@ int main(int argc, char* argv[])
                         ok_msg.header.type = spectra::ipc::MessageType::RESP_OK;
                         ok_msg.header.session_id = graph.session_id();
                         ok_msg.header.request_id = msg.header.request_id;
-                        ok_msg.payload =
-                            spectra::ipc::encode_resp_ok({msg.header.request_id});
-                        ok_msg.header.payload_len =
-                            static_cast<uint32_t>(ok_msg.payload.size());
+                        ok_msg.payload = spectra::ipc::encode_resp_ok({msg.header.request_id});
+                        ok_msg.header.payload_len = static_cast<uint32_t>(ok_msg.payload.size());
                         it->conn->send(ok_msg);
                     }
                     break;
@@ -1550,8 +1581,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_destroy_figure(msg.payload);
                     if (!req)
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 400, "Bad payload");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      400,
+                                      "Bad payload");
                         break;
                     }
 
@@ -1593,8 +1627,11 @@ int main(int argc, char* argv[])
                     auto req = spectra::ipc::decode_req_reconnect(msg.payload);
                     if (!req)
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 400, "Bad REQ_RECONNECT payload");
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      400,
+                                      "Bad REQ_RECONNECT payload");
                         break;
                     }
 
@@ -1604,8 +1641,10 @@ int main(int argc, char* argv[])
                     // Verify session ID matches (or accept any if 0)
                     if (req->session_id != 0 && req->session_id != graph.session_id())
                     {
-                        send_resp_err(*it->conn, graph.session_id(),
-                                      msg.header.request_id, 409,
+                        send_resp_err(*it->conn,
+                                      graph.session_id(),
+                                      msg.header.request_id,
+                                      409,
                                       "Session ID mismatch");
                         break;
                     }

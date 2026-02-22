@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
-#include "ipc/codec.hpp"
-#include "ipc/message.hpp"
 #include "daemon/client_router.hpp"
 #include "daemon/figure_model.hpp"
+#include "ipc/codec.hpp"
+#include "ipc/message.hpp"
 
 using namespace spectra::ipc;
 using namespace spectra::daemon;
@@ -65,9 +65,9 @@ TEST(HelloClientType, EncodeDecodeRoundtrip)
     HelloPayload orig;
     orig.protocol_major = 1;
     orig.protocol_minor = 0;
-    orig.agent_build = "test";
-    orig.capabilities = 0;
-    orig.client_type = "python";
+    orig.agent_build    = "test";
+    orig.capabilities   = 0;
+    orig.client_type    = "python";
 
     auto encoded = encode_hello(orig);
     auto decoded = decode_hello(encoded);
@@ -80,7 +80,7 @@ TEST(HelloClientType, EncodeDecodeRoundtrip)
 TEST(HelloClientType, EmptyClientType)
 {
     HelloPayload orig;
-    orig.client_type = "";  // legacy
+    orig.client_type = "";   // legacy
 
     auto encoded = encode_hello(orig);
     auto decoded = decode_hello(encoded);
@@ -100,7 +100,7 @@ TEST(HelloClientType, BackwardCompatible)
 
     auto decoded = decode_hello(data);
     ASSERT_TRUE(decoded.has_value());
-    EXPECT_EQ(decoded->client_type, "");  // not present → empty
+    EXPECT_EQ(decoded->client_type, "");   // not present → empty
     EXPECT_EQ(decoded->agent_build, "old-agent");
 }
 
@@ -109,8 +109,8 @@ TEST(HelloClientType, BackwardCompatible)
 TEST(PythonPayloads, ReqCreateFigure)
 {
     ReqCreateFigurePayload orig;
-    orig.title = "Test Figure";
-    orig.width = 800;
+    orig.title  = "Test Figure";
+    orig.width  = 800;
     orig.height = 600;
 
     auto encoded = encode_req_create_figure(orig);
@@ -135,9 +135,9 @@ TEST(PythonPayloads, ReqDestroyFigure)
 TEST(PythonPayloads, ReqCreateAxes)
 {
     ReqCreateAxesPayload orig;
-    orig.figure_id = 1;
-    orig.grid_rows = 2;
-    orig.grid_cols = 3;
+    orig.figure_id  = 1;
+    orig.grid_rows  = 2;
+    orig.grid_cols  = 3;
     orig.grid_index = 4;
 
     auto encoded = encode_req_create_axes(orig);
@@ -152,10 +152,10 @@ TEST(PythonPayloads, ReqCreateAxes)
 TEST(PythonPayloads, ReqAddSeries)
 {
     ReqAddSeriesPayload orig;
-    orig.figure_id = 10;
-    orig.axes_index = 0;
+    orig.figure_id   = 10;
+    orig.axes_index  = 0;
     orig.series_type = "scatter";
-    orig.label = "data points";
+    orig.label       = "data points";
 
     auto encoded = encode_req_add_series(orig);
     auto decoded = decode_req_add_series(encoded);
@@ -169,7 +169,7 @@ TEST(PythonPayloads, ReqAddSeries)
 TEST(PythonPayloads, ReqRemoveSeries)
 {
     ReqRemoveSeriesPayload orig;
-    orig.figure_id = 5;
+    orig.figure_id    = 5;
     orig.series_index = 2;
 
     auto encoded = encode_req_remove_series(orig);
@@ -182,10 +182,10 @@ TEST(PythonPayloads, ReqRemoveSeries)
 TEST(PythonPayloads, ReqSetData)
 {
     ReqSetDataPayload orig;
-    orig.figure_id = 1;
+    orig.figure_id    = 1;
     orig.series_index = 0;
-    orig.dtype = 0;
-    orig.data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    orig.dtype        = 0;
+    orig.data         = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
 
     auto encoded = encode_req_set_data(orig);
     auto decoded = decode_req_set_data(encoded);
@@ -201,7 +201,7 @@ TEST(PythonPayloads, ReqSetData)
 TEST(PythonPayloads, ReqSetDataEmpty)
 {
     ReqSetDataPayload orig;
-    orig.figure_id = 1;
+    orig.figure_id    = 1;
     orig.series_index = 0;
     // data is empty
 
@@ -214,9 +214,9 @@ TEST(PythonPayloads, ReqSetDataEmpty)
 TEST(PythonPayloads, ReqAppendData)
 {
     ReqAppendDataPayload orig;
-    orig.figure_id = 42;
+    orig.figure_id    = 42;
     orig.series_index = 1;
-    orig.data = {1.0f, 10.0f, 2.0f, 20.0f, 3.0f, 30.0f};
+    orig.data         = {1.0f, 10.0f, 2.0f, 20.0f, 3.0f, 30.0f};
 
     auto encoded = encode_req_append_data(orig);
     auto decoded = decode_req_append_data(encoded);
@@ -232,7 +232,7 @@ TEST(PythonPayloads, ReqAppendData)
 TEST(PythonPayloads, ReqAppendDataEmpty)
 {
     ReqAppendDataPayload orig;
-    orig.figure_id = 1;
+    orig.figure_id    = 1;
     orig.series_index = 0;
     // data is empty
 
@@ -246,9 +246,9 @@ TEST(PythonPayloads, ReqAppendDataEmpty)
 TEST(PythonPayloads, ReqAppendDataSinglePoint)
 {
     ReqAppendDataPayload orig;
-    orig.figure_id = 99;
+    orig.figure_id    = 99;
     orig.series_index = 3;
-    orig.data = {5.0f, 10.0f};
+    orig.data         = {5.0f, 10.0f};
 
     auto encoded = encode_req_append_data(orig);
     auto decoded = decode_req_append_data(encoded);
@@ -263,16 +263,16 @@ TEST(PythonPayloads, ReqAppendDataSinglePoint)
 TEST(PythonPayloads, ReqUpdateProperty)
 {
     ReqUpdatePropertyPayload orig;
-    orig.figure_id = 1;
-    orig.axes_index = 0;
+    orig.figure_id    = 1;
+    orig.axes_index   = 0;
     orig.series_index = 2;
-    orig.property = "color";
-    orig.f1 = 1.0f;
-    orig.f2 = 0.5f;
-    orig.f3 = 0.0f;
-    orig.f4 = 1.0f;
-    orig.bool_val = false;
-    orig.str_val = "red";
+    orig.property     = "color";
+    orig.f1           = 1.0f;
+    orig.f2           = 0.5f;
+    orig.f3           = 0.0f;
+    orig.f4           = 1.0f;
+    orig.bool_val     = false;
+    orig.str_val      = "red";
 
     auto encoded = encode_req_update_property(orig);
     auto decoded = decode_req_update_property(encoded);
@@ -310,7 +310,7 @@ TEST(PythonPayloads, ReqCloseFigure)
 TEST(PythonPayloads, ReqReconnect)
 {
     ReqReconnectPayload orig;
-    orig.session_id = 42;
+    orig.session_id    = 42;
     orig.session_token = "abc123";
 
     auto encoded = encode_req_reconnect(orig);
@@ -326,7 +326,7 @@ TEST(PythonPayloads, RespFigureCreated)
 {
     RespFigureCreatedPayload orig;
     orig.request_id = 10;
-    orig.figure_id = 42;
+    orig.figure_id  = 42;
 
     auto encoded = encode_resp_figure_created(orig);
     auto decoded = decode_resp_figure_created(encoded);
@@ -351,7 +351,7 @@ TEST(PythonPayloads, RespAxesCreated)
 TEST(PythonPayloads, RespSeriesAdded)
 {
     RespSeriesAddedPayload orig;
-    orig.request_id = 12;
+    orig.request_id   = 12;
     orig.series_index = 5;
 
     auto encoded = encode_resp_series_added(orig);
@@ -396,7 +396,7 @@ TEST(PythonPayloads, EvtWindowClosed)
     EvtWindowClosedPayload orig;
     orig.figure_id = 1;
     orig.window_id = 2;
-    orig.reason = "user_close";
+    orig.reason    = "user_close";
 
     auto encoded = encode_evt_window_closed(orig);
     auto decoded = decode_evt_window_closed(encoded);
@@ -410,7 +410,7 @@ TEST(PythonPayloads, EvtFigureDestroyed)
 {
     EvtFigureDestroyedPayload orig;
     orig.figure_id = 99;
-    orig.reason = "timeout";
+    orig.reason    = "timeout";
 
     auto encoded = encode_evt_figure_destroyed(orig);
     auto decoded = decode_evt_figure_destroyed(encoded);
@@ -424,9 +424,9 @@ TEST(PythonPayloads, EvtFigureDestroyed)
 TEST(PythonPayloads, ReqSetDataLarge)
 {
     ReqSetDataPayload orig;
-    orig.figure_id = 1;
+    orig.figure_id    = 1;
     orig.series_index = 0;
-    orig.dtype = 0;
+    orig.dtype        = 0;
 
     // 100K points (200K floats for x,y interleaved)
     orig.data.resize(200000);
@@ -447,12 +447,12 @@ TEST(DiffOpRoundTrip, SetAxisXlabel)
 {
     StateDiffPayload orig;
     orig.base_revision = 1;
-    orig.new_revision = 2;
+    orig.new_revision  = 2;
     DiffOp op;
-    op.type = DiffOp::Type::SET_AXIS_XLABEL;
-    op.figure_id = 42;
+    op.type       = DiffOp::Type::SET_AXIS_XLABEL;
+    op.figure_id  = 42;
     op.axes_index = 0;
-    op.str_val = "Time (s)";
+    op.str_val    = "Time (s)";
     orig.ops.push_back(op);
 
     auto encoded = encode_state_diff(orig);
@@ -469,12 +469,12 @@ TEST(DiffOpRoundTrip, SetAxisYlabel)
 {
     StateDiffPayload orig;
     orig.base_revision = 1;
-    orig.new_revision = 2;
+    orig.new_revision  = 2;
     DiffOp op;
-    op.type = DiffOp::Type::SET_AXIS_YLABEL;
-    op.figure_id = 42;
+    op.type       = DiffOp::Type::SET_AXIS_YLABEL;
+    op.figure_id  = 42;
     op.axes_index = 1;
-    op.str_val = "Amplitude";
+    op.str_val    = "Amplitude";
     orig.ops.push_back(op);
 
     auto encoded = encode_state_diff(orig);
@@ -490,12 +490,12 @@ TEST(DiffOpRoundTrip, SetAxisTitle)
 {
     StateDiffPayload orig;
     orig.base_revision = 5;
-    orig.new_revision = 6;
+    orig.new_revision  = 6;
     DiffOp op;
-    op.type = DiffOp::Type::SET_AXIS_TITLE;
-    op.figure_id = 1;
+    op.type       = DiffOp::Type::SET_AXIS_TITLE;
+    op.figure_id  = 1;
     op.axes_index = 0;
-    op.str_val = "Sensor Data";
+    op.str_val    = "Sensor Data";
     orig.ops.push_back(op);
 
     auto encoded = encode_state_diff(orig);
@@ -510,12 +510,12 @@ TEST(DiffOpRoundTrip, SetSeriesLabel)
 {
     StateDiffPayload orig;
     orig.base_revision = 10;
-    orig.new_revision = 11;
+    orig.new_revision  = 11;
     DiffOp op;
-    op.type = DiffOp::Type::SET_SERIES_LABEL;
-    op.figure_id = 1;
+    op.type         = DiffOp::Type::SET_SERIES_LABEL;
+    op.figure_id    = 1;
     op.series_index = 2;
-    op.str_val = "sin(x)";
+    op.str_val      = "sin(x)";
     orig.ops.push_back(op);
 
     auto encoded = encode_state_diff(orig);
@@ -532,7 +532,7 @@ TEST(DiffOpRoundTrip, SetSeriesLabel)
 TEST(FigureModel, CreateFigureAndAddAxes)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test Figure");
+    auto                         fig_id = model.create_figure("Test Figure");
     EXPECT_NE(fig_id, 0u);
     EXPECT_EQ(model.figure_count(), 1u);
     EXPECT_TRUE(model.has_figure(fig_id));
@@ -544,13 +544,13 @@ TEST(FigureModel, CreateFigureAndAddAxes)
 TEST(FigureModel, AddSeriesAndSetData)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
     auto series_idx = model.add_series(fig_id, "line1", "line");
     EXPECT_EQ(series_idx, 0u);
 
     std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f};
-    auto op = model.set_series_data(fig_id, series_idx, data);
+    auto               op   = model.set_series_data(fig_id, series_idx, data);
     EXPECT_EQ(op.type, DiffOp::Type::SET_SERIES_DATA);
     EXPECT_EQ(op.data.size(), 4u);
 }
@@ -558,7 +558,7 @@ TEST(FigureModel, AddSeriesAndSetData)
 TEST(FigureModel, AppendSeriesData)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
     model.add_series(fig_id, "line1", "line");
 
@@ -573,7 +573,7 @@ TEST(FigureModel, AppendSeriesData)
 TEST(FigureModel, SetAxisXlabel)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
 
     auto op = model.set_axis_xlabel(fig_id, 0, "Time (s)");
@@ -584,7 +584,7 @@ TEST(FigureModel, SetAxisXlabel)
 TEST(FigureModel, SetAxisYlabel)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
 
     auto op = model.set_axis_ylabel(fig_id, 0, "Amplitude");
@@ -595,7 +595,7 @@ TEST(FigureModel, SetAxisYlabel)
 TEST(FigureModel, SetAxisTitle)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
 
     auto op = model.set_axis_title(fig_id, 0, "Sensor Data");
@@ -606,7 +606,7 @@ TEST(FigureModel, SetAxisTitle)
 TEST(FigureModel, SetSeriesLabel)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
     model.add_series(fig_id, "old_name", "line");
 
@@ -618,7 +618,7 @@ TEST(FigureModel, SetSeriesLabel)
 TEST(FigureModel, SetSeriesColor)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
     model.add_series(fig_id, "s1", "line");
 
@@ -631,38 +631,38 @@ TEST(FigureModel, SetSeriesColor)
 TEST(FigureModel, ApplyDiffOpXlabel)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_AXIS_XLABEL;
-    op.figure_id = fig_id;
+    op.type       = DiffOp::Type::SET_AXIS_XLABEL;
+    op.figure_id  = fig_id;
     op.axes_index = 0;
-    op.str_val = "Applied Label";
+    op.str_val    = "Applied Label";
     EXPECT_TRUE(model.apply_diff_op(op));
 }
 
 TEST(FigureModel, ApplyDiffOpSeriesLabel)
 {
     spectra::daemon::FigureModel model;
-    auto fig_id = model.create_figure("Test");
+    auto                         fig_id = model.create_figure("Test");
     model.add_axes(fig_id, 1, 1, 1);
     model.add_series(fig_id, "orig", "line");
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_SERIES_LABEL;
-    op.figure_id = fig_id;
+    op.type         = DiffOp::Type::SET_SERIES_LABEL;
+    op.figure_id    = fig_id;
     op.series_index = 0;
-    op.str_val = "renamed";
+    op.str_val      = "renamed";
     EXPECT_TRUE(model.apply_diff_op(op));
 }
 
 TEST(FigureModel, RevisionBumpsOnMutation)
 {
     spectra::daemon::FigureModel model;
-    auto r0 = model.revision();
-    auto fig_id = model.create_figure("Test");
-    auto r1 = model.revision();
+    auto                         r0     = model.revision();
+    auto                         fig_id = model.create_figure("Test");
+    auto                         r1     = model.revision();
     EXPECT_GT(r1, r0);
 
     model.add_axes(fig_id, 1, 1, 1);
@@ -679,7 +679,8 @@ TEST(FigureModel, RevisionBumpsOnMutation)
 TEST(PythonMessageTypes, RangeCheck)
 {
     // All Python message types should be in 0x0500-0x05FF
-    auto check = [](MessageType t) {
+    auto check = [](MessageType t)
+    {
         auto v = static_cast<uint16_t>(t);
         return v >= 0x0500 && v <= 0x05FF;
     };

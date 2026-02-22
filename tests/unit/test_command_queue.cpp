@@ -18,7 +18,7 @@ TEST(CommandQueue, InitiallyEmpty)
 TEST(CommandQueue, PushAndPop)
 {
     CommandQueue q;
-    int value = 0;
+    int          value = 0;
 
     EXPECT_TRUE(q.push([&value]() { value = 42; }));
     EXPECT_FALSE(q.empty());
@@ -34,7 +34,7 @@ TEST(CommandQueue, PushAndPop)
 TEST(CommandQueue, Drain)
 {
     CommandQueue q;
-    int counter = 0;
+    int          counter = 0;
 
     q.push([&counter]() { counter += 1; });
     q.push([&counter]() { counter += 10; });
@@ -49,13 +49,13 @@ TEST(CommandQueue, Drain)
 TEST(CommandQueue, DrainEmpty)
 {
     CommandQueue q;
-    size_t drained = q.drain();
+    size_t       drained = q.drain();
     EXPECT_EQ(drained, 0u);
 }
 
 TEST(CommandQueue, FIFO_Order)
 {
-    CommandQueue q;
+    CommandQueue     q;
     std::vector<int> order;
 
     q.push([&order]() { order.push_back(1); });
@@ -79,12 +79,12 @@ TEST(CommandQueue, FullQueue)
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
     EXPECT_TRUE(q.push([]() {}));
-    EXPECT_FALSE(q.push([]() {}));  // Should fail — full
+    EXPECT_FALSE(q.push([]() {}));   // Should fail — full
 }
 
 TEST(CommandQueue, PopFromEmpty)
 {
-    CommandQueue q;
+    CommandQueue          q;
     std::function<void()> cmd;
     EXPECT_FALSE(q.pop(cmd));
 }
@@ -107,9 +107,9 @@ TEST(CommandQueue, NullCommandSafe)
 
 TEST(CommandQueue, ProducerConsumerThreaded)
 {
-    CommandQueue q;
+    CommandQueue     q;
     std::atomic<int> sum{0};
-    constexpr int N = 1000;
+    constexpr int    N = 1000;
 
     // Producer thread
     std::thread producer(

@@ -52,10 +52,7 @@ class FigureModel
                                 float y_max);
 
     // Set 3D z-axis limits. Returns a DiffOp for broadcasting.
-    ipc::DiffOp set_axis_zlimits(uint64_t figure_id,
-                                 uint32_t axes_index,
-                                 float z_min,
-                                 float z_max);
+    ipc::DiffOp set_axis_zlimits(uint64_t figure_id, uint32_t axes_index, float z_min, float z_max);
 
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
@@ -101,7 +98,9 @@ class FigureModel
     ipc::DiffOp set_opacity(uint64_t figure_id, uint32_t series_index, float opacity);
 
     // Set series label/name. Returns a DiffOp.
-    ipc::DiffOp set_series_label(uint64_t figure_id, uint32_t series_index, const std::string& label);
+    ipc::DiffOp set_series_label(uint64_t figure_id,
+                                 uint32_t series_index,
+                                 const std::string& label);
 
     // Remove a series from a figure. Returns a DiffOp for broadcasting.
     ipc::DiffOp remove_series(uint64_t figure_id, uint32_t series_index);
@@ -143,8 +142,12 @@ class FigureModel
     bool has_figure(uint64_t figure_id) const;
 
     // Get current axis limits for a figure's axes. Returns false if not found.
-    bool get_axis_limits(uint64_t figure_id, uint32_t axes_index,
-                         float& x_min, float& x_max, float& y_min, float& y_max) const;
+    bool get_axis_limits(uint64_t figure_id,
+                         uint32_t axes_index,
+                         float& x_min,
+                         float& x_max,
+                         float& y_min,
+                         float& y_max) const;
 
    private:
     mutable std::mutex mu_;

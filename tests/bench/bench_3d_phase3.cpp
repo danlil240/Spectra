@@ -12,7 +12,7 @@ using namespace spectra;
 struct SurfaceGrid
 {
     std::vector<float> x, y, z;
-    int nx, ny;
+    int                nx, ny;
 };
 
 static SurfaceGrid make_surface(int nx, int ny, float x0, float x1, float y0, float y1)
@@ -35,7 +35,7 @@ static SurfaceGrid make_surface(int nx, int ny, float x0, float x1, float y0, fl
 
 struct MeshGrid
 {
-    std::vector<float> vertices;
+    std::vector<float>    vertices;
     std::vector<uint32_t> indices;
 };
 
@@ -85,9 +85,9 @@ static MeshGrid make_mesh(int nx, int ny)
 
 static void BM_LitSurface_50x50(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(50, 50, -3.0f, 3.0f, -3.0f, 3.0f);
     ax.surface(sg.x, sg.y, sg.z)
@@ -108,9 +108,9 @@ BENCHMARK(BM_LitSurface_50x50);
 
 static void BM_LitSurface_100x100(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(100, 100, -5.0f, 5.0f, -5.0f, 5.0f);
     ax.surface(sg.x, sg.y, sg.z).color(colors::red).ambient(0.15f).specular(0.6f).shininess(128.0f);
@@ -127,9 +127,9 @@ BENCHMARK(BM_LitSurface_100x100);
 
 static void BM_LitSurface_500x500(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(500, 500, -5.0f, 5.0f, -5.0f, 5.0f);
     ax.surface(sg.x, sg.y, sg.z)
@@ -153,11 +153,11 @@ BENCHMARK(BM_LitSurface_500x500);
 
 static void BM_LitMesh_1K(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    auto mg = make_mesh(23, 23);  // ~968 triangles
+    auto mg = make_mesh(23, 23);   // ~968 triangles
     ax.mesh(mg.vertices, mg.indices)
         .color(colors::cyan)
         .ambient(0.2f)
@@ -175,11 +175,11 @@ BENCHMARK(BM_LitMesh_1K);
 
 static void BM_LitMesh_100K(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    auto mg = make_mesh(225, 225);  // ~100K triangles
+    auto mg = make_mesh(225, 225);   // ~100K triangles
     ax.mesh(mg.vertices, mg.indices)
         .color(colors::green)
         .ambient(0.15f)
@@ -201,17 +201,17 @@ BENCHMARK(BM_LitMesh_100K);
 
 static void BM_TransparentScatter3D_10K(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x(10000), y(10000), z(10000);
     for (size_t i = 0; i < 10000; ++i)
     {
         float t = static_cast<float>(i) * 0.001f;
-        x[i] = std::cos(t) * t;
-        y[i] = std::sin(t) * t;
-        z[i] = t;
+        x[i]    = std::cos(t) * t;
+        y[i]    = std::sin(t) * t;
+        z[i]    = t;
     }
     ax.scatter3d(x, y, z)
         .color(Color{0.0f, 0.5f, 1.0f, 0.5f})
@@ -229,9 +229,9 @@ BENCHMARK(BM_TransparentScatter3D_10K);
 
 static void BM_TransparentSurface_50x50(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(50, 50, -3.0f, 3.0f, -3.0f, 3.0f);
     ax.surface(sg.x, sg.y, sg.z)
@@ -251,9 +251,9 @@ BENCHMARK(BM_TransparentSurface_50x50);
 
 static void BM_TransparentSurface_100x100(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(100, 100, -5.0f, 5.0f, -5.0f, 5.0f);
     ax.surface(sg.x, sg.y, sg.z)
@@ -273,11 +273,11 @@ BENCHMARK(BM_TransparentSurface_100x100);
 
 static void BM_TransparentMesh_10K(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
-    auto mg = make_mesh(75, 75);  // ~10K triangles
+    auto mg = make_mesh(75, 75);   // ~10K triangles
     ax.mesh(mg.vertices, mg.indices)
         .color(Color{0.5f, 0.5f, 0.5f, 0.5f})
         .ambient(0.2f)
@@ -299,9 +299,9 @@ BENCHMARK(BM_TransparentMesh_10K);
 
 static void BM_MixedOpaqueTransparent(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     // Opaque surface
     auto sg1 = make_surface(30, 30, -3.0f, 3.0f, -3.0f, 3.0f);
@@ -316,9 +316,9 @@ static void BM_MixedOpaqueTransparent(benchmark::State& state)
     for (size_t i = 0; i < 5000; ++i)
     {
         float t = static_cast<float>(i) * 0.002f;
-        x[i] = std::cos(t) * 2.0f;
-        y[i] = std::sin(t) * 2.0f;
-        z[i] = std::sin(t * 3.0f);
+        x[i]    = std::cos(t) * 2.0f;
+        y[i]    = std::sin(t) * 2.0f;
+        z[i]    = std::sin(t * 3.0f);
     }
     ax.scatter3d(x, y, z).color(Color{1.0f, 0.0f, 0.0f, 0.4f}).size(4.0f);
 
@@ -333,9 +333,9 @@ BENCHMARK(BM_MixedOpaqueTransparent);
 
 static void BM_MultipleTransparentLayers(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     // 3 overlapping transparent surfaces at different Z offsets
     for (int layer = 0; layer < 3; ++layer)
@@ -372,9 +372,9 @@ BENCHMARK(BM_MultipleTransparentLayers);
 
 static void BM_WireframeSurface_50x50(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(50, 50, -3.0f, 3.0f, -3.0f, 3.0f);
     ax.surface(sg.x, sg.y, sg.z).color(colors::green).wireframe(true);
@@ -390,9 +390,9 @@ BENCHMARK(BM_WireframeSurface_50x50);
 
 static void BM_WireframeSurface_100x100(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 600});
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
 
     auto sg = make_surface(100, 100, -5.0f, 5.0f, -5.0f, 5.0f);
     ax.surface(sg.x, sg.y, sg.z).color(colors::cyan).wireframe(true);
@@ -445,14 +445,14 @@ BENCHMARK(BM_TransparencyCheck);
 
 static void BM_CentroidScatter3D_10K(benchmark::State& state)
 {
-    ScatterSeries3D scatter;
+    ScatterSeries3D    scatter;
     std::vector<float> x(10000), y(10000), z(10000);
     for (size_t i = 0; i < 10000; ++i)
     {
         float t = static_cast<float>(i) * 0.001f;
-        x[i] = std::cos(t) * t;
-        y[i] = std::sin(t) * t;
-        z[i] = t;
+        x[i]    = std::cos(t) * t;
+        y[i]    = std::sin(t) * t;
+        z[i]    = t;
     }
     scatter.set_x(x).set_y(y).set_z(z);
 
@@ -467,7 +467,7 @@ BENCHMARK(BM_CentroidScatter3D_10K);
 
 static void BM_CentroidSurface_100x100(benchmark::State& state)
 {
-    auto sg = make_surface(100, 100, -5.0f, 5.0f, -5.0f, 5.0f);
+    auto          sg = make_surface(100, 100, -5.0f, 5.0f, -5.0f, 5.0f);
     SurfaceSeries s(sg.x, sg.y, sg.z);
 
     for (auto _ : state)
@@ -481,14 +481,14 @@ BENCHMARK(BM_CentroidSurface_100x100);
 
 static void BM_BoundsComputation_10K(benchmark::State& state)
 {
-    ScatterSeries3D scatter;
+    ScatterSeries3D    scatter;
     std::vector<float> x(10000), y(10000), z(10000);
     for (size_t i = 0; i < 10000; ++i)
     {
         float t = static_cast<float>(i) * 0.001f;
-        x[i] = std::cos(t) * t;
-        y[i] = std::sin(t) * t;
-        z[i] = t;
+        x[i]    = std::cos(t) * t;
+        y[i]    = std::sin(t) * t;
+        z[i]    = t;
     }
     scatter.set_x(x).set_y(y).set_z(z);
 
@@ -574,9 +574,9 @@ BENCHMARK(BM_ColormapSample_Jet);
 static void BM_CameraOrbit_1000Steps(benchmark::State& state)
 {
     Camera cam;
-    cam.azimuth = 0.0f;
+    cam.azimuth   = 0.0f;
     cam.elevation = 30.0f;
-    cam.distance = 5.0f;
+    cam.distance  = 5.0f;
 
     for (auto _ : state)
     {
@@ -593,9 +593,9 @@ BENCHMARK(BM_CameraOrbit_1000Steps);
 static void BM_CameraViewMatrix(benchmark::State& state)
 {
     Camera cam;
-    cam.azimuth = 45.0f;
+    cam.azimuth   = 45.0f;
     cam.elevation = 30.0f;
-    cam.distance = 5.0f;
+    cam.distance  = 5.0f;
     cam.update_position_from_orbit();
 
     for (auto _ : state)
@@ -610,9 +610,9 @@ BENCHMARK(BM_CameraViewMatrix);
 static void BM_CameraProjectionMatrix(benchmark::State& state)
 {
     Camera cam;
-    cam.fov = 45.0f;
+    cam.fov       = 45.0f;
     cam.near_clip = 0.01f;
-    cam.far_clip = 1000.0f;
+    cam.far_clip  = 1000.0f;
 
     for (auto _ : state)
     {
@@ -626,10 +626,10 @@ BENCHMARK(BM_CameraProjectionMatrix);
 static void BM_CameraSerialize(benchmark::State& state)
 {
     Camera cam;
-    cam.azimuth = 123.0f;
+    cam.azimuth   = 123.0f;
     cam.elevation = 45.0f;
-    cam.distance = 7.5f;
-    cam.fov = 60.0f;
+    cam.distance  = 7.5f;
+    cam.fov       = 60.0f;
 
     for (auto _ : state)
     {
@@ -643,9 +643,9 @@ BENCHMARK(BM_CameraSerialize);
 static void BM_CameraDeserialize(benchmark::State& state)
 {
     Camera cam;
-    cam.azimuth = 123.0f;
-    cam.elevation = 45.0f;
-    cam.distance = 7.5f;
+    cam.azimuth      = 123.0f;
+    cam.elevation    = 45.0f;
+    cam.distance     = 7.5f;
     std::string json = cam.serialize();
 
     for (auto _ : state)
@@ -664,9 +664,9 @@ BENCHMARK(BM_CameraDeserialize);
 
 static void BM_DataToNormalizedMatrix(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure();
-    auto& ax = fig.subplot3d(1, 1, 1);
+    auto& ax  = fig.subplot3d(1, 1, 1);
     ax.xlim(-5.0f, 5.0f);
     ax.ylim(-5.0f, 5.0f);
     ax.zlim(-5.0f, 5.0f);
@@ -686,10 +686,10 @@ BENCHMARK(BM_DataToNormalizedMatrix);
 
 static void BM_Mixed2D3D_LitSurface(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 800, .height = 1200});
 
-    auto& ax2d = fig.subplot(2, 1, 1);
+    auto&              ax2d = fig.subplot(2, 1, 1);
     std::vector<float> x2d(1000), y2d(1000);
     for (size_t i = 0; i < 1000; ++i)
     {
@@ -699,7 +699,7 @@ static void BM_Mixed2D3D_LitSurface(benchmark::State& state)
     ax2d.line(x2d, y2d).color(colors::blue);
 
     auto& ax3d = fig.subplot3d(2, 1, 2);
-    auto sg = make_surface(50, 50, -3.0f, 3.0f, -3.0f, 3.0f);
+    auto  sg   = make_surface(50, 50, -3.0f, 3.0f, -3.0f, 3.0f);
     ax3d.surface(sg.x, sg.y, sg.z)
         .color(colors::orange)
         .ambient(0.2f)

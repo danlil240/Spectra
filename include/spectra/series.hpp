@@ -13,10 +13,10 @@ namespace spectra
 
 struct SeriesStyle
 {
-    Color color = colors::blue;
+    Color color      = colors::blue;
     float line_width = 2.0f;
     float point_size = 4.0f;
-    float opacity = 1.0f;
+    float opacity    = 1.0f;
 };
 
 struct Rect
@@ -50,8 +50,8 @@ class Series
     }
 
     const std::string& label() const { return label_; }
-    const Color& color() const { return color_; }
-    bool visible() const { return visible_; }
+    const Color&       color() const { return color_; }
+    bool               visible() const { return visible_; }
 
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
@@ -66,44 +66,44 @@ class Series
     Series& line_style(LineStyle s)
     {
         style_.line_style = s;
-        dirty_ = true;
+        dirty_            = true;
         return *this;
     }
     Series& marker_style(MarkerStyle s)
     {
         style_.marker_style = s;
-        dirty_ = true;
+        dirty_              = true;
         return *this;
     }
     Series& marker_size(float s)
     {
         style_.marker_size = s;
-        dirty_ = true;
+        dirty_             = true;
         return *this;
     }
     Series& opacity(float o)
     {
         style_.opacity = o;
-        dirty_ = true;
+        dirty_         = true;
         return *this;
     }
     Series& plot_style(const PlotStyle& ps);
 
-    LineStyle line_style() const { return style_.line_style; }
-    MarkerStyle marker_style() const { return style_.marker_style; }
-    float marker_size() const { return style_.marker_size; }
-    float opacity() const { return style_.opacity; }
+    LineStyle        line_style() const { return style_.line_style; }
+    MarkerStyle      marker_style() const { return style_.marker_style; }
+    float            marker_size() const { return style_.marker_size; }
+    float            opacity() const { return style_.opacity; }
     const PlotStyle& plot_style() const { return style_; }
-    PlotStyle& plot_style_mut() { return style_; }
+    PlotStyle&       plot_style_mut() { return style_; }
 
     virtual void record_commands(Renderer& renderer) = 0;
 
    protected:
     std::string label_;
-    Color color_ = colors::blue;
-    PlotStyle style_;  // line/marker style, sizes, opacity
-    bool visible_ = true;
-    bool dirty_ = true;
+    Color       color_ = colors::blue;
+    PlotStyle   style_;   // line/marker style, sizes, opacity
+    bool        visible_ = true;
+    bool        dirty_   = true;
 };
 
 class LineSeries : public Series
@@ -114,19 +114,19 @@ class LineSeries : public Series
 
     LineSeries& set_x(std::span<const float> x);
     LineSeries& set_y(std::span<const float> y);
-    void append(float x, float y);
+    void        append(float x, float y);
 
     LineSeries& width(float w)
     {
         line_width_ = w;
-        dirty_ = true;
+        dirty_      = true;
         return *this;
     }
     float width() const { return line_width_; }
 
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
-    size_t point_count() const { return x_.size(); }
+    size_t                 point_count() const { return x_.size(); }
 
     void record_commands(Renderer& renderer) override;
 
@@ -176,7 +176,7 @@ class LineSeries : public Series
    private:
     std::vector<float> x_;
     std::vector<float> y_;
-    float line_width_ = 2.0f;
+    float              line_width_ = 2.0f;
 };
 
 class ScatterSeries : public Series
@@ -187,19 +187,19 @@ class ScatterSeries : public Series
 
     ScatterSeries& set_x(std::span<const float> x);
     ScatterSeries& set_y(std::span<const float> y);
-    void append(float x, float y);
+    void           append(float x, float y);
 
     ScatterSeries& size(float s)
     {
         point_size_ = s;
-        dirty_ = true;
+        dirty_      = true;
         return *this;
     }
     float size() const { return point_size_; }
 
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
-    size_t point_count() const { return x_.size(); }
+    size_t                 point_count() const { return x_.size(); }
 
     void record_commands(Renderer& renderer) override;
 
@@ -249,7 +249,7 @@ class ScatterSeries : public Series
    private:
     std::vector<float> x_;
     std::vector<float> y_;
-    float point_size_ = 4.0f;
+    float              point_size_ = 4.0f;
 };
 
-}  // namespace spectra
+}   // namespace spectra

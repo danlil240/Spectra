@@ -42,8 +42,8 @@ TEST(CameraTest, ViewMatrixIdentity)
 {
     Camera cam;
     cam.position = {0, 0, 0};
-    cam.target = {0, 0, -1};
-    cam.up = {0, 1, 0};
+    cam.target   = {0, 0, -1};
+    cam.up       = {0, 1, 0};
 
     mat4 view = cam.view_matrix();
 
@@ -55,8 +55,8 @@ TEST(CameraTest, ViewMatrixTranslation)
 {
     Camera cam;
     cam.position = {0, 0, 5};
-    cam.target = {0, 0, 0};
-    cam.up = {0, 1, 0};
+    cam.target   = {0, 0, 0};
+    cam.up       = {0, 1, 0};
 
     mat4 view = cam.view_matrix();
 
@@ -68,9 +68,9 @@ TEST(CameraTest, PerspectiveProjection)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.fov = 90.0f;
-    cam.near_clip = 0.1f;
-    cam.far_clip = 100.0f;
+    cam.fov             = 90.0f;
+    cam.near_clip       = 0.1f;
+    cam.far_clip        = 100.0f;
 
     mat4 proj = cam.projection_matrix(1.0f);
 
@@ -84,9 +84,9 @@ TEST(CameraTest, OrthographicProjection)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Orthographic;
-    cam.ortho_size = 10.0f;
-    cam.near_clip = 0.1f;
-    cam.far_clip = 100.0f;
+    cam.ortho_size      = 10.0f;
+    cam.near_clip       = 0.1f;
+    cam.far_clip        = 100.0f;
 
     mat4 proj = cam.projection_matrix(1.0f);
 
@@ -99,10 +99,10 @@ TEST(CameraTest, OrthographicProjection)
 TEST(CameraTest, OrbitAzimuth)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 0.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
-    cam.distance = 5.0f;
+    cam.distance  = 5.0f;
     cam.update_position_from_orbit();
 
     vec3 initial_pos = cam.position;
@@ -116,10 +116,10 @@ TEST(CameraTest, OrbitAzimuth)
 TEST(CameraTest, OrbitElevation)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 0.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
-    cam.distance = 5.0f;
+    cam.distance  = 5.0f;
     cam.update_position_from_orbit();
 
     cam.orbit(0.0f, 45.0f);
@@ -156,16 +156,16 @@ TEST(CameraTest, Pan)
 {
     Camera cam;
     cam.position = {0, 0, 5};
-    cam.target = {0, 0, 0};
-    cam.up = {0, 1, 0};
+    cam.target   = {0, 0, 0};
+    cam.up       = {0, 1, 0};
     cam.distance = 5.0f;
 
-    vec3 initial_pos = cam.position;
+    vec3 initial_pos    = cam.position;
     vec3 initial_target = cam.target;
 
     cam.pan(100.0f, 0.0f, 800.0f, 600.0f);
 
-    vec3 delta_pos = cam.position - initial_pos;
+    vec3 delta_pos    = cam.position - initial_pos;
     vec3 delta_target = cam.target - initial_target;
 
     EXPECT_TRUE(vec3_near(delta_pos, delta_target, 1e-4f));
@@ -176,10 +176,10 @@ TEST(CameraTest, ZoomPerspective)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.distance = 10.0f;
-    cam.azimuth = 0.0f;
-    cam.elevation = 0.0f;
-    cam.target = {0, 0, 0};
+    cam.distance        = 10.0f;
+    cam.azimuth         = 0.0f;
+    cam.elevation       = 0.0f;
+    cam.target          = {0, 0, 0};
     cam.update_position_from_orbit();
 
     float initial_distance = cam.distance;
@@ -193,7 +193,7 @@ TEST(CameraTest, ZoomOrthographic)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Orthographic;
-    cam.ortho_size = 10.0f;
+    cam.ortho_size      = 10.0f;
 
     cam.zoom(0.5f);
     EXPECT_FLOAT_EQ(cam.ortho_size, 5.0f);
@@ -203,7 +203,7 @@ TEST(CameraTest, ZoomClamping)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.distance = 1.0f;
+    cam.distance        = 1.0f;
 
     cam.zoom(0.01f);
     EXPECT_GE(cam.distance, 0.1f);
@@ -217,8 +217,8 @@ TEST(CameraTest, Dolly)
 {
     Camera cam;
     cam.position = {0, 0, 10};
-    cam.target = {0, 0, 0};
-    cam.up = {0, 1, 0};
+    cam.target   = {0, 0, 0};
+    cam.up       = {0, 1, 0};
 
     float initial_distance = vec3_length(cam.position - cam.target);
 
@@ -233,7 +233,7 @@ TEST(CameraTest, FitToBoundsPerspective)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.fov = 45.0f;
+    cam.fov             = 45.0f;
 
     vec3 min_bound{-1, -1, -1};
     vec3 max_bound{1, 1, 1};
@@ -273,12 +273,12 @@ TEST(CameraTest, FitToBoundsDegenerateBox)
 TEST(CameraTest, Reset)
 {
     Camera cam;
-    cam.position = {10, 20, 30};
-    cam.target = {5, 5, 5};
-    cam.azimuth = 180.0f;
+    cam.position  = {10, 20, 30};
+    cam.target    = {5, 5, 5};
+    cam.azimuth   = 180.0f;
     cam.elevation = 60.0f;
-    cam.distance = 100.0f;
-    cam.fov = 90.0f;
+    cam.distance  = 100.0f;
+    cam.fov       = 90.0f;
 
     cam.reset();
 
@@ -294,10 +294,10 @@ TEST(CameraTest, Reset)
 TEST(CameraTest, UpdatePositionFromOrbit)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 0.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
-    cam.distance = 10.0f;
+    cam.distance  = 10.0f;
 
     cam.update_position_from_orbit();
     EXPECT_TRUE(vec3_near(cam.position, {10, 0, 0}, 1e-4f));
@@ -318,10 +318,10 @@ TEST(CameraTest, UpdatePositionFromOrbit)
 TEST(CameraTest, UpdatePositionFromOrbitElevation)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 0.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 90.0f;
-    cam.distance = 10.0f;
+    cam.distance  = 10.0f;
 
     cam.update_position_from_orbit();
     EXPECT_TRUE(vec3_near(cam.position, {0, 10, 0}, 1e-4f));
@@ -334,17 +334,17 @@ TEST(CameraTest, UpdatePositionFromOrbitElevation)
 TEST(CameraTest, SerializeDeserialize)
 {
     Camera cam1;
-    cam1.position = {1, 2, 3};
-    cam1.target = {4, 5, 6};
-    cam1.up = {0, 1, 0};
+    cam1.position        = {1, 2, 3};
+    cam1.target          = {4, 5, 6};
+    cam1.up              = {0, 1, 0};
     cam1.projection_mode = Camera::ProjectionMode::Orthographic;
-    cam1.fov = 60.0f;
-    cam1.near_clip = 0.5f;
-    cam1.far_clip = 500.0f;
-    cam1.ortho_size = 15.0f;
-    cam1.azimuth = 120.0f;
-    cam1.elevation = 45.0f;
-    cam1.distance = 7.5f;
+    cam1.fov             = 60.0f;
+    cam1.near_clip       = 0.5f;
+    cam1.far_clip        = 500.0f;
+    cam1.ortho_size      = 15.0f;
+    cam1.azimuth         = 120.0f;
+    cam1.elevation       = 45.0f;
+    cam1.distance        = 7.5f;
 
     std::string json = cam1.serialize();
 
@@ -376,20 +376,20 @@ TEST(CameraTest, SerializePerspective)
 TEST(CameraTest, ViewProjectionComposition)
 {
     Camera cam;
-    cam.position = {0, 0, 5};
-    cam.target = {0, 0, 0};
-    cam.up = {0, 1, 0};
+    cam.position        = {0, 0, 5};
+    cam.target          = {0, 0, 0};
+    cam.up              = {0, 1, 0};
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.fov = 45.0f;
-    cam.near_clip = 0.1f;
-    cam.far_clip = 100.0f;
+    cam.fov             = 45.0f;
+    cam.near_clip       = 0.1f;
+    cam.far_clip        = 100.0f;
 
     mat4 view = cam.view_matrix();
     mat4 proj = cam.projection_matrix(1.0f);
-    mat4 vp = mat4_mul(proj, view);
+    mat4 vp   = mat4_mul(proj, view);
 
     vec4 world_point = {0, 0, 0, 1};
-    vec4 clip_point = mat4_mul_vec4(vp, world_point);
+    vec4 clip_point  = mat4_mul_vec4(vp, world_point);
 
     EXPECT_NE(clip_point.w, 0.0f);
 }
@@ -397,10 +397,10 @@ TEST(CameraTest, ViewProjectionComposition)
 TEST(CameraTest, DistancePreservation)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 45.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 45.0f;
     cam.elevation = 30.0f;
-    cam.distance = 10.0f;
+    cam.distance  = 10.0f;
 
     cam.update_position_from_orbit();
     float actual_distance = vec3_length(cam.position - cam.target);
@@ -415,7 +415,7 @@ TEST(CameraTest, PanPreservesDistance)
 {
     Camera cam;
     cam.position = {0, 0, 10};
-    cam.target = {0, 0, 0};
+    cam.target   = {0, 0, 0};
     cam.distance = 10.0f;
 
     float initial_distance = vec3_length(cam.position - cam.target);
@@ -429,10 +429,10 @@ TEST(CameraTest, PanPreservesDistance)
 TEST(CameraTest, MultipleOrbits)
 {
     Camera cam;
-    cam.target = {0, 0, 0};
-    cam.azimuth = 0.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
-    cam.distance = 5.0f;
+    cam.distance  = 5.0f;
     cam.update_position_from_orbit();
 
     for (int i = 0; i < 10; ++i)
@@ -448,7 +448,7 @@ TEST(CameraTest, AspectRatioEffect)
 {
     Camera cam;
     cam.projection_mode = Camera::ProjectionMode::Perspective;
-    cam.fov = 45.0f;
+    cam.fov             = 45.0f;
 
     mat4 proj1 = cam.projection_matrix(1.0f);
     mat4 proj2 = cam.projection_matrix(2.0f);
@@ -460,7 +460,7 @@ TEST(CameraTest, NearFarClipping)
 {
     Camera cam;
     cam.near_clip = 1.0f;
-    cam.far_clip = 100.0f;
+    cam.far_clip  = 100.0f;
 
     mat4 proj = cam.projection_matrix(1.0f);
 

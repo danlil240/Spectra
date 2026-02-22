@@ -322,8 +322,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
             continue;
 
         auto& src_ax = *src->axes()[i];
-        auto& dst_ax = new_fig.subplot(src->grid_rows(), src->grid_cols(),
-                                        static_cast<int>(i + 1));
+        auto& dst_ax = new_fig.subplot(src->grid_rows(), src->grid_cols(), static_cast<int>(i + 1));
 
         // Copy axis properties
         dst_ax.xlim(src_ax.x_limits().min, src_ax.x_limits().max);
@@ -375,8 +374,8 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         if (!src_ax3d)
             continue;
 
-        auto& dst_ax3d = new_fig.subplot3d(src->grid_rows(), src->grid_cols(),
-                                            static_cast<int>(i + 1));
+        auto& dst_ax3d =
+            new_fig.subplot3d(src->grid_rows(), src->grid_cols(), static_cast<int>(i + 1));
 
         // Copy 3D axis properties
         dst_ax3d.xlim(src_ax3d->x_limits().min, src_ax3d->x_limits().max);

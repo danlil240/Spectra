@@ -5,10 +5,9 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
-    #include <stb_image.h>
-
     #include <cstring>
     #include <iostream>
+    #include <stb_image.h>
     #include <vector>
 
 namespace spectra
@@ -17,9 +16,9 @@ namespace spectra
 // Downscale RGBA image to target_size x target_size using box filter.
 // Returns empty vector if src is already <= target_size.
 inline std::vector<unsigned char> downscale_icon(const unsigned char* src,
-                                                  int src_w,
-                                                  int src_h,
-                                                  int target_size)
+                                                 int src_w,
+                                                 int src_h,
+                                                 int target_size)
 {
     if (src_w <= target_size && src_h <= target_size)
         return {};
@@ -79,9 +78,9 @@ inline std::vector<unsigned char> downscale_icon(const unsigned char* src,
 // Must be called BEFORE glfwCreateWindow().
 inline void set_wayland_app_id()
 {
-#ifdef GLFW_WAYLAND_APP_ID
+    #ifdef GLFW_WAYLAND_APP_ID
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, "spectra");
-#endif
+    #endif
 }
 
 inline void set_window_icon(GLFWwindow* window)

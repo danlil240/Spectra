@@ -26,9 +26,9 @@ enum class ColormapType
 
 enum class BlendMode
 {
-    Alpha = 0,      // Standard alpha blending (src_alpha, 1-src_alpha)
-    Additive,       // Additive blending (src_alpha, one)
-    Premultiplied,  // Premultiplied alpha (one, 1-src_alpha)
+    Alpha = 0,       // Standard alpha blending (src_alpha, 1-src_alpha)
+    Additive,        // Additive blending (src_alpha, one)
+    Premultiplied,   // Premultiplied alpha (one, 1-src_alpha)
 };
 
 class LineSeries3D : public Series
@@ -40,12 +40,12 @@ class LineSeries3D : public Series
     LineSeries3D& set_x(std::span<const float> x);
     LineSeries3D& set_y(std::span<const float> y);
     LineSeries3D& set_z(std::span<const float> z);
-    void append(float x, float y, float z);
+    void          append(float x, float y, float z);
 
     LineSeries3D& width(float w)
     {
         line_width_ = w;
-        dirty_ = true;
+        dirty_      = true;
         return *this;
     }
     float width() const { return line_width_; }
@@ -53,7 +53,7 @@ class LineSeries3D : public Series
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
     std::span<const float> z_data() const { return z_; }
-    size_t point_count() const { return x_.size(); }
+    size_t                 point_count() const { return x_.size(); }
 
     void record_commands(Renderer& renderer) override;
 
@@ -111,8 +111,8 @@ class LineSeries3D : public Series
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
-    float line_width_ = 2.0f;
-    BlendMode blend_mode_ = BlendMode::Alpha;
+    float              line_width_ = 2.0f;
+    BlendMode          blend_mode_ = BlendMode::Alpha;
 };
 
 class ScatterSeries3D : public Series
@@ -124,12 +124,12 @@ class ScatterSeries3D : public Series
     ScatterSeries3D& set_x(std::span<const float> x);
     ScatterSeries3D& set_y(std::span<const float> y);
     ScatterSeries3D& set_z(std::span<const float> z);
-    void append(float x, float y, float z);
+    void             append(float x, float y, float z);
 
     ScatterSeries3D& size(float s)
     {
         point_size_ = s;
-        dirty_ = true;
+        dirty_      = true;
         return *this;
     }
     float size() const { return point_size_; }
@@ -137,7 +137,7 @@ class ScatterSeries3D : public Series
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
     std::span<const float> z_data() const { return z_; }
-    size_t point_count() const { return x_.size(); }
+    size_t                 point_count() const { return x_.size(); }
 
     void record_commands(Renderer& renderer) override;
 
@@ -195,16 +195,16 @@ class ScatterSeries3D : public Series
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
-    float point_size_ = 4.0f;
-    BlendMode blend_mode_ = BlendMode::Alpha;
+    float              point_size_ = 4.0f;
+    BlendMode          blend_mode_ = BlendMode::Alpha;
 };
 
 struct SurfaceMesh
 {
-    std::vector<float> vertices;    // Flat: {x,y,z, nx,ny,nz, ...} per vertex
-    std::vector<uint32_t> indices;  // Triangle indices
-    size_t vertex_count = 0;
-    size_t triangle_count = 0;
+    std::vector<float>    vertices;   // Flat: {x,y,z, nx,ny,nz, ...} per vertex
+    std::vector<uint32_t> indices;    // Triangle indices
+    size_t                vertex_count   = 0;
+    size_t                triangle_count = 0;
 };
 
 class SurfaceSeries : public Series
@@ -228,8 +228,8 @@ class SurfaceSeries : public Series
 
     const SurfaceMesh& mesh() const { return mesh_; }
     const SurfaceMesh& wireframe_mesh() const { return wireframe_mesh_; }
-    bool is_mesh_generated() const { return mesh_generated_; }
-    bool is_wireframe_mesh_generated() const { return wireframe_mesh_generated_; }
+    bool               is_mesh_generated() const { return mesh_generated_; }
+    bool               is_wireframe_mesh_generated() const { return wireframe_mesh_generated_; }
 
     void generate_mesh();
     void generate_wireframe_mesh();
@@ -242,11 +242,11 @@ class SurfaceSeries : public Series
     SurfaceSeries& colormap(ColormapType cm)
     {
         colormap_ = cm;
-        dirty_ = true;
+        dirty_    = true;
         return *this;
     }
     SurfaceSeries& colormap(const std::string& name);
-    ColormapType colormap_type() const { return colormap_; }
+    ColormapType   colormap_type() const { return colormap_; }
 
     SurfaceSeries& colormap_range(float min_val, float max_val)
     {
@@ -323,7 +323,7 @@ class SurfaceSeries : public Series
     SurfaceSeries& wireframe(bool w)
     {
         wireframe_ = w;
-        dirty_ = true;
+        dirty_     = true;
         return *this;
     }
     bool wireframe() const { return wireframe_; }
@@ -333,7 +333,7 @@ class SurfaceSeries : public Series
     SurfaceSeries& colormap_alpha(bool enabled)
     {
         colormap_alpha_ = enabled;
-        dirty_ = true;
+        dirty_          = true;
         return *this;
     }
     bool colormap_alpha() const { return colormap_alpha_; }
@@ -361,28 +361,28 @@ class SurfaceSeries : public Series
     std::vector<float> x_grid_;
     std::vector<float> y_grid_;
     std::vector<float> z_values_;
-    int rows_ = 0;
-    int cols_ = 0;
+    int                rows_ = 0;
+    int                cols_ = 0;
 
     SurfaceMesh mesh_;
     SurfaceMesh wireframe_mesh_;
-    bool mesh_generated_ = false;
-    bool wireframe_mesh_generated_ = false;
+    bool        mesh_generated_           = false;
+    bool        wireframe_mesh_generated_ = false;
 
     ColormapType colormap_ = ColormapType::None;
-    float cmap_min_ = 0.0f;
-    float cmap_max_ = 1.0f;
+    float        cmap_min_ = 0.0f;
+    float        cmap_max_ = 1.0f;
 
-    float ambient_ = 0.0f;    // 0 = shader default (0.15)
-    float specular_ = 0.0f;   // 0 = shader default (0.3)
-    float shininess_ = 0.0f;  // 0 = shader default (32)
+    float ambient_   = 0.0f;   // 0 = shader default (0.15)
+    float specular_  = 0.0f;   // 0 = shader default (0.3)
+    float shininess_ = 0.0f;   // 0 = shader default (32)
 
-    BlendMode blend_mode_ = BlendMode::Alpha;
-    bool double_sided_ = true;  // Default: render both sides (shader flips normal)
-    bool wireframe_ = false;
-    bool colormap_alpha_ = false;
-    float cmap_alpha_min_ = 0.1f;
-    float cmap_alpha_max_ = 1.0f;
+    BlendMode blend_mode_     = BlendMode::Alpha;
+    bool      double_sided_   = true;   // Default: render both sides (shader flips normal)
+    bool      wireframe_      = false;
+    bool      colormap_alpha_ = false;
+    float     cmap_alpha_min_ = 0.1f;
+    float     cmap_alpha_max_ = 1.0f;
 };
 
 class MeshSeries : public Series
@@ -394,7 +394,7 @@ class MeshSeries : public Series
     void set_vertices(std::span<const float> vertices);
     void set_indices(std::span<const uint32_t> indices);
 
-    std::span<const float> vertices() const { return vertices_; }
+    std::span<const float>    vertices() const { return vertices_; }
     std::span<const uint32_t> indices() const { return indices_; }
 
     size_t vertex_count() const { return vertices_.size() / 6; }
@@ -462,7 +462,7 @@ class MeshSeries : public Series
     MeshSeries& wireframe(bool w)
     {
         wireframe_ = w;
-        dirty_ = true;
+        dirty_     = true;
         return *this;
     }
     bool wireframe() const { return wireframe_; }
@@ -470,16 +470,16 @@ class MeshSeries : public Series
     bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
 
    private:
-    std::vector<float> vertices_;    // Flat: {x,y,z, nx,ny,nz, ...} per vertex
-    std::vector<uint32_t> indices_;  // Triangle indices
+    std::vector<float>    vertices_;   // Flat: {x,y,z, nx,ny,nz, ...} per vertex
+    std::vector<uint32_t> indices_;    // Triangle indices
 
-    float ambient_ = 0.0f;    // 0 = shader default (0.15)
-    float specular_ = 0.0f;   // 0 = shader default (0.3)
-    float shininess_ = 0.0f;  // 0 = shader default (32)
+    float ambient_   = 0.0f;   // 0 = shader default (0.15)
+    float specular_  = 0.0f;   // 0 = shader default (0.3)
+    float shininess_ = 0.0f;   // 0 = shader default (32)
 
-    BlendMode blend_mode_ = BlendMode::Alpha;
-    bool double_sided_ = true;
-    bool wireframe_ = false;
+    BlendMode blend_mode_   = BlendMode::Alpha;
+    bool      double_sided_ = true;
+    bool      wireframe_    = false;
 };
 
-}  // namespace spectra
+}   // namespace spectra

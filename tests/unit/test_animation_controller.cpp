@@ -26,7 +26,7 @@ TEST(AnimationController, InitiallyEmpty)
 TEST(AnimationController, AnimateLimitsCreatesAnimation)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax, {2, 8}, {2, 8}, 0.15f, ease::ease_out);
     EXPECT_TRUE(ctrl.has_active_animations());
@@ -36,7 +36,7 @@ TEST(AnimationController, AnimateLimitsCreatesAnimation)
 TEST(AnimationController, AnimationCompletesAfterDuration)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax, {2, 8}, {3, 7}, 0.15f, ease::linear);
 
@@ -57,7 +57,7 @@ TEST(AnimationController, AnimationCompletesAfterDuration)
 TEST(AnimationController, AnimationInterpolatesMidway)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax, {10, 20}, {10, 20}, 1.0f, ease::linear);
 
@@ -74,13 +74,13 @@ TEST(AnimationController, AnimationInterpolatesMidway)
 TEST(AnimationController, CancelById)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     auto id = ctrl.animate_axis_limits(*ax, {5, 5}, {5, 5}, 1.0f, ease::linear);
     EXPECT_TRUE(ctrl.has_active_animations());
 
     ctrl.cancel(id);
-    ctrl.update(0.01f);  // GC runs on update
+    ctrl.update(0.01f);   // GC runs on update
 
     EXPECT_FALSE(ctrl.has_active_animations());
 }
@@ -88,8 +88,8 @@ TEST(AnimationController, CancelById)
 TEST(AnimationController, CancelForAxes)
 {
     AnimationController ctrl;
-    auto ax1 = make_axes(0, 10, 0, 10);
-    auto ax2 = make_axes(0, 10, 0, 10);
+    auto                ax1 = make_axes(0, 10, 0, 10);
+    auto                ax2 = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax1, {5, 5}, {5, 5}, 1.0f, ease::linear);
     ctrl.animate_axis_limits(*ax2, {5, 5}, {5, 5}, 1.0f, ease::linear);
@@ -104,7 +104,7 @@ TEST(AnimationController, CancelForAxes)
 TEST(AnimationController, CancelAll)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax, {5, 5}, {5, 5}, 1.0f, ease::linear);
     ctrl.animate_inertial_pan(*ax, 1.0f, 1.0f, 0.3f);
@@ -121,7 +121,7 @@ TEST(AnimationController, CancelAll)
 TEST(AnimationController, NewLimitAnimCancelsPrevious)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_axis_limits(*ax, {5, 5}, {5, 5}, 1.0f, ease::linear);
     ctrl.animate_axis_limits(*ax, {2, 8}, {2, 8}, 1.0f, ease::linear);
@@ -135,7 +135,7 @@ TEST(AnimationController, NewLimitAnimCancelsPrevious)
 TEST(AnimationController, InertialPanMovesLimits)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_inertial_pan(*ax, 5.0f, 0.0f, 0.3f);
 
@@ -151,7 +151,7 @@ TEST(AnimationController, InertialPanMovesLimits)
 TEST(AnimationController, InertialPanDecelerates)
 {
     AnimationController ctrl;
-    auto ax = make_axes(0, 10, 0, 10);
+    auto                ax = make_axes(0, 10, 0, 10);
 
     ctrl.animate_inertial_pan(*ax, 10.0f, 0.0f, 0.3f);
 

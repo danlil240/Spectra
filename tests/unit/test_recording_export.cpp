@@ -8,16 +8,19 @@ using namespace spectra;
 
 // ─── Helper: dummy render callback ──────────────────────────────────────────
 
-static bool fill_solid_color(
-    uint32_t /*frame*/, float /*time*/, uint8_t* rgba, uint32_t w, uint32_t h)
+static bool fill_solid_color(uint32_t /*frame*/,
+                             float /*time*/,
+                             uint8_t* rgba,
+                             uint32_t w,
+                             uint32_t h)
 {
     size_t pixels = static_cast<size_t>(w) * h;
     for (size_t i = 0; i < pixels; ++i)
     {
-        rgba[i * 4 + 0] = 128;  // R
-        rgba[i * 4 + 1] = 64;   // G
-        rgba[i * 4 + 2] = 32;   // B
-        rgba[i * 4 + 3] = 255;  // A
+        rgba[i * 4 + 0] = 128;   // R
+        rgba[i * 4 + 1] = 64;    // G
+        rgba[i * 4 + 2] = 32;    // B
+        rgba[i * 4 + 3] = 255;   // A
     }
     return true;
 }
@@ -28,7 +31,7 @@ static bool fill_gradient(uint32_t frame, float /*time*/, uint8_t* rgba, uint32_
     {
         for (uint32_t x = 0; x < w; ++x)
         {
-            size_t idx = (static_cast<size_t>(y) * w + x) * 4;
+            size_t idx    = (static_cast<size_t>(y) * w + x) * 4;
             rgba[idx + 0] = static_cast<uint8_t>((x * 255) / w);
             rgba[idx + 1] = static_cast<uint8_t>((y * 255) / h);
             rgba[idx + 2] = static_cast<uint8_t>((frame * 10) % 256);
@@ -38,8 +41,11 @@ static bool fill_gradient(uint32_t frame, float /*time*/, uint8_t* rgba, uint32_
     return true;
 }
 
-static bool fail_render(
-    uint32_t /*frame*/, float /*time*/, uint8_t* /*rgba*/, uint32_t /*w*/, uint32_t /*h*/)
+static bool fail_render(uint32_t /*frame*/,
+                        float /*time*/,
+                        uint8_t* /*rgba*/,
+                        uint32_t /*w*/,
+                        uint32_t /*h*/)
 {
     return false;
 }
@@ -62,10 +68,10 @@ TEST(RecordingSessionConstruction, DefaultState)
 TEST(RecordingSessionValidation, EmptyPath)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "";
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     EXPECT_FALSE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -75,12 +81,12 @@ TEST(RecordingSessionValidation, EmptyPath)
 TEST(RecordingSessionValidation, ZeroDimensions)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_rec";
-    cfg.width = 0;
-    cfg.height = 0;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.width       = 0;
+    cfg.height      = 0;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     EXPECT_FALSE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -89,11 +95,11 @@ TEST(RecordingSessionValidation, ZeroDimensions)
 TEST(RecordingSessionValidation, ZeroFPS)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_rec";
-    cfg.fps = 0.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.fps         = 0.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     EXPECT_FALSE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -102,10 +108,10 @@ TEST(RecordingSessionValidation, ZeroFPS)
 TEST(RecordingSessionValidation, InvalidTimeRange)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_rec";
-    cfg.start_time = 5.0f;
-    cfg.end_time = 2.0f;
+    cfg.start_time  = 5.0f;
+    cfg.end_time    = 2.0f;
 
     EXPECT_FALSE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -114,10 +120,10 @@ TEST(RecordingSessionValidation, InvalidTimeRange)
 TEST(RecordingSessionValidation, NullCallback)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_rec";
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     EXPECT_FALSE(rs.begin(cfg, nullptr));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -127,11 +133,11 @@ TEST(RecordingSessionValidation, NullCallback)
 TEST(RecordingSessionValidation, MP4WithoutFFmpeg)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test.mp4";
-    cfg.format = RecordingFormat::MP4;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.format      = RecordingFormat::MP4;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     EXPECT_FALSE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
@@ -143,14 +149,14 @@ TEST(RecordingSessionValidation, MP4WithoutFFmpeg)
 TEST(RecordingSessionFrames, FrameCount)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_frames";
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 2.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 2.0f;
 
     EXPECT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.total_frames(), 20u);
@@ -159,14 +165,14 @@ TEST(RecordingSessionFrames, FrameCount)
 TEST(RecordingSessionFrames, FrameTime)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_ftime";
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 1.0f;
-    cfg.end_time = 3.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 1.0f;
+    cfg.end_time    = 3.0f;
 
     EXPECT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_NEAR(rs.frame_time(0), 1.0f, 0.001f);
@@ -177,21 +183,21 @@ TEST(RecordingSessionFrames, FrameTime)
 
 TEST(RecordingSessionPNG, BasicExport)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_png_export";
 
     // Clean up
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 16;
-    cfg.height = 16;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 16;
+    cfg.height      = 16;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.state(), RecordingState::Recording);
@@ -217,19 +223,19 @@ TEST(RecordingSessionPNG, BasicExport)
 
 TEST(RecordingSessionPNG, RunAll)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_png_runall";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.5f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.5f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_TRUE(rs.run_all());
@@ -245,22 +251,22 @@ TEST(RecordingSessionPNG, RunAll)
 
 TEST(RecordingSessionProgress, ProgressCallback)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_progress";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
-    int progress_calls = 0;
-    float last_percent = 0.0f;
+    int   progress_calls = 0;
+    float last_percent   = 0.0f;
     rs.set_on_progress(
         [&](const RecordingProgress& p)
         {
@@ -280,26 +286,26 @@ TEST(RecordingSessionProgress, ProgressCallback)
 
 TEST(RecordingSessionProgress, CompletionCallback)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_complete";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.4f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.4f;
 
-    bool completed = false;
+    bool completed   = false;
     bool success_val = false;
     rs.set_on_complete(
         [&](bool success)
         {
-            completed = true;
+            completed   = true;
             success_val = success;
         });
 
@@ -315,14 +321,14 @@ TEST(RecordingSessionProgress, CompletionCallback)
 TEST(RecordingSessionProgress, ProgressState)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_pstate";
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     auto p = rs.progress();
     EXPECT_EQ(p.current_frame, 0u);
@@ -334,26 +340,26 @@ TEST(RecordingSessionProgress, ProgressState)
 
 TEST(RecordingSessionCancel, CancelDuringRecording)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_cancel";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 5.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 5.0f;
 
-    bool completed = false;
+    bool completed   = false;
     bool success_val = true;
     rs.set_on_complete(
         [&](bool s)
         {
-            completed = true;
+            completed   = true;
             success_val = s;
         });
 
@@ -374,7 +380,7 @@ TEST(RecordingSessionCancel, CancelDuringRecording)
 TEST(RecordingSessionCancel, CancelWhileIdle)
 {
     RecordingSession rs;
-    rs.cancel();  // Should not crash
+    rs.cancel();   // Should not crash
     EXPECT_EQ(rs.state(), RecordingState::Idle);
 }
 
@@ -382,19 +388,19 @@ TEST(RecordingSessionCancel, CancelWhileIdle)
 
 TEST(RecordingSessionErrors, RenderFailure)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_renderfail";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 1.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 1.0f;
 
     ASSERT_TRUE(rs.begin(cfg, fail_render));
 
@@ -408,19 +414,19 @@ TEST(RecordingSessionErrors, RenderFailure)
 
 TEST(RecordingSessionErrors, AdvanceAfterFinish)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_advfinish";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.2f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.2f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     rs.run_all();
@@ -433,19 +439,19 @@ TEST(RecordingSessionErrors, AdvanceAfterFinish)
 
 TEST(RecordingSessionErrors, DoubleFinish)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_dblfinish";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.2f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.2f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     rs.run_all();
@@ -519,9 +525,9 @@ TEST(RecordingGifUtils, MedianCutEmpty)
 TEST(RecordingGifUtils, NearestPaletteIndex)
 {
     std::vector<Color> palette = {
-        Color{1.0f, 0.0f, 0.0f},  // Red
-        Color{0.0f, 1.0f, 0.0f},  // Green
-        Color{0.0f, 0.0f, 1.0f},  // Blue
+        Color{1.0f, 0.0f, 0.0f},   // Red
+        Color{0.0f, 1.0f, 0.0f},   // Green
+        Color{0.0f, 0.0f, 1.0f},   // Blue
     };
 
     EXPECT_EQ(RecordingSession::nearest_palette_index(palette, 255, 0, 0), 0);
@@ -565,19 +571,19 @@ TEST(RecordingGifUtils, QuantizeFrame)
 
 TEST(RecordingSessionGIF, BasicGifExport)
 {
-    namespace fs = std::filesystem;
+    namespace fs     = std::filesystem;
     std::string path = "/tmp/spectra_test_export.gif";
     fs::remove(path);
 
     RecordingSession rs;
-    RecordingConfig cfg;
-    cfg.output_path = path;
-    cfg.format = RecordingFormat::GIF;
-    cfg.width = 16;
-    cfg.height = 16;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.6f;
+    RecordingConfig  cfg;
+    cfg.output_path      = path;
+    cfg.format           = RecordingFormat::GIF;
+    cfg.width            = 16;
+    cfg.height           = 16;
+    cfg.fps              = 5.0f;
+    cfg.start_time       = 0.0f;
+    cfg.end_time         = 0.6f;
     cfg.gif_palette_size = 16;
 
     ASSERT_TRUE(rs.begin(cfg, fill_gradient));
@@ -603,19 +609,19 @@ TEST(RecordingSessionGIF, BasicGifExport)
 
 TEST(RecordingSessionEdgeCases, SingleFrame)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_single";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 8;
-    cfg.height = 8;
-    cfg.fps = 10.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.05f;  // ~0.5 frames, rounds up to 1
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 8;
+    cfg.height      = 8;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.05f;   // ~0.5 frames, rounds up to 1
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_GE(rs.total_frames(), 1u);
@@ -628,19 +634,19 @@ TEST(RecordingSessionEdgeCases, SingleFrame)
 
 TEST(RecordingSessionEdgeCases, SmallDimensions)
 {
-    namespace fs = std::filesystem;
+    namespace fs    = std::filesystem;
     std::string dir = "/tmp/spectra_test_small";
     fs::remove_all(dir);
 
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = dir;
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 1;
-    cfg.height = 1;
-    cfg.fps = 5.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.2f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 1;
+    cfg.height      = 1;
+    cfg.fps         = 5.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.2f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     rs.run_all();
@@ -652,14 +658,14 @@ TEST(RecordingSessionEdgeCases, SmallDimensions)
 TEST(RecordingSessionEdgeCases, HighFPS)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_highfps";
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 4;
-    cfg.height = 4;
-    cfg.fps = 240.0f;
-    cfg.start_time = 0.0f;
-    cfg.end_time = 0.1f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 4;
+    cfg.height      = 4;
+    cfg.fps         = 240.0f;
+    cfg.start_time  = 0.0f;
+    cfg.end_time    = 0.1f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.total_frames(), 24u);
@@ -673,14 +679,14 @@ TEST(RecordingSessionEdgeCases, HighFPS)
 TEST(RecordingSessionEdgeCases, NonZeroStartTime)
 {
     RecordingSession rs;
-    RecordingConfig cfg;
+    RecordingConfig  cfg;
     cfg.output_path = "/tmp/spectra_test_offset";
-    cfg.format = RecordingFormat::PNG_Sequence;
-    cfg.width = 4;
-    cfg.height = 4;
-    cfg.fps = 10.0f;
-    cfg.start_time = 5.0f;
-    cfg.end_time = 6.0f;
+    cfg.format      = RecordingFormat::PNG_Sequence;
+    cfg.width       = 4;
+    cfg.height      = 4;
+    cfg.fps         = 10.0f;
+    cfg.start_time  = 5.0f;
+    cfg.end_time    = 6.0f;
 
     ASSERT_TRUE(rs.begin(cfg, fill_solid_color));
     EXPECT_EQ(rs.total_frames(), 10u);

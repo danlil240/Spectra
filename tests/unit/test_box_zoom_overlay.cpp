@@ -16,7 +16,7 @@ class BoxZoomTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        fig_ = std::make_unique<Figure>(FigureConfig{800, 600});
+        fig_     = std::make_unique<Figure>(FigureConfig{800, 600});
         auto& ax = fig_->subplot(1, 1, 1);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(0.0f, 10.0f);
@@ -31,7 +31,7 @@ class BoxZoomTest : public ::testing::Test
     Axes& axes() { return *fig_->axes()[0]; }
 
     std::unique_ptr<Figure> fig_;
-    InputHandler handler_;
+    InputHandler            handler_;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -47,11 +47,11 @@ TEST_F(BoxZoomTest, BoxZoomRectInitiallyInactive)
 TEST_F(BoxZoomTest, BoxZoomRectActivatesOnRightClickInBoxZoomMode)
 {
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
-    handler_.on_mouse_button(0, 1, 0, x0, y0);  // left press in BoxZoom mode
+    handler_.on_mouse_button(0, 1, 0, x0, y0);   // left press in BoxZoom mode
     EXPECT_TRUE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 }
@@ -59,7 +59,7 @@ TEST_F(BoxZoomTest, BoxZoomRectActivatesOnRightClickInBoxZoomMode)
 TEST_F(BoxZoomTest, BoxZoomRectUpdatesOnMouseMove)
 {
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -78,7 +78,7 @@ TEST_F(BoxZoomTest, BoxZoomRectUpdatesOnMouseMove)
 TEST_F(BoxZoomTest, BoxZoomRectDeactivatesOnRelease)
 {
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -122,12 +122,12 @@ TEST_F(BoxZoomTest, BoxZoomSetsLimitsCorrectly)
 TEST_F(BoxZoomTest, BoxZoomTooSmallIgnored)
 {
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.5;
     double y0 = vp.y + vp.h * 0.5;
 
     handler_.on_mouse_button(0, 1, 0, x0, y0);
-    handler_.on_mouse_move(x0 + 2.0, y0 + 2.0);  // < 5px threshold
+    handler_.on_mouse_move(x0 + 2.0, y0 + 2.0);   // < 5px threshold
     handler_.on_mouse_button(0, 0, 0, x0 + 2.0, y0 + 2.0);
 
     auto xlim = axes().x_limits();
@@ -138,14 +138,14 @@ TEST_F(BoxZoomTest, BoxZoomTooSmallIgnored)
 TEST_F(BoxZoomTest, BoxZoomCancelledByEscape)
 {
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
     handler_.on_mouse_button(0, 1, 0, x0, y0);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 
-    handler_.on_key(256, 1, 0);  // KEY_ESCAPE
+    handler_.on_key(256, 1, 0);   // KEY_ESCAPE
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
     EXPECT_FALSE(handler_.box_zoom_rect().active);
 
@@ -161,12 +161,12 @@ TEST_F(BoxZoomTest, BoxZoomCancelledByEscape)
 TEST_F(BoxZoomTest, CtrlLeftDragStartsBoxZoomInPanMode)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
     // Pass Ctrl modifier directly via mods parameter
-    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);  // left press with Ctrl
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);   // left press with Ctrl
     EXPECT_TRUE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Dragging);
 }
@@ -174,7 +174,7 @@ TEST_F(BoxZoomTest, CtrlLeftDragStartsBoxZoomInPanMode)
 TEST_F(BoxZoomTest, CtrlLeftDragUpdatesBoxZoomRect)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.2;
     double y0 = vp.y + vp.h * 0.2;
     double x1 = vp.x + vp.w * 0.8;
@@ -191,7 +191,7 @@ TEST_F(BoxZoomTest, CtrlLeftDragUpdatesBoxZoomRect)
 TEST_F(BoxZoomTest, CtrlLeftDragAppliesBoxZoomOnRelease)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -215,14 +215,14 @@ TEST_F(BoxZoomTest, CtrlLeftDragAppliesBoxZoomOnRelease)
 TEST_F(BoxZoomTest, CtrlLeftDragCancelledByEscape)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
 
     handler_.on_mouse_button(0, 1, 0x0002, x0, y0);
     EXPECT_TRUE(handler_.box_zoom_rect().active);
 
-    handler_.on_key(256, 1, 0);  // Escape
+    handler_.on_key(256, 1, 0);   // Escape
     EXPECT_FALSE(handler_.box_zoom_rect().active);
     EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
 
@@ -234,7 +234,7 @@ TEST_F(BoxZoomTest, CtrlLeftDragCancelledByEscape)
 TEST_F(BoxZoomTest, NormalLeftDragStillPansWithoutCtrl)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double cx = vp.x + vp.w * 0.5;
     double cy = vp.y + vp.h * 0.5;
 
@@ -261,7 +261,7 @@ TEST_F(BoxZoomTest, AnimatedBoxZoomWithAnimController)
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_tool_mode(ToolMode::BoxZoom);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -290,12 +290,12 @@ TEST_F(BoxZoomTest, AnimatedBoxZoomWithAnimController)
 TEST_F(BoxZoomTest, TransitionEnginePreferredOverAnimController)
 {
     AnimationController anim_ctrl;
-    TransitionEngine trans_engine;
+    TransitionEngine    trans_engine;
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_transition_engine(&trans_engine);
     handler_.set_tool_mode(ToolMode::BoxZoom);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -323,13 +323,13 @@ TEST_F(BoxZoomTest, TransitionEngineUsedForCtrlDragBoxZoom)
     handler_.set_transition_engine(&trans_engine);
     handler_.set_tool_mode(ToolMode::Pan);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
     double y1 = vp.y + vp.h * 0.75;
 
-    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);  // Ctrl
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);   // Ctrl
     handler_.on_mouse_move(x1, y1);
     handler_.on_mouse_button(0, 0, 0, x1, y1);
 
@@ -348,7 +348,7 @@ TEST_F(BoxZoomTest, TransitionEngineUsedForCtrlDragBoxZoom)
 TEST_F(BoxZoomTest, DoubleClickAutoFitWithAnimController)
 {
     AnimationController anim_ctrl;
-    GestureRecognizer gesture;
+    GestureRecognizer   gesture;
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_gesture_recognizer(&gesture);
     handler_.set_tool_mode(ToolMode::Pan);
@@ -357,7 +357,7 @@ TEST_F(BoxZoomTest, DoubleClickAutoFitWithAnimController)
     axes().xlim(3.0f, 7.0f);
     axes().ylim(3.0f, 7.0f);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double cx = vp.x + vp.w * 0.5;
     double cy = vp.y + vp.h * 0.5;
 
@@ -382,7 +382,7 @@ TEST_F(BoxZoomTest, DoubleClickAutoFitWithAnimController)
 
 TEST_F(BoxZoomTest, DoubleClickAutoFitWithTransitionEngine)
 {
-    TransitionEngine trans_engine;
+    TransitionEngine  trans_engine;
     GestureRecognizer gesture;
     handler_.set_transition_engine(&trans_engine);
     handler_.set_gesture_recognizer(&gesture);
@@ -392,7 +392,7 @@ TEST_F(BoxZoomTest, DoubleClickAutoFitWithTransitionEngine)
     axes().xlim(3.0f, 7.0f);
     axes().ylim(3.0f, 7.0f);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double cx = vp.x + vp.w * 0.5;
     double cy = vp.y + vp.h * 0.5;
 
@@ -422,7 +422,7 @@ TEST_F(BoxZoomTest, ScrollCancelsTransitionEngineAnimations)
     TransitionEngine trans_engine;
     handler_.set_transition_engine(&trans_engine);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double cx = vp.x + vp.w * 0.5;
     double cy = vp.y + vp.h * 0.5;
 
@@ -432,7 +432,7 @@ TEST_F(BoxZoomTest, ScrollCancelsTransitionEngineAnimations)
 
     // Scroll should cancel it
     handler_.on_scroll(0.0, 1.0, cx, cy);
-    trans_engine.update(0.01f);  // GC
+    trans_engine.update(0.01f);   // GC
     EXPECT_FALSE(trans_engine.has_active_animations());
 }
 
@@ -458,7 +458,7 @@ TEST_F(BoxZoomTest, HasActiveAnimationsChecksTransitionEngine)
 TEST_F(BoxZoomTest, HasActiveAnimationsChecksBothEngines)
 {
     AnimationController anim_ctrl;
-    TransitionEngine trans_engine;
+    TransitionEngine    trans_engine;
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_transition_engine(&trans_engine);
 
@@ -475,7 +475,7 @@ TEST_F(BoxZoomTest, HasActiveAnimationsChecksBothEngines)
 TEST_F(BoxZoomTest, UpdateDrivesBothEngines)
 {
     AnimationController anim_ctrl;
-    TransitionEngine trans_engine;
+    TransitionEngine    trans_engine;
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_transition_engine(&trans_engine);
 
@@ -550,7 +550,7 @@ TEST_F(BoxZoomTest, BoxZoomWithReversedDrag)
 {
     // Drag from bottom-right to top-left
     handler_.set_tool_mode(ToolMode::BoxZoom);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.75;
     double y0 = vp.y + vp.h * 0.75;
     double x1 = vp.x + vp.w * 0.25;
@@ -584,7 +584,7 @@ TEST_F(BoxZoomTest, BoxZoomWithNoActiveAxesIsNoop)
 TEST_F(BoxZoomTest, CtrlDragBoxZoomDoesNotPan)
 {
     handler_.set_tool_mode(ToolMode::Pan);
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;
@@ -592,7 +592,7 @@ TEST_F(BoxZoomTest, CtrlDragBoxZoomDoesNotPan)
 
     auto xlim_before = axes().x_limits();
 
-    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);  // Ctrl
+    handler_.on_mouse_button(0, 1, 0x0002, x0, y0);   // Ctrl
     handler_.on_mouse_move(x1, y1);
 
     // During Ctrl+drag, limits should NOT have changed (no panning)
@@ -615,7 +615,7 @@ TEST_F(BoxZoomTest, TransitionEngineFallbackToAnimController)
     handler_.set_animation_controller(&anim_ctrl);
     handler_.set_tool_mode(ToolMode::BoxZoom);
 
-    auto& vp = axes().viewport();
+    auto&  vp = axes().viewport();
     double x0 = vp.x + vp.w * 0.25;
     double y0 = vp.y + vp.h * 0.25;
     double x1 = vp.x + vp.w * 0.75;

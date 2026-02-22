@@ -109,16 +109,16 @@ inline App& global_app()
 
 struct EasyState
 {
-    App* app = nullptr;
-    Figure* current_fig = nullptr;
-    Axes* current_ax = nullptr;
+    App*    app          = nullptr;
+    Figure* current_fig  = nullptr;
+    Axes*   current_ax   = nullptr;
     Axes3D* current_ax3d = nullptr;
-    bool owns_app = false;
+    bool    owns_app     = false;
 
     // Animation callback
     std::function<void(float dt, float elapsed)> on_update_cb;
-    uint64_t on_update_frame_ =
-        UINT64_MAX;  // frame guard: prevents double-fire when wired to multiple figures
+    uint64_t                                     on_update_frame_ =
+        UINT64_MAX;   // frame guard: prevents double-fire when wired to multiple figures
 
     // Knob manager (shared across all figures in easy API)
     KnobManager knob_mgr;
@@ -127,14 +127,14 @@ struct EasyState
     std::vector<Figure*> all_figures;
 
     // Auto-created state tracking
-    bool has_explicit_figure = false;
+    bool has_explicit_figure  = false;
     bool has_explicit_subplot = false;
 
     App& ensure_app()
     {
         if (!app)
         {
-            app = &global_app();
+            app      = &global_app();
             owns_app = false;
         }
         return *app;
@@ -157,7 +157,7 @@ struct EasyState
         ensure_figure();
         if (!current_ax)
         {
-            current_ax = &current_fig->subplot(1, 1, 1);
+            current_ax           = &current_fig->subplot(1, 1, 1);
             has_explicit_subplot = false;
         }
         return *current_ax;
@@ -168,7 +168,7 @@ struct EasyState
         ensure_figure();
         if (!current_ax3d)
         {
-            current_ax3d = &current_fig->subplot3d(1, 1, 1);
+            current_ax3d         = &current_fig->subplot3d(1, 1, 1);
             has_explicit_subplot = false;
         }
         return *current_ax3d;
@@ -176,13 +176,13 @@ struct EasyState
 
     void reset()
     {
-        current_fig = nullptr;
-        current_ax = nullptr;
-        current_ax3d = nullptr;
-        on_update_cb = nullptr;
+        current_fig      = nullptr;
+        current_ax       = nullptr;
+        current_ax3d     = nullptr;
+        on_update_cb     = nullptr;
         on_update_frame_ = UINT64_MAX;
         all_figures.clear();
-        has_explicit_figure = false;
+        has_explicit_figure  = false;
         has_explicit_subplot = false;
         // Don't reset app — it persists
     }
@@ -194,7 +194,7 @@ inline EasyState& easy_state()
     return s;
 }
 
-}  // namespace detail
+}   // namespace detail
 
 // ─── Figure Management ──────────────────────────────────────────────────────
 
@@ -205,9 +205,9 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
     s.ensure_app();
     s.current_fig = &s.app->figure({.width = width, .height = height});
     s.all_figures.push_back(s.current_fig);
-    s.current_ax = nullptr;
-    s.current_ax3d = nullptr;
-    s.has_explicit_figure = true;
+    s.current_ax           = nullptr;
+    s.current_ax3d         = nullptr;
+    s.has_explicit_figure  = true;
     s.has_explicit_subplot = false;
     return *s.current_fig;
 }
@@ -219,9 +219,9 @@ inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /
     s.ensure_app();
     s.current_fig = &s.app->figure(tab_next_to);
     s.all_figures.push_back(s.current_fig);
-    s.current_ax = nullptr;
-    s.current_ax3d = nullptr;
-    s.has_explicit_figure = true;
+    s.current_ax           = nullptr;
+    s.current_ax3d         = nullptr;
+    s.has_explicit_figure  = true;
     s.has_explicit_subplot = false;
     return *s.current_fig;
 }
@@ -252,9 +252,9 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
     // Create a new figure as a tab next to the current figure
     s.current_fig = &s.app->figure(*s.current_fig);
     s.all_figures.push_back(s.current_fig);
-    s.current_ax = nullptr;
-    s.current_ax3d = nullptr;
-    s.has_explicit_figure = true;
+    s.current_ax           = nullptr;
+    s.current_ax3d         = nullptr;
+    s.has_explicit_figure  = true;
     s.has_explicit_subplot = false;
     return *s.current_fig;
 }
@@ -266,8 +266,8 @@ inline Axes& subplot(int rows, int cols, int index)
 {
     auto& s = detail::easy_state();
     s.ensure_figure();
-    s.current_ax = &s.current_fig->subplot(rows, cols, index);
-    s.current_ax3d = nullptr;
+    s.current_ax           = &s.current_fig->subplot(rows, cols, index);
+    s.current_ax3d         = nullptr;
     s.has_explicit_subplot = true;
     return *s.current_ax;
 }
@@ -277,8 +277,8 @@ inline Axes3D& subplot3d(int rows, int cols, int index)
 {
     auto& s = detail::easy_state();
     s.ensure_figure();
-    s.current_ax3d = &s.current_fig->subplot3d(rows, cols, index);
-    s.current_ax = nullptr;
+    s.current_ax3d         = &s.current_fig->subplot3d(rows, cols, index);
+    s.current_ax           = nullptr;
     s.has_explicit_subplot = true;
     return *s.current_ax3d;
 }
@@ -288,7 +288,7 @@ inline Axes3D& subplot3d(int rows, int cols, int index)
 // Plot a line. Auto-creates figure and axes if needed.
 inline LineSeries& plot(std::span<const float> x,
                         std::span<const float> y,
-                        std::string_view fmt = "-")
+                        std::string_view       fmt = "-")
 {
     return detail::easy_state().ensure_axes().plot(x, y, fmt);
 }
@@ -420,7 +420,7 @@ inline void legend(LegendPosition pos = LegendPosition::TopRight)
     auto& s = detail::easy_state();
     s.ensure_figure();
     s.current_fig->legend().position = pos;
-    s.current_fig->legend().visible = true;
+    s.current_fig->legend().visible  = true;
 }
 
 // ─── Real-Time / Animation ──────────────────────────────────────────────────
@@ -450,7 +450,7 @@ inline void on_update(std::function<void(float dt, float elapsed)> callback)
     {
         uint64_t fc = f.frame_number();
         if (fc == s.on_update_frame_)
-            return;  // already fired this frame
+            return;   // already fired this frame
         s.on_update_frame_ = fc;
         if (s.on_update_cb)
             s.on_update_cb(f.delta_time(), f.elapsed_seconds());
@@ -514,55 +514,60 @@ inline void on_update(float fps, std::function<void(float dt, float elapsed)> ca
 //
 
 // Add a float slider knob.  Returns reference to the Knob for reading .value.
-inline Knob& knob(const std::string& name,
-                  float default_val,
-                  float min_val,
-                  float max_val,
+inline Knob& knob(const std::string&         name,
+                  float                      default_val,
+                  float                      min_val,
+                  float                      max_val,
                   std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_float(
-        name, default_val, min_val, max_val, 0.0f, std::move(on_change));
+    return detail::easy_state()
+        .knob_mgr.add_float(name, default_val, min_val, max_val, 0.0f, std::move(on_change));
 }
 
 // Float knob with explicit step size.
-inline Knob& knob(const std::string& name,
-                  float default_val,
-                  float min_val,
-                  float max_val,
-                  float step,
+inline Knob& knob(const std::string&         name,
+                  float                      default_val,
+                  float                      min_val,
+                  float                      max_val,
+                  float                      step,
                   std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_float(
-        name, default_val, min_val, max_val, step, std::move(on_change));
+    return detail::easy_state()
+        .knob_mgr.add_float(name, default_val, min_val, max_val, step, std::move(on_change));
 }
 
 // Integer slider knob.
-inline Knob& knob_int(const std::string& name,
-                      int default_val,
-                      int min_val,
-                      int max_val,
+inline Knob& knob_int(const std::string&         name,
+                      int                        default_val,
+                      int                        min_val,
+                      int                        max_val,
                       std::function<void(float)> on_change = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_int(
-        name, default_val, min_val, max_val, std::move(on_change));
+    return detail::easy_state().knob_mgr.add_int(name,
+                                                 default_val,
+                                                 min_val,
+                                                 max_val,
+                                                 std::move(on_change));
 }
 
 // Boolean checkbox knob.
-inline Knob& knob_bool(const std::string& name,
-                       bool default_val = false,
-                       std::function<void(float)> on_change = nullptr)
+inline Knob& knob_bool(const std::string&         name,
+                       bool                       default_val = false,
+                       std::function<void(float)> on_change   = nullptr)
 {
     return detail::easy_state().knob_mgr.add_bool(name, default_val, std::move(on_change));
 }
 
 // Choice dropdown knob.
-inline Knob& knob_choice(const std::string& name,
+inline Knob& knob_choice(const std::string&              name,
                          const std::vector<std::string>& choices,
-                         int default_index = 0,
-                         std::function<void(float)> on_change = nullptr)
+                         int                             default_index = 0,
+                         std::function<void(float)>      on_change     = nullptr)
 {
-    return detail::easy_state().knob_mgr.add_choice(
-        name, choices, default_index, std::move(on_change));
+    return detail::easy_state().knob_mgr.add_choice(name,
+                                                    choices,
+                                                    default_index,
+                                                    std::move(on_change));
 }
 
 // Set a global callback that fires whenever ANY knob value changes.
@@ -646,4 +651,4 @@ inline void cla()
         s.current_ax3d->clear_series();
 }
 
-}  // namespace spectra
+}   // namespace spectra

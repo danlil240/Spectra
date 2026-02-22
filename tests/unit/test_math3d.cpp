@@ -5,7 +5,7 @@
 using namespace spectra;
 
 static constexpr float EPS = 1e-5f;
-static constexpr float PI = 3.14159265358979323846f;
+static constexpr float PI  = 3.14159265358979323846f;
 
 // Helper to compare floats
 static bool near(float a, float b, float eps = EPS)
@@ -104,7 +104,7 @@ TEST(Vec3, Dot)
 
 TEST(Vec3, Cross)
 {
-    vec3 x{1, 0, 0}, y{0, 1, 0} /*, z{0, 0, 1}*/;  // z currently unused
+    vec3 x{1, 0, 0}, y{0, 1, 0} /*, z{0, 0, 1}*/;   // z currently unused
     auto r = vec3_cross(x, y);
     EXPECT_FLOAT_EQ(r.x, 0.0f);
     EXPECT_FLOAT_EQ(r.y, 0.0f);
@@ -292,7 +292,7 @@ TEST(Mat4, RotateY90)
 
 TEST(Mat4, Transpose)
 {
-    auto T = mat4_translate(vec3{1, 2, 3});
+    auto T  = mat4_translate(vec3{1, 2, 3});
     auto Tt = mat4_transpose(T);
     EXPECT_FLOAT_EQ(Tt(0, 3), T(3, 0));
     EXPECT_FLOAT_EQ(Tt(3, 0), T(0, 3));
@@ -315,7 +315,7 @@ TEST(Mat4, DeterminantScale)
 
 TEST(Mat4, InverseIdentity)
 {
-    auto I = mat4_identity();
+    auto I  = mat4_identity();
     auto Ii = mat4_inverse(I);
     for (int i = 0; i < 16; ++i)
         EXPECT_FLOAT_EQ(Ii.m[i], I.m[i]);
@@ -323,41 +323,41 @@ TEST(Mat4, InverseIdentity)
 
 TEST(Mat4, InverseTranslate)
 {
-    auto T = mat4_translate(vec3{5, 10, 15});
+    auto T  = mat4_translate(vec3{5, 10, 15});
     auto Ti = mat4_inverse(T);
-    auto R = mat4_mul(T, Ti);
-    auto I = mat4_identity();
+    auto R  = mat4_mul(T, Ti);
+    auto I  = mat4_identity();
     for (int i = 0; i < 16; ++i)
         EXPECT_TRUE(near(R.m[i], I.m[i]));
 }
 
 TEST(Mat4, InverseScale)
 {
-    auto S = mat4_scale(vec3{2, 4, 8});
+    auto S  = mat4_scale(vec3{2, 4, 8});
     auto Si = mat4_inverse(S);
-    auto R = mat4_mul(S, Si);
-    auto I = mat4_identity();
+    auto R  = mat4_mul(S, Si);
+    auto I  = mat4_identity();
     for (int i = 0; i < 16; ++i)
         EXPECT_TRUE(near(R.m[i], I.m[i]));
 }
 
 TEST(Mat4, InverseRotation)
 {
-    auto R = mat4_rotate_z(0.7f);
+    auto R  = mat4_rotate_z(0.7f);
     auto Ri = mat4_inverse(R);
-    auto P = mat4_mul(R, Ri);
-    auto I = mat4_identity();
+    auto P  = mat4_mul(R, Ri);
+    auto I  = mat4_identity();
     for (int i = 0; i < 16; ++i)
         EXPECT_TRUE(near(P.m[i], I.m[i]));
 }
 
 TEST(Mat4, InverseComplex)
 {
-    auto M = mat4_mul(mat4_translate(vec3{3, -1, 7}),
+    auto M  = mat4_mul(mat4_translate(vec3{3, -1, 7}),
                       mat4_mul(mat4_rotate_y(1.2f), mat4_scale(vec3{2, 0.5f, 3})));
     auto Mi = mat4_inverse(M);
-    auto R = mat4_mul(M, Mi);
-    auto I = mat4_identity();
+    auto R  = mat4_mul(M, Mi);
+    auto I  = mat4_identity();
     for (int i = 0; i < 16; ++i)
         EXPECT_TRUE(near(R.m[i], I.m[i], 1e-4f));
 }
@@ -459,9 +459,9 @@ TEST(Quat, MulIdentity)
 
 TEST(Quat, MulInverse)
 {
-    auto q = quat_from_axis_angle(vec3{1, 1, 0}, 1.0f);
+    auto q  = quat_from_axis_angle(vec3{1, 1, 0}, 1.0f);
     auto qi = quat_conjugate(q);
-    auto r = quat_mul(q, qi);
+    auto r  = quat_mul(q, qi);
     EXPECT_TRUE(near(r.x, 0.0f));
     EXPECT_TRUE(near(r.y, 0.0f));
     EXPECT_TRUE(near(r.z, 0.0f));
@@ -488,8 +488,8 @@ TEST(Quat, ToMat4)
 
 TEST(Quat, Mat4RoundTrip)
 {
-    auto q = quat_from_axis_angle(vec3_normalize(vec3{1, 1, 1}), 0.7f);
-    auto M = quat_to_mat4(q);
+    auto q  = quat_from_axis_angle(vec3_normalize(vec3{1, 1, 1}), 0.7f);
+    auto M  = quat_to_mat4(q);
     auto q2 = quat_from_mat4(M);
     // Quaternions may differ by sign (q == -q represents same rotation)
     float dot = q.x * q2.x + q.y * q2.y + q.z * q2.z + q.w * q2.w;
@@ -498,11 +498,11 @@ TEST(Quat, Mat4RoundTrip)
 
 TEST(Quat, Slerp)
 {
-    auto a = quat_identity();
-    auto b = quat_from_axis_angle(vec3{0, 0, 1}, PI / 2.0f);
+    auto a   = quat_identity();
+    auto b   = quat_from_axis_angle(vec3{0, 0, 1}, PI / 2.0f);
     auto mid = quat_slerp(a, b, 0.5f);
     // Midpoint of 0 and 90 degrees around Z should be 45 degrees
-    auto v = quat_rotate(mid, vec3{1, 0, 0});
+    auto  v        = quat_rotate(mid, vec3{1, 0, 0});
     float expected = std::cos(PI / 4.0f);
     EXPECT_TRUE(near(v.x, expected));
     EXPECT_TRUE(near(v.y, expected));
@@ -510,8 +510,8 @@ TEST(Quat, Slerp)
 
 TEST(Quat, SlerpEndpoints)
 {
-    auto a = quat_from_axis_angle(vec3{0, 1, 0}, 0.3f);
-    auto b = quat_from_axis_angle(vec3{0, 1, 0}, 1.5f);
+    auto a  = quat_from_axis_angle(vec3{0, 1, 0}, 0.3f);
+    auto b  = quat_from_axis_angle(vec3{0, 1, 0}, 1.5f);
     auto r0 = quat_slerp(a, b, 0.0f);
     auto r1 = quat_slerp(a, b, 1.0f);
     EXPECT_TRUE(near(r0.x, a.x) && near(r0.y, a.y) && near(r0.z, a.z) && near(r0.w, a.w));
@@ -528,9 +528,9 @@ TEST(Quat, Equality)
 
 TEST(Unproject, CenterRay)
 {
-    auto P = mat4_perspective(deg_to_rad(90.0f), 1.0f, 0.1f, 100.0f);
-    auto V = mat4_look_at(vec3{0, 0, 5}, vec3{0, 0, 0}, vec3{0, 1, 0});
-    auto MVP = mat4_mul(P, V);
+    auto P    = mat4_perspective(deg_to_rad(90.0f), 1.0f, 0.1f, 100.0f);
+    auto V    = mat4_look_at(vec3{0, 0, 5}, vec3{0, 0, 0}, vec3{0, 1, 0});
+    auto MVP  = mat4_mul(P, V);
     auto MVPi = mat4_inverse(MVP);
 
     // Center of 800x600 screen
@@ -564,7 +564,7 @@ TEST(FrameUBOLayout, SizeMultipleOf16)
 {
     // std140 requires struct size to be multiple of 16 bytes
     // This is important for UBO alignment
-    EXPECT_EQ(sizeof(float) * 16, 64u);  // mat4 = 64 bytes
+    EXPECT_EQ(sizeof(float) * 16, 64u);   // mat4 = 64 bytes
 }
 
 TEST(Mat4, ColumnMajorLayout)

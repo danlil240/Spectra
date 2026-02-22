@@ -37,13 +37,13 @@ enum class TransformType
 
 struct TransformParams
 {
-    float scale_factor = 1.0f;  // For Scale transform
-    float offset_value = 0.0f;  // For Offset transform
-    float clamp_min = 0.0f;     // For Clamp transform
-    float clamp_max = 1.0f;     // For Clamp transform
-    float log_base = 10.0f;     // For custom log base (unused by Log10/Ln)
-    bool skip_nan = true;       // Skip NaN values in output
-    bool fft_db = false;        // For FFT: output in dB (20*log10(mag))
+    float scale_factor = 1.0f;     // For Scale transform
+    float offset_value = 0.0f;     // For Offset transform
+    float clamp_min = 0.0f;        // For Clamp transform
+    float clamp_max = 1.0f;        // For Clamp transform
+    float log_base = 10.0f;        // For custom log base (unused by Log10/Ln)
+    bool skip_nan = true;          // Skip NaN values in output
+    bool fft_db = false;           // For FFT: output in dB (20*log10(mag))
     float fft_sample_rate = 1.0f;  // For FFT: sample rate for frequency axis
 };
 

@@ -12,8 +12,8 @@ using namespace spectra;
 
 static Figure make_test_figure()
 {
-    Figure fig;
-    auto& ax = fig.subplot(1, 1, 1);
+    Figure       fig;
+    auto&        ax  = fig.subplot(1, 1, 1);
     static float x[] = {0.0f, 1.0f, 2.0f};
     static float y[] = {0.0f, 1.0f, 0.0f};
     ax.line(x, y).label("test_line").color(colors::blue);
@@ -25,8 +25,8 @@ static Figure make_test_figure()
 TEST(UndoProperty, UndoXlim)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.xlim(0.0f, 10.0f);
     undoable_xlim(&mgr, ax, 2.0f, 8.0f);
@@ -46,8 +46,8 @@ TEST(UndoProperty, UndoXlim)
 TEST(UndoProperty, UndoYlim)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.ylim(-1.0f, 1.0f);
     undoable_ylim(&mgr, ax, -5.0f, 5.0f);
@@ -63,8 +63,8 @@ TEST(UndoProperty, UndoYlim)
 TEST(UndoProperty, UndoSetLimits)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.xlim(0.0f, 10.0f);
     ax.ylim(0.0f, 10.0f);
@@ -90,8 +90,8 @@ TEST(UndoProperty, UndoSetLimits)
 TEST(UndoProperty, UndoToggleGrid)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     EXPECT_TRUE(ax.grid_enabled());
 
@@ -108,7 +108,7 @@ TEST(UndoProperty, UndoToggleGrid)
 TEST(UndoProperty, UndoToggleGridAll)
 {
     UndoManager mgr;
-    Figure fig;
+    Figure      fig;
     fig.subplot(1, 2, 1);
     fig.subplot(1, 2, 2);
 
@@ -131,8 +131,8 @@ TEST(UndoProperty, UndoToggleGridAll)
 TEST(UndoProperty, UndoToggleBorder)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     EXPECT_TRUE(ax.border_enabled());
 
@@ -146,7 +146,7 @@ TEST(UndoProperty, UndoToggleBorder)
 TEST(UndoProperty, UndoToggleBorderAll)
 {
     UndoManager mgr;
-    Figure fig;
+    Figure      fig;
     fig.subplot(1, 2, 1);
     fig.subplot(1, 2, 2);
 
@@ -165,8 +165,8 @@ TEST(UndoProperty, UndoToggleBorderAll)
 TEST(UndoProperty, UndoToggleSeriesVisibility)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& series = *fig.axes()[0]->series()[0];
+    Figure      fig    = make_test_figure();
+    auto&       series = *fig.axes()[0]->series()[0];
 
     EXPECT_TRUE(series.visible());
 
@@ -183,8 +183,8 @@ TEST(UndoProperty, UndoToggleSeriesVisibility)
 TEST(UndoProperty, UndoToggleSeriesVisibilityDescription)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& series = *fig.axes()[0]->series()[0];
+    Figure      fig    = make_test_figure();
+    auto&       series = *fig.axes()[0]->series()[0];
 
     undoable_toggle_series_visibility(&mgr, series);
     EXPECT_EQ(mgr.undo_description(), "Hide test_line");
@@ -200,8 +200,8 @@ TEST(UndoProperty, UndoToggleSeriesVisibilityDescription)
 TEST(UndoProperty, UndoSetSeriesColor)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& series = *fig.axes()[0]->series()[0];
+    Figure      fig    = make_test_figure();
+    auto&       series = *fig.axes()[0]->series()[0];
 
     Color old_color = series.color();
     Color new_color = colors::red;
@@ -224,8 +224,8 @@ TEST(UndoProperty, UndoSetSeriesColor)
 TEST(UndoProperty, UndoSetLineWidth)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto* ls = dynamic_cast<LineSeries*>(fig.axes()[0]->series()[0].get());
+    Figure      fig = make_test_figure();
+    auto*       ls  = dynamic_cast<LineSeries*>(fig.axes()[0]->series()[0].get());
     ASSERT_NE(ls, nullptr);
 
     float old_width = ls->width();
@@ -244,7 +244,7 @@ TEST(UndoProperty, UndoSetLineWidth)
 TEST(UndoProperty, UndoToggleLegend)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
+    Figure      fig = make_test_figure();
 
     EXPECT_TRUE(fig.legend().visible);
 
@@ -263,8 +263,8 @@ TEST(UndoProperty, UndoToggleLegend)
 TEST(UndoProperty, UndoSetTitle)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.title("Original");
     undoable_set_title(&mgr, ax, "New Title");
@@ -280,8 +280,8 @@ TEST(UndoProperty, UndoSetTitle)
 TEST(UndoProperty, UndoSetXLabel)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.xlabel("Time");
     undoable_set_xlabel(&mgr, ax, "Frequency");
@@ -294,8 +294,8 @@ TEST(UndoProperty, UndoSetXLabel)
 TEST(UndoProperty, UndoSetYLabel)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.ylabel("Amplitude");
     undoable_set_ylabel(&mgr, ax, "Power");
@@ -310,8 +310,8 @@ TEST(UndoProperty, UndoSetYLabel)
 TEST(UndoProperty, UndoResetView)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.xlim(5.0f, 15.0f);
     ax.ylim(5.0f, 15.0f);
@@ -359,7 +359,7 @@ TEST(UndoProperty, CaptureRestoreFigureAxes)
 TEST(UndoProperty, NullManagerXlim)
 {
     Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    auto&  ax  = *fig.axes()[0];
     ax.xlim(0.0f, 10.0f);
 
     // Should not crash with null manager
@@ -371,7 +371,7 @@ TEST(UndoProperty, NullManagerXlim)
 TEST(UndoProperty, NullManagerToggleGrid)
 {
     Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    auto&  ax  = *fig.axes()[0];
     EXPECT_TRUE(ax.grid_enabled());
 
     undoable_toggle_grid(nullptr, ax);
@@ -390,7 +390,7 @@ TEST(UndoProperty, NullManagerToggleLegend)
 TEST(UndoProperty, NullManagerResetView)
 {
     Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    auto&  ax  = *fig.axes()[0];
     ax.xlim(5.0f, 15.0f);
 
     undoable_reset_view(nullptr, fig);
@@ -403,10 +403,13 @@ TEST(UndoProperty, NullManagerResetView)
 TEST(UndoProperty, GenericUndoableSet)
 {
     UndoManager mgr;
-    float value = 3.14f;
+    float       value = 3.14f;
 
-    undoable_set<float>(
-        &mgr, "Change value", 3.14f, 6.28f, [&value](const float& v) { value = v; });
+    undoable_set<float>(&mgr,
+                        "Change value",
+                        3.14f,
+                        6.28f,
+                        [&value](const float& v) { value = v; });
     EXPECT_FLOAT_EQ(value, 6.28f);
 
     mgr.undo();
@@ -421,8 +424,11 @@ TEST(UndoProperty, GenericUndoableSetString)
     UndoManager mgr;
     std::string text = "hello";
 
-    undoable_set<std::string>(
-        &mgr, "Change text", "hello", "world", [&text](const std::string& v) { text = v; });
+    undoable_set<std::string>(&mgr,
+                              "Change text",
+                              "hello",
+                              "world",
+                              [&text](const std::string& v) { text = v; });
     EXPECT_EQ(text, "world");
 
     mgr.undo();
@@ -434,8 +440,8 @@ TEST(UndoProperty, GenericUndoableSetString)
 TEST(UndoProperty, MultipleUndoRedoChain)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     ax.xlim(0.0f, 10.0f);
 
@@ -450,14 +456,14 @@ TEST(UndoProperty, MultipleUndoRedoChain)
     EXPECT_FLOAT_EQ(ax.x_limits().min, 2.0f);
     EXPECT_FALSE(ax.grid_enabled());
 
-    mgr.undo();  // Undo action 3
+    mgr.undo();   // Undo action 3
     EXPECT_FLOAT_EQ(ax.x_limits().min, 1.0f);
     EXPECT_FALSE(ax.grid_enabled());
 
-    mgr.undo();  // Undo action 2
+    mgr.undo();   // Undo action 2
     EXPECT_TRUE(ax.grid_enabled());
 
-    mgr.undo();  // Undo action 1
+    mgr.undo();   // Undo action 1
     EXPECT_FLOAT_EQ(ax.x_limits().min, 0.0f);
 
     // Redo all
@@ -474,8 +480,8 @@ TEST(UndoProperty, MultipleUndoRedoChain)
 TEST(UndoProperty, DescriptionGrid)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     undoable_toggle_grid(&mgr, ax);
     EXPECT_EQ(mgr.undo_description(), "Hide grid");
@@ -488,7 +494,7 @@ TEST(UndoProperty, DescriptionGrid)
 TEST(UndoProperty, DescriptionLegend)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
+    Figure      fig = make_test_figure();
 
     undoable_toggle_legend(&mgr, fig);
     EXPECT_EQ(mgr.undo_description(), "Hide legend");
@@ -497,8 +503,8 @@ TEST(UndoProperty, DescriptionLegend)
 TEST(UndoProperty, DescriptionBorder)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& ax = *fig.axes()[0];
+    Figure      fig = make_test_figure();
+    auto&       ax  = *fig.axes()[0];
 
     undoable_toggle_border(&mgr, ax);
     EXPECT_EQ(mgr.undo_description(), "Hide border");
@@ -507,8 +513,8 @@ TEST(UndoProperty, DescriptionBorder)
 TEST(UndoProperty, DescriptionColor)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
-    auto& series = *fig.axes()[0]->series()[0];
+    Figure      fig    = make_test_figure();
+    auto&       series = *fig.axes()[0]->series()[0];
 
     undoable_set_series_color(&mgr, series, colors::red);
     EXPECT_EQ(mgr.undo_description(), "Change color of test_line");
@@ -517,7 +523,7 @@ TEST(UndoProperty, DescriptionColor)
 TEST(UndoProperty, DescriptionResetView)
 {
     UndoManager mgr;
-    Figure fig = make_test_figure();
+    Figure      fig = make_test_figure();
 
     undoable_reset_view(&mgr, fig);
     EXPECT_EQ(mgr.undo_description(), "Reset view");

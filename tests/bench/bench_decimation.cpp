@@ -53,8 +53,8 @@ BENCHMARK(BM_LTTB_100K_to_1000);
 
 static void BM_LTTB_Varying(benchmark::State& state)
 {
-    const auto n = static_cast<std::size_t>(state.range(0));
-    auto [x, y] = make_sine(n);
+    const auto n             = static_cast<std::size_t>(state.range(0));
+    auto [x, y]              = make_sine(n);
     const std::size_t target = std::max<std::size_t>(n / 500, 3);
     for (auto _ : state)
     {

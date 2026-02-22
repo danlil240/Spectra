@@ -33,7 +33,7 @@ TEST(LineSeries, ConstructWithData)
 
 TEST(LineSeries, SetXY)
 {
-    LineSeries s;
+    LineSeries         s;
     std::vector<float> x = {10.0f, 20.0f};
     std::vector<float> y = {30.0f, 40.0f};
 
@@ -59,7 +59,7 @@ TEST(LineSeries, Append)
 TEST(LineSeries, FluentAPI)
 {
     LineSeries s;
-    auto& ref = s.label("test").color(colors::red).width(3.0f);
+    auto&      ref = s.label("test").color(colors::red).width(3.0f);
 
     EXPECT_EQ(&ref, &s);
     // Access through base class reference to use the no-arg accessors
@@ -114,7 +114,7 @@ TEST(ScatterSeries, ConstructWithData)
 
 TEST(ScatterSeries, SetXY)
 {
-    ScatterSeries s;
+    ScatterSeries      s;
     std::vector<float> x = {5.0f};
     std::vector<float> y = {6.0f};
 
@@ -135,7 +135,7 @@ TEST(ScatterSeries, Append)
 TEST(ScatterSeries, FluentAPI)
 {
     ScatterSeries s;
-    auto& ref = s.label("scatter").color(colors::green).size(8.0f);
+    auto&         ref = s.label("scatter").color(colors::green).size(8.0f);
 
     EXPECT_EQ(&ref, &s);
     const Series& base = s;

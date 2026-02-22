@@ -16,12 +16,12 @@ using namespace spectra::ipc;
 TEST(IpcCodec, HeaderRoundTrip)
 {
     MessageHeader hdr;
-    hdr.type = MessageType::HELLO;
+    hdr.type        = MessageType::HELLO;
     hdr.payload_len = 42;
-    hdr.seq = 123456789;
-    hdr.request_id = 99;
-    hdr.session_id = 1001;
-    hdr.window_id = 2002;
+    hdr.seq         = 123456789;
+    hdr.request_id  = 99;
+    hdr.session_id  = 1001;
+    hdr.window_id   = 2002;
 
     std::vector<uint8_t> buf;
     encode_header(hdr, buf);
@@ -40,8 +40,8 @@ TEST(IpcCodec, HeaderRoundTrip)
 TEST(IpcCodec, HeaderBadMagic)
 {
     std::vector<uint8_t> buf(HEADER_SIZE, 0);
-    buf[0] = 0xFF;
-    buf[1] = 0xFF;
+    buf[0]       = 0xFF;
+    buf[1]       = 0xFF;
     auto decoded = decode_header(buf);
     EXPECT_FALSE(decoded.has_value());
 }
@@ -49,14 +49,14 @@ TEST(IpcCodec, HeaderBadMagic)
 TEST(IpcCodec, HeaderTooShort)
 {
     std::vector<uint8_t> buf(10, 0);
-    auto decoded = decode_header(buf);
+    auto                 decoded = decode_header(buf);
     EXPECT_FALSE(decoded.has_value());
 }
 
 TEST(IpcCodec, HeaderEmptyBuffer)
 {
     std::vector<uint8_t> buf;
-    auto decoded = decode_header(buf);
+    auto                 decoded = decode_header(buf);
     EXPECT_FALSE(decoded.has_value());
 }
 
@@ -67,10 +67,10 @@ TEST(IpcCodec, HeaderEmptyBuffer)
 TEST(IpcCodec, MessageRoundTrip)
 {
     Message msg;
-    msg.header.type = MessageType::WELCOME;
-    msg.header.seq = 7;
+    msg.header.type       = MessageType::WELCOME;
+    msg.header.seq        = 7;
     msg.header.session_id = 42;
-    msg.payload = {0xDE, 0xAD, 0xBE, 0xEF};
+    msg.payload           = {0xDE, 0xAD, 0xBE, 0xEF};
 
     auto wire = encode_message(msg);
     ASSERT_EQ(wire.size(), HEADER_SIZE + 4);
@@ -90,7 +90,7 @@ TEST(IpcCodec, MessageEmptyPayload)
 {
     Message msg;
     msg.header.type = MessageType::RESP_OK;
-    msg.header.seq = 1;
+    msg.header.seq  = 1;
 
     auto wire = encode_message(msg);
     ASSERT_EQ(wire.size(), HEADER_SIZE);
@@ -105,7 +105,7 @@ TEST(IpcCodec, MessageTruncatedPayload)
 {
     Message msg;
     msg.header.type = MessageType::HELLO;
-    msg.payload = {1, 2, 3, 4, 5};
+    msg.payload     = {1, 2, 3, 4, 5};
 
     auto wire = encode_message(msg);
     // Truncate: remove last 2 bytes
@@ -154,7 +154,7 @@ TEST(IpcCodec, PayloadEncoderDecoder)
 TEST(IpcCodec, PayloadDecoderEmptyBuffer)
 {
     std::vector<uint8_t> empty;
-    PayloadDecoder dec(empty);
+    PayloadDecoder       dec(empty);
     EXPECT_FALSE(dec.next());
 }
 
@@ -191,10 +191,10 @@ TEST(IpcCodec, HelloRoundTrip)
     HelloPayload hello;
     hello.protocol_major = 1;
     hello.protocol_minor = 0;
-    hello.agent_build = "spectra-test-v0.1";
-    hello.capabilities = 0x0F;
+    hello.agent_build    = "spectra-test-v0.1";
+    hello.capabilities   = 0x0F;
 
-    auto buf = encode_hello(hello);
+    auto buf     = encode_hello(hello);
     auto decoded = decode_hello(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->protocol_major, 1u);
@@ -206,13 +206,13 @@ TEST(IpcCodec, HelloRoundTrip)
 TEST(IpcCodec, WelcomeRoundTrip)
 {
     WelcomePayload welcome;
-    welcome.session_id = 42;
-    welcome.window_id = 7;
-    welcome.process_id = 12345;
+    welcome.session_id   = 42;
+    welcome.window_id    = 7;
+    welcome.process_id   = 12345;
     welcome.heartbeat_ms = 3000;
-    welcome.mode = "inproc";
+    welcome.mode         = "inproc";
 
-    auto buf = encode_welcome(welcome);
+    auto buf     = encode_welcome(welcome);
     auto decoded = decode_welcome(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->session_id, 42u);
@@ -227,7 +227,7 @@ TEST(IpcCodec, RespOkRoundTrip)
     RespOkPayload ok;
     ok.request_id = 999;
 
-    auto buf = encode_resp_ok(ok);
+    auto buf     = encode_resp_ok(ok);
     auto decoded = decode_resp_ok(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->request_id, 999u);
@@ -237,10 +237,10 @@ TEST(IpcCodec, RespErrRoundTrip)
 {
     RespErrPayload err;
     err.request_id = 123;
-    err.code = 404;
-    err.message = "Figure not found";
+    err.code       = 404;
+    err.message    = "Figure not found";
 
-    auto buf = encode_resp_err(err);
+    auto buf     = encode_resp_err(err);
     auto decoded = decode_resp_err(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->request_id, 123u);
@@ -255,11 +255,11 @@ TEST(IpcCodec, RespErrRoundTrip)
 TEST(IpcCodec, VersionMismatchDetection)
 {
     HelloPayload hello;
-    hello.protocol_major = 99;  // unsupported major version
+    hello.protocol_major = 99;   // unsupported major version
     hello.protocol_minor = 0;
-    hello.agent_build = "future-client";
+    hello.agent_build    = "future-client";
 
-    auto buf = encode_hello(hello);
+    auto buf     = encode_hello(hello);
     auto decoded = decode_hello(buf);
     ASSERT_TRUE(decoded.has_value());
     // The codec decodes it fine — version check is a policy decision
@@ -326,7 +326,7 @@ TEST(IpcTransport, DefaultSocketPath)
 TEST(IpcTransport, ServerListenAndClose)
 {
     std::string sock_path = "/tmp/spectra-test-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
     EXPECT_TRUE(server.is_listening());
     EXPECT_EQ(server.path(), sock_path);
@@ -340,10 +340,10 @@ TEST(IpcTransport, ServerListenAndClose)
 TEST(IpcTransport, ServerDoubleClose)
 {
     std::string sock_path = "/tmp/spectra-test-dbl-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
     server.close();
-    server.close();  // Should not crash
+    server.close();   // Should not crash
     EXPECT_FALSE(server.is_listening());
 }
 
@@ -357,12 +357,12 @@ TEST(IpcTransport, ClientConnectRefused)
 TEST(IpcTransport, ConnectionSendRecv)
 {
     std::string sock_path = "/tmp/spectra-test-sr-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
 
     // Client connects in a thread
     std::unique_ptr<Connection> client_conn;
-    std::thread client_thread([&]() { client_conn = Client::connect(sock_path); });
+    std::thread                 client_thread([&]() { client_conn = Client::connect(sock_path); });
 
     auto server_conn = server.accept();
     client_thread.join();
@@ -374,10 +374,10 @@ TEST(IpcTransport, ConnectionSendRecv)
 
     // Send from client → server
     Message msg;
-    msg.header.type = MessageType::HELLO;
-    msg.header.seq = 1;
+    msg.header.type       = MessageType::HELLO;
+    msg.header.seq        = 1;
     msg.header.session_id = 42;
-    msg.payload = {0x01, 0x02, 0x03};
+    msg.payload           = {0x01, 0x02, 0x03};
 
     ASSERT_TRUE(client_conn->send(msg));
 
@@ -391,11 +391,11 @@ TEST(IpcTransport, ConnectionSendRecv)
 
     // Send from server → client
     Message reply;
-    reply.header.type = MessageType::WELCOME;
-    reply.header.seq = 2;
+    reply.header.type       = MessageType::WELCOME;
+    reply.header.seq        = 2;
     reply.header.session_id = 42;
-    reply.header.window_id = 7;
-    reply.payload = encode_welcome({42, 7, 12345, 5000, "inproc"});
+    reply.header.window_id  = 7;
+    reply.payload           = encode_welcome({42, 7, 12345, 5000, "inproc"});
 
     ASSERT_TRUE(server_conn->send(reply));
 
@@ -419,7 +419,7 @@ TEST(IpcTransport, ConnectionSendRecv)
 TEST(IpcTransport, FullHandshake)
 {
     std::string sock_path = "/tmp/spectra-test-hs-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
 
     // Simulate agent → backend handshake
@@ -432,7 +432,7 @@ TEST(IpcTransport, FullHandshake)
             // Agent sends HELLO
             Message hello_msg;
             hello_msg.header.type = MessageType::HELLO;
-            hello_msg.header.seq = 1;
+            hello_msg.header.seq  = 1;
             hello_msg.payload = encode_hello({PROTOCOL_MAJOR, PROTOCOL_MINOR, "test-agent", 0, ""});
             ASSERT_TRUE(conn->send(hello_msg));
 
@@ -465,11 +465,11 @@ TEST(IpcTransport, FullHandshake)
 
     // Backend sends WELCOME
     Message welcome_msg;
-    welcome_msg.header.type = MessageType::WELCOME;
-    welcome_msg.header.seq = 2;
+    welcome_msg.header.type       = MessageType::WELCOME;
+    welcome_msg.header.seq        = 2;
     welcome_msg.header.session_id = 100;
-    welcome_msg.header.window_id = 1;
-    welcome_msg.payload = encode_welcome({100, 1, 9999, 5000, "inproc"});
+    welcome_msg.header.window_id  = 1;
+    welcome_msg.payload           = encode_welcome({100, 1, 9999, 5000, "inproc"});
     ASSERT_TRUE(conn->send(welcome_msg));
 
     agent_thread.join();
@@ -480,7 +480,7 @@ TEST(IpcTransport, FullHandshake)
 TEST(IpcTransport, ConnectionClosedRecvReturnsNullopt)
 {
     std::string sock_path = "/tmp/spectra-test-cls-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
 
     std::thread client_thread(
@@ -519,7 +519,7 @@ TEST(IpcTransport, SendOnClosedConnection)
 TEST(IpcTransport, RecvOnClosedConnection)
 {
     Connection conn(-1);
-    auto msg = conn.recv();
+    auto       msg = conn.recv();
     EXPECT_FALSE(msg.has_value());
 }
 
@@ -527,35 +527,35 @@ TEST(IpcTransport, FullMultiWindowFlow)
 {
     // Simulate: backend + 2 agents, close agent 1 → figures redistributed to agent 2
     std::string sock_path = "/tmp/spectra-test-mw-" + std::to_string(::getpid()) + ".sock";
-    Server server;
+    Server      server;
     ASSERT_TRUE(server.listen(sock_path));
 
     // Agent 1 connects
     std::unique_ptr<Connection> agent1_conn;
-    std::thread agent1_thread([&]() { agent1_conn = Client::connect(sock_path); });
-    auto server_conn1 = server.accept();
+    std::thread                 agent1_thread([&]() { agent1_conn = Client::connect(sock_path); });
+    auto                        server_conn1 = server.accept();
     agent1_thread.join();
     ASSERT_NE(server_conn1, nullptr);
     ASSERT_NE(agent1_conn, nullptr);
 
     // Agent 2 connects
     std::unique_ptr<Connection> agent2_conn;
-    std::thread agent2_thread([&]() { agent2_conn = Client::connect(sock_path); });
-    auto server_conn2 = server.accept();
+    std::thread                 agent2_thread([&]() { agent2_conn = Client::connect(sock_path); });
+    auto                        server_conn2 = server.accept();
     agent2_thread.join();
     ASSERT_NE(server_conn2, nullptr);
     ASSERT_NE(agent2_conn, nullptr);
 
     // Backend sends CMD_ASSIGN_FIGURES to agent 1
     CmdAssignFiguresPayload assign1;
-    assign1.window_id = 1;
-    assign1.figure_ids = {10, 20};
+    assign1.window_id        = 1;
+    assign1.figure_ids       = {10, 20};
     assign1.active_figure_id = 10;
 
     Message assign_msg;
-    assign_msg.header.type = MessageType::CMD_ASSIGN_FIGURES;
-    assign_msg.header.window_id = 1;
-    assign_msg.payload = encode_cmd_assign_figures(assign1);
+    assign_msg.header.type        = MessageType::CMD_ASSIGN_FIGURES;
+    assign_msg.header.window_id   = 1;
+    assign_msg.payload            = encode_cmd_assign_figures(assign1);
     assign_msg.header.payload_len = static_cast<uint32_t>(assign_msg.payload.size());
     ASSERT_TRUE(server_conn1->send(assign_msg));
 
@@ -571,14 +571,14 @@ TEST(IpcTransport, FullMultiWindowFlow)
     // Simulate agent 1 closing: backend sends CMD_ASSIGN_FIGURES to agent 2
     // (redistributing agent 1's figures)
     CmdAssignFiguresPayload assign2;
-    assign2.window_id = 2;
-    assign2.figure_ids = {10, 20, 30};  // agent 2 had figure 30, now gets 10+20
+    assign2.window_id        = 2;
+    assign2.figure_ids       = {10, 20, 30};   // agent 2 had figure 30, now gets 10+20
     assign2.active_figure_id = 30;
 
     Message assign_msg2;
-    assign_msg2.header.type = MessageType::CMD_ASSIGN_FIGURES;
-    assign_msg2.header.window_id = 2;
-    assign_msg2.payload = encode_cmd_assign_figures(assign2);
+    assign_msg2.header.type        = MessageType::CMD_ASSIGN_FIGURES;
+    assign_msg2.header.window_id   = 2;
+    assign_msg2.payload            = encode_cmd_assign_figures(assign2);
     assign_msg2.header.payload_len = static_cast<uint32_t>(assign_msg2.payload.size());
     ASSERT_TRUE(server_conn2->send(assign_msg2));
 
@@ -596,7 +596,7 @@ TEST(IpcTransport, FullMultiWindowFlow)
     server.close();
 }
 
-#endif  // __linux__
+#endif   // __linux__
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Control Payload Encode/Decode
@@ -605,11 +605,11 @@ TEST(IpcTransport, FullMultiWindowFlow)
 TEST(IpcCodec, CmdAssignFiguresRoundTrip)
 {
     CmdAssignFiguresPayload p;
-    p.window_id = 42;
-    p.figure_ids = {1, 2, 3, 100};
+    p.window_id        = 42;
+    p.figure_ids       = {1, 2, 3, 100};
     p.active_figure_id = 2;
 
-    auto buf = encode_cmd_assign_figures(p);
+    auto buf     = encode_cmd_assign_figures(p);
     auto decoded = decode_cmd_assign_figures(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 42u);
@@ -627,7 +627,7 @@ TEST(IpcCodec, CmdAssignFiguresEmpty)
     p.window_id = 1;
     // No figures
 
-    auto buf = encode_cmd_assign_figures(p);
+    auto buf     = encode_cmd_assign_figures(p);
     auto decoded = decode_cmd_assign_figures(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 1u);
@@ -640,7 +640,7 @@ TEST(IpcCodec, ReqCreateWindowRoundTrip)
     ReqCreateWindowPayload p;
     p.template_window_id = 7;
 
-    auto buf = encode_req_create_window(p);
+    auto buf     = encode_req_create_window(p);
     auto decoded = decode_req_create_window(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->template_window_id, 7u);
@@ -651,7 +651,7 @@ TEST(IpcCodec, ReqCreateWindowNoTemplate)
     ReqCreateWindowPayload p;
     // template_window_id defaults to INVALID_WINDOW
 
-    auto buf = encode_req_create_window(p);
+    auto buf     = encode_req_create_window(p);
     auto decoded = decode_req_create_window(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->template_window_id, INVALID_WINDOW);
@@ -661,9 +661,9 @@ TEST(IpcCodec, ReqCloseWindowRoundTrip)
 {
     ReqCloseWindowPayload p;
     p.window_id = 5;
-    p.reason = "user_close";
+    p.reason    = "user_close";
 
-    auto buf = encode_req_close_window(p);
+    auto buf     = encode_req_close_window(p);
     auto decoded = decode_req_close_window(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 5u);
@@ -675,7 +675,7 @@ TEST(IpcCodec, ReqCloseWindowEmptyReason)
     ReqCloseWindowPayload p;
     p.window_id = 3;
 
-    auto buf = encode_req_close_window(p);
+    auto buf     = encode_req_close_window(p);
     auto decoded = decode_req_close_window(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 3u);
@@ -688,7 +688,7 @@ TEST(IpcCodec, CmdRemoveFigureRoundTrip)
     p.window_id = 10;
     p.figure_id = 42;
 
-    auto buf = encode_cmd_remove_figure(p);
+    auto buf     = encode_cmd_remove_figure(p);
     auto decoded = decode_cmd_remove_figure(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 10u);
@@ -701,7 +701,7 @@ TEST(IpcCodec, CmdSetActiveRoundTrip)
     p.window_id = 5;
     p.figure_id = 99;
 
-    auto buf = encode_cmd_set_active(p);
+    auto buf     = encode_cmd_set_active(p);
     auto decoded = decode_cmd_set_active(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 5u);
@@ -712,9 +712,9 @@ TEST(IpcCodec, CmdCloseWindowRoundTrip)
 {
     CmdCloseWindowPayload p;
     p.window_id = 8;
-    p.reason = "backend_shutdown";
+    p.reason    = "backend_shutdown";
 
-    auto buf = encode_cmd_close_window(p);
+    auto buf     = encode_cmd_close_window(p);
     auto decoded = decode_cmd_close_window(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 8u);
@@ -729,7 +729,7 @@ TEST(IpcCodec, CmdAssignFiguresLargeList)
         p.figure_ids.push_back(i);
     p.active_figure_id = 50;
 
-    auto buf = encode_cmd_assign_figures(p);
+    auto buf     = encode_cmd_assign_figures(p);
     auto decoded = decode_cmd_assign_figures(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->figure_ids.size(), 100u);
@@ -745,10 +745,10 @@ TEST(IpcCodec, CmdAssignFiguresLargeList)
 TEST(IpcCodec, StateSnapshotEmpty)
 {
     StateSnapshotPayload p;
-    p.revision = 42;
+    p.revision   = 42;
     p.session_id = 1;
 
-    auto buf = encode_state_snapshot(p);
+    auto buf     = encode_state_snapshot(p);
     auto decoded = decode_state_snapshot(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->revision, 42u);
@@ -759,46 +759,46 @@ TEST(IpcCodec, StateSnapshotEmpty)
 TEST(IpcCodec, StateSnapshotSingleFigure)
 {
     StateSnapshotPayload p;
-    p.revision = 1;
+    p.revision   = 1;
     p.session_id = 1;
 
     SnapshotFigureState fig;
     fig.figure_id = 10;
-    fig.title = "Test Figure";
-    fig.width = 800;
-    fig.height = 600;
+    fig.title     = "Test Figure";
+    fig.width     = 800;
+    fig.height    = 600;
     fig.grid_rows = 2;
     fig.grid_cols = 3;
 
     SnapshotAxisState ax;
-    ax.x_min = -5.0f;
-    ax.x_max = 5.0f;
-    ax.y_min = -10.0f;
-    ax.y_max = 10.0f;
+    ax.x_min        = -5.0f;
+    ax.x_max        = 5.0f;
+    ax.y_min        = -10.0f;
+    ax.y_max        = 10.0f;
     ax.grid_visible = false;
-    ax.x_label = "Time (s)";
-    ax.y_label = "Voltage (V)";
-    ax.title = "Channel 1";
+    ax.x_label      = "Time (s)";
+    ax.y_label      = "Voltage (V)";
+    ax.title        = "Channel 1";
     fig.axes.push_back(ax);
 
     SnapshotSeriesState s;
-    s.name = "Signal A";
-    s.type = "line";
-    s.color_r = 0.2f;
-    s.color_g = 0.4f;
-    s.color_b = 0.6f;
-    s.color_a = 0.8f;
-    s.line_width = 3.0f;
+    s.name        = "Signal A";
+    s.type        = "line";
+    s.color_r     = 0.2f;
+    s.color_g     = 0.4f;
+    s.color_b     = 0.6f;
+    s.color_a     = 0.8f;
+    s.line_width  = 3.0f;
     s.marker_size = 8.0f;
-    s.visible = true;
-    s.opacity = 0.9f;
+    s.visible     = true;
+    s.opacity     = 0.9f;
     s.point_count = 3;
-    s.data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    s.data        = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     fig.series.push_back(s);
 
     p.figures.push_back(fig);
 
-    auto buf = encode_state_snapshot(p);
+    auto buf     = encode_state_snapshot(p);
     auto decoded = decode_state_snapshot(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->revision, 1u);
@@ -842,18 +842,18 @@ TEST(IpcCodec, StateSnapshotSingleFigure)
 TEST(IpcCodec, StateSnapshotMultipleFigures)
 {
     StateSnapshotPayload p;
-    p.revision = 5;
+    p.revision   = 5;
     p.session_id = 1;
 
     for (int i = 0; i < 3; ++i)
     {
         SnapshotFigureState fig;
         fig.figure_id = static_cast<uint64_t>(i + 1);
-        fig.title = "Figure " + std::to_string(i + 1);
+        fig.title     = "Figure " + std::to_string(i + 1);
         p.figures.push_back(fig);
     }
 
-    auto buf = encode_state_snapshot(p);
+    auto buf     = encode_state_snapshot(p);
     auto decoded = decode_state_snapshot(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->figures.size(), 3u);
@@ -871,9 +871,9 @@ TEST(IpcCodec, StateDiffEmpty)
 {
     StateDiffPayload p;
     p.base_revision = 1;
-    p.new_revision = 2;
+    p.new_revision  = 2;
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->base_revision, 1u);
@@ -885,19 +885,19 @@ TEST(IpcCodec, StateDiffAxisLimits)
 {
     StateDiffPayload p;
     p.base_revision = 10;
-    p.new_revision = 11;
+    p.new_revision  = 11;
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_AXIS_LIMITS;
-    op.figure_id = 1;
+    op.type       = DiffOp::Type::SET_AXIS_LIMITS;
+    op.figure_id  = 1;
     op.axes_index = 0;
-    op.f1 = -5.0f;
-    op.f2 = 5.0f;
-    op.f3 = -10.0f;
-    op.f4 = 10.0f;
+    op.f1         = -5.0f;
+    op.f2         = 5.0f;
+    op.f3         = -10.0f;
+    op.f4         = 10.0f;
     p.ops.push_back(op);
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->ops.size(), 1u);
@@ -914,19 +914,19 @@ TEST(IpcCodec, StateDiffSeriesColor)
 {
     StateDiffPayload p;
     p.base_revision = 20;
-    p.new_revision = 21;
+    p.new_revision  = 21;
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_SERIES_COLOR;
-    op.figure_id = 2;
+    op.type         = DiffOp::Type::SET_SERIES_COLOR;
+    op.figure_id    = 2;
     op.series_index = 1;
-    op.f1 = 1.0f;
-    op.f2 = 0.0f;
-    op.f3 = 0.0f;
-    op.f4 = 1.0f;
+    op.f1           = 1.0f;
+    op.f2           = 0.0f;
+    op.f3           = 0.0f;
+    op.f4           = 1.0f;
     p.ops.push_back(op);
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->ops.size(), 1u);
@@ -939,15 +939,15 @@ TEST(IpcCodec, StateDiffFigureTitle)
 {
     StateDiffPayload p;
     p.base_revision = 5;
-    p.new_revision = 6;
+    p.new_revision  = 6;
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_FIGURE_TITLE;
+    op.type      = DiffOp::Type::SET_FIGURE_TITLE;
     op.figure_id = 3;
-    op.str_val = "Renamed Figure";
+    op.str_val   = "Renamed Figure";
     p.ops.push_back(op);
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->ops.size(), 1u);
@@ -959,16 +959,16 @@ TEST(IpcCodec, StateDiffSeriesData)
 {
     StateDiffPayload p;
     p.base_revision = 100;
-    p.new_revision = 101;
+    p.new_revision  = 101;
 
     DiffOp op;
-    op.type = DiffOp::Type::SET_SERIES_DATA;
-    op.figure_id = 1;
+    op.type         = DiffOp::Type::SET_SERIES_DATA;
+    op.figure_id    = 1;
     op.series_index = 0;
-    op.data = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    op.data         = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
     p.ops.push_back(op);
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->ops.size(), 1u);
@@ -982,32 +982,32 @@ TEST(IpcCodec, StateDiffMultipleOps)
 {
     StateDiffPayload p;
     p.base_revision = 50;
-    p.new_revision = 53;
+    p.new_revision  = 53;
 
     DiffOp op1;
-    op1.type = DiffOp::Type::SET_AXIS_LIMITS;
+    op1.type      = DiffOp::Type::SET_AXIS_LIMITS;
     op1.figure_id = 1;
-    op1.f1 = 0.0f;
-    op1.f2 = 100.0f;
-    op1.f3 = 0.0f;
-    op1.f4 = 100.0f;
+    op1.f1        = 0.0f;
+    op1.f2        = 100.0f;
+    op1.f3        = 0.0f;
+    op1.f4        = 100.0f;
     p.ops.push_back(op1);
 
     DiffOp op2;
-    op2.type = DiffOp::Type::SET_SERIES_VISIBLE;
-    op2.figure_id = 1;
+    op2.type         = DiffOp::Type::SET_SERIES_VISIBLE;
+    op2.figure_id    = 1;
     op2.series_index = 2;
-    op2.bool_val = false;
+    op2.bool_val     = false;
     p.ops.push_back(op2);
 
     DiffOp op3;
-    op3.type = DiffOp::Type::SET_OPACITY;
-    op3.figure_id = 1;
+    op3.type         = DiffOp::Type::SET_OPACITY;
+    op3.figure_id    = 1;
     op3.series_index = 0;
-    op3.f1 = 0.5f;
+    op3.f1           = 0.5f;
     p.ops.push_back(op3);
 
-    auto buf = encode_state_diff(p);
+    auto buf     = encode_state_diff(p);
     auto decoded = decode_state_diff(buf);
     ASSERT_TRUE(decoded.has_value());
     ASSERT_EQ(decoded->ops.size(), 3u);
@@ -1027,7 +1027,7 @@ TEST(IpcCodec, AckStateRoundTrip)
     AckStatePayload p;
     p.revision = 999;
 
-    auto buf = encode_ack_state(p);
+    auto buf     = encode_ack_state(p);
     auto decoded = decode_ack_state(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->revision, 999u);
@@ -1040,16 +1040,16 @@ TEST(IpcCodec, AckStateRoundTrip)
 TEST(IpcCodec, EvtInputRoundTrip)
 {
     EvtInputPayload p;
-    p.window_id = 5;
+    p.window_id  = 5;
     p.input_type = EvtInputPayload::InputType::SCROLL;
-    p.key = 0;
-    p.mods = 3;
-    p.x = 123.456;
-    p.y = 789.012;
-    p.figure_id = 42;
+    p.key        = 0;
+    p.mods       = 3;
+    p.x          = 123.456;
+    p.y          = 789.012;
+    p.figure_id  = 42;
     p.axes_index = 1;
 
-    auto buf = encode_evt_input(p);
+    auto buf     = encode_evt_input(p);
     auto decoded = decode_evt_input(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->window_id, 5u);
@@ -1065,12 +1065,12 @@ TEST(IpcCodec, EvtInputRoundTrip)
 TEST(IpcCodec, EvtInputKeyPress)
 {
     EvtInputPayload p;
-    p.window_id = 1;
+    p.window_id  = 1;
     p.input_type = EvtInputPayload::InputType::KEY_PRESS;
-    p.key = 65;  // 'A'
-    p.mods = 1;  // Shift
+    p.key        = 65;   // 'A'
+    p.mods       = 1;    // Shift
 
-    auto buf = encode_evt_input(p);
+    auto buf     = encode_evt_input(p);
     auto decoded = decode_evt_input(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->input_type, EvtInputPayload::InputType::KEY_PRESS);
@@ -1081,14 +1081,14 @@ TEST(IpcCodec, EvtInputKeyPress)
 TEST(IpcCodec, EvtInputMouseMove)
 {
     EvtInputPayload p;
-    p.window_id = 2;
+    p.window_id  = 2;
     p.input_type = EvtInputPayload::InputType::MOUSE_MOVE;
-    p.x = 500.5;
-    p.y = 300.25;
-    p.figure_id = 1;
+    p.x          = 500.5;
+    p.y          = 300.25;
+    p.figure_id  = 1;
     p.axes_index = 0;
 
-    auto buf = encode_evt_input(p);
+    auto buf     = encode_evt_input(p);
     auto decoded = decode_evt_input(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->input_type, EvtInputPayload::InputType::MOUSE_MOVE);
@@ -1103,7 +1103,7 @@ TEST(IpcCodec, EvtInputMouseMove)
 TEST(IpcCodec, FloatArrayRoundTrip)
 {
     std::vector<float> data = {1.5f, -2.5f, 3.14159f, 0.0f, -0.0f};
-    PayloadEncoder enc;
+    PayloadEncoder     enc;
     payload_put_float_array(enc, 0x77, data);
     auto buf = enc.take();
 
@@ -1121,7 +1121,7 @@ TEST(IpcCodec, FloatArrayRoundTrip)
 TEST(IpcCodec, FloatArrayEmpty)
 {
     std::vector<float> data;
-    PayloadEncoder enc;
+    PayloadEncoder     enc;
     payload_put_float_array(enc, 0x77, data);
     auto buf = enc.take();
 
@@ -1178,11 +1178,11 @@ TEST(IpcCodec, ReqDetachFigureRoundTrip)
 {
     ReqDetachFigurePayload p;
     p.source_window_id = 42;
-    p.figure_id = 7;
-    p.width = 1024;
-    p.height = 768;
-    p.screen_x = 200;
-    p.screen_y = 150;
+    p.figure_id        = 7;
+    p.width            = 1024;
+    p.height           = 768;
+    p.screen_x         = 200;
+    p.screen_y         = 150;
 
     auto buf = encode_req_detach_figure(p);
     ASSERT_FALSE(buf.empty());
@@ -1200,8 +1200,8 @@ TEST(IpcCodec, ReqDetachFigureRoundTrip)
 TEST(IpcCodec, ReqDetachFigureDefaults)
 {
     ReqDetachFigurePayload p;
-    auto buf = encode_req_detach_figure(p);
-    auto decoded = decode_req_detach_figure(buf);
+    auto                   buf     = encode_req_detach_figure(p);
+    auto                   decoded = decode_req_detach_figure(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->source_window_id, INVALID_WINDOW);
     EXPECT_EQ(decoded->figure_id, 0u);
@@ -1217,7 +1217,7 @@ TEST(IpcCodec, ReqDetachFigureNegativeCoords)
     p.screen_x = -100;
     p.screen_y = -50;
 
-    auto buf = encode_req_detach_figure(p);
+    auto buf     = encode_req_detach_figure(p);
     auto decoded = decode_req_detach_figure(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->screen_x, -100);

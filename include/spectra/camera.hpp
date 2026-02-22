@@ -20,14 +20,14 @@ class Camera
     vec3 up{0.0f, 1.0f, 0.0f};
 
     ProjectionMode projection_mode = ProjectionMode::Perspective;
-    float fov = 45.0f;
-    float near_clip = 0.01f;
-    float far_clip = 1000.0f;
-    float ortho_size = 10.0f;
+    float          fov             = 45.0f;
+    float          near_clip       = 0.01f;
+    float          far_clip        = 1000.0f;
+    float          ortho_size      = 10.0f;
 
-    float azimuth = 45.0f;
+    float azimuth   = 45.0f;
     float elevation = 30.0f;
-    float distance = 5.0f;
+    float distance  = 5.0f;
 
     Camera() = default;
 
@@ -86,7 +86,7 @@ class Camera
     void update_position_from_orbit();
 
     std::string serialize() const;
-    void deserialize(const std::string& json);
+    void        deserialize(const std::string& json);
 };
 
-}  // namespace spectra
+}   // namespace spectra

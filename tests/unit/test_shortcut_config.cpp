@@ -90,7 +90,7 @@ TEST(ShortcutConfigOverrides, MultipleOverrides)
 TEST(ShortcutConfigApply, ApplyRebind)
 {
     CommandRegistry registry;
-    bool called = false;
+    bool            called = false;
     registry.register_command("test.cmd", "Test", [&]() { called = true; });
 
     ShortcutManager mgr;
@@ -160,7 +160,7 @@ TEST(ShortcutConfigApply, ApplyMultipleOverrides)
 TEST(ShortcutConfigSerialize, EmptyConfig)
 {
     ShortcutConfig config;
-    std::string json = config.serialize();
+    std::string    json = config.serialize();
     EXPECT_FALSE(json.empty());
     EXPECT_NE(json.find("\"version\": 1"), std::string::npos);
     EXPECT_NE(json.find("\"bindings\""), std::string::npos);
@@ -179,7 +179,7 @@ TEST(ShortcutConfigSerialize, RoundTrip)
     EXPECT_TRUE(config2.deserialize(json));
     EXPECT_EQ(config2.override_count(), 3u);
 
-    auto overrides = config2.overrides();
+    auto overrides   = config2.overrides();
     bool found_reset = false, found_zoom = false, found_undo = false;
     for (const auto& o : overrides)
     {
@@ -229,7 +229,7 @@ TEST(ShortcutConfigSerialize, SpecialCharacters)
     ShortcutConfig config;
     config.set_override("plugin.my\"cmd", "Ctrl+Shift+A");
 
-    std::string json = config.serialize();
+    std::string    json = config.serialize();
     ShortcutConfig config2;
     EXPECT_TRUE(config2.deserialize(json));
     EXPECT_EQ(config2.override_count(), 1u);
@@ -239,7 +239,7 @@ TEST(ShortcutConfigSerialize, SpecialCharacters)
 
 TEST(ShortcutConfigFile, SaveAndLoad)
 {
-    auto path = std::filesystem::temp_directory_path() / "spectra_test_keybindings.json";
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_keybindings.json";
     auto path_str = path.string();
 
     // Cleanup
@@ -285,7 +285,7 @@ TEST(ShortcutConfigFile, DefaultPath)
 TEST(ShortcutConfigCallback, OnChangeCalledOnSet)
 {
     ShortcutConfig config;
-    int change_count = 0;
+    int            change_count = 0;
     config.set_on_change([&]() { ++change_count; });
 
     config.set_override("view.reset", "Ctrl+R");
@@ -298,7 +298,7 @@ TEST(ShortcutConfigCallback, OnChangeCalledOnSet)
 TEST(ShortcutConfigCallback, OnChangeCalledOnRemove)
 {
     ShortcutConfig config;
-    int change_count = 0;
+    int            change_count = 0;
     config.set_override("view.reset", "Ctrl+R");
 
     config.set_on_change([&]() { ++change_count; });

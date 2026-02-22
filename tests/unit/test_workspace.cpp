@@ -40,40 +40,40 @@ class WorkspaceTest : public ::testing::Test
     WorkspaceData make_sample_data()
     {
         WorkspaceData data;
-        data.theme_name = "light";
-        data.active_figure_index = 1;
+        data.theme_name               = "light";
+        data.active_figure_index      = 1;
         data.panels.inspector_visible = false;
-        data.panels.inspector_width = 400.0f;
+        data.panels.inspector_width   = 400.0f;
         data.panels.nav_rail_expanded = true;
 
         WorkspaceData::FigureState fig;
-        fig.title = "Test Figure";
-        fig.width = 1920;
-        fig.height = 1080;
+        fig.title     = "Test Figure";
+        fig.width     = 1920;
+        fig.height    = 1080;
         fig.grid_rows = 2;
         fig.grid_cols = 3;
 
         WorkspaceData::AxisState ax;
-        ax.x_min = -5.0f;
-        ax.x_max = 5.0f;
-        ax.y_min = -1.0f;
-        ax.y_max = 1.0f;
-        ax.auto_fit = false;
+        ax.x_min        = -5.0f;
+        ax.x_max        = 5.0f;
+        ax.y_min        = -1.0f;
+        ax.y_max        = 1.0f;
+        ax.auto_fit     = false;
         ax.grid_visible = true;
-        ax.x_label = "Time (s)";
-        ax.y_label = "Amplitude";
-        ax.title = "Signal";
+        ax.x_label      = "Time (s)";
+        ax.y_label      = "Amplitude";
+        ax.title        = "Signal";
         fig.axes.push_back(ax);
 
         WorkspaceData::SeriesState ser;
-        ser.name = "sin(x)";
-        ser.type = "line";
-        ser.color_r = 0.3f;
-        ser.color_g = 0.5f;
-        ser.color_b = 0.8f;
-        ser.color_a = 1.0f;
-        ser.line_width = 3.0f;
-        ser.visible = true;
+        ser.name        = "sin(x)";
+        ser.type        = "line";
+        ser.color_r     = 0.3f;
+        ser.color_g     = 0.5f;
+        ser.color_b     = 0.8f;
+        ser.color_a     = 1.0f;
+        ser.line_width  = 3.0f;
+        ser.visible     = true;
         ser.point_count = 1000;
         fig.series.push_back(ser);
 
@@ -143,7 +143,7 @@ TEST_F(WorkspaceTest, LoadNonExistentReturnsFalse)
 
 TEST_F(WorkspaceTest, LoadEmptyFileReturnsFalse)
 {
-    std::ofstream(tmp_path).close();  // Create empty file
+    std::ofstream(tmp_path).close();   // Create empty file
     WorkspaceData data;
     EXPECT_FALSE(Workspace::load(tmp_path, data));
 }
@@ -185,7 +185,7 @@ TEST_F(WorkspaceTest, EmptyFiguresArray)
 
 TEST_F(WorkspaceTest, SpecialCharactersInStrings)
 {
-    WorkspaceData data;
+    WorkspaceData              data;
     WorkspaceData::FigureState fig;
     fig.title = "Test \"quoted\" figure";
 
@@ -227,7 +227,7 @@ TEST_F(WorkspaceTest, OutputIsValidJson)
     ASSERT_TRUE(Workspace::save(tmp_path, data));
 
     std::ifstream file(tmp_path);
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    std::string   content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
     // Basic JSON structure checks
     EXPECT_EQ(content.front(), '{');

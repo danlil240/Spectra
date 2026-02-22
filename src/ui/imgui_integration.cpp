@@ -1,11 +1,12 @@
 #ifdef SPECTRA_USE_IMGUI
 
+    #include "window_manager.hpp"
     #include "imgui_integration.hpp"
 
     #include <imgui.h>
-    #include <imgui_internal.h>
     #include <imgui_impl_glfw.h>
     #include <imgui_impl_vulkan.h>
+    #include <imgui_internal.h>
     #include <spectra/axes.hpp>
     #include <spectra/axes3d.hpp>
     #include <spectra/camera.hpp>
@@ -22,19 +23,18 @@
     #include "command_palette.hpp"
     #include "command_registry.hpp"
     #include "data_interaction.hpp"
-    #include "math/data_transform.hpp"
     #include "design_tokens.hpp"
     #include "dock_system.hpp"
     #include "icons.hpp"
     #include "keyframe_interpolator.hpp"
     #include "knob_manager.hpp"
+    #include "math/data_transform.hpp"
     #include "mode_transition.hpp"
     #include "tab_bar.hpp"
     #include "tab_drag_controller.hpp"
     #include "theme.hpp"
     #include "timeline_editor.hpp"
     #include "widgets.hpp"
-    #include "window_manager.hpp"
 
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
@@ -50,7 +50,7 @@
     #include <string>
 
     #include "../../third_party/icon_font_data.hpp"
-    // text_renderer.hpp removed — plot text now rendered by Renderer::render_plot_text
+// text_renderer.hpp removed — plot text now rendered by Renderer::render_plot_text
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -1303,23 +1303,23 @@ void ImGuiIntegration::draw_command_bar()
                     }
                     SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
                 });
-            axes_items.emplace_back(
-                "Link Z Axes",
-                [this, has_enough_axes]()
-                {
-                    if (!has_enough_axes())
-                        return;
-                    // Z-axis linking is only meaningful for 3D axes
-                    std::vector<Axes3D*> axes3d_list;
-                    for (auto& ab : current_figure_->all_axes_mut())
-                    {
-                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
-                            axes3d_list.push_back(a3);
-                    }
-                    for (size_t i = 1; i < axes3d_list.size(); ++i)
-                        axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::Z);
-                    SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
-                });
+            axes_items.emplace_back("Link Z Axes",
+                                    [this, has_enough_axes]()
+                                    {
+                                        if (!has_enough_axes())
+                                            return;
+                                        // Z-axis linking is only meaningful for 3D axes
+                                        std::vector<Axes3D*> axes3d_list;
+                                        for (auto& ab : current_figure_->all_axes_mut())
+                                        {
+                                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                                axes3d_list.push_back(a3);
+                                        }
+                                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                                            axis_link_mgr_->link_3d(
+                                                axes3d_list[0], axes3d_list[i], LinkAxis::Z);
+                                        SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
+                                    });
             axes_items.emplace_back(
                 "Link All Axes",
                 [this, has_enough_axes]()
@@ -1925,7 +1925,8 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         int target_idx = selection_ctx_.axes_index;
                         if (target_idx >= 0 && target_idx < static_cast<int>(figure.axes().size()))
                         {
-                            selection_ctx_.select_axes(&figure, figure.axes_mut()[target_idx].get(), target_idx);
+                            selection_ctx_.select_axes(
+                                &figure, figure.axes_mut()[target_idx].get(), target_idx);
                         }
                         else
                         {
@@ -2551,10 +2552,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
     pane_tab_hovered_ = false;
 
     ImGuiWindowFlags pane_win_flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-        | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
-        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
-        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs;
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse
+        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoInputs;
 
     for (auto& ph : headers)
     {
@@ -2568,7 +2569,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));  // transparent — we draw bg ourselves
+        ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                              ImVec4(0, 0, 0, 0));  // transparent — we draw bg ourselves
 
         if (!ImGui::Begin(win_id, nullptr, pane_win_flags))
         {
@@ -2603,7 +2605,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
             // Tab background
             ImU32 bg;
-            bool is_active_styled = tr.is_active && !is_menu_open();  // Don't show active styling when menus are open
+            bool is_active_styled =
+                tr.is_active && !is_menu_open();  // Don't show active styling when menus are open
             if (is_being_dragged)
             {
                 bg = to_col(theme.bg_elevated);
@@ -3192,12 +3195,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
     }                  // Phase 5 scope
 }
 
-
 void ImGuiIntegration::draw_plot_overlays(Figure& figure)
 {
     if (!layout_manager_)
         return;
-
 
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     const auto& colors = ui::ThemeManager::instance().colors();
@@ -3900,9 +3901,8 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         if (has_multi && ax_3d)
         {
             // 3D axes: Link XYZ to all other 3D axes
-            std::string link_3d_label =
-                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD"))
-                + "  Link 3D Axes (XYZ)";
+            std::string link_3d_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD"))
+                                        + "  Link 3D Axes (XYZ)";
             if (ImGui::Selectable(link_3d_label.c_str(), false, 0, ImVec2(220, 24)))
             {
                 for (auto& ab : figure.all_axes_mut())

@@ -39,27 +39,33 @@ NamespaceIndentation: None
 CompactNamespaces: false
 
 # Modern C++ features
-SortIncludes: true
-SortUsingDeclarations: true
+SortIncludes: false
+SortUsingDeclarations: false
 
-# Spacing
+# Spacing - Enhanced for visual appeal
 SpaceBeforeParens: ControlStatements
 SpaceBeforeCtorInitializerColon: true
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceInEmptyParentheses: false
-SpacesBeforeTrailingComments: 2
+SpacesBeforeTrailingComments: 3
 SpacesInAngles: false
 SpacesInContainerLiterals: true
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
-# Alignment
+# Enhanced spacing for better readability
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeInheritanceColon: true
+
+# Alignment - Enhanced for visual structure
 AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
-AlignConsecutiveMacros: false
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignConsecutiveMacros: true
 AlignOperands: true
 AlignTrailingComments: true
 
@@ -78,16 +84,6 @@ BinPackParameters: false
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-
-# Handle includes with system vs project separation
-IncludeBlocks: Regroup
-IncludeCategories:
-  - Regex: '^<.*>'
-    Priority: 1
-  - Regex: '^".*"'
-    Priority: 2
-  - Regex: '.*'
-    Priority: 3
 
 # Handle third-party includes
 IndentPPDirectives: BeforeHash
@@ -113,3 +109,7 @@ PenaltyReturnTypeOnItsOwnLine: 200
 # Handle shader-related code
 AlignEscapedNewlines: Left
 AlignConsecutiveBitFields: false
+
+# Final touches for stunning code
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false

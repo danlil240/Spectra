@@ -16,11 +16,11 @@ namespace spectra
 // Which axis dimensions are linked within a group
 enum class LinkAxis : uint8_t
 {
-    X    = 0x01,
-    Y    = 0x02,
+    X = 0x01,
+    Y = 0x02,
     Both = 0x03,  // X | Y (2D)
-    Z    = 0x04,
-    All  = 0x07,  // X | Y | Z (3D)
+    Z = 0x04,
+    All = 0x07,  // X | Y | Z (3D)
 };
 
 inline LinkAxis operator|(LinkAxis a, LinkAxis b)
@@ -56,7 +56,7 @@ struct LinkGroup
 struct Link3DGroup
 {
     LinkGroupId id = 0;
-    LinkAxis axis = LinkAxis::All;   // X=xlim only, Y=ylim only, Z=zlim only, All=all three
+    LinkAxis axis = LinkAxis::All;  // X=xlim only, Y=ylim only, Z=zlim only, All=all three
     std::string name;
     Color color = colors::blue;
     std::vector<Axes3D*> members;

@@ -79,8 +79,7 @@ void register_standard_commands(const CommandBindings& b)
                 AxisLimits target_y = ax->y_limits();
                 ax->xlim(old_xlim.min, old_xlim.max);
                 ax->ylim(old_ylim.min, old_ylim.max);
-                anim_controller.animate_axis_limits(
-                    *ax, target_x, target_y, 0.25f, ease::ease_out);
+                anim_controller.animate_axis_limits(*ax, target_x, target_y, 0.25f, ease::ease_out);
             }
             // 3D axes (subplot3d populates all_axes_mut only)
             for (auto& ax_base : active_figure->all_axes_mut())
@@ -149,10 +148,9 @@ void register_standard_commands(const CommandBindings& b)
                     auto new_planes = was_on ? Axes3D::GridPlane::None : Axes3D::GridPlane::All;
                     ax3d->grid_planes(new_planes);
                     Axes3D* ax = ax3d;
-                    undo_mgr.push(UndoAction{
-                        was_on ? "Hide 3D grid" : "Show 3D grid",
-                        [ax, old_planes]() { ax->grid_planes(old_planes); },
-                        [ax, new_planes]() { ax->grid_planes(new_planes); }});
+                    undo_mgr.push(UndoAction{was_on ? "Hide 3D grid" : "Show 3D grid",
+                                             [ax, old_planes]() { ax->grid_planes(old_planes); },
+                                             [ax, new_planes]() { ax->grid_planes(new_planes); }});
                 }
             }
             undo_mgr.end_group();
@@ -213,10 +211,10 @@ void register_standard_commands(const CommandBindings& b)
                     bool new_val = !old_val;
                     ax3d->show_bounding_box(new_val);
                     Axes3D* ax = ax3d;
-                    undo_mgr.push(UndoAction{
-                        new_val ? "Show 3D bounding box" : "Hide 3D bounding box",
-                        [ax, old_val]() { ax->show_bounding_box(old_val); },
-                        [ax, new_val]() { ax->show_bounding_box(new_val); }});
+                    undo_mgr.push(
+                        UndoAction{new_val ? "Show 3D bounding box" : "Hide 3D bounding box",
+                                   [ax, old_val]() { ax->show_bounding_box(old_val); },
+                                   [ax, new_val]() { ax->show_bounding_box(new_val); }});
                 }
             }
             undo_mgr.end_group();

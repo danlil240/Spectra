@@ -87,4 +87,4 @@ struct SeriesStyle;
 struct LegendConfig;
 struct FigureStyle;
 
-}  // namespace spectra
+}   // namespace spectra

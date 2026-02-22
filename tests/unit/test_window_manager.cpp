@@ -28,12 +28,12 @@ class WindowManagerTest : public ::testing::Test
     {
         AppConfig config;
         config.headless = true;
-        app_ = std::make_unique<App>(config);
+        app_            = std::make_unique<App>(config);
         // Render one frame to fully initialize backend + renderer
-        auto& fig = app_->figure({.width = 320, .height = 240});
-        auto& ax = fig.subplot(1, 1, 1);
-        std::vector<float> x = {0.0f, 1.0f, 2.0f};
-        std::vector<float> y = {0.0f, 1.0f, 0.5f};
+        auto&              fig = app_->figure({.width = 320, .height = 240});
+        auto&              ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+        std::vector<float> y   = {0.0f, 1.0f, 0.5f};
         ax.line(x, y);
         app_->run();
     }
@@ -161,7 +161,7 @@ TEST_F(WindowManagerTest, FocusedWindowNoneWhenClosed)
 
     // Mark window as should_close
     wctx->should_close = true;
-    wctx->is_focused = false;
+    wctx->is_focused   = false;
 
     auto* focused = wm.focused_window();
     EXPECT_EQ(focused, nullptr);
@@ -236,7 +236,7 @@ TEST_F(WindowManagerTest, ShutdownIdempotent)
 
     wm.create_initial_window(nullptr);
     wm.shutdown();
-    wm.shutdown();  // Should not crash
+    wm.shutdown();   // Should not crash
     EXPECT_EQ(wm.window_count(), 0u);
 }
 
@@ -284,8 +284,8 @@ TEST_F(WindowManagerTest, BackendHasInitWindowContext)
 
     // init_window_context should fail gracefully with no GLFW window
     WindowContext wctx{};
-    bool ok = backend->init_window_context(wctx, 320, 240);
-    EXPECT_FALSE(ok);  // No glfw_window set
+    bool          ok = backend->init_window_context(wctx, 320, 240);
+    EXPECT_FALSE(ok);   // No glfw_window set
 }
 
 TEST_F(WindowManagerTest, BackendDestroyEmptyWindowContext)
@@ -467,7 +467,7 @@ TEST_F(WindowManagerTest, MoveFigureSuccessful)
     // Simulate a second window by creating a WindowContext manually
     // (can't use create_window in headless mode)
     WindowContext secondary{};
-    secondary.id = 99;
+    secondary.id                    = 99;
     secondary.assigned_figure_index = INVALID_FIGURE_ID;
 
     // We can't use wm.move_figure directly since the secondary isn't
@@ -490,11 +490,11 @@ TEST_F(WindowManagerTest, MoveFigureClearsSource)
     // Since we can't create real secondary windows in headless,
     // we test the WindowContext field manipulation directly.
     WindowContext source{};
-    source.id = 1;
+    source.id                    = 1;
     source.assigned_figure_index = 42;
 
     WindowContext target{};
-    target.id = 2;
+    target.id                    = 2;
     target.assigned_figure_index = INVALID_FIGURE_ID;
 
     // Simulate move
@@ -643,7 +643,7 @@ TEST_F(WindowManagerTest, MoveFigureToSelfIsNoOp)
     ASSERT_NE(wctx, nullptr);
 
     wctx->assigned_figure_index = 5;
-    bool result = wm.move_figure(5, wctx->id, wctx->id);
+    bool result                 = wm.move_figure(5, wctx->id, wctx->id);
     EXPECT_FALSE(result);
     // Figure should still be assigned
     EXPECT_EQ(wctx->assigned_figure_index, 5u);
@@ -673,7 +673,7 @@ TEST_F(WindowManagerTest, FocusedWindowFallbackToPrimary)
 
     // Primary is not focused but still open — should return primary as fallback
     wctx->is_focused = false;
-    auto* focused = wm.focused_window();
+    auto* focused    = wm.focused_window();
     EXPECT_EQ(focused, wctx);
 }
 
@@ -685,8 +685,8 @@ TEST_F(WindowManagerTest, WindowContextResizeFields)
     EXPECT_EQ(wctx.pending_height, 0u);
 
     // Simulate resize event
-    wctx.needs_resize = true;
-    wctx.pending_width = 1920;
+    wctx.needs_resize   = true;
+    wctx.pending_width  = 1920;
     wctx.pending_height = 1080;
 
     EXPECT_TRUE(wctx.needs_resize);

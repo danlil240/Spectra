@@ -13,9 +13,9 @@ class ImageExporter
 {
    public:
     static bool write_png(const std::string& path,
-                          const uint8_t* rgba_data,
-                          uint32_t width,
-                          uint32_t height);
+                          const uint8_t*     rgba_data,
+                          uint32_t           width,
+                          uint32_t           height);
 };
 
 class SvgExporter
@@ -36,17 +36,17 @@ class VideoExporter
     struct Config
     {
         std::string output_path;
-        uint32_t width = 1280;
-        uint32_t height = 720;
-        float fps = 60.0f;
-        std::string codec = "libx264";
+        uint32_t    width   = 1280;
+        uint32_t    height  = 720;
+        float       fps     = 60.0f;
+        std::string codec   = "libx264";
         std::string pix_fmt = "yuv420p";
     };
 
     explicit VideoExporter(const Config& config);
     ~VideoExporter();
 
-    VideoExporter(const VideoExporter&) = delete;
+    VideoExporter(const VideoExporter&)            = delete;
     VideoExporter& operator=(const VideoExporter&) = delete;
 
     bool write_frame(const uint8_t* rgba_data);
@@ -56,8 +56,8 @@ class VideoExporter
 
    private:
     Config config_;
-    FILE* pipe_ = nullptr;
+    FILE*  pipe_ = nullptr;
 };
-#endif  // SPECTRA_USE_FFMPEG
+#endif   // SPECTRA_USE_FFMPEG
 
-}  // namespace spectra
+}   // namespace spectra

@@ -45,7 +45,7 @@ static void BM_SingleWindow_EmptyFigure(benchmark::State& state)
 {
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 640, .height = 480});
         fig.subplot(1, 1, 1);
         app.run();
@@ -60,9 +60,9 @@ static void BM_SingleWindow_Line1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 640, .height = 480});
-        auto& ax = fig.subplot(1, 1, 1);
+        auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(-1.5f, 1.5f);
@@ -78,9 +78,9 @@ static void BM_SingleWindow_Line10K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 640, .height = 480});
-        auto& ax = fig.subplot(1, 1, 1);
+        auto& ax  = fig.subplot(1, 1, 1);
         ax.line(x, y);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(-1.5f, 1.5f);
@@ -96,9 +96,9 @@ static void BM_SingleWindow_Scatter1K(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 640, .height = 480});
-        auto& ax = fig.subplot(1, 1, 1);
+        auto& ax  = fig.subplot(1, 1, 1);
         ax.scatter(x, y);
         ax.xlim(0.0f, 10.0f);
         ax.ylim(-1.5f, 1.5f);
@@ -118,7 +118,7 @@ static void BM_SingleWindow_MultiFigure_2(benchmark::State& state)
         for (int i = 0; i < 2; ++i)
         {
             auto& fig = app.figure({.width = 640, .height = 480});
-            auto& ax = fig.subplot(1, 1, 1);
+            auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
             ax.xlim(0.0f, 10.0f);
             ax.ylim(-1.5f, 1.5f);
@@ -139,7 +139,7 @@ static void BM_SingleWindow_MultiFigure_4(benchmark::State& state)
         for (int i = 0; i < 4; ++i)
         {
             auto& fig = app.figure({.width = 640, .height = 480});
-            auto& ax = fig.subplot(1, 1, 1);
+            auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
             ax.xlim(0.0f, 10.0f);
             ax.ylim(-1.5f, 1.5f);
@@ -156,7 +156,7 @@ static void BM_SingleWindow_Subplot2x2(benchmark::State& state)
 
     for (auto _ : state)
     {
-        App app({.headless = true});
+        App   app({.headless = true});
         auto& fig = app.figure({.width = 800, .height = 600});
         for (int i = 1; i <= 4; ++i)
         {
@@ -190,9 +190,9 @@ static void BM_SingleWindow_PipelineCreation(benchmark::State& state)
 
     for (auto _ : state)
     {
-        auto line = backend->create_pipeline(PipelineType::Line);
+        auto line    = backend->create_pipeline(PipelineType::Line);
         auto scatter = backend->create_pipeline(PipelineType::Scatter);
-        auto grid = backend->create_pipeline(PipelineType::Grid);
+        auto grid    = backend->create_pipeline(PipelineType::Grid);
         benchmark::DoNotOptimize(line);
         benchmark::DoNotOptimize(scatter);
         benchmark::DoNotOptimize(grid);
@@ -217,16 +217,16 @@ BENCHMARK(BM_SingleWindow_BufferCreateDestroy)->Unit(benchmark::kMicrosecond);
 
 static void BM_SingleWindow_Readback(benchmark::State& state)
 {
-    App app({.headless = true});
+    App   app({.headless = true});
     auto& fig = app.figure({.width = 640, .height = 480});
-    auto& ax = fig.subplot(1, 1, 1);
-    auto x = gen_x(100);
-    auto y = gen_y_sin(x);
+    auto& ax  = fig.subplot(1, 1, 1);
+    auto  x   = gen_x(100);
+    auto  y   = gen_y_sin(x);
     ax.line(x, y);
     app.run();
 
     std::vector<uint8_t> pixels(640 * 480 * 4);
-    auto* backend = app.backend();
+    auto*                backend = app.backend();
 
     for (auto _ : state)
     {
@@ -249,7 +249,7 @@ BENCHMARK(BM_SingleWindow_Readback)->Unit(benchmark::kMicrosecond);
 //   BM_MultiWindow_ResizeOneWindow
 //   BM_MultiWindow_FrameTimeScaling (1..8 windows)
 
-#endif  // SPECTRA_HAS_WINDOW_MANAGER
+#endif   // SPECTRA_HAS_WINDOW_MANAGER
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Phase 2 Stub — Simulated Multi-Window (always runs)
@@ -267,9 +267,9 @@ static void BM_StubMultiWindow_2Apps(benchmark::State& state)
     {
         for (int i = 0; i < 2; ++i)
         {
-            App app({.headless = true});
+            App   app({.headless = true});
             auto& fig = app.figure({.width = 640, .height = 480});
-            auto& ax = fig.subplot(1, 1, 1);
+            auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
             ax.xlim(0.0f, 10.0f);
             ax.ylim(-1.5f, 1.5f);
@@ -288,9 +288,9 @@ static void BM_StubMultiWindow_4Apps(benchmark::State& state)
     {
         for (int i = 0; i < 4; ++i)
         {
-            App app({.headless = true});
+            App   app({.headless = true});
             auto& fig = app.figure({.width = 640, .height = 480});
-            auto& ax = fig.subplot(1, 1, 1);
+            auto& ax  = fig.subplot(1, 1, 1);
             ax.line(x, y);
             ax.xlim(0.0f, 10.0f);
             ax.ylim(-1.5f, 1.5f);
@@ -314,4 +314,4 @@ static void BM_StubMultiWindow_SequentialCreateDestroy(benchmark::State& state)
 }
 BENCHMARK(BM_StubMultiWindow_SequentialCreateDestroy)->Unit(benchmark::kMillisecond);
 
-#endif  // !SPECTRA_HAS_WINDOW_MANAGER
+#endif   // !SPECTRA_HAS_WINDOW_MANAGER

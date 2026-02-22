@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/layout_manager.hpp"
+#include "ui/layout/layout_manager.hpp"
 
 using namespace spectra;
 

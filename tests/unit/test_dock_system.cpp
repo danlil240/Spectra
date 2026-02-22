@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/dock_system.hpp"
+#include "ui/docking/dock_system.hpp"
 
 using namespace spectra;
 

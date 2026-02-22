@@ -76,10 +76,9 @@ auto plot3(const Eigen::DenseBase<XDerived>& x,
             XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
         LineSeries3D&>
 {
-    auto& ax  = detail::easy_state().ensure_axes3d();
-    auto& ref = ax.line3d(eigen_detail::to_span(x),
-                          eigen_detail::to_span(y),
-                          eigen_detail::to_span(z));
+    auto& ax = detail::easy_state().ensure_axes3d();
+    auto& ref =
+        ax.line3d(eigen_detail::to_span(x), eigen_detail::to_span(y), eigen_detail::to_span(z));
     ax.auto_fit();
     return ref;
 }
@@ -94,10 +93,9 @@ auto scatter3(const Eigen::DenseBase<XDerived>& x,
             XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
         ScatterSeries3D&>
 {
-    auto& ax  = detail::easy_state().ensure_axes3d();
-    auto& ref = ax.scatter3d(eigen_detail::to_span(x),
-                             eigen_detail::to_span(y),
-                             eigen_detail::to_span(z));
+    auto& ax = detail::easy_state().ensure_axes3d();
+    auto& ref =
+        ax.scatter3d(eigen_detail::to_span(x), eigen_detail::to_span(y), eigen_detail::to_span(z));
     ax.auto_fit();
     return ref;
 }
@@ -126,8 +124,7 @@ auto mesh(const Eigen::DenseBase<VDerived>& vertices, const Eigen::VectorXi& ind
     -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<VDerived>, MeshSeries&>
 {
     auto& ax  = detail::easy_state().ensure_axes3d();
-    auto& ref = ax.mesh(eigen_detail::to_span(vertices),
-                        eigen_detail::to_index_span(indices));
+    auto& ref = ax.mesh(eigen_detail::to_span(vertices), eigen_detail::to_index_span(indices));
     ax.auto_fit();
     return ref;
 }

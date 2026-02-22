@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../src/ui/figure_registry.hpp"
+#include "../src/ui/figures/figure_registry.hpp"
 
 namespace spectra
 {

@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "ui/figure_manager.hpp"
-#include "ui/figure_registry.hpp"
-#include "ui/tab_bar.hpp"
+#include "ui/figures/figure_manager.hpp"
+#include "ui/figures/figure_registry.hpp"
+#include "ui/figures/tab_bar.hpp"
 
 namespace spectra
 {

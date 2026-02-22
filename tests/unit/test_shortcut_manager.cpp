@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <string>
 
-#include "ui/command_registry.hpp"
-#include "ui/shortcut_manager.hpp"
+#include "ui/commands/command_registry.hpp"
+#include "ui/commands/shortcut_manager.hpp"
 
 using namespace spectra;
 

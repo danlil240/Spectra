@@ -92,7 +92,7 @@
 #include <string>
 #include <string_view>
 
-#include "../src/ui/knob_manager.hpp"
+#include "../src/ui/overlay/knob_manager.hpp"
 
 namespace spectra
 {

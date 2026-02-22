@@ -23,7 +23,7 @@
 // WindowUIContext must be complete for unique_ptr destructor in WindowContext.
 // Must come after GLFW includes to avoid macro conflicts with shortcut_manager.hpp.
 #include "../../anim/frame_profiler.hpp"
-#include "../../ui/window_ui_context.hpp"
+#include "ui/app/window_ui_context.hpp"
 
 namespace spectra
 {
@@ -662,8 +662,9 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
             // vec2 position + float alpha = 3 floats per vertex
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
-            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});                           // position
-            cfg.vertex_attributes.push_back({1, 0, VK_FORMAT_R32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 2)});  // alpha
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32_SFLOAT, 0});   // position
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 2)});   // alpha
             break;
         case PipelineType::Arrow3D:
             cfg.vert_spirv         = shaders::arrow3d_vert;

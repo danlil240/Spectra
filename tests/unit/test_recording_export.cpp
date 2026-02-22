@@ -2,7 +2,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include "ui/recording_export.hpp"
+#include "ui/animation/recording_export.hpp"
 
 using namespace spectra;
 

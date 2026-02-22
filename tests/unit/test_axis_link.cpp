@@ -5,8 +5,8 @@
 #include <spectra/figure.hpp>
 #include <thread>
 
-#include "ui/axis_link.hpp"
-#include "ui/input.hpp"
+#include "ui/data/axis_link.hpp"
+#include "ui/input/input.hpp"
 
 using namespace spectra;
 

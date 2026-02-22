@@ -1,8 +1,8 @@
 #include <cmath>
 #include <gtest/gtest.h>
 
-#include "ui/design_tokens.hpp"
-#include "ui/theme.hpp"
+#include "ui/theme/design_tokens.hpp"
+#include "ui/theme/theme.hpp"
 
 using namespace spectra::ui;
 

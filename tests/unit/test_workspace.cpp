@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include <string>
 
-#include "ui/workspace.hpp"
+#include "ui/workspace/workspace.hpp"
 
 using namespace spectra;
 

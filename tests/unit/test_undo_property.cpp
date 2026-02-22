@@ -4,7 +4,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
-#include "ui/undoable_property.hpp"
+#include "ui/commands/undoable_property.hpp"
 
 using namespace spectra;
 

@@ -1,10 +1,10 @@
 #include <cstring>
 #include <gtest/gtest.h>
 
-#include "ui/animation_curve_editor.hpp"
-#include "ui/keyframe_interpolator.hpp"
-#include "ui/recording_export.hpp"
-#include "ui/timeline_editor.hpp"
+#include "ui/animation/animation_curve_editor.hpp"
+#include "ui/animation/keyframe_interpolator.hpp"
+#include "ui/animation/recording_export.hpp"
+#include "ui/animation/timeline_editor.hpp"
 
 using namespace spectra;
 

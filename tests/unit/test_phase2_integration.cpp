@@ -10,14 +10,14 @@
 #include <string>
 #include <vector>
 
-#include "ui/command_registry.hpp"
-#include "ui/figure_manager.hpp"
-#include "ui/figure_registry.hpp"
-#include "ui/shortcut_manager.hpp"
-#include "ui/transition_engine.hpp"
-#include "ui/undo_manager.hpp"
-#include "ui/undoable_property.hpp"
-#include "ui/workspace.hpp"
+#include "ui/commands/command_registry.hpp"
+#include "ui/figures/figure_manager.hpp"
+#include "ui/figures/figure_registry.hpp"
+#include "ui/commands/shortcut_manager.hpp"
+#include "ui/animation/transition_engine.hpp"
+#include "ui/commands/undo_manager.hpp"
+#include "ui/commands/undoable_property.hpp"
+#include "ui/workspace/workspace.hpp"
 
 using namespace spectra;
 

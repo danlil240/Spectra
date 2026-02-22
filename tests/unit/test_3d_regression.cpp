@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "render/backend.hpp"
-#include "ui/camera_animator.hpp"
+#include "ui/animation/camera_animator.hpp"
 
 using namespace spectra;
 

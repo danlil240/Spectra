@@ -64,32 +64,32 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
-file(GLOB SPECTRA_UI_SOURCES src/ui/app.cpp src/ui/app_inproc.cpp src/ui/app_multiproc.cpp)
+file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp)
 foreach(_ui_src
-    src/ui/input.cpp
-    src/ui/layout_manager.cpp
-    src/ui/tab_bar.cpp
-    src/ui/animation_controller.cpp
-    src/ui/gesture_recognizer.cpp
-    src/ui/transition_engine.cpp
-    src/ui/figure_manager.cpp
-    src/ui/timeline_editor.cpp
-    src/ui/recording_export.cpp
-    src/ui/split_view.cpp
-    src/ui/dock_system.cpp
-    src/ui/axis_link.cpp
-    src/ui/keyframe_interpolator.cpp
-    src/ui/camera_animator.cpp
-    src/ui/animation_curve_editor.cpp
-    src/ui/mode_transition.cpp
-    src/ui/knob_manager.cpp
-    src/ui/camera.cpp
-    src/ui/axes3d_renderer.cpp
-    src/ui/window_manager.cpp
-    src/ui/window_runtime.cpp
-    src/ui/session_runtime.cpp
-    src/ui/figure_registry.cpp
-    src/ui/csv_loader.cpp
+    src/ui/input/input.cpp
+    src/ui/layout/layout_manager.cpp
+    src/ui/figures/tab_bar.cpp
+    src/ui/animation/animation_controller.cpp
+    src/ui/input/gesture_recognizer.cpp
+    src/ui/animation/transition_engine.cpp
+    src/ui/figures/figure_manager.cpp
+    src/ui/animation/timeline_editor.cpp
+    src/ui/animation/recording_export.cpp
+    src/ui/docking/split_view.cpp
+    src/ui/docking/dock_system.cpp
+    src/ui/data/axis_link.cpp
+    src/ui/animation/keyframe_interpolator.cpp
+    src/ui/animation/camera_animator.cpp
+    src/ui/animation/animation_curve_editor.cpp
+    src/ui/animation/mode_transition.cpp
+    src/ui/overlay/knob_manager.cpp
+    src/ui/camera/camera.cpp
+    src/ui/imgui/axes3d_renderer.cpp
+    src/ui/window/window_manager.cpp
+    src/ui/app/window_runtime.cpp
+    src/ui/app/session_runtime.cpp
+    src/ui/figures/figure_registry.cpp
+    src/ui/data/csv_loader.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
@@ -169,7 +169,7 @@ if(SPECTRA_USE_GLFW)
         FetchContent_MakeAvailable(glfw)
     endif()
 
-    target_sources(spectra PRIVATE src/ui/glfw_adapter.cpp)
+    target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
     target_link_libraries(spectra PUBLIC glfw)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
@@ -193,32 +193,32 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
-        src/ui/imgui_integration.cpp
+        src/ui/imgui/imgui_integration.cpp
     )
 
     # ImGui-dependent UI sources — guarded so parallel agents don't break the build.
     # When adding a new .cpp that depends on ImGui, add an if(EXISTS) block here.
     foreach(_imgui_src
-        src/ui/theme.cpp
-        src/ui/icons.cpp
-        src/ui/widgets.cpp
-        src/ui/inspector.cpp
-        src/ui/tooltip.cpp
-        src/ui/crosshair.cpp
-        src/ui/data_marker.cpp
-        src/ui/data_interaction.cpp
-        src/ui/region_select.cpp
-        src/ui/legend_interaction.cpp
-        src/ui/box_zoom_overlay.cpp
-        src/ui/command_palette.cpp
-        src/ui/command_registry.cpp
-        src/ui/shortcut_manager.cpp
-        src/ui/undo_manager.cpp
-        src/ui/workspace.cpp
-        src/ui/shortcut_config.cpp
-        src/ui/plugin_api.cpp
-        src/ui/tab_drag_controller.cpp
-        src/ui/register_commands.cpp
+        src/ui/theme/theme.cpp
+        src/ui/theme/icons.cpp
+        src/ui/imgui/widgets.cpp
+        src/ui/overlay/inspector.cpp
+        src/ui/overlay/tooltip.cpp
+        src/ui/overlay/crosshair.cpp
+        src/ui/overlay/data_marker.cpp
+        src/ui/overlay/data_interaction.cpp
+        src/ui/input/region_select.cpp
+        src/ui/overlay/legend_interaction.cpp
+        src/ui/input/box_zoom_overlay.cpp
+        src/ui/commands/command_palette.cpp
+        src/ui/commands/command_registry.cpp
+        src/ui/commands/shortcut_manager.cpp
+        src/ui/commands/undo_manager.cpp
+        src/ui/workspace/workspace.cpp
+        src/ui/commands/shortcut_config.cpp
+        src/ui/workspace/plugin_api.cpp
+        src/ui/figures/tab_drag_controller.cpp
+        src/ui/app/register_commands.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})

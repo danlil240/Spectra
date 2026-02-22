@@ -106,7 +106,7 @@ class SingleWindowFixture : public ::testing::Test
 
 // Forward declarations — these types will exist after Agent A/B merge
 // #include "render/vulkan/window_context.hpp"
-// #include "ui/window_manager.hpp"
+// #include "ui/window/window_manager.hpp"
 
 class MultiWindowFixture : public ::testing::Test
 {

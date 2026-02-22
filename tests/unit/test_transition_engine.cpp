@@ -5,9 +5,9 @@
 #include <spectra/axes.hpp>
 #include <spectra/color.hpp>
 
-#include "ui/animation_controller.hpp"
-#include "ui/layout_manager.hpp"
-#include "ui/transition_engine.hpp"
+#include "ui/animation/animation_controller.hpp"
+#include "ui/layout/layout_manager.hpp"
+#include "ui/animation/transition_engine.hpp"
 
 using namespace spectra;
 

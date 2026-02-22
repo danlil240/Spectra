@@ -13,19 +13,19 @@
 #include <string>
 #include <vector>
 
-#include "ui/axis_link.hpp"
-#include "ui/command_registry.hpp"
-#include "ui/data_transform.hpp"
-#include "ui/dock_system.hpp"
-#include "ui/keyframe_interpolator.hpp"
-#include "ui/plugin_api.hpp"
-#include "ui/recording_export.hpp"
-#include "ui/shortcut_config.hpp"
-#include "ui/shortcut_manager.hpp"
-#include "ui/split_view.hpp"
-#include "ui/timeline_editor.hpp"
-#include "ui/undo_manager.hpp"
-#include "ui/workspace.hpp"
+#include "ui/data/axis_link.hpp"
+#include "ui/commands/command_registry.hpp"
+#include "ui/data/data_transform.hpp"
+#include "ui/docking/dock_system.hpp"
+#include "ui/animation/keyframe_interpolator.hpp"
+#include "ui/workspace/plugin_api.hpp"
+#include "ui/animation/recording_export.hpp"
+#include "ui/commands/shortcut_config.hpp"
+#include "ui/commands/shortcut_manager.hpp"
+#include "ui/docking/split_view.hpp"
+#include "ui/animation/timeline_editor.hpp"
+#include "ui/commands/undo_manager.hpp"
+#include "ui/workspace/workspace.hpp"
 
 using namespace spectra;
 

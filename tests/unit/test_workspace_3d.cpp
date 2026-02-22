@@ -7,7 +7,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series3d.hpp>
 
-#include "ui/workspace.hpp"
+#include "ui/workspace/workspace.hpp"
 
 using namespace spectra;
 

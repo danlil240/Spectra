@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>
 
-#include "ui/animation_controller.hpp"
+#include "ui/animation/animation_controller.hpp"
 
 using namespace spectra;
 

@@ -13,7 +13,7 @@ using namespace spectra;
 
 TEST(BoxPlotStats, ComputeFromData)
 {
-    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    std::vector<float> data  = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     auto               stats = BoxPlotSeries::compute_stats(data);
 
     EXPECT_FLOAT_EQ(stats.median, 5.5f);
@@ -26,7 +26,7 @@ TEST(BoxPlotStats, ComputeFromData)
 
 TEST(BoxPlotStats, OutlierDetection)
 {
-    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100};
+    std::vector<float> data  = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100};
     auto               stats = BoxPlotSeries::compute_stats(data);
 
     EXPECT_FALSE(stats.outliers.empty());
@@ -49,7 +49,7 @@ TEST(BoxPlotStats, EmptyData)
 
 TEST(BoxPlotStats, SingleValue)
 {
-    std::vector<float> data = {42.0f};
+    std::vector<float> data  = {42.0f};
     auto               stats = BoxPlotSeries::compute_stats(data);
     EXPECT_FLOAT_EQ(stats.median, 42.0f);
     EXPECT_FLOAT_EQ(stats.q1, 42.0f);
@@ -58,15 +58,15 @@ TEST(BoxPlotStats, SingleValue)
 
 TEST(BoxPlotStats, NaNFiltering)
 {
-    float              nan  = std::numeric_limits<float>::quiet_NaN();
-    std::vector<float> data = {1, nan, 3, nan, 5};
+    float              nan   = std::numeric_limits<float>::quiet_NaN();
+    std::vector<float> data  = {1, nan, 3, nan, 5};
     auto               stats = BoxPlotSeries::compute_stats(data);
     EXPECT_FLOAT_EQ(stats.median, 3.0f);
 }
 
 TEST(BoxPlotSeries, AddBoxFromData)
 {
-    BoxPlotSeries bp;
+    BoxPlotSeries      bp;
     std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     bp.add_box(1.0f, data);
 
@@ -87,7 +87,7 @@ TEST(BoxPlotSeries, AddBoxFromStats)
 
 TEST(BoxPlotSeries, MultipleBoxes)
 {
-    BoxPlotSeries bp;
+    BoxPlotSeries      bp;
     std::vector<float> d1 = {1, 2, 3, 4, 5};
     std::vector<float> d2 = {10, 20, 30, 40, 50};
     bp.add_box(1.0f, d1);
@@ -99,7 +99,7 @@ TEST(BoxPlotSeries, MultipleBoxes)
 
 TEST(BoxPlotSeries, GeometryContainsNaNBreaks)
 {
-    BoxPlotSeries bp;
+    BoxPlotSeries      bp;
     std::vector<float> data = {1, 2, 3, 4, 5};
     bp.add_box(1.0f, data);
 
@@ -131,7 +131,7 @@ TEST(BoxPlotSeries, FluentAPI)
 
 TEST(ViolinSeries, AddViolin)
 {
-    ViolinSeries vn;
+    ViolinSeries       vn;
     std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     vn.add_violin(1.0f, data);
 
@@ -140,7 +140,7 @@ TEST(ViolinSeries, AddViolin)
 
 TEST(ViolinSeries, MultipleViolins)
 {
-    ViolinSeries vn;
+    ViolinSeries       vn;
     std::vector<float> d1 = {1, 2, 3, 4, 5};
     std::vector<float> d2 = {10, 20, 30, 40, 50};
     vn.add_violin(1.0f, d1);
@@ -151,7 +151,7 @@ TEST(ViolinSeries, MultipleViolins)
 
 TEST(ViolinSeries, EmptyData)
 {
-    ViolinSeries vn;
+    ViolinSeries       vn;
     std::vector<float> data;
     vn.add_violin(1.0f, data);
 
@@ -244,7 +244,7 @@ TEST(HistogramSeries, Density)
     hist.set_data(data, 5);
 
     // Area under density histogram should be approximately 1
-    float area = 0.0f;
+    float area      = 0.0f;
     float bin_width = (hist.bin_edges().back() - hist.bin_edges().front()) / 5.0f;
     for (float c : hist.bin_counts())
         area += c * bin_width;
@@ -370,8 +370,8 @@ TEST(BarSeries, FluentAPI)
 
 TEST(AxesStats, CreateBoxPlot)
 {
-    Axes ax;
-    auto& bp = ax.box_plot();
+    Axes               ax;
+    auto&              bp   = ax.box_plot();
     std::vector<float> data = {1, 2, 3, 4, 5};
     bp.add_box(1.0f, data);
 
@@ -380,8 +380,8 @@ TEST(AxesStats, CreateBoxPlot)
 
 TEST(AxesStats, CreateViolin)
 {
-    Axes ax;
-    auto& vn = ax.violin();
+    Axes               ax;
+    auto&              vn   = ax.violin();
     std::vector<float> data = {1, 2, 3, 4, 5};
     vn.add_violin(1.0f, data);
 
@@ -390,9 +390,9 @@ TEST(AxesStats, CreateViolin)
 
 TEST(AxesStats, CreateHistogram)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> data = {1, 2, 3, 4, 5};
-    auto& hist = ax.histogram(data, 5);
+    auto&              hist = ax.histogram(data, 5);
 
     EXPECT_EQ(ax.series().size(), 1u);
     EXPECT_GT(hist.point_count(), 0u);
@@ -400,10 +400,10 @@ TEST(AxesStats, CreateHistogram)
 
 TEST(AxesStats, CreateBar)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> pos     = {1, 2, 3};
     std::vector<float> heights = {10, 20, 15};
-    auto& bars = ax.bar(pos, heights);
+    auto&              bars    = ax.bar(pos, heights);
 
     EXPECT_EQ(ax.series().size(), 1u);
     EXPECT_GT(bars.point_count(), 0u);
@@ -411,7 +411,7 @@ TEST(AxesStats, CreateBar)
 
 TEST(AxesStats, AutoFitWithStats)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> pos     = {1, 2, 3};
     std::vector<float> heights = {10, 20, 15};
     ax.bar(pos, heights);
@@ -428,7 +428,7 @@ TEST(AxesStats, AutoFitWithStats)
 
 TEST(AxesStats, MixedSeriesTypes)
 {
-    Axes ax;
+    Axes               ax;
     std::vector<float> x = {0, 1, 2, 3};
     std::vector<float> y = {0, 1, 4, 9};
     ax.line(x, y);

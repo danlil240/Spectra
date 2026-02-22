@@ -4,7 +4,7 @@
 #include <thread>
 #include <vector>
 
-#include "ui/command_registry.hpp"
+#include "ui/commands/command_registry.hpp"
 
 using namespace spectra;
 

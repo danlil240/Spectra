@@ -5,7 +5,7 @@
 #include <spectra/camera.hpp>
 #include <thread>
 
-#include "ui/mode_transition.hpp"
+#include "ui/animation/mode_transition.hpp"
 
 using namespace spectra;
 

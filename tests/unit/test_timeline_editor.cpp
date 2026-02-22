@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/timeline_editor.hpp"
+#include "ui/animation/timeline_editor.hpp"
 
 using namespace spectra;
 

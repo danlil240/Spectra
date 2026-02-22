@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <set>
 
-#include "ui/theme.hpp"
+#include "ui/theme/theme.hpp"
 
 using namespace spectra::ui;
 

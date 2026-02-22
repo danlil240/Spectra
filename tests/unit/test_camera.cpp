@@ -1,7 +1,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 
-#include "../../src/ui/camera.hpp"
+#include "../../src/ui/camera/camera.hpp"
 
 using namespace spectra;
 

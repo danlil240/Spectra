@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/knob_manager.hpp"
+#include "ui/overlay/knob_manager.hpp"
 
 using namespace spectra;
 

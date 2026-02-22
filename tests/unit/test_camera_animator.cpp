@@ -3,10 +3,10 @@
 #include <spectra/camera.hpp>
 #include <spectra/math3d.hpp>
 
-#include "ui/camera_animator.hpp"
-#include "ui/keyframe_interpolator.hpp"
-#include "ui/timeline_editor.hpp"
-#include "ui/transition_engine.hpp"
+#include "ui/animation/camera_animator.hpp"
+#include "ui/animation/keyframe_interpolator.hpp"
+#include "ui/animation/timeline_editor.hpp"
+#include "ui/animation/transition_engine.hpp"
 
 using namespace spectra;
 

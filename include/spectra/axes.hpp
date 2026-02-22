@@ -119,10 +119,10 @@ class Axes : public AxesBase
     LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style);
 
     // Statistical plot series creation
-    BoxPlotSeries&    box_plot();
-    ViolinSeries&     violin();
-    HistogramSeries&  histogram(std::span<const float> values, int bins = 30);
-    BarSeries&        bar(std::span<const float> positions, std::span<const float> heights);
+    BoxPlotSeries&   box_plot();
+    ViolinSeries&    violin();
+    HistogramSeries& histogram(std::span<const float> values, int bins = 30);
+    BarSeries&       bar(std::span<const float> positions, std::span<const float> heights);
 
     // Axis configuration
     void xlim(float min, float max);

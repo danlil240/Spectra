@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/split_view.hpp"
+#include "ui/docking/split_view.hpp"
 
 using namespace spectra;
 

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/gesture_recognizer.hpp"
+#include "ui/input/gesture_recognizer.hpp"
 
 using namespace spectra;
 

@@ -6,7 +6,7 @@
 #include <thread>
 #include <vector>
 
-#include "ui/axis_link.hpp"
+#include "ui/data/axis_link.hpp"
 
 using namespace spectra;
 

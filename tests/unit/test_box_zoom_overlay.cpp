@@ -1,10 +1,10 @@
 #include <algorithm>
 #include <gtest/gtest.h>
 
-#include "ui/animation_controller.hpp"
-#include "ui/gesture_recognizer.hpp"
-#include "ui/input.hpp"
-#include "ui/transition_engine.hpp"
+#include "ui/animation/animation_controller.hpp"
+#include "ui/input/gesture_recognizer.hpp"
+#include "ui/input/input.hpp"
+#include "ui/animation/transition_engine.hpp"
 
 using namespace spectra;
 

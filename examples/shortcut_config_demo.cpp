@@ -13,7 +13,7 @@
 #include <spectra/spectra.hpp>
 #include <unordered_map>
 
-#include "../src/ui/shortcut_config.hpp"
+#include "../src/ui/commands/shortcut_config.hpp"
 
 void demo_shortcut_persistence()
 {

@@ -12,8 +12,8 @@
 #include <spectra/series_stats.hpp>
 #include <vector>
 
-#include "../ui/axes3d_renderer.hpp"
-#include "../ui/theme.hpp"
+#include "ui/imgui/axes3d_renderer.hpp"
+#include "ui/theme/theme.hpp"
 
 namespace spectra
 {
@@ -142,11 +142,11 @@ Renderer::~Renderer()
 bool Renderer::init()
 {
     // Create pipelines for each series type
-    line_pipeline_    = backend_.create_pipeline(PipelineType::Line);
-    scatter_pipeline_ = backend_.create_pipeline(PipelineType::Scatter);
-    grid_pipeline_    = backend_.create_pipeline(PipelineType::Grid);
-    overlay_pipeline_    = backend_.create_pipeline(PipelineType::Overlay);
-    stat_fill_pipeline_  = backend_.create_pipeline(PipelineType::StatFill);
+    line_pipeline_      = backend_.create_pipeline(PipelineType::Line);
+    scatter_pipeline_   = backend_.create_pipeline(PipelineType::Scatter);
+    grid_pipeline_      = backend_.create_pipeline(PipelineType::Grid);
+    overlay_pipeline_   = backend_.create_pipeline(PipelineType::Overlay);
+    stat_fill_pipeline_ = backend_.create_pipeline(PipelineType::StatFill);
 
     // Create 3D pipelines
     line3d_pipeline_         = backend_.create_pipeline(PipelineType::Line3D);
@@ -853,7 +853,7 @@ void Renderer::upload_series_data(Series& series)
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
-        size_t fill_count = 0;
+        size_t                 fill_count = 0;
         if (boxplot && boxplot->fill_vertex_count() > 0)
         {
             fill_verts = boxplot->fill_verts();
@@ -899,7 +899,8 @@ void Renderer::upload_series_data(Series& series)
             {
                 if (gpu.outlier_buffer)
                     backend_.destroy_buffer(gpu.outlier_buffer);
-                gpu.outlier_buffer = backend_.create_buffer(BufferUsage::Storage, out_byte_size * 2);
+                gpu.outlier_buffer =
+                    backend_.create_buffer(BufferUsage::Storage, out_byte_size * 2);
             }
             size_t out_floats = out_count * 2;
             if (upload_scratch_.size() < out_floats)

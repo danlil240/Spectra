@@ -2,7 +2,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 
-#include "ui/workspace.hpp"
+#include "ui/workspace/workspace.hpp"
 
 using namespace spectra;
 

@@ -5,7 +5,7 @@
 #include <thread>
 #include <vector>
 
-#include "ui/command_queue.hpp"
+#include "ui/commands/command_queue.hpp"
 
 using namespace spectra;
 

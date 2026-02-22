@@ -1,9 +1,9 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include "ui/command_registry.hpp"
-#include "ui/shortcut_config.hpp"
-#include "ui/shortcut_manager.hpp"
+#include "ui/commands/command_registry.hpp"
+#include "ui/commands/shortcut_config.hpp"
+#include "ui/commands/shortcut_manager.hpp"
 
 using namespace spectra;
 

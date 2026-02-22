@@ -4,8 +4,8 @@
 #include <spectra/math3d.hpp>
 
 #include "../../src/core/axes3d.hpp"
-#include "../../src/ui/axes3d_renderer.hpp"
-#include "../../src/ui/camera.hpp"
+#include "../../src/ui/imgui/axes3d_renderer.hpp"
+#include "../../src/ui/camera/camera.hpp"
 
 using namespace spectra;
 

@@ -1,10 +1,10 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include "ui/command_registry.hpp"
-#include "ui/plugin_api.hpp"
-#include "ui/shortcut_manager.hpp"
-#include "ui/undo_manager.hpp"
+#include "ui/commands/command_registry.hpp"
+#include "ui/workspace/plugin_api.hpp"
+#include "ui/commands/shortcut_manager.hpp"
+#include "ui/commands/undo_manager.hpp"
 
 using namespace spectra;
 

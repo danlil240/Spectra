@@ -55,8 +55,12 @@ static void emit_vert(std::vector<float>& buf, float x, float y, float alpha)
 // ─── Helper: compute gradient alpha for a horizontal position ──────────────
 // Returns alpha in [lo_alpha, hi_alpha] based on where x falls in [x_min, x_max].
 // Left edge is brighter (hi_alpha), right edge is darker (lo_alpha).
-static float grad_alpha(float x, float x_min, float x_max, bool gradient,
-                        float hi_alpha = 1.0f, float lo_alpha = 0.45f)
+static float grad_alpha(float x,
+                        float x_min,
+                        float x_max,
+                        bool  gradient,
+                        float hi_alpha = 1.0f,
+                        float lo_alpha = 0.45f)
 {
     if (!gradient)
         return 1.0f;
@@ -68,10 +72,13 @@ static float grad_alpha(float x, float x_min, float x_max, bool gradient,
 
 // ─── Helper: emit a filled quad as 2 triangles (6 vertices) with gradient ──
 static void emit_filled_quad(std::vector<float>& buf,
-                             float x0, float y0, float x1, float y1,
-                             bool gradient)
+                             float               x0,
+                             float               y0,
+                             float               x1,
+                             float               y1,
+                             bool                gradient)
 {
-    float a0 = gradient ? 1.0f  : 1.0f;   // left alpha (bright)
+    float a0 = gradient ? 1.0f : 1.0f;    // left alpha (bright)
     float a1 = gradient ? 0.45f : 1.0f;   // right alpha (dim)
     // Triangle 1: bottom-left, bottom-right, top-left
     emit_vert(buf, x0, y0, a0);
@@ -85,9 +92,15 @@ static void emit_filled_quad(std::vector<float>& buf,
 
 // ─── Helper: emit a filled triangle with per-vertex alpha ──────────────────
 static void emit_filled_tri(std::vector<float>& buf,
-                            float x0, float y0, float a0,
-                            float x1, float y1, float a1,
-                            float x2, float y2, float a2)
+                            float               x0,
+                            float               y0,
+                            float               a0,
+                            float               x1,
+                            float               y1,
+                            float               a1,
+                            float               x2,
+                            float               y2,
+                            float               a2)
 {
     emit_vert(buf, x0, y0, a0);
     emit_vert(buf, x1, y1, a1);
@@ -363,7 +376,7 @@ void ViolinSeries::rebuild_geometry()
             float y1  = y_vals[i + 1];
 
             // Gradient: center is bright (1.0), edges are dim
-            float ac = gradient_ ? 1.0f : 1.0f;   // center alpha
+            float ac  = gradient_ ? 1.0f : 1.0f;   // center alpha
             float ar0 = grad_alpha(rx0, lx0, rx0, gradient_);
             float ar1 = grad_alpha(rx1, lx1, rx1, gradient_);
             float al0 = grad_alpha(lx0, lx0, rx0, gradient_);
@@ -371,10 +384,28 @@ void ViolinSeries::rebuild_geometry()
 
             // Right half quad
             emit_filled_tri(fill_verts_, vd.x_position, y0, ac, rx0, y0, ar0, rx1, y1, ar1);
-            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, rx1, y1, ar1, vd.x_position, y1, ac);
+            emit_filled_tri(fill_verts_,
+                            vd.x_position,
+                            y0,
+                            ac,
+                            rx1,
+                            y1,
+                            ar1,
+                            vd.x_position,
+                            y1,
+                            ac);
             // Left half quad
             emit_filled_tri(fill_verts_, vd.x_position, y0, ac, lx0, y0, al0, lx1, y1, al1);
-            emit_filled_tri(fill_verts_, vd.x_position, y0, ac, lx1, y1, al1, vd.x_position, y1, ac);
+            emit_filled_tri(fill_verts_,
+                            vd.x_position,
+                            y0,
+                            ac,
+                            lx1,
+                            y1,
+                            al1,
+                            vd.x_position,
+                            y1,
+                            ac);
         }
 
         // ── Outline: violin contour ──
@@ -405,7 +436,12 @@ void ViolinSeries::rebuild_geometry()
             float bw     = hw * 0.15f;
 
             // Inner box fill (darker)
-            emit_filled_quad(fill_verts_, vd.x_position - bw, q1, vd.x_position + bw, q3, gradient_);
+            emit_filled_quad(fill_verts_,
+                             vd.x_position - bw,
+                             q1,
+                             vd.x_position + bw,
+                             q3,
+                             gradient_);
 
             // Inner box outline
             line_x_.push_back(vd.x_position - bw);
@@ -511,8 +547,12 @@ void HistogramSeries::rebuild_geometry()
     for (int i = 0; i < bins_; ++i)
     {
         if (bin_counts_[i] > 0.0f)
-            emit_filled_quad(fill_verts_, bin_edges_[i], 0.0f, bin_edges_[i + 1],
-                             bin_counts_[i], gradient_);
+            emit_filled_quad(fill_verts_,
+                             bin_edges_[i],
+                             0.0f,
+                             bin_edges_[i + 1],
+                             bin_counts_[i],
+                             gradient_);
     }
 
     // ── Outline: step-function contour ──

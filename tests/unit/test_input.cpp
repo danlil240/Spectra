@@ -2,7 +2,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 
-#include "ui/input.hpp"
+#include "ui/input/input.hpp"
 
 using namespace spectra;
 

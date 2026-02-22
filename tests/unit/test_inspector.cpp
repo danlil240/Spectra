@@ -4,7 +4,7 @@
 #include <spectra/series.hpp>
 
 // SelectionContext is header-only, no ImGui dependency
-#include "ui/selection_context.hpp"
+#include "ui/input/selection_context.hpp"
 
 using namespace spectra;
 using namespace spectra::ui;

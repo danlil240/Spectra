@@ -9,7 +9,7 @@
 
 #include "multi_window_fixture.hpp"
 #include "render/backend.hpp"
-#include "ui/figure_registry.hpp"
+#include "ui/figures/figure_registry.hpp"
 
 using namespace spectra;
 using namespace spectra::test;

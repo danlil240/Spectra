@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <string>
 
-#include "ui/undo_manager.hpp"
+#include "ui/commands/undo_manager.hpp"
 
 using namespace spectra;
 

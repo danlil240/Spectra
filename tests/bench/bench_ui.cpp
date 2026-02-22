@@ -5,9 +5,9 @@
 #include <spectra/figure.hpp>
 #include <vector>
 
-#include "ui/animation_controller.hpp"
-#include "ui/command_queue.hpp"
-#include "ui/layout_manager.hpp"
+#include "ui/animation/animation_controller.hpp"
+#include "ui/commands/command_queue.hpp"
+#include "ui/layout/layout_manager.hpp"
 
 using namespace spectra;
 

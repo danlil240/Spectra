@@ -2,7 +2,7 @@
 #include <spectra/series.hpp>
 #include <string>
 
-#include "ui/tab_bar.hpp"
+#include "ui/figures/tab_bar.hpp"
 
 using namespace spectra;
 

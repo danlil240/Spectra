@@ -20,21 +20,21 @@
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
-#include "../ui/command_queue.hpp"
-#include "../ui/figure_registry.hpp"
-#include "../ui/knob_manager.hpp"
-#include "../ui/register_commands.hpp"
-#include "../ui/session_runtime.hpp"
-#include "../ui/window_runtime.hpp"
-#include "../ui/window_ui_context.hpp"
+#include "ui/commands/command_queue.hpp"
+#include "ui/figures/figure_registry.hpp"
+#include "ui/overlay/knob_manager.hpp"
+#include "ui/app/register_commands.hpp"
+#include "ui/app/session_runtime.hpp"
+#include "ui/app/window_runtime.hpp"
+#include "ui/app/window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
 
-    #include "../ui/glfw_adapter.hpp"
-    #include "../ui/window_manager.hpp"
+    #include "ui/window/glfw_adapter.hpp"
+    #include "ui/window/window_manager.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI

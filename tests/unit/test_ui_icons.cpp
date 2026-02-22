@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ui/icons.hpp"
+#include "ui/theme/icons.hpp"
 
 using namespace spectra::ui;
 

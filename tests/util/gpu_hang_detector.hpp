@@ -14,6 +14,7 @@
 //
 // Day 0 scaffolding: no dependency on WindowContext or WindowManager.
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>

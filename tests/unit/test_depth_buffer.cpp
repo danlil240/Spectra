@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <spectra/app.hpp>

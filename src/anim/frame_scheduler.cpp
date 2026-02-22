@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "frame_scheduler.hpp"
 
 #include <spectra/logger.hpp>

@@ -6,6 +6,7 @@
 //
 // Always compiled; selected at runtime via AppConfig::socket_path or SPECTRA_SOCKET env var.
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <spectra/app.hpp>

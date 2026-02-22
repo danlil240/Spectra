@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <memory>

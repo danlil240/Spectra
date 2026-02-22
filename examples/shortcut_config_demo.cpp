@@ -8,6 +8,7 @@
 // - Applying shortcuts to the ShortcutManager
 // - Callback system for shortcut changes
 
+#include <algorithm>
 #include <iostream>
 #include <spectra/spectra.hpp>
 #include <unordered_map>

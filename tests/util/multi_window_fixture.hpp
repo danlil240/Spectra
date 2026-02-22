@@ -10,6 +10,7 @@
 // and compile-time guards so it compiles NOW (against the current single-
 // window codebase) and will be progressively enabled as each agent merges.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <gtest/gtest.h>

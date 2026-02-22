@@ -9,6 +9,7 @@
 // This is the pattern for live sensor dashboards, oscilloscopes,
 // telemetry viewers, and simulation monitors.
 
+#include <algorithm>
 #include <cmath>
 #include <spectra/easy.hpp>
 #include <vector>

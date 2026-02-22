@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <spectra/math3d.hpp>

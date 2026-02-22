@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>

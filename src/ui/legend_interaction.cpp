@@ -36,9 +36,10 @@ LegendSeriesState& LegendInteraction::get_state(const Series* s)
     return series_states_.emplace(s, state).first->second;
 }
 
-LegendInteraction::LegendOffset& LegendInteraction::get_offset(size_t axes_index)
+LegendInteraction::LegendOffset& LegendInteraction::get_offset(uintptr_t figure_id,
+                                                                 size_t axes_index)
 {
-    return legend_offsets_[axes_index];
+    return legend_offsets_[make_offset_key(figure_id, axes_index)];
 }
 
 // ─── Update ─────────────────────────────────────────────────────────────────
@@ -114,7 +115,8 @@ bool LegendInteraction::is_series_visible(const Series* series) const
 
 // ─── Drawing ────────────────────────────────────────────────────────────────
 
-bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index)
+bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index,
+                             const LegendConfig& config, uintptr_t figure_id)
 {
     const auto& series_list = axes.series();
     if (series_list.empty())
@@ -130,16 +132,19 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
     if (labeled_count == 0)
         return false;
 
-    const auto& colors = ui::ThemeManager::instance().colors();
+    const auto& theme_colors = ui::ThemeManager::instance().colors();
     ImFont* font = font_body_ ? font_body_ : ImGui::GetFont();
-    float font_size = font->FontSize;
 
-    // Layout constants
-    constexpr float pad_x = 10.0f;
-    constexpr float pad_y = 8.0f;
+    // Use font size from LegendConfig; fall back to font's native size
+    float font_size = (config.font_size > 0.0f) ? config.font_size : font->FontSize;
+
+    // Use padding from LegendConfig
+    float pad = config.padding;
+    float pad_x = pad + 2.0f;  // slight extra horizontal padding
+    float pad_y = pad;
     constexpr float swatch_size = 10.0f;
     constexpr float swatch_gap = 6.0f;
-    constexpr float row_height = 20.0f;
+    float row_height = font_size + 6.0f;
     constexpr float eye_width = 16.0f;
 
     // Measure legend size
@@ -157,11 +162,34 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
         legend_w += eye_width + 4.0f;
     float legend_h = pad_y * 2.0f + static_cast<float>(labeled_count) * row_height;
 
-    // Default position: top-right of viewport
-    float default_x = viewport.x + viewport.w - legend_w - 12.0f;
-    float default_y = viewport.y + 12.0f;
+    // Compute default position from LegendConfig::position
+    constexpr float margin = 12.0f;
+    float default_x = viewport.x + viewport.w - legend_w - margin;  // TopRight default
+    float default_y = viewport.y + margin;
+    switch (config.position)
+    {
+        case LegendPosition::TopLeft:
+            default_x = viewport.x + margin;
+            default_y = viewport.y + margin;
+            break;
+        case LegendPosition::TopRight:
+            default_x = viewport.x + viewport.w - legend_w - margin;
+            default_y = viewport.y + margin;
+            break;
+        case LegendPosition::BottomLeft:
+            default_x = viewport.x + margin;
+            default_y = viewport.y + viewport.h - legend_h - margin;
+            break;
+        case LegendPosition::BottomRight:
+            default_x = viewport.x + viewport.w - legend_w - margin;
+            default_y = viewport.y + viewport.h - legend_h - margin;
+            break;
+        case LegendPosition::None:
+            // Hidden position — should have been gated by visible check, but just in case
+            return false;
+    }
 
-    auto& offset = get_offset(axes_index);
+    auto& offset = get_offset(figure_id, axes_index);
     float lx = default_x + offset.dx;
     float ly = default_y + offset.dy;
 
@@ -169,24 +197,36 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
     lx = std::max(viewport.x + 4.0f, std::min(lx, viewport.x + viewport.w - legend_w - 4.0f));
     ly = std::max(viewport.y + 4.0f, std::min(ly, viewport.y + viewport.h - legend_h - 4.0f));
 
-    // Draw legend window
-    char win_id[32];
-    std::snprintf(win_id, sizeof(win_id), "##legend_%zu", axes_index);
+    // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
+    char win_id[64];
+    std::snprintf(win_id, sizeof(win_id), "##legend_%lx_%zu",
+                  static_cast<unsigned long>(figure_id), axes_index);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
 
+    // Use LegendConfig colors; fall back to theme colors if sentinel (all zeros)
+    auto is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f && c.a == 0.0f; };
+    ImVec4 bg_col;
+    if (is_sentinel(config.bg_color))
+        bg_col = ImVec4(theme_colors.bg_elevated.r, theme_colors.bg_elevated.g,
+                        theme_colors.bg_elevated.b, 0.92f);
+    else
+        bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
+
+    ImVec4 border_col;
+    if (is_sentinel(config.border_color))
+        border_col = ImVec4(theme_colors.border_subtle.r, theme_colors.border_subtle.g,
+                            theme_colors.border_subtle.b, theme_colors.border_subtle.a);
+    else
+        border_col = ImVec4(config.border_color.r, config.border_color.g, config.border_color.b,
+                            config.border_color.a);
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x, pad_y));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(
-        ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.92f));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(colors.border_subtle.r,
-                                 colors.border_subtle.g,
-                                 colors.border_subtle.b,
-                                 colors.border_subtle.a));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, bg_col);
+    ImGui::PushStyleColor(ImGuiCol_Border, border_col);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
@@ -263,17 +303,19 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
 
             // Series label
             ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(
-                colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, vis_alpha));
+                theme_colors.text_primary.r, theme_colors.text_primary.g, theme_colors.text_primary.b, vis_alpha));
             float label_x = row_x + swatch_size + swatch_gap;
             float label_y = row_y + (row_height - font_size) * 0.5f;
-            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
+            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col,
+                        s->label().c_str());
 
             // Click-to-toggle: invisible button over the row
             if (toggleable_)
             {
                 ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
-                char btn_id[48];
-                std::snprintf(btn_id, sizeof(btn_id), "##legend_toggle_%zu_%d", axes_index, row);
+                char btn_id[80];
+                std::snprintf(btn_id, sizeof(btn_id), "##legend_toggle_%lx_%zu_%d",
+                              static_cast<unsigned long>(figure_id), axes_index, row);
 
                 float btn_w = swatch_size + swatch_gap + max_label_w;
                 if (ImGui::InvisibleButton(btn_id, ImVec2(btn_w, row_height)))
@@ -289,9 +331,9 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
                 // Hover highlight
                 if (ImGui::IsItemHovered())
                 {
-                    ImU32 hover_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_subtle.r,
-                                                                            colors.accent_subtle.g,
-                                                                            colors.accent_subtle.b,
+                    ImU32 hover_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
+                                                                            theme_colors.accent_subtle.g,
+                                                                            theme_colors.accent_subtle.b,
                                                                             0.3f));
                     dl->AddRectFilled(ImVec2(row_x - 4.0f, row_y),
                                       ImVec2(row_x + btn_w + 4.0f, row_y + row_height),
@@ -306,10 +348,10 @@ bool LegendInteraction::draw(Axes& axes, const Rect& viewport, size_t axes_index
                 float eye_x = row_x + btn_w + 4.0f;
                 float eye_y = row_y + (row_height - font_size * 0.7f) * 0.5f;
                 const char* eye_label = state.user_visible ? "o" : "-";
-                ImU32 eye_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_tertiary.r,
-                                                                      colors.text_tertiary.g,
-                                                                      colors.text_tertiary.b,
-                                                                      colors.text_tertiary.a));
+                ImU32 eye_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
+                                                                      theme_colors.text_tertiary.g,
+                                                                      theme_colors.text_tertiary.b,
+                                                                      theme_colors.text_tertiary.a));
                 dl->AddText(font, font_size * 0.7f, ImVec2(eye_x, eye_y), eye_col, eye_label);
             }
 

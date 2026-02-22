@@ -1500,6 +1500,11 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         [fig_mgr_ptr](size_t fig_idx) -> std::string
         { return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx)); });
 
+    // Figure pointer resolver — used for split-mode legend drawing
+    ui->imgui_ui->set_figure_ptr_callback(
+        [fig_mgr_ptr](FigureId id) -> Figure*
+        { return fig_mgr_ptr->get_figure(id); });
+
     // Dock system → tab bar sync
     auto* figure_tabs_raw = ui->figure_tabs.get();
     ui->dock_system.split_view().set_on_active_changed(

@@ -3,6 +3,7 @@
 #ifdef SPECTRA_USE_IMGUI
 
     #include <cstddef>
+    #include <cstdint>
     #include <spectra/color.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
@@ -44,8 +45,10 @@ class LegendInteraction
     // ─── Drawing ────────────────────────────────────────────────────────
 
     // Draw the interactive legend overlay for the given axes.
+    // figure_id disambiguates state across figures in split mode.
     // Returns true if the legend consumed a mouse event this frame.
-    bool draw(Axes& axes, const Rect& viewport, size_t axes_index);
+    bool draw(Axes& axes, const Rect& viewport, size_t axes_index,
+             const LegendConfig& config, uintptr_t figure_id);
 
     // ─── Queries ────────────────────────────────────────────────────────
 
@@ -80,13 +83,19 @@ class LegendInteraction
         float dy = 0.0f;
     };
 
-    LegendOffset& get_offset(size_t axes_index);
+    // Composite key: (figure_id, axes_index) to prevent cross-figure state leaks
+    using OffsetKey = uint64_t;
+    static OffsetKey make_offset_key(uintptr_t fig_id, size_t ax_idx)
+    {
+        return (static_cast<uint64_t>(fig_id) << 16) ^ static_cast<uint64_t>(ax_idx);
+    }
+    LegendOffset& get_offset(uintptr_t figure_id, size_t axes_index);
 
     // Series state keyed by raw pointer (valid for the lifetime of the figure)
     std::unordered_map<const Series*, LegendSeriesState> series_states_;
 
-    // Per-axes drag offset
-    std::unordered_map<size_t, LegendOffset> legend_offsets_;
+    // Per-(figure, axes) drag offset
+    std::unordered_map<OffsetKey, LegendOffset> legend_offsets_;
 
     // Drag state
     bool dragging_ = false;

@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <map>
 
 namespace spectra
 {
@@ -52,6 +53,7 @@ class FrameProfiler
     {
         frame_start_ = Clock::now();
         current_stages_.clear();
+        counters_.clear();
     }
 
     void begin_stage(const char* name)
@@ -103,6 +105,13 @@ class FrameProfiler
             target_frame_ms_ = 1000.0 / static_cast<double>(fps);
     }
 
+    void increment_counter(const char* name, uint32_t count = 1)
+    {
+        counters_[name] += count;
+        // Also accumulate into total history
+        history_counters_[name] += count;
+    }
+
     void log_if_ready()
     {
         if (frame_count_ < log_interval_)
@@ -147,7 +156,13 @@ class FrameProfiler
                       + format_us(r.stats.p95_us) + "  max=" + format_us(r.stats.max_us) + "\n";
         }
 
-        report += "  Hitches (>2x target): " + std::to_string(hitch_count_) + "/"
+        report += "\n  --- Counters (since last log) ---\n";
+        for (const auto& [name, count] : history_counters_)
+        {
+            report += "  " + pad_right(name, 24) + " " + std::to_string(count) + "\n";
+        }
+
+        report += "\n  Hitches (>2x target): " + std::to_string(hitch_count_) + "/"
                   + std::to_string(frame_count_);
 
         SPECTRA_LOG_INFO("profiler", report);
@@ -156,6 +171,7 @@ class FrameProfiler
         frame_count_ = 0;
         hitch_count_ = 0;
         history_.clear();
+        history_counters_.clear();
     }
 
     uint64_t total_frame_count() const { return total_frame_count_; }
@@ -219,6 +235,8 @@ class FrameProfiler
     TimePoint frame_start_;
     std::unordered_map<std::string, StageTimer> current_stages_;
     std::unordered_map<std::string, std::vector<double>> history_;
+    std::map<std::string, uint32_t> counters_;
+    std::map<std::string, uint32_t> history_counters_;
 
     uint32_t log_interval_ = 600;
     uint32_t frame_count_ = 0;
@@ -255,6 +273,7 @@ class FrameProfiler
     void end_stage(const char*) {}
     void end_frame() {}
     void set_target_fps(float) {}
+    void increment_counter(const char*, uint32_t = 1) {}
     void log_if_ready() {}
     uint64_t total_frame_count() const { return 0; }
     uint32_t hitch_count() const { return 0; }

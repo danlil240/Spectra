@@ -106,7 +106,7 @@ class TabBar
     }
 
     // Rendering
-    void draw(const Rect& bounds);
+    void draw(const Rect& bounds, bool menus_open = false);
 
     // Interaction state
     bool is_tab_hovered(size_t index) const;
@@ -163,7 +163,7 @@ class TabBar
 
     // Internal helpers
     void handle_input(const Rect& bounds);
-    void draw_tabs(const Rect& bounds);
+    void draw_tabs(const Rect& bounds, bool menus_open = false);
     void draw_add_button(const Rect& bounds);
     void draw_context_menu();
 

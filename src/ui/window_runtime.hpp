@@ -40,7 +40,8 @@ class WindowRuntime
     // Advance animations, build ImGui UI, compute layout for one window.
     void update(WindowUIContext& ui_ctx,
                 FrameState& fs,
-                FrameScheduler& scheduler
+                FrameScheduler& scheduler,
+                FrameProfiler* profiler = nullptr
 #ifdef SPECTRA_USE_GLFW
                 ,
                 WindowManager* window_mgr = nullptr

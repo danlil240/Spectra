@@ -187,9 +187,24 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
                 continue;
             win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
 
+            // Also check split-view pane figures — animation must continue
+            // even when the active tab is not the animated one.
+            if (!win_fs.has_animation && wctx->ui_ctx->dock_system.is_split())
+            {
+                for (const auto& pinfo : wctx->ui_ctx->dock_system.get_pane_infos())
+                {
+                    Figure* pfig = registry_.get(pinfo.figure_index);
+                    if (pfig && pfig->anim_on_frame_)
+                    {
+                        win_fs.has_animation = true;
+                        break;
+                    }
+                }
+            }
+
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_update");
-                win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, window_mgr);
+                win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, &profiler_, window_mgr);
             }
 
             // Sync WindowContext::assigned_figures with FigureManager.
@@ -225,7 +240,8 @@ FrameState SessionRuntime::tick(FrameScheduler& scheduler,
     {
         win_rt_.update(*headless_ui_ctx,
                        frame_state,
-                       scheduler
+                       scheduler,
+                       &profiler_
 #ifdef SPECTRA_USE_GLFW
                        ,
                        nullptr

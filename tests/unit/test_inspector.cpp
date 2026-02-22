@@ -125,6 +125,98 @@ TEST(SelectionContext, MultipleAxesSelection)
     EXPECT_EQ(ctx.axes_index, 1);
 }
 
+// ─── Axes Selection Preservation Tests ───────────────────────────────────────
+
+TEST(SelectionContext, PreserveAxesIndexWhenSwitchingFigures)
+{
+    // Create two figures with different numbers of axes
+    Figure fig1;
+    Figure fig2;
+    
+    auto& fig1_ax0 = fig1.subplot(2, 1, 1);  // index 0
+    auto& fig1_ax1 = fig1.subplot(2, 1, 2);  // index 1
+    
+    auto& fig2_ax0 = fig2.subplot(1, 1, 1);  // index 0 (only axes)
+    
+    SelectionContext ctx;
+    
+    // Select axes index 1 in fig1
+    ctx.select_axes(&fig1, &fig1_ax1, 1);
+    EXPECT_EQ(ctx.type, SelectionType::Axes);
+    EXPECT_EQ(ctx.figure, &fig1);
+    EXPECT_EQ(ctx.axes, &fig1_ax1);
+    EXPECT_EQ(ctx.axes_index, 1);
+    
+    // Simulate switching to fig2 with same axes index (invalid, should fallback to 0)
+    // This mimics the logic in ImGuiIntegration::build_ui
+    if (ctx.type == SelectionType::Axes && ctx.figure != &fig2)
+    {
+        int target_idx = ctx.axes_index;
+        if (target_idx >= 0 && target_idx < static_cast<int>(fig2.axes().size()))
+        {
+            ctx.select_axes(&fig2, fig2.axes_mut()[target_idx].get(), target_idx);
+        }
+        else
+        {
+            // Index out of range, fall back to first axes
+            ctx.select_axes(&fig2, fig2.axes_mut()[0].get(), 0);
+        }
+    }
+    
+    // Should have switched to fig2's axes at index 0 (fallback)
+    EXPECT_EQ(ctx.type, SelectionType::Axes);
+    EXPECT_EQ(ctx.figure, &fig2);
+    EXPECT_EQ(ctx.axes, &fig2_ax0);
+    EXPECT_EQ(ctx.axes_index, 0);
+    
+    // Now try switching back to fig1 with valid index 0
+    if (ctx.type == SelectionType::Axes && ctx.figure != &fig1)
+    {
+        int target_idx = 0;  // Explicitly test index 0
+        if (target_idx >= 0 && target_idx < static_cast<int>(fig1.axes().size()))
+        {
+            ctx.select_axes(&fig1, fig1.axes_mut()[target_idx].get(), target_idx);
+        }
+        else
+        {
+            // Fallback (shouldn't happen in this case)
+            ctx.select_axes(&fig1, fig1.axes_mut()[0].get(), 0);
+        }
+    }
+    
+    // Should have switched to fig1's axes at index 0
+    EXPECT_EQ(ctx.type, SelectionType::Axes);
+    EXPECT_EQ(ctx.figure, &fig1);
+    EXPECT_EQ(ctx.axes, &fig1_ax0);
+    EXPECT_EQ(ctx.axes_index, 0);
+}
+
+TEST(SelectionContext, HandleEmptyFigureWhenSwitching)
+{
+    Figure fig_with_axes;
+    Figure empty_fig;
+    
+    auto& ax = fig_with_axes.subplot(1, 1, 1);
+    
+    SelectionContext ctx;
+    ctx.select_axes(&fig_with_axes, &ax, 0);
+    
+    EXPECT_EQ(ctx.type, SelectionType::Axes);
+    EXPECT_EQ(ctx.figure, &fig_with_axes);
+    
+    // Simulate switching to empty figure (should clear selection)
+    if (ctx.figure != &empty_fig && empty_fig.axes().empty())
+    {
+        ctx.clear();
+    }
+    
+    // Selection should be cleared
+    EXPECT_EQ(ctx.type, SelectionType::None);
+    EXPECT_EQ(ctx.figure, nullptr);
+    EXPECT_EQ(ctx.axes, nullptr);
+    EXPECT_EQ(ctx.axes_index, -1);
+}
+
 // ─── SelectionType enum coverage ────────────────────────────────────────────
 
 TEST(SelectionType, AllValuesDistinct)

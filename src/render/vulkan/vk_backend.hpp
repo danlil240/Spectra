@@ -15,6 +15,8 @@
 namespace spectra
 {
 
+class FrameProfiler;
+
 class VulkanBackend : public Backend
 {
    public:
@@ -46,8 +48,8 @@ class VulkanBackend : public Backend
                                  const uint8_t* rgba_data) override;
     void destroy_texture(TextureHandle handle) override;
 
-    bool begin_frame() override;
-    void end_frame() override;
+    bool begin_frame(FrameProfiler* profiler = nullptr) override;
+    void end_frame(FrameProfiler* profiler = nullptr) override;
 
     void begin_render_pass(const Color& clear_color) override;
     void end_render_pass() override;

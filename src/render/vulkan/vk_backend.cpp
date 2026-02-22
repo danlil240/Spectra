@@ -23,6 +23,7 @@
 // WindowUIContext must be complete for unique_ptr destructor in WindowContext.
 // Must come after GLFW includes to avoid macro conflicts with shortcut_manager.hpp.
 #include "../../ui/window_ui_context.hpp"
+#include "../../anim/frame_profiler.hpp"
 
 namespace spectra
 {
@@ -1148,7 +1149,7 @@ void VulkanBackend::destroy_texture(TextureHandle handle)
     }
 }
 
-bool VulkanBackend::begin_frame()
+bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 {
     // Reset dynamic UBO slot allocator for this frame
     ubo_next_offset_ = 0;
@@ -1172,12 +1173,13 @@ bool VulkanBackend::begin_frame()
     }
 
     // Windowed mode — wait for this slot's previous work to finish
-    VkResult fence_status =
-        vkWaitForFences(ctx_.device,
+    if (profiler) profiler->begin_stage("vk_wait_fences");
+    VkResult fence_status = vkWaitForFences(ctx_.device,
                         1,
                         &active_window_->in_flight_fences[active_window_->current_flight_frame],
                         VK_TRUE,
                         UINT64_MAX);
+    if (profiler) profiler->end_stage("vk_wait_fences");
     if (fence_status == VK_ERROR_DEVICE_LOST)
     {
         device_lost_ = true;
@@ -1185,6 +1187,7 @@ bool VulkanBackend::begin_frame()
     }
 
     // Acquire next swapchain image BEFORE resetting fence
+    if (profiler) profiler->begin_stage("vk_acquire");
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device,
         active_window_->swapchain.swapchain,
@@ -1192,6 +1195,7 @@ bool VulkanBackend::begin_frame()
         active_window_->image_available_semaphores[active_window_->current_flight_frame],
         VK_NULL_HANDLE,
         &active_window_->current_image_index);
+    if (profiler) profiler->end_stage("vk_acquire");
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
@@ -1220,7 +1224,7 @@ bool VulkanBackend::begin_frame()
     return true;
 }
 
-void VulkanBackend::end_frame()
+void VulkanBackend::end_frame(FrameProfiler* profiler)
 {
     vkEndCommandBuffer(active_window_->current_cmd);
 
@@ -1256,10 +1260,12 @@ void VulkanBackend::end_frame()
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = signal_semaphores;
 
+    if (profiler) profiler->begin_stage("vk_submit");
     vkQueueSubmit(ctx_.graphics_queue,
                   1,
                   &submit,
                   active_window_->in_flight_fences[active_window_->current_flight_frame]);
+    if (profiler) profiler->end_stage("vk_submit");
 
     VkPresentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1269,7 +1275,9 @@ void VulkanBackend::end_frame()
     present.pSwapchains = &active_window_->swapchain.swapchain;
     present.pImageIndices = &active_window_->current_image_index;
 
+    if (profiler) profiler->begin_stage("vk_present");
     VkResult result = vkQueuePresentKHR(ctx_.present_queue, &present);
+    if (profiler) profiler->end_stage("vk_present");
 
     active_window_->current_flight_frame =
         (active_window_->current_flight_frame + 1)

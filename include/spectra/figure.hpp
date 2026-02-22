@@ -29,9 +29,9 @@ struct LegendConfig
 {
     LegendPosition position = LegendPosition::TopRight;
     bool visible = true;
-    float font_size = 12.0f;
-    Color bg_color = {1.0f, 1.0f, 1.0f, 0.85f};
-    Color border_color = {0.7f, 0.7f, 0.7f, 1.0f};
+    float font_size = 0.0f;   // 0 = use default from font
+    Color bg_color = {};       // {0,0,0,0} = use theme bg_elevated
+    Color border_color = {};   // {0,0,0,0} = use theme border_subtle
     float padding = 8.0f;
 };
 
@@ -140,6 +140,11 @@ class Figure
     float anim_duration_ = 0.0f;
     bool anim_loop_ = false;
     std::function<void(Frame&)> anim_on_frame_;
+
+    // Per-figure animation elapsed time (driven by WindowRuntime).
+    // Stored here so each figure keeps its own timeline position
+    // even when it's not the active tab in a split view.
+    float anim_time_ = 0.0f;
 };
 
 }  // namespace spectra

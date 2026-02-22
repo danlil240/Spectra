@@ -149,10 +149,10 @@ void FrameScheduler::update_stats(float dt_ms)
     if (dt_ms > target_ms * 2.0f)
     {
         hitches_in_window_++;
-        SPECTRA_LOG_DEBUG("hitch",
-                          "Frame " + std::to_string(frame_.number)
-                              + " hitch: " + std::to_string(dt_ms) + "ms"
-                              + " (target: " + std::to_string(target_ms) + "ms)");
+        // SPECTRA_LOG_DEBUG("hitch",
+        //                   "Frame " + std::to_string(frame_.number)
+        //                       + " hitch: " + std::to_string(dt_ms) + "ms"
+        //                       + " (target: " + std::to_string(target_ms) + "ms)");
     }
 
     if (window_counter_ >= STATS_WINDOW_FRAMES)

@@ -3,6 +3,7 @@
     #include "imgui_integration.hpp"
 
     #include <imgui.h>
+    #include <imgui_internal.h>
     #include <imgui_impl_glfw.h>
     #include <imgui_impl_vulkan.h>
     #include <spectra/axes.hpp>
@@ -304,6 +305,26 @@ void ImGuiIntegration::build_ui(Figure& figure)
     {
         ImGuiIO& io = ImGui::GetIO();
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y);
+
+        // In split mode, draw_overlays only draws legends for the active figure.
+        // Draw legends for all other split pane figures as well.
+        if (dock_system_ && dock_system_->is_split() && get_figure_ptr_)
+        {
+            auto panes = dock_system_->split_view().all_panes();
+            for (auto* pane : panes)
+            {
+                if (!pane)
+                    continue;
+                for (auto fig_id : pane->figure_indices())
+                {
+                    Figure* fig = get_figure_ptr_(fig_id);
+                    if (fig && fig != &figure)
+                    {
+                        data_interaction_->draw_legend_for_figure(*fig);
+                    }
+                }
+            }
+        }
     }
 
     // Draw box zoom overlay (Agent B Week 7) — on top of data overlays
@@ -934,7 +955,7 @@ void ImGuiIntegration::draw_command_bar()
                             1.0f);
         }
 
-        // ── App title/brand on the left — programmatic logo + styled text ──
+        // ── App title/brand on the left — polished programmatic logo + styled text ──
         {
             auto accent = ui::theme().accent;
             auto bg = ui::theme().bg_secondary;
@@ -943,8 +964,8 @@ void ImGuiIntegration::draw_command_bar()
             ImVec2 cursor = ImGui::GetCursorScreenPos();
             float cy = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
 
-            // ── Stylized "S" logo mark (bezier wave) ──
-            float logo_sz = 22.0f;
+            // ── Stylized "S" logo mark (enhanced bezier curves) ──
+            float logo_sz = 26.0f;  // Larger for more impact
             float lx = cursor.x + 2.0f;
             float ly = cy - logo_sz * 0.5f;
 
@@ -957,10 +978,10 @@ void ImGuiIntegration::draw_command_bar()
                                 a);
             };
 
-            // Brighter highlight for the logo (shift accent toward white)
-            float hr = accent.r + (1.0f - accent.r) * 0.45f;
-            float hg = accent.g + (1.0f - accent.g) * 0.45f;
-            float hb = accent.b + (1.0f - accent.b) * 0.45f;
+            // Brighter highlight for the logo (shift accent toward white, more vibrant)
+            float hr = accent.r + (1.0f - accent.r) * 0.55f;
+            float hg = accent.g + (1.0f - accent.g) * 0.55f;
+            float hb = accent.b + (1.0f - accent.b) * 0.55f;
             auto hi = [&](uint8_t a) -> ImU32
             {
                 return IM_COL32(static_cast<uint8_t>(hr * 255),
@@ -969,55 +990,70 @@ void ImGuiIntegration::draw_command_bar()
                                 a);
             };
 
-            // Outer glow behind logo
-            dl->AddCircleFilled(ImVec2(lx + logo_sz * 0.5f, ly + logo_sz * 0.5f),
-                                logo_sz * 0.7f,
-                                ac(18));
+            // Smooth multi-layer glow behind logo for depth
+            ImVec2 logo_center = ImVec2(lx + logo_sz * 0.5f, ly + logo_sz * 0.5f);
+            dl->AddCircleFilled(logo_center, logo_sz * 0.85f, ac(8));   // Outer soft glow
+            dl->AddCircleFilled(logo_center, logo_sz * 0.70f, ac(15));  // Mid glow
+            dl->AddCircleFilled(logo_center, logo_sz * 0.55f, ac(22));  // Inner glow
 
-            // Draw stylized S as two opposing bezier arcs
-            float sw = logo_sz * 0.7f;
+            // Draw stylized S with more dynamic curves
+            float sw = logo_sz * 0.75f;
             float sh = logo_sz;
             float sx = lx + (logo_sz - sw) * 0.5f;
             float sy = ly;
 
-            // Top arc of S (curves right)
+            // Top arc of S (smooth curve to middle)
             dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
-                               ImVec2(sx + sw * 1.1f, sy - sh * 0.05f),
-                               ImVec2(sx + sw * 1.1f, sy + sh * 0.52f),
-                               ImVec2(sx + sw * 0.5f, sy + sh * 0.48f),
+                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
+                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
+                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
                                hi(220),
-                               2.4f);
+                               2.8f);
 
-            // Bottom arc of S (curves left)
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.52f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 0.48f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 1.05f),
+            // Bottom arc of S (continuous from middle)
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
                                ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
                                ac(220),
-                               2.4f);
+                               2.8f);
 
-            // Bright center highlight stroke (thinner, brighter)
+            // Bright center highlight stroke (thicker, more vibrant)
             dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
-                               ImVec2(sx + sw * 1.1f, sy - sh * 0.05f),
-                               ImVec2(sx + sw * 1.1f, sy + sh * 0.52f),
-                               ImVec2(sx + sw * 0.5f, sy + sh * 0.48f),
-                               hi(100),
-                               4.0f);
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.52f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 0.48f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 1.05f),
+                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
+                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
+                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
+                               hi(110),
+                               4.8f);
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
                                ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
-                               ac(100),
-                               4.0f);
+                               ac(110),
+                               4.8f);
 
-            float text_x = lx + logo_sz + 6.0f;
+            // Subtle inner highlight for extra depth
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
+                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
+                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
+                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
+                               hi(55),
+                               6.2f);
+            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
+                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
+                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
+                               ac(55),
+                               6.2f);
 
-            // ── "SPECTRA" text with letter-spacing and glow ──
+            float text_x = lx + logo_sz + 8.0f;
+
+            // ── "SPECTRA" text with enhanced letter-spacing and multi-layer glow ──
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
             float font_sz = font_title_->FontSize;
             float text_y = cy - font_sz * 0.5f;
-            float spacing = 2.8f;  // extra px between letters
+            float spacing = 3.2f;  // Increased letter spacing for elegance
 
             // Measure total width for Dummy advance
             float total_w = 0.0f;
@@ -1028,20 +1064,23 @@ void ImGuiIntegration::draw_command_bar()
             }
             total_w -= spacing;  // no trailing space
 
-            // Layer 1: Soft wide glow behind text
+            // Layer 1: Soft glow behind text (reduced intensity for smooth edges)
             {
                 float gx = text_x;
                 for (const char* p = letters; *p; ++p)
                 {
                     char ch[2] = {*p, 0};
                     float cw = ImGui::CalcTextSize(ch).x;
-                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.5f, text_y - 0.5f), ac(20), ch);
-                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.5f, text_y + 0.5f), ac(20), ch);
+                    // Gentle bloom effect with lower opacity
+                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.8f, text_y - 0.8f), ac(10), ch);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.8f, text_y + 0.8f), ac(10), ch);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.4f, text_y + 0.4f), ac(18), ch);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.4f, text_y - 0.4f), ac(18), ch);
                     gx += cw + spacing;
                 }
             }
 
-            // Layer 2: Main text — gradient from bright highlight to accent
+            // Layer 2: Main text with enhanced gradient (more vibrant transition)
             {
                 float gx = text_x;
                 int idx = 0;
@@ -1050,19 +1089,35 @@ void ImGuiIntegration::draw_command_bar()
                 {
                     char ch[2] = {*p, 0};
                     float cw = ImGui::CalcTextSize(ch).x;
-                    // Gradient: first letters are bright highlight, last letters are pure accent
+                    // Enhanced gradient: more dramatic transition from bright to accent
                     float t = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    uint8_t cr = static_cast<uint8_t>((hr + (accent.r - hr) * t) * 255);
-                    uint8_t cg = static_cast<uint8_t>((hg + (accent.g - hg) * t) * 255);
-                    uint8_t cb = static_cast<uint8_t>((hb + (accent.b - hb) * t) * 255);
-                    ImU32 col = IM_COL32(cr, cg, cb, 245);
+                    // Use a more pronounced curve for the gradient
+                    float curve = t * t;  // Quadratic curve for more dramatic effect
+                    uint8_t cr = static_cast<uint8_t>((hr + (accent.r - hr) * curve) * 255);
+                    uint8_t cg = static_cast<uint8_t>((hg + (accent.g - hg) * curve) * 255);
+                    uint8_t cb = static_cast<uint8_t>((hb + (accent.b - hb) * curve) * 255);
+                    ImU32 col = IM_COL32(cr, cg, cb, 255);  // Full opacity
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
                 }
             }
 
+            // Layer 3: Subtle highlight on first few letters for extra pop
+            {
+                float gx = text_x;
+                int idx = 0;
+                for (const char* p = letters; *p && idx < 3; ++p, ++idx)  // Only first 3 letters
+                {
+                    char ch[2] = {*p, 0};
+                    float cw = ImGui::CalcTextSize(ch).x;
+                    ImU32 highlight = hi(180);  // Bright highlight
+                    dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), highlight, ch);
+                    gx += cw + spacing;
+                }
+            }
+
             // Advance ImGui cursor past the entire brand block
-            float brand_w = (text_x - cursor.x) + total_w + 4.0f;
+            float brand_w = (text_x - cursor.x) + total_w + 6.0f;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
@@ -1473,7 +1528,7 @@ void ImGuiIntegration::draw_tab_bar()
     if (ImGui::Begin("##spectra_tab_bar", nullptr, flags))
     {
         // Let the TabBar handle all input, drawing, and context menus
-        tab_bar_->draw(bounds);
+        tab_bar_->draw(bounds, is_menu_open());
     }
     ImGui::End();
 
@@ -1852,9 +1907,31 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                     }
                     break;
                 case Section::Axes:
-                    if (selection_ctx_.type != ui::SelectionType::Axes && !figure.axes().empty())
+                    // Only show browser if user hasn't selected a specific axes.
+                    // When switching figures, try to preserve the axes index if valid.
+                    if (figure.axes().empty())
+                    {
+                        // No axes in this figure, clear selection
+                        selection_ctx_.clear();
+                    }
+                    else if (selection_ctx_.type != ui::SelectionType::Axes)
                     {
                         selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
+                    }
+                    else if (selection_ctx_.figure != &figure)
+                    {
+                        // User has axes selected but switched to a different figure.
+                        // Try to select the same axes index in the new figure.
+                        int target_idx = selection_ctx_.axes_index;
+                        if (target_idx >= 0 && target_idx < static_cast<int>(figure.axes().size()))
+                        {
+                            selection_ctx_.select_axes(&figure, figure.axes_mut()[target_idx].get(), target_idx);
+                        }
+                        else
+                        {
+                            // Index out of range, fall back to first axes
+                            selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
+                        }
                     }
                     break;
             }
@@ -2270,19 +2347,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
     if (!dock_system_)
         return;
 
-    // Normally use GetForegroundDrawList() so tab headers render on top of the
-    // canvas and other UI. But when any popup is open (menus, context menus),
-    // or when the mouse is over the knobs panel, fall back to
-    // GetBackgroundDrawList() so those elements render on top of tabs.
-    bool any_popup =
-        ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
-    // If the knobs panel has non-zero size, it's visible and overlaps the tab
-    // bar area — use background draw list so the knobs panel (an ImGui window)
-    // renders visually above the tab bar draw calls.
-    bool knobs_panel_visible =
-        knob_manager_ && !knob_manager_->empty() && knobs_panel_rect_.w > 0.0f;
-    auto* draw_list = (any_popup || knobs_panel_visible) ? ImGui::GetBackgroundDrawList()
-                                                         : ImGui::GetForegroundDrawList();
+    // Draw pane tab headers into per-pane ImGui windows so that ImGui's own
+    // window z-ordering naturally puts popups (menus, context menus) above
+    // the tab headers.  Previously we used GetForegroundDrawList() which
+    // renders above ALL windows including popups — causing the z-order bug.
 
     auto& theme = ui::theme();
     float dt = ImGui::GetIO().DeltaTime;
@@ -2476,16 +2544,48 @@ void ImGuiIntegration::draw_pane_tab_headers()
         headers.push_back(std::move(ph));
     }
 
-    // ── Phase 2: Input handling ──────────────────────────────────────────
+    // ── Phase 2: Draw + input handling via per-pane ImGui windows ───────
+    // Each pane header is drawn inside its own ImGui window so that ImGui's
+    // z-ordering naturally puts popups (menus) above these windows.
 
     pane_tab_hovered_ = false;
 
+    ImGuiWindowFlags pane_win_flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs;
+
     for (auto& ph : headers)
     {
-        // Draw header background
         Rect hr = ph.header_rect;
-        draw_list->AddRectFilled(
-            ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h), to_col(theme.bg_secondary));
+
+        // Create a tiny ImGui window covering this pane's tab header area
+        char win_id[64];
+        snprintf(win_id, sizeof(win_id), "##pane_tab_%u", ph.pane->id());
+        ImGui::SetNextWindowPos(ImVec2(hr.x, hr.y));
+        ImGui::SetNextWindowSize(ImVec2(hr.w, hr.h));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));  // transparent — we draw bg ourselves
+
+        if (!ImGui::Begin(win_id, nullptr, pane_win_flags))
+        {
+            ImGui::End();
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar(3);
+            continue;
+        }
+
+        auto* draw_list = ImGui::GetWindowDrawList();
+
+        // Draw header background (skip when menus are open to avoid z-order issues)
+        if (!is_menu_open())
+        {
+            draw_list->AddRectFilled(
+                ImVec2(hr.x, hr.y), ImVec2(hr.x + hr.w, hr.y + hr.h), to_col(theme.bg_secondary));
+        }
         draw_list->AddLine(ImVec2(hr.x, hr.y + hr.h - 1),
                            ImVec2(hr.x + hr.w, hr.y + hr.h - 1),
                            to_col(theme.border_subtle),
@@ -2503,11 +2603,12 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
             // Tab background
             ImU32 bg;
+            bool is_active_styled = tr.is_active && !is_menu_open();  // Don't show active styling when menus are open
             if (is_being_dragged)
             {
                 bg = to_col(theme.bg_elevated);
             }
-            else if (tr.is_active)
+            else if (is_active_styled)
             {
                 bg = to_col(theme.bg_tertiary);
             }
@@ -2525,8 +2626,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
             ImVec2 br(tr.x + tr.w, tr.y + tr.h);
             draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
 
-            // Active underline
-            if (tr.is_active)
+            // Active underline (skip when menus are open)
+            if (is_active_styled)
             {
                 draw_list->AddLine(ImVec2(tl.x + 3, br.y - 1),
                                    ImVec2(br.x - 3, br.y - 1),
@@ -2543,7 +2644,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 ImVec2(tr.x, tr.y), ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h), true);
             draw_list->AddText(
                 text_pos,
-                tr.is_active ? to_col(theme.text_primary) : to_col(theme.text_secondary),
+                is_active_styled ? to_col(theme.text_primary) : to_col(theme.text_secondary),
                 title.c_str());
             draw_list->PopClipRect();
 
@@ -2626,6 +2727,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 }
             }
         }
+
+        ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(3);
     }
 
     // ── Phase 3: Drag update ─────────────────────────────────────────────
@@ -2756,6 +2861,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         }
 
         // ── Ghost tab / preview sync ──────────────────────────────────
+        auto* draw_list = ImGui::GetForegroundDrawList();  // Ghost/drop overlays always on top
         std::string title = fig_title(pane_tab_drag_.dragged_figure_index);
 
         // Sync preview_active from TabDragController's preview state

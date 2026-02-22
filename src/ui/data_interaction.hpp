@@ -39,6 +39,10 @@ class DataInteraction
     // Call inside ImGui frame, after build_ui.
     void draw_overlays(float window_width, float window_height);
 
+    // Draw legend overlay for a specific figure (for split-mode panes).
+    // Respects figure.legend().visible.
+    void draw_legend_for_figure(Figure& figure);
+
     // Nearest-point result from the last update
     const NearestPointResult& nearest_point() const { return nearest_; }
 

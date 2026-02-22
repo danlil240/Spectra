@@ -87,20 +87,32 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     nearest_ = find_nearest(cursor, figure);
 }
 
+void DataInteraction::draw_legend_for_figure(Figure& figure)
+{
+    const auto& config = figure.legend();
+    if (!config.visible)
+        return;
+    if (config.position == LegendPosition::None)
+        return;
+
+    uintptr_t fig_id = reinterpret_cast<uintptr_t>(&figure);
+    size_t idx = 0;
+    for (auto& axes_ptr : figure.axes_mut())
+    {
+        if (axes_ptr)
+        {
+            legend_.draw(*axes_ptr, axes_ptr->viewport(), idx, config, fig_id);
+        }
+        ++idx;
+    }
+}
+
 void DataInteraction::draw_overlays(float window_width, float window_height)
 {
-    // Draw legend interaction for each axes
+    // Draw legend interaction for each axes (gated on figure legend visibility)
     if (last_figure_)
     {
-        size_t idx = 0;
-        for (auto& axes_ptr : last_figure_->axes_mut())
-        {
-            if (axes_ptr)
-            {
-                legend_.draw(*axes_ptr, axes_ptr->viewport(), idx);
-            }
-            ++idx;
-        }
+        draw_legend_for_figure(*last_figure_);
     }
 
     // Draw markers for all axes that have them

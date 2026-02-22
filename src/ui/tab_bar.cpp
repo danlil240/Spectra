@@ -105,7 +105,7 @@ void TabBar::set_active_tab(size_t index)
     }
 }
 
-void TabBar::draw(const Rect& bounds)
+void TabBar::draw(const Rect& bounds, bool menus_open)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (tabs_.empty())
@@ -122,7 +122,7 @@ void TabBar::draw(const Rect& bounds)
     handle_input(bounds);
 
     // Draw the tabs
-    draw_tabs(bounds);
+    draw_tabs(bounds, menus_open);
 
     // Draw add button if we have room
     if (tabs_.size() < 20)
@@ -239,7 +239,7 @@ static ImU32 to_imcol(const ui::Color& c, float alpha_override = -1.0f)
     return IM_COL32(uint8_t(c.r * 255), uint8_t(c.g * 255), uint8_t(c.b * 255), uint8_t(a * 255));
 }
 
-void TabBar::draw_tabs(const Rect& bounds)
+void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
 {
 #ifdef SPECTRA_USE_IMGUI
     auto layouts = compute_tab_layouts(bounds);
@@ -267,7 +267,8 @@ void TabBar::draw_tabs(const Rect& bounds)
 
         // Tab background color from theme
         ImU32 bg_color;
-        if (is_active)
+        bool is_active_styled = is_active && !menus_open;  // Don't show active styling when menus are open
+        if (is_active_styled)
         {
             bg_color = to_imcol(colors.bg_tertiary);
         }
@@ -294,8 +295,8 @@ void TabBar::draw_tabs(const Rect& bounds)
         draw_list->AddRectFilled(
             tl, br, bg_color, ui::tokens::RADIUS_SM, ImDrawFlags_RoundCornersTop);
 
-        // Active tab: accent underline instead of border
-        if (is_active)
+        // Active tab: accent underline instead of border (skip when menus are open)
+        if (is_active_styled)
         {
             draw_list->AddLine(ImVec2(tl.x + 4, br.y - 1),
                                ImVec2(br.x - 4, br.y - 1),
@@ -309,7 +310,7 @@ void TabBar::draw_tabs(const Rect& bounds)
                         layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f);
 
         ImU32 text_color =
-            is_active ? to_imcol(colors.text_primary) : to_imcol(colors.text_secondary);
+            is_active_styled ? to_imcol(colors.text_primary) : to_imcol(colors.text_secondary);
         draw_list->AddText(text_pos, text_color, tab.title.c_str());
 
         // Close button (always show for closeable tabs)

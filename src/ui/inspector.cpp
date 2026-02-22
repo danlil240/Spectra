@@ -153,7 +153,11 @@ void Inspector::draw_figure_properties(Figure& fig)
         if (widgets::begin_animated_section("LEGEND"))
         {
             widgets::begin_group("legend");
-            widgets::checkbox_field("Show Legend", leg.visible);
+            bool show_legend = leg.visible;
+            if (widgets::checkbox_field("Show Legend", show_legend))
+            {
+                leg.visible = show_legend;
+            }
 
             const char* positions[] = {
                 "Top Right", "Top Left", "Bottom Right", "Bottom Left", "Hidden"};
@@ -163,10 +167,29 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.position = static_cast<LegendPosition>(pos);
             }
 
-            widgets::drag_field("Font Size", leg.font_size, 0.5f, 6.0f, 32.0f, "%.0f px");
-            widgets::drag_field("Padding", leg.padding, 0.5f, 0.0f, 40.0f, "%.0f px");
-            widgets::color_field("Background", leg.bg_color);
-            widgets::color_field("Border", leg.border_color);
+            float font_size = leg.font_size;
+            if (widgets::drag_field("Font Size", font_size, 0.5f, 6.0f, 32.0f, "%.0f px"))
+            {
+                leg.font_size = font_size;
+            }
+            
+            float padding = leg.padding;
+            if (widgets::drag_field("Padding", padding, 0.5f, 0.0f, 40.0f, "%.0f px"))
+            {
+                leg.padding = padding;
+            }
+            
+            spectra::Color bg_color = leg.bg_color;
+            if (widgets::color_field("Background", bg_color))
+            {
+                leg.bg_color = bg_color;
+            }
+            
+            spectra::Color border_color = leg.border_color;
+            if (widgets::color_field("Border", border_color))
+            {
+                leg.border_color = border_color;
+            }
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();
@@ -181,13 +204,8 @@ void Inspector::draw_figure_properties(Figure& fig)
             widgets::begin_group("quick");
             if (widgets::button_field("Reset to Defaults"))
             {
-                sty.background = spectra::Color{1.0f, 1.0f, 1.0f, 1.0f};
-                sty.margin_top = 40.0f;
-                sty.margin_bottom = 60.0f;
-                sty.margin_left = 70.0f;
-                sty.margin_right = 20.0f;
-                leg.visible = true;
-                leg.position = LegendPosition::TopRight;
+                sty = FigureStyle{};
+                leg = LegendConfig{};
             }
             widgets::end_group();
             widgets::end_animated_section();

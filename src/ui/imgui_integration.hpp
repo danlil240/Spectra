@@ -77,6 +77,7 @@ class ImGuiIntegration
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
+    bool is_menu_open() const { return !open_menu_label_.empty(); }
 
     // Returns the FigureId being torn off (preview card active), or INVALID_FIGURE_ID if none.
     FigureId tearoff_figure() const
@@ -417,6 +418,15 @@ class ImGuiIntegration
     void set_figure_title_callback(std::function<std::string(FigureId)> cb)
     {
         get_figure_title_ = std::move(cb);
+    }
+
+    // Figure pointer resolver (set by WindowManager, used for split-mode legend drawing)
+    std::function<Figure*(FigureId)> get_figure_ptr_;
+
+   public:
+    void set_figure_ptr_callback(std::function<Figure*(FigureId)> cb)
+    {
+        get_figure_ptr_ = std::move(cb);
     }
 
    private:

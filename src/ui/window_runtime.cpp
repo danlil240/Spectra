@@ -41,7 +41,8 @@ WindowRuntime::WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistr
 // Per-window update: advance animations, build ImGui UI, compute layout.
 void WindowRuntime::update(WindowUIContext& ui_ctx,
                            FrameState& fs,
-                           FrameScheduler& scheduler
+                           FrameScheduler& scheduler,
+                           FrameProfiler* profiler
 #ifdef SPECTRA_USE_GLFW
                            ,
                            WindowManager* /*window_mgr*/
@@ -51,7 +52,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     auto* active_figure = fs.active_figure;
     auto& active_figure_id = fs.active_figure_id;
     auto& has_animation = fs.has_animation;
-    auto& anim_time = fs.anim_time;
 
 #ifdef SPECTRA_USE_IMGUI
     auto& imgui_ui = ui_ctx.imgui_ui;
@@ -109,73 +109,120 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     input_handler.update(scheduler.dt());
 #endif
 
-    // Ensure all axes have the deferred-deletion callback wired
+    // Helper: wire deferred-deletion callbacks on a figure's axes
     // BEFORE the user's on_frame callback can call clear_series().
     // Only set on axes that don't already have it (avoids per-frame
     // std::function allocation for the common case of unchanged axes).
+    auto wire_series_callbacks = [this](Figure* fig)
     {
-        for (auto& axes_ptr : active_figure->axes())
+        for (auto& axes_ptr : fig->axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
                 axes_ptr->set_series_removed_callback([this](const Series* s)
                                                       { renderer_.notify_series_removed(s); });
         }
-        for (auto& axes_ptr : active_figure->all_axes())
+        for (auto& axes_ptr : fig->all_axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
                 axes_ptr->set_series_removed_callback([this](const Series* s)
                                                       { renderer_.notify_series_removed(s); });
         }
-    }
+    };
 
-    // Call user on_frame callback, gated by timeline state
-    if (has_animation && active_figure->anim_on_frame_)
+    wire_series_callbacks(active_figure);
+
+    // Helper: drive animation for a single figure using its own anim_time_.
+    // is_active controls whether this figure syncs with the timeline editor.
+    auto drive_figure_anim = [&](Figure* fig, bool is_active)
     {
+        if (!fig->anim_on_frame_)
+            return;
+
         Frame frame = scheduler.current_frame();
+
 #ifdef SPECTRA_USE_IMGUI
-        auto tl_state = timeline_editor.playback_state();
-        if (tl_state == PlaybackState::Playing)
+        if (is_active)
         {
-            // Check if user scrubbed/stepped the playhead externally
-            float tl_playhead = timeline_editor.playhead();
-            float diff = tl_playhead - anim_time;
-            if ((diff > 0.001f) || (diff < -0.001f))
+            auto tl_state = timeline_editor.playback_state();
+            if (tl_state == PlaybackState::Playing)
             {
-                // User moved the playhead — sync anim_time to it
-                anim_time = tl_playhead;
+                float tl_playhead = timeline_editor.playhead();
+                float diff = tl_playhead - fig->anim_time_;
+                // If the figure's anim_time_ has advanced past the timeline
+                // playhead (e.g. it was running as non-active while a different
+                // tab was selected), sync the playhead forward to the figure
+                // instead of resetting the figure backward.
+                if (diff < -0.001f)
+                {
+                    // Figure is ahead of playhead — sync playhead to figure
+                    timeline_editor.set_playhead(fig->anim_time_);
+                }
+                else if (diff > 0.001f)
+                {
+                    // User scrubbed the playhead forward — sync figure to playhead
+                    fig->anim_time_ = tl_playhead;
+                }
+                fig->anim_time_ += frame.dt;
+                frame.elapsed_sec = fig->anim_time_;
+                fig->anim_on_frame_(frame);
+                if (fig->anim_time_ > timeline_editor.duration())
+                {
+                    timeline_editor.set_duration(fig->anim_time_ + 30.0f);
+                }
+                timeline_editor.set_playhead(fig->anim_time_);
             }
-            // Advance animation time by frame dt
-            anim_time += frame.dt;
-            frame.elapsed_sec = anim_time;
-            active_figure->anim_on_frame_(frame);
-            // Auto-expand timeline duration if needed
-            if (anim_time > timeline_editor.duration())
+            else if (tl_state == PlaybackState::Paused)
             {
-                timeline_editor.set_duration(anim_time + 30.0f);
+                fig->anim_time_ = timeline_editor.playhead();
+                frame.elapsed_sec = fig->anim_time_;
+                frame.dt = 0.0f;
+                fig->anim_on_frame_(frame);
             }
-            // Sync timeline playhead to animation time
-            timeline_editor.set_playhead(anim_time);
-        }
-        else if (tl_state == PlaybackState::Paused)
-        {
-            // Sync anim_time from timeline playhead (user may scrub or step)
-            anim_time = timeline_editor.playhead();
-            frame.elapsed_sec = anim_time;
-            frame.dt = 0.0f;
-            active_figure->anim_on_frame_(frame);
+            else
+            {
+                fig->anim_time_ = 0.0f;
+                frame.elapsed_sec = 0.0f;
+                frame.dt = 0.0f;
+                fig->anim_on_frame_(frame);
+            }
         }
         else
         {
-            // Stopped: reset animation time and render at 0
-            anim_time = 0.0f;
-            frame.elapsed_sec = 0.0f;
-            frame.dt = 0.0f;
-            active_figure->anim_on_frame_(frame);
+            // Non-active animated figure: advance its own time independently
+            fig->anim_time_ += frame.dt;
+            frame.elapsed_sec = fig->anim_time_;
+            fig->anim_on_frame_(frame);
         }
 #else
-        active_figure->anim_on_frame_(frame);
+        fig->anim_time_ += frame.dt;
+        frame.elapsed_sec = fig->anim_time_;
+        fig->anim_on_frame_(frame);
 #endif
+    };
+
+    // Drive animation for the active figure
+    if (has_animation)
+    {
+        drive_figure_anim(active_figure, /*is_active=*/true);
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    // Drive animation for non-active figures visible in split view panes.
+    if (dock_system.is_split())
+    {
+        auto pane_infos = dock_system.get_pane_infos();
+        for (const auto& pinfo : pane_infos)
+        {
+            if (pinfo.figure_index == fs.active_figure_id)
+                continue;  // already driven above
+            Figure* pfig = registry_.get(pinfo.figure_index);
+            if (!pfig || !pfig->anim_on_frame_)
+                continue;
+            wire_series_callbacks(pfig);
+            drive_figure_anim(pfig, /*is_active=*/false);
+        }
+    }
+#endif
 
     // Start ImGui frame (updates layout manager with current window size).
     fs.imgui_frame_started = false;
@@ -234,6 +281,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // Build ImGui UI (new_frame was already called above before layout computation)
     if (imgui_ui && fs.imgui_frame_started)
     {
+        if (profiler) profiler->begin_stage("imgui_build");
         imgui_ui->build_ui(*active_figure);
 
         // Old TabBar is replaced by unified pane tab headers
@@ -354,6 +402,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
         // Always hide old tab bar — unified pane tab headers handle all tabs
         imgui_ui->get_layout_manager().set_tab_bar_visible(false);
+
+        if (profiler) profiler->end_stage("imgui_build");
     }
 #endif
 
@@ -452,6 +502,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // Compute subplot layout AFTER build_ui() so that nav rail / inspector
     // toggles from the current frame are immediately reflected.
     {
+        if (profiler) profiler->begin_stage("scene_update");
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
         {
@@ -470,15 +521,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         auto* fig = registry_.get(pinfo.figure_index);
                         if (!fig)
                             continue;
+                        // Use figure's style margins, clamped to fit pane bounds
+                        const auto& fs_style = fig->style();
                         Margins pane_margins;
-                        pane_margins.left = std::min(60.0f, pinfo.bounds.w * 0.15f);
-                        pane_margins.left = std::max(pane_margins.left, 40.0f);
-                        pane_margins.right = std::min(30.0f, pinfo.bounds.w * 0.08f);
-                        pane_margins.right = std::max(pane_margins.right, 15.0f);
-                        pane_margins.bottom = std::min(50.0f, pinfo.bounds.h * 0.15f);
-                        pane_margins.bottom = std::max(pane_margins.bottom, 35.0f);
-                        pane_margins.top = std::min(35.0f, pinfo.bounds.h * 0.08f);
-                        pane_margins.top = std::max(pane_margins.top, 15.0f);
+                        pane_margins.left = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
+                        pane_margins.right = std::min(fs_style.margin_right, pinfo.bounds.w * 0.2f);
+                        pane_margins.bottom = std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
+                        pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
                         const auto rects = compute_subplot_layout(pinfo.bounds.w,
                                                                   pinfo.bounds.h,
                                                                   fig->grid_rows_,
@@ -508,11 +557,18 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             {
                 SplitPane* root = dock_system.split_view().root();
                 Rect cb = (root && root->is_leaf()) ? root->content_bounds() : canvas;
+                // Use figure's style margins for layout
+                const auto& af_style = active_figure->style();
+                Margins fig_margins;
+                fig_margins.left = af_style.margin_left;
+                fig_margins.right = af_style.margin_right;
+                fig_margins.top = af_style.margin_top;
+                fig_margins.bottom = af_style.margin_bottom;
                 const auto rects = compute_subplot_layout(cb.w,
                                                           cb.h,
                                                           active_figure->grid_rows_,
                                                           active_figure->grid_cols_,
-                                                          {},
+                                                          fig_margins,
                                                           cb.x,
                                                           cb.y);
 
@@ -540,6 +596,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #else
         active_figure->compute_layout();
 #endif
+        if (profiler) profiler->end_stage("scene_update");
     }
 }
 
@@ -555,7 +612,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
     // retry once so we present content immediately (no black-flash gap).
     if (profiler)
         profiler->begin_stage("begin_frame");
-    bool frame_ok = backend_.begin_frame();
+    bool frame_ok = backend_.begin_frame(profiler);
     if (profiler)
         profiler->end_stage("begin_frame");
 
@@ -598,6 +655,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             SPECTRA_LOG_INFO("resize",
                              "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
                                  + std::to_string(target_h));
+            if (profiler) profiler->increment_counter("swapchain_recreate");
             aw->swapchain_invalidated = false;
             backend_.recreate_swapchain(target_w, target_h);
             vk->clear_swapchain_dirty();
@@ -611,7 +669,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             }
 #endif
             // Retry begin_frame with the new swapchain
-            frame_ok = backend_.begin_frame();
+            frame_ok = backend_.begin_frame(profiler);
         }
     }
 
@@ -625,7 +683,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         renderer_.begin_render_pass();
 
         if (profiler)
-            profiler->begin_stage("figure_content");
+            profiler->begin_stage("cmd_record");
 #ifdef SPECTRA_USE_IMGUI
         auto& dock_system = ui_ctx.dock_system;
         if (dock_system.is_split())
@@ -648,7 +706,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         renderer_.render_figure_content(*active_figure);
 #endif
         if (profiler)
-            profiler->end_stage("figure_content");
+            profiler->end_stage("cmd_record");
 
         // Flush Vulkan plot text BEFORE ImGui so that UI overlays (command
         // palette, inspector, menus) render on top of plot labels.
@@ -675,7 +733,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         renderer_.end_render_pass();
         if (profiler)
             profiler->begin_stage("end_frame");
-        backend_.end_frame();
+        backend_.end_frame(profiler);
         if (profiler)
             profiler->end_stage("end_frame");
 

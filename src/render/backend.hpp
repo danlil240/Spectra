@@ -7,6 +7,8 @@
 namespace spectra
 {
 
+class FrameProfiler;
+
 enum class BufferUsage
 {
     Vertex,
@@ -136,8 +138,8 @@ class Backend
     virtual void destroy_texture(TextureHandle handle) = 0;
 
     // Frame rendering
-    virtual bool begin_frame() = 0;
-    virtual void end_frame() = 0;
+    virtual bool begin_frame(FrameProfiler* profiler = nullptr) = 0;
+    virtual void end_frame(FrameProfiler* profiler = nullptr) = 0;
 
     // Render pass
     virtual void begin_render_pass(const Color& clear_color = colors::white) = 0;

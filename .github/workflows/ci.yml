@@ -87,6 +87,7 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libgl1-mesa-dev \
+            xvfb \
             glslang-tools
 
       - name: Verify lavapipe
@@ -109,7 +110,7 @@ jobs:
           SPECTRA_UPDATE_BASELINES: "0"
         run: |
           cd build
-          ctest --output-on-failure -L golden -j1
+          xvfb-run -a ctest --output-on-failure -L golden -j1
 
       - name: Upload test artifacts on failure
         if: failure()

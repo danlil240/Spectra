@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace spectra
@@ -71,20 +72,39 @@ class Logger
     LogLevel             min_level_ = LogLevel::Info;
     std::vector<LogSink> sinks_;
 
+    template <typename T>
+    static std::string arg_to_string(T&& v)
+    {
+        using D = std::decay_t<T>;
+        if constexpr (std::is_same_v<D, std::string>)
+            return v;
+        else if constexpr (std::is_same_v<D, std::string_view>)
+            return std::string(v);
+        else if constexpr (std::is_same_v<D, const char*> || std::is_same_v<D, char*>)
+        {
+            const char* p = v;
+            return p ? std::string(p) : std::string("(null)");
+        }
+        else if constexpr (std::is_same_v<D, bool>)
+            return v ? "true" : "false";
+        else
+            return std::to_string(v);
+    }
+
     static std::string format_message(std::string_view format, auto&&... args)
     {
-        if constexpr (sizeof...(args) == 0)
+        std::string result(format);
+        if constexpr (sizeof...(args) > 0)
         {
-            return std::string(format);
+            auto replace_next = [&](auto&& arg)
+            {
+                auto pos = result.find("{}");
+                if (pos != std::string::npos)
+                    result.replace(pos, 2, arg_to_string(std::forward<decltype(arg)>(arg)));
+            };
+            (replace_next(std::forward<decltype(args)>(args)), ...);
         }
-        else
-        {
-            size_t      size = std::snprintf(nullptr, 0, format.data(), args...) + 1;
-            std::string result(size, '\0');
-            std::snprintf(result.data(), size, format.data(), args...);
-            result.resize(size - 1);
-            return result;
-        }
+        return result;
     }
 
    public:

@@ -59,7 +59,7 @@ bool VulkanBackend::init(bool headless)
         SPECTRA_LOG_DEBUG(
             "vulkan", "Validation layers: " + std::string(enable_validation ? "true" : "false"));
 
-        ctx_.instance = vk::create_instance(enable_validation);
+        ctx_.instance = vk::create_instance(enable_validation, headless_);
 
         if (enable_validation)
         {

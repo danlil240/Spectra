@@ -57,7 +57,7 @@ bool check_validation_layer_support()
     return true;
 }
 
-VkInstance create_instance(bool enable_validation)
+VkInstance create_instance(bool enable_validation, bool headless)
 {
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -88,30 +88,33 @@ VkInstance create_instance(bool enable_validation)
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
+    if (!headless)
+    {
 #ifdef SPECTRA_USE_GLFW
-    // GLFW must be initialized before querying required extensions
-    if (!glfwInit())
-    {
-        std::cerr << "[Spectra] Warning: glfwInit failed during instance creation\n";
-    }
-    {
-        uint32_t glfw_ext_count = 0;
-        const char** glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
-        if (glfw_exts)
+        // GLFW must be initialized before querying required extensions
+        if (!glfwInit())
         {
-            for (uint32_t i = 0; i < glfw_ext_count; ++i)
+            std::cerr << "[Spectra] Warning: glfwInit failed during instance creation\n";
+        }
+        {
+            uint32_t glfw_ext_count = 0;
+            const char** glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
+            if (glfw_exts)
             {
-                extensions.push_back(glfw_exts[i]);
+                for (uint32_t i = 0; i < glfw_ext_count; ++i)
+                {
+                    extensions.push_back(glfw_exts[i]);
+                }
             }
         }
-    }
 #else
-    // Headless: add surface extensions manually if available
-    if (has_ext(VK_KHR_SURFACE_EXTENSION_NAME))
-    {
-        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-    }
+        // No GLFW: add surface extensions manually if available
+        if (has_ext(VK_KHR_SURFACE_EXTENSION_NAME))
+        {
+            extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        }
 #endif
+    }
 
     VkInstanceCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;

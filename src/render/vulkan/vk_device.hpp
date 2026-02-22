@@ -33,7 +33,7 @@ struct DeviceContext
 };
 
 // Instance creation
-VkInstance create_instance(bool enable_validation);
+VkInstance create_instance(bool enable_validation, bool headless = false);
 
 // Debug messenger
 VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance);

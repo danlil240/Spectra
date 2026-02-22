@@ -1,5 +1,4 @@
 <p align="center">
-  <h1 align="center">Spectra</h1>
   <p align="center">
     <img src="icons/spectra_banner.png" alt="Spectra Banner" width="600">
   </p>

@@ -458,29 +458,35 @@ SwapchainContext create_swapchain(VkDevice              device,
     ctx.framebuffers.resize(image_count);
     for (uint32_t i = 0; i < image_count; ++i)
     {
-        VkFramebufferCreateInfo fb_info{};
-        fb_info.sType      = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fb_info.renderPass = ctx.render_pass;
-        fb_info.width      = extent.width;
-        fb_info.height     = extent.height;
-        fb_info.layers     = 1;
+        // Attachments array must outlive the vkCreateFramebuffer call,
+        // so declare it at function scope (not inside if/else branches).
+        VkImageView fb_attachments[3]{};
+        uint32_t    fb_attachment_count = 0;
 
         if (use_msaa)
         {
             // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (swapchain image)
-            VkImageView fb_attachments[] = {ctx.msaa_color_view,
-                                            ctx.depth_view,
-                                            ctx.image_views[i]};
-            fb_info.attachmentCount      = 3;
-            fb_info.pAttachments         = fb_attachments;
+            fb_attachments[0]  = ctx.msaa_color_view;
+            fb_attachments[1]  = ctx.depth_view;
+            fb_attachments[2]  = ctx.image_views[i];
+            fb_attachment_count = 3;
         }
         else
         {
             // Non-MSAA: attachment 0 = color (swapchain image), 1 = depth
-            VkImageView fb_attachments[] = {ctx.image_views[i], ctx.depth_view};
-            fb_info.attachmentCount      = 2;
-            fb_info.pAttachments         = fb_attachments;
+            fb_attachments[0]  = ctx.image_views[i];
+            fb_attachments[1]  = ctx.depth_view;
+            fb_attachment_count = 2;
         }
+
+        VkFramebufferCreateInfo fb_info{};
+        fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb_info.renderPass      = ctx.render_pass;
+        fb_info.width           = extent.width;
+        fb_info.height          = extent.height;
+        fb_info.layers          = 1;
+        fb_info.attachmentCount = fb_attachment_count;
+        fb_info.pAttachments    = fb_attachments;
 
         if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffers[i]) != VK_SUCCESS)
         {

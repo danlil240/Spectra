@@ -170,15 +170,6 @@ void Figure::compute_layout()
         }
     }
 
-    // Auto-fit limits for axes that don't have explicit limits
-    for (auto& ax : axes_)
-    {
-        if (ax)
-        {
-            // Limits are computed lazily in x_limits()/y_limits(),
-            // but we can trigger auto_fit here if needed.
-        }
-    }
 }
 
 }  // namespace spectra

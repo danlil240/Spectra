@@ -363,8 +363,6 @@ void Axes3D::zoom_limits_z(float factor)
 
 void Axes3D::pan_limits(float dx_screen, float dy_screen, float vp_w, float vp_h)
 {
-    (void)vp_w;
-    (void)vp_h;
     const auto& cam = camera();
 
     // Camera right and up vectors in world (normalized) space

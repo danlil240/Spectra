@@ -443,7 +443,7 @@ void App::run_inproc()
                 [&fig_mgr, this](const std::string& /*path*/,
                                  const std::vector<float>& x,
                                  const std::vector<float>& y,
-                                 const std::string& x_label,
+                                 const std::string& /* x_label */,
                                  const std::string& y_label,
                                  const std::vector<float>* /*z*/,
                                  const std::string* /*z_label*/)

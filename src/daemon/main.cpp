@@ -1203,6 +1203,7 @@ int main(int argc, char* argv[])
                         graph.assign_figure(req->figure_id, req->window_id);
 
                         // Send CMD_ASSIGN_FIGURES to the target agent with updated figure list
+                        // Keep the first figure as active so the first tab stays selected
                         auto assigned = graph.figures_for_window(req->window_id);
                         for (auto& c : clients)
                         {
@@ -1210,7 +1211,7 @@ int main(int argc, char* argv[])
                             {
                                 send_assign_figures(
                                     *c.conn, req->window_id, graph.session_id(),
-                                    assigned, req->figure_id);
+                                    assigned, assigned.empty() ? req->figure_id : assigned[0]);
 
                                 // Also send updated state snapshot so agent has the new figure data
                                 auto snap = fig_model.snapshot(assigned);

@@ -374,6 +374,7 @@ def stem(
     if c:
         line.set_color(*c)
         dots.set_color(*c)
+    _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return line
 
@@ -418,6 +419,7 @@ def hist(
     c = _parse_color(color)
     if c:
         series.set_color(*c)
+    _auto_fit_axes(ax, step_x, step_y)
     _state._show_if_pending()
     return series
 
@@ -451,6 +453,7 @@ def bar(
     if c:
         series.set_color(*c)
     series.set_line_width(2.0)
+    _auto_fit_axes(ax, bx, by)
     _state._show_if_pending()
     return series
 
@@ -493,7 +496,7 @@ def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
     new_ymin, new_ymax = min(finite_y), max(finite_y)
 
     # Accumulate with existing bounds for this axes
-    ax_key = id(ax)
+    ax_key = (ax._figure_id, ax._index)
     if ax_key in _state._axes_bounds:
         prev = _state._axes_bounds[ax_key]
         xmin = min(prev[0], new_xmin)

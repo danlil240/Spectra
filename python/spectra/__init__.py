@@ -71,6 +71,7 @@ from ._easy import (
     append,
     show,
     close,
+    close_all,
     clear,
 )
 
@@ -117,6 +118,7 @@ __all__ = [
     "append",
     "show",
     "close",
+    "close_all",
     "clear",
     # Backward compat
     "line",

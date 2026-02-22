@@ -230,6 +230,7 @@ ipc::DiffOp FigureModel::add_series_with_diff(uint64_t figure_id,
     ipc::SnapshotSeriesState s;
     s.name = name;
     s.type = type;
+    s.axes_index = axes_index;
     it->second.series.push_back(std::move(s));
     out_index = static_cast<uint32_t>(it->second.series.size() - 1);
     bump_revision();

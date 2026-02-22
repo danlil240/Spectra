@@ -721,6 +721,7 @@ static std::vector<uint8_t> encode_series_blob(const SnapshotSeriesState& s)
     payload_put_bool(enc, TAG_VISIBLE, s.visible);
     payload_put_float(enc, TAG_OPACITY_VAL, s.opacity);
     enc.put_u32(TAG_POINT_COUNT, s.point_count);
+    enc.put_u32(TAG_SERIES_AXES_INDEX, s.axes_index);
     if (!s.data.empty())
         payload_put_float_array(enc, TAG_SERIES_DATA, s.data);
     return enc.take();
@@ -769,6 +770,9 @@ static SnapshotSeriesState decode_series_blob(std::span<const uint8_t> data)
                 break;
             case TAG_SERIES_DATA:
                 s.data = payload_as_float_array(dec);
+                break;
+            case TAG_SERIES_AXES_INDEX:
+                s.axes_index = dec.as_u32();
                 break;
             default:
                 break;

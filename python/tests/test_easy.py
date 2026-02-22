@@ -296,11 +296,14 @@ class TestBackwardCompat:
 
     def test_close_all_without_session(self):
         """close_all() should not raise even if no session exists."""
-        import spectra as sp
-        sp._default_session = None
-        sp._current_figure = None
-        sp._current_axes = None
-        sp.close_all()  # should not raise
+        from spectra._easy import _state, close_all
+        old_session = _state._session
+        _state._session = None
+        try:
+            close_all()  # should not raise
+        finally:
+            _state._session = old_session
+            _state._shutting_down = False
 
     def test_show_without_session(self):
         """show() should not raise even if no session exists."""

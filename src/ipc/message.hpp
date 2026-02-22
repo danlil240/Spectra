@@ -238,6 +238,7 @@ struct SnapshotSeriesState
     bool visible = true;
     float opacity = 1.0f;
     uint32_t point_count = 0;
+    uint32_t axes_index = 0;  // Which axes this series belongs to
     // Raw data (x, y interleaved floats for 2D; x, y, z for 3D)
     std::vector<float> data;
 };

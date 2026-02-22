@@ -109,10 +109,12 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
             if (!sa.title.empty())
                 ax3d.title(sa.title);
 
-            // Add 3D series to this axes
+            // Add 3D series that belong to this axes
             for (const auto& ss : snap.series)
             {
                 if (!is_3d_series_type(ss.type))
+                    continue;
+                if (ss.axes_index != static_cast<uint32_t>(i))
                     continue;
 
                 // Unpack XYZ stride-3 data
@@ -213,10 +215,12 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     ax.title(sa.title);
             }
 
-            // Add 2D series to this axes
+            // Add 2D series that belong to this axes
             for (const auto& ss : snap.series)
             {
                 if (is_3d_series_type(ss.type))
+                    continue;
+                if (ss.axes_index != static_cast<uint32_t>(i))
                     continue;
 
                 std::vector<float> xs, ys;
@@ -316,6 +320,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         {
             spectra::ipc::SnapshotSeriesState s;
             s.type = op.str_val;
+            s.axes_index = op.axes_index;
             // Grow series list to accommodate the new index
             while (fig.series.size() <= op.series_index)
                 fig.series.push_back({});

@@ -224,6 +224,7 @@ static constexpr uint8_t TAG_Z_MIN = 0xA7;
 static constexpr uint8_t TAG_Z_MAX = 0xA8;
 static constexpr uint8_t TAG_BLOB_INLINE = 0xB0;
 static constexpr uint8_t TAG_BATCH_ITEM = 0xB1;  // nested TLV for a batch update item
+static constexpr uint8_t TAG_SERIES_AXES_INDEX = 0xB2;  // axes_index within series blob
 
 // PayloadEncoder extension for floats and raw byte blobs
 // (added as free functions to avoid modifying the class)

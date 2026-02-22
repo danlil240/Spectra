@@ -1260,8 +1260,11 @@ void ImGuiIntegration::draw_command_bar()
                 {
                     // Open native OS file dialog
                     char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                    char const* result =
-                        tinyfd_openFileDialog("Open CSV File", "", 3, filters, "CSV files", 0);
+                    const char* home_env   = std::getenv("HOME");
+                    std::string home_dir   = home_env ? std::string(home_env) + "/" : "/";
+                    const char* home       = home_dir.c_str();
+                    char const* result     =
+                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
                     if (result)
                     {
                         csv_file_path_   = result;

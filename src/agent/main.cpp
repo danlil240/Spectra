@@ -565,7 +565,7 @@ int main(int argc, char* argv[])
     logger.add_sink(spectra::sinks::console_sink());
     try
     {
-        std::string log_path = std::filesystem::temp_directory_path() / "spectra_agent.log";
+        std::string log_path = (std::filesystem::temp_directory_path() / "spectra_agent.log").string();
         logger.add_sink(spectra::sinks::file_sink(log_path));
     }
     catch (...)

@@ -5,6 +5,13 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+    #include <process.h>
+    using pid_t = int;
+#else
+    #include <sys/types.h>
+#endif
+
 #include "../ipc/message.hpp"
 
 namespace spectra::daemon

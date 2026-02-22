@@ -8,7 +8,9 @@
     #include <unistd.h>
 #endif
 
+#ifndef _WIN32
 extern char** environ;
+#endif
 
 namespace spectra::daemon
 {

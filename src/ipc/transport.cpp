@@ -8,14 +8,25 @@
 #include "codec.hpp"
 
 #ifdef _WIN32
+    #include <io.h>
     #include <process.h>
     #define getpid _getpid
+namespace { // POSIX fd compat wrappers for Windows
+inline auto fd_read(int fd, void* buf, unsigned len) { return ::_read(fd, buf, len); }
+inline auto fd_write(int fd, const void* buf, unsigned len) { return ::_write(fd, buf, len); }
+inline void fd_close(int fd) { ::_close(fd); }
+} // namespace
 #else
     #include <fcntl.h>
     #include <sys/socket.h>
     #include <sys/stat.h>
     #include <sys/un.h>
     #include <unistd.h>
+namespace {
+inline auto fd_read(int fd, void* buf, size_t len) { return ::read(fd, buf, len); }
+inline auto fd_write(int fd, const void* buf, size_t len) { return ::write(fd, buf, len); }
+inline void fd_close(int fd) { ::close(fd); }
+} // namespace
 #endif
 
 namespace spectra::ipc
@@ -51,7 +62,7 @@ bool Connection::read_exact(uint8_t* buf, size_t len)
     size_t total = 0;
     while (total < len)
     {
-        auto n = ::read(fd_, buf + total, len - total);
+        auto n = fd_read(fd_, buf + total, len - total);
         if (n <= 0)
             return false;   // EOF or error
         total += static_cast<size_t>(n);
@@ -64,7 +75,7 @@ bool Connection::write_exact(const uint8_t* buf, size_t len)
     size_t total = 0;
     while (total < len)
     {
-        auto n = ::write(fd_, buf + total, len - total);
+        auto n = fd_write(fd_, buf + total, len - total);
         if (n <= 0)
             return false;
         total += static_cast<size_t>(n);
@@ -115,7 +126,7 @@ void Connection::close()
 {
     if (fd_ >= 0)
     {
-        ::close(fd_);
+        fd_close(fd_);
         fd_ = -1;
     }
 }
@@ -235,6 +246,7 @@ std::unique_ptr<Connection> Server::try_accept()
 
 void Server::close()
 {
+#ifndef _WIN32
     if (listen_fd_ >= 0)
     {
         ::close(listen_fd_);
@@ -245,6 +257,7 @@ void Server::close()
         ::unlink(path_.c_str());
         path_.clear();
     }
+#endif
 }
 
 // ─── Client ──────────────────────────────────────────────────────────────────

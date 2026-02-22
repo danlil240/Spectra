@@ -29,8 +29,11 @@
 #ifdef _WIN32
     #include <process.h>
     #define getpid _getpid
+    using pid_t = int;
 #else
+    #include <csignal>
     #include <poll.h>
+    #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
     #ifdef __APPLE__

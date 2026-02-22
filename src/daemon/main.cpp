@@ -42,6 +42,7 @@ void signal_handler(int /*sig*/)
     g_running.store(false, std::memory_order_relaxed);
 }
 
+#ifndef _WIN32
 // Resolve the path to the spectra-window agent binary.
 // Looks next to the backend binary first, then falls back to PATH.
 std::string resolve_agent_path(const char* argv0)
@@ -59,6 +60,7 @@ std::string resolve_agent_path(const char* argv0)
     // Fallback: assume it's on PATH
     return "spectra-window";
 }
+#endif
 
 // Helper: send CMD_ASSIGN_FIGURES to a specific client.
 bool send_assign_figures(spectra::ipc::Connection&    conn,
@@ -190,6 +192,10 @@ int main(int argc, char* argv[])
         }
     }
 
+#ifdef _WIN32
+    std::cerr << "[spectra-backend] Unix domain socket daemon not supported on Windows\n";
+    return 1;
+#else
     // Parse optional --socket <path> argument
     std::string socket_path;
     for (int i = 1; i < argc - 1; ++i)
@@ -1853,4 +1859,5 @@ int main(int argc, char* argv[])
 
     std::cerr << "[spectra-backend] Daemon stopped\n";
     return 0;
+#endif   // !_WIN32
 }

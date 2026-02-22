@@ -4,10 +4,15 @@
 #include <cmath>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
+
+#if __has_include(<spectra/version.hpp>)
+    #include <spectra/version.hpp>
+#endif
 
 #include "../ipc/codec.hpp"
 #include "../ipc/message.hpp"
@@ -158,6 +163,30 @@ bool send_resp_err(spectra::ipc::Connection& conn,
 
 int main(int argc, char* argv[])
 {
+    // Handle --version and --help before anything else
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0)
+        {
+#ifdef SPECTRA_VERSION_STRING
+            std::cout << "spectra-backend " << SPECTRA_VERSION_STRING << "\n";
+#else
+            std::cout << "spectra-backend (version unknown)\n";
+#endif
+            return 0;
+        }
+        if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0)
+        {
+            std::cout << "Usage: spectra-backend [OPTIONS]\n"
+                      << "\n"
+                      << "Options:\n"
+                      << "  --socket <path>  Unix socket path to listen on\n"
+                      << "  --version, -v    Print version and exit\n"
+                      << "  --help, -h       Show this help\n";
+            return 0;
+        }
+    }
+
     // Parse optional --socket <path> argument
     std::string socket_path;
     for (int i = 1; i < argc - 1; ++i)

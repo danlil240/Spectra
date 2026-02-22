@@ -163,25 +163,41 @@ bool Renderer::init()
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
 
-    // Initialize text renderer with Inter-Regular.ttf
-    // Try common paths relative to executable
-    const char* font_paths[] = {
-        "third_party/Inter-Regular.ttf",
-        "../third_party/Inter-Regular.ttf",
-        "../../third_party/Inter-Regular.ttf",
-        "../../../third_party/Inter-Regular.ttf",
-    };
-    bool text_ok = false;
-    for (const char* path : font_paths)
+    // Initialize text renderer — prefer embedded font data (zero file dependencies),
+    // fall back to disk paths for development builds.
+#if __has_include("inter_font_embedded.hpp")
     {
-        if (text_renderer_.init_from_file(backend_, path))
+#include "inter_font_embedded.hpp"
+        if (text_renderer_.init(backend_, InterFont_ttf_data, InterFont_ttf_size))
         {
-            SPECTRA_LOG_INFO("renderer", std::string("TextRenderer initialized from ") + path);
-            text_ok = true;
-            break;
+            SPECTRA_LOG_INFO("renderer", "TextRenderer initialized from embedded font data");
+        }
+        else
+        {
+            SPECTRA_LOG_WARN("renderer",
+                             "TextRenderer init from embedded data failed — trying disk");
         }
     }
-    if (!text_ok)
+#endif
+    if (!text_renderer_.is_initialized())
+    {
+        const char* font_paths[] = {
+            "third_party/Inter-Regular.ttf",
+            "../third_party/Inter-Regular.ttf",
+            "../../third_party/Inter-Regular.ttf",
+            "../../../third_party/Inter-Regular.ttf",
+        };
+        for (const char* path : font_paths)
+        {
+            if (text_renderer_.init_from_file(backend_, path))
+            {
+                SPECTRA_LOG_INFO("renderer",
+                                 std::string("TextRenderer initialized from ") + path);
+                break;
+            }
+        }
+    }
+    if (!text_renderer_.is_initialized())
     {
         SPECTRA_LOG_WARN("renderer", "TextRenderer init failed — plot text will not be rendered");
     }

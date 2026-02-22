@@ -1,10 +1,30 @@
 cmake_minimum_required(VERSION 3.20)
-project(spectra VERSION 0.1.0 LANGUAGES CXX)
+
+# Read version from single source-of-truth
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/version.txt _ver_raw)
+string(STRIP "${_ver_raw}" SPECTRA_VERSION)
+
+project(spectra VERSION ${SPECTRA_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Generate version header
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
+    @ONLY
+)
+
+# Embed font data into C arrays (eliminates runtime file dependency)
+include(cmake/EmbedAssets.cmake)
+embed_binary_file(
+    INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/Inter-Regular.ttf
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/inter_font_embedded.hpp
+    VARIABLE InterFont_ttf
+)
 
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
@@ -13,6 +33,7 @@ option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
+option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
 # Runtime mode: inproc (single-process, all windows in one process)
 #               multiproc (future: each window in its own process via IPC)
@@ -76,7 +97,8 @@ foreach(_ui_src
 endforeach()
 
 # Core library (headless-capable)
-add_library(spectra STATIC
+# Use -DBUILD_SHARED_LIBS=ON to build as shared library (libspectra.so)
+add_library(spectra
     ${SPECTRA_CORE_SOURCES}
     ${SPECTRA_RENDER_SOURCES}
     third_party/tinyfiledialogs.cpp
@@ -87,6 +109,12 @@ add_library(spectra STATIC
     ${SPECTRA_IPC_SOURCES}
     ${SPECTRA_DAEMON_SOURCES}
     ${SPECTRA_UI_SOURCES}
+)
+
+set_target_properties(spectra PROPERTIES
+    VERSION   ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    POSITION_INDEPENDENT_CODE ON
 )
 
 target_include_directories(spectra PUBLIC
@@ -234,6 +262,7 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
         target_compile_features(spectra-backend PRIVATE cxx_std_20)
         target_include_directories(spectra-backend PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
         )
     endif()
 
@@ -256,12 +285,112 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     endif()
 endif()
 
-# Examples
+# ─── Install targets ─────────────────────────────────────────────────────────
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+# Library
+install(TARGETS spectra EXPORT spectraTargets
+    ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Public headers
+install(DIRECTORY include/spectra/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spectra
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+# Generated version header
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spectra
+)
+
+# Multiproc binaries
+if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+    if(TARGET spectra-backend)
+        install(TARGETS spectra-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+    if(TARGET spectra-window)
+        install(TARGETS spectra-window RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+endif()
+
+# Python wheel: bundle backend binary into the Python package
+if(SPECTRA_PYTHON_WHEEL AND TARGET spectra-backend)
+    install(TARGETS spectra-backend
+        RUNTIME DESTINATION spectra/_bin
+    )
+endif()
+
+# Data assets (fonts, icons)
+install(FILES
+    third_party/Inter-Regular.ttf
+    third_party/SpectraIcons.ttf
+    third_party/SpectraIcons.otf
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/fonts
+)
+install(FILES icons/spectra_icon.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+    RENAME spectra.png
+)
+install(FILES icons/spectra.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+
+# CMake package config (find_package(spectra) support)
+install(EXPORT spectraTargets
+    FILE spectraTargets.cmake
+    NAMESPACE spectra::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/spectraConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
+)
+
+# ─── CPack ───────────────────────────────────────────────────────────────────
+set(CPACK_PACKAGE_NAME "spectra")
+set(CPACK_PACKAGE_VENDOR "spectra-plot")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "GPU-accelerated scientific plotting library")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_CONTACT "danlil240")
+set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
+set(CPACK_RESOURCE_FILE_README  ${CMAKE_CURRENT_SOURCE_DIR}/README.md)
+
+# Debian
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1 (>= 1.2)")
+set(CPACK_DEBIAN_PACKAGE_SECTION "science")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+# RPM
+set(CPACK_RPM_PACKAGE_REQUIRES "vulkan-loader >= 1.2")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Science")
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+
+include(CPack)
+
+# ─── Examples ────────────────────────────────────────────────────────────────
 if(SPECTRA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-# Tests
+# ─── Tests ───────────────────────────────────────────────────────────────────
 if(SPECTRA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

@@ -1,0 +1,263 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ─── Linux Packages (.deb, .tar.gz) ────────────────────────────────────
+  package-linux:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev \
+            glslang-tools \
+            rpm
+
+      - name: Configure + Build
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Package
+        run: |
+          cd build
+          cpack -G TGZ
+          cpack -G DEB
+          cpack -G RPM || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            build/*.tar.gz
+            build/*.deb
+            build/*.rpm
+
+  # ─── macOS Package (.tar.gz) ────────────────────────────────────────────
+  package-macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install vulkan-headers vulkan-loader glslang molten-vk
+
+      - name: Configure + Build
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Package
+        run: |
+          cd build
+          cpack -G TGZ
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-packages
+          path: build/*.tar.gz
+
+  # ─── Windows Package (.zip) ─────────────────────────────────────────────
+  package-windows:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+          version: latest
+          cache: true
+
+      - name: Configure + Build
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DSPECTRA_BUILD_TESTS=OFF `
+            -DSPECTRA_BUILD_EXAMPLES=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Package
+        run: |
+          cd build
+          cpack -G ZIP
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: build/*.zip
+
+  # ─── Python Wheels (cibuildwheel) ───────────────────────────────────────
+  python-wheels:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev \
+            glslang-tools
+
+      - name: Install Vulkan SDK (macOS)
+        if: runner.os == 'macOS'
+        run: brew install vulkan-headers vulkan-loader glslang molten-vk
+
+      - name: Install Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+          version: latest
+          cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==2.21.3
+
+      - name: Build wheels
+        run: cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
+          CIBW_BUILD_VERBOSITY: 1
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  # ─── Python sdist ──────────────────────────────────────────────────────
+  python-sdist:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build sdist
+        run: |
+          pip install build
+          python -m build --sdist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  # ─── Create GitHub Release ─────────────────────────────────────────────
+  release:
+    needs: [package-linux, package-macos, package-windows, python-wheels, python-sdist]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find dist/ -type f | sort
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat version.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Spectra v${{ steps.version.outputs.version }}
+          body: |
+            ## Spectra v${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            **Python (all platforms):**
+            ```
+            pip install spectra-plot
+            ```
+
+            **Linux (.deb):**
+            ```
+            sudo dpkg -i spectra_${{ steps.version.outputs.version }}_amd64.deb
+            ```
+
+            **From source:**
+            ```
+            cmake -B build && cmake --build build && sudo cmake --install build
+            ```
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+      - name: Publish to PyPI
+        if: "!contains(github.ref, 'alpha') && !contains(github.ref, 'beta')"
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install twine
+          twine upload dist/*.whl dist/*.tar.gz || echo "PyPI upload skipped (no token or already published)"

@@ -1,0 +1,51 @@
+# Root pyproject.toml — used by scikit-build-core to build platform wheels
+# that bundle the spectra-backend binary with the Python package.
+#
+# For pure-Python development: cd python && pip install -e ".[dev]"
+# For wheel builds:            pip install . (or cibuildwheel)
+
+[build-system]
+requires = ["scikit-build-core>=0.8"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "spectra-plot"
+dynamic = ["version"]
+description = "GPU-accelerated scientific plotting"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.20"]
+dev = ["pytest>=7.0", "numpy>=1.20"]
+
+[project.scripts]
+spectra-backend = "spectra._cli:backend_main"
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+cmake.args = [
+    "-DSPECTRA_BUILD_EXAMPLES=OFF",
+    "-DSPECTRA_BUILD_TESTS=OFF",
+    "-DSPECTRA_PYTHON_WHEEL=ON",
+    "-DSPECTRA_RUNTIME_MODE=multiproc",
+]
+wheel.packages = ["python/spectra"]
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "version.txt"
+regex = "(?P<value>\\d+\\.\\d+\\.\\d+)"

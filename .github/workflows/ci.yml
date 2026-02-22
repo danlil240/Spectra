@@ -10,8 +10,8 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  # ─── Build + Unit Tests ──────────────────────────────────────────────────
-  build-and-test:
+  # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
+  build-linux:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -63,10 +63,73 @@ jobs:
           cd build
           ctest --output-on-failure -L "!golden" -j$(nproc)
 
+  # ─── Build + Unit Tests (macOS) ─────────────────────────────────────────
+  build-macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-13     # Intel
+            arch: x86_64
+          - os: macos-14     # ARM (M1)
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install vulkan-headers vulkan-loader glslang molten-vk
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_EXAMPLES=ON \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure -LE gpu -j$(sysctl -n hw.ncpu)
+
+  # ─── Build + Unit Tests (Windows) ───────────────────────────────────────
+  build-windows:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+          version: latest
+          cache: true
+
+      - name: Configure CMake
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DSPECTRA_BUILD_TESTS=ON `
+            -DSPECTRA_BUILD_EXAMPLES=ON `
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure -LE gpu -C ${{ env.BUILD_TYPE }} -j $env:NUMBER_OF_PROCESSORS
+
   # ─── Golden Image Tests (lavapipe software Vulkan) ───────────────────────
   golden-tests:
     runs-on: ubuntu-24.04
-    needs: build-and-test
+    needs: build-linux
     continue-on-error: true  # golden tests segfault on lavapipe — tracked separately
 
     steps:

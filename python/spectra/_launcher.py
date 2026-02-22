@@ -46,20 +46,32 @@ def _can_connect(path: str) -> bool:
 
 
 def _find_backend_binary() -> Optional[str]:
-    """Find the spectra-backend binary."""
-    # Check SPECTRA_BACKEND_PATH env var
+    """Find the spectra-backend binary.
+
+    Search order:
+    1. $SPECTRA_BACKEND_PATH env var
+    2. Bundled binary inside pip-installed package (_bin/spectra-backend)
+    3. System PATH
+    4. Heuristic: common build directories relative to project root
+    """
+    # 1. Explicit env var
     env_path = os.environ.get("SPECTRA_BACKEND_PATH")
     if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
         return env_path
 
-    # Check PATH
+    # 2. Bundled binary (pip install spectra-plot ships backend in _bin/)
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    bundled = os.path.join(pkg_dir, "_bin", "spectra-backend")
+    if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
+        return bundled
+
+    # 3. System PATH
     found = shutil.which("spectra-backend")
     if found:
         return found
 
-    # Heuristic: look in common build directories relative to the project root.
+    # 4. Heuristic: look in common build directories relative to the project root.
     # The Python package lives at <project>/python/spectra/, so project root is ../../
-    pkg_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.normpath(os.path.join(pkg_dir, "..", ".."))
     for build_dir in ("build", "cmake-build-debug", "cmake-build-release", "out/build"):
         candidate = os.path.join(project_root, build_dir, "spectra-backend")

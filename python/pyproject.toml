@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spectra-plot"
-version = "0.1.0"
+dynamic = ["version"]
 description = "GPU-accelerated scientific plotting via IPC"
 readme = "README.md"
 license = {text = "MIT"}
@@ -25,6 +25,9 @@ classifiers = [
 [project.optional-dependencies]
 numpy = ["numpy>=1.20"]
 dev = ["pytest>=7.0", "numpy>=1.20"]
+
+[tool.setuptools.dynamic]
+version = {file = "../version.txt"}
 
 [tool.setuptools.packages.find]
 where = ["."]

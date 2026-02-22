@@ -84,7 +84,11 @@ _default_session = None
 _current_figure = None
 _current_axes = None
 
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("spectra-plot")
+except Exception:
+    __version__ = "0.1.0"
 
 __all__ = [
     # Easy API — one-liners

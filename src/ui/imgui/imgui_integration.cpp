@@ -230,6 +230,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
     float dt = ImGui::GetIO().DeltaTime;
     ui::ThemeManager::instance().update(dt);
     ui::widgets::update_section_animations(dt);
+
+    // Sync panel_open_ from layout manager so external toggles (commands, undo)
+    // that only call set_inspector_visible() also open the panel content.
+    if (layout_manager_)
+        panel_open_ = layout_manager_->is_inspector_visible();
+
     float target = panel_open_ ? 1.0f : 0.0f;
     panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
     if (std::abs(panel_anim_ - target) < 0.002f)
@@ -3497,8 +3503,8 @@ void ImGuiIntegration::draw_timeline_panel()
 
     if (ImGui::Begin("##timeline_panel", nullptr, flags))
     {
-        float btn_sz  = 28.0f;
-        float btn_gap = 4.0f;
+        float btn_sz  = 32.0f;
+        float btn_gap = 6.0f;
 
         // ── Header row: transport controls (left) + time display (right) ──
         auto pb_state   = timeline_editor_->playback_state();

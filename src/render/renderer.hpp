@@ -78,7 +78,10 @@ class Renderer
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
     void render_tick_marks(Axes3D& axes, const Rect& viewport);
-    void render_series(Series& series, const Rect& viewport);
+    // Visible x-range for 2D culling (nullopt = draw all)
+    struct VisibleRange { float x_min; float x_max; };
+    void render_series(Series& series, const Rect& viewport,
+                       const VisibleRange* visible = nullptr);
 
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);

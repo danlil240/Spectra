@@ -1,7 +1,7 @@
 # QA Agent — Instructions & Workflow
 
 > Living document. Defines how to run, interpret, and iterate on Spectra QA testing.
-> Last updated: 2026-02-23 (Session 2: added QA Designer Agent section)
+> Last updated: 2026-02-23 (Session 4: added 3D/Animation/Statistics design review scenarios)
 
 ---
 
@@ -254,7 +254,9 @@ The QA agent includes a `--design-review` flag that systematically captures name
     --output-dir /tmp/spectra_qa_design
 ```
 
-### What It Captures (20 screenshots)
+### What It Captures (35 screenshots)
+
+**Session 1–3 — Core UI (1–20)**
 1. Default single line plot
 2. Empty axes
 3. Multi-series with labels (line + scatter)
@@ -275,6 +277,23 @@ The QA agent includes a `--design-review` flag that systematically captures name
 18. Timeline panel
 19. 3D surface plot
 20. 3D scatter plot
+
+**Session 4 — 3D / Animation / Statistics (21–35)**
+21. 3D surface with axis labels + lighting + bounding box
+22. 3D camera side view (azimuth=0, elevation=15)
+23. 3D camera top-down view (elevation=85)
+24. 3D line plot (helix)
+25. 3D scatter with two colored clusters
+26. 3D orthographic projection
+27. Inspector with series selected (statistics visible)
+28. Inspector with axes properties
+29. Timeline with keyframe tracks and markers
+30. Timeline playing (playhead mid-animation)
+31. Timeline with loop region overlay
+32. Curve editor panel
+33. Split view with 2 actual figures (proper split)
+34. Multi-series with legend + grid + crosshair (full chrome)
+35. Zoomed-in data center verification (D12 fix)
 
 ### Output
 - Screenshots go to `<output-dir>/design/` with descriptive names
@@ -310,7 +329,7 @@ The QA Designer Agent is a specialized role that reviews design screenshots, ide
 
 ### Workflow
 
-1. **Capture screenshots** — Run `--design-review` to get 20 systematic screenshots
+1. **Capture screenshots** — Run `--design-review` to get 35 systematic screenshots
 2. **Read `QA_design_review.md`** — Check open items, prioritize P0 > P1 > P2 > P3
 3. **Analyze each open item** — Read the relevant source files, understand root cause
 4. **Verify before fixing** — Some items may already be fixed by other agents; mark as "✅ Already Fixed"

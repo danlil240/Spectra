@@ -1157,6 +1157,399 @@ class QAAgent
             named_screenshot("20_3d_scatter");
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // Session 4 — 3D / Animation / Statistics scenarios
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── 21. 3D surface with labels + lighting ──────────────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            std::vector<float> xg, yg, zv;
+            int n = 40;
+            for (int j = 0; j < n; ++j)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    float x = -4.0f + 8.0f * i / (n - 1);
+                    float y = -4.0f + 8.0f * j / (n - 1);
+                    xg.push_back(x);
+                    yg.push_back(y);
+                    zv.push_back(std::cos(x) * std::sin(y));
+                }
+            }
+            ax.surface(xg, yg, zv);
+            ax.title("cos(x)·sin(y) Surface");
+            ax.xlabel("X Axis");
+            ax.ylabel("Y Axis");
+            ax.zlabel("Z Value");
+            ax.lighting_enabled(true);
+            ax.light_dir(1.0f, 2.0f, 1.5f);
+            ax.show_bounding_box(true);
+            ax.grid_planes(Axes3D::GridPlane::All);
+            pump_frames(15);
+            named_screenshot("21_3d_surface_labeled");
+        }
+
+        // ── 22. 3D surface — rotated camera (side view) ───────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            std::vector<float> xg, yg, zv;
+            int n = 30;
+            for (int j = 0; j < n; ++j)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    float x = -3.0f + 6.0f * i / (n - 1);
+                    float y = -3.0f + 6.0f * j / (n - 1);
+                    xg.push_back(x);
+                    yg.push_back(y);
+                    zv.push_back(std::sin(std::sqrt(x * x + y * y)));
+                }
+            }
+            ax.surface(xg, yg, zv);
+            ax.title("Side View (azimuth=0, elev=15)");
+            ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
+            pump_frames(15);
+            named_screenshot("22_3d_camera_side_view");
+        }
+
+        // ── 23. 3D surface — top-down camera ──────────────────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            std::vector<float> xg, yg, zv;
+            int n = 30;
+            for (int j = 0; j < n; ++j)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    float x = -3.0f + 6.0f * i / (n - 1);
+                    float y = -3.0f + 6.0f * j / (n - 1);
+                    xg.push_back(x);
+                    yg.push_back(y);
+                    zv.push_back(x * x - y * y);
+                }
+            }
+            ax.surface(xg, yg, zv);
+            ax.title("Top-Down View (elev=85)");
+            ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
+            pump_frames(15);
+            named_screenshot("23_3d_camera_top_down");
+        }
+
+        // ── 24. 3D line plot (helix) ──────────────────────────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            int n = 500;
+            std::vector<float> x(n), y(n), z(n);
+            for (int i = 0; i < n; ++i)
+            {
+                float t = static_cast<float>(i) * 0.05f;
+                x[i] = std::cos(t);
+                y[i] = std::sin(t);
+                z[i] = t * 0.1f;
+            }
+            ax.line3d(x, y, z).label("Helix").color(colors::cyan);
+            ax.title("3D Helix Line");
+            ax.xlabel("X");
+            ax.ylabel("Y");
+            ax.zlabel("Z");
+            pump_frames(15);
+            named_screenshot("24_3d_line_helix");
+        }
+
+        // ── 25. 3D scatter with multiple clusters ─────────────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            std::normal_distribution<float> norm(0.0f, 0.5f);
+            // Cluster 1
+            std::vector<float> x1(200), y1(200), z1(200);
+            for (int i = 0; i < 200; ++i)
+            {
+                x1[i] = norm(rng_) + 2.0f;
+                y1[i] = norm(rng_) + 2.0f;
+                z1[i] = norm(rng_) + 2.0f;
+            }
+            ax.scatter3d(x1, y1, z1).label("Cluster A").color(colors::red);
+            // Cluster 2
+            std::vector<float> x2(200), y2(200), z2(200);
+            for (int i = 0; i < 200; ++i)
+            {
+                x2[i] = norm(rng_) - 2.0f;
+                y2[i] = norm(rng_) - 2.0f;
+                z2[i] = norm(rng_) - 2.0f;
+            }
+            ax.scatter3d(x2, y2, z2).label("Cluster B").color(colors::blue);
+            ax.title("3D Scatter — Two Clusters");
+            pump_frames(15);
+            named_screenshot("25_3d_scatter_clusters");
+        }
+
+        // ── 26. 3D orthographic projection ────────────────────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot3d(1, 1, 1);
+            std::vector<float> xg, yg, zv;
+            int n = 25;
+            for (int j = 0; j < n; ++j)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    float x = -2.0f + 4.0f * i / (n - 1);
+                    float y = -2.0f + 4.0f * j / (n - 1);
+                    xg.push_back(x);
+                    yg.push_back(y);
+                    zv.push_back(std::exp(-(x * x + y * y)));
+                }
+            }
+            ax.surface(xg, yg, zv);
+            ax.title("Orthographic Projection");
+            ax.camera().set_projection(Camera::ProjectionMode::Orthographic);
+            ax.camera().set_ortho_size(8.0f);
+            pump_frames(15);
+            named_screenshot("26_3d_orthographic");
+        }
+
+#ifdef SPECTRA_USE_IMGUI
+        // ── 27. Inspector with series selected (statistics visible) ───
+        {
+            // Create a figure with labeled data for inspector stats
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(300), y(300);
+            for (int i = 0; i < 300; ++i)
+            {
+                x[i] = static_cast<float>(i) * 0.02f;
+                y[i] = std::sin(x[i] * 3.0f) * std::exp(-x[i] * 0.2f) + 0.5f;
+            }
+            ax.line(x, y).label("Damped Signal");
+            ax.title("Inspector Statistics Demo");
+            ax.xlabel("Time (s)");
+            ax.ylabel("Amplitude");
+            pump_frames(10);
+
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                // Open inspector and select series section
+                ui->cmd_registry.execute("panel.toggle_inspector");
+                pump_frames(5);
+                // Cycle to series selection
+                ui->cmd_registry.execute("series.cycle_selection");
+                pump_frames(10);
+                named_screenshot("27_inspector_series_stats");
+                ui->cmd_registry.execute("panel.toggle_inspector");
+                pump_frames(5);
+            }
+        }
+
+        // ── 28. Inspector with axes properties ────────────────────────
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                ui->cmd_registry.execute("panel.toggle_inspector");
+                pump_frames(10);
+                named_screenshot("28_inspector_axes_properties");
+                ui->cmd_registry.execute("panel.toggle_inspector");
+                pump_frames(5);
+            }
+        }
+
+        // ── 29. Timeline with keyframes and tracks ────────────────────
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                // Add tracks with keyframes to the timeline
+                auto& te = ui->timeline_editor;
+                te.set_duration(5.0f);
+                te.set_fps(30.0f);
+                uint32_t t1 = te.add_track("X Position", colors::red);
+                uint32_t t2 = te.add_track("Y Position", colors::green);
+                uint32_t t3 = te.add_track("Opacity", colors::blue);
+                // Add keyframes
+                te.add_keyframe(t1, 0.0f);
+                te.add_keyframe(t1, 1.5f);
+                te.add_keyframe(t1, 3.0f);
+                te.add_keyframe(t1, 5.0f);
+                te.add_keyframe(t2, 0.0f);
+                te.add_keyframe(t2, 2.0f);
+                te.add_keyframe(t2, 4.0f);
+                te.add_keyframe(t3, 0.0f);
+                te.add_keyframe(t3, 2.5f);
+                te.add_keyframe(t3, 5.0f);
+                // Set playhead mid-timeline
+                te.set_playhead(1.8f);
+
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(15);
+                named_screenshot("29_timeline_with_keyframes");
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(5);
+            }
+        }
+
+        // ── 30. Timeline playing (playhead mid-animation) ─────────────
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                auto& te = ui->timeline_editor;
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(5);
+                // Start playback and capture mid-play
+                te.play();
+                pump_frames(30);   // Let it advance ~30 frames
+                named_screenshot("30_timeline_playing");
+                te.stop();
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(5);
+            }
+        }
+
+        // ── 31. Timeline with loop region ─────────────────────────────
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                auto& te = ui->timeline_editor;
+                te.set_loop_mode(LoopMode::Loop);
+                te.set_loop_region(1.0f, 3.5f);
+                te.set_playhead(2.0f);
+
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(15);
+                named_screenshot("31_timeline_loop_region");
+                // Clean up
+                te.set_loop_mode(LoopMode::None);
+                te.clear_loop_region();
+                ui->cmd_registry.execute("panel.toggle_timeline");
+                pump_frames(5);
+            }
+        }
+
+        // ── 32. Curve editor ──────────────────────────────────────────
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                ui->cmd_registry.execute("panel.toggle_curve_editor");
+                pump_frames(15);
+                named_screenshot("32_curve_editor");
+                ui->cmd_registry.execute("panel.toggle_curve_editor");
+                pump_frames(5);
+            }
+        }
+
+        // ── 33. Split view with 2 figures (proper split) ─────────────
+        {
+            // Create 2 figures so split actually works
+            auto& fig1 = app_->figure({1280, 720});
+            auto& ax1  = fig1.subplot(1, 1, 1);
+            std::vector<float> x1(200), y1(200);
+            for (int i = 0; i < 200; ++i)
+            {
+                x1[i] = static_cast<float>(i) * 0.05f;
+                y1[i] = std::sin(x1[i]);
+            }
+            ax1.line(x1, y1).label("sin(x)");
+            ax1.title("Left Pane");
+
+            auto& fig2 = app_->figure({1280, 720});
+            auto& ax2  = fig2.subplot(1, 1, 1);
+            std::vector<float> x2(200), y2(200);
+            for (int i = 0; i < 200; ++i)
+            {
+                x2[i] = static_cast<float>(i) * 0.05f;
+                y2[i] = std::cos(x2[i]);
+            }
+            ax2.line(x2, y2).label("cos(x)");
+            ax2.title("Right Pane");
+            pump_frames(10);
+
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                ui->cmd_registry.execute("view.split_right");
+                pump_frames(15);
+                named_screenshot("33_split_view_two_figures");
+                ui->cmd_registry.execute("view.reset_splits");
+                pump_frames(5);
+            }
+        }
+
+        // ── 34. Multi-series with legend + grid + crosshair ──────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(300);
+            for (int i = 0; i < 300; ++i)
+                x[i] = static_cast<float>(i) * 0.02f;
+
+            std::vector<float> y1(300), y2(300), y3(300), y4(300);
+            for (int i = 0; i < 300; ++i)
+            {
+                y1[i] = std::sin(x[i] * 2.0f);
+                y2[i] = std::cos(x[i] * 2.0f);
+                y3[i] = std::sin(x[i] * 4.0f) * 0.5f;
+                y4[i] = std::cos(x[i]) * std::exp(-x[i] * 0.3f);
+            }
+            ax.line(x, y1).label("sin(2x)");
+            ax.line(x, y2).label("cos(2x)");
+            ax.line(x, y3).label("sin(4x)/2");
+            ax.line(x, y4).label("exp·cos(x)");
+            ax.title("Multi-Signal Overlay");
+            ax.xlabel("Time (s)");
+            ax.ylabel("Value");
+            pump_frames(10);
+
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                ui->cmd_registry.execute("view.toggle_grid");
+                ui->cmd_registry.execute("view.toggle_legend");
+                ui->cmd_registry.execute("view.toggle_crosshair");
+                pump_frames(10);
+                named_screenshot("34_multi_series_full_chrome");
+                ui->cmd_registry.execute("view.toggle_crosshair");
+                ui->cmd_registry.execute("view.toggle_legend");
+                ui->cmd_registry.execute("view.toggle_grid");
+                pump_frames(5);
+            }
+        }
+
+        // ── 35. Zoomed-in data center (verify D12 fix) ───────────────
+        {
+            auto& fig = app_->figure({1280, 720});
+            auto& ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(200), y(200);
+            for (int i = 0; i < 200; ++i)
+            {
+                x[i] = 5.0f + static_cast<float>(i) * 0.01f;
+                y[i] = 10.0f + std::sin(x[i] * 20.0f) * 0.5f;
+            }
+            ax.line(x, y).label("Offset signal");
+            ax.title("Zoom Center Test (data at x=5..7, y=9.5..10.5)");
+            pump_frames(10);
+
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                for (int i = 0; i < 5; ++i)
+                    ui->cmd_registry.execute("view.zoom_in");
+                pump_frames(10);
+                named_screenshot("35_zoom_data_center_verify");
+                ui->cmd_registry.execute("view.home");
+                pump_frames(5);
+            }
+        }
+#endif
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr, "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(), opts_.output_dir.c_str());

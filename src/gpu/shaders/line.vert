@@ -96,20 +96,23 @@ void main() {
     v_along_line = along * seg_length;
 
     // Compute cumulative distance along the polyline for dash patterns.
+    // Only needed when a dash pattern is active (line_style != 0 = Solid).
     // Walk backwards through the SSBO to sum actual screen-space segment
     // lengths.  Cap the walk at 512 segments to bound GPU cost — for very
     // long polylines the pattern may drift slightly past that point, which
     // is visually acceptable.
     float cumul = 0.0;
-    int walk_limit = min(segment_index, 512);
-    for (int i = segment_index - 1; i >= segment_index - walk_limit; --i) {
-        vec2 a = points[i]     + data_offset;
-        vec2 b = points[i + 1] + data_offset;
-        vec4 ca = mvp * vec4(a, 0.0, 1.0);
-        vec4 cb = mvp * vec4(b, 0.0, 1.0);
-        vec2 sa = (ca.xy / ca.w * 0.5 + 0.5) * viewport_size;
-        vec2 sb = (cb.xy / cb.w * 0.5 + 0.5) * viewport_size;
-        cumul += length(sb - sa);
+    if (line_style != 0u) {
+        int walk_limit = min(segment_index, 512);
+        for (int i = segment_index - 1; i >= segment_index - walk_limit; --i) {
+            vec2 a = points[i]     + data_offset;
+            vec2 b = points[i + 1] + data_offset;
+            vec4 ca = mvp * vec4(a, 0.0, 1.0);
+            vec4 cb = mvp * vec4(b, 0.0, 1.0);
+            vec2 sa = (ca.xy / ca.w * 0.5 + 0.5) * viewport_size;
+            vec2 sb = (cb.xy / cb.w * 0.5 + 0.5) * viewport_size;
+            cumul += length(sb - sa);
+        }
     }
     v_cumulative_dist = cumul + along * seg_length;
 }

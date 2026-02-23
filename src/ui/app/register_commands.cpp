@@ -24,7 +24,10 @@
 #endif
 
 #include <algorithm>
+#include <limits>
 #include <string>
+
+#include <spectra/series.hpp>
 
 namespace spectra
 {
@@ -300,10 +303,67 @@ void register_standard_commands(const CommandBindings& b)
         "View",
         static_cast<uint16_t>(ui::Icon::Home));
 
+    // Helper: compute data center from visible series (for zoom anchoring)
+    auto compute_data_center = [](Axes* ax, float& cx, float& cy) -> bool
+    {
+        float dxmin = std::numeric_limits<float>::max();
+        float dxmax = std::numeric_limits<float>::lowest();
+        float dymin = std::numeric_limits<float>::max();
+        float dymax = std::numeric_limits<float>::lowest();
+        bool  found = false;
+        for (const auto& s : ax->series())
+        {
+            if (!s || !s->visible())
+                continue;
+            if (const auto* line = dynamic_cast<const LineSeries*>(s.get()))
+            {
+                if (line->point_count() == 0)
+                    continue;
+                auto xd = line->x_data();
+                auto yd = line->y_data();
+                for (size_t i = 0; i < xd.size(); ++i)
+                {
+                    dxmin = std::min(dxmin, xd[i]);
+                    dxmax = std::max(dxmax, xd[i]);
+                }
+                for (size_t i = 0; i < yd.size(); ++i)
+                {
+                    dymin = std::min(dymin, yd[i]);
+                    dymax = std::max(dymax, yd[i]);
+                }
+                found = true;
+            }
+            else if (const auto* sc = dynamic_cast<const ScatterSeries*>(s.get()))
+            {
+                if (sc->point_count() == 0)
+                    continue;
+                auto xd = sc->x_data();
+                auto yd = sc->y_data();
+                for (size_t i = 0; i < xd.size(); ++i)
+                {
+                    dxmin = std::min(dxmin, xd[i]);
+                    dxmax = std::max(dxmax, xd[i]);
+                }
+                for (size_t i = 0; i < yd.size(); ++i)
+                {
+                    dymin = std::min(dymin, yd[i]);
+                    dymax = std::max(dymax, yd[i]);
+                }
+                found = true;
+            }
+        }
+        if (found)
+        {
+            cx = (dxmin + dxmax) * 0.5f;
+            cy = (dymin + dymax) * 0.5f;
+        }
+        return found;
+    };
+
     cmd_registry.register_command(
         "view.zoom_in",
         "Zoom In",
-        [&]()
+        [&, compute_data_center]()
         {
             if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
             {
@@ -313,8 +373,11 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto  old_x = ax->x_limits();
                 auto  old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.375f;
-                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.375f;
+                float xc = (old_x.min + old_x.max) * 0.5f;
+                float yc = (old_y.min + old_y.max) * 0.5f;
+                compute_data_center(ax, xc, yc);
+                float xr = (old_x.max - old_x.min) * 0.375f;
+                float yr = (old_y.max - old_y.min) * 0.375f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
@@ -327,7 +390,7 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "view.zoom_out",
         "Zoom Out",
-        [&]()
+        [&, compute_data_center]()
         {
             if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
             {
@@ -337,8 +400,11 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto  old_x = ax->x_limits();
                 auto  old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f, xr = (old_x.max - old_x.min) * 0.625f;
-                float yc = (old_y.min + old_y.max) * 0.5f, yr = (old_y.max - old_y.min) * 0.625f;
+                float xc = (old_x.min + old_x.max) * 0.5f;
+                float yc = (old_y.min + old_y.max) * 0.5f;
+                compute_data_center(ax, xc, yc);
+                float xr = (old_x.max - old_x.min) * 0.625f;
+                float yr = (old_y.max - old_y.min) * 0.625f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);

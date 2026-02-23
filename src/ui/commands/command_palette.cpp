@@ -580,22 +580,34 @@ bool CommandPalette::draw(float window_width, float window_height)
                     float  badge_x = item_pos.x + item_w - shortcut_size.x - ui::tokens::SPACE_4;
                     float  badge_y = text_pos.y;
 
+                    ImVec2 badge_min(badge_x - ui::tokens::SPACE_2, badge_y - 3);
+                    ImVec2 badge_max(badge_x + shortcut_size.x + ui::tokens::SPACE_2,
+                                    badge_y + shortcut_size.y + 3);
+
                     ImGui::GetWindowDrawList()->AddRectFilled(
-                        ImVec2(badge_x - ui::tokens::SPACE_2, badge_y - 3),
-                        ImVec2(badge_x + shortcut_size.x + ui::tokens::SPACE_2,
-                               badge_y + shortcut_size.y + 3),
+                        badge_min,
+                        badge_max,
                         IM_COL32(static_cast<int>(colors.bg_tertiary.r * 255),
                                  static_cast<int>(colors.bg_tertiary.g * 255),
                                  static_cast<int>(colors.bg_tertiary.b * 255),
                                  180),
-                        ui::tokens::RADIUS_PILL);
+                        ui::tokens::RADIUS_SM);
+
+                    ImGui::GetWindowDrawList()->AddRect(
+                        badge_min,
+                        badge_max,
+                        IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
+                                 static_cast<int>(colors.border_subtle.g * 255),
+                                 static_cast<int>(colors.border_subtle.b * 255),
+                                 100),
+                        ui::tokens::RADIUS_SM);
 
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2(badge_x, badge_y),
                         IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
                                  static_cast<int>(colors.text_secondary.g * 255),
                                  static_cast<int>(colors.text_secondary.b * 255),
-                                 200),
+                                 220),
                         result.command->shortcut.c_str());
                 }
 

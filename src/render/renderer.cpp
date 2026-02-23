@@ -1277,6 +1277,17 @@ void Renderer::render_axes(AxesBase&   axes,
     else
     {
         // 2D: render in order (no sorting needed)
+        // Pass visible x-range for draw-call culling on large series
+        VisibleRange vis{};
+        const VisibleRange* vis_ptr = nullptr;
+        if (auto* axes2d = dynamic_cast<Axes*>(&axes))
+        {
+            auto xlim = axes2d->x_limits();
+            vis.x_min = xlim.min;
+            vis.x_max = xlim.max;
+            vis_ptr   = &vis;
+        }
+
         for (auto& series_ptr : axes.series())
         {
             if (!series_ptr || !series_ptr->visible())
@@ -1287,7 +1298,7 @@ void Renderer::render_axes(AxesBase&   axes,
                 upload_series_data(*series_ptr);
             }
 
-            render_series(*series_ptr, viewport);
+            render_series(*series_ptr, viewport, vis_ptr);
         }
     }
 
@@ -2082,7 +2093,8 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.draw(8);   // 4 lines × 2 vertices
 }
 
-void Renderer::render_series(Series& series, const Rect& /*viewport*/)
+void Renderer::render_series(Series& series, const Rect& /*viewport*/,
+                             const VisibleRange* visible)
 {
     auto it = series_gpu_data_.find(&series);
     if (it == series_gpu_data_.end())
@@ -2120,22 +2132,71 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/)
                 pc.dash_total = dp.total;
                 pc.dash_count = dp.count;
             }
-            if (style.has_line() && line->point_count() > 1)
+
+            // Compute visible segment range via binary search on sorted x_data.
+            // For unsorted data, fall back to drawing all segments.
+            uint32_t first_seg = 0;
+            uint32_t seg_count = line->point_count() > 1
+                                     ? static_cast<uint32_t>(line->point_count()) - 1
+                                     : 0;
+            uint32_t first_pt  = 0;
+            uint32_t pt_count  = static_cast<uint32_t>(line->point_count());
+
+            if (visible && line->point_count() > 256)
+            {
+                const auto& xd   = line->x_data();
+                size_t      n    = xd.size();
+                // Quick check: is x_data sorted? (sample a few points)
+                bool sorted = (n < 2) || (xd[0] <= xd[n / 4] && xd[n / 4] <= xd[n / 2]
+                                           && xd[n / 2] <= xd[3 * n / 4]
+                                           && xd[3 * n / 4] <= xd[n - 1]);
+                if (sorted)
+                {
+                    const float* begin = xd.data();
+                    const float* end   = begin + n;
+                    // Find first point >= x_min (with 1-point margin for segment connectivity)
+                    auto lo = std::lower_bound(begin, end, visible->x_min);
+                    size_t lo_idx = static_cast<size_t>(lo - begin);
+                    if (lo_idx > 0)
+                        lo_idx--;   // include one segment before visible range
+
+                    // Find first point > x_max
+                    auto hi = std::upper_bound(begin, end, visible->x_max);
+                    size_t hi_idx = static_cast<size_t>(hi - begin);
+                    if (hi_idx < n)
+                        hi_idx++;   // include one segment after visible range
+
+                    if (lo_idx < hi_idx && hi_idx <= n)
+                    {
+                        first_seg = static_cast<uint32_t>(lo_idx);
+                        uint32_t last_seg_end = static_cast<uint32_t>(hi_idx);
+                        if (last_seg_end > 0)
+                            last_seg_end--;   // segments = points - 1
+                        seg_count = (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
+
+                        first_pt = static_cast<uint32_t>(lo_idx);
+                        pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
+                    }
+                }
+            }
+
+            if (style.has_line() && seg_count > 0)
             {
                 backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = line->width();
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(line->point_count()) - 1;
-                backend_.draw(segments * 6);
+                backend_.draw(seg_count * 6, first_seg * 6);
             }
-            if (style.has_marker())
+            if (style.has_marker() && pt_count > 0)
             {
                 backend_.bind_pipeline(scatter_pipeline_);
                 pc.point_size = style.marker_size;
+                pc.data_offset_x = 0.0f;
+                pc.data_offset_y = 0.0f;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.draw_instanced(6, static_cast<uint32_t>(line->point_count()));
+                backend_.draw_instanced(6, pt_count, first_pt);
             }
             break;
         }

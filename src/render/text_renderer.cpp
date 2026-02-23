@@ -18,11 +18,11 @@ static constexpr float FONT_PIXEL_SIZES[] = {
     20.0f,   // Title — plot title (clearly distinguished)
 };
 
-// Oversampling factor: 2x gives excellent sub-pixel positioning with
-// minimal atlas size overhead. This is the key to uniform letter sizing —
-// stb_truetype rasterizes at 2x resolution then downsamples, producing
-// proper anti-aliased coverage values and fractional glyph offsets.
-static constexpr unsigned int OVERSAMPLE = 2;
+// Oversampling factor: 3x gives crisp sub-pixel positioning and smooth
+// anti-aliasing. The 1024x1024 atlas has ample room for 3 ASCII font
+// sizes at 3x. stb_truetype rasterizes at 3x resolution then downsamples,
+// producing high-quality coverage values and fractional glyph offsets.
+static constexpr unsigned int OVERSAMPLE = 3;
 
 // ASCII range to bake (space through tilde)
 static constexpr int FIRST_CHAR = 32;

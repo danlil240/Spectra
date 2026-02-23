@@ -1512,9 +1512,10 @@ void VulkanBackend::draw(uint32_t vertex_count, uint32_t first_vertex)
 
 void VulkanBackend::draw_instanced(uint32_t vertex_count,
                                    uint32_t instance_count,
-                                   uint32_t first_vertex)
+                                   uint32_t first_vertex,
+                                   uint32_t first_instance)
 {
-    vkCmdDraw(active_window_->current_cmd, vertex_count, instance_count, first_vertex, 0);
+    vkCmdDraw(active_window_->current_cmd, vertex_count, instance_count, first_vertex, first_instance);
 }
 
 void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset)

@@ -8,6 +8,9 @@
 #include <spectra/series.hpp>
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <random>
+
 
 namespace spectra
 {
@@ -156,7 +159,11 @@ TEST(SvgExport, ContainsClipPath)
 TEST(SvgExport, WriteToFile)
 {
     auto        fig  = make_line_figure();
-    std::string path = "/tmp/spectra_test_export.svg";
+    
+    // Use cross-platform temporary file
+    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::string           random_name = "plot_" + std::to_string(std::random_device{}());
+    std::string           path = random_name + ".svg";
 
     bool ok = SvgExporter::write_svg(path, fig);
     EXPECT_TRUE(ok);

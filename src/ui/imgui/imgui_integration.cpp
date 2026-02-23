@@ -2136,7 +2136,7 @@ void ImGuiIntegration::draw_status_bar()
         ImGui::TextUnformatted(cursor_buf);
         ImGui::PopStyleColor();
 
-        // Center: mode indicator
+        // Center: mode indicator with pill background
         ImGui::SameLine(0.0f, ui::tokens::SPACE_6);
         {
             const char* mode_label = "Navigate";
@@ -2162,20 +2162,33 @@ void ImGuiIntegration::draw_status_bar()
                 default:
                     break;
             }
+
+            // Draw pill background behind mode label
+            ImVec2 text_sz  = ImGui::CalcTextSize(mode_label);
+            ImVec2 cursor_p = ImGui::GetCursorScreenPos();
+            float  pill_pad = 4.0f;
+            ImVec2 pill_min = ImVec2(cursor_p.x - pill_pad, cursor_p.y - 1.0f);
+            ImVec2 pill_max =
+                ImVec2(cursor_p.x + text_sz.x + pill_pad, cursor_p.y + text_sz.y + 1.0f);
+            ImU32 pill_bg = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(mode_color.r, mode_color.g, mode_color.b, 0.12f));
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                pill_min, pill_max, pill_bg, ui::tokens::RADIUS_SM);
+
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(mode_color.r, mode_color.g, mode_color.b, mode_color.a));
             ImGui::TextUnformatted(mode_label);
             ImGui::PopStyleColor();
         }
 
-        // Separator dot
+        // Separator — subtle dot
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().border_default.r,
-                                     ui::theme().border_default.g,
-                                     ui::theme().border_default.b,
-                                     ui::theme().border_default.a));
-        ImGui::TextUnformatted("|");
+                              ImVec4(ui::theme().text_tertiary.r,
+                                     ui::theme().text_tertiary.g,
+                                     ui::theme().text_tertiary.b,
+                                     0.5f));
+        ImGui::TextUnformatted("\xC2\xB7");
         ImGui::PopStyleColor();
 
         // Zoom level

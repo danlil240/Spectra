@@ -89,6 +89,16 @@ class DataInteraction
     void  set_snap_radius(float px);
     float snap_radius() const { return tooltip_.snap_radius(); }
 
+    // Invalidate cached figure pointer (call when a figure is destroyed)
+    void clear_figure_cache(Figure* fig = nullptr)
+    {
+        if (!fig || last_figure_ == fig)
+        {
+            last_figure_ = nullptr;
+            active_axes_ = nullptr;
+        }
+    }
+
     // Series selection callback: fired when user clicks near a series.
     // Args: (Figure*, Axes*, int axes_index, Series*, int series_index)
     using SeriesSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int)>;

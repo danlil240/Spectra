@@ -64,7 +64,7 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
-file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp)
+file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp src/ui/app/app_step.cpp)
 foreach(_ui_src
     src/ui/input/input.cpp
     src/ui/layout/layout_manager.cpp

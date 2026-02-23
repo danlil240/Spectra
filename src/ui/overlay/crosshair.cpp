@@ -137,10 +137,10 @@ void Crosshair::draw(const CursorReadout& cursor,
         fg->AddText(font, font->FontSize * 0.85f, ImVec2(lx, ly + label_pad), label_text, x_label);
     }
 
-    // Y label at left of viewport
+    // Y label inside left edge of viewport
     {
         ImVec2 sz = font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
-        float  lx = vx0 - sz.x - label_pad * 2.0f - 2.0f;
+        float  lx = vx0 + 4.0f;
         float  ly = sy - sz.y * 0.5f;
         // Clamp vertically
         if (ly < vy0)
@@ -148,11 +148,11 @@ void Crosshair::draw(const CursorReadout& cursor,
         if (ly + sz.y + label_pad * 2.0f > vy1)
             ly = vy1 - sz.y - label_pad * 2.0f;
 
-        fg->AddRectFilled(ImVec2(lx, ly - label_pad),
-                          ImVec2(lx + sz.x + label_pad * 2.0f, ly + sz.y + label_pad),
+        fg->AddRectFilled(ImVec2(lx - label_pad, ly - label_pad),
+                          ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad),
                           label_bg,
                           3.0f);
-        fg->AddText(font, font->FontSize * 0.85f, ImVec2(lx + label_pad, ly), label_text, y_label);
+        fg->AddText(font, font->FontSize * 0.85f, ImVec2(lx, ly), label_text, y_label);
     }
 }
 
@@ -280,26 +280,26 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  gap_length_,
                                  1.0f);
 
-                // Y label at left
+                // Y label inside left edge of viewport
                 float norm_y = 1.0f - (cy - vy0) / vp.h;
                 float data_y = ylim.min + norm_y * y_range;
                 char  y_label[32];
                 std::snprintf(y_label, sizeof(y_label), "%.4g", data_y);
                 ImVec2 sz  = font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
-                float  lx2 = vx0 - sz.x - label_pad * 2.0f - 2.0f;
+                float  lx2 = vx0 + 4.0f;
                 float  ly2 = cy - sz.y * 0.5f;
                 if (ly2 < vy0)
                     ly2 = vy0;
                 if (ly2 + sz.y + label_pad * 2.0f > vy1)
                     ly2 = vy1 - sz.y - label_pad * 2.0f;
 
-                fg->AddRectFilled(ImVec2(lx2, ly2 - label_pad),
-                                  ImVec2(lx2 + sz.x + label_pad * 2.0f, ly2 + sz.y + label_pad),
+                fg->AddRectFilled(ImVec2(lx2 - label_pad, ly2 - label_pad),
+                                  ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
                                   label_bg,
                                   3.0f);
                 fg->AddText(font,
                             font->FontSize * 0.85f,
-                            ImVec2(lx2 + label_pad, ly2),
+                            ImVec2(lx2, ly2),
                             label_text,
                             y_label);
             }
@@ -392,12 +392,12 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                          gap_length_,
                                          1.0f);
 
-                        // Y label at left
+                        // Y label inside left edge of viewport
                         char y_label[32];
                         std::snprintf(y_label, sizeof(y_label), "%.4g", interp_y);
                         ImVec2 sz =
                             font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
-                        float lx2 = vx0 - sz.x - label_pad * 2.0f - 2.0f;
+                        float lx2 = vx0 + 4.0f;
                         float ly2 = sy - sz.y * 0.5f;
                         if (ly2 < vy0)
                             ly2 = vy0;
@@ -411,13 +411,13 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                                                   opacity_ * 0.6f));
 
                         fg->AddRectFilled(
-                            ImVec2(lx2, ly2 - label_pad),
-                            ImVec2(lx2 + sz.x + label_pad * 2.0f, ly2 + sz.y + label_pad),
+                            ImVec2(lx2 - label_pad, ly2 - label_pad),
+                            ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
                             label_bg,
                             3.0f);
                         fg->AddText(font,
                                     font->FontSize * 0.85f,
-                                    ImVec2(lx2 + label_pad, ly2),
+                                    ImVec2(lx2, ly2),
                                     dim_label_text,
                                     y_label);
                     }

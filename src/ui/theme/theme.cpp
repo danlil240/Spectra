@@ -870,8 +870,8 @@ void ThemeManager::initialize_default_themes()
                    .info    = Color::from_hex(0x58A6FF),
 
                    // Plot-specific
-                   .grid_line        = Color::from_hex(0x21262D),
-                   .axis_line        = Color::from_hex(0x30363D),
+                   .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.15f),
+                   .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.65f),
                    .tick_label       = Color::from_hex(0x8B949E),
                    .crosshair        = Color::from_hex(0xB358A6FF),
                    .selection_fill   = Color::from_hex(0x3358A6FF),
@@ -914,8 +914,8 @@ void ThemeManager::initialize_default_themes()
                     .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific
-                    .grid_line        = Color::from_hex(0xE8ECF0),
-                    .axis_line        = Color::from_hex(0xD0D7DE),
+                    .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.12f),
+                    .axis_line        = Color(0.30f, 0.33f, 0.38f, 0.70f),
                     .tick_label       = Color::from_hex(0x656D76),
                     .crosshair        = Color::from_hex(0xB30969DA),
                     .selection_fill   = Color::from_hex(0x260969DA),

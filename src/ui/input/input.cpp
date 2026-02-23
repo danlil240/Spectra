@@ -144,6 +144,33 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     //                      std::to_string(mods)
     //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
 
+    // Validate cached axes pointers still belong to the current figure.
+    // They can become dangling when figures are closed or moved between windows.
+    if (active_axes_base_ && figure_)
+    {
+        bool found = false;
+        for (const auto& ax : figure_->axes())
+        {
+            if (ax.get() == active_axes_base_)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            active_axes_base_ = nullptr;
+            active_axes_      = nullptr;
+            drag3d_axes_      = nullptr;
+        }
+    }
+    else if (active_axes_base_ && !figure_)
+    {
+        active_axes_base_ = nullptr;
+        active_axes_      = nullptr;
+        drag3d_axes_      = nullptr;
+    }
+
     // Hit-test all axes (including 3D) — but only on PRESS when no drag is
     // active.  During an active drag the axes must stay locked to the one that
     // was clicked, otherwise moving the cursor over a different subplot would

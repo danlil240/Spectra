@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
@@ -18,6 +19,7 @@ struct AppConfig
     std::string socket_path;   // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
 };
 
+class SessionRuntime;
 class WindowRuntime;
 
 #ifdef SPECTRA_USE_GLFW
@@ -40,6 +42,25 @@ class App
     // Run the application (blocking — processes all figures)
     void run();
 
+    // Frame-by-frame control (alternative to run()).
+    // init_runtime() performs all setup, step() runs one frame,
+    // shutdown_runtime() cleans up.  run_inproc() calls these internally.
+    struct StepResult
+    {
+        bool     should_exit    = false;
+        float    frame_time_ms  = 0.0f;
+        uint64_t frame_number   = 0;
+    };
+
+    void       init_runtime();
+    StepResult step();
+    void       shutdown_runtime();
+
+    // Access internals exposed for QA / testing after init_runtime().
+    WindowUIContext*  ui_context();
+    SessionRuntime*   session();
+    FigureRegistry&   figure_registry() { return registry_; }
+
     bool is_headless() const { return config_.headless; }
 
     // Access internals (for renderer integration)
@@ -54,6 +75,10 @@ class App
     void run_inproc();
     void run_multiproc();
     void render_secondary_window(struct WindowContext* wctx);
+
+    // Opaque runtime state created by init_runtime(), destroyed by shutdown_runtime().
+    struct AppRuntime;
+    std::unique_ptr<AppRuntime> runtime_;
 
     // Group figures into windows based on sibling relationships.
     // Returns a vector of groups; each group is a vector of FigureIds

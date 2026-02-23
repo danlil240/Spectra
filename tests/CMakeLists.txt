@@ -263,3 +263,21 @@ if(SPECTRA_BUILD_BENCHMARKS)
         add_spectra_bench(bench_multi_window)
     endif()
 endif()
+
+# QA Agent (interactive stress test / fuzzer — not a CTest, run manually)
+option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
+if(SPECTRA_BUILD_QA_AGENT)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
+        add_executable(spectra_qa_agent qa/qa_agent.cpp)
+        target_link_libraries(spectra_qa_agent PRIVATE spectra)
+        target_compile_features(spectra_qa_agent PRIVATE cxx_std_20)
+        target_include_directories(spectra_qa_agent PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(spectra_qa_agent PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+        )
+    endif()
+endif()

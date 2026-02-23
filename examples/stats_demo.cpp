@@ -34,7 +34,7 @@ int main()
     const spectra::Color teal   = {0.15f, 0.78f, 0.75f, 1.0f};
     const spectra::Color coral  = {1.00f, 0.42f, 0.42f, 1.0f};
     const spectra::Color violet = {0.55f, 0.36f, 0.96f, 1.0f};
-    const spectra::Color amber  = {1.00f, 0.72f, 0.22f, 1.0f};
+    // const spectra::Color amber  = {1.00f, 0.72f, 0.22f, 1.0f};
     const spectra::Color sky    = {0.30f, 0.60f, 1.00f, 1.0f};
 
     // ── Box Plot ──

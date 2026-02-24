@@ -453,15 +453,38 @@ void Renderer::render_plot_text(Figure& figure)
         float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
         float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
         float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
+        constexpr float tick_label_min_spacing_px = 18.0f;
+        auto should_skip_overlapping_tick =
+            [&](float sx, float sy, float& last_sx, float& last_sy, bool& has_last) -> bool
+        {
+            if (!has_last)
+            {
+                last_sx = sx;
+                last_sy = sy;
+                has_last = true;
+                return false;
+            }
+            float dx = sx - last_sx;
+            float dy = sy - last_sy;
+            if ((dx * dx + dy * dy) < (tick_label_min_spacing_px * tick_label_min_spacing_px))
+                return true;
+            last_sx = sx;
+            last_sy = sy;
+            return false;
+        };
 
         // --- X-axis tick labels ---
         {
             auto x_ticks = axes3d->compute_x_ticks();
+            float last_sx = 0.0f, last_sy = 0.0f;
+            bool  has_last = false;
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
                 vec3  pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
                 if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
                 text_renderer_.draw_text_depth(x_ticks.labels[i],
                                                sx,
@@ -478,11 +501,15 @@ void Renderer::render_plot_text(Figure& figure)
         if (!looking_down_y)
         {
             auto y_ticks = axes3d->compute_y_ticks();
+            float last_sx = 0.0f, last_sy = 0.0f;
+            bool  has_last = false;
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
                 vec3  pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
                 if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
                 text_renderer_.draw_text_depth(y_ticks.labels[i],
                                                sx,
@@ -499,11 +526,15 @@ void Renderer::render_plot_text(Figure& figure)
         if (!looking_down_z)
         {
             auto z_ticks = axes3d->compute_z_ticks();
+            float last_sx = 0.0f, last_sy = 0.0f;
+            bool  has_last = false;
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
                 vec3  pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
                 if (!world_to_screen(pos, sx, sy, depth))
+                    continue;
+                if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
                 text_renderer_.draw_text_depth(z_ticks.labels[i],
                                                sx - tick_padding,
@@ -2207,7 +2238,14 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
             pc.point_size  = scatter->size();
             pc.marker_type = static_cast<uint32_t>(style.marker_style);
             if (pc.marker_type == 0)
-                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+            {
+                const auto& theme_colors = ui::ThemeManager::instance().colors();
+                float       bg_luma      = 0.2126f * theme_colors.bg_primary.r
+                                    + 0.7152f * theme_colors.bg_primary.g
+                                    + 0.0722f * theme_colors.bg_primary.b;
+                pc.marker_type = static_cast<uint32_t>(
+                    bg_luma > 0.80f ? MarkerStyle::FilledCircle : MarkerStyle::Circle);
+            }
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));

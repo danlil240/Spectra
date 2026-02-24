@@ -1205,7 +1205,11 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         return true;
     }
 
-    // Windowed mode — wait for this slot's previous work to finish
+    // Windowed mode — wait for this slot's previous work to finish.
+    // Use a bounded timeout (100ms) to prevent indefinite stalls when
+    // the presentation engine is backed up (multi-window, resize storms).
+    static constexpr uint64_t FENCE_TIMEOUT_NS   = 100'000'000;   // 100ms
+    static constexpr uint64_t ACQUIRE_TIMEOUT_NS = 100'000'000;   // 100ms
     if (profiler)
         profiler->begin_stage("vk_wait_fences");
     VkResult fence_status =
@@ -1213,7 +1217,7 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
                         1,
                         &active_window_->in_flight_fences[active_window_->current_flight_frame],
                         VK_TRUE,
-                        UINT64_MAX);
+                        FENCE_TIMEOUT_NS);
     if (profiler)
         profiler->end_stage("vk_wait_fences");
     if (fence_status == VK_ERROR_DEVICE_LOST)
@@ -1221,14 +1225,24 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         device_lost_ = true;
         throw std::runtime_error("Vulkan device lost - cannot continue rendering");
     }
+    if (fence_status == VK_TIMEOUT)
+    {
+        // Previous frame's GPU work hasn't finished within the timeout.
+        // Skip this window for the current tick to avoid blocking the
+        // entire render loop (other windows, input processing, animations).
+        SPECTRA_LOG_DEBUG("vulkan", "begin_frame: fence wait timed out, skipping frame");
+        return false;
+    }
 
-    // Acquire next swapchain image BEFORE resetting fence
+    // Acquire next swapchain image BEFORE resetting fence.
+    // Bounded timeout prevents indefinite stalls when the compositor
+    // is slow to deliver images (resize storms, minimized windows).
     if (profiler)
         profiler->begin_stage("vk_acquire");
     VkResult result = vkAcquireNextImageKHR(
         ctx_.device,
         active_window_->swapchain.swapchain,
-        UINT64_MAX,
+        ACQUIRE_TIMEOUT_NS,
         active_window_->image_available_semaphores[active_window_->current_flight_frame],
         VK_NULL_HANDLE,
         &active_window_->current_image_index);
@@ -1237,7 +1251,15 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
+        active_window_->swapchain_invalidated = true;
         return false;   // Swapchain truly unusable — caller must recreate
+    }
+    if (result == VK_TIMEOUT || result == VK_NOT_READY)
+    {
+        // Compositor hasn't delivered an image within the timeout.
+        // Skip this window for the current tick — don't block the loop.
+        SPECTRA_LOG_DEBUG("vulkan", "begin_frame: acquire timed out, skipping frame");
+        return false;
     }
     if (result == VK_SUBOPTIMAL_KHR)
     {

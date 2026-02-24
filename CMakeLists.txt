@@ -40,6 +40,10 @@ option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 set(SPECTRA_RUNTIME_MODE "multiproc" CACHE STRING "Runtime mode: inproc | multiproc")
 set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
 
+# Skip git network checks when FetchContent source dirs already exist.
+# On a clean checkout these are absent so the download still happens normally.
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+
 message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")
 
 # Find Vulkan SDK
@@ -162,6 +166,7 @@ if(SPECTRA_USE_GLFW)
             glfw
             GIT_REPOSITORY https://github.com/glfw/glfw.git
             GIT_TAG        3.4
+            GIT_SHALLOW    TRUE
         )
         set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -181,6 +186,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
         GIT_TAG        v1.91.8
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(imgui)
 

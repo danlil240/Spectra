@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136
+> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053
 
 ---
 
@@ -199,6 +199,31 @@
 
 ---
 
+## Session 7 Findings (2026-02-24)
+
+### Run Summary
+
+| Metric | Run A (seed 42) | Run B (seed 1771959053) |
+|--------|------------------|--------------------------|
+| Frames | 4,710 | 2,253 |
+| Scenarios | 11/11 passed | 11/11 passed |
+| Warnings | 92 | 64 |
+| Errors | 0 | 0 |
+| Critical | 0 | 0 |
+| Crashes | 0 | 0 |
+| RSS growth | +261MB (168→429MB) | +148MB (168→316MB) |
+| Avg frame | 22.6ms | 50.7ms |
+| P95 frame | 63.5ms | 225.4ms |
+| Max frame | 298.2ms | 1021.9ms |
+
+### Analysis
+- **8 consecutive sessions with 0 crashes, 0 critical** — crash fixes remain stable.
+- **Known V2 validation issue reproduced again** — `PRESENT_SRC_KHR` vs `UNDEFINED` layout mismatch during multi-window churn; still non-fatal.
+- **New severe perf pattern observed (seed 1771959053):** repeated ~1s frame stalls in clusters (frames 250–256, 2170–2174, 2228–2234). Profiler indicates the time is concentrated in `begin_frame`/`vk_acquire`, not `cmd_record`.
+- **Memory growth remains highly seed-dependent** (from +148MB to +261MB in 120s), consistent with unresolved M1.
+
+---
+
 ## P1 — Important Improvements
 
 ### 4. Add Vulkan Validation Layer Monitoring
@@ -220,6 +245,11 @@
 - **Problem:** RSS grows 80-115MB over session. Unclear if this is leak or expected (figure data, GPU allocations, ImGui atlas).
 - **Fix:** (a) Take RSS baseline after first 100 frames (after init stabilizes). (b) Track RSS per-scenario to identify which scenarios cause growth. (c) Add a `--leak-check` mode that runs scenarios in isolation and reports per-scenario RSS delta.
 - **Priority:** P1 — need to distinguish leaks from expected growth.
+
+### 16. Add Acquire/Present Stall Diagnostics for ~1s Hitches
+- **Problem (Session 7, seed 1771959053):** repeated ~1s frame stalls (max 1021.9ms) with profiler showing `begin_frame`/`vk_acquire` p95 near 1s.
+- **Fix:** (a) Record per-window acquire/present wait times each frame. (b) Emit warnings for waits >100ms and >500ms with window id and action context. (c) Include swapchain recreate counters and `move_figure` failure correlation in report.
+- **Priority:** P1 — major user-visible freeze risk.
 
 ---
 

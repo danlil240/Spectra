@@ -18,6 +18,16 @@ function(embed_binary_file)
         message(FATAL_ERROR "embed_binary_file: INPUT, OUTPUT, and VARIABLE are required")
     endif()
 
+    # Skip expensive byte-loop if output already exists and input hasn't changed.
+    if(EXISTS "${EMB_OUTPUT}")
+        file(TIMESTAMP "${EMB_INPUT}"  _ts_in)
+        file(TIMESTAMP "${EMB_OUTPUT}" _ts_out)
+        if(NOT _ts_in STRGREATER _ts_out)
+            message(STATUS "Embedded asset up-to-date: ${EMB_OUTPUT}")
+            return()
+        endif()
+    endif()
+
     file(READ "${EMB_INPUT}" _hex HEX)
     string(LENGTH "${_hex}" _hex_len)
 

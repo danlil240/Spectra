@@ -1,13 +1,14 @@
 # QA Design Review — UI/UX Improvements
 
 > Living document. Updated after each design review session with visual findings and concrete improvements.
-> Last updated: 2026-02-24 | Screenshots: `/tmp/spectra_qa_design_session21/design/`
+> Last updated: 2026-02-24 | Screenshots: `/tmp/spectra_qa_design_20260224_afterfix/design/`
 > Session 2: 2026-02-23 — QA Designer Agent pass (D5, D6, D7/D16, D9, D10, D11)
 > Session 3: 2026-02-23 — QA Designer Agent pass (D2, D3, D4, D8, D12, D13, D14, D15)
 > Session 5: 2026-02-23 — QA Designer Agent pass (D17, D18, D19, D20, D21, D22) — ALL ISSUES RESOLVED
 > Session 7: 2026-02-24 — QA Designer Agent pass (D23, D24, D25) — 3D surface fix, legend toggle fix
 > Session 11: 2026-02-24 — QA Designer Agent pass (D25, D26, D27) — legend theme fix, grid/crosshair toggle drift fixes
 > Session 21: 2026-02-24 — Screenshot capture fix (D28), 3D colormap verified, FPS thresholds fixed (D32)
+> Session 24: 2026-02-24 — Open-item triage pass (D29, D30, D31, D33)
 
 ---
 
@@ -313,11 +314,11 @@ Based on the current state, here's the target aesthetic to aim for:
 | D24 | QA | P2 | ✅ Fixed | Legend toggle drift in design review scenario 14 |
 | D25 | Theme | P2 | ✅ Fixed | Light theme legend chip has dark background |
 | D28 | Infrastructure | P0 | ✅ Fixed | Screenshot capture reads stale swapchain — capture before present |
-| D29 | 3D | P2 | 🔶 Open | 3D scatter clusters tightly packed |
-| D30 | 3D | P2 | 🔶 Open | 3D tick labels overlap at some camera angles |
-| D31 | Theme | P2 | 🔶 Open | Light theme scatter points low contrast |
+| D29 | 3D | P2 | ✅ Fixed | 3D scatter scenario now uses separated clusters, larger markers, clearer camera |
+| D30 | 3D | P2 | ✅ Fixed | 3D tick label overlap reduced with screen-space spacing cull |
+| D31 | Theme | P2 | ✅ Fixed | Light-theme scatter defaults to filled markers for better contrast |
 | D32 | UI | P3 | ✅ Fixed | FPS counter thresholds adjusted (20/45) |
-| D33 | QA | P3 | 🔶 Open | Screenshot #01 shows wrong figure (tab ordering) |
+| D33 | QA | P3 | ✅ Already Fixed | Screenshot #01 now consistently captures initial figure |
 
 ---
 
@@ -452,20 +453,48 @@ All 35 screenshots now show correct, distinct content:
 - Timeline panel with keyframe tracks and transport controls is functional
 - Tab bar shows all figure tabs with scrollable overflow
 
-**Issues to investigate (future sessions):**
-- **D29:** 3D scatter clusters appear tightly clustered — may need to investigate scatter point size in 3D
-- **D30:** 3D tick labels overlap in some camera angles (e.g., side view) — cramped text
-- **D31:** Light theme scatter points are very faint — low contrast cyan on white background
-- **D33:** Screenshot #01 captures "Zoom-then-Rotate Test" instead of initial sine wave — figure ordering issue in tab bar (cosmetic, QA agent creates many figures before capture)
+## Session 24 — Open-Item Triage & Minimal Fixes (2026-02-24)
+
+### Run & Validation
+- **Capture command:** `./build/tests/spectra_qa_agent --seed 42 --design-review --no-fuzz --no-scenarios --output-dir /tmp/spectra_qa_design_20260224_afterfix`
+- **Result:** 35 screenshots captured, 0 warnings, 0 errors, 0 critical
+- **Regression checks:** `ctest --test-dir build --output-on-failure` (78/78 passed)
+
+### D29: 3D Scatter Clusters Tightly Packed ✅ FIXED
+- **Screenshot (after):** `25_3d_scatter_clusters.png` (`/tmp/spectra_qa_design_20260224_afterfix/design/`)
+- **Root cause:** QA scenario used wide cluster spread (`σ=0.5`) with small markers and a neutral camera angle, making two clusters read as visually dense.
+- **Fix applied:** Tightened cluster spread to `σ=0.35`, increased center separation to `±2.5`, increased marker size to `5.5`, and set a camera angle that separates clusters in depth.
+- **Files changed:** `tests/qa/qa_agent.cpp`
+- **Status:** ✅ Fixed
+
+### D30: 3D Tick Labels Overlap at Some Camera Angles ✅ FIXED
+- **Screenshots (after):** `22_3d_camera_side_view.png`, `23_3d_camera_top_down.png`, `24_3d_line_helix.png` (`/tmp/spectra_qa_design_20260224_afterfix/design/`)
+- **Root cause:** 3D tick labels were drawn for every computed tick with no screen-space spacing guard, so projected labels could overlap at shallow/oblique viewpoints.
+- **Fix applied:** Added per-axis screen-space culling in 3D tick rendering (skip labels within 18 px of the previous drawn tick label).
+- **Files changed:** `src/render/renderer.cpp`
+- **Status:** ✅ Fixed
+
+### D31: Light Theme Scatter Points Low Contrast ✅ FIXED
+- **Screenshot (after):** `12_theme_light.png` (`/tmp/spectra_qa_design_20260224_afterfix/design/`)
+- **Root cause:** Default scatter marker fallback used outline circles, which are visually weak on light backgrounds at small marker sizes.
+- **Fix applied:** For default scatter markers (`marker_style=None`), use `FilledCircle` automatically on bright backgrounds (luminance > 0.80). Dark backgrounds keep the outline-circle fallback.
+- **Files changed:** `src/render/renderer.cpp`
+- **Status:** ✅ Fixed
+
+### D33: Screenshot #01 Wrong Figure (Tab Ordering) ✅ ALREADY FIXED
+- **Screenshot (verification):** `01_default_single_line.png` (`/tmp/spectra_qa_design_20260224_afterfix/design/`)
+- **Finding:** Screenshot #01 now consistently shows the initial sine-wave figure (`Figure 1`) and no longer captures the later zoom/rotate figure.
+- **Resolution:** Already fixed by prior screenshot-pipeline correction (D28 capture-before-present). No additional code change required in this pass.
+- **Status:** ✅ Already Fixed
 
 ---
 
 | D28 | Infrastructure | P0 | ✅ Fixed | Screenshot capture reads stale swapchain — capture before present |
-| D29 | 3D | P2 | 🔶 Open | 3D scatter clusters tightly packed |
-| D30 | 3D | P2 | 🔶 Open | 3D tick labels overlap at some camera angles |
-| D31 | Theme | P2 | 🔶 Open | Light theme scatter points low contrast |
+| D29 | 3D | P2 | ✅ Fixed | 3D scatter scenario now uses separated clusters, larger markers, clearer camera |
+| D30 | 3D | P2 | ✅ Fixed | 3D tick label overlap reduced with screen-space spacing cull |
+| D31 | Theme | P2 | ✅ Fixed | Light-theme scatter defaults to filled markers for better contrast |
 | D32 | UI | P3 | ✅ Fixed | FPS counter thresholds adjusted (20/45) |
-| D33 | QA | P3 | 🔶 Open | Screenshot #01 shows wrong figure (tab ordering) |
+| D33 | QA | P3 | ✅ Already Fixed | Screenshot #01 now consistently captures initial figure |
 
 ---
 

@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136
+> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf)
 
 ---
 
@@ -58,6 +58,17 @@
 - **Priority:** **P0**
 - **Status:** ✅ Fixed
 
+### C4: SIGSEGV in Command Lambdas — Null `active_figure` Dereference
+- **Observed (Perf session, seed 42):** SIGSEGV at frame 2924 during `fuzz:ExecuteCommand`. Crash in `undoable_toggle_border_all()` → `Figure::axes_mut()` via `view.toggle_border` command.
+- **Root cause:** Command lambdas in `register_commands.cpp` capture `active_figure` (a `Figure*&`) by reference via `[&]`. When the active figure is closed during fuzzing, the pointer becomes null. Executing any view/file command that dereferences `*active_figure` without null-checking causes SIGSEGV.
+- **Fix applied:** Added `if (!active_figure) return;` guard at the top of all 9 affected command lambdas:
+  - `view.reset`, `view.toggle_grid`, `view.toggle_legend`, `view.toggle_border`, `view.home`, `view.toggle_3d`, `file.export_png`, `file.export_svg`, `file.load_workspace`
+- **Files modified:**
+  - `src/ui/app/register_commands.cpp` — null guards in 9 command lambdas
+- **Verified:** seed 42 runs full 120s with 0 crashes (was SIGSEGV at frame 2924). seed 99 also clean.
+- **Priority:** **P0**
+- **Status:** ✅ Fixed
+
 ---
 
 ## HIGH — Performance
@@ -93,12 +104,31 @@
 - **Priority:** **P2**
 - **Status:** 🟡 Open
 
+### H4: Periodic ~1s Frame Stalls in `vk_acquire`/`begin_frame`
+- **Observed (Session 7, seed 1771959053):** repeated frame-time bursts at ~852–1022ms (frames 250–256, 2170–2174, 2228–2234); run summary `avg=50.7ms`, `p95=225.4ms`, `p99=1001.9ms`, `max=1021.9ms`.
+- **Confirmed (Perf session, seed 42):** frames 1659–1665 showed 7 consecutive ~1000ms stalls. All in `vkAcquireNextImageKHR` with `UINT64_MAX` timeout during multi-window fuzzing (4–6 windows open).
+- **Root cause:** `vkWaitForFences` and `vkAcquireNextImageKHR` in `begin_frame()` used `UINT64_MAX` timeout. When compositor is slow delivering images (multi-window, resize storms), each window blocks indefinitely. With N windows, stalls cascade.
+- **Fix applied (partial):**
+  1. Bounded fence wait to 100ms (`FENCE_TIMEOUT_NS`); on `VK_TIMEOUT`, skip window for this tick.
+  2. Bounded acquire to 100ms (`ACQUIRE_TIMEOUT_NS`); on `VK_TIMEOUT`/`VK_NOT_READY`, skip window.
+  3. Set `swapchain_invalidated` flag on `VK_ERROR_OUT_OF_DATE_KHR` so caller can distinguish timeout (skip) from invalidation (recreate).
+  4. Updated `window_runtime.cpp` recovery path: only attempt swapchain recreation when `swapchain_invalidated` is set, not on timeouts.
+  5. Skip `vkQueueWaitIdle` between windows when `render()` returned false (no GPU work submitted).
+- **Results after fix:** seed 42 runs complete with 0 crashes, 0 errors, 0 critical. Max frame time still ~1008ms due to N windows × 100ms timeout cascading. Further reduction requires per-window buffers (architectural change).
+- **Files modified:**
+  - `src/render/vulkan/vk_backend.cpp` — bounded timeouts, `swapchain_invalidated` on OUT_OF_DATE, VK_TIMEOUT/VK_NOT_READY handling
+  - `src/ui/app/window_runtime.cpp` — skip recovery on timeout, only recreate on invalidation
+  - `src/ui/app/session_runtime.cpp` — skip `vkQueueWaitIdle` when no GPU work submitted
+- **Remaining work:** Per-window GPU buffers would eliminate the need for `vkQueueWaitIdle` between windows entirely, reducing multi-window frame time to ~100ms max.
+- **Priority:** **P1**
+- **Status:** 🟡 Partially fixed (bounded timeouts, no more infinite stalls)
+
 ---
 
 ## HIGH — Memory
 
-### M1: RSS Growth of 80–115MB Over Session
-- **Observed:** Run 1: 199→279MB (+80MB). Run 2: 168→284MB (+115MB, flagged at frame 2820).
+### M1: RSS Growth of 80–260MB Over Session
+- **Observed:** earlier runs: +80MB to +115MB; recent 120s runs reached +261MB (seed 42: 168→429MB) and +148MB (seed 1771959053: 168→316MB).
 - **Analysis:** Growth is expected to some degree — the fuzzer creates up to 20 figures with 10–500K point series each. But 115MB for ~20 figures seems high.
 - **Breakdown needed:**
   1. CPU-side series data: 20 figures × ~200K points × 8 bytes (x+y float) = ~32MB
@@ -185,6 +215,26 @@
 
 ---
 
+## Session 3 Results — Perf Agent (2026-02-24)
+
+### Environment
+- **OS:** Linux (X11)
+- **GPU:** Vulkan backend
+- **Build:** Debug, GCC 12, C++20
+- **QA runs:** 5 (seed 42 ×4 iterations during fix cycle, seed 99 ×1 regression check)
+
+### Summary
+- **Baseline (seed 42, pre-fix):** 16/16 pass, 50 warnings, avg=44.5ms, max=1024ms, 25 spikes
+- **After fix (seed 42):** 16/16 pass, 50 warnings, avg=49.1ms, max=1008ms, 27 spikes, **0 crashes, 0 errors, 0 critical**
+- **Regression check (seed 99):** 15/15 pass, 40 warnings, avg=62.9ms, max=1014ms, 26 spikes, **0 crashes, 0 errors, 0 critical**
+- **ctest:** 78/78 pass, 0 regressions
+
+### Fixes Applied
+1. **C4 (CRITICAL):** Null `active_figure` dereference in command lambdas — SIGSEGV during fuzzing
+2. **H4 (PARTIAL):** Bounded Vulkan timeouts, skip-on-timeout recovery, skip unnecessary `vkQueueWaitIdle`
+
+---
+
 ## Tracking
 
 | ID | Category | Priority | Status | Owner |
@@ -192,9 +242,11 @@
 | C1 | Crash | P0 | ✅ Fixed | — |
 | C2 | Crash/Vulkan | P1 | ✅ Fixed | — |
 | C3 | Crash | P0 | ✅ Fixed | — |
+| C4 | Crash | P0 | ✅ Fixed | — |
 | H1 | Performance | P1 | 🟡 Open | — |
 | H2 | Performance | N/A | ✅ Not a bug | — |
 | H3 | Performance | P2 | 🟡 Open | — |
+| H4 | Performance | P1 | 🟡 Partial | — |
 | M1 | Memory | P1 | 🟡 Open | — |
 | V1 | Vulkan | P2 | 🟡 Open | — |
 | V2 | Vulkan | P2 | 🟡 Open | — |

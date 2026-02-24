@@ -644,7 +644,6 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 
     if (!frame_ok)
     {
-        // Swapchain truly unusable — recreate and retry
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_frame_started)
         {
@@ -652,9 +651,15 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             imgui_frame_started = false;
         }
 #endif
-        // Try to recover by recreating swapchain using actual framebuffer size
+        // Only attempt swapchain recreation if it was actually invalidated
+        // (OUT_OF_DATE).  Fence/acquire timeouts just mean this window is
+        // temporarily busy — skip it without recreation.
         auto*    vk       = static_cast<VulkanBackend*>(&backend_);
         auto*    aw       = vk->active_window();
+        if (aw && !aw->swapchain_invalidated)
+            return false;   // Timeout — just skip this window
+
+        // Swapchain truly unusable — recreate and retry
         uint32_t target_w = 0, target_h = 0;
 #ifdef SPECTRA_USE_GLFW
         if (aw && aw->glfw_window)

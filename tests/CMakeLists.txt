@@ -7,6 +7,7 @@ FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        v1.14.0
+    GIT_SHALLOW    TRUE
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
@@ -19,6 +20,7 @@ if(SPECTRA_BUILD_BENCHMARKS)
         googlebenchmark
         GIT_REPOSITORY https://github.com/google/benchmark.git
         GIT_TAG        v1.8.3
+        GIT_SHALLOW    TRUE
     )
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googlebenchmark)
@@ -274,6 +276,8 @@ if(SPECTRA_BUILD_QA_AGENT)
         target_include_directories(spectra_qa_agent PRIVATE
             ${CMAKE_SOURCE_DIR}/src
             ${CMAKE_CURRENT_SOURCE_DIR}/util
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
         )
         target_compile_definitions(spectra_qa_agent PRIVATE
             SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"

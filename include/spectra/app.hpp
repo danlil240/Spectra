@@ -60,6 +60,9 @@ class App
     WindowUIContext*  ui_context();
     SessionRuntime*   session();
     FigureRegistry&   figure_registry() { return registry_; }
+#ifdef SPECTRA_USE_GLFW
+    WindowManager*    window_manager();
+#endif
 
     bool is_headless() const { return config_.headless; }
 

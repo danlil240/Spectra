@@ -69,6 +69,7 @@ void register_standard_commands(const CommandBindings& b)
         "Reset View",
         [&]()
         {
+            if (!active_figure) return;
             auto before = capture_figure_axes(*active_figure);
             // 2D axes (subplot populates axes_mut only)
             for (auto& ax : active_figure->axes_mut())
@@ -138,6 +139,7 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Grid",
         [&]()
         {
+            if (!active_figure) return;
             // 2D axes
             undoable_toggle_grid_all(&undo_mgr, *active_figure);
             // 3D axes: toggle all grid planes on/off
@@ -192,7 +194,7 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "view.toggle_legend",
         "Toggle Legend",
-        [&]() { undoable_toggle_legend(&undo_mgr, *active_figure); },
+        [&]() { if (!active_figure) return; undoable_toggle_legend(&undo_mgr, *active_figure); },
         "L",
         "View",
         static_cast<uint16_t>(ui::Icon::Eye));
@@ -202,6 +204,7 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Border",
         [&]()
         {
+            if (!active_figure) return;
             // 2D axes
             undoable_toggle_border_all(&undo_mgr, *active_figure);
             // 3D axes: toggle bounding box visibility
@@ -269,6 +272,7 @@ void register_standard_commands(const CommandBindings& b)
         "Home (Restore Original View)",
         [&]()
         {
+            if (!active_figure) return;
             auto before = capture_figure_axes(*active_figure);
             for (auto& ax : active_figure->axes_mut())
             {
@@ -419,6 +423,7 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle 2D/3D View",
         [&]()
         {
+            if (!active_figure) return;
             Axes3D* ax3d = nullptr;
             for (auto& ax_base : active_figure->all_axes())
             {
@@ -499,7 +504,7 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "file.export_png",
         "Export PNG",
-        [&]() { active_figure->save_png("spectra_export.png"); },
+        [&]() { if (!active_figure) return; active_figure->save_png("spectra_export.png"); },
         "Ctrl+S",
         "File",
         static_cast<uint16_t>(ui::Icon::Export));
@@ -507,7 +512,7 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "file.export_svg",
         "Export SVG",
-        [&]() { active_figure->save_svg("spectra_export.svg"); },
+        [&]() { if (!active_figure) return; active_figure->save_svg("spectra_export.svg"); },
         "Ctrl+Shift+S",
         "File",
         static_cast<uint16_t>(ui::Icon::Export));
@@ -566,6 +571,7 @@ void register_standard_commands(const CommandBindings& b)
             WorkspaceData data;
             if (Workspace::load(Workspace::default_path(), data))
             {
+                if (!active_figure) return;
                 auto                 before_snap = capture_figure_axes(*active_figure);
                 std::vector<Figure*> figs;
                 for (auto id : fig_mgr.figure_ids())

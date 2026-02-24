@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Performance Agent"
+  short_description: "Run Spectra stress QA and perf triage"
+  default_prompt: "Use $qa-performance-agent to run Spectra stress QA sessions, triage performance findings, and update QA tracking docs."

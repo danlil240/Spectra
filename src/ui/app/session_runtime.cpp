@@ -225,9 +225,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 wctx->assigned_figures = wctx->ui_ctx->fig_mgr->figure_ids();
             }
 
+            bool rendered = false;
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_render");
-                win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);
+                rendered = win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);
             }
 
             // Wait for GPU to finish this window's work before rendering the
@@ -235,7 +236,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // (frame UBO, text vertex buffer, overlay buffers) that would be
             // overwritten by the next window while the GPU is still reading
             // them, causing cross-window content blinking / swapping.
-            if (window_mgr->windows().size() > 1)
+            // Skip the wait if no GPU work was submitted (frame skipped due
+            // to fence/acquire timeout) — nothing to synchronize.
+            if (rendered && window_mgr->windows().size() > 1)
                 vkQueueWaitIdle(vk->graphics_queue());
 
             // Sync active figure back to WindowContext so the next frame

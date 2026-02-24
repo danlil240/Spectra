@@ -65,3 +65,8 @@ docker/
 CLAUDE.md
 
 .vscode
+spectra_export.png
+spectra_export.svg
+
+.gitignore
+imgui.ini

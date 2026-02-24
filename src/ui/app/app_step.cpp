@@ -349,6 +349,81 @@ void App::init_runtime()
         {
             timeline_editor.play();
         }
+
+        // ── Wire up animated channels for the curve editor ──────────────
+        // Create keyframe channels for each series' opacity and size/width
+        // so the curve editor and timeline have real, editable curves.
+        float anim_dur = timeline_editor.duration();
+        int   s_idx    = 0;
+        for (auto& ax : init_active->axes())
+        {
+            if (!ax)
+                continue;
+            for (auto& s : ax->series_mut())
+            {
+                if (!s)
+                    continue;
+                std::string prefix =
+                    s->label().empty() ? "Series " + std::to_string(s_idx) : s->label();
+
+                // Opacity channel — ramp from 1.0 to 0.3 and back
+                {
+                    uint32_t ch_id =
+                        timeline_editor.add_animated_track(prefix + " Opacity", 1.0f);
+                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, 1.0f, 1);   // Linear
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.4f, 0.3f, 6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.7f, 0.8f, 4);   // EaseIn
+                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, 1.0f, 5);   // EaseOut
+
+                    Series* raw = s.get();
+                    keyframe_interpolator.bind_callback(
+                        ch_id,
+                        prefix + " Opacity",
+                        [raw](float v) { raw->opacity(std::clamp(v, 0.0f, 1.0f)); });
+                }
+
+                // Size channel — scatter point_size or line width
+                if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
+                {
+                    float    base  = sc->size();
+                    uint32_t ch_id = timeline_editor.add_animated_track(
+                        prefix + " Size", base);
+                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.3f, base * 2.5f, 3);   // Spring
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.6f, base * 0.5f, 6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
+
+                    keyframe_interpolator.bind_callback(
+                        ch_id,
+                        prefix + " Size",
+                        [sc](float v) { sc->size(std::max(v, 1.0f)); });
+                }
+                else if (auto* ln = dynamic_cast<LineSeries*>(s.get()))
+                {
+                    float    base  = ln->width();
+                    uint32_t ch_id = timeline_editor.add_animated_track(
+                        prefix + " Width", base);
+                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.3f, base * 3.0f, 3);   // Spring
+                    timeline_editor.add_animated_keyframe(
+                        ch_id, anim_dur * 0.6f, base * 0.5f, 6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
+
+                    keyframe_interpolator.bind_callback(
+                        ch_id,
+                        prefix + " Width",
+                        [ln](float v) { ln->width(std::max(v, 0.5f)); });
+                }
+
+                ++s_idx;
+            }
+        }
+        keyframe_interpolator.compute_all_auto_tangents();
     }
 
     shortcut_mgr.set_command_registry(&cmd_registry);

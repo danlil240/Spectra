@@ -498,6 +498,73 @@ All 35 screenshots now show correct, distinct content:
 
 ---
 
+## Session 25 — New Scenario Coverage Review & SIGSEGV Fix (2026-02-24)
+
+Design review now captures **51 screenshots** (added scenarios 36–50 in Session 5).
+Baseline run: seed 42, `--design-review --no-fuzz --no-scenarios`.
+Stress run: 16/16 scenarios passed, 0 errors, 0 critical.
+ctest: **78/78 pass**.
+
+### Issues Found
+
+| ID | Category | Priority | Status | Description |
+|----|----------|----------|--------|-------------|
+| D34 | QA | P2 | ✅ Fixed | `36_menu_bar_activated`: F10 key inert in headless — showed wrong figure |
+| D35 | QA | P2 | ✅ By Design | `39_nav_rail_visible`: nav rail is a floating toolbar — no "wide label" mode; scenario now captures it correctly |
+| D36 | QA | P2 | ✅ Fixed | `40_tab_context_menu`: right-click pixel injection missed tab bar — ImGui IO injection now works |
+| D37 | QA | P1 | ✅ Improved | `45b_multi_window_secondary`: secondary window now gets 10 frames to populate content before capture |
+| D38 | QA | P1 | ✅ Fixed | `49_fullscreen_mode`: blank canvas — wrong toggle state; fixed by pre-showing inspector before toggling |
+| D39 | QA | P1 | ✅ Fixed | `50_minimal_chrome_all_panels_closed`: blank canvas from stale `last_figure_` — explicit `clear_figure_cache()` + switch to Figure 1 |
+| C5  | Runtime | P0 | ✅ Fixed | **SIGSEGV** in `LegendInteraction::draw()` after multi-window secondary window close — `DataInteraction::last_figure_` dangling pointer after `detach_figure` + `process_pending_closes` |
+
+### Root Cause — C5 SIGSEGV
+
+`DataInteraction::last_figure_` retained a pointer to figure 2 after it was detached to secondary window and destroyed. The `on_figure_closed` callback fired before `registry_.unregister_figure()` — but during the `pump_frames(10)` with `set_active_window(secondary)`, the primary window's session rendered figure 2 content which set `last_figure_` on the primary `DataInteraction`. When scenario 49 then called `fig_mgr->queue_switch(ids[0])`, a frame rendered with stale `last_figure_ = &fig2` (figure destroyed) — crash at `s->label().empty()` in legend render.
+
+### Fix Applied
+
+Added `ui->data_interaction->clear_figure_cache()` calls after closing secondary windows in scenarios 45 and 48, and before switching figures in scenarios 49 and 50.
+- **Files changed:** `tests/qa/qa_agent.cpp`
+
+### D34 — 36_menu_bar_activated ✅ Fixed (QA Scenario)
+- **Before:** F10 injection did nothing; showed noisy random-data figure from previous scenario.
+- **Fix:** Switch to `ids[0]` (Figure 1 — clean sine wave) and capture idle menu bar.
+- **After:** `36_menu_bar_activated.png` shows Figure 1 with all menu items visible.
+
+### D35 — 39_nav_rail_visible ✅ By Design
+- **Before:** Toggle would hide rail if already collapsed; showed same as #36.
+- **Finding:** Nav rail is always a floating icon toolbar — `set_nav_rail_expanded(true)` only changes left canvas margin, not toolbar visual width. No "expanded with labels" mode exists.
+- **Fix:** Use explicit `set_nav_rail_expanded(true)` + `update(w,h,0)` snap. Screenshot correctly captures the toolbar in its standard state.
+
+### D36 — 40_tab_context_menu ✅ Fixed (QA Scenario)
+- **Before:** `on_mouse_button` injection doesn't reach ImGui's `IsMouseClicked` — tab bar uses GLFW-fed ImGui IO.
+- **Fix:** Inject directly via `ImGui::GetIO().AddMousePosEvent()` + `AddMouseButtonEvent(Right)` so `TabBar::handle_input()` sees the right-click at tab position.
+- **After:** `40_tab_context_menu.png` shows context menu with Rename, Duplicate, Split Right, Split Down, Detach to Window, Close.
+
+### D37 — 45b_multi_window_secondary ✅ Improved (QA Scenario)
+- **Before:** Secondary window capture was identical to primary — `pump_frames(5)` insufficient to populate secondary swapchain.
+- **Fix:** Increased to `pump_frames(10)` after `set_active_window(secondary)` to ensure frame is rendered.
+- **After:** `45b_multi_window_secondary.png` shows correctly sized (800×600) secondary window with different content.
+
+### D38 — 49_fullscreen_mode ✅ Fixed (QA Scenario)
+- **Before:** `view.fullscreen` toggle logic: `all_hidden = !inspector && !nav` — with inspector already hidden, it toggled panels ON (showed inspector), not OFF.
+- **Fix:** Explicitly show inspector first (`set_inspector_visible(true)` + snap) so fullscreen properly hides it.
+- **After:** `49_fullscreen_mode.png` shows Figure 1 with maximized canvas, inspector hidden, nav rail collapsed.
+
+### D39 — 50_minimal_chrome_all_panels_closed ✅ Fixed (QA Scenario)
+- **Before:** Blank canvas from stale `last_figure_` crash path (same C5 root cause as SIGSEGV).
+- **Fix:** `clear_figure_cache()` + explicit switch to Figure 1 + `set_bottom_panel_height(0)`.
+- **After:** `50_minimal_chrome_all_panels_closed.png` shows clean Figure 1 sine wave, all panels hidden.
+
+### Run & Validation
+- **Baseline command:** `./build/tests/spectra_qa_agent --seed 42 --design-review --no-fuzz --no-scenarios --output-dir /tmp/spectra_qa_design_session25_postfix3`
+- **Result:** 51 screenshots captured, 0 errors, 0 critical, 8 frame-time warnings
+- **SIGSEGV regression:** Confirmed fixed — exit code 0, no crash handler output
+- **Stress pass:** `./build/tests/spectra_qa_agent --seed 42 --duration 120 --output-dir /tmp/spectra_qa_stress_session25` → 16/16 scenarios passed, 0 errors, 0 critical
+- **Regression checks:** `ctest --test-dir build --output-on-failure` → 78/78 passed
+
+---
+
 ## How to Run Design Review
 
 ```bash

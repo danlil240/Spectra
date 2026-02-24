@@ -1248,6 +1248,19 @@ void ImGuiIntegration::draw_command_bar()
                                             command_registry_->execute("file.load_workspace");
                                     }),
                            MenuItem("", nullptr),   // Separator
+                           MenuItem("Save Figure...",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.save_figure");
+                                    }),
+                           MenuItem("Load Figure...",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.load_figure");
+                                    }),
+                           MenuItem("", nullptr),   // Separator
                            MenuItem("Exit",
                                     [this]()
                                     {
@@ -3645,6 +3658,13 @@ void ImGuiIntegration::draw_curve_editor_panel()
     bool still_open = show_curve_editor_;
     if (ImGui::Begin("Curve Editor", &still_open, flags))
     {
+        if (curve_editor_needs_fit_ && curve_editor_->interpolator()
+            && curve_editor_->interpolator()->channel_count() > 0)
+        {
+            curve_editor_->fit_view();
+            curve_editor_needs_fit_ = false;
+        }
+
         float btn_sz  = 24.0f;
         float btn_gap = 4.0f;
 
@@ -3705,7 +3725,8 @@ void ImGuiIntegration::draw_curve_editor_panel()
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 3));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, *value ? 0.0f : 1.0f);
-            if (!*value)
+            bool pushed_border = !*value;
+            if (pushed_border)
             {
                 ImGui::PushStyleColor(ImGuiCol_Border,
                                       ImVec4(colors.border_subtle.r,
@@ -3719,7 +3740,7 @@ void ImGuiIntegration::draw_curve_editor_panel()
                 *value = !*value;
             }
 
-            if (!*value)
+            if (pushed_border)
                 ImGui::PopStyleColor();
             ImGui::PopStyleVar(3);
             ImGui::PopStyleColor(4);

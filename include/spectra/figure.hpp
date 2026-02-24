@@ -115,6 +115,7 @@ class Figure
     friend class FigureManager;
     friend class WindowRuntime;
     friend class SessionRuntime;
+    friend class FigureSerializer;
 
     FigureConfig                           config_;
     FigureStyle                            style_;

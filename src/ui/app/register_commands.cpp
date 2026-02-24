@@ -21,6 +21,7 @@
     #include "ui/theme/theme.hpp"
     #include "ui/commands/undoable_property.hpp"
     #include "ui/workspace/workspace.hpp"
+    #include "ui/workspace/figure_serializer.hpp"
 #endif
 
 #include <algorithm>
@@ -615,6 +616,39 @@ void register_standard_commands(const CommandBindings& b)
                 if (!data.dock_state.empty())
                 {
                     dock_system.deserialize(data.dock_state);
+                }
+            }
+        },
+        "",
+        "File",
+        static_cast<uint16_t>(ui::Icon::FolderOpen));
+
+    cmd_registry.register_command(
+        "file.save_figure",
+        "Save Figure",
+        [&]()
+        {
+            if (!active_figure) return;
+            FigureSerializer::save_with_dialog(*active_figure);
+        },
+        "",
+        "File",
+        static_cast<uint16_t>(ui::Icon::Save));
+
+    cmd_registry.register_command(
+        "file.load_figure",
+        "Load Figure",
+        [&]()
+        {
+            if (!active_figure) return;
+            FigureSerializer::load_with_dialog(*active_figure);
+            // Mark all series dirty so GPU data gets re-uploaded
+            for (auto& ax : active_figure->all_axes_mut())
+            {
+                if (!ax) continue;
+                for (auto& s : ax->series_mut())
+                {
+                    if (s) s->mark_dirty();
                 }
             }
         },

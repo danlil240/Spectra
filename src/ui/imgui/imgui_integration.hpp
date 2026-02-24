@@ -326,6 +326,10 @@ class ImGuiIntegration
     AnimationCurveEditor* curve_editor_          = nullptr;
     bool                  show_timeline_         = false;
     bool                  show_curve_editor_     = false;
+    bool                  curve_editor_needs_fit_ = true;
+
+    // Series clipboard (not owned)
+    SeriesClipboard* series_clipboard_ = nullptr;
 
     // Mode transition (not owned)
     ModeTransition* mode_transition_ = nullptr;

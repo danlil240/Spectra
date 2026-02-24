@@ -80,6 +80,9 @@ class FigureRegistry;
 struct WindowUIContext;
 class TabDragController;
 
+class SeriesClipboard;
+struct SeriesSnapshot;
+
 class ImageExporter;
 class SvgExporter;
 class VideoExporter;

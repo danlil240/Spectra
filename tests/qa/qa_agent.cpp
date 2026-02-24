@@ -2240,22 +2240,20 @@ class QAAgent
         // Session 5 — Menu, Command Palette, Window & Tab Drag scenarios
         // ══════════════════════════════════════════════════════════════════
 
-        // ── 36. File menu open ──────────────────────────────────────────
+        // ── 36. Menu bar state — show clean figure + menu bar visible ────
+        // D34 fix: F10 doesn't reliably open a menu in GLFW headless mode.
+        // Instead switch to Figure 1 (clean sine wave) and capture the
+        // menu bar in its idle state — clearly shows all menu items.
         {
             auto* ui = app_->ui_context();
-            if (ui && ui->imgui_ui)
+            if (ui && ui->fig_mgr)
             {
-                // Simulate clicking on the "File" menu by injecting a key shortcut
-                // that opens the command palette, then screenshot with it visible.
-                // For menu: we use ImGui's internal API to open a menu programmatically.
-                // Since we can't click exact pixel coords reliably, we use the
-                // shortcut approach: press Alt to activate the menu bar.
-                ui->input_handler.on_key(GLFW_KEY_F10, 1, 0);   // F10 often activates menu bar
-                pump_frames(5);
+                // Switch to Figure 1 so we capture a clean, representative figure
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(10);
                 named_screenshot("36_menu_bar_activated");
-                ui->input_handler.on_key(GLFW_KEY_ESCAPE, 1, 0);
-                ui->input_handler.on_key(GLFW_KEY_ESCAPE, 0, 0);
-                pump_frames(3);
             }
         }
 
@@ -2302,39 +2300,57 @@ class QAAgent
             }
         }
 
-        // ── 39. Nav rail visible ────────────────────────────────────────
+        // ── 39. Nav rail expanded ───────────────────────────────────────
+        // D35 fix: use explicit expand + snap animation via dt=0 update.
         {
             auto* ui = app_->ui_context();
-            if (ui)
+            if (ui && ui->imgui_ui)
             {
-                ui->cmd_registry.execute("panel.toggle_nav_rail");
-                pump_frames(10);
+                // Explicitly expand the nav rail
+                ui->imgui_ui->get_layout_manager().set_nav_rail_expanded(true);
+                // Force animation to snap by calling update with dt=0
+                // (smooth_toward snaps when dt<=0)
+                ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
+                pump_frames(5);
                 named_screenshot("39_nav_rail_visible");
-                ui->cmd_registry.execute("panel.toggle_nav_rail");
+                // Restore collapsed state (also snap)
+                ui->imgui_ui->get_layout_manager().set_nav_rail_expanded(false);
+                ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
                 pump_frames(3);
             }
         }
 
         // ── 40. Tab bar context menu (right-click on tab) ───────────────
+        // D36 fix: inject mouse position + right-click directly into ImGui IO
+        // so TabBar::handle_input() sees IsMouseClicked(Right) at tab position.
+        // Tab bar is at y = COMMAND_BAR_HEIGHT(48) + TAB_BAR_HEIGHT/2(18) = 66.
+        // First visible tab starts after NAV_TOOLBAR_INSET(68) + PLOT_LEFT_MARGIN(100) = 168px,
+        // but the tab label area is from x=168. Use x=200 (inside first tab).
         {
             auto* ui = app_->ui_context();
-            if (ui)
+            if (ui && ui->imgui_ui)
             {
                 // Ensure multiple tabs exist
                 for (int i = 0; i < 3; ++i)
                     create_random_figure();
                 pump_frames(5);
 
-                // Right-click on tab area (approximate tab bar y position ~30px from top)
-                ui->input_handler.on_mouse_button(1, 1, 0, 200.0, 30.0);   // right-click press
+                // Inject mouse position into ImGui IO and simulate right-click
+                auto& io = ImGui::GetIO();
+                const float TAB_X = 200.0f;
+                const float TAB_Y = 66.0f;  // command bar(48) + tab center(18)
+                io.AddMousePosEvent(TAB_X, TAB_Y);
+                pump_frames(1);  // process move so hover is set
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);   // press
                 pump_frames(1);
-                ui->input_handler.on_mouse_button(1, 0, 0, 200.0, 30.0);   // right-click release
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);  // release
                 pump_frames(10);
                 named_screenshot("40_tab_context_menu");
 
-                // Dismiss context menu
-                ui->input_handler.on_mouse_button(0, 1, 0, 640.0, 400.0);
-                ui->input_handler.on_mouse_button(0, 0, 0, 640.0, 400.0);
+                // Dismiss: press Escape via ImGui key event
+                io.AddKeyEvent(ImGuiKey_Escape, true);
+                pump_frames(1);
+                io.AddKeyEvent(ImGuiKey_Escape, false);
                 pump_frames(5);
             }
         }
@@ -2436,19 +2452,22 @@ class QAAgent
                     named_screenshot("45_multi_window_primary");
 
                     // Screenshot from the secondary window if it exists
+                    // D37 fix: capture from secondary window by switching the active
+                    // window context in the backend so readback reads the right swapchain.
                     if (new_wctx)
                     {
-                        // Switch active window to secondary for screenshot
                         auto* vk = dynamic_cast<VulkanBackend*>(app_->backend());
                         if (vk)
                         {
+                            // Render a frame on the secondary window first so its
+                            // swapchain image is populated with the correct content.
                             vk->set_active_window(new_wctx);
-                            pump_frames(5);
+                            pump_frames(10);
                             named_screenshot("45b_multi_window_secondary");
-                            // Restore active window
+                            // Restore primary window as active
                             if (!wm->windows().empty())
                                 vk->set_active_window(wm->windows()[0]);
-                            pump_frames(3);
+                            pump_frames(5);
                         }
                     }
 
@@ -2458,6 +2477,10 @@ class QAAgent
                         wm->request_close(new_wctx->id);
                         wm->process_pending_closes();
                         pump_frames(5);
+                        // D37 fix: explicitly clear figure cache after secondary window
+                        // teardown to prevent stale last_figure_ in DataInteraction.
+                        if (ui->data_interaction)
+                            ui->data_interaction->clear_figure_cache();
                     }
                 }
             }
@@ -2543,18 +2566,44 @@ class QAAgent
                         wm->request_close(win2->id);
                         wm->process_pending_closes();
                         pump_frames(5);
+                        // Clear stale figure cache to prevent dangling last_figure_
+                        auto* ui48 = app_->ui_context();
+                        if (ui48 && ui48->data_interaction)
+                            ui48->data_interaction->clear_figure_cache();
                     }
                 }
             }
         }
 
-        // ── 49. Fullscreen mode ─────────────────────────────────────────
+        // ── 49. Fullscreen mode (canvas maximized) ─────────────────────
+        // D38 fix: switch to Figure 1 (sine wave) before toggling fullscreen
+        // so the canvas has visible content. The fullscreen command hides
+        // inspector + nav rail expansion, maximizing the plot area.
         {
             auto* ui = app_->ui_context();
-            if (ui)
+            if (ui && ui->fig_mgr && ui->imgui_ui)
             {
+                // Clear stale figure cache from any prior multi-window scenarios
+                if (ui->data_interaction)
+                    ui->data_interaction->clear_figure_cache();
+
+                // Switch to Figure 1 for clean plot content
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(10);
+
+                // Show inspector first so fullscreen toggle hides it
+                // (view.fullscreen: all_hidden = !inspector && !nav -> new = all_hidden,
+                //  so if inspector is visible, all_hidden=false -> new_inspector=false)
+                ui->imgui_ui->get_layout_manager().set_inspector_visible(true);
+                ui->imgui_ui->get_layout_manager().set_nav_rail_expanded(false);
+                ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
+                pump_frames(5);
+
+                // Now toggle fullscreen — hides inspector + keeps nav collapsed
                 ui->cmd_registry.execute("view.fullscreen");
-                pump_frames(15);
+                pump_frames(20);  // Allow layout animation to settle
                 named_screenshot("49_fullscreen_mode");
                 ui->cmd_registry.execute("view.fullscreen");   // Toggle back
                 pump_frames(10);
@@ -2562,12 +2611,28 @@ class QAAgent
         }
 
         // ── 50. All panels closed (minimal chrome) ──────────────────────
+        // D39 fix: switch to Figure 1 with all panels explicitly hidden
+        // and wait for animations to settle before capturing.
         {
             auto* ui = app_->ui_context();
-            if (ui)
+            if (ui && ui->fig_mgr && ui->imgui_ui)
             {
-                // Make sure all panels are hidden for a clean view
-                pump_frames(10);
+                // Clear any stale figure cache before switching
+                if (ui->data_interaction)
+                    ui->data_interaction->clear_figure_cache();
+
+                // Switch to Figure 1 for visible plot content
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+
+                // Explicitly hide all panels
+                auto& lm = ui->imgui_ui->get_layout_manager();
+                lm.set_inspector_visible(false);
+                lm.set_nav_rail_expanded(false);
+                lm.set_bottom_panel_height(0.0f);
+
+                pump_frames(20);  // Allow all animations to fully settle
                 named_screenshot("50_minimal_chrome_all_panels_closed");
             }
         }

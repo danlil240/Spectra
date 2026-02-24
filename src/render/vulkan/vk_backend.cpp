@@ -1533,6 +1533,11 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     {
         src_image  = offscreen_.color_image;
         src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        // Clamp to actual offscreen extent to prevent out-of-bounds copy
+        if (width > offscreen_.extent.width)
+            width = offscreen_.extent.width;
+        if (height > offscreen_.extent.height)
+            height = offscreen_.extent.height;
     }
     else
     {
@@ -1540,7 +1545,16 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
             return false;
         src_image = active_window_->swapchain.images[active_window_->swapchain.current_image_index];
         src_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        // Clamp to actual swapchain extent to prevent out-of-bounds copy
+        // (caller may pass stale dimensions from before a resize)
+        if (width > active_window_->swapchain.extent.width)
+            width = active_window_->swapchain.extent.width;
+        if (height > active_window_->swapchain.extent.height)
+            height = active_window_->swapchain.extent.height;
     }
+
+    if (width == 0 || height == 0)
+        return false;
 
     if (src_image == VK_NULL_HANDLE)
         return false;

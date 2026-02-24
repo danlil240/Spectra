@@ -691,7 +691,38 @@ void register_standard_commands(const CommandBindings& b)
         "Cycle Series Selection",
         [&]()
         {
-            // Placeholder for series cycling
+            if (!active_figure)
+                return;
+            // Find the first non-empty 2D axes
+            Axes* target_ax   = nullptr;
+            int   target_idx  = -1;
+            for (size_t i = 0; i < active_figure->axes().size(); ++i)
+            {
+                auto* ax = active_figure->axes_mut()[i].get();
+                if (ax && !ax->series().empty())
+                {
+                    target_ax  = ax;
+                    target_idx = static_cast<int>(i);
+                    break;
+                }
+            }
+            if (!target_ax || target_ax->series().empty())
+                return;
+
+            // Determine next series index
+            auto& sel = imgui_ui->selection_context();
+            int   next_s_idx = 0;
+            if (sel.type == ui::SelectionType::Series && sel.axes == target_ax
+                && sel.series_index >= 0)
+            {
+                next_s_idx = (sel.series_index + 1)
+                             % static_cast<int>(target_ax->series().size());
+            }
+
+            auto* s = target_ax->series()[next_s_idx].get();
+            imgui_ui->select_series(
+                active_figure, target_ax, target_idx, s, next_s_idx);
+            imgui_ui->set_inspector_section_series();
         },
         "Tab",
         "Series");

@@ -32,6 +32,8 @@ The binary is at `build/tests/spectra_qa_agent`.
 
 ## Running
 
+Every agent must run the test at least once to serve it's needs!!
+
 ### Basic run (60s, random seed)
 ```bash
 ./build/tests/spectra_qa_agent --duration 60 --output-dir /tmp/spectra_qa

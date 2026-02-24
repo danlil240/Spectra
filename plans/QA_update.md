@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-02-23 | Session seeds: 42, 12345
+> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136
 
 ---
 
@@ -40,6 +40,162 @@
 - **Fix applied:** (a) `backtrace()` + `backtrace_symbols_fd()` on Linux for stack dump. (b) `g_last_action` global updated before each fuzz action and scenario. (c) Crash report written to `qa_crash.txt` in output dir. (d) Enhanced crash banner with seed, last action, and reproduce command.
 - **Verified:** Crash handler now outputs full stack trace + last action context (e.g., `fuzz:MouseClick (frame 245)`).
 - **Priority:** P0 — ✅ Done
+
+### 15. ~~Scenario Isolation — Heavyweight Figures Pollute Subsequent Scenarios~~ ✅ FIXED
+- **Problem (Session 2, seed 99999):** `massive_datasets` scenario creates a figure with 1M + 5×100K points. This figure stays active during all subsequent scenarios (`undo_redo_stress`, `animation_stress`, etc.), causing 160ms+ avg `cmd_record` time and 3–6 second frame spikes during undo/redo. Only 4/10 scenarios completed within the 90s wall clock.
+- **Root cause:** Scenarios that don't create their own figures inherit the active figure from the previous scenario. After `massive_datasets`, the 1.5M-point figure is still the active tab.
+- **Fix applied:** Added `ensure_lightweight_active_figure()` helper that creates a small 50-point figure and switches to it. Called at the start of 7 scenarios: `undo_redo_stress`, `animation_stress`, `input_storm`, `command_exhaustion`, `mode_switching`, `stress_docking`, `resize_stress`.
+- **Result:** avg frame time dropped from 254ms → 72.5ms (3.5× faster), max spike from 6708ms → 641ms (10.5× better), scenarios completed increased from 4/10 → 8/10, total frames doubled (615 → 1225).
+- **File modified:** `tests/qa/qa_agent.cpp`
+- **Priority:** P0 — ✅ Done
+
+---
+
+## Session 2 Findings (2026-02-23)
+
+### Run Summary
+
+| Metric | Before Fix (seed 99999) | After Fix (seed 99999) |
+|--------|------------------------|------------------------|
+| Frames | 615 | 1,225 |
+| Scenarios | 4/10 passed | 8/10 passed |
+| Warnings | 9 | 25 |
+| Errors | 0 | 0 |
+| Crash | Clean exit | Clean exit |
+| RSS growth | +58MB (193→251) | +121MB (168→289) |
+| Avg frame | 254ms | 72.5ms |
+| P99 frame | 366ms | 504ms |
+| Max frame | 6708ms | 641ms |
+| cmd_record avg | 160ms | 13.6ms |
+
+### New Issues Found & Fixed
+- **C2 — Vulkan device lost (seed 77777, frame 2544):** `readback_framebuffer()` used stale dimensions after resize → out-of-bounds `vkCmdCopyImageToBuffer`. **Fixed:** clamp to actual swapchain extent. See `QA_results.md` C2.
+- **C3 — SIGSEGV in Inspector (seed 77777, frame 2732):** Dangling `Series*` in `SelectionContext` after figure close. **Fixed:** added `ImGuiIntegration::clear_figure_cache()` wired to figure-closed callback. See `QA_results.md` C3.
+- **V2 — Vulkan validation error:** Descriptor image layout mismatch in multi-window — see `QA_results.md` V2. Still open.
+- **Memory growth:** +247MB over 90s session (168→415MB) — needs investigation (M1)
+- **imgui_build bottleneck:** After fixing cmd_record, `imgui_build` is now the dominant cost at avg=2.6ms (was 65ms before scenario isolation fix, now reasonable)
+- **`move_figure` warning:** "source window does not have figure" — figure ownership tracking issue during fuzzing (cosmetic, no crash)
+
+### Verification Run (seed 77777, after all fixes)
+
+| Metric | Value |
+|--------|-------|
+| Frames | 4,031 |
+| Scenarios | 10/10 passed |
+| Warnings | 76 |
+| Errors | 0 |
+| Critical | 0 |
+| Crashes | 0 |
+| RSS growth | +247MB (168→415MB) |
+| Avg frame | 19.4ms (~52 FPS) |
+| P95 frame | 21.5ms |
+| Max frame | 301ms |
+| cmd_record avg | 986μs |
+
+---
+
+## Session 3 Findings (2026-02-23)
+
+### Run Summary (seed 1771883518, 120s)
+
+| Metric | Value |
+|--------|-------|
+| Frames | 3,034 |
+| Scenarios | 10/10 passed |
+| Warnings | 22 |
+| Errors | 0 |
+| Critical | 0 |
+| Crashes | 0 |
+| RSS growth | +96MB (170→266MB) |
+| Avg frame | 39.0ms |
+| P95 frame | 149.6ms |
+| Max frame | 463ms |
+
+### Analysis
+- **All session 2 fixes confirmed stable** — 0 crashes, 0 critical, 10/10 scenarios
+- **First ~2400 frames at 60 FPS with 0 hitches** — scenario isolation fix working perfectly
+- **Late-session degradation (frames 2400–3034):** `cmd_record` avg=74ms, 532/600 hitches. Caused by fuzzer's `LargeDataset` action creating 100K–500K point series that becomes the active figure. This is the known H1 issue, not a regression.
+- **Memory growth modest:** +96MB vs +247MB in session 2 — fewer heavy figures created by this seed's fuzz sequence
+- **No new bugs found**
+- **`move_figure` warning** still appears during fuzzing — cosmetic, no crash
+
+---
+
+## Session 4 Findings (2026-02-23)
+
+### Run Summary (seed 1771883726, 120s)
+
+| Metric | Value |
+|--------|-------|
+| Frames | 3,737 |
+| Scenarios | 10/10 passed |
+| Warnings | 79 |
+| Errors | 0 |
+| Critical | 0 |
+| Crashes | 0 |
+| RSS growth | +274MB (168→442MB) |
+| Avg frame | 29.2ms |
+| P95 frame | 118.0ms |
+| Max frame | 526ms |
+
+### Analysis
+- **All fixes stable across 4 consecutive sessions** — 0 crashes, 0 critical
+- **Steady-state fuzzing at 66 FPS** with only 3 hitches per 600-frame window
+- **Memory growth is the top remaining concern:** +274MB over 120s. The fuzzer creates many figures with `LargeDataset` actions (100K–500K points each) that accumulate. This is the known M1 issue — needs heap profiling to distinguish leaks from expected data growth.
+- **79 warnings** (mostly memory growth) — no frame_time warnings during steady-state, only during `massive_datasets` scenario and `LargeDataset` fuzz actions
+- **`move_figure` warning** still appears — cosmetic
+- **No new bugs found**
+
+---
+
+## Session 5 Findings (2026-02-24)
+
+### Run Summary (seed 1771883913, 120s)
+
+| Metric | Value |
+|--------|-------|
+| Frames | 1,360 |
+| Scenarios | 10/10 passed |
+| Warnings | 22 |
+| Errors | 0 |
+| Critical | 0 |
+| Crashes | 0 |
+| RSS growth | +68MB (168→236MB) |
+| Avg frame | 92.7ms |
+| P95 frame | 330ms |
+| Max frame | 569ms |
+
+### Analysis
+- **5 consecutive sessions with 0 crashes, 0 critical** — all fixes stable
+- **Low frame count (1360)** due to `command_exhaustion` + `massive_datasets` scenarios consuming most wall clock. `command_exhaustion` creates windows, exports PNGs, and exercises all commands — `imgui_build` avg=71ms during that scenario.
+- **Lowest memory growth yet:** +68MB — this seed's fuzz sequence created fewer heavy figures
+- **No new bugs found**
+- **Observation:** `command_exhaustion` scenario is disproportionately expensive. Consider adding a frame budget or reducing its command iteration count to leave more wall clock for fuzzing.
+
+---
+
+## Session 6 Findings (2026-02-24)
+
+### Run Summary (seed 1771884136, 120s)
+
+| Metric | Value |
+|--------|-------|
+| Frames | 1,368 |
+| Scenarios | 10/10 passed |
+| Warnings | 27 |
+| Errors | 0 |
+| Critical | 0 |
+| Crashes | 0 |
+| RSS growth | +124MB (168→292MB) |
+| Avg frame | 90.5ms |
+| P95 frame | 337ms |
+| Max frame | 444ms |
+
+### Analysis
+- **6 consecutive sessions with 0 crashes, 0 critical** — all fixes stable
+- **V2 Vulkan validation error reproduced** — descriptor image layout mismatch (`PRESENT_SRC_KHR` vs `UNDEFINED`) during multi-window rendering after `move_figure` failure. No crash, validation error only. Confirms V2 is a real but non-fatal issue.
+- **Same pattern as session 5:** low frame count (1368) due to `command_exhaustion` + `massive_datasets` dominating wall clock
+- **No new bugs found**
 
 ---
 

@@ -395,6 +395,35 @@ class QAAgent
         return app_->figure_registry().all_ids().back();
     }
 
+    // Ensure a lightweight figure is active so that heavy figures from
+    // previous scenarios don't dominate frame time.  Creates a small
+    // figure with 50 points and switches to it.
+    void ensure_lightweight_active_figure()
+    {
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x(50), y(50);
+        for (int i = 0; i < 50; ++i)
+        {
+            x[i] = static_cast<float>(i) * 0.1f;
+            y[i] = std::sin(x[i]);
+        }
+        ax.line(x, y).label("lightweight");
+        pump_frames(2);
+
+#ifdef SPECTRA_USE_IMGUI
+        // Switch to the new figure
+        auto* ui = app_->ui_context();
+        if (ui && ui->fig_mgr)
+        {
+            auto ids = app_->figure_registry().all_ids();
+            if (!ids.empty())
+                ui->fig_mgr->queue_switch(ids.back());
+            pump_frames(1);
+        }
+#endif
+    }
+
    private:
     // ── Scenarios ────────────────────────────────────────────────────────
     void register_scenarios()
@@ -438,6 +467,10 @@ class QAAgent
         scenarios_.push_back({"resize_stress",
             "30 rapid window resizes including extreme sizes",
             [](QAAgent& qa) { return qa.scenario_resize_stress(); }});
+
+        scenarios_.push_back({"3d_zoom_then_rotate",
+            "Zoom in/out on 3D scatter then verify orbit rotation still works",
+            [](QAAgent& qa) { return qa.scenario_3d_zoom_then_rotate(); }});
     }
 
     void list_scenarios()
@@ -579,6 +612,7 @@ class QAAgent
 
     bool scenario_undo_redo_stress()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
         if (!ui)
@@ -624,6 +658,7 @@ class QAAgent
 
     bool scenario_animation_stress()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
         if (!ui)
@@ -645,6 +680,7 @@ class QAAgent
 
     bool scenario_input_storm()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_GLFW
         auto* ui = app_->ui_context();
         if (!ui)
@@ -700,6 +736,7 @@ class QAAgent
 
     bool scenario_command_exhaustion()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
         if (!ui)
@@ -773,6 +810,7 @@ class QAAgent
 
     bool scenario_mode_switching()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
         if (!ui)
@@ -790,6 +828,7 @@ class QAAgent
 
     bool scenario_stress_docking()
     {
+        ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
         if (!ui)
@@ -824,6 +863,7 @@ class QAAgent
 
     bool scenario_resize_stress()
     {
+        ensure_lightweight_active_figure();
         // Resize via figure dimensions (the renderer adapts on next frame)
         auto ids = app_->figure_registry().all_ids();
         if (ids.empty())
@@ -838,6 +878,222 @@ class QAAgent
         }
 
         return true;
+    }
+
+    // ── 3D zoom-then-rotate interaction test ────────────────────────────
+    // Reproduces the bug where zooming (scroll) on a 3D scatter plot
+    // corrupts the active_axes_base_ pointer, causing subsequent orbit
+    // rotation (left-click drag) to fail or behave incorrectly.
+    bool scenario_3d_zoom_then_rotate()
+    {
+#ifdef SPECTRA_USE_GLFW
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return true;
+
+        // Create a 3D scatter figure
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot3d(1, 1, 1);
+        std::vector<float> x(200), y(200), z(200);
+        for (int i = 0; i < 200; ++i)
+        {
+            float t = static_cast<float>(i) * 0.1f;
+            x[i] = std::cos(t);
+            y[i] = std::sin(t);
+            z[i] = t * 0.1f;
+        }
+        ax.scatter3d(x, y, z).color(colors::blue).size(4.0f);
+        ax.auto_fit();
+        ax.title("Zoom-then-Rotate Test");
+        ax.camera().set_azimuth(45.0f).set_elevation(30.0f);
+
+        // Switch to this figure and let it render
+        auto all_ids = app_->figure_registry().all_ids();
+        if (!all_ids.empty() && ui->fig_mgr)
+        {
+            ui->fig_mgr->queue_switch(all_ids.back());
+        }
+        pump_frames(15);
+
+        // Get the viewport center for injecting events
+        const auto& vp = ax.viewport();
+        double cx = static_cast<double>(vp.x + vp.w * 0.5f);
+        double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+
+        bool all_passed = true;
+
+        // ── Test 1: Zoom then rotate ────────────────────────────────────
+        {
+            float az_before = ax.camera().azimuth;
+            float el_before = ax.camera().elevation;
+
+            // Zoom in (5 scroll events)
+            for (int i = 0; i < 5; ++i)
+            {
+                ui->input_handler.on_scroll(0.0, 1.0, cx, cy);
+                pump_frames(1);
+            }
+
+            // Zoom out (3 scroll events)
+            for (int i = 0; i < 3; ++i)
+            {
+                ui->input_handler.on_scroll(0.0, -1.0, cx, cy);
+                pump_frames(1);
+            }
+
+            // Camera angles should NOT have changed from zoom
+            float az_after_zoom = ax.camera().azimuth;
+            float el_after_zoom = ax.camera().elevation;
+            if (std::abs(az_after_zoom - az_before) > 0.01f
+                || std::abs(el_after_zoom - el_before) > 0.01f)
+            {
+                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
+                          "Zoom changed camera angles: az " + std::to_string(az_before)
+                          + " -> " + std::to_string(az_after_zoom)
+                          + ", el " + std::to_string(el_before)
+                          + " -> " + std::to_string(el_after_zoom));
+                all_passed = false;
+            }
+
+            // Now attempt orbit rotation via left-click drag
+            ui->input_handler.on_mouse_button(0, 1, 0, cx, cy);   // press
+            pump_frames(1);
+            // Drag 80px right and 40px down
+            for (int s = 1; s <= 10; ++s)
+            {
+                double dx = cx + 8.0 * s;
+                double dy = cy + 4.0 * s;
+                ui->input_handler.on_mouse_move(dx, dy);
+                pump_frames(1);
+            }
+            ui->input_handler.on_mouse_button(0, 0, 0, cx + 80.0, cy + 40.0);   // release
+            pump_frames(5);
+
+            float az_after_drag = ax.camera().azimuth;
+            float el_after_drag = ax.camera().elevation;
+            float az_delta = std::abs(az_after_drag - az_after_zoom);
+            float el_delta = std::abs(el_after_drag - el_after_zoom);
+
+            if (az_delta < 1.0f && el_delta < 1.0f)
+            {
+                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
+                          "Orbit rotation FAILED after zoom: az delta="
+                          + std::to_string(az_delta) + ", el delta="
+                          + std::to_string(el_delta)
+                          + " (expected significant change from 80px drag)");
+                all_passed = false;
+            }
+            else
+            {
+                fprintf(stderr, "[QA]   Test 1 OK: orbit after zoom works "
+                        "(az delta=%.1f, el delta=%.1f)\n", az_delta, el_delta);
+            }
+        }
+
+        // ── Test 2: Interleaved zoom + rotate (rapid alternation) ───────
+        {
+            ax.camera().set_azimuth(45.0f).set_elevation(30.0f);
+            pump_frames(5);
+
+            bool any_rotation_failed = false;
+            for (int round = 0; round < 5; ++round)
+            {
+                float az_pre = ax.camera().azimuth;
+                float el_pre = ax.camera().elevation;
+
+                // Zoom
+                ui->input_handler.on_scroll(0.0, (round % 2 == 0) ? 1.0 : -1.0, cx, cy);
+                pump_frames(1);
+
+                // Immediately orbit
+                ui->input_handler.on_mouse_button(0, 1, 0, cx, cy);
+                pump_frames(1);
+                double drag_dx = (round % 2 == 0) ? 60.0 : -60.0;
+                double drag_dy = (round % 2 == 0) ? 30.0 : -30.0;
+                for (int s = 1; s <= 5; ++s)
+                {
+                    double t = static_cast<double>(s) / 5.0;
+                    ui->input_handler.on_mouse_move(cx + drag_dx * t, cy + drag_dy * t);
+                    pump_frames(1);
+                }
+                ui->input_handler.on_mouse_button(0, 0, 0, cx + drag_dx, cy + drag_dy);
+                pump_frames(2);
+
+                float az_post = ax.camera().azimuth;
+                float el_post = ax.camera().elevation;
+                float az_d = std::abs(az_post - az_pre);
+                float el_d = std::abs(el_post - el_pre);
+
+                if (az_d < 0.5f && el_d < 0.5f)
+                {
+                    add_issue(IssueSeverity::Warning, "3d_zoom_rotate",
+                              "Round " + std::to_string(round)
+                              + ": orbit after zoom had no effect (az_d="
+                              + std::to_string(az_d) + ", el_d="
+                              + std::to_string(el_d) + ")");
+                    any_rotation_failed = true;
+                }
+            }
+
+            if (any_rotation_failed)
+            {
+                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
+                          "Interleaved zoom+rotate: some rounds failed");
+                all_passed = false;
+            }
+            else
+            {
+                fprintf(stderr, "[QA]   Test 2 OK: interleaved zoom+rotate works\n");
+            }
+        }
+
+        // ── Test 3: Extreme zoom then rotate ────────────────────────────
+        {
+            ax.camera().set_azimuth(0.0f).set_elevation(45.0f);
+            pump_frames(5);
+
+            // Extreme zoom in (20 scroll events)
+            for (int i = 0; i < 20; ++i)
+            {
+                ui->input_handler.on_scroll(0.0, 1.0, cx, cy);
+                pump_frames(1);
+            }
+
+            float az_pre = ax.camera().azimuth;
+            float el_pre = ax.camera().elevation;
+
+            // Orbit drag
+            ui->input_handler.on_mouse_button(0, 1, 0, cx, cy);
+            pump_frames(1);
+            for (int s = 1; s <= 8; ++s)
+            {
+                ui->input_handler.on_mouse_move(cx - 10.0 * s, cy + 5.0 * s);
+                pump_frames(1);
+            }
+            ui->input_handler.on_mouse_button(0, 0, 0, cx - 80.0, cy + 40.0);
+            pump_frames(5);
+
+            float az_d = std::abs(ax.camera().azimuth - az_pre);
+            float el_d = std::abs(ax.camera().elevation - el_pre);
+
+            if (az_d < 1.0f && el_d < 1.0f)
+            {
+                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
+                          "Extreme zoom then rotate FAILED: az_d="
+                          + std::to_string(az_d) + ", el_d=" + std::to_string(el_d));
+                all_passed = false;
+            }
+            else
+            {
+                fprintf(stderr, "[QA]   Test 3 OK: extreme zoom then rotate works "
+                        "(az_d=%.1f, el_d=%.1f)\n", az_d, el_d);
+            }
+        }
+
+        return all_passed;
+#else
+        return true;
+#endif
     }
 
     // ── Design Review ────────────────────────────────────────────────────
@@ -1036,11 +1292,11 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.light");
-                pump_frames(10);
+                pump_frames(30);  // D25 fix: allow theme transition to fully complete
                 named_screenshot("12_theme_light");
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
-                pump_frames(5);
+                pump_frames(30);
             }
         }
 
@@ -1060,9 +1316,15 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
-                ui->cmd_registry.execute("view.toggle_legend");
-                pump_frames(10);
-                named_screenshot("14_legend_visible");
+                // Use explicit state to avoid toggle drift (D24 fix)
+                Figure* active_fig = ui->fig_mgr->active_figure();
+                if (active_fig)
+                {
+                    active_fig->legend().visible = true;
+                    pump_frames(10);
+                    named_screenshot("14_legend_visible");
+                    active_fig->legend().visible = false;
+                }
             }
         }
 
@@ -1120,20 +1382,19 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> xg, yg, zv;
             int n = 30;
+            // D23 fix: surface() expects 1D unique grid vectors, not flat 2D
+            std::vector<float> xg(n), yg(n);
+            for (int i = 0; i < n; ++i)
+                xg[i] = -3.0f + 6.0f * i / (n - 1);
             for (int j = 0; j < n; ++j)
-            {
+                yg[j] = -3.0f + 6.0f * j / (n - 1);
+            std::vector<float> zv(n * n);
+            for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                {
-                    float x = -3.0f + 6.0f * i / (n - 1);
-                    float y = -3.0f + 6.0f * j / (n - 1);
-                    xg.push_back(x);
-                    yg.push_back(y);
-                    zv.push_back(std::sin(std::sqrt(x * x + y * y)));
-                }
-            }
-            ax.surface(xg, yg, zv);
+                    zv[j * n + i] = std::sin(std::sqrt(xg[i] * xg[i] + yg[j] * yg[j]));
+            ax.surface(xg, yg, zv).colormap(ColormapType::Viridis);
+            ax.auto_fit();
             ax.title("3D Surface");
             pump_frames(15);
             named_screenshot("19_3d_surface");
@@ -1152,6 +1413,7 @@ class QAAgent
                 z[i] = norm(rng_);
             }
             ax.scatter3d(x, y, z);
+            ax.auto_fit();
             ax.title("3D Scatter");
             pump_frames(15);
             named_screenshot("20_3d_scatter");
@@ -1165,21 +1427,19 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> xg, yg, zv;
             int n = 40;
+            std::vector<float> xg(n), yg(n);
+            for (int i = 0; i < n; ++i)
+                xg[i] = -4.0f + 8.0f * i / (n - 1);
             for (int j = 0; j < n; ++j)
-            {
+                yg[j] = -4.0f + 8.0f * j / (n - 1);
+            std::vector<float> zv(n * n);
+            for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                {
-                    float x = -4.0f + 8.0f * i / (n - 1);
-                    float y = -4.0f + 8.0f * j / (n - 1);
-                    xg.push_back(x);
-                    yg.push_back(y);
-                    zv.push_back(std::cos(x) * std::sin(y));
-                }
-            }
-            ax.surface(xg, yg, zv);
-            ax.title("cos(x)·sin(y) Surface");
+                    zv[j * n + i] = std::cos(xg[i]) * std::sin(yg[j]);
+            ax.surface(xg, yg, zv).colormap(ColormapType::Viridis);
+            ax.auto_fit();
+            ax.title("cos(x)\xC2\xB7sin(y) Surface");
             ax.xlabel("X Axis");
             ax.ylabel("Y Axis");
             ax.zlabel("Z Value");
@@ -1195,20 +1455,18 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> xg, yg, zv;
             int n = 30;
+            std::vector<float> xg(n), yg(n);
+            for (int i = 0; i < n; ++i)
+                xg[i] = -3.0f + 6.0f * i / (n - 1);
             for (int j = 0; j < n; ++j)
-            {
+                yg[j] = -3.0f + 6.0f * j / (n - 1);
+            std::vector<float> zv(n * n);
+            for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                {
-                    float x = -3.0f + 6.0f * i / (n - 1);
-                    float y = -3.0f + 6.0f * j / (n - 1);
-                    xg.push_back(x);
-                    yg.push_back(y);
-                    zv.push_back(std::sin(std::sqrt(x * x + y * y)));
-                }
-            }
-            ax.surface(xg, yg, zv);
+                    zv[j * n + i] = std::sin(std::sqrt(xg[i] * xg[i] + yg[j] * yg[j]));
+            ax.surface(xg, yg, zv).colormap(ColormapType::Plasma);
+            ax.auto_fit();
             ax.title("Side View (azimuth=0, elev=15)");
             ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
             pump_frames(15);
@@ -1219,20 +1477,18 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> xg, yg, zv;
             int n = 30;
+            std::vector<float> xg(n), yg(n);
+            for (int i = 0; i < n; ++i)
+                xg[i] = -3.0f + 6.0f * i / (n - 1);
             for (int j = 0; j < n; ++j)
-            {
+                yg[j] = -3.0f + 6.0f * j / (n - 1);
+            std::vector<float> zv(n * n);
+            for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                {
-                    float x = -3.0f + 6.0f * i / (n - 1);
-                    float y = -3.0f + 6.0f * j / (n - 1);
-                    xg.push_back(x);
-                    yg.push_back(y);
-                    zv.push_back(x * x - y * y);
-                }
-            }
-            ax.surface(xg, yg, zv);
+                    zv[j * n + i] = xg[i] * xg[i] - yg[j] * yg[j];
+            ax.surface(xg, yg, zv).colormap(ColormapType::Inferno);
+            ax.auto_fit();
             ax.title("Top-Down View (elev=85)");
             ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
             pump_frames(15);
@@ -1253,6 +1509,7 @@ class QAAgent
                 z[i] = t * 0.1f;
             }
             ax.line3d(x, y, z).label("Helix").color(colors::cyan);
+            ax.auto_fit();
             ax.title("3D Helix Line");
             ax.xlabel("X");
             ax.ylabel("Y");
@@ -1284,7 +1541,8 @@ class QAAgent
                 z2[i] = norm(rng_) - 2.0f;
             }
             ax.scatter3d(x2, y2, z2).label("Cluster B").color(colors::blue);
-            ax.title("3D Scatter — Two Clusters");
+            ax.auto_fit();
+            ax.title("3D Scatter -- Two Clusters");
             pump_frames(15);
             named_screenshot("25_3d_scatter_clusters");
         }
@@ -1293,20 +1551,18 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> xg, yg, zv;
             int n = 25;
+            std::vector<float> xg(n), yg(n);
+            for (int i = 0; i < n; ++i)
+                xg[i] = -2.0f + 4.0f * i / (n - 1);
             for (int j = 0; j < n; ++j)
-            {
+                yg[j] = -2.0f + 4.0f * j / (n - 1);
+            std::vector<float> zv(n * n);
+            for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                {
-                    float x = -2.0f + 4.0f * i / (n - 1);
-                    float y = -2.0f + 4.0f * j / (n - 1);
-                    xg.push_back(x);
-                    yg.push_back(y);
-                    zv.push_back(std::exp(-(x * x + y * y)));
-                }
-            }
-            ax.surface(xg, yg, zv);
+                    zv[j * n + i] = std::exp(-(xg[i] * xg[i] + yg[j] * yg[j]));
+            ax.surface(xg, yg, zv).colormap(ColormapType::Coolwarm);
+            ax.auto_fit();
             ax.title("Orthographic Projection");
             ax.camera().set_projection(Camera::ProjectionMode::Orthographic);
             ax.camera().set_ortho_size(8.0f);
@@ -1508,17 +1764,19 @@ class QAAgent
             ax.ylabel("Value");
             pump_frames(10);
 
+            // Explicitly enable grid, legend, and crosshair (avoid toggle drift)
+            ax.grid(true);
+            fig.legend().visible = true;
             auto* ui = app_->ui_context();
             if (ui)
             {
-                ui->cmd_registry.execute("view.toggle_grid");
-                ui->cmd_registry.execute("view.toggle_legend");
-                ui->cmd_registry.execute("view.toggle_crosshair");
+                if (ui->data_interaction)
+                    ui->data_interaction->set_crosshair(true);
                 pump_frames(10);
                 named_screenshot("34_multi_series_full_chrome");
-                ui->cmd_registry.execute("view.toggle_crosshair");
-                ui->cmd_registry.execute("view.toggle_legend");
-                ui->cmd_registry.execute("view.toggle_grid");
+                // Restore defaults
+                if (ui->data_interaction)
+                    ui->data_interaction->set_crosshair(false);
                 pump_frames(5);
             }
         }

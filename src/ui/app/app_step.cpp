@@ -521,18 +521,20 @@ void App::init_runtime()
         }
 
         // Clear cached figure/axes pointers when a figure is closed,
-        // preventing dangling pointer dereference in legend/crosshair/input rendering.
+        // preventing dangling pointer dereference in legend/crosshair/input/inspector rendering.
         {
-            auto* di = rt.ui_ctx_ptr->data_interaction.get();
-            auto* ih = &rt.ui_ctx_ptr->input_handler;
+            auto* di       = rt.ui_ctx_ptr->data_interaction.get();
+            auto* ih       = &rt.ui_ctx_ptr->input_handler;
+            auto* imgui_ui = rt.ui_ctx_ptr->imgui_ui.get();
             fig_mgr.set_on_figure_closed(
-                [di, ih, this](FigureId id)
+                [di, ih, imgui_ui, this](FigureId id)
                 {
                     auto* fig = registry_.get(id);
                     if (fig)
                     {
                         if (di) di->clear_figure_cache(fig);
                         ih->clear_figure_cache(fig);
+                        if (imgui_ui) imgui_ui->clear_figure_cache(fig);
                     }
                 });
         }

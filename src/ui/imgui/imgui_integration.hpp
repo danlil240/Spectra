@@ -206,6 +206,23 @@ class ImGuiIntegration
     // Series selection from canvas click (updates inspector context)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
 
+    // Switch inspector to Series section (for programmatic series cycling)
+    void set_inspector_section_series() { active_section_ = Section::Series; }
+
+    // Get/set selection context for programmatic series cycling
+    ui::SelectionContext&       selection_context() { return selection_ctx_; }
+    const ui::SelectionContext& selection_context() const { return selection_ctx_; }
+
+    // Invalidate cached figure/axes/series pointers when a figure is destroyed,
+    // preventing dangling pointer dereference in inspector rendering.
+    void clear_figure_cache(Figure* fig)
+    {
+        if (selection_ctx_.figure == fig)
+            selection_ctx_.clear();
+        if (inspector_.context().figure == fig)
+            inspector_.set_context({});
+    }
+
    private:
     void apply_modern_style();
     void load_fonts();

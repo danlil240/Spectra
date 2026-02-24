@@ -159,6 +159,17 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         }
         if (!found)
         {
+            for (const auto& ax : figure_->all_axes())
+            {
+                if (ax.get() == active_axes_base_)
+                {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found)
+        {
             active_axes_base_ = nullptr;
             active_axes_      = nullptr;
             drag3d_axes_      = nullptr;

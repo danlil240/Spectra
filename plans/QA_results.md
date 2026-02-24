@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-02-23 | Session seeds: 42, 12345
+> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136
 
 ---
 
@@ -35,16 +35,28 @@
 - **Status:** ✅ Fixed
 
 ### C2: Vulkan Device Lost During Multi-Window Fuzzing
-- **Observed:** After ~1429 frames of fuzzing with seed 42, `VulkanBackend::begin_frame()` throws `Vulkan device lost`. Happens when fuzzing creates a second window and exercises `SwitchTab`/`MouseClick` across windows.
-- **Trigger:** Vulkan validation error `vkCmdCopyImageToBuffer(): pRegions[0].imageOffset.y (0) + extent.height (1060) exceeds imageSubresource height extent (720)` — readback uses stale dimensions after window resize.
-- **Investigation needed:**
-  1. `readback_framebuffer()` uses swapchain dimensions that may be stale after resize
-  2. Multi-window context switching may leave Vulkan state inconsistent
-- **Suspected files:**
-  - `src/render/vulkan/vk_backend.cpp` — `readback_framebuffer()`, `begin_frame()`
-  - `src/ui/app/session_runtime.cpp` — multi-window tick ordering
-- **Priority:** **P1** — only triggered by aggressive multi-window fuzzing
-- **Status:** 🔴 Open
+- **Observed:** After ~1429 frames of fuzzing with seed 42, `VulkanBackend::begin_frame()` throws `Vulkan device lost`. Reproduced with seed 77777 at frame 2544.
+- **Trigger:** Vulkan validation error `vkCmdCopyImageToBuffer(): pRegions[0].imageOffset.y (0) + extent.height (933) exceeds imageSubresource height extent (720)` — `readback_framebuffer()` uses caller-provided dimensions that are stale after a window resize.
+- **Root cause:** `readback_framebuffer()` accepted `width`/`height` from the caller without clamping to the actual swapchain image extent. After a resize, the swapchain extent shrinks but the caller still passes the old (larger) dimensions, causing an out-of-bounds image copy that triggers device lost.
+- **Fix applied:** Clamp `width` and `height` to `active_window_->swapchain.extent` (windowed) or `offscreen_.extent` (headless) at the start of `readback_framebuffer()`. Also added early return for zero-size dimensions.
+- **Files modified:**
+  - `src/render/vulkan/vk_backend.cpp` — `readback_framebuffer()` dimension clamping
+- **Verified:** seed 77777 now runs 4031 frames (90s) with 0 critical issues. Previously crashed at frame 2544.
+- **Priority:** **P1**
+- **Status:** ✅ Fixed
+
+### C3: SIGSEGV in Inspector::draw_series_properties() — Dangling Series Pointer
+- **Observed (Session 2, seed 77777):** SIGSEGV in `__dynamic_cast` called from `Inspector::draw_series_properties()` at frame 2732 during `fuzz:KeyPress`.
+- **Root cause:** `SelectionContext` holds raw `Series*` pointer. When a figure is closed during fuzzing, the `Series` is destroyed but the `Inspector`'s `SelectionContext` still references it. The null check passes (dangling pointer is non-null), then `dynamic_cast` on the destroyed object causes SIGSEGV. Same class of bug as C1.
+- **Fix applied:**
+  1. Added `ImGuiIntegration::clear_figure_cache(Figure*)` that clears both `selection_ctx_` and `inspector_.context()` when the figure matches.
+  2. Wired it into the existing `FigureManager::set_on_figure_closed()` callback in `app_step.cpp`.
+- **Files modified:**
+  - `src/ui/imgui/imgui_integration.hpp` — added `clear_figure_cache(Figure*)`
+  - `src/ui/app/app_step.cpp` — wired `imgui_ui->clear_figure_cache(fig)` into figure-closed callback
+- **Verified:** seed 77777 now runs full 90s (4031 frames) with 0 crashes.
+- **Priority:** **P0**
+- **Status:** ✅ Fixed
 
 ---
 
@@ -109,6 +121,21 @@
 
 ## MEDIUM — Vulkan
 
+### V2: Descriptor Image Layout Mismatch in Multi-Window
+- **Observed (Session 2, seed 99999):** Vulkan validation error during `vkQueueSubmit` — `vkCmdDraw` expects swapchain image in `VK_IMAGE_LAYOUT_PRESENT_SRC_KHR` but actual layout is `VK_IMAGE_LAYOUT_UNDEFINED`.
+- **Context:** Occurs after `move_figure` fails with "source window does not have figure". The error appears when rendering to a newly created window whose swapchain images haven't been presented yet.
+- **Root cause hypothesis:** The render pass `initialLayout = VK_IMAGE_LAYOUT_UNDEFINED` correctly handles the first render. But a **descriptor** (likely ImGui font atlas or a texture sampler) references a swapchain image from another window that is still in UNDEFINED layout. This could happen if ImGui's internal texture references get confused across window contexts.
+- **Fix options:**
+  1. Ensure each window's ImGui context only references its own swapchain resources
+  2. Add explicit image layout transition barrier before first render to a new window
+  3. Validate `move_figure` source window ownership before attempting the move
+- **Suspected files:**
+  - `src/render/vulkan/vk_backend.cpp` — multi-window begin_frame/end_frame
+  - `src/ui/window/window_manager.cpp` — `move_figure()` validation
+  - `src/ui/imgui/imgui_integration.cpp` — per-window ImGui context setup
+- **Priority:** **P2** — validation error only, no crash observed
+- **Status:** 🟡 Open
+
 ### V1: Swapchain Recreation Storm
 - **Observed:** Logs show rapid cascading swapchain recreations:
   ```
@@ -163,12 +190,14 @@
 | ID | Category | Priority | Status | Owner |
 |----|----------|----------|--------|-------|
 | C1 | Crash | P0 | ✅ Fixed | — |
-| C2 | Crash/Vulkan | P1 | 🔴 Open | — |
+| C2 | Crash/Vulkan | P1 | ✅ Fixed | — |
+| C3 | Crash | P0 | ✅ Fixed | — |
 | H1 | Performance | P1 | 🟡 Open | — |
 | H2 | Performance | N/A | ✅ Not a bug | — |
 | H3 | Performance | P2 | 🟡 Open | — |
 | M1 | Memory | P1 | 🟡 Open | — |
 | V1 | Vulkan | P2 | 🟡 Open | — |
+| V2 | Vulkan | P2 | 🟡 Open | — |
 | Q1 | Code Quality | P3 | 🟡 Open | — |
 | O1 | Optimization | P2 | 🟡 Open | — |
 | O2 | Optimization | P3 | 🟡 Open | — |

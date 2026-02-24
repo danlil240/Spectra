@@ -171,6 +171,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         wctx->ui_ctx->imgui_ui->render(*vk);
                         vk->end_render_pass();
                         vk->end_frame();
+
+                        // Wait for GPU before the next window overwrites shared buffers.
+                        if (window_mgr->windows().size() > 1)
+                            vkQueueWaitIdle(vk->graphics_queue());
                     }
                     else
                     {
@@ -225,6 +229,14 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_render");
                 win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);
             }
+
+            // Wait for GPU to finish this window's work before rendering the
+            // next window.  The Renderer uses shared host-visible buffers
+            // (frame UBO, text vertex buffer, overlay buffers) that would be
+            // overwritten by the next window while the GPU is still reading
+            // them, causing cross-window content blinking / swapping.
+            if (window_mgr->windows().size() > 1)
+                vkQueueWaitIdle(vk->graphics_queue());
 
             // Sync active figure back to WindowContext so the next frame
             // reads the correct figure (tab switch via FigureManager updates

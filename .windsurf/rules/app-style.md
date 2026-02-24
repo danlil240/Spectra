@@ -12,3 +12,4 @@ trigger: always_on
 - Must be C++20
 - Must be thread-safe
 - Must be modern looking 2026 UI
+

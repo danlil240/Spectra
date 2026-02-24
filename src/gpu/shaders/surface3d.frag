@@ -37,6 +37,54 @@ layout(location = 2) in vec3 v_view_dir;
 
 layout(location = 0) out vec4 out_color;
 
+// Colormap lookup: dash_count encodes colormap type (1=Viridis..7=Grayscale)
+// dash_pattern[0] = z_min, dash_pattern[1] = z_max
+vec3 apply_colormap(int cm_type, float t) {
+    t = clamp(t, 0.0, 1.0);
+    switch (cm_type) {
+        case 1: { // Viridis: dark purple -> teal -> yellow
+            float r = clamp(-0.35 + 1.7*t - 0.9*t*t + 0.55*t*t*t, 0.0, 1.0);
+            float g = clamp(-0.05 + 0.7*t + 0.3*t*t, 0.0, 1.0);
+            float b = clamp(0.33 + 0.7*t - 1.6*t*t + 0.6*t*t*t, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 2: { // Plasma: dark blue -> magenta -> yellow
+            float r = clamp(0.05 + 2.2*t - 1.3*t*t, 0.0, 1.0);
+            float g = clamp(-0.2 + 1.2*t, 0.0, 1.0);
+            float b = clamp(0.53 + 0.5*t - 2.0*t*t + 1.0*t*t*t, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 3: { // Inferno: black -> red -> yellow
+            float r = clamp(-0.1 + 2.5*t - 1.5*t*t, 0.0, 1.0);
+            float g = clamp(-0.3 + 1.5*t, 0.0, 1.0);
+            float b = clamp(0.1 + 2.0*t - 3.5*t*t + 1.5*t*t*t, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 4: { // Magma: black -> purple -> orange -> white
+            float r = clamp(-0.05 + 2.0*t - 0.8*t*t, 0.0, 1.0);
+            float g = clamp(-0.3 + 1.3*t + 0.1*t*t, 0.0, 1.0);
+            float b = clamp(0.15 + 1.5*t - 2.5*t*t + 1.5*t*t*t, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 5: { // Jet: blue -> cyan -> green -> yellow -> red
+            float r = clamp(1.5 - abs(t - 0.75) * 4.0, 0.0, 1.0);
+            float g = clamp(1.5 - abs(t - 0.5) * 4.0, 0.0, 1.0);
+            float b = clamp(1.5 - abs(t - 0.25) * 4.0, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 6: { // Coolwarm: blue -> white -> red
+            float r = clamp(0.23 + 1.5*t - 0.7*t*t, 0.0, 1.0);
+            float g = clamp(0.3 + 1.2*t - 1.5*t*t, 0.0, 1.0);
+            float b = clamp(0.75 - 0.5*t - 0.2*t*t, 0.0, 1.0);
+            return vec3(r, g, b);
+        }
+        case 7: // Grayscale
+            return vec3(t);
+        default:
+            return vec3(0.5);
+    }
+}
+
 void main() {
     // Discard fragments outside the bounding box
     const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
@@ -49,6 +97,16 @@ void main() {
     // Ensure normal faces the viewer (for back-face rendering)
     if (dot(N, V) < 0.0) {
         N = -N;
+    }
+
+    // Determine base color: use colormap if dash_count > 0, else push constant color
+    vec3 base_color = color.rgb;
+    if (dash_count > 0) {
+        float z_min = dash_pattern[0];
+        float z_max = dash_pattern[1];
+        float z_range = z_max - z_min;
+        float t = (z_range > 0.0001) ? (v_world_pos.z - z_min) / z_range : 0.5;
+        base_color = apply_colormap(dash_count, t);
     }
 
     // Decode material properties from push constants:
@@ -85,7 +143,7 @@ void main() {
 
     // Combine lighting
     float lighting = ambient + diffuse + fill;
-    vec3 lit_color = color.rgb * lighting + vec3(specular);
+    vec3 lit_color = base_color * lighting + vec3(specular);
 
     // Clamp to valid range
     lit_color = clamp(lit_color, 0.0, 1.0);

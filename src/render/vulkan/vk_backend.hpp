@@ -72,6 +72,12 @@ class VulkanBackend : public Backend
 
     bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) override;
 
+    // Request a framebuffer capture during the next end_frame().
+    // The copy happens after GPU submit but before present, when the
+    // swapchain image content is guaranteed valid.
+    void request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height);
+    bool has_pending_capture() const { return pending_capture_.buffer != nullptr; }
+
     uint32_t swapchain_width() const override;
     uint32_t swapchain_height() const override;
 
@@ -239,6 +245,17 @@ class VulkanBackend : public Backend
     uint32_t                  ubo_next_offset_    = 0;     // next write offset in dynamic UBO
     uint32_t                  ubo_bound_offset_   = 0;     // offset of last-written slot (for bind)
     static constexpr uint32_t UBO_MAX_SLOTS       = 64;
+
+    // Pending framebuffer capture (filled by end_frame between submit and present)
+    struct PendingCapture
+    {
+        uint8_t* buffer = nullptr;
+        uint32_t width  = 0;
+        uint32_t height = 0;
+        bool     done   = false;
+    };
+    PendingCapture pending_capture_;
+    bool           do_capture_before_present();
 
     // Current frame state
     VkPipelineLayout current_pipeline_layout_ = VK_NULL_HANDLE;

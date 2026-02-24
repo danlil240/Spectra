@@ -42,8 +42,9 @@ struct WindowContext
 
     // Per-window command buffers (indexed by swapchain image or 1 for headless)
     std::vector<VkCommandBuffer> command_buffers;
-    VkCommandBuffer              current_cmd         = VK_NULL_HANDLE;
-    uint32_t                     current_image_index = 0;
+    VkCommandBuffer              current_cmd              = VK_NULL_HANDLE;
+    uint32_t                     current_image_index      = 0;
+    uint32_t                     last_presented_image_idx = 0;
 
     // Per-window sync objects
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;

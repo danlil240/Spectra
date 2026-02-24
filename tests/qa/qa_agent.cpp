@@ -23,6 +23,7 @@
 #include <spectra/series3d.hpp>
 
 #include "render/backend.hpp"
+#include "render/vulkan/vk_backend.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
@@ -1102,7 +1103,7 @@ class QAAgent
 
     std::string named_screenshot(const std::string& name)
     {
-        auto* backend = app_->backend();
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
         if (!backend)
             return "";
 
@@ -1112,8 +1113,10 @@ class QAAgent
             return "";
 
         std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
-        if (!backend->readback_framebuffer(pixels.data(), w, h))
-            return "";
+        // Request capture during next end_frame (between GPU submit and present)
+        // so the swapchain image content is guaranteed valid.
+        backend->request_framebuffer_capture(pixels.data(), w, h);
+        pump_frames(1);   // triggers capture in end_frame
 
         std::string dir = opts_.output_dir + "/design";
         std::filesystem::create_directories(dir);
@@ -1142,6 +1145,7 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             fig.subplot(1, 1, 1);
+
             pump_frames(10);
             named_screenshot("02_empty_axes");
         }
@@ -1164,6 +1168,7 @@ class QAAgent
             ax.title("Multi-Series Plot");
             ax.xlabel("Time (s)");
             ax.ylabel("Amplitude");
+
             pump_frames(10);
             named_screenshot("03_multi_series_with_labels");
         }
@@ -1180,6 +1185,7 @@ class QAAgent
             }
             ax.line(x, y).label("Damped oscillation");
             ax.title("Dense Data (10K points)");
+
             pump_frames(10);
             named_screenshot("04_dense_data_10k");
         }
@@ -1202,6 +1208,7 @@ class QAAgent
                     ax.title("Subplot " + std::to_string(r * 2 + c + 1));
                 }
             }
+
             pump_frames(10);
             named_screenshot("05_subplot_2x2_grid");
         }
@@ -1219,6 +1226,7 @@ class QAAgent
             }
             ax.scatter(x, y).label("Normal distribution");
             ax.title("Scatter Plot (2K points)");
+
             pump_frames(10);
             named_screenshot("06_scatter_2k_normal");
         }
@@ -1305,7 +1313,16 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
-                ui->cmd_registry.execute("view.toggle_grid");
+                // Use explicit state to avoid toggle drift (D26 fix)
+                Figure* active_fig = ui->fig_mgr->active_figure();
+                if (active_fig)
+                {
+                    for (auto& ax_ptr : active_fig->axes())
+                    {
+                        if (ax_ptr)
+                            ax_ptr->grid(true);
+                    }
+                }
                 pump_frames(10);
                 named_screenshot("13_grid_enabled");
             }
@@ -1333,10 +1350,17 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
-                ui->cmd_registry.execute("view.toggle_crosshair");
+                // Use explicit state to avoid toggle drift (D27 fix)
+                ui->data_interaction->set_crosshair(true);
+                // Also ensure legend is visible for this screenshot
+                Figure* active_fig = ui->fig_mgr->active_figure();
+                if (active_fig)
+                    active_fig->legend().visible = true;
                 pump_frames(10);
                 named_screenshot("15_crosshair_mode");
-                ui->cmd_registry.execute("view.toggle_crosshair");
+                ui->data_interaction->set_crosshair(false);
+                if (active_fig)
+                    active_fig->legend().visible = false;
                 pump_frames(5);
             }
         }
@@ -1396,6 +1420,7 @@ class QAAgent
             ax.surface(xg, yg, zv).colormap(ColormapType::Viridis);
             ax.auto_fit();
             ax.title("3D Surface");
+
             pump_frames(15);
             named_screenshot("19_3d_surface");
         }
@@ -1415,6 +1440,7 @@ class QAAgent
             ax.scatter3d(x, y, z);
             ax.auto_fit();
             ax.title("3D Scatter");
+
             pump_frames(15);
             named_screenshot("20_3d_scatter");
         }
@@ -1447,6 +1473,7 @@ class QAAgent
             ax.light_dir(1.0f, 2.0f, 1.5f);
             ax.show_bounding_box(true);
             ax.grid_planes(Axes3D::GridPlane::All);
+
             pump_frames(15);
             named_screenshot("21_3d_surface_labeled");
         }
@@ -1469,6 +1496,7 @@ class QAAgent
             ax.auto_fit();
             ax.title("Side View (azimuth=0, elev=15)");
             ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
+
             pump_frames(15);
             named_screenshot("22_3d_camera_side_view");
         }
@@ -1491,6 +1519,7 @@ class QAAgent
             ax.auto_fit();
             ax.title("Top-Down View (elev=85)");
             ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
+
             pump_frames(15);
             named_screenshot("23_3d_camera_top_down");
         }
@@ -1514,6 +1543,7 @@ class QAAgent
             ax.xlabel("X");
             ax.ylabel("Y");
             ax.zlabel("Z");
+
             pump_frames(15);
             named_screenshot("24_3d_line_helix");
         }
@@ -1543,6 +1573,7 @@ class QAAgent
             ax.scatter3d(x2, y2, z2).label("Cluster B").color(colors::blue);
             ax.auto_fit();
             ax.title("3D Scatter -- Two Clusters");
+
             pump_frames(15);
             named_screenshot("25_3d_scatter_clusters");
         }
@@ -1566,6 +1597,7 @@ class QAAgent
             ax.title("Orthographic Projection");
             ax.camera().set_projection(Camera::ProjectionMode::Orthographic);
             ax.camera().set_ortho_size(8.0f);
+
             pump_frames(15);
             named_screenshot("26_3d_orthographic");
         }
@@ -1586,6 +1618,7 @@ class QAAgent
             ax.title("Inspector Statistics Demo");
             ax.xlabel("Time (s)");
             ax.ylabel("Amplitude");
+
             pump_frames(10);
 
             auto* ui = app_->ui_context();
@@ -1726,6 +1759,7 @@ class QAAgent
             }
             ax2.line(x2, y2).label("cos(x)");
             ax2.title("Right Pane");
+
             pump_frames(10);
 
             auto* ui = app_->ui_context();
@@ -1762,6 +1796,7 @@ class QAAgent
             ax.title("Multi-Signal Overlay");
             ax.xlabel("Time (s)");
             ax.ylabel("Value");
+
             pump_frames(10);
 
             // Explicitly enable grid, legend, and crosshair (avoid toggle drift)

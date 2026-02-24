@@ -2282,6 +2282,16 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
                         pc.marker_size = surface->shininess();
                         pc.marker_type = 0;
                     }
+                    // Encode colormap in push constants for fragment shader:
+                    // dash_count = colormap type (1=Viridis..7=Grayscale, 0=None)
+                    // dash_pattern[0..1] = model-space Z range
+                    auto cm = surface->colormap_type();
+                    if (cm != ColormapType::None)
+                    {
+                        pc.dash_count      = static_cast<int>(cm);
+                        pc.dash_pattern[0] = -3.0f;   // box_half_size (model-space Z min)
+                        pc.dash_pattern[1] = 3.0f;    // box_half_size (model-space Z max)
+                    }
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.bind_index_buffer(gpu.index_buffer);

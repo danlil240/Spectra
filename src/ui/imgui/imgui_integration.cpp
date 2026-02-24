@@ -2220,9 +2220,9 @@ void ImGuiIntegration::draw_status_bar()
         // FPS with color coding
         float fps_val   = io.Framerate;
         auto  fps_color = ui::theme().success;
-        if (fps_val < 30.0f)
+        if (fps_val < 20.0f)
             fps_color = ui::theme().error;
-        else if (fps_val < 55.0f)
+        else if (fps_val < 45.0f)
             fps_color = ui::theme().warning;
 
         ImGui::PushStyleColor(ImGuiCol_Text,

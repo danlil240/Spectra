@@ -113,19 +113,29 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // BEFORE the user's on_frame callback can call clear_series().
     // Only set on axes that don't already have it (avoids per-frame
     // std::function allocation for the common case of unchanged axes).
-    auto wire_series_callbacks = [this](Figure* fig)
+    auto wire_series_callbacks = [this, &data_interaction](Figure* fig)
     {
         for (auto& axes_ptr : fig->axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
-                axes_ptr->set_series_removed_callback([this](const Series* s)
-                                                      { renderer_.notify_series_removed(s); });
+                axes_ptr->set_series_removed_callback(
+                    [this, &data_interaction](const Series* s)
+                    {
+                        renderer_.notify_series_removed(s);
+                        if (data_interaction)
+                            data_interaction->notify_series_removed(s);
+                    });
         }
         for (auto& axes_ptr : fig->all_axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
-                axes_ptr->set_series_removed_callback([this](const Series* s)
-                                                      { renderer_.notify_series_removed(s); });
+                axes_ptr->set_series_removed_callback(
+                    [this, &data_interaction](const Series* s)
+                    {
+                        renderer_.notify_series_removed(s);
+                        if (data_interaction)
+                            data_interaction->notify_series_removed(s);
+                    });
         }
     };
 

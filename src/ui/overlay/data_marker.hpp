@@ -32,6 +32,9 @@ class DataMarkerManager
     void remove(size_t marker_index);
     void clear();
 
+    // Remove all markers that reference the given series (call before series is destroyed)
+    void remove_for_series(const Series* series);
+
     // Toggle a data label: if a marker already exists at this (series, index),
     // remove it; otherwise add a new one. Returns true if a label was added.
     bool toggle_or_add(float data_x, float data_y, const Series* series, size_t index);

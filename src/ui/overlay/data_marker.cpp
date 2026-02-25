@@ -49,6 +49,14 @@ int DataMarkerManager::find_duplicate(const Series* series, size_t point_index) 
     return -1;
 }
 
+void DataMarkerManager::remove_for_series(const Series* series)
+{
+    markers_.erase(std::remove_if(markers_.begin(),
+                                   markers_.end(),
+                                   [series](const DataMarker& m) { return m.series == series; }),
+                   markers_.end());
+}
+
 void DataMarkerManager::remove(size_t marker_index)
 {
     if (marker_index < markers_.size())

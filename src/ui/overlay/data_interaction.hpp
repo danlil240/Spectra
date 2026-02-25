@@ -96,6 +96,15 @@ class DataInteraction
     void  set_snap_radius(float px);
     float snap_radius() const { return tooltip_.snap_radius(); }
 
+    // Clean up all references to a series that is about to be destroyed.
+    // Call this BEFORE the series is freed.
+    void notify_series_removed(const Series* s)
+    {
+        markers_.remove_for_series(s);
+        if (nearest_.series == s)
+            nearest_ = {};
+    }
+
     // Invalidate cached figure pointer (call when a figure is destroyed)
     void clear_figure_cache(Figure* fig = nullptr)
     {

@@ -146,6 +146,10 @@ class ImGuiIntegration
     void                  set_curve_editor(AnimationCurveEditor* ce) { curve_editor_ = ce; }
     AnimationCurveEditor* curve_editor() const { return curve_editor_; }
 
+    // Series clipboard (owned externally by App)
+    void             set_series_clipboard(SeriesClipboard* sc) { series_clipboard_ = sc; inspector_.set_series_clipboard(sc); }
+    SeriesClipboard* series_clipboard() const { return series_clipboard_; }
+
     // Mode transition (Agent 6 Week 11, owned externally by App)
     void            set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
     ModeTransition* mode_transition() const { return mode_transition_; }
@@ -203,8 +207,17 @@ class ImGuiIntegration
     bool is_curve_editor_visible() const { return show_curve_editor_; }
     void set_curve_editor_visible(bool v) { show_curve_editor_ = v; }
 
-    // Series selection from canvas click (updates inspector context)
+    // Series selection from canvas click (updates inspector context, toggles on re-click)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
+
+    // Select series without toggle behavior (for right-click context menu)
+    void select_series_no_toggle(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
+
+    // Add/toggle a series in multi-selection (shift-click)
+    void toggle_series_in_selection(Figure* fig, Axes* ax, AxesBase* ab, int ax_idx, Series* s, int s_idx);
+
+    // Deselect any currently selected series (canvas click on empty area)
+    void deselect_series();
 
     // Switch inspector to Series section (for programmatic series cycling)
     void set_inspector_section_series() { active_section_ = Section::Series; }

@@ -82,7 +82,13 @@ struct WindowUIContext
 
     TabDragController tab_drag_controller;
 
-    KnobManager knob_manager;
+    KnobManager      knob_manager;
+
+    // Per-window active figure pointer, updated each frame by the render loop.
+    // Used by command lambdas (register_standard_commands) so clipboard/view
+    // commands always reference the correct figure in secondary windows.
+    Figure*  per_window_active_figure    = nullptr;
+    FigureId per_window_active_figure_id = INVALID_FIGURE_ID;
 
     // Cached data range for zoom level computation.
     // Avoids scanning all series x_data with minmax_element every frame.

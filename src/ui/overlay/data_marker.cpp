@@ -2,6 +2,7 @@
 
     #include "data_marker.hpp"
 
+    #include <algorithm>
     #include <cmath>
     #include <cstdio>
     #include <imgui.h>
@@ -14,12 +15,38 @@ namespace spectra
 void DataMarkerManager::add(float data_x, float data_y, const Series* series, size_t index)
 {
     DataMarker m;
-    m.data_x      = data_x;
-    m.data_y      = data_y;
-    m.series      = series;
-    m.point_index = index;
-    m.color       = series ? series->color() : colors::white;
+    m.data_x       = data_x;
+    m.data_y       = data_y;
+    m.series       = series;
+    m.point_index  = index;
+    m.color        = series ? series->color() : colors::white;
+    m.series_label = series ? series->label() : std::string();
     markers_.push_back(m);
+}
+
+bool DataMarkerManager::toggle_or_add(float         data_x,
+                                      float         data_y,
+                                      const Series* series,
+                                      size_t        index)
+{
+    int existing = find_duplicate(series, index);
+    if (existing >= 0)
+    {
+        remove(static_cast<size_t>(existing));
+        return false;
+    }
+    add(data_x, data_y, series, index);
+    return true;
+}
+
+int DataMarkerManager::find_duplicate(const Series* series, size_t point_index) const
+{
+    for (size_t i = 0; i < markers_.size(); ++i)
+    {
+        if (markers_[i].series == series && markers_[i].point_index == point_index)
+            return static_cast<int>(i);
+    }
+    return -1;
 }
 
 void DataMarkerManager::remove(size_t marker_index)
@@ -70,8 +97,19 @@ void DataMarkerManager::draw(const Rect& viewport,
     if (markers_.empty())
         return;
 
-    const auto& colors = ui::ThemeManager::instance().colors();
-    ImDrawList* fg     = ImGui::GetForegroundDrawList();
+    const auto&  colors = ui::ThemeManager::instance().colors();
+    ImDrawList*  fg     = ImGui::GetForegroundDrawList();
+    ImFont*      font   = ImGui::GetFont();
+    const float  fs     = font->FontSize;
+    const float  fs_sm  = fs * 0.78f;           // small font for coordinates
+    const float  pad_x  = 8.0f;                 // horizontal padding inside box
+    const float  pad_y  = 5.0f;                 // vertical padding inside box
+    const float  arrow_h = 8.0f;                // height of the arrow triangle
+    const float  arrow_w = 8.0f;                // half-width of the arrow base
+    const float  corner_r = 6.0f;               // box corner radius
+    const float  dot_r    = 5.0f;               // marker dot radius
+    const float  ring_r   = 7.0f;               // outer ring radius
+    const float  gap      = 4.0f;               // gap between dot and arrow tip
 
     for (size_t i = 0; i < markers_.size(); ++i)
     {
@@ -92,45 +130,144 @@ void DataMarkerManager::draw(const Rect& viewport,
             || sy > viewport.y + viewport.h)
             continue;
 
-        // Outer ring (white/bg)
+        // ── Marker dot ──────────────────────────────────────────────────
         ImU32 ring_col = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, opacity));
-        fg->AddCircleFilled(ImVec2(sx, sy), 7.0f, ring_col);
+        fg->AddCircleFilled(ImVec2(sx, sy), ring_r, ring_col);
 
-        // Inner filled circle (series color)
         ImU32 fill_col =
             ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, opacity));
-        fg->AddCircleFilled(ImVec2(sx, sy), 5.0f, fill_col);
+        fg->AddCircleFilled(ImVec2(sx, sy), dot_r, fill_col);
 
-        // Border
         ImU32 border_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_default.r,
-                                                                 colors.border_default.g,
-                                                                 colors.border_default.b,
-                                                                 opacity * 0.5f));
-        fg->AddCircle(ImVec2(sx, sy), 7.0f, border_col, 0, 1.0f);
+                                                                  colors.border_default.g,
+                                                                  colors.border_default.b,
+                                                                  opacity * 0.4f));
+        fg->AddCircle(ImVec2(sx, sy), ring_r, border_col, 0, 1.0f);
 
-        // Small label showing coordinates
-        char label[48];
-        std::snprintf(label, sizeof(label), "(%.3g, %.3g)", m.data_x, m.data_y);
-        ImFont* font = ImGui::GetFont();
-        ImVec2  sz   = font->CalcTextSizeA(font->FontSize * 0.8f, 200.0f, 0.0f, label);
+        // ── Build label text ────────────────────────────────────────────
+        char coord_buf[64];
+        std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
 
-        float lx = sx + 10.0f;
-        float ly = sy - sz.y * 0.5f;
+        bool has_name = !m.series_label.empty();
 
-        // Background pill
-        ImU32 bg_col   = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_elevated.r,
-                                                             colors.bg_elevated.g,
-                                                             colors.bg_elevated.b,
-                                                             0.92f * opacity));
+        // Measure text sizes
+        ImVec2 name_sz = has_name
+                             ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
+                             : ImVec2(0, 0);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+
+        float text_w = std::max(name_sz.x, coord_sz.x);
+        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f);
+
+        float box_w = text_w + pad_x * 2.0f;
+        float box_h = text_h + pad_y * 2.0f;
+
+        // ── Position the box above the point (flip below if too close to top)
+        bool  flip   = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_cx = sx;   // centered horizontally on point
+        float box_top, box_bot, arrow_tip_y;
+
+        if (!flip)
+        {
+            // Box above point
+            arrow_tip_y = sy - ring_r - gap;
+            box_bot     = arrow_tip_y - arrow_h;
+            box_top     = box_bot - box_h;
+        }
+        else
+        {
+            // Box below point
+            arrow_tip_y = sy + ring_r + gap;
+            box_top     = arrow_tip_y + arrow_h;
+            box_bot     = box_top + box_h;
+        }
+
+        float box_left  = box_cx - box_w * 0.5f;
+        float box_right = box_cx + box_w * 0.5f;
+
+        // Clamp horizontally within viewport
+        if (box_left < viewport.x + 2.0f)
+        {
+            float shift = (viewport.x + 2.0f) - box_left;
+            box_left += shift;
+            box_right += shift;
+        }
+        if (box_right > viewport.x + viewport.w - 2.0f)
+        {
+            float shift = box_right - (viewport.x + viewport.w - 2.0f);
+            box_left -= shift;
+            box_right -= shift;
+        }
+
+        // ── Draw shadow ─────────────────────────────────────────────────
+        ImU32 shadow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(0, 0, 0, 0.18f * opacity));
+        fg->AddRectFilled(ImVec2(box_left + 1.0f, box_top + 2.0f),
+                          ImVec2(box_right + 1.0f, box_bot + 2.0f),
+                          shadow_col,
+                          corner_r);
+
+        // ── Draw box background ─────────────────────────────────────────
+        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_elevated.r,
+                                                              colors.bg_elevated.g,
+                                                              colors.bg_elevated.b,
+                                                              0.95f * opacity));
+        fg->AddRectFilled(ImVec2(box_left, box_top),
+                          ImVec2(box_right, box_bot),
+                          bg_col,
+                          corner_r);
+
+        // ── Draw arrow triangle connecting box to point ─────────────────
+        float acx = std::clamp(sx, box_left + corner_r, box_right - corner_r);
+        if (!flip)
+        {
+            fg->AddTriangleFilled(ImVec2(acx - arrow_w, box_bot),
+                                  ImVec2(acx + arrow_w, box_bot),
+                                  ImVec2(acx, arrow_tip_y),
+                                  bg_col);
+        }
+        else
+        {
+            fg->AddTriangleFilled(ImVec2(acx - arrow_w, box_top),
+                                  ImVec2(acx + arrow_w, box_top),
+                                  ImVec2(acx, arrow_tip_y),
+                                  bg_col);
+        }
+
+        // ── Draw box border ─────────────────────────────────────────────
+        ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_default.r,
+                                                                  colors.border_default.g,
+                                                                  colors.border_default.b,
+                                                                  0.35f * opacity));
+        fg->AddRect(ImVec2(box_left, box_top),
+                    ImVec2(box_right, box_bot),
+                    box_border,
+                    corner_r,
+                    0,
+                    1.0f);
+
+        // ── Color accent bar on left edge ───────────────────────────────
+        ImU32 accent_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, 0.9f * opacity));
+        fg->AddRectFilled(ImVec2(box_left, box_top + corner_r),
+                          ImVec2(box_left + 3.0f, box_bot - corner_r),
+                          accent_col);
+
+        // ── Draw text ───────────────────────────────────────────────────
         ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity));
+        ImU32 text_dim = ImGui::ColorConvertFloat4ToU32(ImVec4(
+            colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, opacity));
 
-        fg->AddRectFilled(ImVec2(lx - 4.0f, ly - 2.0f),
-                          ImVec2(lx + sz.x + 4.0f, ly + sz.y + 2.0f),
-                          bg_col,
-                          4.0f);
-        fg->AddText(font, font->FontSize * 0.8f, ImVec2(lx, ly), text_col, label);
+        float tx = box_left + pad_x;
+        float ty = box_top + pad_y;
+
+        if (has_name)
+        {
+            fg->AddText(font, fs_sm, ImVec2(tx, ty), text_col, m.series_label.c_str());
+            ty += name_sz.y + 3.0f;
+        }
+        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf);
     }
 }
 

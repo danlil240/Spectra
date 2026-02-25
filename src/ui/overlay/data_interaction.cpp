@@ -152,15 +152,67 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
     if (!active_axes_ || !last_figure_)
         return false;
 
-    // Left click: select the nearest series (for inspector editing)
-    if (button == 0 && nearest_.found)
+    // Left click: pin a data label on the nearest point + select the series
+    if (button == 0)
     {
-        // Use a generous snap radius for series selection — the user is clicking
-        // on lines/curves, not individual data points.  30px feels natural.
         constexpr float SELECT_SNAP_PX = 30.0f;
-        if (nearest_.distance_px <= SELECT_SNAP_PX && on_series_selected_)
+        if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {
-            // Find axes index and series index for the callback
+            // Toggle a persistent data label (datatip) on the clicked point
+            markers_.toggle_or_add(nearest_.data_x,
+                                   nearest_.data_y,
+                                   nearest_.series,
+                                   nearest_.point_index);
+
+            // Also fire series selection callback (for inspector)
+            if (on_series_selected_)
+            {
+                int ax_idx = 0;
+                for (auto& axes_ptr : last_figure_->axes())
+                {
+                    if (!axes_ptr)
+                    {
+                        ax_idx++;
+                        continue;
+                    }
+                    int s_idx = 0;
+                    for (auto& series_ptr : axes_ptr->series())
+                    {
+                        if (series_ptr.get() == nearest_.series)
+                        {
+                            on_series_selected_(last_figure_,
+                                                axes_ptr.get(),
+                                                ax_idx,
+                                                series_ptr.get(),
+                                                s_idx);
+                            return true;
+                        }
+                        s_idx++;
+                    }
+                    ax_idx++;
+                }
+            }
+            return true;
+        }
+        else if (on_series_deselected_)
+        {
+            // Clicked on canvas but not near any series — deselect
+            on_series_deselected_();
+            return true;
+        }
+    }
+
+    // Right click: select nearest series (for context menu) or remove marker
+    if (button == 1)
+    {
+        bool rc_selected_series = false;
+
+        // First try to select the nearest series so context menu has a target
+        // Use the right-click callback (no-toggle) so it always selects, never deselects
+        constexpr float RC_SELECT_SNAP_PX = 40.0f;
+        auto& rc_cb = on_series_rc_selected_ ? on_series_rc_selected_ : on_series_selected_;
+        if (nearest_.found && nearest_.distance_px <= RC_SELECT_SNAP_PX && rc_cb)
+        {
             int ax_idx = 0;
             for (auto& axes_ptr : last_figure_->axes())
             {
@@ -174,23 +226,21 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
                 {
                     if (series_ptr.get() == nearest_.series)
                     {
-                        on_series_selected_(last_figure_,
-                                            axes_ptr.get(),
-                                            ax_idx,
-                                            series_ptr.get(),
-                                            s_idx);
-                        return true;
+                        rc_cb(last_figure_,
+                              axes_ptr.get(),
+                              ax_idx,
+                              series_ptr.get(),
+                              s_idx);
+                        rc_selected_series = true;
+                        goto right_click_marker_check;
                     }
                     s_idx++;
                 }
                 ax_idx++;
             }
         }
-    }
 
-    // Right click: remove a marker if clicking near one
-    if (button == 1)
-    {
+        right_click_marker_check:
         int idx = markers_.hit_test(static_cast<float>(screen_x),
                                     static_cast<float>(screen_y),
                                     active_viewport_,
@@ -203,6 +253,11 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
             markers_.remove(static_cast<size_t>(idx));
             return true;
         }
+
+        // If we selected a series, consume the event so the input handler
+        // doesn't start zoom drag — the context menu will open via ImGui instead
+        if (rc_selected_series)
+            return true;
     }
 
     return false;

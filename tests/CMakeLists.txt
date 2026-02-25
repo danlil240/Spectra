@@ -123,6 +123,7 @@ set(SPECTRA_UNIT_TESTS
     test_text_renderer
     test_eigen_support
     test_series_stats
+    test_series_clipboard
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)

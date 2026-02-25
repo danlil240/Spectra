@@ -26,6 +26,10 @@ class Inspector
     // Set fonts (called once after font loading)
     void set_fonts(ImFont* body, ImFont* heading, ImFont* title);
 
+    // Series clipboard (not owned)
+    void set_series_clipboard(SeriesClipboard* sc) { clipboard_ = sc; }
+    SeriesClipboard* series_clipboard() const { return clipboard_; }
+
    private:
     void draw_figure_properties(Figure& fig);
     void draw_axes_properties(Axes& ax, int index);
@@ -39,7 +43,8 @@ class Inspector
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
 
-    SelectionContext ctx_;
+    SelectionContext  ctx_;
+    SeriesClipboard* clipboard_ = nullptr;
 
     // Collapsible section states
     bool sec_appearance_ = true;

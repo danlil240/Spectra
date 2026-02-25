@@ -246,6 +246,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // win_fs.active_figure_id but nothing wrote it back to wctx).
             wctx->active_figure_id = win_fs.active_figure_id;
 
+            // Keep per-window active figure in sync for command lambdas
+            // (clipboard, view commands registered via register_standard_commands).
+            wctx->ui_ctx->per_window_active_figure    = win_fs.active_figure;
+            wctx->ui_ctx->per_window_active_figure_id = win_fs.active_figure_id;
+
             // Sync back to the app-level frame_state for the initial window
             if (wctx == window_mgr->windows()[0])
             {

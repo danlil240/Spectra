@@ -19,6 +19,7 @@
     #include <imgui.h>
     #include <imgui_impl_glfw.h>
 
+    #include "ui/app/register_commands.hpp"
     #include "ui/figures/figure_manager.hpp"
     #include "ui/figures/figure_registry.hpp"
     #include "ui/imgui/imgui_integration.hpp"
@@ -1428,6 +1429,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_curve_editor(&ui->curve_editor);
     ui->imgui_ui->set_mode_transition(&ui->mode_transition);
     ui->imgui_ui->set_knob_manager(&ui->knob_manager);
+    ui->imgui_ui->set_series_clipboard(&shared_clipboard_);
     // (text_renderer wiring removed — plot text now rendered by Renderer::render_plot_text)
 
     // Wire TabDragController for drag-to-detach support
@@ -1485,13 +1487,27 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->input_handler.set_undo_manager(&ui->undo_mgr);
     ui->input_handler.set_axis_link_manager(&ui->axis_link_mgr);
 
-    // Wire series click-to-select
+    // Wire series click-to-select (left-click toggles selection)
     auto* imgui_raw = ui->imgui_ui.get();
     ui->data_interaction->set_on_series_selected(
         [imgui_raw](Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
         {
             if (imgui_raw)
                 imgui_raw->select_series(fig, ax, ax_idx, s, s_idx);
+        });
+    // Wire right-click series selection (no toggle — always selects for context menu)
+    ui->data_interaction->set_on_series_right_click_selected(
+        [imgui_raw](Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
+        {
+            if (imgui_raw)
+                imgui_raw->select_series_no_toggle(fig, ax, ax_idx, s, s_idx);
+        });
+    // Wire series deselect (left-click on empty canvas)
+    ui->data_interaction->set_on_series_deselected(
+        [imgui_raw]()
+        {
+            if (imgui_raw)
+                imgui_raw->deselect_series();
         });
     ui->data_interaction->set_axis_link_manager(&ui->axis_link_mgr);
 
@@ -1591,6 +1607,23 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             auto& vp = fig->axes()[0]->viewport();
             ui->input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
         }
+    }
+
+    // Initialize per-window active figure so command lambdas have a valid target.
+    ui->per_window_active_figure    = fig;
+    ui->per_window_active_figure_id = initial_figure_id;
+
+    // Register standard commands (clipboard, view, file, etc.) for this window.
+    // This is critical — without it, keyboard shortcuts (Ctrl+C/V/X, Delete, etc.)
+    // have no command handlers and silently fail in secondary windows.
+    {
+        CommandBindings cb;
+        cb.ui_ctx           = ui.get();
+        cb.registry         = registry_;
+        cb.active_figure    = &ui->per_window_active_figure;
+        cb.active_figure_id = &ui->per_window_active_figure_id;
+        cb.window_mgr       = this;
+        register_standard_commands(cb);
     }
 
     SPECTRA_LOG_INFO("imgui", "Created ImGui context for window " + std::to_string(wctx.id));
@@ -1856,6 +1889,24 @@ void WindowManager::glfw_key_callback(GLFWwindow* window,
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
     auto& shortcut_mgr  = ui.shortcut_mgr;
+
+    // Always let the shortcut manager try modifier-key combos (Ctrl+C/V/X etc.)
+    // and Delete, even when ImGui wants keyboard focus (e.g. inspector open).
+    // This ensures clipboard shortcuts work regardless of panel state.
+    constexpr int GLFW_PRESS_VAL_  = 1;
+    constexpr int GLFW_MOD_CTRL_   = 0x0002;
+    constexpr int GLFW_KEY_DELETE_ = 261;
+    constexpr int GLFW_KEY_ESC_    = 256;
+    bool is_app_shortcut = (action == GLFW_PRESS_VAL_)
+                           && ((mods & GLFW_MOD_CTRL_) != 0
+                               || key == GLFW_KEY_DELETE_
+                               || key == GLFW_KEY_ESC_);
+    if (is_app_shortcut && shortcut_mgr.on_key(key, action, mods))
+    {
+        if (prev_ctx)
+            ImGui::SetCurrentContext(prev_ctx);
+        return;
+    }
 
     if (imgui_ui && imgui_ui->wants_capture_keyboard())
     {

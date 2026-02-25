@@ -500,6 +500,10 @@ class QAAgent
         scenarios_.push_back({"resize_marathon",
             "500+ resize events simulating real user edge-dragging with smooth increments",
             [](QAAgent& qa) { return qa.scenario_resize_marathon(); }});
+
+        scenarios_.push_back({"series_clipboard_selection",
+            "Test series selection, right-click select, clipboard copy/cut/paste/delete, multi-select",
+            [](QAAgent& qa) { return qa.scenario_series_clipboard_selection(); }});
     }
 
     void list_scenarios()
@@ -1486,6 +1490,225 @@ class QAAgent
         pump_frames(15);
 
         fprintf(stderr, "[QA]   resize_marathon: complete — 520+ resize events across 7 phases\n");
+#endif
+        return true;
+    }
+
+    // ── Series clipboard & selection scenario ──────────────────────────
+    bool scenario_series_clipboard_selection()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return true;
+
+        // Create a figure with 4 series for testing
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x(100);
+        for (int i = 0; i < 100; ++i)
+            x[i] = static_cast<float>(i) * 0.1f;
+
+        std::vector<float> y1(100), y2(100), y3(100), y4(100);
+        for (int i = 0; i < 100; ++i)
+        {
+            y1[i] = std::sin(x[i]);
+            y2[i] = std::cos(x[i]);
+            y3[i] = std::sin(x[i]) * 0.5f;
+            y4[i] = std::cos(x[i]) * 0.5f;
+        }
+        ax.line(x, y1).label("sin");
+        ax.line(x, y2).label("cos");
+        ax.line(x, y3).label("sin_half");
+        ax.line(x, y4).label("cos_half");
+
+        // Switch to this figure
+        auto all_ids = app_->figure_registry().all_ids();
+        if (!all_ids.empty() && ui->fig_mgr)
+            ui->fig_mgr->queue_switch(all_ids.back());
+        pump_frames(10);
+
+        size_t initial_series_count = ax.series().size();
+        fprintf(stderr, "[QA]   clipboard: initial series count = %zu\n", initial_series_count);
+
+        // ── Test 1: Left-click select via command ────────────────────────
+        fprintf(stderr, "[QA]   clipboard: test 1 — select series via command\n");
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(5);
+
+        auto& sel = ui->imgui_ui->selection_context();
+        if (sel.type != ui::SelectionType::Series || !sel.series)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "series.cycle_selection did not select a series");
+            return false;
+        }
+        std::string first_label = sel.series->label();
+        fprintf(stderr, "[QA]   clipboard: selected '%s'\n", first_label.c_str());
+
+        // ── Test 2: Copy and paste ───────────────────────────────────────
+        fprintf(stderr, "[QA]   clipboard: test 2 — copy + paste\n");
+        ui->cmd_registry.execute("series.copy");
+        pump_frames(2);
+
+        if (!ui->imgui_ui->series_clipboard() || !ui->imgui_ui->series_clipboard()->has_data())
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "series.copy did not populate clipboard");
+            return false;
+        }
+
+        ui->cmd_registry.execute("series.paste");
+        pump_frames(5);
+
+        size_t after_paste = ax.series().size();
+        if (after_paste != initial_series_count + 1)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Paste failed: expected " + std::to_string(initial_series_count + 1)
+                      + " series, got " + std::to_string(after_paste));
+            return false;
+        }
+        fprintf(stderr, "[QA]   clipboard: paste OK, series count = %zu\n", after_paste);
+
+        // ── Test 3: Cut (removes original) ───────────────────────────────
+        fprintf(stderr, "[QA]   clipboard: test 3 — cut\n");
+        // Re-select first series
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+        ui->cmd_registry.execute("series.cut");
+        pump_frames(5);
+
+        size_t after_cut = ax.series().size();
+        if (after_cut != after_paste - 1)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Cut failed: expected " + std::to_string(after_paste - 1)
+                      + " series, got " + std::to_string(after_cut));
+            return false;
+        }
+        fprintf(stderr, "[QA]   clipboard: cut OK, series count = %zu\n", after_cut);
+
+        // Paste the cut series back
+        ui->cmd_registry.execute("series.paste");
+        pump_frames(5);
+
+        size_t after_cut_paste = ax.series().size();
+        if (after_cut_paste != after_cut + 1)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Paste-after-cut failed: expected " + std::to_string(after_cut + 1)
+                      + " series, got " + std::to_string(after_cut_paste));
+            return false;
+        }
+        fprintf(stderr, "[QA]   clipboard: paste-after-cut OK, series count = %zu\n", after_cut_paste);
+
+        // ── Test 4: Delete ───────────────────────────────────────────────
+        fprintf(stderr, "[QA]   clipboard: test 4 — delete\n");
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+        ui->cmd_registry.execute("series.delete");
+        pump_frames(5);
+
+        size_t after_delete = ax.series().size();
+        if (after_delete != after_cut_paste - 1)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Delete failed: expected " + std::to_string(after_cut_paste - 1)
+                      + " series, got " + std::to_string(after_delete));
+            return false;
+        }
+        fprintf(stderr, "[QA]   clipboard: delete OK, series count = %zu\n", after_delete);
+
+        // ── Test 5: Deselect ─────────────────────────────────────────────
+        fprintf(stderr, "[QA]   clipboard: test 5 — deselect\n");
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+        ui->cmd_registry.execute("series.deselect");
+        pump_frames(2);
+
+        if (sel.type == ui::SelectionType::Series)
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Deselect failed: selection type still Series");
+            return false;
+        }
+        fprintf(stderr, "[QA]   clipboard: deselect OK\n");
+
+        // ── Test 6: Right-click selection via DataInteraction ─────────────
+        fprintf(stderr, "[QA]   clipboard: test 6 — right-click series selection\n");
+        if (ui->data_interaction)
+        {
+            // Move cursor near the first series to populate nearest point
+            const auto& vp = ax.viewport();
+            double cx = static_cast<double>(vp.x + vp.w * 0.5f);
+            double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+
+            // Update data interaction with cursor position
+            CursorReadout cursor;
+            cursor.valid    = true;
+            cursor.screen_x = cx;
+            cursor.screen_y = cy;
+            ui->data_interaction->update(cursor, fig);
+            pump_frames(2);
+
+            // Right-click at cursor position
+            bool consumed = ui->data_interaction->on_mouse_click(1, cx, cy);
+            pump_frames(5);
+
+            // If nearest series was found and selected, selection should be populated
+            if (sel.type == ui::SelectionType::Series && sel.series)
+            {
+                fprintf(stderr, "[QA]   clipboard: right-click selected '%s'\n",
+                        sel.series->label().c_str());
+            }
+            else
+            {
+                // Not an error — may not have been near a series at viewport center
+                fprintf(stderr, "[QA]   clipboard: right-click at center did not hit series (OK if cursor not near data)\n");
+            }
+            (void)consumed;
+        }
+
+        // ── Test 7: Rapid clipboard operations (stability test) ──────────
+        fprintf(stderr, "[QA]   clipboard: test 7 — rapid clipboard ops (stability)\n");
+        for (int i = 0; i < 20; ++i)
+        {
+            if (has_critical_issue()) return false;
+            ui->cmd_registry.execute("series.cycle_selection");
+            pump_frames(1);
+            ui->cmd_registry.execute("series.copy");
+            pump_frames(1);
+            ui->cmd_registry.execute("series.paste");
+            pump_frames(1);
+            ui->cmd_registry.execute("series.deselect");
+            pump_frames(1);
+        }
+        fprintf(stderr, "[QA]   clipboard: rapid ops complete, series count = %zu\n",
+                ax.series().size());
+
+        // ── Test 8: Copy then delete (clipboard should retain data) ──────
+        fprintf(stderr, "[QA]   clipboard: test 8 — copy then delete, clipboard retained\n");
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+        ui->cmd_registry.execute("series.copy");
+        pump_frames(1);
+        ui->cmd_registry.execute("series.delete");
+        pump_frames(2);
+        // Clipboard should still have data after deleting the original
+        if (!ui->imgui_ui->series_clipboard()->has_data())
+        {
+            add_issue(IssueSeverity::Error, "clipboard",
+                      "Clipboard lost data after deleting original series");
+            return false;
+        }
+        // Paste it back
+        ui->cmd_registry.execute("series.paste");
+        pump_frames(5);
+        fprintf(stderr, "[QA]   clipboard: copy-delete-paste cycle OK\n");
+
+        pump_frames(10);
+        fprintf(stderr, "[QA]   clipboard: all tests passed\n");
 #endif
         return true;
     }

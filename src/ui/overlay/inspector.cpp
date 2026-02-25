@@ -13,6 +13,7 @@
     #include <spectra/series.hpp>
     #include <vector>
 
+    #include "ui/commands/series_clipboard.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
@@ -63,6 +64,8 @@ void Inspector::draw(Figure& figure)
             break;
 
         case SelectionType::Series:
+            // Always show the series browser so user can Shift+click to multi-select
+            draw_series_browser(figure);
             if (ctx_.series)
             {
                 draw_series_properties(*ctx_.series, ctx_.series_index);
@@ -234,6 +237,48 @@ void Inspector::draw_series_browser(Figure& fig)
 
     widgets::small_spacing();
 
+    // Paste button (shown when clipboard has data)
+    if (clipboard_ && clipboard_->has_data())
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(
+            ImGuiCol_ButtonHovered,
+            ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+            ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+
+        ImFont* icf = icon_font(tokens::ICON_SM);
+        if (icf) ImGui::PushFont(icf);
+        size_t clip_n = clipboard_->count();
+        std::string paste_lbl = std::string(icon_str(Icon::Duplicate))
+            + (clip_n > 1 ? "  Paste " + std::to_string(clip_n) + " Series" : "  Paste");
+        if (ImGui::Button(paste_lbl.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 24)))
+        {
+            // Paste into selected axes if available, else first axes
+            AxesBase* target = nullptr;
+            if (ctx_.type == SelectionType::Series || ctx_.type == SelectionType::Axes)
+                target = ctx_.axes_base ? ctx_.axes_base : static_cast<AxesBase*>(ctx_.axes);
+            if (!target)
+            {
+                if (!fig.all_axes().empty())
+                {
+                    for (auto& ab : fig.all_axes_mut())
+                        if (ab) { target = ab.get(); break; }
+                }
+                if (!target)
+                {
+                    for (auto& ax : fig.axes_mut())
+                        if (ax) { target = ax.get(); break; }
+                }
+            }
+            if (target)
+                clipboard_->paste_all(*target);
+        }
+        if (icf) ImGui::PopFont();
+        ImGui::PopStyleColor(3);
+        widgets::small_spacing();
+    }
+
     // Helper lambda to draw series rows for any axes (2D or 3D)
     auto draw_axes_series = [&](AxesBase* ax_base, int ax_idx)
     {
@@ -281,21 +326,109 @@ void Inspector::draw_series_browser(Figure& fig)
 
             ImGui::SameLine(0.0f, tokens::SPACE_2);
 
-            // Clickable series name → select it
-            bool is_selected = (ctx_.type == SelectionType::Series && ctx_.series == s.get());
+            // Clickable series name → select it (supports multi-select with Shift)
+            bool is_selected = (ctx_.type == SelectionType::Series && ctx_.is_selected(s.get()));
             if (is_selected)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text,
                                       ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
             }
-            if (ImGui::Selectable(name, is_selected, ImGuiSelectableFlags_None, ImVec2(0, 0)))
+            // Use AllowOverlap so action buttons on the same row work
+            if (ImGui::Selectable(name, is_selected, ImGuiSelectableFlags_AllowOverlap, ImVec2(ImGui::GetContentRegionAvail().x - 72.0f, 0)))
             {
-                // select_series takes Axes* (2D); cast for 2D, nullptr for 3D
-                ctx_.select_series(&fig, dynamic_cast<Axes*>(ax_base), ax_idx, s.get(), s_idx);
+                ImGuiIO& io = ImGui::GetIO();
+                if (io.KeyShift)
+                {
+                    // Shift+click: toggle in multi-selection
+                    ctx_.toggle_series(&fig, dynamic_cast<Axes*>(ax_base), ax_base, ax_idx, s.get(), s_idx);
+                }
+                else
+                {
+                    // Regular click: single select
+                    ctx_.select_series(&fig, dynamic_cast<Axes*>(ax_base), ax_idx, s.get(), s_idx);
+                    ctx_.axes_base = ax_base;   // always set for 3D support
+                    if (!ctx_.selected_series.empty())
+                        ctx_.selected_series[0].axes_base = ax_base;
+                }
+            }
+            // Also detect Shift+click via IsItemClicked when Selectable doesn't fire
+            // (ImGui::Selectable may not fire when clicking an already-selected item)
+            else if (ImGui::IsItemClicked(0) && ImGui::GetIO().KeyShift)
+            {
+                ctx_.toggle_series(&fig, dynamic_cast<Axes*>(ax_base), ax_base, ax_idx, s.get(), s_idx);
             }
             if (is_selected)
             {
                 ImGui::PopStyleColor();
+            }
+
+            // Action buttons: Copy / Cut / Delete (shown on same row)
+            if (clipboard_)
+            {
+                ImGui::SameLine(ImGui::GetContentRegionMax().x - 68.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(
+                    ImGuiCol_ButtonHovered,
+                    ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
+
+                // Copy button
+                ImFont* icf = icon_font(tokens::ICON_SM);
+                if (icf) ImGui::PushFont(icf);
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                    ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+
+                char copy_id[32];
+                std::snprintf(copy_id, sizeof(copy_id), "%s##cp%d_%d", icon_str(Icon::Copy), ax_idx, s_idx);
+                if (ImGui::Button(copy_id, ImVec2(20, 20)))
+                {
+                    clipboard_->copy(*s);
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Copy");
+
+                ImGui::SameLine(0, 2.0f);
+
+                // Cut button
+                char cut_id[32];
+                std::snprintf(cut_id, sizeof(cut_id), "%s##ct%d_%d", icon_str(Icon::Edit), ax_idx, s_idx);
+                if (ImGui::Button(cut_id, ImVec2(20, 20)))
+                {
+                    clipboard_->cut(*s);
+                    ax_base->remove_series(static_cast<size_t>(s_idx));
+                    ctx_.clear();
+                    ImGui::PopStyleColor();   // Text
+                    if (icf) ImGui::PopFont();
+                    ImGui::PopStyleColor(2);  // Button, ButtonHovered
+                    ImGui::PopID();
+                    break;   // Iterator invalidated
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Cut");
+
+                ImGui::SameLine(0, 2.0f);
+
+                // Delete button
+                ImGui::PopStyleColor();   // pop text_secondary
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+                char del_id[32];
+                std::snprintf(del_id, sizeof(del_id), "%s##dl%d_%d", icon_str(Icon::Trash), ax_idx, s_idx);
+                if (ImGui::Button(del_id, ImVec2(20, 20)))
+                {
+                    ax_base->remove_series(static_cast<size_t>(s_idx));
+                    if (ctx_.series == s.get())
+                        ctx_.clear();
+                    ImGui::PopStyleColor();   // red text
+                    if (icf) ImGui::PopFont();
+                    ImGui::PopStyleColor(2);  // Button, ButtonHovered
+                    ImGui::PopID();
+                    break;   // Iterator invalidated
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Delete");
+
+                ImGui::PopStyleColor();   // red text
+                if (icf) ImGui::PopFont();
+                ImGui::PopStyleColor(2);  // Button, ButtonHovered
             }
 
             ImGui::PopID();
@@ -303,18 +436,26 @@ void Inspector::draw_series_browser(Figure& fig)
         }
     };
 
+    // Iterate all axes (2D + 3D) via the unified all_axes list.
+    // If the figure has no all_axes entries, fall back to the 2D-only list.
     int ax_idx = 0;
-    for (auto& ax : fig.axes_mut())
+    if (!fig.all_axes().empty())
     {
-        if (ax)
-            draw_axes_series(ax.get(), ax_idx);
-        ax_idx++;
+        for (auto& ax_base : fig.all_axes_mut())
+        {
+            if (ax_base)
+                draw_axes_series(ax_base.get(), ax_idx);
+            ax_idx++;
+        }
     }
-    for (auto& ax_base : fig.all_axes_mut())
+    else
     {
-        if (ax_base)
-            draw_axes_series(ax_base.get(), ax_idx);
-        ax_idx++;
+        for (auto& ax : fig.axes_mut())
+        {
+            if (ax)
+                draw_axes_series(ax.get(), ax_idx);
+            ax_idx++;
+        }
     }
 }
 

@@ -94,6 +94,8 @@ foreach(_ui_src
     src/ui/app/session_runtime.cpp
     src/ui/figures/figure_registry.cpp
     src/ui/data/csv_loader.cpp
+    src/ui/workspace/figure_serializer.cpp
+    src/ui/commands/series_clipboard.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})

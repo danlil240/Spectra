@@ -55,11 +55,18 @@ class DataInteraction
     bool tooltip_active() const { return tooltip_.enabled(); }
     void set_tooltip(bool e) { tooltip_.set_enabled(e); }
 
-    // Marker control
+    // Marker / data label control
     void add_marker(float data_x, float data_y, const Series* series, size_t index);
     void remove_marker(size_t idx);
     void clear_markers();
     const std::vector<DataMarker>& markers() const { return markers_.markers(); }
+
+    // Toggle a data label (datatip) on a point: adds if absent, removes if present.
+    // Returns true if a label was added.
+    bool toggle_data_label(float data_x, float data_y, const Series* series, size_t index)
+    {
+        return markers_.toggle_or_add(data_x, data_y, series, index);
+    }
 
     // Handle mouse click for marker placement/removal.
     // Returns true if the click was consumed by the data interaction layer.
@@ -99,10 +106,17 @@ class DataInteraction
         }
     }
 
-    // Series selection callback: fired when user clicks near a series.
+    // Series selection callback: fired when user left-clicks near a series (toggles selection).
     // Args: (Figure*, Axes*, int axes_index, Series*, int series_index)
     using SeriesSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int)>;
     void set_on_series_selected(SeriesSelectedCallback cb) { on_series_selected_ = std::move(cb); }
+
+    // Right-click series selection: fired when user right-clicks near a series (no toggle, always selects).
+    void set_on_series_right_click_selected(SeriesSelectedCallback cb) { on_series_rc_selected_ = std::move(cb); }
+
+    // Series deselection callback: fired when user left-clicks on canvas but NOT near any series.
+    using SeriesDeselectedCallback = std::function<void()>;
+    void set_on_series_deselected(SeriesDeselectedCallback cb) { on_series_deselected_ = std::move(cb); }
 
    private:
     // Perform nearest-point spatial query across all visible series in the active axes.
@@ -118,8 +132,10 @@ class DataInteraction
     // Axis link manager for shared cursor
     AxisLinkManager* axis_link_mgr_ = nullptr;
 
-    // Series selection callback
-    SeriesSelectedCallback on_series_selected_;
+    // Series selection / deselection callbacks
+    SeriesSelectedCallback   on_series_selected_;
+    SeriesSelectedCallback   on_series_rc_selected_;
+    SeriesDeselectedCallback on_series_deselected_;
 
     // Cached state for drawing
     CursorReadout last_cursor_;

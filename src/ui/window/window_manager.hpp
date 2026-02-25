@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <spectra/fwd.hpp>
+#include "ui/commands/series_clipboard.hpp"
 #include <string>
 #include <vector>
 
@@ -276,6 +277,9 @@ class WindowManager
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;
     CrossWindowDropInfo cross_drop_info_;
+
+    // Shared clipboard across all windows (owned here, passed by pointer to each window's UI)
+    SeriesClipboard shared_clipboard_;
 
     // Monotonic z-order counter — incremented each time any window gains focus.
     // Each window's z_order field stores the value at its last focus event.

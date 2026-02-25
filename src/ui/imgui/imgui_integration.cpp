@@ -14,6 +14,7 @@
     #include <spectra/logger.hpp>
     #include <spectra/math3d.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/series3d.hpp>
     #include <unordered_map>
 
     #include "render/vulkan/vk_backend.hpp"
@@ -22,6 +23,7 @@
     #include "ui/input/box_zoom_overlay.hpp"
     #include "ui/commands/command_palette.hpp"
     #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/series_clipboard.hpp"
     #include "ui/overlay/data_interaction.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/docking/dock_system.hpp"
@@ -2021,6 +2023,13 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
         {
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
 
+            // Clear stale selection when switching to a different figure/tab
+            if (selection_ctx_.type == ui::SelectionType::Series
+                && selection_ctx_.figure != &figure)
+            {
+                selection_ctx_.clear();
+            }
+
             // Update selection context based on active nav rail section.
             // When the Series section is active and the user has drilled into
             // a specific series, preserve that selection so the properties
@@ -3294,6 +3303,36 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     if (pane_tab_close_cb_)
                         pane_tab_close_cb_(pane_ctx_menu_fig_);
                 }
+
+                // Paste Series (from clipboard into first axes of this figure)
+                if (series_clipboard_ && series_clipboard_->has_data())
+                {
+                    ImGui::Dummy(ImVec2(0, 2));
+                    ImGui::PushStyleColor(ImGuiCol_Separator,
+                                          ImVec4(theme.border_subtle.r,
+                                                 theme.border_subtle.g,
+                                                 theme.border_subtle.b,
+                                                 0.3f));
+                    ImGui::Separator();
+                    ImGui::PopStyleColor();
+                    ImGui::Dummy(ImVec2(0, 2));
+
+                    if (menu_item("Paste Series"))
+                    {
+                        // Find the figure and paste into its first axes (2D or 3D)
+                        Figure* paste_fig = nullptr;
+                        if (get_figure_ptr_)
+                            paste_fig = get_figure_ptr_(pane_ctx_menu_fig_);
+                        if (paste_fig)
+                        {
+                            // Prefer all_axes (unified 2D+3D), fall back to 2D-only
+                            if (!paste_fig->all_axes().empty())
+                                series_clipboard_->paste(*paste_fig->all_axes_mut()[0]);
+                            else if (!paste_fig->axes().empty())
+                                series_clipboard_->paste(*paste_fig->axes_mut()[0]);
+                        }
+                    }
+                }
             }
             ImGui::EndPopup();
         }
@@ -3403,6 +3442,121 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
                         ImVec2(canvas.x + canvas.w - inset, y),
                         sep_col,
                         sep_thickness);
+        }
+    }
+
+    // ── Selected series highlight: draw a glow outline on all selected series ──
+    // Only draw if the selection belongs to the current figure (prevents stale highlights on tab switch)
+    if (selection_ctx_.type == ui::SelectionType::Series
+        && !selection_ctx_.selected_series.empty()
+        && selection_ctx_.figure == &figure)
+    {
+        ImU32 glow_col = IM_COL32(
+            static_cast<uint8_t>(colors.accent.r * 255),
+            static_cast<uint8_t>(colors.accent.g * 255),
+            static_cast<uint8_t>(colors.accent.b * 255),
+            80);
+        ImU32 line_col = IM_COL32(
+            static_cast<uint8_t>(colors.accent.r * 255),
+            static_cast<uint8_t>(colors.accent.g * 255),
+            static_cast<uint8_t>(colors.accent.b * 255),
+            200);
+
+        for (const auto& sel_entry : selection_ctx_.selected_series)
+        {
+            const Series* sel_s = sel_entry.series;
+            if (!sel_s) continue;
+
+            // Resolve owning axes
+            const AxesBase* sel_ab = sel_entry.axes_base
+                                         ? sel_entry.axes_base
+                                         : static_cast<const AxesBase*>(sel_entry.axes);
+            if (!sel_ab) continue;
+
+            const Rect& vp = sel_ab->viewport();
+
+            // Get data — support both 2D and 3D series
+            std::span<const float> xd, yd;
+            size_t                 count   = 0;
+            bool                   is_scat = false;
+            if (const auto* ls = dynamic_cast<const LineSeries*>(sel_s))
+            {
+                xd = ls->x_data(); yd = ls->y_data(); count = ls->point_count();
+            }
+            else if (const auto* ss = dynamic_cast<const ScatterSeries*>(sel_s))
+            {
+                xd = ss->x_data(); yd = ss->y_data(); count = ss->point_count(); is_scat = true;
+            }
+            else if (const auto* l3 = dynamic_cast<const LineSeries3D*>(sel_s))
+            {
+                xd = l3->x_data(); yd = l3->y_data(); count = l3->point_count();
+            }
+            else if (const auto* s3 = dynamic_cast<const ScatterSeries3D*>(sel_s))
+            {
+                xd = s3->x_data(); yd = s3->y_data(); count = s3->point_count(); is_scat = true;
+            }
+
+            if (count < 2 || vp.w <= 0 || vp.h <= 0)
+                continue;
+
+            // Get axis limits from the concrete type
+            AxisLimits xlim{0, 1}, ylim{0, 1};
+            if (auto* a2 = dynamic_cast<const Axes*>(sel_ab))
+            {
+                xlim = a2->x_limits();
+                ylim = a2->y_limits();
+            }
+            else if (auto* a3 = dynamic_cast<const Axes3D*>(sel_ab))
+            {
+                xlim = a3->x_limits();
+                ylim = a3->y_limits();
+            }
+
+            float xrange = xlim.max - xlim.min;
+            float yrange = ylim.max - ylim.min;
+            if (xrange <= 0 || yrange <= 0)
+                continue;
+
+            dl->PushClipRect(ImVec2(vp.x, vp.y),
+                             ImVec2(vp.x + vp.w, vp.y + vp.h),
+                             true);
+
+            constexpr size_t MAX_HIGHLIGHT_PTS = 500;
+            size_t           step = (count > MAX_HIGHLIGHT_PTS) ? count / MAX_HIGHLIGHT_PTS : 1;
+            std::vector<ImVec2> pts;
+            pts.reserve(count / step + 2);
+            for (size_t i = 0; i < count; i += step)
+            {
+                float sx = vp.x + (xd[i] - xlim.min) / xrange * vp.w;
+                float sy = vp.y + vp.h - (yd[i] - ylim.min) / yrange * vp.h;
+                pts.push_back(ImVec2(sx, sy));
+            }
+            if (count > 0 && (count - 1) % step != 0)
+            {
+                float sx = vp.x + (xd[count - 1] - xlim.min) / xrange * vp.w;
+                float sy = vp.y + vp.h - (yd[count - 1] - ylim.min) / yrange * vp.h;
+                pts.push_back(ImVec2(sx, sy));
+            }
+
+            if (pts.size() >= 2)
+            {
+                dl->AddPolyline(pts.data(), static_cast<int>(pts.size()),
+                                glow_col, ImDrawFlags_None, 6.0f);
+                dl->AddPolyline(pts.data(), static_cast<int>(pts.size()),
+                                line_col, ImDrawFlags_None, 2.5f);
+            }
+
+            if (is_scat && count <= 2000)
+            {
+                for (size_t i = 0; i < count; i += step)
+                {
+                    float sx = vp.x + (xd[i] - xlim.min) / xrange * vp.w;
+                    float sy = vp.y + vp.h - (yd[i] - ylim.min) / yrange * vp.h;
+                    dl->AddCircle(ImVec2(sx, sy), 6.0f, line_col, 0, 2.0f);
+                }
+            }
+
+            dl->PopClipRect();
         }
     }
 }
@@ -3787,13 +3941,75 @@ void ImGuiIntegration::draw_curve_editor_panel()
 
 void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
 {
+    // Shift+click: toggle in multi-selection (add/remove without clearing others)
+    if (ImGui::GetIO().KeyShift)
+    {
+        toggle_series_in_selection(fig, ax, static_cast<AxesBase*>(ax), ax_idx, s, s_idx);
+        return;
+    }
+
+    // Toggle: re-clicking the same series deselects it
+    if (selection_ctx_.type == ui::SelectionType::Series && selection_ctx_.series == s)
+    {
+        deselect_series();
+        return;
+    }
+
     selection_ctx_.select_series(fig, ax, ax_idx, s, s_idx);
+    // Also set axes_base so 3D highlight/clipboard works
+    selection_ctx_.axes_base = static_cast<AxesBase*>(ax);
+    if (!selection_ctx_.selected_series.empty())
+        selection_ctx_.selected_series[0].axes_base = static_cast<AxesBase*>(ax);
+    // Switch inspector to Series section so the selection isn't overwritten
+    active_section_ = Section::Series;
     // Ensure inspector is visible so the user can edit the selected series
     if (layout_manager_ && !layout_manager_->is_inspector_visible())
     {
         layout_manager_->set_inspector_visible(true);
     }
     SPECTRA_LOG_INFO("ui", "Series selected from canvas: " + s->label());
+}
+
+void ImGuiIntegration::select_series_no_toggle(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
+{
+    // If already selected as primary, do nothing (no toggle)
+    if (selection_ctx_.type == ui::SelectionType::Series && selection_ctx_.is_selected(s))
+        return;
+
+    selection_ctx_.select_series(fig, ax, ax_idx, s, s_idx);
+    selection_ctx_.axes_base = static_cast<AxesBase*>(ax);
+    if (!selection_ctx_.selected_series.empty())
+        selection_ctx_.selected_series[0].axes_base = static_cast<AxesBase*>(ax);
+    active_section_ = Section::Series;
+    if (layout_manager_ && !layout_manager_->is_inspector_visible())
+    {
+        layout_manager_->set_inspector_visible(true);
+    }
+    SPECTRA_LOG_INFO("ui", "Series selected (no-toggle): " + s->label());
+}
+
+void ImGuiIntegration::toggle_series_in_selection(Figure* fig, Axes* ax, AxesBase* ab, int ax_idx, Series* s, int s_idx)
+{
+    selection_ctx_.toggle_series(fig, ax, ab, ax_idx, s, s_idx);
+    if (selection_ctx_.type == ui::SelectionType::Series)
+    {
+        active_section_ = Section::Series;
+        if (layout_manager_ && !layout_manager_->is_inspector_visible())
+        {
+            layout_manager_->set_inspector_visible(true);
+        }
+    }
+    SPECTRA_LOG_INFO("ui", "Series toggled in multi-selection: " + s->label()
+                     + " (count=" + std::to_string(selection_ctx_.selected_count()) + ")");
+}
+
+void ImGuiIntegration::deselect_series()
+{
+    if (selection_ctx_.type == ui::SelectionType::Series)
+    {
+        selection_ctx_.clear();
+        SPECTRA_LOG_INFO("ui", "Series deselected");
+    }
 }
 
 void ImGuiIntegration::draw_csv_dialog()
@@ -4154,6 +4370,39 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         if (hit)
         {
             context_menu_axes_ = hit;
+
+            // Auto-select nearest series on right-click so clipboard ops work.
+            // Use select_series_no_toggle() to always select (never deselect).
+            // DataInteraction::on_mouse_click also fires for right-click, but
+            // this path handles 3D axes (all_axes) and sets axes_base properly.
+            if (data_interaction_)
+            {
+                const auto& np = data_interaction_->nearest_point();
+                if (np.found && np.distance_px <= 40.0f && np.series)
+                {
+                    int ax_idx = 0;
+                    for (auto& axes_ptr : figure.all_axes())
+                    {
+                        if (!axes_ptr) { ax_idx++; continue; }
+                        int s_idx = 0;
+                        for (auto& sp : axes_ptr->series())
+                        {
+                            if (sp.get() == np.series)
+                            {
+                                select_series_no_toggle(&figure,
+                                                  dynamic_cast<Axes*>(axes_ptr.get()),
+                                                  ax_idx, sp.get(), s_idx);
+                                selection_ctx_.axes_base = axes_ptr.get();
+                                goto found_series_rc;
+                            }
+                            s_idx++;
+                        }
+                        ax_idx++;
+                    }
+                    found_series_rc:;
+                }
+            }
+
             ImGui::OpenPopup("##axes_context_menu");
         }
     }
@@ -4408,6 +4657,130 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                 SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
             }
             ImGui::PopStyleColor();
+        }
+
+        // ── Series clipboard operations ──────────────────────────────────
+        if (series_clipboard_ && ax_base)
+        {
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(colors.border_subtle.r,
+                                         colors.border_subtle.g,
+                                         colors.border_subtle.b,
+                                         0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+
+            bool   has_sel    = (selection_ctx_.type == ui::SelectionType::Series
+                                 && !selection_ctx_.selected_series.empty());
+            size_t sel_count  = selection_ctx_.selected_count();
+            bool   is_multi   = selection_ctx_.has_multi_selection();
+
+            if (has_sel)
+            {
+                // Copy
+                std::string copy_label = std::string(ui::icon_str(ui::Icon::Copy))
+                    + (is_multi ? "  Copy " + std::to_string(sel_count) + " Series"
+                                : "  Copy Series");
+                if (ImGui::Selectable(copy_label.c_str(), false, 0, ImVec2(220, 24)))
+                {
+                    if (is_multi)
+                    {
+                        std::vector<const Series*> list;
+                        for (const auto& e : selection_ctx_.selected_series)
+                            if (e.series) list.push_back(e.series);
+                        series_clipboard_->copy_multi(list);
+                    }
+                    else if (selection_ctx_.series)
+                    {
+                        series_clipboard_->copy(*selection_ctx_.series);
+                    }
+                }
+
+                // Cut
+                std::string cut_label = std::string(ui::icon_str(ui::Icon::Edit))
+                    + (is_multi ? "  Cut " + std::to_string(sel_count) + " Series"
+                                : "  Cut Series");
+                if (ImGui::Selectable(cut_label.c_str(), false, 0, ImVec2(220, 24)))
+                {
+                    if (is_multi)
+                    {
+                        std::vector<const Series*> list;
+                        for (const auto& e : selection_ctx_.selected_series)
+                            if (e.series) list.push_back(e.series);
+                        series_clipboard_->cut_multi(list);
+                        for (auto it = selection_ctx_.selected_series.rbegin();
+                             it != selection_ctx_.selected_series.rend(); ++it)
+                        {
+                            AxesBase* owner = it->axes_base ? it->axes_base
+                                              : static_cast<AxesBase*>(it->axes);
+                            if (!owner || !it->series) continue;
+                            auto& svec = owner->series_mut();
+                            for (size_t si = 0; si < svec.size(); ++si)
+                            {
+                                if (svec[si].get() == it->series)
+                                { owner->remove_series(si); break; }
+                            }
+                        }
+                    }
+                    else if (selection_ctx_.series)
+                    {
+                        series_clipboard_->cut(*selection_ctx_.series);
+                        AxesBase* owner_ab = selection_ctx_.axes_base
+                            ? selection_ctx_.axes_base
+                            : static_cast<AxesBase*>(selection_ctx_.axes);
+                        if (owner_ab)
+                        {
+                            auto& svec = owner_ab->series_mut();
+                            for (size_t si = 0; si < svec.size(); ++si)
+                            {
+                                if (svec[si].get() == selection_ctx_.series)
+                                { owner_ab->remove_series(si); break; }
+                            }
+                        }
+                    }
+                    selection_ctx_.clear();
+                }
+
+                // Delete
+                std::string del_label = std::string(ui::icon_str(ui::Icon::Trash))
+                    + (is_multi ? "  Delete " + std::to_string(sel_count) + " Series"
+                                : "  Delete Series");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+                if (ImGui::Selectable(del_label.c_str(), false, 0, ImVec2(220, 24)))
+                {
+                    for (auto it = selection_ctx_.selected_series.rbegin();
+                         it != selection_ctx_.selected_series.rend(); ++it)
+                    {
+                        AxesBase* owner = it->axes_base ? it->axes_base
+                                          : static_cast<AxesBase*>(it->axes);
+                        if (!owner || !it->series) continue;
+                        auto& svec = owner->series_mut();
+                        for (size_t si = 0; si < svec.size(); ++si)
+                        {
+                            if (svec[si].get() == it->series)
+                            { owner->remove_series(si); break; }
+                        }
+                    }
+                    selection_ctx_.clear();
+                }
+                ImGui::PopStyleColor();
+            }
+
+            // Paste: always available if clipboard has data
+            if (series_clipboard_->has_data())
+            {
+                size_t clip_count = series_clipboard_->count();
+                std::string paste_label = std::string(ui::icon_str(ui::Icon::Duplicate))
+                    + (clip_count > 1
+                       ? "  Paste " + std::to_string(clip_count) + " Series"
+                       : "  Paste Series");
+                if (ImGui::Selectable(paste_label.c_str(), false, 0, ImVec2(220, 24)))
+                {
+                    series_clipboard_->paste_all(*ax_base);
+                }
+            }
         }
 
         ImGui::PopStyleVar();      // SelectableTextAlign

@@ -57,7 +57,9 @@ constexpr int KEY_Q = 81;
 constexpr int KEY_R = 82;
 constexpr int KEY_S = 83;
 constexpr int KEY_T = 84;
+constexpr int KEY_V = 86;
 constexpr int KEY_W = 87;
+constexpr int KEY_X = 88;
 }   // namespace glfw_keys
 
 static std::string key_to_string(int key)
@@ -399,6 +401,12 @@ void ShortcutManager::register_defaults()
 
     // Series
     bind({KEY_TAB, KeyMod::None}, "series.cycle_selection");
+
+    // Series clipboard
+    bind({KEY_C, KeyMod::Control}, "series.copy");
+    bind({KEY_X, KeyMod::Control}, "series.cut");
+    bind({KEY_V, KeyMod::Control}, "series.paste");
+    bind({KEY_DELETE, KeyMod::None}, "series.delete");
 
     // Legend/border
     bind({KEY_L, KeyMod::None}, "view.toggle_legend");

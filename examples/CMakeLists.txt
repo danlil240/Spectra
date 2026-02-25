@@ -29,6 +29,7 @@ add_spectra_example(easy_realtime_demo)
 add_spectra_example(axes_menu_demo)
 add_spectra_example(legend_panel_test)
 add_spectra_example(empty_launch_csv)
+add_spectra_example(comprehensive_subplot_demo)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/knob_demo.cpp)
     add_spectra_example(knob_demo)

@@ -4,6 +4,7 @@
 
     #include <spectra/color.hpp>
     #include <spectra/series.hpp>
+    #include <string>
     #include <vector>
 
 namespace spectra
@@ -12,11 +13,12 @@ namespace spectra
 // A persistent data marker pinned to a specific data point.
 struct DataMarker
 {
-    float         data_x      = 0.0f;
-    float         data_y      = 0.0f;
-    const Series* series      = nullptr;
-    size_t        point_index = 0;
-    Color         color       = colors::white;
+    float         data_x       = 0.0f;
+    float         data_y       = 0.0f;
+    const Series* series       = nullptr;
+    size_t        point_index  = 0;
+    Color         color        = colors::white;
+    std::string   series_label;   // series name shown in datatip
 };
 
 // Manages a collection of persistent data markers.
@@ -29,6 +31,10 @@ class DataMarkerManager
     void add(float data_x, float data_y, const Series* series, size_t index);
     void remove(size_t marker_index);
     void clear();
+
+    // Toggle a data label: if a marker already exists at this (series, index),
+    // remove it; otherwise add a new one. Returns true if a label was added.
+    bool toggle_or_add(float data_x, float data_y, const Series* series, size_t index);
 
     const std::vector<DataMarker>& markers() const { return markers_; }
     size_t                         count() const { return markers_.size(); }
@@ -53,6 +59,9 @@ class DataMarkerManager
 
    private:
     std::vector<DataMarker> markers_;
+
+    // Find existing marker for the same series + point_index, or -1
+    int find_duplicate(const Series* series, size_t point_index) const;
 
     // Convert data coordinates to screen coordinates
     static void data_to_screen(float       data_x,

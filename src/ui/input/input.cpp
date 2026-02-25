@@ -470,6 +470,14 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     {
         if (action == ACTION_PRESS && !rclick_zoom_dragging_ && active_axes_)
         {
+            // Let DataInteraction handle right-click first (series selection for context menu).
+            // If it selects a nearby series, don't start zoom drag — let ImGui open context menu.
+            if (data_interaction_ && data_interaction_->on_mouse_click(1, x, y))
+            {
+                // Series was selected or marker removed — don't start zoom drag
+                return;
+            }
+
             // Cancel any running animations
             if (transition_engine_)
                 transition_engine_->cancel_for_axes(active_axes_);

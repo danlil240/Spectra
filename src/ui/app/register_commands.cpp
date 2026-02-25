@@ -28,7 +28,9 @@
 #include <limits>
 #include <string>
 
+#include <spectra/axes.hpp>
 #include <spectra/series.hpp>
+#include "ui/commands/series_clipboard.hpp"
 
 namespace spectra
 {
@@ -765,6 +767,190 @@ void register_standard_commands(const CommandBindings& b)
             imgui_ui->set_inspector_section_series();
         },
         "Tab",
+        "Series");
+
+    // ─── Series clipboard commands ───────────────────────────────────────
+    cmd_registry.register_command(
+        "series.copy",
+        "Copy Series",
+        [&]()
+        {
+            auto& sel = imgui_ui->selection_context();
+            if (sel.type != ui::SelectionType::Series || !imgui_ui->series_clipboard())
+            {
+                SPECTRA_LOG_DEBUG("clipboard", "series.copy: no series selected or no clipboard");
+                return;
+            }
+            SPECTRA_LOG_INFO("clipboard", "series.copy: copying " + std::to_string(sel.selected_count()) + " series");
+            if (sel.has_multi_selection())
+            {
+                std::vector<const Series*> list;
+                for (const auto& e : sel.selected_series)
+                    if (e.series) list.push_back(e.series);
+                imgui_ui->series_clipboard()->copy_multi(list);
+            }
+            else if (sel.series)
+            {
+                imgui_ui->series_clipboard()->copy(*sel.series);
+            }
+        },
+        "Ctrl+C",
+        "Series",
+        static_cast<uint16_t>(ui::Icon::Copy));
+
+    cmd_registry.register_command(
+        "series.cut",
+        "Cut Series",
+        [&]()
+        {
+            auto& sel = imgui_ui->selection_context();
+            if (sel.type != ui::SelectionType::Series || !imgui_ui->series_clipboard())
+                return;
+            if (sel.has_multi_selection())
+            {
+                std::vector<const Series*> list;
+                for (const auto& e : sel.selected_series)
+                    if (e.series) list.push_back(e.series);
+                imgui_ui->series_clipboard()->cut_multi(list);
+                // Remove all selected series from their respective axes (reverse to preserve indices)
+                for (auto it = sel.selected_series.rbegin(); it != sel.selected_series.rend(); ++it)
+                {
+                    AxesBase* owner = it->axes_base ? it->axes_base : static_cast<AxesBase*>(it->axes);
+                    if (!owner || !it->series) continue;
+                    auto& svec = owner->series_mut();
+                    for (size_t i = 0; i < svec.size(); ++i)
+                    {
+                        if (svec[i].get() == it->series)
+                        {
+                            owner->remove_series(i);
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (sel.series)
+            {
+                imgui_ui->series_clipboard()->cut(*sel.series);
+                AxesBase* owner = sel.axes_base ? sel.axes_base : static_cast<AxesBase*>(sel.axes);
+                if (owner)
+                {
+                    auto& svec = owner->series_mut();
+                    for (size_t i = 0; i < svec.size(); ++i)
+                    {
+                        if (svec[i].get() == sel.series)
+                        {
+                            owner->remove_series(i);
+                            break;
+                        }
+                    }
+                }
+            }
+            sel.clear();
+        },
+        "Ctrl+X",
+        "Series",
+        static_cast<uint16_t>(ui::Icon::Edit));
+
+    cmd_registry.register_command(
+        "series.paste",
+        "Paste Series",
+        [&]()
+        {
+            if (!imgui_ui->series_clipboard() || !imgui_ui->series_clipboard()->has_data())
+            {
+                SPECTRA_LOG_DEBUG("clipboard", "series.paste: no clipboard or no data");
+                return;
+            }
+            // Use fig_mgr.active_figure() which is always current, even right after tab switch.
+            // The active_figure pointer (from FrameState) may lag by one frame.
+            Figure* current_fig = fig_mgr.active_figure();
+            if (!current_fig)
+                current_fig = active_figure;   // fallback
+            if (!current_fig)
+            {
+                SPECTRA_LOG_DEBUG("clipboard", "series.paste: no active figure");
+                return;
+            }
+            SPECTRA_LOG_INFO("clipboard", "series.paste: pasting " + std::to_string(imgui_ui->series_clipboard()->count()) + " series");
+            // Paste into selected axes if available, else first axes of current figure
+            auto& sel = imgui_ui->selection_context();
+            AxesBase* target = nullptr;
+            if (sel.type == ui::SelectionType::Series || sel.type == ui::SelectionType::Axes)
+            {
+                // Only use selection target if it belongs to the current figure
+                if (sel.figure == current_fig)
+                    target = sel.axes_base ? sel.axes_base : static_cast<AxesBase*>(sel.axes);
+            }
+            if (!target)
+            {
+                if (!current_fig->all_axes().empty())
+                    target = current_fig->all_axes_mut()[0].get();
+                else if (!current_fig->axes().empty())
+                    target = current_fig->axes_mut()[0].get();
+            }
+            if (target)
+                imgui_ui->series_clipboard()->paste_all(*target);
+        },
+        "Ctrl+V",
+        "Series",
+        static_cast<uint16_t>(ui::Icon::Duplicate));
+
+    cmd_registry.register_command(
+        "series.delete",
+        "Delete Series",
+        [&]()
+        {
+            auto& sel = imgui_ui->selection_context();
+            if (sel.type != ui::SelectionType::Series)
+                return;
+            if (sel.has_multi_selection())
+            {
+                // Remove all selected series (reverse to preserve indices)
+                for (auto it = sel.selected_series.rbegin(); it != sel.selected_series.rend(); ++it)
+                {
+                    AxesBase* owner = it->axes_base ? it->axes_base : static_cast<AxesBase*>(it->axes);
+                    if (!owner || !it->series) continue;
+                    auto& svec = owner->series_mut();
+                    for (size_t i = 0; i < svec.size(); ++i)
+                    {
+                        if (svec[i].get() == it->series)
+                        {
+                            owner->remove_series(i);
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (sel.series)
+            {
+                AxesBase* owner = sel.axes_base ? sel.axes_base : static_cast<AxesBase*>(sel.axes);
+                if (owner)
+                {
+                    auto& svec = owner->series_mut();
+                    for (size_t i = 0; i < svec.size(); ++i)
+                    {
+                        if (svec[i].get() == sel.series)
+                        {
+                            owner->remove_series(i);
+                            break;
+                        }
+                    }
+                }
+            }
+            sel.clear();
+        },
+        "Delete",
+        "Series",
+        static_cast<uint16_t>(ui::Icon::Trash));
+
+    cmd_registry.register_command(
+        "series.deselect",
+        "Deselect Series",
+        [&]()
+        {
+            imgui_ui->deselect_series();
+        },
+        "Escape",
         "Series");
 
     // ─── Animation commands ──────────────────────────────────────────────

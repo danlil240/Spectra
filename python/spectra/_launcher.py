@@ -73,7 +73,8 @@ def _find_backend_binary() -> Optional[str]:
     # 4. Heuristic: look in common build directories relative to the project root.
     # The Python package lives at <project>/python/spectra/, so project root is ../../
     project_root = os.path.normpath(os.path.join(pkg_dir, "..", ".."))
-    for build_dir in ("build", "cmake-build-debug", "cmake-build-release", "out/build"):
+    for build_dir in ("build", "build_asan", "build_debug", "build_release",
+                       "cmake-build-debug", "cmake-build-release", "out/build"):
         candidate = os.path.join(project_root, build_dir, "spectra-backend")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate

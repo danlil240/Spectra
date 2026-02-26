@@ -110,6 +110,60 @@ void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3  min_corner,
     }
 }
 
+void Axes3DRenderer::GridPlaneData::generate_xy_plane(vec3                      min_corner,
+                                                      vec3                      max_corner,
+                                                      float                     z_pos,
+                                                      const std::vector<float>& x_ticks,
+                                                      const std::vector<float>& y_ticks)
+{
+    for (float x : x_ticks)
+    {
+        vertices.push_back({x, min_corner.y, z_pos});
+        vertices.push_back({x, max_corner.y, z_pos});
+    }
+    for (float y : y_ticks)
+    {
+        vertices.push_back({min_corner.x, y, z_pos});
+        vertices.push_back({max_corner.x, y, z_pos});
+    }
+}
+
+void Axes3DRenderer::GridPlaneData::generate_xz_plane(vec3                      min_corner,
+                                                      vec3                      max_corner,
+                                                      float                     y_pos,
+                                                      const std::vector<float>& x_ticks,
+                                                      const std::vector<float>& z_ticks)
+{
+    for (float x : x_ticks)
+    {
+        vertices.push_back({x, y_pos, min_corner.z});
+        vertices.push_back({x, y_pos, max_corner.z});
+    }
+    for (float z : z_ticks)
+    {
+        vertices.push_back({min_corner.x, y_pos, z});
+        vertices.push_back({max_corner.x, y_pos, z});
+    }
+}
+
+void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3                      min_corner,
+                                                      vec3                      max_corner,
+                                                      float                     x_pos,
+                                                      const std::vector<float>& y_ticks,
+                                                      const std::vector<float>& z_ticks)
+{
+    for (float y : y_ticks)
+    {
+        vertices.push_back({x_pos, y, min_corner.z});
+        vertices.push_back({x_pos, y, max_corner.z});
+    }
+    for (float z : z_ticks)
+    {
+        vertices.push_back({x_pos, min_corner.y, z});
+        vertices.push_back({x_pos, max_corner.y, z});
+    }
+}
+
 void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes,
                                                     vec3          min_corner,
                                                     vec3 /*max_corner*/)
@@ -180,19 +234,23 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/)
         grid_data_.vertices.clear();
         auto gp = axes.grid_planes();
 
+        auto x_ticks = axes.compute_x_ticks().positions;
+        auto y_ticks = axes.compute_y_ticks().positions;
+        auto z_ticks = axes.compute_z_ticks().positions;
+
         if (static_cast<int>(gp & Axes3D::GridPlane::XY))
         {
-            grid_data_.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
+            grid_data_.generate_xy_plane(min_corner, max_corner, zlim.min, x_ticks, y_ticks);
         }
 
         if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
         {
-            grid_data_.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
+            grid_data_.generate_xz_plane(min_corner, max_corner, ylim.min, x_ticks, z_ticks);
         }
 
         if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
         {
-            grid_data_.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
+            grid_data_.generate_yz_plane(min_corner, max_corner, xlim.min, y_ticks, z_ticks);
         }
     }
 

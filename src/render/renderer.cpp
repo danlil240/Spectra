@@ -1365,17 +1365,21 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
         if (limits_changed)
         {
-            // Generate 3D grid vertices using Axes3DRenderer helper
+            // Generate 3D grid vertices at tick positions (matches tick labels)
             Axes3DRenderer::GridPlaneData grid_gen;
             vec3                          min_corner = {xlim.min, ylim.min, zlim.min};
             vec3                          max_corner = {xlim.max, ylim.max, zlim.max};
 
+            auto x_ticks = axes3d->compute_x_ticks().positions;
+            auto y_ticks = axes3d->compute_y_ticks().positions;
+            auto z_ticks = axes3d->compute_z_ticks().positions;
+
             if (static_cast<int>(gp & Axes3D::GridPlane::XY))
-                grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, 10);
+                grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, x_ticks, y_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
-                grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, 10);
+                grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, x_ticks, z_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
-                grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, 10);
+                grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, y_ticks, z_ticks);
 
             if (grid_gen.vertices.empty())
                 return;

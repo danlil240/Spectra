@@ -673,7 +673,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 axes.ylabel(r.read_string());
                 axes.grid(r.read_u8() != 0);
                 axes.show_border(r.read_u8() != 0);
-                auto saved_autoscale = static_cast<AutoscaleMode>(r.read_u8());
+                // auto saved_autoscale = static_cast<AutoscaleMode>(r.read_u8());
 
                 float xmin = r.read_f32();
                 float xmax = r.read_f32();

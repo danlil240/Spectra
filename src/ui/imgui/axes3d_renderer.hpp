@@ -35,6 +35,16 @@ class Axes3DRenderer
         void generate_xy_plane(vec3 min_corner, vec3 max_corner, float z_pos, int grid_divisions);
         void generate_xz_plane(vec3 min_corner, vec3 max_corner, float y_pos, int grid_divisions);
         void generate_yz_plane(vec3 min_corner, vec3 max_corner, float x_pos, int grid_divisions);
+        // Tick-aligned overloads: grid lines at exact tick positions
+        void generate_xy_plane(vec3 min_corner, vec3 max_corner, float z_pos,
+                               const std::vector<float>& x_ticks,
+                               const std::vector<float>& y_ticks);
+        void generate_xz_plane(vec3 min_corner, vec3 max_corner, float y_pos,
+                               const std::vector<float>& x_ticks,
+                               const std::vector<float>& z_ticks);
+        void generate_yz_plane(vec3 min_corner, vec3 max_corner, float x_pos,
+                               const std::vector<float>& y_ticks,
+                               const std::vector<float>& z_ticks);
     };
 
     struct TickMarkData

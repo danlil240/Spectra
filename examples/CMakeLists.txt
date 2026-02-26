@@ -52,6 +52,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simple_3d_scatter.cpp)
     add_spectra_example(lit_surface_demo)
     add_spectra_example(transparency_demo)
     add_spectra_example(mode_transition_demo)
+    add_spectra_example(realtime_3d_stream)
 endif()
 
 # Multi-window demo (conditional — scaffolding available before full multi-window)

@@ -238,6 +238,10 @@ void Renderer::render_figure_content(Figure& figure)
 
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.
+    // Only install the renderer-only fallback if no callback is already set;
+    // WindowRuntime::wire_series_callbacks() installs a richer callback that
+    // also notifies DataInteraction and ImGuiIntegration, and we must not
+    // overwrite it — doing so would leave stale Series* pointers in the UI.
     auto removal_cb = [this](const Series* s) { notify_series_removed(s); };
 
     // Render each 2D axes
@@ -246,7 +250,8 @@ void Renderer::render_figure_content(Figure& figure)
         if (!axes_ptr)
             continue;
         auto& ax = *axes_ptr;
-        ax.set_series_removed_callback(removal_cb);
+        if (!ax.has_series_removed_callback())
+            ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);
@@ -258,7 +263,8 @@ void Renderer::render_figure_content(Figure& figure)
         if (!axes_ptr)
             continue;
         auto& ax = *axes_ptr;
-        ax.set_series_removed_callback(removal_cb);
+        if (!ax.has_series_removed_callback())
+            ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);

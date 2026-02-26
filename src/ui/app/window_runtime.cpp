@@ -143,8 +143,22 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         }
     };
 
+    // Wire callbacks for ALL figures in the window (not just the active one).
+    // The active figure's on_frame callback may mutate axes on other figures
+    // (e.g. a shared update_all that calls clear_series() on a non-active tab's
+    // axes).  Without wiring, those axes' clear_series() won't notify
+    // DataInteraction/ImGuiIntegration, leaving stale Series* pointers.
+#ifdef SPECTRA_USE_IMGUI
+    for (auto fid : fig_mgr.figure_ids())
+    {
+        Figure* fig = registry_.get(fid);
+        if (fig)
+            wire_series_callbacks(fig);
+    }
+#else
     if (active_figure)
         wire_series_callbacks(active_figure);
+#endif
 
     // Helper: drive animation for a single figure using its own anim_time_.
     // is_active controls whether this figure syncs with the timeline editor.

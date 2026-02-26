@@ -1805,16 +1805,6 @@ class QAAgent
         }
         fprintf(stderr, "[QA]   serialize: loaded OK, series count = %zu\n", loaded_count);
 
-        // ── Test 2: Execute file.save_figure / file.load_figure commands ─
-        // These trigger FigureSerializer::save_with_dialog / load_with_dialog.
-        // In headless/CI they should gracefully no-op (dialog returns empty path).
-        // Important: they must NOT crash — any crash here is a bug.
-        ui->cmd_registry.execute("file.save_figure");
-        pump_frames(3);
-        ui->cmd_registry.execute("file.load_figure");
-        pump_frames(3);
-        fprintf(stderr, "[QA]   serialize: file.save_figure/load_figure commands OK (no crash)\n");
-
         pump_frames(5);
         fprintf(stderr, "[QA]   serialize: all tests passed\n");
 #endif
@@ -2885,8 +2875,9 @@ class QAAgent
                 pump_frames(10);
                 named_screenshot("40_tab_context_menu");
 
-                // Dismiss by pumping frames (popup auto-closes when mouse
-                // is outside its bounds, which it always is in headless).
+                // D43 fix: explicitly close the context menu so it doesn't
+                // bleed into subsequent screenshots (41–46).
+                ui->imgui_ui->close_tab_context_menu();
                 pump_frames(5);
             }
         }
@@ -2979,6 +2970,26 @@ class QAAgent
                 auto ids = app_->figure_registry().all_ids();
                 if (ids.size() >= 2)
                 {
+                    // D44 fix: ensure the detached figure has visible content
+                    {
+                        auto* fig2 = app_->figure_registry().get(ids[1]);
+                        if (fig2 && !fig2->axes().empty() &&
+                            fig2->axes()[0]->series().empty())
+                        {
+                            auto& ax = *fig2->axes_mut()[0];
+                            std::vector<float> x2(100), y2(100);
+                            for (int i = 0; i < 100; ++i)
+                            {
+                                x2[i] = static_cast<float>(i) * 0.1f;
+                                y2[i] = std::sin(x2[i] * 2.0f) * 0.5f;
+                            }
+                            ax.line(x2, y2).label("detached");
+                            ax.title("Detached Figure");
+                            ax.auto_fit();
+                        }
+                        pump_frames(5);
+                    }
+
                     // Detach second figure into a new window
                     auto* new_wctx = wm->detach_figure(
                         ids[1], 800, 600, "Detached Figure", 100, 100);

@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-02-24 (Session 25) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25)
+> Last updated: 2026-02-26 (Perf Session 1) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random)
 
 ---
 
@@ -247,6 +247,31 @@
 ### Fixes Applied
 1. **C4 (CRITICAL):** Null `active_figure` dereference in command lambdas — SIGSEGV during fuzzing
 2. **H4 (PARTIAL):** Bounded Vulkan timeouts, skip-on-timeout recovery, skip unnecessary `vkQueueWaitIdle`
+
+---
+
+## Perf Agent Session 1 Results (2026-02-26)
+
+### Environment
+- **OS:** Linux (X11/Wayland)
+- **GPU:** Vulkan backend
+- **Build:** Debug, GCC 12, C++20
+- **QA runs:** 2 (seed 42, 120s deterministic + random seed 23756320363876, 60s)
+
+### Summary
+- **Deterministic (seed 42):** 16/16 pass, 50 warnings (25 frame_time, 25 memory), avg=39.4ms, p99=352ms, max=802ms, 25 spikes, RSS +232MB, **0 crashes, 0 errors, 0 critical**
+- **Randomized (seed 23756320363876):** 6/6 pass (wall-clock limited), 19 warnings, avg=39.3ms, max=531ms, RSS +122MB, **0 crashes, 0 errors, 0 critical**
+- **ctest:** 78/78 pass, 0 regressions
+
+### Analysis
+- No new bugs found. All warnings map to existing open issues (H1 frame spikes, H4 multi-window acquire cascades, M1 RSS growth).
+- Frame time max improved from 1024ms (previous seed-42 session) → 802ms — fewer multi-window acquire cascades.
+- RSS growth slightly improved (+232MB vs +261MB in previous seed-42 session).
+- `move_figure` cosmetic warning still present during fuzzing (no crash).
+- Swapchain recreation storms (V1) still observable in resize scenarios.
+
+### No Fixes Needed
+All existing fixes remain stable. No new crashes or errors to address.
 
 ---
 

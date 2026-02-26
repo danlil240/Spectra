@@ -3227,6 +3227,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
             pane_ctx_menu_open_ = false;   // Only open once
         }
 
+        // Programmatic close request — handled inside BeginPopup below
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
         ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 2));
@@ -3240,7 +3242,13 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         if (ImGui::BeginPopup("##pane_tab_ctx"))
         {
-            if (pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
+            // Programmatic close (QA agent)
+            if (pane_ctx_menu_close_requested_)
+            {
+                pane_ctx_menu_close_requested_ = false;
+                ImGui::CloseCurrentPopup();
+            }
+            else if (pane_ctx_menu_fig_ != INVALID_FIGURE_ID)
             {
                 auto menu_item = [&](const char* label) -> bool
                 {

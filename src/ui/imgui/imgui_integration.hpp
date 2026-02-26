@@ -141,6 +141,14 @@ class ImGuiIntegration
         pane_ctx_menu_open_ = true;
     }
 
+    // Programmatically close the pane tab context menu
+    void close_tab_context_menu()
+    {
+        pane_ctx_menu_fig_  = INVALID_FIGURE_ID;
+        pane_ctx_menu_open_ = false;
+        pane_ctx_menu_close_requested_ = true;
+    }
+
     // Timeline editor (Agent G, owned externally by App)
     void            set_timeline_editor(TimelineEditor* te) { timeline_editor_ = te; }
     TimelineEditor* timeline_editor() const { return timeline_editor_; }
@@ -454,6 +462,7 @@ class ImGuiIntegration
     // Pane tab context menu state
     FigureId pane_ctx_menu_fig_  = INVALID_FIGURE_ID;   // Figure id of right-clicked tab
     bool     pane_ctx_menu_open_ = false;
+    bool     pane_ctx_menu_close_requested_ = false;
 
     // Pane tab rename state
     bool     pane_tab_renaming_        = false;

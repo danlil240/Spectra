@@ -292,6 +292,11 @@
 
 ---
 
+## Session 3 Gaps (2026-02-26)
+
+- [x] **Popup cleanup after screenshot** — The QA agent opens UI popups (context menus, command palette) for screenshots but didn't dismiss them, causing stale overlay in subsequent captures. Fixed by adding `close_tab_context_menu()` API. **Recommendation:** Any future scenario that opens a popup/modal should explicitly close it after capture.
+- [x] **Empty figure content in detach scenarios** — Detach-to-window scenario used a figure with empty axes. Fixed by adding data before detach. **Recommendation:** All multi-window scenarios should ensure target figures have visible content.
+
 ## Backlog (Future)
 
 - [ ] Add `--json-only` flag for CI consumption

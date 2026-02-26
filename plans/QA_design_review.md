@@ -621,3 +621,43 @@ ls /tmp/spectra_qa_design/design/
   - #40: Context menu visible with Rename/Duplicate/Split/Detach/Close items
   - #45/#45b: Primary shows Figure 1 (1280×720), secondary shows Figure 2 (800×600) — distinct content
   - #12: Light theme grid lines more visible with 0.18 alpha
+
+---
+
+## Session 3 — 2026-02-26
+
+### Run Configuration
+- **Seed:** 42
+- **Output:** `/tmp/spectra_qa_design_20260226` (baseline), `/tmp/spectra_qa_design_after_20260226` (after fix)
+- **Mode:** `--design-review --no-fuzz --no-scenarios`
+- **Screenshots:** 51 captured
+
+### Issues Found
+
+#### D43 — Stale context menu bleeds into screenshots 41–46
+- **Priority:** P2
+- **Status:** Fixed
+- **Root Cause:** Scenario 40 opens the tab context menu via `open_tab_context_menu()` and captures a screenshot, but never dismisses the ImGui popup. Since no mouse click is injected outside the popup bounds, the context menu stays open and appears in screenshots 41 (640×480 resize), 42 (1920×600 resize), 43 (600×1080 resize), 45 (multi-window primary), and 46 (window moved).
+- **Fix:** Added `close_tab_context_menu()` to `ImGuiIntegration` — sets `pane_ctx_menu_close_requested_` flag, which is checked inside the `BeginPopup("##pane_tab_ctx")` block and calls `ImGui::CloseCurrentPopup()`. The QA agent calls this after scenario 40's screenshot.
+- **Files Changed:**
+  - `src/ui/imgui/imgui_integration.hpp` — added `close_tab_context_menu()` method + `pane_ctx_menu_close_requested_` member
+  - `src/ui/imgui/imgui_integration.cpp` — close request handling inside `BeginPopup` block
+  - `tests/qa/qa_agent.cpp` — scenario 40 calls `close_tab_context_menu()` after screenshot
+
+#### D44 — Secondary window shows empty axes in #45b
+- **Priority:** P2
+- **Status:** Fixed
+- **Root Cause:** Scenario 45 detaches Figure 2 into a secondary window. Figure 2 was created earlier as an empty axes (no series data), so the secondary window screenshot showed only 0–1 range grid lines with no plot content.
+- **Fix:** Before detaching, check if Figure 2's first axes has no series and, if so, add a `sin(2x)*0.5` line plot with label "detached" and title "Detached Figure", then call `auto_fit()`.
+- **Files Changed:**
+  - `tests/qa/qa_agent.cpp` — scenario 45 adds data to empty Figure 2 before detach
+
+### Verification
+
+- **Build:** ✅ Clean (0 errors, 0 warnings)
+- **Tests:** ✅ 78/78 pass
+- **Screenshots:** ✅ 51 captured, both fixes verified visually
+  - #41/#42/#43: Clean resize screenshots, no stale context menu
+  - #45: Primary window clean, no context menu overlay
+  - #45b: Secondary window shows "Detached Figure" with sin(2x) wave + legend
+  - #46: Window moved screenshot clean

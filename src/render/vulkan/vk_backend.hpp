@@ -76,6 +76,8 @@ class VulkanBackend : public Backend
     // The copy happens after GPU submit but before present, when the
     // swapchain image content is guaranteed valid.
     void request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height);
+    void request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height,
+                                     WindowContext* target_window);
     bool has_pending_capture() const { return pending_capture_.buffer != nullptr; }
 
     uint32_t swapchain_width() const override;
@@ -249,10 +251,11 @@ class VulkanBackend : public Backend
     // Pending framebuffer capture (filled by end_frame between submit and present)
     struct PendingCapture
     {
-        uint8_t* buffer = nullptr;
-        uint32_t width  = 0;
-        uint32_t height = 0;
-        bool     done   = false;
+        uint8_t*       buffer        = nullptr;
+        uint32_t       width         = 0;
+        uint32_t       height        = 0;
+        bool           done          = false;
+        WindowContext* target_window = nullptr;   // null = any window (first end_frame)
     };
     PendingCapture pending_capture_;
     bool           do_capture_before_present();

@@ -34,6 +34,7 @@
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/input/input.hpp"
     #include "ui/window/window_manager.hpp"
+    #include "ui/workspace/figure_serializer.hpp"
 #endif
 
 #ifdef SPECTRA_USE_GLFW
@@ -504,6 +505,18 @@ class QAAgent
         scenarios_.push_back({"series_clipboard_selection",
             "Test series selection, right-click select, clipboard copy/cut/paste/delete, multi-select",
             [](QAAgent& qa) { return qa.scenario_series_clipboard_selection(); }});
+
+        scenarios_.push_back({"figure_serialization",
+            "Save figure via file.save_figure command, reload via file.load_figure, verify series count",
+            [](QAAgent& qa) { return qa.scenario_figure_serialization(); }});
+
+        scenarios_.push_back({"series_removed_interaction_safety",
+            "Add markers/hover on series, delete series, verify no crash (notify_series_removed path)",
+            [](QAAgent& qa) { return qa.scenario_series_removed_interaction_safety(); }});
+
+        scenarios_.push_back({"line_culling_pan_zoom",
+            "Large sorted line series, pan/zoom to stress draw-call culling logic, verify no corruption",
+            [](QAAgent& qa) { return qa.scenario_line_culling_pan_zoom(); }});
     }
 
     void list_scenarios()
@@ -1713,26 +1726,334 @@ class QAAgent
         return true;
     }
 
+    // ── Figure serialization scenario ───────────────────────────────────
+    // Exercises file.save_figure and file.load_figure commands.
+    // Uses FigureSerializer::save/load directly to avoid native file dialogs.
+    bool scenario_figure_serialization()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return true;
+
+        // Build a figure with known content
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x(80), y1(80), y2(80);
+        for (int i = 0; i < 80; ++i)
+        {
+            x[i]  = static_cast<float>(i) * 0.1f;
+            y1[i] = std::sin(x[i]);
+            y2[i] = std::cos(x[i]);
+        }
+        ax.line(x, y1).label("sin");
+        ax.scatter(x, y2).label("cos");
+        ax.title("Serialization Test");
+        ax.xlabel("X");
+        ax.ylabel("Y");
+
+        auto all_ids = app_->figure_registry().all_ids();
+        if (!all_ids.empty() && ui->fig_mgr)
+            ui->fig_mgr->queue_switch(all_ids.back());
+        pump_frames(10);
+
+        size_t original_count = ax.series().size();
+        fprintf(stderr, "[QA]   serialize: original series count = %zu\n", original_count);
+
+        // ── Test 1: Save and reload via FigureSerializer directly ────────
+        std::string save_path = opts_.output_dir + "/serialization_test.spectra";
+
+        bool saved = FigureSerializer::save(save_path, fig);
+        if (!saved)
+        {
+            add_issue(IssueSeverity::Error, "serialization",
+                      "FigureSerializer::save() returned false for path: " + save_path);
+            return false;
+        }
+        fprintf(stderr, "[QA]   serialize: saved to %s\n", save_path.c_str());
+        pump_frames(2);
+
+        // Create a fresh figure to load into
+        auto& fig2 = app_->figure({1280, 720});
+        fig2.subplot(1, 1, 1);   // ensure at least one axes slot
+        pump_frames(2);
+
+        bool loaded = FigureSerializer::load(save_path, fig2);
+        if (!loaded)
+        {
+            add_issue(IssueSeverity::Error, "serialization",
+                      "FigureSerializer::load() returned false for path: " + save_path);
+            return false;
+        }
+        pump_frames(5);
+
+        // Verify series count was restored
+        if (fig2.axes().empty())
+        {
+            add_issue(IssueSeverity::Error, "serialization",
+                      "Loaded figure has no axes");
+            return false;
+        }
+        size_t loaded_count = fig2.axes()[0]->series().size();
+        if (loaded_count != original_count)
+        {
+            add_issue(IssueSeverity::Error, "serialization",
+                      "Series count mismatch after load: expected "
+                      + std::to_string(original_count) + ", got "
+                      + std::to_string(loaded_count));
+            return false;
+        }
+        fprintf(stderr, "[QA]   serialize: loaded OK, series count = %zu\n", loaded_count);
+
+        // ── Test 2: Execute file.save_figure / file.load_figure commands ─
+        // These trigger FigureSerializer::save_with_dialog / load_with_dialog.
+        // In headless/CI they should gracefully no-op (dialog returns empty path).
+        // Important: they must NOT crash — any crash here is a bug.
+        ui->cmd_registry.execute("file.save_figure");
+        pump_frames(3);
+        ui->cmd_registry.execute("file.load_figure");
+        pump_frames(3);
+        fprintf(stderr, "[QA]   serialize: file.save_figure/load_figure commands OK (no crash)\n");
+
+        pump_frames(5);
+        fprintf(stderr, "[QA]   serialize: all tests passed\n");
+#endif
+        return true;
+    }
+
+    // ── Series removal interaction safety scenario ───────────────────────
+    // Validates the notify_series_removed() path introduced in commit 7b95d81:
+    // add hover/markers on a series, then delete it — should not crash or
+    // produce use-after-free.
+    bool scenario_series_removed_interaction_safety()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        auto* ui = app_->ui_context();
+        if (!ui || !ui->data_interaction)
+            return true;
+
+        // Create a figure with 3 series
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot(1, 1, 1);
+        std::vector<float> x(100);
+        std::vector<float> y1(100), y2(100), y3(100);
+        for (int i = 0; i < 100; ++i)
+        {
+            x[i]  = static_cast<float>(i) * 0.1f;
+            y1[i] = std::sin(x[i]);
+            y2[i] = std::cos(x[i]);
+            y3[i] = x[i] * 0.1f;
+        }
+        ax.line(x, y1).label("sin_target");
+        ax.line(x, y2).label("cos");
+        ax.line(x, y3).label("linear");
+
+        auto all_ids = app_->figure_registry().all_ids();
+        if (!all_ids.empty() && ui->fig_mgr)
+            ui->fig_mgr->queue_switch(all_ids.back());
+        pump_frames(10);
+
+        // Simulate hovering over the first series to populate nearest_ cache
+        const auto& vp = ax.viewport();
+        double cx = static_cast<double>(vp.x + vp.w * 0.3f);
+        double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+
+        CursorReadout cursor;
+        cursor.valid    = true;
+        cursor.screen_x = cx;
+        cursor.screen_y = cy;
+        ui->data_interaction->update(cursor, fig);
+        pump_frames(2);
+
+        // Add a marker on the first series (left-click)
+        ui->data_interaction->on_mouse_click(0, cx, cy);
+        pump_frames(2);
+
+        // Select the first series
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+
+        auto& sel = ui->imgui_ui->selection_context();
+        fprintf(stderr, "[QA]   series_removed: selection type=%d, series=%p\n",
+                static_cast<int>(sel.type), static_cast<void*>(sel.series));
+
+        size_t before_count = ax.series().size();
+
+        // ── Delete the selected series ────────────────────────────────────
+        // This triggers notify_series_removed() via axes series_removed_callback.
+        // After this, nearest_ and any markers referencing the deleted series
+        // must be cleared (no dangling pointers).
+        ui->cmd_registry.execute("series.delete");
+        pump_frames(5);
+
+        size_t after_count = ax.series().size();
+        if (after_count != before_count - 1 && before_count > 0)
+        {
+            add_issue(IssueSeverity::Warning, "series_removed",
+                      "Series delete did not reduce count: before=" + std::to_string(before_count)
+                      + " after=" + std::to_string(after_count));
+        }
+
+        // ── Now interact with the figure again — must not crash ───────────
+        // Hover over the remaining series
+        ui->data_interaction->update(cursor, fig);
+        pump_frames(2);
+
+        // Click on an empty area (deselect)
+        ui->data_interaction->on_mouse_click(0, cx + 300.0, cy + 300.0);
+        pump_frames(2);
+
+        // Move mouse around
+        cursor.screen_x = cx + 50.0;
+        cursor.screen_y = cy + 20.0;
+        ui->data_interaction->update(cursor, fig);
+        pump_frames(2);
+
+        // Delete another series to stress the path further
+        ui->cmd_registry.execute("series.cycle_selection");
+        pump_frames(2);
+        ui->cmd_registry.execute("series.delete");
+        pump_frames(5);
+
+        // Final hover on reduced series set
+        ui->data_interaction->update(cursor, fig);
+        pump_frames(5);
+
+        fprintf(stderr, "[QA]   series_removed: all interactions post-delete completed without crash\n");
+#endif
+        return true;
+    }
+
+    // ── Line culling pan/zoom scenario ───────────────────────────────────
+    // Validates the draw-call culling optimization from commit a302a0d.
+    // Creates a large sorted line series (>256 points) and performs extensive
+    // pan + zoom operations to exercise the binary-search culling path.
+    bool scenario_line_culling_pan_zoom()
+    {
+#ifdef SPECTRA_USE_GLFW
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return true;
+
+        // Create a large sorted line series (10K points)
+        auto& fig = app_->figure({1280, 720});
+        auto& ax  = fig.subplot(1, 1, 1);
+        const int N = 10000;
+        std::vector<float> x(N), y(N);
+        for (int i = 0; i < N; ++i)
+        {
+            x[i] = static_cast<float>(i) * 0.001f;   // sorted, 0..10
+            y[i] = std::sin(x[i] * 6.0f) * std::exp(-x[i] * 0.2f);
+        }
+        ax.line(x, y).label("damped_sin_10k");
+        ax.title("Line Culling Stress Test (10K sorted points)");
+
+        auto all_ids = app_->figure_registry().all_ids();
+        if (!all_ids.empty() && ui->fig_mgr)
+            ui->fig_mgr->queue_switch(all_ids.back());
+        pump_frames(15);
+
+        const auto& vp = ax.viewport();
+        double cx = static_cast<double>(vp.x + vp.w * 0.5);
+        double cy = static_cast<double>(vp.y + vp.h * 0.5);
+
+        // ── Phase 1: Zoom in deep (culling removes most points) ───────────
+        fprintf(stderr, "[QA]   culling: phase 1 — zoom in 15x\n");
+        for (int i = 0; i < 15; ++i)
+        {
+            if (has_critical_issue()) return false;
+            ui->input_handler.on_scroll(0.0, 1.0, cx, cy);
+            pump_frames(1);
+        }
+        pump_frames(5);
+
+        // ── Phase 2: Pan across the data range ───────────────────────────
+        fprintf(stderr, "[QA]   culling: phase 2 — pan right through data\n");
+        for (int i = 0; i < 30; ++i)
+        {
+            if (has_critical_issue()) return false;
+            // Drag right (pan left in data space)
+            double x1 = cx + 10.0, x2 = cx - 10.0;
+            ui->input_handler.on_mouse_button(1, 1, 0, x1, cy);
+            pump_frames(1);
+            for (int s = 1; s <= 5; ++s)
+            {
+                double t = static_cast<double>(s) / 5.0;
+                ui->input_handler.on_mouse_move(x1 + (x2 - x1) * t, cy);
+            }
+            ui->input_handler.on_mouse_button(1, 0, 0, x2, cy);
+            pump_frames(1);
+        }
+        pump_frames(5);
+
+        // ── Phase 3: Zoom out to show full range ─────────────────────────
+        fprintf(stderr, "[QA]   culling: phase 3 — zoom out 20x\n");
+        for (int i = 0; i < 20; ++i)
+        {
+            if (has_critical_issue()) return false;
+            ui->input_handler.on_scroll(0.0, -1.0, cx, cy);
+            pump_frames(1);
+        }
+        pump_frames(5);
+
+        // ── Phase 4: Rapid zoom in/out stress ────────────────────────────
+        fprintf(stderr, "[QA]   culling: phase 4 — rapid alternating zoom\n");
+        for (int i = 0; i < 40; ++i)
+        {
+            if (has_critical_issue()) return false;
+            double delta = (i % 2 == 0) ? 1.0 : -1.0;
+            ui->input_handler.on_scroll(0.0, delta, cx, cy);
+            pump_frames(1);
+        }
+
+        // Reset view
+        ui->cmd_registry.execute("view.home");
+        pump_frames(10);
+
+        fprintf(stderr, "[QA]   culling: all phases complete without crash or corruption\n");
+#endif
+        return true;
+    }
+
     // ── Design Review ────────────────────────────────────────────────────
     // Captures named screenshots of every meaningful UI state for design analysis.
     // Screenshots go into <output_dir>/design/ with descriptive names.
 
-    std::string named_screenshot(const std::string& name)
+    std::string named_screenshot(const std::string& name,
+                                  WindowContext* target_window = nullptr)
     {
         auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
         if (!backend)
             return "";
 
+        // When targeting a specific window, temporarily switch so
+        // swapchain_width/height read from the correct swapchain.
+        WindowContext* restore_window = nullptr;
+        if (target_window)
+        {
+            restore_window = backend->active_window();
+            backend->set_active_window(target_window);
+        }
+
         uint32_t w = backend->swapchain_width();
         uint32_t h = backend->swapchain_height();
         if (w == 0 || h == 0)
+        {
+            if (restore_window)
+                backend->set_active_window(restore_window);
             return "";
+        }
 
         std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
         // Request capture during next end_frame (between GPU submit and present)
         // so the swapchain image content is guaranteed valid.
-        backend->request_framebuffer_capture(pixels.data(), w, h);
+        // When target_window is set, the capture fires only during that
+        // window's end_frame — critical for multi-window screenshots.
+        backend->request_framebuffer_capture(pixels.data(), w, h, target_window);
         pump_frames(1);   // triggers capture in end_frame
+
+        if (restore_window)
+            backend->set_active_window(restore_window);
 
         std::string dir = opts_.output_dir + "/design";
         std::filesystem::create_directories(dir);
@@ -2544,36 +2865,28 @@ class QAAgent
         }
 
         // ── 40. Tab bar context menu (right-click on tab) ───────────────
-        // D36 fix: inject mouse position + right-click directly into ImGui IO
-        // so TabBar::handle_input() sees IsMouseClicked(Right) at tab position.
-        // Tab bar is at y = COMMAND_BAR_HEIGHT(48) + TAB_BAR_HEIGHT/2(18) = 66.
-        // First visible tab starts after NAV_TOOLBAR_INSET(68) + PLOT_LEFT_MARGIN(100) = 168px,
-        // but the tab label area is from x=168. Use x=200 (inside first tab).
+        // D40 fix: tabs are rendered via draw_pane_tab_headers() which uses
+        // per-pane ImGui windows with NoInputs.  Mouse injection doesn't
+        // work reliably because pump_frames→step() switches ImGui contexts.
+        // Use the programmatic open_tab_context_menu() API instead.
         {
             auto* ui = app_->ui_context();
-            if (ui && ui->imgui_ui)
+            if (ui && ui->imgui_ui && ui->fig_mgr)
             {
-                // Ensure multiple tabs exist
-                for (int i = 0; i < 3; ++i)
-                    create_random_figure();
-                pump_frames(5);
+                // Switch to Figure 1 so the screenshot shows a clean figure
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(10);
 
-                // Inject mouse position into ImGui IO and simulate right-click
-                auto& io = ImGui::GetIO();
-                const float TAB_X = 200.0f;
-                const float TAB_Y = 66.0f;  // command bar(48) + tab center(18)
-                io.AddMousePosEvent(TAB_X, TAB_Y);
-                pump_frames(1);  // process move so hover is set
-                io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);   // press
-                pump_frames(1);
-                io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);  // release
+                // Programmatically open the context menu for Figure 1
+                if (!ids.empty())
+                    ui->imgui_ui->open_tab_context_menu(ids[0]);
                 pump_frames(10);
                 named_screenshot("40_tab_context_menu");
 
-                // Dismiss: press Escape via ImGui key event
-                io.AddKeyEvent(ImGuiKey_Escape, true);
-                pump_frames(1);
-                io.AddKeyEvent(ImGuiKey_Escape, false);
+                // Dismiss by pumping frames (popup auto-closes when mouse
+                // is outside its bounds, which it always is in headless).
                 pump_frames(5);
             }
         }
@@ -2671,27 +2984,18 @@ class QAAgent
                         ids[1], 800, 600, "Detached Figure", 100, 100);
                     pump_frames(20);
 
-                    // Screenshot the primary window (shows remaining tabs)
-                    named_screenshot("45_multi_window_primary");
+                    // D41 fix: use window-targeted captures. step() iterates
+                    // all windows, so set_active_window before pump_frames
+                    // gets overridden.  Pass target WindowContext* so the
+                    // capture fires only during that window's end_frame.
+                    auto* primary_wctx = wm->windows().empty() ? nullptr : wm->windows()[0];
+                    named_screenshot("45_multi_window_primary", primary_wctx);
 
-                    // Screenshot from the secondary window if it exists
-                    // D37 fix: capture from secondary window by switching the active
-                    // window context in the backend so readback reads the right swapchain.
+                    // Screenshot from the secondary window
                     if (new_wctx)
                     {
-                        auto* vk = dynamic_cast<VulkanBackend*>(app_->backend());
-                        if (vk)
-                        {
-                            // Render a frame on the secondary window first so its
-                            // swapchain image is populated with the correct content.
-                            vk->set_active_window(new_wctx);
-                            pump_frames(10);
-                            named_screenshot("45b_multi_window_secondary");
-                            // Restore primary window as active
-                            if (!wm->windows().empty())
-                                vk->set_active_window(wm->windows()[0]);
-                            pump_frames(5);
-                        }
+                        pump_frames(5);
+                        named_screenshot("45b_multi_window_secondary", new_wctx);
                     }
 
                     // Close the secondary window

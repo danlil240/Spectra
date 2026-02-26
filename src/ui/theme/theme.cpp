@@ -914,7 +914,7 @@ void ThemeManager::initialize_default_themes()
                     .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific
-                    .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.12f),
+                    .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.18f),
                     .axis_line        = Color(0.30f, 0.33f, 0.38f, 0.70f),
                     .tick_label       = Color::from_hex(0x656D76),
                     .crosshair        = Color::from_hex(0xB30969DA),

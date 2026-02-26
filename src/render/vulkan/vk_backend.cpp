@@ -1719,15 +1719,30 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
 void VulkanBackend::request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height)
 {
-    pending_capture_.buffer = out_rgba;
-    pending_capture_.width  = width;
-    pending_capture_.height = height;
-    pending_capture_.done   = false;
+    pending_capture_.buffer        = out_rgba;
+    pending_capture_.width         = width;
+    pending_capture_.height        = height;
+    pending_capture_.done          = false;
+    pending_capture_.target_window = nullptr;
+}
+
+void VulkanBackend::request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height,
+                                                WindowContext* target_window)
+{
+    pending_capture_.buffer        = out_rgba;
+    pending_capture_.width         = width;
+    pending_capture_.height        = height;
+    pending_capture_.done          = false;
+    pending_capture_.target_window = target_window;
 }
 
 bool VulkanBackend::do_capture_before_present()
 {
     if (!pending_capture_.buffer)
+        return false;
+
+    // If a target window is specified, only capture when active_window_ matches
+    if (pending_capture_.target_window && active_window_ != pending_capture_.target_window)
         return false;
 
     uint32_t width  = pending_capture_.width;

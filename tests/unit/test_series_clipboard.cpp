@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ui/commands/series_clipboard.hpp"
+#include "ui/input/selection_context.hpp"
 
 using namespace spectra;
 
@@ -471,4 +472,126 @@ TEST(SeriesClipboard, Paste2DScatterInto3D)
     EXPECT_FLOAT_EQ(scat3d->size(), 8.0f);
     EXPECT_EQ(scat3d->point_count(), 3u);
     EXPECT_FLOAT_EQ(scat3d->z_data()[0], 0.0f);
+}
+
+// ─── Regression: copy+paste+delete must not leave dangling selection ─────────
+
+TEST(SeriesClipboard, CopyPasteDeleteClearsSelection)
+{
+    // Reproduces the crash scenario: copy series, paste it, then delete the
+    // original while the selection still points to it.  The on_series_removed
+    // callback must clear the selection to prevent a dangling dereference.
+    Figure fig;
+    auto&  ax = fig.subplot(1, 1, 1);
+
+    // Create original series
+    std::vector<float> x1{1, 2, 3}, y1{4, 5, 6};
+    auto& s1 = ax.line(x1, y1);
+    s1.label("original");
+
+    // Set up selection pointing to s1
+    ui::SelectionContext ctx;
+    ctx.select_series(&fig, &ax, 0, &s1, 0);
+    ASSERT_EQ(ctx.type, ui::SelectionType::Series);
+    ASSERT_EQ(ctx.series, &s1);
+
+    // Copy
+    SeriesClipboard clipboard;
+    clipboard.copy(s1);
+    EXPECT_TRUE(clipboard.has_data());
+
+    // Paste — creates s2 in same axes, selection still points to s1
+    Series* s2 = clipboard.paste(ax);
+    ASSERT_NE(s2, nullptr);
+    EXPECT_EQ(ax.series().size(), 2u);
+    EXPECT_EQ(ctx.series, &s1);   // selection unchanged by paste
+
+    // Simulate on_series_removed callback clearing selection (the fix)
+    // Wire a callback that clears selection when s1 is removed
+    ax.set_series_removed_callback([&ctx](const Series* s)
+    {
+        if (ctx.series == s)
+            ctx.clear();
+        else
+        {
+            auto& sv = ctx.selected_series;
+            for (auto it = sv.begin(); it != sv.end(); ++it)
+            {
+                if (it->series == s)
+                {
+                    sv.erase(it);
+                    if (sv.empty())
+                        ctx.clear();
+                    break;
+                }
+            }
+        }
+    });
+
+    // Delete s1 (the originally selected series)
+    ax.remove_series(0);
+
+    // Selection must be cleared — no dangling pointer
+    EXPECT_EQ(ctx.type, ui::SelectionType::None);
+    EXPECT_EQ(ctx.series, nullptr);
+    EXPECT_EQ(ax.series().size(), 1u);   // only s2 remains
+}
+
+TEST(SeriesClipboard, DeleteClearsMultiSelection)
+{
+    // Verify that removing a series from a multi-selection properly
+    // cleans up the selected_series vector.
+    Figure fig;
+    auto&  ax = fig.subplot(1, 1, 1);
+    std::vector<float> xa{1, 2}, ya{3, 4};
+    std::vector<float> xb{5, 6}, yb{7, 8};
+    std::vector<float> xc{9, 10}, yc{11, 12};
+    auto& s1 = ax.line(xa, ya);
+    auto& s2 = ax.line(xb, yb);
+    auto& s3 = ax.line(xc, yc);
+
+    ui::SelectionContext ctx;
+    ctx.select_series(&fig, &ax, 0, &s1, 0);
+    ctx.add_series(&fig, &ax, nullptr, 0, &s2, 1);
+    ctx.add_series(&fig, &ax, nullptr, 0, &s3, 2);
+    ASSERT_EQ(ctx.selected_series.size(), 3u);
+
+    // Wire callback
+    ax.set_series_removed_callback([&ctx](const Series* s)
+    {
+        if (ctx.series == s)
+            ctx.clear();
+        else
+        {
+            auto& sv = ctx.selected_series;
+            for (auto it = sv.begin(); it != sv.end(); ++it)
+            {
+                if (it->series == s)
+                {
+                    sv.erase(it);
+                    if (sv.empty())
+                        ctx.clear();
+                    break;
+                }
+            }
+        }
+    });
+
+    // After add_series, ctx.series points to s3 (last added)
+    EXPECT_EQ(ctx.series, &s3);
+
+    // Remove s2 (middle of selection, index 1)
+    ax.remove_series(1);
+    EXPECT_EQ(ctx.selected_series.size(), 2u);
+    EXPECT_EQ(ctx.type, ui::SelectionType::Series);   // still has selection
+
+    // Remove s1 (index 0, in vector but not ctx.series) — shrinks vector
+    ax.remove_series(0);
+    EXPECT_EQ(ctx.selected_series.size(), 1u);
+    EXPECT_EQ(ctx.type, ui::SelectionType::Series);   // s3 still selected
+
+    // Remove s3 (now index 0, IS ctx.series) — should clear entirely
+    ax.remove_series(0);
+    EXPECT_EQ(ctx.type, ui::SelectionType::None);
+    EXPECT_EQ(ctx.series, nullptr);
 }

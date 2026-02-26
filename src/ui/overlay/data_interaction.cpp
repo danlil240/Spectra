@@ -58,6 +58,14 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
             xlim_max_        = xl.max;
             ylim_min_        = yl.min;
             ylim_max_        = yl.max;
+
+            // Cache for persistent marker drawing when cursor leaves
+            has_marker_viewport_ = true;
+            marker_viewport_     = vp;
+            marker_xlim_min_     = xl.min;
+            marker_xlim_max_     = xl.max;
+            marker_ylim_min_     = yl.min;
+            marker_ylim_max_     = yl.max;
             break;
         }
     }
@@ -115,10 +123,28 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
         draw_legend_for_figure(*last_figure_);
     }
 
-    // Draw markers for all axes that have them
+    // Draw markers (data tips) — always visible, even when cursor is outside the figure.
+    // Use live viewport when cursor is over axes, otherwise use cached viewport.
     if (active_axes_)
     {
         markers_.draw(active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+    }
+    else if (has_marker_viewport_ && !markers_.markers().empty())
+    {
+        // Cursor left the figure — keep drawing markers at their last known positions.
+        // Update cached limits from the figure's first axes (zoom/pan may have changed).
+        if (last_figure_ && !last_figure_->axes().empty() && last_figure_->axes()[0])
+        {
+            auto& ax = last_figure_->axes()[0];
+            marker_viewport_ = ax->viewport();
+            auto xl          = ax->x_limits();
+            auto yl          = ax->y_limits();
+            marker_xlim_min_ = xl.min;
+            marker_xlim_max_ = xl.max;
+            marker_ylim_min_ = yl.min;
+            marker_ylim_max_ = yl.max;
+        }
+        markers_.draw(marker_viewport_, marker_xlim_min_, marker_xlim_max_, marker_ylim_min_, marker_ylim_max_);
     }
 
     // Draw region selection overlay
@@ -152,9 +178,23 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
     if (!active_axes_ || !last_figure_)
         return false;
 
-    // Left click: pin a data label on the nearest point + select the series
+    // Left click: remove an existing data tip if clicked on it, otherwise pin a new one
     if (button == 0)
     {
+        // First: hit-test existing markers — clicking on a data tip removes it
+        int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
+                                           static_cast<float>(screen_y),
+                                           active_viewport_,
+                                           xlim_min_,
+                                           xlim_max_,
+                                           ylim_min_,
+                                           ylim_max_);
+        if (marker_hit >= 0)
+        {
+            markers_.remove(static_cast<size_t>(marker_hit));
+            return true;
+        }
+
         constexpr float SELECT_SNAP_PX = 30.0f;
         if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {

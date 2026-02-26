@@ -153,6 +153,13 @@ class DataInteraction
     Rect          active_viewport_;
     float         xlim_min_ = 0.0f, xlim_max_ = 1.0f;
     float         ylim_min_ = 0.0f, ylim_max_ = 1.0f;
+
+    // Persistent marker viewport: updated whenever active_axes_ is valid,
+    // used to keep drawing data tips even when the cursor leaves the figure.
+    bool  has_marker_viewport_ = false;
+    Rect  marker_viewport_;
+    float marker_xlim_min_ = 0.0f, marker_xlim_max_ = 1.0f;
+    float marker_ylim_min_ = 0.0f, marker_ylim_max_ = 1.0f;
 };
 
 }   // namespace spectra

@@ -113,28 +113,32 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // BEFORE the user's on_frame callback can call clear_series().
     // Only set on axes that don't already have it (avoids per-frame
     // std::function allocation for the common case of unchanged axes).
-    auto wire_series_callbacks = [this, &data_interaction](Figure* fig)
+    auto wire_series_callbacks = [this, &ui_ctx](Figure* fig)
     {
         for (auto& axes_ptr : fig->axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
                 axes_ptr->set_series_removed_callback(
-                    [this, &data_interaction](const Series* s)
+                    [this, &ui_ctx](const Series* s)
                     {
                         renderer_.notify_series_removed(s);
-                        if (data_interaction)
-                            data_interaction->notify_series_removed(s);
+                        if (ui_ctx.data_interaction)
+                            ui_ctx.data_interaction->notify_series_removed(s);
+                        if (ui_ctx.imgui_ui)
+                            ui_ctx.imgui_ui->notify_series_removed(s);
                     });
         }
         for (auto& axes_ptr : fig->all_axes())
         {
             if (axes_ptr && !axes_ptr->has_series_removed_callback())
                 axes_ptr->set_series_removed_callback(
-                    [this, &data_interaction](const Series* s)
+                    [this, &ui_ctx](const Series* s)
                     {
                         renderer_.notify_series_removed(s);
-                        if (data_interaction)
-                            data_interaction->notify_series_removed(s);
+                        if (ui_ctx.data_interaction)
+                            ui_ctx.data_interaction->notify_series_removed(s);
+                        if (ui_ctx.imgui_ui)
+                            ui_ctx.imgui_ui->notify_series_removed(s);
                     });
         }
     };
@@ -148,6 +152,25 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     {
         if (!fig->anim_on_frame_)
             return;
+
+        // Guard: if all axes have zero series, the user's on_frame callback
+        // likely holds dangling Series& references (e.g. knob_demo captures
+        // `line` by ref).  Clear the callback to prevent use-after-free.
+        {
+            bool has_any_series = false;
+            for (auto& ax : fig->axes())
+                if (ax && !ax->series().empty()) { has_any_series = true; break; }
+            if (!has_any_series)
+            {
+                for (auto& ax : fig->all_axes())
+                    if (ax && !ax->series().empty()) { has_any_series = true; break; }
+            }
+            if (!has_any_series)
+            {
+                fig->anim_on_frame_ = nullptr;
+                return;
+            }
+        }
 
         Frame frame = scheduler.current_frame();
 
@@ -233,6 +256,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             drive_figure_anim(pfig, /*is_active=*/false);
         }
     }
+
 #endif
 
     // Start ImGui frame (updates layout manager with current window size).
@@ -433,6 +457,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
+    // Flush deferred series removals AFTER build_ui finishes.
+    // Commands like series.delete/cut (fired during glfwPollEvents) defer
+    // the actual remove_series call so:
+    //   1. User on_frame callbacks (raw Series& refs) run safely
+    //   2. build_ui / tooltips can still read series data
+    // Now that all reads are done, perform the actual destruction.
+    if (imgui_ui)
+        imgui_ui->flush_deferred_series_removals();
+
     // Process queued figure operations (create, close, switch)
     fig_mgr.process_pending();
 

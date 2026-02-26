@@ -177,6 +177,7 @@ void TabBar::handle_input(const Rect& bounds)
     bool   mouse_in_bounds = (mouse_pos.x >= bounds.x && mouse_pos.x < bounds.x + bounds.w
                             && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
 
+
     // Always process ongoing drags, even when mouse is outside tab bar
     if (is_dragging_)
     {

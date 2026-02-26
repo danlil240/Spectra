@@ -394,13 +394,16 @@ void Inspector::draw_series_browser(Figure& fig)
                 if (ImGui::Button(cut_id, ImVec2(20, 20)))
                 {
                     clipboard_->cut(*s);
-                    ax_base->remove_series(static_cast<size_t>(s_idx));
+                    if (defer_removal_)
+                        defer_removal_(ax_base, s.get());
+                    else
+                        ax_base->remove_series(static_cast<size_t>(s_idx));
                     ctx_.clear();
                     ImGui::PopStyleColor();   // Text
                     if (icf) ImGui::PopFont();
                     ImGui::PopStyleColor(2);  // Button, ButtonHovered
                     ImGui::PopID();
-                    break;   // Iterator invalidated
+                    break;
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Cut");
@@ -414,14 +417,18 @@ void Inspector::draw_series_browser(Figure& fig)
                 std::snprintf(del_id, sizeof(del_id), "%s##dl%d_%d", icon_str(Icon::Trash), ax_idx, s_idx);
                 if (ImGui::Button(del_id, ImVec2(20, 20)))
                 {
-                    ax_base->remove_series(static_cast<size_t>(s_idx));
-                    if (ctx_.series == s.get())
+                    Series* deleted = s.get();
+                    if (defer_removal_)
+                        defer_removal_(ax_base, deleted);
+                    else
+                        ax_base->remove_series(static_cast<size_t>(s_idx));
+                    if (ctx_.series == deleted)
                         ctx_.clear();
                     ImGui::PopStyleColor();   // red text
                     if (icf) ImGui::PopFont();
                     ImGui::PopStyleColor(2);  // Button, ButtonHovered
                     ImGui::PopID();
-                    break;   // Iterator invalidated
+                    break;
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Delete");

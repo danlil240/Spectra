@@ -1,7 +1,7 @@
 # QA Agent — Instructions & Workflow
 
 > Living document. Defines how to run, interpret, and iterate on Spectra QA testing.
-> Last updated: 2026-02-23 (Session 4: added 3D/Animation/Statistics design review scenarios)
+> Last updated: 2026-02-26 (Session 5: added 4 new scenarios, new commands, corrected screenshot count)
 
 ---
 
@@ -130,6 +130,16 @@ After a run, the output directory contains:
 | `mode_switching` | Toggle 2D/3D 10 times with data | ~100 |
 | `stress_docking` | 4 figures, split grid, rapid tab switching | ~50 |
 | `resize_stress` | 30 rapid frame pumps (resize injection planned) | ~90 |
+| `3d_zoom_then_rotate` | 3D camera zoom then orbit rotation correctness | ~210 |
+| `window_resize_glfw` | Real GLFW window resize with extreme aspect ratios | ~100 |
+| `multi_window_lifecycle` | Create/destroy/move figures across multiple OS windows | ~60 |
+| `tab_drag_between_windows` | Detach tabs into new windows, cross-window figure moves | ~60 |
+| `window_drag_stress` | Rapid window repositioning + resize combos | ~80 |
+| `resize_marathon` | 500+ resize events — smooth/jittery/extreme aspect ratios | ~600 |
+| `series_clipboard_selection` | Series copy/cut/paste/delete/deselect/multi-select correctness | ~80 |
+| `figure_serialization` | `FigureSerializer::save/load` roundtrip + `file.save_figure`/`file.load_figure` crash-safety | ~35 |
+| `series_removed_interaction_safety` | `notify_series_removed()` path — hover+markers then delete, no UAF | ~45 |
+| `line_culling_pan_zoom` | Draw-call culling on 10K sorted-point line under pan/zoom stress | ~120 |
 
 ## Fuzz Actions
 
@@ -149,6 +159,9 @@ After a run, the output directory contains:
 | SplitDock | 3 | Split view right or down |
 | Toggle3D | 3 | Toggle 2D/3D mode |
 | WaitFrames | 7 | Pump 1–10 idle frames |
+| WindowResize | 3 | GLFW window resize events, swapchain recreation |
+| WindowDrag | 3 | Window repositioning |
+| TabDetach | 3 | Tab tearoff into new OS window |
 
 ---
 
@@ -256,9 +269,9 @@ The QA agent includes a `--design-review` flag that systematically captures name
     --output-dir /tmp/spectra_qa_design
 ```
 
-### What It Captures (35 screenshots)
+### What It Captures (51 screenshots)
 
-**Session 1–3 — Core UI (1–20)**
+**Core UI (1–20)**
 1. Default single line plot
 2. Empty axes
 3. Multi-series with labels (line + scatter)
@@ -280,7 +293,7 @@ The QA agent includes a `--design-review` flag that systematically captures name
 19. 3D surface plot
 20. 3D scatter plot
 
-**Session 4 — 3D / Animation / Statistics (21–35)**
+**3D / Animation / Statistics (21–35)**
 21. 3D surface with axis labels + lighting + bounding box
 22. 3D camera side view (azimuth=0, elevation=15)
 23. 3D camera top-down view (elevation=85)
@@ -296,6 +309,26 @@ The QA agent includes a `--design-review` flag that systematically captures name
 33. Split view with 2 actual figures (proper split)
 34. Multi-series with legend + grid + crosshair (full chrome)
 35. Zoomed-in data center verification (D12 fix)
+
+**Menu / Window / Interaction (36–51)**
+36. Menu bar activated
+37. Command palette with search text
+38. Inspector with knobs panel
+39. Nav rail visible
+40. Tab right-click context menu
+41. Window resized 640×480
+42. Window resized 1920×600 (ultra-wide)
+43. Window resized 600×1080 (tall)
+44. Window resized 320×240 (minimum)
+45. Multi-window primary (via `target_window` capture)
+45b. Multi-window secondary (via `target_window` capture)
+46. Window repositioned top-left
+47. Split view with inspector + timeline open
+48. Two windows side by side
+49. Fullscreen mode
+50. Minimal chrome (all panels closed)
+
+> **Multi-window screenshot API:** `named_screenshot()` accepts an optional `WindowContext*` so the capture fires only during that window's `end_frame`. Do not use `set_active_window` + `pump_frames` — `step()` overrides the active window.
 
 ### Output
 - Screenshots go to `<output-dir>/design/` with descriptive names
@@ -395,8 +428,8 @@ Theme color changes (grid, axis, border) will cause golden image test failures. 
 - **Requires display:** GLFW window needed (no headless mode yet)
 - **Linux RSS only:** Memory monitoring uses `/proc/self/statm`
 - **No GPU memory tracking:** Only CPU RSS, not VMA/Vulkan allocations
-- **No validation layer integration:** Vulkan errors not monitored yet
-- **Screenshot captures may race:** `readback_framebuffer()` during frame loop
-- **Resize scenario limited:** Can't inject GLFW window resize events yet
-- **Crash handler minimal:** Only dumps seed, no stack trace or partial report
-- **Design review figures don't auto-switch:** ~~New figures created during design review are captured from Figure 1's perspective~~ (Fixed: D1 in QA_design_review.md)
+- **No validation layer integration:** Vulkan errors not monitored yet (QA_update.md item #4)
+- **Screenshot timing fixed:** `request_framebuffer_capture()` copies after GPU submit, before present (commit `4477b46`). Do not use `readback_framebuffer()` in QA capture paths.
+- **Multi-window screenshot fixed:** `named_screenshot(name, WindowContext*)` targets a specific window's `end_frame` (D41 fix). Do not use `set_active_window` + `pump_frames` workaround.
+- **Crash handler:** Dumps seed, last action, and backtrace to `qa_crash.txt`. Reproduce with `--seed <N>`.
+- **Design review screenshot count:** 51 (not 35) — includes menu/window/interaction states added in sessions 4–5.

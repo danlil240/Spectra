@@ -578,3 +578,46 @@ ls /tmp/spectra_qa_design/design/
 
 # After implementing fixes, re-capture and compare
 ```
+
+---
+
+## Session 2 — 2026-02-26
+
+### Issues Found
+
+#### D40 — Tab context menu not showing in screenshot #40
+- **Priority:** P1
+- **Status:** Fixed
+- **Root Cause:** Tabs are rendered via `draw_pane_tab_headers()` (pane tab system), not `TabBar::draw()`. The pane tab windows use `ImGuiWindowFlags_NoInputs`, and `pump_frames()` → `step()` switches ImGui contexts per-window, so injected `AddMouseButtonEvent` right-clicks never reached the correct context. The old `draw_tab_bar()` code path is dead code (never called from `build_ui`).
+- **Fix:** Added `ImGuiIntegration::open_tab_context_menu(FigureId)` public API to programmatically trigger the pane tab context menu. QA agent scenario 40 now calls this instead of injecting mouse events.
+- **Files Changed:**
+  - `src/ui/imgui/imgui_integration.hpp` — added `open_tab_context_menu()` method
+  - `tests/qa/qa_agent.cpp` — scenario 40 uses programmatic API
+
+#### D41 — Multi-window secondary screenshot identical to primary (#45/#45b)
+- **Priority:** P1
+- **Status:** Fixed
+- **Root Cause:** `named_screenshot()` calls `request_framebuffer_capture()` which fires during the first `end_frame()` in the next `pump_frames(1)`. Since `step()` iterates all windows (primary first), the capture always read the primary window's swapchain — even after `set_active_window(secondary)`.
+- **Fix:** Added window-targeted framebuffer capture: `VulkanBackend::request_framebuffer_capture(pixels, w, h, target_window)` with a `target_window` field in `PendingCapture`. `do_capture_before_present()` skips capture when `active_window_` doesn't match the target. `named_screenshot()` accepts an optional `WindowContext*` parameter.
+- **Files Changed:**
+  - `src/render/vulkan/vk_backend.hpp` — `PendingCapture::target_window` field + overloaded `request_framebuffer_capture`
+  - `src/render/vulkan/vk_backend.cpp` — target window check in `do_capture_before_present()` + new overload
+  - `tests/qa/qa_agent.cpp` — `named_screenshot()` accepts target window; scenario 45 uses targeted captures
+
+#### D42 — Light theme grid lines too faint
+- **Priority:** P2
+- **Status:** Fixed
+- **Root Cause:** Light theme `grid_line` color was `Color(0.0f, 0.0f, 0.0f, 0.12f)` — barely visible on white.
+- **Fix:** Increased alpha from 0.12 to 0.18. Golden image baselines updated.
+- **Files Changed:**
+  - `src/ui/theme/theme.cpp` — light theme `grid_line` alpha 0.12 → 0.18
+  - `tests/golden/baseline/*.raw` — updated golden baselines
+
+### Verification
+
+- **Build:** ✅ Clean (0 errors, 0 warnings in changed files)
+- **Tests:** ✅ 78/78 pass
+- **Screenshots:** ✅ 51 captured, all three fixes verified visually
+  - #40: Context menu visible with Rename/Duplicate/Split/Detach/Close items
+  - #45/#45b: Primary shows Figure 1 (1280×720), secondary shows Figure 2 (800×600) — distinct content
+  - #12: Light theme grid lines more visible with 0.18 alpha

@@ -288,11 +288,22 @@ int DataMarkerManager::hit_test(float       screen_x,
                                 float       ylim_max,
                                 float       radius_px) const
 {
+    // Constants matching draw() for label box geometry
+    ImFont*     font    = ImGui::GetFont();
+    const float fs      = font->FontSize;
+    const float fs_sm   = fs * 0.78f;
+    const float pad_x   = 8.0f;
+    const float pad_y   = 5.0f;
+    const float arrow_h = 8.0f;
+    const float ring_r  = 7.0f;
+    const float gap     = 4.0f;
+
     for (size_t i = 0; i < markers_.size(); ++i)
     {
+        const auto& m = markers_[i];
         float sx, sy;
-        data_to_screen(markers_[i].data_x,
-                       markers_[i].data_y,
+        data_to_screen(m.data_x,
+                       m.data_y,
                        viewport,
                        xlim_min,
                        xlim_max,
@@ -300,9 +311,67 @@ int DataMarkerManager::hit_test(float       screen_x,
                        ylim_max,
                        sx,
                        sy);
+
+        // 1) Check the dot itself
         float dx = screen_x - sx;
         float dy = screen_y - sy;
         if (dx * dx + dy * dy <= radius_px * radius_px)
+        {
+            return static_cast<int>(i);
+        }
+
+        // 2) Check the label box (replicate geometry from draw)
+        char coord_buf[64];
+        std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
+
+        bool   has_name = !m.series_label.empty();
+        ImVec2 name_sz  = has_name
+                              ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
+                              : ImVec2(0, 0);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+
+        float text_w = std::max(name_sz.x, coord_sz.x);
+        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f);
+        float box_w  = text_w + pad_x * 2.0f;
+        float box_h  = text_h + pad_y * 2.0f;
+
+        bool  flip = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_top, box_bot;
+        if (!flip)
+        {
+            float arrow_tip_y = sy - ring_r - gap;
+            box_bot            = arrow_tip_y - arrow_h;
+            box_top            = box_bot - box_h;
+        }
+        else
+        {
+            float arrow_tip_y = sy + ring_r + gap;
+            box_top            = arrow_tip_y + arrow_h;
+            box_bot            = box_top + box_h;
+        }
+
+        float box_left  = sx - box_w * 0.5f;
+        float box_right = sx + box_w * 0.5f;
+
+        // Apply same horizontal clamping as draw()
+        if (box_left < viewport.x + 2.0f)
+        {
+            float shift = (viewport.x + 2.0f) - box_left;
+            box_left += shift;
+            box_right += shift;
+        }
+        if (box_right > viewport.x + viewport.w - 2.0f)
+        {
+            float shift = box_right - (viewport.x + viewport.w - 2.0f);
+            box_left -= shift;
+            box_right -= shift;
+        }
+
+        // Expand hit area slightly for easier clicking
+        constexpr float hit_margin = 2.0f;
+        if (screen_x >= box_left - hit_margin && screen_x <= box_right + hit_margin
+            && screen_y >= std::min(box_top, box_bot) - hit_margin
+            && screen_y <= std::max(box_top, box_bot) + hit_margin)
         {
             return static_cast<int>(i);
         }

@@ -2,6 +2,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <functional>
     #include <spectra/fwd.hpp>
 
     #include "ui/input/selection_context.hpp"
@@ -30,6 +31,10 @@ class Inspector
     void set_series_clipboard(SeriesClipboard* sc) { clipboard_ = sc; }
     SeriesClipboard* series_clipboard() const { return clipboard_; }
 
+    // Deferred series removal callback (set by ImGuiIntegration)
+    using DeferRemovalFn = std::function<void(AxesBase*, Series*)>;
+    void set_defer_series_removal(DeferRemovalFn fn) { defer_removal_ = std::move(fn); }
+
    private:
     void draw_figure_properties(Figure& fig);
     void draw_axes_properties(Axes& ax, int index);
@@ -44,7 +49,8 @@ class Inspector
     void draw_series_browser(Figure& fig);
 
     SelectionContext  ctx_;
-    SeriesClipboard* clipboard_ = nullptr;
+    SeriesClipboard* clipboard_      = nullptr;
+    DeferRemovalFn   defer_removal_;
 
     // Collapsible section states
     bool sec_appearance_ = true;

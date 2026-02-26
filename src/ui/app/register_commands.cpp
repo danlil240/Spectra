@@ -806,44 +806,25 @@ void register_standard_commands(const CommandBindings& b)
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series || !imgui_ui->series_clipboard())
                 return;
+            // Snapshot clipboard data from live series first
             if (sel.has_multi_selection())
             {
                 std::vector<const Series*> list;
                 for (const auto& e : sel.selected_series)
                     if (e.series) list.push_back(e.series);
                 imgui_ui->series_clipboard()->cut_multi(list);
-                // Remove all selected series from their respective axes (reverse to preserve indices)
-                for (auto it = sel.selected_series.rbegin(); it != sel.selected_series.rend(); ++it)
-                {
-                    AxesBase* owner = it->axes_base ? it->axes_base : static_cast<AxesBase*>(it->axes);
-                    if (!owner || !it->series) continue;
-                    auto& svec = owner->series_mut();
-                    for (size_t i = 0; i < svec.size(); ++i)
-                    {
-                        if (svec[i].get() == it->series)
-                        {
-                            owner->remove_series(i);
-                            break;
-                        }
-                    }
-                }
             }
             else if (sel.series)
             {
                 imgui_ui->series_clipboard()->cut(*sel.series);
-                AxesBase* owner = sel.axes_base ? sel.axes_base : static_cast<AxesBase*>(sel.axes);
-                if (owner)
-                {
-                    auto& svec = owner->series_mut();
-                    for (size_t i = 0; i < svec.size(); ++i)
-                    {
-                        if (svec[i].get() == sel.series)
-                        {
-                            owner->remove_series(i);
-                            break;
-                        }
-                    }
-                }
+            }
+            // Defer removal so the user's on_frame callback runs before
+            // the series is actually destroyed.
+            for (const auto& e : sel.selected_series)
+            {
+                AxesBase* owner = e.axes_base ? e.axes_base : static_cast<AxesBase*>(e.axes);
+                if (owner && e.series)
+                    imgui_ui->defer_series_removal(owner, const_cast<Series*>(e.series));
             }
             sel.clear();
         },
@@ -903,39 +884,14 @@ void register_standard_commands(const CommandBindings& b)
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series)
                 return;
-            if (sel.has_multi_selection())
+            // Defer removal so the user's on_frame callback (which may
+            // hold raw Series& references) runs before the series is
+            // actually destroyed.  WindowRuntime flushes after on_frame.
+            for (const auto& e : sel.selected_series)
             {
-                // Remove all selected series (reverse to preserve indices)
-                for (auto it = sel.selected_series.rbegin(); it != sel.selected_series.rend(); ++it)
-                {
-                    AxesBase* owner = it->axes_base ? it->axes_base : static_cast<AxesBase*>(it->axes);
-                    if (!owner || !it->series) continue;
-                    auto& svec = owner->series_mut();
-                    for (size_t i = 0; i < svec.size(); ++i)
-                    {
-                        if (svec[i].get() == it->series)
-                        {
-                            owner->remove_series(i);
-                            break;
-                        }
-                    }
-                }
-            }
-            else if (sel.series)
-            {
-                AxesBase* owner = sel.axes_base ? sel.axes_base : static_cast<AxesBase*>(sel.axes);
-                if (owner)
-                {
-                    auto& svec = owner->series_mut();
-                    for (size_t i = 0; i < svec.size(); ++i)
-                    {
-                        if (svec[i].get() == sel.series)
-                        {
-                            owner->remove_series(i);
-                            break;
-                        }
-                    }
-                }
+                AxesBase* owner = e.axes_base ? e.axes_base : static_cast<AxesBase*>(e.axes);
+                if (owner && e.series)
+                    imgui_ui->defer_series_removal(owner, const_cast<Series*>(e.series));
             }
             sel.clear();
         },

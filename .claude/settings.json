@@ -1,5 +1,6 @@
 {
   "rules": [
+    "MANDATORY: Before executing ANY task, first read /CODEBASE_MAP.md to understand the project architecture, class hierarchy, data flow, and file locations.",
     "Always read files before editing them. Never propose changes to code you haven't seen.",
     "Follow C++20 conventions: use std::span, std::string_view, constexpr, RAII, no raw new/delete.",
     "No global state. All state belongs to manager instances passed by pointer.",

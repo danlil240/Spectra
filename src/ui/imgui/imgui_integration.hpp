@@ -134,6 +134,13 @@ class ImGuiIntegration
     void          set_input_handler(InputHandler* ih) { input_handler_ = ih; }
     InputHandler* input_handler() const { return input_handler_; }
 
+    // Programmatically open the pane tab context menu (for QA agent testing)
+    void open_tab_context_menu(FigureId fig_id)
+    {
+        pane_ctx_menu_fig_  = fig_id;
+        pane_ctx_menu_open_ = true;
+    }
+
     // Timeline editor (Agent G, owned externally by App)
     void            set_timeline_editor(TimelineEditor* te) { timeline_editor_ = te; }
     TimelineEditor* timeline_editor() const { return timeline_editor_; }
@@ -147,7 +154,12 @@ class ImGuiIntegration
     AnimationCurveEditor* curve_editor() const { return curve_editor_; }
 
     // Series clipboard (owned externally by App)
-    void             set_series_clipboard(SeriesClipboard* sc) { series_clipboard_ = sc; inspector_.set_series_clipboard(sc); }
+    void             set_series_clipboard(SeriesClipboard* sc) {
+        series_clipboard_ = sc;
+        inspector_.set_series_clipboard(sc);
+        inspector_.set_defer_series_removal(
+            [this](AxesBase* owner, Series* s) { defer_series_removal(owner, s); });
+    }
     SeriesClipboard* series_clipboard() const { return series_clipboard_; }
 
     // Mode transition (Agent 6 Week 11, owned externally by App)
@@ -236,6 +248,69 @@ class ImGuiIntegration
             inspector_.set_context({});
     }
 
+    // Called when a series is about to be destroyed.  Clears any selection
+    // context entries that reference the doomed series so the inspector
+    // never dereferences a dangling pointer.
+    void notify_series_removed(const Series* s)
+    {
+        if (selection_ctx_.series == s)
+            selection_ctx_.clear();
+        else
+        {
+            auto& sv = selection_ctx_.selected_series;
+            for (auto it = sv.begin(); it != sv.end(); ++it)
+            {
+                if (it->series == s)
+                {
+                    sv.erase(it);
+                    if (sv.empty())
+                        selection_ctx_.clear();
+                    break;
+                }
+            }
+        }
+    }
+
+    // ── Deferred series removal ──────────────────────────────────────
+    // Series deletion must be deferred so the user's on_frame callback
+    // (which may hold raw Series& references) runs before the series is
+    // destroyed.  Commands push entries here; WindowRuntime flushes them
+    // after drive_figure_anim.
+    struct PendingSeriesRemoval
+    {
+        AxesBase* owner;
+        Series*   series;
+    };
+
+    void defer_series_removal(AxesBase* owner, Series* series)
+    {
+        pending_series_removals_.push_back({owner, series});
+    }
+
+    // Execute all pending removals.  Called by WindowRuntime::update()
+    // after the user's on_frame callback has finished.
+    void flush_deferred_series_removals()
+    {
+        if (pending_series_removals_.empty())
+            return;
+        for (auto& r : pending_series_removals_)
+        {
+            if (!r.owner || !r.series) continue;
+            auto& svec = r.owner->series_mut();
+            for (size_t i = 0; i < svec.size(); ++i)
+            {
+                if (svec[i].get() == r.series)
+                {
+                    r.owner->remove_series(i);
+                    break;
+                }
+            }
+        }
+        pending_series_removals_.clear();
+    }
+
+    bool has_pending_series_removals() const { return !pending_series_removals_.empty(); }
+
    private:
     void apply_modern_style();
     void load_fonts();
@@ -274,6 +349,9 @@ class ImGuiIntegration
     // Inspector system (Agent C)
     ui::Inspector        inspector_;
     ui::SelectionContext selection_ctx_;
+
+    // Deferred series removal queue (flushed after on_frame callback)
+    std::vector<PendingSeriesRemoval> pending_series_removals_;
 
     // Panel state
     bool panel_open_    = false;

@@ -1348,6 +1348,12 @@ void ImGuiIntegration::draw_command_bar()
                           if (command_registry_)
                               command_registry_->execute("view.toggle_legend");
                       }),
+             MenuItem("Remove All Data Tips",
+                      [this]()
+                      {
+                          if (data_interaction_)
+                              data_interaction_->clear_markers();
+                      }),
              MenuItem("", nullptr),   // Separator
              MenuItem("Toggle Timeline",
                       [this]()
@@ -1360,6 +1366,12 @@ void ImGuiIntegration::draw_command_bar()
                       {
                           if (command_registry_)
                               command_registry_->execute("panel.toggle_curve_editor");
+                      }),
+             MenuItem("Toggle Parameters",
+                      [this]()
+                      {
+                          if (knob_manager_ && !knob_manager_->empty())
+                              knob_manager_->set_visible(!knob_manager_->is_visible());
                       })});
 
         ImGui::SameLine();
@@ -1836,6 +1848,17 @@ void ImGuiIntegration::draw_nav_rail()
             }
         }
         modern_tooltip("Measure (M)");
+
+        // ── Remove All Data Tips button (only shown when tips exist) ──
+        if (data_interaction_ && !data_interaction_->markers().empty())
+        {
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
+            if (icon_button(ui::icon_str(ui::Icon::Trash), false, font_icon_, btn_size))
+            {
+                data_interaction_->clear_markers();
+            }
+            modern_tooltip("Remove All Data Tips");
+        }
 
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
@@ -3960,13 +3983,9 @@ void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* 
     selection_ctx_.axes_base = static_cast<AxesBase*>(ax);
     if (!selection_ctx_.selected_series.empty())
         selection_ctx_.selected_series[0].axes_base = static_cast<AxesBase*>(ax);
-    // Switch inspector to Series section so the selection isn't overwritten
+    // Switch inspector to Series section so it shows the right content when opened
     active_section_ = Section::Series;
-    // Ensure inspector is visible so the user can edit the selected series
-    if (layout_manager_ && !layout_manager_->is_inspector_visible())
-    {
-        layout_manager_->set_inspector_visible(true);
-    }
+    // Inspector is NOT auto-opened on series click — user opens it via nav rail or View menu
     SPECTRA_LOG_INFO("ui", "Series selected from canvas: " + s->label());
 }
 
@@ -3981,10 +4000,7 @@ void ImGuiIntegration::select_series_no_toggle(Figure* fig, Axes* ax, int ax_idx
     if (!selection_ctx_.selected_series.empty())
         selection_ctx_.selected_series[0].axes_base = static_cast<AxesBase*>(ax);
     active_section_ = Section::Series;
-    if (layout_manager_ && !layout_manager_->is_inspector_visible())
-    {
-        layout_manager_->set_inspector_visible(true);
-    }
+    // Inspector is NOT auto-opened on series click — user opens it via nav rail or View menu
     SPECTRA_LOG_INFO("ui", "Series selected (no-toggle): " + s->label());
 }
 
@@ -3994,10 +4010,7 @@ void ImGuiIntegration::toggle_series_in_selection(Figure* fig, Axes* ax, AxesBas
     if (selection_ctx_.type == ui::SelectionType::Series)
     {
         active_section_ = Section::Series;
-        if (layout_manager_ && !layout_manager_->is_inspector_visible())
-        {
-            layout_manager_->set_inspector_visible(true);
-        }
+        // Inspector is NOT auto-opened on series click — user opens it via nav rail or View menu
     }
     SPECTRA_LOG_INFO("ui", "Series toggled in multi-selection: " + s->label()
                      + " (count=" + std::to_string(selection_ctx_.selected_count()) + ")");
@@ -4704,43 +4717,29 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                                 : "  Cut Series");
                 if (ImGui::Selectable(cut_label.c_str(), false, 0, ImVec2(220, 24)))
                 {
+                    // Snapshot clipboard data from live series first
                     if (is_multi)
                     {
                         std::vector<const Series*> list;
                         for (const auto& e : selection_ctx_.selected_series)
                             if (e.series) list.push_back(e.series);
                         series_clipboard_->cut_multi(list);
-                        for (auto it = selection_ctx_.selected_series.rbegin();
-                             it != selection_ctx_.selected_series.rend(); ++it)
-                        {
-                            AxesBase* owner = it->axes_base ? it->axes_base
-                                              : static_cast<AxesBase*>(it->axes);
-                            if (!owner || !it->series) continue;
-                            auto& svec = owner->series_mut();
-                            for (size_t si = 0; si < svec.size(); ++si)
-                            {
-                                if (svec[si].get() == it->series)
-                                { owner->remove_series(si); break; }
-                            }
-                        }
                     }
                     else if (selection_ctx_.series)
                     {
                         series_clipboard_->cut(*selection_ctx_.series);
-                        AxesBase* owner_ab = selection_ctx_.axes_base
-                            ? selection_ctx_.axes_base
-                            : static_cast<AxesBase*>(selection_ctx_.axes);
-                        if (owner_ab)
-                        {
-                            auto& svec = owner_ab->series_mut();
-                            for (size_t si = 0; si < svec.size(); ++si)
-                            {
-                                if (svec[si].get() == selection_ctx_.series)
-                                { owner_ab->remove_series(si); break; }
-                            }
-                        }
                     }
+                    // Defer removal so on_frame callbacks (which may hold
+                    // raw Series& refs, e.g. knob_demo) run safely next frame.
+                    auto entries = selection_ctx_.selected_series;
                     selection_ctx_.clear();
+                    for (auto it = entries.rbegin(); it != entries.rend(); ++it)
+                    {
+                        AxesBase* owner = it->axes_base ? it->axes_base
+                                          : static_cast<AxesBase*>(it->axes);
+                        if (owner && it->series)
+                            defer_series_removal(owner, const_cast<Series*>(it->series));
+                    }
                 }
 
                 // Delete
@@ -4750,20 +4749,17 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
                 if (ImGui::Selectable(del_label.c_str(), false, 0, ImVec2(220, 24)))
                 {
-                    for (auto it = selection_ctx_.selected_series.rbegin();
-                         it != selection_ctx_.selected_series.rend(); ++it)
+                    // Defer removal so on_frame callbacks (which may hold
+                    // raw Series& refs, e.g. knob_demo) run safely next frame.
+                    auto entries = selection_ctx_.selected_series;
+                    selection_ctx_.clear();
+                    for (auto it = entries.rbegin(); it != entries.rend(); ++it)
                     {
                         AxesBase* owner = it->axes_base ? it->axes_base
                                           : static_cast<AxesBase*>(it->axes);
-                        if (!owner || !it->series) continue;
-                        auto& svec = owner->series_mut();
-                        for (size_t si = 0; si < svec.size(); ++si)
-                        {
-                            if (svec[si].get() == it->series)
-                            { owner->remove_series(si); break; }
-                        }
+                        if (owner && it->series)
+                            defer_series_removal(owner, const_cast<Series*>(it->series));
                     }
-                    selection_ctx_.clear();
                 }
                 ImGui::PopStyleColor();
             }
@@ -5103,8 +5099,11 @@ void ImGuiIntegration::draw_knobs_panel()
     bool collapsed = knob_manager_->is_collapsed();
     ImGui::SetNextWindowCollapsed(collapsed, ImGuiCond_Once);
 
-    if (!ImGui::Begin(" Parameters", nullptr, flags | ImGuiWindowFlags_NoScrollbar))
+    bool panel_open = true;
+    if (!ImGui::Begin(" Parameters", &panel_open, flags | ImGuiWindowFlags_NoScrollbar))
     {
+        if (!panel_open)
+            knob_manager_->set_visible(false);
         // Window is collapsed — record rect (title bar only) and sync state
         ImVec2 wpos        = ImGui::GetWindowPos();
         ImVec2 wsz         = ImGui::GetWindowSize();
@@ -5112,6 +5111,14 @@ void ImGuiIntegration::draw_knobs_panel()
         bool now_collapsed = ImGui::IsWindowCollapsed();
         if (now_collapsed != collapsed)
             knob_manager_->set_collapsed(now_collapsed);
+        ImGui::End();
+        ImGui::PopStyleColor(6);
+        ImGui::PopStyleVar(4);
+        return;
+    }
+    if (!panel_open)
+    {
+        knob_manager_->set_visible(false);
         ImGui::End();
         ImGui::PopStyleColor(6);
         ImGui::PopStyleVar(4);

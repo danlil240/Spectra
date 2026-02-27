@@ -598,7 +598,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
     int grid_rows  = 1;
     int grid_cols  = 1;
-    int axes_count = 0;
+    // int axes_count;
 
     // Track axes as we create them: index -> AxesBase*
     std::vector<AxesBase*> axes_ptrs;
@@ -653,7 +653,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
             {
                 grid_rows  = r.read_i32();
                 grid_cols  = r.read_i32();
-                axes_count = static_cast<int>(r.read_u32());
+                // axes_count = static_cast<int>(r.read_u32());
                 figure.grid_rows_ = grid_rows;
                 figure.grid_cols_ = grid_cols;
                 break;

@@ -125,11 +125,15 @@ BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> he
 
 void Axes::xlim(float min, float max)
 {
+    // Explicit manual limits take precedence over any streaming window.
+    presented_buffer_seconds_.reset();
     xlim_ = AxisLimits{min, max};
 }
 
 void Axes::ylim(float min, float max)
 {
+    // Explicit manual limits take precedence over any streaming window.
+    presented_buffer_seconds_.reset();
     ylim_ = AxisLimits{min, max};
 }
 
@@ -173,6 +177,8 @@ void Axes::autoscale_mode(AutoscaleMode mode)
             auto lim = y_limits();
             ylim_    = lim;
         }
+        // Manual mode should not keep a moving streaming window.
+        presented_buffer_seconds_.reset();
     }
     else if (mode != AutoscaleMode::Manual)
     {
@@ -182,6 +188,23 @@ void Axes::autoscale_mode(AutoscaleMode mode)
         ylim_.reset();
     }
     autoscale_mode_ = mode;
+}
+
+void Axes::presented_buffer(float seconds)
+{
+    if (seconds > 0.0f)
+    {
+        presented_buffer_seconds_ = seconds;
+        // Presented buffer drives limits from data, so clear explicit limits.
+        xlim_.reset();
+        ylim_.reset();
+        if (autoscale_mode_ == AutoscaleMode::Manual)
+            autoscale_mode_ = AutoscaleMode::Padded;
+    }
+    else
+    {
+        presented_buffer_seconds_.reset();
+    }
 }
 
 // --- Limits ---
@@ -362,8 +385,109 @@ static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& se
     // Fit and Padded use the default data_extent behavior (with padding)
 }
 
+static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, float& latest_x)
+{
+    bool has_value = false;
+
+    auto update_latest = [&](float x)
+    {
+        if (!std::isfinite(x))
+            return;
+        if (!has_value || x > latest_x)
+        {
+            latest_x  = x;
+            has_value = true;
+        }
+    };
+
+    for (const auto& s : series)
+    {
+        if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
+        {
+            for (float x : ls->x_data())
+                update_latest(x);
+        }
+        if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
+        {
+            for (float x : ss->x_data())
+                update_latest(x);
+        }
+
+        auto update_from_span = [&](std::span<const float> xd)
+        {
+            for (float x : xd)
+                update_latest(x);
+        };
+        if (auto* bp = dynamic_cast<const BoxPlotSeries*>(s.get()))
+            update_from_span(bp->x_data());
+        if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
+            update_from_span(vn->x_data());
+        if (auto* hs = dynamic_cast<const HistogramSeries*>(s.get()))
+            update_from_span(hs->x_data());
+        if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
+            update_from_span(bs->x_data());
+    }
+
+    return has_value;
+}
+
+static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series,
+                              float                                       window_min,
+                              float                                       window_max,
+                              float&                                      y_min,
+                              float&                                      y_max)
+{
+    y_min      = std::numeric_limits<float>::max();
+    y_max      = -std::numeric_limits<float>::max();
+    bool has_y = false;
+
+    auto consume_xy = [&](std::span<const float> xd, std::span<const float> yd)
+    {
+        size_t n = std::min(xd.size(), yd.size());
+        for (size_t i = 0; i < n; ++i)
+        {
+            float x = xd[i];
+            float y = yd[i];
+            if (!std::isfinite(x) || !std::isfinite(y))
+                continue;
+            if (x < window_min || x > window_max)
+                continue;
+            y_min = std::min(y_min, y);
+            y_max = std::max(y_max, y);
+            has_y = true;
+        }
+    };
+
+    for (const auto& s : series)
+    {
+        if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
+            consume_xy(ls->x_data(), ls->y_data());
+        if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
+            consume_xy(ss->x_data(), ss->y_data());
+        if (auto* bp = dynamic_cast<const BoxPlotSeries*>(s.get()))
+            consume_xy(bp->x_data(), bp->y_data());
+        if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
+            consume_xy(vn->x_data(), vn->y_data());
+        if (auto* hs = dynamic_cast<const HistogramSeries*>(s.get()))
+            consume_xy(hs->x_data(), hs->y_data());
+        if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
+            consume_xy(bs->x_data(), bs->y_data());
+    }
+
+    return has_y;
+}
+
 AxisLimits Axes::x_limits() const
 {
+    if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
+    {
+        float latest_x = 0.0f;
+        if (latest_x_value(series_, latest_x))
+        {
+            return {latest_x - presented_buffer_seconds_.value(), latest_x};
+        }
+    }
+
     if (xlim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return xlim_.value_or(AxisLimits{0.0f, 1.0f});
     float xmin, xmax, ymin, ymax;
@@ -373,6 +497,27 @@ AxisLimits Axes::x_limits() const
 
 AxisLimits Axes::y_limits() const
 {
+    if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
+    {
+        float latest_x = 0.0f;
+        if (latest_x_value(series_, latest_x))
+        {
+            float y_min = 0.0f;
+            float y_max = 0.0f;
+            float x_min = latest_x - presented_buffer_seconds_.value();
+            if (windowed_y_extent(series_, x_min, latest_x, y_min, y_max))
+            {
+                if (autoscale_mode_ == AutoscaleMode::Tight)
+                    return {y_min, y_max};
+
+                float y_pad = (y_max - y_min) * 0.05f;
+                if (y_pad == 0.0f)
+                    y_pad = 0.5f;
+                return {y_min - y_pad, y_max + y_pad};
+            }
+        }
+    }
+
     if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return ylim_.value_or(AxisLimits{0.0f, 1.0f});
     float xmin, xmax, ymin, ymax;

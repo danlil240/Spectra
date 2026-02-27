@@ -15,9 +15,14 @@
         "-DSPECTRA_BUILD_TESTS=ON"
     ],
     "cmake.buildArgs": [],
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
     "cmake.defaultBuildTask": "Build Project with Clang ASan",
     "C_Cpp.default.compilerPath": "/usr/bin/clang++-17",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build_clang_asan/compile_commands.json",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build_clang_asan"
+    ],
     "files.associations": {
         "*.hpp": "cpp",
         "*.cpp": "cpp",

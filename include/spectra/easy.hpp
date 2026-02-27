@@ -454,6 +454,13 @@ inline void grid(bool enabled = true)
         s.ensure_axes().grid(enabled);
 }
 
+// Set the visible streaming buffer length (in seconds) for current 2D axes.
+// While enabled, x/y limits follow the latest data window automatically.
+inline void presented_buffer(float seconds)
+{
+    detail::easy_state().ensure_axes().presented_buffer(seconds);
+}
+
 inline void legend(LegendPosition pos = LegendPosition::TopRight)
 {
     auto& s = detail::easy_state();

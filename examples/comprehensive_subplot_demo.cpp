@@ -152,7 +152,7 @@ int main()
 
     // Set up animation
     spectra::on_update(
-        [&](float dt, float t)
+        [&](float /* dt */, float t)
         {
             // Update animated scatter plot
             for (size_t i = 0; i < N; ++i)

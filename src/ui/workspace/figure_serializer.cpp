@@ -23,13 +23,13 @@ static constexpr uint32_t VERSION = 1;
 // Chunk tags
 enum ChunkTag : uint16_t
 {
-    TAG_FIGURE_CONFIG  = 0x0001,
-    TAG_FIGURE_STYLE   = 0x0002,
-    TAG_LEGEND_CONFIG  = 0x0003,
-    TAG_SUBPLOT_GRID   = 0x0004,
+    TAG_FIGURE_CONFIG = 0x0001,
+    TAG_FIGURE_STYLE  = 0x0002,
+    TAG_LEGEND_CONFIG = 0x0003,
+    TAG_SUBPLOT_GRID  = 0x0004,
 
-    TAG_AXES_2D        = 0x0010,
-    TAG_AXES_3D        = 0x0011,
+    TAG_AXES_2D = 0x0010,
+    TAG_AXES_3D = 0x0011,
 
     TAG_SERIES_LINE    = 0x0020,
     TAG_SERIES_SCATTER = 0x0021,
@@ -42,7 +42,7 @@ enum ChunkTag : uint16_t
     TAG_SERIES_HIST    = 0x0028,
     TAG_SERIES_BAR     = 0x0029,
 
-    TAG_END            = 0xFFFF,
+    TAG_END = 0xFFFF,
 };
 
 // ─── Writer helper ──────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ class BinaryWriter
 
     void end_chunk(std::streampos length_pos)
     {
-        auto end     = f_.tellp();
+        auto     end = f_.tellp();
         uint32_t len = static_cast<uint32_t>(end - length_pos - 4);
         f_.seekp(length_pos);
         write_u32(len);
@@ -176,7 +176,7 @@ class BinaryReader
 
     std::vector<float> read_floats()
     {
-        uint32_t count = read_u32();
+        uint32_t           count = read_u32();
         std::vector<float> v(count);
         if (count > 0)
             f_.read(reinterpret_cast<char*>(v.data()), count * sizeof(float));
@@ -185,7 +185,7 @@ class BinaryReader
 
     std::vector<uint32_t> read_u32s()
     {
-        uint32_t count = read_u32();
+        uint32_t              count = read_u32();
         std::vector<uint32_t> v(count);
         if (count > 0)
             f_.read(reinterpret_cast<char*>(v.data()), count * sizeof(uint32_t));
@@ -203,8 +203,8 @@ class BinaryReader
         s.marker_style(static_cast<MarkerStyle>(read_u8()));
         s.marker_size(read_f32());
         s.opacity(read_f32());
-        float lw = read_f32();
-        auto  ps = s.plot_style();
+        float lw      = read_f32();
+        auto  ps      = s.plot_style();
         ps.line_width = lw;
         s.plot_style(ps);
     }
@@ -520,8 +520,8 @@ bool FigureSerializer::save(const std::string& path, const Figure& figure)
 
     // Subplot grid — total axes = max(axes_.size, all_axes_.size) since
     // 2D axes live in axes_ and 3D axes live in all_axes_
-    uint32_t total_axes = static_cast<uint32_t>(
-        std::max(figure.axes().size(), figure.all_axes().size()));
+    uint32_t total_axes =
+        static_cast<uint32_t>(std::max(figure.axes().size(), figure.all_axes().size()));
     {
         auto pos = w.begin_chunk(TAG_SUBPLOT_GRID);
         w.write_i32(figure.grid_rows());
@@ -585,19 +585,21 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
     // Clear existing figure data — use clear_series() to trigger GPU cleanup
     for (auto& ax : figure.axes_mut())
     {
-        if (ax) ax->clear_series();
+        if (ax)
+            ax->clear_series();
     }
     for (auto& ax : figure.all_axes_mut())
     {
-        if (ax) ax->clear_series();
+        if (ax)
+            ax->clear_series();
     }
     figure.axes_mut().clear();
     figure.all_axes_mut().clear();
     figure.grid_rows_ = 1;
     figure.grid_cols_ = 1;
 
-    int grid_rows  = 1;
-    int grid_cols  = 1;
+    int grid_rows = 1;
+    int grid_cols = 1;
     // int axes_count;
 
     // Track axes as we create them: index -> AxesBase*
@@ -626,8 +628,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
             case TAG_FIGURE_STYLE:
             {
-                auto& s      = figure.style();
-                s.background  = r.read_color();
+                auto& s         = figure.style();
+                s.background    = r.read_color();
                 s.margin_top    = r.read_f32();
                 s.margin_bottom = r.read_f32();
                 s.margin_left   = r.read_f32();
@@ -639,7 +641,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
             case TAG_LEGEND_CONFIG:
             {
-                auto& lc    = figure.legend();
+                auto& lc        = figure.legend();
                 lc.position     = static_cast<LegendPosition>(r.read_u8());
                 lc.visible      = r.read_u8() != 0;
                 lc.font_size    = r.read_f32();
@@ -651,8 +653,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
             case TAG_SUBPLOT_GRID:
             {
-                grid_rows  = r.read_i32();
-                grid_cols  = r.read_i32();
+                grid_rows = r.read_i32();
+                grid_cols = r.read_i32();
                 // axes_count = static_cast<int>(r.read_u32());
                 figure.grid_rows_ = grid_rows;
                 figure.grid_cols_ = grid_cols;
@@ -665,8 +667,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 (void)idx;
 
                 // Create axes via subplot to maintain proper grid
-                int current = static_cast<int>(figure.axes().size());
-                auto& axes  = figure.subplot(grid_rows, grid_cols, current + 1);
+                int   current = static_cast<int>(figure.axes().size());
+                auto& axes    = figure.subplot(grid_rows, grid_cols, current + 1);
 
                 axes.title(r.read_string());
                 axes.xlabel(r.read_string());
@@ -687,7 +689,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 axes.ylim(ymin, ymax);
 
                 // Axis style
-                auto& as      = axes.axis_style();
+                auto& as       = axes.axis_style();
                 as.tick_color  = r.read_color();
                 as.label_color = r.read_color();
                 as.grid_color  = r.read_color();
@@ -705,7 +707,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 int idx = r.read_i32();
                 (void)idx;
 
-                int     current = static_cast<int>(figure.all_axes().size());
+                int   current = static_cast<int>(figure.all_axes().size());
                 auto& axes    = figure.subplot3d(grid_rows, grid_cols, current + 1);
 
                 axes.title(r.read_string());
@@ -737,7 +739,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 axes.lighting_enabled(r.read_u8() != 0);
 
                 // Axis style
-                auto& as      = axes.axis_style();
+                auto& as       = axes.axis_style();
                 as.tick_color  = r.read_color();
                 as.label_color = r.read_color();
                 as.grid_color  = r.read_color();
@@ -747,21 +749,21 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 as.grid_width  = r.read_f32();
 
                 // Camera
-                auto& cam          = axes.camera();
-                cam.azimuth        = r.read_f32();
-                cam.elevation      = r.read_f32();
-                cam.distance       = r.read_f32();
-                cam.fov            = r.read_f32();
-                cam.near_clip      = r.read_f32();
-                cam.far_clip       = r.read_f32();
-                cam.ortho_size     = r.read_f32();
+                auto& cam           = axes.camera();
+                cam.azimuth         = r.read_f32();
+                cam.elevation       = r.read_f32();
+                cam.distance        = r.read_f32();
+                cam.fov             = r.read_f32();
+                cam.near_clip       = r.read_f32();
+                cam.far_clip        = r.read_f32();
+                cam.ortho_size      = r.read_f32();
                 cam.projection_mode = static_cast<Camera::ProjectionMode>(r.read_u8());
-                cam.target.x       = r.read_f32();
-                cam.target.y       = r.read_f32();
-                cam.target.z       = r.read_f32();
-                cam.up.x           = r.read_f32();
-                cam.up.y           = r.read_f32();
-                cam.up.z           = r.read_f32();
+                cam.target.x        = r.read_f32();
+                cam.target.y        = r.read_f32();
+                cam.target.z        = r.read_f32();
+                cam.up.x            = r.read_f32();
+                cam.up.y            = r.read_f32();
+                cam.up.z            = r.read_f32();
                 cam.update_position_from_orbit();
 
                 axes_ptrs.push_back(&axes);
@@ -885,12 +887,12 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 uint32_t box_count = r.read_u32();
                 for (uint32_t i = 0; i < box_count; ++i)
                 {
-                    float xpos    = r.read_f32();
-                    float median  = r.read_f32();
-                    float q1      = r.read_f32();
-                    float q3      = r.read_f32();
-                    float wlo     = r.read_f32();
-                    float whi     = r.read_f32();
+                    float xpos     = r.read_f32();
+                    float median   = r.read_f32();
+                    float q1       = r.read_f32();
+                    float q3       = r.read_f32();
+                    float wlo      = r.read_f32();
+                    float whi      = r.read_f32();
                     auto  outliers = r.read_floats();
                     bp.add_box(xpos, median, q1, q3, wlo, whi, outliers);
                 }
@@ -938,8 +940,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 uint32_t vcount = r.read_u32();
                 for (uint32_t i = 0; i < vcount; ++i)
                 {
-                    float xpos  = r.read_f32();
-                    auto  vals  = r.read_floats();
+                    float xpos = r.read_f32();
+                    auto  vals = r.read_floats();
                     vs.add_violin(xpos, vals);
                 }
 
@@ -973,11 +975,11 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
 
-                int  bins  = r.read_i32();
-                bool cum   = r.read_u8() != 0;
-                bool dens  = r.read_u8() != 0;
-                bool grad  = r.read_u8() != 0;
-                auto vals  = r.read_floats();
+                int  bins = r.read_i32();
+                bool cum  = r.read_u8() != 0;
+                bool dens = r.read_u8() != 0;
+                bool grad = r.read_u8() != 0;
+                auto vals = r.read_floats();
 
                 auto& hs = axes->histogram(vals, bins);
                 hs.label(lbl).color(col).visible(vis);
@@ -1026,7 +1028,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 bs.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 bs.bar_width(bw).baseline(base).orientation(ori).gradient(grad);
 
-                auto ps2      = bs.plot_style();
+                auto ps2       = bs.plot_style();
                 ps2.line_width = lw;
                 bs.plot_style(ps2);
                 break;
@@ -1138,18 +1140,18 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
 
-                auto  cmap      = static_cast<ColormapType>(r.read_u8());
-                float cmap_min  = r.read_f32();
-                float cmap_max  = r.read_f32();
-                float amb       = r.read_f32();
-                float spec      = r.read_f32();
-                float shin      = r.read_f32();
-                auto  bm        = static_cast<BlendMode>(r.read_u8());
-                bool  ds        = r.read_u8() != 0;
-                bool  wf        = r.read_u8() != 0;
-                bool  ca        = r.read_u8() != 0;
-                float ca_min    = r.read_f32();
-                float ca_max    = r.read_f32();
+                auto  cmap     = static_cast<ColormapType>(r.read_u8());
+                float cmap_min = r.read_f32();
+                float cmap_max = r.read_f32();
+                float amb      = r.read_f32();
+                float spec     = r.read_f32();
+                float shin     = r.read_f32();
+                auto  bm       = static_cast<BlendMode>(r.read_u8());
+                bool  ds       = r.read_u8() != 0;
+                bool  wf       = r.read_u8() != 0;
+                bool  ca       = r.read_u8() != 0;
+                float ca_min   = r.read_f32();
+                float ca_max   = r.read_f32();
 
                 auto xg = r.read_floats();
                 auto yg = r.read_floats();
@@ -1231,14 +1233,13 @@ bool FigureSerializer::save_with_dialog(const Figure& figure)
 {
     char const* filter_patterns[] = {"*.spectra"};
     const char* home_env          = std::getenv("HOME");
-    std::string home_dir          = (home_env ? std::string(home_env) + "/" : "/")   + "figure.spectra";
-    const char* home              = home_dir.c_str();
-    char*       result            = tinyfd_saveFileDialog(
-        "Save Figure",
-        home,
-        1,
-        filter_patterns,
-        "Spectra Figure (*.spectra)");
+    std::string home_dir = (home_env ? std::string(home_env) + "/" : "/") + "figure.spectra";
+    const char* home     = home_dir.c_str();
+    char*       result   = tinyfd_saveFileDialog("Save Figure",
+                                         home,
+                                         1,
+                                         filter_patterns,
+                                         "Spectra Figure (*.spectra)");
 
     if (!result)
         return false;
@@ -1252,13 +1253,12 @@ bool FigureSerializer::load_with_dialog(Figure& figure)
     const char* home_env          = std::getenv("HOME");
     std::string home_dir          = home_env ? std::string(home_env) + "/" : "/";
     const char* home              = home_dir.c_str();
-    char*       result            = tinyfd_openFileDialog(
-        "Open Figure",
-        home,
-        1,
-        filter_patterns,
-        "Spectra Figure (*.spectra)",
-        0);
+    char*       result            = tinyfd_openFileDialog("Open Figure",
+                                         home,
+                                         1,
+                                         filter_patterns,
+                                         "Spectra Figure (*.spectra)",
+                                         0);
 
     if (!result)
         return false;

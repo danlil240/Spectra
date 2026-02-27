@@ -27,14 +27,14 @@ struct SeriesSnapshot
     Color              color;
     PlotStyle          style;
     bool               visible    = true;
-    float              line_width = 2.0f;    // LineSeries / LineSeries3D
-    float              point_size = 4.0f;    // ScatterSeries / ScatterSeries3D
+    float              line_width = 2.0f;   // LineSeries / LineSeries3D
+    float              point_size = 4.0f;   // ScatterSeries / ScatterSeries3D
     std::vector<float> x_data;
     std::vector<float> y_data;
-    std::vector<float> z_data;              // 3D only (empty for 2D)
+    std::vector<float> z_data;   // 3D only (empty for 2D)
 
     bool is_3d() const { return type == Type::Line3D || type == Type::Scatter3D; }
-    bool is_2d() const { return type == Type::Line   || type == Type::Scatter; }
+    bool is_2d() const { return type == Type::Line || type == Type::Scatter; }
 };
 
 // Manages copy/cut/paste of series data across figures and tabs.
@@ -88,10 +88,10 @@ class SeriesClipboard
     const std::vector<SeriesSnapshot>& peek_all() const;
 
    private:
-    mutable std::mutex              mutex_;
-    std::vector<SeriesSnapshot>     buffers_;
-    bool                            has_data_ = false;
-    bool                            is_cut_   = false;
+    mutable std::mutex          mutex_;
+    std::vector<SeriesSnapshot> buffers_;
+    bool                        has_data_ = false;
+    bool                        is_cut_   = false;
 };
 
 }   // namespace spectra

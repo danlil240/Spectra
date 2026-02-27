@@ -297,11 +297,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                   ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
                                   label_bg,
                                   3.0f);
-                fg->AddText(font,
-                            font->FontSize * 0.85f,
-                            ImVec2(lx2, ly2),
-                            label_text,
-                            y_label);
+                fg->AddText(font, font->FontSize * 0.85f, ImVec2(lx2, ly2), label_text, y_label);
             }
         }
         // Shared cursor: draw horizontal line on non-hovered linked axes
@@ -410,11 +406,10 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                                                   colors.text_primary.b,
                                                                   opacity_ * 0.6f));
 
-                        fg->AddRectFilled(
-                            ImVec2(lx2 - label_pad, ly2 - label_pad),
-                            ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
-                            label_bg,
-                            3.0f);
+                        fg->AddRectFilled(ImVec2(lx2 - label_pad, ly2 - label_pad),
+                                          ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
+                                          label_bg,
+                                          3.0f);
                         fg->AddText(font,
                                     font->FontSize * 0.85f,
                                     ImVec2(lx2, ly2),

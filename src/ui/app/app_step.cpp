@@ -117,11 +117,11 @@ struct App::AppRuntime
     FrameState frame_state;
     uint64_t   frame_number = 0;
 
-    WindowUIContext* ui_ctx_ptr = nullptr;
+    WindowUIContext*                 ui_ctx_ptr = nullptr;
     std::unique_ptr<WindowUIContext> headless_ui_ctx;
 
-    Figure*   active_figure    = nullptr;
-    FigureId  active_figure_id = INVALID_FIGURE_ID;
+    Figure*  active_figure    = nullptr;
+    FigureId active_figure_id = INVALID_FIGURE_ID;
 
 #ifdef SPECTRA_USE_GLFW
     std::unique_ptr<GlfwAdapter>   glfw;
@@ -156,8 +156,8 @@ void App::init_runtime()
     auto       window_groups = compute_window_groups();
     const bool empty_start   = all_ids.empty();
 
-    float init_fps = 60.0f;
-    Figure* init_active = nullptr;
+    float    init_fps       = 60.0f;
+    Figure*  init_active    = nullptr;
     FigureId init_active_id = INVALID_FIGURE_ID;
 
     if (!empty_start)
@@ -200,10 +200,10 @@ void App::init_runtime()
     if (rt.is_recording)
     {
         VideoExporter::Config vcfg;
-        vcfg.output_path = init_active->video_record_path_;
-        vcfg.width       = init_active->width();
-        vcfg.height      = init_active->height();
-        vcfg.fps         = init_active->anim_fps_;
+        vcfg.output_path  = init_active->video_record_path_;
+        vcfg.width        = init_active->width();
+        vcfg.height       = init_active->height();
+        vcfg.fps          = init_active->anim_fps_;
         rt.video_exporter = std::make_unique<VideoExporter>(vcfg);
         if (!rt.video_exporter->is_open())
         {
@@ -214,7 +214,7 @@ void App::init_runtime()
         else
         {
             rt.video_frame_pixels.resize(static_cast<size_t>(init_active->width())
-                                          * init_active->height() * 4);
+                                         * init_active->height() * 4);
         }
         if (!config_.headless)
         {
@@ -313,12 +313,12 @@ void App::init_runtime()
     auto& keyframe_interpolator = rt.ui_ctx_ptr->keyframe_interpolator;
     auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
     // auto& home_limits           = rt.ui_ctx_ptr->home_limits;
-    auto& cmd_registry          = rt.ui_ctx_ptr->cmd_registry;
-    auto& shortcut_mgr          = rt.ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette           = rt.ui_ctx_ptr->cmd_palette;
-    auto& tab_drag_controller   = rt.ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr               = *rt.ui_ctx_ptr->fig_mgr;
-    auto& input_handler         = rt.ui_ctx_ptr->input_handler;
+    auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
+    auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
+    auto& cmd_palette         = rt.ui_ctx_ptr->cmd_palette;
+    auto& tab_drag_controller = rt.ui_ctx_ptr->tab_drag_controller;
+    auto& fig_mgr             = *rt.ui_ctx_ptr->fig_mgr;
+    auto& input_handler       = rt.ui_ctx_ptr->input_handler;
 
     if (knob_manager_ && !knob_manager_->empty() && imgui_ui)
     {
@@ -368,13 +368,16 @@ void App::init_runtime()
 
                 // Opacity channel — ramp from 1.0 to 0.3 and back
                 {
-                    uint32_t ch_id =
-                        timeline_editor.add_animated_track(prefix + " Opacity", 1.0f);
+                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Opacity", 1.0f);
                     timeline_editor.add_animated_keyframe(ch_id, 0.0f, 1.0f, 1);   // Linear
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.4f, 0.3f, 6);   // EaseInOut
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.7f, 0.8f, 4);   // EaseIn
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.4f,
+                                                          0.3f,
+                                                          6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.7f,
+                                                          0.8f,
+                                                          4);                          // EaseIn
                     timeline_editor.add_animated_keyframe(ch_id, anim_dur, 1.0f, 5);   // EaseOut
 
                     Series* raw = s.get();
@@ -388,36 +391,42 @@ void App::init_runtime()
                 if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
                 {
                     float    base  = sc->size();
-                    uint32_t ch_id = timeline_editor.add_animated_track(
-                        prefix + " Size", base);
+                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Size", base);
                     timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.3f, base * 2.5f, 3);   // Spring
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.6f, base * 0.5f, 6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.3f,
+                                                          base * 2.5f,
+                                                          3);   // Spring
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.6f,
+                                                          base * 0.5f,
+                                                          6);   // EaseInOut
                     timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
 
-                    keyframe_interpolator.bind_callback(
-                        ch_id,
-                        prefix + " Size",
-                        [sc](float v) { sc->size(std::max(v, 1.0f)); });
+                    keyframe_interpolator.bind_callback(ch_id,
+                                                        prefix + " Size",
+                                                        [sc](float v)
+                                                        { sc->size(std::max(v, 1.0f)); });
                 }
                 else if (auto* ln = dynamic_cast<LineSeries*>(s.get()))
                 {
                     float    base  = ln->width();
-                    uint32_t ch_id = timeline_editor.add_animated_track(
-                        prefix + " Width", base);
+                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Width", base);
                     timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.3f, base * 3.0f, 3);   // Spring
-                    timeline_editor.add_animated_keyframe(
-                        ch_id, anim_dur * 0.6f, base * 0.5f, 6);   // EaseInOut
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.3f,
+                                                          base * 3.0f,
+                                                          3);   // Spring
+                    timeline_editor.add_animated_keyframe(ch_id,
+                                                          anim_dur * 0.6f,
+                                                          base * 0.5f,
+                                                          6);   // EaseInOut
                     timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
 
-                    keyframe_interpolator.bind_callback(
-                        ch_id,
-                        prefix + " Width",
-                        [ln](float v) { ln->width(std::max(v, 0.5f)); });
+                    keyframe_interpolator.bind_callback(ch_id,
+                                                        prefix + " Width",
+                                                        [ln](float v)
+                                                        { ln->width(std::max(v, 0.5f)); });
                 }
 
                 ++s_idx;
@@ -548,7 +557,9 @@ void App::init_runtime()
         if (imgui_ui)
         {
             imgui_ui->set_pane_tab_detach_cb(
-                [&fig_mgr, &session = rt.session, this](FigureId index, float screen_x, float screen_y)
+                [&fig_mgr, &session = rt.session, this](FigureId index,
+                                                        float    screen_x,
+                                                        float    screen_y)
                 {
                     auto* fig = registry_.get(index);
                     if (!fig)
@@ -607,9 +618,11 @@ void App::init_runtime()
                     auto* fig = registry_.get(id);
                     if (fig)
                     {
-                        if (di) di->clear_figure_cache(fig);
+                        if (di)
+                            di->clear_figure_cache(fig);
                         ih->clear_figure_cache(fig);
-                        if (imgui_ui) imgui_ui->clear_figure_cache(fig);
+                        if (imgui_ui)
+                            imgui_ui->clear_figure_cache(fig);
                     }
                 });
         }
@@ -691,9 +704,8 @@ App::StepResult App::step()
     // Process pending PNG export for the active figure (interactive mode)
     if (!config_.headless && rt.active_figure && !rt.active_figure->png_export_path_.empty())
     {
-        uint32_t ew = rt.active_figure->png_export_width_ > 0
-                          ? rt.active_figure->png_export_width_
-                          : rt.active_figure->width();
+        uint32_t ew = rt.active_figure->png_export_width_ > 0 ? rt.active_figure->png_export_width_
+                                                              : rt.active_figure->width();
         uint32_t eh = rt.active_figure->png_export_height_ > 0
                           ? rt.active_figure->png_export_height_
                           : rt.active_figure->height();
@@ -741,8 +753,8 @@ App::StepResult App::step()
 
     rt.frame_number++;
 
-    auto step_end = std::chrono::steady_clock::now();
-    float ms = std::chrono::duration<float, std::milli>(step_end - step_start).count();
+    auto  step_end = std::chrono::steady_clock::now();
+    float ms       = std::chrono::duration<float, std::milli>(step_end - step_start).count();
 
     result.should_exit   = rt.session.should_exit();
     result.frame_time_ms = ms;

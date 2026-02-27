@@ -30,8 +30,8 @@ template <typename XDerived, typename YDerived>
 auto plot(const Eigen::DenseBase<XDerived>& x,
           const Eigen::DenseBase<YDerived>& y,
           std::string_view                  fmt = "-")
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries&>
 {
     return detail::easy_state().ensure_axes().plot(eigen_detail::to_span(x),
@@ -44,8 +44,8 @@ template <typename XDerived, typename YDerived>
 auto plot(const Eigen::DenseBase<XDerived>& x,
           const Eigen::DenseBase<YDerived>& y,
           const PlotStyle&                  style)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries&>
 {
     return detail::easy_state().ensure_axes().plot(eigen_detail::to_span(x),
@@ -56,8 +56,8 @@ auto plot(const Eigen::DenseBase<XDerived>& x,
 // scatter(EigenVec, EigenVec)
 template <typename XDerived, typename YDerived>
 auto scatter(const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBase<YDerived>& y)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         ScatterSeries&>
 {
     return detail::easy_state().ensure_axes().scatter(eigen_detail::to_span(x),
@@ -71,10 +71,10 @@ template <typename XDerived, typename YDerived, typename ZDerived>
 auto plot3(const Eigen::DenseBase<XDerived>& x,
            const Eigen::DenseBase<YDerived>& y,
            const Eigen::DenseBase<ZDerived>& z)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        LineSeries3D&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        LineSeries3D&>
 {
     auto& ax = detail::easy_state().ensure_axes3d();
     auto& ref =
@@ -88,10 +88,10 @@ template <typename XDerived, typename YDerived, typename ZDerived>
 auto scatter3(const Eigen::DenseBase<XDerived>& x,
               const Eigen::DenseBase<YDerived>& y,
               const Eigen::DenseBase<ZDerived>& z)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        ScatterSeries3D&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        ScatterSeries3D&>
 {
     auto& ax = detail::easy_state().ensure_axes3d();
     auto& ref =
@@ -105,10 +105,10 @@ template <typename XDerived, typename YDerived, typename ZDerived>
 auto surf(const Eigen::DenseBase<XDerived>& x_grid,
           const Eigen::DenseBase<YDerived>& y_grid,
           const Eigen::DenseBase<ZDerived>& z_values)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        SurfaceSeries&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        SurfaceSeries&>
 {
     auto& ax  = detail::easy_state().ensure_axes3d();
     auto& ref = ax.surface(eigen_detail::to_span(x_grid),

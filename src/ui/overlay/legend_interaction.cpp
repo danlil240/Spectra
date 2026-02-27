@@ -213,8 +213,7 @@ bool LegendInteraction::draw(Axes&               axes,
 
     // Use LegendConfig colors; fall back to theme colors if sentinel.
     // Color default-constructs to (0,0,0,1) so check RGB only.
-    auto is_sentinel = [](const Color& c)
-    { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f; };
+    auto   is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f; };
     ImVec4 bg_col;
     if (is_sentinel(config.bg_color))
         bg_col = ImVec4(theme_colors.bg_elevated.r,

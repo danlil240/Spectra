@@ -11,7 +11,6 @@
 #include <filesystem>
 #include <random>
 
-
 namespace spectra
 {
 namespace
@@ -158,12 +157,12 @@ TEST(SvgExport, ContainsClipPath)
 
 TEST(SvgExport, WriteToFile)
 {
-    auto        fig  = make_line_figure();
-    
+    auto fig = make_line_figure();
+
     // Use cross-platform temporary file
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::filesystem::path temp_dir    = std::filesystem::temp_directory_path();
     std::string           random_name = "plot_" + std::to_string(std::random_device{}());
-    std::string           path = random_name + ".svg";
+    std::string           path        = random_name + ".svg";
 
     bool ok = SvgExporter::write_svg(path, fig);
     EXPECT_TRUE(ok);

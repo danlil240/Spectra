@@ -976,8 +976,8 @@ TEST(MultiPaneRecording, CustomPaneRects)
     config.height      = 100;
     config.pane_count  = 2;
     config.pane_rects  = {
-         {0.0f, 0.0f, 0.5f, 1.0f},   // Left half
-         {0.5f, 0.0f, 0.5f, 1.0f},   // Right half
+        {0.0f, 0.0f, 0.5f, 1.0f},   // Left half
+        {0.5f, 0.0f, 0.5f, 1.0f},   // Right half
     };
 
     uint32_t pane_call_count = 0;

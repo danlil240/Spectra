@@ -125,16 +125,18 @@ BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> he
 
 void Axes::xlim(float min, float max)
 {
-    // Explicit manual limits take precedence over any streaming window.
-    presented_buffer_seconds_.reset();
-    xlim_ = AxisLimits{min, max};
+    // Explicit manual limits pause streaming follow mode, but keep the
+    // configured buffer so users can resume via the Live button.
+    presented_buffer_following_ = false;
+    xlim_                       = AxisLimits{min, max};
 }
 
 void Axes::ylim(float min, float max)
 {
-    // Explicit manual limits take precedence over any streaming window.
-    presented_buffer_seconds_.reset();
-    ylim_ = AxisLimits{min, max};
+    // Explicit manual limits pause streaming follow mode, but keep the
+    // configured buffer so users can resume via the Live button.
+    presented_buffer_following_ = false;
+    ylim_                       = AxisLimits{min, max};
 }
 
 void Axes::title(const std::string& t)
@@ -178,7 +180,7 @@ void Axes::autoscale_mode(AutoscaleMode mode)
             ylim_    = lim;
         }
         // Manual mode should not keep a moving streaming window.
-        presented_buffer_seconds_.reset();
+        presented_buffer_following_ = false;
     }
     else if (mode != AutoscaleMode::Manual)
     {
@@ -194,7 +196,8 @@ void Axes::presented_buffer(float seconds)
 {
     if (seconds > 0.0f)
     {
-        presented_buffer_seconds_ = seconds;
+        presented_buffer_seconds_   = seconds;
+        presented_buffer_following_ = true;
         // Presented buffer drives limits from data, so clear explicit limits.
         xlim_.reset();
         ylim_.reset();
@@ -204,6 +207,7 @@ void Axes::presented_buffer(float seconds)
     else
     {
         presented_buffer_seconds_.reset();
+        presented_buffer_following_ = false;
     }
 }
 
@@ -479,7 +483,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
 
 AxisLimits Axes::x_limits() const
 {
-    if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
+    if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
+        && presented_buffer_seconds_.value() > 0.0f)
     {
         float latest_x = 0.0f;
         if (latest_x_value(series_, latest_x))
@@ -497,7 +502,8 @@ AxisLimits Axes::x_limits() const
 
 AxisLimits Axes::y_limits() const
 {
-    if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
+    if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
+        && presented_buffer_seconds_.value() > 0.0f)
     {
         float latest_x = 0.0f;
         if (latest_x_value(series_, latest_x))

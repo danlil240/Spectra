@@ -73,15 +73,25 @@ class Renderer
     // Render queued text (call after render_figure_content, before end_render_pass)
     void render_text(float screen_width, float screen_height);
 
+    // Set the currently selected series for highlight rendering.
+    // The renderer draws a thin accent-colored line on top of selected series
+    // using the same GPU pipeline — no ImGui overlay needed.
+    void set_selected_series(const std::vector<const Series*>& selected);
+    void clear_selected_series();
+
    private:
     void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
     void render_tick_marks(Axes3D& axes, const Rect& viewport);
     // Visible x-range for 2D culling (nullopt = draw all)
-    struct VisibleRange { float x_min; float x_max; };
-    void render_series(Series& series, const Rect& viewport,
-                       const VisibleRange* visible = nullptr);
+    struct VisibleRange
+    {
+        float x_min;
+        float x_max;
+    };
+    void render_series(Series& series, const Rect& viewport, const VisibleRange* visible = nullptr);
+    void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
     void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
@@ -203,6 +213,9 @@ class Renderer
         SeriesType   type          = SeriesType::Unknown;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Currently selected series for GPU-rendered highlight.
+    std::vector<const Series*> selected_series_;
 
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.

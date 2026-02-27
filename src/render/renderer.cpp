@@ -456,17 +456,17 @@ void Renderer::render_plot_text(Figure& figure)
         bool looking_down_y = std::abs(view_dir.y) > 0.98f;
         bool looking_down_z = std::abs(view_dir.z) > 0.98f;
 
-        float x_tick_offset = (ylim.max - ylim.min) * 0.04f;
-        float y_tick_offset = (xlim.max - xlim.min) * 0.04f;
-        float z_tick_offset = (xlim.max - xlim.min) * 0.04f;
+        float           x_tick_offset             = (ylim.max - ylim.min) * 0.04f;
+        float           y_tick_offset             = (xlim.max - xlim.min) * 0.04f;
+        float           z_tick_offset             = (xlim.max - xlim.min) * 0.04f;
         constexpr float tick_label_min_spacing_px = 18.0f;
-        auto should_skip_overlapping_tick =
+        auto            should_skip_overlapping_tick =
             [&](float sx, float sy, float& last_sx, float& last_sy, bool& has_last) -> bool
         {
             if (!has_last)
             {
-                last_sx = sx;
-                last_sy = sy;
+                last_sx  = sx;
+                last_sy  = sy;
                 has_last = true;
                 return false;
             }
@@ -481,7 +481,7 @@ void Renderer::render_plot_text(Figure& figure)
 
         // --- X-axis tick labels ---
         {
-            auto x_ticks = axes3d->compute_x_ticks();
+            auto  x_ticks = axes3d->compute_x_ticks();
             float last_sx = 0.0f, last_sy = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
@@ -506,7 +506,7 @@ void Renderer::render_plot_text(Figure& figure)
         // --- Y-axis tick labels ---
         if (!looking_down_y)
         {
-            auto y_ticks = axes3d->compute_y_ticks();
+            auto  y_ticks = axes3d->compute_y_ticks();
             float last_sx = 0.0f, last_sy = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
@@ -531,7 +531,7 @@ void Renderer::render_plot_text(Figure& figure)
         // --- Z-axis tick labels ---
         if (!looking_down_z)
         {
-            auto z_ticks = axes3d->compute_z_ticks();
+            auto  z_ticks = axes3d->compute_z_ticks();
             float last_sx = 0.0f, last_sy = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
@@ -1310,12 +1310,15 @@ void Renderer::render_axes(AxesBase&   axes,
         {
             render_series(*entry.series, viewport);
         }
+
+        // Selection highlight on top of all 3D series
+        render_selection_highlight(axes, viewport);
     }
     else
     {
         // 2D: render in order (no sorting needed)
         // Pass visible x-range for draw-call culling on large series
-        VisibleRange vis{};
+        VisibleRange        vis{};
         const VisibleRange* vis_ptr = nullptr;
         if (auto* axes2d = dynamic_cast<Axes*>(&axes))
         {
@@ -1337,6 +1340,9 @@ void Renderer::render_axes(AxesBase&   axes,
 
             render_series(*series_ptr, viewport, vis_ptr);
         }
+
+        // Selection highlight on top of all 2D series
+        render_selection_highlight(axes, viewport);
     }
 
     // Tick labels, axis labels, and titles are now rendered by ImGui
@@ -2134,8 +2140,7 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.draw(8);   // 4 lines × 2 vertices
 }
 
-void Renderer::render_series(Series& series, const Rect& /*viewport*/,
-                             const VisibleRange* visible)
+void Renderer::render_series(Series& series, const Rect& /*viewport*/, const VisibleRange* visible)
 {
     auto it = series_gpu_data_.find(&series);
     if (it == series_gpu_data_.end())
@@ -2177,39 +2182,38 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
             // Compute visible segment range via binary search on sorted x_data.
             // For unsorted data, fall back to drawing all segments.
             uint32_t first_seg = 0;
-            uint32_t seg_count = line->point_count() > 1
-                                     ? static_cast<uint32_t>(line->point_count()) - 1
-                                     : 0;
-            uint32_t first_pt  = 0;
-            uint32_t pt_count  = static_cast<uint32_t>(line->point_count());
+            uint32_t seg_count =
+                line->point_count() > 1 ? static_cast<uint32_t>(line->point_count()) - 1 : 0;
+            uint32_t first_pt = 0;
+            uint32_t pt_count = static_cast<uint32_t>(line->point_count());
 
             if (visible && line->point_count() > 256)
             {
-                const auto& xd   = line->x_data();
-                size_t      n    = xd.size();
+                const auto& xd = line->x_data();
+                size_t      n  = xd.size();
                 // Quick check: is x_data sorted? (sample a few points)
-                bool sorted = (n < 2) || (xd[0] <= xd[n / 4] && xd[n / 4] <= xd[n / 2]
-                                           && xd[n / 2] <= xd[3 * n / 4]
-                                           && xd[3 * n / 4] <= xd[n - 1]);
+                bool sorted = (n < 2)
+                              || (xd[0] <= xd[n / 4] && xd[n / 4] <= xd[n / 2]
+                                  && xd[n / 2] <= xd[3 * n / 4] && xd[3 * n / 4] <= xd[n - 1]);
                 if (sorted)
                 {
                     const float* begin = xd.data();
                     const float* end   = begin + n;
                     // Find first point >= x_min (with 1-point margin for segment connectivity)
-                    auto lo = std::lower_bound(begin, end, visible->x_min);
+                    auto   lo     = std::lower_bound(begin, end, visible->x_min);
                     size_t lo_idx = static_cast<size_t>(lo - begin);
                     if (lo_idx > 0)
                         lo_idx--;   // include one segment before visible range
 
                     // Find first point > x_max
-                    auto hi = std::upper_bound(begin, end, visible->x_max);
+                    auto   hi     = std::upper_bound(begin, end, visible->x_max);
                     size_t hi_idx = static_cast<size_t>(hi - begin);
                     if (hi_idx < n)
                         hi_idx++;   // include one segment after visible range
 
                     if (lo_idx < hi_idx && hi_idx <= n)
                     {
-                        first_seg = static_cast<uint32_t>(lo_idx);
+                        first_seg             = static_cast<uint32_t>(lo_idx);
                         uint32_t last_seg_end = static_cast<uint32_t>(hi_idx);
                         if (last_seg_end > 0)
                             last_seg_end--;   // segments = points - 1
@@ -2232,7 +2236,7 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
             if (style.has_marker() && pt_count > 0)
             {
                 backend_.bind_pipeline(scatter_pipeline_);
-                pc.point_size = style.marker_size;
+                pc.point_size    = style.marker_size;
                 pc.data_offset_x = 0.0f;
                 pc.data_offset_y = 0.0f;
                 backend_.push_constants(pc);
@@ -2251,10 +2255,10 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
             {
                 const auto& theme_colors = ui::ThemeManager::instance().colors();
                 float       bg_luma      = 0.2126f * theme_colors.bg_primary.r
-                                    + 0.7152f * theme_colors.bg_primary.g
-                                    + 0.0722f * theme_colors.bg_primary.b;
-                pc.marker_type = static_cast<uint32_t>(
-                    bg_luma > 0.80f ? MarkerStyle::FilledCircle : MarkerStyle::Circle);
+                                + 0.7152f * theme_colors.bg_primary.g
+                                + 0.0722f * theme_colors.bg_primary.b;
+                pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
+                                                                       : MarkerStyle::Circle);
             }
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
@@ -2482,6 +2486,157 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/,
         }
         case SeriesType::Unknown:
             break;
+    }
+}
+
+void Renderer::set_selected_series(const std::vector<const Series*>& selected)
+{
+    selected_series_ = selected;
+}
+
+void Renderer::clear_selected_series()
+{
+    selected_series_.clear();
+}
+
+void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport*/)
+{
+    if (selected_series_.empty())
+        return;
+
+    const auto& accent = ui::ThemeManager::instance().colors().accent;
+
+    for (const auto* sel : selected_series_)
+    {
+        if (!sel)
+            continue;
+
+        // Check this series belongs to this axes
+        bool found = false;
+        for (const auto& sp : axes.series())
+        {
+            if (sp.get() == sel)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            continue;
+
+        auto it = series_gpu_data_.find(sel);
+        if (it == series_gpu_data_.end() || !it->second.ssbo)
+            continue;
+
+        auto& gpu = it->second;
+
+        SeriesPushConstants pc{};
+        pc.color[0] = accent.r;
+        pc.color[1] = accent.g;
+        pc.color[2] = accent.b;
+        pc.color[3] = 0.85f;
+        pc.opacity  = 1.0f;
+
+        switch (gpu.type)
+        {
+            case SeriesType::Line2D:
+            {
+                auto* line = static_cast<const LineSeries*>(sel);
+                if (line->point_count() < 2)
+                    break;
+
+                uint32_t first_seg = 0;
+                uint32_t seg_count = static_cast<uint32_t>(line->point_count()) - 1;
+
+                // Apply visible-range culling (same as normal render path)
+                if (auto* axes2d = dynamic_cast<Axes*>(&axes))
+                {
+                    auto xlim = axes2d->x_limits();
+                    if (line->point_count() > 256)
+                    {
+                        const auto& xd = line->x_data();
+                        size_t      n  = xd.size();
+                        bool        sorted =
+                            (n < 2)
+                            || (xd[0] <= xd[n / 4] && xd[n / 4] <= xd[n / 2]
+                                && xd[n / 2] <= xd[3 * n / 4] && xd[3 * n / 4] <= xd[n - 1]);
+                        if (sorted)
+                        {
+                            const float* begin  = xd.data();
+                            const float* end    = begin + n;
+                            auto         lo     = std::lower_bound(begin, end, xlim.min);
+                            size_t       lo_idx = static_cast<size_t>(lo - begin);
+                            if (lo_idx > 0)
+                                lo_idx--;
+                            auto   hi     = std::upper_bound(begin, end, xlim.max);
+                            size_t hi_idx = static_cast<size_t>(hi - begin);
+                            if (hi_idx < n)
+                                hi_idx++;
+                            if (lo_idx < hi_idx && hi_idx <= n)
+                            {
+                                first_seg             = static_cast<uint32_t>(lo_idx);
+                                uint32_t last_seg_end = static_cast<uint32_t>(hi_idx);
+                                if (last_seg_end > 0)
+                                    last_seg_end--;
+                                seg_count =
+                                    (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
+                            }
+                        }
+                    }
+                }
+
+                if (seg_count > 0)
+                {
+                    backend_.bind_pipeline(line_pipeline_);
+                    pc.line_width = 1.5f;
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.draw(seg_count * 6, first_seg * 6);
+                }
+                break;
+            }
+            case SeriesType::Scatter2D:
+            {
+                auto* scatter = static_cast<const ScatterSeries*>(sel);
+                if (scatter->point_count() == 0)
+                    break;
+                backend_.bind_pipeline(scatter_pipeline_);
+                pc.point_size  = scatter->size() + 3.0f;
+                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
+                break;
+            }
+            case SeriesType::Line3D:
+            {
+                auto* line3d = static_cast<const LineSeries3D*>(sel);
+                if (line3d->point_count() < 2)
+                    break;
+                backend_.bind_pipeline(line3d_pipeline_);
+                pc.line_width = 1.5f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
+                backend_.draw(segments * 6);
+                break;
+            }
+            case SeriesType::Scatter3D:
+            {
+                auto* scatter3d = static_cast<const ScatterSeries3D*>(sel);
+                if (scatter3d->point_count() == 0)
+                    break;
+                backend_.bind_pipeline(scatter3d_pipeline_);
+                pc.point_size  = scatter3d->size() + 3.0f;
+                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
+                break;
+            }
+            default:
+                break;
+        }
     }
 }
 

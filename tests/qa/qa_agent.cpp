@@ -105,16 +105,20 @@ static const char* severity_str(IssueSeverity s)
 {
     switch (s)
     {
-        case IssueSeverity::Info: return "INFO";
-        case IssueSeverity::Warning: return "WARNING";
-        case IssueSeverity::Error: return "ERROR";
-        case IssueSeverity::Critical: return "CRITICAL";
+        case IssueSeverity::Info:
+            return "INFO";
+        case IssueSeverity::Warning:
+            return "WARNING";
+        case IssueSeverity::Error:
+            return "ERROR";
+        case IssueSeverity::Critical:
+            return "CRITICAL";
     }
     return "???";
 }
 
 // ─── Crash handler globals (must be before QAAgent class) ────────────────────
-static uint64_t g_qa_seed = 0;
+static uint64_t g_qa_seed          = 0;
 static char     g_last_action[256] = "init";
 static char     g_output_dir[512]  = "/tmp/spectra_qa";
 
@@ -166,8 +170,8 @@ struct FrameStats
 // ─── CLI options ─────────────────────────────────────────────────────────────
 struct QAOptions
 {
-    uint64_t    seed           = 0;
-    float       duration_sec   = 120.0f;
+    uint64_t    seed         = 0;
+    float       duration_sec = 120.0f;
     std::string scenario_name;
     uint64_t    fuzz_frames    = 3000;
     std::string output_dir     = "/tmp/spectra_qa";
@@ -180,8 +184,7 @@ struct QAOptions
 static QAOptions parse_args(int argc, char** argv)
 {
     QAOptions opts;
-    opts.seed = static_cast<uint64_t>(
-        std::chrono::steady_clock::now().time_since_epoch().count());
+    opts.seed = static_cast<uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
 
     for (int i = 1; i < argc; ++i)
     {
@@ -226,9 +229,9 @@ static QAOptions parse_args(int argc, char** argv)
 // ─── Scenario definition ─────────────────────────────────────────────────────
 struct Scenario
 {
-    std::string                          name;
-    std::string                          description;
-    std::function<bool(class QAAgent&)>  run;
+    std::string                         name;
+    std::string                         description;
+    std::function<bool(class QAAgent&)> run;
 };
 
 // ─── QAAgent class ───────────────────────────────────────────────────────────
@@ -245,11 +248,11 @@ class QAAgent
     {
         AppConfig cfg;
         cfg.headless = false;
-        app_ = std::make_unique<App>(cfg);
+        app_         = std::make_unique<App>(cfg);
 
         // Create an initial figure with some data so the window isn't empty
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x(100), y(100);
         for (int i = 0; i < 100; ++i)
         {
@@ -278,7 +281,8 @@ class QAAgent
             return 0;
         }
 
-        fprintf(stderr, "[QA] Spectra QA Agent starting (seed: %lu)\n",
+        fprintf(stderr,
+                "[QA] Spectra QA Agent starting (seed: %lu)\n",
                 static_cast<unsigned long>(opts_.seed));
 
         // Phase 1: Predefined scenarios
@@ -326,10 +330,7 @@ class QAAgent
     App&          app() { return *app_; }
     std::mt19937& rng() { return rng_; }
 
-    bool has_critical_issue() const
-    {
-        return issues_with_severity(IssueSeverity::Critical) > 0;
-    }
+    bool has_critical_issue() const { return issues_with_severity(IssueSeverity::Critical) > 0; }
 
     void pump_frames(uint64_t count)
     {
@@ -348,7 +349,8 @@ class QAAgent
             }
             catch (const std::exception& e)
             {
-                add_issue(IssueSeverity::Critical, "runtime",
+                add_issue(IssueSeverity::Critical,
+                          "runtime",
                           std::string("Exception in step(): ") + e.what());
                 break;
             }
@@ -371,13 +373,16 @@ class QAAgent
             if (it == last_screenshot_frame_.end()
                 || (total_frames_ - it->second) >= SCREENSHOT_COOLDOWN)
             {
-                issue.screenshot_path = capture_screenshot(cat);
+                issue.screenshot_path       = capture_screenshot(cat);
                 last_screenshot_frame_[cat] = total_frames_;
             }
         }
 
-        fprintf(stderr, "[QA] [%s] %s: %s (frame %lu)\n",
-                severity_str(sev), cat.c_str(), msg.c_str(),
+        fprintf(stderr,
+                "[QA] [%s] %s: %s (frame %lu)\n",
+                severity_str(sev),
+                cat.c_str(),
+                msg.c_str(),
                 static_cast<unsigned long>(total_frames_));
 
         issues_.push_back(std::move(issue));
@@ -386,15 +391,15 @@ class QAAgent
     FigureId create_random_figure()
     {
         std::uniform_int_distribution<uint32_t> dim_dist(400, 1600);
-        uint32_t w = dim_dist(rng_);
-        uint32_t h = dim_dist(rng_);
-        auto& fig  = app_->figure({w, h});
-        auto& ax   = fig.subplot(1, 1, 1);
+        uint32_t                                w   = dim_dist(rng_);
+        uint32_t                                h   = dim_dist(rng_);
+        auto&                                   fig = app_->figure({w, h});
+        auto&                                   ax  = fig.subplot(1, 1, 1);
 
         // Add random data
-        std::uniform_int_distribution<int> n_dist(10, 500);
-        int n = n_dist(rng_);
-        std::vector<float> x(n), y(n);
+        std::uniform_int_distribution<int>    n_dist(10, 500);
+        int                                   n = n_dist(rng_);
+        std::vector<float>                    x(n), y(n);
         std::uniform_real_distribution<float> val_dist(-100.0f, 100.0f);
         for (int i = 0; i < n; ++i)
         {
@@ -410,8 +415,8 @@ class QAAgent
     // figure with 50 points and switches to it.
     void ensure_lightweight_active_figure()
     {
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x(50), y(50);
         for (int i = 0; i < 50; ++i)
         {
@@ -439,84 +444,93 @@ class QAAgent
     void register_scenarios()
     {
         scenarios_.push_back({"rapid_figure_lifecycle",
-            "Create 20 figures, switch randomly for 60 frames, close all but 1",
-            [](QAAgent& qa) { return qa.scenario_rapid_figure_lifecycle(); }});
+                              "Create 20 figures, switch randomly for 60 frames, close all but 1",
+                              [](QAAgent& qa) { return qa.scenario_rapid_figure_lifecycle(); }});
 
         scenarios_.push_back({"massive_datasets",
-            "1M-point line + 5x100K series, pan/zoom, monitor FPS",
-            [](QAAgent& qa) { return qa.scenario_massive_datasets(); }});
+                              "1M-point line + 5x100K series, pan/zoom, monitor FPS",
+                              [](QAAgent& qa) { return qa.scenario_massive_datasets(); }});
 
         scenarios_.push_back({"undo_redo_stress",
-            "50 undoable ops, undo all, redo all, partial undo + new ops",
-            [](QAAgent& qa) { return qa.scenario_undo_redo_stress(); }});
+                              "50 undoable ops, undo all, redo all, partial undo + new ops",
+                              [](QAAgent& qa) { return qa.scenario_undo_redo_stress(); }});
 
         scenarios_.push_back({"animation_stress",
-            "Animated figure, rapid play/pause toggling every 5 frames",
-            [](QAAgent& qa) { return qa.scenario_animation_stress(); }});
+                              "Animated figure, rapid play/pause toggling every 5 frames",
+                              [](QAAgent& qa) { return qa.scenario_animation_stress(); }});
 
         scenarios_.push_back({"input_storm",
-            "500 random mouse events + 100 key presses in rapid succession",
-            [](QAAgent& qa) { return qa.scenario_input_storm(); }});
+                              "500 random mouse events + 100 key presses in rapid succession",
+                              [](QAAgent& qa) { return qa.scenario_input_storm(); }});
 
         scenarios_.push_back({"command_exhaustion",
-            "Execute every registered command, then 3x random order",
-            [](QAAgent& qa) { return qa.scenario_command_exhaustion(); }});
+                              "Execute every registered command, then 3x random order",
+                              [](QAAgent& qa) { return qa.scenario_command_exhaustion(); }});
 
         scenarios_.push_back({"series_mixing",
-            "One of each series type, toggle visibility, remove/re-add",
-            [](QAAgent& qa) { return qa.scenario_series_mixing(); }});
+                              "One of each series type, toggle visibility, remove/re-add",
+                              [](QAAgent& qa) { return qa.scenario_series_mixing(); }});
 
         scenarios_.push_back({"mode_switching",
-            "Toggle 2D/3D 10 times with data + orbit/pan between each",
-            [](QAAgent& qa) { return qa.scenario_mode_switching(); }});
+                              "Toggle 2D/3D 10 times with data + orbit/pan between each",
+                              [](QAAgent& qa) { return qa.scenario_mode_switching(); }});
 
         scenarios_.push_back({"stress_docking",
-            "4 figures, split into grid, add tabs, rapid switching",
-            [](QAAgent& qa) { return qa.scenario_stress_docking(); }});
+                              "4 figures, split into grid, add tabs, rapid switching",
+                              [](QAAgent& qa) { return qa.scenario_stress_docking(); }});
 
         scenarios_.push_back({"resize_stress",
-            "30 rapid window resizes including extreme sizes",
-            [](QAAgent& qa) { return qa.scenario_resize_stress(); }});
+                              "30 rapid window resizes including extreme sizes",
+                              [](QAAgent& qa) { return qa.scenario_resize_stress(); }});
 
         scenarios_.push_back({"3d_zoom_then_rotate",
-            "Zoom in/out on 3D scatter then verify orbit rotation still works",
-            [](QAAgent& qa) { return qa.scenario_3d_zoom_then_rotate(); }});
+                              "Zoom in/out on 3D scatter then verify orbit rotation still works",
+                              [](QAAgent& qa) { return qa.scenario_3d_zoom_then_rotate(); }});
 
         scenarios_.push_back({"window_resize_glfw",
-            "30 rapid GLFW window resizes including extreme aspect ratios",
-            [](QAAgent& qa) { return qa.scenario_window_resize_glfw(); }});
+                              "30 rapid GLFW window resizes including extreme aspect ratios",
+                              [](QAAgent& qa) { return qa.scenario_window_resize_glfw(); }});
 
-        scenarios_.push_back({"multi_window_lifecycle",
-            "Create/destroy 5 windows, move figures between them, close in random order",
-            [](QAAgent& qa) { return qa.scenario_multi_window_lifecycle(); }});
+        scenarios_.push_back(
+            {"multi_window_lifecycle",
+             "Create/destroy 5 windows, move figures between them, close in random order",
+             [](QAAgent& qa) { return qa.scenario_multi_window_lifecycle(); }});
 
-        scenarios_.push_back({"tab_drag_between_windows",
-            "Detach tabs into new windows, move figures across windows, re-attach",
-            [](QAAgent& qa) { return qa.scenario_tab_drag_between_windows(); }});
+        scenarios_.push_back(
+            {"tab_drag_between_windows",
+             "Detach tabs into new windows, move figures across windows, re-attach",
+             [](QAAgent& qa) { return qa.scenario_tab_drag_between_windows(); }});
 
         scenarios_.push_back({"window_drag_stress",
-            "Rapidly reposition windows across screen, monitor frame times",
-            [](QAAgent& qa) { return qa.scenario_window_drag_stress(); }});
+                              "Rapidly reposition windows across screen, monitor frame times",
+                              [](QAAgent& qa) { return qa.scenario_window_drag_stress(); }});
 
-        scenarios_.push_back({"resize_marathon",
-            "500+ resize events simulating real user edge-dragging with smooth increments",
-            [](QAAgent& qa) { return qa.scenario_resize_marathon(); }});
+        scenarios_.push_back(
+            {"resize_marathon",
+             "500+ resize events simulating real user edge-dragging with smooth increments",
+             [](QAAgent& qa) { return qa.scenario_resize_marathon(); }});
 
         scenarios_.push_back({"series_clipboard_selection",
-            "Test series selection, right-click select, clipboard copy/cut/paste/delete, multi-select",
-            [](QAAgent& qa) { return qa.scenario_series_clipboard_selection(); }});
+                              "Test series selection, right-click select, clipboard "
+                              "copy/cut/paste/delete, multi-select",
+                              [](QAAgent& qa)
+                              { return qa.scenario_series_clipboard_selection(); }});
 
         scenarios_.push_back({"figure_serialization",
-            "Save figure via file.save_figure command, reload via file.load_figure, verify series count",
-            [](QAAgent& qa) { return qa.scenario_figure_serialization(); }});
+                              "Save figure via file.save_figure command, reload via "
+                              "file.load_figure, verify series count",
+                              [](QAAgent& qa) { return qa.scenario_figure_serialization(); }});
 
         scenarios_.push_back({"series_removed_interaction_safety",
-            "Add markers/hover on series, delete series, verify no crash (notify_series_removed path)",
-            [](QAAgent& qa) { return qa.scenario_series_removed_interaction_safety(); }});
+                              "Add markers/hover on series, delete series, verify no crash "
+                              "(notify_series_removed path)",
+                              [](QAAgent& qa)
+                              { return qa.scenario_series_removed_interaction_safety(); }});
 
         scenarios_.push_back({"line_culling_pan_zoom",
-            "Large sorted line series, pan/zoom to stress draw-call culling logic, verify no corruption",
-            [](QAAgent& qa) { return qa.scenario_line_culling_pan_zoom(); }});
+                              "Large sorted line series, pan/zoom to stress draw-call culling "
+                              "logic, verify no corruption",
+                              [](QAAgent& qa) { return qa.scenario_line_culling_pan_zoom(); }});
     }
 
     void list_scenarios()
@@ -539,8 +553,7 @@ class QAAgent
                 continue;
 
             fprintf(stderr, "[QA] Running scenario: %s\n", scenario.name.c_str());
-            snprintf(g_last_action, sizeof(g_last_action), "scenario:%s",
-                     scenario.name.c_str());
+            snprintf(g_last_action, sizeof(g_last_action), "scenario:%s", scenario.name.c_str());
             uint64_t start_frame = total_frames_;
 
             bool ok = false;
@@ -550,21 +563,20 @@ class QAAgent
             }
             catch (const std::exception& e)
             {
-                add_issue(IssueSeverity::Error, "scenario",
-                          scenario.name + " threw: " + e.what());
+                add_issue(IssueSeverity::Error, "scenario", scenario.name + " threw: " + e.what());
             }
 
             if (ok)
             {
                 scenarios_passed_++;
-                fprintf(stderr, "[QA]   PASSED (%lu frames)\n",
+                fprintf(stderr,
+                        "[QA]   PASSED (%lu frames)\n",
                         static_cast<unsigned long>(total_frames_ - start_frame));
             }
             else
             {
                 scenarios_failed_++;
-                add_issue(IssueSeverity::Error, "scenario",
-                          scenario.name + " FAILED");
+                add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
             }
 
             if (wall_clock_exceeded())
@@ -589,7 +601,8 @@ class QAAgent
         auto ids = app_->figure_registry().all_ids();
         if (ids.size() < 20)
         {
-            add_issue(IssueSeverity::Warning, "figure_lifecycle",
+            add_issue(IssueSeverity::Warning,
+                      "figure_lifecycle",
                       "Expected 20+ figures, got " + std::to_string(ids.size()));
         }
 
@@ -641,7 +654,7 @@ class QAAgent
         // 5x100K series
         for (int s = 0; s < 5; ++s)
         {
-            std::vector<float> sx(100000), sy(100000);
+            std::vector<float>                    sx(100000), sy(100000);
             std::uniform_real_distribution<float> noise(-1.0f, 1.0f);
             for (int i = 0; i < 100000; ++i)
             {
@@ -669,8 +682,8 @@ class QAAgent
         {
             UndoAction act;
             act.description = "create_fig_" + std::to_string(i);
-            act.redo_fn = []{};
-            act.undo_fn = []{};
+            act.redo_fn     = [] {};
+            act.undo_fn     = [] {};
             ui->undo_mgr.push(std::move(act));
             pump_frames(1);
         }
@@ -694,8 +707,8 @@ class QAAgent
             ui->undo_mgr.undo();
         UndoAction new_act;
         new_act.description = "new_op";
-        new_act.redo_fn = []{};
-        new_act.undo_fn = []{};
+        new_act.redo_fn     = [] {};
+        new_act.undo_fn     = [] {};
         ui->undo_mgr.push(std::move(new_act));
         pump_frames(5);
 #endif
@@ -789,10 +802,11 @@ class QAAgent
             return true;
 
         // Get all registered command IDs
-        auto all_cmd_ptrs = ui->cmd_registry.all_commands();
+        auto                     all_cmd_ptrs = ui->cmd_registry.all_commands();
         std::vector<std::string> all_cmds;
         for (auto* c : all_cmd_ptrs)
-            if (c) all_cmds.push_back(c->id);
+            if (c)
+                all_cmds.push_back(c->id);
         if (all_cmds.empty())
         {
             add_issue(IssueSeverity::Warning, "commands", "No commands registered");
@@ -938,15 +952,15 @@ class QAAgent
             return true;
 
         // Create a 3D scatter figure
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot3d(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot3d(1, 1, 1);
         std::vector<float> x(200), y(200), z(200);
         for (int i = 0; i < 200; ++i)
         {
             float t = static_cast<float>(i) * 0.1f;
-            x[i] = std::cos(t);
-            y[i] = std::sin(t);
-            z[i] = t * 0.1f;
+            x[i]    = std::cos(t);
+            y[i]    = std::sin(t);
+            z[i]    = t * 0.1f;
         }
         ax.scatter3d(x, y, z).color(colors::blue).size(4.0f);
         ax.auto_fit();
@@ -963,8 +977,8 @@ class QAAgent
 
         // Get the viewport center for injecting events
         const auto& vp = ax.viewport();
-        double cx = static_cast<double>(vp.x + vp.w * 0.5f);
-        double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+        double      cx = static_cast<double>(vp.x + vp.w * 0.5f);
+        double      cy = static_cast<double>(vp.y + vp.h * 0.5f);
 
         bool all_passed = true;
 
@@ -993,11 +1007,11 @@ class QAAgent
             if (std::abs(az_after_zoom - az_before) > 0.01f
                 || std::abs(el_after_zoom - el_before) > 0.01f)
             {
-                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
-                          "Zoom changed camera angles: az " + std::to_string(az_before)
-                          + " -> " + std::to_string(az_after_zoom)
-                          + ", el " + std::to_string(el_before)
-                          + " -> " + std::to_string(el_after_zoom));
+                add_issue(IssueSeverity::Error,
+                          "3d_zoom_rotate",
+                          "Zoom changed camera angles: az " + std::to_string(az_before) + " -> "
+                              + std::to_string(az_after_zoom) + ", el " + std::to_string(el_before)
+                              + " -> " + std::to_string(el_after_zoom));
                 all_passed = false;
             }
 
@@ -1017,22 +1031,25 @@ class QAAgent
 
             float az_after_drag = ax.camera().azimuth;
             float el_after_drag = ax.camera().elevation;
-            float az_delta = std::abs(az_after_drag - az_after_zoom);
-            float el_delta = std::abs(el_after_drag - el_after_zoom);
+            float az_delta      = std::abs(az_after_drag - az_after_zoom);
+            float el_delta      = std::abs(el_after_drag - el_after_zoom);
 
             if (az_delta < 1.0f && el_delta < 1.0f)
             {
-                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
-                          "Orbit rotation FAILED after zoom: az delta="
-                          + std::to_string(az_delta) + ", el delta="
-                          + std::to_string(el_delta)
-                          + " (expected significant change from 80px drag)");
+                add_issue(IssueSeverity::Error,
+                          "3d_zoom_rotate",
+                          "Orbit rotation FAILED after zoom: az delta=" + std::to_string(az_delta)
+                              + ", el delta=" + std::to_string(el_delta)
+                              + " (expected significant change from 80px drag)");
                 all_passed = false;
             }
             else
             {
-                fprintf(stderr, "[QA]   Test 1 OK: orbit after zoom works "
-                        "(az delta=%.1f, el delta=%.1f)\n", az_delta, el_delta);
+                fprintf(stderr,
+                        "[QA]   Test 1 OK: orbit after zoom works "
+                        "(az delta=%.1f, el delta=%.1f)\n",
+                        az_delta,
+                        el_delta);
             }
         }
 
@@ -1067,23 +1084,24 @@ class QAAgent
 
                 float az_post = ax.camera().azimuth;
                 float el_post = ax.camera().elevation;
-                float az_d = std::abs(az_post - az_pre);
-                float el_d = std::abs(el_post - el_pre);
+                float az_d    = std::abs(az_post - az_pre);
+                float el_d    = std::abs(el_post - el_pre);
 
                 if (az_d < 0.5f && el_d < 0.5f)
                 {
-                    add_issue(IssueSeverity::Warning, "3d_zoom_rotate",
+                    add_issue(IssueSeverity::Warning,
+                              "3d_zoom_rotate",
                               "Round " + std::to_string(round)
-                              + ": orbit after zoom had no effect (az_d="
-                              + std::to_string(az_d) + ", el_d="
-                              + std::to_string(el_d) + ")");
+                                  + ": orbit after zoom had no effect (az_d=" + std::to_string(az_d)
+                                  + ", el_d=" + std::to_string(el_d) + ")");
                     any_rotation_failed = true;
                 }
             }
 
             if (any_rotation_failed)
             {
-                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
+                add_issue(IssueSeverity::Error,
+                          "3d_zoom_rotate",
                           "Interleaved zoom+rotate: some rounds failed");
                 all_passed = false;
             }
@@ -1124,15 +1142,19 @@ class QAAgent
 
             if (az_d < 1.0f && el_d < 1.0f)
             {
-                add_issue(IssueSeverity::Error, "3d_zoom_rotate",
-                          "Extreme zoom then rotate FAILED: az_d="
-                          + std::to_string(az_d) + ", el_d=" + std::to_string(el_d));
+                add_issue(IssueSeverity::Error,
+                          "3d_zoom_rotate",
+                          "Extreme zoom then rotate FAILED: az_d=" + std::to_string(az_d)
+                              + ", el_d=" + std::to_string(el_d));
                 all_passed = false;
             }
             else
             {
-                fprintf(stderr, "[QA]   Test 3 OK: extreme zoom then rotate works "
-                        "(az_d=%.1f, el_d=%.1f)\n", az_d, el_d);
+                fprintf(stderr,
+                        "[QA]   Test 3 OK: extreme zoom then rotate works "
+                        "(az_d=%.1f, el_d=%.1f)\n",
+                        az_d,
+                        el_d);
             }
         }
 
@@ -1157,11 +1179,23 @@ class QAAgent
         if (!glfw_win)
             return true;
 
-        struct SizeSpec { int w, h; };
+        struct SizeSpec
+        {
+            int w, h;
+        };
         SizeSpec sizes[] = {
-            {1280, 720}, {640, 480}, {1920, 1080}, {320, 240},
-            {1920, 400}, {400, 1080}, {800, 800}, {1600, 900},
-            {100, 100},  {2560, 1440}, {640, 360}, {1280, 720},
+            {1280, 720},
+            {640, 480},
+            {1920, 1080},
+            {320, 240},
+            {1920, 400},
+            {400, 1080},
+            {800, 800},
+            {1600, 900},
+            {100, 100},
+            {2560, 1440},
+            {640, 360},
+            {1280, 720},
         };
 
         for (int pass = 0; pass < 2; ++pass)
@@ -1202,10 +1236,12 @@ class QAAgent
         std::vector<WindowContext*> extra_windows;
         for (int i = 0; i < 4 && i < static_cast<int>(fig_ids.size()); ++i)
         {
-            auto* w = wm->detach_figure(
-                fig_ids[i], 600, 400,
-                "Window " + std::to_string(i + 2),
-                100 + i * 150, 100 + i * 50);
+            auto* w = wm->detach_figure(fig_ids[i],
+                                        600,
+                                        400,
+                                        "Window " + std::to_string(i + 2),
+                                        100 + i * 150,
+                                        100 + i * 50);
             if (w)
                 extra_windows.push_back(w);
             pump_frames(5);
@@ -1265,8 +1301,7 @@ class QAAgent
         }
 
         // Detach 2 figures into a second window
-        auto* win2 = wm->detach_figure(
-            fids[0], 800, 600, "Tab Drag Target", 700, 100);
+        auto* win2 = wm->detach_figure(fids[0], 800, 600, "Tab Drag Target", 700, 100);
         pump_frames(10);
 
         if (win2)
@@ -1288,10 +1323,7 @@ class QAAgent
                 auto all_wins = wm->windows();
                 if (all_wins.size() >= 2)
                 {
-                    wm->move_figure(
-                        win2->assigned_figures[0],
-                        win2->id,
-                        all_wins[0]->id);
+                    wm->move_figure(win2->assigned_figures[0], win2->id, all_wins[0]->id);
                     pump_frames(10);
                 }
             }
@@ -1374,15 +1406,17 @@ class QAAgent
         fprintf(stderr, "[QA]   resize_marathon: phase 1 — horizontal drag (100 events)\n");
         for (int i = 0; i < 50; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             cur_w = std::max(200, cur_w - 14);   // ~14px per event, shrinking
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
             pump_frames(1);
         }
         for (int i = 0; i < 50; ++i)
         {
-            if (has_critical_issue()) return false;
-            cur_w = std::min(1920, cur_w + 14);  // drag back wider
+            if (has_critical_issue())
+                return false;
+            cur_w = std::min(1920, cur_w + 14);   // drag back wider
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
             pump_frames(1);
         }
@@ -1392,14 +1426,16 @@ class QAAgent
         fprintf(stderr, "[QA]   resize_marathon: phase 2 — vertical drag (100 events)\n");
         for (int i = 0; i < 50; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             cur_h = std::max(150, cur_h - 12);
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
             pump_frames(1);
         }
         for (int i = 0; i < 50; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             cur_h = std::min(1080, cur_h + 12);
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
             pump_frames(1);
@@ -1411,7 +1447,8 @@ class QAAgent
         fprintf(stderr, "[QA]   resize_marathon: phase 3 — diagonal drag (80 events)\n");
         for (int i = 0; i < 40; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             cur_w = std::max(300, cur_w - 18);
             cur_h = std::max(200, cur_h - 10);
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
@@ -1419,7 +1456,8 @@ class QAAgent
         }
         for (int i = 0; i < 40; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             cur_w = std::min(1920, cur_w + 18);
             cur_h = std::min(1080, cur_h + 10);
             glfwSetWindowSize(glfw_win, cur_w, cur_h);
@@ -1430,10 +1468,11 @@ class QAAgent
         // ── Phase 4: Jittery resize (user shaking the edge nervously) ────
         fprintf(stderr, "[QA]   resize_marathon: phase 4 — jittery edge shake (60 events)\n");
         std::uniform_int_distribution<int> jitter(-20, 20);
-        int base_w = cur_w, base_h = cur_h;
+        int                                base_w = cur_w, base_h = cur_h;
         for (int i = 0; i < 60; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             int w = std::clamp(base_w + jitter(rng_), 200, 2560);
             int h = std::clamp(base_h + jitter(rng_), 150, 1440);
             glfwSetWindowSize(glfw_win, w, h);
@@ -1452,7 +1491,8 @@ class QAAgent
             std::uniform_int_distribution<int> delta(-30, 30);
             for (int i = 0; i < 10; ++i)
             {
-                if (has_critical_issue()) return false;
+                if (has_critical_issue())
+                    return false;
                 cur_w = std::clamp(cur_w + delta(rng_), 300, 2000);
                 cur_h = std::clamp(cur_h + delta(rng_), 200, 1200);
                 glfwSetWindowSize(glfw_win, cur_w, cur_h);
@@ -1467,21 +1507,23 @@ class QAAgent
         fprintf(stderr, "[QA]   resize_marathon: phase 6 — aspect ratio sweep (80 events)\n");
         for (int i = 0; i < 40; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             // Wide → narrow: width shrinks, height grows
             float t = static_cast<float>(i) / 39.0f;
-            int w = static_cast<int>(1800.0f * (1.0f - t) + 400.0f * t);
-            int h = static_cast<int>(300.0f * (1.0f - t) + 1000.0f * t);
+            int   w = static_cast<int>(1800.0f * (1.0f - t) + 400.0f * t);
+            int   h = static_cast<int>(300.0f * (1.0f - t) + 1000.0f * t);
             glfwSetWindowSize(glfw_win, w, h);
             pump_frames(1);
         }
         for (int i = 0; i < 40; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             // Tall → wide: reverse
             float t = static_cast<float>(i) / 39.0f;
-            int w = static_cast<int>(400.0f * (1.0f - t) + 1800.0f * t);
-            int h = static_cast<int>(1000.0f * (1.0f - t) + 300.0f * t);
+            int   w = static_cast<int>(400.0f * (1.0f - t) + 1800.0f * t);
+            int   h = static_cast<int>(1000.0f * (1.0f - t) + 300.0f * t);
             glfwSetWindowSize(glfw_win, w, h);
             pump_frames(1);
         }
@@ -1491,10 +1533,11 @@ class QAAgent
         fprintf(stderr, "[QA]   resize_marathon: phase 7 — snap maximize/restore (20 events)\n");
         for (int i = 0; i < 10; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             glfwSetWindowSize(glfw_win, 2560, 1440);   // "maximize"
             pump_frames(3);
-            glfwSetWindowSize(glfw_win, 1280, 720);    // "restore"
+            glfwSetWindowSize(glfw_win, 1280, 720);   // "restore"
             pump_frames(3);
         }
 
@@ -1516,8 +1559,8 @@ class QAAgent
             return true;
 
         // Create a figure with 4 series for testing
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x(100);
         for (int i = 0; i < 100; ++i)
             x[i] = static_cast<float>(i) * 0.1f;
@@ -1552,7 +1595,8 @@ class QAAgent
         auto& sel = ui->imgui_ui->selection_context();
         if (sel.type != ui::SelectionType::Series || !sel.series)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "series.cycle_selection did not select a series");
             return false;
         }
@@ -1566,8 +1610,7 @@ class QAAgent
 
         if (!ui->imgui_ui->series_clipboard() || !ui->imgui_ui->series_clipboard()->has_data())
         {
-            add_issue(IssueSeverity::Error, "clipboard",
-                      "series.copy did not populate clipboard");
+            add_issue(IssueSeverity::Error, "clipboard", "series.copy did not populate clipboard");
             return false;
         }
 
@@ -1577,9 +1620,10 @@ class QAAgent
         size_t after_paste = ax.series().size();
         if (after_paste != initial_series_count + 1)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "Paste failed: expected " + std::to_string(initial_series_count + 1)
-                      + " series, got " + std::to_string(after_paste));
+                          + " series, got " + std::to_string(after_paste));
             return false;
         }
         fprintf(stderr, "[QA]   clipboard: paste OK, series count = %zu\n", after_paste);
@@ -1595,9 +1639,10 @@ class QAAgent
         size_t after_cut = ax.series().size();
         if (after_cut != after_paste - 1)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
-                      "Cut failed: expected " + std::to_string(after_paste - 1)
-                      + " series, got " + std::to_string(after_cut));
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
+                      "Cut failed: expected " + std::to_string(after_paste - 1) + " series, got "
+                          + std::to_string(after_cut));
             return false;
         }
         fprintf(stderr, "[QA]   clipboard: cut OK, series count = %zu\n", after_cut);
@@ -1609,12 +1654,15 @@ class QAAgent
         size_t after_cut_paste = ax.series().size();
         if (after_cut_paste != after_cut + 1)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "Paste-after-cut failed: expected " + std::to_string(after_cut + 1)
-                      + " series, got " + std::to_string(after_cut_paste));
+                          + " series, got " + std::to_string(after_cut_paste));
             return false;
         }
-        fprintf(stderr, "[QA]   clipboard: paste-after-cut OK, series count = %zu\n", after_cut_paste);
+        fprintf(stderr,
+                "[QA]   clipboard: paste-after-cut OK, series count = %zu\n",
+                after_cut_paste);
 
         // ── Test 4: Delete ───────────────────────────────────────────────
         fprintf(stderr, "[QA]   clipboard: test 4 — delete\n");
@@ -1626,9 +1674,10 @@ class QAAgent
         size_t after_delete = ax.series().size();
         if (after_delete != after_cut_paste - 1)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "Delete failed: expected " + std::to_string(after_cut_paste - 1)
-                      + " series, got " + std::to_string(after_delete));
+                          + " series, got " + std::to_string(after_delete));
             return false;
         }
         fprintf(stderr, "[QA]   clipboard: delete OK, series count = %zu\n", after_delete);
@@ -1642,7 +1691,8 @@ class QAAgent
 
         if (sel.type == ui::SelectionType::Series)
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "Deselect failed: selection type still Series");
             return false;
         }
@@ -1654,8 +1704,8 @@ class QAAgent
         {
             // Move cursor near the first series to populate nearest point
             const auto& vp = ax.viewport();
-            double cx = static_cast<double>(vp.x + vp.w * 0.5f);
-            double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+            double      cx = static_cast<double>(vp.x + vp.w * 0.5f);
+            double      cy = static_cast<double>(vp.y + vp.h * 0.5f);
 
             // Update data interaction with cursor position
             CursorReadout cursor;
@@ -1672,13 +1722,16 @@ class QAAgent
             // If nearest series was found and selected, selection should be populated
             if (sel.type == ui::SelectionType::Series && sel.series)
             {
-                fprintf(stderr, "[QA]   clipboard: right-click selected '%s'\n",
+                fprintf(stderr,
+                        "[QA]   clipboard: right-click selected '%s'\n",
                         sel.series->label().c_str());
             }
             else
             {
                 // Not an error — may not have been near a series at viewport center
-                fprintf(stderr, "[QA]   clipboard: right-click at center did not hit series (OK if cursor not near data)\n");
+                fprintf(stderr,
+                        "[QA]   clipboard: right-click at center did not hit series (OK if cursor "
+                        "not near data)\n");
             }
             (void)consumed;
         }
@@ -1687,7 +1740,8 @@ class QAAgent
         fprintf(stderr, "[QA]   clipboard: test 7 — rapid clipboard ops (stability)\n");
         for (int i = 0; i < 20; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             ui->cmd_registry.execute("series.cycle_selection");
             pump_frames(1);
             ui->cmd_registry.execute("series.copy");
@@ -1697,7 +1751,8 @@ class QAAgent
             ui->cmd_registry.execute("series.deselect");
             pump_frames(1);
         }
-        fprintf(stderr, "[QA]   clipboard: rapid ops complete, series count = %zu\n",
+        fprintf(stderr,
+                "[QA]   clipboard: rapid ops complete, series count = %zu\n",
                 ax.series().size());
 
         // ── Test 8: Copy then delete (clipboard should retain data) ──────
@@ -1711,7 +1766,8 @@ class QAAgent
         // Clipboard should still have data after deleting the original
         if (!ui->imgui_ui->series_clipboard()->has_data())
         {
-            add_issue(IssueSeverity::Error, "clipboard",
+            add_issue(IssueSeverity::Error,
+                      "clipboard",
                       "Clipboard lost data after deleting original series");
             return false;
         }
@@ -1737,8 +1793,8 @@ class QAAgent
             return true;
 
         // Build a figure with known content
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x(80), y1(80), y2(80);
         for (int i = 0; i < 80; ++i)
         {
@@ -1766,7 +1822,8 @@ class QAAgent
         bool saved = FigureSerializer::save(save_path, fig);
         if (!saved)
         {
-            add_issue(IssueSeverity::Error, "serialization",
+            add_issue(IssueSeverity::Error,
+                      "serialization",
                       "FigureSerializer::save() returned false for path: " + save_path);
             return false;
         }
@@ -1781,7 +1838,8 @@ class QAAgent
         bool loaded = FigureSerializer::load(save_path, fig2);
         if (!loaded)
         {
-            add_issue(IssueSeverity::Error, "serialization",
+            add_issue(IssueSeverity::Error,
+                      "serialization",
                       "FigureSerializer::load() returned false for path: " + save_path);
             return false;
         }
@@ -1790,17 +1848,16 @@ class QAAgent
         // Verify series count was restored
         if (fig2.axes().empty())
         {
-            add_issue(IssueSeverity::Error, "serialization",
-                      "Loaded figure has no axes");
+            add_issue(IssueSeverity::Error, "serialization", "Loaded figure has no axes");
             return false;
         }
         size_t loaded_count = fig2.axes()[0]->series().size();
         if (loaded_count != original_count)
         {
-            add_issue(IssueSeverity::Error, "serialization",
-                      "Series count mismatch after load: expected "
-                      + std::to_string(original_count) + ", got "
-                      + std::to_string(loaded_count));
+            add_issue(IssueSeverity::Error,
+                      "serialization",
+                      "Series count mismatch after load: expected " + std::to_string(original_count)
+                          + ", got " + std::to_string(loaded_count));
             return false;
         }
         fprintf(stderr, "[QA]   serialize: loaded OK, series count = %zu\n", loaded_count);
@@ -1823,8 +1880,8 @@ class QAAgent
             return true;
 
         // Create a figure with 3 series
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
         std::vector<float> x(100);
         std::vector<float> y1(100), y2(100), y3(100);
         for (int i = 0; i < 100; ++i)
@@ -1845,8 +1902,8 @@ class QAAgent
 
         // Simulate hovering over the first series to populate nearest_ cache
         const auto& vp = ax.viewport();
-        double cx = static_cast<double>(vp.x + vp.w * 0.3f);
-        double cy = static_cast<double>(vp.y + vp.h * 0.5f);
+        double      cx = static_cast<double>(vp.x + vp.w * 0.3f);
+        double      cy = static_cast<double>(vp.y + vp.h * 0.5f);
 
         CursorReadout cursor;
         cursor.valid    = true;
@@ -1864,8 +1921,10 @@ class QAAgent
         pump_frames(2);
 
         auto& sel = ui->imgui_ui->selection_context();
-        fprintf(stderr, "[QA]   series_removed: selection type=%d, series=%p\n",
-                static_cast<int>(sel.type), static_cast<void*>(sel.series));
+        fprintf(stderr,
+                "[QA]   series_removed: selection type=%d, series=%p\n",
+                static_cast<int>(sel.type),
+                static_cast<void*>(sel.series));
 
         size_t before_count = ax.series().size();
 
@@ -1879,9 +1938,10 @@ class QAAgent
         size_t after_count = ax.series().size();
         if (after_count != before_count - 1 && before_count > 0)
         {
-            add_issue(IssueSeverity::Warning, "series_removed",
+            add_issue(IssueSeverity::Warning,
+                      "series_removed",
                       "Series delete did not reduce count: before=" + std::to_string(before_count)
-                      + " after=" + std::to_string(after_count));
+                          + " after=" + std::to_string(after_count));
         }
 
         // ── Now interact with the figure again — must not crash ───────────
@@ -1909,7 +1969,8 @@ class QAAgent
         ui->data_interaction->update(cursor, fig);
         pump_frames(5);
 
-        fprintf(stderr, "[QA]   series_removed: all interactions post-delete completed without crash\n");
+        fprintf(stderr,
+                "[QA]   series_removed: all interactions post-delete completed without crash\n");
 #endif
         return true;
     }
@@ -1926,9 +1987,9 @@ class QAAgent
             return true;
 
         // Create a large sorted line series (10K points)
-        auto& fig = app_->figure({1280, 720});
-        auto& ax  = fig.subplot(1, 1, 1);
-        const int N = 10000;
+        auto&              fig = app_->figure({1280, 720});
+        auto&              ax  = fig.subplot(1, 1, 1);
+        const int          N   = 10000;
         std::vector<float> x(N), y(N);
         for (int i = 0; i < N; ++i)
         {
@@ -1944,14 +2005,15 @@ class QAAgent
         pump_frames(15);
 
         const auto& vp = ax.viewport();
-        double cx = static_cast<double>(vp.x + vp.w * 0.5);
-        double cy = static_cast<double>(vp.y + vp.h * 0.5);
+        double      cx = static_cast<double>(vp.x + vp.w * 0.5);
+        double      cy = static_cast<double>(vp.y + vp.h * 0.5);
 
         // ── Phase 1: Zoom in deep (culling removes most points) ───────────
         fprintf(stderr, "[QA]   culling: phase 1 — zoom in 15x\n");
         for (int i = 0; i < 15; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             ui->input_handler.on_scroll(0.0, 1.0, cx, cy);
             pump_frames(1);
         }
@@ -1961,7 +2023,8 @@ class QAAgent
         fprintf(stderr, "[QA]   culling: phase 2 — pan right through data\n");
         for (int i = 0; i < 30; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             // Drag right (pan left in data space)
             double x1 = cx + 10.0, x2 = cx - 10.0;
             ui->input_handler.on_mouse_button(1, 1, 0, x1, cy);
@@ -1980,7 +2043,8 @@ class QAAgent
         fprintf(stderr, "[QA]   culling: phase 3 — zoom out 20x\n");
         for (int i = 0; i < 20; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             ui->input_handler.on_scroll(0.0, -1.0, cx, cy);
             pump_frames(1);
         }
@@ -1990,7 +2054,8 @@ class QAAgent
         fprintf(stderr, "[QA]   culling: phase 4 — rapid alternating zoom\n");
         for (int i = 0; i < 40; ++i)
         {
-            if (has_critical_issue()) return false;
+            if (has_critical_issue())
+                return false;
             double delta = (i % 2 == 0) ? 1.0 : -1.0;
             ui->input_handler.on_scroll(0.0, delta, cx, cy);
             pump_frames(1);
@@ -2009,8 +2074,7 @@ class QAAgent
     // Captures named screenshots of every meaningful UI state for design analysis.
     // Screenshots go into <output_dir>/design/ with descriptive names.
 
-    std::string named_screenshot(const std::string& name,
-                                  WindowContext* target_window = nullptr)
+    std::string named_screenshot(const std::string& name, WindowContext* target_window = nullptr)
     {
         auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
         if (!backend)
@@ -2079,8 +2143,8 @@ class QAAgent
 
         // ── 3. Multiple series (line + scatter) ──────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
             std::vector<float> x(200), y1(200), y2(200), y3(200);
             for (int i = 0; i < 200; ++i)
             {
@@ -2102,8 +2166,8 @@ class QAAgent
 
         // ── 4. Dense data (10K points) ───────────────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
             std::vector<float> x(10000), y(10000);
             for (int i = 0; i < 10000; ++i)
             {
@@ -2124,7 +2188,7 @@ class QAAgent
             {
                 for (int c = 0; c < 2; ++c)
                 {
-                    auto& ax = fig.subplot(2, 2, r * 2 + c + 1);
+                    auto&              ax = fig.subplot(2, 2, r * 2 + c + 1);
                     std::vector<float> x(100), y(100);
                     for (int i = 0; i < 100; ++i)
                     {
@@ -2142,9 +2206,9 @@ class QAAgent
 
         // ── 6. Large scatter plot ────────────────────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
-            std::vector<float> x(2000), y(2000);
+            auto&                           fig = app_->figure({1280, 720});
+            auto&                           ax  = fig.subplot(1, 1, 1);
+            std::vector<float>              x(2000), y(2000);
             std::normal_distribution<float> norm(0.0f, 1.0f);
             for (int i = 0; i < 2000; ++i)
             {
@@ -2227,7 +2291,7 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.light");
-                pump_frames(30);  // D25 fix: allow theme transition to fully complete
+                pump_frames(30);   // D25 fix: allow theme transition to fully complete
                 named_screenshot("12_theme_light");
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
@@ -2333,7 +2397,7 @@ class QAAgent
         {
             auto& fig = app_->figure({1280, 720});
             auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 30;
+            int   n   = 30;
             // D23 fix: surface() expects 1D unique grid vectors, not flat 2D
             std::vector<float> xg(n), yg(n);
             for (int i = 0; i < n; ++i)
@@ -2354,9 +2418,9 @@ class QAAgent
 
         // ── 20. 3D scatter plot ─────────────────────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            std::vector<float> x(500), y(500), z(500);
+            auto&                           fig = app_->figure({1280, 720});
+            auto&                           ax  = fig.subplot3d(1, 1, 1);
+            std::vector<float>              x(500), y(500), z(500);
             std::normal_distribution<float> norm(0.0f, 1.0f);
             for (int i = 0; i < 500; ++i)
             {
@@ -2378,9 +2442,9 @@ class QAAgent
 
         // ── 21. 3D surface with labels + lighting ──────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 40;
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot3d(1, 1, 1);
+            int                n   = 40;
             std::vector<float> xg(n), yg(n);
             for (int i = 0; i < n; ++i)
                 xg[i] = -4.0f + 8.0f * i / (n - 1);
@@ -2407,9 +2471,9 @@ class QAAgent
 
         // ── 22. 3D surface — rotated camera (side view) ───────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 30;
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot3d(1, 1, 1);
+            int                n   = 30;
             std::vector<float> xg(n), yg(n);
             for (int i = 0; i < n; ++i)
                 xg[i] = -3.0f + 6.0f * i / (n - 1);
@@ -2430,9 +2494,9 @@ class QAAgent
 
         // ── 23. 3D surface — top-down camera ──────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 30;
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot3d(1, 1, 1);
+            int                n   = 30;
             std::vector<float> xg(n), yg(n);
             for (int i = 0; i < n; ++i)
                 xg[i] = -3.0f + 6.0f * i / (n - 1);
@@ -2453,16 +2517,16 @@ class QAAgent
 
         // ── 24. 3D line plot (helix) ──────────────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 500;
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot3d(1, 1, 1);
+            int                n   = 500;
             std::vector<float> x(n), y(n), z(n);
             for (int i = 0; i < n; ++i)
             {
                 float t = static_cast<float>(i) * 0.05f;
-                x[i] = std::cos(t);
-                y[i] = std::sin(t);
-                z[i] = t * 0.1f;
+                x[i]    = std::cos(t);
+                y[i]    = std::sin(t);
+                z[i]    = t * 0.1f;
             }
             ax.line3d(x, y, z).label("Helix").color(colors::cyan);
             ax.auto_fit();
@@ -2477,8 +2541,8 @@ class QAAgent
 
         // ── 25. 3D scatter with multiple clusters ─────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
+            auto&                           fig = app_->figure({1280, 720});
+            auto&                           ax  = fig.subplot3d(1, 1, 1);
             std::normal_distribution<float> norm(0.0f, 0.35f);
             // Cluster 1
             std::vector<float> x1(200), y1(200), z1(200);
@@ -2508,9 +2572,9 @@ class QAAgent
 
         // ── 26. 3D orthographic projection ────────────────────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot3d(1, 1, 1);
-            int n = 25;
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot3d(1, 1, 1);
+            int                n   = 25;
             std::vector<float> xg(n), yg(n);
             for (int i = 0; i < n; ++i)
                 xg[i] = -2.0f + 4.0f * i / (n - 1);
@@ -2534,8 +2598,8 @@ class QAAgent
         // ── 27. Inspector with series selected (statistics visible) ───
         {
             // Create a figure with labeled data for inspector stats
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
             std::vector<float> x(300), y(300);
             for (int i = 0; i < 300; ++i)
             {
@@ -2666,8 +2730,8 @@ class QAAgent
         // ── 33. Split view with 2 figures (proper split) ─────────────
         {
             // Create 2 figures so split actually works
-            auto& fig1 = app_->figure({1280, 720});
-            auto& ax1  = fig1.subplot(1, 1, 1);
+            auto&              fig1 = app_->figure({1280, 720});
+            auto&              ax1  = fig1.subplot(1, 1, 1);
             std::vector<float> x1(200), y1(200);
             for (int i = 0; i < 200; ++i)
             {
@@ -2677,8 +2741,8 @@ class QAAgent
             ax1.line(x1, y1).label("sin(x)");
             ax1.title("Left Pane");
 
-            auto& fig2 = app_->figure({1280, 720});
-            auto& ax2  = fig2.subplot(1, 1, 1);
+            auto&              fig2 = app_->figure({1280, 720});
+            auto&              ax2  = fig2.subplot(1, 1, 1);
             std::vector<float> x2(200), y2(200);
             for (int i = 0; i < 200; ++i)
             {
@@ -2703,8 +2767,8 @@ class QAAgent
 
         // ── 34. Multi-series with legend + grid + crosshair ──────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
             std::vector<float> x(300);
             for (int i = 0; i < 300; ++i)
                 x[i] = static_cast<float>(i) * 0.02f;
@@ -2730,7 +2794,7 @@ class QAAgent
             // Explicitly enable grid, legend, and crosshair (avoid toggle drift)
             ax.grid(true);
             fig.legend().visible = true;
-            auto* ui = app_->ui_context();
+            auto* ui             = app_->ui_context();
             if (ui)
             {
                 if (ui->data_interaction)
@@ -2746,8 +2810,8 @@ class QAAgent
 
         // ── 35. Zoomed-in data center (verify D12 fix) ───────────────
         {
-            auto& fig = app_->figure({1280, 720});
-            auto& ax  = fig.subplot(1, 1, 1);
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
             std::vector<float> x(200), y(200);
             for (int i = 0; i < 200; ++i)
             {
@@ -2804,8 +2868,7 @@ class QAAgent
                 const char* search = "theme";
                 for (int i = 0; search[i]; ++i)
                 {
-                    ImGui::GetIO().AddInputCharacter(
-                        static_cast<unsigned int>(search[i]));
+                    ImGui::GetIO().AddInputCharacter(static_cast<unsigned int>(search[i]));
                     pump_frames(1);
                 }
                 pump_frames(5);
@@ -2887,7 +2950,7 @@ class QAAgent
             auto* wm = app_->window_manager();
             if (wm && !wm->windows().empty())
             {
-                auto* wctx = wm->windows()[0];
+                auto* wctx     = wm->windows()[0];
                 auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
                 if (glfw_win)
                 {
@@ -2903,7 +2966,7 @@ class QAAgent
             auto* wm = app_->window_manager();
             if (wm && !wm->windows().empty())
             {
-                auto* wctx = wm->windows()[0];
+                auto* wctx     = wm->windows()[0];
                 auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
                 if (glfw_win)
                 {
@@ -2919,7 +2982,7 @@ class QAAgent
             auto* wm = app_->window_manager();
             if (wm && !wm->windows().empty())
             {
-                auto* wctx = wm->windows()[0];
+                auto* wctx     = wm->windows()[0];
                 auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
                 if (glfw_win)
                 {
@@ -2939,7 +3002,7 @@ class QAAgent
             auto* wm = app_->window_manager();
             if (wm && !wm->windows().empty())
             {
-                auto* wctx = wm->windows()[0];
+                auto* wctx     = wm->windows()[0];
                 auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
                 if (glfw_win)
                 {
@@ -2973,10 +3036,9 @@ class QAAgent
                     // D44 fix: ensure the detached figure has visible content
                     {
                         auto* fig2 = app_->figure_registry().get(ids[1]);
-                        if (fig2 && !fig2->axes().empty() &&
-                            fig2->axes()[0]->series().empty())
+                        if (fig2 && !fig2->axes().empty() && fig2->axes()[0]->series().empty())
                         {
-                            auto& ax = *fig2->axes_mut()[0];
+                            auto&              ax = *fig2->axes_mut()[0];
                             std::vector<float> x2(100), y2(100);
                             for (int i = 0; i < 100; ++i)
                             {
@@ -2991,8 +3053,8 @@ class QAAgent
                     }
 
                     // Detach second figure into a new window
-                    auto* new_wctx = wm->detach_figure(
-                        ids[1], 800, 600, "Detached Figure", 100, 100);
+                    auto* new_wctx =
+                        wm->detach_figure(ids[1], 800, 600, "Detached Figure", 100, 100);
                     pump_frames(20);
 
                     // D41 fix: use window-targeted captures. step() iterates
@@ -3029,7 +3091,7 @@ class QAAgent
             auto* wm = app_->window_manager();
             if (wm && !wm->windows().empty())
             {
-                auto* wctx = wm->windows()[0];
+                auto* wctx     = wm->windows()[0];
                 auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
                 if (glfw_win)
                 {
@@ -3068,8 +3130,8 @@ class QAAgent
             if (wm)
             {
                 // Create a second figure for the second window
-                auto& fig2 = app_->figure({800, 600});
-                auto& ax2  = fig2.subplot(1, 1, 1);
+                auto&              fig2 = app_->figure({800, 600});
+                auto&              ax2  = fig2.subplot(1, 1, 1);
                 std::vector<float> x(150), y(150);
                 for (int i = 0; i < 150; ++i)
                 {
@@ -3083,15 +3145,14 @@ class QAAgent
                 auto ids = app_->figure_registry().all_ids();
                 if (ids.size() >= 2)
                 {
-                    auto* win2 = wm->detach_figure(
-                        ids.back(), 640, 480, "Window B", 700, 100);
+                    auto* win2 = wm->detach_figure(ids.back(), 640, 480, "Window B", 700, 100);
                     pump_frames(15);
 
                     // Position primary window to the left
                     if (!wm->windows().empty())
                     {
-                        auto* glfw_primary = static_cast<GLFWwindow*>(
-                            wm->windows()[0]->glfw_window);
+                        auto* glfw_primary =
+                            static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window);
                         if (glfw_primary)
                             glfwSetWindowPos(glfw_primary, 50, 100);
                     }
@@ -3141,7 +3202,7 @@ class QAAgent
 
                 // Now toggle fullscreen — hides inspector + keeps nav collapsed
                 ui->cmd_registry.execute("view.fullscreen");
-                pump_frames(20);  // Allow layout animation to settle
+                pump_frames(20);   // Allow layout animation to settle
                 named_screenshot("49_fullscreen_mode");
                 ui->cmd_registry.execute("view.fullscreen");   // Toggle back
                 pump_frames(10);
@@ -3170,19 +3231,21 @@ class QAAgent
                 lm.set_nav_rail_expanded(false);
                 lm.set_bottom_panel_height(0.0f);
 
-                pump_frames(20);  // Allow all animations to fully settle
+                pump_frames(20);   // Allow all animations to fully settle
                 named_screenshot("50_minimal_chrome_all_panels_closed");
             }
         }
 #endif
 
         // ── Summary ─────────────────────────────────────────────────────
-        fprintf(stderr, "[QA/Design] Captured %zu design screenshots in %s/design/\n",
-                design_screenshots_.size(), opts_.output_dir.c_str());
+        fprintf(stderr,
+                "[QA/Design] Captured %zu design screenshots in %s/design/\n",
+                design_screenshots_.size(),
+                opts_.output_dir.c_str());
 
         // Write design screenshot manifest
         {
-            std::string manifest_path = opts_.output_dir + "/design/manifest.txt";
+            std::string   manifest_path = opts_.output_dir + "/design/manifest.txt";
             std::ofstream out(manifest_path);
             out << "Spectra Design Review Screenshots\n";
             out << "==================================\n";
@@ -3225,27 +3288,28 @@ class QAAgent
 
     void run_fuzzing()
     {
-        fprintf(stderr, "[QA] Starting fuzzing phase (%lu frames)\n",
+        fprintf(stderr,
+                "[QA] Starting fuzzing phase (%lu frames)\n",
                 static_cast<unsigned long>(opts_.fuzz_frames));
 
         std::vector<ActionWeight> weights = {
             {FuzzAction::ExecuteCommand, 15},
-            {FuzzAction::MouseClick,     15},
-            {FuzzAction::MouseDrag,      10},
-            {FuzzAction::MouseScroll,    10},
-            {FuzzAction::KeyPress,       10},
-            {FuzzAction::CreateFigure,    5},
-            {FuzzAction::CloseFigure,     3},
-            {FuzzAction::SwitchTab,       8},
-            {FuzzAction::AddSeries,       8},
-            {FuzzAction::UpdateData,      5},
-            {FuzzAction::LargeDataset,    1},
-            {FuzzAction::SplitDock,       3},
-            {FuzzAction::Toggle3D,        3},
-            {FuzzAction::WaitFrames,      7},
-            {FuzzAction::WindowResize,    3},
-            {FuzzAction::WindowDrag,      3},
-            {FuzzAction::TabDetach,       2},
+            {FuzzAction::MouseClick, 15},
+            {FuzzAction::MouseDrag, 10},
+            {FuzzAction::MouseScroll, 10},
+            {FuzzAction::KeyPress, 10},
+            {FuzzAction::CreateFigure, 5},
+            {FuzzAction::CloseFigure, 3},
+            {FuzzAction::SwitchTab, 8},
+            {FuzzAction::AddSeries, 8},
+            {FuzzAction::UpdateData, 5},
+            {FuzzAction::LargeDataset, 1},
+            {FuzzAction::SplitDock, 3},
+            {FuzzAction::Toggle3D, 3},
+            {FuzzAction::WaitFrames, 7},
+            {FuzzAction::WindowResize, 3},
+            {FuzzAction::WindowDrag, 3},
+            {FuzzAction::TabDetach, 2},
         };
 
         int total_weight = 0;
@@ -3268,9 +3332,9 @@ class QAAgent
             }
 
             // Pick weighted random action
-            int roll = weight_dist(rng_);
-            FuzzAction action = FuzzAction::WaitFrames;
-            int cumulative = 0;
+            int        roll       = weight_dist(rng_);
+            FuzzAction action     = FuzzAction::WaitFrames;
+            int        cumulative = 0;
             for (auto& w : weights)
             {
                 cumulative += w.weight;
@@ -3285,7 +3349,8 @@ class QAAgent
             pump_frames(1);
         }
 
-        fprintf(stderr, "[QA] Fuzzing complete (%lu total frames)\n",
+        fprintf(stderr,
+                "[QA] Fuzzing complete (%lu total frames)\n",
                 static_cast<unsigned long>(total_frames_));
     }
 
@@ -3293,32 +3358,53 @@ class QAAgent
     {
         switch (a)
         {
-            case FuzzAction::ExecuteCommand: return "fuzz:ExecuteCommand";
-            case FuzzAction::MouseClick:     return "fuzz:MouseClick";
-            case FuzzAction::MouseDrag:      return "fuzz:MouseDrag";
-            case FuzzAction::MouseScroll:    return "fuzz:MouseScroll";
-            case FuzzAction::KeyPress:       return "fuzz:KeyPress";
-            case FuzzAction::CreateFigure:   return "fuzz:CreateFigure";
-            case FuzzAction::CloseFigure:    return "fuzz:CloseFigure";
-            case FuzzAction::SwitchTab:      return "fuzz:SwitchTab";
-            case FuzzAction::AddSeries:      return "fuzz:AddSeries";
-            case FuzzAction::UpdateData:     return "fuzz:UpdateData";
-            case FuzzAction::LargeDataset:   return "fuzz:LargeDataset";
-            case FuzzAction::SplitDock:      return "fuzz:SplitDock";
-            case FuzzAction::Toggle3D:       return "fuzz:Toggle3D";
-            case FuzzAction::WaitFrames:     return "fuzz:WaitFrames";
-            case FuzzAction::WindowResize:  return "fuzz:WindowResize";
-            case FuzzAction::WindowDrag:    return "fuzz:WindowDrag";
-            case FuzzAction::TabDetach:     return "fuzz:TabDetach";
-            default:                         return "fuzz:Unknown";
+            case FuzzAction::ExecuteCommand:
+                return "fuzz:ExecuteCommand";
+            case FuzzAction::MouseClick:
+                return "fuzz:MouseClick";
+            case FuzzAction::MouseDrag:
+                return "fuzz:MouseDrag";
+            case FuzzAction::MouseScroll:
+                return "fuzz:MouseScroll";
+            case FuzzAction::KeyPress:
+                return "fuzz:KeyPress";
+            case FuzzAction::CreateFigure:
+                return "fuzz:CreateFigure";
+            case FuzzAction::CloseFigure:
+                return "fuzz:CloseFigure";
+            case FuzzAction::SwitchTab:
+                return "fuzz:SwitchTab";
+            case FuzzAction::AddSeries:
+                return "fuzz:AddSeries";
+            case FuzzAction::UpdateData:
+                return "fuzz:UpdateData";
+            case FuzzAction::LargeDataset:
+                return "fuzz:LargeDataset";
+            case FuzzAction::SplitDock:
+                return "fuzz:SplitDock";
+            case FuzzAction::Toggle3D:
+                return "fuzz:Toggle3D";
+            case FuzzAction::WaitFrames:
+                return "fuzz:WaitFrames";
+            case FuzzAction::WindowResize:
+                return "fuzz:WindowResize";
+            case FuzzAction::WindowDrag:
+                return "fuzz:WindowDrag";
+            case FuzzAction::TabDetach:
+                return "fuzz:TabDetach";
+            default:
+                return "fuzz:Unknown";
         }
     }
 
     void execute_fuzz_action(FuzzAction action)
     {
         // P0 fix: track last action for crash handler context
-        snprintf(g_last_action, sizeof(g_last_action), "%s (frame %lu)",
-                 fuzz_action_name(action), static_cast<unsigned long>(total_frames_));
+        snprintf(g_last_action,
+                 sizeof(g_last_action),
+                 "%s (frame %lu)",
+                 fuzz_action_name(action),
+                 static_cast<unsigned long>(total_frames_));
 
         [[maybe_unused]] auto* ui = app_->ui_context();
 
@@ -3329,14 +3415,15 @@ class QAAgent
 #ifdef SPECTRA_USE_IMGUI
                 if (!ui)
                     break;
-                auto cmd_ptrs = ui->cmd_registry.all_commands();
+                auto                     cmd_ptrs = ui->cmd_registry.all_commands();
                 std::vector<std::string> cmds;
                 for (auto* c : cmd_ptrs)
-                    if (c) cmds.push_back(c->id);
+                    if (c)
+                        cmds.push_back(c->id);
                 if (cmds.empty())
                     break;
                 std::uniform_int_distribution<size_t> dist(0, cmds.size() - 1);
-                const auto& id = cmds[dist(rng_)];
+                const auto&                           id = cmds[dist(rng_)];
                 // Skip destructive commands
                 if (id != "figure.close" && id != "app.quit")
                     ui->cmd_registry.execute(id);
@@ -3350,9 +3437,9 @@ class QAAgent
                 if (!ui)
                     break;
                 std::uniform_real_distribution<double> px(0, 1280), py(0, 720);
-                std::uniform_int_distribution<int> btn(0, 1);
-                double mx = px(rng_), my = py(rng_);
-                int b = btn(rng_);
+                std::uniform_int_distribution<int>     btn(0, 1);
+                double                                 mx = px(rng_), my = py(rng_);
+                int                                    b = btn(rng_);
                 ui->input_handler.on_mouse_button(b, 1, 0, mx, my);
                 ui->input_handler.on_mouse_button(b, 0, 0, mx, my);
 #endif
@@ -3365,8 +3452,8 @@ class QAAgent
                 if (!ui)
                     break;
                 std::uniform_real_distribution<double> px(0, 1280), py(0, 720);
-                double x1 = px(rng_), y1 = py(rng_);
-                double x2 = px(rng_), y2 = py(rng_);
+                double                                 x1 = px(rng_), y1 = py(rng_);
+                double                                 x2 = px(rng_), y2 = py(rng_);
                 ui->input_handler.on_mouse_button(0, 1, 0, x1, y1);
                 // Interpolate drag
                 for (int s = 1; s <= 5; ++s)
@@ -3399,7 +3486,7 @@ class QAAgent
                 if (!ui)
                     break;
                 std::uniform_int_distribution<int> key(32, 126);
-                int k = key(rng_);
+                int                                k = key(rng_);
                 ui->input_handler.on_key(k, 1, 0);
                 ui->input_handler.on_key(k, 0, 0);
 #endif
@@ -3459,9 +3546,9 @@ class QAAgent
                 if (!fig || fig->axes().empty())
                     break;
 
-                std::uniform_int_distribution<int> n_dist(10, 200);
-                int n = n_dist(rng_);
-                std::vector<float> x(n), y(n);
+                std::uniform_int_distribution<int>    n_dist(10, 200);
+                int                                   n = n_dist(rng_);
+                std::vector<float>                    x(n), y(n);
                 std::uniform_real_distribution<float> val(-50.0f, 50.0f);
                 for (int i = 0; i < n; ++i)
                 {
@@ -3469,7 +3556,7 @@ class QAAgent
                     y[i] = val(rng_);
                 }
 
-                auto& ax = fig->subplot(1, 1, 1);
+                auto&                              ax = fig->subplot(1, 1, 1);
                 std::uniform_int_distribution<int> type_dist(0, 1);
                 if (type_dist(rng_) == 0)
                     ax.line(x, y);
@@ -3496,8 +3583,8 @@ class QAAgent
                 auto* line   = dynamic_cast<LineSeries*>(series);
                 if (line)
                 {
-                    auto xd = line->x_data();
-                    std::vector<float> new_y(xd.size());
+                    auto                                  xd = line->x_data();
+                    std::vector<float>                    new_y(xd.size());
                     std::uniform_real_distribution<float> val(-50.0f, 50.0f);
                     for (size_t i = 0; i < new_y.size(); ++i)
                         new_y[i] = val(rng_);
@@ -3517,8 +3604,8 @@ class QAAgent
                     break;
 
                 std::uniform_int_distribution<int> n_dist(100000, 500000);
-                int n = n_dist(rng_);
-                std::vector<float> x(n), y(n);
+                int                                n = n_dist(rng_);
+                std::vector<float>                 x(n), y(n);
                 for (int i = 0; i < n; ++i)
                 {
                     x[i] = static_cast<float>(i);
@@ -3565,8 +3652,7 @@ class QAAgent
                 auto* wm = app_->window_manager();
                 if (!wm || wm->windows().empty())
                     break;
-                auto* glfw_win = static_cast<GLFWwindow*>(
-                    wm->windows()[0]->glfw_window);
+                auto* glfw_win = static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window);
                 if (!glfw_win)
                     break;
                 std::uniform_int_distribution<int> dim(200, 1920);
@@ -3581,8 +3667,7 @@ class QAAgent
                 auto* wm = app_->window_manager();
                 if (!wm || wm->windows().empty())
                     break;
-                auto* glfw_win = static_cast<GLFWwindow*>(
-                    wm->windows()[0]->glfw_window);
+                auto* glfw_win = static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window);
                 if (!glfw_win)
                     break;
                 std::uniform_int_distribution<int> pos_x(0, 1600);
@@ -3602,14 +3687,12 @@ class QAAgent
                 if (ids.size() < 2)
                     break;   // Need at least 2 figures to detach one
                 std::uniform_int_distribution<size_t> fig_dist(0, ids.size() - 1);
-                FigureId fid = ids[fig_dist(rng_)];
+                FigureId                              fid = ids[fig_dist(rng_)];
                 // Cap at 5 windows to avoid resource exhaustion
                 if (wm->window_count() < 5)
                 {
                     std::uniform_int_distribution<int> pos(50, 800);
-                    auto* w = wm->detach_figure(
-                        fid, 640, 480, "Fuzz Detach",
-                        pos(rng_), pos(rng_));
+                    auto* w = wm->detach_figure(fid, 640, 480, "Fuzz Detach", pos(rng_), pos(rng_));
                     if (w)
                         pump_frames(5);
                 }
@@ -3640,20 +3723,19 @@ class QAAgent
         // P0 fix: warmup period (skip first 30 frames) + absolute minimum (33ms)
         // to eliminate false positives from VSync-locked frames
         static constexpr uint64_t WARMUP_FRAMES    = 30;
-        static constexpr float    MIN_SPIKE_MS      = 33.0f;
-        static constexpr float    SPIKE_MULTIPLIER  = 3.0f;
+        static constexpr float    MIN_SPIKE_MS     = 33.0f;
+        static constexpr float    SPIKE_MULTIPLIER = 3.0f;
 
-        if (total_frames_ > WARMUP_FRAMES
-            && frame_stats_.ema > 0.5f
+        if (total_frames_ > WARMUP_FRAMES && frame_stats_.ema > 0.5f
             && result.frame_time_ms > MIN_SPIKE_MS
             && result.frame_time_ms > frame_stats_.ema * SPIKE_MULTIPLIER)
         {
             frame_stats_.spike_count++;
-            add_issue(IssueSeverity::Warning, "frame_time",
-                      "Frame " + std::to_string(result.frame_number)
-                      + " took " + std::to_string(result.frame_time_ms)
-                      + "ms (" + std::to_string(result.frame_time_ms / frame_stats_.ema)
-                      + "x average)");
+            add_issue(IssueSeverity::Warning,
+                      "frame_time",
+                      "Frame " + std::to_string(result.frame_number) + " took "
+                          + std::to_string(result.frame_time_ms) + "ms ("
+                          + std::to_string(result.frame_time_ms / frame_stats_.ema) + "x average)");
         }
 
         // RSS check every 60 frames
@@ -3666,10 +3748,11 @@ class QAAgent
             size_t growth = (rss > initial_rss_) ? (rss - initial_rss_) : 0;
             if (growth > 100 * 1024 * 1024)   // >100MB growth
             {
-                add_issue(IssueSeverity::Warning, "memory",
+                add_issue(IssueSeverity::Warning,
+                          "memory",
                           "RSS grew by " + std::to_string(growth / (1024 * 1024))
-                          + "MB (initial: " + std::to_string(initial_rss_ / (1024 * 1024))
-                          + "MB, current: " + std::to_string(rss / (1024 * 1024)) + "MB)");
+                              + "MB (initial: " + std::to_string(initial_rss_ / (1024 * 1024))
+                              + "MB, current: " + std::to_string(rss / (1024 * 1024)) + "MB)");
             }
         }
     }
@@ -3698,8 +3781,8 @@ class QAAgent
                 c = '_';
         }
 
-        std::string path = opts_.output_dir + "/screenshot_frame"
-                           + std::to_string(total_frames_) + "_" + safe_reason + ".png";
+        std::string path = opts_.output_dir + "/screenshot_frame" + std::to_string(total_frames_)
+                           + "_" + safe_reason + ".png";
         ImageExporter::write_png(path, pixels.data(), w, h);
         return path;
     }
@@ -3707,8 +3790,8 @@ class QAAgent
     // ── Wall clock check ─────────────────────────────────────────────────
     bool wall_clock_exceeded() const
     {
-        auto elapsed = std::chrono::steady_clock::now() - start_time_;
-        float sec = std::chrono::duration<float>(elapsed).count();
+        auto  elapsed = std::chrono::steady_clock::now() - start_time_;
+        float sec     = std::chrono::duration<float>(elapsed).count();
         return sec >= opts_.duration_sec;
     }
 
@@ -3734,7 +3817,7 @@ class QAAgent
 
         // Text report
         {
-            std::string path = opts_.output_dir + "/qa_report.txt";
+            std::string   path = opts_.output_dir + "/qa_report.txt";
             std::ofstream out(path);
             if (!out)
             {
@@ -3747,8 +3830,8 @@ class QAAgent
             out << "Seed: " << opts_.seed << "\n";
             out << "Duration: " << duration << "s\n";
             out << "Total frames: " << total_frames_ << "\n";
-            out << "Scenarios: " << scenarios_passed_ << " passed, "
-                << scenarios_failed_ << " failed\n";
+            out << "Scenarios: " << scenarios_passed_ << " passed, " << scenarios_failed_
+                << " failed\n";
             out << "Fuzz frames: " << (opts_.no_fuzz ? 0 : opts_.fuzz_frames) << "\n";
             out << "\n";
 
@@ -3772,24 +3855,30 @@ class QAAgent
                 for (const auto& issue : issues_)
                     by_category[issue.category].push_back(&issue);
 
-                out << "Issue Summary (" << issues_.size() << " total, "
-                    << by_category.size() << " categories):\n";
+                out << "Issue Summary (" << issues_.size() << " total, " << by_category.size()
+                    << " categories):\n";
                 for (const auto& [cat, cat_issues] : by_category)
                 {
                     // Count by severity
                     size_t warns = 0, errs = 0, crits = 0;
                     for (auto* i : cat_issues)
                     {
-                        if (i->severity == IssueSeverity::Warning) warns++;
-                        else if (i->severity == IssueSeverity::Error) errs++;
-                        else if (i->severity == IssueSeverity::Critical) crits++;
+                        if (i->severity == IssueSeverity::Warning)
+                            warns++;
+                        else if (i->severity == IssueSeverity::Error)
+                            errs++;
+                        else if (i->severity == IssueSeverity::Critical)
+                            crits++;
                     }
                     out << "  " << cat << ": " << cat_issues.size() << " issues";
-                    if (crits) out << " (" << crits << " CRITICAL)";
-                    if (errs) out << " (" << errs << " ERROR)";
-                    if (warns) out << " (" << warns << " WARNING)";
-                    out << " [frames " << cat_issues.front()->frame
-                        << "-" << cat_issues.back()->frame << "]\n";
+                    if (crits)
+                        out << " (" << crits << " CRITICAL)";
+                    if (errs)
+                        out << " (" << errs << " ERROR)";
+                    if (warns)
+                        out << " (" << warns << " WARNING)";
+                    out << " [frames " << cat_issues.front()->frame << "-"
+                        << cat_issues.back()->frame << "]\n";
                 }
                 out << "\n";
 
@@ -3823,7 +3912,7 @@ class QAAgent
 
         // JSON report
         {
-            std::string path = opts_.output_dir + "/qa_report.json";
+            std::string   path = opts_.output_dir + "/qa_report.json";
             std::ofstream out(path);
             if (!out)
                 return;
@@ -3850,9 +3939,8 @@ class QAAgent
             {
                 const auto& issue = issues_[i];
                 out << "    {\"severity\": \"" << severity_str(issue.severity)
-                    << "\", \"category\": \"" << issue.category
-                    << "\", \"message\": \"" << issue.message
-                    << "\", \"frame\": " << issue.frame << "}";
+                    << "\", \"category\": \"" << issue.category << "\", \"message\": \""
+                    << issue.message << "\", \"frame\": " << issue.frame << "}";
                 if (i + 1 < issues_.size())
                     out << ",";
                 out << "\n";
@@ -3874,7 +3962,8 @@ class QAAgent
                 static_cast<unsigned long>(opts_.seed),
                 duration,
                 static_cast<unsigned long>(total_frames_),
-                scenarios_passed_, scenarios_failed_,
+                scenarios_passed_,
+                scenarios_failed_,
                 frame_stats_.average(),
                 frame_stats_.percentile(0.95f),
                 frame_stats_.max_val(),
@@ -3920,16 +4009,17 @@ static void crash_handler(int sig)
 
     // Minimal async-signal-safe output
     char buf[512];
-    int  len = snprintf(buf, sizeof(buf),
-                        "\n[QA] ══════════════════════════════════════\n"
+    int  len = snprintf(buf,
+                       sizeof(buf),
+                       "\n[QA] ══════════════════════════════════════\n"
                         "[QA] CRASH: %s\n"
                         "[QA] Seed: %lu\n"
                         "[QA] Last action: %s\n"
                         "[QA] Reproduce: --seed %lu\n",
-                        name,
-                        static_cast<unsigned long>(g_qa_seed),
-                        g_last_action,
-                        static_cast<unsigned long>(g_qa_seed));
+                       name,
+                       static_cast<unsigned long>(g_qa_seed),
+                       g_last_action,
+                       static_cast<unsigned long>(g_qa_seed));
     if (len > 0)
         (void)write(STDERR_FILENO, buf, static_cast<size_t>(len));
 
@@ -3953,11 +4043,12 @@ static void crash_handler(int sig)
         if (fd >= 0)
         {
             char crash_buf[512];
-            int  clen = snprintf(crash_buf, sizeof(crash_buf),
-                                 "CRASH: %s\nSeed: %lu\nLast action: %s\n",
-                                 name,
-                                 static_cast<unsigned long>(g_qa_seed),
-                                 g_last_action);
+            int  clen = snprintf(crash_buf,
+                                sizeof(crash_buf),
+                                "CRASH: %s\nSeed: %lu\nLast action: %s\n",
+                                name,
+                                static_cast<unsigned long>(g_qa_seed),
+                                g_last_action);
             if (clen > 0)
                 (void)write(fd, crash_buf, static_cast<size_t>(clen));
 #ifdef __linux__

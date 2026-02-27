@@ -76,7 +76,9 @@ class VulkanBackend : public Backend
     // The copy happens after GPU submit but before present, when the
     // swapchain image content is guaranteed valid.
     void request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height);
-    void request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height,
+    void request_framebuffer_capture(uint8_t*       out_rgba,
+                                     uint32_t       width,
+                                     uint32_t       height,
                                      WindowContext* target_window);
     bool has_pending_capture() const { return pending_capture_.buffer != nullptr; }
 
@@ -223,8 +225,8 @@ class VulkanBackend : public Backend
     void                            flush_pending_buffer_frees(bool force_all = false);
 
    public:
-    // Call once per application tick (NOT per window) to advance the
-    // deferred-deletion frame counter and flush old entries.
+    // Lightweight periodic flush hook. Frame progression for deferred
+    // deletion is driven by successful submissions in end_frame().
     void advance_deferred_deletion();
 
    private:

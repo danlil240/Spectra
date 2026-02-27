@@ -245,12 +245,14 @@ void Inspector::draw_series_browser(Figure& fig)
             ImGuiCol_ButtonHovered,
             ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
         ImGui::PushStyleColor(ImGuiCol_Text,
-            ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+                              ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
 
         ImFont* icf = icon_font(tokens::ICON_SM);
-        if (icf) ImGui::PushFont(icf);
-        size_t clip_n = clipboard_->count();
-        std::string paste_lbl = std::string(icon_str(Icon::Duplicate))
+        if (icf)
+            ImGui::PushFont(icf);
+        size_t      clip_n = clipboard_->count();
+        std::string paste_lbl =
+            std::string(icon_str(Icon::Duplicate))
             + (clip_n > 1 ? "  Paste " + std::to_string(clip_n) + " Series" : "  Paste");
         if (ImGui::Button(paste_lbl.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 24)))
         {
@@ -263,18 +265,27 @@ void Inspector::draw_series_browser(Figure& fig)
                 if (!fig.all_axes().empty())
                 {
                     for (auto& ab : fig.all_axes_mut())
-                        if (ab) { target = ab.get(); break; }
+                        if (ab)
+                        {
+                            target = ab.get();
+                            break;
+                        }
                 }
                 if (!target)
                 {
                     for (auto& ax : fig.axes_mut())
-                        if (ax) { target = ax.get(); break; }
+                        if (ax)
+                        {
+                            target = ax.get();
+                            break;
+                        }
                 }
             }
             if (target)
                 clipboard_->paste_all(*target);
         }
-        if (icf) ImGui::PopFont();
+        if (icf)
+            ImGui::PopFont();
         ImGui::PopStyleColor(3);
         widgets::small_spacing();
     }
@@ -334,13 +345,21 @@ void Inspector::draw_series_browser(Figure& fig)
                                       ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
             }
             // Use AllowOverlap so action buttons on the same row work
-            if (ImGui::Selectable(name, is_selected, ImGuiSelectableFlags_AllowOverlap, ImVec2(ImGui::GetContentRegionAvail().x - 72.0f, 0)))
+            if (ImGui::Selectable(name,
+                                  is_selected,
+                                  ImGuiSelectableFlags_AllowOverlap,
+                                  ImVec2(ImGui::GetContentRegionAvail().x - 72.0f, 0)))
             {
                 ImGuiIO& io = ImGui::GetIO();
                 if (io.KeyShift)
                 {
                     // Shift+click: toggle in multi-selection
-                    ctx_.toggle_series(&fig, dynamic_cast<Axes*>(ax_base), ax_base, ax_idx, s.get(), s_idx);
+                    ctx_.toggle_series(&fig,
+                                       dynamic_cast<Axes*>(ax_base),
+                                       ax_base,
+                                       ax_idx,
+                                       s.get(),
+                                       s_idx);
                 }
                 else
                 {
@@ -355,7 +374,12 @@ void Inspector::draw_series_browser(Figure& fig)
             // (ImGui::Selectable may not fire when clicking an already-selected item)
             else if (ImGui::IsItemClicked(0) && ImGui::GetIO().KeyShift)
             {
-                ctx_.toggle_series(&fig, dynamic_cast<Axes*>(ax_base), ax_base, ax_idx, s.get(), s_idx);
+                ctx_.toggle_series(&fig,
+                                   dynamic_cast<Axes*>(ax_base),
+                                   ax_base,
+                                   ax_idx,
+                                   s.get(),
+                                   s_idx);
             }
             if (is_selected)
             {
@@ -373,12 +397,21 @@ void Inspector::draw_series_browser(Figure& fig)
 
                 // Copy button
                 ImFont* icf = icon_font(tokens::ICON_SM);
-                if (icf) ImGui::PushFont(icf);
+                if (icf)
+                    ImGui::PushFont(icf);
                 ImGui::PushStyleColor(ImGuiCol_Text,
-                    ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+                                      ImVec4(c.text_secondary.r,
+                                             c.text_secondary.g,
+                                             c.text_secondary.b,
+                                             c.text_secondary.a));
 
                 char copy_id[32];
-                std::snprintf(copy_id, sizeof(copy_id), "%s##cp%d_%d", icon_str(Icon::Copy), ax_idx, s_idx);
+                std::snprintf(copy_id,
+                              sizeof(copy_id),
+                              "%s##cp%d_%d",
+                              icon_str(Icon::Copy),
+                              ax_idx,
+                              s_idx);
                 if (ImGui::Button(copy_id, ImVec2(20, 20)))
                 {
                     clipboard_->copy(*s);
@@ -390,7 +423,12 @@ void Inspector::draw_series_browser(Figure& fig)
 
                 // Cut button
                 char cut_id[32];
-                std::snprintf(cut_id, sizeof(cut_id), "%s##ct%d_%d", icon_str(Icon::Edit), ax_idx, s_idx);
+                std::snprintf(cut_id,
+                              sizeof(cut_id),
+                              "%s##ct%d_%d",
+                              icon_str(Icon::Edit),
+                              ax_idx,
+                              s_idx);
                 if (ImGui::Button(cut_id, ImVec2(20, 20)))
                 {
                     clipboard_->cut(*s);
@@ -400,8 +438,9 @@ void Inspector::draw_series_browser(Figure& fig)
                         ax_base->remove_series(static_cast<size_t>(s_idx));
                     ctx_.clear();
                     ImGui::PopStyleColor();   // Text
-                    if (icf) ImGui::PopFont();
-                    ImGui::PopStyleColor(2);  // Button, ButtonHovered
+                    if (icf)
+                        ImGui::PopFont();
+                    ImGui::PopStyleColor(2);   // Button, ButtonHovered
                     ImGui::PopID();
                     break;
                 }
@@ -414,7 +453,12 @@ void Inspector::draw_series_browser(Figure& fig)
                 ImGui::PopStyleColor();   // pop text_secondary
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
                 char del_id[32];
-                std::snprintf(del_id, sizeof(del_id), "%s##dl%d_%d", icon_str(Icon::Trash), ax_idx, s_idx);
+                std::snprintf(del_id,
+                              sizeof(del_id),
+                              "%s##dl%d_%d",
+                              icon_str(Icon::Trash),
+                              ax_idx,
+                              s_idx);
                 if (ImGui::Button(del_id, ImVec2(20, 20)))
                 {
                     Series* deleted = s.get();
@@ -425,8 +469,9 @@ void Inspector::draw_series_browser(Figure& fig)
                     if (ctx_.series == deleted)
                         ctx_.clear();
                     ImGui::PopStyleColor();   // red text
-                    if (icf) ImGui::PopFont();
-                    ImGui::PopStyleColor(2);  // Button, ButtonHovered
+                    if (icf)
+                        ImGui::PopFont();
+                    ImGui::PopStyleColor(2);   // Button, ButtonHovered
                     ImGui::PopID();
                     break;
                 }
@@ -434,8 +479,9 @@ void Inspector::draw_series_browser(Figure& fig)
                     ImGui::SetTooltip("Delete");
 
                 ImGui::PopStyleColor();   // red text
-                if (icf) ImGui::PopFont();
-                ImGui::PopStyleColor(2);  // Button, ButtonHovered
+                if (icf)
+                    ImGui::PopFont();
+                ImGui::PopStyleColor(2);   // Button, ButtonHovered
             }
 
             ImGui::PopID();

@@ -236,11 +236,19 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         {
             bool has_any_series = false;
             for (auto& ax : fig->axes())
-                if (ax && !ax->series().empty()) { has_any_series = true; break; }
+                if (ax && !ax->series().empty())
+                {
+                    has_any_series = true;
+                    break;
+                }
             if (!has_any_series)
             {
                 for (auto& ax : fig->all_axes())
-                    if (ax && !ax->series().empty()) { has_any_series = true; break; }
+                    if (ax && !ax->series().empty())
+                    {
+                        has_any_series = true;
+                        break;
+                    }
             }
             if (!has_any_series)
             {
@@ -392,6 +400,19 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 }
             }
             imgui_ui->clear_reset_view();
+        }
+
+        // Live reset chip: restore presented-buffer-driven tracking view
+        if (active_figure && imgui_ui->should_reset_live_view())
+        {
+            for (auto& ax : active_figure->axes_mut())
+            {
+                if (ax && ax->has_presented_buffer())
+                {
+                    ax->presented_buffer(ax->presented_buffer_seconds());
+                }
+            }
+            imgui_ui->clear_reset_live_view();
         }
 
         // Update input handler tool mode
@@ -712,8 +733,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // Only attempt swapchain recreation if it was actually invalidated
         // (OUT_OF_DATE).  Fence/acquire timeouts just mean this window is
         // temporarily busy — skip it without recreation.
-        auto*    vk       = static_cast<VulkanBackend*>(&backend_);
-        auto*    aw       = vk->active_window();
+        auto* vk = static_cast<VulkanBackend*>(&backend_);
+        auto* aw = vk->active_window();
         if (aw && !aw->swapchain_invalidated)
             return false;   // Timeout — just skip this window
 
@@ -774,6 +795,29 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         renderer_.flush_pending_deletions();
 
         renderer_.begin_render_pass();
+
+#ifdef SPECTRA_USE_IMGUI
+        // Pass selected series to the renderer for GPU-rendered highlight
+        if (ui_ctx.imgui_ui)
+        {
+            const auto& sel = ui_ctx.imgui_ui->selection_context();
+            if (sel.type == ui::SelectionType::Series && !sel.selected_series.empty())
+            {
+                std::vector<const Series*> sel_ptrs;
+                sel_ptrs.reserve(sel.selected_series.size());
+                for (const auto& e : sel.selected_series)
+                {
+                    if (e.series)
+                        sel_ptrs.push_back(e.series);
+                }
+                renderer_.set_selected_series(sel_ptrs);
+            }
+            else
+            {
+                renderer_.clear_selected_series();
+            }
+        }
+#endif
 
         if (profiler)
             profiler->begin_stage("cmd_record");

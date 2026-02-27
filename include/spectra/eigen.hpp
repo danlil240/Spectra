@@ -61,12 +61,10 @@ struct is_eigen_float_vector : std::false_type
 template <typename T>
 struct is_eigen_float_vector<
     T,
-    std::enable_if_t<
-        std::is_base_of_v<
-            Eigen::DenseBase<std::decay_t<T>>,
-            std::decay_t<
-                T>> && std::is_same_v<typename std::decay_t<T>::Scalar, float> && (std::decay_t<T>::ColsAtCompileTime == 1 || std::decay_t<T>::ColsAtCompileTime == Eigen::Dynamic)>>
-    : std::true_type
+    std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<std::decay_t<T>>, std::decay_t<T>>
+                     && std::is_same_v<typename std::decay_t<T>::Scalar, float>
+                     && (std::decay_t<T>::ColsAtCompileTime == 1
+                         || std::decay_t<T>::ColsAtCompileTime == Eigen::Dynamic)>> : std::true_type
 {
 };
 
@@ -109,8 +107,8 @@ inline std::span<const uint32_t> to_index_span(const Eigen::VectorXi& v)
 // Construction
 template <typename XDerived, typename YDerived>
 auto make_line_series(const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBase<YDerived>& y)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries>
 {
     return LineSeries(eigen_detail::to_span(x), eigen_detail::to_span(y));
@@ -121,8 +119,8 @@ auto make_line_series(const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBas
 // line(EigenVec, EigenVec)
 template <typename XDerived, typename YDerived>
 auto line(Axes& ax, const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBase<YDerived>& y)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries&>
 {
     return ax.line(eigen_detail::to_span(x), eigen_detail::to_span(y));
@@ -131,8 +129,8 @@ auto line(Axes& ax, const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBase<
 // scatter(EigenVec, EigenVec)
 template <typename XDerived, typename YDerived>
 auto scatter(Axes& ax, const Eigen::DenseBase<XDerived>& x, const Eigen::DenseBase<YDerived>& y)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         ScatterSeries&>
 {
     return ax.scatter(eigen_detail::to_span(x), eigen_detail::to_span(y));
@@ -144,8 +142,8 @@ auto plot(Axes&                             ax,
           const Eigen::DenseBase<XDerived>& x,
           const Eigen::DenseBase<YDerived>& y,
           std::string_view                  fmt = "-")
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries&>
 {
     return ax.plot(eigen_detail::to_span(x), eigen_detail::to_span(y), fmt);
@@ -157,8 +155,8 @@ auto plot(Axes&                             ax,
           const Eigen::DenseBase<XDerived>& x,
           const Eigen::DenseBase<YDerived>& y,
           const PlotStyle&                  style)
-    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<
-                            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived>,
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>,
                         LineSeries&>
 {
     return ax.plot(eigen_detail::to_span(x), eigen_detail::to_span(y), style);
@@ -204,10 +202,10 @@ auto line3d(Axes3D&                           ax,
             const Eigen::DenseBase<XDerived>& x,
             const Eigen::DenseBase<YDerived>& y,
             const Eigen::DenseBase<ZDerived>& z)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        LineSeries3D&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        LineSeries3D&>
 {
     return ax.line3d(eigen_detail::to_span(x), eigen_detail::to_span(y), eigen_detail::to_span(z));
 }
@@ -218,10 +216,10 @@ auto scatter3d(Axes3D&                           ax,
                const Eigen::DenseBase<XDerived>& x,
                const Eigen::DenseBase<YDerived>& y,
                const Eigen::DenseBase<ZDerived>& z)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        ScatterSeries3D&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        ScatterSeries3D&>
 {
     return ax.scatter3d(eigen_detail::to_span(x),
                         eigen_detail::to_span(y),
@@ -234,10 +232,10 @@ auto surface(Axes3D&                           ax,
              const Eigen::DenseBase<XDerived>& x_grid,
              const Eigen::DenseBase<YDerived>& y_grid,
              const Eigen::DenseBase<ZDerived>& z_values)
-    -> std::enable_if_t<
-        eigen_detail::is_eigen_float_vector_v<
-            XDerived> && eigen_detail::is_eigen_float_vector_v<YDerived> && eigen_detail::is_eigen_float_vector_v<ZDerived>,
-        SurfaceSeries&>
+    -> std::enable_if_t<eigen_detail::is_eigen_float_vector_v<XDerived>
+                            && eigen_detail::is_eigen_float_vector_v<YDerived>
+                            && eigen_detail::is_eigen_float_vector_v<ZDerived>,
+                        SurfaceSeries&>
 {
     return ax.surface(eigen_detail::to_span(x_grid),
                       eigen_detail::to_span(y_grid),

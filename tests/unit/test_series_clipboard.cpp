@@ -321,12 +321,13 @@ TEST(SeriesClipboard, ConcurrentCopyAndPeek)
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; ++i)
     {
-        threads.emplace_back([&clipboard, &ls]()
-        {
-            clipboard.copy(ls);
-            clipboard.has_data();
-            clipboard.peek();
-        });
+        threads.emplace_back(
+            [&clipboard, &ls]()
+            {
+                clipboard.copy(ls);
+                clipboard.has_data();
+                clipboard.peek();
+            });
     }
     for (auto& t : threads)
         t.join();
@@ -341,7 +342,7 @@ TEST(SeriesClipboard, SnapshotLineSeries3D)
     std::vector<float> x = {1, 2, 3};
     std::vector<float> y = {4, 5, 6};
     std::vector<float> z = {7, 8, 9};
-    LineSeries3D ls(x, y, z);
+    LineSeries3D       ls(x, y, z);
     ls.label("line3d");
     ls.color(Color{0.5f, 0.5f, 0.5f});
     ls.width(4.0f);
@@ -363,7 +364,7 @@ TEST(SeriesClipboard, SnapshotScatterSeries3D)
     std::vector<float> x = {0, 1};
     std::vector<float> y = {2, 3};
     std::vector<float> z = {4, 5};
-    ScatterSeries3D ss(x, y, z);
+    ScatterSeries3D    ss(x, y, z);
     ss.label("scatter3d");
     ss.size(10.0f);
 
@@ -383,7 +384,7 @@ TEST(SeriesClipboard, Paste3DInto2DDropsZ)
     std::vector<float> x = {1, 2, 3};
     std::vector<float> y = {4, 5, 6};
     std::vector<float> z = {7, 8, 9};
-    LineSeries3D ls3(x, y, z);
+    LineSeries3D       ls3(x, y, z);
     ls3.label("from3d");
 
     clipboard.copy(ls3);
@@ -434,7 +435,7 @@ TEST(SeriesClipboard, Paste3DScatterInto2D)
     std::vector<float> x = {1, 2};
     std::vector<float> y = {3, 4};
     std::vector<float> z = {5, 6};
-    ScatterSeries3D ss3(x, y, z);
+    ScatterSeries3D    ss3(x, y, z);
     ss3.label("scat3d");
     ss3.size(12.0f);
 
@@ -486,7 +487,7 @@ TEST(SeriesClipboard, CopyPasteDeleteClearsSelection)
 
     // Create original series
     std::vector<float> x1{1, 2, 3}, y1{4, 5, 6};
-    auto& s1 = ax.line(x1, y1);
+    auto&              s1 = ax.line(x1, y1);
     s1.label("original");
 
     // Set up selection pointing to s1
@@ -508,25 +509,26 @@ TEST(SeriesClipboard, CopyPasteDeleteClearsSelection)
 
     // Simulate on_series_removed callback clearing selection (the fix)
     // Wire a callback that clears selection when s1 is removed
-    ax.set_series_removed_callback([&ctx](const Series* s)
-    {
-        if (ctx.series == s)
-            ctx.clear();
-        else
+    ax.set_series_removed_callback(
+        [&ctx](const Series* s)
         {
-            auto& sv = ctx.selected_series;
-            for (auto it = sv.begin(); it != sv.end(); ++it)
+            if (ctx.series == s)
+                ctx.clear();
+            else
             {
-                if (it->series == s)
+                auto& sv = ctx.selected_series;
+                for (auto it = sv.begin(); it != sv.end(); ++it)
                 {
-                    sv.erase(it);
-                    if (sv.empty())
-                        ctx.clear();
-                    break;
+                    if (it->series == s)
+                    {
+                        sv.erase(it);
+                        if (sv.empty())
+                            ctx.clear();
+                        break;
+                    }
                 }
             }
-        }
-    });
+        });
 
     // Delete s1 (the originally selected series)
     ax.remove_series(0);
@@ -541,14 +543,14 @@ TEST(SeriesClipboard, DeleteClearsMultiSelection)
 {
     // Verify that removing a series from a multi-selection properly
     // cleans up the selected_series vector.
-    Figure fig;
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> xa{1, 2}, ya{3, 4};
     std::vector<float> xb{5, 6}, yb{7, 8};
     std::vector<float> xc{9, 10}, yc{11, 12};
-    auto& s1 = ax.line(xa, ya);
-    auto& s2 = ax.line(xb, yb);
-    auto& s3 = ax.line(xc, yc);
+    auto&              s1 = ax.line(xa, ya);
+    auto&              s2 = ax.line(xb, yb);
+    auto&              s3 = ax.line(xc, yc);
 
     ui::SelectionContext ctx;
     ctx.select_series(&fig, &ax, 0, &s1, 0);
@@ -557,25 +559,26 @@ TEST(SeriesClipboard, DeleteClearsMultiSelection)
     ASSERT_EQ(ctx.selected_series.size(), 3u);
 
     // Wire callback
-    ax.set_series_removed_callback([&ctx](const Series* s)
-    {
-        if (ctx.series == s)
-            ctx.clear();
-        else
+    ax.set_series_removed_callback(
+        [&ctx](const Series* s)
         {
-            auto& sv = ctx.selected_series;
-            for (auto it = sv.begin(); it != sv.end(); ++it)
+            if (ctx.series == s)
+                ctx.clear();
+            else
             {
-                if (it->series == s)
+                auto& sv = ctx.selected_series;
+                for (auto it = sv.begin(); it != sv.end(); ++it)
                 {
-                    sv.erase(it);
-                    if (sv.empty())
-                        ctx.clear();
-                    break;
+                    if (it->series == s)
+                    {
+                        sv.erase(it);
+                        if (sv.empty())
+                            ctx.clear();
+                        break;
+                    }
                 }
             }
-        }
-    });
+        });
 
     // After add_series, ctx.series points to s3 (last added)
     EXPECT_EQ(ctx.series, &s3);

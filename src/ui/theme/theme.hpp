@@ -62,7 +62,7 @@ struct Color
     constexpr float luminance() const
     {
         // Linearize sRGB components
-        auto linearize = [](float c) constexpr->float
+        auto linearize = [](float c) constexpr -> float
         {
             return (c <= 0.04045f)
                        ? c / 12.92f

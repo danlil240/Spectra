@@ -426,14 +426,14 @@ static void scene_dense_styled(App& /*app*/, Figure& fig)
                                LineStyle::DashDot,
                                LineStyle::DashDotDot};
     Color     line_colors[] = {
-            rgb(0.2f, 0.6f, 1.0f),
-            rgb(1.0f, 0.4f, 0.2f),
-            rgb(0.3f, 0.9f, 0.4f),
-            rgb(0.9f, 0.2f, 0.8f),
-            rgb(0.8f, 0.7f, 0.1f),
-            rgb(0.1f, 0.8f, 0.8f),
-            rgb(0.6f, 0.3f, 0.9f),
-            rgb(0.9f, 0.6f, 0.3f),
+        rgb(0.2f, 0.6f, 1.0f),
+        rgb(1.0f, 0.4f, 0.2f),
+        rgb(0.3f, 0.9f, 0.4f),
+        rgb(0.9f, 0.2f, 0.8f),
+        rgb(0.8f, 0.7f, 0.1f),
+        rgb(0.1f, 0.8f, 0.8f),
+        rgb(0.6f, 0.3f, 0.9f),
+        rgb(0.9f, 0.6f, 0.3f),
     };
 
     for (int s_idx = 0; s_idx < 8; ++s_idx)

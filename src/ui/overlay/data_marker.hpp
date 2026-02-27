@@ -13,11 +13,11 @@ namespace spectra
 // A persistent data marker pinned to a specific data point.
 struct DataMarker
 {
-    float         data_x       = 0.0f;
-    float         data_y       = 0.0f;
-    const Series* series       = nullptr;
-    size_t        point_index  = 0;
-    Color         color        = colors::white;
+    float         data_x      = 0.0f;
+    float         data_y      = 0.0f;
+    const Series* series      = nullptr;
+    size_t        point_index = 0;
+    Color         color       = colors::white;
     std::string   series_label;   // series name shown in datatip
 };
 

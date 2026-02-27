@@ -72,7 +72,8 @@ void register_standard_commands(const CommandBindings& b)
         "Reset View",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             auto before = capture_figure_axes(*active_figure);
             // 2D axes (subplot populates axes_mut only)
             for (auto& ax : active_figure->axes_mut())
@@ -142,7 +143,8 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Grid",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             // 2D axes
             undoable_toggle_grid_all(&undo_mgr, *active_figure);
             // 3D axes: toggle all grid planes on/off
@@ -197,7 +199,12 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "view.toggle_legend",
         "Toggle Legend",
-        [&]() { if (!active_figure) return; undoable_toggle_legend(&undo_mgr, *active_figure); },
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            undoable_toggle_legend(&undo_mgr, *active_figure);
+        },
         "L",
         "View",
         static_cast<uint16_t>(ui::Icon::Eye));
@@ -207,7 +214,8 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Border",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             // 2D axes
             undoable_toggle_border_all(&undo_mgr, *active_figure);
             // 3D axes: toggle bounding box visibility
@@ -275,7 +283,8 @@ void register_standard_commands(const CommandBindings& b)
         "Home (Restore Original View)",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             auto before = capture_figure_axes(*active_figure);
             for (auto& ax : active_figure->axes_mut())
             {
@@ -380,11 +389,11 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto  old_x = ax->x_limits();
                 auto  old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f;
-                float yc = (old_y.min + old_y.max) * 0.5f;
+                float xc    = (old_x.min + old_x.max) * 0.5f;
+                float yc    = (old_y.min + old_y.max) * 0.5f;
                 compute_data_center(ax, xc, yc);
-                float xr = (old_x.max - old_x.min) * 0.375f;
-                float yr = (old_y.max - old_y.min) * 0.375f;
+                float      xr = (old_x.max - old_x.min) * 0.375f;
+                float      yr = (old_y.max - old_y.min) * 0.375f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
@@ -407,11 +416,11 @@ void register_standard_commands(const CommandBindings& b)
             {
                 auto  old_x = ax->x_limits();
                 auto  old_y = ax->y_limits();
-                float xc = (old_x.min + old_x.max) * 0.5f;
-                float yc = (old_y.min + old_y.max) * 0.5f;
+                float xc    = (old_x.min + old_x.max) * 0.5f;
+                float yc    = (old_y.min + old_y.max) * 0.5f;
                 compute_data_center(ax, xc, yc);
-                float xr = (old_x.max - old_x.min) * 0.625f;
-                float yr = (old_y.max - old_y.min) * 0.625f;
+                float      xr = (old_x.max - old_x.min) * 0.625f;
+                float      yr = (old_y.max - old_y.min) * 0.625f;
                 AxisLimits new_x{xc - xr, xc + xr};
                 AxisLimits new_y{yc - yr, yc + yr};
                 undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
@@ -426,7 +435,8 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle 2D/3D View",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             Axes3D* ax3d = nullptr;
             for (auto& ax_base : active_figure->all_axes())
             {
@@ -507,7 +517,12 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "file.export_png",
         "Export PNG",
-        [&]() { if (!active_figure) return; active_figure->save_png("spectra_export.png"); },
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            active_figure->save_png("spectra_export.png");
+        },
         "Ctrl+S",
         "File",
         static_cast<uint16_t>(ui::Icon::Export));
@@ -515,7 +530,12 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "file.export_svg",
         "Export SVG",
-        [&]() { if (!active_figure) return; active_figure->save_svg("spectra_export.svg"); },
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            active_figure->save_svg("spectra_export.svg");
+        },
         "Ctrl+Shift+S",
         "File",
         static_cast<uint16_t>(ui::Icon::Export));
@@ -574,7 +594,8 @@ void register_standard_commands(const CommandBindings& b)
             WorkspaceData data;
             if (Workspace::load(Workspace::default_path(), data))
             {
-                if (!active_figure) return;
+                if (!active_figure)
+                    return;
                 auto                 before_snap = capture_figure_axes(*active_figure);
                 std::vector<Figure*> figs;
                 for (auto id : fig_mgr.figure_ids())
@@ -630,7 +651,8 @@ void register_standard_commands(const CommandBindings& b)
         "Save Figure",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             FigureSerializer::save_with_dialog(*active_figure);
         },
         "",
@@ -642,15 +664,18 @@ void register_standard_commands(const CommandBindings& b)
         "Load Figure",
         [&]()
         {
-            if (!active_figure) return;
+            if (!active_figure)
+                return;
             FigureSerializer::load_with_dialog(*active_figure);
             // Mark all series dirty so GPU data gets re-uploaded
             for (auto& ax : active_figure->all_axes_mut())
             {
-                if (!ax) continue;
+                if (!ax)
+                    continue;
                 for (auto& s : ax->series_mut())
                 {
-                    if (s) s->mark_dirty();
+                    if (s)
+                        s->mark_dirty();
                 }
             }
         },
@@ -736,8 +761,8 @@ void register_standard_commands(const CommandBindings& b)
             if (!active_figure)
                 return;
             // Find the first non-empty 2D axes
-            Axes* target_ax   = nullptr;
-            int   target_idx  = -1;
+            Axes* target_ax  = nullptr;
+            int   target_idx = -1;
             for (size_t i = 0; i < active_figure->axes().size(); ++i)
             {
                 auto* ax = active_figure->axes_mut()[i].get();
@@ -752,18 +777,16 @@ void register_standard_commands(const CommandBindings& b)
                 return;
 
             // Determine next series index
-            auto& sel = imgui_ui->selection_context();
+            auto& sel        = imgui_ui->selection_context();
             int   next_s_idx = 0;
             if (sel.type == ui::SelectionType::Series && sel.axes == target_ax
                 && sel.series_index >= 0)
             {
-                next_s_idx = (sel.series_index + 1)
-                             % static_cast<int>(target_ax->series().size());
+                next_s_idx = (sel.series_index + 1) % static_cast<int>(target_ax->series().size());
             }
 
             auto* s = target_ax->series()[next_s_idx].get();
-            imgui_ui->select_series(
-                active_figure, target_ax, target_idx, s, next_s_idx);
+            imgui_ui->select_series(active_figure, target_ax, target_idx, s, next_s_idx);
             imgui_ui->set_inspector_section_series();
         },
         "Tab",
@@ -781,12 +804,15 @@ void register_standard_commands(const CommandBindings& b)
                 SPECTRA_LOG_DEBUG("clipboard", "series.copy: no series selected or no clipboard");
                 return;
             }
-            SPECTRA_LOG_INFO("clipboard", "series.copy: copying " + std::to_string(sel.selected_count()) + " series");
+            SPECTRA_LOG_INFO(
+                "clipboard",
+                "series.copy: copying " + std::to_string(sel.selected_count()) + " series");
             if (sel.has_multi_selection())
             {
                 std::vector<const Series*> list;
                 for (const auto& e : sel.selected_series)
-                    if (e.series) list.push_back(e.series);
+                    if (e.series)
+                        list.push_back(e.series);
                 imgui_ui->series_clipboard()->copy_multi(list);
             }
             else if (sel.series)
@@ -811,7 +837,8 @@ void register_standard_commands(const CommandBindings& b)
             {
                 std::vector<const Series*> list;
                 for (const auto& e : sel.selected_series)
-                    if (e.series) list.push_back(e.series);
+                    if (e.series)
+                        list.push_back(e.series);
                 imgui_ui->series_clipboard()->cut_multi(list);
             }
             else if (sel.series)
@@ -852,9 +879,12 @@ void register_standard_commands(const CommandBindings& b)
                 SPECTRA_LOG_DEBUG("clipboard", "series.paste: no active figure");
                 return;
             }
-            SPECTRA_LOG_INFO("clipboard", "series.paste: pasting " + std::to_string(imgui_ui->series_clipboard()->count()) + " series");
+            SPECTRA_LOG_INFO("clipboard",
+                             "series.paste: pasting "
+                                 + std::to_string(imgui_ui->series_clipboard()->count())
+                                 + " series");
             // Paste into selected axes if available, else first axes of current figure
-            auto& sel = imgui_ui->selection_context();
+            auto&     sel    = imgui_ui->selection_context();
             AxesBase* target = nullptr;
             if (sel.type == ui::SelectionType::Series || sel.type == ui::SelectionType::Axes)
             {
@@ -902,10 +932,7 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "series.deselect",
         "Deselect Series",
-        [&]()
-        {
-            imgui_ui->deselect_series();
-        },
+        [&]() { imgui_ui->deselect_series(); },
         "Escape",
         "Series");
 

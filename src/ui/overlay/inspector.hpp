@@ -28,7 +28,7 @@ class Inspector
     void set_fonts(ImFont* body, ImFont* heading, ImFont* title);
 
     // Series clipboard (not owned)
-    void set_series_clipboard(SeriesClipboard* sc) { clipboard_ = sc; }
+    void             set_series_clipboard(SeriesClipboard* sc) { clipboard_ = sc; }
     SeriesClipboard* series_clipboard() const { return clipboard_; }
 
     // Deferred series removal callback (set by ImGuiIntegration)
@@ -48,8 +48,8 @@ class Inspector
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
 
-    SelectionContext  ctx_;
-    SeriesClipboard* clipboard_      = nullptr;
+    SelectionContext ctx_;
+    SeriesClipboard* clipboard_ = nullptr;
     DeferRemovalFn   defer_removal_;
 
     // Collapsible section states

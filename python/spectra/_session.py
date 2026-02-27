@@ -50,37 +50,72 @@ class Session:
         self._closed = False
         self._live_thread_count = 0  # number of active live threads using the socket
 
-        if auto_launch:
-            self._socket_path = ensure_backend(self._socket_path)
+        # Connect with retry. When auto_launch is on, re-invoke
+        # ensure_backend() on each retry so that a dying backend whose
+        # socket disappears between ensure_backend() and _connect()
+        # gets properly relaunched.
+        import time as _time
 
-        self._connect()
+        max_attempts = 3 if auto_launch else 1
+        backoff = 0.25
+        last_err: Optional[Exception] = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if auto_launch:
+                    self._socket_path = ensure_backend(self._socket_path)
+                self._connect()
+                return  # success
+            except (ConnectionError, OSError) as exc:
+                last_err = exc
+                log.warning("startup attempt %d/%d failed: %s",
+                            attempt, max_attempts, exc)
+                if attempt < max_attempts:
+                    _time.sleep(backoff * attempt)
+
+        raise ConnectionError(
+            f"Failed to start after {max_attempts} attempts: {last_err}"
+        ) from last_err
 
     def _connect(self) -> None:
-        """Connect to the backend and perform HELLO/WELCOME handshake."""
+        """Connect to the backend and perform HELLO/WELCOME handshake.
+
+        On failure, cleans up the transport so callers can safely retry.
+        """
         log.debug("connecting to %s", self._socket_path)
-        self._transport = Transport.connect(self._socket_path)
+        try:
+            self._transport = Transport.connect(self._socket_path)
 
-        # Send HELLO
-        hello_payload = codec.encode_hello(client_type="python")
-        self._transport.send(
-            msg_type=P.HELLO,
-            payload=hello_payload,
-        )
-
-        # Receive WELCOME
-        msg = self._transport.recv()
-        if msg is None:
-            raise ConnectionError("Backend closed connection during handshake")
-
-        if msg["header"]["type"] != P.WELCOME:
-            raise ProtocolError(
-                f"Expected WELCOME (0x{P.WELCOME:04X}), "
-                f"got 0x{msg['header']['type']:04X}"
+            # Send HELLO
+            hello_payload = codec.encode_hello(client_type="python")
+            self._transport.send(
+                msg_type=P.HELLO,
+                payload=hello_payload,
             )
 
-        welcome = codec.decode_welcome(msg["payload"])
-        self._session_id = welcome["session_id"]
-        log.info("connected, session_id=%d", self._session_id)
+            # Receive WELCOME
+            msg = self._transport.recv()
+            if msg is None:
+                raise ConnectionError("Backend closed connection during handshake")
+
+            if msg["header"]["type"] != P.WELCOME:
+                raise ProtocolError(
+                    f"Expected WELCOME (0x{P.WELCOME:04X}), "
+                    f"got 0x{msg['header']['type']:04X}"
+                )
+
+            welcome = codec.decode_welcome(msg["payload"])
+            self._session_id = welcome["session_id"]
+            log.info("connected, session_id=%d", self._session_id)
+        except Exception:
+            # Clean up failed transport so retry starts fresh
+            if self._transport is not None:
+                try:
+                    self._transport.close()
+                except Exception:
+                    pass
+                self._transport = None
+            raise
 
     def _next_req_id_unlocked(self) -> int:
         """Increment and return next request ID. Caller must hold self._lock."""

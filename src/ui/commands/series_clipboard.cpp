@@ -134,7 +134,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
         else if (snap.type == SeriesSnapshot::Type::Line)
         {
             std::vector<float> z(snap.x_data.size(), 0.0f);
-            auto& s = axes_3d->line3d(snap.x_data, snap.y_data, z);
+            auto&              s = axes_3d->line3d(snap.x_data, snap.y_data, z);
             apply_style(s, snap);
             s.width(snap.line_width);
             return &s;
@@ -142,7 +142,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
         else if (snap.type == SeriesSnapshot::Type::Scatter)
         {
             std::vector<float> z(snap.x_data.size(), 0.0f);
-            auto& s = axes_3d->scatter3d(snap.x_data, snap.y_data, z);
+            auto&              s = axes_3d->scatter3d(snap.x_data, snap.y_data, z);
             apply_style(s, snap);
             s.size(snap.point_size);
             return &s;
@@ -176,7 +176,8 @@ void SeriesClipboard::copy_multi(const std::vector<const Series*>& series_list)
     buffers_.clear();
     for (const auto* s : series_list)
     {
-        if (s) buffers_.push_back(snapshot(*s));
+        if (s)
+            buffers_.push_back(snapshot(*s));
     }
     has_data_ = !buffers_.empty();
     is_cut_   = false;
@@ -188,7 +189,8 @@ void SeriesClipboard::cut_multi(const std::vector<const Series*>& series_list)
     buffers_.clear();
     for (const auto* s : series_list)
     {
-        if (s) buffers_.push_back(snapshot(*s));
+        if (s)
+            buffers_.push_back(snapshot(*s));
     }
     has_data_ = !buffers_.empty();
     is_cut_   = true;
@@ -213,14 +215,15 @@ Series* SeriesClipboard::paste(AxesBase& axes)
 std::vector<Series*> SeriesClipboard::paste_all(AxesBase& axes)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<Series*> results;
+    std::vector<Series*>        results;
     if (!has_data_)
         return results;
 
     for (const auto& snap : buffers_)
     {
         Series* s = paste_to(axes, snap);
-        if (s) results.push_back(s);
+        if (s)
+            results.push_back(s);
     }
 
     if (is_cut_)

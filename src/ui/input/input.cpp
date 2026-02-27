@@ -944,7 +944,13 @@ void InputHandler::on_mouse_move(double x, double y)
             }
             else if (active_axes_)
             {
-                if (rclick_zoom_axis_ == ZoomAxis::X)
+                if (active_axes_->has_presented_buffer())
+                {
+                    float seconds = active_axes_->presented_buffer_seconds();
+                    seconds       = std::clamp(seconds * factor, 0.1f, 86400.0f);
+                    active_axes_->presented_buffer(seconds);
+                }
+                else if (rclick_zoom_axis_ == ZoomAxis::X)
                 {
                     auto  xlim   = active_axes_->x_limits();
                     float center = (xlim.min + xlim.max) * 0.5f;

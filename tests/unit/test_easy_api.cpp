@@ -218,11 +218,12 @@ TEST_F(EasyAPITest, PresentedBufferTracksLatestWindow)
     EXPECT_FLOAT_EQ(yl.max, 20.25f);
 }
 
-TEST_F(EasyAPITest, ManualLimitsDisablePresentedBuffer)
+TEST_F(EasyAPITest, ManualLimitsPausePresentedBufferFollow)
 {
     auto& line = spectra::plot();
     spectra::presented_buffer(5.0f);
     EXPECT_TRUE(spectra::gca()->has_presented_buffer());
+    EXPECT_TRUE(spectra::gca()->is_presented_buffer_following());
 
     for (int i = 0; i <= 10; ++i)
         line.append(static_cast<float>(i), std::sin(static_cast<float>(i)));
@@ -230,7 +231,8 @@ TEST_F(EasyAPITest, ManualLimitsDisablePresentedBuffer)
     spectra::xlim(-2.0f, 2.0f);
     spectra::ylim(-3.0f, 3.0f);
 
-    EXPECT_FALSE(spectra::gca()->has_presented_buffer());
+    EXPECT_TRUE(spectra::gca()->has_presented_buffer());
+    EXPECT_FALSE(spectra::gca()->is_presented_buffer_following());
     auto xl = spectra::gca()->x_limits();
     auto yl = spectra::gca()->y_limits();
     EXPECT_FLOAT_EQ(xl.min, -2.0f);

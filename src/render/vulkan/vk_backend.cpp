@@ -883,7 +883,8 @@ void VulkanBackend::flush_pending_buffer_frees(bool force_all)
 
 void VulkanBackend::advance_deferred_deletion()
 {
-    ++frame_counter_;
+    // Progress is driven by successful GPU submissions in end_frame().
+    // This call is kept as a lightweight periodic flush hook.
     flush_pending_buffer_frees();
 }
 
@@ -1297,6 +1298,12 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
         submit.pCommandBuffers    = &active_window_->current_cmd;
         vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(ctx_.graphics_queue);
+
+        // One completed submission; safe-point progression for deferred frees.
+        // Keep headless deletion conservative: defer actual descriptor frees
+        // to shutdown/explicit flush points to avoid per-frame free churn on
+        // software Vulkan drivers used in CI golden tests.
+        ++frame_counter_;
         return;
     }
 
@@ -1323,12 +1330,31 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
 
     if (profiler)
         profiler->begin_stage("vk_submit");
-    vkQueueSubmit(ctx_.graphics_queue,
-                  1,
-                  &submit,
-                  active_window_->in_flight_fences[active_window_->current_flight_frame]);
+    VkResult submit_result =
+        vkQueueSubmit(ctx_.graphics_queue,
+                      1,
+                      &submit,
+                      active_window_->in_flight_fences[active_window_->current_flight_frame]);
     if (profiler)
         profiler->end_stage("vk_submit");
+
+    if (submit_result != VK_SUCCESS)
+    {
+        if (submit_result == VK_ERROR_DEVICE_LOST)
+        {
+            device_lost_ = true;
+            throw std::runtime_error("Vulkan device lost - submit failed");
+        }
+
+        SPECTRA_LOG_ERROR("vulkan",
+                          "end_frame: submit failed with result "
+                              + std::to_string(static_cast<int>(submit_result)));
+        return;
+    }
+
+    // Progress deferred deletion only when work was actually submitted.
+    ++frame_counter_;
+    flush_pending_buffer_frees();
 
     // Save the image index being presented so readback_framebuffer can
     // read the correct (last-rendered) image after acquire updates current_image_index.
@@ -1548,7 +1574,11 @@ void VulkanBackend::draw_instanced(uint32_t vertex_count,
                                    uint32_t first_vertex,
                                    uint32_t first_instance)
 {
-    vkCmdDraw(active_window_->current_cmd, vertex_count, instance_count, first_vertex, first_instance);
+    vkCmdDraw(active_window_->current_cmd,
+              vertex_count,
+              instance_count,
+              first_vertex,
+              first_instance);
 }
 
 void VulkanBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset)
@@ -1726,7 +1756,9 @@ void VulkanBackend::request_framebuffer_capture(uint8_t* out_rgba, uint32_t widt
     pending_capture_.target_window = nullptr;
 }
 
-void VulkanBackend::request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height,
+void VulkanBackend::request_framebuffer_capture(uint8_t*       out_rgba,
+                                                uint32_t       width,
+                                                uint32_t       height,
                                                 WindowContext* target_window)
 {
     pending_capture_.buffer        = out_rgba;
@@ -1785,7 +1817,7 @@ bool VulkanBackend::do_capture_before_present()
     vkQueueWaitIdle(ctx_.graphics_queue);
 
     VkDeviceSize buffer_size = static_cast<VkDeviceSize>(width) * height * 4;
-    auto staging = vk::GpuBuffer::create(
+    auto         staging     = vk::GpuBuffer::create(
         ctx_.device,
         ctx_.physical_device,
         buffer_size,
@@ -1826,7 +1858,13 @@ bool VulkanBackend::do_capture_before_present()
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrier);
     }
 
     VkBufferImageCopy region{};
@@ -1834,8 +1872,12 @@ bool VulkanBackend::do_capture_before_present()
     region.imageSubresource.layerCount = 1;
     region.imageExtent                 = {width, height, 1};
 
-    vkCmdCopyImageToBuffer(cmd, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           staging.buffer(), 1, &region);
+    vkCmdCopyImageToBuffer(cmd,
+                           src_image,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           staging.buffer(),
+                           1,
+                           &region);
 
     if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
     {
@@ -1857,7 +1899,13 @@ bool VulkanBackend::do_capture_before_present()
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrier);
     }
 
     vkEndCommandBuffer(cmd);
@@ -1875,15 +1923,13 @@ bool VulkanBackend::do_capture_before_present()
     staging.destroy();
 
     // Swizzle BGRA → RGBA if needed
-    VkFormat fmt = headless_ ? VK_FORMAT_R8G8B8A8_UNORM
-                             : active_window_->swapchain.image_format;
+    VkFormat fmt = headless_ ? VK_FORMAT_R8G8B8A8_UNORM : active_window_->swapchain.image_format;
     if (fmt == VK_FORMAT_B8G8R8A8_UNORM || fmt == VK_FORMAT_B8G8R8A8_SRGB)
     {
         size_t pixel_count = static_cast<size_t>(width) * height;
         for (size_t i = 0; i < pixel_count; ++i)
         {
-            std::swap(pending_capture_.buffer[i * 4 + 0],
-                      pending_capture_.buffer[i * 4 + 2]);
+            std::swap(pending_capture_.buffer[i * 4 + 0], pending_capture_.buffer[i * 4 + 2]);
         }
     }
 

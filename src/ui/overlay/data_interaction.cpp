@@ -135,7 +135,7 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
         // Update cached limits from the figure's first axes (zoom/pan may have changed).
         if (last_figure_ && !last_figure_->axes().empty() && last_figure_->axes()[0])
         {
-            auto& ax = last_figure_->axes()[0];
+            auto& ax         = last_figure_->axes()[0];
             marker_viewport_ = ax->viewport();
             auto xl          = ax->x_limits();
             auto yl          = ax->y_limits();
@@ -144,7 +144,11 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
             marker_ylim_min_ = yl.min;
             marker_ylim_max_ = yl.max;
         }
-        markers_.draw(marker_viewport_, marker_xlim_min_, marker_xlim_max_, marker_ylim_min_, marker_ylim_max_);
+        markers_.draw(marker_viewport_,
+                      marker_xlim_min_,
+                      marker_xlim_max_,
+                      marker_ylim_min_,
+                      marker_ylim_max_);
     }
 
     // Draw region selection overlay
@@ -266,11 +270,7 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
                 {
                     if (series_ptr.get() == nearest_.series)
                     {
-                        rc_cb(last_figure_,
-                              axes_ptr.get(),
-                              ax_idx,
-                              series_ptr.get(),
-                              s_idx);
+                        rc_cb(last_figure_, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx);
                         rc_selected_series = true;
                         goto right_click_marker_check;
                     }
@@ -280,7 +280,7 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
             }
         }
 
-        right_click_marker_check:
+    right_click_marker_check:
         int idx = markers_.hit_test(static_cast<float>(screen_x),
                                     static_cast<float>(screen_y),
                                     active_viewport_,

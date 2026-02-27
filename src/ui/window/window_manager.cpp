@@ -1897,10 +1897,9 @@ void WindowManager::glfw_key_callback(GLFWwindow* window,
     constexpr int GLFW_MOD_CTRL_   = 0x0002;
     constexpr int GLFW_KEY_DELETE_ = 261;
     constexpr int GLFW_KEY_ESC_    = 256;
-    bool is_app_shortcut = (action == GLFW_PRESS_VAL_)
-                           && ((mods & GLFW_MOD_CTRL_) != 0
-                               || key == GLFW_KEY_DELETE_
-                               || key == GLFW_KEY_ESC_);
+    bool          is_app_shortcut =
+        (action == GLFW_PRESS_VAL_)
+        && ((mods & GLFW_MOD_CTRL_) != 0 || key == GLFW_KEY_DELETE_ || key == GLFW_KEY_ESC_);
     if (is_app_shortcut && shortcut_mgr.on_key(key, action, mods))
     {
         if (prev_ctx)

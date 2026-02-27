@@ -95,16 +95,10 @@ class SessionRuntime
 
     // Returns true when the session should exit (no windows remain open,
     // or headless single-frame completed).
-    bool should_exit() const
-    {
-        return !running_;
-    }
+    bool should_exit() const { return !running_; }
 
     // Mark the session as done (called by external termination conditions).
-    void request_exit()
-    {
-        running_ = false;
-    }
+    void request_exit() { running_ = false; }
 
    private:
     Backend&        backend_;

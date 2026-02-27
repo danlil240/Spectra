@@ -47,9 +47,9 @@ class App
     // shutdown_runtime() cleans up.  run_inproc() calls these internally.
     struct StepResult
     {
-        bool     should_exit    = false;
-        float    frame_time_ms  = 0.0f;
-        uint64_t frame_number   = 0;
+        bool     should_exit   = false;
+        float    frame_time_ms = 0.0f;
+        uint64_t frame_number  = 0;
     };
 
     void       init_runtime();
@@ -57,11 +57,11 @@ class App
     void       shutdown_runtime();
 
     // Access internals exposed for QA / testing after init_runtime().
-    WindowUIContext*  ui_context();
-    SessionRuntime*   session();
-    FigureRegistry&   figure_registry() { return registry_; }
+    WindowUIContext* ui_context();
+    SessionRuntime*  session();
+    FigureRegistry&  figure_registry() { return registry_; }
 #ifdef SPECTRA_USE_GLFW
-    WindowManager*    window_manager();
+    WindowManager* window_manager();
 #endif
 
     bool is_headless() const { return config_.headless; }

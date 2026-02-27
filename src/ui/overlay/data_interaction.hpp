@@ -120,12 +120,19 @@ class DataInteraction
     using SeriesSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int)>;
     void set_on_series_selected(SeriesSelectedCallback cb) { on_series_selected_ = std::move(cb); }
 
-    // Right-click series selection: fired when user right-clicks near a series (no toggle, always selects).
-    void set_on_series_right_click_selected(SeriesSelectedCallback cb) { on_series_rc_selected_ = std::move(cb); }
+    // Right-click series selection: fired when user right-clicks near a series (no toggle, always
+    // selects).
+    void set_on_series_right_click_selected(SeriesSelectedCallback cb)
+    {
+        on_series_rc_selected_ = std::move(cb);
+    }
 
     // Series deselection callback: fired when user left-clicks on canvas but NOT near any series.
     using SeriesDeselectedCallback = std::function<void()>;
-    void set_on_series_deselected(SeriesDeselectedCallback cb) { on_series_deselected_ = std::move(cb); }
+    void set_on_series_deselected(SeriesDeselectedCallback cb)
+    {
+        on_series_deselected_ = std::move(cb);
+    }
 
    private:
     // Perform nearest-point spatial query across all visible series in the active axes.

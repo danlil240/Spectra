@@ -93,6 +93,8 @@ class ImGuiIntegration
     // Interaction state getters
     bool     should_reset_view() const { return reset_view_; }
     void     clear_reset_view() { reset_view_ = false; }
+    bool     should_reset_live_view() const { return reset_live_view_; }
+    void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
 
     // Status bar data setters (called by app loop with real data)
@@ -144,8 +146,8 @@ class ImGuiIntegration
     // Programmatically close the pane tab context menu
     void close_tab_context_menu()
     {
-        pane_ctx_menu_fig_  = INVALID_FIGURE_ID;
-        pane_ctx_menu_open_ = false;
+        pane_ctx_menu_fig_             = INVALID_FIGURE_ID;
+        pane_ctx_menu_open_            = false;
         pane_ctx_menu_close_requested_ = true;
     }
 
@@ -162,11 +164,12 @@ class ImGuiIntegration
     AnimationCurveEditor* curve_editor() const { return curve_editor_; }
 
     // Series clipboard (owned externally by App)
-    void             set_series_clipboard(SeriesClipboard* sc) {
+    void set_series_clipboard(SeriesClipboard* sc)
+    {
         series_clipboard_ = sc;
         inspector_.set_series_clipboard(sc);
-        inspector_.set_defer_series_removal(
-            [this](AxesBase* owner, Series* s) { defer_series_removal(owner, s); });
+        inspector_.set_defer_series_removal([this](AxesBase* owner, Series* s)
+                                            { defer_series_removal(owner, s); });
     }
     SeriesClipboard* series_clipboard() const { return series_clipboard_; }
 
@@ -234,7 +237,12 @@ class ImGuiIntegration
     void select_series_no_toggle(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
 
     // Add/toggle a series in multi-selection (shift-click)
-    void toggle_series_in_selection(Figure* fig, Axes* ax, AxesBase* ab, int ax_idx, Series* s, int s_idx);
+    void toggle_series_in_selection(Figure*   fig,
+                                    Axes*     ax,
+                                    AxesBase* ab,
+                                    int       ax_idx,
+                                    Series*   s,
+                                    int       s_idx);
 
     // Deselect any currently selected series (canvas click on empty area)
     void deselect_series();
@@ -303,7 +311,8 @@ class ImGuiIntegration
             return;
         for (auto& r : pending_series_removals_)
         {
-            if (!r.owner || !r.series) continue;
+            if (!r.owner || !r.series)
+                continue;
             auto& svec = r.owner->series_mut();
             for (size_t i = 0; i < svec.size(); ++i)
             {
@@ -390,6 +399,7 @@ class ImGuiIntegration
 
     // Interaction state
     bool     reset_view_       = false;
+    bool     reset_live_view_  = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
 
     // Status bar data
@@ -420,11 +430,11 @@ class ImGuiIntegration
     InputHandler* input_handler_ = nullptr;
 
     // Timeline & animation (not owned)
-    TimelineEditor*       timeline_editor_       = nullptr;
-    KeyframeInterpolator* keyframe_interpolator_ = nullptr;
-    AnimationCurveEditor* curve_editor_          = nullptr;
-    bool                  show_timeline_         = false;
-    bool                  show_curve_editor_     = false;
+    TimelineEditor*       timeline_editor_        = nullptr;
+    KeyframeInterpolator* keyframe_interpolator_  = nullptr;
+    AnimationCurveEditor* curve_editor_           = nullptr;
+    bool                  show_timeline_          = false;
+    bool                  show_curve_editor_      = false;
     bool                  curve_editor_needs_fit_ = true;
 
     // Series clipboard (not owned)
@@ -460,8 +470,8 @@ class ImGuiIntegration
     PaneTabRenameCallback pane_tab_rename_cb_;
 
     // Pane tab context menu state
-    FigureId pane_ctx_menu_fig_  = INVALID_FIGURE_ID;   // Figure id of right-clicked tab
-    bool     pane_ctx_menu_open_ = false;
+    FigureId pane_ctx_menu_fig_             = INVALID_FIGURE_ID;   // Figure id of right-clicked tab
+    bool     pane_ctx_menu_open_            = false;
     bool     pane_ctx_menu_close_requested_ = false;
 
     // Pane tab rename state

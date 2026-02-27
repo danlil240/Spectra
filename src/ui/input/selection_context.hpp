@@ -92,7 +92,8 @@ struct SelectionContext
     // Add a series to multi-selection (shift-click / range select)
     void add_series(Figure* fig, Axes* ax, AxesBase* ab, int ax_idx, Series* s, int s_idx)
     {
-        if (!s) return;
+        if (!s)
+            return;
         // If not already in Series mode, switch to it
         if (type != SelectionType::Series)
         {
@@ -103,7 +104,8 @@ struct SelectionContext
         // Don't add duplicates
         for (const auto& e : selected_series)
         {
-            if (e.series == s) return;
+            if (e.series == s)
+                return;
         }
         selected_series.push_back({s, ab, ax, ax_idx, s_idx});
         // Primary selection = last added
@@ -118,9 +120,11 @@ struct SelectionContext
     // Toggle a series in/out of multi-selection
     void toggle_series(Figure* fig, Axes* ax, AxesBase* ab, int ax_idx, Series* s, int s_idx)
     {
-        if (!s) return;
+        if (!s)
+            return;
         // If already selected, remove it
-        auto it = std::find_if(selected_series.begin(), selected_series.end(),
+        auto it = std::find_if(selected_series.begin(),
+                               selected_series.end(),
                                [s](const SelectedSeriesEntry& e) { return e.series == s; });
         if (it != selected_series.end())
         {
@@ -148,10 +152,12 @@ struct SelectionContext
     // Check if a specific series is in the multi-selection
     bool is_selected(const Series* s) const
     {
-        if (!s) return false;
+        if (!s)
+            return false;
         for (const auto& e : selected_series)
         {
-            if (e.series == s) return true;
+            if (e.series == s)
+                return true;
         }
         return false;
     }

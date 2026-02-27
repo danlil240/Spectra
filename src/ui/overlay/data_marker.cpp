@@ -52,8 +52,8 @@ int DataMarkerManager::find_duplicate(const Series* series, size_t point_index) 
 void DataMarkerManager::remove_for_series(const Series* series)
 {
     markers_.erase(std::remove_if(markers_.begin(),
-                                   markers_.end(),
-                                   [series](const DataMarker& m) { return m.series == series; }),
+                                  markers_.end(),
+                                  [series](const DataMarker& m) { return m.series == series; }),
                    markers_.end());
 }
 
@@ -105,19 +105,19 @@ void DataMarkerManager::draw(const Rect& viewport,
     if (markers_.empty())
         return;
 
-    const auto&  colors = ui::ThemeManager::instance().colors();
-    ImDrawList*  fg     = ImGui::GetForegroundDrawList();
-    ImFont*      font   = ImGui::GetFont();
-    const float  fs     = font->FontSize;
-    const float  fs_sm  = fs * 0.78f;           // small font for coordinates
-    const float  pad_x  = 8.0f;                 // horizontal padding inside box
-    const float  pad_y  = 5.0f;                 // vertical padding inside box
-    const float  arrow_h = 8.0f;                // height of the arrow triangle
-    const float  arrow_w = 8.0f;                // half-width of the arrow base
-    const float  corner_r = 6.0f;               // box corner radius
-    const float  dot_r    = 5.0f;               // marker dot radius
-    const float  ring_r   = 7.0f;               // outer ring radius
-    const float  gap      = 4.0f;               // gap between dot and arrow tip
+    const auto& colors   = ui::ThemeManager::instance().colors();
+    ImDrawList* fg       = ImGui::GetForegroundDrawList();
+    ImFont*     font     = ImGui::GetFont();
+    const float fs       = font->FontSize;
+    const float fs_sm    = fs * 0.78f;   // small font for coordinates
+    const float pad_x    = 8.0f;         // horizontal padding inside box
+    const float pad_y    = 5.0f;         // vertical padding inside box
+    const float arrow_h  = 8.0f;         // height of the arrow triangle
+    const float arrow_w  = 8.0f;         // half-width of the arrow base
+    const float corner_r = 6.0f;         // box corner radius
+    const float dot_r    = 5.0f;         // marker dot radius
+    const float ring_r   = 7.0f;         // outer ring radius
+    const float gap      = 4.0f;         // gap between dot and arrow tip
 
     for (size_t i = 0; i < markers_.size(); ++i)
     {
@@ -148,9 +148,9 @@ void DataMarkerManager::draw(const Rect& viewport,
         fg->AddCircleFilled(ImVec2(sx, sy), dot_r, fill_col);
 
         ImU32 border_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_default.r,
-                                                                  colors.border_default.g,
-                                                                  colors.border_default.b,
-                                                                  opacity * 0.4f));
+                                                                 colors.border_default.g,
+                                                                 colors.border_default.b,
+                                                                 opacity * 0.4f));
         fg->AddCircle(ImVec2(sx, sy), ring_r, border_col, 0, 1.0f);
 
         // ── Build label text ────────────────────────────────────────────
@@ -160,9 +160,8 @@ void DataMarkerManager::draw(const Rect& viewport,
         bool has_name = !m.series_label.empty();
 
         // Measure text sizes
-        ImVec2 name_sz = has_name
-                             ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
-                             : ImVec2(0, 0);
+        ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
+                                  : ImVec2(0, 0);
         ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
 
         float text_w = std::max(name_sz.x, coord_sz.x);
@@ -217,13 +216,10 @@ void DataMarkerManager::draw(const Rect& viewport,
 
         // ── Draw box background ─────────────────────────────────────────
         ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_elevated.r,
-                                                              colors.bg_elevated.g,
-                                                              colors.bg_elevated.b,
-                                                              0.95f * opacity));
-        fg->AddRectFilled(ImVec2(box_left, box_top),
-                          ImVec2(box_right, box_bot),
-                          bg_col,
-                          corner_r);
+                                                             colors.bg_elevated.g,
+                                                             colors.bg_elevated.b,
+                                                             0.95f * opacity));
+        fg->AddRectFilled(ImVec2(box_left, box_top), ImVec2(box_right, box_bot), bg_col, corner_r);
 
         // ── Draw arrow triangle connecting box to point ─────────────────
         float acx = std::clamp(sx, box_left + corner_r, box_right - corner_r);
@@ -244,9 +240,9 @@ void DataMarkerManager::draw(const Rect& viewport,
 
         // ── Draw box border ─────────────────────────────────────────────
         ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_default.r,
-                                                                  colors.border_default.g,
-                                                                  colors.border_default.b,
-                                                                  0.35f * opacity));
+                                                                 colors.border_default.g,
+                                                                 colors.border_default.b,
+                                                                 0.35f * opacity));
         fg->AddRect(ImVec2(box_left, box_top),
                     ImVec2(box_right, box_bot),
                     box_border,
@@ -264,8 +260,10 @@ void DataMarkerManager::draw(const Rect& viewport,
         // ── Draw text ───────────────────────────────────────────────────
         ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity));
-        ImU32 text_dim = ImGui::ColorConvertFloat4ToU32(ImVec4(
-            colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, opacity));
+        ImU32 text_dim = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
+                                                               colors.text_secondary.g,
+                                                               colors.text_secondary.b,
+                                                               opacity));
 
         float tx = box_left + pad_x;
         float ty = box_top + pad_y;
@@ -301,7 +299,7 @@ int DataMarkerManager::hit_test(float       screen_x,
     for (size_t i = 0; i < markers_.size(); ++i)
     {
         const auto& m = markers_[i];
-        float sx, sy;
+        float       sx, sy;
         data_to_screen(m.data_x,
                        m.data_y,
                        viewport,
@@ -325,9 +323,8 @@ int DataMarkerManager::hit_test(float       screen_x,
         std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
 
         bool   has_name = !m.series_label.empty();
-        ImVec2 name_sz  = has_name
-                              ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
-                              : ImVec2(0, 0);
+        ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
+                                  : ImVec2(0, 0);
         ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
 
         float text_w = std::max(name_sz.x, coord_sz.x);
@@ -340,14 +337,14 @@ int DataMarkerManager::hit_test(float       screen_x,
         if (!flip)
         {
             float arrow_tip_y = sy - ring_r - gap;
-            box_bot            = arrow_tip_y - arrow_h;
-            box_top            = box_bot - box_h;
+            box_bot           = arrow_tip_y - arrow_h;
+            box_top           = box_bot - box_h;
         }
         else
         {
             float arrow_tip_y = sy + ring_r + gap;
-            box_top            = arrow_tip_y + arrow_h;
-            box_bot            = box_top + box_h;
+            box_top           = arrow_tip_y + arrow_h;
+            box_bot           = box_top + box_h;
         }
 
         float box_left  = sx - box_w * 0.5f;

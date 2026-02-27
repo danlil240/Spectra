@@ -143,6 +143,32 @@ TEST_F(InputHandlerTest, ScrollZoomOut)
     EXPECT_GT(range_after, range_before);
 }
 
+TEST_F(InputHandlerTest, RightDragExtendsPresentedBuffer)
+{
+    auto& line = axes().line();
+    for (int i = 0; i <= 200; ++i)
+    {
+        float x = static_cast<float>(i) * 0.1f;
+        line.append(x, std::sin(x));
+    }
+
+    axes().presented_buffer(5.0f);
+    EXPECT_TRUE(axes().has_presented_buffer());
+    float before_seconds = axes().presented_buffer_seconds();
+
+    auto& vp = axes().viewport();
+    float cx = vp.x + vp.w * 0.5f;
+    float cy = vp.y + vp.h * 0.5f;
+
+    // Right-drag left should expand zoom range (increase buffer duration)
+    handler_.on_mouse_button(1, 1, 0, cx, cy);
+    handler_.on_mouse_move(cx - 40.0, cy);
+    handler_.on_mouse_button(1, 0, 0, cx - 40.0, cy);
+
+    EXPECT_TRUE(axes().has_presented_buffer());
+    EXPECT_GT(axes().presented_buffer_seconds(), before_seconds);
+}
+
 // ─── Box zoom ───────────────────────────────────────────────────────────────
 
 TEST_F(InputHandlerTest, BoxZoomSetsLimits)

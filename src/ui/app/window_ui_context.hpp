@@ -82,7 +82,7 @@ struct WindowUIContext
 
     TabDragController tab_drag_controller;
 
-    KnobManager      knob_manager;
+    KnobManager knob_manager;
 
     // Per-window active figure pointer, updated each frame by the render loop.
     // Used by command lambdas (register_standard_commands) so clipboard/view

@@ -977,16 +977,16 @@ void ThemeManager::initialize_data_palettes()
     default_palette.description     = "Tableau 10 — perceptually balanced for general use";
     default_palette.colorblind_safe = false;
     default_palette.colors          = {
-                 Color::from_hex(0x4E79A7),   // steel blue
-                 Color::from_hex(0xF28E2B),   // orange
-                 Color::from_hex(0xE15759),   // red
-                 Color::from_hex(0x76B7B2),   // teal
-                 Color::from_hex(0x59A14F),   // green
-                 Color::from_hex(0xEDC948),   // gold
-                 Color::from_hex(0xB07AA1),   // purple
-                 Color::from_hex(0xFF9DA7),   // pink
-                 Color::from_hex(0x9C755F),   // brown
-                 Color::from_hex(0xBAB0AC)    // gray
+        Color::from_hex(0x4E79A7),   // steel blue
+        Color::from_hex(0xF28E2B),   // orange
+        Color::from_hex(0xE15759),   // red
+        Color::from_hex(0x76B7B2),   // teal
+        Color::from_hex(0x59A14F),   // green
+        Color::from_hex(0xEDC948),   // gold
+        Color::from_hex(0xB07AA1),   // purple
+        Color::from_hex(0xFF9DA7),   // pink
+        Color::from_hex(0x9C755F),   // brown
+        Color::from_hex(0xBAB0AC)    // gray
     };
     data_palettes_["default"] = default_palette;
 
@@ -997,14 +997,14 @@ void ThemeManager::initialize_data_palettes()
     okabe_ito.colorblind_safe = true;
     okabe_ito.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
     okabe_ito.colors          = {
-                 Color::from_hex(0xE69F00),   // orange
-                 Color::from_hex(0x56B4E9),   // sky blue
-                 Color::from_hex(0x009E73),   // bluish green
-                 Color::from_hex(0xF0E442),   // yellow
-                 Color::from_hex(0x0072B2),   // blue
-                 Color::from_hex(0xD55E00),   // vermillion
-                 Color::from_hex(0xCC79A7),   // reddish purple
-                 Color::from_hex(0x000000)    // black
+        Color::from_hex(0xE69F00),   // orange
+        Color::from_hex(0x56B4E9),   // sky blue
+        Color::from_hex(0x009E73),   // bluish green
+        Color::from_hex(0xF0E442),   // yellow
+        Color::from_hex(0x0072B2),   // blue
+        Color::from_hex(0xD55E00),   // vermillion
+        Color::from_hex(0xCC79A7),   // reddish purple
+        Color::from_hex(0x000000)    // black
     };
     data_palettes_["colorblind"] = okabe_ito;
 
@@ -1015,13 +1015,13 @@ void ThemeManager::initialize_data_palettes()
     tol_bright.colorblind_safe = true;
     tol_bright.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
     tol_bright.colors          = {
-                 Color::from_hex(0x4477AA),   // blue
-                 Color::from_hex(0xEE6677),   // red
-                 Color::from_hex(0x228833),   // green
-                 Color::from_hex(0xCCBB44),   // yellow
-                 Color::from_hex(0x66CCEE),   // cyan
-                 Color::from_hex(0xAA3377),   // purple
-                 Color::from_hex(0xBBBBBB)    // grey
+        Color::from_hex(0x4477AA),   // blue
+        Color::from_hex(0xEE6677),   // red
+        Color::from_hex(0x228833),   // green
+        Color::from_hex(0xCCBB44),   // yellow
+        Color::from_hex(0x66CCEE),   // cyan
+        Color::from_hex(0xAA3377),   // purple
+        Color::from_hex(0xBBBBBB)    // grey
     };
     data_palettes_["tol_bright"] = tol_bright;
 
@@ -1032,15 +1032,15 @@ void ThemeManager::initialize_data_palettes()
     tol_muted.colorblind_safe = true;
     tol_muted.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
     tol_muted.colors          = {
-                 Color::from_hex(0x332288),   // indigo
-                 Color::from_hex(0x88CCEE),   // cyan
-                 Color::from_hex(0x44AA99),   // teal
-                 Color::from_hex(0x117733),   // green
-                 Color::from_hex(0x999933),   // olive
-                 Color::from_hex(0xDDCC77),   // sand
-                 Color::from_hex(0xCC6677),   // rose
-                 Color::from_hex(0x882255),   // wine
-                 Color::from_hex(0xAA4499)    // purple
+        Color::from_hex(0x332288),   // indigo
+        Color::from_hex(0x88CCEE),   // cyan
+        Color::from_hex(0x44AA99),   // teal
+        Color::from_hex(0x117733),   // green
+        Color::from_hex(0x999933),   // olive
+        Color::from_hex(0xDDCC77),   // sand
+        Color::from_hex(0xCC6677),   // rose
+        Color::from_hex(0x882255),   // wine
+        Color::from_hex(0xAA4499)    // purple
     };
     data_palettes_["tol_muted"] = tol_muted;
 
@@ -1051,11 +1051,11 @@ void ThemeManager::initialize_data_palettes()
     ibm.colorblind_safe = true;
     ibm.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia};
     ibm.colors          = {
-                 Color::from_hex(0x648FFF),   // ultramarine
-                 Color::from_hex(0x785EF0),   // indigo
-                 Color::from_hex(0xDC267F),   // magenta
-                 Color::from_hex(0xFE6100),   // orange
-                 Color::from_hex(0xFFB000),   // gold
+        Color::from_hex(0x648FFF),   // ultramarine
+        Color::from_hex(0x785EF0),   // indigo
+        Color::from_hex(0xDC267F),   // magenta
+        Color::from_hex(0xFE6100),   // orange
+        Color::from_hex(0xFFB000),   // gold
     };
     data_palettes_["ibm"] = ibm;
 
@@ -1066,14 +1066,14 @@ void ThemeManager::initialize_data_palettes()
     wong.colorblind_safe = true;
     wong.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
     wong.colors          = {
-                 Color::from_hex(0x000000),   // black
-                 Color::from_hex(0xE69F00),   // orange
-                 Color::from_hex(0x56B4E9),   // sky blue
-                 Color::from_hex(0x009E73),   // bluish green
-                 Color::from_hex(0xF0E442),   // yellow
-                 Color::from_hex(0x0072B2),   // blue
-                 Color::from_hex(0xD55E00),   // vermillion
-                 Color::from_hex(0xCC79A7)    // reddish purple
+        Color::from_hex(0x000000),   // black
+        Color::from_hex(0xE69F00),   // orange
+        Color::from_hex(0x56B4E9),   // sky blue
+        Color::from_hex(0x009E73),   // bluish green
+        Color::from_hex(0xF0E442),   // yellow
+        Color::from_hex(0x0072B2),   // blue
+        Color::from_hex(0xD55E00),   // vermillion
+        Color::from_hex(0xCC79A7)    // reddish purple
     };
     data_palettes_["wong"] = wong;
 
@@ -1084,16 +1084,16 @@ void ThemeManager::initialize_data_palettes()
     viridis.colorblind_safe = true;
     viridis.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
     viridis.colors          = {
-                 Color::from_hex(0x440154),   // deep purple
-                 Color::from_hex(0x482878),   // purple
-                 Color::from_hex(0x3E4989),   // blue-purple
-                 Color::from_hex(0x31688E),   // blue
-                 Color::from_hex(0x26828E),   // teal-blue
-                 Color::from_hex(0x1F9E89),   // teal
-                 Color::from_hex(0x35B779),   // green
-                 Color::from_hex(0x6DCD59),   // lime
-                 Color::from_hex(0xB4DE2C),   // yellow-green
-                 Color::from_hex(0xFDE725)    // yellow
+        Color::from_hex(0x440154),   // deep purple
+        Color::from_hex(0x482878),   // purple
+        Color::from_hex(0x3E4989),   // blue-purple
+        Color::from_hex(0x31688E),   // blue
+        Color::from_hex(0x26828E),   // teal-blue
+        Color::from_hex(0x1F9E89),   // teal
+        Color::from_hex(0x35B779),   // green
+        Color::from_hex(0x6DCD59),   // lime
+        Color::from_hex(0xB4DE2C),   // yellow-green
+        Color::from_hex(0xFDE725)    // yellow
     };
     data_palettes_["viridis"] = viridis;
 
@@ -1107,11 +1107,11 @@ void ThemeManager::initialize_data_palettes()
                             CVDType::Tritanopia,
                             CVDType::Achromatopsia};
     mono.colors          = {
-                 Color::from_hex(0x000000),   // black
-                 Color::from_hex(0x404040),   // dark gray
-                 Color::from_hex(0x808080),   // mid gray
-                 Color::from_hex(0xB0B0B0),   // light gray
-                 Color::from_hex(0xD0D0D0),   // very light gray
+        Color::from_hex(0x000000),   // black
+        Color::from_hex(0x404040),   // dark gray
+        Color::from_hex(0x808080),   // mid gray
+        Color::from_hex(0xB0B0B0),   // light gray
+        Color::from_hex(0xD0D0D0),   // very light gray
     };
     data_palettes_["monochrome"] = mono;
 

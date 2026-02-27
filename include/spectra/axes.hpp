@@ -144,11 +144,12 @@ class Axes : public AxesBase
     bool               grid_enabled() const { return grid_enabled_; }
     bool               border_enabled() const { return border_enabled_; }
     AutoscaleMode      autoscale_mode() const { return autoscale_mode_; }
-    bool               has_presented_buffer() const { return presented_buffer_seconds_.has_value(); }
-    float              presented_buffer_seconds() const
+    bool has_presented_buffer() const { return presented_buffer_seconds_.has_value(); }
+    bool is_presented_buffer_following() const
     {
-        return presented_buffer_seconds_.value_or(0.0f);
+        return presented_buffer_following_ && presented_buffer_seconds_.has_value();
     }
+    float presented_buffer_seconds() const { return presented_buffer_seconds_.value_or(0.0f); }
 
     // Deprecated aliases
     const std::string& get_title() const { return title_; }
@@ -167,10 +168,11 @@ class Axes : public AxesBase
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
 
-    std::string   xlabel_;
-    std::string   ylabel_;
-    AutoscaleMode autoscale_mode_ = AutoscaleMode::Padded;
+    std::string          xlabel_;
+    std::string          ylabel_;
+    AutoscaleMode        autoscale_mode_ = AutoscaleMode::Padded;
     std::optional<float> presented_buffer_seconds_;
+    bool                 presented_buffer_following_ = false;
 };
 
 }   // namespace spectra

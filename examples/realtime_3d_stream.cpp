@@ -69,9 +69,9 @@ struct Trail3D
 
 struct Stream
 {
-    float  freq_x, freq_y, freq_z;   // oscillation frequencies
-    float  phase_x, phase_y, phase_z;
-    float  radius;
+    float   freq_x, freq_y, freq_z;   // oscillation frequencies
+    float   phase_x, phase_y, phase_z;
+    float   radius;
     Trail3D trail;
 
     Stream(float fx, float fy, float fz, float px, float py, float pz, float r)
@@ -134,12 +134,15 @@ int main()
     ax_xy.grid(true);
 
     // 2D projection series (one per stream)
-    auto& proj_a = ax_xy.plot(seed, seed).color(spectra::colors::cyan).width(1.2f).label("Stream A");
-    auto& proj_b = ax_xy.plot(seed, seed).color(spectra::colors::orange).width(1.2f).label("Stream B");
-    auto& proj_c = ax_xy.plot(seed, seed).color(spectra::colors::magenta).width(1.2f).label("Stream C");
+    auto& proj_a =
+        ax_xy.plot(seed, seed).color(spectra::colors::cyan).width(1.2f).label("Stream A");
+    auto& proj_b =
+        ax_xy.plot(seed, seed).color(spectra::colors::orange).width(1.2f).label("Stream B");
+    auto& proj_c =
+        ax_xy.plot(seed, seed).color(spectra::colors::magenta).width(1.2f).label("Stream C");
 
-    auto& fig2d = *spectra::gcf();
-    fig2d.legend().visible  = true;
+    auto& fig2d            = *spectra::gcf();
+    fig2d.legend().visible = true;
 
     // ── Data streams ─────────────────────────────────────────────────────────
     // Stream A: Lissajous 3:2 (cyan)
@@ -172,22 +175,13 @@ int main()
         ax3d.clear_series();
 
         stream_a.trail.get(ox, oy, oz);
-        ax3d.scatter3d(ox, oy, oz)
-            .color(spectra::colors::cyan)
-            .size(3.0f)
-            .label("Stream A");
+        ax3d.scatter3d(ox, oy, oz).color(spectra::colors::cyan).size(3.0f).label("Stream A");
 
         stream_b.trail.get(ox, oy, oz);
-        ax3d.scatter3d(ox, oy, oz)
-            .color(spectra::colors::orange)
-            .size(3.0f)
-            .label("Stream B");
+        ax3d.scatter3d(ox, oy, oz).color(spectra::colors::orange).size(3.0f).label("Stream B");
 
         stream_c.trail.get(ox, oy, oz);
-        ax3d.scatter3d(ox, oy, oz)
-            .color(spectra::colors::magenta)
-            .size(3.0f)
-            .label("Stream C");
+        ax3d.scatter3d(ox, oy, oz).color(spectra::colors::magenta).size(3.0f).label("Stream C");
 
         // ── 2D projection update ─────────────────────────────────────────
         stream_a.trail.get(ox, oy, oz);

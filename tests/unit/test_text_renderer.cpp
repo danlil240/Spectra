@@ -20,10 +20,10 @@ static std::vector<uint8_t> load_font()
 {
     std::string abs_path = std::string(SPECTRA_SOURCE_DIR) + "/third_party/Inter-Regular.ttf";
     const char* paths[]  = {
-         abs_path.c_str(),
-         "third_party/Inter-Regular.ttf",
-         "../third_party/Inter-Regular.ttf",
-         "../../third_party/Inter-Regular.ttf",
+        abs_path.c_str(),
+        "third_party/Inter-Regular.ttf",
+        "../third_party/Inter-Regular.ttf",
+        "../../third_party/Inter-Regular.ttf",
     };
     for (const char* p : paths)
     {
@@ -163,10 +163,10 @@ TEST_F(TextRendererGPUTest, InitFromFile)
 
     TextRenderer tr;
     const char*  paths[] = {
-         "third_party/Inter-Regular.ttf",
-         "../third_party/Inter-Regular.ttf",
-         "../../third_party/Inter-Regular.ttf",
-         "../../../third_party/Inter-Regular.ttf",
+        "third_party/Inter-Regular.ttf",
+        "../third_party/Inter-Regular.ttf",
+        "../../third_party/Inter-Regular.ttf",
+        "../../../third_party/Inter-Regular.ttf",
     };
     bool ok = false;
     for (const char* p : paths)

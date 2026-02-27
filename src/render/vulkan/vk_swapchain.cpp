@@ -60,11 +60,16 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
     {
         switch (m)
         {
-        case VK_PRESENT_MODE_FIFO_KHR:         return "FIFO (VSync)";
-        case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED (VSync, late frames tear)";
-        case VK_PRESENT_MODE_MAILBOX_KHR:      return "MAILBOX (low-latency, tear-free)";
-        case VK_PRESENT_MODE_IMMEDIATE_KHR:    return "IMMEDIATE (no VSync, tearing)";
-        default:                                return "UNKNOWN";
+            case VK_PRESENT_MODE_FIFO_KHR:
+                return "FIFO (VSync)";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+                return "FIFO_RELAXED (VSync, late frames tear)";
+            case VK_PRESENT_MODE_MAILBOX_KHR:
+                return "MAILBOX (low-latency, tear-free)";
+            case VK_PRESENT_MODE_IMMEDIATE_KHR:
+                return "IMMEDIATE (no VSync, tearing)";
+            default:
+                return "UNKNOWN";
         }
     };
 
@@ -72,7 +77,7 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
     for (auto m : modes)
         SPECTRA_LOG_INFO("Vulkan", "  available present mode: {}", mode_name(m));
 
-    // Select based on compile-time SPECTRA_PRESENT_MODE_* define
+        // Select based on compile-time SPECTRA_PRESENT_MODE_* define
 #if defined(SPECTRA_PRESENT_MODE_MAILBOX)
     VkPresentModeKHR preferred = VK_PRESENT_MODE_MAILBOX_KHR;
 #elif defined(SPECTRA_PRESENT_MODE_IMMEDIATE)

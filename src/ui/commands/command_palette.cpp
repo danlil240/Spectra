@@ -582,7 +582,7 @@ bool CommandPalette::draw(float window_width, float window_height)
 
                     ImVec2 badge_min(badge_x - ui::tokens::SPACE_2, badge_y - 3);
                     ImVec2 badge_max(badge_x + shortcut_size.x + ui::tokens::SPACE_2,
-                                    badge_y + shortcut_size.y + 3);
+                                     badge_y + shortcut_size.y + 3);
 
                     ImGui::GetWindowDrawList()->AddRectFilled(
                         badge_min,

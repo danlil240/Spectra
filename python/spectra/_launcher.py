@@ -32,13 +32,27 @@ def resolve_socket_path(explicit: Optional[str] = None) -> str:
 
 
 def _can_connect(path: str) -> bool:
-    """Check if a backend is already listening on the socket."""
+    """Check if a backend is already listening and responsive on the socket.
+
+    Connects, then does a non-blocking recv peek to detect backends that
+    accept-then-immediately-close (shutting down).
+    """
     import socket as _socket
+    import select as _select
 
     try:
         s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-        s.settimeout(0.5)
+        s.settimeout(1.0)
         s.connect(path)
+        # Peek for immediate close/reset — a healthy backend won't send
+        # anything until it receives HELLO, so readable here means EOF/reset.
+        ready, _, _ = _select.select([s], [], [], 0.05)
+        if ready:
+            data = s.recv(1, _socket.MSG_PEEK)
+            if not data:
+                # Server accepted then immediately closed — dying backend
+                s.close()
+                return False
         s.close()
         return True
     except OSError:
@@ -65,19 +79,21 @@ def _find_backend_binary() -> Optional[str]:
     if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
         return bundled
 
-    # 3. System PATH
-    found = shutil.which("spectra-backend")
-    if found:
-        return found
-
-    # 4. Heuristic: look in common build directories relative to the project root.
+    # 3. Heuristic: look in common build directories relative to the project root.
     # The Python package lives at <project>/python/spectra/, so project root is ../../
+    # Checked BEFORE system PATH so a freshly-built local binary is preferred
+    # over a potentially stale installed one.
     project_root = os.path.normpath(os.path.join(pkg_dir, "..", ".."))
-    for build_dir in ("build", "build_asan", "build_debug", "build_release",
+    for build_dir in ("build", "build_release", "build_debug", "build_asan",
                        "cmake-build-debug", "cmake-build-release", "out/build"):
         candidate = os.path.join(project_root, build_dir, "spectra-backend")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
+
+    # 4. System PATH (fallback — may find stale installed binaries)
+    found = shutil.which("spectra-backend")
+    if found:
+        return found
 
     return None
 

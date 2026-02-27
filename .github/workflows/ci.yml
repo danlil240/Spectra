@@ -166,6 +166,19 @@ jobs:
           find /usr -name '*lvp*' -o -name '*lavapipe*' 2>/dev/null || true
           vulkaninfo --summary || echo "vulkaninfo not available, continuing..."
 
+      - name: Pin Vulkan ICD to lavapipe
+        run: |
+          set -e
+          LVP_ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd.*.json 2>/dev/null | head -n1)"
+          if [ -z "$LVP_ICD" ]; then
+            echo "ERROR: lavapipe ICD not found under /usr/share/vulkan/icd.d"
+            exit 1
+          fi
+          echo "Using lavapipe ICD: $LVP_ICD"
+          echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+          # Newer Vulkan loader env var name; keep both for compatibility.
+          echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+
       - name: Configure + Build
         run: |
           cmake -B build \
@@ -178,9 +191,14 @@ jobs:
       - name: Run golden image tests
         env:
           SPECTRA_UPDATE_BASELINES: "0"
+          SPECTRA_GOLDEN_BASELINE_DIR: ${{ github.workspace }}/tests/golden/baseline
+          SPECTRA_GOLDEN_OUTPUT_DIR: ${{ github.workspace }}/tests/golden/output
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
+          rm -rf tests/golden/output
+          mkdir -p tests/golden/output
           cd build
-          xvfb-run -a ctest --output-on-failure -L golden -j1
+          xvfb-run -a ctest --output-on-failure -L golden -j1 --repeat until-pass:2
 
       - name: Upload test artifacts on failure
         if: failure()

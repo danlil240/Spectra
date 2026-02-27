@@ -51,7 +51,7 @@ int main()
     // Use the figure's animation system with direct camera parameter updates
     // This demonstrates the camera animation API without custom controllers
     fig.animate()
-        .fps(60.0f)
+        .fps(175.0f)
         .duration(8.0f)
         .loop(true)
         .on_frame(

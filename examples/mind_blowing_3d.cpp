@@ -177,7 +177,7 @@ int main()
 
     // EPIC ANIMATION LOOP
     fig.animate()
-        .fps(60.0f)
+        .fps(175.0f)
         .duration(10.0f)
         .loop(true)
         .on_frame(
@@ -235,7 +235,8 @@ int main()
                 particles.update(dt, time);
 
                 // === UPDATE SERIES ===
-                // clear_series() safely defers GPU resource cleanup — no Vulkan crash.
+                // clear_series() + re-add each frame is now safe — the
+                // animation guard checks series count AFTER the callback.
                 ax.clear_series();
 
                 ax.scatter3d(x1, y1, z1)

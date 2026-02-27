@@ -1,5 +1,7 @@
 #include "vk_swapchain.hpp"
 
+#include <spectra/logger.hpp>
+
 #include <algorithm>
 #include <stdexcept>
 
@@ -51,10 +53,44 @@ VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& 
 
 VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
 {
-    // Use FIFO (VSync) for stability. MAILBOX can cause excessive frame queuing
-    // during rapid drag-resize, contributing to GPU hangs and display stalls.
-    // FIFO is the only mode guaranteed by the Vulkan spec.
-    (void)modes;
+    auto has_mode = [&](VkPresentModeKHR m)
+    { return std::find(modes.begin(), modes.end(), m) != modes.end(); };
+
+    auto mode_name = [](VkPresentModeKHR m) -> const char*
+    {
+        switch (m)
+        {
+        case VK_PRESENT_MODE_FIFO_KHR:         return "FIFO (VSync)";
+        case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED (VSync, late frames tear)";
+        case VK_PRESENT_MODE_MAILBOX_KHR:      return "MAILBOX (low-latency, tear-free)";
+        case VK_PRESENT_MODE_IMMEDIATE_KHR:    return "IMMEDIATE (no VSync, tearing)";
+        default:                                return "UNKNOWN";
+        }
+    };
+
+    // Log available modes
+    for (auto m : modes)
+        SPECTRA_LOG_INFO("Vulkan", "  available present mode: {}", mode_name(m));
+
+    // Select based on compile-time SPECTRA_PRESENT_MODE_* define
+#if defined(SPECTRA_PRESENT_MODE_MAILBOX)
+    VkPresentModeKHR preferred = VK_PRESENT_MODE_MAILBOX_KHR;
+#elif defined(SPECTRA_PRESENT_MODE_IMMEDIATE)
+    VkPresentModeKHR preferred = VK_PRESENT_MODE_IMMEDIATE_KHR;
+#else
+    VkPresentModeKHR preferred = VK_PRESENT_MODE_FIFO_KHR;
+#endif
+
+    if (has_mode(preferred))
+    {
+        SPECTRA_LOG_INFO("Vulkan", "present mode: {} (requested)", mode_name(preferred));
+        return preferred;
+    }
+
+    // FIFO is guaranteed by the Vulkan spec — always safe fallback
+    SPECTRA_LOG_WARN("Vulkan",
+                     "requested present mode {} not available, falling back to FIFO",
+                     mode_name(preferred));
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 

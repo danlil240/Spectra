@@ -167,25 +167,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (!fig->anim_on_frame_)
             return;
 
-        // Guard: if all axes have zero series, the user's on_frame callback
-        // likely holds dangling Series& references (e.g. knob_demo captures
-        // `line` by ref).  Clear the callback to prevent use-after-free.
-        {
-            bool has_any_series = false;
-            for (auto& ax : fig->axes())
-                if (ax && !ax->series().empty()) { has_any_series = true; break; }
-            if (!has_any_series)
-            {
-                for (auto& ax : fig->all_axes())
-                    if (ax && !ax->series().empty()) { has_any_series = true; break; }
-            }
-            if (!has_any_series)
-            {
-                fig->anim_on_frame_ = nullptr;
-                return;
-            }
-        }
-
         Frame frame = scheduler.current_frame();
 
 #ifdef SPECTRA_USE_IMGUI
@@ -246,6 +227,26 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         frame.elapsed_sec = fig->anim_time_;
         fig->anim_on_frame_(frame);
 #endif
+
+        // Post-callback guard: if on_frame left all axes empty, the callback
+        // likely holds dangling Series& references (e.g. knob_demo captures
+        // `line` by ref then externally clears).  Kill it to prevent
+        // use-after-free on the NEXT frame.  This runs AFTER the callback so
+        // that clear_series() + re-add within the same on_frame works fine.
+        {
+            bool has_any_series = false;
+            for (auto& ax : fig->axes())
+                if (ax && !ax->series().empty()) { has_any_series = true; break; }
+            if (!has_any_series)
+            {
+                for (auto& ax : fig->all_axes())
+                    if (ax && !ax->series().empty()) { has_any_series = true; break; }
+            }
+            if (!has_any_series)
+            {
+                fig->anim_on_frame_ = nullptr;
+            }
+        }
     };
 
     // Drive animation for the active figure

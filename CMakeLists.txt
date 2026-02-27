@@ -20,11 +20,15 @@ configure_file(
 
 # Embed font data into C arrays (eliminates runtime file dependency)
 include(cmake/EmbedAssets.cmake)
-embed_binary_file(
-    INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/Inter-Regular.ttf
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/inter_font_embedded.hpp
-    VARIABLE InterFont_ttf
-)
+if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/generated/inter_font_embedded.hpp)
+    message("Font file Inter-Regular.ttf already embedded, skipping font embedding")
+else()
+    embed_binary_file(
+        INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/Inter-Regular.ttf
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/inter_font_embedded.hpp
+        VARIABLE InterFont_ttf
+    )
+endif()
 
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
@@ -40,11 +44,19 @@ option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 set(SPECTRA_RUNTIME_MODE "multiproc" CACHE STRING "Runtime mode: inproc | multiproc")
 set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
 
+# Vulkan present mode:
+#   FIFO      — VSync, stable frame pacing, guaranteed by spec (default)
+#   MAILBOX   — Low-latency + tear-free if available, may over-queue on resize
+#   IMMEDIATE — No VSync, tearing possible, shows max FPS
+set(SPECTRA_PRESENT_MODE "FIFO" CACHE STRING "Vulkan present mode: FIFO | MAILBOX | IMMEDIATE")
+set_property(CACHE SPECTRA_PRESENT_MODE PROPERTY STRINGS "FIFO" "MAILBOX" "IMMEDIATE")
+
 # Skip git network checks when FetchContent source dirs already exist.
 # On a clean checkout these are absent so the download still happens normally.
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 
 message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")
+message(STATUS "SPECTRA_PRESENT_MODE: ${SPECTRA_PRESENT_MODE}")
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -147,6 +159,7 @@ target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
 target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE})
+target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESENT_MODE})
 
 # MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
 # PUBLIC so examples and tests also get it (transitive via linking spectra).

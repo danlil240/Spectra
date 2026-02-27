@@ -1,0 +1,73 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cmake",
+            "label": "CMake: Configure Clang ASan",
+            "command": "configure",
+            "problemMatcher": [],
+            "detail": "Configure CMake project with clang++ and AddressSanitizer",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "configureArgs": [
+                    "-DCMAKE_BUILD_TYPE=Debug",
+                    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                    "-DCMAKE_CXX_COMPILER=clang++-15",
+                    "-DCMAKE_C_COMPILER=clang-15",
+                    "-DCMAKE_CXX_FLAGS_DEBUG=-g -O1 -fsanitize=address -fno-omit-frame-pointer",
+                    "-DCMAKE_C_FLAGS_DEBUG=-g -O1 -fsanitize=address -fno-omit-frame-pointer",
+                    "-DCMAKE_EXE_LINKER_FLAGS_DEBUG=-fsanitize=address",
+                    "-DCMAKE_SHARED_LINKER_FLAGS_DEBUG=-fsanitize=address",
+                    "-DSPECTRA_BUILD_EXAMPLES=ON",
+                    "-DSPECTRA_BUILD_TESTS=ON"
+                ]
+            }
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: Build Clang ASan",
+            "command": "build",
+            "targets": [
+                "all"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Build with clang++ and AddressSanitizer",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": ["CMake: Configure Clang ASan"]
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: Clean Rebuild Clang ASan",
+            "command": "cleanRebuild",
+            "targets": [
+                "all"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Clean rebuild with clang++ and AddressSanitizer",
+            "dependsOn": ["CMake: Configure Clang ASan"]
+        }
+    ]
+}

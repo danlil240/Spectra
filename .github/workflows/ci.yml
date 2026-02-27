@@ -169,15 +169,43 @@ jobs:
       - name: Pin Vulkan ICD to lavapipe
         run: |
           set -e
-          LVP_ICD="$(ls /usr/share/vulkan/icd.d/lvp_icd.*.json 2>/dev/null | head -n1)"
+          ICD_DIRS=(
+            /usr/share/vulkan/icd.d
+            /etc/vulkan/icd.d
+            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
+            /usr/lib/i386-linux-gnu/vulkan/icd.d
+          )
+
+          LVP_ICD=""
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+              [ -f "$f" ] || continue
+              LVP_ICD="$f"
+              break 2
+            done
+          done
+
+          # Fallback: detect lavapipe ICD by JSON content if filename changed.
           if [ -z "$LVP_ICD" ]; then
-            echo "ERROR: lavapipe ICD not found under /usr/share/vulkan/icd.d"
-            exit 1
+            for d in "${ICD_DIRS[@]}"; do
+              [ -d "$d" ] || continue
+              F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
+              if [ -n "$F_MATCH" ]; then
+                LVP_ICD="$F_MATCH"
+                break
+              fi
+            done
           fi
-          echo "Using lavapipe ICD: $LVP_ICD"
-          echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
-          # Newer Vulkan loader env var name; keep both for compatibility.
-          echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+
+          if [ -n "$LVP_ICD" ]; then
+            echo "Using lavapipe ICD: $LVP_ICD"
+            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+            # Newer Vulkan loader env var name; keep both for compatibility.
+            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+          else
+            echo "WARNING: lavapipe ICD JSON not found; continuing with loader default ICD selection"
+          fi
 
       - name: Configure + Build
         run: |

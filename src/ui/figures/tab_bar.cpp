@@ -693,10 +693,10 @@ void TabBar::draw_context_menu()
     const auto& colors = ui::theme();
 
     // Modern popup styling
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_PopupBg,
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
@@ -850,7 +850,7 @@ void TabBar::draw_context_menu()
         renaming_tab_ = false;
     }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleColor(
@@ -871,7 +871,7 @@ void TabBar::draw_context_menu()
         }
         ImGui::Spacing();
 
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
         if (enter_pressed || ImGui::Button("OK"))
         {
             std::string new_title(rename_buffer_);

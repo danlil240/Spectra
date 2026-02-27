@@ -932,19 +932,25 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         fb_info.height     = height;
         fb_info.layers     = 1;
 
+        // Attachments array must outlive vkCreateFramebuffer call.
+        VkImageView fb_attachments[3]{};
+
         if (use_msaa)
         {
             // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (color_view)
-            VkImageView fb_attachments[] = {ctx.msaa_color_view, ctx.depth_view, ctx.color_view};
-            fb_info.attachmentCount      = 3;
-            fb_info.pAttachments         = fb_attachments;
+            fb_attachments[0]   = ctx.msaa_color_view;
+            fb_attachments[1]   = ctx.depth_view;
+            fb_attachments[2]   = ctx.color_view;
+            fb_info.attachmentCount = 3;
         }
         else
         {
-            VkImageView fb_attachments[] = {ctx.color_view, ctx.depth_view};
-            fb_info.attachmentCount      = 2;
-            fb_info.pAttachments         = fb_attachments;
+            fb_attachments[0]   = ctx.color_view;
+            fb_attachments[1]   = ctx.depth_view;
+            fb_info.attachmentCount = 2;
         }
+
+        fb_info.pAttachments = fb_attachments;
 
         if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffer) != VK_SUCCESS)
         {

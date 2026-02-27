@@ -556,6 +556,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         running_ = false;
     }
 
+    // Refresh active_figure pointer in case it was destroyed during process_pending_closes
+    frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+
     return frame_state;
 }
 

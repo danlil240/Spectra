@@ -246,41 +246,9 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
         }
     }
 
-    // Right click: select nearest series (for context menu) or remove marker
+    // Right click: remove marker
     if (button == 1)
     {
-        bool rc_selected_series = false;
-
-        // First try to select the nearest series so context menu has a target
-        // Use the right-click callback (no-toggle) so it always selects, never deselects
-        constexpr float RC_SELECT_SNAP_PX = 40.0f;
-        auto& rc_cb = on_series_rc_selected_ ? on_series_rc_selected_ : on_series_selected_;
-        if (nearest_.found && nearest_.distance_px <= RC_SELECT_SNAP_PX && rc_cb)
-        {
-            int ax_idx = 0;
-            for (auto& axes_ptr : last_figure_->axes())
-            {
-                if (!axes_ptr)
-                {
-                    ax_idx++;
-                    continue;
-                }
-                int s_idx = 0;
-                for (auto& series_ptr : axes_ptr->series())
-                {
-                    if (series_ptr.get() == nearest_.series)
-                    {
-                        rc_cb(last_figure_, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx);
-                        rc_selected_series = true;
-                        goto right_click_marker_check;
-                    }
-                    s_idx++;
-                }
-                ax_idx++;
-            }
-        }
-
-    right_click_marker_check:
         int idx = markers_.hit_test(static_cast<float>(screen_x),
                                     static_cast<float>(screen_y),
                                     active_viewport_,
@@ -293,11 +261,6 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
             markers_.remove(static_cast<size_t>(idx));
             return true;
         }
-
-        // If we selected a series, consume the event so the input handler
-        // doesn't start zoom drag — the context menu will open via ImGui instead
-        if (rc_selected_series)
-            return true;
     }
 
     return false;

@@ -8,11 +8,11 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-02-26 Session 3 |
+| Last run | 2026-02-27 Session 4 |
 | Screenshot count confirmed | 51 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
-| Open P2+ issues | 0 (D43, D44 fixed) |
+| Open P2+ issues | 0 (D45 fixed) |
 | Last golden refresh | — |
 | SKILL.md last self-updated | 2026-02-26 (initial consolidation) |
 
@@ -24,6 +24,41 @@
 | Date | Section | Reason |
 |---|---|---|
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-02-27 17:07 (Session 4)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260227` (baseline), `/tmp/spectra_qa_design_20260227_after` (after fix)
+- Exit code: `0`
+- Duration: 12.1s | Frames: 1015
+
+**Screenshot audit**
+- Expected: 51
+- Captured: 51
+- Missing: none
+
+**Issues found**
+| ID | Priority | Screenshot | Description |
+|---|---|---|---|
+| D45 | P2 | All UI Panels | Hardcoded `ImVec2` padding and spacing values used across ImGui components instead of `ui::tokens` |
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| D45 | `src/ui/imgui/imgui_integration.cpp` | Replaced hardcoded padding/spacing values with `ui::tokens::SPACE_*` |
+| D45 | `src/ui/figures/tab_bar.cpp` | Replaced hardcoded padding/spacing values with `ui::tokens::SPACE_*` |
+| D45 | `src/ui/commands/command_palette.cpp` | Replaced hardcoded padding/spacing values with `ui::tokens::SPACE_*` |
+| D45 | `src/ui/imgui/widgets.cpp` | Replaced hardcoded padding/spacing values with `ui::tokens::SPACE_*` |
+
+**Goldens updated**
+- none
+
+**Self-updates to SKILL.md**
+- none
 
 ---
 

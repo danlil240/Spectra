@@ -529,7 +529,7 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                           ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_1, ui::tokens::SPACE_1));
 
     ImFont* f = icon_font(tokens::ICON_SM);
     if (f)
@@ -544,7 +544,7 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
 
     if (tooltip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_MD);
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
                               ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));

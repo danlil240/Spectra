@@ -286,7 +286,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     {
         ImGui::SetNextWindowPos(ImGui::GetIO().MousePos, ImGuiCond_Always, ImVec2(0.5f, 1.0f));
         ImGui::BeginTooltip();
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
                               ImVec4(ui::theme().bg_elevated.r,
@@ -782,7 +782,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                                  colors.accent_muted.g,
                                  colors.accent_muted.b,
                                  colors.accent_muted.a));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(14, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     // Remember button rect for popup positioning and auto-close
@@ -813,10 +813,10 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     ImGui::SetNextWindowPos(ImVec2(btn_pos.x, btn_max.y + 2.0f));
 
     // Modern popup styling
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_PopupBg,
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
@@ -961,7 +961,7 @@ void ImGuiIntegration::draw_toolbar_button(const char*           icon,
     ImGui::PushStyleColor(
         ImGuiCol_ButtonActive,
         ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     if (ImGui::Button(icon))
@@ -1003,9 +1003,9 @@ void ImGuiIntegration::draw_command_bar()
                              | ImGuiWindowFlags_NoFocusOnAppearing;
 
     // Enhanced styling for 2026 modern look
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 10));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_3, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
                           ImVec4(ui::theme().bg_secondary.r,
                                  ui::theme().bg_secondary.g,
@@ -1658,7 +1658,7 @@ void ImGuiIntegration::draw_tab_bar()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
@@ -1757,7 +1757,7 @@ void ImGuiIntegration::draw_nav_rail()
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
             {
                 ImGui::BeginTooltip();
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
                 ImGui::PushStyleColor(ImGuiCol_PopupBg,
                                       ImVec4(ui::theme().bg_elevated.r,
@@ -1942,7 +1942,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
             | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         if (ImGui::Begin("##inspector_resize_handle", nullptr, handle_flags))
         {
             ImGui::SetCursorScreenPos(ImVec2(handle_x, bounds.y));
@@ -2757,7 +2757,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         snprintf(win_id, sizeof(win_id), "##pane_tab_%u", ph.pane->id());
         ImGui::SetNextWindowPos(ImVec2(hr.x, hr.y));
         ImGui::SetNextWindowSize(ImVec2(hr.w, hr.h));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
@@ -3212,7 +3212,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::SetNextWindowSize(ImVec2(popup_io.DisplaySize.x, popup_io.DisplaySize.y));
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGuiWindowFlags popup_host_flags =
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
@@ -3231,10 +3231,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         // Programmatic close request — handled inside BeginPopup below
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 2));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
         ImGui::PushStyleColor(
             ImGuiCol_PopupBg,
             ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.98f));
@@ -3386,7 +3386,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
             pane_tab_renaming_ = false;
         }
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
         ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
         ImGui::PushStyleColor(
@@ -3405,7 +3405,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 ImGui::SetKeyboardFocusHere(-1);
             ImGui::Spacing();
 
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 6));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
             if (enter || ImGui::Button("OK"))
             {
                 std::string new_title(pane_tab_rename_buf_);
@@ -3479,12 +3479,16 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     }
 
     // ── Live buffer reset chip (top-right) ───────────────────────────────
-    bool has_live_axes = false;
+    bool has_live_axes     = false;
+    bool has_live_viewport = false;
+    Rect live_viewport{};
     for (const auto& ax_ptr : figure.axes())
     {
         if (ax_ptr && ax_ptr->has_presented_buffer())
         {
-            has_live_axes = true;
+            has_live_axes     = true;
+            live_viewport     = ax_ptr->viewport();
+            has_live_viewport = (live_viewport.w > 0.0f && live_viewport.h > 0.0f);
             break;
         }
     }
@@ -3492,8 +3496,9 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     if (has_live_axes)
     {
         Rect   canvas   = layout_manager_->canvas_rect();
+        Rect   anchor   = has_live_viewport ? live_viewport : canvas;
         ImVec2 chip_sz  = ImVec2(56.0f, 24.0f);
-        ImVec2 chip_pos = ImVec2(canvas.x + canvas.w - chip_sz.x - 12.0f, canvas.y + 12.0f);
+        ImVec2 chip_pos = ImVec2(anchor.x + 10.0f, anchor.y + 10.0f);
 
         char overlay_id[64];
         std::snprintf(overlay_id,
@@ -3501,18 +3506,24 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
                       "##live_overlay_%p",
                       static_cast<void*>(&figure));
 
-        ImGui::SetNextWindowPos(chip_pos);
-        ImGui::SetNextWindowSize(chip_sz);
+        ImGui::SetNextWindowPos(chip_pos, ImGuiCond_Always);
+        ImGui::SetNextWindowSize(chip_sz, ImGuiCond_Always);
         ImGui::SetNextWindowBgAlpha(0.0f);
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                                 | ImGuiWindowFlags_NoSavedSettings
-                                 | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+                                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
+                                 | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
+                                 | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
         if (ImGui::Begin(overlay_id, nullptr, flags))
         {
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, chip_sz.y * 0.5f);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 4.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
             ImGui::PushStyleColor(ImGuiCol_Border,
                                   ImVec4(colors.border_subtle.r,
                                          colors.border_subtle.g,
@@ -3544,6 +3555,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
             ImGui::PopStyleVar(3);
         }
         ImGui::End();
+        ImGui::PopStyleVar(2);
     }
 
     // Selection highlight is now rendered by the GPU pipeline
@@ -3598,7 +3610,7 @@ static bool transport_button(const char*            icon_label,
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_active);
     ImGui::PushStyleColor(ImGuiCol_Text, text_col);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
     bool clicked = ImGui::Button(icon_label, ImVec2(size, size));
@@ -3654,7 +3666,7 @@ void ImGuiIntegration::draw_timeline_panel()
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.3f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
     if (ImGui::Begin("##timeline_panel", nullptr, flags))
@@ -3795,7 +3807,7 @@ void ImGuiIntegration::draw_curve_editor_panel()
                                  colors.accent.b * 0.15f + colors.bg_tertiary.b * 0.85f,
                                  1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 
     bool still_open = show_curve_editor_;
@@ -3866,7 +3878,7 @@ void ImGuiIntegration::draw_curve_editor_panel()
                 ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.4f));
             ImGui::PushStyleColor(ImGuiCol_Text, text);
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 3));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_1));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, *value ? 0.0f : 1.0f);
             bool pushed_border = !*value;
             if (pushed_border)
@@ -4023,7 +4035,7 @@ void ImGuiIntegration::draw_csv_dialog()
         ImGuiCol_TitleBgActive,
         ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
 
     bool open = csv_dialog_open_;
     if (ImGui::Begin("CSV Column Picker##csv_dialog", &open, ImGuiWindowFlags_NoCollapse))
@@ -4200,7 +4212,7 @@ void ImGuiIntegration::draw_theme_settings()
                          ui::tokens::RADIUS_LG + 6);
 
     // Modern modal styling
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(24, 20));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_5));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
     ImGui::PushStyleColor(
@@ -4317,7 +4329,7 @@ void ImGuiIntegration::draw_theme_settings()
         float close_w = 90.0f;
         ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - close_w + ImGui::GetCursorPosX());
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_PILL);
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(20, 6));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
         ImGui::PushStyleColor(
             ImGuiCol_Button,
             ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.5f));
@@ -4405,10 +4417,10 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
     const auto& colors = ui::theme();
 
     // Popup styling
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_PopupBg,
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
@@ -5059,8 +5071,8 @@ void ImGuiIntegration::draw_knobs_panel()
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2(0.0f, 0.5f));
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,

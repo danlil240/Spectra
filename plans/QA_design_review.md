@@ -1,7 +1,8 @@
 # QA Design Review — UI/UX Improvements
 
 > Living document. Updated after each design review session with visual findings and concrete improvements.
-> Last updated: 2026-02-24 | Screenshots: `/tmp/spectra_qa_design_20260224_afterfix/design/`
+> Last updated: 2026-02-27 | Screenshots: `/tmp/spectra_qa_design_20260227_after/design/`
+> Session 4: 2026-02-27 — QA Designer Agent pass (D45)
 > Session 2: 2026-02-23 — QA Designer Agent pass (D5, D6, D7/D16, D9, D10, D11)
 > Session 3: 2026-02-23 — QA Designer Agent pass (D2, D3, D4, D8, D12, D13, D14, D15)
 > Session 5: 2026-02-23 — QA Designer Agent pass (D17, D18, D19, D20, D21, D22) — ALL ISSUES RESOLVED
@@ -661,3 +662,32 @@ ls /tmp/spectra_qa_design/design/
   - #45: Primary window clean, no context menu overlay
   - #45b: Secondary window shows "Detached Figure" with sin(2x) wave + legend
   - #46: Window moved screenshot clean
+---
+
+## Session 4 — 2026-02-27
+
+### Run Configuration
+- **Seed:** 42
+- **Output:** `/tmp/spectra_qa_design_20260227` (baseline), `/tmp/spectra_qa_design_20260227_after` (after fix)
+- **Mode:** `--design-review --no-fuzz --no-scenarios`
+- **Screenshots:** 51 captured
+
+### Issues Found
+
+#### D45 — Hardcoded Padding/Spacing in UI Code
+- **Priority:** P2
+- **Status:** Fixed
+- **Root Cause:** Multiple ImGui windows and components used hardcoded pixel values for `ImGuiStyleVar_WindowPadding`, `ImGuiStyleVar_ItemSpacing`, and `ImGuiStyleVar_FramePadding` instead of standardizing on the design token scale (`ui::tokens::SPACE_*`).
+- **Fix:** Refactored ImVec2 initializations inside `PushStyleVar` across multiple files to use their closest `ui::tokens::SPACE_*` constants for consistent visual rhythm. Fixed padding rules to respect 2026 design layout standards.
+- **Files Changed:**
+  - `src/ui/imgui/imgui_integration.cpp`
+  - `src/ui/figures/tab_bar.cpp`
+  - `src/ui/commands/command_palette.cpp`
+  - `src/ui/imgui/widgets.cpp`
+
+### Verification
+
+- **Build:** ✅ Clean (0 errors, 0 warnings in modified UI code)
+- **Tests:** ✅ 78/78 pass
+- **Screenshots:** ✅ 51 captured, visual proportions slightly adjusted due to token snapping, but no layout breakage.
+

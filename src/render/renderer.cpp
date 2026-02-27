@@ -2547,6 +2547,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
 
                 uint32_t first_seg = 0;
                 uint32_t seg_count = static_cast<uint32_t>(line->point_count()) - 1;
+                uint32_t first_pt = 0;
+                uint32_t pt_count = static_cast<uint32_t>(line->point_count());
 
                 // Apply visible-range culling (same as normal render path)
                 if (auto* axes2d = dynamic_cast<Axes*>(&axes))
@@ -2580,6 +2582,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                                     last_seg_end--;
                                 seg_count =
                                     (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
+                                first_pt = static_cast<uint32_t>(lo_idx);
+                                pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
                             }
                         }
                     }
@@ -2592,6 +2596,17 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.draw(seg_count * 6, first_seg * 6);
+                }
+                if (pt_count > 0)
+                {
+                    backend_.bind_pipeline(scatter_pipeline_);
+                    pc.point_size = 5.0f;
+                    pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
+                    pc.data_offset_x = 0.0f;
+                    pc.data_offset_y = 0.0f;
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.draw_instanced(6, pt_count, first_pt);
                 }
                 break;
             }
@@ -2619,6 +2634,16 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
                 backend_.draw(segments * 6);
+
+                if (line3d->point_count() > 0)
+                {
+                    backend_.bind_pipeline(scatter3d_pipeline_);
+                    pc.point_size = 5.0f;
+                    pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.draw_instanced(6, static_cast<uint32_t>(line3d->point_count()));
+                }
                 break;
             }
             case SeriesType::Scatter3D:

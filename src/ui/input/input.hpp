@@ -268,6 +268,9 @@ class InputHandler
 
     // Region selection drag state
     bool region_dragging_ = false;
+    // Select-mode press origin (used to distinguish click-to-select vs drag-select)
+    double select_start_x_ = 0.0;
+    double select_start_y_ = 0.0;
 
     // Measure tool state
     bool   measure_dragging_       = false;

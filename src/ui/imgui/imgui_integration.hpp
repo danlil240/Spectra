@@ -21,6 +21,7 @@ struct GLFWwindow;
 struct ImFont;
 struct ImFontAtlas;
 struct ImGuiContext;
+struct ImVec2;
 
 namespace spectra
 {
@@ -40,6 +41,7 @@ class TabBar;
 class TimelineEditor;
 class UndoManager;
 class VulkanBackend;
+class WindowManager;
 
 class ImGuiIntegration
 {
@@ -484,6 +486,10 @@ class ImGuiIntegration
 
     // Axes context menu state (right-click on canvas)
     AxesBase* context_menu_axes_ = nullptr;   // Which axes was right-clicked (2D or 3D)
+    bool      context_menu_armed_        = false;
+    AxesBase* context_menu_pressed_axes_ = nullptr;
+    float     context_menu_press_x_      = 0.0f;
+    float     context_menu_press_y_      = 0.0f;
     // bool context_menu_open_ = false;  // Currently unused
 
     // Per-pane tab drag state

@@ -1835,8 +1835,8 @@ void ImGuiIntegration::draw_nav_rail()
         };
 
         tool_btn(ui::Icon::Hand, "Pan (P)", ToolMode::Pan);
+        tool_btn(ui::Icon::Crosshair, "Select Series (S)", ToolMode::Select);
         tool_btn(ui::Icon::ZoomIn, "Box Zoom (Z)", ToolMode::BoxZoom);
-        tool_btn(ui::Icon::Crosshair, "Select (S)", ToolMode::Select);
 
         // Measure button — switches to Measure tool mode for click-drag distance measurement
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad_x);
@@ -3481,6 +3481,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     // ── Live buffer reset chip (top-right) ───────────────────────────────
     bool has_live_axes     = false;
     bool has_live_viewport = false;
+    bool live_following    = false;
     Rect live_viewport{};
     for (const auto& ax_ptr : figure.axes())
     {
@@ -3489,16 +3490,23 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
             has_live_axes     = true;
             live_viewport     = ax_ptr->viewport();
             has_live_viewport = (live_viewport.w > 0.0f && live_viewport.h > 0.0f);
+            live_following    = ax_ptr->is_presented_buffer_following();
             break;
         }
     }
 
     if (has_live_axes)
     {
-        Rect   canvas   = layout_manager_->canvas_rect();
-        Rect   anchor   = has_live_viewport ? live_viewport : canvas;
-        ImVec2 chip_sz  = ImVec2(56.0f, 24.0f);
-        ImVec2 chip_pos = ImVec2(anchor.x + 10.0f, anchor.y + 10.0f);
+        Rect   canvas  = layout_manager_->canvas_rect();
+        Rect   anchor  = has_live_viewport ? live_viewport : canvas;
+        ImVec2 chip_sz = ImVec2(36.0f, 24.0f);
+
+        // Keep the control in top-right, above legend's default top-right slot.
+        float chip_x = anchor.x + anchor.w - chip_sz.x - 12.0f;
+        float chip_y = anchor.y - chip_sz.y - 8.0f;
+        if (chip_y < 4.0f)
+            chip_y = 4.0f;
+        ImVec2 chip_pos = ImVec2(chip_x, chip_y);
 
         char overlay_id[64];
         std::snprintf(overlay_id,
@@ -3540,14 +3548,65 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
                 ImGuiCol_Text,
                 ImVec4(colors.text_inverse.r, colors.text_inverse.g, colors.text_inverse.b, 1.0f));
 
-            if (ImGui::Button("LIVE", chip_sz))
+            if (ImGui::Button("##live_follow_toggle", chip_sz))
             {
-                reset_live_view_ = true;
+                if (live_following)
+                {
+                    for (auto& ax : figure.axes_mut())
+                    {
+                        if (ax && ax->has_presented_buffer())
+                        {
+                            AxisLimits xlim = ax->x_limits();
+                            AxisLimits ylim = ax->y_limits();
+                            ax->xlim(xlim.min, xlim.max);
+                            ax->ylim(ylim.min, ylim.max);
+                        }
+                    }
+                }
+                else
+                {
+                    reset_live_view_ = true;
+                }
             }
+
+            // Draw crisp transport glyphs for a cleaner, more professional control.
+            ImDrawList* win_dl  = ImGui::GetWindowDrawList();
+            ImVec2      rmin    = ImGui::GetItemRectMin();
+            ImVec2      rmax    = ImGui::GetItemRectMax();
+            ImVec2      center  = ImVec2((rmin.x + rmax.x) * 0.5f, (rmin.y + rmax.y) * 0.5f);
+            ImU32       icon_col = IM_COL32(static_cast<int>(colors.text_inverse.r * 255.0f),
+                                      static_cast<int>(colors.text_inverse.g * 255.0f),
+                                      static_cast<int>(colors.text_inverse.b * 255.0f),
+                                      255);
+
+            if (live_following)
+            {
+                float bar_h   = 9.0f;
+                float bar_w   = 2.6f;
+                float gap     = 3.0f;
+                float y0      = center.y - bar_h * 0.5f;
+                float y1      = center.y + bar_h * 0.5f;
+                float left_x0 = center.x - gap * 0.5f - bar_w;
+                float left_x1 = center.x - gap * 0.5f;
+                float right_x0 = center.x + gap * 0.5f;
+                float right_x1 = center.x + gap * 0.5f + bar_w;
+                win_dl->AddRectFilled(ImVec2(left_x0, y0), ImVec2(left_x1, y1), icon_col, 1.0f);
+                win_dl->AddRectFilled(ImVec2(right_x0, y0), ImVec2(right_x1, y1), icon_col, 1.0f);
+            }
+            else
+            {
+                float w = 8.5f;
+                float h = 10.0f;
+                win_dl->AddTriangleFilled(ImVec2(center.x - w * 0.45f, center.y - h * 0.5f),
+                                          ImVec2(center.x - w * 0.45f, center.y + h * 0.5f),
+                                          ImVec2(center.x + w * 0.55f, center.y),
+                                          icon_col);
+            }
+
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
             {
                 ImGui::BeginTooltip();
-                ImGui::TextUnformatted("Reset to live buffer view");
+                ImGui::TextUnformatted(live_following ? "Pause live-follow" : "Resume live-follow");
                 ImGui::EndTooltip();
             }
 
@@ -4361,56 +4420,82 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
     if (!input_handler_ || !axis_link_mgr_)
         return;
 
-    // Detect right-click on canvas (not captured by ImGui)
+    // Detect right-click context intent on PRESS, but only open on RELEASE
+    // when there was no drag. This prevents right-drag zoom from spawning a
+    // popup that steals the next left click (e.g. first play click after zoom).
     ImGuiIO& io = ImGui::GetIO();
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !io.WantCaptureMouse)
     {
-        // Hit-test all axes (2D and 3D)
         AxesBase* hit = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
                                                           static_cast<double>(io.MousePos.y));
-        if (hit)
+        context_menu_armed_        = (hit != nullptr);
+        context_menu_pressed_axes_ = hit;
+        context_menu_press_x_      = io.MousePos.x;
+        context_menu_press_y_      = io.MousePos.y;
+    }
+
+    if (context_menu_armed_)
+    {
+        constexpr float kContextClickMaxDragPx = 4.0f;
+        float           dx                     = io.MousePos.x - context_menu_press_x_;
+        float           dy                     = io.MousePos.y - context_menu_press_y_;
+        float           dist2                  = dx * dx + dy * dy;
+
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Right)
+            && dist2 > kContextClickMaxDragPx * kContextClickMaxDragPx)
         {
-            context_menu_axes_ = hit;
-
-            // Auto-select nearest series on right-click so clipboard ops work.
-            // Use select_series_no_toggle() to always select (never deselect).
-            // DataInteraction::on_mouse_click also fires for right-click, but
-            // this path handles 3D axes (all_axes) and sets axes_base properly.
-            if (data_interaction_)
+            // Became a drag (zoom/pan intent), cancel popup arming.
+            context_menu_armed_        = false;
+            context_menu_pressed_axes_ = nullptr;
+        }
+        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        {
+            if (!io.WantCaptureMouse && context_menu_pressed_axes_)
             {
-                const auto& np = data_interaction_->nearest_point();
-                if (np.found && np.distance_px <= 40.0f && np.series)
-                {
-                    int ax_idx = 0;
-                    for (auto& axes_ptr : figure.all_axes())
-                    {
-                        if (!axes_ptr)
-                        {
-                            ax_idx++;
-                            continue;
-                        }
-                        int s_idx = 0;
-                        for (auto& sp : axes_ptr->series())
-                        {
-                            if (sp.get() == np.series)
-                            {
-                                select_series_no_toggle(&figure,
-                                                        dynamic_cast<Axes*>(axes_ptr.get()),
-                                                        ax_idx,
-                                                        sp.get(),
-                                                        s_idx);
-                                selection_ctx_.axes_base = axes_ptr.get();
-                                goto found_series_rc;
-                            }
-                            s_idx++;
-                        }
-                        ax_idx++;
-                    }
-                found_series_rc:;
-                }
-            }
+                context_menu_axes_ = context_menu_pressed_axes_;
 
-            ImGui::OpenPopup("##axes_context_menu");
+                // Auto-select nearest series on right-click only in Select mode
+                // so series selection behavior is mode-gated (MATLAB-like).
+                // Use select_series_no_toggle() to always select (never deselect).
+                // This path handles 3D axes (all_axes) and sets axes_base properly.
+                if (data_interaction_ && interaction_mode_ == ToolMode::Select)
+                {
+                    const auto& np = data_interaction_->nearest_point();
+                    if (np.found && np.distance_px <= 40.0f && np.series)
+                    {
+                        int ax_idx = 0;
+                        for (auto& axes_ptr : figure.all_axes())
+                        {
+                            if (!axes_ptr)
+                            {
+                                ax_idx++;
+                                continue;
+                            }
+                            int s_idx = 0;
+                            for (auto& sp : axes_ptr->series())
+                            {
+                                if (sp.get() == np.series)
+                                {
+                                    select_series_no_toggle(&figure,
+                                                            dynamic_cast<Axes*>(axes_ptr.get()),
+                                                            ax_idx,
+                                                            sp.get(),
+                                                            s_idx);
+                                    selection_ctx_.axes_base = axes_ptr.get();
+                                    goto found_series_rc;
+                                }
+                                s_idx++;
+                            }
+                            ax_idx++;
+                        }
+                    found_series_rc:;
+                    }
+                }
+
+                ImGui::OpenPopup("##axes_context_menu");
+            }
+            context_menu_armed_        = false;
+            context_menu_pressed_axes_ = nullptr;
         }
     }
 

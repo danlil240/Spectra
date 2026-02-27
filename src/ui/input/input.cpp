@@ -569,6 +569,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         {
             if (data_interaction_)
             {
+                select_start_x_ = x;
+                select_start_y_ = y;
                 SPECTRA_LOG_DEBUG("input", "Starting region selection (Select mode)");
                 data_interaction_->begin_region_select(x, y);
                 region_dragging_ = true;
@@ -580,8 +582,22 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         {
             if (data_interaction_)
             {
-                SPECTRA_LOG_DEBUG("input", "Finishing region selection");
-                data_interaction_->finish_region_select();
+                float dx_px              = static_cast<float>(x - select_start_x_);
+                float dy_px              = static_cast<float>(y - select_start_y_);
+                float move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                constexpr float CLICK_THRESHOLD_PX = 5.0f;
+
+                if (move_dist < CLICK_THRESHOLD_PX)
+                {
+                    // Click behavior in Select mode: series selection / datatip toggle.
+                    data_interaction_->dismiss_region_select();
+                    data_interaction_->on_mouse_click(0, x, y);
+                }
+                else
+                {
+                    SPECTRA_LOG_DEBUG("input", "Finishing region selection");
+                    data_interaction_->finish_region_select();
+                }
             }
             region_dragging_ = false;
             return;
@@ -726,14 +742,14 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
             mode_ = InteractionMode::Idle;
 
-            // Detect click-without-drag: if the mouse barely moved, treat as a
-            // click for series selection rather than a pan gesture.
+            // Detect click-without-drag: if the mouse barely moved, revert tiny
+            // pan jitter and keep Pan mode non-selecting.
             {
                 float           dx_px              = static_cast<float>(x - drag_start_x_);
                 float           dy_px              = static_cast<float>(y - drag_start_y_);
                 float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
                 constexpr float CLICK_THRESHOLD_PX = 5.0f;
-                if (move_dist < CLICK_THRESHOLD_PX && data_interaction_)
+                if (move_dist < CLICK_THRESHOLD_PX)
                 {
                     // Undo the tiny pan that occurred during the drag
                     if (active_axes_)
@@ -741,10 +757,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         active_axes_->xlim(drag_start_xlim_min_, drag_start_xlim_max_);
                         active_axes_->ylim(drag_start_ylim_min_, drag_start_ylim_max_);
                     }
-                    if (data_interaction_->on_mouse_click(0, x, y))
-                    {
-                        return;   // Click consumed by data interaction (series selected)
-                    }
+                    return;
                 }
             }
 

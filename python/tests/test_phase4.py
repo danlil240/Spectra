@@ -420,7 +420,7 @@ class TestBatchItemNesting:
                     elif inner.tag == P.TAG_PROPERTY_NAME:
                         found["prop"] = inner.as_string()
                     elif inner.tag == P.TAG_F1:
-                        found["f1"] = inner.as_float()
+                        found["f1"] = inner.as_double()
                 assert found["figure_id"] == 99
                 assert found["series_index"] == 3
                 assert found["prop"] == "opacity"

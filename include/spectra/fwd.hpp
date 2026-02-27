@@ -83,6 +83,10 @@ class TabDragController;
 class SeriesClipboard;
 struct SeriesSnapshot;
 
+class DataEditor;
+
+class EmbedSurface;
+
 class ImageExporter;
 class SvgExporter;
 class VideoExporter;

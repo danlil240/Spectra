@@ -312,17 +312,17 @@ void Renderer::render_plot_text(Figure& figure)
         auto        xlim = axes.x_limits();
         auto        ylim = axes.y_limits();
 
-        float x_range = xlim.max - xlim.min;
-        float y_range = ylim.max - ylim.min;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
+        double x_range = xlim.max - xlim.min;
+        double y_range = ylim.max - ylim.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
 
-        auto data_to_px_x = [&](float dx) -> float
-        { return vp.x + (dx - xlim.min) / x_range * vp.w; };
-        auto data_to_px_y = [&](float dy) -> float
-        { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
+        auto data_to_px_x = [&](double dx) -> float
+        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_y = [&](double dy) -> float
+        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -450,15 +450,17 @@ void Renderer::render_plot_text(Figure& figure)
         auto ylim = axes3d->y_limits();
         auto zlim = axes3d->z_limits();
 
-        float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
+        float x0 = static_cast<float>(xlim.min);
+        float y0 = static_cast<float>(ylim.min);
+        float z0 = static_cast<float>(zlim.min);
 
         vec3 view_dir       = vec3_normalize(cam.target - cam.position);
         bool looking_down_y = std::abs(view_dir.y) > 0.98f;
         bool looking_down_z = std::abs(view_dir.z) > 0.98f;
 
-        float           x_tick_offset             = (ylim.max - ylim.min) * 0.04f;
-        float           y_tick_offset             = (xlim.max - xlim.min) * 0.04f;
-        float           z_tick_offset             = (xlim.max - xlim.min) * 0.04f;
+        float           x_tick_offset             = static_cast<float>((ylim.max - ylim.min) * 0.04);
+        float           y_tick_offset             = static_cast<float>((xlim.max - xlim.min) * 0.04);
+        float           z_tick_offset             = static_cast<float>((xlim.max - xlim.min) * 0.04);
         constexpr float tick_label_min_spacing_px = 18.0f;
         auto            should_skip_overlapping_tick =
             [&](float sx, float sy, float& last_sx, float& last_sy, bool& has_last) -> bool
@@ -555,10 +557,12 @@ void Renderer::render_plot_text(Figure& figure)
 
         // --- 3D axis arrow labels ---
         {
-            float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
-            float arrow_len_x = (xlim.max - xlim.min) * 0.18f;
-            float arrow_len_y = (ylim.max - ylim.min) * 0.18f;
-            float arrow_len_z = (zlim.max - zlim.min) * 0.18f;
+            float x1            = static_cast<float>(xlim.max);
+            float y1            = static_cast<float>(ylim.max);
+            float z1            = static_cast<float>(zlim.max);
+            float arrow_len_x = static_cast<float>((xlim.max - xlim.min) * 0.18);
+            float arrow_len_y = static_cast<float>((ylim.max - ylim.min) * 0.18);
+            float arrow_len_z = static_cast<float>((zlim.max - zlim.min) * 0.18);
 
             auto pack_rgba = [](uint8_t r, uint8_t g, uint8_t b, uint8_t a) -> uint32_t
             {
@@ -653,17 +657,17 @@ void Renderer::render_plot_geometry(Figure& figure)
         auto        xlim = axes.x_limits();
         auto        ylim = axes.y_limits();
 
-        float x_range = xlim.max - xlim.min;
-        float y_range = ylim.max - ylim.min;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
+        double x_range = xlim.max - xlim.min;
+        double y_range = ylim.max - ylim.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
 
-        auto data_to_px_x = [&](float dx) -> float
-        { return vp.x + (dx - xlim.min) / x_range * vp.w; };
-        auto data_to_px_y = [&](float dy) -> float
-        { return vp.y + (1.0f - (dy - ylim.min) / y_range) * vp.h; };
+        auto data_to_px_x = [&](double dx) -> float
+        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_y = [&](double dy) -> float
+        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -1323,8 +1327,8 @@ void Renderer::render_axes(AxesBase&   axes,
         if (auto* axes2d = dynamic_cast<Axes*>(&axes))
         {
             auto xlim = axes2d->x_limits();
-            vis.x_min = xlim.min;
-            vis.x_max = xlim.max;
+            vis.x_min = static_cast<float>(xlim.min);
+            vis.x_max = static_cast<float>(xlim.max);
             vis_ptr   = &vis;
         }
 
@@ -1373,19 +1377,24 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         {
             // Generate 3D grid vertices at tick positions (matches tick labels)
             Axes3DRenderer::GridPlaneData grid_gen;
-            vec3                          min_corner = {xlim.min, ylim.min, zlim.min};
-            vec3                          max_corner = {xlim.max, ylim.max, zlim.max};
+            vec3 min_corner = {static_cast<float>(xlim.min), static_cast<float>(ylim.min),
+                               static_cast<float>(zlim.min)};
+            vec3 max_corner = {static_cast<float>(xlim.max), static_cast<float>(ylim.max),
+                               static_cast<float>(zlim.max)};
 
             auto x_ticks = axes3d->compute_x_ticks().positions;
             auto y_ticks = axes3d->compute_y_ticks().positions;
             auto z_ticks = axes3d->compute_z_ticks().positions;
 
             if (static_cast<int>(gp & Axes3D::GridPlane::XY))
-                grid_gen.generate_xy_plane(min_corner, max_corner, zlim.min, x_ticks, y_ticks);
+                grid_gen.generate_xy_plane(
+                    min_corner, max_corner, static_cast<float>(zlim.min), x_ticks, y_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
-                grid_gen.generate_xz_plane(min_corner, max_corner, ylim.min, x_ticks, z_ticks);
+                grid_gen.generate_xz_plane(
+                    min_corner, max_corner, static_cast<float>(ylim.min), x_ticks, z_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
-                grid_gen.generate_yz_plane(min_corner, max_corner, xlim.min, y_ticks, z_ticks);
+                grid_gen.generate_yz_plane(
+                    min_corner, max_corner, static_cast<float>(xlim.min), y_ticks, z_ticks);
 
             if (grid_gen.vertices.empty())
                 return;
@@ -1472,20 +1481,24 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
                 grid_scratch_.resize(grid2d_floats);
             size_t wi = 0;
 
+            float fy_min = static_cast<float>(ylim.min);
+            float fy_max = static_cast<float>(ylim.max);
+            float fx_min = static_cast<float>(xlim.min);
+            float fx_max = static_cast<float>(xlim.max);
             for (size_t i = 0; i < num_x; ++i)
             {
                 float x             = x_ticks.positions[i];
                 grid_scratch_[wi++] = x;
-                grid_scratch_[wi++] = ylim.min;
+                grid_scratch_[wi++] = fy_min;
                 grid_scratch_[wi++] = x;
-                grid_scratch_[wi++] = ylim.max;
+                grid_scratch_[wi++] = fy_max;
             }
             for (size_t i = 0; i < num_y; ++i)
             {
                 float y             = y_ticks.positions[i];
-                grid_scratch_[wi++] = xlim.min;
+                grid_scratch_[wi++] = fx_min;
                 grid_scratch_[wi++] = y;
-                grid_scratch_[wi++] = xlim.max;
+                grid_scratch_[wi++] = fx_max;
                 grid_scratch_[wi++] = y;
             }
 
@@ -1558,8 +1571,10 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
     if (limits_changed)
     {
-        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+        vec3 min_corner = {static_cast<float>(xlim.min), static_cast<float>(ylim.min),
+                           static_cast<float>(zlim.min)};
+        vec3 max_corner = {static_cast<float>(xlim.max), static_cast<float>(ylim.max),
+                           static_cast<float>(zlim.max)};
 
         Axes3DRenderer::BoundingBoxData bbox;
         bbox.generate(min_corner, max_corner);
@@ -1631,13 +1646,15 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
     if (limits_changed)
     {
-        vec3 min_corner = {xlim.min, ylim.min, zlim.min};
-        vec3 max_corner = {xlim.max, ylim.max, zlim.max};
+        vec3 min_corner = {static_cast<float>(xlim.min), static_cast<float>(ylim.min),
+                           static_cast<float>(zlim.min)};
+        vec3 max_corner = {static_cast<float>(xlim.max), static_cast<float>(ylim.max),
+                           static_cast<float>(zlim.max)};
 
         // Tick length: ~2% of axis range
-        float x_tick_len = (ylim.max - ylim.min) * 0.02f;
-        float y_tick_len = (xlim.max - xlim.min) * 0.02f;
-        float z_tick_len = (xlim.max - xlim.min) * 0.02f;
+        float x_tick_len = static_cast<float>((ylim.max - ylim.min) * 0.02);
+        float y_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
+        float z_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
 
         Axes3DRenderer::TickMarkData x_data;
         x_data.generate_x_ticks(axes, min_corner, max_corner);
@@ -2665,25 +2682,27 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
     }
 }
 
-void Renderer::build_ortho_projection(float left, float right, float bottom, float top, float* m)
+void Renderer::build_ortho_projection(double left, double right, double bottom, double top, float* m)
 {
     // Column-major 4x4 orthographic projection matrix
     // Maps [left,right] x [bottom,top] to [-1,1] x [-1,1]
+    // Computed in double precision to avoid collapse at deep zoom,
+    // then stored as float for the GPU.
     std::memset(m, 0, 16 * sizeof(float));
 
-    float rl = right - left;
-    float tb = top - bottom;
+    double rl = right - left;
+    double tb = top - bottom;
 
-    if (rl == 0.0f)
-        rl = 1.0f;
-    if (tb == 0.0f)
-        tb = 1.0f;
+    if (rl == 0.0)
+        rl = 1.0;
+    if (tb == 0.0)
+        tb = 1.0;
 
-    m[0]  = 2.0f / rl;
-    m[5]  = -2.0f / tb;   // Negate for Vulkan Y-down clip space
+    m[0]  = static_cast<float>(2.0 / rl);
+    m[5]  = static_cast<float>(-2.0 / tb);   // Negate for Vulkan Y-down clip space
     m[10] = -1.0f;
-    m[12] = -(right + left) / rl;
-    m[13] = (top + bottom) / tb;   // Flip sign for Vulkan
+    m[12] = static_cast<float>(-(right + left) / rl);
+    m[13] = static_cast<float>((top + bottom) / tb);   // Flip sign for Vulkan
     m[15] = 1.0f;
 }
 

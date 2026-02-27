@@ -37,22 +37,22 @@ class FigureModel
 
     // Add an axes to a figure. Returns the axes index.
     uint32_t add_axes(uint64_t figure_id,
-                      float    x_min = 0.0f,
-                      float    x_max = 1.0f,
-                      float    y_min = 0.0f,
-                      float    y_max = 1.0f,
+                      double   x_min = 0.0,
+                      double   x_max = 1.0,
+                      double   y_min = 0.0,
+                      double   y_max = 1.0,
                       bool     is_3d = false);
 
     // Set axis limits. Returns a DiffOp for broadcasting.
     ipc::DiffOp set_axis_limits(uint64_t figure_id,
                                 uint32_t axes_index,
-                                float    x_min,
-                                float    x_max,
-                                float    y_min,
-                                float    y_max);
+                                double   x_min,
+                                double   x_max,
+                                double   y_min,
+                                double   y_max);
 
     // Set 3D z-axis limits. Returns a DiffOp for broadcasting.
-    ipc::DiffOp set_axis_zlimits(uint64_t figure_id, uint32_t axes_index, float z_min, float z_max);
+    ipc::DiffOp set_axis_zlimits(uint64_t figure_id, uint32_t axes_index, double z_min, double z_max);
 
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
@@ -148,10 +148,10 @@ class FigureModel
     // Get current axis limits for a figure's axes. Returns false if not found.
     bool get_axis_limits(uint64_t figure_id,
                          uint32_t axes_index,
-                         float&   x_min,
-                         float&   x_max,
-                         float&   y_min,
-                         float&   y_max) const;
+                         double&  x_min,
+                         double&  x_max,
+                         double&  y_min,
+                         double&  y_max) const;
 
    private:
     mutable std::mutex mu_;

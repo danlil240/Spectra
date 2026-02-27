@@ -552,10 +552,12 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
         if (widgets::begin_animated_section("X AXIS"))
         {
             widgets::begin_group("xaxis");
-            auto xlim = ax.x_limits();
-            if (widgets::drag_field2("Range", xlim.min, xlim.max, 0.01f, "%.3f"))
+            auto  xlim   = ax.x_limits();
+            float xmin_f = static_cast<float>(xlim.min);
+            float xmax_f = static_cast<float>(xlim.max);
+            if (widgets::drag_field2("Range", xmin_f, xmax_f, 0.01f, "%.3f"))
             {
-                ax.xlim(xlim.min, xlim.max);
+                ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
             }
             std::string xlabel = ax.get_xlabel();
             if (widgets::text_field("Label", xlabel))
@@ -574,10 +576,12 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
         if (widgets::begin_animated_section("Y AXIS"))
         {
             widgets::begin_group("yaxis");
-            auto ylim = ax.y_limits();
-            if (widgets::drag_field2("Range", ylim.min, ylim.max, 0.01f, "%.3f"))
+            auto  ylim   = ax.y_limits();
+            float ymin_f = static_cast<float>(ylim.min);
+            float ymax_f = static_cast<float>(ylim.max);
+            if (widgets::drag_field2("Range", ymin_f, ymax_f, 0.01f, "%.3f"))
             {
-                ax.ylim(ylim.min, ylim.max);
+                ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
             }
             std::string ylabel = ax.get_ylabel();
             if (widgets::text_field("Label", ylabel))

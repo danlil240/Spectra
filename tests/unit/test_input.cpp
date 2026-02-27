@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
 
@@ -167,6 +166,62 @@ TEST_F(InputHandlerTest, RightDragExtendsPresentedBuffer)
 
     EXPECT_TRUE(axes().has_presented_buffer());
     EXPECT_GT(axes().presented_buffer_seconds(), before_seconds);
+}
+
+TEST_F(InputHandlerTest, RightDragTwentyDegreesIsMostlyX)
+{
+    auto& vp = axes().viewport();
+    float cx = vp.x + vp.w * 0.5f;
+    float cy = vp.y + vp.h * 0.5f;
+
+    auto  xlim_before   = axes().x_limits();
+    auto  ylim_before   = axes().y_limits();
+    float xrange_before = xlim_before.max - xlim_before.min;
+    float yrange_before = ylim_before.max - ylim_before.min;
+
+    // ~20 degrees from horizontal: both axes zoom, but X should change more than Y.
+    handler_.on_mouse_button(1, 1, 0, cx, cy);
+    handler_.on_mouse_move(cx - 50.0, cy + 18.0);
+    handler_.on_mouse_button(1, 0, 0, cx - 50.0, cy + 18.0);
+
+    auto  xlim_after   = axes().x_limits();
+    auto  ylim_after   = axes().y_limits();
+    float xrange_after = xlim_after.max - xlim_after.min;
+    float yrange_after = ylim_after.max - ylim_after.min;
+
+    float dx_range = xrange_after - xrange_before;
+    float dy_range = yrange_after - yrange_before;
+    EXPECT_GT(dx_range, 0.0f);
+    EXPECT_GT(dy_range, 0.0f);
+    EXPECT_GT(dx_range, dy_range);
+}
+
+TEST_F(InputHandlerTest, RightDragSeventyDegreesIsMostlyY)
+{
+    auto& vp = axes().viewport();
+    float cx = vp.x + vp.w * 0.5f;
+    float cy = vp.y + vp.h * 0.5f;
+
+    auto  xlim_before   = axes().x_limits();
+    auto  ylim_before   = axes().y_limits();
+    float xrange_before = xlim_before.max - xlim_before.min;
+    float yrange_before = ylim_before.max - ylim_before.min;
+
+    // ~70 degrees from horizontal: both axes zoom, but Y should change more than X.
+    handler_.on_mouse_button(1, 1, 0, cx, cy);
+    handler_.on_mouse_move(cx - 18.0, cy + 50.0);
+    handler_.on_mouse_button(1, 0, 0, cx - 18.0, cy + 50.0);
+
+    auto  xlim_after   = axes().x_limits();
+    auto  ylim_after   = axes().y_limits();
+    float xrange_after = xlim_after.max - xlim_after.min;
+    float yrange_after = ylim_after.max - ylim_after.min;
+
+    float dx_range = xrange_after - xrange_before;
+    float dy_range = yrange_after - yrange_before;
+    EXPECT_GT(dx_range, 0.0f);
+    EXPECT_GT(dy_range, 0.0f);
+    EXPECT_GT(dy_range, dx_range);
 }
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────

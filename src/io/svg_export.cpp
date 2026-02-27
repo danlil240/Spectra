@@ -72,24 +72,24 @@ std::string xml_escape(const std::string& s)
 // SVG has Y-down, data has Y-up, so we flip Y.
 struct DataToSvg
 {
-    float vp_x, vp_y, vp_w, vp_h;
-    float x_min, x_max, y_min, y_max;
+    float  vp_x, vp_y, vp_w, vp_h;
+    double x_min, x_max, y_min, y_max;
 
     float map_x(float data_x) const
     {
-        float range = x_max - x_min;
-        if (range == 0.0f)
-            range = 1.0f;
-        return vp_x + (data_x - x_min) / range * vp_w;
+        double range = x_max - x_min;
+        if (range == 0.0)
+            range = 1.0;
+        return static_cast<float>(vp_x + (data_x - x_min) / range * vp_w);
     }
 
     float map_y(float data_y) const
     {
-        float range = y_max - y_min;
-        if (range == 0.0f)
-            range = 1.0f;
+        double range = y_max - y_min;
+        if (range == 0.0)
+            range = 1.0;
         // Flip Y: data y_max maps to vp_y (top), y_min maps to vp_y + vp_h (bottom)
-        return vp_y + (1.0f - (data_y - y_min) / range) * vp_h;
+        return static_cast<float>(vp_y + (1.0 - (data_y - y_min) / range) * vp_h);
     }
 };
 

@@ -13,6 +13,7 @@
 
     #include "ui/docking/dock_system.hpp"
     #include "ui/input/input.hpp"
+    #include "ui/overlay/data_editor.hpp"
     #include "ui/overlay/inspector.hpp"
     #include "ui/layout/layout_manager.hpp"
     #include "ui/input/selection_context.hpp"
@@ -369,6 +370,9 @@ class ImGuiIntegration
     ui::Inspector        inspector_;
     ui::SelectionContext selection_ctx_;
 
+    // Data editor (tabular series data view + inline editing)
+    ui::DataEditor       data_editor_;
+
     // Deferred series removal queue (flushed after on_frame callback)
     std::vector<PendingSeriesRemoval> pending_series_removals_;
 
@@ -380,7 +384,8 @@ class ImGuiIntegration
     {
         Figure,
         Series,
-        Axes
+        Axes,
+        DataEditor
     };
     Section active_section_ = Section::Figure;
 

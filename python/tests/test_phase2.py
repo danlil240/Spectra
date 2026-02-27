@@ -683,13 +683,13 @@ class TestUpdatePropertyCodec:
             if dec.tag == P.TAG_PROPERTY_NAME:
                 found["prop"] = dec.as_string()
             elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_float()
+                found["f1"] = dec.as_double()
             elif dec.tag == P.TAG_F2:
-                found["f2"] = dec.as_float()
+                found["f2"] = dec.as_double()
             elif dec.tag == P.TAG_F3:
-                found["f3"] = dec.as_float()
+                found["f3"] = dec.as_double()
             elif dec.tag == P.TAG_F4:
-                found["f4"] = dec.as_float()
+                found["f4"] = dec.as_double()
         assert found["prop"] == "color"
         assert abs(found["f1"] - 1.0) < 1e-6
         assert abs(found["f2"] - 0.5) < 1e-6
@@ -707,7 +707,7 @@ class TestUpdatePropertyCodec:
             if dec.tag == P.TAG_PROPERTY_NAME:
                 found_prop = dec.as_string()
             elif dec.tag == P.TAG_F1:
-                found_f1 = dec.as_float()
+                found_f1 = dec.as_double()
         assert found_prop == "line_width"
         assert abs(found_f1 - 2.5) < 1e-6
 
@@ -784,7 +784,7 @@ class TestUpdatePropertyCodec:
             if dec.tag == P.TAG_PROPERTY_NAME:
                 found_prop = dec.as_string()
             elif dec.tag == P.TAG_F1:
-                found_f1 = dec.as_float()
+                found_f1 = dec.as_double()
         assert found_prop == "opacity"
         assert abs(found_f1 - 0.5) < 1e-6
 
@@ -798,9 +798,9 @@ class TestUpdatePropertyCodec:
             if dec.tag == P.TAG_PROPERTY_NAME:
                 found["prop"] = dec.as_string()
             elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_float()
+                found["f1"] = dec.as_double()
             elif dec.tag == P.TAG_F2:
-                found["f2"] = dec.as_float()
+                found["f2"] = dec.as_double()
         assert found["prop"] == "xlim"
         assert abs(found["f1"] - (-10.0)) < 1e-5
         assert abs(found["f2"] - 10.0) < 1e-5

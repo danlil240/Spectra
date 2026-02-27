@@ -240,16 +240,16 @@ void AxisLinkManager::propagate_zoom(Axes* source, float data_x, float data_y, f
 
             if (has_flag(group.axis, LinkAxis::X))
             {
-                auto  xlim     = peer->x_limits();
-                float new_xmin = data_x + (xlim.min - data_x) * factor;
-                float new_xmax = data_x + (xlim.max - data_x) * factor;
+                auto   xlim     = peer->x_limits();
+                double new_xmin = data_x + (xlim.min - data_x) * factor;
+                double new_xmax = data_x + (xlim.max - data_x) * factor;
                 peer->xlim(new_xmin, new_xmax);
             }
             if (has_flag(group.axis, LinkAxis::Y))
             {
-                auto  ylim     = peer->y_limits();
-                float new_ymin = data_y + (ylim.min - data_y) * factor;
-                float new_ymax = data_y + (ylim.max - data_y) * factor;
+                auto   ylim     = peer->y_limits();
+                double new_ymin = data_y + (ylim.min - data_y) * factor;
+                double new_ymax = data_y + (ylim.max - data_y) * factor;
                 peer->ylim(new_ymin, new_ymax);
             }
         }

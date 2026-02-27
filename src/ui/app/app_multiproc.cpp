@@ -470,7 +470,7 @@ void App::run_multiproc()
     };
     struct SentLimits
     {
-        float xmin, xmax, ymin, ymax;
+        double xmin, xmax, ymin, ymax;
     };
     std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
 

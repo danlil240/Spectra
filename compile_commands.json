@@ -311,6 +311,21 @@
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/src/ui/overlay/data_editor.cpp.o -c /home/daniel/projects/Spectra/src/ui/overlay/data_editor.cpp",
+  "file": "/home/daniel/projects/Spectra/src/ui/overlay/data_editor.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/src/embed/embed_surface.cpp.o -c /home/daniel/projects/Spectra/src/embed/embed_surface.cpp",
+  "file": "/home/daniel/projects/Spectra/src/embed/embed_surface.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/src/embed/spectra_embed_c.cpp.o -c /home/daniel/projects/Spectra/src/embed/spectra_embed_c.cpp",
+  "file": "/home/daniel/projects/Spectra/src/embed/spectra_embed_c.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
   "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/src/ui/window/glfw_adapter.cpp.o -c /home/daniel/projects/Spectra/src/ui/window/glfw_adapter.cpp",
   "file": "/home/daniel/projects/Spectra/src/ui/window/glfw_adapter.cpp"
 },
@@ -578,6 +593,11 @@
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/easy_realtime_demo.dir/easy_realtime_demo.cpp.o -c /home/daniel/projects/Spectra/examples/easy_realtime_demo.cpp",
   "file": "/home/daniel/projects/Spectra/examples/easy_realtime_demo.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/easy_embed_demo.dir/easy_embed_demo.cpp.o -c /home/daniel/projects/Spectra/examples/easy_embed_demo.cpp",
+  "file": "/home/daniel/projects/Spectra/examples/easy_embed_demo.cpp"
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
@@ -1038,6 +1058,21 @@
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_SOURCE_DIR=\\\"/home/daniel/projects/Spectra\\\" -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/util -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/unit_test_series_clipboard.dir/unit/test_series_clipboard.cpp.o -c /home/daniel/projects/Spectra/tests/unit/test_series_clipboard.cpp",
   "file": "/home/daniel/projects/Spectra/tests/unit/test_series_clipboard.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_SOURCE_DIR=\\\"/home/daniel/projects/Spectra\\\" -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/util -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/unit_test_data_editor.dir/unit/test_data_editor.cpp.o -c /home/daniel/projects/Spectra/tests/unit/test_data_editor.cpp",
+  "file": "/home/daniel/projects/Spectra/tests/unit/test_data_editor.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_SOURCE_DIR=\\\"/home/daniel/projects/Spectra\\\" -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/util -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/unit_test_embed_surface.dir/unit/test_embed_surface.cpp.o -c /home/daniel/projects/Spectra/tests/unit/test_embed_surface.cpp",
+  "file": "/home/daniel/projects/Spectra/tests/unit/test_embed_surface.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_SOURCE_DIR=\\\"/home/daniel/projects/Spectra\\\" -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/util -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/unit_test_easy_embed.dir/unit/test_easy_embed.cpp.o -c /home/daniel/projects/Spectra/tests/unit/test_easy_embed.cpp",
+  "file": "/home/daniel/projects/Spectra/tests/unit/test_easy_embed.cpp"
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",

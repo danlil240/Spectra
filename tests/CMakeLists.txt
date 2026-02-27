@@ -124,6 +124,9 @@ set(SPECTRA_UNIT_TESTS
     test_eigen_support
     test_series_stats
     test_series_clipboard
+    test_data_editor
+    test_embed_surface
+    test_easy_embed
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
@@ -142,6 +145,8 @@ set(SPECTRA_GPU_TESTS
     test_phase2_integration
     test_phase3_integration
     test_text_renderer
+    test_embed_surface
+    test_easy_embed
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})

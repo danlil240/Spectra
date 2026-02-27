@@ -320,7 +320,7 @@ class TestPythonPayloads:
             if dec.tag == P.TAG_PROPERTY_NAME:
                 found["prop"] = dec.as_string()
             elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_float()
+                found["f1"] = dec.as_double()
         assert found["prop"] == "color"
         assert abs(found["f1"] - 1.0) < 1e-6
 

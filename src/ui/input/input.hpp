@@ -295,15 +295,16 @@ class InputHandler
     // Ctrl+drag box zoom state (allows box zoom in Pan mode via modifier)
     bool ctrl_box_zoom_active_ = false;
 
-    // Right-click 1D zoom drag state
-    // Drag direction determines which axis to zoom:
-    //   2D: horizontal drag = X zoom, vertical drag = Y zoom
+    // Right-click drag zoom state
+    // Drag direction determines axis contribution:
+    //   2D: proportional X/Y blend based on drag angle
     //   3D: axis whose screen-projected direction best aligns with drag direction
     enum class ZoomAxis
     {
         None,
         X,
         Y,
+        XY,
         Z
     };
     bool     rclick_zoom_dragging_ = false;
@@ -313,18 +314,21 @@ class InputHandler
     double   rclick_zoom_start_y_  = 0.0;
     double   rclick_zoom_last_x_   = 0.0;
     double   rclick_zoom_last_y_   = 0.0;
-    float    rclick_zoom_xlim_min_ = 0.0f;
-    float    rclick_zoom_xlim_max_ = 0.0f;
-    float    rclick_zoom_ylim_min_ = 0.0f;
-    float    rclick_zoom_ylim_max_ = 0.0f;
-    float    rclick_zoom_zlim_min_ = 0.0f;
-    float    rclick_zoom_zlim_max_ = 0.0f;
+    float    rclick_zoom_xlim_min_      = 0.0f;
+    float    rclick_zoom_xlim_max_      = 0.0f;
+    float    rclick_zoom_ylim_min_      = 0.0f;
+    float    rclick_zoom_ylim_max_      = 0.0f;
+    float    rclick_zoom_zlim_min_      = 0.0f;
+    float    rclick_zoom_zlim_max_      = 0.0f;
+    float    rclick_zoom_anchor_data_x_ = 0.0f;   // data-space anchor (drag-start point)
+    float    rclick_zoom_anchor_data_y_ = 0.0f;
     // Screen-space direction of each 3D axis (computed at drag start from camera MVP)
     // Stored as (dx, dy) normalized screen vectors for X, Y, Z axes
     float                   rclick_zoom_axis_sx_[3] = {};   // screen X component for axes [X, Y, Z]
     float                   rclick_zoom_axis_sy_[3] = {};   // screen Y component for axes [X, Y, Z]
     static constexpr float  RCLICK_ZOOM_SENSITIVITY = 0.005f;
     static constexpr double RCLICK_AXIS_LOCK_THRESHOLD = 10.0;   // pixels before axis locks
+    static constexpr float  RCLICK_AXIS_1D_THRESHOLD_DEG = 15.0f;   // 2D cone half-angle for pure X/Y
 
     // Inertial pan tracking: velocity in screen px/sec at drag release
     double last_move_x_ = 0.0;

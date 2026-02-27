@@ -217,9 +217,9 @@ struct CmdCloseWindowPayload
 // Serialized axis state within a figure snapshot.
 struct SnapshotAxisState
 {
-    float       x_min = 0.0f, x_max = 1.0f;
-    float       y_min = 0.0f, y_max = 1.0f;
-    float       z_min = 0.0f, z_max = 1.0f;
+    double      x_min = 0.0, x_max = 1.0;
+    double      y_min = 0.0, y_max = 1.0;
+    double      z_min = 0.0, z_max = 1.0;
     bool        grid_visible = true;
     bool        is_3d        = false;
     std::string x_label;
@@ -310,7 +310,7 @@ struct DiffOp
     uint32_t axes_index   = 0;
     uint32_t series_index = 0;
     // Scalar values (interpretation depends on type)
-    float       f1 = 0.0f, f2 = 0.0f, f3 = 0.0f, f4 = 0.0f;
+    double      f1 = 0.0, f2 = 0.0, f3 = 0.0, f4 = 0.0;
     bool        bool_val = false;
     std::string str_val;
     // Bulk data (for SET_SERIES_DATA)
@@ -413,7 +413,7 @@ struct ReqUpdatePropertyPayload
     uint32_t    axes_index   = 0;
     uint32_t    series_index = 0;
     std::string property;   // e.g. "color", "xlim", "title", "grid", "width", "opacity"
-    float       f1 = 0.0f, f2 = 0.0f, f3 = 0.0f, f4 = 0.0f;
+    double      f1 = 0.0, f2 = 0.0, f3 = 0.0, f4 = 0.0;
     bool        bool_val = false;
     std::string str_val;
 };

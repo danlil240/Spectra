@@ -34,8 +34,8 @@ struct AxisStyle
 
 struct AxisLimits
 {
-    float min = 0.0f;
-    float max = 1.0f;
+    double min = 0.0;
+    double max = 1.0;
 };
 
 struct TickResult
@@ -125,8 +125,8 @@ class Axes : public AxesBase
     BarSeries&       bar(std::span<const float> positions, std::span<const float> heights);
 
     // Axis configuration
-    void xlim(float min, float max);
-    void ylim(float min, float max);
+    void xlim(double min, double max);
+    void ylim(double min, double max);
     void title(const std::string& t);
     void xlabel(const std::string& lbl);
     void ylabel(const std::string& lbl);

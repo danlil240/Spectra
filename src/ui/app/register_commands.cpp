@@ -1149,6 +1149,45 @@ void register_standard_commands(const CommandBindings& b)
         "Panel",
         static_cast<uint16_t>(ui::Icon::Menu));
 
+    cmd_registry.register_command(
+        "panel.toggle_data_editor",
+        "Toggle Data Editor",
+        [&]()
+        {
+            if (imgui_ui)
+            {
+                // Data editor reuses the inspector panel area with Section::DataEditor
+                auto& lm = imgui_ui->get_layout_manager();
+                // Check current state by inspecting active section + panel open
+                // We can't read active_section_ directly, but we can toggle via
+                // the same mechanism the View menu uses.
+                bool vis = lm.is_inspector_visible();
+                if (vis)
+                {
+                    lm.set_inspector_visible(false);
+                }
+                else
+                {
+                    lm.set_inspector_visible(true);
+                }
+                undo_mgr.push(UndoAction{
+                    vis ? "Hide data editor" : "Show data editor",
+                    [&imgui_ui, vis]()
+                    {
+                        if (imgui_ui)
+                            imgui_ui->get_layout_manager().set_inspector_visible(vis);
+                    },
+                    [&imgui_ui, vis]()
+                    {
+                        if (imgui_ui)
+                            imgui_ui->get_layout_manager().set_inspector_visible(!vis);
+                    }});
+            }
+        },
+        "",
+        "Panel",
+        static_cast<uint16_t>(ui::Icon::Edit));
+
     // ─── Split view commands ─────────────────────────────────────────────
     auto do_split = [&](SplitDirection dir)
     {

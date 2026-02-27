@@ -108,6 +108,9 @@ foreach(_ui_src
     src/ui/data/csv_loader.cpp
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
+    src/ui/overlay/data_editor.cpp
+    src/embed/embed_surface.cpp
+    src/embed/spectra_embed_c.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
@@ -274,6 +277,26 @@ target_compile_definitions(spectra-ipc INTERFACE SPECTRA_IPC_ONLY)
 
 add_library(spectra-render INTERFACE)
 target_link_libraries(spectra-render INTERFACE spectra)
+
+# ─── Shared library for embedding (Python ctypes, C FFI) ────────────────────
+# Build with: cmake -DSPECTRA_BUILD_EMBED_SHARED=ON ..
+option(SPECTRA_BUILD_EMBED_SHARED "Build libspectra_embed shared library for FFI" OFF)
+if(SPECTRA_BUILD_EMBED_SHARED)
+    add_library(spectra_embed SHARED
+        src/embed/embed_surface.cpp
+        src/embed/spectra_embed_c.cpp
+    )
+    target_link_libraries(spectra_embed PRIVATE spectra)
+    target_compile_features(spectra_embed PRIVATE cxx_std_20)
+    target_include_directories(spectra_embed PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+    set_target_properties(spectra_embed PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        OUTPUT_NAME spectra_embed
+    )
+endif()
 
 # Multi-process daemon + agent binaries (Phase 4 & 5)
 if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")

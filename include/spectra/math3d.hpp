@@ -10,15 +10,15 @@ namespace spectra
 
 struct vec3
 {
-    float x = 0.0f, y = 0.0f, z = 0.0f;
+    double x = 0.0, y = 0.0, z = 0.0;
 
     constexpr vec3() = default;
-    constexpr vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+    constexpr vec3(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
 
     constexpr vec3  operator+(vec3 b) const { return {x + b.x, y + b.y, z + b.z}; }
     constexpr vec3  operator-(vec3 b) const { return {x - b.x, y - b.y, z - b.z}; }
-    constexpr vec3  operator*(float s) const { return {x * s, y * s, z * s}; }
-    constexpr vec3  operator/(float s) const { return {x / s, y / s, z / s}; }
+    constexpr vec3  operator*(double s) const { return {x * s, y * s, z * s}; }
+    constexpr vec3  operator/(double s) const { return {x / s, y / s, z / s}; }
     constexpr vec3  operator-() const { return {-x, -y, -z}; }
     constexpr vec3& operator+=(vec3 b)
     {
@@ -34,7 +34,7 @@ struct vec3
         z -= b.z;
         return *this;
     }
-    constexpr vec3& operator*=(float s)
+    constexpr vec3& operator*=(double s)
     {
         x *= s;
         y *= s;
@@ -44,16 +44,16 @@ struct vec3
     constexpr bool operator==(vec3 b) const { return x == b.x && y == b.y && z == b.z; }
     constexpr bool operator!=(vec3 b) const { return !(*this == b); }
 
-    float&       operator[](int i) { return (&x)[i]; }
-    const float& operator[](int i) const { return (&x)[i]; }
+    double&       operator[](int i) { return (&x)[i]; }
+    const double& operator[](int i) const { return (&x)[i]; }
 };
 
-inline constexpr vec3 operator*(float s, vec3 v)
+inline constexpr vec3 operator*(double s, vec3 v)
 {
     return v * s;
 }
 
-inline constexpr float vec3_dot(vec3 a, vec3 b)
+inline constexpr double vec3_dot(vec3 a, vec3 b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
@@ -63,23 +63,23 @@ inline constexpr vec3 vec3_cross(vec3 a, vec3 b)
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
-inline float vec3_length(vec3 v)
+inline double vec3_length(vec3 v)
 {
     return std::sqrt(vec3_dot(v, v));
 }
 
-inline float vec3_length_sq(vec3 v)
+inline double vec3_length_sq(vec3 v)
 {
     return vec3_dot(v, v);
 }
 
 inline vec3 vec3_normalize(vec3 v)
 {
-    float len = vec3_length(v);
-    return len > 1e-12f ? v / len : vec3{0.0f, 0.0f, 0.0f};
+    double len = vec3_length(v);
+    return len > 1e-12 ? v / len : vec3{0.0, 0.0, 0.0};
 }
 
-inline vec3 vec3_lerp(vec3 a, vec3 b, float t)
+inline vec3 vec3_lerp(vec3 a, vec3 b, double t)
 {
     return a + (b - a) * t;
 }
@@ -98,20 +98,20 @@ inline vec3 vec3_max(vec3 a, vec3 b)
 
 struct vec4
 {
-    float x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
+    double x = 0.0, y = 0.0, z = 0.0, w = 0.0;
 
     constexpr vec4() = default;
-    constexpr vec4(float x_, float y_, float z_, float w_) : x(x_), y(y_), z(z_), w(w_) {}
-    constexpr vec4(vec3 v, float w_) : x(v.x), y(v.y), z(v.z), w(w_) {}
+    constexpr vec4(double x_, double y_, double z_, double w_) : x(x_), y(y_), z(z_), w(w_) {}
+    constexpr vec4(vec3 v, double w_) : x(v.x), y(v.y), z(v.z), w(w_) {}
 
     constexpr vec3 xyz() const { return {x, y, z}; }
 
     constexpr vec4 operator+(vec4 b) const { return {x + b.x, y + b.y, z + b.z, w + b.w}; }
     constexpr vec4 operator-(vec4 b) const { return {x - b.x, y - b.y, z - b.z, w - b.w}; }
-    constexpr vec4 operator*(float s) const { return {x * s, y * s, z * s, w * s}; }
+    constexpr vec4 operator*(double s) const { return {x * s, y * s, z * s, w * s}; }
 
-    float&       operator[](int i) { return (&x)[i]; }
-    const float& operator[](int i) const { return (&x)[i]; }
+    double&       operator[](int i) { return (&x)[i]; }
+    const double& operator[](int i) const { return (&x)[i]; }
 };
 
 // ─── mat4 ────────────────────────────────────────────────────────────────────
@@ -140,10 +140,10 @@ struct mat4
 inline constexpr mat4 mat4_identity()
 {
     mat4 r;
-    r.m[0]  = 1.0f;
-    r.m[5]  = 1.0f;
-    r.m[10] = 1.0f;
-    r.m[15] = 1.0f;
+    r.m[0]  = 1.0;
+    r.m[5]  = 1.0;
+    r.m[10] = 1.0;
+    r.m[15] = 1.0;
     return r;
 }
 
@@ -363,10 +363,10 @@ inline mat4 mat4_inverse(const mat4& m)
 
 struct quat
 {
-    float x = 0.0f, y = 0.0f, z = 0.0f, w = 1.0f;
+    double x = 0.0, y = 0.0, z = 0.0, w = 1.0;
 
     constexpr quat() = default;
-    constexpr quat(float x_, float y_, float z_, float w_) : x(x_), y(y_), z(z_), w(w_) {}
+    constexpr quat(double x_, double y_, double z_, double w_) : x(x_), y(y_), z(z_), w(w_) {}
 
     constexpr bool operator==(quat b) const { return x == b.x && y == b.y && z == b.z && w == b.w; }
     constexpr bool operator!=(quat b) const { return !(*this == b); }
@@ -374,20 +374,20 @@ struct quat
 
 inline constexpr quat quat_identity()
 {
-    return {0.0f, 0.0f, 0.0f, 1.0f};
+    return {0.0, 0.0, 0.0, 1.0};
 }
 
-inline float quat_length(quat q)
+inline double quat_length(quat q)
 {
     return std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
 }
 
 inline quat quat_normalize(quat q)
 {
-    float len = quat_length(q);
-    if (len < 1e-12f)
+    double len = quat_length(q);
+    if (len < 1e-12)
         return quat_identity();
-    float inv = 1.0f / len;
+    double inv = 1.0 / len;
     return {q.x * inv, q.y * inv, q.z * inv, q.w * inv};
 }
 
@@ -406,11 +406,11 @@ inline constexpr quat quat_mul(quat a, quat b)
     };
 }
 
-inline quat quat_from_axis_angle(vec3 axis, float angle_rad)
+inline quat quat_from_axis_angle(vec3 axis, double angle_rad)
 {
     vec3  n    = vec3_normalize(axis);
-    float half = angle_rad * 0.5f;
-    float s    = std::sin(half);
+    double half = angle_rad * 0.5;
+    double s    = std::sin(half);
     return {n.x * s, n.y * s, n.z * s, std::cos(half)};
 }
 
@@ -418,65 +418,65 @@ inline vec3 quat_rotate(quat q, vec3 v)
 {
     // q * v * q^-1 (optimized)
     vec3 qv{q.x, q.y, q.z};
-    vec3 t = vec3_cross(qv, v) * 2.0f;
+    vec3 t = vec3_cross(qv, v) * 2.0;
     return v + t * q.w + vec3_cross(qv, t);
 }
 
 inline mat4 quat_to_mat4(quat q)
 {
-    float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
-    float xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
-    float wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+    double xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+    double xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
+    double wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
 
     mat4 m;
-    m.m[0]  = 1.0f - 2.0f * (yy + zz);
-    m.m[1]  = 2.0f * (xy + wz);
-    m.m[2]  = 2.0f * (xz - wy);
-    m.m[4]  = 2.0f * (xy - wz);
-    m.m[5]  = 1.0f - 2.0f * (xx + zz);
-    m.m[6]  = 2.0f * (yz + wx);
-    m.m[8]  = 2.0f * (xz + wy);
-    m.m[9]  = 2.0f * (yz - wx);
-    m.m[10] = 1.0f - 2.0f * (xx + yy);
-    m.m[15] = 1.0f;
+    m.m[0]  = 1.0 - 2.0 * (yy + zz);
+    m.m[1]  = 2.0 * (xy + wz);
+    m.m[2]  = 2.0 * (xz - wy);
+    m.m[4]  = 2.0 * (xy - wz);
+    m.m[5]  = 1.0 - 2.0 * (xx + zz);
+    m.m[6]  = 2.0 * (yz + wx);
+    m.m[8]  = 2.0 * (xz + wy);
+    m.m[9]  = 2.0 * (yz - wx);
+    m.m[10] = 1.0 - 2.0 * (xx + yy);
+    m.m[15] = 1.0;
     return m;
 }
 
 inline quat quat_from_mat4(const mat4& m)
 {
-    float trace = m.m[0] + m.m[5] + m.m[10];
+    double trace = m.m[0] + m.m[5] + m.m[10];
     quat  q;
-    if (trace > 0.0f)
+    if (trace > 0.0)
     {
-        float s = 0.5f / std::sqrt(trace + 1.0f);
-        q.w     = 0.25f / s;
+        double s = 0.5 / std::sqrt(trace + 1.0);
+        q.w     = 0.25 / s;
         q.x     = (m.m[6] - m.m[9]) * s;
         q.y     = (m.m[8] - m.m[2]) * s;
         q.z     = (m.m[1] - m.m[4]) * s;
     }
     else if (m.m[0] > m.m[5] && m.m[0] > m.m[10])
     {
-        float s = 2.0f * std::sqrt(1.0f + m.m[0] - m.m[5] - m.m[10]);
+        double s = 2.0 * std::sqrt(1.0 + m.m[0] - m.m[5] - m.m[10]);
         q.w     = (m.m[6] - m.m[9]) / s;
-        q.x     = 0.25f * s;
+        q.x     = 0.25 * s;
         q.y     = (m.m[4] + m.m[1]) / s;
         q.z     = (m.m[8] + m.m[2]) / s;
     }
     else if (m.m[5] > m.m[10])
     {
-        float s = 2.0f * std::sqrt(1.0f + m.m[5] - m.m[0] - m.m[10]);
+        double s = 2.0 * std::sqrt(1.0 + m.m[5] - m.m[0] - m.m[10]);
         q.w     = (m.m[8] - m.m[2]) / s;
         q.x     = (m.m[4] + m.m[1]) / s;
-        q.y     = 0.25f * s;
+        q.y     = 0.25 * s;
         q.z     = (m.m[9] + m.m[6]) / s;
     }
     else
     {
-        float s = 2.0f * std::sqrt(1.0f + m.m[10] - m.m[0] - m.m[5]);
+        double s = 2.0 * std::sqrt(1.0 + m.m[10] - m.m[0] - m.m[5]);
         q.w     = (m.m[1] - m.m[4]) / s;
         q.x     = (m.m[8] + m.m[2]) / s;
         q.y     = (m.m[9] + m.m[6]) / s;
-        q.z     = 0.25f * s;
+        q.z     = 0.25 * s;
     }
     return quat_normalize(q);
 }

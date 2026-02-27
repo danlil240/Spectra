@@ -94,7 +94,7 @@ class Renderer
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
-    void build_ortho_projection(float left, float right, float bottom, float top, float* out_mat4);
+    void build_ortho_projection(double left, double right, double bottom, double top, float* out_mat4);
     // Build orthographic projection with proper near/far depth (for 3D ortho views)
     void build_ortho_projection_3d(float  left,
                                    float  right,
@@ -171,10 +171,10 @@ class Renderer
         // clobber a shared cache, causing later functions to skip regeneration.
         struct CachedLimits
         {
-            float xmin = 0, xmax = 0;
-            float ymin = 0, ymax = 0;
-            float zmin = 0, zmax = 0;
-            bool  valid = false;
+            double xmin = 0, xmax = 0;
+            double ymin = 0, ymax = 0;
+            double zmin = 0, zmax = 0;
+            bool   valid = false;
         };
         CachedLimits grid_cache;
         CachedLimits bbox_cache;

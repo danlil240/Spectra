@@ -72,6 +72,12 @@ class DataInteraction
     // Returns true if the click was consumed by the data interaction layer.
     bool on_mouse_click(int button, double screen_x, double screen_y);
 
+    // Pan-mode click behavior: datatip marker operations only (no series selection callbacks).
+    bool on_mouse_click_datatip_only(int button, double screen_x, double screen_y);
+
+    // Select-mode click behavior: series selection callbacks only (no datatip marker mutations).
+    bool on_mouse_click_series_only(double screen_x, double screen_y);
+
     // Region selection (shift-drag)
     void                    begin_region_select(double screen_x, double screen_y);
     void                    update_region_drag(double screen_x, double screen_y);
@@ -134,7 +140,24 @@ class DataInteraction
         on_series_deselected_ = std::move(cb);
     }
 
+    // Point selection callback: fired when a concrete point is selected.
+    // Args: (Figure*, Axes*, int axes_index, Series*, int series_index, size_t point_index)
+    using PointSelectedCallback =
+        std::function<void(Figure*, Axes*, int, Series*, int, size_t)>;
+    void set_on_point_selected(PointSelectedCallback cb)
+    {
+        on_point_selected_ = std::move(cb);
+    }
+
+    // Programmatically select/highlight a point (used by Data Editor row selection).
+    // Returns true when the point was valid for the provided series and a marker was placed.
+    bool select_point(const Series* series, size_t point_index);
+
    private:
+    // Dispatch series/point callbacks from current nearest_ selection.
+    // Returns true when dispatch succeeded.
+    bool dispatch_series_selection_from_nearest();
+
     // Perform nearest-point spatial query across all visible series in the active axes.
     NearestPointResult find_nearest(const CursorReadout& cursor, Figure& figure) const;
 
@@ -152,6 +175,7 @@ class DataInteraction
     SeriesSelectedCallback   on_series_selected_;
     SeriesSelectedCallback   on_series_rc_selected_;
     SeriesDeselectedCallback on_series_deselected_;
+    PointSelectedCallback    on_point_selected_;
 
     // Cached state for drawing
     CursorReadout last_cursor_;

@@ -708,15 +708,15 @@ int main(int argc, char* argv[])
                                 && input->axes_index < snap.figures[0].axes.size())
                             {
                                 const auto& ax   = snap.figures[0].axes[input->axes_index];
-                                float       zoom = 1.0f - static_cast<float>(input->y) * 0.1f;
-                                if (zoom < 0.1f)
-                                    zoom = 0.1f;
-                                if (zoom > 10.0f)
-                                    zoom = 10.0f;
-                                float cx = (ax.x_min + ax.x_max) * 0.5f;
-                                float cy = (ax.y_min + ax.y_max) * 0.5f;
-                                float hw = (ax.x_max - ax.x_min) * 0.5f * zoom;
-                                float hh = (ax.y_max - ax.y_min) * 0.5f * zoom;
+                                double      zoom = 1.0 - input->y * 0.1;
+                                if (zoom < 0.1)
+                                    zoom = 0.1;
+                                if (zoom > 10.0)
+                                    zoom = 10.0;
+                                double cx = (ax.x_min + ax.x_max) * 0.5;
+                                double cy = (ax.y_min + ax.y_max) * 0.5;
+                                double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;
+                                double hh = (ax.y_max - ax.y_min) * 0.5 * zoom;
                                 auto  op = fig_model.set_axis_limits(input->figure_id,
                                                                     input->axes_index,
                                                                     cx - hw,
@@ -1128,7 +1128,7 @@ int main(int argc, char* argv[])
                     }
                     else if (req->property == "xlim")
                     {
-                        float cx0, cx1, cy0, cy1;
+                        double cx0, cx1, cy0, cy1;
                         fig_model
                             .get_axis_limits(req->figure_id, req->axes_index, cx0, cx1, cy0, cy1);
                         auto op = fig_model.set_axis_limits(req->figure_id,
@@ -1141,7 +1141,7 @@ int main(int argc, char* argv[])
                     }
                     else if (req->property == "ylim")
                     {
-                        float cx0, cx1, cy0, cy1;
+                        double cx0, cx1, cy0, cy1;
                         fig_model
                             .get_axis_limits(req->figure_id, req->axes_index, cx0, cx1, cy0, cy1);
                         auto op = fig_model.set_axis_limits(req->figure_id,
@@ -1542,7 +1542,7 @@ int main(int argc, char* argv[])
                         }
                         else if (upd.property == "xlim")
                         {
-                            float cx0, cx1, cy0, cy1;
+                            double cx0, cx1, cy0, cy1;
                             fig_model
                                 .get_axis_limits(upd.figure_id, upd.axes_index, cx0, cx1, cy0, cy1);
                             diff.ops.push_back(fig_model.set_axis_limits(upd.figure_id,
@@ -1554,7 +1554,7 @@ int main(int argc, char* argv[])
                         }
                         else if (upd.property == "ylim")
                         {
-                            float cx0, cx1, cy0, cy1;
+                            double cx0, cx1, cy0, cy1;
                             fig_model
                                 .get_axis_limits(upd.figure_id, upd.axes_index, cx0, cx1, cy0, cy1);
                             diff.ops.push_back(fig_model.set_axis_limits(upd.figure_id,

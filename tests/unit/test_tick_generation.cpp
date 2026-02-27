@@ -110,6 +110,67 @@ TEST(TickGeneration, NoNegativeZeroLabel)
     }
 }
 
+// --- Deep zoom regression tests ---
+
+TEST(TickGeneration, DeepZoomLabelsDistinguishable)
+{
+    // Simulate deep zoom near 7.9 (like the bug screenshot)
+    // Range ~1e-5 around 7.9 — labels must NOT all show "7.9"
+    Axes ax;
+    ax.xlim(7.89999f, 7.90001f);
+    auto ticks = ax.compute_x_ticks();
+    EXPECT_GE(ticks.positions.size(), 2u);
+    // All labels must be unique (distinguishable)
+    for (size_t i = 0; i + 1 < ticks.labels.size(); ++i)
+    {
+        EXPECT_NE(ticks.labels[i], ticks.labels[i + 1])
+            << "Tick labels must be distinguishable at deep zoom: index " << i;
+    }
+}
+
+TEST(TickGeneration, DeepZoomScientificNotation)
+{
+    // Deep zoom: range ~1e-3 near a non-zero offset (100)
+    // Should use enough digits so labels like "100.0001" vs "100.0002" are unique
+    Axes ax;
+    ax.xlim(100.0f, 100.001f);
+    auto ticks = ax.compute_x_ticks();
+    EXPECT_GE(ticks.positions.size(), 2u);
+    EXPECT_EQ(ticks.positions.size(), ticks.labels.size());
+    // Labels must be unique
+    for (size_t i = 0; i + 1 < ticks.labels.size(); ++i)
+    {
+        EXPECT_NE(ticks.labels[i], ticks.labels[i + 1]);
+    }
+}
+
+TEST(TickGeneration, DeepZoomNearZero)
+{
+    // Deep zoom near zero — should produce normal ticks
+    Axes ax;
+    ax.xlim(-1e-6f, 1e-6f);
+    auto ticks = ax.compute_x_ticks();
+    EXPECT_GE(ticks.positions.size(), 2u);
+    // Labels should be unique
+    for (size_t i = 0; i + 1 < ticks.labels.size(); ++i)
+    {
+        EXPECT_NE(ticks.labels[i], ticks.labels[i + 1]);
+    }
+}
+
+TEST(TickGeneration, DeepZoomFloatPrecisionLimit)
+{
+    // At the float precision limit for value ~8.0
+    // 8 * FLT_EPSILON ≈ 9.5e-7, so range of 1e-5 should work fine
+    Axes ax;
+    float center = 8.0f;
+    float half   = 5e-6f;
+    ax.xlim(center - half, center + half);
+    auto ticks = ax.compute_x_ticks();
+    EXPECT_GE(ticks.positions.size(), 1u);
+    EXPECT_EQ(ticks.positions.size(), ticks.labels.size());
+}
+
 // --- Y ticks work the same ---
 
 TEST(TickGeneration, YTicksPositive)

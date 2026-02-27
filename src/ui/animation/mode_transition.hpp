@@ -34,8 +34,8 @@ enum class ModeTransitionState
 // Snapshot of 2D axes state for transition interpolation.
 struct ModeTransition2DState
 {
-    AxisLimits  xlim{0.0f, 1.0f};
-    AxisLimits  ylim{0.0f, 1.0f};
+    AxisLimits  xlim{0.0, 1.0};
+    AxisLimits  ylim{0.0, 1.0};
     std::string xlabel;
     std::string ylabel;
     std::string title;
@@ -45,9 +45,9 @@ struct ModeTransition2DState
 // Snapshot of 3D axes state for transition interpolation.
 struct ModeTransition3DState
 {
-    AxisLimits xlim{0.0f, 1.0f};
-    AxisLimits ylim{0.0f, 1.0f};
-    AxisLimits zlim{0.0f, 1.0f};
+    AxisLimits xlim{0.0, 1.0};
+    AxisLimits ylim{0.0, 1.0};
+    AxisLimits zlim{0.0, 1.0};
     Camera     camera;
     int        grid_planes       = 1;   // GridPlane::XY
     bool       show_bounding_box = true;

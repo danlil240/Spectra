@@ -18,9 +18,9 @@ class Axes3D : public AxesBase
     Axes3D();
     ~Axes3D();
 
-    void xlim(float min, float max);
-    void ylim(float min, float max);
-    void zlim(float min, float max);
+    void xlim(double min, double max);
+    void ylim(double min, double max);
+    void zlim(double min, double max);
 
     void xlabel(const std::string& lbl);
     void ylabel(const std::string& lbl);

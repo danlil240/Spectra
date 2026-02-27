@@ -51,10 +51,10 @@ void FigureModel::set_grid(uint64_t figure_id, int32_t rows, int32_t cols)
 }
 
 uint32_t FigureModel::add_axes(uint64_t figure_id,
-                               float    x_min,
-                               float    x_max,
-                               float    y_min,
-                               float    y_max,
+                               double   x_min,
+                               double   x_max,
+                               double   y_min,
+                               double   y_max,
                                bool     is_3d)
 {
     std::lock_guard lock(mu_);
@@ -74,10 +74,10 @@ uint32_t FigureModel::add_axes(uint64_t figure_id,
 
 ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id,
                                          uint32_t axes_index,
-                                         float    x_min,
-                                         float    x_max,
-                                         float    y_min,
-                                         float    y_max)
+                                         double   x_min,
+                                         double   x_max,
+                                         double   y_min,
+                                         double   y_max)
 {
     std::lock_guard lock(mu_);
     auto            it = figures_.find(figure_id);
@@ -104,8 +104,8 @@ ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id,
 
 ipc::DiffOp FigureModel::set_axis_zlimits(uint64_t figure_id,
                                           uint32_t axes_index,
-                                          float    z_min,
-                                          float    z_max)
+                                          double   z_min,
+                                          double   z_max)
 {
     std::lock_guard lock(mu_);
     auto            it = figures_.find(figure_id);
@@ -661,10 +661,10 @@ bool FigureModel::has_figure(uint64_t figure_id) const
 
 bool FigureModel::get_axis_limits(uint64_t figure_id,
                                   uint32_t axes_index,
-                                  float&   x_min,
-                                  float&   x_max,
-                                  float&   y_min,
-                                  float&   y_max) const
+                                  double&  x_min,
+                                  double&  x_max,
+                                  double&  y_min,
+                                  double&  y_max) const
 {
     std::lock_guard lock(mu_);
     auto            it = figures_.find(figure_id);

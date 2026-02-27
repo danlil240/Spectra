@@ -21,6 +21,49 @@ void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
     legend_.set_fonts(body, icon);
 }
 
+bool DataInteraction::select_point(const Series* series, size_t point_index)
+{
+    if (!series)
+        return false;
+
+    const float* x_data = nullptr;
+    const float* y_data = nullptr;
+    size_t       count  = 0;
+
+    if (auto* ls = dynamic_cast<const LineSeries*>(series))
+    {
+        x_data = ls->x_data().data();
+        y_data = ls->y_data().data();
+        count  = ls->point_count();
+    }
+    else if (auto* sc = dynamic_cast<const ScatterSeries*>(series))
+    {
+        x_data = sc->x_data().data();
+        y_data = sc->y_data().data();
+        count  = sc->point_count();
+    }
+    else
+    {
+        // Point highlighting currently supports 2D series only.
+        return false;
+    }
+
+    if (!x_data || !y_data || point_index >= count)
+        return false;
+
+    markers_.clear();
+    markers_.add(x_data[point_index], y_data[point_index], series, point_index);
+
+    // Keep nearest cache coherent so tooltip/cursor feedback remains aligned.
+    nearest_.found       = true;
+    nearest_.series      = series;
+    nearest_.point_index = point_index;
+    nearest_.data_x      = x_data[point_index];
+    nearest_.data_y      = y_data[point_index];
+
+    return true;
+}
+
 void DataInteraction::set_transition_engine(TransitionEngine* te)
 {
     region_.set_transition_engine(te);
@@ -177,6 +220,132 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
     tooltip_.draw(nearest_, window_width, window_height);
 }
 
+bool DataInteraction::dispatch_series_selection_from_nearest()
+{
+    if (!nearest_.found || !nearest_.series || !last_figure_)
+        return false;
+
+    int ax_idx = 0;
+    for (auto& axes_ptr : last_figure_->axes())
+    {
+        if (!axes_ptr)
+        {
+            ax_idx++;
+            continue;
+        }
+        int s_idx = 0;
+        for (auto& series_ptr : axes_ptr->series())
+        {
+            if (series_ptr.get() == nearest_.series)
+            {
+                if (on_series_selected_)
+                {
+                    on_series_selected_(last_figure_, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx);
+                }
+                if (on_point_selected_)
+                {
+                    on_point_selected_(last_figure_,
+                                       axes_ptr.get(),
+                                       ax_idx,
+                                       series_ptr.get(),
+                                       s_idx,
+                                       nearest_.point_index);
+                }
+                return true;
+            }
+            s_idx++;
+        }
+        ax_idx++;
+    }
+
+    // Fallback: nearest point selected, but series lookup path above didn't match.
+    if (on_point_selected_ && active_axes_)
+    {
+        on_point_selected_(last_figure_,
+                           active_axes_,
+                           0,
+                           const_cast<Series*>(nearest_.series),
+                           0,
+                           nearest_.point_index);
+        return true;
+    }
+
+    return false;
+}
+
+bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, double screen_y)
+{
+    if (!active_axes_ || !last_figure_)
+        return false;
+
+    if (button == 0)
+    {
+        int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
+                                           static_cast<float>(screen_y),
+                                           active_viewport_,
+                                           xlim_min_,
+                                           xlim_max_,
+                                           ylim_min_,
+                                           ylim_max_);
+        if (marker_hit >= 0)
+        {
+            markers_.remove(static_cast<size_t>(marker_hit));
+            return true;
+        }
+
+        constexpr float SELECT_SNAP_PX = 30.0f;
+        if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
+        {
+            // Deterministic point highlight: always keep exactly one selected marker.
+            markers_.clear();
+            markers_.add(nearest_.data_x, nearest_.data_y, nearest_.series, nearest_.point_index);
+            return true;
+        }
+    }
+
+    // Right click: remove marker
+    if (button == 1)
+    {
+        int idx = markers_.hit_test(static_cast<float>(screen_x),
+                                    static_cast<float>(screen_y),
+                                    active_viewport_,
+                                    xlim_min_,
+                                    xlim_max_,
+                                    ylim_min_,
+                                    ylim_max_);
+        if (idx >= 0)
+        {
+            markers_.remove(static_cast<size_t>(idx));
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool DataInteraction::on_mouse_click_series_only(double screen_x, double screen_y)
+{
+    (void)screen_x;
+    (void)screen_y;
+
+    if (!active_axes_ || !last_figure_)
+        return false;
+
+    constexpr float SELECT_SNAP_PX = 30.0f;
+    if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
+    {
+        return dispatch_series_selection_from_nearest();
+    }
+
+    if (on_series_deselected_)
+    {
+        on_series_deselected_();
+        return true;
+    }
+
+    return false;
+}
+
 bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_y)
 {
     if (!active_axes_ || !last_figure_)
@@ -202,40 +371,15 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
         constexpr float SELECT_SNAP_PX = 30.0f;
         if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {
-            // Toggle a persistent data label (datatip) on the clicked point
-            markers_.toggle_or_add(nearest_.data_x,
-                                   nearest_.data_y,
-                                   nearest_.series,
-                                   nearest_.point_index);
+            // Deterministic point highlight: always keep exactly one selected marker.
+            markers_.clear();
+            markers_.add(nearest_.data_x,
+                         nearest_.data_y,
+                         nearest_.series,
+                         nearest_.point_index);
 
-            // Also fire series selection callback (for inspector)
-            if (on_series_selected_)
-            {
-                int ax_idx = 0;
-                for (auto& axes_ptr : last_figure_->axes())
-                {
-                    if (!axes_ptr)
-                    {
-                        ax_idx++;
-                        continue;
-                    }
-                    int s_idx = 0;
-                    for (auto& series_ptr : axes_ptr->series())
-                    {
-                        if (series_ptr.get() == nearest_.series)
-                        {
-                            on_series_selected_(last_figure_,
-                                                axes_ptr.get(),
-                                                ax_idx,
-                                                series_ptr.get(),
-                                                s_idx);
-                            return true;
-                        }
-                        s_idx++;
-                    }
-                    ax_idx++;
-                }
-            }
+            // Also fire series/point selection callbacks (for inspector + data editor sync).
+            dispatch_series_selection_from_nearest();
             return true;
         }
         else if (on_series_deselected_)
@@ -343,12 +487,12 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
         auto  xlim    = axes_ptr->x_limits();
         auto  ylim    = axes_ptr->y_limits();
-        float x_range = xlim.max - xlim.min;
-        float y_range = ylim.max - ylim.min;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
+        double x_range = xlim.max - xlim.min;
+        double y_range = ylim.max - ylim.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
 
         for (auto& series_ptr : axes_ptr->series())
         {

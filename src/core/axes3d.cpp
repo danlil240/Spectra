@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <spectra/camera.hpp>
 #include <spectra/series.hpp>
 
@@ -11,61 +12,107 @@ namespace spectra
 namespace
 {
 
-TickResult compute_ticks_for_range(float min, float max)
+// Format a tick value smartly for 3D axes: use enough decimal digits so that
+// ticks at the given spacing are distinguishable.
+static std::string format_tick_value_3d(double value, double spacing)
 {
-    TickResult result;
+    char buf[64];
 
-    if (max <= min)
+    if (std::abs(value) < spacing * 1e-6)
+        return "0";
+
+    double abs_val     = std::abs(value);
+    double abs_spacing = std::abs(spacing);
+
+    int digits_after_decimal = 0;
+    if (abs_spacing > 0 && std::isfinite(abs_spacing))
     {
-        result.positions = {min};
-        result.labels    = {std::to_string(min)};
-        return result;
+        digits_after_decimal = static_cast<int>(std::ceil(-std::log10(abs_spacing))) + 1;
+        if (digits_after_decimal < 0)
+            digits_after_decimal = 0;
     }
 
-    float range      = max - min;
-    float rough_step = range / 5.0f;
-
-    float magnitude  = std::pow(10.0f, std::floor(std::log10(rough_step)));
-    float normalized = rough_step / magnitude;
-
-    float nice_step;
-    if (normalized < 1.5f)
-        nice_step = 1.0f;
-    else if (normalized < 3.0f)
-        nice_step = 2.0f;
-    else if (normalized < 7.0f)
-        nice_step = 5.0f;
-    else
-        nice_step = 10.0f;
-
-    nice_step *= magnitude;
-
-    float start = std::ceil(min / nice_step) * nice_step;
-
-    for (float val = start; val <= max + 1e-6f; val += nice_step)
+    int total_sig_digits = 0;
+    if (abs_val > 0 && abs_spacing > 0)
     {
-        result.positions.push_back(val);
+        total_sig_digits = static_cast<int>(std::ceil(std::log10(abs_val / abs_spacing))) + 2;
+        if (total_sig_digits < 4)
+            total_sig_digits = 4;
+        if (total_sig_digits > 15)
+            total_sig_digits = 15;
+    }
+    else
+    {
+        total_sig_digits = 6;
+    }
 
-        char buf[32];
-        if (std::abs(val) < 1e-10f)
+    if (digits_after_decimal <= 9 && abs_val < 1e9 && abs_val >= 0.001)
+    {
+        std::snprintf(buf, sizeof(buf), "%.*f", digits_after_decimal, value);
+        std::string str(buf);
+        if (str.find('.') != std::string::npos)
         {
-            result.labels.push_back("0");
-        }
-        else if (std::abs(val) >= 1000.0f || std::abs(val) < 0.01f)
-        {
-            snprintf(buf, sizeof(buf), "%.2e", val);
-            result.labels.push_back(buf);
-        }
-        else
-        {
-            snprintf(buf, sizeof(buf), "%.2f", val);
-            std::string str(buf);
             while (str.back() == '0')
                 str.pop_back();
             if (str.back() == '.')
                 str.pop_back();
-            result.labels.push_back(str);
         }
+        return str;
+    }
+    else
+    {
+        std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
+        return std::string(buf);
+    }
+}
+
+TickResult compute_ticks_for_range(double dmin, double dmax)
+{
+    TickResult result;
+
+    if (dmax <= dmin)
+    {
+        result.positions = {static_cast<float>(dmin)};
+        result.labels    = {format_tick_value_3d(dmin, 1.0)};
+        return result;
+    }
+
+    double range      = dmax - dmin;
+    double rough_step = range / 5.0;
+
+    double magnitude  = std::pow(10.0, std::floor(std::log10(rough_step)));
+    double normalized = rough_step / magnitude;
+
+    double nice_step;
+    if (normalized < 1.5)
+        nice_step = 1.0;
+    else if (normalized < 3.0)
+        nice_step = 2.0;
+    else if (normalized < 7.0)
+        nice_step = 5.0;
+    else
+        nice_step = 10.0;
+
+    nice_step *= magnitude;
+
+    if (nice_step <= 0.0 || !std::isfinite(nice_step))
+    {
+        result.positions = {static_cast<float>(dmin)};
+        result.labels    = {format_tick_value_3d(dmin, range)};
+        return result;
+    }
+
+    double start = std::ceil(dmin / nice_step) * nice_step;
+
+    int max_iters = 30;
+    int iters     = 0;
+    for (double val = start; val <= dmax + nice_step * 0.01 && iters < max_iters;
+         val += nice_step, ++iters)
+    {
+        if (std::abs(val) < nice_step * 1e-6)
+            val = 0.0;
+        result.positions.push_back(static_cast<float>(val));
+        result.labels.push_back(format_tick_value_3d(val, nice_step));
     }
 
     return result;
@@ -85,17 +132,17 @@ Axes3D::Axes3D() : camera_(std::make_unique<Camera>())
 
 Axes3D::~Axes3D() = default;
 
-void Axes3D::xlim(float min, float max)
+void Axes3D::xlim(double min, double max)
 {
     xlim_ = AxisLimits{min, max};
 }
 
-void Axes3D::ylim(float min, float max)
+void Axes3D::ylim(double min, double max)
 {
     ylim_ = AxisLimits{min, max};
 }
 
-void Axes3D::zlim(float min, float max)
+void Axes3D::zlim(double min, double max)
 {
     zlim_ = AxisLimits{min, max};
 }
@@ -119,21 +166,21 @@ AxisLimits Axes3D::x_limits() const
 {
     if (xlim_)
         return *xlim_;
-    return {0.0f, 1.0f};
+    return {0.0, 1.0};
 }
 
 AxisLimits Axes3D::y_limits() const
 {
     if (ylim_)
         return *ylim_;
-    return {0.0f, 1.0f};
+    return {0.0, 1.0};
 }
 
 AxisLimits Axes3D::z_limits() const
 {
     if (zlim_)
         return *zlim_;
-    return {0.0f, 1.0f};
+    return {0.0, 1.0};
 }
 
 TickResult Axes3D::compute_x_ticks() const
@@ -284,14 +331,17 @@ mat4 Axes3D::data_to_normalized_matrix() const
     float hs = box_half_size();
 
     // Scale: map each axis range to [-hs, +hs]
-    float sx = (xl.max - xl.min) > 1e-10f ? (2.0f * hs) / (xl.max - xl.min) : 1.0f;
-    float sy = (yl.max - yl.min) > 1e-10f ? (2.0f * hs) / (yl.max - yl.min) : 1.0f;
-    float sz = (zl.max - zl.min) > 1e-10f ? (2.0f * hs) / (zl.max - zl.min) : 1.0f;
+    double xr = xl.max - xl.min;
+    double yr = yl.max - yl.min;
+    double zr = zl.max - zl.min;
+    float  sx = xr > 1e-30 ? static_cast<float>((2.0 * hs) / xr) : 1.0f;
+    float  sy = yr > 1e-30 ? static_cast<float>((2.0 * hs) / yr) : 1.0f;
+    float  sz = zr > 1e-30 ? static_cast<float>((2.0 * hs) / zr) : 1.0f;
 
     // Center of data range
-    float cx = (xl.min + xl.max) * 0.5f;
-    float cy = (yl.min + yl.max) * 0.5f;
-    float cz = (zl.min + zl.max) * 0.5f;
+    float cx = static_cast<float>((xl.min + xl.max) * 0.5);
+    float cy = static_cast<float>((yl.min + yl.max) * 0.5);
+    float cz = static_cast<float>((zl.min + zl.max) * 0.5);
 
     // Model = Scale * Translate(-center)
     // result = S * (p - c) = S*p - S*c
@@ -315,10 +365,14 @@ void Axes3D::zoom_limits(float factor)
 
     auto zoom_range = [&](AxisLimits lim) -> AxisLimits
     {
-        float center     = (lim.min + lim.max) * 0.5f;
-        float half_range = (lim.max - lim.min) * 0.5f * factor;
-        if (half_range < 1e-10f)
-            half_range = 1e-10f;
+        double center     = (lim.min + lim.max) * 0.5;
+        double half_range = (lim.max - lim.min) * 0.5 * factor;
+        double min_half   = std::max(std::abs(lim.min), std::abs(lim.max))
+                              * std::numeric_limits<double>::epsilon() * 16.0;
+        if (min_half < 1e-300)
+            min_half = 1e-300;
+        if (half_range < min_half)
+            half_range = min_half;
         return {center - half_range, center + half_range};
     };
 
@@ -333,31 +387,43 @@ void Axes3D::zoom_limits(float factor)
 
 void Axes3D::zoom_limits_x(float factor)
 {
-    auto  xl         = x_limits();
-    float center     = (xl.min + xl.max) * 0.5f;
-    float half_range = (xl.max - xl.min) * 0.5f * factor;
-    if (half_range < 1e-10f)
-        half_range = 1e-10f;
+    auto   xl         = x_limits();
+    double center     = (xl.min + xl.max) * 0.5;
+    double half_range = (xl.max - xl.min) * 0.5 * factor;
+    double min_half   = std::max(std::abs(xl.min), std::abs(xl.max))
+                          * std::numeric_limits<double>::epsilon() * 16.0;
+    if (min_half < 1e-300)
+        min_half = 1e-300;
+    if (half_range < min_half)
+        half_range = min_half;
     xlim(center - half_range, center + half_range);
 }
 
 void Axes3D::zoom_limits_y(float factor)
 {
-    auto  yl         = y_limits();
-    float center     = (yl.min + yl.max) * 0.5f;
-    float half_range = (yl.max - yl.min) * 0.5f * factor;
-    if (half_range < 1e-10f)
-        half_range = 1e-10f;
+    auto   yl         = y_limits();
+    double center     = (yl.min + yl.max) * 0.5;
+    double half_range = (yl.max - yl.min) * 0.5 * factor;
+    double min_half   = std::max(std::abs(yl.min), std::abs(yl.max))
+                          * std::numeric_limits<double>::epsilon() * 16.0;
+    if (min_half < 1e-300)
+        min_half = 1e-300;
+    if (half_range < min_half)
+        half_range = min_half;
     ylim(center - half_range, center + half_range);
 }
 
 void Axes3D::zoom_limits_z(float factor)
 {
-    auto  zl         = z_limits();
-    float center     = (zl.min + zl.max) * 0.5f;
-    float half_range = (zl.max - zl.min) * 0.5f * factor;
-    if (half_range < 1e-10f)
-        half_range = 1e-10f;
+    auto   zl         = z_limits();
+    double center     = (zl.min + zl.max) * 0.5;
+    double half_range = (zl.max - zl.min) * 0.5 * factor;
+    double min_half   = std::max(std::abs(zl.min), std::abs(zl.max))
+                          * std::numeric_limits<double>::epsilon() * 16.0;
+    if (min_half < 1e-300)
+        min_half = 1e-300;
+    if (half_range < min_half)
+        half_range = min_half;
     zlim(center - half_range, center + half_range);
 }
 
@@ -389,13 +455,13 @@ void Axes3D::pan_limits(float dx_screen, float dy_screen, float /* vp_w */, floa
     auto  zl = z_limits();
     float hs = box_half_size();
 
-    float x_range = xl.max - xl.min;
-    float y_range = yl.max - yl.min;
-    float z_range = zl.max - zl.min;
+    double x_range = xl.max - xl.min;
+    double y_range = yl.max - yl.min;
+    double z_range = zl.max - zl.min;
 
-    float ddx = (x_range > 1e-10f) ? world_delta.x * x_range / (2.0f * hs) : 0.0f;
-    float ddy = (y_range > 1e-10f) ? world_delta.y * y_range / (2.0f * hs) : 0.0f;
-    float ddz = (z_range > 1e-10f) ? world_delta.z * z_range / (2.0f * hs) : 0.0f;
+    double ddx = (x_range > 1e-30) ? world_delta.x * x_range / (2.0 * hs) : 0.0;
+    double ddy = (y_range > 1e-30) ? world_delta.y * y_range / (2.0 * hs) : 0.0;
+    double ddz = (z_range > 1e-30) ? world_delta.z * z_range / (2.0 * hs) : 0.0;
 
     xlim(xl.min + ddx, xl.max + ddx);
     ylim(yl.min + ddy, yl.max + ddy);

@@ -123,7 +123,7 @@ BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> he
 
 // --- Axis configuration ---
 
-void Axes::xlim(float min, float max)
+void Axes::xlim(double min, double max)
 {
     // Explicit manual limits pause streaming follow mode, but keep the
     // configured buffer so users can resume via the Live button.
@@ -131,7 +131,7 @@ void Axes::xlim(float min, float max)
     xlim_                       = AxisLimits{min, max};
 }
 
-void Axes::ylim(float min, float max)
+void Axes::ylim(double min, double max)
 {
     // Explicit manual limits pause streaming follow mode, but keep the
     // configured buffer so users can resume via the Live button.
@@ -494,7 +494,7 @@ AxisLimits Axes::x_limits() const
     }
 
     if (xlim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
-        return xlim_.value_or(AxisLimits{0.0f, 1.0f});
+        return xlim_.value_or(AxisLimits{0.0, 1.0});
     float xmin, xmax, ymin, ymax;
     data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {xmin, xmax};
@@ -525,7 +525,7 @@ AxisLimits Axes::y_limits() const
     }
 
     if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
-        return ylim_.value_or(AxisLimits{0.0f, 1.0f});
+        return ylim_.value_or(AxisLimits{0.0, 1.0});
     float xmin, xmax, ymin, ymax;
     data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {ymin, ymax};
@@ -541,103 +541,171 @@ void Axes::auto_fit()
 // Simple "nice numbers" algorithm: pick tick spacing as 1, 2, or 5 × 10^n
 // to produce roughly 5–10 ticks in the given range.
 
-static float nice_ceil(float x, bool round_flag)
+static double nice_ceil_d(double x, bool round_flag)
 {
-    float exp_v = std::floor(std::log10(x));
-    float frac  = x / std::pow(10.0f, exp_v);
-    float nice;
+    double exp_v = std::floor(std::log10(x));
+    double frac  = x / std::pow(10.0, exp_v);
+    double nice;
     if (round_flag)
     {
-        if (frac < 1.5f)
-            nice = 1.0f;
-        else if (frac < 3.0f)
-            nice = 2.0f;
-        else if (frac < 7.0f)
-            nice = 5.0f;
+        if (frac < 1.5)
+            nice = 1.0;
+        else if (frac < 3.0)
+            nice = 2.0;
+        else if (frac < 7.0)
+            nice = 5.0;
         else
-            nice = 10.0f;
+            nice = 10.0;
     }
     else
     {
-        if (frac <= 1.0f)
-            nice = 1.0f;
-        else if (frac <= 2.0f)
-            nice = 2.0f;
-        else if (frac <= 5.0f)
-            nice = 5.0f;
+        if (frac <= 1.0)
+            nice = 1.0;
+        else if (frac <= 2.0)
+            nice = 2.0;
+        else if (frac <= 5.0)
+            nice = 5.0;
         else
-            nice = 10.0f;
+            nice = 10.0;
     }
-    return nice * std::pow(10.0f, exp_v);
+    return nice * std::pow(10.0, exp_v);
 }
 
-static TickResult generate_ticks(float range_min, float range_max, int target_ticks = 7)
+// Format a tick value smartly: use enough decimal digits so that ticks at
+// the given spacing are distinguishable.  Falls back to scientific notation
+// when the offset is large relative to the spacing (deep-zoom regime).
+static std::string format_tick_value(double value, double spacing)
+{
+    char buf[64];
+
+    // Snap near-zero to exactly zero
+    if (std::abs(value) < spacing * 1e-6)
+    {
+        return "0";
+    }
+
+    double abs_val     = std::abs(value);
+    double abs_spacing = std::abs(spacing);
+
+    // How many significant digits do we need?
+    // We need enough digits to distinguish value from value±spacing.
+    // digits_needed = ceil(-log10(spacing)) + 1, but at least 1.
+    int digits_after_decimal = 0;
+    if (abs_spacing > 0 && std::isfinite(abs_spacing))
+    {
+        digits_after_decimal = static_cast<int>(std::ceil(-std::log10(abs_spacing))) + 1;
+        if (digits_after_decimal < 0)
+            digits_after_decimal = 0;
+    }
+
+    // If the absolute value is much larger than the spacing, we need
+    // scientific/engineering notation to show the difference.
+    // e.g. value=7.9000012, spacing=1e-6 → need "7.9000012" not "7.9"
+    int total_sig_digits = 0;
+    if (abs_val > 0 && abs_spacing > 0)
+    {
+        // Total significant digits = log10(abs_val / abs_spacing) + 1
+        total_sig_digits = static_cast<int>(std::ceil(std::log10(abs_val / abs_spacing))) + 2;
+        if (total_sig_digits < 4)
+            total_sig_digits = 4;
+        if (total_sig_digits > 15)
+            total_sig_digits = 15;
+    }
+    else
+    {
+        total_sig_digits = 6;
+    }
+
+    // Use fixed notation if it results in a reasonable string,
+    // otherwise switch to scientific notation.
+    if (digits_after_decimal <= 9 && abs_val < 1e9 && abs_val >= 0.001)
+    {
+        // Fixed notation with enough decimals
+        std::snprintf(buf, sizeof(buf), "%.*f", digits_after_decimal, value);
+        // Trim trailing zeros after decimal point
+        std::string str(buf);
+        if (str.find('.') != std::string::npos)
+        {
+            while (str.back() == '0')
+                str.pop_back();
+            if (str.back() == '.')
+                str.pop_back();
+        }
+        return str;
+    }
+    else
+    {
+        // Scientific notation with enough significant digits
+        std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
+        return std::string(buf);
+    }
+}
+
+static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
 {
     TickResult result;
 
-    float range = range_max - range_min;
+    double range = dmax - dmin;
 
     // Edge case: zero or negative range
-    if (range <= 0.0f)
+    if (range <= 0.0)
     {
-        // If range is exactly zero, center a tick on the value
-        if (range == 0.0f && range_min != 0.0f)
+        if (range == 0.0 && dmin != 0.0)
         {
-            // Expand around the single value
-            float half = std::abs(range_min) * 0.1f;
-            if (half == 0.0f)
-                half = 0.5f;
-            return generate_ticks(range_min - half, range_min + half, target_ticks);
+            double half = std::abs(dmin) * 0.1;
+            if (half == 0.0)
+                half = 0.5;
+            return generate_ticks(dmin - half, dmin + half, target_ticks);
         }
-        result.positions.push_back(range_min);
-        char buf[32];
-        std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(range_min));
-        result.labels.emplace_back(buf);
+        result.positions.push_back(static_cast<float>(dmin));
+        result.labels.push_back(format_tick_value(dmin, 1.0));
         return result;
     }
 
-    // Edge case: very small range (< 1e-10) — avoid log10 of near-zero
-    if (range < 1e-10f)
+    // Minimum range: limited by double precision of the values themselves.
+    // For value V stored as double, the smallest distinguishable step is
+    // ~|V| * DBL_EPSILON.  Below that, ticks would be identical.
+    double abs_max   = std::max(std::abs(dmin), std::abs(dmax));
+    double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
+    if (min_range < 1e-300)
+        min_range = 1e-300;   // absolute floor for values near zero
+
+    if (range < min_range)
     {
-        float mid = (range_min + range_max) * 0.5f;
-        result.positions.push_back(mid);
-        char buf[32];
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(mid));
-        result.labels.emplace_back(buf);
+        // Range is at double precision limit — show a single centered tick
+        double mid = (dmin + dmax) * 0.5;
+        result.positions.push_back(static_cast<float>(mid));
+        result.labels.push_back(format_tick_value(mid, range));
         return result;
     }
 
-    float nice_range = nice_ceil(range, false);
-    float spacing    = nice_ceil(nice_range / static_cast<float>(target_ticks - 1), true);
+    double nice_range = nice_ceil_d(range, false);
+    double spacing    = nice_ceil_d(nice_range / static_cast<double>(target_ticks - 1), true);
 
     // Guard against degenerate spacing
-    if (spacing <= 0.0f || !std::isfinite(spacing))
+    if (spacing <= 0.0 || !std::isfinite(spacing))
     {
-        result.positions.push_back(range_min);
-        char buf[32];
-        std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(range_min));
-        result.labels.emplace_back(buf);
+        result.positions.push_back(static_cast<float>(dmin));
+        result.labels.push_back(format_tick_value(dmin, range));
         return result;
     }
 
-    float nice_min = std::floor(range_min / spacing) * spacing;
-    float nice_max = std::ceil(range_max / spacing) * spacing;
+    double nice_min = std::floor(dmin / spacing) * spacing;
+    double nice_max = std::ceil(dmax / spacing) * spacing;
 
     // Safety: cap iterations to avoid infinite loops
     int max_iters = target_ticks * 3;
     int iters     = 0;
-    for (float v = nice_min; v <= nice_max + spacing * 0.5f && iters < max_iters;
+    for (double v = nice_min; v <= nice_max + spacing * 0.5 && iters < max_iters;
          v += spacing, ++iters)
     {
-        if (v >= range_min - spacing * 0.01f && v <= range_max + spacing * 0.01f)
+        if (v >= dmin - spacing * 0.01 && v <= dmax + spacing * 0.01)
         {
             // Snap near-zero values to exactly zero to avoid "-0" labels
-            if (std::abs(v) < spacing * 1e-6f)
-                v = 0.0f;
-            result.positions.push_back(v);
-            char buf[32];
-            std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(v));
-            result.labels.emplace_back(buf);
+            if (std::abs(v) < spacing * 1e-6)
+                v = 0.0;
+            result.positions.push_back(static_cast<float>(v));
+            result.labels.push_back(format_tick_value(v, spacing));
         }
     }
 

@@ -102,6 +102,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
 
     // Wire inspector fonts
     inspector_.set_fonts(font_body_, font_heading_, font_title_);
+    data_editor_.set_fonts(font_body_, font_heading_, font_title_);
 
     // For secondary windows, pass install_callbacks=false so ImGui doesn't
     // install its own GLFW callbacks.  WindowManager handles context switching
@@ -360,8 +361,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
 
             auto data_to_screen = [&](float dx_, float dy_, float& scr_x, float& scr_y)
             {
-                scr_x = vp.x + (dx_ - xlim.min) / (xlim.max - xlim.min) * vp.w;
-                scr_y = vp.y + (1.0f - (dy_ - ylim.min) / (ylim.max - ylim.min)) * vp.h;
+                double xr = xlim.max - xlim.min;
+                double yr = ylim.max - ylim.min;
+                if (xr == 0.0) xr = 1.0;
+                if (yr == 0.0) yr = 1.0;
+                scr_x = static_cast<float>(vp.x + (dx_ - xlim.min) / xr * vp.w);
+                scr_y = static_cast<float>(vp.y + (1.0 - (dy_ - ylim.min) / yr) * vp.h);
             };
 
             float sx = input_handler_->measure_start_data_x();
@@ -1372,6 +1377,21 @@ void ImGuiIntegration::draw_command_bar()
                       {
                           if (knob_manager_ && !knob_manager_->empty())
                               knob_manager_->set_visible(!knob_manager_->is_visible());
+                      }),
+             MenuItem("Toggle Data Editor",
+                      [this]()
+                      {
+                          if (active_section_ == Section::DataEditor && panel_open_)
+                          {
+                              panel_open_ = false;
+                              layout_manager_->set_inspector_visible(false);
+                          }
+                          else
+                          {
+                              active_section_ = Section::DataEditor;
+                              panel_open_     = true;
+                              layout_manager_->set_inspector_visible(true);
+                          }
                       })});
 
         ImGui::SameLine();
@@ -1805,6 +1825,7 @@ void ImGuiIntegration::draw_nav_rail()
         nav_btn(ui::Icon::ScatterChart, "Figures", Section::Figure);
         nav_btn(ui::Icon::ChartLine, "Series", Section::Series);
         nav_btn(ui::Icon::Axes, "Axes", Section::Axes);
+        nav_btn(ui::Icon::Edit, "Data Editor", Section::DataEditor);
 
         // ── Separator ──
         ImGui::Dummy(ImVec2(0, (section_gap - spacing) * 0.5f));
@@ -2058,55 +2079,67 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             // a specific series, preserve that selection so the properties
             // panel stays visible. Switching to any other section always
             // overrides the selection.
-            switch (active_section_)
+            if (active_section_ == Section::DataEditor)
             {
-                case Section::Figure:
-                    selection_ctx_.select_figure(&figure);
-                    break;
-                case Section::Series:
-                    // Only show browser if user hasn't selected a specific series
-                    if (selection_ctx_.type != ui::SelectionType::Series)
-                    {
-                        selection_ctx_.select_series_browser(&figure);
-                    }
-                    break;
-                case Section::Axes:
-                    // Only show browser if user hasn't selected a specific axes.
-                    // When switching figures, try to preserve the axes index if valid.
-                    if (figure.axes().empty())
-                    {
-                        // No axes in this figure, clear selection
-                        selection_ctx_.clear();
-                    }
-                    else if (selection_ctx_.type != ui::SelectionType::Axes)
-                    {
-                        selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
-                    }
-                    else if (selection_ctx_.figure != &figure)
-                    {
-                        // User has axes selected but switched to a different figure.
-                        // Try to select the same axes index in the new figure.
-                        int target_idx = selection_ctx_.axes_index;
-                        if (target_idx >= 0 && target_idx < static_cast<int>(figure.axes().size()))
+                // Data editor mode: draw tabular data view instead of inspector
+                data_editor_.draw(figure);
+            }
+            else
+            {
+                switch (active_section_)
+                {
+                    case Section::Figure:
+                        selection_ctx_.select_figure(&figure);
+                        break;
+                    case Section::Series:
+                        // Only show browser if user hasn't selected a specific series
+                        if (selection_ctx_.type != ui::SelectionType::Series)
                         {
-                            selection_ctx_.select_axes(&figure,
-                                                       figure.axes_mut()[target_idx].get(),
-                                                       target_idx);
+                            selection_ctx_.select_series_browser(&figure);
                         }
-                        else
+                        break;
+                    case Section::Axes:
+                        // Only show browser if user hasn't selected a specific axes.
+                        // When switching figures, try to preserve the axes index if valid.
+                        if (figure.axes().empty())
                         {
-                            // Index out of range, fall back to first axes
+                            // No axes in this figure, clear selection
+                            selection_ctx_.clear();
+                        }
+                        else if (selection_ctx_.type != ui::SelectionType::Axes)
+                        {
                             selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
                         }
-                    }
-                    break;
+                        else if (selection_ctx_.figure != &figure)
+                        {
+                            // User has axes selected but switched to a different figure.
+                            // Try to select the same axes index in the new figure.
+                            int target_idx = selection_ctx_.axes_index;
+                            if (target_idx >= 0
+                                && target_idx < static_cast<int>(figure.axes().size()))
+                            {
+                                selection_ctx_.select_axes(&figure,
+                                                           figure.axes_mut()[target_idx].get(),
+                                                           target_idx);
+                            }
+                            else
+                            {
+                                // Index out of range, fall back to first axes
+                                selection_ctx_.select_axes(
+                                    &figure, figure.axes_mut()[0].get(), 0);
+                            }
+                        }
+                        break;
+                    case Section::DataEditor:
+                        break;   // Handled above
+                }
+
+                inspector_.set_context(selection_ctx_);
+                inspector_.draw(figure);
+
+                // Read back context (inspector may change selection, e.g. clicking a series)
+                selection_ctx_ = inspector_.context();
             }
-
-            inspector_.set_context(selection_ctx_);
-            inspector_.draw(figure);
-
-            // Read back context (inspector may change selection, e.g. clicking a series)
-            selection_ctx_ = inspector_.context();
 
             ImGui::PopStyleVar();
         }
@@ -5033,12 +5066,12 @@ void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure
         const auto& ax      = *figure->axes()[0];
         AxisLimits  xl      = ax.x_limits();
         AxisLimits  yl      = ax.y_limits();
-        float       x_range = xl.max - xl.min;
-        float       y_range = yl.max - yl.min;
-        if (x_range <= 0.0f)
-            x_range = 1.0f;
-        if (y_range <= 0.0f)
-            y_range = 1.0f;
+        double      x_range = xl.max - xl.min;
+        double      y_range = yl.max - yl.min;
+        if (x_range <= 0.0)
+            x_range = 1.0;
+        if (y_range <= 0.0)
+            y_range = 1.0;
 
         // Clip to plot area
         dl->PushClipRect(ImVec2(px, py), ImVec2(px + pw, py + ph), true);

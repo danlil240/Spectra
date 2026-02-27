@@ -219,12 +219,12 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         const auto& vp      = axes_ptr->viewport();
         auto        xlim    = axes_ptr->x_limits();
         auto        ylim    = axes_ptr->y_limits();
-        float       x_range = xlim.max - xlim.min;
-        float       y_range = ylim.max - ylim.min;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
+        double      x_range = xlim.max - xlim.min;
+        double      y_range = ylim.max - ylim.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
 
         float vx0 = vp.x;
         float vy0 = vp.y;
@@ -232,7 +232,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         float vy1 = vp.y + vp.h;
 
         // Vertical line at the same data-X on every axes
-        float norm_x = (data_x - xlim.min) / x_range;
+        float norm_x = static_cast<float>((data_x - xlim.min) / x_range);
         float sx     = vp.x + norm_x * vp.w;
 
         if (sx >= vx0 && sx <= vx1)

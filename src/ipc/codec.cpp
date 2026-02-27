@@ -640,16 +640,16 @@ std::vector<uint8_t> payload_as_blob(const PayloadDecoder& dec)
 static std::vector<uint8_t> encode_axis_blob(const SnapshotAxisState& ax)
 {
     PayloadEncoder enc;
-    payload_put_float(enc, TAG_X_MIN, ax.x_min);
-    payload_put_float(enc, TAG_X_MAX, ax.x_max);
-    payload_put_float(enc, TAG_Y_MIN, ax.y_min);
-    payload_put_float(enc, TAG_Y_MAX, ax.y_max);
+    payload_put_double(enc, TAG_X_MIN, ax.x_min);
+    payload_put_double(enc, TAG_X_MAX, ax.x_max);
+    payload_put_double(enc, TAG_Y_MIN, ax.y_min);
+    payload_put_double(enc, TAG_Y_MAX, ax.y_max);
     payload_put_bool(enc, TAG_GRID_VISIBLE, ax.grid_visible);
     if (ax.is_3d)
     {
         payload_put_bool(enc, TAG_IS_3D, true);
-        payload_put_float(enc, TAG_Z_MIN, ax.z_min);
-        payload_put_float(enc, TAG_Z_MAX, ax.z_max);
+        payload_put_double(enc, TAG_Z_MIN, ax.z_min);
+        payload_put_double(enc, TAG_Z_MAX, ax.z_max);
     }
     enc.put_string(TAG_X_LABEL, ax.x_label);
     enc.put_string(TAG_Y_LABEL, ax.y_label);
@@ -666,16 +666,16 @@ static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
         switch (dec.tag())
         {
             case TAG_X_MIN:
-                ax.x_min = payload_as_float(dec);
+                ax.x_min = payload_as_double(dec);
                 break;
             case TAG_X_MAX:
-                ax.x_max = payload_as_float(dec);
+                ax.x_max = payload_as_double(dec);
                 break;
             case TAG_Y_MIN:
-                ax.y_min = payload_as_float(dec);
+                ax.y_min = payload_as_double(dec);
                 break;
             case TAG_Y_MAX:
-                ax.y_max = payload_as_float(dec);
+                ax.y_max = payload_as_double(dec);
                 break;
             case TAG_GRID_VISIBLE:
                 ax.grid_visible = payload_as_bool(dec);
@@ -684,10 +684,10 @@ static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
                 ax.is_3d = payload_as_bool(dec);
                 break;
             case TAG_Z_MIN:
-                ax.z_min = payload_as_float(dec);
+                ax.z_min = payload_as_double(dec);
                 break;
             case TAG_Z_MAX:
-                ax.z_max = payload_as_float(dec);
+                ax.z_max = payload_as_double(dec);
                 break;
             case TAG_X_LABEL:
                 ax.x_label = dec.as_string();
@@ -969,10 +969,10 @@ static std::vector<uint8_t> encode_diff_op_blob(const DiffOp& op)
     enc.put_u64(TAG_FIGURE_ID, op.figure_id);
     enc.put_u32(TAG_AXES_INDEX, op.axes_index);
     enc.put_u32(TAG_SERIES_INDEX, op.series_index);
-    payload_put_float(enc, TAG_F1, op.f1);
-    payload_put_float(enc, TAG_F2, op.f2);
-    payload_put_float(enc, TAG_F3, op.f3);
-    payload_put_float(enc, TAG_F4, op.f4);
+    payload_put_double(enc, TAG_F1, op.f1);
+    payload_put_double(enc, TAG_F2, op.f2);
+    payload_put_double(enc, TAG_F3, op.f3);
+    payload_put_double(enc, TAG_F4, op.f4);
     payload_put_bool(enc, TAG_BOOL_VAL, op.bool_val);
     if (!op.str_val.empty())
         enc.put_string(TAG_STR_VAL, op.str_val);
@@ -1002,16 +1002,16 @@ static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
                 op.series_index = dec.as_u32();
                 break;
             case TAG_F1:
-                op.f1 = payload_as_float(dec);
+                op.f1 = payload_as_double(dec);
                 break;
             case TAG_F2:
-                op.f2 = payload_as_float(dec);
+                op.f2 = payload_as_double(dec);
                 break;
             case TAG_F3:
-                op.f3 = payload_as_float(dec);
+                op.f3 = payload_as_double(dec);
                 break;
             case TAG_F4:
-                op.f4 = payload_as_float(dec);
+                op.f4 = payload_as_double(dec);
                 break;
             case TAG_BOOL_VAL:
                 op.bool_val = payload_as_bool(dec);
@@ -1400,10 +1400,10 @@ std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& 
     enc.put_u32(TAG_AXES_INDEX, p.axes_index);
     enc.put_u32(TAG_SERIES_INDEX, p.series_index);
     enc.put_string(TAG_PROPERTY_NAME, p.property);
-    payload_put_float(enc, TAG_F1, p.f1);
-    payload_put_float(enc, TAG_F2, p.f2);
-    payload_put_float(enc, TAG_F3, p.f3);
-    payload_put_float(enc, TAG_F4, p.f4);
+    payload_put_double(enc, TAG_F1, p.f1);
+    payload_put_double(enc, TAG_F2, p.f2);
+    payload_put_double(enc, TAG_F3, p.f3);
+    payload_put_double(enc, TAG_F4, p.f4);
     payload_put_bool(enc, TAG_BOOL_VAL, p.bool_val);
     if (!p.str_val.empty())
         enc.put_string(TAG_STR_VAL, p.str_val);
@@ -1431,16 +1431,16 @@ std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<con
                 p.property = dec.as_string();
                 break;
             case TAG_F1:
-                p.f1 = payload_as_float(dec);
+                p.f1 = payload_as_double(dec);
                 break;
             case TAG_F2:
-                p.f2 = payload_as_float(dec);
+                p.f2 = payload_as_double(dec);
                 break;
             case TAG_F3:
-                p.f3 = payload_as_float(dec);
+                p.f3 = payload_as_double(dec);
                 break;
             case TAG_F4:
-                p.f4 = payload_as_float(dec);
+                p.f4 = payload_as_double(dec);
                 break;
             case TAG_BOOL_VAL:
                 p.bool_val = payload_as_bool(dec);

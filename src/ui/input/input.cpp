@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <spectra/logger.hpp>
 
 #include "ui/animation/animation_controller.hpp"
@@ -465,16 +466,18 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         }
     }
 
-    // Right-click 1D zoom: drag horizontally to zoom X, vertically to zoom Y
+    // Right-click drag zoom:
+    // - near horizontal/vertical drags: 1D axis zoom (X or Y)
+    // - diagonal drags: 2D slant zoom (X and Y together)
     if (button == MOUSE_BUTTON_RIGHT)
     {
         if (action == ACTION_PRESS && !rclick_zoom_dragging_ && active_axes_)
         {
-            // Let DataInteraction handle right-click first (series selection for context menu).
-            // If it selects a nearby series, don't start zoom drag — let ImGui open context menu.
-            if (data_interaction_ && data_interaction_->on_mouse_click(1, x, y))
+            // Let DataInteraction handle right-click first (marker remove).
+            // If a marker was removed, don't start zoom drag.
+            if (data_interaction_ && data_interaction_->on_mouse_click_datatip_only(1, x, y))
             {
-                // Series was selected or marker removed — don't start zoom drag
+                // Marker was removed — don't start zoom drag
                 return;
             }
 
@@ -497,6 +500,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             rclick_zoom_xlim_max_ = xlim.max;
             rclick_zoom_ylim_min_ = ylim.min;
             rclick_zoom_ylim_max_ = ylim.max;
+            // Capture drag-start position in data space as zoom anchor
+            screen_to_data(x, y, rclick_zoom_anchor_data_x_, rclick_zoom_anchor_data_y_);
             return;
         }
         if (action == ACTION_RELEASE && rclick_zoom_dragging_ && !rclick_zoom_3d_)
@@ -589,9 +594,9 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
                 if (move_dist < CLICK_THRESHOLD_PX)
                 {
-                    // Click behavior in Select mode: series selection / datatip toggle.
+                    // Select mode click behavior: series selection/deselection only.
                     data_interaction_->dismiss_region_select();
-                    data_interaction_->on_mouse_click(0, x, y);
+                    data_interaction_->on_mouse_click_series_only(x, y);
                 }
                 else
                 {
@@ -757,6 +762,12 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         active_axes_->xlim(drag_start_xlim_min_, drag_start_xlim_max_);
                         active_axes_->ylim(drag_start_ylim_min_, drag_start_ylim_max_);
                     }
+
+                    // Pan-mode click behavior: select/highlight nearest point (data tip).
+                    if (data_interaction_)
+                    {
+                        data_interaction_->on_mouse_click_datatip_only(0, x, y);
+                    }
                     return;
                 }
             }
@@ -873,7 +884,7 @@ void InputHandler::on_mouse_move(double x, double y)
         return;
     }
 
-    // Handle right-click 1D zoom drag (both 2D and 3D)
+    // Handle right-click drag zoom (both 2D and 3D)
     if (rclick_zoom_dragging_)
     {
         double dx_total     = x - rclick_zoom_start_x_;
@@ -919,8 +930,22 @@ void InputHandler::on_mouse_move(double x, double y)
                 }
                 else
                 {
-                    // 2D: horizontal = X, vertical = Y
-                    rclick_zoom_axis_ = (abs_dx > abs_dy) ? ZoomAxis::X : ZoomAxis::Y;
+                    // 2D: 15° cones near horizontal/vertical are pure 1D.
+                    // Middle angles use proportional XY blending.
+                    constexpr double kRadToDeg = 57.29577951308232;
+                    float angle_deg = static_cast<float>(std::atan2(abs_dy, abs_dx) * kRadToDeg);
+                    if (angle_deg <= RCLICK_AXIS_1D_THRESHOLD_DEG)
+                    {
+                        rclick_zoom_axis_ = ZoomAxis::X;
+                    }
+                    else if (angle_deg >= (90.0f - RCLICK_AXIS_1D_THRESHOLD_DEG))
+                    {
+                        rclick_zoom_axis_ = ZoomAxis::Y;
+                    }
+                    else
+                    {
+                        rclick_zoom_axis_ = ZoomAxis::XY;
+                    }
                 }
             }
         }
@@ -935,11 +960,34 @@ void InputHandler::on_mouse_move(double x, double y)
                 pixel_delta = static_cast<float>(dx_delta);
             else if (rclick_zoom_axis_ == ZoomAxis::Y)
                 pixel_delta = static_cast<float>(-dy_delta);   // screen Y inverted
+            else if (rclick_zoom_axis_ == ZoomAxis::XY)
+                pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
             else if (rclick_zoom_axis_ == ZoomAxis::Z)
                 pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
 
             float factor = 1.0f - pixel_delta * RCLICK_ZOOM_SENSITIVITY;
             factor       = std::clamp(factor, 0.9f, 1.1f);   // limit per-frame zoom step
+
+            float factor_x = factor;
+            float factor_y = factor;
+            if (!rclick_zoom_3d_ && rclick_zoom_axis_ == ZoomAxis::XY)
+            {
+                // Blend each axis toward identity based on drag direction:
+                // near-horizontal => mostly X, near-vertical => mostly Y.
+                double abs_dx_total = std::abs(dx_total);
+                double abs_dy_total = std::abs(dy_total);
+                double sum          = abs_dx_total + abs_dy_total;
+                float  x_weight     = 0.5f;
+                float  y_weight     = 0.5f;
+                if (sum > 1e-6)
+                {
+                    x_weight = static_cast<float>(abs_dx_total / sum);
+                    y_weight = static_cast<float>(abs_dy_total / sum);
+                }
+
+                factor_x = 1.0f + (factor - 1.0f) * x_weight;
+                factor_y = 1.0f + (factor - 1.0f) * y_weight;
+            }
 
             if (rclick_zoom_3d_)
             {
@@ -957,29 +1005,56 @@ void InputHandler::on_mouse_move(double x, double y)
             }
             else if (active_axes_)
             {
-                if (active_axes_->is_presented_buffer_following() && rclick_zoom_axis_ == ZoomAxis::X)
+                const double anchor_x = static_cast<double>(rclick_zoom_anchor_data_x_);
+                const double anchor_y = static_cast<double>(rclick_zoom_anchor_data_y_);
+
+                if (active_axes_->is_presented_buffer_following()
+                    && (rclick_zoom_axis_ == ZoomAxis::X || rclick_zoom_axis_ == ZoomAxis::XY))
                 {
                     float seconds = active_axes_->presented_buffer_seconds();
-                    seconds       = std::clamp(seconds * factor, 0.1f, 86400.0f);
+                    seconds       = std::clamp(seconds * factor_x, 0.1f, 86400.0f);
                     active_axes_->presented_buffer(seconds);
                 }
-                else if (rclick_zoom_axis_ == ZoomAxis::X)
+                else if (rclick_zoom_axis_ == ZoomAxis::X || rclick_zoom_axis_ == ZoomAxis::XY)
                 {
-                    auto  xlim   = active_axes_->x_limits();
-                    float center = (xlim.min + xlim.max) * 0.5f;
-                    float half   = (xlim.max - xlim.min) * 0.5f * factor;
-                    if (half < 1e-10f)
-                        half = 1e-10f;
-                    active_axes_->xlim(center - half, center + half);
+                    // Zoom anchored at drag-start X position:
+                    auto   xlim     = active_axes_->x_limits();
+                    double new_xmin = anchor_x - (anchor_x - xlim.min) * factor_x;
+                    double new_xmax = anchor_x + (xlim.max - anchor_x) * factor_x;
+                    {
+                        double abs_max   = std::max(std::abs(new_xmin), std::abs(new_xmax));
+                        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
+                        if (min_range < 1e-300)
+                            min_range = 1e-300;
+                        if (new_xmax - new_xmin < min_range)
+                        {
+                            double mid = (new_xmin + new_xmax) * 0.5;
+                            new_xmin   = mid - min_range * 0.5;
+                            new_xmax   = mid + min_range * 0.5;
+                        }
+                    }
+                    active_axes_->xlim(new_xmin, new_xmax);
                 }
-                else if (rclick_zoom_axis_ == ZoomAxis::Y)
+
+                if (rclick_zoom_axis_ == ZoomAxis::Y || rclick_zoom_axis_ == ZoomAxis::XY)
                 {
-                    auto  ylim   = active_axes_->y_limits();
-                    float center = (ylim.min + ylim.max) * 0.5f;
-                    float half   = (ylim.max - ylim.min) * 0.5f * factor;
-                    if (half < 1e-10f)
-                        half = 1e-10f;
-                    active_axes_->ylim(center - half, center + half);
+                    // Zoom anchored at drag-start Y position
+                    auto   ylim     = active_axes_->y_limits();
+                    double new_ymin = anchor_y - (anchor_y - ylim.min) * factor_y;
+                    double new_ymax = anchor_y + (ylim.max - anchor_y) * factor_y;
+                    {
+                        double abs_max   = std::max(std::abs(new_ymin), std::abs(new_ymax));
+                        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
+                        if (min_range < 1e-300)
+                            min_range = 1e-300;
+                        if (new_ymax - new_ymin < min_range)
+                        {
+                            double mid = (new_ymin + new_ymax) * 0.5;
+                            new_ymin   = mid - min_range * 0.5;
+                            new_ymax   = mid + min_range * 0.5;
+                        }
+                    }
+                    active_axes_->ylim(new_ymin, new_ymax);
                 }
                 if (axis_link_mgr_)
                     axis_link_mgr_->propagate_limits(active_axes_,
@@ -1223,10 +1298,39 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
 
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
-    float new_xmin = data_x + (xlim.min - data_x) * factor;
-    float new_xmax = data_x + (xlim.max - data_x) * factor;
-    float new_ymin = data_y + (ylim.min - data_y) * factor;
-    float new_ymax = data_y + (ylim.max - data_y) * factor;
+    // Use double arithmetic to preserve precision at deep zoom levels.
+    double dx = static_cast<double>(data_x);
+    double dy = static_cast<double>(data_y);
+    double new_xmin = dx + (xlim.min - dx) * factor;
+    double new_xmax = dx + (xlim.max - dx) * factor;
+    double new_ymin = dy + (ylim.min - dy) * factor;
+    double new_ymax = dy + (ylim.max - dy) * factor;
+
+    // Clamp to double precision limits — prevent zooming past what double can represent
+    {
+        double abs_max   = std::max(std::abs(new_xmin), std::abs(new_xmax));
+        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
+        if (min_range < 1e-300)
+            min_range = 1e-300;
+        if (new_xmax - new_xmin < min_range)
+        {
+            double mid = (new_xmin + new_xmax) * 0.5;
+            new_xmin   = mid - min_range * 0.5;
+            new_xmax   = mid + min_range * 0.5;
+        }
+    }
+    {
+        double abs_max   = std::max(std::abs(new_ymin), std::abs(new_ymax));
+        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
+        if (min_range < 1e-300)
+            min_range = 1e-300;
+        if (new_ymax - new_ymin < min_range)
+        {
+            double mid = (new_ymin + new_ymax) * 0.5;
+            new_ymin   = mid - min_range * 0.5;
+            new_ymax   = mid + min_range * 0.5;
+        }
+    }
 
     active_axes_->xlim(new_xmin, new_xmax);
     active_axes_->ylim(new_ymin, new_ymax);

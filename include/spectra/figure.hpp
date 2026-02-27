@@ -116,6 +116,7 @@ class Figure
     friend class WindowRuntime;
     friend class SessionRuntime;
     friend class FigureSerializer;
+    friend class EmbedSurface;
 
     FigureConfig                           config_;
     FigureStyle                            style_;

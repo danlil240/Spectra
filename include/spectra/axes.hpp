@@ -40,7 +40,7 @@ struct AxisLimits
 
 struct TickResult
 {
-    std::vector<float>       positions;
+    std::vector<double>      positions;
     std::vector<std::string> labels;
 };
 

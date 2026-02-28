@@ -1076,6 +1076,11 @@
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_SOURCE_DIR=\\\"/home/daniel/projects/Spectra\\\" -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/util -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/unit_test_ultra_zoom_precision.dir/unit/test_ultra_zoom_precision.cpp.o -c /home/daniel/projects/Spectra/tests/unit/test_ultra_zoom_precision.cpp",
+  "file": "/home/daniel/projects/Spectra/tests/unit/test_ultra_zoom_precision.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/tests/golden -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest/include -isystem /home/daniel/projects/Spectra/build_clang_asan/_deps/googletest-src/googletest -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/golden_image_tests.dir/golden/golden_test.cpp.o -c /home/daniel/projects/Spectra/tests/golden/golden_test.cpp",
   "file": "/home/daniel/projects/Spectra/tests/golden/golden_test.cpp"
 },

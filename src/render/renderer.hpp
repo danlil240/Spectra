@@ -43,6 +43,9 @@ class Renderer
 
     // Upload series data to GPU if dirty
     void upload_series_data(Series& series);
+    // Upload series data relative to a double-precision origin (camera-relative rendering).
+    // Subtracts (origin_x, origin_y) from each data point in double before converting to float.
+    void upload_series_data(Series& series, double origin_x, double origin_y);
 
     // Notify the renderer that a Series object is about to be destroyed.
     // Moves its GPU resources into a deferred-deletion queue so they are
@@ -87,10 +90,14 @@ class Renderer
     // Visible x-range for 2D culling (nullopt = draw all)
     struct VisibleRange
     {
-        float x_min;
-        float x_max;
+        double x_min;
+        double x_max;
     };
-    void render_series(Series& series, const Rect& viewport, const VisibleRange* visible = nullptr);
+    void render_series(Series&            series,
+                       const Rect&         viewport,
+                       const VisibleRange* visible    = nullptr,
+                       double              view_cx    = 0.0,
+                       double              view_cy    = 0.0);
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
@@ -180,6 +187,10 @@ class Renderer
         CachedLimits bbox_cache;
         CachedLimits tick_cache;
         int          cached_grid_planes = 0;   // for 3D grid plane mask
+        // Camera-relative rendering: current view center for 2D axes.
+        // Grid and border vertices are generated relative to this origin.
+        double view_center_x = 0.0;
+        double view_center_y = 0.0;
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
 
@@ -211,6 +222,11 @@ class Renderer
         BufferHandle outlier_buffer;   // SSBO for box plot outlier points
         size_t       outlier_count = 0;
         SeriesType   type          = SeriesType::Unknown;
+        // Camera-relative rendering: double-precision origin subtracted
+        // from data during upload.  Eliminates catastrophic cancellation
+        // at deep zoom by keeping GPU floats small.
+        double origin_x = 0.0;
+        double origin_y = 0.0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 

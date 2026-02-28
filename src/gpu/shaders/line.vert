@@ -67,6 +67,16 @@ void main() {
     vec2 screen0 = (ndc0 * 0.5 + 0.5) * viewport_size;
     vec2 screen1 = (ndc1 * 0.5 + 0.5) * viewport_size;
 
+    // Guard-band clamp: when endpoints are far off-screen (deep zoom with
+    // sparse data), screen coordinates can reach ±millions of pixels.
+    // Adding a few-pixel extrusion to such large values falls below float
+    // ULP and is silently dropped, collapsing the quad to zero width.
+    // Clamping to a generous guard band keeps extrusion numerically stable;
+    // the hardware clipper discards fragments outside the viewport anyway.
+    const float SCREEN_GUARD = 32768.0;
+    screen0 = clamp(screen0, vec2(-SCREEN_GUARD), viewport_size + SCREEN_GUARD);
+    screen1 = clamp(screen1, vec2(-SCREEN_GUARD), viewport_size + SCREEN_GUARD);
+
     // Direction along the segment in screen space
     vec2 dir = screen1 - screen0;
     float seg_length = length(dir);

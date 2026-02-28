@@ -205,7 +205,7 @@ void test_axes3d_tick_range_edge_cases()
     axes.xlim(0.0f, 0.0f);
     auto x_ticks = axes.compute_x_ticks();
     assert(x_ticks.positions.size() == 1);
-    assert(x_ticks.positions[0] == 0.0f);
+    assert(x_ticks.positions[0] == 0.0);
 
     axes.ylim(-1e-6f, 1e-6f);
     auto y_ticks = axes.compute_y_ticks();
@@ -286,7 +286,7 @@ void test_axes3d_tick_mark_positions()
     // X tick positions should be at y=y_min, z=z_min
     for (size_t i = 0; i < tick_data.positions.size(); ++i)
     {
-        assert(tick_data.positions[i].x == x_ticks.positions[i]);
+        assert(tick_data.positions[i].x == static_cast<float>(x_ticks.positions[i]));
         assert(tick_data.positions[i].y == min_corner.y);
         assert(tick_data.positions[i].z == min_corner.z);
     }

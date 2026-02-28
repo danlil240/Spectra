@@ -26,10 +26,10 @@ TEST(TickGeneration, PositiveRange)
     EXPECT_LE(ticks.positions.size(), 15u);
     EXPECT_EQ(ticks.positions.size(), ticks.labels.size());
     // All ticks should be within [0, 10]
-    for (float v : ticks.positions)
+    for (double v : ticks.positions)
     {
-        EXPECT_GE(v, -0.1f);
-        EXPECT_LE(v, 10.1f);
+        EXPECT_GE(v, -0.1);
+        EXPECT_LE(v, 10.1);
     }
 }
 
@@ -39,10 +39,10 @@ TEST(TickGeneration, NegativeRange)
     ax.xlim(-100.0f, -10.0f);
     auto ticks = ax.compute_x_ticks();
     EXPECT_GE(ticks.positions.size(), 2u);
-    for (float v : ticks.positions)
+    for (double v : ticks.positions)
     {
-        EXPECT_GE(v, -101.0f);
-        EXPECT_LE(v, -9.0f);
+        EXPECT_GE(v, -101.0);
+        EXPECT_LE(v, -9.0);
     }
 }
 
@@ -54,9 +54,9 @@ TEST(TickGeneration, CrossingZero)
     EXPECT_GE(ticks.positions.size(), 3u);
     // Should include zero (or very close to it)
     bool has_zero = false;
-    for (float v : ticks.positions)
+    for (double v : ticks.positions)
     {
-        if (std::abs(v) < 0.01f)
+        if (std::abs(v) < 0.01)
             has_zero = true;
     }
     EXPECT_TRUE(has_zero);

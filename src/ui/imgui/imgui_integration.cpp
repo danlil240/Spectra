@@ -2284,11 +2284,20 @@ void ImGuiIntegration::draw_status_bar()
                                      ui::theme().text_secondary.g,
                                      ui::theme().text_secondary.b,
                                      ui::theme().text_secondary.a));
-        char zoom_buf[32];
-        std::snprintf(zoom_buf,
-                      sizeof(zoom_buf),
-                      "Zoom: %d%%",
-                      static_cast<int>(zoom_level_ * 100.0f));
+        char zoom_buf[48];
+        {
+            double zoom_pct = static_cast<double>(zoom_level_) * 100.0;
+            if (zoom_pct < 10000.0)
+                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.0f%%", zoom_pct);
+            else if (zoom_pct < 1e7)
+                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fK%%", zoom_pct / 1e3);
+            else if (zoom_pct < 1e10)
+                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fM%%", zoom_pct / 1e6);
+            else if (zoom_pct < 1e13)
+                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fG%%", zoom_pct / 1e9);
+            else
+                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.2e%%", zoom_pct);
+        }
         ImGui::TextUnformatted(zoom_buf);
         ImGui::PopStyleColor();
 

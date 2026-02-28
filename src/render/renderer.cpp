@@ -330,30 +330,48 @@ void Renderer::render_plot_text(Figure& figure)
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
 
-        // X tick labels
-        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        // X tick labels — skip labels that would overlap
         {
-            float px = data_to_px_x(x_ticks.positions[i]);
-            text_renderer_.draw_text(x_ticks.labels[i],
-                                     px,
-                                     vp.y + vp.h + tl + tick_padding,
-                                     FontSize::Tick,
-                                     tick_col,
-                                     TextAlign::Center,
-                                     TextVAlign::Top);
+            float last_x_right = -1e30f;
+            constexpr float label_gap = 6.0f;
+            for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+            {
+                float px    = data_to_px_x(x_ticks.positions[i]);
+                auto  ext   = text_renderer_.measure_text(x_ticks.labels[i], FontSize::Tick);
+                float x_left = px - ext.width * 0.5f;
+                if (x_left < last_x_right + label_gap && i > 0)
+                    continue;
+                text_renderer_.draw_text(x_ticks.labels[i],
+                                         px,
+                                         vp.y + vp.h + tl + tick_padding,
+                                         FontSize::Tick,
+                                         tick_col,
+                                         TextAlign::Center,
+                                         TextVAlign::Top);
+                last_x_right = px + ext.width * 0.5f;
+            }
         }
 
-        // Y tick labels
-        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        // Y tick labels — skip labels that would overlap
         {
-            float py = data_to_px_y(y_ticks.positions[i]);
-            text_renderer_.draw_text(y_ticks.labels[i],
-                                     vp.x - tl - tick_padding,
-                                     py,
-                                     FontSize::Tick,
-                                     tick_col,
-                                     TextAlign::Right,
-                                     TextVAlign::Middle);
+            float last_y_bottom = -1e30f;
+            constexpr float label_gap = 4.0f;
+            for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+            {
+                float py   = data_to_px_y(y_ticks.positions[i]);
+                auto  ext  = text_renderer_.measure_text(y_ticks.labels[i], FontSize::Tick);
+                float y_top = py - ext.height * 0.5f;
+                if (y_top < last_y_bottom + label_gap && i > 0)
+                    continue;
+                text_renderer_.draw_text(y_ticks.labels[i],
+                                         vp.x - tl - tick_padding,
+                                         py,
+                                         FontSize::Tick,
+                                         tick_col,
+                                         TextAlign::Right,
+                                         TextVAlign::Middle);
+                last_y_bottom = py + ext.height * 0.5f;
+            }
         }
 
         // X axis label
@@ -489,7 +507,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3  pos = {x_ticks.positions[i], y0 - x_tick_offset, z0};
+                vec3  pos = {static_cast<float>(x_ticks.positions[i]), y0 - x_tick_offset, z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -514,7 +532,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3  pos = {x0 - y_tick_offset, y_ticks.positions[i], z0};
+                vec3  pos = {x0 - y_tick_offset, static_cast<float>(y_ticks.positions[i]), z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -539,7 +557,7 @@ void Renderer::render_plot_text(Figure& figure)
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
             {
                 float sx, sy, depth;
-                vec3  pos = {x0 - z_tick_offset, y0, z_ticks.positions[i]};
+                vec3  pos = {x0 - z_tick_offset, y0, static_cast<float>(z_ticks.positions[i])};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -777,6 +795,11 @@ void Renderer::render_figure(Figure& figure)
 
 void Renderer::upload_series_data(Series& series)
 {
+    upload_series_data(series, 0.0, 0.0);
+}
+
+void Renderer::upload_series_data(Series& series, double origin_x, double origin_y)
+{
     // Try 2D series first
     auto* line    = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
@@ -883,14 +906,19 @@ void Renderer::upload_series_data(Series& series)
         size_t floats_needed = count * 2;
         if (upload_scratch_.size() < floats_needed)
             upload_scratch_.resize(floats_needed);
+        // Camera-relative upload: subtract origin in double precision
+        // before converting to float.  Keeps GPU floats small, eliminating
+        // catastrophic cancellation at deep zoom.
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 2]     = x_data[i];
-            upload_scratch_[i * 2 + 1] = y_data[i];
+            upload_scratch_[i * 2]     = static_cast<float>(static_cast<double>(x_data[i]) - origin_x);
+            upload_scratch_[i * 2 + 1] = static_cast<float>(static_cast<double>(y_data[i]) - origin_y);
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
         gpu.uploaded_count = count;
+        gpu.origin_x       = origin_x;
+        gpu.origin_y       = origin_y;
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
@@ -918,8 +946,9 @@ void Renderer::upload_series_data(Series& series)
 
         if (fill_count > 0)
         {
-            // 3 floats per vertex: x, y, alpha
-            size_t fill_bytes = fill_count * 3 * sizeof(float);
+            // 3 floats per vertex: x, y, alpha — apply origin offset
+            size_t fill_bytes     = fill_count * 3 * sizeof(float);
+            size_t fill_floats    = fill_count * 3;
             if (!gpu.fill_buffer || gpu.fill_vertex_count < fill_count)
             {
                 if (gpu.fill_buffer)
@@ -927,7 +956,24 @@ void Renderer::upload_series_data(Series& series)
                 gpu.fill_buffer = backend_.create_buffer(BufferUsage::Vertex, fill_bytes * 2);
             }
 
-            backend_.upload_buffer(gpu.fill_buffer, fill_verts.data(), fill_bytes);
+            if (origin_x != 0.0 || origin_y != 0.0)
+            {
+                // Re-center fill vertices (stride=3: x, y, alpha)
+                if (upload_scratch_.size() < fill_floats)
+                    upload_scratch_.resize(fill_floats);
+                const float* fv = fill_verts.data();
+                for (size_t i = 0; i < fill_count; ++i)
+                {
+                    upload_scratch_[i * 3]     = static_cast<float>(static_cast<double>(fv[i * 3]) - origin_x);
+                    upload_scratch_[i * 3 + 1] = static_cast<float>(static_cast<double>(fv[i * 3 + 1]) - origin_y);
+                    upload_scratch_[i * 3 + 2] = fv[i * 3 + 2];   // alpha unchanged
+                }
+                backend_.upload_buffer(gpu.fill_buffer, upload_scratch_.data(), fill_bytes);
+            }
+            else
+            {
+                backend_.upload_buffer(gpu.fill_buffer, fill_verts.data(), fill_bytes);
+            }
             gpu.fill_vertex_count = fill_count;
         }
 
@@ -946,10 +992,12 @@ void Renderer::upload_series_data(Series& series)
             size_t out_floats = out_count * 2;
             if (upload_scratch_.size() < out_floats)
                 upload_scratch_.resize(out_floats);
+            const float* ox = boxplot->outlier_x().data();
+            const float* oy = boxplot->outlier_y().data();
             for (size_t i = 0; i < out_count; ++i)
             {
-                upload_scratch_[i * 2]     = boxplot->outlier_x().data()[i];
-                upload_scratch_[i * 2 + 1] = boxplot->outlier_y().data()[i];
+                upload_scratch_[i * 2]     = static_cast<float>(static_cast<double>(ox[i]) - origin_x);
+                upload_scratch_[i * 2 + 1] = static_cast<float>(static_cast<double>(oy[i]) - origin_y);
             }
             backend_.upload_buffer(gpu.outlier_buffer, upload_scratch_.data(), out_byte_size);
             gpu.outlier_count = out_count;
@@ -1183,11 +1231,29 @@ void Renderer::render_axes(AxesBase&   axes,
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {
-        // 2D orthographic projection
+        // 2D orthographic projection — camera-relative rendering.
+        // Build projection centered at the view midpoint so that the
+        // translation terms (m[12], m[13]) are zero (or near-zero).
+        // Data on the GPU is stored relative to a per-series origin,
+        // and the small gap between origin and view center is bridged
+        // by the data_offset push constants.
         auto xlim = axes2d->x_limits();
         auto ylim = axes2d->y_limits();
 
-        build_ortho_projection(xlim.min, xlim.max, ylim.min, ylim.max, ubo.projection);
+        double view_cx = (xlim.min + xlim.max) * 0.5;
+        double view_cy = (ylim.min + ylim.max) * 0.5;
+        double half_rx = (xlim.max - xlim.min) * 0.5;
+        double half_ry = (ylim.max - ylim.min) * 0.5;
+
+        // Store view center for grid/border rendering
+        auto& axes_gpu      = axes_gpu_data_[&axes];
+        axes_gpu.view_center_x = view_cx;
+        axes_gpu.view_center_y = view_cy;
+
+        // Centered projection: maps [-half_range, +half_range] → NDC.
+        // Translation term m[12] = 0 exactly, avoiding catastrophic cancellation.
+        build_ortho_projection(-half_rx, half_rx, -half_ry, half_ry, ubo.projection);
+
         // Identity view matrix (2D)
         ubo.view[0]  = 1.0f;
         ubo.view[5]  = 1.0f;
@@ -1321,28 +1387,65 @@ void Renderer::render_axes(AxesBase&   axes,
     else
     {
         // 2D: render in order (no sorting needed)
-        // Pass visible x-range for draw-call culling on large series
-        VisibleRange        vis{};
-        const VisibleRange* vis_ptr = nullptr;
-        if (auto* axes2d = dynamic_cast<Axes*>(&axes))
+        // Camera-relative rendering: retrieve the view center computed
+        // during projection setup so we can trigger re-uploads and set
+        // data_offset push constants.
+        auto*  axes2d  = dynamic_cast<Axes*>(&axes);
+        double view_cx = 0.0, view_cy = 0.0;
+        double half_rx = 0.0, half_ry = 0.0;
+        if (axes2d)
         {
             auto xlim = axes2d->x_limits();
-            vis.x_min = static_cast<float>(xlim.min);
-            vis.x_max = static_cast<float>(xlim.max);
-            vis_ptr   = &vis;
+            auto ylim = axes2d->y_limits();
+            view_cx   = (xlim.min + xlim.max) * 0.5;
+            view_cy   = (ylim.min + ylim.max) * 0.5;
+            half_rx   = (xlim.max - xlim.min) * 0.5;
+            half_ry   = (ylim.max - ylim.min) * 0.5;
         }
+
+        // Pass visible x-range for draw-call culling on large series.
+        // Uses absolute coordinates because the CPU-side x_data() being
+        // binary-searched is still in absolute float format.
+        VisibleRange        vis{};
+        const VisibleRange* vis_ptr = nullptr;
+        if (axes2d)
+        {
+            auto xlim_cull = axes2d->x_limits();
+            vis.x_min      = xlim_cull.min;
+            vis.x_max      = xlim_cull.max;
+            vis_ptr        = &vis;
+        }
+
+        // Re-upload threshold: when the series' upload origin drifts more
+        // than this factor × view range from the current view center,
+        // re-upload to prevent float precision loss in the data_offset sum.
+        constexpr double ORIGIN_DRIFT_THRESHOLD = 100.0;
 
         for (auto& series_ptr : axes.series())
         {
             if (!series_ptr || !series_ptr->visible())
                 continue;
 
-            if (series_ptr->is_dirty())
+            auto& gpu = series_gpu_data_[series_ptr.get()];
+
+            // Determine if camera-relative re-upload is needed
+            bool need_upload = series_ptr->is_dirty();
+            if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
-                upload_series_data(*series_ptr);
+                double drift_x = std::abs(gpu.origin_x - view_cx);
+                double drift_y = std::abs(gpu.origin_y - view_cy);
+                double thresh_x = std::max(half_rx, 1e-30) * ORIGIN_DRIFT_THRESHOLD;
+                double thresh_y = std::max(half_ry, 1e-30) * ORIGIN_DRIFT_THRESHOLD;
+                if (drift_x > thresh_x || drift_y > thresh_y)
+                    need_upload = true;
             }
 
-            render_series(*series_ptr, viewport, vis_ptr);
+            if (need_upload)
+            {
+                upload_series_data(*series_ptr, view_cx, view_cy);
+            }
+
+            render_series(*series_ptr, viewport, vis_ptr, view_cx, view_cy);
         }
 
         // Selection highlight on top of all 2D series
@@ -1382,9 +1485,13 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             vec3 max_corner = {static_cast<float>(xlim.max), static_cast<float>(ylim.max),
                                static_cast<float>(zlim.max)};
 
-            auto x_ticks = axes3d->compute_x_ticks().positions;
-            auto y_ticks = axes3d->compute_y_ticks().positions;
-            auto z_ticks = axes3d->compute_z_ticks().positions;
+            auto x_ticks_d = axes3d->compute_x_ticks().positions;
+            auto y_ticks_d = axes3d->compute_y_ticks().positions;
+            auto z_ticks_d = axes3d->compute_z_ticks().positions;
+            // 3D grid generators expect float vectors — convert from double
+            std::vector<float> x_ticks(x_ticks_d.begin(), x_ticks_d.end());
+            std::vector<float> y_ticks(y_ticks_d.begin(), y_ticks_d.end());
+            std::vector<float> z_ticks(z_ticks_d.begin(), z_ticks_d.end());
 
             if (static_cast<int>(gp & Axes3D::GridPlane::XY))
                 grid_gen.generate_xy_plane(
@@ -1452,7 +1559,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {
-        // 2D grid rendering
+        // 2D grid rendering — camera-relative coordinates.
+        // Grid vertices are generated relative to the view center stored
+        // in AxesGpuData so they match the centered projection.
         if (!axes2d->grid_enabled())
             return;
 
@@ -1467,6 +1576,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
 
         if (limits_changed)
         {
+            double vcx = gpu.view_center_x;
+            double vcy = gpu.view_center_y;
+
             auto x_ticks = axes2d->compute_x_ticks();
             auto y_ticks = axes2d->compute_y_ticks();
 
@@ -1481,13 +1593,14 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
                 grid_scratch_.resize(grid2d_floats);
             size_t wi = 0;
 
-            float fy_min = static_cast<float>(ylim.min);
-            float fy_max = static_cast<float>(ylim.max);
-            float fx_min = static_cast<float>(xlim.min);
-            float fx_max = static_cast<float>(xlim.max);
+            // Generate view-relative grid vertices
+            float fy_min = static_cast<float>(ylim.min - vcy);
+            float fy_max = static_cast<float>(ylim.max - vcy);
+            float fx_min = static_cast<float>(xlim.min - vcx);
+            float fx_max = static_cast<float>(xlim.max - vcx);
             for (size_t i = 0; i < num_x; ++i)
             {
-                float x             = x_ticks.positions[i];
+                float x             = static_cast<float>(x_ticks.positions[i] - vcx);
                 grid_scratch_[wi++] = x;
                 grid_scratch_[wi++] = fy_min;
                 grid_scratch_[wi++] = x;
@@ -1495,7 +1608,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
             for (size_t i = 0; i < num_y; ++i)
             {
-                float y             = y_ticks.positions[i];
+                float y             = static_cast<float>(y_ticks.positions[i] - vcy);
                 grid_scratch_[wi++] = fx_min;
                 grid_scratch_[wi++] = y;
                 grid_scratch_[wi++] = fx_max;
@@ -2073,33 +2186,40 @@ void Renderer::render_axis_border(AxesBase& axes,
     // Inset vertices by a tiny fraction of the axis range so they don't
     // land exactly on the NDC ±1.0 clip boundary (which causes clipping
     // of the top/right edges on some GPUs).
+    // Vertices are generated relative to the view center for camera-relative
+    // rendering (matching the centered projection).
     auto* axes2d = dynamic_cast<Axes*>(&axes);
     if (!axes2d)
         return;   // Border only for 2D axes
     auto xlim = axes2d->x_limits();
     auto ylim = axes2d->y_limits();
 
-    float x_range = xlim.max - xlim.min;
-    float y_range = ylim.max - ylim.min;
-    if (x_range == 0.0f)
-        x_range = 1.0f;
-    if (y_range == 0.0f)
-        y_range = 1.0f;
+    // Retrieve view center for camera-relative coordinates
+    auto&  agpu = axes_gpu_data_[&axes];
+    double vcx  = agpu.view_center_x;
+    double vcy  = agpu.view_center_y;
+
+    double x_range_d = xlim.max - xlim.min;
+    double y_range_d = ylim.max - ylim.min;
+    if (x_range_d == 0.0)
+        x_range_d = 1.0;
+    if (y_range_d == 0.0)
+        y_range_d = 1.0;
 
     // Use epsilon to prevent NDC boundary clipping
-    // Slightly larger for symmetric ranges to ensure all borders visible
-    float       eps_x   = 0.002f * x_range;   // 0.2% of x range
-    float       eps_y   = 0.002f * y_range;   // 0.2% of y range
-    const float MIN_EPS = 1e-8f;
+    double       eps_x   = 0.002 * x_range_d;
+    double       eps_y   = 0.002 * y_range_d;
+    const double MIN_EPS = 1e-15;
     if (eps_x < MIN_EPS)
         eps_x = MIN_EPS;
     if (eps_y < MIN_EPS)
         eps_y = MIN_EPS;
 
-    float x0 = xlim.min + eps_x;
-    float y0 = ylim.min + eps_y;
-    float x1 = xlim.max - eps_x;
-    float y1 = ylim.max - eps_y;
+    // View-relative border coordinates
+    float x0 = static_cast<float>((xlim.min + eps_x) - vcx);
+    float y0 = static_cast<float>((ylim.min + eps_y) - vcy);
+    float x1 = static_cast<float>((xlim.max - eps_x) - vcx);
+    float y1 = static_cast<float>((ylim.max - eps_y) - vcy);
 
     float border_verts[] = {
         // Bottom edge
@@ -2157,7 +2277,11 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.draw(8);   // 4 lines × 2 vertices
 }
 
-void Renderer::render_series(Series& series, const Rect& /*viewport*/, const VisibleRange* visible)
+void Renderer::render_series(Series&            series,
+                             const Rect& /*viewport*/,
+                             const VisibleRange* visible,
+                             double              view_cx,
+                             double              view_cy)
 {
     auto it = series_gpu_data_.find(&series);
     if (it == series_gpu_data_.end())
@@ -2179,6 +2303,13 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/, const Vis
     pc.marker_type    = static_cast<uint32_t>(style.marker_style);
     pc.marker_size    = style.marker_size;
     pc.opacity        = style.opacity;
+
+    // Camera-relative data_offset: bridges the gap between the series'
+    // upload origin and the current view center.  Both origin and view_cx/cy
+    // are double-precision, so the subtraction is exact; the result is small
+    // (within the drift threshold) and converts to float without loss.
+    pc.data_offset_x = static_cast<float>(gpu.origin_x - view_cx);
+    pc.data_offset_y = static_cast<float>(gpu.origin_y - view_cy);
 
     // Use cached SeriesType to avoid 6x dynamic_cast per series per frame.
     // Only perform the single targeted static_cast for the known type.
@@ -2204,7 +2335,7 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/, const Vis
             uint32_t first_pt = 0;
             uint32_t pt_count = static_cast<uint32_t>(line->point_count());
 
-            if (visible && line->point_count() > 256)
+            if (visible && line->point_count() > 2)
             {
                 const auto& xd = line->x_data();
                 size_t      n  = xd.size();
@@ -2253,9 +2384,7 @@ void Renderer::render_series(Series& series, const Rect& /*viewport*/, const Vis
             if (style.has_marker() && pt_count > 0)
             {
                 backend_.bind_pipeline(scatter_pipeline_);
-                pc.point_size    = style.marker_size;
-                pc.data_offset_x = 0.0f;
-                pc.data_offset_y = 0.0f;
+                pc.point_size = style.marker_size;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.draw_instanced(6, pt_count, first_pt);
@@ -2554,6 +2683,14 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
         pc.color[3] = 0.85f;
         pc.opacity  = 1.0f;
 
+        // Camera-relative data_offset for 2D selection highlight
+        auto agpu_it = axes_gpu_data_.find(&axes);
+        if (agpu_it != axes_gpu_data_.end())
+        {
+            pc.data_offset_x = static_cast<float>(gpu.origin_x - agpu_it->second.view_center_x);
+            pc.data_offset_y = static_cast<float>(gpu.origin_y - agpu_it->second.view_center_y);
+        }
+
         switch (gpu.type)
         {
             case SeriesType::Line2D:
@@ -2617,10 +2754,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 if (pt_count > 0)
                 {
                     backend_.bind_pipeline(scatter_pipeline_);
-                    pc.point_size = 5.0f;
+                    pc.point_size  = 5.0f;
                     pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
-                    pc.data_offset_x = 0.0f;
-                    pc.data_offset_y = 0.0f;
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.draw_instanced(6, pt_count, first_pt);

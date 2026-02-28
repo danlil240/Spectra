@@ -795,8 +795,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         auto        xlim = active_axes_->x_limits();
                         auto        ylim = active_axes_->y_limits();
 
-                        float x_range = xlim.max - xlim.min;
-                        float y_range = ylim.max - ylim.min;
+                        double x_range = xlim.max - xlim.min;
+                        double y_range = ylim.max - ylim.min;
 
                         // Use a minimum dt floor to prevent velocity blow-up from
                         // sub-millisecond intervals between last move and release
@@ -804,16 +804,16 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                         float           effective_dt = std::max(dt_sec, MIN_DT_SEC);
 
                         // Screen velocity → data velocity
-                        float vx_screen = dx_px / effective_dt;
-                        float vy_screen = dy_px / effective_dt;
+                        double vx_screen = dx_px / effective_dt;
+                        double vy_screen = dy_px / effective_dt;
 
                         // Clamp screen velocity as a safety net
-                        constexpr float MAX_SCREEN_VEL = 3000.0f;   // px/sec
+                        constexpr double MAX_SCREEN_VEL = 3000.0;   // px/sec
                         vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
                         vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
 
-                        float vx_data = -vx_screen * x_range / vp.w;
-                        float vy_data = vy_screen * y_range / vp.h;
+                        float vx_data = static_cast<float>(-vx_screen * x_range / vp.w);
+                        float vy_data = static_cast<float>(vy_screen * y_range / vp.h);
 
                         float speed = std::sqrt(vx_data * vx_data + vy_data * vy_data);
                         if (speed > MIN_INERTIA_VELOCITY)
@@ -1121,10 +1121,10 @@ void InputHandler::on_mouse_move(double x, double y)
         const auto& vp        = viewport_for_axes(active_axes_);
         double      dx_screen = x - middle_pan_start_x_;
         double      dy_screen = y - middle_pan_start_y_;
-        float       x_range   = middle_pan_xlim_max_ - middle_pan_xlim_min_;
-        float       y_range   = middle_pan_ylim_max_ - middle_pan_ylim_min_;
-        float       dx_data   = -static_cast<float>(dx_screen) * x_range / vp.w;
-        float       dy_data   = static_cast<float>(dy_screen) * y_range / vp.h;
+        double      x_range   = middle_pan_xlim_max_ - middle_pan_xlim_min_;
+        double      y_range   = middle_pan_ylim_max_ - middle_pan_ylim_min_;
+        double      dx_data   = -dx_screen * x_range / vp.w;
+        double      dy_data   = dy_screen * y_range / vp.h;
         active_axes_->xlim(middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
         active_axes_->ylim(middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
         if (axis_link_mgr_)
@@ -1179,12 +1179,13 @@ void InputHandler::on_mouse_move(double x, double y)
             double dx_screen = x - drag_start_x_;
             double dy_screen = y - drag_start_y_;
 
-            // Convert pixel delta to data-space delta
-            float x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
-            float y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
+            // Convert pixel delta to data-space delta (double precision
+            // to avoid catastrophic cancellation at deep zoom)
+            double x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
+            double y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
 
-            float dx_data = -static_cast<float>(dx_screen) * x_range / vp.w;
-            float dy_data = static_cast<float>(dy_screen) * y_range / vp.h;
+            double dx_data = -dx_screen * x_range / vp.w;
+            double dy_data = dy_screen * y_range / vp.h;
 
             active_axes_->xlim(drag_start_xlim_min_ + dx_data, drag_start_xlim_max_ + dx_data);
             active_axes_->ylim(drag_start_ylim_min_ + dy_data, drag_start_ylim_max_ + dy_data);

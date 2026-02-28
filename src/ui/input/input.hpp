@@ -215,10 +215,10 @@ class InputHandler
     // Pan drag state
     double drag_start_x_        = 0.0;
     double drag_start_y_        = 0.0;
-    float  drag_start_xlim_min_ = 0.0f;
-    float  drag_start_xlim_max_ = 0.0f;
-    float  drag_start_ylim_min_ = 0.0f;
-    float  drag_start_ylim_max_ = 0.0f;
+    double drag_start_xlim_min_ = 0.0;
+    double drag_start_xlim_max_ = 0.0;
+    double drag_start_ylim_min_ = 0.0;
+    double drag_start_ylim_max_ = 0.0;
 
     // Box zoom state
     BoxZoomRect box_zoom_;
@@ -287,10 +287,10 @@ class InputHandler
     bool   middle_pan_dragging_ = false;
     double middle_pan_start_x_  = 0.0;
     double middle_pan_start_y_  = 0.0;
-    float  middle_pan_xlim_min_ = 0.0f;
-    float  middle_pan_xlim_max_ = 0.0f;
-    float  middle_pan_ylim_min_ = 0.0f;
-    float  middle_pan_ylim_max_ = 0.0f;
+    double middle_pan_xlim_min_ = 0.0;
+    double middle_pan_xlim_max_ = 0.0;
+    double middle_pan_ylim_min_ = 0.0;
+    double middle_pan_ylim_max_ = 0.0;
 
     // Ctrl+drag box zoom state (allows box zoom in Pan mode via modifier)
     bool ctrl_box_zoom_active_ = false;

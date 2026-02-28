@@ -72,7 +72,7 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
 
     if (dmax <= dmin)
     {
-        result.positions = {static_cast<float>(dmin)};
+        result.positions = {dmin};
         result.labels    = {format_tick_value_3d(dmin, 1.0)};
         return result;
     }
@@ -97,7 +97,7 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
 
     if (nice_step <= 0.0 || !std::isfinite(nice_step))
     {
-        result.positions = {static_cast<float>(dmin)};
+        result.positions = {dmin};
         result.labels    = {format_tick_value_3d(dmin, range)};
         return result;
     }
@@ -111,7 +111,7 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
     {
         if (std::abs(val) < nice_step * 1e-6)
             val = 0.0;
-        result.positions.push_back(static_cast<float>(val));
+        result.positions.push_back(val);
         result.labels.push_back(format_tick_value_3d(val, nice_step));
     }
 

@@ -622,12 +622,26 @@ static std::string format_tick_value(double value, double spacing)
     {
         // Fixed notation with enough decimals
         std::snprintf(buf, sizeof(buf), "%.*f", digits_after_decimal, value);
-        // Trim trailing zeros after decimal point
-        std::string str(buf);
-        if (str.find('.') != std::string::npos)
+        // Trim trailing zeros after decimal point, but keep at least
+        // min_digits digits so all ticks at this spacing have consistent
+        // digit counts (e.g. "6.0819710" stays, not "6.081971").
+        int min_digits = 0;
+        if (abs_spacing > 0 && std::isfinite(abs_spacing))
         {
-            while (str.back() == '0')
+            min_digits = static_cast<int>(std::ceil(-std::log10(abs_spacing)));
+            if (min_digits < 0)
+                min_digits = 0;
+        }
+        std::string str(buf);
+        auto        dot_pos = str.find('.');
+        if (dot_pos != std::string::npos)
+        {
+            size_t current_decimals = str.size() - dot_pos - 1;
+            while (current_decimals > static_cast<size_t>(min_digits) && str.back() == '0')
+            {
                 str.pop_back();
+                current_decimals--;
+            }
             if (str.back() == '.')
                 str.pop_back();
         }
@@ -657,7 +671,7 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
                 half = 0.5;
             return generate_ticks(dmin - half, dmin + half, target_ticks);
         }
-        result.positions.push_back(static_cast<float>(dmin));
+        result.positions.push_back(dmin);
         result.labels.push_back(format_tick_value(dmin, 1.0));
         return result;
     }
@@ -674,7 +688,7 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
     {
         // Range is at double precision limit — show a single centered tick
         double mid = (dmin + dmax) * 0.5;
-        result.positions.push_back(static_cast<float>(mid));
+        result.positions.push_back(mid);
         result.labels.push_back(format_tick_value(mid, range));
         return result;
     }
@@ -685,7 +699,7 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
     // Guard against degenerate spacing
     if (spacing <= 0.0 || !std::isfinite(spacing))
     {
-        result.positions.push_back(static_cast<float>(dmin));
+        result.positions.push_back(dmin);
         result.labels.push_back(format_tick_value(dmin, range));
         return result;
     }
@@ -704,7 +718,7 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
             // Snap near-zero values to exactly zero to avoid "-0" labels
             if (std::abs(v) < spacing * 1e-6)
                 v = 0.0;
-            result.positions.push_back(static_cast<float>(v));
+            result.positions.push_back(v);
             result.labels.push_back(format_tick_value(v, spacing));
         }
     }

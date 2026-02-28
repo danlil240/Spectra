@@ -75,7 +75,7 @@ struct DataToSvg
     float  vp_x, vp_y, vp_w, vp_h;
     double x_min, x_max, y_min, y_max;
 
-    float map_x(float data_x) const
+    float map_x(double data_x) const
     {
         double range = x_max - x_min;
         if (range == 0.0)
@@ -83,7 +83,7 @@ struct DataToSvg
         return static_cast<float>(vp_x + (data_x - x_min) / range * vp_w);
     }
 
-    float map_y(float data_y) const
+    float map_y(double data_y) const
     {
         double range = y_max - y_min;
         if (range == 0.0)
@@ -106,7 +106,7 @@ void emit_grid(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
            "stroke-dasharray=\"4,2\">\n";
 
     // Vertical grid lines
-    for (float tx : x_ticks.positions)
+    for (double tx : x_ticks.positions)
     {
         float sx = m.map_x(tx);
         svg << "      <line x1=\"" << fmt(sx) << "\" y1=\"" << fmt(m.vp_y) << "\" x2=\"" << fmt(sx)
@@ -114,7 +114,7 @@ void emit_grid(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
     }
 
     // Horizontal grid lines
-    for (float ty : y_ticks.positions)
+    for (double ty : y_ticks.positions)
     {
         float sy = m.map_y(ty);
         svg << "      <line x1=\"" << fmt(m.vp_x) << "\" y1=\"" << fmt(sy) << "\" x2=\""

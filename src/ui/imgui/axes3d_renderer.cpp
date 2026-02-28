@@ -175,7 +175,7 @@ void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float x = tick_result.positions[i];
+        float x = static_cast<float>(tick_result.positions[i]);
         positions.push_back({x, min_corner.y, min_corner.z});
         labels.push_back(tick_result.labels[i]);
     }
@@ -192,7 +192,7 @@ void Axes3DRenderer::TickMarkData::generate_y_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float y = tick_result.positions[i];
+        float y = static_cast<float>(tick_result.positions[i]);
         positions.push_back({min_corner.x, y, min_corner.z});
         labels.push_back(tick_result.labels[i]);
     }
@@ -209,7 +209,7 @@ void Axes3DRenderer::TickMarkData::generate_z_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float z = tick_result.positions[i];
+        float z = static_cast<float>(tick_result.positions[i]);
         positions.push_back({min_corner.x, min_corner.y, z});
         labels.push_back(tick_result.labels[i]);
     }
@@ -234,9 +234,13 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/)
         grid_data_.vertices.clear();
         auto gp = axes.grid_planes();
 
-        auto x_ticks = axes.compute_x_ticks().positions;
-        auto y_ticks = axes.compute_y_ticks().positions;
-        auto z_ticks = axes.compute_z_ticks().positions;
+        auto x_ticks_d = axes.compute_x_ticks().positions;
+        auto y_ticks_d = axes.compute_y_ticks().positions;
+        auto z_ticks_d = axes.compute_z_ticks().positions;
+        // 3D grid generators expect float vectors — convert from double
+        std::vector<float> x_ticks(x_ticks_d.begin(), x_ticks_d.end());
+        std::vector<float> y_ticks(y_ticks_d.begin(), y_ticks_d.end());
+        std::vector<float> z_ticks(z_ticks_d.begin(), z_ticks_d.end());
 
         if (static_cast<int>(gp & Axes3D::GridPlane::XY))
         {

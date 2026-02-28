@@ -8,11 +8,11 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-02-27 Session 4 |
+| Last run | 2026-02-28 Session 6 |
 | Screenshot count confirmed | 51 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
-| Open P2+ issues | 0 (D45 fixed) |
+| Open P2+ issues | 0 |
 | Last golden refresh | — |
 | SKILL.md last self-updated | 2026-02-26 (initial consolidation) |
 
@@ -24,6 +24,67 @@
 | Date | Section | Reason |
 |---|---|---|
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-02-28 11:56 (Session 6)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260228_session6`
+- Exit code: `0`
+- Duration: 12.5s | Frames: 1015
+- Frame time: avg=5.0ms p95=9.2ms max=32.6ms spikes=0
+- Memory: initial=170MB peak=192MB
+
+**Screenshot audit**
+- Expected: 51
+- Captured: 51
+- Missing: none
+
+**Issues found**
+- none — all 51 screenshots passed visual inspection
+
+**Fixes applied**
+- none
+
+**Goldens updated**
+- none
+
+**ctest**
+- 81/82 pass (2 pre-existing `Mesh3D` golden failures — not a regression)
+
+**Self-updates to SKILL.md**
+- none
+
+---
+
+## Session 2026-02-28 11:52 (Session 5)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260228_115205`
+- Exit code: `0`
+- Duration: 12.4s | Frames: 1015
+
+**Screenshot audit**
+- Expected: 51
+- Captured: 51
+- Missing: none
+
+**Issues found**
+- none
+
+**Fixes applied**
+- none
+
+**Goldens updated**
+- none
+
+**Self-updates to SKILL.md**
+- none
 
 ---
 

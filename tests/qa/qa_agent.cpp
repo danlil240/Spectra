@@ -816,8 +816,9 @@ class QAAgent
         // Execute every command once
         for (const auto& id : all_cmds)
         {
-            // Skip destructive commands that would close the window
-            if (id == "figure.close" || id == "app.quit")
+            // Skip destructive and interactive commands (native file dialogs)
+            if (id == "figure.close" || id == "app.quit" || id == "file.save_figure"
+                || id == "file.load_figure")
                 continue;
             ui->cmd_registry.execute(id);
             pump_frames(2);
@@ -830,7 +831,8 @@ class QAAgent
             std::shuffle(shuffled.begin(), shuffled.end(), rng_);
             for (const auto& id : shuffled)
             {
-                if (id == "figure.close" || id == "app.quit")
+                if (id == "figure.close" || id == "app.quit" || id == "file.save_figure"
+                    || id == "file.load_figure")
                     continue;
                 ui->cmd_registry.execute(id);
                 pump_frames(1);
@@ -3424,8 +3426,9 @@ class QAAgent
                     break;
                 std::uniform_int_distribution<size_t> dist(0, cmds.size() - 1);
                 const auto&                           id = cmds[dist(rng_)];
-                // Skip destructive commands
-                if (id != "figure.close" && id != "app.quit")
+                // Skip destructive and interactive commands (native file dialogs)
+                if (id != "figure.close" && id != "app.quit" && id != "file.save_figure"
+                    && id != "file.load_figure")
                     ui->cmd_registry.execute(id);
 #endif
                 break;

@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-02-26 14:35 |
-| Last seed | 42 (deterministic), 23756320363876 (random) |
-| Last exit code | 0 (both runs) |
-| Scenarios passing | 16/16 (seed 42), 6/6 (random, wall-clock limited) |
-| Frame time P99 | 352ms (seed 42) |
-| Frame time max | 802ms (seed 42) |
-| RSS delta | +232MB (seed 42), +122MB (random) |
+| Last run | 2026-02-28 12:32 |
+| Last seed | 1772273948 (regression), 13062186744256 (repro + verification), 42 (deterministic baseline) |
+| Last exit code | 0 (regression run) |
+| Scenarios passing | 6/6 (seed 1772273948, wall-clock limited), 13/13 (seed 13062186744256, wall-clock limited), 1/1 (`figure_serialization` repro) |
+| Frame time P99 | 290ms (seed 1772273948, regression run) |
+| Frame time max | 311ms (seed 1772273948, regression run) |
+| RSS delta | +121MB (seed 1772273948, regression run), +63MB (seed 13062186744256, verification run) |
 | Open CRITICAL | 0 |
 | Open ERROR | 0 |
 | Open issues (QA_results.md) | H1, H3, H4, M1, V1, V2, Q1 |
@@ -27,6 +27,86 @@
 | Date | Section | Reason |
 |---|---|---|
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-02-28 12:32
+
+**Run config**
+- Seed: `1772273948` (regression seed)
+- Duration: `60s`
+- Mode: full (scenarios + fuzz)
+- Output dir: `/tmp/spectra_qa_perf_20260228_regression_after`
+- Exit code: `0`
+
+**Scenario results**
+- 6/6 scenarios passed (wall-clock limited)
+- 0 failed
+
+**Performance metrics**
+- Frame time avg: 21.3ms
+- Frame time P95: 171.9ms
+- Frame time max: 311.4ms
+- Spikes: 25
+- RSS baseline: 169MB
+- RSS peak: 290MB
+- RSS delta: +121MB
+- CRITICAL findings: 0
+- ERROR findings: 0
+
+**Analysis**
+- No serialization failures observed on regression seed after `FigureSerializer::load()` fix.
+- Known warning profile remains (frame-time spikes + memory growth), consistent with open issues H1/H4/M1.
+- Validation warning pattern V2 still appears in multi-window churn (existing open issue).
+
+**Fixes applied**
+- None in this run (verification-only)
+
+**Self-updates to SKILL.md**
+- None
+
+---
+
+## Session 2026-02-28 12:19
+
+**Run config**
+- Baseline deterministic: `--seed 42 --duration 120 --output-dir /tmp/spectra_qa_perf_20260228_seed42`
+- Initial randomized pass: `--duration 60 --output-dir /tmp/spectra_qa_perf_20260228_random`
+- Repro (before fix): `--seed 13062186744256 --scenario figure_serialization --no-fuzz`
+- Verify after fix: `--seed 13062186744256 --scenario figure_serialization --no-fuzz`
+- Regression verification: `--seed 13062186744256 --duration 60 --output-dir /tmp/spectra_qa_perf_20260228_seed13062186744256_after`
+- Build/tests: `cmake --build build`, `ctest -R unit_test_figure_serializer`
+
+**Summary**
+- Baseline seed 42 run: exit `0`, 6/6 scenarios passed (wall-clock limited), no ERROR/CRITICAL.
+- Randomized run (pre-fix): exit `1`, 18/19 scenarios passed; `figure_serialization` failed with:
+  - `[ERROR] Loaded figure has no axes`
+  - `[ERROR] figure_serialization FAILED`
+- Repro command failed pre-fix (exit `1`) and passed post-fix (exit `0`).
+- Full verification run after fix (same seed): exit `0`, 13/13 scenarios passed (wall-clock limited), no ERROR/CRITICAL.
+
+**Performance metrics**
+- Seed 42 baseline: avg 28.4ms, p95 263.1ms, p99 291.9ms, max 428.3ms, RSS +121MB.
+- Seed 13062186744256 pre-fix: avg 15.0ms, p95 8.45ms, p99 261.0ms, max 1012.5ms, RSS +98MB, 2 ERROR.
+- Seed 13062186744256 post-fix verification: avg 15.6ms, p95 8.5ms, p99 289.3ms, max 1001.2ms, RSS +63MB, 0 ERROR.
+
+**Root cause + fix**
+- Root cause in `FigureSerializer::load()` stream parsing:
+  1. `TAG_SUBPLOT_GRID` wrote `axes_count` but loader did not consume it.
+  2. `TAG_AXES_2D` wrote `autoscale_mode` byte but loader did not consume it.
+- Both omissions desynchronized chunk parsing and could skip axes reconstruction, triggering `Loaded figure has no axes`.
+- Fixes:
+  - Consume `axes_count` in `TAG_SUBPLOT_GRID`.
+  - Consume and restore `saved_autoscale` in `TAG_AXES_2D`.
+  - Added regression test `unit_test_figure_serializer` (`SaveLoadRestores2DAxesAndSeries`).
+
+**Files changed**
+- `src/ui/workspace/figure_serializer.cpp`
+- `tests/unit/test_figure_serializer.cpp` (new)
+- `tests/CMakeLists.txt`
+
+**Self-updates to SKILL.md**
+- None
 
 ---
 

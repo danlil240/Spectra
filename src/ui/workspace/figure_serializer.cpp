@@ -600,7 +600,6 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
     int grid_rows = 1;
     int grid_cols = 1;
-    // int axes_count;
 
     // Track axes as we create them: index -> AxesBase*
     std::vector<AxesBase*> axes_ptrs;
@@ -655,7 +654,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
             {
                 grid_rows = r.read_i32();
                 grid_cols = r.read_i32();
-                // axes_count = static_cast<int>(r.read_u32());
+                (void)r.read_u32();   // axes_count (reserved for validation; consumed for alignment)
                 figure.grid_rows_ = grid_rows;
                 figure.grid_cols_ = grid_cols;
                 break;
@@ -675,7 +674,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 axes.ylabel(r.read_string());
                 axes.grid(r.read_u8() != 0);
                 axes.show_border(r.read_u8() != 0);
-                // auto saved_autoscale = static_cast<AutoscaleMode>(r.read_u8());
+                auto saved_autoscale = static_cast<AutoscaleMode>(r.read_u8());
 
                 float xmin = r.read_f32();
                 float xmax = r.read_f32();
@@ -687,6 +686,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 axes.autoscale_mode(AutoscaleMode::Manual);
                 axes.xlim(xmin, xmax);
                 axes.ylim(ymin, ymax);
+                axes.autoscale_mode(saved_autoscale);
 
                 // Axis style
                 auto& as       = axes.axis_style();

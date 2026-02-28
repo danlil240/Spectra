@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-02-26 (Perf Session 1) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random)
+> Last updated: 2026-02-28 (Perf Agent Session 2) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro)
 
 ---
 
@@ -83,6 +83,33 @@
 - **Verified:** Design review runs clean — exit code 0, all 51 screenshots captured, no crash handler output (seed 42). 78/78 ctest pass.
 - **Priority:** **P0**
 - **Status:** ✅ Fixed (QA harness workaround)
+
+---
+
+## HIGH — Functional
+
+### F1: FigureSerializer load desync caused `Loaded figure has no axes`
+- **Observed (Perf Agent session, seed 13062186744256):** `figure_serialization` scenario failed with:
+  - `[ERROR] serialization: Loaded figure has no axes`
+  - `[ERROR] scenario: figure_serialization FAILED`
+- **Root cause:** Binary chunk decoding in `FigureSerializer::load()` did not consume two fields that are written by save:
+  1. `TAG_SUBPLOT_GRID` omitted reading `axes_count` (`u32`)
+  2. `TAG_AXES_2D` omitted reading `autoscale_mode` (`u8`)
+  These omissions shifted the stream offset and desynchronized subsequent chunk parsing, so axes reconstruction could be skipped.
+- **Fix applied:**
+  1. Consume `axes_count` in `TAG_SUBPLOT_GRID` (alignment restored)
+  2. Consume `saved_autoscale` in `TAG_AXES_2D` and restore it after applying limits
+  3. Added regression unit test `test_figure_serializer` (`SaveLoadRestores2DAxesAndSeries`)
+- **Files modified:**
+  - `src/ui/workspace/figure_serializer.cpp`
+  - `tests/unit/test_figure_serializer.cpp` (new)
+  - `tests/CMakeLists.txt`
+- **Verified:**
+  - Repro before fix: `--seed 13062186744256 --scenario figure_serialization --no-fuzz` → exit `1`
+  - After fix: same command → exit `0` (loaded series count restored)
+  - Full verification: `--seed 13062186744256 --duration 60` → 13 passed, 0 failed, 0 error
+- **Priority:** **P1**
+- **Status:** ✅ Fixed
 
 ---
 
@@ -283,6 +310,7 @@ All existing fixes remain stable. No new crashes or errors to address.
 | C2 | Crash/Vulkan | P1 | ✅ Fixed | — |
 | C3 | Crash | P0 | ✅ Fixed | — |
 | C4 | Crash | P0 | ✅ Fixed | — |
+| F1 | Functional | P1 | ✅ Fixed | — |
 | H1 | Performance | P1 | 🟡 Open | — |
 | H2 | Performance | N/A | ✅ Not a bug | — |
 | H3 | Performance | P2 | 🟡 Open | — |

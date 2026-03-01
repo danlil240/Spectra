@@ -199,6 +199,42 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether bugs were found.**
+
+There is no such thing as "nothing to improve." If the session found no bugs, that is a signal the agent's detection is too weak — not that the API is perfect. The agent must then make itself better so the next session finds something.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new check described in this SKILL.md>
+Next gap: <one sentence describing the next blind spot to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If bugs were found:** Turn the most surprising finding into a new test, a new smoke test command, or a new row in the API Coverage Map. Ask: "What automated check would have caught this immediately?"
+2. **If no bugs were found:** The detection is too weak. Pick from the Improvement Backlog below, implement it, and document the result.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| API-I1 | Test every Python `__init__.py` export is actually importable (not just listed in `__all__`) | Add pytest that does `from spectra import X` for each `__all__` entry; catch `ImportError` |
+| API-I2 | Verify IPC roundtrip with NaN and ±Inf float values | Add codec test: encode array containing `NaN`, `-Inf`, `+Inf`; decode and assert values preserved |
+| API-I3 | Test `Series.append()` with mismatched x/y lengths raises a clear error (not silent truncation) | Add test asserting `ValueError` or equivalent when `len(x) != len(y)` |
+| API-I4 | Smoke-test all Python examples with `--check` / dry-run mode to catch import errors without a live daemon | Add `python -c "import spectra; ..."` pre-flight check for each example file's imports |
+| API-I5 | Check that C++ easy-API `render()` handles empty x/y vectors without crashing | Add `test_easy_embed.cpp` case: `render({}, {})` must return a blank image, not crash |
+| API-I6 | Verify IPC message `request_id` is unique across concurrent Python clients | Add test spawning 2 threads sending 100 requests each; assert no `request_id` collision |
+| API-I7 | Test backward compat: load a workspace saved by version N-1 format (v2) in current code (v3) | Save a hardcoded v2 binary blob in test; load via `FigureSerializer`; assert no crash + axes restored |
+| API-I8 | Verify `Axes.remove_series()` out-of-range index raises cleanly in Python, not segfaults | Add pytest: `ax.remove_series(9999)` must raise `IndexError` not crash |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-api-agent/REPORT.md` at the end of every session.

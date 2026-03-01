@@ -229,6 +229,42 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether bugs were found.**
+
+There is no such thing as "nothing to improve." If the session found no bugs, that is a signal the agent's detection is too weak — not that the codebase is perfect. The agent must then make itself better so the next session finds something.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new check described in this SKILL.md>
+Next gap: <one sentence describing the next blind spot to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If bugs were found:** Turn the most surprising finding into a new automated check or a new audit table row. Ask: "What would have caught this earlier?"
+2. **If no bugs were found:** The detection is too weak. Pick from the Improvement Backlog below, implement it, and document the result.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| A-I1 | Audit focus-indicator visibility for all interactive ImGui controls | grep `SetItemDefaultFocus` + `PushStyleColor` in `imgui_integration.cpp`; verify every focusable control has visible ring |
+| A-I2 | Check tooltip text contrast (tooltips on hover use secondary text color on overlay background) | Add tooltip element pair to audit contrast table; compute ratio against overlay color in `theme.cpp` |
+| A-I3 | Verify screen reader–compatible label pairing: every icon-only button has a tooltip | grep icon-button draws in `imgui_integration.cpp`, confirm each has `SetTooltip` or `BeginTooltip` |
+| A-I4 | Add Tritanopia simulation to colorblind palette test | Extend `test_theme_colorblind.cpp` with tritanopia confusion matrix check (blue-yellow channel swap) |
+| A-I5 | Audit animation state indicators (play/pause/record) — color-only or icon+color? | Inspect `timeline_editor.cpp` draw code; verify state change uses icon shape not just color change |
+| A-I6 | Check status bar text-to-background contrast in light theme (often overlooked) | Compute ratio for `text_secondary` on `status_bar_bg` in light theme values |
+| A-I7 | Verify zoom % label is readable at extreme zoom values (e.g. `10^15 %`) | Check `imgui_integration.cpp` zoom label formatting; test overflow/truncation |
+| A-I8 | Check 3D axis arrow color distinguishability under deuteranopia (red X vs green Y) | Simulate X=red, Y=green under deuteranopia; if indistinguishable, add label suffix or shape difference |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-accessibility-agent/REPORT.md` at the end of every session.

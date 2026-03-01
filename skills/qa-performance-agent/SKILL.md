@@ -278,6 +278,44 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether crashes or regressions were found.**
+
+There is no such thing as "nothing to improve." If the session found no issues, that is a signal that the scenarios and fuzz actions are not stressing the right paths — not that the codebase is bug-free. The agent must add or tighten a scenario, fuzz action, or interpretation rule every single session.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new scenario/fuzz action/interpretation rule added to this SKILL.md>
+Next gap: <one sentence describing the next stress blind spot to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If crashes/regressions were found:** Turn the scenario that exposed it into a tighter targeted repro. Ask: "What seed range / scenario combo would have caught this in a 10-second run?"
+2. **If no issues were found:** The stress coverage is missing real-world patterns. Pick from the Improvement Backlog below, implement it in `qa_agent.cpp` or this SKILL.md, and document the result.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| PERF-I1 | Add `data_transform_stress` scenario: apply all 14 transform types on 100K-point series 50× | Add scenario to `qa_agent.cpp`; assert no frame spike >50ms, no RSS growth |
+| PERF-I2 | Add `axis_link_storm` scenario: link/unlink 10 axes pairs 200× while panning | Add scenario; assert no deadlock, no stale SharedCursor, no frame hitch |
+| PERF-I3 | Track P50 frame time in addition to P99 — large P50-P99 gap indicates periodic hitching | Add `frame_time_p50` to `qa_report.txt`; flag if P99 > 3× P50 |
+| PERF-I4 | Add `keyframe_interpolator_stress` scenario: 100 channels × 500 keyframes, evaluate every frame | Add scenario; assert evaluation time stays <1ms; measure with `FrameProfiler` |
+| PERF-I5 | Add `embed_surface_stress` scenario: create+destroy `EmbedSurface` 500 times, measure RSS | Add scenario; assert RSS returns to baseline ±5MB; detect `libspectra_embed.so` leak |
+| PERF-I6 | Add fuzz action `ApplyTransform` (weight 4): apply random transform to random series | Add to fuzz table; stresses `DataTransform` + series dirty-flag path |
+| PERF-I7 | Add `python_ipc_flood` scenario: send 1000 IPC commands as fast as possible, assert all ACKed | Add scenario; measure max IPC roundtrip latency; assert no dropped messages |
+| PERF-I8 | Measure and report swapchain recreation count per session in `qa_report.txt` | Add V1 counter to `VulkanBackend`; log in session teardown; flag >10 recreations as V1 warning |
+| PERF-I9 | Add `workspace_save_load_stress` scenario: save+load workspace 100× with 10 figures | Add scenario; assert roundtrip time <100ms each; assert figure count preserved |
+| PERF-I10 | Cross-validate: run the same seed 3× and assert identical exit code and P99 frame time ±5% | Add `--determinism-check N` flag concept to SKILL.md; verify reproducibility |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-performance-agent/REPORT.md` at the end of every session.

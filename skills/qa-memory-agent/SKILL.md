@@ -197,6 +197,42 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether leaks were found.**
+
+There is no such thing as "nothing to improve." If the session found no leaks, that is a signal the agent is not looking in the right places — not that the codebase has no leaks. The agent must then broaden or deepen its search so the next session finds something.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new check/scenario described in this SKILL.md>
+Next gap: <one sentence describing the next blind spot to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If leaks were found:** Turn the root cause into a new scenario, a new isolation command, or a new entry in the Common Leak Patterns table. Ask: "What automated check would have caught this 10x faster?"
+2. **If no leaks were found:** The detection is too weak. Pick from the Improvement Backlog below, implement it, and document the result.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| MEM-I1 | Track GPU heap budget before and after each scenario (not just RSS) | Add `vmaGetHeapBudgets()` call in QA agent scenario teardown; log `used` delta; flag >5MB growth as warning |
+| MEM-I2 | Isolate `SeriesClipboard` snapshot growth: paste 50 times without clearing | Add isolation run: 50 `series.paste` commands with `--no-fuzz`; measure RSS delta; verify clipboard `clear()` is called |
+| MEM-I3 | Test that closing a window with 20 figures returns GPU memory to baseline | Add scenario: create window, add 20 figures × 10K points, close window, measure VMA budget delta |
+| MEM-I4 | Profile `TextRenderer` atlas texture — is it freed and recreated on every window open? | Add `vmaGetAllocationInfo()` trace around `TextRenderer::init/shutdown`; verify texture freed on shutdown |
+| MEM-I5 | Check undo stack is bounded: push 1000 operations and measure heap growth | Add isolation run: 1000 `edit.undo`-eligible commands; measure heap at 100/500/1000 ops; assert plateau |
+| MEM-I6 | Verify `FigureSerializer::load()` error path doesn't leak temp buffers | Add ASan run with intentionally corrupt `.spectra` file; check for leak report |
+| MEM-I7 | Track descriptor pool consumption over time (should plateau, not grow linearly) | Add Vulkan debug marker counting descriptor set allocations; run `series_mixing` scenario 100 iterations |
+| MEM-I8 | Test that `DataTransform` pipeline intermediate buffers don't accumulate | Run `data_transform` pipeline with 100K-point series 1000 times; measure RSS growth should be ≤ 0 MB net |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-memory-agent/REPORT.md` at the end of every session.

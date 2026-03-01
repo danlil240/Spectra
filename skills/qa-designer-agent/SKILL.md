@@ -316,6 +316,44 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether visual bugs were found.**
+
+There is no such thing as "nothing to improve." If the design review found no issues, that means either the screenshot coverage is incomplete, or the triage criteria are too lenient. The agent must tighten one check, add one screenshot, or add one new issue type to the map — every single session.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new screenshot / new audit row added to this SKILL.md>
+Next gap: <one sentence describing the next visual blind spot to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If visual bugs were found:** Turn the most visually subtle finding into a new screenshot (add to the coverage table) or a new Fix Pattern. Ask: "What screenshot would have immediately highlighted this?"
+2. **If no visual bugs were found:** Coverage is incomplete. Pick from the Improvement Backlog below, add the screenshot or check, and document the before/after.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| DES-I1 | Add screenshot for error/empty state: figure with no series after deleting the last one | Add `51_empty_figure_after_delete` to `qa_agent.cpp` design review; capture empty axes with placeholder text |
+| DES-I2 | Add screenshot for legend with 8+ series (overflow/truncation behavior) | Add `52_legend_overflow_8_series`; verify legend wraps or scrolls correctly |
+| DES-I3 | Add screenshot for split view with mismatched axis ranges (zoomed vs auto-fit panes) | Add `53_split_view_mismatched_zoom`; verify no visual bleed between panes |
+| DES-I4 | Audit all ImGui separator lines for 1px blurriness at non-integer DPI positions | In `imgui_integration.cpp`, check that `AddLine` calls use `ImFloor()`-snapped coordinates |
+| DES-I5 | Add screenshot for command palette with 20+ results (scrollbar visibility) | Add `54_command_palette_scrolled`; verify scrollbar appears and doesn't overlap text |
+| DES-I6 | Check toolbar icon alignment at 125% and 150% DPI scale | Add DPI-scaled design review run; verify nav rail icons don't have sub-pixel misalignment |
+| DES-I7 | Add screenshot for 3D surface with Jet colormap (colorblind unfriendly — should show deprecation warning or badge) | Add `55_3d_surface_jet_colormap`; check for visual warning indicator |
+| DES-I8 | Audit timeline editor transport controls for consistent icon sizing | In `timeline_editor.cpp` draw path, verify play/pause/stop icons use same pixel size constant |
+| DES-I9 | Add screenshot for resize to 320×240 with all panels open simultaneously | Add `56_tiny_window_all_panels`; verify no panel overflow / occlusion beyond viewport |
+| DES-I10 | Check that selection highlight color is visible against both dark and light plot backgrounds | Compute contrast ratio of `selection_color` against `plot_bg` in both themes |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-designer-agent/REPORT.md` at the end of every session.

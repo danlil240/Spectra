@@ -186,6 +186,44 @@ The agent **may** update this file when it is 100% certain a change is correct. 
 
 ---
 
+## Mandatory Session Self-Improvement
+
+**This rule is non-negotiable: every session must produce exactly one improvement to this agent's detection capabilities, regardless of whether regressions were found.**
+
+There is no such thing as "nothing to improve." If no goldens failed, that means coverage is incomplete — new features exist without baselines, or existing baselines are too lenient. The agent must add or tighten at least one check every session.
+
+### Required format (append to REPORT.md every session)
+
+```
+## Self-Improvement — YYYY-MM-DD
+Improvement: <one sentence describing what was added/changed>
+Motivation: <why the previous version would miss or underreport this>
+Change: <file(s) edited OR new golden test / new coverage row added>
+Next gap: <one sentence describing the next coverage gap to tackle next session>
+```
+
+### How to pick an improvement
+
+1. **If regressions were found:** Turn the root cause into a new targeted golden test that would have caught it in isolation. Ask: "What single-feature golden would have failed before the fix?"
+2. **If no regressions were found:** Coverage is incomplete. Pick from the Improvement Backlog below, add the golden test, and document the new baseline.
+
+### Improvement Backlog (consume one per session, add new ones as discovered)
+
+| ID | Improvement | How to implement |
+|---|---|---|
+| REG-I1 | Golden for series clipboard paste result — post-paste layout must be stable | Add golden: copy series A, paste into figure, golden the result axes state |
+| REG-I2 | Golden for figure serialization roundtrip — saved+loaded figure must render identically | Add golden: create figure, save as `.spectra`, load, render, diff against original |
+| REG-I3 | Golden for all 7 colormap types on SurfaceSeries | Add 7 goldens (one per `ColormapType`) in `golden_test_3d_phase3.cpp` |
+| REG-I4 | Golden for deep-zoom precision (camera-relative rendering at 10^10 zoom) | Add golden: set view range to 1e-10, render 1K-point line, verify points still visible |
+| REG-I5 | Golden for shared cursor across linked subplots | Add golden: 2 linked axes, hover at x=5.0, capture both crosshair lines positioned correctly |
+| REG-I6 | Golden for orthographic 3D projection (currently listed as ⚠️ Check) | Verify `26_3d_orthographic` baseline is present and tight (±2 pixel tolerance) |
+| REG-I7 | Golden for inspector panel with series stats — number formatting stability | Add golden: inspector open on 10K-point series, assert stat text positions don't jump |
+| REG-I8 | Tighten existing 2D golden pixel tolerance from default to ±1 pixel | Audit tolerance values in `golden_test.cpp` run_golden_test calls; tighten where default is too loose |
+| REG-I9 | Golden for light theme (separate from dark theme goldens) | Add a light-theme variant of `01_default_single_line` golden to catch theme-switching regressions |
+| REG-I10 | Golden for tab context menu visual state (right-click menu open) | Capture screenshot 40 `40_tab_context_menu` as a golden baseline |
+
+---
+
 ## Live Report
 
 The agent writes to `skills/qa-regression-agent/REPORT.md` at the end of every session.

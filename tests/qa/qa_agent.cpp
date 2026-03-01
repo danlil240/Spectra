@@ -42,7 +42,9 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <csignal>
 #include <cstdint>
@@ -53,6 +55,7 @@
 #include <fstream>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -126,6 +129,130 @@ static const char* severity_str(IssueSeverity s)
 static uint64_t g_qa_seed          = 0;
 static char     g_last_action[256] = "init";
 static char     g_output_dir[512]  = "/tmp/spectra_qa";
+
+// ─── Vulkan validation monitoring (runtime, non-gtest) ─────────────────────
+struct ValidationMessageRecord
+{
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+    std::string                            message_id;
+    std::string                            message;
+};
+
+class ValidationMonitor
+{
+   public:
+    explicit ValidationMonitor(VkInstance instance) : instance_(instance)
+    {
+        if (instance_ == VK_NULL_HANDLE)
+            return;
+
+        auto create_fn = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(instance_, "vkCreateDebugUtilsMessengerEXT"));
+        destroy_fn_ = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
+
+        if (!create_fn || !destroy_fn_)
+        {
+            destroy_fn_ = nullptr;
+            return;
+        }
+
+        VkDebugUtilsMessengerCreateInfoEXT ci{};
+        ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        ci.messageSeverity =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                         | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                         | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        ci.pfnUserCallback = &ValidationMonitor::callback;
+        ci.pUserData       = this;
+
+        if (create_fn(instance_, &ci, nullptr, &messenger_) != VK_SUCCESS)
+        {
+            messenger_  = VK_NULL_HANDLE;
+            destroy_fn_ = nullptr;
+        }
+    }
+
+    ~ValidationMonitor()
+    {
+        if (messenger_ != VK_NULL_HANDLE && destroy_fn_)
+        {
+            destroy_fn_(instance_, messenger_, nullptr);
+        }
+    }
+
+    ValidationMonitor(const ValidationMonitor&)            = delete;
+    ValidationMonitor& operator=(const ValidationMonitor&) = delete;
+
+    bool active() const { return messenger_ != VK_NULL_HANDLE; }
+
+    uint32_t error_count() const { return error_count_.load(std::memory_order_relaxed); }
+    uint32_t warning_count() const { return warning_count_.load(std::memory_order_relaxed); }
+
+    std::vector<ValidationMessageRecord> drain_new_messages()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (next_unreported_index_ >= messages_.size())
+            return {};
+
+        std::vector<ValidationMessageRecord> out(messages_.begin() + next_unreported_index_,
+                                                 messages_.end());
+        next_unreported_index_ = messages_.size();
+        return out;
+    }
+
+   private:
+    static VKAPI_ATTR VkBool32 VKAPI_CALL
+    callback(VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
+             VkDebugUtilsMessageTypeFlagsEXT,
+             const VkDebugUtilsMessengerCallbackDataEXT* data,
+             void*                                       user_data)
+    {
+        auto* self = static_cast<ValidationMonitor*>(user_data);
+        if (!self || !data)
+            return VK_FALSE;
+
+        ValidationMessageRecord rec;
+        rec.severity   = severity;
+        rec.message_id = data->pMessageIdName ? data->pMessageIdName : "";
+        rec.message    = data->pMessage ? data->pMessage : "";
+
+        {
+            std::lock_guard<std::mutex> lock(self->mutex_);
+            self->messages_.push_back(std::move(rec));
+        }
+
+        if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+            self->error_count_.fetch_add(1, std::memory_order_relaxed);
+        if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+            self->warning_count_.fetch_add(1, std::memory_order_relaxed);
+
+        return VK_FALSE;
+    }
+
+    VkInstance                          instance_   = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT            messenger_  = VK_NULL_HANDLE;
+    PFN_vkDestroyDebugUtilsMessengerEXT destroy_fn_ = nullptr;
+
+    std::atomic<uint32_t>               error_count_{0};
+    std::atomic<uint32_t>               warning_count_{0};
+    std::mutex                          mutex_;
+    std::vector<ValidationMessageRecord> messages_;
+    size_t                              next_unreported_index_ = 0;
+};
+
+static uint64_t fnv1a64(const uint8_t* data, size_t size)
+{
+    uint64_t h = 1469598103934665603ull;
+    for (size_t i = 0; i < size; ++i)
+    {
+        h ^= static_cast<uint64_t>(data[i]);
+        h *= 1099511628211ull;
+    }
+    return h;
+}
 
 // ─── Frame time statistics ───────────────────────────────────────────────────
 struct FrameStats
@@ -278,6 +405,22 @@ class QAAgent
         sample_gpu_memory();
         initial_gpu_memory_ = current_gpu_memory_;
         peak_gpu_memory_    = current_gpu_memory_;
+
+        auto* vk_backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (vk_backend && vk_backend->instance() != VK_NULL_HANDLE)
+        {
+            validation_monitor_ = std::make_unique<ValidationMonitor>(vk_backend->instance());
+            if (validation_monitor_->active())
+            {
+                fprintf(stderr, "[QA] Vulkan validation monitor active\n");
+            }
+            else
+            {
+                fprintf(stderr,
+                        "[QA] Vulkan validation monitor unavailable (VK_EXT_debug_utils not "
+                        "loaded)\n");
+            }
+        }
         return true;
     }
 
@@ -286,6 +429,7 @@ class QAAgent
         if (opts_.list_scenarios)
         {
             list_scenarios();
+            validation_monitor_.reset();
             app_->shutdown_runtime();
             app_.reset();
             return 0;
@@ -313,6 +457,8 @@ class QAAgent
             run_fuzzing();
         }
 
+        check_validation_messages("end_of_run");
+
         // Write report before shutdown (shutdown may fail after device lost)
         write_report();
 
@@ -330,6 +476,7 @@ class QAAgent
             _exit(exit_code);
         }
 
+        validation_monitor_.reset();
         app_->shutdown_runtime();
         app_.reset();
 
@@ -367,7 +514,10 @@ class QAAgent
         }
     }
 
-    void add_issue(IssueSeverity sev, const std::string& cat, const std::string& msg)
+    void add_issue(IssueSeverity      sev,
+                   const std::string& cat,
+                   const std::string& msg,
+                   bool               capture_evidence = true)
     {
         QAIssue issue;
         issue.severity = sev;
@@ -377,7 +527,7 @@ class QAAgent
 
         // P0 fix: Screenshot rate limiting — max 1 per category per 60 frames
         static constexpr uint64_t SCREENSHOT_COOLDOWN = 60;
-        if (sev >= IssueSeverity::Warning)
+        if (capture_evidence && sev >= IssueSeverity::Warning)
         {
             auto it = last_screenshot_frame_.find(cat);
             if (it == last_screenshot_frame_.end()
@@ -660,6 +810,149 @@ class QAAgent
                 fprintf(stderr, "[QA] Wall clock limit reached, stopping scenarios\n");
                 break;
             }
+
+            check_validation_messages("scenario:" + scenario.name);
+        }
+    }
+
+    void check_validation_messages(const std::string& context)
+    {
+        if (!validation_monitor_ || !validation_monitor_->active())
+            return;
+
+        const auto messages = validation_monitor_->drain_new_messages();
+        for (const auto& msg : messages)
+        {
+            const bool is_error = (msg.severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0;
+
+            std::string short_message = msg.message;
+            if (short_message.size() > 320)
+                short_message = short_message.substr(0, 317) + "...";
+
+            const std::string id = msg.message_id.empty() ? "<no-id>" : msg.message_id;
+            const std::string signature = id + "|" + short_message.substr(0, 160);
+            const uint32_t hit_count = ++validation_message_hits_[signature];
+
+            // First occurrence is always reported. After that, sample repeats
+            // so persistent validation spam doesn't drown real signal.
+            if (hit_count != 1 && hit_count != 10 && (hit_count % 50) != 0)
+                continue;
+
+            std::string issue_message = "[" + context + "] " + id + ": " + short_message;
+            if (hit_count > 1)
+                issue_message += " (seen " + std::to_string(hit_count) + "x)";
+
+            add_issue(is_error ? IssueSeverity::Error : IssueSeverity::Warning,
+                      "vulkan_validation",
+                      issue_message,
+                      false);
+        }
+    }
+
+    void inspect_screenshot_artifacts(const std::string& screenshot_name,
+                                      const std::vector<uint8_t>& pixels,
+                                      uint32_t                    w,
+                                      uint32_t                    h)
+    {
+        const size_t pixel_count = static_cast<size_t>(w) * h;
+        if (pixel_count == 0 || pixels.size() < pixel_count * 4)
+            return;
+
+        const uint64_t hash = fnv1a64(pixels.data(), pixel_count * 4);
+        auto           it   = screenshot_hash_to_name_.find(hash);
+        if (it == screenshot_hash_to_name_.end())
+        {
+            screenshot_hash_to_name_[hash] = screenshot_name;
+        }
+        else if (it->second != screenshot_name)
+        {
+            add_issue(IssueSeverity::Warning,
+                      "visual_artifact",
+                      "Design screenshot '" + screenshot_name + "' is byte-identical to '"
+                          + it->second + "'",
+                      false);
+        }
+
+        const uint8_t r0 = pixels[0];
+        const uint8_t g0 = pixels[1];
+        const uint8_t b0 = pixels[2];
+        const uint8_t a0 = pixels[3];
+
+        size_t same_as_first = 0;
+        size_t alpha_zero    = 0;
+        uint8_t min_luma     = 255;
+        uint8_t max_luma     = 0;
+        double  mean_luma    = 0.0;
+        double  m2_luma      = 0.0;
+
+        for (size_t p = 0; p < pixel_count; ++p)
+        {
+            const size_t i = p * 4;
+            const uint8_t r = pixels[i + 0];
+            const uint8_t g = pixels[i + 1];
+            const uint8_t b = pixels[i + 2];
+            const uint8_t a = pixels[i + 3];
+
+            if (r == r0 && g == g0 && b == b0 && a == a0)
+                same_as_first++;
+            if (a == 0)
+                alpha_zero++;
+
+            const uint8_t luma =
+                static_cast<uint8_t>((54u * static_cast<uint32_t>(r)
+                                      + 183u * static_cast<uint32_t>(g)
+                                      + 19u * static_cast<uint32_t>(b))
+                                     >> 8);
+            min_luma = std::min(min_luma, luma);
+            max_luma = std::max(max_luma, luma);
+
+            const double x = static_cast<double>(luma);
+            const double delta = x - mean_luma;
+            mean_luma += delta / static_cast<double>(p + 1);
+            const double delta2 = x - mean_luma;
+            m2_luma += delta * delta2;
+        }
+
+        const double same_ratio       = static_cast<double>(same_as_first) / pixel_count;
+        const double alpha_zero_ratio = static_cast<double>(alpha_zero) / pixel_count;
+        const double variance =
+            (pixel_count > 1) ? (m2_luma / static_cast<double>(pixel_count - 1)) : 0.0;
+        const double stddev_luma = std::sqrt(variance);
+
+        if (alpha_zero_ratio > 0.98)
+        {
+            add_issue(IssueSeverity::Error,
+                      "visual_artifact",
+                      "Design screenshot '" + screenshot_name + "' is mostly transparent ("
+                          + std::to_string(alpha_zero_ratio * 100.0) + "% alpha=0)",
+                      false);
+        }
+        if (same_ratio > 0.995)
+        {
+            add_issue(IssueSeverity::Warning,
+                      "visual_artifact",
+                      "Design screenshot '" + screenshot_name + "' is near-uniform ("
+                          + std::to_string(same_ratio * 100.0) + "% pixels identical)",
+                      false);
+        }
+        if ((max_luma - min_luma) <= 2 && (mean_luma < 4.0 || mean_luma > 251.0))
+        {
+            add_issue(IssueSeverity::Warning,
+                      "visual_artifact",
+                      "Design screenshot '" + screenshot_name
+                          + "' has almost no luminance range (min="
+                          + std::to_string(static_cast<uint32_t>(min_luma))
+                          + ", max=" + std::to_string(static_cast<uint32_t>(max_luma)) + ")",
+                      false);
+        }
+        if (mean_luma < 8.0 && stddev_luma < 1.5)
+        {
+            add_issue(IssueSeverity::Warning,
+                      "visual_artifact",
+                      "Design screenshot '" + screenshot_name
+                          + "' appears almost fully black (mean luma=" + std::to_string(mean_luma)
+                          + ", stddev=" + std::to_string(stddev_luma) + ")",
+                      false);
         }
     }
 
@@ -2191,12 +2484,15 @@ class QAAgent
         if (restore_window)
             backend->set_active_window(restore_window);
 
+        inspect_screenshot_artifacts(name, pixels, w, h);
+        check_validation_messages("design:" + name);
+
         std::string dir = opts_.output_dir + "/design";
         std::filesystem::create_directories(dir);
 
         std::string safe = name;
         for (auto& c : safe)
-            if (!std::isalnum(c) && c != '_' && c != '-')
+            if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-')
                 c = '_';
 
         std::string path = dir + "/" + safe + ".png";
@@ -3325,6 +3621,16 @@ class QAAgent
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 51;
+        if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
+        {
+            add_issue(IssueSeverity::Error,
+                      "design_capture",
+                      "Expected " + std::to_string(EXPECTED_DESIGN_SHOTS) + " screenshots, got "
+                          + std::to_string(design_screenshots_.size()),
+                      false);
+        }
+
         // Write design screenshot manifest
         {
             std::string   manifest_path = opts_.output_dir + "/design/manifest.txt";
@@ -3835,6 +4141,9 @@ class QAAgent
     // ── Per-frame monitoring ─────────────────────────────────────────────
     void check_frame(const App::StepResult& result)
     {
+        if (total_frames_ % 30 == 0)
+            check_validation_messages("frame_loop");
+
         // Frame time spike detection
         // P0 fix: warmup period (skip first 30 frames) + absolute minimum (33ms)
         // to eliminate false positives from VSync-locked frames
@@ -3895,7 +4204,7 @@ class QAAgent
         std::string safe_reason = reason;
         for (auto& c : safe_reason)
         {
-            if (!std::isalnum(c) && c != '_')
+            if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
                 c = '_';
         }
 
@@ -3932,6 +4241,11 @@ class QAAgent
     void write_report()
     {
         float duration = wall_clock_seconds();
+        const bool validation_active = validation_monitor_ && validation_monitor_->active();
+        const uint32_t validation_errors =
+            validation_monitor_ ? validation_monitor_->error_count() : 0;
+        const uint32_t validation_warnings =
+            validation_monitor_ ? validation_monitor_->warning_count() : 0;
 
         // Text report
         {
@@ -3978,6 +4292,12 @@ class QAAgent
                     out << " (VK_EXT_memory_budget unavailable; values may be approximate)";
                 out << "\n";
             }
+            out << "\n";
+
+            out << "Validation:\n";
+            out << "  Monitor active: " << (validation_active ? "yes" : "no") << "\n";
+            out << "  Errors: " << validation_errors << "\n";
+            out << "  Warnings: " << validation_warnings << "\n";
             out << "\n";
 
             if (!issues_.empty())
@@ -4082,6 +4402,11 @@ class QAAgent
             out << "    \"gpu_current_device_local_budget_mb\": "
                 << to_mb(current_gpu_memory_.device_local_budget_bytes) << "\n";
             out << "  },\n";
+            out << "  \"validation\": {\n";
+            out << "    \"monitor_active\": " << (validation_active ? "true" : "false") << ",\n";
+            out << "    \"error_count\": " << validation_errors << ",\n";
+            out << "    \"warning_count\": " << validation_warnings << "\n";
+            out << "  },\n";
             out << "  \"issues\": [\n";
             for (size_t i = 0; i < issues_.size(); ++i)
             {
@@ -4106,6 +4431,7 @@ class QAAgent
                 "[QA] Frame time: avg=%.1fms p95=%.1fms max=%.1fms spikes=%u\n"
                 "[QA] Memory: initial=%luMB peak=%luMB\n"
                 "[QA] GPU memory: local initial=%luMB peak=%luMB budget=%luMB (%s)\n"
+                "[QA] Validation: errors=%u warnings=%u (%s)\n"
                 "[QA] Issues: %lu warning, %lu error, %lu critical\n"
                 "[QA] ═══════════════════════════════════════\n",
                 static_cast<unsigned long>(opts_.seed),
@@ -4123,6 +4449,9 @@ class QAAgent
                 static_cast<unsigned long>(to_mb(peak_gpu_memory_.device_local_usage_bytes)),
                 static_cast<unsigned long>(to_mb(current_gpu_memory_.device_local_budget_bytes)),
                 current_gpu_memory_.budget_extension_enabled ? "budget" : "approx",
+                validation_errors,
+                validation_warnings,
+                validation_active ? "monitor active" : "monitor unavailable",
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Warning)),
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Error)),
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Critical)));
@@ -4133,6 +4462,7 @@ class QAAgent
     std::mt19937 rng_;
 
     std::unique_ptr<App> app_;
+    std::unique_ptr<ValidationMonitor> validation_monitor_;
 
     std::chrono::steady_clock::time_point start_time_;
 
@@ -4154,9 +4484,11 @@ class QAAgent
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;
+    std::unordered_map<std::string, uint32_t> validation_message_hits_;
 
     // Design review
     std::vector<std::pair<std::string, std::string>> design_screenshots_;
+    std::unordered_map<uint64_t, std::string>        screenshot_hash_to_name_;
 };
 
 // ─── Signal handler ──────────────────────────────────────────────────────────

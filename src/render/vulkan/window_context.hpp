@@ -33,7 +33,12 @@ struct WindowContext
     // Identity
     uint32_t id = 0;
 
-    // GLFW window handle (nullptr for headless / primary before adoption)
+    // Platform-native window handle used for Vulkan surface creation.
+    // This is adapter-defined (GLFWwindow*, QWindow*, etc).
+    void* native_window = nullptr;
+
+    // Legacy GLFW window handle used by existing ImGui/GLFW paths.
+    // Kept during transition to adapter-neutral windowing.
     void* glfw_window = nullptr;
 
     // Vulkan surface + swapchain (tied to OS window handle)

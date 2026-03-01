@@ -81,6 +81,11 @@
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/src/platform/window_system/glfw_surface_host.cpp.o -c /home/daniel/projects/Spectra/src/platform/window_system/glfw_surface_host.cpp",
+  "file": "/home/daniel/projects/Spectra/src/platform/window_system/glfw_surface_host.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
   "command": "/usr/bin/clang++-17 -DSPECTRA_PRESENT_MODE_FIFO -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/third_party/stb -I/home/daniel/projects/Spectra/third_party/vma -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src -I/home/daniel/projects/Spectra/build_clang_asan/_deps/imgui-src/backends -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra.dir/third_party/tinyfiledialogs.cpp.o -c /home/daniel/projects/Spectra/third_party/tinyfiledialogs.cpp",
   "file": "/home/daniel/projects/Spectra/third_party/tinyfiledialogs.cpp"
 },
@@ -476,6 +481,16 @@
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DQT_CORE_LIB -DQT_GUI_LIB -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -DSPECTRA_USE_QT -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra_qt_adapter.dir/src/adapters/qt/qt_runtime.cpp.o -c /home/daniel/projects/Spectra/src/adapters/qt/qt_runtime.cpp",
+  "file": "/home/daniel/projects/Spectra/src/adapters/qt/qt_runtime.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
+  "command": "/usr/bin/clang++-17 -DQT_CORE_LIB -DQT_GUI_LIB -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -DSPECTRA_USE_QT -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/spectra_qt_adapter.dir/src/adapters/qt/qt_surface_host.cpp.o -c /home/daniel/projects/Spectra/src/adapters/qt/qt_surface_host.cpp",
+  "file": "/home/daniel/projects/Spectra/src/adapters/qt/qt_surface_host.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/spectra-backend.dir/src/daemon/main.cpp.o -c /home/daniel/projects/Spectra/src/daemon/main.cpp",
   "file": "/home/daniel/projects/Spectra/src/daemon/main.cpp"
 },
@@ -703,6 +718,11 @@
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/multi_window_demo.dir/multi_window_demo.cpp.o -c /home/daniel/projects/Spectra/examples/multi_window_demo.cpp",
   "file": "/home/daniel/projects/Spectra/examples/multi_window_demo.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
+  "command": "/usr/bin/clang++-17 -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -DSPECTRA_HAS_QT6 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -DSPECTRA_USE_QT -I/home/daniel/projects/Spectra/src -I/home/daniel/projects/Spectra/build_clang_asan/generated -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt6/QtWidgets -g -O1 -fsanitize=address -fno-omit-frame-pointer -fPIC -std=c++20 -o CMakeFiles/qt_embed_demo.dir/qt_embed_demo.cpp.o -c /home/daniel/projects/Spectra/examples/qt_embed_demo.cpp",
+  "file": "/home/daniel/projects/Spectra/examples/qt_embed_demo.cpp"
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/tests",

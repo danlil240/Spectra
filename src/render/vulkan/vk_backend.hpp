@@ -20,6 +20,10 @@ namespace spectra
 {
 
 class FrameProfiler;
+namespace platform
+{
+class SurfaceHost;
+}
 
 class VulkanBackend : public Backend
 {
@@ -31,6 +35,15 @@ class VulkanBackend : public Backend
     bool init(bool headless) override;
     void shutdown() override;
     void wait_idle() override;
+
+    // Configure the platform surface host used for Vulkan instance extensions
+    // and VkSurface creation. Passing nullptr clears the current host.
+    void set_surface_host(const platform::SurfaceHost* host) { surface_host_ = host; }
+    const platform::SurfaceHost* surface_host() const { return surface_host_; }
+    bool query_framebuffer_size(void* native_window, uint32_t& width, uint32_t& height) const;
+    bool query_window_framebuffer_size(const WindowContext& wctx,
+                                       uint32_t&            width,
+                                       uint32_t&            height) const;
 
     bool create_surface(void* native_window) override;
     bool create_swapchain(uint32_t width, uint32_t height) override;
@@ -105,9 +118,14 @@ class VulkanBackend : public Backend
         return std::move(initial_window_);
     }
 
+    // Factory: create a WindowContext with complete-type awareness.
+    // Use this instead of std::make_unique<WindowContext>() from translation units
+    // that don't include window_ui_context.hpp.
+    static std::unique_ptr<WindowContext> create_window_context();
+
     // Initialize Vulkan resources for a secondary WindowContext.
-    // Creates surface from GLFW window, swapchain, command buffers, and sync objects.
-    // The WindowContext must have a valid glfw_window pointer set before calling.
+    // Creates surface from native_window, swapchain, command buffers, and sync objects.
+    // The WindowContext must have a valid native_window pointer set before calling.
     bool init_window_context(WindowContext& wctx, uint32_t width, uint32_t height);
 
     // Initialize Vulkan resources AND a per-window ImGui context for a secondary
@@ -118,7 +136,7 @@ class VulkanBackend : public Backend
     //      primary format on mismatch).
     //   3. Use per-window ImageCount for ImGui_ImplVulkan_InitInfo.
     //   4. Per-window on_swapchain_recreated() (only that window's ImGui updated).
-    // The WindowContext must have a valid glfw_window pointer set before calling.
+    // The WindowContext must have a valid native_window pointer set before calling.
     // On success, wctx.ui_ctx is NOT set here — caller (WindowManager) owns that.
     // Returns false on failure (Vulkan or ImGui init error).
     bool init_window_context_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height);
@@ -188,6 +206,7 @@ class VulkanBackend : public Backend
     vk::OffscreenContext offscreen_;
     bool                 headless_    = false;
     bool                 device_lost_ = false;   // set on VK_ERROR_DEVICE_LOST — unrecoverable
+    const platform::SurfaceHost* surface_host_ = nullptr;
     VmaAllocator         vma_allocator_ = nullptr;
     bool                 memory_budget_extension_enabled_ = false;
 

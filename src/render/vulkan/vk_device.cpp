@@ -1,12 +1,7 @@
 #include "vk_device.hpp"
 
 #include "spectra/logger.hpp"
-
-#ifdef SPECTRA_USE_GLFW
-    #define GLFW_INCLUDE_NONE
-    #define GLFW_INCLUDE_VULKAN
-    #include <GLFW/glfw3.h>
-#endif
+#include "platform/window_system/surface_host.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -17,6 +12,23 @@
 
 namespace spectra::vk
 {
+
+namespace
+{
+
+void append_unique(std::vector<const char*>& extensions, const char* ext)
+{
+    if (!ext)
+    {
+        return;
+    }
+    if (std::find(extensions.begin(), extensions.end(), ext) == extensions.end())
+    {
+        extensions.push_back(ext);
+    }
+}
+
+}   // namespace
 
 static const std::vector<const char*> validation_layers = {"VK_LAYER_KHRONOS_validation"};
 
@@ -57,7 +69,9 @@ bool check_validation_layer_support()
     return true;
 }
 
-VkInstance create_instance(bool enable_validation, bool headless)
+VkInstance create_instance(bool                        enable_validation,
+                           bool                        headless,
+                           const platform::SurfaceHost* surface_host)
 {
     VkApplicationInfo app_info{};
     app_info.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -85,35 +99,21 @@ VkInstance create_instance(bool enable_validation, bool headless)
 
     if (enable_validation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
     {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        append_unique(extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
     if (!headless)
     {
-#ifdef SPECTRA_USE_GLFW
-        // GLFW must be initialized before querying required extensions
-        if (!glfwInit())
+        if (surface_host)
         {
-            std::cerr << "[Spectra] Warning: glfwInit failed during instance creation\n";
+            surface_host->append_instance_extensions(extensions);
         }
-        {
-            uint32_t     glfw_ext_count = 0;
-            const char** glfw_exts      = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
-            if (glfw_exts)
-            {
-                for (uint32_t i = 0; i < glfw_ext_count; ++i)
-                {
-                    extensions.push_back(glfw_exts[i]);
-                }
-            }
-        }
-#else
-        // No GLFW: add surface extensions manually if available
+
+        // Fallback: add generic surface extension if available.
         if (has_ext(VK_KHR_SURFACE_EXTENSION_NAME))
         {
-            extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+            append_unique(extensions, VK_KHR_SURFACE_EXTENSION_NAME);
         }
-#endif
     }
 
     VkInstanceCreateInfo create_info{};

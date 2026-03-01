@@ -33,9 +33,11 @@ endif()
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
 option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
+option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
+option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
@@ -67,6 +69,7 @@ include(cmake/CompileShaders.cmake)
 # Collect source files
 file(GLOB_RECURSE SPECTRA_CORE_SOURCES   src/core/*.cpp)
 file(GLOB_RECURSE SPECTRA_RENDER_SOURCES src/render/*.cpp)
+file(GLOB_RECURSE SPECTRA_PLATFORM_SOURCES src/platform/*.cpp)
 file(GLOB_RECURSE SPECTRA_ANIM_SOURCES   src/anim/*.cpp)
 file(GLOB_RECURSE SPECTRA_IO_SOURCES     src/io/*.cpp)
 file(GLOB_RECURSE SPECTRA_DATA_SOURCES  src/data/*.cpp)
@@ -123,6 +126,7 @@ endforeach()
 add_library(spectra
     ${SPECTRA_CORE_SOURCES}
     ${SPECTRA_RENDER_SOURCES}
+    ${SPECTRA_PLATFORM_SOURCES}
     third_party/tinyfiledialogs.cpp
     ${SPECTRA_ANIM_SOURCES}
     ${SPECTRA_IO_SOURCES}
@@ -196,6 +200,23 @@ if(SPECTRA_USE_GLFW)
     target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
     target_link_libraries(spectra PUBLIC glfw)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
+endif()
+
+# Qt adapter (optional)
+if(SPECTRA_USE_QT)
+    find_package(Qt6 COMPONENTS Gui REQUIRED)
+
+    add_library(spectra_qt_adapter
+        src/adapters/qt/qt_runtime.cpp
+        src/adapters/qt/qt_surface_host.cpp
+    )
+    target_link_libraries(spectra_qt_adapter PUBLIC spectra Qt6::Gui)
+    target_compile_features(spectra_qt_adapter PRIVATE cxx_std_20)
+    target_include_directories(spectra_qt_adapter PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+    target_compile_definitions(spectra_qt_adapter PUBLIC SPECTRA_USE_QT)
 endif()
 
 # Dear ImGui (optional — requires GLFW)

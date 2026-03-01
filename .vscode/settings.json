@@ -12,7 +12,10 @@
         "-DCMAKE_EXE_LINKER_FLAGS_DEBUG=-fsanitize=address",
         "-DCMAKE_SHARED_LINKER_FLAGS_DEBUG=-fsanitize=address",
         "-DSPECTRA_BUILD_EXAMPLES=ON",
-        "-DSPECTRA_BUILD_TESTS=ON"
+        "-DSPECTRA_BUILD_TESTS=ON",
+        "-DSPECTRA_USE_QT=ON",
+        "-DSPECTRA_HAS_QT6=ON",
+        "-DSPECTRA_BUILD_QT_EXAMPLE=ON"
     ],
     "cmake.buildArgs": [],
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",

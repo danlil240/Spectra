@@ -3,6 +3,11 @@
 #include <spectra/logger.hpp>
 
 #include "shader_spirv.hpp"
+#include "platform/window_system/surface_host.hpp"
+
+#ifdef SPECTRA_USE_GLFW
+    #include "platform/window_system/glfw_surface_host.hpp"
+#endif
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -47,8 +52,17 @@ static bool has_device_extension(VkPhysicalDevice physical_device, const char* e
 // Out-of-line destructor so unique_ptr<WindowUIContext> sees the complete type.
 WindowContext::~WindowContext() = default;
 
+std::unique_ptr<WindowContext> VulkanBackend::create_window_context()
+{
+    return std::make_unique<WindowContext>();
+}
+
 VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>())
 {
+#ifdef SPECTRA_USE_GLFW
+    static const platform::GlfwSurfaceHost k_default_glfw_surface_host;
+    surface_host_ = &k_default_glfw_surface_host;
+#endif
     active_window_ = initial_window_.get();
 }
 
@@ -76,7 +90,7 @@ bool VulkanBackend::init(bool headless)
             "vulkan",
             "Validation layers: " + std::string(enable_validation ? "true" : "false"));
 
-        ctx_.instance = vk::create_instance(enable_validation, headless_);
+        ctx_.instance = vk::create_instance(enable_validation, headless_, surface_host_);
 
         if (enable_validation)
         {
@@ -292,16 +306,17 @@ void VulkanBackend::shutdown()
 
 bool VulkanBackend::create_surface(void* native_window)
 {
-    if (!native_window)
+    if (!native_window || !active_window_)
+        return false;
+    if (!surface_host_)
         return false;
 
-#ifdef SPECTRA_USE_GLFW
-    auto*    glfw_window = static_cast<GLFWwindow*>(native_window);
-    VkResult result =
-        glfwCreateWindowSurface(ctx_.instance, glfw_window, nullptr, &active_window_->surface);
-    if (result != VK_SUCCESS)
+    active_window_->native_window = native_window;
+    if (!surface_host_->create_surface(ctx_.instance, native_window, active_window_->surface))
     {
-        std::cerr << "[Spectra] Failed to create Vulkan surface (VkResult=" << result << ")\n";
+        SPECTRA_LOG_ERROR(
+            "vulkan",
+            "Failed to create Vulkan surface with host: " + std::string(surface_host_->name()));
         return false;
     }
 
@@ -335,10 +350,50 @@ bool VulkanBackend::create_surface(void* native_window)
     }
 
     return true;
-#else
-    (void)native_window;
-    return false;
-#endif
+}
+
+bool VulkanBackend::query_framebuffer_size(void* native_window,
+                                           uint32_t& width,
+                                           uint32_t& height) const
+{
+    width  = 0;
+    height = 0;
+
+    if (!surface_host_ || !native_window)
+    {
+        return false;
+    }
+
+    platform::SurfaceSize size{};
+    if (!surface_host_->framebuffer_size(native_window, size))
+    {
+        return false;
+    }
+
+    width  = size.width;
+    height = size.height;
+    return width > 0 && height > 0;
+}
+
+bool VulkanBackend::query_window_framebuffer_size(const WindowContext& wctx,
+                                                  uint32_t&            width,
+                                                  uint32_t&            height) const
+{
+    if (query_framebuffer_size(wctx.native_window, width, height))
+    {
+        return true;
+    }
+
+    if (wctx.swapchain.extent.width > 0 && wctx.swapchain.extent.height > 0)
+    {
+        width  = wctx.swapchain.extent.width;
+        height = wctx.swapchain.extent.height;
+        return true;
+    }
+
+    width  = wctx.pending_width;
+    height = wctx.pending_height;
+    return width > 0 && height > 0;
 }
 
 bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
@@ -2323,9 +2378,14 @@ bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx,
 
 bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uint32_t height)
 {
-    if (!wctx.glfw_window)
+    if (!wctx.native_window)
     {
-        SPECTRA_LOG_ERROR("vulkan", "init_window_context: no GLFW window set");
+        SPECTRA_LOG_ERROR("vulkan", "init_window_context: no native window set");
+        return false;
+    }
+    if (!surface_host_)
+    {
+        SPECTRA_LOG_ERROR("vulkan", "init_window_context: no surface host configured");
         return false;
     }
 
@@ -2334,22 +2394,14 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
 
     try
     {
-#ifdef SPECTRA_USE_GLFW
-        auto*    glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
-        VkResult result = glfwCreateWindowSurface(ctx_.instance, glfw_win, nullptr, &wctx.surface);
-        if (result != VK_SUCCESS)
+        if (!surface_host_->create_surface(ctx_.instance, wctx.native_window, wctx.surface))
         {
             SPECTRA_LOG_ERROR("vulkan",
-                              "init_window_context: surface creation failed (VkResult="
-                                  + std::to_string(result) + ")");
+                              "init_window_context: surface creation failed for host "
+                                  + std::string(surface_host_->name()));
             active_window_ = prev_active;
             return false;
         }
-#else
-        SPECTRA_LOG_ERROR("vulkan", "init_window_context: GLFW not available");
-        active_window_ = prev_active;
-        return false;
-#endif
 
         // Create swapchain for this window
         auto vk_msaa   = static_cast<VkSampleCountFlagBits>(msaa_samples_);

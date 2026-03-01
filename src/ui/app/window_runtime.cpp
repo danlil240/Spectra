@@ -747,18 +747,10 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 
         // Swapchain truly unusable — recreate and retry
         uint32_t target_w = 0, target_h = 0;
-#ifdef SPECTRA_USE_GLFW
-        if (aw && aw->glfw_window)
+        if (aw)
         {
-            int fb_w = 0, fb_h = 0;
-            glfwGetFramebufferSize(static_cast<GLFWwindow*>(aw->glfw_window), &fb_w, &fb_h);
-            if (fb_w > 0 && fb_h > 0)
-            {
-                target_w = static_cast<uint32_t>(fb_w);
-                target_h = static_cast<uint32_t>(fb_h);
-            }
+            vk->query_window_framebuffer_size(*aw, target_w, target_h);
         }
-#endif
         if (target_w == 0 || target_h == 0)
         {
             if (aw)
@@ -894,20 +886,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 aw_post->swapchain_invalidated = false;
                 uint32_t rw                    = aw_post->swapchain.extent.width;
                 uint32_t rh                    = aw_post->swapchain.extent.height;
-#ifdef SPECTRA_USE_GLFW
-                if (aw_post->glfw_window)
-                {
-                    int fb_w = 0, fb_h = 0;
-                    glfwGetFramebufferSize(static_cast<GLFWwindow*>(aw_post->glfw_window),
-                                           &fb_w,
-                                           &fb_h);
-                    if (fb_w > 0 && fb_h > 0)
-                    {
-                        rw = static_cast<uint32_t>(fb_w);
-                        rh = static_cast<uint32_t>(fb_h);
-                    }
-                }
-#endif
+                vk_post->query_window_framebuffer_size(*aw_post, rw, rh);
                 SPECTRA_LOG_DEBUG("resize",
                                   "Post-present OUT_OF_DATE, recreating: " + std::to_string(rw)
                                       + "x" + std::to_string(rh));

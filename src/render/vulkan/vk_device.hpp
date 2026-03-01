@@ -5,6 +5,11 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+namespace spectra::platform
+{
+class SurfaceHost;
+}
+
 namespace spectra::vk
 {
 
@@ -33,7 +38,9 @@ struct DeviceContext
 };
 
 // Instance creation
-VkInstance create_instance(bool enable_validation, bool headless = false);
+VkInstance create_instance(bool                        enable_validation,
+                           bool                        headless = false,
+                           const platform::SurfaceHost* surface_host = nullptr);
 
 // Debug messenger
 VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance);

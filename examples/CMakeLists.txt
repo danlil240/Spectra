@@ -68,11 +68,18 @@ if(SPECTRA_USE_EIGEN AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/eigen_demo.cpp)
     target_link_libraries(eigen_demo PRIVATE Eigen3::Eigen)
 endif()
 
-# Qt embed demo (requires Qt6 — not built by default)
-# Build with: cmake -DSPECTRA_HAS_QT6=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..
-if(SPECTRA_HAS_QT6)
+# Qt embed demo (requires Qt adapter + Qt6 Widgets)
+if(SPECTRA_BUILD_QT_EXAMPLE)
+    if(NOT SPECTRA_USE_QT)
+        message(FATAL_ERROR "SPECTRA_BUILD_QT_EXAMPLE=ON requires SPECTRA_USE_QT=ON")
+    endif()
+
     find_package(Qt6 COMPONENTS Widgets REQUIRED)
     add_spectra_example(qt_embed_demo)
-    target_link_libraries(qt_embed_demo PRIVATE Qt6::Widgets)
+    target_link_libraries(qt_embed_demo PRIVATE spectra_qt_adapter Qt6::Widgets)
+    target_include_directories(qt_embed_demo PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
     target_compile_definitions(qt_embed_demo PRIVATE SPECTRA_HAS_QT6)
 endif()

@@ -358,16 +358,24 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
-        // Y tick labels — skip labels that would overlap
+        // Y tick labels — skip labels that would overlap.
+        // Ticks are in ascending data order = ascending screen-Y bottom-to-top.
+        // Iterate in reverse (high data → low data = top-to-bottom on screen).
+        // Track last_y_bottom: skip next label if its top is within gap of last bottom.
         {
             float last_y_bottom = -1e30f;
             constexpr float label_gap = 4.0f;
-            for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+            for (int i = static_cast<int>(y_ticks.positions.size()) - 1; i >= 0; --i)
             {
-                float py   = data_to_px_y(y_ticks.positions[i]);
-                auto  ext  = text_renderer_.measure_text(y_ticks.labels[i], FontSize::Tick);
-                float y_top = py - ext.height * 0.5f;
-                if (y_top < last_y_bottom + label_gap && i > 0)
+                float py      = data_to_px_y(y_ticks.positions[i]);
+                auto  ext     = text_renderer_.measure_text(y_ticks.labels[i], FontSize::Tick);
+                float y_top    = py - ext.height * 0.5f;
+                float y_bottom = py + ext.height * 0.5f;
+                // Skip if this label's top is above the bottom of the last drawn label
+                // (i.e. would overlap going downward).
+                // Always draw the topmost tick (i == size-1, first in this loop).
+                if (y_top < last_y_bottom + label_gap
+                    && i < static_cast<int>(y_ticks.positions.size()) - 1)
                     continue;
                 text_renderer_.draw_text(y_ticks.labels[i],
                                          vp.x - tl - tick_padding,
@@ -376,7 +384,7 @@ void Renderer::render_plot_text(Figure& figure)
                                          tick_col,
                                          TextAlign::Right,
                                          TextVAlign::Middle);
-                last_y_bottom = py + ext.height * 0.5f;
+                last_y_bottom = y_bottom;
             }
         }
 

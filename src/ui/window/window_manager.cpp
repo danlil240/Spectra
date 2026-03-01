@@ -61,6 +61,7 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
     }
 
     wctx->id          = next_window_id_++;
+    wctx->native_window = glfw_window;
     wctx->glfw_window = glfw_window;
     wctx->is_focused  = true;
 
@@ -124,6 +125,7 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     // Create WindowContext
     auto wctx         = std::make_unique<WindowContext>();
     wctx->id          = next_window_id_++;
+    wctx->native_window = glfw_win;
     wctx->glfw_window = glfw_win;
 
     // Initialize Vulkan resources (surface, swapchain, cmd buffers, sync)
@@ -238,6 +240,7 @@ void WindowManager::destroy_window(uint32_t window_id)
     if (wctx.glfw_window)
     {
         glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
+        wctx.native_window = nullptr;
         wctx.glfw_window = nullptr;
     }
 #endif
@@ -383,6 +386,7 @@ void WindowManager::shutdown()
         if (wctx.glfw_window)
         {
             glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
+            wctx.native_window = nullptr;
             wctx.glfw_window = nullptr;
         }
 #endif
@@ -680,6 +684,7 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
 
     auto wctx         = std::make_unique<WindowContext>();
     wctx->id          = next_window_id_++;
+    wctx->native_window = glfw_win;
     wctx->glfw_window = glfw_win;
     wctx->is_preview  = true;
     wctx->title       = figure_title;
@@ -1166,6 +1171,7 @@ WindowContext* WindowManager::create_first_window_with_ui(void*                 
     }
 
     wctx_ptr->id          = next_window_id_++;
+    wctx_ptr->native_window = glfw_window;
     wctx_ptr->glfw_window = glfw_window;
     wctx_ptr->is_focused  = true;
 

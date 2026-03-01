@@ -20,7 +20,8 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            "visualizerFile": "/home/daniel/.config/Windsurf/User/workspaceStorage/1476e5df2069043630d6234ac3ecbbbe/tonka3000.qtvsctools/qt.natvis.xml"
         }
     ]
 }

@@ -110,13 +110,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 continue;
 
             // Handle minimized window (0x0 framebuffer): skip until restored
-            if (wctx->glfw_window)
-            {
-                int fb_w = 0, fb_h = 0;
-                glfwGetFramebufferSize(static_cast<GLFWwindow*>(wctx->glfw_window), &fb_w, &fb_h);
-                if (fb_w <= 0 || fb_h <= 0)
-                    continue;
-            }
+            uint32_t fb_w = 0;
+            uint32_t fb_h = 0;
+            if (!vk->query_window_framebuffer_size(*wctx, fb_w, fb_h))
+                continue;
 
             if (!wctx->ui_ctx)
             {

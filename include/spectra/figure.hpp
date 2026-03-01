@@ -84,6 +84,7 @@ class Figure
 
     uint32_t width() const { return config_.width; }
     uint32_t height() const { return config_.height; }
+    void set_size(uint32_t w, uint32_t h) { config_.width = w; config_.height = h; }
 
     const std::vector<std::unique_ptr<Axes>>& axes() const { return axes_; }
     std::vector<std::unique_ptr<Axes>>&       axes_mut() { return axes_; }

@@ -38,6 +38,7 @@ class Renderer
     // Split render pass management: call begin, then render_figure_content,
     // then optionally render ImGui, then end.
     void begin_render_pass();
+    void begin_render_pass(const Color& clear_color);
     void render_figure_content(Figure& figure);
     void end_render_pass();
 
@@ -252,6 +253,14 @@ class Renderer
     size_t             overlay_tri_capacity_ = 0;
     std::vector<float> overlay_line_scratch_;
     std::vector<float> overlay_tri_scratch_;
+
+    // Legend GPU buffers
+    BufferHandle       legend_line_buffer_;
+    size_t             legend_line_capacity_ = 0;
+    BufferHandle       legend_tri_buffer_;
+    size_t             legend_tri_capacity_  = 0;
+    std::vector<float> legend_line_scratch_;
+    std::vector<float> legend_tri_scratch_;
 
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).

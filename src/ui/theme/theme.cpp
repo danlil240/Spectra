@@ -19,8 +19,10 @@ ThemeManager& ThemeManager::instance()
     {
         instance.initialize_default_themes();
         instance.initialize_data_palettes();
-        const bool has_imgui_context = (ImGui::GetCurrentContext() != nullptr);
-        instance.set_theme(has_imgui_context ? "dark" : "light");
+        // Always default to dark theme.  Previous code used "light" when no
+        // ImGui context existed, which caused headless/embed surfaces to
+        // render with wrong colors (light grid/text on dark background).
+        instance.set_theme("dark");
     }
     return instance;
 }

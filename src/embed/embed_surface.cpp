@@ -2,11 +2,21 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
+#include <cfloat>
+
 #include "render/backend.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/figures/figure_registry.hpp"
 #include "ui/input/input.hpp"
+#include "ui/theme/theme.hpp"
+
+#ifdef SPECTRA_USE_IMGUI
+    #include "core/layout.hpp"
+    #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/overlay/data_interaction.hpp"
+    #include <imgui.h>
+#endif
 
 namespace spectra
 {
@@ -31,6 +41,18 @@ struct EmbedSurface::Impl
     RedrawCallback       redraw_cb;
     CursorChangeCallback cursor_cb;
     TooltipCallback      tooltip_cb;
+
+#ifdef SPECTRA_USE_IMGUI
+    std::unique_ptr<ImGuiIntegration> imgui_ui;
+    std::unique_ptr<DataInteraction>  data_interaction;
+
+    // Mouse state tracked from inject_* calls, fed to ImGui each frame
+    float mouse_x    = -FLT_MAX;
+    float mouse_y    = -FLT_MAX;
+    bool  mouse_down[5] = {};
+    float mouse_wheel   = 0.0f;
+    float mouse_wheel_h = 0.0f;
+#endif
 
     bool init()
     {
@@ -57,6 +79,40 @@ struct EmbedSurface::Impl
 
         backend->ensure_pipelines();
 
+        // Force the configured theme BEFORE any rendering so that
+        // bg_primary, grid_line, tick_label, series palette colors
+        // are all correct from the first frame.  The renderer reads
+        // colors from ThemeManager::instance().colors() at render time.
+        ui::ThemeManager::instance().set_theme(config.theme);
+
+#ifdef SPECTRA_USE_IMGUI
+        // Only initialize ImGui when the user explicitly opts in to UI chrome.
+        // Default embed mode is canvas-only — just the plot with Spectra colors.
+        if (config.show_imgui_chrome)
+        {
+            imgui_ui = std::make_unique<ImGuiIntegration>();
+            if (!imgui_ui->init_headless(*backend, config.width, config.height))
+            {
+                SPECTRA_LOG_WARN("embed",
+                                 "ImGui headless init failed — falling back to canvas-only");
+                imgui_ui.reset();
+            }
+            else
+            {
+                data_interaction = std::make_unique<DataInteraction>();
+                imgui_ui->set_data_interaction(data_interaction.get());
+                imgui_ui->set_input_handler(&input);
+
+                // Apply UI chrome visibility from config
+                auto& lm = imgui_ui->get_layout_manager();
+                lm.set_inspector_visible(config.show_inspector);
+                lm.set_tab_bar_visible(false);   // Always off for embed (single figure)
+                if (!config.show_nav_rail)
+                    lm.set_nav_rail_width(0.0f);
+            }
+        }
+#endif
+
         initialized = true;
         SPECTRA_LOG_INFO("embed",
                          "EmbedSurface initialized (" + std::to_string(config.width) + "x"
@@ -73,6 +129,11 @@ struct EmbedSurface::Impl
         {
             backend->wait_idle();
         }
+
+#ifdef SPECTRA_USE_IMGUI
+        data_interaction.reset();
+        imgui_ui.reset();
+#endif
 
         // Clear registry before renderer/backend to ensure proper cleanup order
         registry.clear();
@@ -112,7 +173,78 @@ struct EmbedSurface::Impl
         // Update figure dimensions to match surface
         active_fig->config_.width  = config.width;
         active_fig->config_.height = config.height;
-        active_fig->compute_layout();
+
+        float sw = static_cast<float>(config.width);
+        float sh = static_cast<float>(config.height);
+
+#ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
+        {
+            // Start ImGui frame with current input state
+            ImGuiIntegration::HeadlessFrameInput fi{};
+            fi.display_w  = sw;
+            fi.display_h  = sh;
+            fi.dt         = 1.0f / 60.0f;
+            fi.mouse_x    = mouse_x;
+            fi.mouse_y    = mouse_y;
+            for (int i = 0; i < 5; ++i)
+                fi.mouse_down[i] = mouse_down[i];
+            fi.mouse_wheel   = mouse_wheel;
+            fi.mouse_wheel_h = mouse_wheel_h;
+            fi.dpi_scale     = config.dpi_scale;
+
+            imgui_ui->new_frame_headless(fi);
+
+            // Consume scroll (one-shot per frame, like GLFW)
+            mouse_wheel   = 0.0f;
+            mouse_wheel_h = 0.0f;
+
+            // Build the full UI (command bar, canvas, status bar, overlays)
+            imgui_ui->build_ui(*active_fig);
+
+            // Always hide tab bar for embed (single-figure surface)
+            imgui_ui->get_layout_manager().set_tab_bar_visible(false);
+
+            // Compute subplot layout using LayoutManager canvas rect
+            const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+            const auto& af_style = active_fig->style();
+            Margins fig_margins;
+            fig_margins.left   = af_style.margin_left;
+            fig_margins.right  = af_style.margin_right;
+            fig_margins.top    = af_style.margin_top;
+            fig_margins.bottom = af_style.margin_bottom;
+            const auto rects = compute_subplot_layout(canvas.w,
+                                                      canvas.h,
+                                                      active_fig->grid_rows_,
+                                                      active_fig->grid_cols_,
+                                                      fig_margins,
+                                                      canvas.x,
+                                                      canvas.y);
+            for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
+            {
+                if (active_fig->axes_mut()[i])
+                    active_fig->axes_mut()[i]->set_viewport(rects[i]);
+            }
+            for (size_t i = 0; i < active_fig->all_axes_mut().size() && i < rects.size(); ++i)
+            {
+                if (active_fig->all_axes_mut()[i])
+                    active_fig->all_axes_mut()[i]->set_viewport(rects[i]);
+            }
+
+            // Update data interaction (cursor readout, crosshair, tooltips)
+            if (data_interaction)
+            {
+                auto readout = input.cursor_readout();
+                imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
+                data_interaction->update(readout, *active_fig);
+            }
+        }
+        else
+#endif
+        {
+            // Fallback: direct layout without ImGui
+            active_fig->compute_layout();
+        }
 
         // Upload any dirty series data
         for (auto& ax : active_fig->all_axes_mut())
@@ -129,19 +261,28 @@ struct EmbedSurface::Impl
         if (!backend->begin_frame())
         {
             SPECTRA_LOG_ERROR("embed", "begin_frame() failed");
+#ifdef SPECTRA_USE_IMGUI
+            if (imgui_ui)
+                ImGui::EndFrame();
+#endif
             return false;
         }
 
         renderer->flush_pending_deletions();
+
         renderer->begin_render_pass();
         renderer->render_figure_content(*active_fig);
-        renderer->render_plot_text(*active_fig);
-        renderer->render_plot_geometry(*active_fig);
+
+        // Flush Vulkan plot text BEFORE ImGui so UI overlays render on top
+        renderer->render_text(sw, sh);
+
+#ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
         {
-            float sw = static_cast<float>(config.width);
-            float sh = static_cast<float>(config.height);
-            renderer->render_text(sw, sh);
+            imgui_ui->render(*backend);
         }
+#endif
+
         renderer->end_render_pass();
         backend->end_frame();
 
@@ -297,6 +438,10 @@ void EmbedSurface::inject_mouse_move(float x, float y)
 {
     if (!impl_ || !impl_->initialized)
         return;
+#ifdef SPECTRA_USE_IMGUI
+    impl_->mouse_x = x;
+    impl_->mouse_y = y;
+#endif
     impl_->input.on_mouse_move(static_cast<double>(x), static_cast<double>(y));
 }
 
@@ -304,6 +449,12 @@ void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x
 {
     if (!impl_ || !impl_->initialized)
         return;
+#ifdef SPECTRA_USE_IMGUI
+    impl_->mouse_x = x;
+    impl_->mouse_y = y;
+    if (button >= 0 && button < 5)
+        impl_->mouse_down[button] = (action != 0);   // 0 = release
+#endif
     impl_->input.on_mouse_button(button, action, mods, static_cast<double>(x),
                                  static_cast<double>(y));
 }
@@ -312,7 +463,10 @@ void EmbedSurface::inject_scroll(float dx, float dy, float cursor_x, float curso
 {
     if (!impl_ || !impl_->initialized)
         return;
-    (void)dx;   // InputHandler only uses y_offset for zoom
+#ifdef SPECTRA_USE_IMGUI
+    impl_->mouse_wheel   += dy;
+    impl_->mouse_wheel_h += dx;
+#endif
     impl_->input.on_scroll(static_cast<double>(dx), static_cast<double>(dy),
                            static_cast<double>(cursor_x), static_cast<double>(cursor_y));
 }

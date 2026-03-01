@@ -292,6 +292,14 @@ if(SPECTRA_BUILD_EMBED_SHARED)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
+    # When ImGui is enabled, the embed surface uses it for full UI rendering.
+    # Forward ImGui include paths so embed_surface.cpp can find imgui headers.
+    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+        target_include_directories(spectra_embed PRIVATE
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+        )
+    endif()
     set_target_properties(spectra_embed PROPERTIES
         POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME spectra_embed

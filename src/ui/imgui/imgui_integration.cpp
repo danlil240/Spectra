@@ -15,6 +15,7 @@
     #include <spectra/math3d.hpp>
     #include <spectra/series.hpp>
     #include <spectra/series3d.hpp>
+    #include <algorithm>
     #include <unordered_map>
 
     #include "render/vulkan/vk_backend.hpp"
@@ -131,6 +132,64 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     return true;
 }
 
+bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uint32_t height)
+{
+    if (initialized_)
+        return true;
+
+    headless_       = true;
+    layout_manager_ = std::make_unique<LayoutManager>();
+
+    IMGUI_CHECKVERSION();
+    owned_font_atlas_ = std::make_unique<ImFontAtlas>();
+    imgui_context_    = ImGui::CreateContext(owned_font_atlas_.get());
+    ImGui::SetCurrentContext(imgui_context_);
+
+    // Configure IO for headless operation
+    ImGuiIO& io         = ImGui::GetIO();
+    io.DisplaySize      = ImVec2(static_cast<float>(width), static_cast<float>(height));
+    io.DeltaTime        = 1.0f / 60.0f;
+    io.ConfigFlags     |= ImGuiConfigFlags_NavNoCaptureKeyboard;
+    // No ini file for headless
+    io.IniFilename      = nullptr;
+
+    // Initialize theme system
+    ui::ThemeManager::instance();
+
+    // Initialize icon font system
+    ui::IconFont::instance().initialize();
+
+    load_fonts();
+    apply_modern_style();
+
+    // Wire inspector fonts
+    inspector_.set_fonts(font_body_, font_heading_, font_title_);
+    data_editor_.set_fonts(font_body_, font_heading_, font_title_);
+
+    // Skip ImGui_ImplGlfw_* — no GLFW window in headless mode.
+    // Only init the Vulkan rendering backend.
+    ImGui_ImplVulkan_InitInfo ii{};
+    ii.Instance       = backend.instance();
+    ii.PhysicalDevice = backend.physical_device();
+    ii.Device         = backend.device();
+    ii.QueueFamily    = backend.graphics_queue_family();
+    ii.Queue          = backend.graphics_queue();
+    ii.DescriptorPool = backend.descriptor_pool();
+    // ImGui Vulkan backend asserts MinImageCount >= 2. The headless backend
+    // uses a single offscreen framebuffer (image_count=1), so clamp to 2.
+    ii.MinImageCount  = std::max(backend.min_image_count(), 2u);
+    ii.ImageCount     = std::max(backend.image_count(), 2u);
+    ii.RenderPass     = backend.render_pass();
+    ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&ii);
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
+    initialized_        = true;
+    return true;
+}
+
 void ImGuiIntegration::shutdown()
 {
     if (!initialized_)
@@ -145,7 +204,8 @@ void ImGuiIntegration::shutdown()
         ImGui::SetCurrentContext(this_ctx);
 
     ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    if (!headless_)
+        ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext(this_ctx);
     imgui_context_ = nullptr;
 
@@ -217,6 +277,35 @@ void ImGuiIntegration::new_frame()
     // Update layout with current window size and delta time
     ImGuiIO& io = ImGui::GetIO();
     update_layout(io.DisplaySize.x, io.DisplaySize.y, io.DeltaTime);
+}
+
+void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
+{
+    if (!initialized_)
+        return;
+
+    ImGui::SetCurrentContext(imgui_context_);
+
+    // Manually populate IO — replaces ImGui_ImplGlfw_NewFrame()
+    ImGuiIO& io    = ImGui::GetIO();
+    io.DisplaySize = ImVec2(input.display_w, input.display_h);
+    io.DeltaTime   = (input.dt > 0.0f) ? input.dt : (1.0f / 60.0f);
+
+    // Mouse state
+    io.MousePos = ImVec2(input.mouse_x, input.mouse_y);
+    for (int i = 0; i < 5; ++i)
+        io.MouseDown[i] = input.mouse_down[i];
+    io.MouseWheel  = input.mouse_wheel;
+    io.MouseWheelH = input.mouse_wheel_h;
+
+    // Display scaling
+    io.DisplayFramebufferScale = ImVec2(input.dpi_scale, input.dpi_scale);
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui::NewFrame();
+
+    // Update layout with current display size and delta time
+    update_layout(input.display_w, input.display_h, io.DeltaTime);
 }
 
 void ImGuiIntegration::build_ui(Figure& figure)

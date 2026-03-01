@@ -43,6 +43,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 
@@ -68,6 +69,21 @@ struct EmbedConfig
     // Background color alpha. Set to 0.0f for transparent background
     // (useful for compositing over host content).
     float background_alpha = 1.0f;
+
+    // Theme name ("dark" or "light"). Default: "dark".
+    std::string theme = "dark";
+
+    // UI chrome visibility (only effective when built with SPECTRA_USE_IMGUI).
+    // When ImGui is not available, these are ignored and only the raw plot is rendered.
+    // Default: ALL chrome OFF — embed renders canvas-only with Spectra theme colors.
+    // Set individual flags to true to opt-in to specific UI elements.
+    bool show_imgui_chrome = false;   // Master switch: enable ImGui UI pipeline
+    bool show_command_bar  = false;   // Top command/menu bar
+    bool show_status_bar   = false;   // Bottom status bar
+    bool show_nav_rail     = false;   // Left navigation rail
+    bool show_inspector    = false;   // Right inspector panel
+    bool show_legend       = true;    // Series legend overlay (rendered by Vulkan, not ImGui)
+    bool show_crosshair    = true;    // Crosshair + cursor readout
 };
 
 // Vulkan interop target: host provides these so Spectra renders directly

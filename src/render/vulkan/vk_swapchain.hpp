@@ -88,6 +88,11 @@ struct OffscreenContext
     VkImage               msaa_depth_image  = VK_NULL_HANDLE;
     VkDeviceMemory        msaa_depth_memory = VK_NULL_HANDLE;
     VkImageView           msaa_depth_view   = VK_NULL_HANDLE;
+    // Persistent readback staging buffer (reused across frames to avoid alloc/free per readback)
+    VkBuffer       readback_buffer     = VK_NULL_HANDLE;
+    VkDeviceMemory readback_memory     = VK_NULL_HANDLE;
+    VkDeviceSize   readback_capacity   = 0;
+    void*          readback_mapped_ptr = nullptr;
 };
 
 OffscreenContext create_offscreen_framebuffer(

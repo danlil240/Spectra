@@ -147,10 +147,19 @@ AnimationBuilder Figure::animate()
 
 void Figure::compute_layout()
 {
+    // Use the figure's own style margins (matching what the Spectra app uses
+    // via ImGui layout) instead of the default Margins from layout.hpp.
+    Margins fig_margins;
+    fig_margins.left   = style_.margin_left;
+    fig_margins.right  = style_.margin_right;
+    fig_margins.top    = style_.margin_top;
+    fig_margins.bottom = style_.margin_bottom;
+
     auto rects = compute_subplot_layout(static_cast<float>(config_.width),
                                         static_cast<float>(config_.height),
                                         grid_rows_,
-                                        grid_cols_);
+                                        grid_cols_,
+                                        fig_margins);
 
     // Assign viewport rects to 2D axes
     for (size_t i = 0; i < axes_.size() && i < rects.size(); ++i)

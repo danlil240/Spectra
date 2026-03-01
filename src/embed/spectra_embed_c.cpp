@@ -6,6 +6,8 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/series.hpp>
 
+#include "ui/theme/theme.hpp"
+
 #include <cstring>
 #include <span>
 #include <string>
@@ -167,6 +169,22 @@ void spectra_series_set_y(SpectraSeries* s, const float* y, uint32_t count)
         sc->set_y({y, count});
 }
 
+void spectra_series_set_data(SpectraSeries* s, const float* x, const float* y, uint32_t count)
+{
+    if (!s || !s->ptr || !x || !y || count == 0)
+        return;
+    if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+    {
+        line->set_x({x, count});
+        line->set_y({y, count});
+    }
+    else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+    {
+        sc->set_x({x, count});
+        sc->set_y({y, count});
+    }
+}
+
 // ── Rendering ───────────────────────────────────────────────────────────────
 
 int spectra_embed_render(SpectraEmbed* s, uint8_t* out_rgba)
@@ -224,6 +242,106 @@ void spectra_embed_update(SpectraEmbed* s, float dt)
 {
     if (s)
         s->surface.update(dt);
+}
+
+// ── Display configuration ────────────────────────────────────────────────────
+
+void spectra_embed_set_dpi_scale(SpectraEmbed* s, float scale)
+{
+    if (s)
+        s->surface.set_dpi_scale(scale);
+}
+
+float spectra_embed_get_dpi_scale(const SpectraEmbed* s)
+{
+    return s ? s->surface.dpi_scale() : 1.0f;
+}
+
+// ── Theme & UI chrome ────────────────────────────────────────────────────────
+
+void spectra_embed_set_theme(SpectraEmbed* s, const char* theme)
+{
+    if (!s || !theme)
+        return;
+    // Theme is applied globally via ThemeManager; just set it.
+    spectra::ui::ThemeManager::instance().set_theme(theme);
+}
+
+void spectra_embed_set_show_command_bar(SpectraEmbed* /*s*/, int /*visible*/)
+{
+    // Command bar visibility is controlled by ImGui layout.
+    // Currently a no-op — reserved for future LayoutManager integration.
+}
+
+void spectra_embed_set_show_status_bar(SpectraEmbed* /*s*/, int /*visible*/)
+{
+    // Status bar visibility — reserved for future LayoutManager integration.
+}
+
+void spectra_embed_set_show_nav_rail(SpectraEmbed* /*s*/, int /*visible*/)
+{
+    // Nav rail visibility — reserved for future LayoutManager integration.
+}
+
+void spectra_embed_set_show_inspector(SpectraEmbed* /*s*/, int /*visible*/)
+{
+    // Inspector visibility — reserved for future LayoutManager integration.
+}
+
+// ── Axes configuration ──────────────────────────────────────────────────────
+
+void spectra_axes_set_xlabel(SpectraAxes* ax, const char* label)
+{
+    if (!ax || !ax->axes_2d || !label)
+        return;
+    ax->axes_2d->xlabel(label);
+}
+
+void spectra_axes_set_ylabel(SpectraAxes* ax, const char* label)
+{
+    if (!ax || !ax->axes_2d || !label)
+        return;
+    ax->axes_2d->ylabel(label);
+}
+
+void spectra_axes_set_title(SpectraAxes* ax, const char* title)
+{
+    if (!ax || !ax->axes_2d || !title)
+        return;
+    ax->axes_2d->title(title);
+}
+
+void spectra_axes_set_xlim(SpectraAxes* ax, float min_val, float max_val)
+{
+    if (!ax || !ax->axes_2d)
+        return;
+    ax->axes_2d->xlim(static_cast<double>(min_val), static_cast<double>(max_val));
+}
+
+void spectra_axes_set_ylim(SpectraAxes* ax, float min_val, float max_val)
+{
+    if (!ax || !ax->axes_2d)
+        return;
+    ax->axes_2d->ylim(static_cast<double>(min_val), static_cast<double>(max_val));
+}
+
+void spectra_axes_set_grid(SpectraAxes* ax, int enabled)
+{
+    if (!ax || !ax->axes_2d)
+        return;
+    ax->axes_2d->grid(enabled != 0);
+}
+
+// ── Figure configuration ────────────────────────────────────────────────────
+
+void spectra_figure_set_title(SpectraFigure* fig, const char* title)
+{
+    if (!fig || !fig->ptr || !title)
+        return;
+    // Figure doesn't have a public set_title; set the first axes title instead.
+    // This is a convenience for single-subplot figures.
+    if (!fig->ptr->axes().empty() && fig->ptr->axes()[0])
+        fig->ptr->axes()[0]->title(title);
 }
 
 // ── Easy Render API ──────────────────────────────────────────────────────────

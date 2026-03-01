@@ -1626,12 +1626,82 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     VkDeviceSize buffer_size = static_cast<VkDeviceSize>(width) * height * 4;
 
-    auto staging = vk::GpuBuffer::create(
-        ctx_.device,
-        ctx_.physical_device,
-        buffer_size,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    // Reuse persistent staging buffer when possible (headless path).
+    // This avoids alloc+free every frame which is the main readback bottleneck.
+    VkBuffer staging_buf = VK_NULL_HANDLE;
+    void*    mapped_ptr  = nullptr;
+    bool     owns_staging = false;
+
+    if (headless_ && offscreen_.readback_buffer != VK_NULL_HANDLE
+        && offscreen_.readback_capacity >= buffer_size)
+    {
+        // Reuse existing persistent staging buffer
+        staging_buf = offscreen_.readback_buffer;
+        mapped_ptr  = offscreen_.readback_mapped_ptr;
+    }
+    else if (headless_)
+    {
+        // Grow persistent staging buffer
+        if (offscreen_.readback_buffer != VK_NULL_HANDLE)
+        {
+            vkUnmapMemory(ctx_.device, offscreen_.readback_memory);
+            vkDestroyBuffer(ctx_.device, offscreen_.readback_buffer, nullptr);
+            vkFreeMemory(ctx_.device, offscreen_.readback_memory, nullptr);
+        }
+
+        VkBufferCreateInfo buf_ci{};
+        buf_ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buf_ci.size  = buffer_size;
+        buf_ci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        vkCreateBuffer(ctx_.device, &buf_ci, nullptr, &offscreen_.readback_buffer);
+
+        VkMemoryRequirements mem_req;
+        vkGetBufferMemoryRequirements(ctx_.device, offscreen_.readback_buffer, &mem_req);
+
+        VkPhysicalDeviceMemoryProperties mem_props;
+        vkGetPhysicalDeviceMemoryProperties(ctx_.physical_device, &mem_props);
+        uint32_t mem_type = UINT32_MAX;
+        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+        {
+            if ((mem_req.memoryTypeBits & (1u << i))
+                && (mem_props.memoryTypes[i].propertyFlags
+                    & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+                       == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+            {
+                mem_type = i;
+                break;
+            }
+        }
+
+        VkMemoryAllocateInfo alloc{};
+        alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc.allocationSize  = mem_req.size;
+        alloc.memoryTypeIndex = mem_type;
+        vkAllocateMemory(ctx_.device, &alloc, nullptr, &offscreen_.readback_memory);
+        vkBindBufferMemory(ctx_.device, offscreen_.readback_buffer, offscreen_.readback_memory, 0);
+        vkMapMemory(ctx_.device, offscreen_.readback_memory, 0, buffer_size, 0,
+                    &offscreen_.readback_mapped_ptr);
+
+        offscreen_.readback_capacity = buffer_size;
+        staging_buf = offscreen_.readback_buffer;
+        mapped_ptr  = offscreen_.readback_mapped_ptr;
+    }
+    else
+    {
+        // Non-headless: use temporary GpuBuffer (rare path — screenshot only)
+        owns_staging = true;
+    }
+
+    VkBuffer copy_dst = staging_buf;
+    vk::GpuBuffer temp_staging;
+    if (owns_staging)
+    {
+        temp_staging = vk::GpuBuffer::create(
+            ctx_.device, ctx_.physical_device, buffer_size,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        copy_dst = temp_staging.buffer();
+    }
 
     // Record copy command
     VkCommandBufferAllocateInfo alloc_info{};
@@ -1686,7 +1756,7 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     vkCmdCopyImageToBuffer(cmd,
                            src_image,
                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           staging.buffer(),
+                           copy_dst,
                            1,
                            &region);
 
@@ -1731,9 +1801,17 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     vkFreeCommandBuffers(ctx_.device, command_pool_, 1, &cmd);
 
-    // Read back from staging buffer (GpuBuffer auto-maps host-visible memory)
-    staging.read(out_rgba, buffer_size);
-    staging.destroy();
+    // Read back from staging buffer
+    if (owns_staging)
+    {
+        temp_staging.read(out_rgba, buffer_size);
+        temp_staging.destroy();
+    }
+    else
+    {
+        // Persistent buffer is already mapped — just memcpy
+        std::memcpy(out_rgba, mapped_ptr, static_cast<size_t>(buffer_size));
+    }
 
     // Swapchain uses BGRA format — swizzle to RGBA for PNG export
     if (!headless_)

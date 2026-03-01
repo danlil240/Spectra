@@ -134,6 +134,14 @@ def _load_lib() -> ctypes.CDLL:
     ]
     _lib.spectra_series_set_y.restype = None
 
+    _lib.spectra_series_set_data.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
+    ]
+    _lib.spectra_series_set_data.restype = None
+
     # Rendering
     _lib.spectra_embed_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
     _lib.spectra_embed_render.restype = ctypes.c_int
@@ -173,6 +181,52 @@ def _load_lib() -> ctypes.CDLL:
 
     _lib.spectra_embed_update.argtypes = [ctypes.c_void_p, ctypes.c_float]
     _lib.spectra_embed_update.restype = None
+
+    # Display configuration
+    _lib.spectra_embed_set_dpi_scale.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_embed_set_dpi_scale.restype = None
+
+    _lib.spectra_embed_get_dpi_scale.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_get_dpi_scale.restype = ctypes.c_float
+
+    # Theme & UI chrome
+    _lib.spectra_embed_set_theme.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_embed_set_theme.restype = None
+
+    _lib.spectra_embed_set_show_command_bar.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_command_bar.restype = None
+
+    _lib.spectra_embed_set_show_status_bar.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_status_bar.restype = None
+
+    _lib.spectra_embed_set_show_nav_rail.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_nav_rail.restype = None
+
+    _lib.spectra_embed_set_show_inspector.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_inspector.restype = None
+
+    # Axes configuration
+    _lib.spectra_axes_set_xlabel.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_axes_set_xlabel.restype = None
+
+    _lib.spectra_axes_set_ylabel.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_axes_set_ylabel.restype = None
+
+    _lib.spectra_axes_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_axes_set_title.restype = None
+
+    _lib.spectra_axes_set_xlim.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float]
+    _lib.spectra_axes_set_xlim.restype = None
+
+    _lib.spectra_axes_set_ylim.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float]
+    _lib.spectra_axes_set_ylim.restype = None
+
+    _lib.spectra_axes_set_grid.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_set_grid.restype = None
+
+    # Figure configuration
+    _lib.spectra_figure_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_figure_set_title.restype = None
 
     return _lib
 
@@ -235,6 +289,13 @@ class EmbedSeries:
         ptr, n = _to_float_ptr(data)
         self._lib.spectra_series_set_y(self._handle, ptr, n)
 
+    def set_data(self, x, y) -> None:
+        """Update both X and Y data atomically (no intermediate mismatch)."""
+        xp, xn = _to_float_ptr(x)
+        yp, yn = _to_float_ptr(y)
+        assert xn == yn, f"x and y must have same length ({xn} vs {yn})"
+        self._lib.spectra_series_set_data(self._handle, xp, yp, xn)
+
 
 class EmbedAxes:
     """Proxy for axes in an embedded plot."""
@@ -265,6 +326,30 @@ class EmbedAxes:
             raise RuntimeError("Failed to create scatter series")
         return EmbedSeries(h)
 
+    def set_xlabel(self, label: str) -> None:
+        """Set the X-axis label."""
+        self._lib.spectra_axes_set_xlabel(self._handle, label.encode("utf-8"))
+
+    def set_ylabel(self, label: str) -> None:
+        """Set the Y-axis label."""
+        self._lib.spectra_axes_set_ylabel(self._handle, label.encode("utf-8"))
+
+    def set_title(self, title: str) -> None:
+        """Set the axes title."""
+        self._lib.spectra_axes_set_title(self._handle, title.encode("utf-8"))
+
+    def set_xlim(self, min_val: float, max_val: float) -> None:
+        """Set X-axis limits."""
+        self._lib.spectra_axes_set_xlim(self._handle, min_val, max_val)
+
+    def set_ylim(self, min_val: float, max_val: float) -> None:
+        """Set Y-axis limits."""
+        self._lib.spectra_axes_set_ylim(self._handle, min_val, max_val)
+
+    def set_grid(self, enabled: bool = True) -> None:
+        """Enable or disable grid lines."""
+        self._lib.spectra_axes_set_grid(self._handle, 1 if enabled else 0)
+
 
 class EmbedFigure:
     """Proxy for a figure in an embedded plot."""
@@ -286,6 +371,10 @@ class EmbedFigure:
         if not h:
             raise RuntimeError("Failed to create 3D subplot")
         return EmbedAxes(h)
+
+    def set_title(self, title: str) -> None:
+        """Set the figure title (sets first axes title)."""
+        self._lib.spectra_figure_set_title(self._handle, title.encode("utf-8"))
 
 
 class EmbedSurface:
@@ -380,3 +469,36 @@ class EmbedSurface:
     def update(self, dt: float) -> None:
         """Advance internal animations by dt seconds."""
         self._lib.spectra_embed_update(self._handle, dt)
+
+    # ── Display configuration ────────────────────────────────────────────
+
+    def set_dpi_scale(self, scale: float) -> None:
+        """Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI)."""
+        self._lib.spectra_embed_set_dpi_scale(self._handle, scale)
+
+    @property
+    def dpi_scale(self) -> float:
+        """Get current DPI scale factor."""
+        return self._lib.spectra_embed_get_dpi_scale(self._handle)
+
+    # ── Theme & UI chrome ─────────────────────────────────────────────────
+
+    def set_theme(self, theme: str) -> None:
+        """Set theme ('dark' or 'light')."""
+        self._lib.spectra_embed_set_theme(self._handle, theme.encode("utf-8"))
+
+    def set_show_command_bar(self, visible: bool) -> None:
+        """Show/hide the top command bar (requires ImGui build)."""
+        self._lib.spectra_embed_set_show_command_bar(self._handle, 1 if visible else 0)
+
+    def set_show_status_bar(self, visible: bool) -> None:
+        """Show/hide the bottom status bar (requires ImGui build)."""
+        self._lib.spectra_embed_set_show_status_bar(self._handle, 1 if visible else 0)
+
+    def set_show_nav_rail(self, visible: bool) -> None:
+        """Show/hide the left navigation rail (requires ImGui build)."""
+        self._lib.spectra_embed_set_show_nav_rail(self._handle, 1 if visible else 0)
+
+    def set_show_inspector(self, visible: bool) -> None:
+        """Show/hide the right inspector panel (requires ImGui build)."""
+        self._lib.spectra_embed_set_show_inspector(self._handle, 1 if visible else 0)

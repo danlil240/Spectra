@@ -2,6 +2,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <cfloat>
     #include <functional>
     #include <memory>
     #include <spectra/fwd.hpp>
@@ -63,9 +64,32 @@ class ImGuiIntegration
     ImGuiIntegration& operator=(const ImGuiIntegration&) = delete;
 
     bool init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks = true);
+
+    // Headless init: no GLFW window, no platform backend.
+    // Input is fed manually via new_frame_headless().
+    // Used by EmbedSurface for offscreen ImGui rendering.
+    bool init_headless(VulkanBackend& backend, uint32_t width, uint32_t height);
+
     void shutdown();
 
     void new_frame();
+
+    // Headless new_frame: manually set display size + input state.
+    // Call instead of new_frame() when initialized with init_headless().
+    struct HeadlessFrameInput
+    {
+        float    display_w  = 800.0f;
+        float    display_h  = 600.0f;
+        float    dt         = 1.0f / 60.0f;
+        float    mouse_x    = -FLT_MAX;
+        float    mouse_y    = -FLT_MAX;
+        bool     mouse_down[5] = {};
+        float    mouse_wheel   = 0.0f;
+        float    mouse_wheel_h = 0.0f;
+        float    dpi_scale     = 1.0f;
+    };
+    void new_frame_headless(const HeadlessFrameInput& input);
+
     void build_ui(Figure& figure);
     void build_empty_ui();   // Render menu bar only (no figure)
     void render(VulkanBackend& backend);
@@ -363,6 +387,7 @@ class ImGuiIntegration
     void draw_panel(Figure& figure);
 
     bool     initialized_        = false;
+    bool     headless_           = false;   // True when initialized via init_headless()
     uint64_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 

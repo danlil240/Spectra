@@ -227,6 +227,12 @@ void Renderer::begin_render_pass()
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
 
+void Renderer::begin_render_pass(const Color& clear_color)
+{
+    backend_.begin_render_pass(clear_color);
+    backend_.set_line_width(1.0f);
+}
+
 void Renderer::render_figure_content(Figure& figure)
 {
     uint32_t w = figure.width();

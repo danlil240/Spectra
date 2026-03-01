@@ -601,6 +601,11 @@
 },
 {
   "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
+  "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/embed_cpp_demo.dir/embed_cpp_demo.cpp.o -c /home/daniel/projects/Spectra/examples/embed_cpp_demo.cpp",
+  "file": "/home/daniel/projects/Spectra/examples/embed_cpp_demo.cpp"
+},
+{
+  "directory": "/home/daniel/projects/Spectra/build_clang_asan/examples",
   "command": "/usr/bin/clang++-17 -DSPECTRA_RUNTIME_MODE_multiproc -DSPECTRA_USE_GLFW -DSPECTRA_USE_IMGUI -I/home/daniel/projects/Spectra/include -isystem /home/daniel/lib/vulkan_sdk/1.4.341.1/x86_64/include -g -O1 -fsanitize=address -fno-omit-frame-pointer -std=c++20 -o CMakeFiles/axes_menu_demo.dir/axes_menu_demo.cpp.o -c /home/daniel/projects/Spectra/examples/axes_menu_demo.cpp",
   "file": "/home/daniel/projects/Spectra/examples/axes_menu_demo.cpp"
 },

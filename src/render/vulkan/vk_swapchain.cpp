@@ -608,7 +608,7 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
                                               VkSampleCountFlagBits msaa_samples)
 {
     OffscreenContext ctx;
-    ctx.format       = VK_FORMAT_R8G8B8A8_UNORM;
+    ctx.format       = VK_FORMAT_R8G8B8A8_SRGB;
     ctx.extent       = {width, height};
     ctx.msaa_samples = msaa_samples;
     bool use_msaa    = (msaa_samples != VK_SAMPLE_COUNT_1_BIT);
@@ -988,6 +988,14 @@ void destroy_offscreen(VkDevice device, OffscreenContext& ctx)
         vkDestroyImage(device, ctx.color_image, nullptr);
     if (ctx.color_memory != VK_NULL_HANDLE)
         vkFreeMemory(device, ctx.color_memory, nullptr);
+    // Destroy persistent readback staging buffer
+    if (ctx.readback_buffer != VK_NULL_HANDLE)
+    {
+        if (ctx.readback_mapped_ptr)
+            vkUnmapMemory(device, ctx.readback_memory);
+        vkDestroyBuffer(device, ctx.readback_buffer, nullptr);
+        vkFreeMemory(device, ctx.readback_memory, nullptr);
+    }
     ctx = {};
 }
 

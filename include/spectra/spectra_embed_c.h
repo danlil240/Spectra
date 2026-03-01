@@ -76,6 +76,9 @@ void spectra_series_set_x(SpectraSeries* s, const float* x, uint32_t count);
 /* Update Y data for an existing series. */
 void spectra_series_set_y(SpectraSeries* s, const float* y, uint32_t count);
 
+/* Update both X and Y data atomically (no intermediate mismatch). */
+void spectra_series_set_data(SpectraSeries* s, const float* x, const float* y, uint32_t count);
+
 /* ── Rendering ─────────────────────────────────────────────────────────── */
 
 /* Render one frame to RGBA buffer. Buffer must be width*height*4 bytes.
@@ -99,6 +102,45 @@ void spectra_embed_key(SpectraEmbed* s, int key, int action, int mods);
 
 /* Advance animations by dt seconds. */
 void spectra_embed_update(SpectraEmbed* s, float dt);
+
+/* ── Display configuration ────────────────────────────────────────────── */
+
+/* Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
+ * Affects text size, tick length, and line widths. */
+void spectra_embed_set_dpi_scale(SpectraEmbed* s, float scale);
+
+/* Get current DPI scale factor. */
+float spectra_embed_get_dpi_scale(const SpectraEmbed* s);
+
+/* ── Theme & UI chrome ────────────────────────────────────────────────── */
+
+/* Set theme ("dark" or "light"). */
+void spectra_embed_set_theme(SpectraEmbed* s, const char* theme);
+
+/* Show/hide UI chrome elements (requires ImGui build). */
+void spectra_embed_set_show_command_bar(SpectraEmbed* s, int visible);
+void spectra_embed_set_show_status_bar(SpectraEmbed* s, int visible);
+void spectra_embed_set_show_nav_rail(SpectraEmbed* s, int visible);
+void spectra_embed_set_show_inspector(SpectraEmbed* s, int visible);
+
+/* ── Axes configuration ───────────────────────────────────────────────── */
+
+/* Set axis labels. */
+void spectra_axes_set_xlabel(SpectraAxes* ax, const char* label);
+void spectra_axes_set_ylabel(SpectraAxes* ax, const char* label);
+void spectra_axes_set_title(SpectraAxes* ax, const char* title);
+
+/* Set axis limits (manual zoom). */
+void spectra_axes_set_xlim(SpectraAxes* ax, float min, float max);
+void spectra_axes_set_ylim(SpectraAxes* ax, float min, float max);
+
+/* Enable/disable grid. */
+void spectra_axes_set_grid(SpectraAxes* ax, int enabled);
+
+/* ── Figure configuration ─────────────────────────────────────────────── */
+
+/* Set figure title. */
+void spectra_figure_set_title(SpectraFigure* fig, const char* title);
 
 /* ── Easy Render API ───────────────────────────────────────────────────── */
 /* One-call offscreen rendering. No surface/figure/axes management needed. */

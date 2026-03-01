@@ -109,6 +109,37 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     input_handler.update(scheduler.dt());
 #endif
 
+#ifdef SPECTRA_USE_IMGUI
+    auto sync_active_figure_from_manager = [&]()
+    {
+        FigureId mgr_active = fig_mgr.active_index();
+        if (mgr_active != active_figure_id || active_figure != registry_.get(active_figure_id))
+        {
+            active_figure_id = mgr_active;
+            Figure* fig      = registry_.get(active_figure_id);
+            fs.active_figure = fig;
+            active_figure    = fig;
+            if (active_figure)
+            {
+                scheduler.set_target_fps(active_figure->anim_fps_);
+                has_animation = static_cast<bool>(active_figure->anim_on_frame_);
+#ifdef SPECTRA_USE_GLFW
+                input_handler.set_figure(active_figure);
+                if (!active_figure->axes().empty() && active_figure->axes()[0])
+                {
+                    input_handler.set_active_axes(active_figure->axes()[0].get());
+                    const auto& vp = active_figure->axes()[0]->viewport();
+                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+                }
+#endif
+            }
+        }
+    };
+
+    // Sync before UI work so build_ui never sees a stale figure pointer.
+    sync_active_figure_from_manager();
+#endif
+
     // Helper: wire deferred-deletion callbacks on a figure's axes
     // BEFORE the user's on_frame callback can call clear_series().
     // Only set on axes that don't already have it (avoids per-frame
@@ -505,33 +536,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // Process queued figure operations (create, close, switch)
     fig_mgr.process_pending();
 
-    // Always sync active figure with FigureManager.  build_ui() may trigger
-    // operations that call switch_to() directly (e.g. duplicate_figure),
-    // bypassing the pending queue.  Detect any mismatch and update.
-    {
-        FigureId mgr_active = fig_mgr.active_index();
-        if (mgr_active != active_figure_id)
-        {
-            active_figure_id = mgr_active;
-            Figure* fig      = registry_.get(active_figure_id);
-            if (fig)
-            {
-                fs.active_figure = fig;
-                active_figure    = fig;
-                scheduler.set_target_fps(active_figure->anim_fps_);
-                has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-    #ifdef SPECTRA_USE_GLFW
-                input_handler.set_figure(active_figure);
-                if (!active_figure->axes().empty() && active_figure->axes()[0])
-                {
-                    input_handler.set_active_axes(active_figure->axes()[0].get());
-                    const auto& vp = active_figure->axes()[0]->viewport();
-                    input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-                }
-    #endif
-            }
-        }
-    }
+    // build_ui() can switch figures directly (e.g. duplicate), so sync again
+    // after processing queued operations.
+    sync_active_figure_from_manager();
 
     // Sync root pane's figure_indices_ with actual figures when not split.
     // The unified pane tab headers always read from the root pane.

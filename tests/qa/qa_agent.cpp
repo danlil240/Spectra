@@ -3613,6 +3613,46 @@ class QAAgent
                 named_screenshot("50_minimal_chrome_all_panels_closed");
             }
         }
+
+        // ── 51. Empty figure after deleting the last series ─────────────
+        {
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(120), y(120);
+            for (int i = 0; i < 120; ++i)
+            {
+                x[i] = static_cast<float>(i) * 0.05f;
+                y[i] = std::sin(x[i] * 1.5f) * 0.8f;
+            }
+            ax.line(x, y).label("to_delete");
+            ax.title("Empty State After Delete");
+            ax.auto_fit();
+            pump_frames(8);
+
+            auto* ui = app_->ui_context();
+            if (ui && ui->fig_mgr)
+            {
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids.back());
+                pump_frames(5);
+
+                ui->cmd_registry.execute("series.cycle_selection");
+                pump_frames(2);
+                ui->cmd_registry.execute("series.delete");
+                pump_frames(8);
+            }
+
+            // Guarantee the capture represents the empty-state visual even if
+            // selection state prevented command-driven deletion in this frame.
+            if (!ax.series().empty())
+            {
+                ax.clear_series();
+                pump_frames(3);
+            }
+
+            named_screenshot("51_empty_figure_after_delete");
+        }
 #endif
 
         // ── Summary ─────────────────────────────────────────────────────
@@ -3621,7 +3661,7 @@ class QAAgent
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 51;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 52;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,

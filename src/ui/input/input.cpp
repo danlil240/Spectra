@@ -1244,12 +1244,61 @@ void InputHandler::on_mouse_move(double x, double y)
 
 void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor_x, double cursor_y)
 {
+    // Validate cached axes pointers still belong to the current figure.
+    // They can become dangling when figures are closed or moved between windows.
+    if (active_axes_base_ && figure_)
+    {
+        bool found = false;
+        for (const auto& ax : figure_->axes())
+        {
+            if (ax.get() == active_axes_base_)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            for (const auto& ax : figure_->all_axes())
+            {
+                if (ax.get() == active_axes_base_)
+                {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found)
+        {
+            active_axes_base_ = nullptr;
+            active_axes_      = nullptr;
+            drag3d_axes_      = nullptr;
+        }
+    }
+    else if (active_axes_base_ && !figure_)
+    {
+        active_axes_base_ = nullptr;
+        active_axes_      = nullptr;
+        drag3d_axes_      = nullptr;
+    }
+
     // Hit-test all axes (including 3D) for scroll zoom
     AxesBase* hit_base = hit_test_all_axes(cursor_x, cursor_y);
     if (hit_base)
     {
         active_axes_base_ = hit_base;
-        active_axes_      = dynamic_cast<Axes*>(hit_base);
+        active_axes_      = nullptr;
+        if (figure_)
+        {
+            for (const auto& ax : figure_->axes())
+            {
+                if (ax.get() == hit_base)
+                {
+                    active_axes_ = ax.get();
+                    break;
+                }
+            }
+        }
     }
 
     // Handle 3D zoom by scaling axis limits (box stays fixed visual size)

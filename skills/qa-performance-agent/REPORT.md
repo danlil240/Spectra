@@ -8,17 +8,17 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-02-28 12:32 |
-| Last seed | 1772273948 (regression), 13062186744256 (repro + verification), 42 (deterministic baseline) |
-| Last exit code | 0 (regression run) |
-| Scenarios passing | 6/6 (seed 1772273948, wall-clock limited), 13/13 (seed 13062186744256, wall-clock limited), 1/1 (`figure_serialization` repro) |
-| Frame time P99 | 290ms (seed 1772273948, regression run) |
-| Frame time max | 311ms (seed 1772273948, regression run) |
-| RSS delta | +121MB (seed 1772273948, regression run), +63MB (seed 13062186744256, verification run) |
+| Last run | 2026-03-01 20:34 |
+| Last seed | 27243840318184 (random), 42 (deterministic verify), 42 (pre-fix repro) |
+| Last exit code | 1 (random run) |
+| Scenarios passing | 16/16 (seed 27243840318184), 20/20 (seed 42 deterministic verify) |
+| Frame time P99 | 258.8ms (seed 27243840318184) |
+| Frame time max | 427.8ms (seed 27243840318184) |
+| RSS delta | +127MB (seed 27243840318184), +177MB (seed 42 deterministic verify) |
 | Open CRITICAL | 0 |
-| Open ERROR | 0 |
+| Open ERROR | 11 (validation path V2/V1 class) |
 | Open issues (QA_results.md) | H1, H3, H4, M1, V1, V2, Q1 |
-| SKILL.md last self-updated | 2026-02-26 (initial consolidation) |
+| SKILL.md last self-updated | 2026-03-01 (Interpretation Rules) |
 
 ---
 
@@ -26,7 +26,61 @@
 
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-01 | Interpretation Rules | Added stale-overlay crash signature heuristic from seed-42 repro/fix cycle |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-01 20:34
+
+**Run config**
+- Pre-fix crash repro: `--seed 42 --duration 120 --output-dir /tmp/spectra_qa_perf_20260301_seed42_after2`
+- Deterministic verify: `--seed 42 --duration 120 --output-dir /tmp/spectra_qa_perf_20260301_seed42_after3`
+- Randomized verify: `--duration 60 --output-dir /tmp/spectra_qa_perf_20260301_random_after`
+- Build/tests: `cmake --build build`, `ctest --test-dir build --output-on-failure`
+
+**Summary**
+- Pre-fix repro crashed (`exit 2`) at frame ~3606 with overlay stacks in `LegendInteraction::draw` / `Crosshair::draw_all_axes`.
+- After fix, same deterministic seed (`42`) completed without crash (`exit 1`), `20/20` scenarios passed, `0` CRITICAL.
+- Randomized run (seed `27243840318184`) completed without crash (`exit 1`), `16/16` scenarios passed, `0` CRITICAL.
+
+**Performance metrics**
+- Seed 42 deterministic verify: avg `24.93ms`, p95 `83.40ms`, p99 `238.15ms`, max `336.01ms`, RSS `178→355MB` (`+177MB`), issues: `134 WARNING frame_time`, `51 WARNING memory`, `12 ERROR vulkan_validation`.
+- Seed 27243840318184 random verify: avg `29.79ms`, p95 `146.06ms`, p99 `258.75ms`, max `427.76ms`, RSS `178→305MB` (`+127MB`), issues: `96 WARNING frame_time`, `13 WARNING memory`, `11 ERROR vulkan_validation`.
+
+**Root cause + fix**
+- Root cause class: stale figure/axes pointers consumed by overlay rendering during multi-window churn.
+- Product fixes:
+  - per-window cache invalidation fanout via `WindowManager::clear_figure_caches(Figure*)`
+  - `app_step` close callback routing through window manager cache clear
+  - stale-axes validation in `InputHandler::on_scroll()`
+  - pre-`build_ui` active-figure sync in `WindowRuntime::update()`
+  - `DataInteraction::draw_overlays()` now takes current frame figure from `ImGuiIntegration::build_ui()`
+
+**Files changed**
+- `src/ui/window/window_manager.hpp`
+- `src/ui/window/window_manager.cpp`
+- `src/ui/app/app_step.cpp`
+- `src/ui/input/input.cpp`
+- `src/ui/app/window_runtime.cpp`
+- `src/ui/overlay/data_interaction.hpp`
+- `src/ui/overlay/data_interaction.cpp`
+- `src/ui/imgui/imgui_integration.cpp`
+- `plans/QA_results.md`
+- `plans/QA_update.md`
+- `skills/qa-performance-agent/SKILL.md`
+
+**Test status**
+- `ctest --test-dir build --output-on-failure`: 83/85 pass; known golden failures remain (`golden_image_tests`, `golden_image_tests_3d`).
+
+**Self-updates to SKILL.md**
+- Added one new `Interpretation Rules` bullet for stale-overlay crash signatures (`LegendInteraction::draw` / `Crosshair::draw_all_axes`).
+
+## Self-Improvement — 2026-03-01
+Improvement: Added a stale-overlay crash signature interpretation rule that maps `LegendInteraction::draw` and `Crosshair::draw_all_axes` SIGSEGVs to cache/sync invalidation paths.
+Motivation: Prior guidance treated these as separate crashes, which slows triage when the same stale-figure root cause appears under different top frames.
+Change: `skills/qa-performance-agent/SKILL.md` updated under `## Interpretation Rules` with one new signature-based rule.
+Next gap: Add automated crash-stack bucketing in `qa_report.txt` so repeated root-cause classes are grouped without manual symbol inspection.
 
 ---
 

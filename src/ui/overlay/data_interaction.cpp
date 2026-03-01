@@ -158,12 +158,16 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
     }
 }
 
-void DataInteraction::draw_overlays(float window_width, float window_height)
+void DataInteraction::draw_overlays(float window_width, float window_height, Figure* current_figure)
 {
+    Figure* overlay_figure = current_figure ? current_figure : last_figure_;
+    if (current_figure)
+        last_figure_ = current_figure;
+
     // Draw legend interaction for each axes (gated on figure legend visibility)
-    if (last_figure_)
+    if (overlay_figure)
     {
-        draw_legend_for_figure(*last_figure_);
+        draw_legend_for_figure(*overlay_figure);
     }
 
     // Draw markers (data tips) — always visible, even when cursor is outside the figure.
@@ -176,9 +180,9 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
     {
         // Cursor left the figure — keep drawing markers at their last known positions.
         // Update cached limits from the figure's first axes (zoom/pan may have changed).
-        if (last_figure_ && !last_figure_->axes().empty() && last_figure_->axes()[0])
+        if (overlay_figure && !overlay_figure->axes().empty() && overlay_figure->axes()[0])
         {
-            auto& ax         = last_figure_->axes()[0];
+            auto& ax         = overlay_figure->axes()[0];
             marker_viewport_ = ax->viewport();
             auto xl          = ax->x_limits();
             auto yl          = ax->y_limits();
@@ -207,9 +211,9 @@ void DataInteraction::draw_overlays(float window_width, float window_height)
     }
 
     // Draw crosshair: use multi-axes mode if figure has multiple axes
-    if (last_figure_ && last_figure_->axes().size() > 1)
+    if (overlay_figure && overlay_figure->axes().size() > 1)
     {
-        crosshair_.draw_all_axes(last_cursor_, *last_figure_, axis_link_mgr_);
+        crosshair_.draw_all_axes(last_cursor_, *overlay_figure, axis_link_mgr_);
     }
     else if (active_axes_)
     {

@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-03-01 (Memory Agent Session 1) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro), 18335134330653 (memory-agent)
+> Last updated: 2026-03-01 (Performance Agent Session 4) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro), 18335134330653 (memory-agent), 42 (perf-agent repro #2), 42 (perf-agent verify #2), 27243840318184 (perf-agent random #2)
 
 ---
 
@@ -83,6 +83,36 @@
 - **Verified:** Design review runs clean — exit code 0, all 51 screenshots captured, no crash handler output (seed 42). 78/78 ctest pass.
 - **Priority:** **P0**
 - **Status:** ✅ Fixed (QA harness workaround)
+
+### C6: SIGSEGV in Overlay Rendering During Multi-Window Fuzz (`seed 42`, frame ~3606)
+- **Observed (Performance Agent session, 2026-03-01):** deterministic baseline crashed repeatedly around frame 3606–3607 with:
+  - `fuzz:MouseDrag` → `LegendInteraction::draw()` (`legend_interaction.cpp:132`)
+  - `fuzz:CreateFigure` → `Crosshair::draw_all_axes()` (`crosshair.cpp:195`)
+- **Root cause:** stale figure/axes pointers were still reachable during overlay rendering in multi-window churn:
+  1. figure-close cache invalidation was not consistently applied across all per-window `WindowUIContext`s
+  2. `WindowRuntime::update()` could call `build_ui(*active_figure)` before syncing `active_figure` from per-window `FigureManager`
+  3. `DataInteraction::draw_overlays()` relied on cached `last_figure_` even when the current frame already had a valid `Figure&`
+- **Fix applied:**
+  1. Added `WindowManager::clear_figure_caches(Figure*)` and wired it from per-window `FigureManager::set_on_figure_closed()` in `window_manager.cpp`
+  2. Updated `app_step.cpp` figure-close callback to use `WindowManager::clear_figure_caches()` when GLFW windows are active
+  3. Added stale cached-axes validation at the top of `InputHandler::on_scroll()` and removed risky RTTI cast from hit-test result by using pointer membership checks
+  4. Added early `active_figure` sync in `WindowRuntime::update()` (before `build_ui`) plus post-`process_pending()` resync
+  5. Updated `DataInteraction::draw_overlays()` to accept/use the current `Figure*` from `ImGuiIntegration::build_ui()` to avoid stale `last_figure_` dereferences
+- **Files modified:**
+  - `src/ui/window/window_manager.hpp`
+  - `src/ui/window/window_manager.cpp`
+  - `src/ui/app/app_step.cpp`
+  - `src/ui/input/input.cpp`
+  - `src/ui/app/window_runtime.cpp`
+  - `src/ui/overlay/data_interaction.hpp`
+  - `src/ui/overlay/data_interaction.cpp`
+  - `src/ui/imgui/imgui_integration.cpp`
+- **Verified:**
+  - Before fix: `--seed 42 --duration 120` → crash (`exit 2`) with `qa_crash.txt`
+  - After fix (same seed): `--seed 42 --duration 120` → no crash (`exit 1`, 20/20 scenarios passed, 0 CRITICAL, 12 ERROR)
+  - Regression random: `--duration 60` (seed `27243840318184`) → no crash (`exit 1`, 16/16 scenarios passed, 0 CRITICAL, 11 ERROR)
+- **Priority:** **P0**
+- **Status:** ✅ Fixed
 
 ---
 

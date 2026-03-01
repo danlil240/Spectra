@@ -324,6 +324,27 @@ WindowContext* WindowManager::find_window(uint32_t window_id) const
     return nullptr;
 }
 
+void WindowManager::clear_figure_caches(Figure* fig)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!fig)
+        return;
+
+    for (auto* wctx : active_ptrs_)
+    {
+        if (!wctx || !wctx->ui_ctx)
+            continue;
+        if (wctx->ui_ctx->data_interaction)
+            wctx->ui_ctx->data_interaction->clear_figure_cache(fig);
+        wctx->ui_ctx->input_handler.clear_figure_cache(fig);
+        if (wctx->ui_ctx->imgui_ui)
+            wctx->ui_ctx->imgui_ui->clear_figure_cache(fig);
+    }
+#else
+    (void)fig;
+#endif
+}
+
 void WindowManager::shutdown()
 {
     if (!backend_)
@@ -1308,6 +1329,13 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     WindowManager* wm_self = this;
     ui->fig_mgr->set_on_window_close_request([wm_self, wctx_id]()
                                              { wm_self->request_close(wctx_id); });
+    ui->fig_mgr->set_on_figure_closed([wm_self, reg = registry_](FigureId id)
+                                      {
+                                          if (!wm_self || !reg)
+                                              return;
+                                          if (auto* fig = reg->get(id))
+                                              wm_self->clear_figure_caches(fig);
+                                      });
 
     // Wire TabBar callbacks → FigureManager + DockSystem
     auto* fig_mgr_ptr = ui->fig_mgr;

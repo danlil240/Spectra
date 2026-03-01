@@ -409,7 +409,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     if (data_interaction_)
     {
         ImGuiIO& io = ImGui::GetIO();
-        data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y);
+        data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure);
 
         // In split mode, draw_overlays only draws legends for the active figure.
         // Draw legends for all other split pane figures as well.

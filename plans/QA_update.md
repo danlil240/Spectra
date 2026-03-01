@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-03-01 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653
+> Last updated: 2026-03-01 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653, 42 (perf-agent repro), 27243840318184
 
 ---
 
@@ -267,6 +267,27 @@
 
 ---
 
+## Session 10 Findings (2026-03-01, Performance Agent)
+
+### Run Summary
+
+| Metric | Seed 42 (pre-fix) | Seed 42 (post-fix) | Random (post-fix) |
+|--------|--------------------|--------------------|-------------------|
+| Command | `--seed 42 --duration 120` | `--seed 42 --duration 120` | `--duration 60` |
+| Exit code | 2 (crash) | 1 | 1 |
+| Seed | 42 | 42 | 27243840318184 |
+| Frames | crash at ~3606 | 4,134 | 2,492 |
+| Scenarios | n/a (crash) | 20/20 passed | 16/16 passed |
+| CRITICAL | n/a | 0 | 0 |
+| ERROR | n/a | 12 (`vulkan_validation`) | 11 (`vulkan_validation`) |
+
+### Analysis
+- Reproduced deterministic seed-42 crash in overlay path with two stack signatures (`LegendInteraction::draw` and `Crosshair::draw_all_axes`), both tied to stale figure/axes pointers during multi-window churn.
+- Product fix removed the crash on the same seed (`42`) without changing the existing open warning/error profile (H1/M1/V2 class issues still present).
+- Re-run ctest still reports only known golden-image failures (`golden_image_tests`, `golden_image_tests_3d`); no new unit/integration regressions observed.
+
+---
+
 ## P1 — Important Improvements
 
 ### 4. Add Vulkan Validation Layer Monitoring
@@ -294,6 +315,11 @@
 - **Problem (Session 7, seed 1771959053):** repeated ~1s frame stalls (max 1021.9ms) with profiler showing `begin_frame`/`vk_acquire` p95 near 1s.
 - **Fix:** (a) Record per-window acquire/present wait times each frame. (b) Emit warnings for waits >100ms and >500ms with window id and action context. (c) Include swapchain recreate counters and `move_figure` failure correlation in report.
 - **Priority:** P1 — major user-visible freeze risk.
+
+### 17. Add Overlay Crash Signature Classification
+- **Problem (Session 10, seed 42):** stale-figure crashes surfaced as different top stacks (`LegendInteraction::draw`, `Crosshair::draw_all_axes`) but share one root cause class. Manual triage had to infer the common pattern.
+- **Fix:** Add crash-signature grouping in QA agent report: classify stacks touching `DataInteraction::draw_overlays`, `LegendInteraction`, or `Crosshair::draw_all_axes` under one `overlay_stale_figure` bucket, and emit targeted repro hints.
+- **Priority:** P1 — faster root-cause convergence for UAF/stale-pointer families.
 
 ---
 

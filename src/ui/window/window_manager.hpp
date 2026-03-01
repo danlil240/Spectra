@@ -92,6 +92,9 @@ class WindowManager
     // Returns the window context for a given window ID, or nullptr.
     WindowContext* find_window(uint32_t window_id) const;
 
+    // Invalidate cached figure/axes pointers across all window UI contexts.
+    void clear_figure_caches(Figure* fig);
+
     // Set the screen position of a window (top-left corner).
     void set_window_position(WindowContext& wctx, int x, int y);
 

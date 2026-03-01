@@ -1,7 +1,8 @@
 # QA Design Review — UI/UX Improvements
 
 > Living document. Updated after each design review session with visual findings and concrete improvements.
-> Last updated: 2026-02-27 | Screenshots: `/tmp/spectra_qa_design_20260227_after/design/`
+> Last updated: 2026-03-01 | Screenshots: `/tmp/spectra_qa_design_after_20260301_200727/design/`
+> Session 8: 2026-03-01 — QA Designer Agent pass (D46 coverage expansion: empty-after-delete state)
 > Session 4: 2026-02-27 — QA Designer Agent pass (D45)
 > Session 2: 2026-02-23 — QA Designer Agent pass (D5, D6, D7/D16, D9, D10, D11)
 > Session 3: 2026-02-23 — QA Designer Agent pass (D2, D3, D4, D8, D12, D13, D14, D15)
@@ -10,6 +11,23 @@
 > Session 11: 2026-02-24 — QA Designer Agent pass (D25, D26, D27) — legend theme fix, grid/crosshair toggle drift fixes
 > Session 21: 2026-02-24 — Screenshot capture fix (D28), 3D colormap verified, FPS thresholds fixed (D32)
 > Session 24: 2026-02-24 — Open-item triage pass (D29, D30, D31, D33)
+
+---
+
+## Session 8 — Coverage Expansion (2026-03-01)
+
+### Screenshots Captured
+- Baseline: 51 screenshots (`/tmp/spectra_qa_design_20260301_200326/design/`)
+- After improvement: 52 screenshots (`/tmp/spectra_qa_design_after_20260301_200727/design/`)
+
+### D46: Missing Empty-State Coverage After Deleting Final Series ✅ FIXED
+- **Screenshot (after):** `51_empty_figure_after_delete.png`
+- **Problem:** Design review coverage captured a generic empty-axes state (`02_empty_axes`) but did not verify the specific post-delete transition when the last series is removed from a populated figure.
+- **Root cause:** `run_design_review()` had no scenario that exercised `series.delete` on the final series and then captured the resulting UI state.
+- **Fix applied:** Added scenario 51 to `run_design_review()` that creates a one-series figure, selects and deletes that series, then captures the resulting empty-state screenshot. Added guarded fallback to `clear_series()` to keep the capture deterministic if selection state blocks command deletion in-frame.
+- **Files changed:** `tests/qa/qa_agent.cpp`
+- **Verified:** 2026-03-01 — design review exit code `0`, manifest confirms `Captured: 52 screenshots`, includes `51_empty_figure_after_delete`.
+- **Status:** ✅ Fixed
 
 ---
 
@@ -722,4 +740,3 @@ None. All 51 screenshots passed visual inspection:
 - **Tests:** ✅ 81/82 pass (2 pre-existing `Mesh3D` golden failures — not a regression)
 - **Screenshots:** ✅ 51 captured, 0 issues
 - **Runtime:** 0 warnings, 0 errors, 0 critical
-

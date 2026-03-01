@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-01 Session 7 |
-| Screenshot count confirmed | 51 |
+| Last run | 2026-03-01 Session 8 |
+| Screenshot count confirmed | 52 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
 | Open P2+ issues | 0 |
 | Last golden refresh | — |
-| SKILL.md last self-updated | 2026-02-26 (initial consolidation) |
+| SKILL.md last self-updated | 2026-03-01 (coverage + backlog update for DES-I1) |
 
 ---
 
@@ -23,7 +23,54 @@
 <!-- One line per self-update: date | section changed | reason -->
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-01 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `51_empty_figure_after_delete`, updated expected count to 52, and marked DES-I1 done |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-01 20:08 (Session 8)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260301_200326` (baseline), `/tmp/spectra_qa_design_after_20260301_200727` (after improvement)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 26.1s baseline (1015 frames), 26.3s after (1039 frames)
+- Frame time (after): avg=15.2ms p95=65.4ms max=155.2ms spikes=59
+- Memory (after): initial=178MB peak=206MB
+
+**Screenshot audit**
+- Expected: 52 (after improvement)
+- Captured: 52
+- Missing: none
+- New screenshot: `51_empty_figure_after_delete`
+
+**Issues found**
+- No new visual defects identified in automated capture artifacts.
+- Manual full-image review was not completed; this session focused on deterministic coverage expansion.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I1 | `tests/qa/qa_agent.cpp` | Added design-review scenario `51_empty_figure_after_delete`, including command-driven series delete with empty-state fallback |
+
+**Goldens updated**
+- none
+
+**ctest**
+- 83/85 pass
+- Failed suites: `golden_image_tests`, `golden_image_tests_3d` (pre-existing branch state)
+
+**Self-updates to SKILL.md**
+- Updated expected design screenshot count `51` → `52`
+- Added coverage row `51_empty_figure_after_delete`
+- Marked `DES-I1` as completed in Improvement Backlog
+
+## Self-Improvement — 2026-03-01
+Improvement: Added design-review screenshot `51_empty_figure_after_delete` to assert the empty-state UI after deleting the final series.
+Motivation: Previous coverage captured generic empty axes only at figure creation, which could miss regressions specific to post-delete state transitions.
+Change: `tests/qa/qa_agent.cpp` (new scenario + expected count), `skills/qa-designer-agent/SKILL.md` (coverage table/count + backlog status).
+Next gap: Add a deterministic legend overflow capture with 8+ series (`52_legend_overflow_8_series`) to detect truncation/wrapping regressions.
 
 ---
 
@@ -207,8 +254,8 @@
 - Exit code: `0`
 
 **Screenshot audit**
-- Expected: 51
-- Captured: 51
+- Expected: 52
+- Captured: 52
 - Missing: none
 
 **Issues found**

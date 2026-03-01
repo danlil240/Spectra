@@ -182,6 +182,7 @@ ctest --test-dir build --output-on-failure
 - **RSS growth >100 MB** — suspicious unless explained by large dataset (`LargeDataset` fuzz action or `massive_datasets` scenario).
 - **~1s stalls in `vk_acquire`** — bounded at 100 ms per window now; cascading stall with N windows = N×100 ms max. See H4 in `QA_results.md`.
 - **`move_figure` warning** — cosmetic; no crash; source-window ownership tracking gap.
+- **`SIGSEGV` in `LegendInteraction::draw` / `Crosshair::draw_all_axes` during multi-window fuzz** — usually stale figure cache or pre-sync active-figure use; inspect `WindowManager::clear_figure_caches` wiring and `WindowRuntime` active-figure sync order.
 
 ---
 

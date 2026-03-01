@@ -36,8 +36,9 @@ class DataInteraction
     void update(const CursorReadout& cursor, Figure& figure);
 
     // Draw all overlays (tooltip, crosshair, markers).
-    // Call inside ImGui frame, after build_ui.
-    void draw_overlays(float window_width, float window_height);
+    // Pass current_figure when available so overlay rendering does not depend
+    // on stale cached figure pointers.
+    void draw_overlays(float window_width, float window_height, Figure* current_figure = nullptr);
 
     // Draw legend overlay for a specific figure (for split-mode panes).
     // Respects figure.legend().visible.

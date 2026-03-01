@@ -235,7 +235,7 @@ struct EmbedSurface::Impl
             if (data_interaction)
             {
                 auto readout = input.cursor_readout();
-                imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
+                imgui_ui->set_cursor_data(readout.data_x, readout.data_y, readout.valid);
                 data_interaction->update(readout, *active_fig);
             }
         }

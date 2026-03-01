@@ -172,20 +172,10 @@ class InputHandler
     // Hit-test all axes (including 3D) — returns AxesBase*
     AxesBase* hit_test_all_axes(double screen_x, double screen_y) const;
 
-    // Invalidate cached figure/axes pointers (call when a figure is destroyed)
-    void clear_figure_cache(Figure* fig = nullptr)
-    {
-        if (!fig || figure_ == fig)
-        {
-            figure_           = nullptr;
-            active_axes_      = nullptr;
-            active_axes_base_ = nullptr;
-            drag3d_axes_      = nullptr;
-            mode_             = InteractionMode::Idle;
-            is_3d_orbit_drag_ = false;
-            is_3d_pan_drag_   = false;
-        }
-    }
+    // Invalidate cached figure/axes pointers (call when a figure is destroyed).
+    // Also cancels any in-flight AnimationController animations referencing
+    // the figure's axes to prevent heap-use-after-free.
+    void clear_figure_cache(Figure* fig = nullptr);
 
    private:
     // Get viewport for a given axes (from figure layout)

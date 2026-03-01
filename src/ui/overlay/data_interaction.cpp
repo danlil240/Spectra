@@ -296,9 +296,7 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
         constexpr float SELECT_SNAP_PX = 30.0f;
         if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {
-            // Deterministic point highlight: always keep exactly one selected marker.
-            markers_.clear();
-            markers_.add(nearest_.data_x, nearest_.data_y, nearest_.series, nearest_.point_index);
+            markers_.toggle_or_add(nearest_.data_x, nearest_.data_y, nearest_.series, nearest_.point_index);
             return true;
         }
     }
@@ -371,12 +369,10 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
         constexpr float SELECT_SNAP_PX = 30.0f;
         if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {
-            // Deterministic point highlight: always keep exactly one selected marker.
-            markers_.clear();
-            markers_.add(nearest_.data_x,
-                         nearest_.data_y,
-                         nearest_.series,
-                         nearest_.point_index);
+            markers_.toggle_or_add(nearest_.data_x,
+                                   nearest_.data_y,
+                                   nearest_.series,
+                                   nearest_.point_index);
 
             // Also fire series/point selection callbacks (for inspector + data editor sync).
             dispatch_series_selection_from_nearest();

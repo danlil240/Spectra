@@ -132,6 +132,39 @@ AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) cons
 InputHandler::InputHandler()  = default;
 InputHandler::~InputHandler() = default;
 
+void InputHandler::clear_figure_cache(Figure* fig)
+{
+    if (!fig || figure_ == fig)
+    {
+        // Cancel any in-flight animations that hold raw Axes* pointers
+        // to axes owned by the figure being destroyed.  Without this,
+        // AnimationController::update() would dereference freed memory.
+        if (anim_ctrl_)
+        {
+            if (fig)
+            {
+                for (const auto& ax : fig->axes())
+                {
+                    if (ax)
+                        anim_ctrl_->cancel_for_axes(ax.get());
+                }
+            }
+            else
+            {
+                anim_ctrl_->cancel_all();
+            }
+        }
+
+        figure_           = nullptr;
+        active_axes_      = nullptr;
+        active_axes_base_ = nullptr;
+        drag3d_axes_      = nullptr;
+        mode_             = InteractionMode::Idle;
+        is_3d_orbit_drag_ = false;
+        is_3d_pan_drag_   = false;
+    }
+}
+
 // ─── Mouse button ───────────────────────────────────────────────────────────
 
 void InputHandler::on_mouse_button(int button, int action, int mods, double x, double y)

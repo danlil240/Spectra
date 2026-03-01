@@ -12,6 +12,7 @@
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
+    #include <GLFW/glfw3.h>
     #include "render/vulkan/window_context.hpp"
     #include "ui/window/window_manager.hpp"
 #endif
@@ -31,6 +32,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/series.hpp>
 #include "ui/commands/series_clipboard.hpp"
+#include "ui/data/clipboard_export.hpp"
 
 namespace spectra
 {
@@ -512,6 +514,54 @@ void register_standard_commands(const CommandBindings& b)
         },
         "Escape",
         "App");
+
+    // ─── Data clipboard commands ────────────────────────────────────────
+    cmd_registry.register_command(
+        "data.copy_to_clipboard",
+        "Copy Data to Clipboard (TSV)",
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            // Collect series: use selection if available, otherwise all visible series
+            std::vector<const Series*> to_export;
+            if (imgui_ui)
+            {
+                const auto& sel = imgui_ui->selection_context();
+                if (!sel.selected_series.empty())
+                {
+                    for (const auto& e : sel.selected_series)
+                    {
+                        if (e.series && e.series->visible())
+                            to_export.push_back(e.series);
+                    }
+                }
+            }
+            // Fallback: all visible 2D series from all axes
+            if (to_export.empty())
+            {
+                for (auto& ax : active_figure->axes_mut())
+                {
+                    if (!ax)
+                        continue;
+                    for (const auto& sp : ax->series())
+                    {
+                        if (sp && sp->visible())
+                            to_export.push_back(sp.get());
+                    }
+                }
+            }
+            std::string tsv = series_to_tsv(to_export);
+            if (!tsv.empty())
+            {
+    #ifdef SPECTRA_USE_GLFW
+                glfwSetClipboardString(nullptr, tsv.c_str());
+    #endif
+            }
+        },
+        "Ctrl+Shift+D",
+        "Data",
+        static_cast<uint16_t>(ui::Icon::Copy));
 
     // ─── File commands ───────────────────────────────────────────────────
     cmd_registry.register_command(
@@ -1321,6 +1371,22 @@ void register_standard_commands(const CommandBindings& b)
         "",
         "Tools",
         static_cast<uint16_t>(ui::Icon::ZoomIn));
+
+    cmd_registry.register_command(
+        "tool.select",
+        "Select Tool",
+        [&]() { input_handler.set_tool_mode(ToolMode::Select); },
+        "",
+        "Tools",
+        static_cast<uint16_t>(ui::Icon::Crosshair));
+
+    cmd_registry.register_command(
+        "tool.measure",
+        "Measure Tool",
+        [&]() { input_handler.set_tool_mode(ToolMode::Measure); },
+        "",
+        "Tools",
+        static_cast<uint16_t>(ui::Icon::Ruler));
 
     // ─── Window commands ─────────────────────────────────────────────────
     #ifdef SPECTRA_USE_GLFW

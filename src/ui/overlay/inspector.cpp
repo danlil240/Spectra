@@ -68,6 +68,9 @@ void Inspector::draw(Figure& figure)
             draw_series_browser(figure);
             if (ctx_.series)
             {
+                widgets::section_spacing();
+                widgets::separator();
+                widgets::section_spacing();
                 draw_series_properties(*ctx_.series, ctx_.series_index);
             }
             break;
@@ -225,17 +228,44 @@ void Inspector::draw_series_browser(Figure& fig)
 {
     const auto& c = theme();
 
-    if (font_heading_)
-        ImGui::PushFont(font_heading_);
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted("SERIES");
-    ImGui::PopStyleColor();
-    if (font_heading_)
-        ImGui::PopFont();
+    // ── Header strip: Surface-2 background, uppercase tracking, hairline divider ──
+    {
+        ImVec2      header_min = ImGui::GetCursorScreenPos();
+        float       avail_w   = ImGui::GetContentRegionAvail().x;
+        float       header_h  = tokens::INSPECTOR_HEADER_H;
+        ImVec2      header_max = ImVec2(header_min.x + avail_w, header_min.y + header_h);
+        ImDrawList* dl         = ImGui::GetWindowDrawList();
 
-    widgets::small_spacing();
+        // Surface-2 background
+        dl->AddRectFilled(header_min, header_max,
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.5f)),
+                          0.0f);
+
+        // Bottom hairline
+        dl->AddLine(ImVec2(header_min.x, header_max.y),
+                    ImVec2(header_max.x, header_max.y),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.4f)),
+                    1.0f);
+
+        // Uppercase label with letter-spacing feel
+        ImGui::SetCursorScreenPos(
+            ImVec2(header_min.x + tokens::ROW_PADDING_H,
+                   header_min.y + (header_h - ImGui::GetTextLineHeight()) * 0.5f));
+        if (font_heading_)
+            ImGui::PushFont(font_heading_);
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.8f));
+        ImGui::TextUnformatted("SERIES");
+        ImGui::PopStyleColor();
+        if (font_heading_)
+            ImGui::PopFont();
+
+        // Advance cursor past header
+        ImGui::SetCursorScreenPos(ImVec2(header_min.x, header_max.y + tokens::ROW_PADDING_V));
+    }
 
     // Paste button (shown when clipboard has data)
     if (clipboard_ && clipboard_->has_data())
@@ -290,6 +320,149 @@ void Inspector::draw_series_browser(Figure& fig)
         widgets::small_spacing();
     }
 
+    // ── Multi-select bulk action bar ──
+    // Shown when 2+ series are selected; replaces per-row buttons for selected rows.
+    bool multi_sel = ctx_.has_multi_selection();
+    if (multi_sel && clipboard_)
+    {
+        size_t      n      = ctx_.selected_count();
+        const auto& c2     = c;
+        ImDrawList* dl     = ImGui::GetWindowDrawList();
+        float       avail  = ImGui::GetContentRegionAvail().x;
+        constexpr float bar_h   = 28.0f;
+        constexpr float pad_h   = 6.0f;
+        constexpr float gap     = 4.0f;
+        float           btn_w   = (avail - pad_h * 2 - gap * 2) / 3.0f;
+        ImVec2          bar_min = ImGui::GetCursorScreenPos();
+        ImVec2          bar_max = ImVec2(bar_min.x + avail, bar_min.y + bar_h);
+
+        // Subtle surface background
+        dl->AddRectFilled(bar_min, bar_max,
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(c2.bg_tertiary.r, c2.bg_tertiary.g,
+                                     c2.bg_tertiary.b, 0.6f)),
+                          tokens::RADIUS_MD);
+
+        ImFont* icf  = icon_font(tokens::ICON_SM);
+        ImFont* fnt  = icf ? icf : ImGui::GetFont();
+        float   gsz  = tokens::ICON_SM;
+        ImU32   hov_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(c2.accent_subtle.r, c2.accent_subtle.g, c2.accent_subtle.b, 0.5f));
+
+        // Helper: draw a labeled icon button inside the bar
+        auto bulk_btn = [&](const char* id, const char* glyph, const char* label_suffix,
+                            ImVec2 pos, ImVec4 txt_col) -> bool
+        {
+            ImVec2 bmax(pos.x + btn_w, pos.y + bar_h);
+            ImGui::SetCursorScreenPos(pos);
+            bool clicked = ImGui::InvisibleButton(id, ImVec2(btn_w, bar_h));
+            bool hovered = ImGui::IsItemHovered();
+            if (hovered)
+                dl->AddRectFilled(pos, bmax, hov_col, tokens::RADIUS_SM);
+
+            // Icon
+            ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
+            float  cy2 = pos.y + bar_h * 0.5f;
+            float  total_w = tsz.x + 3.0f + ImGui::CalcTextSize(label_suffix).x;
+            float  tx  = pos.x + (btn_w - total_w) * 0.5f;
+            ImU32  col = ImGui::ColorConvertFloat4ToU32(
+                hovered ? ImVec4(txt_col.x, txt_col.y, txt_col.z, 1.0f) : txt_col);
+            dl->AddText(fnt, gsz, ImVec2(tx, cy2 - gsz * 0.5f + 1.0f), col, glyph);
+
+            // Text label
+            ImGui::SetCursorScreenPos(ImVec2(tx + tsz.x + 3.0f, cy2 - ImGui::GetTextLineHeight() * 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(txt_col.x, txt_col.y, txt_col.z,
+                                                        hovered ? 1.0f : txt_col.w));
+            ImGui::TextUnformatted(label_suffix);
+            ImGui::PopStyleColor();
+
+            return clicked;
+        };
+
+        char copy_lbl[32], cut_lbl[32], del_lbl[32];
+        std::snprintf(copy_lbl, sizeof(copy_lbl), "Copy %zu", n);
+        std::snprintf(cut_lbl,  sizeof(cut_lbl),  "Cut %zu",  n);
+        std::snprintf(del_lbl,  sizeof(del_lbl),  "Delete %zu", n);
+
+        ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.75f);
+        ImVec4 red(0.85f, 0.35f, 0.35f, 0.85f);
+
+        float bx = bar_min.x + pad_h;
+
+        // Copy all selected
+        if (bulk_btn("##bulk_cp", icon_str(Icon::Copy), copy_lbl,
+                     ImVec2(bx, bar_min.y), muted))
+        {
+            std::vector<const Series*> to_copy;
+            for (const auto& e : ctx_.selected_series)
+                if (e.series)
+                    to_copy.push_back(e.series);
+            clipboard_->copy_multi(to_copy);
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Copy all selected series");
+
+        // Cut all selected
+        struct PendingCutEntry { AxesBase* axes; Series* series; };
+        std::vector<PendingCutEntry> pending_cuts;
+        if (bulk_btn("##bulk_ct", icon_str(Icon::Scissors), cut_lbl,
+                     ImVec2(bx + btn_w + gap, bar_min.y), muted))
+        {
+            std::vector<const Series*> to_cut;
+            for (const auto& e : ctx_.selected_series)
+                if (e.series && e.axes_base)
+                {
+                    to_cut.push_back(e.series);
+                    pending_cuts.push_back({e.axes_base, e.series});
+                }
+            clipboard_->cut_multi(to_cut);
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Cut all selected series");
+
+        // Delete all selected
+        std::vector<PendingCutEntry> pending_deletes;
+        if (bulk_btn("##bulk_dl", icon_str(Icon::Trash), del_lbl,
+                     ImVec2(bx + (btn_w + gap) * 2, bar_min.y), red))
+        {
+            for (const auto& e : ctx_.selected_series)
+                if (e.series && e.axes_base)
+                    pending_deletes.push_back({e.axes_base, e.series});
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Delete all selected series");
+
+        // Advance cursor past the bar
+        ImGui::SetCursorScreenPos(ImVec2(bar_min.x, bar_max.y));
+        widgets::small_spacing();
+
+        // Apply deferred cuts/deletes (safe: done before series iteration)
+        for (auto& pc : pending_cuts)
+        {
+            if (defer_removal_)
+                defer_removal_(pc.axes, pc.series);
+            else
+            {
+                auto& sv = pc.axes->series_mut();
+                for (size_t i = 0; i < sv.size(); ++i)
+                    if (sv[i].get() == pc.series) { pc.axes->remove_series(i); break; }
+            }
+        }
+        for (auto& pd : pending_deletes)
+        {
+            if (defer_removal_)
+                defer_removal_(pd.axes, pd.series);
+            else
+            {
+                auto& sv = pd.axes->series_mut();
+                for (size_t i = 0; i < sv.size(); ++i)
+                    if (sv[i].get() == pd.series) { pd.axes->remove_series(i); break; }
+            }
+        }
+        if (!pending_cuts.empty() || !pending_deletes.empty())
+            ctx_.clear();
+    }
+
     // Helper lambda to draw series rows for any axes (2D or 3D)
     auto draw_axes_series = [&](AxesBase* ax_base, int ax_idx)
     {
@@ -303,57 +476,112 @@ void Inspector::draw_series_browser(Figure& fig)
             }
             ImGui::PushID(ax_idx * 1000 + s_idx);
 
-            const char* name = s->label().empty() ? "Unnamed" : s->label().c_str();
+            const char* name     = s->label().empty() ? "Unnamed" : s->label().c_str();
+            bool        unnamed  = s->label().empty();
+            float       row_h    = tokens::SERIES_ROW_HEIGHT;
+            ImVec2      row_min  = ImGui::GetCursorScreenPos();
+            float       avail_w  = ImGui::GetContentRegionAvail().x;
+            ImVec2      row_max  = ImVec2(row_min.x + avail_w, row_min.y + row_h);
 
-            // Color swatch
+            // Subtle hover background (Surface+1)
+            bool row_hovered = ImGui::IsMouseHoveringRect(row_min, row_max);
+            if (row_hovered)
             {
-                const auto&    sc = s->color();
-                spectra::Color sw{sc.r, sc.g, sc.b, sc.a};
-                widgets::color_swatch(sw, 12.0f);
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    row_min, row_max,
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.4f)),
+                    tokens::RADIUS_MD);
             }
-            ImGui::SameLine(0.0f, tokens::SPACE_2);
 
-            // Visibility toggle
-            bool    vis    = s->visible();
-            ImFont* icon_f = icon_font(tokens::ICON_SM);
-            if (icon_f)
-                ImGui::PushFont(icon_f);
-            const char* eye_icon = vis ? icon_str(Icon::Eye) : icon_str(Icon::EyeOff);
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                vis ? ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a)
-                    : ImVec4(c.text_tertiary.r,
-                             c.text_tertiary.g,
-                             c.text_tertiary.b,
-                             c.text_tertiary.a));
-            if (ImGui::Button(eye_icon, ImVec2(20, 20)))
-            {
-                s->visible(!vis);
-            }
-            ImGui::PopStyleColor(2);
-            if (icon_f)
-                ImGui::PopFont();
+            // ── Absolute layout anchors ──
+            // All elements positioned from row_min using fixed X offsets.
+            // Row:  [8px pad | 12px dot | 8px | 24px eye | 10px | name .... | 24+2+24+2+24 btns | 8px]
+            constexpr float pad_l     = 8.0f;
+            constexpr float dot_sz    = 12.0f;
+            constexpr float gap_1     = 8.0f;    // dot → eye
+            constexpr float eye_w     = 24.0f;
+            constexpr float gap_2     = 10.0f;   // eye → name
+            constexpr float btn_w     = 24.0f;
+            constexpr float btn_h     = 24.0f;
+            constexpr float btn_gap   = 4.0f;
+            constexpr float pad_r     = 8.0f;
+            constexpr float cluster_w = btn_w * 3 + btn_gap * 2;
 
-            ImGui::SameLine(0.0f, tokens::SPACE_2);
+            float x_dot  = row_min.x + pad_l;
+            float x_eye  = x_dot + dot_sz + gap_1;
+            float x_name = x_eye + eye_w + gap_2;
+            float x_btns = row_max.x - cluster_w - pad_r;
+            float name_w = x_btns - x_name - 4.0f;
+            float cy     = row_min.y + row_h * 0.5f;   // vertical center
 
-            // Clickable series name → select it (supports multi-select with Shift)
             bool is_selected = (ctx_.type == SelectionType::Series && ctx_.is_selected(s.get()));
+
+            // ── Selection border (rounded, not filled) ──
             if (is_selected)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                dl->AddRect(
+                    ImVec2(row_min.x + 2.0f, row_min.y + 2.0f),
+                    ImVec2(row_max.x - 2.0f, row_max.y - 2.0f),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.7f)),
+                    tokens::RADIUS_MD,
+                    0,
+                    1.5f);
             }
-            // Use AllowOverlap so action buttons on the same row work
-            if (ImGui::Selectable(name,
-                                  is_selected,
-                                  ImGuiSelectableFlags_AllowOverlap,
-                                  ImVec2(ImGui::GetContentRegionAvail().x - 72.0f, 0)))
+
+            // ── Color dot (drawn directly, no Dummy) ──
             {
-                ImGuiIO& io = ImGui::GetIO();
-                if (io.KeyShift)
+                const auto& sc = s->color();
+                ImU32       col = ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(sc.r, sc.g, sc.b, sc.a));
+                float dot_y = cy - dot_sz * 0.5f;
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    ImVec2(x_dot, dot_y),
+                    ImVec2(x_dot + dot_sz, dot_y + dot_sz),
+                    col,
+                    tokens::RADIUS_SM);
+            }
+
+            // ── Visibility toggle ──
+            bool        vis      = s->visible();
+            const char* eye_icon = vis ? icon_str(Icon::Eye) : icon_str(Icon::EyeOff);
+            ImFont*     icon_f   = icon_font(tokens::ICON_SM);
+
+            // Use InvisibleButton for the hitbox, draw icon manually centered
+            ImGui::SetCursorScreenPos(ImVec2(x_eye, cy - eye_w * 0.5f));
+            bool eye_clicked = ImGui::InvisibleButton("##eye", ImVec2(eye_w, eye_w));
+            bool eye_hovered = ImGui::IsItemHovered();
+            if (eye_clicked)
+                s->visible(!vis);
+
+            // Draw icon text centered within the button rect
+            {
+                ImDrawList* dl      = ImGui::GetWindowDrawList();
+                ImVec4      icon_col = vis
+                    ? ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b,
+                             eye_hovered ? 1.0f : 0.7f)
+                    : ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b,
+                             eye_hovered ? 0.7f : 0.35f);
+                ImFont* fnt      = icon_f ? icon_f : ImGui::GetFont();
+                float   glyph_sz = tokens::ICON_SM;
+                ImVec2  tsz      = fnt->CalcTextSizeA(glyph_sz, FLT_MAX, 0.0f, eye_icon);
+                ImVec2  tpos(x_eye + (eye_w - tsz.x) * 0.5f, cy - glyph_sz * 0.5f + 1.0f);
+                dl->AddText(fnt, glyph_sz, tpos,
+                            ImGui::ColorConvertFloat4ToU32(icon_col), eye_icon);
+            }
+
+            // ── Series name (InvisibleButton + manual draw) ──
+            float text_h = ImGui::GetTextLineHeight();
+            ImGui::SetCursorScreenPos(ImVec2(x_name, cy - text_h * 0.5f));
+            ImGui::InvisibleButton("##name", ImVec2(name_w, text_h + 4.0f));
+            bool name_clicked = ImGui::IsItemClicked(0);
+
+            if (name_clicked)
+            {
+                if (ImGui::GetIO().KeyShift)
                 {
-                    // Shift+click: toggle in multi-selection
                     ctx_.toggle_series(&fig,
                                        dynamic_cast<Axes*>(ax_base),
                                        ax_base,
@@ -361,75 +589,118 @@ void Inspector::draw_series_browser(Figure& fig)
                                        s.get(),
                                        s_idx);
                 }
+                else if (is_selected)
+                {
+                    ctx_.clear();
+                }
                 else
                 {
-                    // Regular click: single select
                     ctx_.select_series(&fig, dynamic_cast<Axes*>(ax_base), ax_idx, s.get(), s_idx);
-                    ctx_.axes_base = ax_base;   // always set for 3D support
+                    ctx_.axes_base = ax_base;
                     if (!ctx_.selected_series.empty())
                         ctx_.selected_series[0].axes_base = ax_base;
                 }
             }
-            // Also detect Shift+click via IsItemClicked when Selectable doesn't fire
-            // (ImGui::Selectable may not fire when clicking an already-selected item)
-            else if (ImGui::IsItemClicked(0) && ImGui::GetIO().KeyShift)
+
+            // Draw name text
             {
-                ctx_.toggle_series(&fig,
-                                   dynamic_cast<Axes*>(ax_base),
-                                   ax_base,
-                                   ax_idx,
-                                   s.get(),
-                                   s_idx);
+                ImVec4 text_col = is_selected
+                    ? ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f)
+                    : unnamed
+                        ? ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.7f)
+                        : ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f);
+                ImGui::GetWindowDrawList()->AddText(
+                    ImGui::GetFont(), ImGui::GetFontSize(),
+                    ImVec2(x_name, cy - text_h * 0.5f),
+                    ImGui::ColorConvertFloat4ToU32(text_col),
+                    name);
             }
-            if (is_selected)
+
+            // Drag source: start dragging this series row
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
-                ImGui::PopStyleColor();
-            }
-
-            // Action buttons: Copy / Cut / Delete (shown on same row)
-            if (clipboard_)
-            {
-                ImGui::SameLine(ImGui::GetContentRegionMax().x - 68.0f);
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                ImGui::PushStyleColor(
-                    ImGuiCol_ButtonHovered,
-                    ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
-
-                // Copy button
-                ImFont* icf = icon_font(tokens::ICON_SM);
-                if (icf)
-                    ImGui::PushFont(icf);
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(c.text_secondary.r,
-                                             c.text_secondary.g,
-                                             c.text_secondary.b,
-                                             c.text_secondary.a));
-
-                char copy_id[32];
-                std::snprintf(copy_id,
-                              sizeof(copy_id),
-                              "%s##cp%d_%d",
-                              icon_str(Icon::Copy),
-                              ax_idx,
-                              s_idx);
-                if (ImGui::Button(copy_id, ImVec2(20, 20)))
+                struct DragPayload
                 {
-                    clipboard_->copy(*s);
+                    AxesBase* axes;
+                    int       index;
+                };
+                DragPayload payload{ax_base, s_idx};
+                ImGui::SetDragDropPayload("SERIES_REORDER", &payload, sizeof(payload));
+                ImGui::TextUnformatted(name);
+                ImGui::EndDragDropSource();
+            }
+            // Drop target: accept a dragged series and schedule reorder
+            if (ImGui::BeginDragDropTarget())
+            {
+                if (const ImGuiPayload* pl =
+                        ImGui::AcceptDragDropPayload("SERIES_REORDER"))
+                {
+                    struct DragPayload
+                    {
+                        AxesBase* axes;
+                        int       index;
+                    };
+                    auto src = *static_cast<const DragPayload*>(pl->Data);
+                    if (src.axes == ax_base && src.index != s_idx)
+                    {
+                        pending_move_.axes = ax_base;
+                        pending_move_.from = src.index;
+                        pending_move_.to   = s_idx;
+                    }
                 }
+                ImGui::EndDragDropTarget();
+            }
+
+            // ── Action buttons: Copy / Cut / Delete ──
+            // In multi-select mode, selected rows defer to the bulk action bar above.
+            // Use InvisibleButton + manual draw so hover rect exactly matches the icon rect.
+            if (clipboard_ && !(multi_sel && is_selected))
+            {
+                float       btn_y  = cy - btn_h * 0.5f;
+                ImFont*     icf    = icon_font(tokens::ICON_SM);
+                ImFont*     fnt    = icf ? icf : ImGui::GetFont();
+                float       gsz    = tokens::ICON_SM;
+                ImDrawList* dl     = ImGui::GetWindowDrawList();
+                ImU32       hov_col = ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.45f));
+
+                // Helper: draw one icon button, returns true if clicked
+                auto icon_btn = [&](const char* id, const char* glyph, ImVec2 pos,
+                                    ImVec4 normal_col) -> bool
+                {
+                    ImGui::SetCursorScreenPos(pos);
+                    bool clicked = ImGui::InvisibleButton(id, ImVec2(btn_w, btn_h));
+                    bool hovered = ImGui::IsItemHovered();
+                    if (hovered)
+                        dl->AddRectFilled(pos, ImVec2(pos.x + btn_w, pos.y + btn_h),
+                                          hov_col, tokens::RADIUS_SM);
+                    ImVec4  col = hovered
+                        ? ImVec4(normal_col.x, normal_col.y, normal_col.z, 1.0f)
+                        : normal_col;
+                    ImVec2  tsz  = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
+                    ImVec2  tpos(pos.x + (btn_w - tsz.x) * 0.5f, pos.y + (btn_h - gsz) * 0.5f + 1.0f);
+                    dl->AddText(fnt, gsz, tpos,
+                                ImGui::ColorConvertFloat4ToU32(col), glyph);
+                    return clicked;
+                };
+
+                ImVec4 muted(c.text_secondary.r, c.text_secondary.g,
+                             c.text_secondary.b, 0.65f);
+                ImVec4 red(0.85f, 0.35f, 0.35f, 0.75f);
+
+                // Copy
+                char copy_id[32];
+                std::snprintf(copy_id, sizeof(copy_id), "##cp%d_%d", ax_idx, s_idx);
+                if (icon_btn(copy_id, icon_str(Icon::Copy), ImVec2(x_btns, btn_y), muted))
+                    clipboard_->copy(*s);
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Copy");
 
-                ImGui::SameLine(0, 2.0f);
-
-                // Cut button
+                // Cut (scissors)
                 char cut_id[32];
-                std::snprintf(cut_id,
-                              sizeof(cut_id),
-                              "%s##ct%d_%d",
-                              icon_str(Icon::Edit),
-                              ax_idx,
-                              s_idx);
-                if (ImGui::Button(cut_id, ImVec2(20, 20)))
+                std::snprintf(cut_id, sizeof(cut_id), "##ct%d_%d", ax_idx, s_idx);
+                if (icon_btn(cut_id, icon_str(Icon::Scissors),
+                             ImVec2(x_btns + btn_w + btn_gap, btn_y), muted))
                 {
                     clipboard_->cut(*s);
                     if (defer_removal_)
@@ -437,29 +708,17 @@ void Inspector::draw_series_browser(Figure& fig)
                     else
                         ax_base->remove_series(static_cast<size_t>(s_idx));
                     ctx_.clear();
-                    ImGui::PopStyleColor();   // Text
-                    if (icf)
-                        ImGui::PopFont();
-                    ImGui::PopStyleColor(2);   // Button, ButtonHovered
                     ImGui::PopID();
                     break;
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Cut");
 
-                ImGui::SameLine(0, 2.0f);
-
-                // Delete button
-                ImGui::PopStyleColor();   // pop text_secondary
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+                // Delete
                 char del_id[32];
-                std::snprintf(del_id,
-                              sizeof(del_id),
-                              "%s##dl%d_%d",
-                              icon_str(Icon::Trash),
-                              ax_idx,
-                              s_idx);
-                if (ImGui::Button(del_id, ImVec2(20, 20)))
+                std::snprintf(del_id, sizeof(del_id), "##dl%d_%d", ax_idx, s_idx);
+                if (icon_btn(del_id, icon_str(Icon::Trash),
+                             ImVec2(x_btns + (btn_w + btn_gap) * 2, btn_y), red))
                 {
                     Series* deleted = s.get();
                     if (defer_removal_)
@@ -468,21 +727,15 @@ void Inspector::draw_series_browser(Figure& fig)
                         ax_base->remove_series(static_cast<size_t>(s_idx));
                     if (ctx_.series == deleted)
                         ctx_.clear();
-                    ImGui::PopStyleColor();   // red text
-                    if (icf)
-                        ImGui::PopFont();
-                    ImGui::PopStyleColor(2);   // Button, ButtonHovered
                     ImGui::PopID();
                     break;
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Delete");
-
-                ImGui::PopStyleColor();   // red text
-                if (icf)
-                    ImGui::PopFont();
-                ImGui::PopStyleColor(2);   // Button, ButtonHovered
             }
+
+            // Advance cursor to next row
+            ImGui::SetCursorScreenPos(ImVec2(row_min.x, row_max.y));
 
             ImGui::PopID();
             s_idx++;
@@ -509,6 +762,14 @@ void Inspector::draw_series_browser(Figure& fig)
                 draw_axes_series(ax.get(), ax_idx);
             ax_idx++;
         }
+    }
+
+    // Apply deferred series reorder (safe: iteration is complete)
+    if (pending_move_.axes && pending_move_.from >= 0 && pending_move_.to >= 0)
+    {
+        pending_move_.axes->move_series(static_cast<size_t>(pending_move_.from),
+                                        static_cast<size_t>(pending_move_.to));
+        pending_move_ = {};
     }
 }
 

@@ -9,20 +9,14 @@ TEST(IconFont, AllIconsListUsesEnumValues)
     const auto& icons = IconFont::instance().get_all_icons();
     ASSERT_FALSE(icons.empty());
 
-    const auto first      = static_cast<uint16_t>(icons.front());
-    const auto last       = static_cast<uint16_t>(icons.back());
-    const auto enum_first = static_cast<uint16_t>(Icon::ChartLine);
-    const auto enum_last  = static_cast<uint16_t>(Icon::Last);
-
-    EXPECT_GE(first, enum_first);
-    EXPECT_LT(first, enum_last);
-    EXPECT_GE(last, enum_first);
-    EXPECT_LT(last, enum_last);
+    // FA6 Solid codepoints are scattered across U+E000-U+E5FF and U+F000-U+F8FF.
+    // Verify each icon is a valid non-zero codepoint below the Last sentinel.
+    const auto enum_last = static_cast<uint16_t>(Icon::Last);
 
     for (Icon icon : icons)
     {
         const auto value = static_cast<uint16_t>(icon);
-        EXPECT_GE(value, enum_first);
+        EXPECT_GT(value, 0u);
         EXPECT_LT(value, enum_last);
     }
 }

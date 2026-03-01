@@ -10,12 +10,12 @@
 namespace spectra
 {
 
-// Pixel sizes for each FontSize preset — tuned for premium scientific visualization.
-// Slightly larger than typical UI fonts for readability at a glance.
+// Pixel sizes for each FontSize preset — typography hierarchy for premium visualization.
+// Tick < Label < Title: clear visual ranking, data-first aesthetic.
 static constexpr float FONT_PIXEL_SIZES[] = {
-    14.0f,   // Tick  — tick labels (compact but legible)
-    16.0f,   // Label — axis labels
-    20.0f,   // Title — plot title (clearly distinguished)
+    12.5f,   // Tick  — tick labels (calm, recedes behind data)
+    14.0f,   // Label — axis labels (readable, secondary)
+    19.0f,   // Title — plot title (semibold feel, clearly dominant)
 };
 
 // Oversampling factor: 3x gives crisp sub-pixel positioning and smooth

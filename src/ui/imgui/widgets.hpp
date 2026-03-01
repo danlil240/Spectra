@@ -5,9 +5,8 @@
     #include <span>
     #include <spectra/color.hpp>
     #include <string>
-    #include <unordered_map>
 
-    #include "ui/theme/theme.hpp"
+    #include "ui/theme/icons.hpp"
 
 struct ImFont;
 
@@ -88,6 +87,17 @@ bool button_field(const char* label);
 
 // Small inline icon button
 bool icon_button_small(const char* icon, const char* tooltip = nullptr, bool active = false);
+
+// Icon button with 32px hitbox, hover background, and active indicator.
+// cmdId: unique string ID for ImGui (e.g. "play", "pause", "view.reset")
+// icon:  Icon enum value rendered as FA6 glyph
+// tooltip: hover tooltip text (nullptr to disable)
+// active: whether this button shows the active/selected indicator
+// Returns true if clicked.
+bool icon_button(const char*    cmdId,
+                 ui::Icon       icon,
+                 const char*    tooltip = nullptr,
+                 bool           active  = false);
 
 // Indented group (pushes indent + draws subtle left border)
 void begin_group(const char* id);

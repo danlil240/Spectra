@@ -14,148 +14,154 @@ struct ImFont;   // Forward declaration for ImGui
 namespace spectra::ui
 {
 
+// ─── Font Awesome 6 Free Solid codepoints ──────────────────────────────────
+// Style: Solid (filled). One style only for visual consistency.
+// License: SIL OFL 1.1 — see third_party/fa_solid_900.hpp
+// Glyph ranges: U+F000–U+F8FF (main), U+E000–U+E0FF (supplemental)
+
 enum class Icon : uint16_t
 {
     // Navigation icons
-    ChartLine    = 0xE001,
-    ScatterChart = 0xE002,
-    Axes         = 0xE003,
-    Wrench       = 0xE004,
-    Folder       = 0xE005,
-    Settings     = 0xE006,
-    Help         = 0xE007,
+    ChartLine    = 0xF201,   // fa-chart-line
+    ScatterChart = 0xE522,   // fa-magnifying-glass-chart
+    Axes         = 0xF1DE,   // fa-sliders
+    Wrench       = 0xF0AD,   // fa-wrench
+    Folder       = 0xF07B,   // fa-folder
+    Settings     = 0xF013,   // fa-gear
+    Help         = 0xF059,   // fa-circle-question
 
     // Toolbar icons
-    ZoomIn    = 0xE008,
-    Hand      = 0xE009,
-    Ruler     = 0xE00A,
-    Crosshair = 0xE00B,
-    Pin       = 0xE00C,
-    Type      = 0xE00D,
+    ZoomIn    = 0xF00E,   // fa-magnifying-glass-plus
+    Hand      = 0xF256,   // fa-hand
+    Ruler     = 0xF546,   // fa-ruler
+    Crosshair = 0xF05B,   // fa-crosshairs
+    Pin       = 0xF08D,   // fa-thumbtack
+    Type      = 0xF031,   // fa-font
 
     // Action icons
-    Export = 0xE00E,
-    Save   = 0xE00F,
-    Copy   = 0xE010,
-    Undo   = 0xE011,
-    Redo   = 0xE012,
-    Search = 0xE013,
-    Filter = 0xE014,
+    Export = 0xF56E,   // fa-file-export
+    Save   = 0xF0C7,   // fa-floppy-disk
+    Copy   = 0xF0C5,   // fa-copy
+    Undo   = 0xF0E2,   // fa-rotate-left
+    Redo   = 0xF01E,   // fa-rotate-right
+    Search = 0xF002,   // fa-magnifying-glass
+    Filter = 0xF0B0,   // fa-filter
 
     // Status icons
-    Check   = 0xE015,
-    Warning = 0xE016,
-    Error   = 0xE017,
-    Info    = 0xE018,
+    Check   = 0xF058,   // fa-circle-check
+    Warning = 0xF071,   // fa-triangle-exclamation
+    Error   = 0xF057,   // fa-circle-xmark
+    Info    = 0xF05A,   // fa-circle-info
 
     // UI icons
-    ChevronRight = 0xE019,
-    ChevronDown  = 0xE01A,
-    Close        = 0xE01B,
-    Menu         = 0xE01C,
-    Maximize     = 0xE01D,
-    Minimize     = 0xE01E,
+    ChevronRight = 0xF054,   // fa-chevron-right
+    ChevronDown  = 0xF078,   // fa-chevron-down
+    Close        = 0xF00D,   // fa-xmark
+    Menu         = 0xF0C9,   // fa-bars
+    Maximize     = 0xF065,   // fa-expand  (actually up-right-and-down-left-from-center)
+    Minimize     = 0xF066,   // fa-compress
 
     // Series icons
-    Eye       = 0xE01F,
-    EyeOff    = 0xE020,
-    Palette   = 0xE021,
-    LineWidth = 0xE022,
+    Eye       = 0xF06E,   // fa-eye
+    EyeOff    = 0xF070,   // fa-eye-slash
+    Palette   = 0xF53F,   // fa-palette
+    LineWidth = 0xF1FC,   // fa-paintbrush
 
     // Additional icons
-    Plus         = 0xE023,
-    Minus        = 0xE024,
-    Play         = 0xE025,
-    Pause        = 0xE026,
-    Stop         = 0xE027,
-    StepForward  = 0xE028,
-    StepBackward = 0xE029,
+    Plus         = 0xF067,   // fa-plus
+    Minus        = 0xF068,   // fa-minus
+    Play         = 0xF04B,   // fa-play
+    Pause        = 0xF04C,   // fa-pause
+    Stop         = 0xF04D,   // fa-stop
+    StepForward  = 0xF051,   // fa-forward-step
+    StepBackward = 0xF048,   // fa-backward-step
 
     // Theme icons
-    Sun      = 0xE02A,
-    Moon     = 0xE02B,
-    Contrast = 0xE02C,
+    Sun      = 0xF185,   // fa-sun
+    Moon     = 0xF186,   // fa-moon
+    Contrast = 0xF042,   // fa-circle-half-stroke
 
     // Layout icons
-    Layout          = 0xE02D,
-    SplitHorizontal = 0xE02E,
-    SplitVertical   = 0xE02F,
-    Tab             = 0xE030,
+    Layout          = 0xF00A,   // fa-table-cells
+    SplitHorizontal = 0xF58D,   // fa-grip-lines
+    SplitVertical   = 0xF58E,   // fa-grip-lines-vertical
+    Tab             = 0xF0DB,   // fa-columns  (actually table-columns)
 
     // Data icons
-    LineChart = 0xE031,
-    BarChart  = 0xE032,
-    PieChart  = 0xE033,
-    Heatmap   = 0xE034,
+    LineChart = 0xF1FE,   // fa-chart-area
+    BarChart  = 0xF080,   // fa-chart-bar
+    PieChart  = 0xF200,   // fa-chart-pie
+    Heatmap   = 0xE473,   // fa-chart-simple
 
     // Transform icons
-    ArrowUp    = 0xE035,
-    ArrowDown  = 0xE036,
-    ArrowLeft  = 0xE037,
-    ArrowRight = 0xE038,
-    Refresh    = 0xE039,
+    ArrowUp    = 0xF062,   // fa-arrow-up
+    ArrowDown  = 0xF063,   // fa-arrow-down
+    ArrowLeft  = 0xF060,   // fa-arrow-left
+    ArrowRight = 0xF061,   // fa-arrow-right
+    Refresh    = 0xF2F1,   // fa-arrows-rotate
 
     // Misc
-    Clock    = 0xE03A,
-    Calendar = 0xE03B,
-    Tag      = 0xE03C,
-    Link     = 0xE03D,
-    Unlink   = 0xE03E,
-    Lock     = 0xE03F,
-    Unlock   = 0xE040,
+    Clock    = 0xF017,   // fa-clock
+    Calendar = 0xF073,   // fa-calendar
+    Tag      = 0xF02B,   // fa-tag
+    Link     = 0xF0C1,   // fa-link
+    Unlink   = 0xF127,   // fa-link-slash
+    Lock     = 0xF023,   // fa-lock
+    Unlock   = 0xF09C,   // fa-unlock
 
     // Command palette
-    Command  = 0xE041,
-    Keyboard = 0xE042,
-    Shortcut = 0xE043,
+    Command  = 0xF120,   // fa-terminal
+    Keyboard = 0xF11C,   // fa-keyboard
+    Shortcut = 0xF0E7,   // fa-bolt
 
     // Workspace
-    FolderOpen = 0xE044,
-    File       = 0xE045,
-    FileText   = 0xE046,
+    FolderOpen = 0xF07C,   // fa-folder-open
+    File       = 0xF15B,   // fa-file
+    FileText   = 0xF15C,   // fa-file-lines
 
     // View modes
-    Grid           = 0xE047,
-    List           = 0xE048,
-    Fullscreen     = 0xE049,
-    FullscreenExit = 0xE04A,
+    Grid           = 0xF00A,   // fa-table-cells
+    List           = 0xF03A,   // fa-list
+    Fullscreen     = 0xF065,   // fa-expand
+    FullscreenExit = 0xF066,   // fa-compress
 
     // Editing
-    Edit      = 0xE04B,
-    Trash     = 0xE04C,
-    Duplicate = 0xE04D,
+    Edit      = 0xF303,   // fa-pen
+    Scissors  = 0xF0C4,   // fa-scissors
+    Trash     = 0xF1F8,   // fa-trash
+    Duplicate = 0xF24D,   // fa-clone
 
     // Math/analysis
-    Function = 0xE04E,
-    Integral = 0xE04F,
-    Sigma    = 0xE050,
-    Sqrt     = 0xE051,
+    Function = 0xF698,   // fa-function  (actually fa-f, use superscript)
+    Integral = 0xF534,   // fa-infinity
+    Sigma    = 0xF12B,   // fa-superscript (placeholder — FA6 has no sigma)
+    Sqrt     = 0xF698,   // fa-square-root-variable
 
     // Markers
-    Circle      = 0xE052,
-    Square      = 0xE053,
-    Triangle    = 0xE054,
-    Diamond     = 0xE055,
-    Cross       = 0xE056,
-    PlusMarker  = 0xE057,
-    MinusMarker = 0xE058,
-    Asterisk    = 0xE059,
+    Circle      = 0xF111,   // fa-circle
+    Square      = 0xF0C8,   // fa-square
+    Triangle    = 0xF0D8,   // fa-caret-up (visual triangle marker)
+    Diamond     = 0xF3A5,   // fa-gem
+    Cross       = 0xF00D,   // fa-xmark
+    PlusMarker  = 0xF067,   // fa-plus
+    MinusMarker = 0xF068,   // fa-minus
+    Asterisk    = 0xF069,   // fa-asterisk
 
     // Line styles
-    LineSolid   = 0xE05A,
-    LineDashed  = 0xE05B,
-    LineDotted  = 0xE05C,
-    LineDashDot = 0xE05D,
+    LineSolid   = 0xF068,   // fa-minus (solid line)
+    LineDashed  = 0xF141,   // fa-ellipsis-vertical (dashed line placeholder)
+    LineDotted  = 0xF142,   // fa-ellipsis (dotted line placeholder)
+    LineDashDot = 0xF068,   // fa-minus (fallback)
 
     // Special
-    Home    = 0xE05E,
-    Back    = 0xE05F,
-    Forward = 0xE060,
-    Up      = 0xE061,
-    Down    = 0xE062,
+    Home    = 0xF015,   // fa-house
+    Back    = 0xF053,   // fa-chevron-left  (actually 0xF053)
+    Forward = 0xF054,   // fa-chevron-right
+    Up      = 0xF077,   // fa-chevron-up
+    Down    = 0xF078,   // fa-chevron-down
 
-    // End marker
-    Last = 0xE063
+    // End marker (not a real glyph)
+    Last = 0xF8FF
 };
 
 class IconFont

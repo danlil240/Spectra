@@ -125,6 +125,8 @@ set(SPECTRA_UNIT_TESTS
     test_eigen_support
     test_series_stats
     test_series_clipboard
+    test_clipboard_export
+    test_series_reorder
     test_data_editor
     test_embed_surface
     test_easy_embed

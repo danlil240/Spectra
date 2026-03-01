@@ -57,19 +57,20 @@ bool section_header(const char* label, bool* open, ImFont* font)
     float  avail  = ImGui::GetContentRegionAvail().x;
     ImVec2 cursor = ImGui::GetCursorScreenPos();
 
-    // Hover highlight
+    // Hover highlight — calmer interaction
     ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_HeaderHovered,
-        ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, c.accent_subtle.a));
+        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.5f));
     ImGui::PushStyleColor(
         ImGuiCol_HeaderActive,
-        ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, c.accent_muted.a));
+        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.7f));
 
-    bool clicked = ImGui::Selectable("##hdr",
-                                     false,
-                                     ImGuiSelectableFlags_None,
-                                     ImVec2(avail, ImGui::GetTextLineHeightWithSpacing() + 4.0f));
+    float hdr_h = tokens::INSPECTOR_HEADER_H;
+    bool  clicked = ImGui::Selectable("##hdr",
+                                      false,
+                                      ImGuiSelectableFlags_None,
+                                      ImVec2(avail, hdr_h));
     if (clicked && open)
     {
         *open = !*open;
@@ -108,7 +109,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
         ImGui::PushFont(icon_f);
     ImGui::PushStyleColor(
         ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+        ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.8f));
     ImGui::TextUnformatted(chevron);
     ImGui::PopStyleColor();
     if (icon_f)
@@ -116,20 +117,19 @@ bool section_header(const char* label, bool* open, ImFont* font)
 
     ImGui::SameLine(0.0f, tokens::SPACE_2);
 
-    // Label text
+    // Label text — calmer uppercase style
     if (font)
         ImGui::PushFont(font);
     ImGui::PushStyleColor(
         ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+        ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.8f));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
     if (font)
         ImGui::PopFont();
 
     // Move cursor past the selectable height
-    ImGui::SetCursorScreenPos(
-        ImVec2(cursor.x, cursor.y + ImGui::GetTextLineHeightWithSpacing() + 4.0f));
+    ImGui::SetCursorScreenPos(ImVec2(cursor.x, cursor.y + hdr_h));
 
     ImGui::PopID();
 
@@ -191,7 +191,7 @@ void separator()
     const auto& c = theme();
     ImGui::PushStyleColor(
         ImGuiCol_Separator,
-        ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, c.border_subtle.a));
+        ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
     ImGui::Separator();
     ImGui::PopStyleColor();
 }
@@ -515,19 +515,19 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
     if (active)
     {
         ImGui::PushStyleColor(ImGuiCol_Button,
-                              ImVec4(c.accent_muted.r, c.accent_muted.g, c.accent_muted.b, 0.4f));
+                              ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.15f));
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+                              ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
     }
     else
     {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+            ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 0.55f));
     }
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                          ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.5f));
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.7f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_1, ui::tokens::SPACE_1));
 
@@ -556,6 +556,90 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
         ImGui::PopStyleVar(2);
     }
 
+    return clicked;
+}
+
+// ─── Icon Button (32px hitbox) ───────────────────────────────────────────────
+
+bool icon_button(const char* cmdId, ui::Icon icon, const char* tooltip, bool active)
+{
+    const auto& c = theme();
+
+    ImGui::PushID(cmdId);
+
+    constexpr float hitbox = tokens::ICON_BUTTON_HITBOX;   // 32px
+
+    // Style: accent pill when active, transparent otherwise
+    if (active)
+    {
+        ImGui::PushStyleColor(
+            ImGuiCol_Button,
+            ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.15f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
+    }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 0.7f));
+    }
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonHovered,
+        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.7f));
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonActive,
+        ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+    // Use the icon font for the glyph
+    ImFont* f = icon_font(tokens::ICON_MD);
+    if (f)
+        ImGui::PushFont(f);
+
+    const char* glyph   = icon_str(icon);
+    bool        clicked = ImGui::Button(glyph, ImVec2(hitbox, hitbox));
+
+    if (f)
+        ImGui::PopFont();
+
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(4);
+
+    // Active indicator: small accent dot below the button
+    if (active)
+    {
+        ImVec2      rmin   = ImGui::GetItemRectMin();
+        ImVec2      rmax   = ImGui::GetItemRectMax();
+        float       cx     = (rmin.x + rmax.x) * 0.5f;
+        float       by     = rmax.y + 1.0f;
+        ImU32       dot_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.9f));
+        ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(cx, by + 2.0f), 2.0f, dot_col);
+    }
+
+    // Tooltip
+    if (tooltip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                            ImVec2(tokens::SPACE_3, tokens::SPACE_2));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_MD);
+        ImGui::PushStyleColor(
+            ImGuiCol_PopupBg,
+            ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Border,
+            ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
+        ImGui::SetTooltip("%s", tooltip);
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
+    }
+
+    ImGui::PopID();
     return clicked;
 }
 

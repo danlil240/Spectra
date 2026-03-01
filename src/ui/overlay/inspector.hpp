@@ -67,6 +67,15 @@ class Inspector
     bool sec_preview_    = true;   // Sparkline preview
     bool sec_axes_stats_ = true;   // Per-axes aggregate stats
 
+    // Drag-reorder state (deferred to avoid mid-iteration mutation)
+    struct PendingMove
+    {
+        AxesBase* axes = nullptr;
+        int       from = -1;
+        int       to   = -1;
+    };
+    PendingMove pending_move_;
+
     // Fonts
     ImFont* font_body_    = nullptr;
     ImFont* font_heading_ = nullptr;

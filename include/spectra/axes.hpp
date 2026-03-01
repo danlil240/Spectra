@@ -61,6 +61,9 @@ class AxesBase
     // Remove a single series by index (0-based).  Returns false if out of range.
     bool remove_series(size_t index);
 
+    // Move a series from one index to another (reorder).  Returns false if out of range.
+    bool move_series(size_t from, size_t to);
+
     // Called by the framework to wire up deferred GPU cleanup.
     using SeriesRemovedCallback = std::function<void(const Series*)>;
     void set_series_removed_callback(SeriesRemovedCallback cb)

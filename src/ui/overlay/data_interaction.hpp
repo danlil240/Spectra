@@ -118,6 +118,9 @@ class DataInteraction
         {
             last_figure_ = nullptr;
             active_axes_ = nullptr;
+            // Reset nearest-point result — it holds a raw Series* pointer
+            // that becomes dangling when the figure's series are destroyed.
+            nearest_ = {};
         }
     }
 

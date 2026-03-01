@@ -16,25 +16,34 @@ constexpr float SPACE_10 = 40.0f;   // Zone gap
 constexpr float SPACE_12 = 48.0f;   // Large gap
 constexpr float SPACE_16 = 64.0f;   // Extra large gap
 
-// Radius Scale
-constexpr float RADIUS_SM   = 4.0f;     // Buttons, inputs
-constexpr float RADIUS_MD   = 8.0f;     // Cards, panels
-constexpr float RADIUS_LG   = 12.0f;    // Modals, floating panels
-constexpr float RADIUS_XL   = 16.0f;    // Main panels
-constexpr float RADIUS_PILL = 999.0f;   // Pill buttons, badges
+// Radius Scale — unified r4/r8/r12 system
+constexpr float RADIUS_SM   = 4.0f;     // r4: small controls, checkboxes, badges
+constexpr float RADIUS_MD   = 8.0f;     // r8: inputs, tooltips, popovers, buttons
+constexpr float RADIUS_LG   = 12.0f;    // r12: panels, floating toolbars, containers
+constexpr float RADIUS_XL   = 16.0f;    // Large panels (rarely used)
+constexpr float RADIUS_PILL = 999.0f;   // Pill buttons, scrollbar thumbs
 
-// Font Scale (Inter)
-constexpr float FONT_XS   = 11.0f;   // Status bar, badges
-constexpr float FONT_SM   = 12.0f;   // Secondary text, labels
-constexpr float FONT_BASE = 14.0f;   // Body text, controls
-constexpr float FONT_MD   = 15.0f;   // Menu items
-constexpr float FONT_LG   = 16.0f;   // Section headers
-constexpr float FONT_XL   = 18.0f;   // Panel titles
-constexpr float FONT_2XL  = 20.0f;   // Page titles
-constexpr float FONT_MONO = 13.0f;   // Data readout, coordinates
+// Font Scale (Inter) — typography hierarchy
+constexpr float FONT_XS   = 10.5f;   // Status bar, badges, dimmer chrome
+constexpr float FONT_SM   = 11.5f;   // Inspector labels, secondary text
+constexpr float FONT_BASE = 13.0f;   // Body text, controls, menu items
+constexpr float FONT_MD   = 14.0f;   // Input values, tree items
+constexpr float FONT_LG   = 15.0f;   // Section headers
+constexpr float FONT_XL   = 17.0f;   // Panel titles
+constexpr float FONT_2XL  = 20.0f;   // Plot titles (via Vulkan text renderer)
+constexpr float FONT_MONO = 12.0f;   // Data readout, coordinates
+
+// Layout Rhythm (8px grid)
+constexpr float PANEL_PADDING       = 16.0f;   // Panel internal padding
+constexpr float SECTION_GAP         = 12.0f;   // Gap between inspector sections
+constexpr float ROW_PADDING_V       = 4.0f;    // Vertical padding inside rows
+constexpr float ROW_PADDING_H       = 8.0f;    // Horizontal padding inside rows
+constexpr float SERIES_ROW_HEIGHT   = 30.0f;   // Series list row height
+constexpr float ICON_BUTTON_HITBOX  = 32.0f;   // Standard icon button size
+constexpr float INSPECTOR_HEADER_H  = 36.0f;   // Inspector header strip height
 
 // Layout Constants
-constexpr float COMMAND_BAR_HEIGHT      = 48.0f;
+constexpr float COMMAND_BAR_HEIGHT      = 42.0f;   // Slimmer top bar
 constexpr float NAV_RAIL_WIDTH          = 48.0f;
 constexpr float NAV_RAIL_WIDTH_EXPANDED = 200.0f;
 constexpr float INSPECTOR_WIDTH         = 320.0f;

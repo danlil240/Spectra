@@ -49,10 +49,13 @@ constexpr int KEY_F12           = 301;
 // Named aliases for readability in register_defaults()
 constexpr int KEY_B = 66;
 constexpr int KEY_C = 67;
+constexpr int KEY_D = 68;
 constexpr int KEY_F = 70;
 constexpr int KEY_G = 71;
 constexpr int KEY_K = 75;
 constexpr int KEY_L = 76;
+constexpr int KEY_M = 77;
+constexpr int KEY_P = 80;
 constexpr int KEY_Q = 81;
 constexpr int KEY_R = 82;
 constexpr int KEY_S = 83;
@@ -407,6 +410,15 @@ void ShortcutManager::register_defaults()
     bind({KEY_X, KeyMod::Control}, "series.cut");
     bind({KEY_V, KeyMod::Control}, "series.paste");
     bind({KEY_DELETE, KeyMod::None}, "series.delete");
+
+    // Data clipboard
+    bind({KEY_D, KeyMod::Control | KeyMod::Shift}, "data.copy_to_clipboard");
+
+    // Tool modes
+    bind({KEY_P, KeyMod::None}, "tool.pan");
+    bind({KEY_S, KeyMod::None}, "tool.select");
+    bind({KEY_Z, KeyMod::None}, "tool.box_zoom");
+    bind({KEY_M, KeyMod::None}, "tool.measure");
 
     // Legend/border
     bind({KEY_L, KeyMod::None}, "view.toggle_legend");

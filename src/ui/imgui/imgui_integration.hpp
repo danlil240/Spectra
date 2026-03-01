@@ -125,10 +125,11 @@ class ImGuiIntegration
     ToolMode get_interaction_mode() const { return interaction_mode_; }
 
     // Status bar data setters (called by app loop with real data)
-    void set_cursor_data(float x, float y)
+    void set_cursor_data(float x, float y, bool valid)
     {
-        cursor_data_x_ = x;
-        cursor_data_y_ = y;
+        cursor_data_x_     = x;
+        cursor_data_y_     = y;
+        cursor_data_valid_ = valid;
     }
     void set_zoom_level(float zoom) { zoom_level_ = zoom; }
     void set_gpu_time(float ms) { gpu_time_ms_ = ms; }
@@ -435,8 +436,9 @@ class ImGuiIntegration
     ToolMode interaction_mode_ = ToolMode::Pan;
 
     // Status bar data
-    float cursor_data_x_ = 0.0f;
-    float cursor_data_y_ = 0.0f;
+    float cursor_data_x_     = 0.0f;
+    float cursor_data_y_     = 0.0f;
+    bool  cursor_data_valid_ = false;
     float zoom_level_    = 1.0f;
     float gpu_time_ms_   = 0.0f;
 
@@ -620,7 +622,8 @@ class ImGuiIntegration
     CsvPlotCallback csv_plot_cb_;
 
     // CSV column picker dialog state (file selected via native OS dialog)
-    bool        csv_dialog_open_ = false;
+    bool        pending_open_csv_ = false;   // Set by welcome screen, handled in draw()
+    bool        csv_dialog_open_  = false;
     std::string csv_file_path_;
     CsvData     csv_data_;
     bool        csv_data_loaded_ = false;

@@ -106,6 +106,7 @@ foreach(_ui_src
     src/ui/app/session_runtime.cpp
     src/ui/figures/figure_registry.cpp
     src/ui/data/csv_loader.cpp
+    src/ui/data/clipboard_export.cpp
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp

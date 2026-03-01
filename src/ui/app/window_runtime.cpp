@@ -420,7 +420,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
         // Feed cursor data to status bar
         auto readout = input_handler.cursor_readout();
-        imgui_ui->set_cursor_data(readout.data_x, readout.data_y);
+        imgui_ui->set_cursor_data(readout.data_x, readout.data_y, readout.valid);
 
         // Update data interaction layer (nearest-point query, tooltip state)
         if (active_figure && data_interaction)

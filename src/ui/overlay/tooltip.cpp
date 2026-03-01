@@ -51,11 +51,11 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
         series_color = nearest.series->color();
     }
 
-    // Tooltip layout constants
-    constexpr float padding     = 10.0f;
-    constexpr float swatch_size = 10.0f;
-    constexpr float row_height  = 18.0f;
-    constexpr float min_width   = 140.0f;
+    // Tooltip layout constants — compact, glass-like
+    constexpr float padding     = 8.0f;
+    constexpr float swatch_size = 9.0f;
+    constexpr float row_height  = 16.0f;
+    constexpr float min_width   = 130.0f;
 
     // Measure text to size the tooltip
     ImFont* body_font = font_body_ ? font_body_ : ImGui::GetFont();
@@ -90,14 +90,25 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     if (ty + tooltip_h > window_height - 4.0f)
         ty = window_height - tooltip_h - 4.0f;
 
-    // Draw tooltip window
+    // Draw tooltip window with soft drop shadow for depth
     ImGui::SetNextWindowPos(ImVec2(tx, ty));
     ImGui::SetNextWindowSize(ImVec2(tooltip_w, tooltip_h));
+
+    // Soft shadow (drawn on foreground draw list before the window)
+    {
+        ImDrawList* fg      = ImGui::GetForegroundDrawList();
+        float       sh_off  = 2.0f;
+        float       sh_r    = ui::tokens::RADIUS_MD + 2.0f;
+        ImU32       sh_col  = IM_COL32(0, 0, 0, static_cast<int>(30.0f * opacity_));
+        fg->AddRectFilled(ImVec2(tx + sh_off, ty + sh_off),
+                          ImVec2(tx + tooltip_w + sh_off, ty + tooltip_h + sh_off),
+                          sh_col, sh_r);
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity_);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
         ImVec4(colors.tooltip_bg.r, colors.tooltip_bg.g, colors.tooltip_bg.b, colors.tooltip_bg.a));
@@ -169,8 +180,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
             ImVec4(series_color.r, series_color.g, series_color.b, opacity_));
         ImU32 ring_color = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, opacity_));
-        fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 5.0f, dot_color);
-        fg->AddCircle(ImVec2(nearest.screen_x, nearest.screen_y), 5.0f, ring_color, 0, 1.5f);
+        fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 4.5f, dot_color);
+        fg->AddCircle(ImVec2(nearest.screen_x, nearest.screen_y), 4.5f, ring_color, 0, 1.0f);
     }
 }
 

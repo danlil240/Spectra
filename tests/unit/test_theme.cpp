@@ -267,11 +267,18 @@ TEST(DesignTokens, PerformanceTargets)
 
 TEST(DesignTokens, LayoutConstants)
 {
-    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 48.0f);
+    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 42.0f);
     EXPECT_FLOAT_EQ(tokens::NAV_RAIL_WIDTH, 48.0f);
     EXPECT_FLOAT_EQ(tokens::INSPECTOR_WIDTH, 320.0f);
     EXPECT_LT(tokens::INSPECTOR_WIDTH_MIN, tokens::INSPECTOR_WIDTH);
     EXPECT_GT(tokens::INSPECTOR_WIDTH_MAX, tokens::INSPECTOR_WIDTH);
+
+    // Layout rhythm (8px grid)
+    EXPECT_FLOAT_EQ(tokens::PANEL_PADDING, 16.0f);
+    EXPECT_FLOAT_EQ(tokens::SECTION_GAP, 12.0f);
+    EXPECT_FLOAT_EQ(tokens::SERIES_ROW_HEIGHT, 30.0f);
+    EXPECT_FLOAT_EQ(tokens::ICON_BUTTON_HITBOX, 32.0f);
+    EXPECT_FLOAT_EQ(tokens::INSPECTOR_HEADER_H, 36.0f);
 }
 
 // ─── ThemeManager ────────────────────────────────────────────────────────────

@@ -112,11 +112,11 @@ void DataMarkerManager::draw(const Rect& viewport,
     const float fs_sm    = fs * 0.78f;   // small font for coordinates
     const float pad_x    = 8.0f;         // horizontal padding inside box
     const float pad_y    = 5.0f;         // vertical padding inside box
-    const float arrow_h  = 8.0f;         // height of the arrow triangle
-    const float arrow_w  = 8.0f;         // half-width of the arrow base
-    const float corner_r = 6.0f;         // box corner radius
-    const float dot_r    = 5.0f;         // marker dot radius
-    const float ring_r   = 7.0f;         // outer ring radius
+    const float arrow_h  = 7.0f;         // height of the arrow triangle
+    const float arrow_w  = 7.0f;         // half-width of the arrow base
+    const float corner_r = 8.0f;         // r8: consistent with tooltips
+    const float dot_r    = 4.5f;         // marker dot radius
+    const float ring_r   = 6.0f;         // outer ring radius
     const float gap      = 4.0f;         // gap between dot and arrow tip
 
     for (size_t i = 0; i < markers_.size(); ++i)
@@ -207,18 +207,18 @@ void DataMarkerManager::draw(const Rect& viewport,
             box_right -= shift;
         }
 
-        // ── Draw shadow ─────────────────────────────────────────────────
-        ImU32 shadow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(0, 0, 0, 0.18f * opacity));
+        // ── Draw shadow ─────────────────────────────────────────────
+        ImU32 shadow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(0, 0, 0, 0.12f * opacity));
         fg->AddRectFilled(ImVec2(box_left + 1.0f, box_top + 2.0f),
                           ImVec2(box_right + 1.0f, box_bot + 2.0f),
                           shadow_col,
                           corner_r);
 
-        // ── Draw box background ─────────────────────────────────────────
-        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_elevated.r,
-                                                             colors.bg_elevated.g,
-                                                             colors.bg_elevated.b,
-                                                             0.95f * opacity));
+        // ── Draw box background — glass-like, matches tooltip_bg ──────────
+        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+                                                             colors.tooltip_bg.g,
+                                                             colors.tooltip_bg.b,
+                                                             colors.tooltip_bg.a * opacity));
         fg->AddRectFilled(ImVec2(box_left, box_top), ImVec2(box_right, box_bot), bg_col, corner_r);
 
         // ── Draw arrow triangle connecting box to point ─────────────────
@@ -238,23 +238,23 @@ void DataMarkerManager::draw(const Rect& viewport,
                                   bg_col);
         }
 
-        // ── Draw box border ─────────────────────────────────────────────
-        ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_default.r,
-                                                                 colors.border_default.g,
-                                                                 colors.border_default.b,
-                                                                 0.35f * opacity));
+        // ── Draw box border — hairline, matches tooltip_border ────────────
+        ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_border.r,
+                                                                 colors.tooltip_border.g,
+                                                                 colors.tooltip_border.b,
+                                                                 colors.tooltip_border.a * opacity));
         fg->AddRect(ImVec2(box_left, box_top),
                     ImVec2(box_right, box_bot),
                     box_border,
                     corner_r,
                     0,
-                    1.0f);
+                    0.5f);
 
-        // ── Color accent bar on left edge ───────────────────────────────
+        // ── Color accent bar on left edge ─────────────────────────────────
         ImU32 accent_col =
-            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, 0.9f * opacity));
+            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, 0.85f * opacity));
         fg->AddRectFilled(ImVec2(box_left, box_top + corner_r),
-                          ImVec2(box_left + 3.0f, box_bot - corner_r),
+                          ImVec2(box_left + 2.5f, box_bot - corner_r),
                           accent_col);
 
         // ── Draw text ───────────────────────────────────────────────────
@@ -292,8 +292,8 @@ int DataMarkerManager::hit_test(float       screen_x,
     const float fs_sm   = fs * 0.78f;
     const float pad_x   = 8.0f;
     const float pad_y   = 5.0f;
-    const float arrow_h = 8.0f;
-    const float ring_r  = 7.0f;
+    const float arrow_h = 7.0f;
+    const float ring_r  = 6.0f;
     const float gap     = 4.0f;
 
     for (size_t i = 0; i < markers_.size(); ++i)

@@ -685,7 +685,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
             ImGui::TableHeadersRow();
 
             int cols = surf->cols();
-            int rows = surf->rows();
+            // int rows = surf->rows();
             int total = static_cast<int>(z_data.size());
 
             ImGuiListClipper clipper;

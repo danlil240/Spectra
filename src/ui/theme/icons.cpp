@@ -184,11 +184,47 @@ void IconFont::build_icon_map()
     icon_map_.clear();
     codepoint_strings_.clear();
 
-    // The Icon enum values are the PUA codepoints themselves.
-    // Build the map for every icon from 0xE001 to 0xE062.
-    for (uint32_t cp = 0xE001; cp <= 0xE062; ++cp)
+    // Font Awesome 6 Solid codepoints are scattered across U+E000-U+E5FF
+    // and U+F000-U+F8FF. Enumerate every Icon enum value explicitly.
+    static constexpr Icon all[] = {
+        Icon::ChartLine,    Icon::ScatterChart, Icon::Axes,
+        Icon::Wrench,       Icon::Folder,       Icon::Settings,
+        Icon::Help,         Icon::ZoomIn,       Icon::Hand,
+        Icon::Ruler,        Icon::Crosshair,    Icon::Pin,
+        Icon::Type,         Icon::Export,        Icon::Save,
+        Icon::Copy,         Icon::Undo,         Icon::Redo,
+        Icon::Search,       Icon::Filter,        Icon::Check,
+        Icon::Warning,      Icon::Error,         Icon::Info,
+        Icon::ChevronRight, Icon::ChevronDown,   Icon::Close,
+        Icon::Menu,         Icon::Maximize,      Icon::Minimize,
+        Icon::Eye,          Icon::EyeOff,        Icon::Palette,
+        Icon::LineWidth,    Icon::Plus,          Icon::Minus,
+        Icon::Play,         Icon::Pause,         Icon::Stop,
+        Icon::StepForward,  Icon::StepBackward,  Icon::Sun,
+        Icon::Moon,         Icon::Contrast,      Icon::Layout,
+        Icon::SplitHorizontal, Icon::SplitVertical, Icon::Tab,
+        Icon::LineChart,    Icon::BarChart,      Icon::PieChart,
+        Icon::Heatmap,      Icon::ArrowUp,       Icon::ArrowDown,
+        Icon::ArrowLeft,    Icon::ArrowRight,    Icon::Refresh,
+        Icon::Clock,        Icon::Calendar,      Icon::Tag,
+        Icon::Link,         Icon::Unlink,        Icon::Lock,
+        Icon::Unlock,       Icon::Command,       Icon::Keyboard,
+        Icon::Shortcut,     Icon::FolderOpen,    Icon::File,
+        Icon::FileText,     Icon::Grid,          Icon::List,
+        Icon::Fullscreen,   Icon::FullscreenExit,
+        Icon::Edit,         Icon::Scissors,      Icon::Trash,         Icon::Duplicate,
+        Icon::Function,     Icon::Integral,      Icon::Sigma,
+        Icon::Sqrt,         Icon::Circle,        Icon::Square,
+        Icon::Triangle,     Icon::Diamond,       Icon::Cross,
+        Icon::PlusMarker,   Icon::MinusMarker,   Icon::Asterisk,
+        Icon::LineSolid,    Icon::LineDashed,    Icon::LineDotted,
+        Icon::LineDashDot,  Icon::Home,          Icon::Back,
+        Icon::Forward,      Icon::Up,            Icon::Down,
+    };
+
+    for (Icon icon : all)
     {
-        Icon icon              = static_cast<Icon>(cp);
+        uint32_t cp            = static_cast<uint32_t>(icon);
         icon_map_[icon]        = cp;
         codepoint_strings_[cp] = codepoint_to_utf8(cp);
     }

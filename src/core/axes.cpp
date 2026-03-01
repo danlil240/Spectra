@@ -29,6 +29,16 @@ bool AxesBase::remove_series(size_t index)
     return true;
 }
 
+bool AxesBase::move_series(size_t from, size_t to)
+{
+    if (from >= series_.size() || to >= series_.size() || from == to)
+        return false;
+    auto tmp = std::move(series_[from]);
+    series_.erase(series_.begin() + static_cast<ptrdiff_t>(from));
+    series_.insert(series_.begin() + static_cast<ptrdiff_t>(to), std::move(tmp));
+    return true;
+}
+
 // --- Series creation ---
 
 LineSeries& Axes::line(std::span<const float> x, std::span<const float> y)

@@ -7,7 +7,7 @@ int main()
 {
     spectra::App app;
     auto&        fig = app.figure();
-    fig.subplot(1, 1, 1);   // Empty axes — ready for CSV data
+    // fig.subplot(1, 1, 1);   // Empty axes — ready for CSV data
     app.run();
     return 0;
 }

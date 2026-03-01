@@ -55,6 +55,7 @@ VkDevice create_logical_device(VkPhysicalDevice          physical_device,
 bool check_validation_layer_support();
 
 // Required device extensions
-std::vector<const char*> get_required_device_extensions(bool need_swapchain);
+std::vector<const char*> get_required_device_extensions(VkPhysicalDevice physical_device,
+                                                        bool             need_swapchain);
 
 }   // namespace spectra::vk

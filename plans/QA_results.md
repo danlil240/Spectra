@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-02-28 (Perf Agent Session 2) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro)
+> Last updated: 2026-03-01 (Memory Agent Session 1) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro), 18335134330653 (memory-agent)
 
 ---
 
@@ -171,6 +171,14 @@
 
 ### M1: RSS Growth of 80–260MB Over Session
 - **Observed:** earlier runs: +80MB to +115MB; recent 120s runs reached +261MB (seed 42: 168→429MB) and +148MB (seed 1771959053: 168→316MB).
+- **Memory-agent update (2026-03-01):**
+  1. Reproduced severe scenarios-only growth in `command_exhaustion`: +166MB (188→354MB) in isolation.
+  2. Root cause: QA harness retained extra windows/figures created by `command_exhaustion`, contaminating later scenario memory measurements.
+  3. Fix applied in `tests/qa/qa_agent.cpp`: added post-scenario teardown to return to one window + one lightweight figure; explicit per-window cache invalidation before closing windows.
+  4. Verification: `command_exhaustion` reduced to +115MB (178→293MB), and full `--no-fuzz --duration 60` run improved from +341MB (188→529MB) to +159MB (178→337MB).
+  5. ASan regression introduced during fix (UAF in `DataInteraction::draw_legend_for_figure`) was detected and fixed in the same file; no UAF after patch. LSan still reports external `libdbus` leak (2002 bytes).
+  6. Follow-up isolation session (2026-03-01 19:37): full scenarios-only run measured +160MB (178→338). Targeted isolated scenarios remained low (`0–4MB`) except `command_exhaustion` (`+115MB`), confirming it is still the dominant source.
+  7. GPU budget telemetry in the same isolation run stayed flat for device-local memory (`28MB -> 28MB`) across targeted scenarios, suggesting RSS growth is CPU-side retention/fragmentation rather than GPU allocation leak.
 - **Analysis:** Growth is expected to some degree — the fuzzer creates up to 20 figures with 10–500K point series each. But 115MB for ~20 figures seems high.
 - **Breakdown needed:**
   1. CPU-side series data: 20 figures × ~200K points × 8 bytes (x+y float) = ~32MB
@@ -187,7 +195,7 @@
   - `src/render/vulkan/vk_backend.cpp` — VMA allocation tracking
   - `src/core/series.cpp` — data buffer ownership
 - **Priority:** **P1**
-- **Status:** 🟡 Open
+- **Status:** 🟡 Open (improved; further baseline/per-scenario instrumentation still needed)
 
 ---
 

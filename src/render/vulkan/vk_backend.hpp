@@ -13,6 +13,9 @@
 
 // shader_spirv.hpp included in .cpp
 
+struct VmaAllocator_T;
+using VmaAllocator = VmaAllocator_T*;
+
 namespace spectra
 {
 
@@ -142,6 +145,17 @@ class VulkanBackend : public Backend
     // Returns true if the Vulkan device has been lost (unrecoverable)
     bool is_device_lost() const { return device_lost_; }
 
+    struct GpuMemoryStats
+    {
+        uint64_t total_usage_bytes = 0;
+        uint64_t total_budget_bytes = 0;
+        uint64_t device_local_usage_bytes = 0;
+        uint64_t device_local_budget_bytes = 0;
+        uint32_t heap_count = 0;
+        bool     budget_extension_enabled = false;
+    };
+    bool query_gpu_memory_stats(GpuMemoryStats& stats) const;
+
     // Vulkan-specific accessors
     VkDevice         device() const { return ctx_.device; }
     VkPhysicalDevice physical_device() const { return ctx_.physical_device; }
@@ -174,6 +188,8 @@ class VulkanBackend : public Backend
     vk::OffscreenContext offscreen_;
     bool                 headless_    = false;
     bool                 device_lost_ = false;   // set on VK_ERROR_DEVICE_LOST — unrecoverable
+    VmaAllocator         vma_allocator_ = nullptr;
+    bool                 memory_budget_extension_enabled_ = false;
 
     // Initial window context (heap-allocated for uniform ownership).
     // All per-window resources (surface, swapchain, command buffers, sync

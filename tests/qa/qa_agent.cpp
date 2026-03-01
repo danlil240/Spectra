@@ -83,6 +83,11 @@ static size_t get_rss_bytes()
 #endif
 }
 
+static uint64_t to_mb(uint64_t bytes)
+{
+    return bytes / (1024ull * 1024ull);
+}
+
 // ─── Issue tracking ──────────────────────────────────────────────────────────
 enum class IssueSeverity
 {
@@ -270,6 +275,9 @@ class QAAgent
 
         initial_rss_ = get_rss_bytes();
         peak_rss_    = initial_rss_;
+        sample_gpu_memory();
+        initial_gpu_memory_ = current_gpu_memory_;
+        peak_gpu_memory_    = current_gpu_memory_;
         return true;
     }
 
@@ -278,6 +286,8 @@ class QAAgent
         if (opts_.list_scenarios)
         {
             list_scenarios();
+            app_->shutdown_runtime();
+            app_.reset();
             return 0;
         }
 
@@ -435,6 +445,72 @@ class QAAgent
             if (!ids.empty())
                 ui->fig_mgr->queue_switch(ids.back());
             pump_frames(1);
+        }
+#endif
+    }
+
+    // Normalize to a single window and a single lightweight figure so
+    // heavyweight command scenarios do not contaminate later memory checks.
+    void reset_to_single_window_lightweight_state()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        auto* wm = app_->window_manager();
+        if (wm)
+        {
+            auto clear_cached_figure_refs = [this](Figure* fig)
+            {
+                if (!fig)
+                    return;
+                if (auto* ui = app_->ui_context())
+                {
+                    if (ui->data_interaction)
+                        ui->data_interaction->clear_figure_cache(fig);
+                    ui->input_handler.clear_figure_cache(fig);
+                    if (ui->imgui_ui)
+                        ui->imgui_ui->clear_figure_cache(fig);
+                }
+                if (auto* local_wm = app_->window_manager())
+                {
+                    for (auto* wctx : local_wm->windows())
+                    {
+                        if (!wctx || !wctx->ui_ctx)
+                            continue;
+                        if (wctx->ui_ctx->data_interaction)
+                            wctx->ui_ctx->data_interaction->clear_figure_cache(fig);
+                        wctx->ui_ctx->input_handler.clear_figure_cache(fig);
+                        if (wctx->ui_ctx->imgui_ui)
+                            wctx->ui_ctx->imgui_ui->clear_figure_cache(fig);
+                    }
+                }
+            };
+
+            const auto windows = wm->windows();
+            for (size_t i = 1; i < windows.size(); ++i)
+            {
+                if (windows[i])
+                {
+                    for (FigureId fid : windows[i]->assigned_figures)
+                    {
+                        clear_cached_figure_refs(app_->figure_registry().get(fid));
+                    }
+                    wm->request_close(windows[i]->id);
+                }
+            }
+            wm->process_pending_closes();
+            pump_frames(5);
+        }
+
+        ensure_lightweight_active_figure();
+
+        auto* ui = app_->ui_context();
+        if (ui && ui->fig_mgr)
+        {
+            FigureId keep = ui->fig_mgr->active_index();
+            if (keep != INVALID_FIGURE_ID)
+            {
+                ui->fig_mgr->close_all_except(keep);
+                pump_frames(2);
+            }
         }
 #endif
     }
@@ -838,6 +914,10 @@ class QAAgent
                 pump_frames(1);
             }
         }
+
+        // Commands can create extra windows/figures; clean up to avoid
+        // carrying intentional allocations into subsequent scenarios.
+        reset_to_single_window_lightweight_state();
 #endif
         return true;
     }
@@ -3719,6 +3799,39 @@ class QAAgent
         }
     }
 
+    void sample_gpu_memory()
+    {
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (!backend)
+        {
+            gpu_memory_tracking_available_ = false;
+            return;
+        }
+
+        VulkanBackend::GpuMemoryStats stats;
+        if (!backend->query_gpu_memory_stats(stats))
+        {
+            gpu_memory_tracking_available_ = false;
+            return;
+        }
+
+        gpu_memory_tracking_available_ = true;
+        current_gpu_memory_            = stats;
+
+        if (stats.total_usage_bytes > peak_gpu_memory_.total_usage_bytes)
+            peak_gpu_memory_.total_usage_bytes = stats.total_usage_bytes;
+        if (stats.total_budget_bytes > peak_gpu_memory_.total_budget_bytes)
+            peak_gpu_memory_.total_budget_bytes = stats.total_budget_bytes;
+        if (stats.device_local_usage_bytes > peak_gpu_memory_.device_local_usage_bytes)
+            peak_gpu_memory_.device_local_usage_bytes = stats.device_local_usage_bytes;
+        if (stats.device_local_budget_bytes > peak_gpu_memory_.device_local_budget_bytes)
+            peak_gpu_memory_.device_local_budget_bytes = stats.device_local_budget_bytes;
+        if (stats.heap_count > peak_gpu_memory_.heap_count)
+            peak_gpu_memory_.heap_count = stats.heap_count;
+        peak_gpu_memory_.budget_extension_enabled =
+            peak_gpu_memory_.budget_extension_enabled || stats.budget_extension_enabled;
+    }
+
     // ── Per-frame monitoring ─────────────────────────────────────────────
     void check_frame(const App::StepResult& result)
     {
@@ -3747,6 +3860,8 @@ class QAAgent
             size_t rss = get_rss_bytes();
             if (rss > peak_rss_)
                 peak_rss_ = rss;
+
+            sample_gpu_memory();
 
             size_t growth = (rss > initial_rss_) ? (rss - initial_rss_) : 0;
             if (growth > 100 * 1024 * 1024)   // >100MB growth
@@ -3847,8 +3962,22 @@ class QAAgent
             out << "\n";
 
             out << "Memory:\n";
-            out << "  Initial RSS: " << (initial_rss_ / (1024 * 1024)) << "MB\n";
-            out << "  Peak RSS: " << (peak_rss_ / (1024 * 1024)) << "MB\n";
+            out << "  Initial RSS: " << to_mb(initial_rss_) << "MB\n";
+            out << "  Peak RSS: " << to_mb(peak_rss_) << "MB\n";
+            if (gpu_memory_tracking_available_)
+            {
+                out << "  GPU usage (all heaps): initial=" << to_mb(initial_gpu_memory_.total_usage_bytes)
+                    << "MB peak=" << to_mb(peak_gpu_memory_.total_usage_bytes)
+                    << "MB budget=" << to_mb(current_gpu_memory_.total_budget_bytes) << "MB\n";
+                out << "  GPU usage (device-local): initial="
+                    << to_mb(initial_gpu_memory_.device_local_usage_bytes) << "MB peak="
+                    << to_mb(peak_gpu_memory_.device_local_usage_bytes)
+                    << "MB budget=" << to_mb(current_gpu_memory_.device_local_budget_bytes)
+                    << "MB";
+                if (!current_gpu_memory_.budget_extension_enabled)
+                    out << " (VK_EXT_memory_budget unavailable; values may be approximate)";
+                out << "\n";
+            }
             out << "\n";
 
             if (!issues_.empty())
@@ -3934,8 +4063,24 @@ class QAAgent
             out << "    \"spikes\": " << frame_stats_.spike_count << "\n";
             out << "  },\n";
             out << "  \"memory\": {\n";
-            out << "    \"initial_rss_mb\": " << (initial_rss_ / (1024 * 1024)) << ",\n";
-            out << "    \"peak_rss_mb\": " << (peak_rss_ / (1024 * 1024)) << "\n";
+            out << "    \"initial_rss_mb\": " << to_mb(initial_rss_) << ",\n";
+            out << "    \"peak_rss_mb\": " << to_mb(peak_rss_) << ",\n";
+            out << "    \"gpu_memory_tracking\": " << (gpu_memory_tracking_available_ ? "true" : "false")
+                << ",\n";
+            out << "    \"gpu_budget_extension\": "
+                << (current_gpu_memory_.budget_extension_enabled ? "true" : "false") << ",\n";
+            out << "    \"gpu_initial_usage_mb\": " << to_mb(initial_gpu_memory_.total_usage_bytes)
+                << ",\n";
+            out << "    \"gpu_peak_usage_mb\": " << to_mb(peak_gpu_memory_.total_usage_bytes)
+                << ",\n";
+            out << "    \"gpu_current_budget_mb\": " << to_mb(current_gpu_memory_.total_budget_bytes)
+                << ",\n";
+            out << "    \"gpu_initial_device_local_mb\": "
+                << to_mb(initial_gpu_memory_.device_local_usage_bytes) << ",\n";
+            out << "    \"gpu_peak_device_local_mb\": "
+                << to_mb(peak_gpu_memory_.device_local_usage_bytes) << ",\n";
+            out << "    \"gpu_current_device_local_budget_mb\": "
+                << to_mb(current_gpu_memory_.device_local_budget_bytes) << "\n";
             out << "  },\n";
             out << "  \"issues\": [\n";
             for (size_t i = 0; i < issues_.size(); ++i)
@@ -3960,6 +4105,7 @@ class QAAgent
                 "[QA] Scenarios: %u passed, %u failed\n"
                 "[QA] Frame time: avg=%.1fms p95=%.1fms max=%.1fms spikes=%u\n"
                 "[QA] Memory: initial=%luMB peak=%luMB\n"
+                "[QA] GPU memory: local initial=%luMB peak=%luMB budget=%luMB (%s)\n"
                 "[QA] Issues: %lu warning, %lu error, %lu critical\n"
                 "[QA] ═══════════════════════════════════════\n",
                 static_cast<unsigned long>(opts_.seed),
@@ -3971,8 +4117,12 @@ class QAAgent
                 frame_stats_.percentile(0.95f),
                 frame_stats_.max_val(),
                 frame_stats_.spike_count,
-                static_cast<unsigned long>(initial_rss_ / (1024 * 1024)),
-                static_cast<unsigned long>(peak_rss_ / (1024 * 1024)),
+                static_cast<unsigned long>(to_mb(initial_rss_)),
+                static_cast<unsigned long>(to_mb(peak_rss_)),
+                static_cast<unsigned long>(to_mb(initial_gpu_memory_.device_local_usage_bytes)),
+                static_cast<unsigned long>(to_mb(peak_gpu_memory_.device_local_usage_bytes)),
+                static_cast<unsigned long>(to_mb(current_gpu_memory_.device_local_budget_bytes)),
+                current_gpu_memory_.budget_extension_enabled ? "budget" : "approx",
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Warning)),
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Error)),
                 static_cast<unsigned long>(issues_with_severity(IssueSeverity::Critical)));
@@ -3994,6 +4144,10 @@ class QAAgent
 
     size_t initial_rss_ = 0;
     size_t peak_rss_    = 0;
+    bool   gpu_memory_tracking_available_ = false;
+    VulkanBackend::GpuMemoryStats initial_gpu_memory_{};
+    VulkanBackend::GpuMemoryStats current_gpu_memory_{};
+    VulkanBackend::GpuMemoryStats peak_gpu_memory_{};
 
     std::vector<QAIssue>  issues_;
     std::vector<Scenario> scenarios_;

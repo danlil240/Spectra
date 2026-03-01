@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-02-24 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053
+> Last updated: 2026-03-01 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653
 
 ---
 
@@ -224,6 +224,49 @@
 
 ---
 
+## Session 8 Findings (2026-03-01, Memory Agent)
+
+### Run Summary
+
+| Metric | Before (`seed 42`) | After (`seed 42`) |
+|--------|---------------------|-------------------|
+| Mode | `--no-fuzz --duration 60` | `--no-fuzz --duration 60` |
+| Frames | 1,909 | 1,929 |
+| Scenarios | 15/15 passed | 15/15 passed |
+| Peak RSS | 529MB | 337MB |
+| RSS delta | +341MB (188→529) | +159MB (178→337) |
+| Errors/Critical | 0/0 | 0/0 |
+
+### Analysis
+- `command_exhaustion` was retaining allocations by opening windows/figures without teardown.
+- Added cleanup in QA harness to return to one window + one lightweight figure after `command_exhaustion`.
+- During fix, ASan caught a UAF regression in stale figure caches; this was fixed by explicit cache invalidation across all window UI contexts before closing windows.
+- `command_exhaustion` isolated RSS delta improved from `+166MB` (peak 354MB) to `+115MB` (peak 293MB).
+- M1 and item #7 remain open, but the baseline contamination source is now reduced.
+
+---
+
+## Session 9 Findings (2026-03-01, Memory Agent Follow-up)
+
+### Run Summary
+
+| Metric | ASan run (`--no-fuzz --duration 60`) | RSS run (`--no-fuzz --duration 60`) |
+|--------|--------------------------------------|-------------------------------------|
+| Frames | 1,188 | 2,492 |
+| Scenarios | 6/6 passed | 16/16 passed |
+| Peak RSS | 608MB | 338MB |
+| RSS delta | +187MB (421→608) | +160MB (178→338) |
+| GPU local usage | 28→28MB | 28→28MB |
+| Errors/Critical | 0/0 | 0/0 |
+
+### Analysis
+- Targeted per-scenario isolation confirms `command_exhaustion` remains the dominant growth source (`+115MB`), while sampled scenarios (`rapid_figure_lifecycle`, `massive_datasets`, `undo_redo_stress`, `series_clipboard_selection`, `figure_serialization`, `series_removed_interaction_safety`) stayed at `0–4MB`.
+- GPU budget telemetry remained flat in both full and isolated runs, reducing suspicion of GPU-side leaks for this repro path.
+- Found and fixed QA harness teardown crash on `--list-scenarios`: early return skipped `shutdown_runtime()`, causing GLFW double-destroy during destructor path. Added explicit shutdown/reset before return in `tests/qa/qa_agent.cpp`.
+- ASan remains clean for Spectra-owned allocations in this run; only known external `libdbus` LSan leak persists.
+
+---
+
 ## P1 — Important Improvements
 
 ### 4. Add Vulkan Validation Layer Monitoring
@@ -243,8 +286,9 @@
 
 ### 7. Memory Growth Tracking Needs Baseline Stabilization
 - **Problem:** RSS grows 80-115MB over session. Unclear if this is leak or expected (figure data, GPU allocations, ImGui atlas).
-- **Fix:** (a) Take RSS baseline after first 100 frames (after init stabilizes). (b) Track RSS per-scenario to identify which scenarios cause growth. (c) Add a `--leak-check` mode that runs scenarios in isolation and reports per-scenario RSS delta.
-- **Priority:** P1 — need to distinguish leaks from expected growth.
+- **Progress (2026-03-01):** Reduced retained RSS contamination by tearing down windows/figures after `command_exhaustion` in `tests/qa/qa_agent.cpp`; full `--no-fuzz` peak dropped `529MB -> 337MB` for seed 42. Follow-up run remains `+160MB` (`178->338`) with targeted isolation showing `command_exhaustion` at `+115MB` and other sampled scenarios at `0–4MB`.
+- **Remaining fix:** (a) Take RSS baseline after first 100 frames. (b) Track RSS per-scenario directly in report. (c) Add a dedicated `--leak-check` summary mode.
+- **Priority:** P1 — 🟡 In progress.
 
 ### 16. Add Acquire/Present Stall Diagnostics for ~1s Hitches
 - **Problem (Session 7, seed 1771959053):** repeated ~1s frame stalls (max 1021.9ms) with profiler showing `begin_frame`/`vk_acquire` p95 near 1s.
@@ -282,8 +326,14 @@
 
 ### 13. Add GPU Memory Tracking
 - **Problem:** Only tracking RSS (CPU memory). GPU memory leaks are invisible.
-- **Fix:** Query `VmaBudget` via VMA's `vmaGetHeapBudgets()` periodically. Report GPU memory usage and growth.
-- **Priority:** P2 — GPU resource monitoring.
+- **Progress (2026-03-01):**
+  - Added `VulkanBackend::query_gpu_memory_stats()` using VMA `vmaGetHeapBudgets()`.
+  - Enabled optional `VK_EXT_memory_budget` extension in Vulkan device creation when available.
+  - QA reports now include GPU memory metrics in both `qa_report.txt` and `qa_report.json` (initial/peak usage + budget for all heaps and device-local heaps).
+  - Smoke verified with `--scenario rapid_figure_lifecycle --no-fuzz` (`seed 42`), reporting device-local `28MB` usage against `10966MB` budget.
+- **Progress update (2026-03-01 follow-up):** Full `--no-fuzz --duration 60` and targeted isolation runs now completed. Device-local GPU usage stayed flat (`28MB -> 28MB`) including `command_exhaustion`.
+- **Remaining fix:** Extend validation to known multi-window validation-error paths (`window_resize_glfw`, `window_drag_stress`) after Vulkan layout issues are addressed.
+- **Priority:** P2 — 🟡 In progress.
 
 ### 14. Improve Resize Stress Scenario
 - **Problem:** Current resize_stress just pumps frames — can't inject GLFW window resizes programmatically.

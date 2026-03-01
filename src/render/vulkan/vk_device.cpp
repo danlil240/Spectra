@@ -269,12 +269,31 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface)
     return best;
 }
 
-std::vector<const char*> get_required_device_extensions(bool need_swapchain)
+static bool has_device_extension(VkPhysicalDevice physical_device, const char* extension_name)
+{
+    uint32_t count = 0;
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> extensions(count);
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, extensions.data());
+
+    return std::any_of(extensions.begin(),
+                       extensions.end(),
+                       [extension_name](const VkExtensionProperties& ext)
+                       { return std::strcmp(ext.extensionName, extension_name) == 0; });
+}
+
+std::vector<const char*> get_required_device_extensions(VkPhysicalDevice physical_device,
+                                                        bool             need_swapchain)
 {
     std::vector<const char*> exts;
     if (need_swapchain)
     {
         exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    }
+
+    if (has_device_extension(physical_device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME))
+    {
+        exts.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
     }
     return exts;
 }
@@ -309,7 +328,7 @@ VkDevice create_logical_device(VkPhysicalDevice          physical_device,
         features.wideLines = VK_TRUE;
 
     bool need_swapchain = indices.has_present();
-    auto extensions     = get_required_device_extensions(need_swapchain);
+    auto extensions     = get_required_device_extensions(physical_device, need_swapchain);
 
     VkDeviceCreateInfo create_info{};
     create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

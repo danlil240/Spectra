@@ -20,6 +20,9 @@
 #include <iostream>
 #include <stdexcept>
 
+#define VMA_IMPLEMENTATION
+#include <vk_mem_alloc.h>
+
 // WindowUIContext must be complete for unique_ptr destructor in WindowContext.
 // Must come after GLFW includes to avoid macro conflicts with shortcut_manager.hpp.
 #include "../../anim/frame_profiler.hpp"
@@ -27,6 +30,19 @@
 
 namespace spectra
 {
+
+static bool has_device_extension(VkPhysicalDevice physical_device, const char* extension_name)
+{
+    uint32_t count = 0;
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> extensions(count);
+    vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, extensions.data());
+
+    return std::any_of(extensions.begin(),
+                       extensions.end(),
+                       [extension_name](const VkExtensionProperties& ext)
+                       { return std::strcmp(ext.extensionName, extension_name) == 0; });
+}
 
 // Out-of-line destructor so unique_ptr<WindowUIContext> sees the complete type.
 WindowContext::~WindowContext() = default;
@@ -97,6 +113,25 @@ bool VulkanBackend::init(bool headless)
 
         vkGetPhysicalDeviceProperties(ctx_.physical_device, &ctx_.properties);
         vkGetPhysicalDeviceMemoryProperties(ctx_.physical_device, &ctx_.memory_properties);
+        memory_budget_extension_enabled_ =
+            has_device_extension(ctx_.physical_device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+
+        VmaAllocatorCreateInfo allocator_info{};
+        allocator_info.physicalDevice = ctx_.physical_device;
+        allocator_info.device         = ctx_.device;
+        allocator_info.instance       = ctx_.instance;
+        allocator_info.vulkanApiVersion = VK_API_VERSION_1_2;
+        if (memory_budget_extension_enabled_)
+        {
+            allocator_info.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+        }
+        VkResult allocator_result = vmaCreateAllocator(&allocator_info, &vma_allocator_);
+        if (allocator_result != VK_SUCCESS)
+        {
+            vma_allocator_ = nullptr;
+            SPECTRA_LOG_WARN("vulkan",
+                             "VMA allocator creation failed; GPU budget telemetry disabled");
+        }
 
         // Query alignment for dynamic UBO offsets — round up FrameUBO size
         // to the device's minUniformBufferOffsetAlignment
@@ -238,6 +273,12 @@ void VulkanBackend::shutdown()
         }
     }
 
+    if (vma_allocator_ != nullptr)
+    {
+        vmaDestroyAllocator(vma_allocator_);
+        vma_allocator_ = nullptr;
+    }
+
     vkDestroyDevice(ctx_.device, nullptr);
 
     if (ctx_.debug_messenger != VK_NULL_HANDLE)
@@ -246,6 +287,7 @@ void VulkanBackend::shutdown()
     vkDestroyInstance(ctx_.instance, nullptr);
 
     ctx_ = {};
+    memory_budget_extension_enabled_ = false;
 }
 
 bool VulkanBackend::create_surface(void* native_window)
@@ -2035,6 +2077,35 @@ VkRenderPass VulkanBackend::render_pass() const
     if (headless_)
         return offscreen_.render_pass;
     return active_window_->swapchain.render_pass;
+}
+
+bool VulkanBackend::query_gpu_memory_stats(GpuMemoryStats& stats) const
+{
+    stats = {};
+    if (vma_allocator_ == nullptr)
+        return false;
+
+    VmaBudget budgets[VK_MAX_MEMORY_HEAPS]{};
+    vmaGetHeapBudgets(vma_allocator_, budgets);
+
+    const uint32_t heap_count =
+        std::min<uint32_t>(ctx_.memory_properties.memoryHeapCount, VK_MAX_MEMORY_HEAPS);
+    stats.heap_count                = heap_count;
+    stats.budget_extension_enabled  = memory_budget_extension_enabled_;
+
+    for (uint32_t i = 0; i < heap_count; ++i)
+    {
+        const VkMemoryHeap& heap = ctx_.memory_properties.memoryHeaps[i];
+        stats.total_usage_bytes += budgets[i].usage;
+        stats.total_budget_bytes += budgets[i].budget;
+        if ((heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0)
+        {
+            stats.device_local_usage_bytes += budgets[i].usage;
+            stats.device_local_budget_bytes += budgets[i].budget;
+        }
+    }
+
+    return heap_count > 0;
 }
 
 // --- Private helpers ---

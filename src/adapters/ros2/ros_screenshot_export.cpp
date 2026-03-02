@@ -146,8 +146,8 @@ ScreenshotResult RosScreenshotExport::take_screenshot(const std::string& path,
 {
     ScreenshotConfig cfg;
     cfg.path   = path;
-    cfg.width  = (width  == 0) ? dialog_cfg_.default_width  : width;
-    cfg.height = (height == 0) ? dialog_cfg_.default_height : height;
+    cfg.width  = width;
+    cfg.height = height;
     return take_screenshot(cfg);
 }
 

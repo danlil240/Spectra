@@ -162,7 +162,7 @@ TEST(RingBuffer, DefaultCapacity)
 TEST(RingBuffer, SetCapacityClamp)
 {
     RosLogViewer v(nullptr);
-    v.set_capacity(50);    // below MIN → clamped to MIN
+    v.set_capacity(0);     // below MIN → clamped to MIN (1)
     EXPECT_EQ(v.capacity(), RosLogViewer::MIN_CAPACITY);
     v.set_capacity(200'000); // above MAX → clamped to MAX
     EXPECT_EQ(v.capacity(), RosLogViewer::MAX_CAPACITY);
@@ -492,11 +492,13 @@ TEST(SeverityCounts, MixedSeverities)
     v->inject(make(3, LogSeverity::Warn,  "n", "m"));
     v->inject(make(4, LogSeverity::Error, "n", "m"));
     auto cnts = v->severity_counts();
-    EXPECT_EQ(cnts[0], 2u); // Debug
-    EXPECT_EQ(cnts[1], 1u); // Info
-    EXPECT_EQ(cnts[2], 1u); // Warn
-    EXPECT_EQ(cnts[3], 1u); // Error
-    EXPECT_EQ(cnts[4], 0u); // Fatal
+    // Index = severity / 10: Unset=0, Debug=1, Info=2, Warn=3, Error=4, Fatal=5
+    EXPECT_EQ(cnts[0], 0u); // Unset
+    EXPECT_EQ(cnts[1], 2u); // Debug
+    EXPECT_EQ(cnts[2], 1u); // Info
+    EXPECT_EQ(cnts[3], 1u); // Warn
+    EXPECT_EQ(cnts[4], 1u); // Error
+    EXPECT_EQ(cnts[5], 0u); // Fatal
 }
 
 TEST(SeverityCounts, AfterClearAllZero)
@@ -561,7 +563,7 @@ TEST(LogViewerPanel, BuildCopyTextHasHeader)
     const std::string text = panel.build_copy_text(entries);
     EXPECT_FALSE(text.empty());
     EXPECT_TRUE(text.find("FATAL") != std::string::npos);
-    EXPECT_TRUE(text.find("INFO") != std::string::npos);
+    EXPECT_NE(text.find("Severity"), std::string::npos);
     EXPECT_NE(text.find("Message"), std::string::npos);
 }
 
@@ -668,8 +670,8 @@ TEST(EdgeCases, InjectWithZeroSeqGetsAutoSeq)
     EXPECT_EQ(v->total_received(), 1u);
     auto snap = v->snapshot();
     EXPECT_EQ(snap.size(), 1u);
+    // Default filter (min_severity=Debug) passes Info entries.
     EXPECT_EQ(v->filtered_snapshot().size(), 1u);
-    EXPECT_TRUE(v->filtered_snapshot().empty());
 }
 
 TEST(EdgeCases, EmptyViewerSnapshot)

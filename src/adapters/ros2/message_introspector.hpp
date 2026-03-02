@@ -123,7 +123,7 @@ public:
     FieldAccessor() = default;
 
     // Returns true if this accessor can extract a value.
-    bool valid() const { return !steps_.empty(); }
+    bool valid() const { return !steps_.empty() || leaf_type_ != FieldType::Unknown; }
 
     // The dot-separated field path this accessor was built for.
     const std::string& path() const { return path_; }

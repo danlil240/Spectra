@@ -20,6 +20,13 @@
 #include "ros2_adapter.hpp"
 #include "ros_app_shell.hpp"
 
+#include <spectra/app.hpp>
+#include <spectra/figure.hpp>
+
+#ifdef SPECTRA_USE_IMGUI
+#include "ui/app/window_ui_context.hpp"
+#endif
+
 #include <csignal>
 #include <cstdio>
 
@@ -65,7 +72,8 @@ int main(int argc, char** argv)
     // Create shell and install SIGINT handler before init.
     RosAppShell shell(cfg);
     g_shell = &shell;
-    std::signal(SIGINT, sigint_handler);
+    std::signal(SIGINT,  sigint_handler);
+    std::signal(SIGTERM, sigint_handler);
 
     // Initialise ROS2, discovery, panels.
     if (!shell.init(argc, argv))
@@ -77,7 +85,6 @@ int main(int argc, char** argv)
 
     std::printf("spectra-ros: node '%s' started.  Ctrl+C to exit.\n",
                 cfg.node_name.c_str());
-    std::printf("Window title: %s\n", shell.window_title().c_str());
 
     if (!cfg.initial_topics.empty())
     {
@@ -91,20 +98,81 @@ int main(int argc, char** argv)
     }
 
     // ---------------------------------------------------------------------------
-    // Headless spin loop — real windowed rendering requires the Spectra App
-    // object (GLFW + Vulkan) which is wired in G2.  For now we spin until
-    // shutdown is requested, processing ROS2 messages in the background thread.
+    // Create Spectra App with GLFW + Vulkan + ImGui windowed rendering.
     // ---------------------------------------------------------------------------
-    while (!shell.shutdown_requested())
-    {
-        // poll() drains ring buffers; safe to call even without a renderer.
-        shell.poll();
 
-        // Yield ~16 ms (60 Hz) so we don't burn CPU in a tight loop.
-        rclcpp::sleep_for(std::chrono::milliseconds(16));
+    spectra::AppConfig app_cfg;
+    spectra::App app(app_cfg);
+
+    // Create a placeholder figure so the App has something to render.
+    // Add a dummy subplot so the "Welcome to Spectra" page is suppressed —
+    // the ROS2 shell owns the entire UI layout.
+    spectra::FigureConfig fig_cfg;
+    fig_cfg.width  = cfg.window_width;
+    fig_cfg.height = cfg.window_height;
+    auto& fig = app.figure(fig_cfg);
+    fig.subplot(1, 1, 1);  // suppress welcome page
+
+    // Set up a perpetual animation callback so the render loop stays active
+    // and we can poll ROS2 messages each frame.
+    fig.animate()
+        .fps(60.0f)
+        .on_frame([&shell](spectra::Frame& /*frame*/)
+        {
+            // Drain ROS2 ring buffers each frame.
+            shell.poll();
+        })
+        .loop(true)
+        .play();
+
+    // ---------------------------------------------------------------------------
+    // Initialise the Spectra rendering runtime (GLFW window, Vulkan, ImGui).
+    // ---------------------------------------------------------------------------
+    app.init_runtime();
+
+#ifdef SPECTRA_USE_IMGUI
+    // Hide Spectra's default chrome — the ROS2 shell provides its own menu bar,
+    // status bar, and panel layout.  Keep only the bare canvas.
+    auto* ui_ctx = app.ui_context();
+    if (ui_ctx && ui_ctx->imgui_ui)
+    {
+        auto& lm = ui_ctx->imgui_ui->get_layout_manager();
+        lm.set_inspector_visible(false);
+        lm.set_tab_bar_visible(false);
+        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
+        {
+            shell.draw();
+        });
+    }
+#endif
+
+    // ---------------------------------------------------------------------------
+    // Render loop — runs until window is closed or SIGINT received.
+    // ---------------------------------------------------------------------------
+    for (;;)
+    {
+        if (shell.shutdown_requested())
+            break;
+
+        auto result = app.step();
+        if (result.should_exit)
+            break;
     }
 
+    // ---------------------------------------------------------------------------
+    // Clean shutdown: disconnect ImGui callback, tear down Vulkan, then ROS2.
+    // Order matters: the animation callback references shell.poll(), so the
+    // Spectra runtime must be destroyed before the ROS2 bridge.
+    // ---------------------------------------------------------------------------
     std::printf("spectra-ros: shutting down.\n");
+
+#ifdef SPECTRA_USE_IMGUI
+    // Disconnect ROS2 draw callback before tearing down the render loop.
+    if (ui_ctx && ui_ctx->imgui_ui)
+        ui_ctx->imgui_ui->set_extra_draw_callback(nullptr);
+#endif
+
+    app.shutdown_runtime();
     shell.shutdown();
     g_shell = nullptr;
     return 0;

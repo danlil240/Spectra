@@ -341,6 +341,9 @@ private:
     bool show_log_viewer_  = false;
     bool show_diagnostics_ = false;
 
+    // First-frame layout flag — positions panels on first draw.
+    bool layout_initialized_ = false;
+
     // Statistics.
     std::atomic<uint64_t> total_messages_{0};
 

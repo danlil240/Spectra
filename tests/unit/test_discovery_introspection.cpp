@@ -1160,8 +1160,9 @@ TEST(FieldTypeUtilsExtra, IsNumericFalseForNonScalars)
     EXPECT_FALSE(is_numeric(FieldType::WString));
     EXPECT_FALSE(is_numeric(FieldType::Message));
     EXPECT_FALSE(is_numeric(FieldType::Unknown));
-    EXPECT_FALSE(is_numeric(FieldType::Char));
-    EXPECT_FALSE(is_numeric(FieldType::Byte));
+    // Byte and Char are 1-byte integer types — plottable as numeric.
+    EXPECT_TRUE(is_numeric(FieldType::Char));
+    EXPECT_TRUE(is_numeric(FieldType::Byte));
 }
 
 // ===========================================================================

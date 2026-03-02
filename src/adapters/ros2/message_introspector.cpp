@@ -220,16 +220,19 @@ double FieldAccessor::extract_double(const void* msg_ptr, size_t array_index) co
         if (is_dynamic_array_)
         {
             // Dynamic array: leaf_ptr points to a std::vector<T>.
-            // Read data pointer from the vector, then offset by array_index.
-            const void* const* data_ptr =
-                reinterpret_cast<const void* const*>(leaf_ptr);
-            const uint8_t* data = static_cast<const uint8_t*>(*data_ptr);
+            // std::vector layout (libstdc++/libc++): {start, finish, end_of_storage}.
+            const uint8_t* const* start_ptr =
+                reinterpret_cast<const uint8_t* const*>(leaf_ptr);
+            const uint8_t* const* finish_ptr =
+                reinterpret_cast<const uint8_t* const*>(leaf_ptr + sizeof(void*));
+            const uint8_t* data = *start_ptr;
             if (!data) return std::numeric_limits<double>::quiet_NaN();
 
-            // Read size field (second pointer-sized word of std::vector).
-            const size_t* size_ptr =
-                reinterpret_cast<const size_t*>(leaf_ptr + sizeof(void*));
-            if (array_index >= *size_ptr)
+            // Compute element count from (finish - start) / element_size.
+            const size_t byte_count = static_cast<size_t>(*finish_ptr - data);
+            const size_t elem_count = element_size_ > 0
+                                        ? byte_count / element_size_ : 0;
+            if (array_index >= elem_count)
                 return std::numeric_limits<double>::quiet_NaN();
 
             leaf_ptr = data + array_index * element_size_;
@@ -288,13 +291,16 @@ int64_t FieldAccessor::extract_int64(const void* msg_ptr, size_t array_index) co
     {
         if (is_dynamic_array_)
         {
-            const void* const* data_ptr =
-                reinterpret_cast<const void* const*>(leaf_ptr);
-            const uint8_t* data = static_cast<const uint8_t*>(*data_ptr);
+            const uint8_t* const* start_ptr =
+                reinterpret_cast<const uint8_t* const*>(leaf_ptr);
+            const uint8_t* const* finish_ptr =
+                reinterpret_cast<const uint8_t* const*>(leaf_ptr + sizeof(void*));
+            const uint8_t* data = *start_ptr;
             if (!data) return 0;
-            const size_t* size_ptr =
-                reinterpret_cast<const size_t*>(leaf_ptr + sizeof(void*));
-            if (array_index >= *size_ptr) return 0;
+            const size_t byte_count = static_cast<size_t>(*finish_ptr - data);
+            const size_t elem_count = element_size_ > 0
+                                        ? byte_count / element_size_ : 0;
+            if (array_index >= elem_count) return 0;
             leaf_ptr = data + array_index * element_size_;
         }
         else

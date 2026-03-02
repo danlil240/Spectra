@@ -252,6 +252,11 @@ class ImGuiIntegration
                                                const std::string*        z_label)>;
     void set_csv_plot_callback(CsvPlotCallback cb) { csv_plot_cb_ = std::move(cb); }
 
+    // Extra draw callback — called at the end of build_ui() within the active
+    // ImGui frame.  Used by spectra-ros to inject ROS2 panels.
+    using ExtraDrawCallback = std::function<void()>;
+    void set_extra_draw_callback(ExtraDrawCallback cb) { extra_draw_cb_ = std::move(cb); }
+
     // Panel visibility toggles
     bool is_timeline_visible() const { return show_timeline_; }
     void set_timeline_visible(bool v) { show_timeline_ = v; }
@@ -620,6 +625,9 @@ class ImGuiIntegration
 
     // CSV plot callback (set by App)
     CsvPlotCallback csv_plot_cb_;
+
+    // Extra draw callback (set by spectra-ros or other adapters)
+    ExtraDrawCallback extra_draw_cb_;
 
     // CSV column picker dialog state (file selected via native OS dialog)
     bool        pending_open_csv_ = false;   // Set by welcome screen, handled in draw()

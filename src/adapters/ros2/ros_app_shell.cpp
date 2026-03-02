@@ -271,6 +271,14 @@ void RosAppShell::poll()
 {
     if (!bridge_) return;
 
+    // If ROS2 context was shut down (e.g. SIGINT caught by rclcpp),
+    // request our own shutdown and bail out to avoid using invalid context.
+    if (!rclcpp::ok())
+    {
+        request_shutdown();
+        return;
+    }
+
     // Advance wall-clock "now" for subplot scroll controllers.
     const double now_s = std::chrono::duration<double>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -300,12 +308,66 @@ void RosAppShell::poll()
 void RosAppShell::draw()
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (shutdown_requested()) return;
+
     draw_menu_bar();
 
-    if (show_topic_list_)  draw_topic_list();
-    if (show_topic_echo_)  draw_topic_echo();
-    if (show_topic_stats_) draw_topic_stats();
-    if (show_plot_area_)   draw_plot_area();
+    // ── Compute structured panel layout ─────────────────────────────────────
+    //
+    //   +--------------------+-----------------------------+------------------+
+    //   | TopicListPanel     | Plot area (SubplotManager)  | TopicStatsOverlay|
+    //   | (left, 20%)        | (center, ~55%)              | (right, 25%)     |
+    //   +--------------------+-----------------------------+------------------+
+    //   | TopicEchoPanel              (bottom, 35% height)                    |
+    //   +--------------------------------------------------------------------+
+    //
+    // On the first frame we force positions (ImGuiCond_Always) so the user
+    // never sees the random default placement.  After that we switch to
+    // ImGuiCond_Once so that user-resized/moved panels persist.
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float menu_h   = ImGui::GetFrameHeightWithSpacing();
+    const float status_h = ImGui::GetFrameHeight();
+    const float vp_x     = vp->WorkPos.x;
+    const float vp_y     = vp->WorkPos.y + menu_h;
+    const float vp_w     = vp->WorkSize.x;
+    const float vp_h     = vp->WorkSize.y - menu_h - status_h;
+
+    const float left_w   = vp_w * 0.20f;
+    const float right_w  = vp_w * 0.25f;
+    const float center_w = vp_w - left_w - right_w;
+    const float top_h    = vp_h * 0.65f;
+    const float bottom_h = vp_h - top_h;
+
+    const ImGuiCond layout_cond = layout_initialized_ ? ImGuiCond_Once
+                                                      : ImGuiCond_Always;
+    layout_initialized_ = true;
+
+    // ── Position each panel before its draw() call ──────────────────────────
+    if (show_topic_list_)
+    {
+        ImGui::SetNextWindowPos(ImVec2(vp_x, vp_y), layout_cond);
+        ImGui::SetNextWindowSize(ImVec2(left_w, top_h), layout_cond);
+        draw_topic_list();
+    }
+    if (show_plot_area_)
+    {
+        ImGui::SetNextWindowPos(ImVec2(vp_x + left_w, vp_y), layout_cond);
+        ImGui::SetNextWindowSize(ImVec2(center_w, top_h), layout_cond);
+        draw_plot_area();
+    }
+    if (show_topic_stats_)
+    {
+        ImGui::SetNextWindowPos(ImVec2(vp_x + left_w + center_w, vp_y), layout_cond);
+        ImGui::SetNextWindowSize(ImVec2(right_w, top_h), layout_cond);
+        draw_topic_stats();
+    }
+    if (show_topic_echo_)
+    {
+        ImGui::SetNextWindowPos(ImVec2(vp_x, vp_y + top_h), layout_cond);
+        ImGui::SetNextWindowSize(ImVec2(vp_w, bottom_h), layout_cond);
+        draw_topic_echo();
+    }
     if (show_log_viewer_)  draw_log_viewer();
     if (show_diagnostics_) draw_diagnostics();
 

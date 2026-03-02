@@ -126,7 +126,7 @@ class RosLogViewer
 {
 public:
     static constexpr size_t DEFAULT_CAPACITY = 10'000;
-    static constexpr size_t MIN_CAPACITY     =    100;
+    static constexpr size_t MIN_CAPACITY     =      1;
     static constexpr size_t MAX_CAPACITY     = 100'000;
 
     // node — ROS2 node used to create the /rosout subscription.

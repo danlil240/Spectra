@@ -679,6 +679,10 @@ void ImGuiIntegration::build_ui(Figure& figure)
         }
     }
 
+    // Extra draw callback (used by spectra-ros to inject ROS2 panels)
+    if (extra_draw_cb_)
+        extra_draw_cb_();
+
     // Draw knobs panel last (above all other windows, user-moveable)
     if (knob_manager_ && !knob_manager_->empty())
     {

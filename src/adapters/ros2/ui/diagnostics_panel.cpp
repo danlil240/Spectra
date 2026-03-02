@@ -285,6 +285,8 @@ std::string DiagnosticsPanel::read_string(const uint8_t* buf, size_t len, size_t
     // CDR strings include a null terminator in the length — strip it.
     if (!s.empty() && s.back() == '\0')
         s.pop_back();
+    // CDR: pad to 4-byte alignment after string data.
+    while (offset % 4 != 0 && offset < len) ++offset;
     return s;
 }
 

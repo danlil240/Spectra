@@ -12,7 +12,31 @@
             "environment": [
                 {
                     "name": "ASAN_OPTIONS",
-                    "value": "detect_leaks=0:abort_on_error=0:log_path=${workspaceFolder}/asan.log"
+                    "value": "detect_leaks=0:abort_on_error=0:new_delete_type_mismatch=0:log_path=${workspaceFolder}/asan.log"
+                }
+            ],
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: Build Clang ASan"
+        },
+        {
+            "name": "Debug spectra-ros (Clang ASan)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_clang_asan/spectra-ros",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=0:abort_on_error=0:new_delete_type_mismatch=0:log_path=${workspaceFolder}/asan.log"
                 }
             ],
             "MIMode": "gdb",

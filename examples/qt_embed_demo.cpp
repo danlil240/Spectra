@@ -21,19 +21,25 @@
 #include <QPlatformSurfaceEvent>
 #include <QShortcut>
 #include <QSplitter>
+#include <QStatusBar>
 #include <QTimer>
 #include <QWidget>
 #include <QWindow>
 
 #include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
 #include <spectra/embed.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_stats.hpp>
 
 #include "adapters/qt/qt_runtime.hpp"
 #include "ui/input/input.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -44,6 +50,8 @@
 class SpectraVulkanWindow : public QWindow
 {
    public:
+    using AnimationTickCallback = std::function<void(float)>;
+
     explicit SpectraVulkanWindow(QWindow* parent = nullptr) : QWindow(parent)
     {
         setSurfaceType(QSurface::VulkanSurface);
@@ -54,6 +62,7 @@ class SpectraVulkanWindow : public QWindow
     void setRuntime(spectra::adapters::qt::QtRuntime* rt) { runtime_ = rt; }
     void setFigure(spectra::Figure* fig) { figure_ = fig; }
     void setInputHandler(spectra::InputHandler* ih) { input_ = ih; }
+    void setAnimationTick(AnimationTickCallback cb) { animation_tick_ = std::move(cb); }
     bool isAttached() const { return attached_; }
 
     bool ensureAttached()
@@ -88,6 +97,7 @@ class SpectraVulkanWindow : public QWindow
 
     void startFrameTimer()
     {
+        has_last_frame_time_ = false;
         timer_ = new QTimer(this);
         connect(timer_, &QTimer::timeout, this, &SpectraVulkanWindow::renderFrame);
         timer_->start(16);   // ~60 FPS
@@ -238,6 +248,25 @@ class SpectraVulkanWindow : public QWindow
         if (w == 0 || h == 0)
             return;
 
+        float dt = 1.0f / 60.0f;
+        const auto now = Clock::now();
+        if (has_last_frame_time_)
+        {
+            dt = std::chrono::duration<float>(now - last_frame_time_).count();
+            dt = std::clamp(dt, 1.0f / 240.0f, 0.1f);
+        }
+        last_frame_time_  = now;
+        has_last_frame_time_ = true;
+
+        if (input_)
+        {
+            input_->update(dt);
+        }
+        if (animation_tick_)
+        {
+            animation_tick_(dt);
+        }
+
         if (runtime_->begin_frame(this))
         {
             runtime_->render_figure(this, *figure_);
@@ -295,9 +324,14 @@ class SpectraVulkanWindow : public QWindow
     spectra::adapters::qt::QtRuntime* runtime_  = nullptr;
     spectra::Figure*                  figure_   = nullptr;
     spectra::InputHandler*            input_    = nullptr;
+    AnimationTickCallback             animation_tick_;
     QTimer*                           timer_    = nullptr;
     bool                              attached_ = false;
     qreal                             last_dpr_ = 1.0;
+
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point last_frame_time_{};
+    bool              has_last_frame_time_ = false;
 };
 
 // ─── main ────────────────────────────────────────────────────────────────────
@@ -308,30 +342,280 @@ static constexpr bool k_default_multi_canvas = true;
 static constexpr bool k_default_multi_canvas = false;
 #endif
 
-static void populate_demo_figure(spectra::Figure& fig, float phase)
+struct AllFeaturesScene
 {
-    auto& ax = fig.subplot(1, 1, 1);
+    std::vector<float>      x_wave;
+    std::vector<float>      y_wave;
+    std::vector<float>      y_envelope;
+    std::vector<float>      scatter_x;
+    std::vector<float>      scatter_y;
+    spectra::LineSeries*    wave_series     = nullptr;
+    spectra::LineSeries*    envelope_series = nullptr;
+    spectra::ScatterSeries* scatter_series  = nullptr;
+    float                   phase           = 0.0f;
+    bool                    paused          = false;
+};
 
-    const int              N = 200;
-    std::vector<float> x(N), y_sin(N), y_cos(N);
-    for (int i = 0; i < N; i++)
+static void reseed_scatter(AllFeaturesScene& scene, float seed)
+{
+    constexpr int k_scatter_count = 240;
+    scene.scatter_x.resize(k_scatter_count);
+    scene.scatter_y.resize(k_scatter_count);
+    for (int i = 0; i < k_scatter_count; ++i)
     {
-        x[i]     = static_cast<float>(i) * 0.1f;
-        y_sin[i] = std::sin(x[i] + phase);
-        y_cos[i] = std::cos(x[i] + phase);
+        const float t       = static_cast<float>(i) * 0.13f;
+        const float orbital = 0.8f + 0.35f * std::sin(0.21f * static_cast<float>(i) + seed);
+        scene.scatter_x[i]  = 2.8f * std::cos(t + seed * 0.7f) * orbital;
+        scene.scatter_y[i]  = 2.0f * std::sin(1.4f * t + seed) + 0.35f * std::cos(2.7f * t - seed);
     }
 
-    ax.line(x, y_sin).label("sin(x)");
-    ax.line(x, y_cos).label("cos(x)");
-    ax.auto_fit();
+    if (scene.scatter_series)
+    {
+        scene.scatter_series->set_x(scene.scatter_x);
+        scene.scatter_series->set_y(scene.scatter_y);
+    }
+}
+
+static void populate_all_features_figure(spectra::Figure& fig, AllFeaturesScene& scene, float phase_seed)
+{
+    auto& ax_signals = fig.subplot(2, 2, 1);
+    auto& ax_phase   = fig.subplot(2, 2, 2);
+    auto& ax_stats   = fig.subplot(2, 2, 3);
+    auto& ax_3d      = fig.subplot3d(2, 2, 4);
+
+    ax_signals.clear_series();
+    ax_phase.clear_series();
+    ax_stats.clear_series();
+    ax_3d.clear_series();
+
+    scene.phase = phase_seed;
+
+    // 1) Animated 2D waveform panel
+    constexpr int k_wave_points = 420;
+    scene.x_wave.resize(k_wave_points);
+    scene.y_wave.resize(k_wave_points);
+    scene.y_envelope.resize(k_wave_points);
+    for (int i = 0; i < k_wave_points; ++i)
+    {
+        const float x       = static_cast<float>(i) * 0.03f;
+        scene.x_wave[i]     = x;
+        scene.y_wave[i]     = std::sin(x + scene.phase) + 0.22f * std::sin(3.2f * x - scene.phase);
+        scene.y_envelope[i] = 0.35f * std::cos(0.8f * x - 0.5f * scene.phase);
+    }
+
+    scene.wave_series = &ax_signals.line(scene.x_wave, scene.y_wave)
+                             .label("composite wave")
+                             .color(spectra::colors::cyan)
+                             .line_style(spectra::LineStyle::Solid)
+                             .width(2.5f);
+    scene.envelope_series = &ax_signals.line(scene.x_wave, scene.y_envelope)
+                                 .label("envelope")
+                                 .color(spectra::colors::yellow)
+                                 .line_style(spectra::LineStyle::DashDot)
+                                 .opacity(0.8f);
+    ax_signals.title("Live Signal (2D)");
+    ax_signals.xlabel("t");
+    ax_signals.ylabel("amplitude");
+    ax_signals.grid(true);
+    ax_signals.auto_fit();
+
+    // 2) Scatter + trend panel
+    reseed_scatter(scene, phase_seed + 0.75f);
+    scene.scatter_series = &ax_phase.scatter(scene.scatter_x, scene.scatter_y)
+                                .label("phase cloud")
+                                .color(spectra::colors::magenta)
+                                .marker_style(spectra::MarkerStyle::Circle)
+                                .marker_size(3.5f)
+                                .opacity(0.8f);
+
+    std::vector<float> trend_x(120), trend_y(120);
+    for (int i = 0; i < static_cast<int>(trend_x.size()); ++i)
+    {
+        const float x = -3.2f + 6.4f * static_cast<float>(i) / static_cast<float>(trend_x.size() - 1);
+        trend_x[i]    = x;
+        trend_y[i]    = 0.65f * x;
+    }
+    ax_phase.line(trend_x, trend_y)
+        .label("trend")
+        .color(spectra::colors::orange)
+        .line_style(spectra::LineStyle::Dashed)
+        .opacity(0.7f);
+    ax_phase.title("Live Scatter + Trend");
+    ax_phase.xlabel("x");
+    ax_phase.ylabel("y");
+    ax_phase.grid(true);
+    ax_phase.auto_fit();
+
+    // 3) Statistical series panel (histogram + bars)
+    std::vector<float> hist_values;
+    hist_values.reserve(1200);
+    for (int i = 0; i < 1200; ++i)
+    {
+        const float t = static_cast<float>(i) * 0.029f;
+        hist_values.push_back(std::sin(t) + 0.45f * std::sin(2.7f * t + 0.35f * phase_seed));
+    }
+    ax_stats.histogram(hist_values, 28)
+        .label("distribution")
+        .color(spectra::colors::green)
+        .opacity(0.55f);
+
+    std::vector<float> bands_x = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
+    std::vector<float> bands_y;
+    bands_y.reserve(bands_x.size());
+    for (float x : bands_x)
+    {
+        bands_y.push_back(0.25f + 0.35f * (1.0f + std::sin(x * 1.6f + phase_seed)));
+    }
+    ax_stats.bar(bands_x, bands_y)
+        .label("bands")
+        .color(spectra::Color{0.19f, 0.63f, 0.95f, 1.0f})
+        .bar_width(0.6f)
+        .opacity(0.7f);
+
+    ax_stats.title("Histogram + Bar");
+    ax_stats.xlabel("bin / category");
+    ax_stats.ylabel("value");
+    ax_stats.grid(true);
+    ax_stats.auto_fit();
+
+    // 4) 3D panel (line + scatter + lit surface)
+    std::vector<float> x3d(220), y3d(220), z3d(220);
+    for (int i = 0; i < static_cast<int>(x3d.size()); ++i)
+    {
+        const float t = static_cast<float>(i) * 0.1f;
+        x3d[i]        = 1.3f * std::cos(t + phase_seed);
+        y3d[i]        = 1.3f * std::sin(t + phase_seed);
+        z3d[i]        = -1.3f + 2.6f * static_cast<float>(i) / static_cast<float>(x3d.size() - 1);
+    }
+    ax_3d.line3d(x3d, y3d, z3d)
+        .label("helix")
+        .color(spectra::colors::cyan)
+        .width(2.0f)
+        .opacity(0.9f);
+
+    std::vector<float> sx, sy, sz;
+    sx.reserve(180);
+    sy.reserve(180);
+    sz.reserve(180);
+    for (int i = 0; i < 180; ++i)
+    {
+        const float t = static_cast<float>(i) * 0.21f;
+        sx.push_back(1.8f * std::cos(0.7f * t + 1.2f));
+        sy.push_back(1.2f * std::sin(1.1f * t + phase_seed));
+        sz.push_back(0.8f * std::cos(1.5f * t - phase_seed));
+    }
+    ax_3d.scatter3d(sx, sy, sz)
+        .label("samples")
+        .color(spectra::colors::yellow)
+        .size(4.0f)
+        .opacity(0.85f);
+
+    std::vector<float> gx(28), gy(28), gz(28 * 28);
+    for (int i = 0; i < static_cast<int>(gx.size()); ++i)
+    {
+        gx[i] = -2.0f + 4.0f * static_cast<float>(i) / static_cast<float>(gx.size() - 1);
+        gy[i] = -2.0f + 4.0f * static_cast<float>(i) / static_cast<float>(gy.size() - 1);
+    }
+    for (int r = 0; r < static_cast<int>(gy.size()); ++r)
+    {
+        for (int c = 0; c < static_cast<int>(gx.size()); ++c)
+        {
+            const float x = gx[c];
+            const float y = gy[r];
+            const float d = std::sqrt(x * x + y * y);
+            gz[r * static_cast<int>(gx.size()) + c] = 0.35f * std::sin(3.2f * d + phase_seed);
+        }
+    }
+    ax_3d.surface(gx, gy, gz)
+        .label("ripple surface")
+        .colormap(spectra::ColormapType::Viridis)
+        .opacity(0.55f)
+        .ambient(0.25f)
+        .specular(0.35f);
+
+    ax_3d.title("3D Line / Scatter / Surface");
+    ax_3d.xlabel("X");
+    ax_3d.ylabel("Y");
+    ax_3d.zlabel("Z");
+    ax_3d.grid(true);
+    ax_3d.grid_planes(spectra::Axes3D::GridPlane::All);
+    ax_3d.show_bounding_box(true);
+    ax_3d.lighting_enabled(true);
+    ax_3d.auto_fit();
+
+    fig.legend().visible  = true;
+    fig.legend().position = spectra::LegendPosition::TopRight;
+}
+
+static void tick_all_features_scene(AllFeaturesScene& scene, float dt)
+{
+    if (scene.paused || !scene.wave_series || !scene.envelope_series || !scene.scatter_series)
+    {
+        return;
+    }
+
+    scene.phase += dt * 1.4f;
+
+    for (size_t i = 0; i < scene.x_wave.size(); ++i)
+    {
+        const float x       = scene.x_wave[i];
+        scene.y_wave[i]     = std::sin(x + scene.phase) + 0.22f * std::sin(3.2f * x - scene.phase);
+        scene.y_envelope[i] = 0.35f * std::cos(0.8f * x - 0.5f * scene.phase);
+    }
+
+    for (size_t i = 0; i < scene.scatter_y.size(); ++i)
+    {
+        const float x = scene.scatter_x[i];
+        const float k = static_cast<float>(i) * 0.031f;
+        scene.scatter_y[i] = 2.0f * std::sin(0.95f * x + scene.phase + k)
+                             + 0.3f * std::cos(2.1f * x - 0.65f * scene.phase);
+    }
+
+    scene.wave_series->set_y(scene.y_wave);
+    scene.envelope_series->set_y(scene.y_envelope);
+    scene.scatter_series->set_y(scene.scatter_y);
 }
 
 static void setup_input_handler(spectra::InputHandler& input, spectra::Figure& figure)
 {
     input.set_figure(&figure);
-    if (!figure.axes().empty() && figure.axes()[0])
+    if (!figure.all_axes().empty() && figure.all_axes()[0])
     {
-        input.set_active_axes(figure.axes()[0].get());
+        input.set_active_axes_base(figure.all_axes()[0].get());
+    }
+}
+
+static void set_grid_all_axes(spectra::Figure& figure, bool enabled)
+{
+    for (auto& axes_ptr : figure.all_axes_mut())
+    {
+        if (axes_ptr)
+        {
+            axes_ptr->grid(enabled);
+        }
+    }
+}
+
+static bool grid_enabled_any(const spectra::Figure& figure)
+{
+    for (const auto& axes_ptr : figure.all_axes())
+    {
+        if (axes_ptr && axes_ptr->grid_enabled())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void auto_fit_all_axes(spectra::Figure& figure)
+{
+    for (auto& axes_ptr : figure.all_axes_mut())
+    {
+        if (axes_ptr)
+        {
+            axes_ptr->auto_fit();
+        }
     }
 }
 
@@ -362,9 +646,9 @@ int main(int argc, char* argv[])
     }
 
     QMainWindow main_window;
-    main_window.setWindowTitle(multi_canvas ? "Spectra — Qt Vulkan Embed Demo (Multi Canvas)"
-                                            : "Spectra — Qt Vulkan Embed Demo");
-    main_window.resize(800, 600);
+    main_window.setWindowTitle(multi_canvas ? "Spectra — Qt Embed All Features (Multi Canvas)"
+                                            : "Spectra — Qt Embed All Features");
+    main_window.resize(multi_canvas ? 1500 : 1280, multi_canvas ? 860 : 840);
 
     // Keep demo objects alive for the entire event loop.
     spectra::Figure       figure_a;
@@ -374,14 +658,17 @@ int main(int argc, char* argv[])
     spectra::Figure       figure_b;
     spectra::InputHandler input_b;
     SpectraVulkanWindow   window_b;
+    AllFeaturesScene      scene_a;
+    AllFeaturesScene      scene_b;
 
     // 2. Create demo figures
-    populate_demo_figure(figure_a, 0.0f);
+    populate_all_features_figure(figure_a, scene_a, 0.0f);
     setup_input_handler(input_a, figure_a);
 
     window_a.setRuntime(&runtime);
     window_a.setFigure(&figure_a);
     window_a.setInputHandler(&input_a);
+    window_a.setAnimationTick([&scene_a](float dt) { tick_all_features_scene(scene_a, dt); });
     window_a.setVulkanInstance(runtime.vulkan_instance());
 
     if (!multi_canvas)
@@ -393,12 +680,13 @@ int main(int argc, char* argv[])
     }
     else
     {
-        populate_demo_figure(figure_b, 0.75f);
+        populate_all_features_figure(figure_b, scene_b, 0.75f);
         setup_input_handler(input_b, figure_b);
 
         window_b.setRuntime(&runtime);
         window_b.setFigure(&figure_b);
         window_b.setInputHandler(&input_b);
+        window_b.setAnimationTick([&scene_b](float dt) { tick_all_features_scene(scene_b, dt); });
         window_b.setVulkanInstance(runtime.vulkan_instance());
 
         auto* splitter = new QSplitter(Qt::Horizontal, &main_window);
@@ -433,6 +721,57 @@ int main(int argc, char* argv[])
         });
     }
 
+    auto* pause_shortcut = new QShortcut(QKeySequence(QStringLiteral("Space")), &main_window);
+    QObject::connect(pause_shortcut, &QShortcut::activated, &main_window,
+                     [&scene_a, &scene_b, multi_canvas]() {
+                         scene_a.paused = !scene_a.paused;
+                         if (multi_canvas)
+                         {
+                             scene_b.paused = scene_a.paused;
+                         }
+                     });
+
+    auto* randomize_shortcut =
+        new QShortcut(QKeySequence(QStringLiteral("Ctrl+R")), &main_window);
+    QObject::connect(randomize_shortcut, &QShortcut::activated, &main_window,
+                     [&scene_a, &scene_b, multi_canvas]() {
+                         reseed_scatter(scene_a, scene_a.phase + 1.7f);
+                         if (multi_canvas)
+                         {
+                             reseed_scatter(scene_b, scene_b.phase + 1.9f);
+                         }
+                     });
+
+    auto* grid_shortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+G")), &main_window);
+    QObject::connect(grid_shortcut, &QShortcut::activated, &main_window,
+                     [&figure_a, &figure_b, multi_canvas]() {
+                         const bool next_grid = !grid_enabled_any(figure_a);
+                         set_grid_all_axes(figure_a, next_grid);
+                         if (multi_canvas)
+                         {
+                             set_grid_all_axes(figure_b, next_grid);
+                         }
+                     });
+
+    auto* autofit_shortcut =
+        new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+A")), &main_window);
+    QObject::connect(autofit_shortcut, &QShortcut::activated, &main_window,
+                     [&figure_a, &figure_b, multi_canvas]() {
+                         auto_fit_all_axes(figure_a);
+                         if (multi_canvas)
+                         {
+                             auto_fit_all_axes(figure_b);
+                         }
+                     });
+
+    QString status_text = QStringLiteral(
+                              "Space pause/resume  |  Ctrl+R reseed scatter  |  Ctrl+G grid  |  Ctrl+Shift+A auto-fit");
+    if (multi_canvas)
+    {
+        status_text += QStringLiteral("  |  Ctrl+D detach/reattach right canvas");
+    }
+    main_window.statusBar()->showMessage(status_text);
+
     main_window.show();
 
     // 3. Start frame timers after windows are visible
@@ -459,7 +798,8 @@ int main()
     std::cout << "This example requires Qt6. Build with:\n"
               << "  cmake -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON "
                  "-DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..\n"
-              << "Run with --multi for two canvases, or --single for one.\n";
+              << "Run with --multi for two canvases, or --single for one.\n"
+              << "All-features shortcuts: Space, Ctrl+R, Ctrl+G, Ctrl+Shift+A\n";
     return 0;
 }
 

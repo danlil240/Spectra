@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture | Spectra Docs</title>
+    <meta name="description" content="Understand Spectra's rendering and runtime architecture." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Architecture</span></div>
+        <h1>Architecture Overview</h1>
+        <p class="lead">How Spectra organizes rendering, windows, and IPC runtime modes.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <h2>High-Level Layers</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>API Layer</h3>
+              <ul class="list-tight">
+                <li>Easy API one-liners</li>
+                <li>Object API: App/Figure/Axes/Series</li>
+                <li>Python proxies over IPC</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>UI + Interaction</h3>
+              <ul class="list-tight">
+                <li>Input handling and gestures</li>
+                <li>Docking, tabs, split view</li>
+                <li>Command/undo/workspace systems</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Rendering Backend</h3>
+              <ul class="list-tight">
+                <li>Vulkan command pipeline</li>
+                <li>Per-window swapchain contexts</li>
+                <li>Headless and on-screen rendering</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Runtime Modes</h2>
+          <table>
+            <thead>
+              <tr><th>Mode</th><th>Description</th><th>When to Use</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>In-process</td>
+                <td>UI, renderer, and plotting state in one process</td>
+                <td>Desktop apps, low-latency interactive use</td>
+              </tr>
+              <tr>
+                <td>Multi-process</td>
+                <td>Backend daemon + window/agent process via IPC protocol</td>
+                <td>Isolation, orchestration, Python-driven sessions</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Rendering Safety Principles</h2>
+          <ul>
+            <li>Fence-aware frame lifecycle</li>
+            <li>Swapchain recreation paths for resize/out-of-date</li>
+            <li>No per-frame pipeline rebuilds in hot paths</li>
+            <li>Validation-focused CI with golden regression tests</li>
+          </ul>
+          <div class="callout warn">For implementation details, see <code>src/render/vulkan</code> and <code>plans/</code> docs in the repository.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Deep Dives</h2>
+          <ul class="list-tight">
+            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/MULTI_WINDOW_ARCHITECTURE.md">Multi-window architecture plan</a></li>
+            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/PYTHON_IPC_ARCHITECTURE.md">Python IPC architecture</a></li>
+            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/ROADMAP.md">Roadmap and delivery phases</a></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <limits>
 #include <spectra/spectra.hpp>
 #include <string>
 #include <vector>
@@ -59,7 +60,8 @@ static void run_golden_test_3d(const std::string&                 scene_name,
                                uint32_t                           width             = 640,
                                uint32_t                           height            = 480,
                                double                             tolerance_percent = 2.0,
-                               double                             max_mae           = 3.0)
+                               double                             max_mae           = 3.0,
+                               size_t max_differing_pixels = std::numeric_limits<size_t>::max())
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -117,6 +119,14 @@ static void run_golden_test_3d(const std::string&                 scene_name,
 
     EXPECT_LE(diff.mean_absolute_error, max_mae)
         << "Scene: " << scene_name << " has high mean absolute error";
+
+    if (max_differing_pixels != std::numeric_limits<size_t>::max())
+    {
+        EXPECT_LE(diff.differing_pixels, max_differing_pixels)
+            << "Scene: " << scene_name << " exceeded differing-pixel budget"
+            << "\n  Differing pixels: " << diff.differing_pixels
+            << "\n  Allowed: " << max_differing_pixels << "\n  Diff image: " << diff_path;
+    }
 }
 
 TEST(Golden3D, Scatter3D_Basic)
@@ -481,7 +491,12 @@ TEST(Golden3D, CameraAngle_Orthographic)
                            ax.camera().elevation       = 30.0f;
 
                            ax.title("Orthographic Projection");
-                       });
+                       },
+                       640,
+                       480,
+                       2.0,
+                       3.0,
+                       2);
 }
 
 TEST(Golden3D, MultiSubplot3D)

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feature Guide | Spectra Docs</title>
+    <meta name="description" content="Comprehensive Spectra feature guide by category." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Feature Guide</span></div>
+        <h1>Spectra Feature Guide</h1>
+        <p class="lead">Everything Spectra supports, organized for fast scanning.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <h2>Capability Matrix</h2>
+          <table>
+            <thead>
+              <tr><th>Domain</th><th>Highlights</th><th>API / Components</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Core Rendering</td>
+                <td>Vulkan backend, anti-aliased lines, markers, dash patterns, GPU text</td>
+                <td><code>Renderer</code>, Vulkan pipelines, format strings</td>
+              </tr>
+              <tr>
+                <td>3D Visualization</td>
+                <td>Line3D/Scatter3D/Surface/Mesh, lighting, transparency, wireframe, MSAA</td>
+                <td><code>Axes3D</code>, <code>series3d</code>, camera controls</td>
+              </tr>
+              <tr>
+                <td>Easy API</td>
+                <td>MATLAB-style one-liners, progressive complexity</td>
+                <td><code>plot</code>, <code>scatter</code>, <code>subplot</code>, <code>plot3</code>, <code>surf</code></td>
+              </tr>
+              <tr>
+                <td>Animation</td>
+                <td>Frame callbacks, timeline editor, curve editor, interpolation modes</td>
+                <td><code>animate()</code>, timeline + keyframe systems</td>
+              </tr>
+              <tr>
+                <td>Productivity UI</td>
+                <td>Command palette, shortcuts, undo/redo, dock/split, inspector</td>
+                <td>Command registry, workspace, figure manager</td>
+              </tr>
+              <tr>
+                <td>Data Interaction</td>
+                <td>Tooltips, crosshair, markers, linked axes, shared cursor, transforms</td>
+                <td>DataInteraction, AxisLinkManager, TransformPipeline</td>
+              </tr>
+              <tr>
+                <td>Multi-window / IPC</td>
+                <td>Independent windows, tear-off, inproc + multiproc modes</td>
+                <td>WindowManager, FigureRegistry, backend daemon</td>
+              </tr>
+              <tr>
+                <td>Python</td>
+                <td>Proxy API, easy one-liners, live streaming, NumPy path</td>
+                <td><code>spectra</code> package, session/codec layers</td>
+              </tr>
+              <tr>
+                <td>Export</td>
+                <td>Headless rendering, PNG/GIF/MP4 output paths</td>
+                <td>Offscreen framebuffer, recording exporter</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Recommended Paths</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Scientific Analysis</h3>
+              <ul class="list-tight">
+                <li>2D/3D plotting + linked axes</li>
+                <li>Data transforms + statistical plots</li>
+                <li>Headless export in CI pipelines</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Real-time Monitoring</h3>
+              <ul class="list-tight">
+                <li>Live streaming append updates</li>
+                <li>Frame scheduler + animation callbacks</li>
+                <li>Crosshair and marker interaction</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Embedding / App Integration</h3>
+              <ul class="list-tight">
+                <li>Qt embed APIs + offscreen render</li>
+                <li>Workspace persistence + shortcuts</li>
+                <li>Plugin-ready architecture</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

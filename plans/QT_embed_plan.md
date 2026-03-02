@@ -39,6 +39,42 @@ Next session:
 
 ## Session Log
 
+### Session 2026-03-02 14:20 (Agent: Cascade)
+Done this session:
+- Upgraded `qt_embed_demo` into an all-features Qt embed showcase instead of a minimal line-plot sample.
+- Added a richer demo scene with a 2x2 layout including:
+  - live animated 2D waveform panel,
+  - live scatter + trend panel,
+  - histogram + bar statistical panel,
+  - 3D line/scatter/surface panel with lighting and full grid planes.
+- Added per-frame `dt` computation inside `SpectraVulkanWindow::renderFrame()` and wired:
+  - `InputHandler::update(dt)` for smooth interaction/inertia,
+  - animation callback ticking for live data updates.
+- Added runtime controls for feature toggles and interaction:
+  - `Space` pause/resume,
+  - `Ctrl+R` reseed scatter,
+  - `Ctrl+L` legend toggle,
+  - `Ctrl+G` grid toggle across all axes,
+  - `Ctrl+Shift+A` auto-fit all axes,
+  - existing `Ctrl+D` detach/reattach right canvas in multi mode.
+- Updated window title, default size, and status-bar help text to reflect all-feature behavior.
+
+Files touched:
+- `examples/qt_embed_demo.cpp`
+- `plans/QT_embed_plan.md`
+
+Validation run:
+- `cmake --build /home/daniel/projects/Spectra/build-qt --target qt_embed_demo -j6` (pass)
+
+Open issues:
+- Manual runtime smoke validation on an actual display server is still pending for interaction feel and visual quality in both `--single` and `--multi`.
+- Validation-layer runtime pass for the full shortcut matrix (`Ctrl+R/Ctrl+G/Ctrl+L/Ctrl+Shift+A`) remains pending.
+
+Next session:
+1. Run `./build-qt/examples/qt_embed_demo --single` and `--multi` on a display server and execute the shortcut matrix end-to-end.
+2. Confirm there are no swapchain regressions during continuous resize + feature toggles.
+3. If needed, split this all-feature scenario into a dedicated `qt_embed_all_features_demo` binary while preserving current `qt_embed_demo` behavior.
+
 ### Session 2026-03-02 10:13 (Agent: Codex)
 Done this session:
 - Added a dedicated Qt multi-canvas binary target: `qt_multi_canvas_demo` (built from `qt_embed_demo.cpp` with compile-time default multi mode).

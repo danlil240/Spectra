@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Getting Started | Spectra Docs</title>
+    <meta name="description" content="Install and run Spectra quickly in C++ and Python." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Getting Started</span></div>
+        <h1>Getting Started with Spectra</h1>
+        <p class="lead">Set up Spectra for C++20 and Python in minutes.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <h2>1) Prerequisites</h2>
+          <table>
+            <thead>
+              <tr><th>Dependency</th><th>Required</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>C++ compiler</td><td>C++20</td><td>GCC 13+, Clang 17+, or MSVC 2022+</td></tr>
+              <tr><td>Vulkan SDK</td><td>1.2+</td><td>GPU backend requirement</td></tr>
+              <tr><td>CMake</td><td>3.20+</td><td>Build and configure</td></tr>
+              <tr><td>Python</td><td>3.9+</td><td>For Python API usage</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>2) Build from Source</h2>
+          <pre><code>git clone https://github.com/danlil240/Spectra.git
+cd Spectra
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)</code></pre>
+          <div class="callout">Tip: for docs/testing workflows, keep <code>SPECTRA_BUILD_TESTS=ON</code>.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>3) First Plot (C++)</h2>
+          <pre><code>#include &lt;spectra/easy.hpp&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;float&gt; x{0.f, 1.f, 2.f, 3.f};
+    std::vector&lt;float&gt; y{0.f, 1.f, 0.5f, 1.5f};
+
+    spectra::plot(x, y, "c-o").label("demo");
+    spectra::title("First Spectra Plot");
+    spectra::show();
+}</code></pre>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>4) Python Quick Start</h2>
+          <pre><code>pip install spectra-plot
+
+python -c "import spectra as sp; sp.plot([0,1,2],[0,1,0.5]); sp.show()"</code></pre>
+          <div class="callout warn">For embed mode, build with <code>-DSPECTRA_BUILD_EMBED_SHARED=ON</code>.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Where next?</h2>
+          <ul class="list-tight">
+            <li><a href="features.html">Feature Guide</a> — complete capability map</li>
+            <li><a href="examples.html">Examples</a> — recipes by use case</li>
+            <li><a href="architecture.html">Architecture</a> — internals and runtime modes</li>
+            <li><a href="https://github.com/danlil240/Spectra/blob/main/README.md">Repository README</a></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="#top">Back to top</a>
+      </div>
+    </footer>
+  </body>
+</html>

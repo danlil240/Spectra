@@ -305,6 +305,7 @@ if(SPECTRA_USE_ROS2)
     add_library(spectra_ros2_adapter
         src/adapters/ros2/ros2_adapter.cpp
         src/adapters/ros2/ros2_bridge.cpp
+        src/adapters/ros2/topic_discovery.cpp
     )
 
     target_link_libraries(spectra_ros2_adapter PUBLIC

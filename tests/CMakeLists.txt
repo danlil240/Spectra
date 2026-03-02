@@ -313,6 +313,27 @@ if(SPECTRA_USE_ROS2)
         add_test(NAME unit_test_ros2_bridge COMMAND unit_test_ros2_bridge)
         set_tests_properties(unit_test_ros2_bridge PROPERTIES LABELS "ros2")
     endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_discovery.cpp)
+        add_executable(unit_test_topic_discovery
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_discovery.cpp
+        )
+        target_link_libraries(unit_test_topic_discovery PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_topic_discovery PRIVATE cxx_std_20)
+        target_include_directories(unit_test_topic_discovery PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_topic_discovery PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_topic_discovery COMMAND unit_test_topic_discovery)
+        set_tests_properties(unit_test_topic_discovery PROPERTIES LABELS "ros2")
+    endif()
 endif()
 
 # QA Agent (interactive stress test / fuzzer — not a CTest, run manually)

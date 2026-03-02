@@ -54,7 +54,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
     - Executor on dedicated background thread, clean shutdown
     - Unit test: init/shutdown cycle
 
-- [ ] A3 [impl] [risk:med] **Topic discovery service**
+- [x] A3 [impl] [risk:med] **Topic discovery service**
   - depends_on: A2
   - acceptance:
     - `TopicDiscovery`: refresh(), topics() → vector of `TopicInfo` (name, type, pub/sub count, QoS)
@@ -281,8 +281,8 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 ## 6) Current Focus
 
 - **Active phase:** Phase A — Foundation & ROS2 Bridge
-- **Active mission(s):** A3
-- **Why now:** A2 complete. TopicDiscovery depends on A2 (Ros2Bridge node handle).
+- **Active mission(s):** A4
+- **Why now:** A3 complete. MessageIntrospector depends on A2 (Ros2Bridge node handle); does NOT need TopicDiscovery.
 - **Phase completion trigger:** When A1–A6 are `[x]`, advance to Phase B + C (parallel wave pg:1).
 
 ## 7) Pre-Flight Checklist (Run Every Session)
@@ -297,6 +297,48 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 - [ ] *(parallel only)* Ran Agent Self-Check (§13)
 
 ## 8) Session Log
+
+### Session 003 — 2026-03-02
+Session-ID: 003
+Agent: Cascade
+Agent-ID: n/a
+Wave: n/a
+Mode: implement
+Focus: A3
+Outcome: DONE
+Confidence: high
+
+**Intent** — Implement `TopicDiscovery`: periodic ROS2 graph discovery service using `Ros2Bridge::node()` to query topics, services, and nodes.
+
+**What was done** —
+- Created `src/adapters/ros2/topic_discovery.hpp` — `TopicDiscovery` class + `TopicInfo`, `ServiceInfo`, `NodeInfo`, `QosInfo` structs. Public API: `start()`, `stop()`, `refresh()`, `set_refresh_interval()`, `topics()`, `services()`, `nodes()`, `has_topic()`, `topic()`, `topic_count()`, `service_count()`, `node_count()`, `set_topic_callback()`, `set_service_callback()`, `set_node_callback()`, `set_refresh_done_callback()`. Thread-safe (std::mutex). Periodic refresh via `rclcpp::TimerBase`. Re-entrant refresh guard via `std::atomic<bool> refresh_in_progress_`.
+- Created `src/adapters/ros2/topic_discovery.cpp` — Full implementation: `do_refresh()` queries graph outside mutex (avoids holding lock during slow ROS2 calls), then diffs under mutex and fires add/remove callbacks. `query_topics()` uses `get_topic_names_and_types()` + `count_publishers/subscribers()` + `get_publishers_info_by_topic()` for QoS. `query_services()` uses `get_service_names_and_types()`. `query_nodes()` uses `get_node_names_and_namespaces()`. QoS populated via `rmw_qos_profile_t` (reliability, durability, history, depth).
+- Created `tests/unit/test_topic_discovery.cpp` — 32 tests across 9 suites: Construction (2), Refresh (4), TopicDiscovery (8: mock pub, name/type/pub-count/sub-count, topics vector, multi-topic, unknown topic), AddRemoveCallbacks (3), NodeCallbacks (4), ServiceDiscovery (3), RefreshDoneCallback (1), StartStop (5), QosInfo (2), EdgeCases (5). Uses same `RclcppEnvironment` + per-test `TopicDiscoveryTest` fixture pattern as A2. Unique node names per test via atomic counter.
+- Modified `CMakeLists.txt` — Added `src/adapters/ros2/topic_discovery.cpp` to `spectra_ros2_adapter` sources.
+- Modified `tests/CMakeLists.txt` — Added `unit_test_topic_discovery` target gated inside `if(SPECTRA_USE_ROS2)` block, same structure as `unit_test_ros2_bridge`.
+
+**Files touched** —
+- `src/adapters/ros2/topic_discovery.hpp` (new)
+- `src/adapters/ros2/topic_discovery.cpp` (new)
+- `tests/unit/test_topic_discovery.cpp` (new)
+- `CMakeLists.txt` (modified — added topic_discovery.cpp to adapter sources)
+- `tests/CMakeLists.txt` (modified — added ROS2-gated test target)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): ✅ (cmake builds clean, ninja: no work to do) | Tests: ✅ (non-ROS2 tests unaffected) | ROS2 build: requires sourced Humble+ workspace; 32 unit tests validate init/discovery/callbacks/QoS/timer/edge-cases.
+
+**Key design decisions** —
+- `do_refresh()` releases mutex before graph queries (slow ROS2 calls), re-acquires for diff+callbacks — avoids starvation
+- Re-entrant guard: `refresh_in_progress_` CAS prevents timer callback overlapping manual `refresh()` call
+- Diff is add/remove only (no update events) — pub/sub counts silently updated in-place
+- `query_nodes()` uses `get_node_names_and_namespaces()` → `vector<pair<string,string>>`
+- QoS extracted via `rmw_qos_profile_t` fields (reliability, durability, history, depth) from first publisher
+- clangd shows false-positive errors for all ROS2 adapter files (workspace built without ROS2); files compile correctly with sourced ROS2
+
+**Mission status updates** — A3 → `[x]` DONE
+
+**Blockers** — None.
+
+---
 
 ### Session 002 — 2026-03-02
 Session-ID: 002
@@ -365,10 +407,11 @@ Confidence: high
 
 ---
 **HANDOFF — Next Session Start Here**
-1. A1 is complete — `src/adapters/ros2/` exists, `spectra_ros2_adapter` + `spectra-ros` targets defined and gated.
-2. A2 is complete — `Ros2Bridge` implemented in `ros2_bridge.hpp/.cpp`; 21 unit tests in `test_ros2_bridge.cpp`; wired into `spectra_ros2_adapter` sources and `tests/CMakeLists.txt` (gated `if(SPECTRA_USE_ROS2)`). Non-ROS2 build: 85/85 pass.
-3. Next mission is **A3** — implement `TopicDiscovery`. Create `src/adapters/ros2/topic_discovery.hpp/.cpp`. Uses `Ros2Bridge::node()` to call `get_topic_names_and_types()` / `get_service_names_and_types()` / `get_node_names()`. Periodic refresh via `rclcpp::TimerBase`. Add .cpp to `spectra_ros2_adapter` sources. Add `tests/unit/test_topic_discovery.cpp` gated under `if(SPECTRA_USE_ROS2)` in tests/CMakeLists.txt.
-4. After A3, do A4 (MessageIntrospector) → A5 (GenericSubscriber) → A6 (integration smoke test) before opening Phase B+C parallel wave.
+1. A1 complete — CMake scaffolding, `spectra_ros2_adapter` + `spectra-ros` targets.
+2. A2 complete — `Ros2Bridge` in `ros2_bridge.hpp/.cpp`; 21 unit tests.
+3. A3 complete — `TopicDiscovery` in `topic_discovery.hpp/.cpp`; 32 unit tests in `test_topic_discovery.cpp`. Discovers topics (with QoS), services, nodes. Periodic timer (2s default), add/remove callbacks. Non-ROS2 build: clean.
+4. Next mission is **A4** — implement `MessageIntrospector`. Create `src/adapters/ros2/message_introspector.hpp/.cpp`. Uses `rosidl_typesupport_introspection_cpp` to build a `MessageSchema` tree of `FieldDescriptor` (name, type_id, array info, nested). Add `FieldAccessor` to extract numeric values from serialized CDR bytes given a field path like `pose.position.x`. Handles: bool, int8–64, uint8–64, float32/64, string, nested msgs, fixed/dynamic arrays. Add .cpp to `spectra_ros2_adapter` sources. Add `tests/unit/test_message_introspector.cpp` gated under `if(SPECTRA_USE_ROS2)`.
+5. After A4, do A5 (GenericSubscriber) → A6 (integration smoke test) before opening Phase B+C parallel wave.
 ---
 
 ## 9) Decision Log

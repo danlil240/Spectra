@@ -425,7 +425,7 @@ TEST(Golden3D, Mesh3D_Quad)
                        },
                        640,
                        480,
-                       3.0);
+                       4.0);
 }
 
 TEST(Golden3D, Surface_Colormap)

@@ -55,7 +55,7 @@ std::string CsvExportResult::to_string() const
 
 bool CsvExportResult::save_to_file(const std::string& path) const
 {
-    if (path.empty())
+    if (path.empty() || !ok)
         return false;
 
     std::ofstream f(path);

@@ -304,7 +304,7 @@ public:
     void     set_max_duration_seconds(double)      noexcept {}
     double   max_duration_seconds()         const  noexcept { return 0.0; }
     void     set_storage_id(const std::string&)            {}
-    const std::string& storage_id()         const  noexcept { return kEmpty_; }
+    const std::string& storage_id()         const  noexcept { return storage_id_; }
     void     set_reliable_qos(bool)                noexcept {}
     bool     reliable_qos()                 const  noexcept { return true; }
 
@@ -326,16 +326,13 @@ public:
     void set_split_callback(SplitCallback) {}
     void set_error_callback(ErrorCallback) {}
 
-    const std::string& last_error() const noexcept { return kStubError_; }
-    void               clear_error()      noexcept {}
+    const std::string& last_error() const noexcept { return last_error_; }
+    void               clear_error()      noexcept { last_error_.clear(); }
 
 private:
-    static const std::string kEmpty_;
-    static const std::string kStubError_;
+    std::string storage_id_;
+    std::string last_error_{"BagRecorder: built without SPECTRA_ROS2_BAG"};
 };
-
-inline const std::string BagRecorder::kEmpty_     = {};
-inline const std::string BagRecorder::kStubError_ = "BagRecorder: built without SPECTRA_ROS2_BAG";
 
 } // namespace spectra::adapters::ros2
 

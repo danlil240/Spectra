@@ -885,9 +885,9 @@ bool ParamEditorPanel::parse_yaml(
                     bool is_int_like  = false;
                     bool is_dbl_like  = false;
                     if (!is_bool_like) {
-                        try { std::stoll(f); is_int_like = true; } catch(...) {}
+                        try { size_t pos = 0; std::stoll(f, &pos); is_int_like = (pos == f.size()); } catch(...) {}
                         if (!is_int_like) {
-                            try { std::stod(f); is_dbl_like = true; } catch(...) {}
+                            try { size_t pos = 0; std::stod(f, &pos); is_dbl_like = (pos == f.size()); } catch(...) {}
                         }
                     }
                     if (is_bool_like) {
@@ -954,7 +954,7 @@ bool ParamEditorPanel::parse_yaml(
             out[key] = pv;
         }
     }
-    if (out.empty() && !yaml_text.empty()) {
+    if (out.empty()) {
         error_out = "no parameters found in YAML (check node name key and ros__parameters nesting)";
         return false;
     }

@@ -288,6 +288,8 @@ void RosScreenshotExport::begin_recording_from_dialog()
 bool RosScreenshotExport::draw_record_dialog(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return false;
+
     // Initialize dialog buffers from config on first open.
     if (!dialog_initialized_)
     {

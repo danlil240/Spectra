@@ -52,7 +52,7 @@ std::string BagPlaybackPanel::format_time(double sec)
     const int h       = total_s / 3600;
     const int m       = (total_s % 3600) / 60;
     const int s       = total_s % 60;
-    const int ds      = static_cast<int>((sec - std::floor(sec)) * 10.0);
+    const int ds      = static_cast<int>(std::lround((sec - std::floor(sec)) * 10.0)) % 10;
 
     char buf[32];
     if (h > 0)

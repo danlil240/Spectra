@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spectra Features | Vulkan Plotting for C++20 and Python</title>
+    <meta
+      name="description"
+      content="Explore all Spectra features: GPU-accelerated 2D/3D plotting, animation, multi-window workflows, Python IPC, and headless export."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero" id="top">
+      <div class="container">
+        <p class="eyebrow">Spectra Documentation</p>
+        <h1>All Spectra Features in One Place</h1>
+        <p class="lead">
+          A modern C++20 + Python plotting system powered by Vulkan, built for
+          scientific and engineering workflows.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#feature-map">Explore Features</a>
+          <a class="btn btn-ghost" href="#quick-start">Quick Start</a>
+        </div>
+      </div>
+    </header>
+
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="#core-rendering">Core</a>
+        <a href="#visualization-3d">3D</a>
+        <a href="#easy-api">Easy API</a>
+        <a href="#animation-recording">Animation</a>
+        <a href="#ui-productivity">UI</a>
+        <a href="#python-api">Python</a>
+        <a href="#export-integration">Export</a>
+        <a href="#quality">Quality</a>
+      </div>
+    </nav>
+
+    <main>
+      <section class="section" id="feature-map">
+        <div class="container">
+          <h2>Feature Map</h2>
+          <p class="section-intro">
+            Spectra spans rendering, interaction, animation, desktop workflows,
+            and Python interoperability.
+          </p>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Rendering Engine</h3>
+              <ul>
+                <li>Vulkan 1.2+ GPU backend</li>
+                <li>2D + 3D plotting pipelines</li>
+                <li>Depth buffer + MSAA + high-quality text</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Interactive Workflows</h3>
+              <ul>
+                <li>Multi-window tabs + docking + split view</li>
+                <li>Crosshair, markers, linked axes, shared cursor</li>
+                <li>Undo/redo, command palette, configurable shortcuts</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Animation + Automation</h3>
+              <ul>
+                <li>Frame callbacks and real-time streaming</li>
+                <li>Timeline editor + keyframe interpolation</li>
+                <li>PNG/GIF/MP4 export and Python IPC bridge</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="core-rendering">
+        <div class="container">
+          <h2>Core Rendering</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>GPU Pipeline</h3>
+              <ul>
+                <li>Explicit Vulkan resource and frame management</li>
+                <li>Asynchronous uploads and multi-buffered rendering</li>
+                <li>Depth-tested rendering with optional 4x MSAA</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>2D Plot Quality</h3>
+              <ul>
+                <li>Anti-aliased lines with SDF smoothing</li>
+                <li>18 marker types and dash pattern support</li>
+                <li>MATLAB-style format strings (e.g., <code>"r--o"</code>)</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="visualization-3d">
+        <div class="container">
+          <h2>3D Visualization</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Series + Shading</h3>
+              <ul>
+                <li><code>LineSeries3D</code>, <code>ScatterSeries3D</code>, <code>SurfaceSeries</code>, <code>MeshSeries</code></li>
+                <li>Blinn-Phong lighting and material controls</li>
+                <li>Colormaps: Viridis, Plasma, Inferno, Magma, Jet, Coolwarm, Grayscale</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Camera + Scene</h3>
+              <ul>
+                <li>Quaternion-based orbit camera with pan/zoom</li>
+                <li>Wireframe mode and transparency sorting</li>
+                <li>3D axes, grids, bounding box, depth-aware tick labels</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="easy-api">
+        <div class="container">
+          <h2>Easy API (MATLAB-style)</h2>
+          <p class="section-intro">
+            Start with one-liners, scale to full object control when needed.
+          </p>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>2D + Statistical</h3>
+              <ul>
+                <li><code>plot()</code>, <code>scatter()</code>, <code>subplot()</code></li>
+                <li><code>histogram()</code>, <code>bar()</code>, <code>box_plot()</code>, <code>violin()</code></li>
+                <li>Axis titles, labels, limits, legends, and styling helpers</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>3D + State Access</h3>
+              <ul>
+                <li><code>plot3()</code>, <code>scatter3()</code>, <code>surf()</code>, <code>mesh()</code></li>
+                <li>Window + tab helpers (<code>figure()</code>, <code>tab()</code>)</li>
+                <li>MATLAB-like accessors (<code>gcf()</code>, <code>gca()</code>, <code>cla()</code>)</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="animation-recording">
+        <div class="container">
+          <h2>Animation & Recording</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Real-time Engine</h3>
+              <ul>
+                <li>Frame callbacks with configurable FPS</li>
+                <li>Stable frame scheduling + delta-time updates</li>
+                <li>Live streaming append paths</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Timeline Tools</h3>
+              <ul>
+                <li>Timeline editor with play/pause/scrub</li>
+                <li>7 keyframe interpolation modes</li>
+                <li>Curve editor with tangent controls</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Output Formats</h3>
+              <ul>
+                <li>PNG sequences</li>
+                <li>GIF export with built-in quantization</li>
+                <li>MP4 export through ffmpeg pipeline</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="ui-productivity">
+        <div class="container">
+          <h2>UI & Productivity</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Workflow Acceleration</h3>
+              <ul>
+                <li>Command palette (Ctrl+K)</li>
+                <li>Custom shortcuts with JSON persistence</li>
+                <li>Undo/redo with grouped operations</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Workspace Management</h3>
+              <ul>
+                <li>Multi-figure tabs and tab context operations</li>
+                <li>Docking + split panes + drag-to-dock</li>
+                <li>Workspace save/load with backward compatibility</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="data-interaction">
+        <div class="container">
+          <h2>Data Interaction</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Exploration</h3>
+              <ul>
+                <li>Nearest-point hover tooltips</li>
+                <li>Crosshair overlays with axis labels</li>
+                <li>Persistent data markers</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Coordination</h3>
+              <ul>
+                <li>Multi-axis linking across subplots</li>
+                <li>Shared cursor + interpolated Y readout</li>
+                <li>Linked zoom/pan/auto-fit behaviors</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Transform Pipeline</h3>
+              <ul>
+                <li>14 built-in data transforms</li>
+                <li>Chained transform pipelines</li>
+                <li>Custom transform registration</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="themes-accessibility">
+        <div class="container">
+          <h2>Themes & Accessibility</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Theme System</h3>
+              <ul>
+                <li>Dark and light themes</li>
+                <li>Design tokens for spacing, color, typography</li>
+                <li>Theme export/import in JSON</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Accessible Visualization</h3>
+              <ul>
+                <li>8 colorblind-safe palettes</li>
+                <li>CVD simulation modes</li>
+                <li>WCAG contrast utilities</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="multi-window-multiprocess">
+        <div class="container">
+          <h2>Multi-Window & Multi-Process</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Window Runtime</h3>
+              <ul>
+                <li>Independent OS windows with per-window swapchains</li>
+                <li>Tab tear-off into new windows</li>
+                <li>Stable figure ownership with <code>FigureId</code></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Dual Runtime Modes</h3>
+              <ul>
+                <li>In-process mode for local app workflows</li>
+                <li>Multi-process mode: backend daemon + window agent</li>
+                <li>Protocol-driven state sync and diffs</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="python-api">
+        <div class="container">
+          <h2>Python API</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Core API</h3>
+              <ul>
+                <li>Figure/Axes/Series proxy model over IPC</li>
+                <li>Easy one-liners: <code>spectra.plot()</code>, <code>spectra.scatter()</code>, <code>spectra.show()</code></li>
+                <li>3D support: <code>plot3()</code>, <code>scatter3()</code>, <code>surf()</code>, <code>mesh()</code></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Performance + Streaming</h3>
+              <ul>
+                <li>Thread-safe live streaming API</li>
+                <li>NumPy fast path for array transfer</li>
+                <li>Automatic backend launch and session management</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="export-integration">
+        <div class="container">
+          <h2>Export & Integration</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Headless Rendering</h3>
+              <ul>
+                <li>Offscreen rendering for CI and servers</li>
+                <li>Deterministic image output workflows</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Packaging</h3>
+              <ul>
+                <li>CMake install + <code>find_package(spectra)</code></li>
+                <li>Linux, macOS, Windows release artifacts</li>
+                <li>AppImage, Homebrew, AUR, Python wheels</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Optional Extensions</h3>
+              <ul>
+                <li>FFmpeg-backed MP4 export flag</li>
+                <li>Optional Eigen adapters</li>
+                <li>Plugin API for external command extensions</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="quality">
+        <div class="container">
+          <h2>Quality & Reliability</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Verification</h3>
+              <ul>
+                <li>1,200+ unit tests</li>
+                <li>Golden image regression tests for 2D and 3D</li>
+                <li>Integration tests + benchmarks</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>CI + Release</h3>
+              <ul>
+                <li>Cross-platform CI (Linux/macOS/Windows)</li>
+                <li>Sanitizer jobs and release packaging</li>
+                <li>Automated artifact publishing workflows</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="quick-start">
+        <div class="container">
+          <h2>Quick Start (C++)</h2>
+          <pre><code>#include &lt;spectra/easy.hpp&gt;
+
+int main() {
+    std::vector&lt;float&gt; x = {0.f, 1.f, 2.f, 3.f};
+    std::vector&lt;float&gt; y = {0.f, 1.f, 0.5f, 1.5f};
+
+    spectra::plot(x, y, "c-o").label("example");
+    spectra::title("Spectra Feature Demo");
+    spectra::xlabel("X");
+    spectra::ylabel("Y");
+    spectra::show();
+}</code></pre>
+          <p class="muted">
+            For deeper usage, see the repository README and docs directory.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Built with Spectra • GPU-accelerated plotting for C++20 and Python</p>
+        <a href="#top">Back to top</a>
+      </div>
+    </footer>
+  </body>
+</html>

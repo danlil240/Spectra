@@ -306,6 +306,10 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/ros2_adapter.cpp
         src/adapters/ros2/ros2_bridge.cpp
         src/adapters/ros2/topic_discovery.cpp
+        src/adapters/ros2/message_introspector.cpp
+        src/adapters/ros2/generic_subscriber.cpp
+        src/adapters/ros2/ros_plot_manager.cpp
+        src/adapters/ros2/ui/topic_list_panel.cpp
     )
 
     target_link_libraries(spectra_ros2_adapter PUBLIC
@@ -341,6 +345,15 @@ if(SPECTRA_USE_ROS2)
     )
 
     target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_USE_ROS2)
+
+    # Forward ImGui include paths so topic_list_panel.cpp can find imgui.h
+    # when SPECTRA_USE_IMGUI is ON (inherited via spectra PUBLIC definition).
+    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+        target_include_directories(spectra_ros2_adapter PRIVATE
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+        )
+    endif()
 
     # spectra-ros standalone executable
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2/main.cpp)

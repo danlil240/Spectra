@@ -1,0 +1,246 @@
+#pragma once
+
+// TopicListPanel — ImGui topic monitor panel for the ROS2 adapter.
+//
+// Displays a tree of ROS2 topics grouped by namespace with live Hz and
+// bandwidth columns.  Integrates with Spectra's ImGui docking system as a
+// standard dockable window.
+//
+// Features:
+//   - Tree view: topics grouped by namespace (collapsible)
+//   - Columns: Name, Type, Hz, Pubs, Subs, BW
+//   - Live Hz / BW computed over a rolling 1-second window
+//   - Search / filter bar (filters by topic name substring)
+//   - Status dot: green (active, seen msg in last 2 s), gray (stale/no msg)
+//   - notify_message() must be called by the subscriber layer each time a
+//     message arrives on a topic so that Hz/BW statistics are maintained
+//
+// Thread-safety:
+//   notify_message() is safe to call from the ROS2 executor thread.
+//   draw() must be called from the ImGui render thread only.
+//   All shared state is protected by an internal mutex.
+//
+// Typical usage:
+//   TopicListPanel panel;
+//   panel.set_topic_discovery(&discovery);   // wire to TopicDiscovery
+//
+//   // In ROS2 executor callback:
+//   panel.notify_message(topic_name, msg_size_bytes);
+//
+//   // In ImGui render loop:
+//   panel.draw();
+
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "topic_discovery.hpp"
+
+namespace spectra::adapters::ros2
+{
+
+// ---------------------------------------------------------------------------
+// TopicStats — rolling Hz/BW statistics for one topic
+// ---------------------------------------------------------------------------
+
+struct TopicStats
+{
+    // Ring of arrival timestamps (nanoseconds since epoch, rolling 1 s window)
+    std::deque<int64_t> timestamps;
+    // Ring of message sizes (bytes) — same indices as timestamps
+    std::deque<size_t> sizes;
+
+    // Last computed values (updated each draw frame by prune_and_compute())
+    double hz{0.0};              // messages per second
+    double bandwidth_bps{0.0};   // bytes per second
+
+    // True if a message arrived within the last 2 seconds
+    bool active{false};
+
+    // Timestamp of the most recently received message (ns)
+    int64_t last_msg_ns{0};
+
+    // Cumulative counters
+    uint64_t total_messages{0};
+    uint64_t total_bytes{0};
+
+    // Push a new arrival.  Called from executor thread (lock held by caller).
+    void push(int64_t now_ns, size_t bytes);
+
+    // Remove events older than window_ns, recompute hz/bw/active.
+    // Called from render thread (lock held by caller).
+    void prune_and_compute(int64_t now_ns, int64_t window_ns = 1'000'000'000LL);
+};
+
+// ---------------------------------------------------------------------------
+// TopicListPanel
+// ---------------------------------------------------------------------------
+
+class TopicListPanel
+{
+public:
+    TopicListPanel();
+    ~TopicListPanel() = default;
+
+    TopicListPanel(const TopicListPanel&)            = delete;
+    TopicListPanel& operator=(const TopicListPanel&) = delete;
+    TopicListPanel(TopicListPanel&&)                 = delete;
+    TopicListPanel& operator=(TopicListPanel&&)      = delete;
+
+    // ---------- wiring -------------------------------------------------------
+
+    // Wire to a TopicDiscovery instance.  The pointer must outlive this panel.
+    // If nullptr, the panel renders with whatever topics were manually set.
+    void set_topic_discovery(TopicDiscovery* disc);
+    TopicDiscovery* topic_discovery() const { return disc_; }
+
+    // ---------- statistics injection -----------------------------------------
+
+    // Notify the panel that a message arrived on `topic_name` with the given
+    // serialised byte length.  Thread-safe — safe to call from executor thread.
+    void notify_message(const std::string& topic_name, size_t bytes);
+
+    // ---------- ImGui rendering ----------------------------------------------
+
+    // Render the panel into the current ImGui context.
+    // Call once per frame from the render thread.
+    // `p_open` — if non-null, a close button is shown; set to false to close.
+    void draw(bool* p_open = nullptr);
+
+    // ---------- accessors (render-thread only) --------------------------------
+
+    // Currently selected topic name ("" if none).
+    const std::string& selected_topic() const { return selected_topic_; }
+
+    // Callback fired when the user selects a topic (single-click).
+    using SelectCallback = std::function<void(const std::string& topic_name)>;
+    void set_select_callback(SelectCallback cb) { select_cb_ = std::move(cb); }
+
+    // Callback fired when the user double-clicks a topic (plot request).
+    using PlotCallback = std::function<void(const std::string& topic_name)>;
+    void set_plot_callback(PlotCallback cb) { plot_cb_ = std::move(cb); }
+
+    // ---------- configuration ------------------------------------------------
+
+    // Window title (default: "ROS2 Topics").
+    void set_title(const std::string& title) { title_ = title; }
+    const std::string& title() const { return title_; }
+
+    // Stale threshold: topic is considered stale if no message received in
+    // this many milliseconds (default 2000 ms).
+    void set_stale_threshold_ms(int ms) { stale_threshold_ms_ = ms; }
+    int  stale_threshold_ms() const { return stale_threshold_ms_; }
+
+    // Hz/BW rolling window (default 1000 ms).
+    void set_stats_window_ms(int ms) { stats_window_ms_ = ms; }
+    int  stats_window_ms() const { return stats_window_ms_; }
+
+    // If true, topics are grouped into namespace nodes (default true).
+    void set_group_by_namespace(bool v) { group_by_namespace_ = v; }
+    bool group_by_namespace() const { return group_by_namespace_; }
+
+    // ---------- testing helpers (no ImGui dependency) ------------------------
+
+    // Force-set the known topic list (bypasses TopicDiscovery).
+    // Primarily used in unit tests.
+    void set_topics(const std::vector<TopicInfo>& topics);
+
+    // Return a snapshot of all stats maps (for testing).
+    struct StatsSnapshot
+    {
+        double hz;
+        double bandwidth_bps;
+        bool   active;
+        uint64_t total_messages;
+    };
+    StatsSnapshot stats_for(const std::string& topic_name) const;
+
+    // Number of topics currently tracked (with or without discovery).
+    size_t topic_count() const;
+
+    // Number of topics that match the current filter string.
+    size_t filtered_topic_count() const;
+
+    // Current filter string.
+    const std::string& filter() const { return filter_str_; }
+
+    // Set filter programmatically (for testing).
+    void set_filter(const std::string& f);
+
+private:
+    // ---------- internal helpers ---------------------------------------------
+
+    // Rebuild namespace_tree_ from topics_.  Called whenever topics_ changes.
+    void rebuild_tree();
+
+    // Split a topic name into its namespace prefix and leaf name.
+    // e.g. "/robot/arm/joint_states" → ("/robot/arm", "joint_states")
+    static std::pair<std::string, std::string> split_namespace(const std::string& topic_name);
+
+    // Render one namespace group node (recursive).
+    void draw_namespace_node(const std::string& ns, int depth);
+
+    // Render one topic row (columns already pushed).
+    void draw_topic_row(const TopicInfo& info, TopicStats& stats);
+
+    // Format Hz as a compact string ("12.3", "—" if 0).
+    static std::string format_hz(double hz);
+
+    // Format bytes/sec as compact string ("1.2 KB/s", "—" if 0).
+    static std::string format_bw(double bps);
+
+    // Returns now in nanoseconds (wall clock).
+    static int64_t now_ns();
+
+    // ---------- tree structure -----------------------------------------------
+
+    // One node in the namespace tree.
+    struct NamespaceNode
+    {
+        std::string              ns;           // full namespace prefix
+        std::string              label;        // last segment (for display)
+        std::vector<std::string> topic_names;  // leaf topics under this ns
+        std::vector<std::string> children;     // child namespace prefixes
+        bool                     open{true};   // ImGui tree state
+    };
+
+    // ---------- data ---------------------------------------------------------
+
+    TopicDiscovery* disc_{nullptr};
+
+    mutable std::mutex stats_mutex_;
+    std::unordered_map<std::string, TopicStats> stats_map_;  // topic → stats
+
+    mutable std::mutex topics_mutex_;
+    std::vector<TopicInfo> topics_;  // snapshot from last discovery refresh
+
+    // Namespace tree (render-thread only — rebuilt under topics_mutex_).
+    std::unordered_map<std::string, NamespaceNode> ns_tree_;
+    std::vector<std::string> root_namespaces_;  // top-level ns prefixes
+    std::vector<std::string> root_topics_;      // topics at "/" level
+
+    // UI state (render-thread only).
+    std::string selected_topic_;
+    char        filter_buf_[256]{};
+    std::string filter_str_;
+    bool        group_by_namespace_{true};
+    int         stale_threshold_ms_{2000};
+    int         stats_window_ms_{1000};
+    std::string title_{"ROS2 Topics"};
+
+    // Cached filtered list (rebuilt each frame if dirty).
+    mutable bool                      filter_dirty_{true};
+    mutable std::vector<std::string>  filtered_names_;  // filtered topic names
+
+    // Callbacks.
+    SelectCallback select_cb_;
+    PlotCallback   plot_cb_;
+};
+
+}   // namespace spectra::adapters::ros2

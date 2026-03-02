@@ -334,6 +334,111 @@ if(SPECTRA_USE_ROS2)
         add_test(NAME unit_test_topic_discovery COMMAND unit_test_topic_discovery)
         set_tests_properties(unit_test_topic_discovery PROPERTIES LABELS "ros2")
     endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_message_introspector.cpp)
+        add_executable(unit_test_message_introspector
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_message_introspector.cpp
+        )
+        target_link_libraries(unit_test_message_introspector PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_message_introspector PRIVATE cxx_std_20)
+        target_include_directories(unit_test_message_introspector PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_message_introspector PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_message_introspector COMMAND unit_test_message_introspector)
+        set_tests_properties(unit_test_message_introspector PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_generic_subscriber.cpp)
+        add_executable(unit_test_generic_subscriber
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_generic_subscriber.cpp
+        )
+        target_link_libraries(unit_test_generic_subscriber PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_generic_subscriber PRIVATE cxx_std_20)
+        target_include_directories(unit_test_generic_subscriber PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_generic_subscriber PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_generic_subscriber COMMAND unit_test_generic_subscriber)
+        set_tests_properties(unit_test_generic_subscriber PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_list_panel.cpp)
+        add_executable(unit_test_topic_list_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_list_panel.cpp
+        )
+        target_link_libraries(unit_test_topic_list_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_topic_list_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_topic_list_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_topic_list_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_topic_list_panel COMMAND unit_test_topic_list_panel)
+        set_tests_properties(unit_test_topic_list_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_plot_manager.cpp)
+        add_executable(unit_test_ros_plot_manager
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_plot_manager.cpp
+        )
+        target_link_libraries(unit_test_ros_plot_manager PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_ros_plot_manager PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_plot_manager PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_plot_manager PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_plot_manager COMMAND unit_test_ros_plot_manager)
+        set_tests_properties(unit_test_ros_plot_manager PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_phase_a_integration.cpp)
+        add_executable(unit_test_phase_a_integration
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_phase_a_integration.cpp
+        )
+        target_link_libraries(unit_test_phase_a_integration PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_phase_a_integration PRIVATE cxx_std_20)
+        target_include_directories(unit_test_phase_a_integration PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_phase_a_integration PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_phase_a_integration COMMAND unit_test_phase_a_integration)
+        set_tests_properties(unit_test_phase_a_integration PROPERTIES LABELS "ros2")
+    endif()
 endif()
 
 # QA Agent (interactive stress test / fuzzer — not a CTest, run manually)

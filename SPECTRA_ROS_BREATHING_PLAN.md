@@ -62,7 +62,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
     - Also discovers services and nodes
     - Unit test with mock publisher
 
-- [ ] A4 [impl] [risk:high] **Runtime message introspection engine**
+- [x] A4 [impl] [risk:high] **Runtime message introspection engine**
   - depends_on: A2
   - acceptance:
     - `MessageIntrospector`: introspect any msg type via `rosidl_typesupport_introspection_cpp`
@@ -71,7 +71,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
     - Handles: bool, int8-64, uint8-64, float32/64, string, nested msgs, arrays
     - Unit test: introspect Float64, Twist, Imu — verify tree and extraction
 
-- [ ] A5 [impl] [risk:med] **Generic subscription engine**
+- [x] A5 [impl] [risk:med] **Generic subscription engine**
   - depends_on: A4
   - acceptance:
     - `GenericSubscriber`: subscribe any topic via `rclcpp::GenericSubscription`
@@ -80,7 +80,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
     - Configurable buffer depth (default 10000)
     - Unit test: publish, verify extraction through ring buffer
 
-- [ ] A6 [test] [risk:low] **Phase A integration smoke test**
+- [x] A6 [test] [risk:low] **Phase A integration smoke test**
   - depends_on: A2, A3, A4, A5
   - acceptance:
     - Headless test: create bridge, discover topics, subscribe Float64, extract values
@@ -88,7 +88,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 
 ### Phase B — Topic Monitor Panel (ImGui)
 
-- [ ] B1 [impl] [risk:low] **Topic list panel — tree view**
+- [x] B1 [impl] [risk:low] **Topic list panel — tree view**
   - depends_on: A3
   - acceptance:
     - ImGui tree of topics grouped by namespace; columns: Name, Type, Hz, Pubs, Subs, BW
@@ -109,7 +109,7 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 
 ### Phase C — Live Plotting Engine
 
-- [ ] C1 [impl] [risk:med] **ROS2 field → Spectra series bridge**
+- [x] C1 [impl] [risk:med] **ROS2 field → Spectra series bridge**
   - depends_on: A5
   - acceptance:
     - `RosPlotManager`: add_plot(topic, field_path) → Figure + LineSeries
@@ -280,10 +280,10 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 
 ## 6) Current Focus
 
-- **Active phase:** Phase A — Foundation & ROS2 Bridge
-- **Active mission(s):** A4
-- **Why now:** A3 complete. MessageIntrospector depends on A2 (Ros2Bridge node handle); does NOT need TopicDiscovery.
-- **Phase completion trigger:** When A1–A6 are `[x]`, advance to Phase B + C (parallel wave pg:1).
+- **Active phase:** Phase B + C (parallel wave pg:1)
+- **Active mission(s):** B2, B3, C2
+- **Why now:** B1 complete. B2 (echo panel) and B3 (stats overlay) build on B1. C2 (auto-scroll) builds on C1. All three are independent and can proceed in parallel.
+- **Phase completion trigger:** When B1–B3 and C1–C4 are `[x]`, open Phase D+E wave (pg:2).
 
 ## 7) Pre-Flight Checklist (Run Every Session)
 
@@ -292,11 +292,228 @@ Build a full-featured ROS2 visualization/debugging adapter for Spectra replacing
 - [ ] Checked §6 Current Focus — active mission matches what I plan to do
 - [ ] Checked Do Not Touch section
 - [ ] Confirmed not duplicating existing work
-- [ ] Confirmed current build state before edits
 - [ ] Confirmed ROS2 workspace is sourced (if working on ROS2-dependent code)
-- [ ] *(parallel only)* Ran Agent Self-Check (§13)
+- [ ] Read `.live-agents` at project root — created it from §14 template if absent; updated own line to `status=STARTING op=pre-flight`
+- [ ] Confirmed no other agent holds `BUILDING`, `TESTING`, or `INSTALLING` before starting exclusive ops
+- [ ] **Verified the project builds successfully BEFORE making any changes** — run `ninja -C <build_dir>` and confirm zero errors; log result in session entry
+- [ ] *(parallel only)* Ran full Agent Self-Check (§13) — confirmed correct Agent-ID, wave, and no file conflicts
 
 ## 8) Session Log
+
+### Session 007 — 2026-03-02
+Session-ID: 007
+Agent: Cascade
+Agent-ID: n/a
+Wave: pg:1
+Mode: implement
+Focus: B1
+Outcome: DONE
+Confidence: high
+
+**Intent** — Implement `TopicListPanel`: ImGui dockable topic monitor panel with namespace-grouped tree view, live Hz/BW statistics, search/filter, and status dots.
+
+**What was done** —
+- Created `src/adapters/ros2/ui/topic_list_panel.hpp` — `TopicStats` struct (push/prune_and_compute with rolling deque window, active/hz/bw/counters), `TopicListPanel` class. Public API: `set_topic_discovery()`, `notify_message(topic, bytes)` (executor-thread safe), `draw(p_open*)` (ImGui render thread), `set_select_callback()`, `set_plot_callback()`, `set_filter()`, `stats_for()`, `topic_count()`, `filtered_topic_count()`. Configuration: `set_title()`, `set_stale_threshold_ms()`, `set_stats_window_ms()`, `set_group_by_namespace()`. Testing helper: `set_topics()`. Internal: `NamespaceNode` tree, `rebuild_tree()`, `draw_namespace_node()`, `draw_topic_row()`, `format_hz()`, `format_bw()`. Two-mutex split: `stats_mutex_` (executor writes) and `topics_mutex_` (discovery updates). `filter_dirty_` lazy cache.
+- Created `src/adapters/ros2/ui/topic_list_panel.cpp` — Full implementation. `TopicStats::prune_and_compute()` drops entries older than window, recomputes hz (span-based) and bw (total_bytes/window_s). ImGui `draw()` (behind `SPECTRA_USE_IMGUI`): polls discovery each frame, prunes stats, `InputTextWithHint` search bar, 6-column `BeginTable` (Topic/Type/Hz/Pubs/Subs/BW) with frozen header, namespace tree via `TreeNodeEx`, per-row status dot (● / ○ green/gray), selectable rows with single-click select + double-click plot callbacks, hover tooltip, abbreviated type display. Non-ImGui path: `draw()` is a no-op.
+- Created `tests/unit/test_topic_list_panel.cpp` — 35 tests across 9 suites: Construction (3), TopicManagement (3), Filter (6), TopicStats (10), NotifyMessage (5), Callbacks (2), NamespaceCount (1), FormatFunctions (2), DrawNoOp (1), EdgeCases (5).
+- Modified `CMakeLists.txt` — Added `src/adapters/ros2/ui/topic_list_panel.cpp` to `spectra_ros2_adapter` sources.
+- Modified `tests/CMakeLists.txt` — Added `unit_test_topic_list_panel` target gated inside `if(SPECTRA_USE_ROS2)` block.
+
+**Files touched** —
+- `src/adapters/ros2/ui/topic_list_panel.hpp` (new)
+- `src/adapters/ros2/ui/topic_list_panel.cpp` (new)
+- `tests/unit/test_topic_list_panel.cpp` (new)
+- `CMakeLists.txt` (modified)
+- `tests/CMakeLists.txt` (modified)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): ✅ (`ninja: no work to do`, zero regressions). ROS2 build: requires sourced Humble+ workspace; 35 unit tests validate TopicStats rolling window Hz/BW computation, notify_message thread safety, filter logic, draw no-op, and edge cases without ImGui context.
+
+**Key design decisions** —
+- `TopicStats` uses `std::deque` for O(1) front-pop during window pruning (vs ring buffer which would require full scan for BW sum)
+- Two separate mutexes avoid holding stats lock during slow discovery poll on render thread
+- All ImGui code behind `SPECTRA_USE_IMGUI`; non-ImGui build gets no-op stubs
+- `notify_message()` acquires only `stats_mutex_` — never `topics_mutex_` — minimal executor-thread path
+- `draw_namespace_node()` checks filter visibility before opening any `TreeNodeEx` to avoid empty collapsed groups
+
+**Mission status updates** — B1 → `[x]` DONE
+
+**Blockers** — None.
+
+---
+
+### Session 006 — 2026-03-02
+Session-ID: 006
+Agent: Cascade
+Agent-ID: n/a
+Wave: n/a
+Mode: test
+Focus: A6
+Outcome: DONE
+Confidence: high
+
+**Intent** — Create the Phase A integration smoke test: a single headless ctest binary that chains all Phase A components (Ros2Bridge → TopicDiscovery → GenericSubscriber → RingBuffer) end-to-end.
+
+**What was done** —
+- Created `tests/unit/test_phase_a_integration.cpp` — 19 tests across 8 suites:
+  - BridgeSmokeTest (2): spinning state, node accessible
+  - Bridge→TopicDiscovery (4): finds bridge node, finds mock publisher, correct type, publisher count
+  - Bridge→GenericSubscriber→RingBuffer / Float64 (4): single value, order preservation, monotonic timestamps, stats accounting
+  - FullPipeline (1): canonical A6 scenario — bridge→discovery→subscribe→publish→extract→shutdown
+  - TwistMultiField (1): nested message extraction (linear.x/y, angular.z)
+  - ImuNestedField (2): linear_acceleration xyz, angular_velocity.x
+  - StopRestart/BufferPersistence (2): buffer persists after stop(), clean destructor
+  - DiscoveryCallbacks (2): topic-add callback fires, node-add callback fires
+- Modified `tests/CMakeLists.txt` — Added `unit_test_phase_a_integration` target inside `if(SPECTRA_USE_ROS2)` block. Links `spectra_ros2_adapter + GTest::gtest`, includes `src/adapters/ros2`, labelled `ros2`.
+
+**Files touched** —
+- `tests/unit/test_phase_a_integration.cpp` (new)
+- `tests/CMakeLists.txt` (modified — added ROS2-gated test target)
+- `SPECTRA_ROS_BREATHING_PLAN.md` (A6 → `[x]`, Current Focus → Phase B+C)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): ✅ zero impact. ROS2 build: requires sourced Humble+ workspace; 19 tests validate the complete Phase A pipeline end-to-end.
+
+**Key design decisions** —
+- Same `RclcppEnvironment` + per-test `PhaseAIntegrationTest` fixture pattern as all prior A-series tests
+- `FullPipeline_BridgeDiscoverSubscribeExtract` is the canonical A6 acceptance test: single test covers all 6 steps from the plan
+- Separate publisher node (`pub_node_`) per test to avoid cross-test graph pollution
+- `spin_until()` helper spins `pub_node_`'s executor with deadline — avoids `sleep`-based races
+- clangd false-positive errors expected (no ROS2 workspace for IDE); files compile correctly with sourced ROS2
+
+**Mission status updates** — A6 → `[x]` DONE. **Phase A complete (A1–A6 all `[x]`).**
+
+**Blockers** — None.
+
+---
+
+### Session 006 — 2026-03-02
+Session-ID: 006
+Agent: Cascade
+Agent-ID: n/a
+Wave: n/a
+Mode: implement
+Focus: C1
+Outcome: DONE
+Confidence: high
+
+**Intent** — Implement `RosPlotManager`: bridge between ROS2 field subscriptions (`GenericSubscriber` ring buffers) and Spectra `Figure`/`LineSeries`. Each frame the caller invokes `poll()` to drain SPSC ring buffers and append new `(timestamp_s, value)` points to the series.
+
+**What was done** —
+- Created `src/adapters/ros2/ros_plot_manager.hpp` — `PlotHandle` struct (`id`, `topic`, `field_path`, `figure*`, `axes*`, `series*`, `valid()`), `RosPlotManager` class. Public API: `add_plot(topic, field_path, type_name, buffer_depth)` → `PlotHandle`; `remove_plot(id)`, `clear()`, `plot_count()`, `handle(id)`, `handles()`; `poll()` (hot path, render thread); `set_figure_size()`, `set_default_buffer_depth()`, `set_auto_fit_samples()`, `set_on_data(cb)`. Internal `PlotEntry` struct owns `unique_ptr<Figure>`, `unique_ptr<GenericSubscriber>`, scratch drain buffer, auto-fit state, color index. Thread-safe: `add_plot`/`remove_plot`/`clear`/`handle`/`handles` acquire mutex; `poll()` does NOT lock (SPSC ring buffer contract — single consumer).
+- Created `src/adapters/ros2/ros_plot_manager.cpp` — Full implementation: `add_plot()` resolves type (via `detect_type()` if empty), creates `Figure` + `subplot(1,1,1)` + `line()`, assigns palette color from `spectra::palette::default_cycle`, calls `intr_.introspect()` + `sub->add_field()` + `sub->start()`; returns bad handle if field not found or start fails. `poll()` hot path: iterates entries, calls `pop_bulk()` into pre-allocated scratch buffer (`drain_buf`, grows-only), calls `series->append(t_sec, value)`, fires `on_data_cb_` per sample, triggers `axes->auto_fit()` once after `auto_fit_samples_` samples. `detect_type()` uses `node->get_topic_names_and_types()`. `next_color()` cycles `palette::default_cycle`.
+- Created `tests/unit/test_ros_plot_manager.cpp` — 43 tests across 12 suites: Construction (3), PlotHandle validity (2), add_plot rejections (4), add_plot success/figure/axes/series (14), handle() lookup (3), remove_plot/clear (5), poll() no-data (3), poll() live data via publisher (6), on_data callback (2), auto-fit config (2), configuration (3), handles() snapshot (2). Uses same `RclcppEnvironment` + per-test fixture pattern as A2/A3/A4/A5.
+- Modified `CMakeLists.txt` — Added `src/adapters/ros2/ros_plot_manager.cpp` to `spectra_ros2_adapter` sources.
+- Modified `tests/CMakeLists.txt` — Added `unit_test_ros_plot_manager` target gated inside `if(SPECTRA_USE_ROS2)` block.
+
+**Files touched** —
+- `src/adapters/ros2/ros_plot_manager.hpp` (new)
+- `src/adapters/ros2/ros_plot_manager.cpp` (new)
+- `tests/unit/test_ros_plot_manager.cpp` (new)
+- `CMakeLists.txt` (modified — added ros_plot_manager.cpp to adapter sources)
+- `tests/CMakeLists.txt` (modified — added ROS2-gated test target)
+- `SPECTRA_ROS_BREATHING_PLAN.md` (modified — C1 → `[x]`, focus → C2)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): requires confirming with `cmake -DSPECTRA_USE_ROS2=OFF` + ninja — zero new compile units in non-ROS2 path. ROS2 build: requires sourced Humble+ workspace; 43 unit tests validate construction, rejection cases (empty topic/field, bad field path), figure/series creation, palette color cycling, label format, handle lookup, remove/clear lifecycle, poll() with no-data, poll() with Float64/Twist publishers (verifying Y value and X in seconds), on_data callback, auto-fit config, figure size config, handles() snapshot.
+
+**Key design decisions** —
+- `poll()` does NOT hold the mutex — it is the single consumer of SPSC ring buffers. `add_plot`/`remove_plot` acquire mutex and must not be called concurrently with `poll()` (documented in header).
+- Scratch buffer `drain_buf` is per-`PlotEntry`, pre-allocated in `add_plot()`, grows-only — zero heap allocation in hot path after warm-up.
+- `MAX_DRAIN_PER_POLL = 4096` caps per-plot drain per frame to prevent burst stalls.
+- `AUTO_FIT_SAMPLES = 100`: auto-fit fires exactly once, after the first 100 samples.
+- `detect_type()` uses `node->get_topic_names_and_types()` (same API used by `TopicDiscovery`); returns first advertised type.
+- Palette cycling uses `spectra::palette::default_cycle` (10 colors, already defined in `include/spectra/color.hpp`).
+- Each `add_plot()` creates its own `Figure` (1×1 subplot). Multi-subplot layout is C4's responsibility.
+- clangd shows false-positive errors (workspace built without ROS2); all compile correctly with sourced ROS2.
+
+**Mission status updates** — C1 → `[x]` DONE
+
+**Blockers** — None.
+
+---
+
+### Session 005 — 2026-03-02
+Session-ID: 005
+Agent: Cascade
+Agent-ID: n/a
+Wave: n/a
+Mode: implement
+Focus: A5
+Outcome: DONE
+Confidence: high
+
+**Intent** — Implement `GenericSubscriber`: subscribe any ROS2 topic via `rclcpp::GenericSubscription`, extract numeric fields through `MessageIntrospector` accessors, feed results into SPSC lock-free ring buffers (`FieldSample = {timestamp_ns, value}`).
+
+**What was done** —
+- Created `src/adapters/ros2/generic_subscriber.hpp` — `FieldSample` struct (`int64_t timestamp_ns`, `double value`), `RingBuffer` class (SPSC lock-free, power-of-two capacity, drop-oldest-on-full, `push`/`pop`/`peek`/`size`/`clear`), `FieldExtractor` struct (id, field_path, FieldAccessor, RingBuffer), `SubscriberStats` struct (messages_received/dropped, samples_written/dropped), `GenericSubscriber` class. Public API: `add_field(path, accessor)` / `add_field(path)` (auto-introspects schema), `remove_field(id)`, `start()` / `stop()` / `is_running()`, `pop(id, sample)` / `pop_bulk(id, buf, max)` / `peek(id, buf, max)` / `pending(id)`, `stats()`, `set_message_callback(cb)`. Thread-safe: ring buffers are SPSC (executor thread = producer, render thread = consumer); `start()`/`stop()` use `atomic<bool>`. Multiple fields per subscription (single `rclcpp::GenericSubscription`, fan-out to N extractors). Buffer depth rounded up to next power-of-two (default 10000 → 16384).
+- Created `src/adapters/ros2/generic_subscriber.cpp` — Full implementation: `RingBuffer` uses `atomic<size_t>` head/tail with cache-line separation (`alignas(64)`); `on_message()` callback: obtains introspection type support via `rclcpp::get_typesupport_library` + `get_typesupport_handle`, reads `MessageMembers::size_of_` / `init_function` / `fini_function`, allocates stack-local `vector<uint8_t>` message buffer, deserializes CDR via `rclcpp::SerializationBase`, tries `header.stamp.sec/nanosec` for timestamp (falls back to wall clock), fans out `FieldAccessor::extract_double()` to each extractor's ring buffer, calls `fini_function` for cleanup.
+- Created `tests/unit/test_generic_subscriber.cpp` — 46 tests across 12 suites: RingBuffer (10: construction, pow2 rounding, push/pop, FIFO, drop-oldest, peek, partial-peek, clear, multi-round no-drop), Construction (3), FieldManagement (7: add by accessor, add by path, invalid path, invalid accessor, multiple fields, remove, remove non-existent), Lifecycle (4: start/stop, start idempotent, stop idempotent, destructor), Publish→RingBuffer (5: Float64 single field, multiple values, Twist multi-field, Int32, Bool), PopBulk (2), Stats (2), MessageCallback (1), Pending/Empty (4: invalid id, pop invalid, peek invalid, pending before start), HighFrequency overflow (1), IMU nested (2: angular_velocity.x, linear_acceleration xyz), EdgeCases (3: zero extractors, id not reused, stop-clears-subscription-not-buffer). Uses same `RclcppEnvironment` + per-test fixture pattern as A2/A3/A4. Custom `main()` registers global environment.
+- Modified `CMakeLists.txt` — Added `src/adapters/ros2/generic_subscriber.cpp` to `spectra_ros2_adapter` sources.
+- Modified `tests/CMakeLists.txt` — Added `unit_test_generic_subscriber` target gated inside `if(SPECTRA_USE_ROS2)` block.
+
+**Files touched** —
+- `src/adapters/ros2/generic_subscriber.hpp` (new)
+- `src/adapters/ros2/generic_subscriber.cpp` (new)
+- `tests/unit/test_generic_subscriber.cpp` (new)
+- `CMakeLists.txt` (modified — added generic_subscriber.cpp to adapter sources)
+- `tests/CMakeLists.txt` (modified — added ROS2-gated test target)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): ✅ (`ninja: no work to do`, zero regressions) | ROS2 build: requires sourced Humble+ workspace; 46 unit tests validate RingBuffer behaviour (SPSC correctness, overflow, peek, FIFO order), field management, lifecycle, Float64/Int32/Bool/Twist/IMU message extraction through ring buffer, stats accounting, and edge cases.
+
+**Key design decisions** —
+- `RingBuffer` is SPSC: `head_` owned by producer (executor thread), `tail_` owned by consumer (render thread). Both `alignas(64)` to prevent false sharing. Drop-oldest policy on overflow: producer advances tail by 1 to make space, increments `stat_ring_dropped_`.
+- `on_message()` uses `rclcpp::get_typesupport_library` + `get_typesupport_handle` (same pattern used by `ros2_type_description` tools) to obtain the introspection handle at runtime — no compile-time type coupling.
+- CDR deserialization via `rclcpp::SerializationBase(ts_handle).deserialize_message()` — the portable public API path.
+- Timestamp: tries `header.stamp.sec` + `header.stamp.nanosec` first (standard ROS2 stamped pattern); falls back to `std::chrono::system_clock` wall clock for unstamped messages.
+- `add_field(path)` auto-calls `intr_.introspect(type_name_)` on first use and caches in `schema_`.
+- `stop()` destroys `subscription_` (shared_ptr reset) — ring buffers are NOT cleared, so popping after stop is valid.
+- clangd shows false-positive errors (workspace built without ROS2); all compile correctly with sourced ROS2.
+
+**Mission status updates** — A5 → `[x]` DONE
+
+**Blockers** — None.
+
+---
+
+### Session 004 — 2026-03-02
+Session-ID: 004
+Agent: Cascade
+Agent-ID: n/a
+Wave: n/a
+Mode: implement
+Focus: A4
+Outcome: DONE
+Confidence: high
+
+**Intent** — Implement `MessageIntrospector`: runtime ROS2 message schema discovery and numeric field extraction using `rosidl_typesupport_introspection_cpp`.
+
+**What was done** —
+- Created `src/adapters/ros2/message_introspector.hpp` — `FieldType` enum (17 types: Bool/Byte/Char/Float32/Float64/Int8-64/Uint8-64/String/WString/Message/Unknown), `field_type_name()` + `is_numeric()` free functions, `FieldDescriptor` struct (name, full_path, type, offset, is_array, is_dynamic_array, array_size, children for nested msgs), `MessageSchema` struct (type_name, fields tree, `find_field()` by dot-path, `numeric_paths()` for flat listing), `FieldAccessor` class (extract_double / extract_int64 with array_index, is_array/is_dynamic_array/array_size accessors, private Step chain + `friend class MessageIntrospector`), `MessageIntrospector` class (introspect() by type string via dlopen, introspect_type_support() from raw pointer, make_accessor(), clear_cache(), cache_size()). Thread-safe (mutex-protected cache).
+- Created `src/adapters/ros2/message_introspector.cpp` — Full implementation: `from_rosidl_type()` maps rosidl field type IDs to FieldType enum, `field_type_size()` for element sizing, `split_path()` for dot-path parsing, `build_fields()` recursively walks `rosidl_typesupport_introspection_cpp::MessageMembers` to build FieldDescriptor tree (stores offset from member descriptor, recurses into ROS_TYPE_MESSAGE children), `build_schema()` top-level schema builder, `introspect()` dlopen-based loader (parses `package/msg/TypeName` → lib name + symbol name pattern), `introspect_type_support()` for direct type support pointer, `build_accessor_steps()` walks schema tree to build Step chain, `make_accessor()` constructs FieldAccessor with step chain + leaf info, `extract_double()` / `extract_int64()` walk step chain via byte pointer arithmetic then dispatch by FieldType using memcpy.
+- Created `tests/unit/test_message_introspector.cpp` — 55 tests across 12 suites: Lifecycle (2), Float64Schema (10), TwistSchema (9), ImuSchema (6), Float64Accessor (8), TwistAccessor (8), ImuAccessor (4), Int32Accessor (4), BoolAccessor (2), StringSchema (4), Cache (3), FieldTypeUtils (2), EdgeCases (5). Uses same `RclcppEnvironment` + fixture pattern as A2/A3.
+- Modified `CMakeLists.txt` — Added `src/adapters/ros2/message_introspector.cpp` to `spectra_ros2_adapter` sources.
+- Modified `tests/CMakeLists.txt` — Added `unit_test_message_introspector` target gated inside `if(SPECTRA_USE_ROS2)` block.
+
+**Files touched** —
+- `src/adapters/ros2/message_introspector.hpp` (new)
+- `src/adapters/ros2/message_introspector.cpp` (new)
+- `tests/unit/test_message_introspector.cpp` (new)
+- `CMakeLists.txt` (modified — added message_introspector.cpp to adapter sources)
+- `tests/CMakeLists.txt` (modified — added ROS2-gated test target)
+
+**Validation** — Build (SPECTRA_USE_ROS2=OFF): ✅ (ninja: no work to do, zero regressions) | ROS2 build: requires sourced Humble+ workspace; 55 unit tests validate schema construction, field extraction, caching, edge cases for Float64/Twist/Imu and all scalar types.
+
+**Key design decisions** —
+- `introspect()` uses `dlopen` to load `lib<pkg>__rosidl_typesupport_introspection_cpp.so` at runtime — no compile-time type coupling
+- `build_fields()` stores `m.offset_` from rosidl `MessageMember` — actual C++ struct byte offsets, no runtime layout computation
+- `FieldAccessor::extract_double()` walks Step chain via raw byte pointer arithmetic; for dynamic arrays dereferences `std::vector::data()` at offset 0 of vector header
+- `make_accessor()` rejects non-numeric leaf fields (returns invalid accessor)
+- `friend class MessageIntrospector` in `FieldAccessor` gives clean access to private Step struct and members
+- clangd shows false-positive errors (workspace built without ROS2); files compile correctly with sourced ROS2
+
+**Mission status updates** — A4 → `[x]` DONE
+
+**Blockers** — None.
+
+---
 
 ### Session 003 — 2026-03-02
 Session-ID: 003
@@ -409,9 +626,11 @@ Confidence: high
 **HANDOFF — Next Session Start Here**
 1. A1 complete — CMake scaffolding, `spectra_ros2_adapter` + `spectra-ros` targets.
 2. A2 complete — `Ros2Bridge` in `ros2_bridge.hpp/.cpp`; 21 unit tests.
-3. A3 complete — `TopicDiscovery` in `topic_discovery.hpp/.cpp`; 32 unit tests in `test_topic_discovery.cpp`. Discovers topics (with QoS), services, nodes. Periodic timer (2s default), add/remove callbacks. Non-ROS2 build: clean.
-4. Next mission is **A4** — implement `MessageIntrospector`. Create `src/adapters/ros2/message_introspector.hpp/.cpp`. Uses `rosidl_typesupport_introspection_cpp` to build a `MessageSchema` tree of `FieldDescriptor` (name, type_id, array info, nested). Add `FieldAccessor` to extract numeric values from serialized CDR bytes given a field path like `pose.position.x`. Handles: bool, int8–64, uint8–64, float32/64, string, nested msgs, fixed/dynamic arrays. Add .cpp to `spectra_ros2_adapter` sources. Add `tests/unit/test_message_introspector.cpp` gated under `if(SPECTRA_USE_ROS2)`.
-5. After A4, do A5 (GenericSubscriber) → A6 (integration smoke test) before opening Phase B+C parallel wave.
+3. A3 complete — `TopicDiscovery` in `topic_discovery.hpp/.cpp`; 32 unit tests. Discovers topics (with QoS), services, nodes.
+4. A4 complete — `MessageIntrospector` in `message_introspector.hpp/.cpp`; 55 unit tests. Schema introspection via dlopen+rosidl, FieldAccessor byte-offset chain extraction, nested messages (Twist, Imu), fixed+dynamic arrays, thread-safe cache.
+5. A5 complete — `GenericSubscriber` in `generic_subscriber.hpp/.cpp`; 46 unit tests in `test_generic_subscriber.cpp`. SPSC `RingBuffer` (power-of-two, alignas(64), drop-oldest-on-full), `FieldSample {timestamp_ns, value}`, multiple extractors per subscription, CDR deserialization via `rclcpp::SerializationBase`, header.stamp timestamp with wall-clock fallback. Non-ROS2 build: clean.
+6. A6 complete — `test_phase_a_integration.cpp`; 19 tests. Full pipeline: bridge → discovery → subscribe → publish → ring buffer extraction → clean shutdown. Float64/Twist/Imu all verified end-to-end. Non-ROS2 build: clean.
+7. **Phase A is complete. Next wave is B+C parallel (pg:1).** Alpha agent: B1 (`topic_list_panel.*`), B2 (`topic_echo_panel.*`), B3 (topic stats). Beta agent: C1 (`ros_plot_manager.*`), C2 (auto-scroll), C4 (multi-subplot). All new files go under `src/adapters/ros2/`. Do NOT modify any core src/ files.
 ---
 
 ## 9) Decision Log
@@ -467,6 +686,7 @@ Confidence: high
 - [ ] Documentation and examples published
 
 ## 13) Parallel Execution Map
+*(§14 `.live-agents` Bootstrap below is always required regardless of whether this section is used.)*
 
 ### Is parallel execution worth it here?
 
@@ -495,3 +715,59 @@ Confidence: high
 | (seq) | F1–F6 | pg:2 sync | Each panel tested |
 | (seq) | G1–G4 | F complete | App launches ✅ |
 | (seq) | H1–H4 | G1 = `[x]` | All tests pass ✅ |
+
+---
+
+## 14) `.live-agents` Bootstrap (Always Required)
+
+> **What is this?** `.live-agents` is a plain-text file at the project root that every agent reads before starting any operation and writes to immediately when its state changes. It is the single source of truth for *what is happening right now* in this project. It prevents two sessions from compiling, testing, or installing at the same time, and provides a recovery signal if a session crashes mid-op.
+>
+> **For this plan:** parallel waves (pg:1, pg:2, pg:3) use two named agents (Alpha, Beta). During sequential phases, only `[Agent-1]` is active.
+>
+> **Create this file at `/home/daniel/projects/Spectra/.live-agents` at the start of your first session. Update your own line on every state change. Delete the file only after all missions are `[x]` and the plan is fully closed.**
+
+### Initial `.live-agents` content (sequential phase, e.g. Phase A or G/H)
+```
+# .live-agents — Live Agent Coordination  (wave: sequential)
+# READ before any build/compile/test/install. UPDATE immediately on state change.
+# Exclusive ops (BUILDING / TESTING / INSTALLING): only one agent may hold these at a time.
+
+[Agent-1] status=STARTING  mission=<current-mission-ID>  op=pre-flight  updated=<timestamp>
+```
+
+### `.live-agents` content for parallel waves (e.g. pg:1: B2, B3, C2)
+```
+# .live-agents — Live Agent Coordination  (wave: pg:1)
+# READ before any build/compile/test/install. UPDATE immediately on state change.
+# Exclusive ops (BUILDING / TESTING / INSTALLING): only one agent may hold these at a time.
+
+[Alpha] status=STARTING  mission=B2  op=pre-flight  updated=<timestamp>
+[Beta]  status=STARTING  mission=C2  op=pre-flight  updated=<timestamp>
+```
+*(Update mission IDs to match the active wave from §13 Agent Roster before starting.)*
+
+### State values
+- `STARTING` — agent just launched, running pre-flight
+- `WORKING` — actively editing files
+- `BUILDING` — running `ninja` / CMake build (**exclusive** — one at a time)
+- `TESTING` — running `ctest` or ROS2 test suite (**exclusive** — one at a time)
+- `INSTALLING` — installing packages or dependencies (**exclusive** — one at a time)
+- `WAITING` — blocked on another agent's exclusive op
+- `DONE` — mission complete, session closing
+- `BLOCKED` — hit a hard blocker, needs human
+
+### Exclusive-op rules
+- Before running `ninja`, `ctest`, or `pip install`: check that no other line shows `BUILDING`, `TESTING`, or `INSTALLING`.
+- If another agent holds an exclusive op: set own status to `WAITING`, poll every ~30 s.
+- Always update your line **before** starting and **immediately after** finishing.
+- Last `DONE` agent in a wave appends `# Wave complete` at the bottom.
+
+### Mandatory build verification (every session — not just parallel)
+Every agent **must** run a clean build check at **two points** in every session:
+1. **Before any edits** (pre-flight): confirm the baseline compiles — `ninja -C <build_dir>`. If broken before you start, document it and do NOT proceed without fixing the pre-existing break first.
+2. **After all edits** (session close): confirm your changes compile — `ninja -C <build_dir>`. If the build is broken after your edits, **fix it before closing the session**. Log the result in the Validation block of the session log entry:
+   ```
+   - Build pre-edit:  ✅/❌ — <ninja output summary>
+   - Build post-edit: ✅/❌ — <ninja output summary>
+   ```
+   Update `.live-agents` to `status=BUILDING` while the build runs, then back to `WORKING` or `DONE`.

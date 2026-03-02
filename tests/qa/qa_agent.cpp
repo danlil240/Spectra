@@ -77,7 +77,7 @@ static size_t get_rss_bytes()
     if (!f)
         return 0;
     long pages = 0;
-    if (fscanf(f, "%*ld %ld", &pages) != 1)
+    if (fscanf(f, "%*d %ld", &pages) != 1)
         pages = 0;
     fclose(f);
     return static_cast<size_t>(pages) * 4096;
@@ -4550,7 +4550,7 @@ static void crash_handler(int sig)
                        g_last_action,
                        static_cast<unsigned long>(g_qa_seed));
     if (len > 0)
-        (void)write(STDERR_FILENO, buf, static_cast<size_t>(len));
+        if (write(STDERR_FILENO, buf, static_cast<size_t>(len))) {}
 
 #ifdef __linux__
     // Stack trace via backtrace()
@@ -4559,7 +4559,7 @@ static void crash_handler(int sig)
     if (nframes > 0)
     {
         const char* hdr = "[QA] Stack trace:\n";
-        (void)write(STDERR_FILENO, hdr, strlen(hdr));
+        if (write(STDERR_FILENO, hdr, strlen(hdr))) {}
         backtrace_symbols_fd(frames, nframes, STDERR_FILENO);
     }
 #endif
@@ -4579,7 +4579,7 @@ static void crash_handler(int sig)
                                 static_cast<unsigned long>(g_qa_seed),
                                 g_last_action);
             if (clen > 0)
-                (void)write(fd, crash_buf, static_cast<size_t>(clen));
+                if (write(fd, crash_buf, static_cast<size_t>(clen))) {}
 #ifdef __linux__
             if (nframes > 0)
                 backtrace_symbols_fd(frames, nframes, fd);
@@ -4589,7 +4589,7 @@ static void crash_handler(int sig)
     }
 
     const char* footer = "[QA] ══════════════════════════════════════\n";
-    (void)write(STDERR_FILENO, footer, strlen(footer));
+    if (write(STDERR_FILENO, footer, strlen(footer))) {}
     _exit(2);
 }
 

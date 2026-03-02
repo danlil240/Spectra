@@ -78,7 +78,9 @@ static std::string key_to_string(int key)
     }
     if (key >= KEY_F1 && key <= KEY_F12)
     {
-        return "F" + std::to_string(key - KEY_F1 + 1);
+        std::string result("F");
+        result += std::to_string(key - KEY_F1 + 1);
+        return result;
     }
     switch (key)
     {

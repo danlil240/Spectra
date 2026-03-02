@@ -32,7 +32,6 @@ static void build_ortho(double left, double right, double bottom, double top, fl
 
 // Simulate the GPU transform: clip_x = m[0]*x + m[12], clip_y = m[5]*y + m[13]
 static float ndc_x(const float* m, float x) { return m[0] * x + m[12]; }
-static float ndc_y(const float* m, float y) { return m[5] * y + m[13]; }
 
 // Convert NDC [-1,1] to pixel [0, viewport_size]
 static float ndc_to_px(float ndc, float viewport_size)

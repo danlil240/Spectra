@@ -4639,7 +4639,7 @@ void ImGuiIntegration::draw_theme_settings()
                 size_t pos      = 0;
                 while ((pos = display_name.find('_', pos)) != std::string::npos)
                 {
-                    display_name.replace(pos, 1, " ");
+                    display_name[pos] = ' ';
                     if (pos + 1 < display_name.length())
                         display_name[pos + 1] =
                             static_cast<char>(std::toupper(display_name[pos + 1]));

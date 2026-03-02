@@ -150,9 +150,11 @@ target_include_directories(spectra PUBLIC
 
 target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
+)
+target_include_directories(spectra SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma
-    ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 # Suppress warnings in third-party headers (stb_image.h tc16 array — GCC only)

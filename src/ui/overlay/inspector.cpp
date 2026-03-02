@@ -1099,7 +1099,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
 
     // ── Back button
     widgets::section_spacing();
-    if (widgets::button_field("Back to Figure"))
+    if (widgets::button_field("Back to Series List"))
     {
         if (ctx_.figure)
         {

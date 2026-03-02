@@ -13,6 +13,18 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# Treat Google Test headers as system includes so third-party warnings
+# are not promoted to errors by -Werror.
+foreach(_gt gtest gtest_main gmock gmock_main)
+    if(TARGET ${_gt})
+        get_target_property(_gt_inc ${_gt} INTERFACE_INCLUDE_DIRECTORIES)
+        if(_gt_inc)
+            set_target_properties(${_gt} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_gt_inc}")
+        endif()
+    endif()
+endforeach()
+
 # Google Benchmark (optional)
 option(SPECTRA_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
 if(SPECTRA_BUILD_BENCHMARKS)
@@ -292,6 +304,7 @@ if(SPECTRA_BUILD_QA_AGENT)
         target_compile_definitions(spectra_qa_agent PRIVATE
             SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
             $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+            $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
         )
     endif()
 endif()

@@ -647,6 +647,10 @@ class ImGuiIntegration
     } knobs_panel_rect_;
 };
 
+// Helper factory to construct an ImGuiIntegration instance from translation units
+// that only have forward declarations for ImGui internals.
+std::unique_ptr<ImGuiIntegration> make_imgui_integration();
+
 }   // namespace spectra
 
 #endif   // SPECTRA_USE_IMGUI

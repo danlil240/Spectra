@@ -16,7 +16,12 @@ namespace spectra
 class VulkanBackend;
 class Renderer;
 class Figure;
+class InputHandler;
 struct WindowContext;
+#ifdef SPECTRA_USE_IMGUI
+class ImGuiIntegration;
+class DataInteraction;
+#endif
 }   // namespace spectra
 
 namespace spectra::adapters::qt
@@ -84,6 +89,15 @@ class QtRuntime
     void end_frame(QWindow* window);
     void end_frame();
 
+    // Convenience: full frame lifecycle in one call.
+    bool render_window(QWindow* window, Figure& figure);
+    bool render_window(Figure& figure);
+
+    // Wire per-window input handler so modular UI overlays (legend/tooltips)
+    // receive the same interaction state as the canvas.
+    void set_input_handler(QWindow* window, InputHandler* input);
+    void set_input_handler(InputHandler* input);
+
     // Accessors
     QVulkanInstance* vulkan_instance() const;
     VulkanBackend*   backend() const { return backend_.get(); }
@@ -95,6 +109,7 @@ class QtRuntime
     struct WindowState
     {
         std::unique_ptr<WindowContext>                window_ctx;
+        InputHandler*                                 input_handler = nullptr;
         std::chrono::steady_clock::time_point         last_resize_request{};
         bool                                          resize_pending = false;
         uint32_t                                      swapchain_recreate_count = 0;
@@ -111,9 +126,17 @@ class QtRuntime
     std::unique_ptr<VulkanBackend>  backend_;
     std::unique_ptr<Renderer>       renderer_;
     std::unordered_map<QWindow*, std::unique_ptr<WindowState>> window_states_;
+    std::unordered_map<QWindow*, InputHandler*>              pending_input_handlers_;
     QWindow*                                         primary_window_       = nullptr;
     QWindow*                                         current_frame_window_ = nullptr;
     uint32_t                                         next_window_id_       = 1;
+
+#ifdef SPECTRA_USE_IMGUI
+    std::unique_ptr<ImGuiIntegration> imgui_ui_;
+    std::unique_ptr<DataInteraction>  data_interaction_;
+    std::chrono::steady_clock::time_point ui_last_frame_time_{};
+    bool                                  ui_has_last_frame_time_ = false;
+#endif
 
     // Debounce: track last resize request time to coalesce rapid resizes.
     static constexpr std::chrono::milliseconds k_resize_debounce{50};

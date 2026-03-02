@@ -65,6 +65,11 @@
 namespace spectra
 {
 
+std::unique_ptr<ImGuiIntegration> make_imgui_integration()
+{
+    return std::make_unique<ImGuiIntegration>();
+}
+
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
 ImGuiIntegration::~ImGuiIntegration()

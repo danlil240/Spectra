@@ -288,6 +288,33 @@ if(SPECTRA_BUILD_BENCHMARKS)
     endif()
 endif()
 
+# ROS2 adapter tests — only built when SPECTRA_USE_ROS2 is ON and a ROS2
+# workspace is sourced.  Each test links against spectra_ros2_adapter instead
+# of the bare spectra library and supplies its own main() to register the
+# shared RclcppEnvironment.
+if(SPECTRA_USE_ROS2)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros2_bridge.cpp)
+        add_executable(unit_test_ros2_bridge
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros2_bridge.cpp
+        )
+        target_link_libraries(unit_test_ros2_bridge PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_ros2_bridge PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros2_bridge PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros2_bridge PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros2_bridge COMMAND unit_test_ros2_bridge)
+        set_tests_properties(unit_test_ros2_bridge PROPERTIES LABELS "ros2")
+    endif()
+endif()
+
 # QA Agent (interactive stress test / fuzzer — not a CTest, run manually)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)

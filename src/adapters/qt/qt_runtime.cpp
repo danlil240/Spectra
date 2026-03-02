@@ -5,12 +5,25 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#include "ui/input/input.hpp"
 #include "ui/theme/theme.hpp"
+
+#ifdef SPECTRA_USE_IMGUI
+#include "core/layout.hpp"
+#include "ui/imgui/imgui_integration.hpp"
+#include "ui/overlay/data_interaction.hpp"
+#endif
 
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
+#include <algorithm>
 #include <QtGui/QWindow>
+
+#ifdef SPECTRA_USE_IMGUI
+#include <QtGui/QCursor>
+#include <QtGui/QGuiApplication>
+#endif
 
 namespace spectra::adapters::qt
 {
@@ -130,6 +143,12 @@ void QtRuntime::shutdown()
         backend_->wait_idle();
     }
 
+#ifdef SPECTRA_USE_IMGUI
+    data_interaction_.reset();
+    imgui_ui_.reset();
+    ui_has_last_frame_time_ = false;
+#endif
+
     // Destroy per-window contexts before renderer/backend teardown.
     if (backend_)
     {
@@ -147,6 +166,7 @@ void QtRuntime::shutdown()
     }
 
     window_states_.clear();
+    pending_input_handlers_.clear();
     primary_window_       = nullptr;
     current_frame_window_ = nullptr;
     next_window_id_       = 1;
@@ -194,6 +214,12 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
     state->window_ctx->id = next_window_id_++;
     state->window_ctx->native_window = static_cast<void*>(window);
 
+    if (auto pending_it = pending_input_handlers_.find(window);
+        pending_it != pending_input_handlers_.end())
+    {
+        state->input_handler = pending_it->second;
+    }
+
     if (!backend_->init_window_context(*state->window_ctx, width, height))
     {
         SPECTRA_LOG_ERROR("qt_runtime", "Failed to initialize window context");
@@ -215,6 +241,29 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
 
     backend_->set_active_window(state->window_ctx.get());
     backend_->ensure_pipelines();
+
+#ifdef SPECTRA_USE_IMGUI
+    if (!imgui_ui_)
+    {
+        imgui_ui_ = make_imgui_integration();
+        if (!imgui_ui_->init_headless(*backend_, width, height))
+        {
+            SPECTRA_LOG_WARN("qt_runtime",
+                             "ImGui headless init failed — Qt runtime continues with canvas-only rendering");
+            imgui_ui_.reset();
+        }
+        else
+        {
+            data_interaction_ = std::make_unique<DataInteraction>();
+            imgui_ui_->set_data_interaction(data_interaction_.get());
+            if (state->input_handler)
+            {
+                imgui_ui_->set_input_handler(state->input_handler);
+                state->input_handler->set_data_interaction(data_interaction_.get());
+            }
+        }
+    }
+#endif
 
     window_states_.emplace(window, std::move(state));
     if (!primary_window_)
@@ -252,12 +301,23 @@ void QtRuntime::detach_window(QWindow* window)
         current_frame_window_ = nullptr;
     }
 
+    pending_input_handlers_.erase(window);
+
     window_states_.erase(it);
 
     if (primary_window_ == window)
     {
         primary_window_ = window_states_.empty() ? nullptr : window_states_.begin()->first;
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    if (window_states_.empty())
+    {
+        data_interaction_.reset();
+        imgui_ui_.reset();
+        ui_has_last_frame_time_ = false;
+    }
+#endif
 
     if (backend_)
     {
@@ -383,6 +443,13 @@ bool QtRuntime::begin_frame(QWindow* window)
             state->window_ctx->swapchain_dirty       = false;
             state->window_ctx->swapchain_invalidated = false;
             state->resize_pending                    = false;
+
+#ifdef SPECTRA_USE_IMGUI
+            if (imgui_ui_)
+            {
+                imgui_ui_->on_swapchain_recreated(*backend_);
+            }
+#endif
         }
         else
         {
@@ -449,12 +516,109 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
     float sw  = static_cast<float>(sw_u);
     float sh  = static_cast<float>(sh_u);
 
-    // Only recompute layout when dimensions actually change — avoids per-frame
-    // axis viewport oscillation during resize debounce (root cause of flicker
-    // and squished-plot appearance on the left canvas).
-    if (figure.width() != sw_u || figure.height() != sh_u)
+    const bool size_changed = (figure.width() != sw_u || figure.height() != sh_u);
+    if (size_changed)
     {
         figure.set_size(sw_u, sh_u);
+    }
+
+    bool layout_applied = false;
+
+#ifdef SPECTRA_USE_IMGUI
+    if (imgui_ui_)
+    {
+        if (state->input_handler)
+        {
+            imgui_ui_->set_input_handler(state->input_handler);
+            if (data_interaction_)
+            {
+                state->input_handler->set_data_interaction(data_interaction_.get());
+                const auto& readout = state->input_handler->cursor_readout();
+                imgui_ui_->set_cursor_data(readout.data_x, readout.data_y, readout.valid);
+                data_interaction_->update(readout, figure);
+            }
+        }
+        else
+        {
+            imgui_ui_->set_input_handler(nullptr);
+            if (data_interaction_)
+            {
+                CursorReadout no_cursor;
+                no_cursor.valid = false;
+                data_interaction_->update(no_cursor, figure);
+                imgui_ui_->set_cursor_data(0.0f, 0.0f, false);
+            }
+        }
+
+        float dt = 1.0f / 60.0f;
+        const auto now = std::chrono::steady_clock::now();
+        if (ui_has_last_frame_time_)
+        {
+            dt = std::chrono::duration<float>(now - ui_last_frame_time_).count();
+            dt = std::clamp(dt, 1.0f / 240.0f, 0.1f);
+        }
+        ui_last_frame_time_ = now;
+        ui_has_last_frame_time_ = true;
+
+        ImGuiIntegration::HeadlessFrameInput fi{};
+        fi.display_w  = sw;
+        fi.display_h  = sh;
+        fi.dt         = dt;
+        fi.dpi_scale  = static_cast<float>(window->devicePixelRatio());
+
+        const QPoint local_pos = window->mapFromGlobal(QCursor::pos());
+        const float  dpr       = std::max(fi.dpi_scale, 1.0f);
+        fi.mouse_x             = static_cast<float>(local_pos.x()) * dpr;
+        fi.mouse_y             = static_cast<float>(local_pos.y()) * dpr;
+
+        const Qt::MouseButtons buttons = QGuiApplication::mouseButtons();
+        fi.mouse_down[0]               = (buttons & Qt::LeftButton) != 0;
+        fi.mouse_down[1]               = (buttons & Qt::RightButton) != 0;
+        fi.mouse_down[2]               = (buttons & Qt::MiddleButton) != 0;
+
+        imgui_ui_->new_frame_headless(fi);
+        imgui_ui_->build_ui(figure);
+
+        auto& lm = imgui_ui_->get_layout_manager();
+
+        const Rect canvas = lm.canvas_rect();
+        const auto& fig_style = figure.style();
+        Margins     fig_margins;
+        fig_margins.left   = fig_style.margin_left;
+        fig_margins.right  = fig_style.margin_right;
+        fig_margins.top    = fig_style.margin_top;
+        fig_margins.bottom = fig_style.margin_bottom;
+
+        const auto rects = compute_subplot_layout(canvas.w,
+                                                  canvas.h,
+                                                  figure.grid_rows(),
+                                                  figure.grid_cols(),
+                                                  fig_margins,
+                                                  canvas.x,
+                                                  canvas.y);
+
+        for (size_t i = 0; i < figure.axes_mut().size() && i < rects.size(); ++i)
+        {
+            if (figure.axes_mut()[i])
+            {
+                figure.axes_mut()[i]->set_viewport(rects[i]);
+            }
+        }
+        for (size_t i = 0; i < figure.all_axes_mut().size() && i < rects.size(); ++i)
+        {
+            if (figure.all_axes_mut()[i])
+            {
+                figure.all_axes_mut()[i]->set_viewport(rects[i]);
+            }
+        }
+
+        layout_applied = true;
+    }
+#endif
+
+    if (!layout_applied && size_changed)
+    {
+        // Canvas-only fallback when ImGui integration is unavailable.
         figure.compute_layout();
     }
 
@@ -475,12 +639,36 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
     renderer_->begin_render_pass();
     renderer_->render_figure_content(figure);
     renderer_->render_text(sw, sh);
+
+#ifdef SPECTRA_USE_IMGUI
+    if (imgui_ui_)
+    {
+        imgui_ui_->render(*backend_);
+    }
+#endif
+
     renderer_->end_render_pass();
 }
 
 void QtRuntime::render_figure(Figure& figure)
 {
     render_figure(primary_window_, figure);
+}
+
+bool QtRuntime::render_window(QWindow* window, Figure& figure)
+{
+    if (!begin_frame(window))
+    {
+        return false;
+    }
+    render_figure(window, figure);
+    end_frame(window);
+    return true;
+}
+
+bool QtRuntime::render_window(Figure& figure)
+{
+    return render_window(primary_window_, figure);
 }
 
 void QtRuntime::end_frame(QWindow* window)
@@ -509,6 +697,33 @@ void QtRuntime::end_frame(QWindow* window)
 void QtRuntime::end_frame()
 {
     end_frame(primary_window_);
+}
+
+void QtRuntime::set_input_handler(QWindow* window, InputHandler* input)
+{
+    if (!window)
+    {
+        return;
+    }
+
+    pending_input_handlers_[window] = input;
+
+    if (auto* state = find_window_state(window))
+    {
+        state->input_handler = input;
+
+#ifdef SPECTRA_USE_IMGUI
+        if (data_interaction_ && input)
+        {
+            input->set_data_interaction(data_interaction_.get());
+        }
+#endif
+    }
+}
+
+void QtRuntime::set_input_handler(InputHandler* input)
+{
+    set_input_handler(primary_window_, input);
 }
 
 WindowContext* QtRuntime::window_context(QWindow* window) const

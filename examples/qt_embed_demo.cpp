@@ -59,9 +59,23 @@ class SpectraVulkanWindow : public QWindow
         resize(800, 600);
     }
 
-    void setRuntime(spectra::adapters::qt::QtRuntime* rt) { runtime_ = rt; }
+    void setRuntime(spectra::adapters::qt::QtRuntime* rt)
+    {
+        runtime_ = rt;
+        if (runtime_ && input_)
+        {
+            runtime_->set_input_handler(this, input_);
+        }
+    }
     void setFigure(spectra::Figure* fig) { figure_ = fig; }
-    void setInputHandler(spectra::InputHandler* ih) { input_ = ih; }
+    void setInputHandler(spectra::InputHandler* ih)
+    {
+        input_ = ih;
+        if (runtime_)
+        {
+            runtime_->set_input_handler(this, input_);
+        }
+    }
     void setAnimationTick(AnimationTickCallback cb) { animation_tick_ = std::move(cb); }
     bool isAttached() const { return attached_; }
 
@@ -267,11 +281,7 @@ class SpectraVulkanWindow : public QWindow
             animation_tick_(dt);
         }
 
-        if (runtime_->begin_frame(this))
-        {
-            runtime_->render_figure(this, *figure_);
-            runtime_->end_frame(this);
-        }
+        (void)runtime_->render_window(this, *figure_);
     }
 
     static int qtButtonToSpectra(Qt::MouseButton btn)

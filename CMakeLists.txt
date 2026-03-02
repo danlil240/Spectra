@@ -36,6 +36,8 @@ option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
 option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
+option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" OFF)
+option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    OFF)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
@@ -277,6 +279,83 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         ${imgui_SOURCE_DIR}/backends
     )
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
+endif()
+
+# ROS2 adapter (optional) — gated behind SPECTRA_USE_ROS2
+# Requires a sourced ROS2 workspace (Humble+) before running CMake.
+# Zero impact on any target when SPECTRA_USE_ROS2=OFF.
+if(SPECTRA_USE_ROS2)
+    find_package(ament_cmake QUIET)
+    find_package(rclcpp REQUIRED)
+    find_package(rcl_interfaces REQUIRED)
+    find_package(rosidl_typesupport_introspection_cpp REQUIRED)
+    find_package(std_msgs REQUIRED)
+    find_package(geometry_msgs REQUIRED)
+    find_package(sensor_msgs REQUIRED)
+    find_package(diagnostic_msgs REQUIRED)
+    find_package(tf2_msgs REQUIRED)
+    find_package(rcpputils QUIET)
+
+    if(SPECTRA_ROS2_BAG)
+        find_package(rosbag2_cpp REQUIRED)
+        find_package(rosbag2_storage REQUIRED)
+    endif()
+
+    # Adapter library — all ROS2 adapter source lives under src/adapters/ros2/
+    add_library(spectra_ros2_adapter
+        src/adapters/ros2/ros2_adapter.cpp
+        src/adapters/ros2/ros2_bridge.cpp
+    )
+
+    target_link_libraries(spectra_ros2_adapter PUBLIC
+        spectra
+        rclcpp::rclcpp
+        rosidl_typesupport_introspection_cpp::rosidl_typesupport_introspection_cpp
+    )
+
+    target_link_libraries(spectra_ros2_adapter PUBLIC
+        ${std_msgs_TARGETS}
+        ${geometry_msgs_TARGETS}
+        ${sensor_msgs_TARGETS}
+        ${diagnostic_msgs_TARGETS}
+        ${tf2_msgs_TARGETS}
+    )
+
+    if(SPECTRA_ROS2_BAG)
+        target_link_libraries(spectra_ros2_adapter PUBLIC
+            rosbag2_cpp::rosbag2_cpp
+            rosbag2_storage::rosbag2_storage
+        )
+        target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_ROS2_BAG)
+    endif()
+
+    target_compile_features(spectra_ros2_adapter PRIVATE cxx_std_20)
+
+    target_include_directories(spectra_ros2_adapter PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
+    )
+    target_include_directories(spectra_ros2_adapter PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+
+    target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_USE_ROS2)
+
+    # spectra-ros standalone executable
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2/main.cpp)
+        add_executable(spectra-ros
+            src/adapters/ros2/main.cpp
+        )
+        target_link_libraries(spectra-ros PRIVATE spectra_ros2_adapter)
+        target_compile_features(spectra-ros PRIVATE cxx_std_20)
+        target_include_directories(spectra-ros PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
+        )
+    endif()
+
+    message(STATUS "ROS2 adapter enabled (rosbag2: ${SPECTRA_ROS2_BAG})")
 endif()
 
 # Eigen adapter (optional)

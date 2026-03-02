@@ -39,6 +39,35 @@ Next session:
 
 ## Session Log
 
+### Session 2026-03-02 10:13 (Agent: Codex)
+Done this session:
+- Added a dedicated Qt multi-canvas binary target: `qt_multi_canvas_demo` (built from `qt_embed_demo.cpp` with compile-time default multi mode).
+- Added compile-time default mode wiring in `qt_embed_demo.cpp`:
+  - `SPECTRA_QT_FORCE_MULTI_CANVAS` sets default startup mode to two canvases.
+  - Added `--single` / `-s` override alongside existing `--multi` / `-m`.
+- Added a multi-canvas lifecycle test hook in demo runtime:
+  - `Ctrl+D` toggles detach/reattach for the right canvas (`QtRuntime::detach_window` / `attach_window`) without restarting the app.
+- Added explicit Phase 2 multi-canvas smoke checklist section (§20), including independent interaction and detach/reattach validation steps.
+
+Files touched:
+- `examples/qt_embed_demo.cpp`
+- `examples/CMakeLists.txt`
+- `plans/QT_embed_plan.md`
+
+Validation run:
+- `cmake -S . -B build-qt -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON -DSPECTRA_BUILD_EXAMPLES=ON` (pass)
+- `cmake --build build-qt --target spectra_qt_adapter qt_embed_demo qt_multi_canvas_demo -j6` (pass)
+- `cmake --build build --target spectra -j6` (pass)
+
+Open issues:
+- Runtime smoke validation on a real display server is still pending for both `qt_embed_demo --multi` and `qt_multi_canvas_demo`.
+- Validation-layer verification is still needed for the new `Ctrl+D` detach/reattach flow (no GUI runtime available in current environment).
+
+Next session:
+1. Run `./build-qt/examples/qt_multi_canvas_demo` with validation layers and execute §20 end-to-end.
+2. Record checklist results (especially independent interaction + `Ctrl+D` detach/reattach behavior) in this session log.
+3. If any flicker/crosstalk appears during detach/reattach, isolate shared renderer resource hazards and patch `QtRuntime::begin_frame`/window fencing as needed.
+
 ### Session 2026-03-02 00:08 (Agent: Codex)
 Done this session:
 - Added minimal multi-canvas exercise path to `qt_embed_demo` to validate the new window-addressable `QtRuntime` API.
@@ -829,3 +858,36 @@ Prerequisites:
 - [ ] `ctest` in standard build: no new failures beyond pre-existing golden image tests.
 
 Record results in the session log after running.
+
+## 20) Smoke Test Checklist — Qt Multi-Canvas (Phase 2)
+
+Prerequisites:
+- Build: `cmake -S . -B build-qt -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON -DSPECTRA_BUILD_EXAMPLES=ON && cmake --build build-qt --target qt_multi_canvas_demo -j6`
+- Enable validation layers: `export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation`
+- Enable debug logging: set Spectra log level to Debug before running.
+
+### 20.1 Startup
+- [ ] `./build-qt/examples/qt_multi_canvas_demo` launches without crash.
+- [ ] Main window shows two Vulkan canvases side-by-side.
+- [ ] Left/right plots are both visible (phase-shifted data, not identical overlays).
+- [ ] No validation-layer errors on startup.
+
+### 20.2 Independent Interaction
+- [ ] Pan/zoom left canvas; right canvas view does not move.
+- [ ] Pan/zoom right canvas; left canvas view does not move.
+- [ ] Repeated alternating interaction (left then right) remains responsive for 60+ seconds.
+
+### 20.3 Canvas Detach/Reattach (`Ctrl+D`)
+- [ ] Press `Ctrl+D`: right canvas detaches (no crash, left canvas keeps rendering).
+- [ ] Press `Ctrl+D` again: right canvas re-attaches and resumes rendering.
+- [ ] Repeat detach/reattach cycle at least 5 times with no validation-layer surface/swapchain lifetime errors.
+
+### 20.4 Dual-Canvas Resize Torture
+- [ ] Drag splitter divider rapidly for 60 seconds: no crash/hang.
+- [ ] Resize main window rapidly for 60 seconds: no swapchain recreate storm beyond expected debounced behavior.
+- [ ] Minimize/restore while in multi-canvas mode: both canvases recover correctly.
+
+### 20.5 Shutdown + Regression
+- [ ] Close window via X button: clean exit with code 0.
+- [ ] No validation-layer errors on shutdown.
+- [ ] `cmake --build build --target spectra -j6` still passes after Qt multi-canvas changes.

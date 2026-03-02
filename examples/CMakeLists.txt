@@ -82,4 +82,17 @@ if(SPECTRA_BUILD_QT_EXAMPLE)
         ${CMAKE_BINARY_DIR}/generated
     )
     target_compile_definitions(qt_embed_demo PRIVATE SPECTRA_HAS_QT6)
+
+    # Dedicated multi-canvas binary for Phase 2 validation; reuses qt_embed_demo.cpp.
+    add_executable(qt_multi_canvas_demo qt_embed_demo.cpp)
+    target_link_libraries(qt_multi_canvas_demo PRIVATE spectra_qt_adapter Qt6::Widgets)
+    target_compile_features(qt_multi_canvas_demo PRIVATE cxx_std_20)
+    target_include_directories(qt_multi_canvas_demo PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    target_compile_definitions(qt_multi_canvas_demo PRIVATE
+        SPECTRA_HAS_QT6
+        SPECTRA_QT_FORCE_MULTI_CANVAS
+    )
 endif()

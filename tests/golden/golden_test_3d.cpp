@@ -399,7 +399,10 @@ TEST(Golden3D, Mesh3D_Triangle)
 
                            ax.mesh(vertices, indices).color(colors::cyan);
                            ax.title("Mesh: Single Triangle");
-                       });
+                       },
+                       640,
+                       480,
+                       3.0);
 }
 
 TEST(Golden3D, Mesh3D_Quad)
@@ -419,7 +422,10 @@ TEST(Golden3D, Mesh3D_Quad)
 
                            ax.mesh(vertices, indices).color(colors::green);
                            ax.title("Mesh: Quad");
-                       });
+                       },
+                       640,
+                       480,
+                       3.0);
 }
 
 TEST(Golden3D, Surface_Colormap)

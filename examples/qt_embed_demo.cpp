@@ -6,7 +6,7 @@
 //   make qt_embed_demo
 //
 // Usage:
-//   ./qt_embed_demo
+//   ./qt_embed_demo [--multi|--single]
 //
 // This demonstrates first-class Vulkan integration: Spectra creates a real
 // VkSurface + swapchain on a QWindow and renders directly — no CPU readback,
@@ -19,6 +19,7 @@
 #include <QMainWindow>
 #include <QMouseEvent>
 #include <QPlatformSurfaceEvent>
+#include <QShortcut>
 #include <QSplitter>
 #include <QTimer>
 #include <QWidget>
@@ -53,6 +54,37 @@ class SpectraVulkanWindow : public QWindow
     void setRuntime(spectra::adapters::qt::QtRuntime* rt) { runtime_ = rt; }
     void setFigure(spectra::Figure* fig) { figure_ = fig; }
     void setInputHandler(spectra::InputHandler* ih) { input_ = ih; }
+    bool isAttached() const { return attached_; }
+
+    bool ensureAttached()
+    {
+        if (attached_)
+            return true;
+        if (!runtime_ || !isExposed())
+            return false;
+
+        auto dpr = devicePixelRatio();
+        auto w   = static_cast<uint32_t>(width() * dpr);
+        auto h   = static_cast<uint32_t>(height() * dpr);
+        if (w == 0 || h == 0)
+            return false;
+
+        if (!runtime_->attach_window(this, w, h))
+            return false;
+
+        attached_ = true;
+        last_dpr_ = dpr;
+        return true;
+    }
+
+    void forceDetach()
+    {
+        if (runtime_ && attached_)
+        {
+            runtime_->detach_window(this);
+        }
+        attached_ = false;
+    }
 
     void startFrameTimer()
     {
@@ -70,22 +102,11 @@ class SpectraVulkanWindow : public QWindow
             if (platform_event->surfaceEventType()
                 == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
             {
-                runtime_->detach_window(this);
-                attached_ = false;
+                forceDetach();
             }
             else if (platform_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated)
             {
-                if (isExposed())
-                {
-                    auto dpr = devicePixelRatio();
-                    auto w   = static_cast<uint32_t>(width() * dpr);
-                    auto h   = static_cast<uint32_t>(height() * dpr);
-                    if (w > 0 && h > 0 && runtime_->attach_window(this, w, h))
-                    {
-                        attached_ = true;
-                        last_dpr_ = dpr;
-                    }
-                }
+                (void)ensureAttached();
             }
         }
         return QWindow::event(event);
@@ -99,13 +120,8 @@ class SpectraVulkanWindow : public QWindow
         if (!attached_ && runtime_)
         {
             // First expose: create surface + swapchain.
-            auto dpr = devicePixelRatio();
-            auto w   = static_cast<uint32_t>(width() * dpr);
-            auto h   = static_cast<uint32_t>(height() * dpr);
-            if (runtime_->attach_window(this, w, h))
+            if (ensureAttached())
             {
-                attached_    = true;
-                last_dpr_    = dpr;
                 renderFrame();
             }
             return;
@@ -286,6 +302,12 @@ class SpectraVulkanWindow : public QWindow
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
+#ifdef SPECTRA_QT_FORCE_MULTI_CANVAS
+static constexpr bool k_default_multi_canvas = true;
+#else
+static constexpr bool k_default_multi_canvas = false;
+#endif
+
 static void populate_demo_figure(spectra::Figure& fig, float phase)
 {
     auto& ax = fig.subplot(1, 1, 1);
@@ -317,13 +339,17 @@ int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
 
-    bool multi_canvas = false;
+    bool multi_canvas = k_default_multi_canvas;
     for (int i = 1; i < argc; ++i)
     {
         const std::string arg = argv[i] ? argv[i] : "";
         if (arg == "--multi" || arg == "-m")
         {
             multi_canvas = true;
+        }
+        else if (arg == "--single" || arg == "-s")
+        {
+            multi_canvas = false;
         }
     }
 
@@ -390,6 +416,21 @@ int main(int argc, char* argv[])
         splitter->setStretchFactor(0, 1);
         splitter->setStretchFactor(1, 1);
         main_window.setCentralWidget(splitter);
+
+        // Multi-canvas lifecycle test hook:
+        // Ctrl+D toggles right canvas detach/reattach without restarting app.
+        auto* toggle_right_attach =
+            new QShortcut(QKeySequence(QStringLiteral("Ctrl+D")), &main_window);
+        QObject::connect(toggle_right_attach, &QShortcut::activated, &main_window, [&window_b]() {
+            if (window_b.isAttached())
+            {
+                window_b.forceDetach();
+            }
+            else
+            {
+                (void)window_b.ensureAttached();
+            }
+        });
     }
 
     main_window.show();
@@ -418,7 +459,7 @@ int main()
     std::cout << "This example requires Qt6. Build with:\n"
               << "  cmake -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON "
                  "-DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..\n"
-              << "Run with --multi to open two Vulkan canvases in one window.\n";
+              << "Run with --multi for two canvases, or --single for one.\n";
     return 0;
 }
 

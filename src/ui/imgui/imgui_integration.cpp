@@ -38,6 +38,7 @@
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/theme/theme.hpp"
     #include "ui/animation/timeline_editor.hpp"
+    #include "ui/app/ros2_adapter_state.hpp"
     #include "widgets.hpp"
 
     #define GLFW_INCLUDE_NONE
@@ -562,6 +563,55 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_theme_settings();
     }
 
+    // ── ROS2 Adapter error modal ──────────────────────────────────────────────
+    // Shown when the tools.ros2_adapter command encounters a launch failure.
+    // The flag is set from the command callback; cleared here after the user
+    // dismisses the modal.
+#ifdef SPECTRA_USE_ROS2
+    if (ros2_adapter_has_error())
+    {
+        ImGui::OpenPopup("ROS2 Adapter Error##ros2err");
+    }
+    if (ImGui::BeginPopupModal("ROS2 Adapter Error##ros2err",
+                               nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        const auto& colors = ui::theme();
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_primary.r,
+                                     colors.text_primary.g,
+                                     colors.text_primary.b,
+                                     colors.text_primary.a));
+
+        ImGui::TextUnformatted("Could not launch spectra-ros:");
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_secondary.r,
+                                     colors.text_secondary.g,
+                                     colors.text_secondary.b,
+                                     colors.text_secondary.a));
+        ImGui::TextWrapped("%s", ros2_adapter_pending_error().c_str());
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Make sure a ROS2 workspace is sourced and\n"
+                               "spectra-ros is on your PATH.");
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        float btn_w = 80.0f;
+        float avail = ImGui::GetContentRegionAvail().x;
+        ImGui::SetCursorPosX((avail - btn_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+        if (ImGui::Button("OK", ImVec2(btn_w, 0)))
+        {
+            ros2_adapter_clear_error();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+#endif   // SPECTRA_USE_ROS2
+
     // Draw directional dock highlight overlay when another window is dragging a tab over this one
     if (window_manager_ && window_id_ != 0 && window_manager_->drag_target_window() == window_id_)
     {
@@ -974,6 +1024,24 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                 ImGui::PopStyleColor();
                 ImGui::Dummy(ImVec2(0, 2));
             }
+            else if (!item.callback)
+            {
+                // Null callback + non-empty label → disabled / grayed-out text item.
+                // text_tertiary is the theme field for placeholders / disabled text.
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(colors.text_tertiary.r,
+                                             colors.text_tertiary.g,
+                                             colors.text_tertiary.b,
+                                             colors.text_tertiary.a));
+                float item_h = ImGui::GetTextLineHeight() + 10.0f;
+                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+                ImGui::Selectable(item.label.c_str(),
+                                  false,
+                                  ImGuiSelectableFlags_Disabled,
+                                  ImVec2(0, item_h));
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+            }
             else
             {
                 ImGui::PushStyleColor(ImGuiCol_Text,
@@ -1000,8 +1068,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                                       ImGuiSelectableFlags_None,
                                       ImVec2(0, item_h)))
                 {
-                    if (item.callback)
-                        item.callback();
+                    item.callback();
                     open_menu_label_.clear();
                 }
 
@@ -1725,7 +1792,23 @@ void ImGuiIntegration::draw_command_bar()
                       {
                           if (command_registry_)
                               command_registry_->execute("app.command_palette");
-                      })});
+                      }),
+             MenuItem("", nullptr),   // Separator
+#ifdef SPECTRA_USE_ROS2
+             MenuItem("ROS2 Adapter",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("tools.ros2_adapter");
+                      })
+#else
+             // Grayed-out placeholder when compiled without ROS2 support.
+             // draw_menubar_menu skips items with a null callback; we render
+             // a disabled text label instead via a zero-callback sentinel that
+             // is handled specially in draw_menubar_menu.
+             MenuItem("\xEF\xA0\xAD ROS2 Adapter (not available)", nullptr)
+#endif
+            });
 
         // Push status info to the right
         ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);

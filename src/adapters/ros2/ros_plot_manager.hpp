@@ -48,6 +48,7 @@
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
+#include "scroll_controller.hpp"
 
 namespace spectra::adapters::ros2
 {
@@ -82,6 +83,9 @@ struct PlotHandle
 class RosPlotManager
 {
 public:
+    // Default auto-scroll time window (seconds).
+    static constexpr double DEFAULT_SCROLL_WINDOW_S = ScrollController::DEFAULT_WINDOW_S;
+
     // Number of samples after which the first Y auto-fit is applied.
     static constexpr size_t AUTO_FIT_SAMPLES = 100;
 
@@ -151,6 +155,30 @@ public:
     // Default: AUTO_FIT_SAMPLES (100).
     void set_auto_fit_samples(size_t n);
 
+    // ---------- auto-scroll (C2) -----------------------------------------
+
+    // Set the sliding time window width (seconds) applied to all plots.
+    // Clamped to [ScrollController::MIN_WINDOW_S, ScrollController::MAX_WINDOW_S].
+    void set_time_window(double seconds);
+    double time_window() const;
+
+    // Pause / resume auto-scroll following for a specific plot.
+    void pause_scroll(int plot_id);
+    void resume_scroll(int plot_id);
+    void toggle_scroll_paused(int plot_id);
+    bool is_scroll_paused(int plot_id) const;
+
+    // Pause / resume all plots at once.
+    void pause_all_scroll();
+    void resume_all_scroll();
+
+    // Estimated memory used by a plot's LineSeries data.
+    // Returns 0 if id is not found.
+    size_t memory_bytes(int plot_id) const;
+
+    // Total estimated memory across all plots.
+    size_t total_memory_bytes() const;
+
     // ---------- callbacks ------------------------------------------------
 
     // Called (from render thread, inside poll()) whenever a new point is appended.
@@ -186,6 +214,9 @@ private:
 
         // Scratch buffer reused by poll() — avoids per-frame heap alloc.
         std::vector<FieldSample> drain_buf;
+
+        // Auto-scroll time window controller (one per plot).
+        ScrollController scroll;
     };
 
     // Find entry by id; returns nullptr if not found.
@@ -216,6 +247,7 @@ private:
     uint32_t figure_height_        = 720;
     size_t   default_buffer_depth_ = 10000;
     size_t   auto_fit_samples_     = AUTO_FIT_SAMPLES;
+    double   scroll_window_s_      = DEFAULT_SCROLL_WINDOW_S;
 
     OnDataCallback on_data_cb_;
 };

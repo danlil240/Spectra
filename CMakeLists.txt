@@ -309,7 +309,31 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/message_introspector.cpp
         src/adapters/ros2/generic_subscriber.cpp
         src/adapters/ros2/ros_plot_manager.cpp
+        src/adapters/ros2/scroll_controller.cpp
         src/adapters/ros2/ui/topic_list_panel.cpp
+        src/adapters/ros2/ui/topic_echo_panel.cpp
+        src/adapters/ros2/ui/topic_stats_overlay.cpp
+        src/adapters/ros2/ui/field_drag_drop.cpp
+        src/adapters/ros2/ui/node_graph_panel.cpp
+        src/adapters/ros2/ui/tf_tree_panel.cpp
+        src/adapters/ros2/subplot_manager.cpp
+        src/adapters/ros2/expression_engine.cpp
+        src/adapters/ros2/expression_plot.cpp
+        src/adapters/ros2/ui/expression_editor.cpp
+        src/adapters/ros2/ros_csv_export.cpp
+        src/adapters/ros2/ros_screenshot_export.cpp
+        src/adapters/ros2/ros_clipboard_export.cpp
+        src/adapters/ros2/ros_app_shell.cpp
+        src/adapters/ros2/service_caller.cpp
+        src/adapters/ros2/ui/service_caller_panel.cpp
+        src/adapters/ros2/ui/bag_info_panel.cpp
+        src/adapters/ros2/bag_player.cpp
+        src/adapters/ros2/ui/bag_playback_panel.cpp
+        src/adapters/ros2/ui/param_editor_panel.cpp
+        src/adapters/ros2/ros_log_viewer.cpp
+        src/adapters/ros2/ui/log_viewer_panel.cpp
+        src/adapters/ros2/ros_session.cpp
+        src/adapters/ros2/ui/diagnostics_panel.cpp
     )
 
     target_link_libraries(spectra_ros2_adapter PUBLIC
@@ -327,6 +351,12 @@ if(SPECTRA_USE_ROS2)
     )
 
     if(SPECTRA_ROS2_BAG)
+        target_sources(spectra_ros2_adapter PRIVATE
+            src/adapters/ros2/bag_reader.cpp
+            src/adapters/ros2/bag_recorder.cpp
+        )
+        # bag_player.cpp is already in the library sources above;
+        # SPECTRA_ROS2_BAG compile definition enables its full implementation.
         target_link_libraries(spectra_ros2_adapter PUBLIC
             rosbag2_cpp::rosbag2_cpp
             rosbag2_storage::rosbag2_storage
@@ -342,6 +372,7 @@ if(SPECTRA_USE_ROS2)
     target_include_directories(spectra_ros2_adapter PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     )
 
     target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_USE_ROS2)

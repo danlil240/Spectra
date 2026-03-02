@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ROS2 Adapter | Spectra Documentation</title>
+    <meta
+      name="description"
+      content="Spectra ROS2 Adapter — GPU-accelerated topic monitoring, live plotting, bag playback, TF tree, node graph, parameter editor, service caller, CSV export, and more."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-top: 0.9rem;
+      }
+      .badge {
+        background: rgba(48, 213, 200, 0.12);
+        border: 1px solid rgba(48, 213, 200, 0.35);
+        color: var(--accent);
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .phase-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.4rem;
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin-top: 1.25rem;
+      }
+      @media (max-width: 900px) {
+        .feature-grid { grid-template-columns: 1fr; }
+      }
+      .step-list {
+        counter-reset: steps;
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+      }
+      .step-list li {
+        counter-increment: steps;
+        display: flex;
+        gap: 0.9rem;
+        align-items: flex-start;
+        margin: 0.75rem 0;
+        color: var(--muted);
+      }
+      .step-list li::before {
+        content: counter(steps);
+        flex-shrink: 0;
+        width: 1.7rem;
+        height: 1.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #081321;
+        font-weight: 800;
+        font-size: 0.82rem;
+      }
+      .cmd-block {
+        background: #071120;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        margin-top: 0.9rem;
+        font-family: "JetBrains Mono", "Fira Code", monospace;
+        font-size: 0.87rem;
+        color: #a8d0ff;
+        overflow-x: auto;
+      }
+      .cmd-block .comment { color: #4a6f9e; }
+      .cmd-block .flag    { color: #30d5c8; }
+      .panel-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-top: 1.25rem;
+      }
+      @media (max-width: 900px) {
+        .panel-grid { grid-template-columns: 1fr; }
+      }
+      .toc {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1rem 1.25rem;
+        margin-top: 1.5rem;
+      }
+      .toc h3 {
+        margin: 0 0 0.65rem;
+        font-size: 0.95rem;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .toc ul {
+        margin: 0;
+        padding-left: 1rem;
+        columns: 2;
+        column-gap: 2rem;
+      }
+      @media (max-width: 600px) { .toc ul { columns: 1; } }
+      .toc li { margin: 0.3rem 0; }
+      .toc a { color: var(--accent); text-decoration: none; font-size: 0.92rem; }
+      .toc a:hover { color: #9ae4dd; }
+      .status-ok   { color: #30d5c8; font-weight: 700; }
+      .status-warn { color: var(--warn); font-weight: 700; }
+      .arch-row {
+        display: grid;
+        grid-template-columns: 1fr 2px 1fr 2px 1fr;
+        align-items: stretch;
+        gap: 0;
+        margin-top: 1.25rem;
+      }
+      .arch-box {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0.9rem 1rem;
+      }
+      .arch-box h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+      .arch-box ul { margin: 0; padding-left: 1rem; }
+      .arch-box li { margin: 0.3rem 0; color: var(--muted); font-size: 0.88rem; }
+      .arch-sep {
+        background: var(--line);
+        margin: 1rem 0;
+        align-self: center;
+        height: 60%;
+      }
+      @media (max-width: 900px) {
+        .arch-row { grid-template-columns: 1fr; }
+        .arch-sep { height: 2px; width: 100%; margin: 0; }
+      }
+      .shortcut-table td:first-child {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.88rem;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero" id="top">
+      <div class="container">
+        <p class="eyebrow">Spectra Documentation</p>
+        <h1>ROS2 Adapter</h1>
+        <p class="lead">
+          GPU-accelerated ROS2 visualization, debugging, and analysis.
+          Replaces <code>rqt</code> with a single Vulkan-powered tool — topic
+          monitor, live plotter, bag player/recorder, TF tree, node graph,
+          parameter editor, service caller, and more.
+        </p>
+        <div class="badge-row">
+          <span class="badge">ROS2 Humble+</span>
+          <span class="badge">Vulkan GPU</span>
+          <span class="badge">C++20</span>
+          <span class="badge">Thread-safe</span>
+          <span class="badge">Zero rqt dependency</span>
+          <span class="badge">SPECTRA_USE_ROS2</span>
+        </div>
+        <div class="hero-cta" style="margin-top:1.4rem">
+          <a class="btn btn-primary" href="#quick-start">Quick Start</a>
+          <a class="btn btn-ghost" href="#panels">Feature Panels</a>
+          <a class="btn btn-ghost" href="index.html">← Back to Docs</a>
+        </div>
+      </div>
+    </header>
+
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="#quick-start">Quick Start</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#panels">Panels</a>
+        <a href="#live-plotting">Live Plotting</a>
+        <a href="#bag-tools">Bag Tools</a>
+        <a href="#advanced-tools">Advanced Tools</a>
+        <a href="#export">Export</a>
+        <a href="#cmake">CMake</a>
+        <a href="#cli">CLI Reference</a>
+        <a href="#shortcuts">Shortcuts</a>
+      </div>
+    </nav>
+
+    <main>
+
+      <!-- TABLE OF CONTENTS -->
+      <section class="section" id="toc-section">
+        <div class="container">
+          <div class="toc">
+            <h3>On This Page</h3>
+            <ul>
+              <li><a href="#quick-start">Quick Start</a></li>
+              <li><a href="#architecture">Architecture</a></li>
+              <li><a href="#panels">Panel Overview</a></li>
+              <li><a href="#live-plotting">Live Plotting</a></li>
+              <li><a href="#expressions">Expression Fields</a></li>
+              <li><a href="#bag-tools">Bag Player &amp; Recorder</a></li>
+              <li><a href="#node-graph">Node Graph</a></li>
+              <li><a href="#tf-tree">TF Tree Viewer</a></li>
+              <li><a href="#param-editor">Parameter Editor</a></li>
+              <li><a href="#service-caller">Service Caller</a></li>
+              <li><a href="#export">Export Tools</a></li>
+              <li><a href="#cmake">CMake Options</a></li>
+              <li><a href="#cli">CLI Reference</a></li>
+              <li><a href="#shortcuts">Keyboard Shortcuts</a></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- QUICK START -->
+      <section class="section" id="quick-start">
+        <div class="container">
+          <h2>Quick Start</h2>
+          <p class="section-intro">
+            Source your ROS2 workspace, then build Spectra with
+            <code>SPECTRA_USE_ROS2=ON</code>. The <code>spectra-ros</code>
+            executable is the standalone entry point.
+          </p>
+
+          <ol class="step-list">
+            <li>
+              <div>
+                <strong>Source ROS2 and your workspace</strong>
+                <div class="cmd-block">
+                  <span class="comment"># Example for ROS2 Humble</span><br>
+                  source /opt/ros/humble/setup.bash<br>
+                  source ~/ros2_ws/install/setup.bash
+                </div>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Configure with ROS2 support</strong>
+                <div class="cmd-block">
+                  cmake -S . -B build-ros2 \<br>
+                  &nbsp;&nbsp;<span class="flag">-DSPECTRA_USE_ROS2=ON</span> \<br>
+                  &nbsp;&nbsp;<span class="flag">-DSPECTRA_ROS2_BAG=ON</span> \<br>
+                  &nbsp;&nbsp;-DCMAKE_BUILD_TYPE=Release
+                </div>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Build the adapter</strong>
+                <div class="cmd-block">ninja -C build-ros2 spectra-ros</div>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Launch</strong>
+                <div class="cmd-block">
+                  <span class="comment"># Interactive — default layout</span><br>
+                  ./build-ros2/spectra-ros<br><br>
+                  <span class="comment"># Subscribe specific topics at startup</span><br>
+                  ./build-ros2/spectra-ros --topics /imu/data,/odom<br><br>
+                  <span class="comment"># Open a rosbag directly</span><br>
+                  ./build-ros2/spectra-ros --bag /path/to/recording.db3
+                </div>
+              </div>
+            </li>
+          </ol>
+
+          <div class="callout" style="margin-top:1.2rem">
+            <strong>Zero impact when OFF.</strong> When <code>SPECTRA_USE_ROS2=OFF</code>
+            (the default), no ROS2 headers are included and no ROS2 dependencies
+            are required. All adapter code is fully gated behind the CMake option.
+          </div>
+        </div>
+      </section>
+
+      <!-- ARCHITECTURE -->
+      <section class="section" id="architecture">
+        <div class="container">
+          <h2>Architecture</h2>
+          <p class="section-intro">
+            The adapter is a self-contained CMake library target
+            (<code>spectra_ros2_adapter</code>) that sits entirely under
+            <code>src/adapters/ros2/</code>. It does not modify the Spectra
+            core library.
+          </p>
+
+          <div class="arch-row">
+            <div class="arch-box">
+              <h4>ROS2 Thread</h4>
+              <ul>
+                <li><code>Ros2Bridge</code> — node lifecycle</li>
+                <li><code>TopicDiscovery</code> — periodic graph query</li>
+                <li><code>GenericSubscriber</code> — type-erased subscription</li>
+                <li><code>MessageIntrospector</code> — runtime field extraction</li>
+                <li>Runs on dedicated background executor thread</li>
+              </ul>
+            </div>
+            <div class="arch-sep"></div>
+            <div class="arch-box">
+              <h4>Lock-free Ring Buffer</h4>
+              <ul>
+                <li>SPSC per subscribed field</li>
+                <li>Default depth: 10 000 samples</li>
+                <li>Zero-copy timestamp + value pairs</li>
+                <li>No blocking on render thread</li>
+              </ul>
+            </div>
+            <div class="arch-sep"></div>
+            <div class="arch-box">
+              <h4>Render Thread</h4>
+              <ul>
+                <li><code>RosPlotManager</code> — polls ring buffers</li>
+                <li>Appends to Spectra <code>LineSeries</code> each frame</li>
+                <li><code>ScrollController</code> — auto-scroll window</li>
+                <li>ImGui panels — all UI rendering</li>
+                <li>Vulkan pipeline — GPU output</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="callout" style="margin-top:1.2rem">
+            <strong>Message introspection at runtime.</strong>
+            Spectra uses <code>rosidl_typesupport_introspection_cpp</code> to
+            walk any message type's field tree without code generation.
+            Field paths like <code>pose.position.x</code> are resolved at
+            subscribe time and extracted per-message via offset arithmetic.
+          </div>
+        </div>
+      </section>
+
+      <!-- PANELS OVERVIEW -->
+      <section class="section" id="panels">
+        <div class="container">
+          <h2>Panel Overview</h2>
+          <p class="section-intro">
+            All panels are dockable and resizable within the
+            <code>spectra-ros</code> layout. The default layout places the
+            topic monitor on the left, the plot area in the center, the
+            inspector on the right, and the log/bag controls at the bottom.
+          </p>
+
+          <div class="feature-grid">
+
+            <article class="card">
+              <p class="phase-label">Phase B</p>
+              <h3>Topic Monitor</h3>
+              <ul>
+                <li>Tree view grouped by namespace</li>
+                <li>Live Hz / bandwidth (rolling 1 s window)</li>
+                <li>Active (green) / stale (gray) status dots</li>
+                <li>Pub / sub counts per topic</li>
+                <li>Search / filter bar</li>
+                <li>Topic echo: last 100 messages expandable</li>
+                <li>Per-topic statistics: avg/min/max Hz, latency, drop detection</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase C</p>
+              <h3>Live Plot Engine</h3>
+              <ul>
+                <li>Field → <code>LineSeries</code> bridge per subscribed path</li>
+                <li>Drag numeric field from echo panel to axes</li>
+                <li>Right-click: "Plot in new window / current axes / new subplot"</li>
+                <li>Auto-scroll time window (1 s – 3 600 s, default 30 s)</li>
+                <li>Pan/zoom pauses auto-scroll; Home resumes</li>
+                <li>Memory indicator + automatic data pruning</li>
+                <li>Configurable N×M subplot grid with shared X / linked axes</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase D</p>
+              <h3>Bag Player &amp; Recorder</h3>
+              <ul>
+                <li>Open <code>.db3</code> / <code>.mcap</code> bags</li>
+                <li>Transport: play / pause / stop / step / loop</li>
+                <li>Rate control: 0.1× – 10×</li>
+                <li>Scrub bar reuses Spectra TimelineEditor</li>
+                <li>Topic activity bands visualized on timeline</li>
+                <li>Bag recorder: start/stop, auto-split by size/duration</li>
+                <li>Bag info panel: metadata, topic table, drag-and-drop open</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase F</p>
+              <h3>Node Graph</h3>
+              <ul>
+                <li>Nodes as boxes, topics as ellipses, edges as arrows</li>
+                <li>Force-directed layout, auto-refresh</li>
+                <li>Filter by namespace</li>
+                <li>Click node → details panel</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase F</p>
+              <h3>TF Tree Viewer</h3>
+              <ul>
+                <li>Subscribes <code>/tf</code> + <code>/tf_static</code></li>
+                <li>Tree view of coordinate frames</li>
+                <li>Transform lookup between any two frames</li>
+                <li>Frame age, stale warning, Hz badge per transform</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase F</p>
+              <h3>Parameter Editor</h3>
+              <ul>
+                <li>Discover parameters from any running node</li>
+                <li>Type-aware widgets: checkbox / slider / drag / text</li>
+                <li>Range hints from <code>DescribeParameters</code></li>
+                <li>Live-edit or staged apply mode</li>
+                <li>Single-level undo per parameter</li>
+                <li>Save / load YAML presets</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase F</p>
+              <h3>Service Caller</h3>
+              <ul>
+                <li>List all available services with type display</li>
+                <li>Auto-generated request form from introspection</li>
+                <li>Per-field widgets: checkbox / drag-float / input-text</li>
+                <li>Configurable timeout slider</li>
+                <li>Response JSON viewer + latency badge</li>
+                <li>Call history with replay, copy, import/export</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase E</p>
+              <h3>Export Tools</h3>
+              <ul>
+                <li>CSV export: ROS timestamps + field columns</li>
+                <li>Configurable separator, precision, range</li>
+                <li>Clipboard copy as TSV (Ctrl+C on plot)</li>
+                <li>Screenshot (Ctrl+Shift+S) → PNG with timestamp name</li>
+                <li>Video recording via existing Spectra RecordingSession</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <p class="phase-label">Phase C</p>
+              <h3>Expression Fields</h3>
+              <ul>
+                <li>Computed topic streams: <code>sqrt($imu.accel.x^2 + ...)</code></li>
+                <li>Operators: <code>+ − * / ^ sqrt abs sin cos atan2 log exp</code></li>
+                <li>Expression editor with inline error feedback</li>
+                <li>Save / load named presets</li>
+                <li>Same plot bridge as raw fields</li>
+              </ul>
+            </article>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- LIVE PLOTTING -->
+      <section class="section" id="live-plotting">
+        <div class="container">
+          <h2>Live Plotting</h2>
+          <p class="section-intro">
+            Subscribing a field creates a <code>LineSeries</code> in the active
+            axes. The render thread polls the ring buffer each frame and appends
+            new samples at zero-copy cost.
+          </p>
+
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Subscribing a Field</h3>
+              <p>
+                In the Topic Echo panel, expand a message type to see its numeric
+                fields. <strong>Drag any numeric leaf</strong> onto a plot axes or
+                the empty background to create a new series. Right-click for
+                placement options.
+              </p>
+              <p style="margin-top:0.75rem">
+                Alternatively, use the <strong>CLI</strong>:
+              </p>
+              <div class="cmd-block" style="margin-top:0.5rem">
+                ./spectra-ros --topics /imu/data.linear_acceleration.x,/imu/data.angular_velocity.z
+              </div>
+            </article>
+
+            <article class="card">
+              <h3>Auto-Scroll Window</h3>
+              <p>
+                The X axis tracks <code>[now − window, now]</code> automatically.
+                Configurable range: <strong>1 s – 3 600 s</strong> (default 30 s).
+              </p>
+              <ul>
+                <li>Pan or zoom → auto-scroll pauses, indicator shown</li>
+                <li>Press <strong>Home</strong> to resume auto-scroll</li>
+                <li>Data outside 2× the window is pruned to bound memory</li>
+                <li>Current memory usage shown in the status bar</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <h3>Multi-Subplot Layout</h3>
+              <p>
+                Add subplots from the toolbar (<strong>+</strong> button) or
+                by dragging fields to an empty area below existing plots.
+                Each row/column is configurable via the layout dropdown.
+              </p>
+              <ul>
+                <li>Shared X axis via <code>AxisLinkManager</code></li>
+                <li>Shared cursor shows interpolated Y across all linked plots</li>
+                <li>Remove subplot via right-click context menu</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <h3>Field Addressing</h3>
+              <p>
+                Any scalar-typed field in a ROS2 message can be plotted using
+                dot-separated paths. Arrays index with <code>[N]</code>.
+              </p>
+              <div class="cmd-block" style="margin-top:0.5rem">
+                <span class="comment"># Nested struct field</span><br>
+                pose.position.x<br><br>
+                <span class="comment"># Covariance matrix element</span><br>
+                pose.covariance[0]<br><br>
+                <span class="comment"># IMU angular velocity</span><br>
+                angular_velocity.z
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXPRESSION FIELDS -->
+      <section class="section" id="expressions">
+        <div class="container">
+          <h2>Expression Fields</h2>
+          <p class="section-intro">
+            Create computed data streams by combining raw topic fields with
+            math expressions. Expressions are evaluated per-sample on the
+            render thread using the built-in <code>ExpressionEngine</code>.
+          </p>
+
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Syntax</h3>
+              <p>
+                Variables reference topic fields with the <code>$topic.field.path</code>
+                syntax. Multiple topics can be mixed in one expression — values
+                are interpolated to a common timeline.
+              </p>
+              <div class="cmd-block" style="margin-top:0.6rem">
+                <span class="comment"># IMU linear acceleration magnitude</span><br>
+                sqrt($imu.linear_acceleration.x^2<br>
+                &nbsp;&nbsp;&nbsp;&nbsp; + $imu.linear_acceleration.y^2<br>
+                &nbsp;&nbsp;&nbsp;&nbsp; + $imu.linear_acceleration.z^2)<br><br>
+                <span class="comment"># Velocity magnitude from Twist</span><br>
+                sqrt($cmd_vel.linear.x^2 + $cmd_vel.linear.y^2)<br><br>
+                <span class="comment"># Convert radians to degrees</span><br>
+                $imu.orientation.z * (180.0 / 3.14159)
+              </div>
+            </article>
+            <article class="card">
+              <h3>Supported Operators</h3>
+              <table>
+                <thead><tr><th>Category</th><th>Operators / Functions</th></tr></thead>
+                <tbody>
+                  <tr><td>Arithmetic</td><td><code>+ − * / ^</code></td></tr>
+                  <tr><td>Comparison</td><td><code>&lt; &gt; &lt;= &gt;= == !=</code></td></tr>
+                  <tr><td>Math</td><td><code>sqrt abs sin cos atan2 log exp</code></td></tr>
+                  <tr><td>Constants</td><td><code>pi e</code></td></tr>
+                </tbody>
+              </table>
+              <p style="margin-top:0.75rem">
+                Parse errors are shown inline in the expression editor with the
+                offending token highlighted. Presets can be saved and loaded by
+                name.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- BAG TOOLS -->
+      <section class="section" id="bag-tools">
+        <div class="container">
+          <h2>Bag Player &amp; Recorder</h2>
+          <p class="section-intro">
+            Rosbag2 features are gated behind <code>-DSPECTRA_ROS2_BAG=ON</code>.
+            Both <code>.db3</code> (SQLite) and <code>.mcap</code> formats are
+            supported.
+          </p>
+
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Opening a Bag</h3>
+              <ul>
+                <li>CLI: <code>./spectra-ros --bag /path/to/file.db3</code></li>
+                <li>Drag-and-drop a <code>.db3</code> / <code>.mcap</code> file onto the window</li>
+                <li>File → Open Bag… menu</li>
+                <li>Recent bags list in the Bag Info panel</li>
+              </ul>
+              <p style="margin-top:0.75rem">
+                The Bag Info panel shows metadata (duration, topic count, message
+                count, start/end timestamps) and a topic table. Click any topic
+                to plot it immediately.
+              </p>
+            </article>
+
+            <article class="card">
+              <h3>Transport Controls</h3>
+              <ul>
+                <li><strong>Play / Pause</strong> — Space bar</li>
+                <li><strong>Stop</strong> — resets to beginning</li>
+                <li><strong>Step forward / back</strong> — one message at a time</li>
+                <li><strong>Seek</strong> — click the scrub bar or drag the playhead</li>
+                <li><strong>Rate</strong> — 0.1× to 10×, slider in the toolbar</li>
+                <li><strong>Loop</strong> — toggle button; restarts at beginning</li>
+              </ul>
+              <p style="margin-top:0.75rem">
+                The scrub bar reuses Spectra's TimelineEditor with per-topic
+                activity bands showing when each topic has messages.
+              </p>
+            </article>
+
+            <article class="card">
+              <h3>Bag Recorder</h3>
+              <p>
+                Record live topics to a new bag file from within Spectra.
+                The recorder panel lets you select topics, output path, format,
+                and auto-split thresholds.
+              </p>
+              <ul>
+                <li>Start / stop recording from toolbar or keyboard shortcut</li>
+                <li>Red indicator dot while recording is active</li>
+                <li>Auto-split by file size (MB) or duration (seconds)</li>
+                <li>Output format: <code>.db3</code> or <code>.mcap</code></li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <h3>Playback + Live Overlap</h3>
+              <p>
+                Bag messages are fed through the same
+                <code>RosPlotManager</code> pipeline as live subscriptions.
+                You can run a bag alongside live topics simultaneously — the
+                plot series auto-color by source.
+              </p>
+              <div class="callout" style="margin-top:0.7rem">
+                Seeking during playback re-inserts all messages from the new
+                position, pruning stale data automatically.
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- NODE GRAPH -->
+      <section class="section" id="node-graph">
+        <div class="container">
+          <h2>Node Graph</h2>
+          <p class="section-intro">
+            The node graph panel queries the ROS2 graph and renders the full
+            publish/subscribe topology with a force-directed layout.
+          </p>
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Layout</h3>
+              <ul>
+                <li>Nodes shown as labeled rectangles</li>
+                <li>Topics shown as ellipses with colored edges</li>
+                <li>Publisher edges: node → topic (outgoing)</li>
+                <li>Subscriber edges: topic → node (incoming)</li>
+                <li>Auto-refresh every 2 s (configurable)</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Interaction</h3>
+              <ul>
+                <li>Filter by namespace prefix (search bar)</li>
+                <li>Click node → details: pub/sub lists, lifecycle state</li>
+                <li>Drag nodes to pin layout positions</li>
+                <li>Scroll to zoom; middle-drag to pan</li>
+                <li>Reset layout button in toolbar</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- TF TREE -->
+      <section class="section" id="tf-tree">
+        <div class="container">
+          <h2>TF Tree Viewer</h2>
+          <p class="section-intro">
+            Subscribes to <code>/tf</code> and <code>/tf_static</code> and
+            maintains a live frame tree with age tracking.
+          </p>
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Frame Tree</h3>
+              <ul>
+                <li>Hierarchical tree view rooted at <code>world</code> / <code>map</code></li>
+                <li>Each frame: parent, translation, rotation (RPY), update Hz</li>
+                <li>Age indicator: green (fresh) → yellow (aging) → red (stale)</li>
+                <li>Static transforms shown with a lock icon</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Transform Lookup</h3>
+              <ul>
+                <li>Select source and target frame in dropdown menus</li>
+                <li>Live display of the full transform between any two frames</li>
+                <li>Translation in meters, rotation as quaternion + RPY</li>
+                <li>Stale warning when any intermediate transform exceeds threshold</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- PARAMETER EDITOR -->
+      <section class="section" id="param-editor">
+        <div class="container">
+          <h2>Parameter Editor</h2>
+          <p class="section-intro">
+            Discover and edit ROS2 node parameters at runtime. Supports all
+            parameter types with range-aware widgets and YAML preset files.
+          </p>
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Discovering Parameters</h3>
+              <ol class="step-list">
+                <li>Type or select the target node name in the toolbar</li>
+                <li>Click <strong>Refresh</strong> — the editor calls ListParameters → DescribeParameters → GetParameters</li>
+                <li>Parameters appear in a scrollable 3-column table: Name / Type / Value</li>
+              </ol>
+            </article>
+            <article class="card">
+              <h3>Editing</h3>
+              <ul>
+                <li><strong>Bool</strong> → checkbox</li>
+                <li><strong>Integer</strong> → slider (if range) or drag field</li>
+                <li><strong>Double</strong> → slider (if range) or drag field</li>
+                <li><strong>String</strong> → text input</li>
+                <li><strong>Arrays</strong> → display with expand tooltip</li>
+              </ul>
+              <p style="margin-top:0.75rem">
+                <strong>Live-edit mode</strong>: sends SetParameters immediately
+                on change. <strong>Apply mode</strong>: stages all edits, then
+                sends in one batch via the Apply button.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Undo &amp; Presets</h3>
+              <ul>
+                <li>Single-level undo per parameter (Ctrl+Z or toolbar button)</li>
+                <li>Save current values as a named YAML preset</li>
+                <li>Load preset → applies saved values to current node</li>
+                <li>YAML format compatible with <code>ros2 param load</code></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Example YAML Preset</h3>
+              <div class="cmd-block">
+                <span class="comment">## nav2_controller.yaml</span><br>
+                ros__parameters:<br>
+                &nbsp;&nbsp;max_vel_x: 0.5<br>
+                &nbsp;&nbsp;max_vel_theta: 1.0<br>
+                &nbsp;&nbsp;min_vel_x: 0.1<br>
+                &nbsp;&nbsp;use_sim_time: false
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVICE CALLER -->
+      <section class="section" id="service-caller">
+        <div class="container">
+          <h2>Service Caller</h2>
+          <p class="section-intro">
+            List, introspect, and call any ROS2 service from a generated UI form
+            — no code required.
+          </p>
+          <div class="panel-grid">
+            <article class="card">
+              <h3>Workflow</h3>
+              <ol class="step-list">
+                <li>Click <strong>Refresh</strong> to discover all available services</li>
+                <li>Select a service from the left pane — the request schema is introspected automatically</li>
+                <li>Fill in the request form; adjust timeout if needed</li>
+                <li>Click <strong>Call Service</strong> — response appears inline</li>
+              </ol>
+            </article>
+            <article class="card">
+              <h3>History &amp; JSON</h3>
+              <ul>
+                <li>All calls logged in the history pane: state / service / latency</li>
+                <li><strong>Replay</strong>: click any history entry to re-populate the form</li>
+                <li>Copy response as JSON to clipboard</li>
+                <li>Import / export full call history as JSON</li>
+                <li>Configurable timeout: 0.5 s – 30 s slider</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXPORT TOOLS -->
+      <section class="section" id="export">
+        <div class="container">
+          <h2>Export Tools</h2>
+          <div class="feature-grid">
+            <article class="card">
+              <h3>CSV Export</h3>
+              <ul>
+                <li>Exports all plotted series to a CSV file</li>
+                <li>Columns: <code>timestamp_sec</code>, <code>timestamp_nsec</code>, <code>wall_clock</code>, field values</li>
+                <li>Configurable separator (<code>,</code> <code;>;</code> <code>\t</code>) and decimal precision</li>
+                <li>Export visible range or full history</li>
+                <li>File dialog via <strong>File → Export CSV…</strong></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Clipboard Copy</h3>
+              <ul>
+                <li><strong>Ctrl+C</strong> on the plot copies selected range as TSV</li>
+                <li>Header row: timestamp columns + series names</li>
+                <li>Union-aligned rows; missing values filled with empty cells</li>
+                <li>Paste directly into Excel, LibreOffice, or Python</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Screenshot &amp; Video</h3>
+              <ul>
+                <li><strong>Ctrl+Shift+S</strong> — saves timestamped PNG immediately</li>
+                <li><strong>Tools → Record Video…</strong> — opens recording dialog</li>
+                <li>Supports PNG sequence, GIF, and MP4 (via ffmpeg)</li>
+                <li>Configurable FPS, duration, resolution</li>
+                <li>Progress bar + ETA indicator during export</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- CMAKE OPTIONS -->
+      <section class="section" id="cmake">
+        <div class="container">
+          <h2>CMake Options</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Option</th>
+                <th>Default</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SPECTRA_USE_ROS2</code></td>
+                <td><code>OFF</code></td>
+                <td>Enable the ROS2 adapter. Requires ROS2 workspace sourced.</td>
+              </tr>
+              <tr>
+                <td><code>SPECTRA_ROS2_BAG</code></td>
+                <td><code>OFF</code></td>
+                <td>Enable rosbag2 reader/writer/player. Requires <code>rosbag2</code> packages.</td>
+              </tr>
+              <tr>
+                <td><code>SPECTRA_USE_ROS2</code> + <code>SPECTRA_USE_FFMPEG</code></td>
+                <td>—</td>
+                <td>Enables MP4 video export from the recording panel.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout warn" style="margin-top:1.1rem">
+            <strong>ROS2 workspace must be sourced</strong> before running
+            <code>cmake</code>. Without the sourced environment,
+            <code>find_package(rclcpp)</code> will fail and the adapter will
+            not be built.
+          </div>
+        </div>
+      </section>
+
+      <!-- CLI REFERENCE -->
+      <section class="section" id="cli">
+        <div class="container">
+          <h2>CLI Reference</h2>
+          <p class="section-intro">
+            All options can be combined. <code>--topics</code> and
+            <code>--bag</code> can be used together.
+          </p>
+          <table>
+            <thead>
+              <tr><th>Flag</th><th>Example</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>--topics</code></td>
+                <td><code>--topics /imu/data.linear_acceleration.x,/odom</code></td>
+                <td>Subscribe and plot these topic/field paths at startup</td>
+              </tr>
+              <tr>
+                <td><code>--bag</code></td>
+                <td><code>--bag /path/to/recording.db3</code></td>
+                <td>Open a rosbag immediately on launch</td>
+              </tr>
+              <tr>
+                <td><code>--layout</code></td>
+                <td><code>--layout compact</code></td>
+                <td>Panel layout preset: <code>default</code>, <code>compact</code>, <code>plot-only</code></td>
+              </tr>
+              <tr>
+                <td><code>--node-name</code></td>
+                <td><code>--node-name spectra_debug</code></td>
+                <td>Override the ROS2 node name (default: <code>spectra_ros</code>)</td>
+              </tr>
+              <tr>
+                <td><code>--window</code></td>
+                <td><code>--window 1920x1080</code></td>
+                <td>Set initial window resolution</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="cmd-block" style="margin-top:1rem">
+            <span class="comment"># Example: plot IMU + odometry with default 30 s window</span><br>
+            ./spectra-ros \<br>
+            &nbsp;&nbsp;<span class="flag">--topics</span> /imu/data.angular_velocity.z,/odom.twist.twist.linear.x \<br>
+            &nbsp;&nbsp;<span class="flag">--window</span> 1920x1080
+          </div>
+        </div>
+      </section>
+
+      <!-- KEYBOARD SHORTCUTS -->
+      <section class="section" id="shortcuts">
+        <div class="container">
+          <h2>Keyboard Shortcuts</h2>
+          <table class="shortcut-table">
+            <thead>
+              <tr><th>Shortcut</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Space</td><td>Play / Pause bag playback</td></tr>
+              <tr><td>Home</td><td>Resume auto-scroll (if paused by zoom/pan)</td></tr>
+              <tr><td>Ctrl+C</td><td>Copy selected plot range as TSV to clipboard</td></tr>
+              <tr><td>Ctrl+Shift+S</td><td>Save screenshot as timestamped PNG</td></tr>
+              <tr><td>Ctrl+Z</td><td>Undo last parameter change (Parameter Editor)</td></tr>
+              <tr><td>Ctrl+K</td><td>Open command palette</td></tr>
+              <tr><td>Ctrl+R</td><td>Refresh topic list / service list</td></tr>
+              <tr><td>Ctrl+L</td><td>Toggle legend visibility</td></tr>
+              <tr><td>Ctrl+G</td><td>Toggle grid on active axes</td></tr>
+              <tr><td>Ctrl+Shift+A</td><td>Auto-fit all axes</td></tr>
+              <tr><td>F</td><td>Auto-fit active axes</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- EXAMPLES SECTION -->
+      <section class="section" id="examples-section">
+        <div class="container">
+          <h2>Launch File Examples</h2>
+          <p class="section-intro">
+            Three example launch files are provided under
+            <code>examples/ros2_launch/</code>.
+          </p>
+          <div class="feature-grid">
+            <article class="card">
+              <h3><code>imu_monitor.launch.py</code></h3>
+              <p>
+                Subscribes to <code>/imu/data</code> (linear acceleration + angular
+                velocity) in a 2-row subplot layout with shared X axis and
+                auto-scrolling 10 s window.
+              </p>
+            </article>
+            <article class="card">
+              <h3><code>nav_dashboard.launch.py</code></h3>
+              <p>
+                Navigation stack dashboard — velocity commands, odometry, and
+                costmap diagnostics plotted in a 3-panel layout with the node
+                graph and TF tree visible.
+              </p>
+            </article>
+            <article class="card">
+              <h3><code>bag_replay.launch.py</code></h3>
+              <p>
+                Opens a specified rosbag, starts the bag player at 1× speed,
+                and plots all <code>Float64</code> topics automatically.
+                Accepts the bag path as a launch argument.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra ROS2 Adapter — GPU-accelerated ROS2 visualization</p>
+        <a href="#top">Back to top</a>
+      </div>
+    </footer>
+  </body>
+</html>

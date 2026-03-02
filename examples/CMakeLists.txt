@@ -62,6 +62,25 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/multi_window_demo.cpp)
     add_spectra_example(multi_window_demo)
 endif()
 
+# ROS2 adapter demo — exercises all completed missions (A1-A6, B1-B3, C1, C2, C4)
+# Requires: -DSPECTRA_USE_ROS2=ON and a sourced ROS2 Humble+ workspace
+if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ros2_demo.cpp)
+    add_executable(ros2_demo ros2_demo.cpp)
+    target_link_libraries(ros2_demo PRIVATE spectra_ros2_adapter)
+    target_compile_features(ros2_demo PRIVATE cxx_std_20)
+    target_include_directories(ros2_demo PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    if(SPECTRA_USE_IMGUI AND DEFINED imgui_SOURCE_DIR)
+        target_include_directories(ros2_demo PRIVATE
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+        )
+    endif()
+endif()
+
 # Eigen demo (requires -DSPECTRA_USE_EIGEN=ON)
 if(SPECTRA_USE_EIGEN AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/eigen_demo.cpp)
     add_spectra_example(eigen_demo)

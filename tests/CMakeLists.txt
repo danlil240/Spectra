@@ -398,6 +398,48 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_topic_list_panel PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_echo_panel.cpp)
+        add_executable(unit_test_topic_echo_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_echo_panel.cpp
+        )
+        target_link_libraries(unit_test_topic_echo_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_topic_echo_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_topic_echo_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_topic_echo_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_topic_echo_panel COMMAND unit_test_topic_echo_panel)
+        set_tests_properties(unit_test_topic_echo_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_stats_overlay.cpp)
+        add_executable(unit_test_topic_stats_overlay
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_topic_stats_overlay.cpp
+        )
+        target_link_libraries(unit_test_topic_stats_overlay PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_topic_stats_overlay PRIVATE cxx_std_20)
+        target_include_directories(unit_test_topic_stats_overlay PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_topic_stats_overlay PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_topic_stats_overlay COMMAND unit_test_topic_stats_overlay)
+        set_tests_properties(unit_test_topic_stats_overlay PROPERTIES LABELS "ros2")
+    endif()
+
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_plot_manager.cpp)
         add_executable(unit_test_ros_plot_manager
             ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_plot_manager.cpp
@@ -439,6 +481,540 @@ if(SPECTRA_USE_ROS2)
         add_test(NAME unit_test_phase_a_integration COMMAND unit_test_phase_a_integration)
         set_tests_properties(unit_test_phase_a_integration PROPERTIES LABELS "ros2")
     endif()
+
+    # FieldDragDrop tests — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_field_drag_drop.cpp)
+        add_executable(unit_test_field_drag_drop
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_field_drag_drop.cpp
+        )
+        target_link_libraries(unit_test_field_drag_drop PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_field_drag_drop PRIVATE cxx_std_20)
+        target_include_directories(unit_test_field_drag_drop PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_field_drag_drop PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_field_drag_drop COMMAND unit_test_field_drag_drop)
+        set_tests_properties(unit_test_field_drag_drop PROPERTIES LABELS "ros2")
+    endif()
+
+    # BagReader tests — gated behind SPECTRA_ROS2_BAG; stub tests run without it.
+    # Full tests use custom main() with RclcppEnvironment; stub tests use GTest::gtest_main.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_reader.cpp)
+        add_executable(unit_test_bag_reader
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_reader.cpp
+        )
+        if(SPECTRA_ROS2_BAG)
+            target_link_libraries(unit_test_bag_reader PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest
+            )
+        else()
+            target_link_libraries(unit_test_bag_reader PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest_main
+            )
+        endif()
+        target_compile_features(unit_test_bag_reader PRIVATE cxx_std_20)
+        target_include_directories(unit_test_bag_reader PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_bag_reader PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_ROS2_BAG}>:SPECTRA_ROS2_BAG>
+        )
+        add_test(NAME unit_test_bag_reader COMMAND unit_test_bag_reader)
+        set_tests_properties(unit_test_bag_reader PROPERTIES LABELS "ros2")
+    endif()
+
+    # BagRecorder tests — gated behind SPECTRA_ROS2_BAG; stub tests run without it.
+    # Full tests use custom main() with RclcppEnvironment; stub tests use GTest::gtest_main.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_recorder.cpp)
+        add_executable(unit_test_bag_recorder
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_recorder.cpp
+        )
+        if(SPECTRA_ROS2_BAG)
+            target_link_libraries(unit_test_bag_recorder PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest
+            )
+        else()
+            target_link_libraries(unit_test_bag_recorder PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest_main
+            )
+        endif()
+        target_compile_features(unit_test_bag_recorder PRIVATE cxx_std_20)
+        target_include_directories(unit_test_bag_recorder PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_bag_recorder PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_ROS2_BAG}>:SPECTRA_ROS2_BAG>
+        )
+        add_test(NAME unit_test_bag_recorder COMMAND unit_test_bag_recorder)
+        set_tests_properties(unit_test_bag_recorder PROPERTIES LABELS "ros2")
+    endif()
+
+    # ScrollController tests — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scroll_controller.cpp)
+        add_executable(unit_test_scroll_controller
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scroll_controller.cpp
+        )
+        target_link_libraries(unit_test_scroll_controller PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_scroll_controller PRIVATE cxx_std_20)
+        target_include_directories(unit_test_scroll_controller PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_scroll_controller PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_scroll_controller COMMAND unit_test_scroll_controller)
+        set_tests_properties(unit_test_scroll_controller PROPERTIES LABELS "ros2")
+    endif()
+
+    # TfTreePanel tests (F2) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_tf_tree_panel.cpp)
+        add_executable(unit_test_tf_tree_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_tf_tree_panel.cpp
+        )
+        target_link_libraries(unit_test_tf_tree_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_tf_tree_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_tf_tree_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_tf_tree_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_tf_tree_panel COMMAND unit_test_tf_tree_panel)
+        set_tests_properties(unit_test_tf_tree_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    # NodeGraphPanel tests — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_node_graph_panel.cpp)
+        add_executable(unit_test_node_graph_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_node_graph_panel.cpp
+        )
+        target_link_libraries(unit_test_node_graph_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_node_graph_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_node_graph_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_node_graph_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_node_graph_panel COMMAND unit_test_node_graph_panel)
+        set_tests_properties(unit_test_node_graph_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_subplot_manager.cpp)
+        add_executable(unit_test_subplot_manager
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_subplot_manager.cpp
+        )
+        target_link_libraries(unit_test_subplot_manager PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_subplot_manager PRIVATE cxx_std_20)
+        target_include_directories(unit_test_subplot_manager PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_subplot_manager PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_subplot_manager COMMAND unit_test_subplot_manager)
+        set_tests_properties(unit_test_subplot_manager PROPERTIES LABELS "ros2")
+    endif()
+
+    # ExpressionEngine tests — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_expression_engine.cpp)
+        add_executable(unit_test_expression_engine
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_expression_engine.cpp
+        )
+        target_link_libraries(unit_test_expression_engine PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_expression_engine PRIVATE cxx_std_20)
+        target_include_directories(unit_test_expression_engine PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_expression_engine PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_expression_engine COMMAND unit_test_expression_engine)
+        set_tests_properties(unit_test_expression_engine PROPERTIES LABELS "ros2")
+    endif()
+
+    # Phase C integration test — C1 (RosPlotManager), C2 (ScrollController),
+    # C4 (SubplotManager) end-to-end: 3 topics, 100 frames, scroll, pruning, linked axes.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_phase_c_integration.cpp)
+        add_executable(unit_test_phase_c_integration
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_phase_c_integration.cpp
+        )
+        target_link_libraries(unit_test_phase_c_integration PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_phase_c_integration PRIVATE cxx_std_20)
+        target_include_directories(unit_test_phase_c_integration PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_phase_c_integration PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_phase_c_integration COMMAND unit_test_phase_c_integration)
+        set_tests_properties(unit_test_phase_c_integration PROPERTIES LABELS "ros2")
+    endif()
+
+    # RosCsvExport tests — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_csv_export.cpp)
+        add_executable(unit_test_ros_csv_export
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_csv_export.cpp
+        )
+        target_link_libraries(unit_test_ros_csv_export PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_csv_export PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_csv_export PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_csv_export PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_csv_export COMMAND unit_test_ros_csv_export)
+        set_tests_properties(unit_test_ros_csv_export PROPERTIES LABELS "ros2")
+    endif()
+
+    # BagInfoPanel tests (D4) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_info_panel.cpp)
+        add_executable(unit_test_bag_info_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_info_panel.cpp
+        )
+        target_link_libraries(unit_test_bag_info_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_bag_info_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_bag_info_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_bag_info_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_ROS2_BAG}>:SPECTRA_ROS2_BAG>
+        )
+        add_test(NAME unit_test_bag_info_panel COMMAND unit_test_bag_info_panel)
+        set_tests_properties(unit_test_bag_info_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    # RosClipboardExport tests (E2) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_clipboard_export.cpp)
+        add_executable(unit_test_ros_clipboard_export
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_clipboard_export.cpp
+        )
+        target_link_libraries(unit_test_ros_clipboard_export PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_clipboard_export PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_clipboard_export PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_clipboard_export PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_clipboard_export COMMAND unit_test_ros_clipboard_export)
+        set_tests_properties(unit_test_ros_clipboard_export PROPERTIES LABELS "ros2")
+    endif()
+
+    # RosAppShell tests (G1) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_app_shell.cpp)
+        add_executable(unit_test_ros_app_shell
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_app_shell.cpp
+        )
+        target_link_libraries(unit_test_ros_app_shell PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_app_shell PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_app_shell PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_app_shell PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_app_shell COMMAND unit_test_ros_app_shell)
+        set_tests_properties(unit_test_ros_app_shell PROPERTIES LABELS "ros2")
+    endif()
+
+    # BagPlayer tests (D2) — state machine / logic tests run without SPECTRA_ROS2_BAG;
+    # full injection + activity-band tests require SPECTRA_ROS2_BAG=ON.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_player.cpp)
+        add_executable(unit_test_bag_player
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_bag_player.cpp
+        )
+        if(SPECTRA_ROS2_BAG)
+            target_link_libraries(unit_test_bag_player PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest
+            )
+        else()
+            target_link_libraries(unit_test_bag_player PRIVATE
+                spectra_ros2_adapter
+                GTest::gtest_main
+            )
+        endif()
+        target_compile_features(unit_test_bag_player PRIVATE cxx_std_20)
+        target_include_directories(unit_test_bag_player PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_bag_player PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_ROS2_BAG}>:SPECTRA_ROS2_BAG>
+        )
+        add_test(NAME unit_test_bag_player COMMAND unit_test_bag_player)
+        set_tests_properties(unit_test_bag_player PROPERTIES LABELS "ros2")
+    endif()
+
+    # G2: Tools → ROS2 Adapter menu integration tests.
+    # Tests ros2_adapter_state flag lifecycle and command registry metadata.
+    # Pure C++ logic — no ROS2 runtime, no ImGui context, no GLFW window needed.
+    # Uses gtest_main (no custom main / no RclcppEnvironment).
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros2_menu_integration.cpp)
+        add_executable(unit_test_ros2_menu_integration
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros2_menu_integration.cpp
+        )
+        target_link_libraries(unit_test_ros2_menu_integration PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros2_menu_integration PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros2_menu_integration PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros2_menu_integration PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros2_menu_integration COMMAND unit_test_ros2_menu_integration)
+        set_tests_properties(unit_test_ros2_menu_integration PROPERTIES LABELS "ros2")
+    endif()
+
+    # RosScreenshotExport tests (E3) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    # Writes real PNG files to /tmp to validate stb_image_write integration.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_screenshot_export.cpp)
+        add_executable(unit_test_ros_screenshot_export
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_screenshot_export.cpp
+        )
+        target_link_libraries(unit_test_ros_screenshot_export PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_screenshot_export PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_screenshot_export PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_screenshot_export PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_screenshot_export COMMAND unit_test_ros_screenshot_export)
+        set_tests_properties(unit_test_ros_screenshot_export PROPERTIES LABELS "ros2")
+    endif()
+
+    # ParamEditorPanel tests (F3) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_param_editor_panel.cpp)
+        add_executable(unit_test_param_editor_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_param_editor_panel.cpp
+        )
+        target_link_libraries(unit_test_param_editor_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_param_editor_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_param_editor_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_param_editor_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_param_editor_panel COMMAND unit_test_param_editor_panel)
+        set_tests_properties(unit_test_param_editor_panel PROPERTIES LABELS "ros2")
+    endif()
+
+    # H1: Discovery + Introspection unit tests — requires ROS2 runtime for
+    # graph queries; uses custom main() with shared RclcppEnvironment.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_discovery_introspection.cpp)
+        add_executable(unit_test_discovery_introspection
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_discovery_introspection.cpp
+        )
+        target_link_libraries(unit_test_discovery_introspection PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_discovery_introspection PRIVATE cxx_std_20)
+        target_include_directories(unit_test_discovery_introspection PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_discovery_introspection PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_discovery_introspection
+                 COMMAND unit_test_discovery_introspection)
+        set_tests_properties(unit_test_discovery_introspection
+                             PROPERTIES LABELS "ros2")
+    endif()
+
+    # ServiceCaller + ServiceCallerPanel tests (F4) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_service_caller.cpp)
+        add_executable(unit_test_service_caller
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_service_caller.cpp
+        )
+        target_link_libraries(unit_test_service_caller PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_service_caller PRIVATE cxx_std_20)
+        target_include_directories(unit_test_service_caller PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_service_caller PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_service_caller COMMAND unit_test_service_caller)
+        set_tests_properties(unit_test_service_caller PROPERTIES LABELS "ros2")
+    endif()
+
+    # RosSession tests (G3) — pure C++ logic, no ROS2 runtime needed.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session.cpp)
+        add_executable(unit_test_ros_session
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session.cpp
+        )
+        target_link_libraries(unit_test_ros_session PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_session PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_session PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_ros_session PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_ros_session COMMAND unit_test_ros_session)
+        set_tests_properties(unit_test_ros_session PROPERTIES LABELS "ros2")
+    endif()
+
+    # LogViewerPanel + RosLogViewer tests (F5) — pure C++ logic, no ROS2 runtime.
+    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_log_viewer.cpp)
+        add_executable(unit_test_log_viewer
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_log_viewer.cpp
+        )
+        target_link_libraries(unit_test_log_viewer PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_log_viewer PRIVATE cxx_std_20)
+        target_include_directories(unit_test_log_viewer PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_log_viewer PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_log_viewer COMMAND unit_test_log_viewer)
+        set_tests_properties(unit_test_log_viewer PROPERTIES LABELS "ros2")
+    endif()
+
+    # DiagnosticsPanel tests (F6) — pure C++ logic, no ROS2 runtime needed.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_diagnostics_panel.cpp)
+        add_executable(unit_test_diagnostics_panel
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_diagnostics_panel.cpp
+        )
+        target_link_libraries(unit_test_diagnostics_panel PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_diagnostics_panel PRIVATE cxx_std_20)
+        target_include_directories(unit_test_diagnostics_panel PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_diagnostics_panel PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_diagnostics_panel COMMAND unit_test_diagnostics_panel)
+        set_tests_properties(unit_test_diagnostics_panel PROPERTIES LABELS "ros2")
+    endif()
+
 endif()
 
 # QA Agent (interactive stress test / fuzzer — not a CTest, run manually)

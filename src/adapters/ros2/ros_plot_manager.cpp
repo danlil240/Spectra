@@ -5,6 +5,7 @@
 #include "ros_plot_manager.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include <spectra/color.hpp>
@@ -106,6 +107,9 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         entry->subscriber = std::move(sub);
     }
 
+    // Configure scroll controller for this plot.
+    entry->scroll.set_window_s(scroll_window_s_);
+
     // Reserve scratch buffer up front — avoids the first-poll allocation.
     entry->drain_buf.resize(std::min(buffer_depth, MAX_DRAIN_PER_POLL));
     entry->drain_buf.clear();
@@ -206,14 +210,29 @@ void RosPlotManager::poll()
     // hot path lock-free.  entries_ must not be mutated concurrently with
     // poll(); this contract is documented in the header (render thread only).
 
+    // Wall-clock "now" for all plots this frame (seconds since epoch).
+    const double wall_now =
+        std::chrono::duration<double>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+
     for (auto& entry : entries_)
     {
+        // Advance scroll clock every frame regardless of subscription state.
+        entry->scroll.set_now(wall_now);
+
         if (!entry->subscriber || !entry->subscriber->is_running())
+        {
+            // Still tick scroll (applies xlim + prune) even if no new data.
+            entry->scroll.tick(entry->series, entry->axes);
             continue;
+        }
 
         const int eid = entry->extractor_id;
         if (eid < 0)
+        {
+            entry->scroll.tick(entry->series, entry->axes);
             continue;
+        }
 
         // Ensure scratch buffer is large enough (grows only).
         if (entry->drain_buf.capacity() < MAX_DRAIN_PER_POLL)
@@ -225,29 +244,32 @@ void RosPlotManager::poll()
                                         entry->drain_buf.data(),
                                         MAX_DRAIN_PER_POLL);
 
-        if (n == 0)
-            continue;
-
-        // Append to the LineSeries.
-        for (size_t i = 0; i < n; ++i)
+        if (n > 0)
         {
-            const FieldSample& s = entry->drain_buf[i];
-            const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-            entry->series->append(static_cast<float>(t_sec),
-                                  static_cast<float>(s.value));
+            // Append to the LineSeries.
+            for (size_t i = 0; i < n; ++i)
+            {
+                const FieldSample& s = entry->drain_buf[i];
+                const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
+                entry->series->append(static_cast<float>(t_sec),
+                                      static_cast<float>(s.value));
 
-            if (on_data_cb_)
-                on_data_cb_(entry->id, t_sec, s.value);
+                if (on_data_cb_)
+                    on_data_cb_(entry->id, t_sec, s.value);
+            }
+
+            entry->samples_received += n;
+
+            // Auto-fit Y once we have enough samples.
+            if (!entry->auto_fitted && entry->samples_received >= auto_fit_samples_)
+            {
+                entry->axes->auto_fit();
+                entry->auto_fitted = true;
+            }
         }
 
-        entry->samples_received += n;
-
-        // Auto-fit Y once we have enough samples.
-        if (!entry->auto_fitted && entry->samples_received >= auto_fit_samples_)
-        {
-            entry->axes->auto_fit();
-            entry->auto_fitted = true;
-        }
+        // Apply auto-scroll window and prune old data.
+        entry->scroll.tick(entry->series, entry->axes);
     }
 }
 
@@ -269,6 +291,72 @@ void RosPlotManager::set_default_buffer_depth(size_t depth)
 void RosPlotManager::set_auto_fit_samples(size_t n)
 {
     auto_fit_samples_ = n;
+}
+
+void RosPlotManager::set_time_window(double seconds)
+{
+    scroll_window_s_ = seconds;
+    // Apply to all existing entries immediately.
+    for (auto& e : entries_)
+        e->scroll.set_window_s(seconds);
+}
+
+double RosPlotManager::time_window() const
+{
+    return scroll_window_s_;
+}
+
+void RosPlotManager::pause_scroll(int id)
+{
+    PlotEntry* e = find_entry(id);
+    if (e)
+        e->scroll.pause();
+}
+
+void RosPlotManager::resume_scroll(int id)
+{
+    PlotEntry* e = find_entry(id);
+    if (e)
+        e->scroll.resume();
+}
+
+void RosPlotManager::toggle_scroll_paused(int id)
+{
+    PlotEntry* e = find_entry(id);
+    if (e)
+        e->scroll.toggle_paused();
+}
+
+bool RosPlotManager::is_scroll_paused(int id) const
+{
+    const PlotEntry* e = find_entry(id);
+    return e ? e->scroll.is_paused() : false;
+}
+
+void RosPlotManager::pause_all_scroll()
+{
+    for (auto& e : entries_)
+        e->scroll.pause();
+}
+
+void RosPlotManager::resume_all_scroll()
+{
+    for (auto& e : entries_)
+        e->scroll.resume();
+}
+
+size_t RosPlotManager::memory_bytes(int id) const
+{
+    const PlotEntry* e = find_entry(id);
+    return e ? ScrollController::memory_bytes(e->series) : 0;
+}
+
+size_t RosPlotManager::total_memory_bytes() const
+{
+    size_t total = 0;
+    for (const auto& e : entries_)
+        total += ScrollController::memory_bytes(e->series);
+    return total;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 #include "ui/topic_list_panel.hpp"
+#include "ui/field_drag_drop.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -517,6 +518,19 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
                           ImVec2(0, 0))) {
         selected_topic_ = info.name;
         if (select_cb_) select_cb_(info.name);
+    }
+
+    // Drag source — whole topic with empty field_path.
+    if (drag_drop_) {
+        FieldDragPayload payload;
+        payload.topic_name = info.name;
+        payload.field_path = "";  // empty: caller picks first numeric field
+        payload.type_name  = info.types.empty() ? "" : info.types[0];
+        payload.label      = info.name;
+        drag_drop_->begin_drag_source(payload);
+        // Right-click context menu (unique id per row).
+        std::string ctx_id = std::string("##tctx_") + info.name;
+        drag_drop_->show_context_menu(payload, ctx_id.c_str());
     }
 
     // Double-click to plot.

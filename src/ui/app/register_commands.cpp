@@ -7,6 +7,17 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 
+#include "ros2_adapter_state.hpp"
+
+#ifdef SPECTRA_USE_ROS2
+    #ifdef __unix__
+        #include <sys/types.h>
+        #include <unistd.h>
+    #endif
+    #include <cstdlib>
+    #include <thread>
+#endif
+
 #include "ui/figures/figure_registry.hpp"
 #include "session_runtime.hpp"
 #include "window_ui_context.hpp"
@@ -1476,6 +1487,50 @@ void register_standard_commands(const CommandBindings& b)
         "App",
         static_cast<uint16_t>(ui::Icon::Plus));
     #endif
+
+    // ─── ROS2 Adapter command ────────────────────────────────────────────
+    // Registered only when compiled with SPECTRA_USE_ROS2.
+    // The command launches spectra-ros as a detached child process so it gets
+    // its own GLFW window without blocking the main Spectra render loop.
+    // No rclcpp headers are included here — the binary handles ROS2 init itself.
+    #ifdef SPECTRA_USE_ROS2
+    cmd_registry.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []()
+        {
+    #ifdef __unix__
+            // Fork + exec: spectra-ros must be on PATH (installed via colcon install
+            // or sourced from the workspace overlay).
+            pid_t pid = fork();
+            if (pid == 0)
+            {
+                // Child process: exec spectra-ros.
+                execlp("spectra-ros", "spectra-ros", static_cast<char*>(nullptr));
+                // exec failed — exit child immediately to avoid double-destructor.
+                _exit(127);
+            }
+            else if (pid > 0)
+            {
+                SPECTRA_LOG_INFO("ros2_adapter",
+                                 "Launched spectra-ros (pid=" + std::to_string(pid) + ")");
+            }
+            else
+            {
+                SPECTRA_LOG_ERROR("ros2_adapter", "fork() failed — cannot launch spectra-ros");
+                spectra::ros2_adapter_set_error(
+                    "Failed to fork() a child process.\n"
+                    "Cannot launch spectra-ros.");
+            }
+    #elif defined(_WIN32)
+            // Windows: CreateProcess or ShellExecute.
+            std::thread([]() { std::system("start spectra-ros"); }).detach();
+    #endif
+        },
+        "",
+        "Tools",
+        static_cast<uint16_t>(ui::Icon::Wrench));
+    #endif   // SPECTRA_USE_ROS2
 
     // Register default shortcut bindings
     shortcut_mgr.register_defaults();

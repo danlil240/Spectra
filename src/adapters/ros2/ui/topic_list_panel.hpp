@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "topic_discovery.hpp"
+#include "ui/field_drag_drop.hpp"
 
 namespace spectra::adapters::ros2
 {
@@ -125,6 +126,14 @@ public:
     // Callback fired when the user double-clicks a topic (plot request).
     using PlotCallback = std::function<void(const std::string& topic_name)>;
     void set_plot_callback(PlotCallback cb) { plot_cb_ = std::move(cb); }
+
+    // ---------- drag-and-drop (C3) -------------------------------------------
+
+    // Wire a FieldDragDrop controller so that topic rows become drag sources
+    // (dragging a whole topic with empty field_path) and get right-click menus.
+    // Pass nullptr to disable.
+    void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
+    FieldDragDrop* drag_drop() const { return drag_drop_; }
 
     // ---------- configuration ------------------------------------------------
 
@@ -241,6 +250,9 @@ private:
     // Callbacks.
     SelectCallback select_cb_;
     PlotCallback   plot_cb_;
+
+    // Drag-and-drop controller (optional, not owned).
+    FieldDragDrop* drag_drop_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

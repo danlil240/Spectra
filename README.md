@@ -21,6 +21,7 @@
   <a href="#architecture">Architecture</a> •
   <a href="#testing">Testing</a> •
   <a href="#roadmap">Roadmap</a> •
+  <a href="#ros2-adapter">ROS2 Adapter</a> •
   <a href="#license">License</a>
 </p>
 
@@ -785,6 +786,90 @@ cmake --build build-asan && cd build-asan && ctest --output-on-failure
 | **Packaging** | ✅ Complete | CPack, AppImage, Homebrew formula, AUR PKGBUILD, shell completions |
 
 See [`plans/ROADMAP.md`](plans/ROADMAP.md) for detailed weekly progress tracking.
+
+---
+
+## ROS2 Adapter
+
+Spectra ships a full ROS2 visualization adapter (`spectra-ros`) that replaces the `rqt` suite with a single GPU-accelerated tool. Enabled via `-DSPECTRA_USE_ROS2=ON`. Requires ROS2 Humble or newer sourced in the environment.
+
+> **Full documentation:** [`docs/ros2-adapter.html`](docs/ros2-adapter.html)
+
+### Features at a Glance
+
+| Panel | What it does |
+|---|---|
+| **Topic Monitor** | Tree view by namespace; live Hz, BW, pub/sub counts; echo panel with expandable fields |
+| **Live Plotting** | Drag numeric fields to axes; auto-scroll time window; N×M subplot grid; shared X/cursor |
+| **Expression Fields** | Computed streams (`sqrt($imu.accel.x^2 + ...)`) with expression editor and presets |
+| **Bag Player** | Open `.db3`/`.mcap`; play/pause/stop/seek/rate (0.1×–10×); TimelineEditor scrub bar |
+| **Bag Recorder** | Record live topics; auto-split by size/duration; `.db3` or `.mcap` output |
+| **Node Graph** | Force-directed pub/sub topology; click for details; namespace filter |
+| **TF Tree** | `/tf` + `/tf_static` live frame tree; transform lookup; stale detection |
+| **Parameter Editor** | Discover + edit node params; type-aware widgets; range hints; YAML presets; undo |
+| **Service Caller** | Auto-generated request form from introspection; response viewer; JSON history |
+| **CSV Export** | ROS timestamps + field columns; configurable separator/precision |
+| **Clipboard Copy** | Ctrl+C copies selected range as TSV |
+| **Screenshot/Video** | Ctrl+Shift+S PNG; Tools→Record for GIF/MP4 via RecordingSession |
+
+### Quick Start
+
+```bash
+# Source ROS2 first
+source /opt/ros/humble/setup.bash
+
+# Configure (add -DSPECTRA_ROS2_BAG=ON for bag support)
+cmake -S . -B build-ros2 -DSPECTRA_USE_ROS2=ON -DSPECTRA_ROS2_BAG=ON -DCMAKE_BUILD_TYPE=Release
+
+# Build
+ninja -C build-ros2 spectra-ros
+
+# Launch
+./build-ros2/spectra-ros
+
+# Subscribe specific fields at startup
+./build-ros2/spectra-ros --topics /imu/data.linear_acceleration.x,/odom.twist.twist.linear.x
+
+# Open a rosbag
+./build-ros2/spectra-ros --bag /path/to/recording.db3
+```
+
+### Architecture
+
+The adapter is a separate CMake target (`spectra_ros2_adapter`) that does **not** modify the Spectra core library. ROS2 runs on a dedicated background executor thread; data flows through SPSC lock-free ring buffers to the Vulkan render thread at zero copy cost.
+
+```
+ROS2 executor thread          Ring buffers         Render thread
+──────────────────────        ────────────         ──────────────
+Ros2Bridge                 ──▶ (timestamp, value) ──▶ RosPlotManager
+TopicDiscovery             ──▶ (timestamp, value) ──▶   └─ LineSeries.append()
+GenericSubscriber          ──▶ (timestamp, value) ──▶ ScrollController
+MessageIntrospector                                    ImGui panels
+  (rosidl introspection)                              Vulkan pipeline
+```
+
+### Example Launch Files
+
+Three example launch files are provided under `examples/ros2_launch/`:
+
+| File | Description |
+|---|---|
+| `imu_monitor.launch.py` | Linear acceleration + angular velocity from `sensor_msgs/Imu` |
+| `nav_dashboard.launch.py` | cmd_vel + odom fields for navigation stack monitoring |
+| `bag_replay.launch.py` | Open a rosbag by path with configurable rate and loop |
+
+```bash
+ros2 launch spectra imu_monitor.launch.py
+ros2 launch spectra nav_dashboard.launch.py cmd_vel:=/cmd_vel_mux/input/navi
+ros2 launch spectra bag_replay.launch.py bag:=/data/run42.mcap rate:=2.0
+```
+
+### CMake Options
+
+| Option | Default | Description |
+|---|---|---|
+| `SPECTRA_USE_ROS2` | `OFF` | Enable the ROS2 adapter and `spectra-ros` executable |
+| `SPECTRA_ROS2_BAG` | `OFF` | Enable rosbag2 player/recorder (requires `rosbag2` packages) |
 
 ---
 

@@ -12,6 +12,7 @@
 #include "anim/frame_scheduler.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
+#include "render/vulkan/window_context.hpp"
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
@@ -883,7 +884,33 @@ void App::shutdown_runtime()
 // ─── Accessors ───────────────────────────────────────────────────────────────
 WindowUIContext* App::ui_context()
 {
-    return runtime_ ? runtime_->ui_ctx_ptr : nullptr;
+    if (!runtime_)
+        return nullptr;
+
+    auto& rt = *runtime_;
+
+#ifdef SPECTRA_USE_GLFW
+    if (rt.window_mgr)
+    {
+        for (auto* wctx : rt.window_mgr->windows())
+        {
+            if (wctx && wctx->ui_ctx)
+            {
+                rt.ui_ctx_ptr = wctx->ui_ctx.get();
+                return rt.ui_ctx_ptr;
+            }
+        }
+
+        // All windows were closed/destroyed this frame.
+        rt.ui_ctx_ptr = nullptr;
+        return nullptr;
+    }
+#endif
+
+    if (rt.headless_ui_ctx)
+        rt.ui_ctx_ptr = rt.headless_ui_ctx.get();
+
+    return rt.ui_ctx_ptr;
 }
 
 SessionRuntime* App::session()

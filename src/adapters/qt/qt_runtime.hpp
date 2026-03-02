@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 
 #include <QtGui/QVulkanInstance>
 
@@ -63,44 +64,59 @@ class QtRuntime
     // The QWindow must have surfaceType() == QSurface::VulkanSurface.
     // Returns true on success.
     bool attach_window(QWindow* window, uint32_t width, uint32_t height);
+    void detach_window(QWindow* window);
+    bool has_window(QWindow* window) const;
 
     // Recreate swapchain after resize.
+    bool resize(QWindow* window, uint32_t width, uint32_t height);
     bool resize(uint32_t width, uint32_t height);
 
     // Mark swapchain as needing recreation (deferred to next begin_frame).
     // Use this from resize/DPR-change events instead of calling resize() directly.
+    void mark_swapchain_dirty(QWindow* window);
     void mark_swapchain_dirty();
 
     // Frame lifecycle — call from Qt's update/timer callback.
+    bool begin_frame(QWindow* window);
     bool begin_frame();
+    void render_figure(QWindow* window, Figure& figure);
     void render_figure(Figure& figure);
+    void end_frame(QWindow* window);
     void end_frame();
 
     // Accessors
     QVulkanInstance* vulkan_instance() const;
     VulkanBackend*   backend() const { return backend_.get(); }
     Renderer*        renderer() const { return renderer_.get(); }
-    WindowContext*   window_context() const { return window_ctx_.get(); }
+    WindowContext*   window_context(QWindow* window) const;
+    WindowContext*   window_context() const;
 
    private:
+    struct WindowState
+    {
+        std::unique_ptr<WindowContext>                window_ctx;
+        std::chrono::steady_clock::time_point         last_resize_request{};
+        bool                                          resize_pending = false;
+        uint32_t                                      swapchain_recreate_count = 0;
+        uint32_t                                      frame_skip_count         = 0;
+    };
+
+    WindowState*       find_window_state(QWindow* window);
+    const WindowState* find_window_state(QWindow* window) const;
+
     bool initialized_ = false;
 
-    std::unique_ptr<QtSurfaceHost>    surface_host_;
-    std::unique_ptr<QVulkanInstance>   vulkan_instance_;
-    std::unique_ptr<VulkanBackend>    backend_;
-    std::unique_ptr<Renderer>         renderer_;
-    std::unique_ptr<WindowContext>    window_ctx_;
-
-    QWindow* attached_window_ = nullptr;
+    std::unique_ptr<QtSurfaceHost>  surface_host_;
+    std::unique_ptr<QVulkanInstance> vulkan_instance_;
+    std::unique_ptr<VulkanBackend>  backend_;
+    std::unique_ptr<Renderer>       renderer_;
+    std::unordered_map<QWindow*, std::unique_ptr<WindowState>> window_states_;
+    QWindow*                                         primary_window_       = nullptr;
+    QWindow*                                         current_frame_window_ = nullptr;
+    uint32_t                                         next_window_id_       = 1;
 
     // Debounce: track last resize request time to coalesce rapid resizes.
     static constexpr std::chrono::milliseconds k_resize_debounce{50};
-    std::chrono::steady_clock::time_point      last_resize_request_{};
-    bool                                       resize_pending_ = false;
-
-    // Instrumentation counters (debug logging)
-    uint32_t swapchain_recreate_count_ = 0;
-    uint32_t frame_skip_count_         = 0;
 };
 
 }   // namespace spectra::adapters::qt

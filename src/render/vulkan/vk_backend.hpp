@@ -160,6 +160,12 @@ class VulkanBackend : public Backend
     // Falls back to recreate_swapchain_for() if the window has no ImGui context.
     bool recreate_swapchain_for_with_imgui(WindowContext& wctx, uint32_t width, uint32_t height);
 
+    // Wait for all in-flight fences of a specific WindowContext.
+    // Used before writing to shared GPU resources (text vertex buffers, overlay
+    // scratch buffers) to prevent a second window's uploads from corrupting
+    // data still being read by the first window's submitted command buffer.
+    void wait_window_fences(WindowContext& wctx);
+
     // Returns true if the Vulkan device has been lost (unrecoverable)
     bool is_device_lost() const { return device_lost_; }
 
@@ -195,6 +201,7 @@ class VulkanBackend : public Backend
     void       create_command_buffers();
     void       create_sync_objects();
     void       create_descriptor_pool();
+    void       destroy_surface_for(WindowContext& wctx);
     VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
 
    public:

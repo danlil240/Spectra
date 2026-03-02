@@ -39,6 +39,105 @@ Next session:
 
 ## Session Log
 
+### Session 2026-03-02 00:08 (Agent: Codex)
+Done this session:
+- Added minimal multi-canvas exercise path to `qt_embed_demo` to validate the new window-addressable `QtRuntime` API.
+- Added `--multi` / `-m` runtime flag:
+  - default mode remains single-canvas behavior.
+  - multi mode creates two `SpectraVulkanWindow` canvases in a horizontal `QSplitter`, both sharing the same `QtRuntime`.
+- Refactored demo setup with small helpers:
+  - `populate_demo_figure(...)` to generate demo data (phase-shifted per canvas in multi mode).
+  - `setup_input_handler(...)` to bind pan/zoom/select per figure.
+- Updated startup/help text in the non-Qt fallback main to mention `--multi`.
+
+Files touched:
+- `examples/qt_embed_demo.cpp`
+- `plans/QT_embed_plan.md`
+
+Validation run:
+- `cmake --build build-qt --target spectra_qt_adapter qt_embed_demo -j6` (pass)
+- `cmake --build build --target spectra -j6` (pass)
+- `ctest --test-dir build --output-on-failure` (83/85 pass; failing suites remain `golden_image_tests` and `golden_image_tests_3d`)
+
+Open issues:
+- Runtime smoke validation on an actual display server is still pending for both single and `--multi` modes (including detach/reattach, hide/show, and DPR monitor moves).
+- Multi-canvas demo currently lives behind `--multi`; no dedicated separate example target yet.
+
+Next session:
+1. Run `./build-qt/examples/qt_embed_demo --multi` with validation layers and execute Phase 2-focused manual checks.
+2. Add explicit multi-canvas smoke checklist items to this plan (attach/detach one canvas, independent interaction, resize torture with two canvases).
+3. Decide whether to split multi-canvas into a dedicated example binary.
+
+### Session 2026-03-02 00:05 (Agent: Codex)
+Done this session:
+- Started Phase 2 runtime API expansion in `QtRuntime`:
+  - Added per-window APIs: `has_window`, `detach_window`, `resize(window,...)`, `mark_swapchain_dirty(window)`, `begin_frame(window)`, `render_figure(window, ...)`, `end_frame(window)`, and `window_context(window)`.
+  - Kept compatibility wrappers (`begin_frame()`, `render_figure(fig)`, etc.) by routing to a tracked primary window.
+  - Reworked internal state from single `window_ctx_` to per-window state map with per-window resize debounce and instrumentation counters.
+  - Updated shutdown to destroy all attached window contexts safely.
+- Added Qt platform surface lifecycle wiring in `qt_embed_demo`:
+  - Handles `QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed` by calling `QtRuntime::detach_window(this)`.
+  - Handles `SurfaceCreated` by re-attaching when exposed and size is valid.
+  - Updated render and resize paths to call the new window-specific runtime APIs.
+
+Files touched:
+- `src/adapters/qt/qt_runtime.hpp`
+- `src/adapters/qt/qt_runtime.cpp`
+- `examples/qt_embed_demo.cpp`
+- `plans/QT_embed_plan.md`
+
+Validation run:
+- `cmake --build build --target spectra -j6` (pass)
+- `cmake --build build-qt --target spectra_qt_adapter qt_embed_demo -j6` (pass)
+- `ctest --test-dir build --output-on-failure` (83/85 pass; failing suites remain `golden_image_tests` and `golden_image_tests_3d`)
+
+Open issues:
+- Runtime validation on an actual display server is still pending for the new detach/reattach path.
+- `QtRuntime` is now window-addressable but still renderer-shared and primary-window-centric for compatibility wrappers; no dedicated multi-canvas example exists yet.
+
+Next session:
+1. Run `qt_embed_demo` with validation layers and explicitly test hide/show, minimize/restore, and platform-surface detach/reattach behavior.
+2. Add a minimal two-canvas Qt example (or mode in `qt_embed_demo`) to exercise `begin_frame(window)` across multiple windows.
+3. Decide whether to remove or keep primary-window compatibility wrappers once multi-canvas call sites are migrated.
+
+### Session 2026-03-02 00:01 (Agent: Codex)
+Done this session:
+- Added `SurfaceHost` lifecycle hooks and adapter-owned surface destruction seam:
+  - New optional hooks: `on_surface_created`, `on_surface_about_to_destroy`.
+  - New `destroy_surface(VkInstance, VkSurfaceKHR)` virtual with Vulkan default behavior.
+- Implemented Qt-specific surface destruction override (`QtSurfaceHost::destroy_surface`) as a no-op so Qt-owned `VkSurfaceKHR` is not double-destroyed.
+- Updated `VulkanBackend` cleanup paths to destroy window surfaces through the `SurfaceHost` seam in both:
+  - global backend shutdown
+  - per-window `destroy_window_context`.
+- Added backend helper `destroy_surface_for(WindowContext&)` and wired surface lifecycle callbacks on creation.
+- Hardened `init_window_context()` failure handling to release a partially-created surface on exceptions.
+- Removed Qt runtime shutdown hack that manually nulled `window_ctx_->surface`; cleanup now relies on adapter-owned surface semantics.
+- Fixed potential dangling pointer risk in `QtRuntime::shutdown()` by clearing backend active window after window context destruction.
+- Added attach rebind path in `QtRuntime::attach_window()` to destroy any prior context before attaching a new `QWindow`.
+
+Files touched:
+- `src/platform/window_system/surface_host.hpp`
+- `src/adapters/qt/qt_surface_host.hpp`
+- `src/adapters/qt/qt_surface_host.cpp`
+- `src/render/vulkan/vk_backend.hpp`
+- `src/render/vulkan/vk_backend.cpp`
+- `src/adapters/qt/qt_runtime.cpp`
+- `plans/QT_embed_plan.md`
+
+Validation run:
+- `cmake --build build --target spectra -j6` (pass)
+- `cmake --build build-qt --target spectra_qt_adapter qt_embed_demo -j6` (pass)
+- `ctest --test-dir build --output-on-failure` (83/85 pass; 2 failing suites remain `golden_image_tests` and `golden_image_tests_3d`, consistent with pre-existing golden diffs)
+
+Open issues:
+- Qt runtime/manual smoke validation on a display server is still pending (cannot be verified from CLI-only environment).
+- Phase 2 multi-canvas runtime APIs are not started yet (current `QtRuntime` remains single-active-window oriented despite safer rebind support).
+
+Next session:
+1. Run `qt_embed_demo` under a display server with validation layers and execute checklist §19.
+2. Start Phase 2 runtime API expansion in `QtRuntime` (`attach_window`/`detach_window`/`begin_frame(window)` semantics for multi-canvas).
+3. Add Qt surface lifecycle event wiring (`QPlatformSurfaceEvent`) for detach/reattach generation handling.
+
 ### Session 2026-03-02 00:00 (Agent: Cascade)
 Done this session:
 - Added visibility guard to `SpectraVulkanWindow::renderFrame()`: skips rendering when `!isExposed()` or pixel size is zero. Prevents swapchain storms and wasted GPU work on hidden/minimized windows.

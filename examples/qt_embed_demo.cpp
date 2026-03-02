@@ -18,8 +18,9 @@
 #include <QApplication>
 #include <QMainWindow>
 #include <QMouseEvent>
+#include <QPlatformSurfaceEvent>
+#include <QSplitter>
 #include <QTimer>
-#include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
 
@@ -33,6 +34,7 @@
 
 #include <cmath>
 #include <memory>
+#include <string>
 #include <vector>
 
 // ─── SpectraVulkanWindow ─────────────────────────────────────────────────────
@@ -60,6 +62,35 @@ class SpectraVulkanWindow : public QWindow
     }
 
    protected:
+    bool event(QEvent* event) override
+    {
+        if (event && event->type() == QEvent::PlatformSurface && runtime_)
+        {
+            auto* platform_event = static_cast<QPlatformSurfaceEvent*>(event);
+            if (platform_event->surfaceEventType()
+                == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+            {
+                runtime_->detach_window(this);
+                attached_ = false;
+            }
+            else if (platform_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated)
+            {
+                if (isExposed())
+                {
+                    auto dpr = devicePixelRatio();
+                    auto w   = static_cast<uint32_t>(width() * dpr);
+                    auto h   = static_cast<uint32_t>(height() * dpr);
+                    if (w > 0 && h > 0 && runtime_->attach_window(this, w, h))
+                    {
+                        attached_ = true;
+                        last_dpr_ = dpr;
+                    }
+                }
+            }
+        }
+        return QWindow::event(event);
+    }
+
     void exposeEvent(QExposeEvent* /*event*/) override
     {
         if (!isExposed())
@@ -88,7 +119,7 @@ class SpectraVulkanWindow : public QWindow
             if (dpr != last_dpr_)
             {
                 last_dpr_ = dpr;
-                runtime_->mark_swapchain_dirty();
+                runtime_->mark_swapchain_dirty(this);
             }
 
             // Ensure a frame is rendered promptly after becoming visible again.
@@ -103,7 +134,7 @@ class SpectraVulkanWindow : public QWindow
 
         // Set dirty flag — actual swapchain recreation is deferred to
         // begin_frame() at the next frame boundary.
-        runtime_->mark_swapchain_dirty();
+        runtime_->mark_swapchain_dirty(this);
     }
 
     void mouseMoveEvent(QMouseEvent* event) override
@@ -191,10 +222,10 @@ class SpectraVulkanWindow : public QWindow
         if (w == 0 || h == 0)
             return;
 
-        if (runtime_->begin_frame())
+        if (runtime_->begin_frame(this))
         {
-            runtime_->render_figure(*figure_);
-            runtime_->end_frame();
+            runtime_->render_figure(this, *figure_);
+            runtime_->end_frame(this);
         }
     }
 
@@ -255,9 +286,46 @@ class SpectraVulkanWindow : public QWindow
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
+static void populate_demo_figure(spectra::Figure& fig, float phase)
+{
+    auto& ax = fig.subplot(1, 1, 1);
+
+    const int              N = 200;
+    std::vector<float> x(N), y_sin(N), y_cos(N);
+    for (int i = 0; i < N; i++)
+    {
+        x[i]     = static_cast<float>(i) * 0.1f;
+        y_sin[i] = std::sin(x[i] + phase);
+        y_cos[i] = std::cos(x[i] + phase);
+    }
+
+    ax.line(x, y_sin).label("sin(x)");
+    ax.line(x, y_cos).label("cos(x)");
+    ax.auto_fit();
+}
+
+static void setup_input_handler(spectra::InputHandler& input, spectra::Figure& figure)
+{
+    input.set_figure(&figure);
+    if (!figure.axes().empty() && figure.axes()[0])
+    {
+        input.set_active_axes(figure.axes()[0].get());
+    }
+}
+
 int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
+
+    bool multi_canvas = false;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string arg = argv[i] ? argv[i] : "";
+        if (arg == "--multi" || arg == "-m")
+        {
+            multi_canvas = true;
+        }
+    }
 
     // 1. Initialize Spectra Qt runtime (Vulkan backend + renderer)
     spectra::adapters::qt::QtRuntime runtime;
@@ -267,58 +335,75 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // 2. Create a figure with some data
-    spectra::Figure figure;
-    auto& ax = figure.subplot(1, 1, 1);
-
-    const int              N = 200;
-    std::vector<float> x(N), y_sin(N), y_cos(N);
-    for (int i = 0; i < N; i++)
-    {
-        x[i]     = static_cast<float>(i) * 0.1f;
-        y_sin[i] = std::sin(x[i]);
-        y_cos[i] = std::cos(x[i]);
-    }
-
-    ax.line(x, y_sin).label("sin(x)");
-    ax.line(x, y_cos).label("cos(x)");
-    ax.auto_fit();
-
-    // 3. Create an InputHandler for pan/zoom/select
-    spectra::InputHandler input;
-    input.set_figure(&figure);
-    if (!figure.axes().empty() && figure.axes()[0])
-    {
-        input.set_active_axes(figure.axes()[0].get());
-    }
-
-    // 4. Create the Vulkan QWindow
-    SpectraVulkanWindow vulkan_window;
-    vulkan_window.setRuntime(&runtime);
-    vulkan_window.setFigure(&figure);
-    vulkan_window.setInputHandler(&input);
-
-    // Bind QVulkanInstance before showing the window
-    vulkan_window.setVulkanInstance(runtime.vulkan_instance());
-
-    // 5. Embed in a QMainWindow via QWidget::createWindowContainer
     QMainWindow main_window;
-    main_window.setWindowTitle("Spectra — Qt Vulkan Embed Demo");
+    main_window.setWindowTitle(multi_canvas ? "Spectra — Qt Vulkan Embed Demo (Multi Canvas)"
+                                            : "Spectra — Qt Vulkan Embed Demo");
     main_window.resize(800, 600);
 
-    QWidget* container = QWidget::createWindowContainer(&vulkan_window, &main_window);
-    container->setMinimumSize(400, 300);
-    container->setFocusPolicy(Qt::StrongFocus);
-    main_window.setCentralWidget(container);
+    // Keep demo objects alive for the entire event loop.
+    spectra::Figure       figure_a;
+    spectra::InputHandler input_a;
+    SpectraVulkanWindow   window_a;
+
+    spectra::Figure       figure_b;
+    spectra::InputHandler input_b;
+    SpectraVulkanWindow   window_b;
+
+    // 2. Create demo figures
+    populate_demo_figure(figure_a, 0.0f);
+    setup_input_handler(input_a, figure_a);
+
+    window_a.setRuntime(&runtime);
+    window_a.setFigure(&figure_a);
+    window_a.setInputHandler(&input_a);
+    window_a.setVulkanInstance(runtime.vulkan_instance());
+
+    if (!multi_canvas)
+    {
+        QWidget* container = QWidget::createWindowContainer(&window_a, &main_window);
+        container->setMinimumSize(400, 300);
+        container->setFocusPolicy(Qt::StrongFocus);
+        main_window.setCentralWidget(container);
+    }
+    else
+    {
+        populate_demo_figure(figure_b, 0.75f);
+        setup_input_handler(input_b, figure_b);
+
+        window_b.setRuntime(&runtime);
+        window_b.setFigure(&figure_b);
+        window_b.setInputHandler(&input_b);
+        window_b.setVulkanInstance(runtime.vulkan_instance());
+
+        auto* splitter = new QSplitter(Qt::Horizontal, &main_window);
+
+        QWidget* left_container = QWidget::createWindowContainer(&window_a, splitter);
+        left_container->setMinimumSize(300, 250);
+        left_container->setFocusPolicy(Qt::StrongFocus);
+
+        QWidget* right_container = QWidget::createWindowContainer(&window_b, splitter);
+        right_container->setMinimumSize(300, 250);
+        right_container->setFocusPolicy(Qt::StrongFocus);
+
+        splitter->addWidget(left_container);
+        splitter->addWidget(right_container);
+        splitter->setStretchFactor(0, 1);
+        splitter->setStretchFactor(1, 1);
+        main_window.setCentralWidget(splitter);
+    }
 
     main_window.show();
 
-    // 6. Start the frame timer after the window is visible
-    vulkan_window.startFrameTimer();
+    // 3. Start frame timers after windows are visible
+    window_a.startFrameTimer();
+    if (multi_canvas)
+    {
+        window_b.startFrameTimer();
+    }
 
     int result = app.exec();
 
-    // 7. Clean shutdown — runtime dtor handles Vulkan cleanup
+    // 4. Clean shutdown — runtime dtor also handles Vulkan cleanup
     runtime.shutdown();
 
     return result;
@@ -332,7 +417,8 @@ int main()
 {
     std::cout << "This example requires Qt6. Build with:\n"
               << "  cmake -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON "
-                 "-DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..\n";
+                 "-DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..\n"
+              << "Run with --multi to open two Vulkan canvases in one window.\n";
     return 0;
 }
 

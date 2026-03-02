@@ -27,6 +27,7 @@ class QtSurfaceHost final : public platform::SurfaceHost
                         void*         native_window,
                         VkSurfaceKHR& out_surface) const override;
     bool framebuffer_size(void* native_window, platform::SurfaceSize& out_size) const override;
+    void destroy_surface(VkInstance instance, VkSurfaceKHR surface) const override;
 
     void set_vulkan_instance(QVulkanInstance* vulkan_instance)
     {

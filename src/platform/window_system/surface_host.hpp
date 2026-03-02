@@ -33,6 +33,29 @@ class SurfaceHost
 
     // Query framebuffer size in physical pixels.
     virtual bool framebuffer_size(void* native_window, SurfaceSize& out_size) const = 0;
+
+    // Optional lifecycle hooks for adapters that need to observe surface changes.
+    virtual void on_surface_created(void* native_window, VkSurfaceKHR surface) const
+    {
+        (void)native_window;
+        (void)surface;
+    }
+    virtual void on_surface_about_to_destroy(void* native_window, VkSurfaceKHR surface) const
+    {
+        (void)native_window;
+        (void)surface;
+    }
+
+    // Destroy a surface created by this host.
+    // Default behavior matches GLFW/native Vulkan ownership.
+    // Qt overrides this with a no-op because QVulkanInstance owns the surface.
+    virtual void destroy_surface(VkInstance instance, VkSurfaceKHR surface) const
+    {
+        if (instance != VK_NULL_HANDLE && surface != VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(instance, surface, nullptr);
+        }
+    }
 };
 
 }   // namespace spectra::platform

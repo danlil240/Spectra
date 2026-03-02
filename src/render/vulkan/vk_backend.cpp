@@ -280,11 +280,7 @@ void VulkanBackend::shutdown()
     if (active_window_)
     {
         vk::destroy_swapchain(ctx_.device, active_window_->swapchain);
-        if (active_window_->surface != VK_NULL_HANDLE)
-        {
-            vkDestroySurfaceKHR(ctx_.instance, active_window_->surface, nullptr);
-            active_window_->surface = VK_NULL_HANDLE;
-        }
+        destroy_surface_for(*active_window_);
     }
 
     if (vma_allocator_ != nullptr)
@@ -319,6 +315,7 @@ bool VulkanBackend::create_surface(void* native_window)
             "Failed to create Vulkan surface with host: " + std::string(surface_host_->name()));
         return false;
     }
+    surface_host_->on_surface_created(native_window, active_window_->surface);
 
     // Re-query present support for the created surface, but keep device-created queue
     // family indices stable. The logical device was created before surface creation,
@@ -350,6 +347,26 @@ bool VulkanBackend::create_surface(void* native_window)
     }
 
     return true;
+}
+
+void VulkanBackend::destroy_surface_for(WindowContext& wctx)
+{
+    if (wctx.surface == VK_NULL_HANDLE || ctx_.instance == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    if (surface_host_)
+    {
+        surface_host_->on_surface_about_to_destroy(wctx.native_window, wctx.surface);
+        surface_host_->destroy_surface(ctx_.instance, wctx.surface);
+    }
+    else
+    {
+        vkDestroySurfaceKHR(ctx_.instance, wctx.surface, nullptr);
+    }
+
+    wctx.surface = VK_NULL_HANDLE;
 }
 
 bool VulkanBackend::query_framebuffer_size(void* native_window,
@@ -1280,9 +1297,13 @@ void VulkanBackend::destroy_texture(TextureHandle handle)
 
 bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 {
-    // Reset dynamic UBO slot allocator for this frame
-    ubo_next_offset_  = 0;
-    ubo_bound_offset_ = 0;
+    // NOTE: do NOT reset ubo_next_offset_ here.  In multi-window mode,
+    // begin_frame() is called once per window per tick.  Resetting the
+    // ring to 0 would cause window B's UBO uploads to overwrite slots
+    // that window A's in-flight command buffer is still reading from,
+    // corrupting projection matrices (flickering / wrong zoom).
+    // The ring wraps automatically in upload_buffer() when it reaches
+    // UBO_MAX_SLOTS, giving ~10+ frames of headroom before reuse.
 
     if (headless_)
     {
@@ -2402,6 +2423,7 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
             active_window_ = prev_active;
             return false;
         }
+        surface_host_->on_surface_created(wctx.native_window, wctx.surface);
 
         // Create swapchain for this window
         auto vk_msaa   = static_cast<VkSampleCountFlagBits>(msaa_samples_);
@@ -2432,6 +2454,7 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
     catch (const std::exception& e)
     {
         SPECTRA_LOG_ERROR("vulkan", "init_window_context failed: " + std::string(e.what()));
+        destroy_surface_for(wctx);
         active_window_ = prev_active;
         return false;
     }
@@ -2559,6 +2582,18 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
     return true;
 }
 
+void VulkanBackend::wait_window_fences(WindowContext& wctx)
+{
+    if (ctx_.device == VK_NULL_HANDLE || wctx.in_flight_fences.empty())
+        return;
+    static constexpr uint64_t FENCE_TIMEOUT_NS = 100'000'000;   // 100ms
+    vkWaitForFences(ctx_.device,
+                    static_cast<uint32_t>(wctx.in_flight_fences.size()),
+                    wctx.in_flight_fences.data(),
+                    VK_TRUE,
+                    FENCE_TIMEOUT_NS);
+}
+
 void VulkanBackend::destroy_window_context(WindowContext& wctx)
 {
     // Wait for ALL GPU work to complete before destroying sync objects.
@@ -2618,11 +2653,7 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
     vk::destroy_swapchain(ctx_.device, wctx.swapchain);
 
     // Destroy surface
-    if (wctx.surface != VK_NULL_HANDLE)
-    {
-        vkDestroySurfaceKHR(ctx_.instance, wctx.surface, nullptr);
-        wctx.surface = VK_NULL_HANDLE;
-    }
+    destroy_surface_for(wctx);
 
     SPECTRA_LOG_INFO("vulkan", "Window context " + std::to_string(wctx.id) + " destroyed");
 }

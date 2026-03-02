@@ -150,6 +150,14 @@ bool QtSurfaceHost::framebuffer_size(void* native_window, platform::SurfaceSize&
     return true;
 }
 
+void QtSurfaceHost::destroy_surface(VkInstance instance, VkSurfaceKHR surface) const
+{
+    (void)instance;
+    (void)surface;
+    // VkSurfaceKHR returned by QVulkanInstance::surfaceForWindow() is owned by Qt.
+    // Destroying it manually would double-free during QVulkanInstance teardown.
+}
+
 bool QtSurfaceHost::ensure_window_instance(VkInstance instance, QWindow* window) const
 {
     if (!window)

@@ -1,0 +1,3 @@
+# Known external leak from GLFW/X11 stack through libdbus.
+# Keep LeakSanitizer enabled for Spectra allocations and suppress this library-only report.
+leak:libdbus-1.so

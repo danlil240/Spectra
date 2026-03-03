@@ -67,6 +67,36 @@ int main() {
 
 ---
 
+## Why Spectra?
+
+Spectra is built for teams that need **high-performance plotting + production ergonomics** in one stack:
+
+- **GPU-first rendering** (Vulkan) for smooth interaction with large datasets
+- **Single project, multiple surfaces**: C++ API, Python IPC bridge, ROS-friendly workflows, headless export
+- **From prototype to production**: quick MATLAB-style calls and a full object API for deeper control
+- **Quality gates included**: CI, extensive tests, benchmarks, packaging, and deployment plans
+
+If you want scientific visualization that behaves like an engineering product (not just a plotting demo), Spectra is designed for that path.
+
+## 5 Practical Workflows
+
+1. **Real-time telemetry dashboard**  
+   Stream sensor data into ring buffers and visualize live with crosshair, linked axes, and overlays.
+
+2. **3D inspection + camera animation**  
+   Explore 3D series/surfaces with orbit controls, depth-aware labels, and scripted camera paths.
+
+3. **Automated reporting in CI**  
+   Run headless renders and export PNG/GIF/MP4 artifacts for nightly validation and regressions.
+
+4. **Python-driven analysis with native rendering**  
+   Use Python for orchestration while keeping rendering in the C++/Vulkan backend.
+
+5. **ROS/robotics visualization loop**  
+   Inspect topics, replay bags, and iterate quickly on visualization/debug tooling.
+
+---
+
 ## Features
 
 ### Core Rendering

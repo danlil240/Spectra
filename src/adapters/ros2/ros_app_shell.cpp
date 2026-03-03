@@ -1,20 +1,21 @@
 #include "ros_app_shell.hpp"
 
-#include <atomic>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+#ifdef IMGUI_HAS_DOCK
+#include <imgui_internal.h>
+#endif
 #endif
 
 namespace spectra::adapters::ros2
 {
-
-// ---------------------------------------------------------------------------
-// LayoutMode helpers
-// ---------------------------------------------------------------------------
 
 LayoutMode parse_layout_mode(const std::string& s)
 {
@@ -33,10 +34,6 @@ const char* layout_mode_name(LayoutMode m)
     }
     return "default";
 }
-
-// ---------------------------------------------------------------------------
-// parse_args
-// ---------------------------------------------------------------------------
 
 RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 {
@@ -58,7 +55,6 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 
         if (arg == "--topics" || arg == "-t")
         {
-            // Collect all subsequent non-flag arguments as topic specs.
             while (i + 1 < argc && argv[i + 1][0] != '-')
             {
                 ++i;
@@ -105,8 +101,6 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
             catch (...) { error_out = "Invalid --cols value"; return cfg; }
             continue;
         }
-
-        // Unknown flags are silently forwarded to rclcpp::init via argc/argv.
     }
 
     if (cfg.subplot_rows < 1) cfg.subplot_rows = 1;
@@ -119,19 +113,12 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
     return cfg;
 }
 
-// ---------------------------------------------------------------------------
-// RosAppShell — construction / destruction
-// ---------------------------------------------------------------------------
-
 RosAppShell::RosAppShell(const RosAppConfig& cfg)
     : cfg_(cfg)
 {
     screenshot_export_ = std::make_unique<RosScreenshotExport>();
     session_mgr_       = std::make_unique<RosSessionManager>();
-    // Pre-populate the save path from the node_name so auto-save works
-    // even if the user never explicitly saves.
-    session_save_path_buf_ =
-        RosSessionManager::default_session_path(cfg_.node_name);
+    session_save_path_buf_ = RosSessionManager::default_session_path(cfg_.node_name);
     session_mgr_->set_last_path(session_save_path_buf_);
 }
 
@@ -140,84 +127,136 @@ RosAppShell::~RosAppShell()
     shutdown();
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
+void RosAppShell::set_nav_rail_width(float px)
+{
+    nav_rail_width_ = std::clamp(px, 180.0f, 360.0f);
+}
 
 bool RosAppShell::init(int argc, char** argv)
 {
-    // Create bridge and introspector.
     bridge_ = std::make_unique<Ros2Bridge>();
     intr_   = std::make_unique<MessageIntrospector>();
 
-    // Initialise ROS2 node.
     if (!bridge_->init(cfg_.node_name, cfg_.node_ns, argc, argv))
         return false;
 
-    // TopicDiscovery takes the node in its constructor.
     discovery_ = std::make_unique<TopicDiscovery>(bridge_->node());
 
-    // Create plot engines.
-    plot_mgr_    = std::make_unique<RosPlotManager>(*bridge_, *intr_);
+    plot_mgr_ = std::make_unique<RosPlotManager>(*bridge_, *intr_);
     subplot_mgr_ = std::make_unique<SubplotManager>(
-        *bridge_, *intr_, cfg_.subplot_rows, cfg_.subplot_cols);
+        *bridge_, *intr_, cfg_.subplot_rows, cfg_.subplot_cols, canvas_figure_);
     subplot_mgr_->set_time_window(cfg_.time_window_s);
+    plot_mgr_->set_time_window(cfg_.time_window_s);
 
-    // Create UI panels.
-    // TopicListPanel has a default constructor.
     topic_list_  = std::make_unique<TopicListPanel>();
     topic_stats_ = std::make_unique<TopicStatsOverlay>();
-    // TopicEchoPanel takes (node, introspector).
     topic_echo_  = std::make_unique<TopicEchoPanel>(bridge_->node(), *intr_);
-    // BagInfoPanel — pure metadata display, no ROS2 dependency.
+
+    topic_list_->set_title("Topic Monitor");
+    topic_stats_->set_title("Topic Statistics");
+    topic_echo_->set_title("Topic Echo");
+
     bag_info_ = std::make_unique<BagInfoPanel>();
     bag_info_->set_title("Bag Info");
-    bag_info_->set_topic_plot_callback(
-        [this](const std::string& topic, const std::string& /*type*/)
-        {
-            add_topic_plot(topic);
-        });
 
-    // RosLogViewer + LogViewerPanel — subscribe /rosout (F5).
+    bag_player_ = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_playback_panel_ = std::make_unique<BagPlaybackPanel>(bag_player_.get());
+    bag_playback_panel_->set_title("Bag Playback");
+
     log_viewer_ = std::make_unique<RosLogViewer>(bridge_->node());
     log_viewer_->subscribe();
     log_viewer_panel_ = std::make_unique<LogViewerPanel>(*log_viewer_);
     log_viewer_panel_->set_title("ROS2 Log");
 
-    // DiagnosticsPanel — subscribe /diagnostics (F6).
     diag_panel_ = std::make_unique<DiagnosticsPanel>();
+    diag_panel_->set_title("Diagnostics");
     diag_panel_->set_node(bridge_->node().get());
-    diag_panel_->set_alert_callback(
-        [](const std::string& name, DiagLevel level)
-        {
-            // Future: surface alerts in a notification bar.
-            (void)name; (void)level;
-        });
     diag_panel_->start();
 
-    // Wire discovery to the list panel.
+    node_graph_panel_ = std::make_unique<NodeGraphPanel>();
+    node_graph_panel_->set_title("Node Graph");
+    node_graph_panel_->set_topic_discovery(discovery_.get());
+
+    tf_tree_panel_ = std::make_unique<TfTreePanel>();
+    tf_tree_panel_->set_title("TF Tree");
+    tf_tree_panel_->set_node(bridge_->node());
+    tf_tree_panel_->start();
+
+    param_editor_ = std::make_unique<ParamEditorPanel>(bridge_->node());
+    param_editor_->set_title("Parameter Editor");
+    param_editor_->set_live_edit(true);
+    param_editor_->set_target_node(bridge_->node()->get_fully_qualified_name());
+
+    service_caller_ =
+        std::make_unique<ServiceCaller>(bridge_->node(), intr_.get(), discovery_.get());
+    service_caller_panel_ = std::make_unique<ServiceCallerPanel>(service_caller_.get());
+    service_caller_panel_->set_title("Service Caller");
+
+    bag_info_->set_topic_select_callback(
+        [this](const std::string& topic, const std::string& type)
+        {
+            selected_type_ = type;
+            on_topic_selected(topic);
+        });
+    bag_info_->set_topic_plot_callback(
+        [this](const std::string& topic, const std::string& /*type*/)
+        {
+            add_topic_plot(topic);
+        });
+    bag_info_->set_bag_opened_callback(
+        [this](const std::string& path)
+        {
+            if (bag_player_ && bag_player_->open(path))
+            {
+                show_bag_playback_ = true;
+            }
+            else if (bag_player_)
+            {
+                session_status_msg_ = std::string("Bag open failed: ") + bag_player_->last_error();
+                session_status_timer_ = 3.0f;
+            }
+        });
+
     topic_list_->set_topic_discovery(discovery_.get());
 
-    // Wire the FieldDragDrop controller and inter-panel callbacks.
-    wire_panel_callbacks();
+    plot_mgr_->set_on_data(
+        [this](int id, double /*t*/, double /*v*/)
+        {
+            ++total_messages_;
+            const PlotHandle h = plot_mgr_->handle(id);
+            if (h.valid() && topic_list_)
+                topic_list_->notify_message(h.topic, sizeof(double));
+            if (h.valid() && topic_stats_)
+                topic_stats_->notify_message(h.topic, sizeof(double), -1);
+        });
 
-    // Apply layout visibility from config.
+    subplot_mgr_->set_on_data(
+        [this](int slot, double /*t*/, double /*v*/)
+        {
+            ++total_messages_;
+            const SubplotHandle h = subplot_mgr_->handle(slot);
+            if (!h.valid())
+                return;
+            if (topic_list_)
+                topic_list_->notify_message(h.topic, sizeof(double));
+            if (topic_stats_)
+                topic_stats_->notify_message(h.topic, sizeof(double), -1);
+        });
+
+    wire_panel_callbacks();
     setup_layout_visibility();
 
-    // Start background executor.
     bridge_->start_spin();
-
-    // Start discovery (arms the periodic timer).
     discovery_->start();
 
-    // Subscribe initial topics from CLI.
     subscribe_initial_topics();
 
-    // Open bag file from CLI if specified.
     if (!cfg_.bag_file.empty())
     {
         bag_info_->open_bag(cfg_.bag_file);
         show_bag_info_ = true;
+        if (bag_player_ && bag_player_->open(cfg_.bag_file))
+            show_bag_playback_ = true;
     }
 
     return true;
@@ -227,30 +266,32 @@ void RosAppShell::shutdown()
 {
     if (!bridge_) return;
 
-    // G3: auto-save session on clean shutdown.
     if (session_mgr_ && !session_mgr_->last_path().empty())
-    {
         session_mgr_->auto_save(capture_session());
-    }
 
-    // Destroy panels and engines before stopping the bridge so they can
-    // cleanly cancel their subscriptions via the executor.
+    if (diag_panel_)
+        diag_panel_->stop();
+    if (tf_tree_panel_)
+        tf_tree_panel_->stop();
+
+    bag_playback_panel_.reset();
+    bag_player_.reset();
+    service_caller_panel_.reset();
+    service_caller_.reset();
+    param_editor_.reset();
+    tf_tree_panel_.reset();
+    node_graph_panel_.reset();
+    diag_panel_.reset();
+    log_viewer_panel_.reset();
+    log_viewer_.reset();
+    bag_info_.reset();
+
     subplot_mgr_.reset();
     plot_mgr_.reset();
     topic_echo_.reset();
     topic_stats_.reset();
     topic_list_.reset();
     drag_drop_.reset();
-
-    bag_info_.reset();
-    log_viewer_panel_.reset();
-    log_viewer_.reset();
-
-    if (diag_panel_)
-    {
-        diag_panel_->stop();
-        diag_panel_.reset();
-    }
 
     if (discovery_)
     {
@@ -263,191 +304,374 @@ void RosAppShell::shutdown()
     intr_.reset();
 }
 
-// ---------------------------------------------------------------------------
-// Per-frame update
-// ---------------------------------------------------------------------------
-
 void RosAppShell::poll()
 {
     if (!bridge_) return;
 
-    // If ROS2 context was shut down (e.g. SIGINT caught by rclcpp),
-    // request our own shutdown and bail out to avoid using invalid context.
     if (!rclcpp::ok())
     {
         request_shutdown();
         return;
     }
 
-    // Advance wall-clock "now" for subplot scroll controllers.
     const double now_s = std::chrono::duration<double>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
-    subplot_mgr_->set_now(now_s);
 
-    // Drain ring buffers and append new points to series.
-    plot_mgr_->poll();
-    subplot_mgr_->poll();
+    double dt = 1.0 / 60.0;
+    if (last_poll_time_s_ > 0.0)
+        dt = std::clamp(now_s - last_poll_time_s_, 1.0 / 300.0, 0.25);
+    last_poll_time_s_ = now_s;
 
-    // Advance toast timer and recording session tick (E3).
-    if (screenshot_export_)
-        screenshot_export_->tick(1.0f / 60.0f);
+    if (subplot_mgr_)
+        subplot_mgr_->set_now(now_s);
 
-    // G3: tick session status toast.
-    if (session_status_timer_ > 0.0f)
-        session_status_timer_ -= 1.0f / 60.0f;
+    if (plot_mgr_)
+        plot_mgr_->poll();
+    if (subplot_mgr_)
+        subplot_mgr_->poll();
+    if (bag_player_)
+        bag_player_->advance(dt);
 
-    // Drain diagnostics ring buffer (F6).
+    if (node_graph_panel_)
+        node_graph_panel_->tick(static_cast<float>(dt));
+
     if (diag_panel_)
         diag_panel_->poll();
-}
 
-// ---------------------------------------------------------------------------
-// ImGui draw methods
-// ---------------------------------------------------------------------------
+    if (screenshot_export_)
+        screenshot_export_->tick(static_cast<float>(dt));
+
+    if (session_status_timer_ > 0.0f)
+        session_status_timer_ = std::max(0.0f, session_status_timer_ - static_cast<float>(dt));
+}
 
 void RosAppShell::draw()
 {
 #ifdef SPECTRA_USE_IMGUI
     if (shutdown_requested()) return;
 
+#ifdef IMGUI_HAS_DOCK
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+#endif
+
     draw_menu_bar();
+    draw_nav_rail();
+    draw_dockspace();
 
-    // ── Compute structured panel layout ─────────────────────────────────────
-    //
-    //   +--------------------+-----------------------------+------------------+
-    //   | TopicListPanel     | Plot area (SubplotManager)  | TopicStatsOverlay|
-    //   | (left, 20%)        | (center, ~55%)              | (right, 25%)     |
-    //   +--------------------+-----------------------------+------------------+
-    //   | TopicEchoPanel              (bottom, 35% height)                    |
-    //   +--------------------------------------------------------------------+
-    //
-    // On the first frame we force positions (ImGuiCond_Always) so the user
-    // never sees the random default placement.  After that we switch to
-    // ImGuiCond_Once so that user-resized/moved panels persist.
-
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float menu_h   = ImGui::GetFrameHeightWithSpacing();
-    const float status_h = ImGui::GetFrameHeight();
-    const float vp_x     = vp->WorkPos.x;
-    const float vp_y     = vp->WorkPos.y + menu_h;
-    const float vp_w     = vp->WorkSize.x;
-    const float vp_h     = vp->WorkSize.y - menu_h - status_h;
-
-    const float left_w   = vp_w * 0.20f;
-    const float right_w  = vp_w * 0.25f;
-    const float center_w = vp_w - left_w - right_w;
-    const float top_h    = vp_h * 0.65f;
-    const float bottom_h = vp_h - top_h;
-
-    const ImGuiCond layout_cond = layout_initialized_ ? ImGuiCond_Once
-                                                      : ImGuiCond_Always;
-    layout_initialized_ = true;
-
-    // ── Position each panel before its draw() call ──────────────────────────
     if (show_topic_list_)
     {
-        ImGui::SetNextWindowPos(ImVec2(vp_x, vp_y), layout_cond);
-        ImGui::SetNextWindowSize(ImVec2(left_w, top_h), layout_cond);
-        draw_topic_list();
+        draw_topic_list(&show_topic_list_);
     }
     if (show_plot_area_)
     {
-        ImGui::SetNextWindowPos(ImVec2(vp_x + left_w, vp_y), layout_cond);
-        ImGui::SetNextWindowSize(ImVec2(center_w, top_h), layout_cond);
-        draw_plot_area();
+        draw_plot_area(&show_plot_area_);
     }
     if (show_topic_stats_)
     {
-        ImGui::SetNextWindowPos(ImVec2(vp_x + left_w + center_w, vp_y), layout_cond);
-        ImGui::SetNextWindowSize(ImVec2(right_w, top_h), layout_cond);
-        draw_topic_stats();
+        draw_topic_stats(&show_topic_stats_);
+    }
+    if (show_node_graph_)
+    {
+        draw_node_graph(&show_node_graph_);
     }
     if (show_topic_echo_)
     {
-        ImGui::SetNextWindowPos(ImVec2(vp_x, vp_y + top_h), layout_cond);
-        ImGui::SetNextWindowSize(ImVec2(vp_w, bottom_h), layout_cond);
-        draw_topic_echo();
+        draw_topic_echo(&show_topic_echo_);
     }
-    if (show_log_viewer_)  draw_log_viewer();
-    if (show_diagnostics_) draw_diagnostics();
+    if (show_bag_info_)
+    {
+        draw_bag_info(&show_bag_info_);
+    }
+    if (show_log_viewer_)
+    {
+        draw_log_viewer(&show_log_viewer_);
+    }
+
+    if (show_bag_playback_)
+    {
+        draw_bag_playback(&show_bag_playback_);
+    }
+    if (show_diagnostics_)
+    {
+        draw_diagnostics(&show_diagnostics_);
+    }
+    if (show_tf_tree_)
+    {
+        draw_tf_tree(&show_tf_tree_);
+    }
+    if (show_param_editor_)
+    {
+        draw_param_editor(&show_param_editor_);
+    }
+    if (show_service_caller_)
+    {
+        draw_service_caller(&show_service_caller_);
+    }
+
+    if (drag_drop_)
+    {
+        FieldDragPayload p;
+        PlotTarget       t = PlotTarget::CurrentAxes;
+        drag_drop_->consume_pending_request(p, t);
+    }
 
     draw_status_bar();
 
-    // E3: recording dialog.
     if (show_record_dialog_ && screenshot_export_)
         screenshot_export_->draw_record_dialog(&show_record_dialog_);
 
-    // E3: Ctrl+Shift+S screenshot shortcut.
-    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl))
+    if ((ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)) &&
+        (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) &&
+        ImGui::IsKeyPressed(ImGuiKey_S, false) && screenshot_export_)
     {
-        if (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift))
-        {
-            if (ImGui::IsKeyPressed(ImGuiKey_S, /*repeat=*/false) && screenshot_export_)
-            {
-                const std::string path =
-                    RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
-                screenshot_export_->take_screenshot(path);
-            }
-        }
+        const std::string path =
+            RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+        screenshot_export_->take_screenshot(path);
     }
 
-    // G3: session save/load dialogs.
     draw_session_save_dialog();
     draw_session_load_dialog();
 
-    // G3: session status toast (save/load confirmation).
     if (session_status_timer_ > 0.0f && !session_status_msg_.empty())
     {
-        ImGuiViewport* vp  = ImGui::GetMainViewport();
-        const float    pad = 12.0f;
+        ImGuiViewport* vp = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(
-            ImVec2(vp->WorkPos.x + vp->WorkSize.x - pad,
-                   vp->WorkPos.y + vp->WorkSize.y - 48.0f),
-            ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowBgAlpha(0.80f);
-        const ImGuiWindowFlags sf =
-            ImGuiWindowFlags_NoDecoration   | ImGuiWindowFlags_NoInputs |
-            ImGuiWindowFlags_NoMove         | ImGuiWindowFlags_NoSavedSettings |
+            ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f,
+                   vp->WorkPos.y + vp->WorkSize.y - 52.0f),
+            ImGuiCond_Always,
+            ImVec2(1.0f, 1.0f));
+        ImGui::SetNextWindowBgAlpha(0.82f);
+        const ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoDecoration |
+#ifdef IMGUI_HAS_DOCK
+            ImGuiWindowFlags_NoDocking |
+#endif
+            ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
-        if (ImGui::Begin("##ros_session_toast", nullptr, sf))
-            ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "%s",
-                               session_status_msg_.c_str());
+        if (ImGui::Begin("##ros_session_toast", nullptr, flags))
+            ImGui::TextColored(ImVec4(0.45f, 0.95f, 0.55f, 1.0f), "%s", session_status_msg_.c_str());
         ImGui::End();
     }
 
-    // E3: screenshot toast notification.
     if (screenshot_export_ && screenshot_export_->screenshot_toast_active())
     {
         ImGuiViewport* vp = ImGui::GetMainViewport();
-        const float    pad = 12.0f;
         ImGui::SetNextWindowPos(
-            ImVec2(vp->WorkPos.x + vp->WorkSize.x - pad,
-                   vp->WorkPos.y + vp->WorkSize.y - pad),
-            ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowBgAlpha(0.75f);
-        const ImGuiWindowFlags toast_flags =
-            ImGuiWindowFlags_NoDecoration    |
-            ImGuiWindowFlags_NoInputs         |
-            ImGuiWindowFlags_NoMove           |
-            ImGuiWindowFlags_NoSavedSettings  |
-            ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav            |
-            ImGuiWindowFlags_AlwaysAutoResize;
-        if (ImGui::Begin("##ros_ss_toast", nullptr, toast_flags))
+            ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f,
+                   vp->WorkPos.y + vp->WorkSize.y - 12.0f),
+            ImGuiCond_Always,
+            ImVec2(1.0f, 1.0f));
+        ImGui::SetNextWindowBgAlpha(0.78f);
+        const ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoDecoration |
+#ifdef IMGUI_HAS_DOCK
+            ImGuiWindowFlags_NoDocking |
+#endif
+            ImGuiWindowFlags_NoInputs |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
+        if (ImGui::Begin("##ros_ss_toast", nullptr, flags))
         {
-            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Screenshot saved");
+            ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.45f, 1.0f), "Screenshot saved");
             const auto& p = screenshot_export_->last_screenshot_path();
             if (!p.empty())
             {
-                // Show only the filename portion for brevity.
                 const auto sep = p.rfind('/');
-                const char* name = (sep != std::string::npos) ? p.c_str() + sep + 1
-                                                               : p.c_str();
+                const char* name = (sep != std::string::npos) ? p.c_str() + sep + 1 : p.c_str();
                 ImGui::TextDisabled("%s", name);
             }
         }
         ImGui::End();
     }
+#endif
+}
+
+void RosAppShell::draw_dockspace()
+{
+#ifdef SPECTRA_USE_IMGUI
+#ifdef IMGUI_HAS_DOCK
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float menu_h = ImGui::GetFrameHeightWithSpacing();
+    const float status_h = ImGui::GetFrameHeight();
+    const float rail_w = show_nav_rail_ ? (nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_)
+                                        : 0.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + rail_w, vp->WorkPos.y + menu_h), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(
+        ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
+               std::max(240.0f, vp->WorkSize.y - menu_h - status_h)),
+        ImGuiCond_Always);
+    ImGui::SetNextWindowViewport(vp->ID);
+
+    ImGuiWindowFlags host_flags =
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings;
+    const ImGuiDockNodeFlags dock_flags = ImGuiDockNodeFlags_PassthruCentralNode;
+    host_flags |= ImGuiWindowFlags_NoBackground;
+
+    if (ImGui::Begin("##ros_dockspace_host", nullptr, host_flags))
+    {
+        dockspace_id_ = ImGui::GetID("##ros_dockspace");
+        ImGui::DockSpace(dockspace_id_, ImVec2(0.0f, 0.0f), dock_flags);
+
+        if (!dock_layout_initialized_)
+            apply_default_dock_layout();
+    }
+    ImGui::End();
+#else
+    dock_layout_initialized_ = true;
+#endif
+#endif
+}
+
+void RosAppShell::apply_default_dock_layout()
+{
+#ifdef SPECTRA_USE_IMGUI
+#ifdef IMGUI_HAS_DOCK
+    if (dockspace_id_ == 0)
+        return;
+
+    ImGui::DockBuilderRemoveNode(dockspace_id_);
+    ImGui::DockBuilderAddNode(dockspace_id_, ImGuiDockNodeFlags_DockSpace);
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float menu_h = ImGui::GetFrameHeightWithSpacing();
+    const float status_h = ImGui::GetFrameHeight();
+    const float rail_w = show_nav_rail_ ? (nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_)
+                                        : 0.0f;
+    ImGui::DockBuilderSetNodeSize(
+        dockspace_id_,
+        ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
+               std::max(240.0f, vp->WorkSize.y - menu_h - status_h)));
+
+    ImGuiID dock_main         = dockspace_id_;
+    ImGuiID dock_left         = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22f, nullptr, &dock_main);
+    ImGuiID dock_right        = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.31f, nullptr, &dock_main);
+    ImGuiID dock_bottom       = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.38f, nullptr, &dock_main);
+    ImGuiID dock_right_bottom = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Down, 0.42f, nullptr, &dock_right);
+    ImGuiID dock_bottom_left  = ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Left, 0.28f, nullptr, &dock_bottom);
+    ImGuiID dock_bottom_right = ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Right, 0.42f, nullptr, &dock_bottom);
+
+    ImGui::DockBuilderDockWindow("Topic Monitor", dock_left);
+    ImGui::DockBuilderDockWindow("Plot Area", dock_main);
+    ImGui::DockBuilderDockWindow("Topic Statistics", dock_right);
+    ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_right_bottom);
+
+    ImGui::DockBuilderDockWindow("Topic Echo", dock_bottom);
+    ImGui::DockBuilderDockWindow("Bag Info", dock_bottom_left);
+    ImGui::DockBuilderDockWindow("ROS2 Log", dock_bottom_right);
+
+    ImGui::DockBuilderDockWindow("Bag Playback", dock_bottom);
+    ImGui::DockBuilderDockWindow("Diagnostics", dock_right);
+    ImGui::DockBuilderDockWindow("TF Tree", dock_right_bottom);
+    ImGui::DockBuilderDockWindow("Parameter Editor", dock_right);
+    ImGui::DockBuilderDockWindow("Service Caller", dock_bottom);
+
+    ImGui::DockBuilderFinish(dockspace_id_);
+    dock_layout_initialized_ = true;
+#else
+    dock_layout_initialized_ = false;
+#endif
+#else
+    dock_layout_initialized_ = false;
+#endif
+}
+
+void RosAppShell::draw_nav_rail()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!show_nav_rail_)
+        return;
+
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float menu_h = ImGui::GetFrameHeightWithSpacing();
+    const float status_h = ImGui::GetFrameHeight();
+    const float rail_w = nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_;
+
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + menu_h), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(
+        ImVec2(rail_w, std::max(1.0f, vp->WorkSize.y - menu_h - status_h)),
+        ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(1.0f);
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar |
+#ifdef IMGUI_HAS_DOCK
+        ImGuiWindowFlags_NoDocking |
+#endif
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    if (!ImGui::Begin("##ros_nav_rail", nullptr, flags))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (ImGui::Button(nav_rail_expanded_ ? "<<" : ">>"))
+        nav_rail_expanded_ = !nav_rail_expanded_;
+
+    if (nav_rail_expanded_)
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("Hide Rail"))
+            show_nav_rail_ = false;
+    }
+
+    auto toggle_btn = [&](const char* compact,
+                          const char* full,
+                          bool& panel_flag)
+    {
+        const bool was_active = panel_flag;
+        if (was_active)
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+
+        const char* lbl = nav_rail_expanded_ ? full : compact;
+        ImVec2 btn_size = nav_rail_expanded_ ? ImVec2(-1.0f, 0.0f)
+                                             : ImVec2(rail_w - 14.0f, 0.0f);
+        if (ImGui::Button(lbl, btn_size))
+            panel_flag = !panel_flag;
+
+        if (was_active)
+            ImGui::PopStyleColor();
+
+        if (!nav_rail_expanded_ && ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", full);
+    };
+
+    ImGui::SeparatorText("Core");
+    toggle_btn("TP", "Topic Monitor", show_topic_list_);
+    toggle_btn("PL", "Plot Area", show_plot_area_);
+    toggle_btn("EC", "Topic Echo", show_topic_echo_);
+    toggle_btn("ST", "Topic Statistics", show_topic_stats_);
+
+    ImGui::SeparatorText("Tools");
+    toggle_btn("BI", "Bag Info", show_bag_info_);
+    toggle_btn("BP", "Bag Playback", show_bag_playback_);
+    toggle_btn("LG", "Log Viewer", show_log_viewer_);
+    toggle_btn("DG", "Diagnostics", show_diagnostics_);
+
+    ImGui::SeparatorText("Advanced");
+    toggle_btn("NG", "Node Graph", show_node_graph_);
+    toggle_btn("TF", "TF Tree", show_tf_tree_);
+    toggle_btn("PE", "Parameter Editor", show_param_editor_);
+    toggle_btn("SV", "Service Caller", show_service_caller_);
+
+    if (nav_rail_expanded_)
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled("Rail Width");
+        ImGui::SliderFloat("##ros_nav_width", &nav_rail_width_, 180.0f, 360.0f, "%.0f px");
+
+        if (ImGui::Button("Reset Layout", ImVec2(-1.0f, 0.0f)))
+            dock_layout_initialized_ = false;
+    }
+
+    ImGui::End();
 #endif
 }
 
@@ -481,19 +705,38 @@ void RosAppShell::draw_topic_stats(bool* p_open)
 void RosAppShell::draw_plot_area(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
+    ImGui::SetNextWindowBgAlpha(1.0f);
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+
     if (ImGui::Begin("Plot Area", p_open, flags))
     {
+        const int active = subplot_mgr_ ? subplot_mgr_->active_count() : 0;
+        const int cap    = subplot_mgr_ ? subplot_mgr_->capacity() : 0;
+        ImGui::Text("Active plots: %d / %d", active, cap);
+
         if (subplot_mgr_)
         {
-            const int active = subplot_mgr_->active_count();
-            ImGui::TextDisabled("%d active plot%s", active, active == 1 ? "" : "s");
+            float tw = static_cast<float>(subplot_mgr_->time_window());
+            if (ImGui::SliderFloat("Time Window", &tw, 1.0f, 3600.0f, "%.1f s"))
+            {
+                subplot_mgr_->set_time_window(static_cast<double>(tw));
+                if (plot_mgr_) plot_mgr_->set_time_window(static_cast<double>(tw));
+            }
+
+            if (ImGui::Button("Resume All Scroll")) subplot_mgr_->resume_all_scroll();
+            ImGui::SameLine();
+            if (ImGui::Button("Pause All Scroll")) subplot_mgr_->pause_all_scroll();
         }
-        else
-        {
-            ImGui::TextDisabled("No plot manager");
-        }
+
+        if (!selected_topic_.empty())
+            ImGui::TextDisabled("Selected topic: %s", selected_topic_.c_str());
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Drop a topic/field here to add a live plot");
+
+        if (drag_drop_)
+            drag_drop_->draw_drop_zone();
     }
     ImGui::End();
 #else
@@ -501,27 +744,21 @@ void RosAppShell::draw_plot_area(bool* p_open)
 #endif
 }
 
-void RosAppShell::draw_status_bar()
+void RosAppShell::draw_bag_info(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
-    const ImGuiViewport* vp  = ImGui::GetMainViewport();
-    const float bar_h        = ImGui::GetFrameHeight();
-    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - bar_h));
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, bar_h));
-    ImGui::SetNextWindowBgAlpha(0.85f);
-    const ImGuiWindowFlags sf =
-        ImGuiWindowFlags_NoDecoration    | ImGuiWindowFlags_NoInputs       |
-        ImGuiWindowFlags_NoMove          | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav    |
-        ImGuiWindowFlags_NoFocusOnAppearing;
-    if (ImGui::Begin("##ros_status_bar", nullptr, sf))
-    {
-        const uint64_t total = total_messages_.load(std::memory_order_relaxed);
-        const int      plots = active_plot_count();
-        ImGui::Text("Node: %s  |  Messages: %" PRIu64 "  |  Active plots: %d",
-                    cfg_.node_name.c_str(), total, plots);
-    }
-    ImGui::End();
+    if (bag_info_) bag_info_->draw(p_open);
+#else
+    (void)p_open;
+#endif
+}
+
+void RosAppShell::draw_bag_playback(bool* p_open)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (bag_playback_panel_) bag_playback_panel_->draw(p_open);
+#else
+    (void)p_open;
 #endif
 }
 
@@ -543,131 +780,238 @@ void RosAppShell::draw_diagnostics(bool* p_open)
 #endif
 }
 
-void RosAppShell::draw_menu_bar()
+void RosAppShell::draw_node_graph(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("View"))
-        {
-            ImGui::MenuItem("Topic List",  nullptr, &show_topic_list_);
-            ImGui::MenuItem("Topic Echo",  nullptr, &show_topic_echo_);
-            ImGui::MenuItem("Statistics",  nullptr, &show_topic_stats_);
-            ImGui::MenuItem("Plot Area",   nullptr, &show_plot_area_);
-            ImGui::MenuItem("Bag Info",    nullptr, &show_bag_info_);
-            ImGui::MenuItem("Log Viewer",  nullptr, &show_log_viewer_);
-            ImGui::MenuItem("Diagnostics", nullptr, &show_diagnostics_);
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Plots"))
-        {
-            if (ImGui::MenuItem("Clear All Plots"))
-                clear_plots();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Resume All Scroll"))
-            {
-                if (subplot_mgr_) subplot_mgr_->resume_all_scroll();
-            }
-            if (ImGui::MenuItem("Pause All Scroll"))
-            {
-                if (subplot_mgr_) subplot_mgr_->pause_all_scroll();
-            }
-            ImGui::EndMenu();
-        }
-
-        // G3: Session menu.
-        if (ImGui::BeginMenu("Session"))
-        {
-            if (ImGui::MenuItem("Save Session", "Ctrl+Shift+W"))
-                show_session_save_dialog_ = true;
-            if (ImGui::MenuItem("Save Session As\xe2\x80\xa6"))
-            {
-                // Reset buffer so user types new path.
-                session_save_path_buf_ =
-                    RosSessionManager::default_session_path(cfg_.node_name);
-                show_session_save_dialog_ = true;
-            }
-            if (ImGui::MenuItem("Load Session\xe2\x80\xa6"))
-                show_session_load_dialog_ = true;
-            ImGui::Separator();
-            if (ImGui::BeginMenu("Recent Sessions"))
-            {
-                auto recent = session_mgr_->load_recent();
-                if (recent.empty())
-                    ImGui::TextDisabled("(none)");
-                for (const auto& e : recent)
-                {
-                    const auto sep = e.path.rfind('/');
-                    const char* name = (sep != std::string::npos)
-                        ? e.path.c_str() + sep + 1 : e.path.c_str();
-                    if (ImGui::MenuItem(name, e.node.c_str()))
-                        load_session(e.path);
-                }
-                if (!recent.empty())
-                {
-                    ImGui::Separator();
-                    if (ImGui::MenuItem("Clear Recent"))
-                        session_mgr_->clear_recent();
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenu();
-        }
-
-        // E3: Tools menu — screenshot + video recording.
-        if (ImGui::BeginMenu("Tools"))
-        {
-            if (ImGui::MenuItem("Screenshot",
-                                "Ctrl+Shift+S",
-                                false,
-                                screenshot_export_ != nullptr))
-            {
-                const std::string path =
-                    RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
-                if (screenshot_export_)
-                    screenshot_export_->take_screenshot(path);
-            }
-            if (ImGui::MenuItem("Record Video\xe2\x80\xa6",
-                                nullptr,
-                                &show_record_dialog_,
-                                screenshot_export_ != nullptr))
-            {
-                /* toggled via bool ref */
-            }
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMainMenuBar();
-    }
+    if (node_graph_panel_) node_graph_panel_->draw(p_open);
+#else
+    (void)p_open;
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// Window title
-// ---------------------------------------------------------------------------
+void RosAppShell::draw_tf_tree(bool* p_open)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (tf_tree_panel_) tf_tree_panel_->draw(p_open);
+#else
+    (void)p_open;
+#endif
+}
+
+void RosAppShell::draw_param_editor(bool* p_open)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (param_editor_) param_editor_->draw(p_open);
+#else
+    (void)p_open;
+#endif
+}
+
+void RosAppShell::draw_service_caller(bool* p_open)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (service_caller_panel_) service_caller_panel_->draw(p_open);
+#else
+    (void)p_open;
+#endif
+}
+
+void RosAppShell::draw_status_bar()
+{
+#ifdef SPECTRA_USE_IMGUI
+    const ImGuiViewport* vp  = ImGui::GetMainViewport();
+    const float bar_h        = ImGui::GetFrameHeight();
+
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - bar_h), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, bar_h), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.86f);
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration |
+#ifdef IMGUI_HAS_DOCK
+        ImGuiWindowFlags_NoDocking |
+#endif
+        ImGuiWindowFlags_NoInputs |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav |
+        ImGuiWindowFlags_NoFocusOnAppearing;
+
+    if (ImGui::Begin("##ros_status_bar", nullptr, flags))
+    {
+        const uint64_t total = total_messages_.load(std::memory_order_relaxed);
+        const int plots = active_plot_count();
+        const size_t mem = subplot_mgr_ ? subplot_mgr_->total_memory_bytes() : 0;
+
+        ImGui::Text("Node: %s  |  Messages: %" PRIu64 "  |  Active plots: %d  |  Buffer: %.1f KB",
+                    cfg_.node_name.c_str(),
+                    total,
+                    plots,
+                    static_cast<double>(mem) / 1024.0);
+    }
+    ImGui::End();
+#endif
+}
+
+void RosAppShell::draw_menu_bar()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::BeginMainMenuBar())
+        return;
+
+    if (ImGui::BeginMenu("View"))
+    {
+        ImGui::MenuItem("Navigation Rail", nullptr, &show_nav_rail_);
+        if (show_nav_rail_)
+            ImGui::MenuItem("Expand Rail", nullptr, &nav_rail_expanded_);
+
+        ImGui::SeparatorText("Core Panels");
+        ImGui::MenuItem("Topic Monitor", nullptr, &show_topic_list_);
+        ImGui::MenuItem("Topic Echo", nullptr, &show_topic_echo_);
+        ImGui::MenuItem("Topic Statistics", nullptr, &show_topic_stats_);
+        ImGui::MenuItem("Plot Area", nullptr, &show_plot_area_);
+
+        ImGui::SeparatorText("Tools");
+        ImGui::MenuItem("Bag Info", nullptr, &show_bag_info_);
+        ImGui::MenuItem("Bag Playback", nullptr, &show_bag_playback_);
+        ImGui::MenuItem("Log Viewer", nullptr, &show_log_viewer_);
+        ImGui::MenuItem("Diagnostics", nullptr, &show_diagnostics_);
+
+        ImGui::SeparatorText("Advanced");
+        ImGui::MenuItem("Node Graph", nullptr, &show_node_graph_);
+        ImGui::MenuItem("TF Tree", nullptr, &show_tf_tree_);
+        ImGui::MenuItem("Parameter Editor", nullptr, &show_param_editor_);
+        ImGui::MenuItem("Service Caller", nullptr, &show_service_caller_);
+
+        ImGui::Separator();
+        if (ImGui::MenuItem("Reset Dock Layout"))
+            dock_layout_initialized_ = false;
+
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Layout"))
+    {
+        if (ImGui::MenuItem("Reset Docked Layout"))
+            dock_layout_initialized_ = false;
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Default", nullptr, cfg_.layout == LayoutMode::Default))
+        {
+            cfg_.layout = LayoutMode::Default;
+            setup_layout_visibility();
+        }
+        if (ImGui::MenuItem("Plot Only", nullptr, cfg_.layout == LayoutMode::PlotOnly))
+        {
+            cfg_.layout = LayoutMode::PlotOnly;
+            setup_layout_visibility();
+        }
+        if (ImGui::MenuItem("Monitor", nullptr, cfg_.layout == LayoutMode::Monitor))
+        {
+            cfg_.layout = LayoutMode::Monitor;
+            setup_layout_visibility();
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Plots"))
+    {
+        if (ImGui::MenuItem("Clear All Plots"))
+            clear_plots();
+        ImGui::Separator();
+        if (ImGui::MenuItem("Resume All Scroll"))
+        {
+            if (subplot_mgr_) subplot_mgr_->resume_all_scroll();
+        }
+        if (ImGui::MenuItem("Pause All Scroll"))
+        {
+            if (subplot_mgr_) subplot_mgr_->pause_all_scroll();
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Session"))
+    {
+        if (ImGui::MenuItem("Save Session", "Ctrl+Shift+W"))
+            show_session_save_dialog_ = true;
+        if (ImGui::MenuItem("Save Session As..."))
+        {
+            session_save_path_buf_ = RosSessionManager::default_session_path(cfg_.node_name);
+            show_session_save_dialog_ = true;
+        }
+        if (ImGui::MenuItem("Load Session..."))
+            show_session_load_dialog_ = true;
+
+        ImGui::Separator();
+
+        if (ImGui::BeginMenu("Recent Sessions"))
+        {
+            auto recent = session_mgr_->load_recent();
+            if (recent.empty())
+                ImGui::TextDisabled("(none)");
+
+            for (const auto& e : recent)
+            {
+                const auto sep = e.path.rfind('/');
+                const char* name = (sep != std::string::npos)
+                    ? e.path.c_str() + sep + 1 : e.path.c_str();
+                if (ImGui::MenuItem(name, e.node.c_str()))
+                    load_session(e.path);
+            }
+
+            if (!recent.empty())
+            {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Clear Recent"))
+                    session_mgr_->clear_recent();
+            }
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Tools"))
+    {
+        if (ImGui::MenuItem("Screenshot",
+                            "Ctrl+Shift+S",
+                            false,
+                            screenshot_export_ != nullptr))
+        {
+            const std::string path =
+                RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+            if (screenshot_export_)
+                screenshot_export_->take_screenshot(path);
+        }
+        if (ImGui::MenuItem("Record Video...",
+                            nullptr,
+                            &show_record_dialog_,
+                            screenshot_export_ != nullptr))
+        {
+        }
+        ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
+#endif
+}
 
 std::string RosAppShell::window_title() const
 {
-    // U+2014 EM DASH in UTF-8: 0xE2 0x80 0x94
     return "Spectra ROS2 \xe2\x80\x94 " + cfg_.node_name;
 }
 
-// ---------------------------------------------------------------------------
-// Plot management helpers
-// ---------------------------------------------------------------------------
-
 bool RosAppShell::add_topic_plot(const std::string& topic_field)
 {
-    if (!subplot_mgr_) return false;
+    if (!subplot_mgr_)
+        return false;
 
-    // Parse "topic_name" or "topic_name:field_path".
     std::string topic;
     std::string field_path;
+
     const auto colon = topic_field.find(':');
     if (colon != std::string::npos)
     {
-        topic      = topic_field.substr(0, colon);
+        topic = topic_field.substr(0, colon);
         field_path = topic_field.substr(colon + 1);
     }
     else
@@ -675,28 +1019,51 @@ bool RosAppShell::add_topic_plot(const std::string& topic_field)
         topic = topic_field;
     }
 
-    if (topic.empty()) return false;
+    if (topic.empty())
+        return false;
 
-    // Fill the first empty slot in the subplot grid.
-    const int cap = subplot_mgr_->capacity();
-    for (int slot = 1; slot <= cap; ++slot)
+    const std::string type_name = detect_topic_type(topic);
+
+    if (field_path.empty())
+        field_path = default_numeric_field(topic, type_name);
+
+    if (field_path.empty())
     {
-        if (!subplot_mgr_->has_plot(slot))
+        session_status_msg_ = "No plottable numeric field found for " + topic;
+        session_status_timer_ = 3.0f;
+        return false;
+    }
+
+    int slot = -1;
+    const int cap = subplot_mgr_->capacity();
+    for (int s = 1; s <= cap; ++s)
+    {
+        if (!subplot_mgr_->has_plot(s))
         {
-            const SubplotHandle h = subplot_mgr_->add_plot(slot, topic, field_path);
-            return h.valid();
+            slot = s;
+            break;
         }
     }
 
-    // All subplot slots full — add via RosPlotManager (spawns a new Figure).
-    const PlotHandle h = plot_mgr_->add_plot(topic, field_path);
-    return h.valid();
+    if (slot < 0)
+    {
+        slot = std::clamp(next_replace_slot_, 1, cap);
+        next_replace_slot_ = (slot % cap) + 1;
+    }
+
+    const SubplotHandle h = subplot_mgr_->add_plot(slot, topic, field_path, type_name);
+    if (!h.valid())
+        return false;
+
+    show_plot_area_ = true;
+    return true;
 }
 
 void RosAppShell::clear_plots()
 {
     if (subplot_mgr_) subplot_mgr_->clear();
-    if (plot_mgr_)    plot_mgr_->clear();
+    if (plot_mgr_) plot_mgr_->clear();
+    next_replace_slot_ = 1;
 }
 
 int RosAppShell::active_plot_count() const
@@ -707,15 +1074,10 @@ int RosAppShell::active_plot_count() const
     return n;
 }
 
-// ---------------------------------------------------------------------------
-// Inter-panel callbacks
-// ---------------------------------------------------------------------------
-
 void RosAppShell::on_topic_selected(const std::string& topic)
 {
     selected_topic_ = topic;
 
-    // Resolve type from discovery (for echo panel).
     std::string type;
     if (discovery_)
     {
@@ -733,10 +1095,6 @@ void RosAppShell::on_topic_plot(const std::string& topic)
     add_topic_plot(topic);
 }
 
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-
 void RosAppShell::subscribe_initial_topics()
 {
     for (const auto& t : cfg_.initial_topics)
@@ -745,43 +1103,60 @@ void RosAppShell::subscribe_initial_topics()
 
 void RosAppShell::wire_panel_callbacks()
 {
-    if (!topic_list_) return;
+    if (topic_list_)
+    {
+        topic_list_->set_select_callback(
+            [this](const std::string& topic)
+            {
+                on_topic_selected(topic);
+            });
 
-    // Select callback (single-click) — route to echo + stats.
-    // SelectCallback = function<void(const string& topic_name)>
-    topic_list_->set_select_callback(
-        [this](const std::string& topic)
-        {
-            on_topic_selected(topic);
-        });
+        topic_list_->set_plot_callback(
+            [this](const std::string& topic)
+            {
+                on_topic_plot(topic);
+            });
+    }
 
-    // Plot callback (double-click) — subscribe and plot.
-    // PlotCallback = function<void(const string& topic_name)>
-    topic_list_->set_plot_callback(
-        [this](const std::string& topic)
-        {
-            on_topic_plot(topic);
-        });
-
-    // Wire FieldDragDrop controller so topic rows become drag sources.
     drag_drop_ = std::make_unique<FieldDragDrop>();
     drag_drop_->set_plot_request_callback(
         [this](const FieldDragPayload& payload, PlotTarget target)
         {
             handle_plot_request(payload, target);
         });
-    topic_list_->set_drag_drop(drag_drop_.get());
+
+    if (topic_list_) topic_list_->set_drag_drop(drag_drop_.get());
     if (topic_echo_) topic_echo_->set_drag_drop(drag_drop_.get());
+
+    if (node_graph_panel_)
+    {
+        node_graph_panel_->set_select_callback(
+            [this](const GraphNode& n)
+            {
+                if (n.kind == GraphNodeKind::Topic)
+                {
+                    on_topic_selected(n.id);
+                }
+                else if (param_editor_)
+                {
+                    param_editor_->set_target_node(n.id);
+                    show_param_editor_ = true;
+                }
+            });
+
+        node_graph_panel_->set_activate_callback(
+            [this](const GraphNode& n)
+            {
+                if (n.kind == GraphNodeKind::Topic)
+                    add_topic_plot(n.id);
+            });
+    }
 }
 
 void RosAppShell::handle_plot_request(const FieldDragPayload& payload,
-                                      PlotTarget target)
+                                      PlotTarget /*target*/)
 {
     if (!payload.valid()) return;
-
-    // All three targets map to "add plot" for now.
-    // NewWindow will be fully supported in G2 when the Spectra App is wired.
-    (void)target;
 
     std::string topic_field = payload.topic_name;
     if (!payload.field_path.empty())
@@ -798,6 +1173,7 @@ void RosAppShell::setup_layout_visibility()
             show_topic_echo_  = true;
             show_topic_stats_ = true;
             show_plot_area_   = true;
+            show_log_viewer_  = false;
             break;
 
         case LayoutMode::PlotOnly:
@@ -805,6 +1181,7 @@ void RosAppShell::setup_layout_visibility()
             show_topic_echo_  = false;
             show_topic_stats_ = false;
             show_plot_area_   = true;
+            show_log_viewer_  = false;
             break;
 
         case LayoutMode::Monitor:
@@ -812,13 +1189,10 @@ void RosAppShell::setup_layout_visibility()
             show_topic_echo_  = true;
             show_topic_stats_ = true;
             show_plot_area_   = false;
+            show_log_viewer_  = true;
             break;
     }
 }
-
-// ---------------------------------------------------------------------------
-// G3 — Session capture / apply / save / load
-// ---------------------------------------------------------------------------
 
 RosSession RosAppShell::capture_session() const
 {
@@ -831,39 +1205,47 @@ RosSession RosAppShell::capture_session() const
     s.time_window_s = subplot_mgr_ ? subplot_mgr_->time_window()
                                    : cfg_.time_window_s;
 
-    // Panel visibility.
-    s.panels.topic_list  = show_topic_list_;
-    s.panels.topic_echo  = show_topic_echo_;
-    s.panels.topic_stats = show_topic_stats_;
-    s.panels.plot_area   = show_plot_area_;
-    s.panels.bag_info    = show_bag_info_;
+    s.panels.topic_list      = show_topic_list_;
+    s.panels.topic_echo      = show_topic_echo_;
+    s.panels.topic_stats     = show_topic_stats_;
+    s.panels.plot_area       = show_plot_area_;
+    s.panels.bag_info        = show_bag_info_;
+    s.panels.bag_playback    = show_bag_playback_;
+    s.panels.log_viewer      = show_log_viewer_;
+    s.panels.diagnostics     = show_diagnostics_;
+    s.panels.node_graph      = show_node_graph_;
+    s.panels.tf_tree         = show_tf_tree_;
+    s.panels.param_editor    = show_param_editor_;
+    s.panels.service_caller  = show_service_caller_;
+    s.panels.nav_rail        = show_nav_rail_;
 
-    // Subplot subscriptions.
+    s.nav_rail_expanded = nav_rail_expanded_;
+    s.nav_rail_width    = nav_rail_width_;
+
     if (subplot_mgr_)
     {
         for (const auto& h : subplot_mgr_->handles())
         {
             if (!h.valid()) continue;
             SubscriptionEntry e;
-            e.topic        = h.topic;
-            e.field_path   = h.field_path;
-            e.subplot_slot = h.slot;
+            e.topic         = h.topic;
+            e.field_path    = h.field_path;
+            e.subplot_slot  = h.slot;
             e.time_window_s = subplot_mgr_->time_window();
             e.scroll_paused = subplot_mgr_->is_scroll_paused(h.slot);
             s.subscriptions.push_back(std::move(e));
         }
     }
 
-    // Standalone RosPlotManager subscriptions.
     if (plot_mgr_)
     {
         for (const auto& h : plot_mgr_->handles())
         {
             if (!h.valid()) continue;
             SubscriptionEntry e;
-            e.topic        = h.topic;
-            e.field_path   = h.field_path;
-            e.subplot_slot = 0;   // 0 = standalone
+            e.topic         = h.topic;
+            e.field_path    = h.field_path;
+            e.subplot_slot  = 0;
             e.time_window_s = plot_mgr_->time_window();
             e.scroll_paused = plot_mgr_->is_scroll_paused(h.id);
             s.subscriptions.push_back(std::move(e));
@@ -875,21 +1257,31 @@ RosSession RosAppShell::capture_session() const
 
 void RosAppShell::apply_session(const RosSession& session)
 {
-    // Time window.
     if (session.time_window_s > 0.0)
     {
         if (subplot_mgr_) subplot_mgr_->set_time_window(session.time_window_s);
         if (plot_mgr_)    plot_mgr_->set_time_window(session.time_window_s);
     }
 
-    // Panel visibility.
-    show_topic_list_  = session.panels.topic_list;
-    show_topic_echo_  = session.panels.topic_echo;
-    show_topic_stats_ = session.panels.topic_stats;
-    show_plot_area_   = session.panels.plot_area;
-    show_bag_info_    = session.panels.bag_info;
+    show_topic_list_     = session.panels.topic_list;
+    show_topic_echo_     = session.panels.topic_echo;
+    show_topic_stats_    = session.panels.topic_stats;
+    show_plot_area_      = session.panels.plot_area;
+    show_bag_info_       = session.panels.bag_info;
+    show_bag_playback_   = session.panels.bag_playback;
+    show_log_viewer_     = session.panels.log_viewer;
+    show_diagnostics_    = session.panels.diagnostics;
+    show_node_graph_     = session.panels.node_graph;
+    show_tf_tree_        = session.panels.tf_tree;
+    show_param_editor_   = session.panels.param_editor;
+    show_service_caller_ = session.panels.service_caller;
+    show_nav_rail_       = session.panels.nav_rail;
 
-    // Re-subscribe: clear existing then re-add from session.
+    nav_rail_expanded_ = session.nav_rail_expanded;
+    set_nav_rail_width(static_cast<float>(session.nav_rail_width));
+
+    dock_layout_initialized_ = false;
+
     if (subplot_mgr_) subplot_mgr_->clear();
     if (plot_mgr_)    plot_mgr_->clear();
 
@@ -914,30 +1306,33 @@ void RosAppShell::apply_session(const RosSession& session)
 
 SaveResult RosAppShell::save_session(const std::string& path)
 {
-    if (!session_mgr_) {
-        SaveResult r; r.error = "session manager not initialised"; return r;
+    if (!session_mgr_)
+    {
+        SaveResult r;
+        r.error = "session manager not initialised";
+        return r;
     }
     return session_mgr_->save(capture_session(), path);
 }
 
 LoadResult RosAppShell::load_session(const std::string& path)
 {
-    if (!session_mgr_) {
-        LoadResult r; r.error = "session manager not initialised"; return r;
+    if (!session_mgr_)
+    {
+        LoadResult r;
+        r.error = "session manager not initialised";
+        return r;
     }
+
     LoadResult lr = session_mgr_->load(path);
     if (lr.ok)
     {
         apply_session(lr.session);
-        session_status_msg_   = "Session loaded";
+        session_status_msg_ = "Session loaded";
         session_status_timer_ = 3.0f;
     }
     return lr;
 }
-
-// ---------------------------------------------------------------------------
-// G3 — ImGui session dialogs
-// ---------------------------------------------------------------------------
 
 void RosAppShell::draw_session_save_dialog()
 {
@@ -954,11 +1349,10 @@ void RosAppShell::draw_session_save_dialog()
     {
         ImGui::Text("Path:");
         ImGui::SameLine();
-        // Use a static char buffer to drive the input.
+
         static char path_buf[512];
         if (ImGui::IsWindowAppearing())
-            std::snprintf(path_buf, sizeof(path_buf), "%s",
-                          session_save_path_buf_.c_str());
+            std::snprintf(path_buf, sizeof(path_buf), "%s", session_save_path_buf_.c_str());
 
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::InputText("##session_path", path_buf, sizeof(path_buf));
@@ -977,6 +1371,7 @@ void RosAppShell::draw_session_save_dialog()
             show_session_save_dialog_ = false;
     }
     ImGui::End();
+
     if (!open) show_session_save_dialog_ = false;
 #endif
 }
@@ -996,10 +1391,10 @@ void RosAppShell::draw_session_load_dialog()
     {
         ImGui::Text("Path:");
         ImGui::SameLine();
+
         static char load_buf[512];
         if (ImGui::IsWindowAppearing())
-            std::snprintf(load_buf, sizeof(load_buf), "%s",
-                          session_save_path_buf_.c_str());
+            std::snprintf(load_buf, sizeof(load_buf), "%s", session_save_path_buf_.c_str());
 
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::InputText("##session_load_path", load_buf, sizeof(load_buf));
@@ -1020,8 +1415,50 @@ void RosAppShell::draw_session_load_dialog()
             show_session_load_dialog_ = false;
     }
     ImGui::End();
+
     if (!open) show_session_load_dialog_ = false;
 #endif
+}
+
+std::string RosAppShell::detect_topic_type(const std::string& topic) const
+{
+    if (discovery_ && discovery_->has_topic(topic))
+    {
+        const TopicInfo ti = discovery_->topic(topic);
+        if (!ti.types.empty())
+            return ti.types.front();
+    }
+
+    if (bridge_ && bridge_->is_ok() && bridge_->node())
+    {
+        const auto names = bridge_->node()->get_topic_names_and_types();
+        const auto it = names.find(topic);
+        if (it != names.end() && !it->second.empty())
+            return it->second.front();
+    }
+
+    return {};
+}
+
+std::string RosAppShell::default_numeric_field(const std::string& topic,
+                                               const std::string& type_hint) const
+{
+    std::string type_name = type_hint;
+    if (type_name.empty())
+        type_name = detect_topic_type(topic);
+
+    if (type_name.empty() || !intr_)
+        return {};
+
+    auto schema = intr_->introspect(type_name);
+    if (!schema)
+        return {};
+
+    const auto numeric = schema->numeric_paths();
+    if (numeric.empty())
+        return {};
+
+    return numeric.front();
 }
 
 }   // namespace spectra::adapters::ros2

@@ -113,11 +113,19 @@ struct ExpressionPresetEntry
 
 struct PanelVisibility
 {
-    bool topic_list  = true;
-    bool topic_echo  = true;
-    bool topic_stats = true;
-    bool plot_area   = true;
-    bool bag_info    = false;
+    bool topic_list     = true;
+    bool topic_echo     = true;
+    bool topic_stats    = true;
+    bool plot_area      = true;
+    bool bag_info       = false;
+    bool bag_playback   = false;
+    bool log_viewer     = false;
+    bool diagnostics    = false;
+    bool node_graph     = false;
+    bool tf_tree        = false;
+    bool param_editor   = false;
+    bool service_caller = false;
+    bool nav_rail       = true;
 };
 
 // ---------------------------------------------------------------------------
@@ -154,6 +162,10 @@ struct RosSession
 
     // Panel visibility.
     PanelVisibility panels;
+
+    // Spectra-ROS nav rail state.
+    bool   nav_rail_expanded{false};
+    double nav_rail_width{220.0};
 
     // ISO-8601 UTC timestamp written at save time (informational).
     std::string saved_at;

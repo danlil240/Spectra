@@ -179,6 +179,25 @@ TEST_F(SubplotManagerTest, AxesPreCreatedForAllSlots)
     EXPECT_EQ(mgr.figure().axes().size(), 4u);
 }
 
+TEST_F(SubplotManagerTest, ExternalFigureDestroyedBeforeManager_NoUseAfterFree)
+{
+    auto external_fig = std::make_unique<spectra::Figure>();
+    auto mgr = std::make_unique<SubplotManager>(bridge_, intr_, 1, 1, external_fig.get());
+
+    // bridge_ is initialized but not spinning; add_plot still creates slot series.
+    auto h = mgr->add_plot(1, "/shutdown_test", "data", "std_msgs/msg/Float64");
+    ASSERT_TRUE(h.valid());
+    ASSERT_NE(h.series, nullptr);
+
+    // Reproduce spectra-ros shutdown ordering:
+    // 1) Window manager destroys figure/axes first
+    // 2) SubplotManager is destroyed later
+    external_fig.reset();
+
+    // Regression: this used to crash under ASAN in ~SubplotManager().
+    EXPECT_NO_THROW(mgr.reset());
+}
+
 // ============================================================
 // Suite: index_of
 // ============================================================

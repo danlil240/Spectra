@@ -23,20 +23,29 @@ namespace spectra::adapters::ros2
 SubplotManager::SubplotManager(Ros2Bridge&          bridge,
                                MessageIntrospector& intr,
                                int                  rows,
-                               int                  cols)
+                               int                  cols,
+                               spectra::Figure*     external_figure)
     : bridge_(bridge)
     , intr_(intr)
     , rows_(rows < 1 ? 1 : rows)
     , cols_(cols < 1 ? 1 : cols)
 {
-    // Create the shared Figure with default size.
-    spectra::FigureConfig cfg;
-    cfg.width  = 1280;
-    cfg.height = static_cast<uint32_t>(720 * rows_ / std::max(1, cols_));
-    if (cfg.height < 400)
-        cfg.height = 400;
+    if (external_figure)
+    {
+        figure_ = external_figure;
+    }
+    else
+    {
+        // Create the shared Figure with default size.
+        spectra::FigureConfig cfg;
+        cfg.width  = 1280;
+        cfg.height = static_cast<uint32_t>(720 * rows_ / std::max(1, cols_));
+        if (cfg.height < 400)
+            cfg.height = 400;
 
-    figure_ = std::make_unique<spectra::Figure>(cfg);
+        owned_figure_ = std::make_unique<spectra::Figure>(cfg);
+        figure_ = owned_figure_.get();
+    }
 
     // Pre-create all subplot Axes so they exist in the figure's axes_ list.
     // This also sets the figure's grid_rows_ / grid_cols_ to the final values.
@@ -61,6 +70,32 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
 
 SubplotManager::~SubplotManager()
 {
+    // When bound to an external Figure (spectra-ros main canvas), that figure
+    // can be destroyed by WindowManager before RosAppShell shutdown runs.
+    // In that case, any Axes* / LineSeries* cached in slots_ are dangling and
+    // must never be dereferenced here.
+    if (!owned_figure_)
+    {
+        for (auto& se : slots_)
+        {
+            if (se.subscriber)
+            {
+                se.subscriber->stop();
+                se.subscriber.reset();
+            }
+            se.series = nullptr;
+            se.axes   = nullptr;
+            se.topic.clear();
+            se.field_path.clear();
+            se.type_name.clear();
+            se.extractor_id     = -1;
+            se.samples_received = 0;
+            se.auto_fitted      = false;
+            se.drain_buf.clear();
+        }
+        return;
+    }
+
     clear();
 }
 
@@ -448,7 +483,8 @@ size_t SubplotManager::total_memory_bytes() const
 
 void SubplotManager::set_figure_size(uint32_t w, uint32_t h)
 {
-    figure_->set_size(w, h);
+    if (figure_)
+        figure_->set_size(w, h);
 }
 
 // ---------------------------------------------------------------------------

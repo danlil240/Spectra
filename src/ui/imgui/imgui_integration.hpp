@@ -262,6 +262,8 @@ class ImGuiIntegration
     void set_timeline_visible(bool v) { show_timeline_ = v; }
     bool is_curve_editor_visible() const { return show_curve_editor_; }
     void set_curve_editor_visible(bool v) { show_curve_editor_ = v; }
+    bool is_nav_rail_visible() const { return show_nav_rail_; }
+    void set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
 
     // Series selection from canvas click (updates inspector context, toggles on re-click)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);

@@ -107,7 +107,8 @@ public:
     SubplotManager(Ros2Bridge&          bridge,
                    MessageIntrospector& intr,
                    int                  rows = 1,
-                   int                  cols = 1);
+                   int                  cols = 1,
+                   spectra::Figure*     external_figure = nullptr);
 
     ~SubplotManager();
 
@@ -306,7 +307,8 @@ private:
     int rows_{1};
     int cols_{1};
 
-    std::unique_ptr<spectra::Figure>         figure_;
+    std::unique_ptr<spectra::Figure>          owned_figure_;
+    spectra::Figure*                          figure_{nullptr};
     std::unique_ptr<spectra::AxisLinkManager> link_manager_;
 
     // Slots vector indexed [slot-1] (0-based internally).

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Examples | Spectra Docs</title>
-    <meta name="description" content="Practical Spectra examples for 2D, 3D, animation, and embedding." />
+    <meta name="description" content="40+ Spectra examples — 2D, 3D, animation, multi-window, Python, and headless export." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="top">
@@ -15,6 +15,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2 Adapter</a>
       </div>
     </nav>
 
@@ -22,68 +23,151 @@
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Examples</span></div>
         <h1>Example Recipes</h1>
-        <p class="lead">Start from proven demos in this repository.</p>
+        <p class="lead">40+ runnable C++ and Python programs covering every major Spectra feature.</p>
       </div>
     </header>
 
     <main>
+
+      <!-- RUNNING EXAMPLES -->
       <section class="section section-tight">
         <div class="container">
-          <h2>Core Plotting</h2>
-          <div class="grid cards-2 docs-grid">
-            <article class="card link-card">
-              <h3>Basic Line Plot</h3>
-              <p>Simple 2D line workflow and axis styling.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/examples/basic_line.cpp">Open source →</a>
-            </article>
-            <article class="card link-card">
-              <h3>Subplots</h3>
-              <p>Multi-axes layout and figure composition patterns.</p>
-              <a href="https://github.com/danlil240/Spectra/tree/main/examples">Browse examples folder →</a>
-            </article>
-          </div>
+          <h2>Running Examples</h2>
+          <pre><code># Build examples
+cmake -B build -DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+
+# Run
+./build/examples/basic_line
+./build/examples/demo_3d
+./build/examples/easy_api_demo
+
+# Windows
+.\build\examples\Release\basic_line.exe</code></pre>
         </div>
       </section>
 
+      <!-- C++ CORE -->
       <section class="section">
         <div class="container">
-          <h2>3D + Animation</h2>
-          <div class="grid cards-3">
-            <article class="card link-card">
-              <h3>3D Surface</h3>
-              <p>Surface plots with colormap and lighting controls.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/examples/surface_3d.cpp">Open source →</a>
-            </article>
-            <article class="card link-card">
-              <h3>3D Demo</h3>
-              <p>Camera controls, multiple 3D series types.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/examples/demo_3d.cpp">Open source →</a>
-            </article>
-            <article class="card link-card">
-              <h3>Advanced Animation</h3>
-              <p>Frame updates, pacing, and timeline-focused workflows.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/examples/advanced_animation_demo.cpp">Open source →</a>
-            </article>
-          </div>
+          <h2>Core Plotting (C++)</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/basic_line.cpp"><code>basic_line.cpp</code></a></td><td>Minimal line plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/easy_api_demo.cpp"><code>easy_api_demo.cpp</code></a></td><td>Easy API progressive complexity showcase</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/easy_realtime_demo.cpp"><code>easy_realtime_demo.cpp</code></a></td><td>Multi-signal sensor dashboard with tabs</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/live_stream.cpp"><code>live_stream.cpp</code></a></td><td>Real-time streaming data</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/animated_scatter.cpp"><code>animated_scatter.cpp</code></a></td><td>Animated scatter plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_subplot.cpp"><code>multi_subplot.cpp</code></a></td><td>Grid-based subplot layout</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_figure_demo.cpp"><code>multi_figure_demo.cpp</code></a></td><td>Multiple figures with tabs</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_window_tabs_demo.cpp"><code>multi_window_tabs_demo.cpp</code></a></td><td>Tab tear-off and multi-window</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plot_styles_demo.cpp"><code>plot_styles_demo.cpp</code></a></td><td>All 18 markers, dash patterns, format strings</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/stats_demo.cpp"><code>stats_demo.cpp</code></a></td><td>Box plot, violin, histogram, bar chart</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/empty_launch_csv.cpp"><code>empty_launch_csv.cpp</code></a></td><td>Empty canvas + CSV data loading</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
+      <!-- 3D -->
       <section class="section">
         <div class="container">
-          <h2>Python + Embedding</h2>
-          <div class="grid cards-2 docs-grid">
-            <article class="card link-card">
-              <h3>Python Easy API</h3>
-              <p>Minimal plotting scripts and live dashboards.</p>
-              <a href="https://github.com/danlil240/Spectra/tree/main/python/examples">Open python/examples →</a>
-            </article>
-            <article class="card link-card">
-              <h3>Qt Embed Demo</h3>
-              <p>Native Qt + Vulkan integration path with Spectra.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp">Open source →</a>
-            </article>
+          <h2>3D Visualization</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/demo_3d.cpp"><code>demo_3d.cpp</code></a></td><td>3D scatter, line, surface, mesh showcase</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/surface_3d.cpp"><code>surface_3d.cpp</code></a></td><td>3D surface with colormap</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/lit_surface_demo.cpp"><code>lit_surface_demo.cpp</code></a></td><td>Blinn-Phong lit surface with materials</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/transparency_demo.cpp"><code>transparency_demo.cpp</code></a></td><td>Transparent surfaces, wireframe, painter's sort</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/mind_blowing_3d.cpp"><code>mind_blowing_3d.cpp</code></a></td><td>Advanced 3D visualization</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/mode_transition_demo.cpp"><code>mode_transition_demo.cpp</code></a></td><td>Animated 2D↔3D view switching</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ANIMATION -->
+      <section class="section">
+        <div class="container">
+          <h2>Animation &amp; Recording</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/advanced_animation_demo.cpp"><code>advanced_animation_demo.cpp</code></a></td><td>Frame updates, pacing, timeline workflows</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/timeline_animation_demo.cpp"><code>timeline_animation_demo.cpp</code></a></td><td>Timeline editor with keyframes</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/timeline_curve_demo.cpp"><code>timeline_curve_demo.cpp</code></a></td><td>Animation curve editor</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/camera_animator_demo.cpp"><code>camera_animator_demo.cpp</code></a></td><td>Camera orbit and turntable animation</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/offscreen_export.cpp"><code>offscreen_export.cpp</code></a></td><td>Headless PNG export</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/video_record.cpp"><code>video_record.cpp</code></a></td><td>MP4 recording via ffmpeg</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- UI & EXTENSIBILITY -->
+      <section class="section">
+        <div class="container">
+          <h2>UI &amp; Extensibility</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shortcut_config_demo.cpp"><code>shortcut_config_demo.cpp</code></a></td><td>Custom keybinding persistence</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plugin_api_demo.cpp"><code>plugin_api_demo.cpp</code></a></td><td>Plugin system demonstration</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp"><code>qt_embed_demo.cpp</code></a></td><td>Native Qt + Vulkan integration</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PYTHON -->
+      <section class="section">
+        <div class="container">
+          <h2>Python Examples</h2>
+          <p>Located in <a href="https://github.com/danlil240/Spectra/tree/main/python/examples"><code>python/examples/</code></a>:</p>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/basic_line.py"><code>basic_line.py</code></a></td><td>Simple line plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_3d.py"><code>easy_3d.py</code></a></td><td>3D plotting from Python</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_live_dashboard.py"><code>easy_live_dashboard.py</code></a></td><td>Live streaming dashboard</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_multi_live.py"><code>easy_multi_live.py</code></a></td><td>Multi-signal live streams</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_subplots.py"><code>easy_subplots.py</code></a></td><td>Subplot layouts</td></tr>
+            </tbody>
+          </table>
+          <pre><code># Run Python examples
+cd python &amp;&amp; pip install -e ".[dev]"
+python examples/basic_line.py
+python examples/easy_live_dashboard.py</code></pre>
+        </div>
+      </section>
+
+      <!-- ROS2 LAUNCH FILES -->
+      <section class="section">
+        <div class="container">
+          <h2>ROS2 Launch Files</h2>
+          <p>Located in <a href="https://github.com/danlil240/Spectra/tree/main/examples/ros2_launch"><code>examples/ros2_launch/</code></a>:</p>
+          <table>
+            <thead><tr><th>File</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>imu_monitor.launch.py</code></td><td>Linear acceleration + angular velocity from <code>sensor_msgs/Imu</code></td></tr>
+              <tr><td><code>nav_dashboard.launch.py</code></td><td>cmd_vel + odom fields for navigation monitoring</td></tr>
+              <tr><td><code>bag_replay.launch.py</code></td><td>Open a rosbag by path with configurable rate and loop</td></tr>
+            </tbody>
+          </table>
+          <pre><code>ros2 launch spectra imu_monitor.launch.py
+ros2 launch spectra nav_dashboard.launch.py cmd_vel:=/cmd_vel_mux/input/navi
+ros2 launch spectra bag_replay.launch.py bag:=/data/run42.mcap rate:=2.0</code></pre>
+        </div>
+      </section>
+
+      <!-- NEXT STEPS -->
+      <section class="section">
+        <div class="container">
+          <div class="callout">
+            Use this page as your team onboarding index. For full API details, see the <a href="features.html">Feature Guide</a>. For build instructions, see <a href="getting-started.html">Getting Started</a>.
           </div>
-          <div class="callout">Tip: use this page as your team onboarding index for common demo targets.</div>
         </div>
       </section>
     </main>

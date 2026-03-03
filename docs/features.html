@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Feature Guide | Spectra Docs</title>
-    <meta name="description" content="Comprehensive Spectra feature guide by category." />
+    <meta name="description" content="Comprehensive Spectra feature guide — rendering, 3D, animation, UI, Python, export, and more." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="top">
@@ -15,6 +15,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2 Adapter</a>
       </div>
     </nav>
 
@@ -22,11 +23,13 @@
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Feature Guide</span></div>
         <h1>Spectra Feature Guide</h1>
-        <p class="lead">Everything Spectra supports, organized for fast scanning.</p>
+        <p class="lead">Everything Spectra supports, organized by domain for fast scanning.</p>
       </div>
     </header>
 
     <main>
+
+      <!-- QUICK MATRIX -->
       <section class="section section-tight">
         <div class="container">
           <h2>Capability Matrix</h2>
@@ -35,56 +38,319 @@
               <tr><th>Domain</th><th>Highlights</th><th>API / Components</th></tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Core Rendering</td>
-                <td>Vulkan backend, anti-aliased lines, markers, dash patterns, GPU text</td>
-                <td><code>Renderer</code>, Vulkan pipelines, format strings</td>
-              </tr>
-              <tr>
-                <td>3D Visualization</td>
-                <td>Line3D/Scatter3D/Surface/Mesh, lighting, transparency, wireframe, MSAA</td>
-                <td><code>Axes3D</code>, <code>series3d</code>, camera controls</td>
-              </tr>
-              <tr>
-                <td>Easy API</td>
-                <td>MATLAB-style one-liners, progressive complexity</td>
-                <td><code>plot</code>, <code>scatter</code>, <code>subplot</code>, <code>plot3</code>, <code>surf</code></td>
-              </tr>
-              <tr>
-                <td>Animation</td>
-                <td>Frame callbacks, timeline editor, curve editor, interpolation modes</td>
-                <td><code>animate()</code>, timeline + keyframe systems</td>
-              </tr>
-              <tr>
-                <td>Productivity UI</td>
-                <td>Command palette, shortcuts, undo/redo, dock/split, inspector</td>
-                <td>Command registry, workspace, figure manager</td>
-              </tr>
-              <tr>
-                <td>Data Interaction</td>
-                <td>Tooltips, crosshair, markers, linked axes, shared cursor, transforms</td>
-                <td>DataInteraction, AxisLinkManager, TransformPipeline</td>
-              </tr>
-              <tr>
-                <td>Multi-window / IPC</td>
-                <td>Independent windows, tear-off, inproc + multiproc modes</td>
-                <td>WindowManager, FigureRegistry, backend daemon</td>
-              </tr>
-              <tr>
-                <td>Python</td>
-                <td>Proxy API, easy one-liners, live streaming, NumPy path</td>
-                <td><code>spectra</code> package, session/codec layers</td>
-              </tr>
-              <tr>
-                <td>Export</td>
-                <td>Headless rendering, PNG/GIF/MP4 output paths</td>
-                <td>Offscreen framebuffer, recording exporter</td>
-              </tr>
+              <tr><td>Core Rendering</td><td>Vulkan backend, anti-aliased lines, 18 markers, dash patterns, GPU text, MSAA 4x</td><td><code>Renderer</code>, Vulkan pipelines, format strings</td></tr>
+              <tr><td>3D Visualization</td><td>Line3D / Scatter3D / Surface / Mesh, Blinn-Phong lighting, transparency, wireframe</td><td><code>Axes3D</code>, <code>series3d</code>, camera controls</td></tr>
+              <tr><td>Easy API</td><td>MATLAB-style one-liners, progressive complexity (7 levels)</td><td><code>plot</code>, <code>scatter</code>, <code>subplot</code>, <code>plot3</code>, <code>surf</code></td></tr>
+              <tr><td>Animation</td><td>Frame callbacks, timeline editor, curve editor, 7 interpolation modes</td><td><code>animate()</code>, timeline + keyframe systems</td></tr>
+              <tr><td>Productivity UI</td><td>Command palette, shortcuts, undo/redo, dock/split, inspector, workspace</td><td>CommandRegistry, ShortcutManager, UndoManager</td></tr>
+              <tr><td>Data Interaction</td><td>Tooltips, crosshair, markers, linked axes, shared cursor, 14 transforms</td><td>DataInteraction, AxisLinkManager, TransformPipeline</td></tr>
+              <tr><td>Multi-window / IPC</td><td>Independent windows, tab tear-off, inproc + multiproc modes</td><td>WindowManager, FigureRegistry, backend daemon</td></tr>
+              <tr><td>Python</td><td>Proxy API, easy one-liners, live streaming, NumPy zero-copy</td><td><code>spectra</code> package, Session / codec layers</td></tr>
+              <tr><td>Export</td><td>Headless rendering, PNG / GIF / MP4, plugin API</td><td>Offscreen framebuffer, RecordingSession</td></tr>
+              <tr><td>ROS2</td><td>Topic monitor, live plotter, bag player/recorder, TF tree, node graph</td><td><code>spectra-ros</code>, <a href="ros2-adapter.html">full docs →</a></td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
+      <!-- CORE RENDERING -->
+      <section class="section" id="core-rendering">
+        <div class="container">
+          <h2>Core Rendering</h2>
+          <ul>
+            <li><strong>Vulkan-powered rendering</strong> — Explicit GPU control, multi-buffered frames, async buffer uploads, depth buffer, MSAA up to 4x</li>
+            <li><strong>Anti-aliased lines</strong> — Screen-space quad expansion with SDF smoothing, resolution-independent</li>
+            <li><strong>18 marker types</strong> — SDF-based markers (circle, square, diamond, triangles, pentagon, hexagon, star, plus, cross, filled variants)</li>
+            <li><strong>Dash patterns</strong> — GPU-accelerated dash rendering with 8 customizable dash values</li>
+            <li><strong>GPU text rendering</strong> — Vulkan text pipeline with stb_truetype atlas (Inter font), depth-tested 3D labels, ImGui fallback</li>
+            <li><strong>MATLAB-style plot API</strong> — Format strings like <code>"r--o"</code>, <code>"b:*"</code> for quick styling, plus <code>PlotStyle</code> struct for full control</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 3D -->
+      <section class="section" id="3d-visualization">
+        <div class="container">
+          <h2>3D Visualization</h2>
+          <div class="grid cards-2 docs-grid">
+            <article class="card">
+              <h3>Geometry &amp; Rendering</h3>
+              <ul>
+                <li><strong>Full 3D pipeline</strong> — Model-View-Projection transforms, depth buffer, 10+ dedicated 3D shaders</li>
+                <li><strong>3D series types</strong> — <code>ScatterSeries3D</code>, <code>LineSeries3D</code>, <code>SurfaceSeries</code>, <code>MeshSeries</code></li>
+                <li><strong>Colormaps</strong> — Viridis, Plasma, Inferno, Magma, Jet, Coolwarm, Grayscale</li>
+                <li><strong>Blinn-Phong lighting</strong> — Configurable light direction, ambient / specular / shininess per series</li>
+                <li><strong>Transparency &amp; painter's sort</strong> — Alpha blending with opaque front-to-back, transparent back-to-front</li>
+                <li><strong>Wireframe rendering</strong> — Toggle wireframe mode on surfaces and meshes</li>
+                <li><strong>MSAA 4x</strong> — Opt-in multisample anti-aliasing for 3D scenes</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Camera &amp; Axes</h3>
+              <ul>
+                <li><strong>Orbit camera</strong> — Arcball controls with quaternion rotation, pan, zoom, ortho / perspective</li>
+                <li><strong>Camera animation</strong> — Orbit paths, turntable, free-flight with quaternion slerp, timeline integration</li>
+                <li><strong>2D↔3D transition</strong> — Animated camera / axis / grid interpolation between 2D and 3D views</li>
+                <li><strong>3D axes</strong> — Grid planes (XY / XZ / YZ), bounding box, depth-occluded tick labels, axis arrows</li>
+                <li><strong>Header-only math</strong> — Self-contained <code>math3d.hpp</code> (~350 LOC): vec3, vec4, mat4, quat (no GLM)</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- EASY API -->
+      <section class="section" id="easy-api">
+        <div class="container">
+          <h2>Easy API (MATLAB-style)</h2>
+          <ul>
+            <li><strong>Progressive complexity</strong> — From one-liners to full control in 7 levels</li>
+            <li><strong>2D functions</strong> — <code>plot()</code>, <code>scatter()</code>, <code>subplot()</code>, <code>title()</code>, <code>xlabel()</code>, <code>ylabel()</code>, <code>xlim()</code>, <code>ylim()</code>, <code>grid()</code>, <code>legend()</code></li>
+            <li><strong>Statistical plots</strong> — <code>box_plot()</code>, <code>violin()</code>, <code>histogram()</code>, <code>bar()</code> with filled shapes, semi-transparent fills, auto-computed statistics</li>
+            <li><strong>3D functions</strong> — <code>plot3()</code>, <code>scatter3()</code>, <code>surf()</code>, <code>mesh()</code>, <code>subplot3d()</code>, <code>zlabel()</code>, <code>zlim()</code></li>
+            <li><strong>Multi-window</strong> — <code>figure()</code> creates new OS windows, <code>tab()</code> adds tabs</li>
+            <li><strong>Real-time</strong> — <code>on_update(callback)</code> with configurable FPS</li>
+            <li><strong>State accessors</strong> — <code>gcf()</code>, <code>gca()</code>, <code>gca3d()</code>, <code>cla()</code> for MATLAB-style workflows</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ANIMATION -->
+      <section class="section" id="animation">
+        <div class="container">
+          <h2>Animation &amp; Recording</h2>
+          <div class="grid cards-2 docs-grid">
+            <article class="card">
+              <h3>Animation Engine</h3>
+              <ul>
+                <li><strong>Real-time animation</strong> — <code>on_frame</code> callbacks, configurable FPS, frame scheduling with delta time</li>
+                <li><strong>Live data streaming</strong> — O(1) ring-buffer append with automatic sliding window</li>
+                <li><strong>Timeline editor</strong> — Playback state machine, keyframe tracks, scrubbing, snap modes (Frame / Beat / None), loop modes (None / Loop / PingPong)</li>
+                <li><strong>Keyframe interpolator</strong> — 7 modes: Step, Linear, CubicBezier, Spring, EaseIn/Out, EaseInOut — with tangent control and auto-tangent (Catmull-Rom)</li>
+                <li><strong>Animation curve editor</strong> — Visual Bezier handles, multi-channel support, hit-testing, tangent drag</li>
+                <li><strong>Camera animator</strong> — Orbit and free-flight keyframe paths with slerp interpolation, turntable presets</li>
+                <li><strong>Transition engine</strong> — Unified animation for float, Color, AxisLimits, inertial pan, camera parameters</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Export &amp; Recording</h3>
+              <ul>
+                <li><strong>PNG sequences</strong> — Frame-by-frame headless rendering</li>
+                <li><strong>GIF export</strong> — Custom GIF89a writer with median-cut quantization, LZW encoding</li>
+                <li><strong>MP4 export</strong> — Frame piping to ffmpeg (behind <code>SPECTRA_USE_FFMPEG</code> flag)</li>
+                <li><strong>Multi-pane recording</strong> — Composite rendering with auto-grid layout for split-view captures</li>
+                <li><strong>Headless mode</strong> — Offscreen rendering without a window (ideal for CI, servers, batch export)</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- UI -->
+      <section class="section" id="ui-productivity">
+        <div class="container">
+          <h2>UI &amp; Productivity</h2>
+          <ul>
+            <li><strong>Command palette</strong> — Fuzzy search (Ctrl+K), 30+ registered commands, recent tracking, category headers</li>
+            <li><strong>Configurable shortcuts</strong> — Rebindable keybindings with JSON persistence (<code>~/.config/spectra/keybindings.json</code>)</li>
+            <li><strong>Undo/redo system</strong> — Full property change history with grouped operations, undoable property helpers</li>
+            <li><strong>Multi-figure tabs</strong> — Tab switching (Ctrl+Tab), duplication, context menus (rename, close others, close to right), per-figure state</li>
+            <li><strong>Docking &amp; split view</strong> — Horizontal / vertical splits (Ctrl+\\), drag-to-dock with edge detection, splitter handles with grip dots, max 8 panes</li>
+            <li><strong>Inspector panel</strong> — Series statistics (min / max / mean / median / std / percentiles / count), sparkline preview, style editing, axes aggregate stats</li>
+            <li><strong>CSV data loading</strong> — File→Data→Load from CSV with column picker, delimiter auto-detection, data preview</li>
+            <li><strong>Workspace management</strong> — Save / load full state (v4 format with 3D support), autosave, backward compat (v1–v3)</li>
+            <li><strong>Plugin architecture</strong> — C ABI for binary-compatible extensions, <code>PluginManager</code> with dlopen / LoadLibrary, auto-discovery</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- DATA INTERACTION -->
+      <section class="section" id="data-interaction">
+        <div class="container">
+          <h2>Data Interaction</h2>
+          <ul>
+            <li><strong>Hover tooltips</strong> — Nearest-point query with series name, coordinates, color swatch</li>
+            <li><strong>Crosshair overlay</strong> — Shared across linked subplots with Y-value interpolation from series data</li>
+            <li><strong>Data markers</strong> — Pin / remove persistent markers that survive zoom and pan</li>
+            <li><strong>Region selection</strong> — Shift-drag rectangular selection with statistics mini-toolbar</li>
+            <li><strong>Legend interaction</strong> — Click-to-toggle visibility, drag-to-reposition, animated opacity</li>
+            <li><strong>Multi-axis linking</strong> — Link X / Y / Both axes across subplots, synchronized zoom / pan / box-zoom / auto-fit</li>
+            <li><strong>Shared cursor</strong> — Linked subplots show interpolated crosshair values from source axes</li>
+            <li><strong>Data transforms</strong> — 14 built-in types: Identity, Log10, Ln, Abs, Negate, Normalize, Standardize, Derivative, CumulativeSum, Diff, Scale, Offset, Clamp, Custom — with pipeline chaining and transform registry</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- THEMES -->
+      <section class="section" id="themes">
+        <div class="container">
+          <h2>Themes &amp; Accessibility</h2>
+          <ul>
+            <li><strong>Dark / light themes</strong> — Smooth animated transitions (non-mutating display colors)</li>
+            <li><strong>8 colorblind-safe palettes</strong> — Okabe-Ito, Tol Bright / Muted, IBM, Wong, Viridis, Monochrome</li>
+            <li><strong>CVD simulation</strong> — Test designs for Protanopia, Deuteranopia, Tritanopia, Achromatopsia (Vienot / Brettel matrices)</li>
+            <li><strong>Theme export / import</strong> — JSON-based theme customization with save / load</li>
+            <li><strong>Design tokens</strong> — Consistent spacing, typography, color system</li>
+            <li><strong>WCAG contrast checking</strong> — Color utility methods (luminance, contrast ratio, sRGB / linear / HSL conversions)</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- MULTI-WINDOW -->
+      <section class="section" id="multi-window">
+        <div class="container">
+          <h2>Multi-Window &amp; Multi-Process</h2>
+          <ul>
+            <li><strong>Multi-window support</strong> — Independent OS windows with per-window Vulkan swapchain, no "primary window" concept</li>
+            <li><strong>Tab tear-off</strong> — Detach tabs into new windows, in-process window creation</li>
+            <li><strong>Dual-mode architecture</strong> — Runtime selection between inproc (single-process) and multiproc (daemon + agents) modes</li>
+            <li><strong>Window manager</strong> — Uniform window lifecycle, figure-to-window assignment, per-window resize handling</li>
+            <li><strong>FigureRegistry</strong> — Stable <code>FigureId</code>-based figure ownership (no positional indexing)</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- PYTHON API -->
+      <section class="section" id="python-api">
+        <div class="container">
+          <h2>Python API</h2>
+          <div class="grid cards-2 docs-grid">
+            <article class="card">
+              <h3>Architecture</h3>
+              <ul>
+                <li><strong>Full IPC bridge</strong> — Python ↔ <code>spectra-backend</code> daemon via Unix socket with TLV binary protocol</li>
+                <li><strong>Session-based</strong> — <code>Session</code> object manages connection, handshake, request/response, event handling</li>
+                <li><strong>Auto-launch</strong> — Backend auto-started on first connection</li>
+                <li><strong>NumPy fast path</strong> — Zero-copy data transfer for numpy arrays</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>API Surface</h3>
+              <ul>
+                <li><strong>Easy API</strong> — <code>spectra.plot()</code>, <code>spectra.scatter()</code>, <code>spectra.show()</code> one-liners with auto-session</li>
+                <li><strong>3D support</strong> — <code>spectra.plot3()</code>, <code>spectra.scatter3()</code>, <code>spectra.surf()</code>, <code>spectra.mesh()</code></li>
+                <li><strong>Live streaming</strong> — Thread-safe <code>spectra.live()</code> with concurrent socket access protection</li>
+                <li><strong>Figure / Axes / Series proxies</strong> — <code>figure()</code>, <code>subplot()</code>, <code>line()</code>, <code>scatter()</code>, <code>set_data()</code>, <code>show()</code></li>
+              </ul>
+            </article>
+          </div>
+
+          <h3 style="margin-top:1.5rem">Python Examples</h3>
+          <pre><code># Session API
+import spectra as sp
+import numpy as np
+
+s = sp.Session()
+fig = s.figure("My Plot")
+ax = fig.subplot(1, 1, 1)
+
+x = np.linspace(0, 10, 1000)
+line = ax.line(x, np.sin(x), label="sin(x)")
+ax.set_title("Trigonometry")
+s.show()</code></pre>
+
+          <pre><code># Statistical Plots
+import spectra as sp
+import numpy as np
+
+data = [np.random.normal(mu, 1, 200) for mu in [0, 2, 5]]
+
+sp.subplot(1, 2, 1)
+sp.boxplot(data, positions=[1, 2, 3])
+sp.title("Box Plot")
+
+sp.subplot(1, 2, 2)
+sp.violin_plot(data, positions=[1, 2, 3])
+sp.title("Violin Plot")
+sp.show()</code></pre>
+
+          <pre><code># Live Streaming
+import spectra as sp
+import numpy as np
+
+fig = sp.figure("Live Dashboard")
+ax = fig.subplot(1, 1, 1)
+line = ax.line([], [], label="sensor")
+
+def update(dt, t):
+    line.append(t, np.sin(t) + np.random.normal(0, 0.1))
+    ax.set_xlim(max(0, t - 10), t)
+
+sp.live(update, fps=30)
+sp.show()</code></pre>
+        </div>
+      </section>
+
+      <!-- EXPORT -->
+      <section class="section" id="export">
+        <div class="container">
+          <h2>Export &amp; Integration</h2>
+          <ul>
+            <li><strong>Headless mode</strong> — Offscreen rendering without a window (CI, servers, batch export)</li>
+            <li><strong>PNG export</strong> — Render to image via <code>stb_image_write</code></li>
+            <li><strong>GIF export</strong> — Custom GIF89a writer with LZW encoding and median-cut quantization</li>
+            <li><strong>MP4 export</strong> — Frame piping to ffmpeg (behind <code>SPECTRA_USE_FFMPEG</code> flag)</li>
+            <li><strong>Subplot layouts</strong> — Grid-based multi-axes figures with automatic margin / tick layout</li>
+            <li><strong>Zero-copy data</strong> — <code>std::span&lt;const float&gt;</code> interfaces avoid unnecessary copies</li>
+            <li><strong>CMake find_package</strong> — <code>find_package(spectra)</code> + <code>target_link_libraries</code></li>
+            <li><strong>Optional Eigen support</strong> — Adapters for <code>Eigen::VectorXf</code> behind a feature flag</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ROADMAP -->
+      <section class="section" id="roadmap">
+        <div class="container">
+          <h2>Roadmap</h2>
+
+          <h3>UI Redesign (Complete)</h3>
+          <table>
+            <thead><tr><th>Phase</th><th>Status</th><th>Highlights</th></tr></thead>
+            <tbody>
+              <tr><td>Phase 1 — Modern Foundation</td><td>✅</td><td>Theme system, layout, inspector, animated interactions, tooltips, crosshair, transition engine</td></tr>
+              <tr><td>Phase 2 — Power User Features</td><td>✅</td><td>Command palette, undo/redo, workspace v2, timeline, recording, colorblind palettes, tabs</td></tr>
+              <tr><td>Phase 3 — Elite Differentiators</td><td>✅</td><td>Docking/split, MATLAB API (18 markers, dashes), axis linking, shared cursor, transforms, plugins</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">3D Visualization (Complete)</h3>
+          <table>
+            <thead><tr><th>Phase</th><th>Status</th><th>Highlights</th></tr></thead>
+            <tbody>
+              <tr><td>3D Phase 1</td><td>✅</td><td>Math library, FrameUBO, depth buffer, 3D pipelines, Camera, Axes3D</td></tr>
+              <tr><td>3D Phase 2</td><td>✅</td><td>Scatter3D, Line3D, Surface, Mesh, colormaps, camera animation</td></tr>
+              <tr><td>3D Phase 3</td><td>✅</td><td>Blinn-Phong, transparency, MSAA, wireframe, materials, 2D↔3D transition, workspace v4</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">Multi-Window &amp; IPC (Complete)</h3>
+          <table>
+            <thead><tr><th>Milestone</th><th>Status</th><th>Highlights</th></tr></thead>
+            <tbody>
+              <tr><td>WindowContext extraction</td><td>✅</td><td>Per-window Vulkan resources, no primary window assumption</td></tr>
+              <tr><td>Multi-window rendering</td><td>✅</td><td>Tab tear-off, per-window swapchain, figure-to-window assignment</td></tr>
+              <tr><td>FigureRegistry</td><td>✅</td><td>Stable FigureId ownership, replaces positional indexing</td></tr>
+              <tr><td>Python IPC</td><td>✅</td><td>20+ message types, Session/Figure/Axes/Series proxies, easy API, live streaming</td></tr>
+              <tr><td>Multiproc daemon</td><td>✅</td><td>spectra-backend + spectra-window agent architecture</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">Deployment (Complete)</h3>
+          <table>
+            <thead><tr><th>Milestone</th><th>Status</th><th>Highlights</th></tr></thead>
+            <tbody>
+              <tr><td>Cross-platform CI</td><td>✅</td><td>Linux (GCC+Clang), macOS (ARM), Windows (MSVC), sanitizers</td></tr>
+              <tr><td>Release pipeline</td><td>✅</td><td>.deb, .rpm, .tar.gz, AppImage, .zip, Python wheels, PyPI</td></tr>
+              <tr><td>Docker</td><td>✅</td><td>Multi-stage build, headless + X11 forwarding</td></tr>
+              <tr><td>Packaging</td><td>✅</td><td>CPack, AppImage, Homebrew, AUR, shell completions</td></tr>
+            </tbody>
+          </table>
+
+          <p style="margin-top:1rem">See <a href="https://github.com/danlil240/Spectra/blob/main/plans/ROADMAP.md"><code>plans/ROADMAP.md</code></a> for detailed weekly progress tracking.</p>
+        </div>
+      </section>
+
+      <!-- RECOMMENDED PATHS -->
       <section class="section">
         <div class="container">
           <h2>Recommended Paths</h2>

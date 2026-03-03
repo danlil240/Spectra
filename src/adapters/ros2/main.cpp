@@ -69,13 +69,30 @@ int main(int argc, char** argv)
                 layout_mode_name(cfg.layout),
                 cfg.node_name.c_str());
 
+    // ---------------------------------------------------------------------------
+    // Create Spectra App with GLFW + Vulkan + ImGui windowed rendering.
+    // ---------------------------------------------------------------------------
+
+    spectra::AppConfig app_cfg;
+    spectra::App app(app_cfg);
+
+    // Create a placeholder figure so the App has something to render.
+    // Add a dummy subplot so the "Welcome to Spectra" page is suppressed —
+    // the ROS2 shell owns the entire UI layout.
+    spectra::FigureConfig fig_cfg;
+    fig_cfg.width  = cfg.window_width;
+    fig_cfg.height = cfg.window_height;
+    auto& fig = app.figure(fig_cfg);
+    fig.subplot(1, 1, 1);  // suppress welcome page
+
     // Create shell and install SIGINT handler before init.
     RosAppShell shell(cfg);
+    shell.set_canvas_figure(&fig);   // Bind ROS subplot manager to the visible app figure.
     g_shell = &shell;
     std::signal(SIGINT,  sigint_handler);
     std::signal(SIGTERM, sigint_handler);
 
-    // Initialise ROS2, discovery, panels.
+    // Initialise ROS2, discovery, and all ROS panels.
     if (!shell.init(argc, argv))
     {
         std::fprintf(stderr, "spectra-ros: failed to initialise ROS2 node '%s'\n",
@@ -96,22 +113,6 @@ int main(int argc, char** argv)
                         i + 1 < cfg.initial_topics.size() ? ", " : "\n");
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // Create Spectra App with GLFW + Vulkan + ImGui windowed rendering.
-    // ---------------------------------------------------------------------------
-
-    spectra::AppConfig app_cfg;
-    spectra::App app(app_cfg);
-
-    // Create a placeholder figure so the App has something to render.
-    // Add a dummy subplot so the "Welcome to Spectra" page is suppressed —
-    // the ROS2 shell owns the entire UI layout.
-    spectra::FigureConfig fig_cfg;
-    fig_cfg.width  = cfg.window_width;
-    fig_cfg.height = cfg.window_height;
-    auto& fig = app.figure(fig_cfg);
-    fig.subplot(1, 1, 1);  // suppress welcome page
 
     // Set up a perpetual animation callback so the render loop stays active
     // and we can poll ROS2 messages each frame.
@@ -139,6 +140,7 @@ int main(int argc, char** argv)
         auto& lm = ui_ctx->imgui_ui->get_layout_manager();
         lm.set_inspector_visible(false);
         lm.set_tab_bar_visible(false);
+        ui_ctx->imgui_ui->set_nav_rail_visible(false);
         ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
         {
             shell.draw();

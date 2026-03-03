@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Getting Started | Spectra Docs</title>
-    <meta name="description" content="Install and run Spectra quickly in C++ and Python." />
+    <meta name="description" content="Install, build, and run Spectra for C++20 and Python — platform setup, CMake options, packaging, deployment, and CI/CD." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="top">
@@ -15,6 +15,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2 Adapter</a>
       </div>
     </nav>
 
@@ -22,75 +23,368 @@
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Getting Started</span></div>
         <h1>Getting Started with Spectra</h1>
-        <p class="lead">Set up Spectra for C++20 and Python in minutes.</p>
+        <p class="lead">From zero to GPU-accelerated plots in under five minutes — C++ and Python.</p>
       </div>
     </header>
 
     <main>
+
+      <!-- PREREQUISITES -->
       <section class="section section-tight">
         <div class="container">
-          <h2>1) Prerequisites</h2>
+          <h2>1. Prerequisites</h2>
           <table>
             <thead>
               <tr><th>Dependency</th><th>Required</th><th>Notes</th></tr>
             </thead>
             <tbody>
-              <tr><td>C++ compiler</td><td>C++20</td><td>GCC 13+, Clang 17+, or MSVC 2022+</td></tr>
-              <tr><td>Vulkan SDK</td><td>1.2+</td><td>GPU backend requirement</td></tr>
-              <tr><td>CMake</td><td>3.20+</td><td>Build and configure</td></tr>
-              <tr><td>Python</td><td>3.9+</td><td>For Python API usage</td></tr>
+              <tr><td><strong>C++20 compiler</strong></td><td>Yes</td><td>GCC 12+, Clang 15+, or MSVC 2022+</td></tr>
+              <tr><td><strong>CMake 3.20+</strong></td><td>Yes</td><td>Build system</td></tr>
+              <tr><td><strong>Vulkan drivers</strong></td><td>Yes</td><td>Usually installed with graphics drivers</td></tr>
+              <tr><td><strong>Vulkan SDK</strong></td><td>Optional</td><td>Only needed for validation layers / debugging</td></tr>
+              <tr><td><strong>Python 3.9+</strong></td><td>Optional</td><td>For the Python API</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
+      <!-- PLATFORM SETUP -->
       <section class="section">
         <div class="container">
-          <h2>2) Build from Source</h2>
+          <h2>2. Platform-Specific Setup</h2>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Linux (Ubuntu / Debian)</h3>
+              <pre><code>sudo apt install build-essential cmake git \
+    vulkan-tools libvulkan-dev \
+    libwayland-dev libxrandr-dev \
+    libxinerama-dev libxcursor-dev \
+    libxi-dev libxkbcommon-dev \
+    libgl1-mesa-dev glslang-tools</code></pre>
+            </article>
+            <article class="card">
+              <h3>macOS</h3>
+              <pre><code>xcode-select --install
+brew install cmake vulkan-headers \
+    vulkan-loader glslang molten-vk</code></pre>
+            </article>
+            <article class="card">
+              <h3>Windows</h3>
+              <ul>
+                <li>Install Visual Studio 2022 with C++ workload</li>
+                <li>Install <a href="https://vulkan.lunarg.com/sdk/home">Vulkan SDK</a> (1.2+)</li>
+                <li>CMake auto-detects MSVC and Vulkan SDK path</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- BUILD -->
+      <section class="section">
+        <div class="container">
+          <h2>3. Build from Source</h2>
           <pre><code>git clone https://github.com/danlil240/Spectra.git
 cd Spectra
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)</code></pre>
-          <div class="callout">Tip: for docs/testing workflows, keep <code>SPECTRA_BUILD_TESTS=ON</code>.</div>
+          <div class="callout">The build system automatically fetches GLFW and Google Test via <code>FetchContent</code>.</div>
+
+          <h3 style="margin-top:1.5rem">Makefile Shortcuts</h3>
+          <table>
+            <thead><tr><th>Command</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>make build</code></td><td>Configure + build (Release)</td></tr>
+              <tr><td><code>make test</code></td><td>Build + run tests</td></tr>
+              <tr><td><code>make install</code></td><td>Install to /usr/local</td></tr>
+              <tr><td><code>make package</code></td><td>Create .deb/.rpm/.tar.gz via CPack</td></tr>
+              <tr><td><code>make clean</code></td><td>Remove build directory</td></tr>
+              <tr><td><code>make format</code></td><td>Run clang-format</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
+      <!-- CMAKE OPTIONS -->
       <section class="section">
         <div class="container">
-          <h2>3) First Plot (C++)</h2>
+          <h2>4. CMake Options</h2>
+          <pre><code>cmake -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSPECTRA_BUILD_TESTS=ON \
+    -DSPECTRA_BUILD_EXAMPLES=ON \
+    -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
+    -DSPECTRA_USE_FFMPEG=ON</code></pre>
+          <table>
+            <thead><tr><th>Feature</th><th>CMake Flag</th></tr></thead>
+            <tbody>
+              <tr><td>Video export (MP4)</td><td><code>-DSPECTRA_USE_FFMPEG=ON</code> (requires <code>ffmpeg</code> in PATH)</td></tr>
+              <tr><td>Eigen support</td><td><code>-DSPECTRA_USE_EIGEN=ON</code></td></tr>
+              <tr><td>Build tests</td><td><code>-DSPECTRA_BUILD_TESTS=ON</code></td></tr>
+              <tr><td>Build examples</td><td><code>-DSPECTRA_BUILD_EXAMPLES=ON</code></td></tr>
+              <tr><td>Golden image tests</td><td><code>-DSPECTRA_BUILD_GOLDEN_TESTS=ON</code></td></tr>
+              <tr><td>ROS2 adapter</td><td><code>-DSPECTRA_USE_ROS2=ON</code></td></tr>
+              <tr><td>ROS2 bag support</td><td><code>-DSPECTRA_ROS2_BAG=ON</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">Build Targets</h3>
+          <table>
+            <thead><tr><th>Target</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>spectra</code></td><td>Core library (static)</td></tr>
+              <tr><td><code>spectra-backend</code></td><td>Multiproc daemon (IPC server)</td></tr>
+              <tr><td><code>spectra-window</code></td><td>Multiproc window agent</td></tr>
+              <tr><td><code>spectra-ros</code></td><td>ROS2 adapter (requires <code>SPECTRA_USE_ROS2</code>)</td></tr>
+              <tr><td><code>examples/*</code></td><td>All example programs</td></tr>
+              <tr><td><code>unit_test_*</code></td><td>Individual unit test executables</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FIRST PLOT C++ -->
+      <section class="section">
+        <div class="container">
+          <h2>5. First Plot (C++)</h2>
           <pre><code>#include &lt;spectra/easy.hpp&gt;
-#include &lt;vector&gt;
 
 int main() {
-    std::vector&lt;float&gt; x{0.f, 1.f, 2.f, 3.f};
-    std::vector&lt;float&gt; y{0.f, 1.f, 0.5f, 1.5f};
-
-    spectra::plot(x, y, "c-o").label("demo");
+    spectra::plot({0.f, 1.f, 2.f, 3.f, 4.f},
+                  {0.f, 1.f, 0.5f, 1.5f, 2.f}, "c-o");
     spectra::title("First Spectra Plot");
     spectra::show();
 }</code></pre>
+          <p>Or use the full object API for maximum control:</p>
+          <pre><code>#include &lt;spectra/spectra.hpp&gt;
+
+int main() {
+    spectra::App app;
+    auto&amp; fig = app.figure({.width = 1280, .height = 720});
+    auto&amp; ax  = fig.subplot(1, 1, 1);
+
+    ax.line(x, y).label("signal").color(spectra::rgb(0.2f, 0.8f, 1.0f));
+    ax.title("Sensor Data");
+    ax.xlabel("Time (s)");
+    ax.ylabel("Amplitude");
+
+    fig.show();
+}</code></pre>
+          <h3 style="margin-top:1.5rem">Run an Example</h3>
+          <pre><code># Linux / macOS
+./build/examples/basic_line
+./build/examples/easy_api_demo
+./build/examples/demo_3d
+
+# Windows
+.\build\examples\Release\basic_line.exe</code></pre>
         </div>
       </section>
 
+      <!-- PYTHON -->
       <section class="section">
         <div class="container">
-          <h2>4) Python Quick Start</h2>
-          <pre><code>pip install spectra-plot
+          <h2>6. Python Quick Start</h2>
+          <pre><code># Install
+pip install spectra-plot
 
-python -c "import spectra as sp; sp.plot([0,1,2],[0,1,0.5]); sp.show()"</code></pre>
-          <div class="callout warn">For embed mode, build with <code>-DSPECTRA_BUILD_EMBED_SHARED=ON</code>.</div>
+# Or development install from source
+cd python &amp;&amp; pip install -e ".[dev]"</code></pre>
+          <p>The Python package (<code>spectra-plot</code>) communicates with the <code>spectra-backend</code> daemon over Unix sockets. The backend is auto-launched on first connection.</p>
+          <pre><code>import spectra as sp
+sp.plot([1, 4, 9, 16, 25])
+sp.show()</code></pre>
+          <div class="callout warn">For Qt embed mode, build with <code>-DSPECTRA_BUILD_EMBED_SHARED=ON</code>.</div>
         </div>
       </section>
 
+      <!-- EIGEN -->
       <section class="section">
         <div class="container">
-          <h2>Where next?</h2>
-          <ul class="list-tight">
-            <li><a href="features.html">Feature Guide</a> — complete capability map</li>
-            <li><a href="examples.html">Examples</a> — recipes by use case</li>
-            <li><a href="architecture.html">Architecture</a> — internals and runtime modes</li>
-            <li><a href="https://github.com/danlil240/Spectra/blob/main/README.md">Repository README</a></li>
-          </ul>
+          <h2>7. Eigen Integration</h2>
+          <p>Spectra accepts <a href="https://eigen.tuxfamily.org">Eigen</a> vectors directly — no conversions needed. Build with <code>-DSPECTRA_USE_EIGEN=ON</code> (requires Eigen3 headers).</p>
+          <pre><code>#include &lt;spectra/eigen_easy.hpp&gt;
+
+Eigen::VectorXf x = Eigen::VectorXf::LinSpaced(100, 0, 2 * M_PI);
+Eigen::VectorXf y = x.array().sin();
+
+spectra::plot(x, y, "r--o");  // zero-copy, direct Eigen support
+spectra::show();</code></pre>
+        </div>
+      </section>
+
+      <!-- CMake INTEGRATION -->
+      <section class="section">
+        <div class="container">
+          <h2>8. CMake Integration (Downstream Projects)</h2>
+          <p>After installing Spectra (<code>cmake --install build</code>), use it from your project:</p>
+          <pre><code>find_package(spectra 0.1 REQUIRED)
+target_link_libraries(myapp PRIVATE spectra::spectra)</code></pre>
+        </div>
+      </section>
+
+      <!-- DEPLOYMENT -->
+      <section class="section">
+        <div class="container">
+          <h2>9. Deployment &amp; Packaging</h2>
+
+          <h3>Install from Source</h3>
+          <pre><code>cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+sudo cmake --install build --prefix /usr/local</code></pre>
+          <p>This installs headers to <code>include/spectra/</code>, libraries to <code>lib/</code>, binaries (<code>spectra-backend</code>, <code>spectra-window</code>) to <code>bin/</code>, and fonts/icons to <code>share/spectra/</code>.</p>
+
+          <h3 style="margin-top:1.5rem">CPack Packages</h3>
+          <table>
+            <thead><tr><th>Format</th><th>Command</th><th>Output</th></tr></thead>
+            <tbody>
+              <tr><td>Debian</td><td><code>cpack -G DEB</code></td><td><code>spectra_0.1.0_amd64.deb</code></td></tr>
+              <tr><td>RPM</td><td><code>cpack -G RPM</code></td><td><code>spectra-0.1.0-1.x86_64.rpm</code></td></tr>
+              <tr><td>Tarball</td><td><code>cpack -G TGZ</code></td><td><code>spectra-0.1.0-Linux.tar.gz</code></td></tr>
+              <tr><td>Windows</td><td><code>cpack -G NSIS</code></td><td><code>spectra-0.1.0-win64.exe</code></td></tr>
+              <tr><td>macOS</td><td><code>cpack -G DragNDrop</code></td><td><code>spectra-0.1.0.dmg</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">Additional Package Formats</h3>
+          <div class="grid cards-3">
+            <article class="card">
+              <h3>Python Wheel</h3>
+              <pre><code>pip install build
+python -m build</code></pre>
+              <p>Or install directly: <code>pip install spectra-plot</code></p>
+            </article>
+            <article class="card">
+              <h3>Homebrew (macOS)</h3>
+              <pre><code>brew install spectra</code></pre>
+              <p>Formula at <code>packaging/homebrew/spectra.rb</code></p>
+            </article>
+            <article class="card">
+              <h3>AUR / AppImage</h3>
+              <p>PKGBUILD at <code>packaging/aur/PKGBUILD</code>.<br>AppImage built via <code>linuxdeploy</code> in release workflow.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- DOCKER -->
+      <section class="section">
+        <div class="container">
+          <h2>10. Docker</h2>
+          <pre><code># Full deployment test
+./docker/ubuntu22/run_tests.sh
+
+# With GPU tests
+RUN_GPU_TESTS=1 ./docker/ubuntu22/run_tests.sh
+
+# Docker Compose
+cd docker &amp;&amp; docker compose up --build spectra-xvfb</code></pre>
+        </div>
+      </section>
+
+      <!-- TESTING -->
+      <section class="section">
+        <div class="container">
+          <h2>11. Testing</h2>
+          <pre><code>cmake -B build -DSPECTRA_BUILD_TESTS=ON -DSPECTRA_BUILD_GOLDEN_TESTS=ON
+cmake --build build -j$(nproc)
+cd build &amp;&amp; ctest --output-on-failure</code></pre>
+          <table>
+            <thead><tr><th>Category</th><th>Count</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Unit tests</strong></td><td>1,200+</td><td>All core systems, UI, animation, serialization, 3D, IPC</td></tr>
+              <tr><td><strong>Golden image tests</strong></td><td>50+</td><td>Headless renders compared pixel-by-pixel (2D + 3D)</td></tr>
+              <tr><td><strong>Integration tests</strong></td><td>100+</td><td>Cross-component workflows, 3D regression</td></tr>
+              <tr><td><strong>Benchmarks</strong></td><td>100+</td><td>Rendering, data structures, animation, 3D scaling</td></tr>
+              <tr><td><strong>Python tests</strong></td><td>50+</td><td>Codec, transport, session, easy API</td></tr>
+            </tbody>
+          </table>
+          <h3 style="margin-top:1.5rem">Running Specific Tests</h3>
+          <pre><code># Single test suite
+cd build &amp;&amp; ./tests/unit/unit_test_math3d
+
+# Pattern match
+ctest -R "3d" --output-on-failure
+
+# Benchmarks
+./tests/bench/bench_3d
+
+# Python tests
+cd python &amp;&amp; pytest tests/ -v
+
+# Sanitizers
+cmake -B build-asan -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+cmake --build build-asan &amp;&amp; cd build-asan &amp;&amp; ctest --output-on-failure</code></pre>
+        </div>
+      </section>
+
+      <!-- CI/CD -->
+      <section class="section">
+        <div class="container">
+          <h2>12. CI/CD</h2>
+          <h3>Continuous Integration</h3>
+          <p>Every push and PR triggers (<code>.github/workflows/ci.yml</code>):</p>
+          <table>
+            <thead><tr><th>Job</th><th>Platform</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><strong>build-linux</strong></td><td>Ubuntu 24.04</td><td>GCC 13 + Clang 17 matrix, unit tests</td></tr>
+              <tr><td><strong>build-macos</strong></td><td>macOS 14/15 (ARM)</td><td>Apple Clang, unit tests (no GPU)</td></tr>
+              <tr><td><strong>build-windows</strong></td><td>Windows 2022</td><td>MSVC, Vulkan SDK install, unit tests</td></tr>
+              <tr><td><strong>golden-tests</strong></td><td>Ubuntu 24.04</td><td>Headless golden tests with lavapipe</td></tr>
+              <tr><td><strong>sanitizers</strong></td><td>Ubuntu 24.04</td><td>ASan + UBSan with leak detection</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="margin-top:1.5rem">Release Pipeline</h3>
+          <p>Triggered on <code>v*</code> tag push (<code>.github/workflows/release.yml</code>):</p>
+          <ol>
+            <li><strong>package-linux</strong> — <code>.deb</code>, <code>.rpm</code>, <code>.tar.gz</code>, AppImage</li>
+            <li><strong>package-macos</strong> — <code>.tar.gz</code> for ARM64</li>
+            <li><strong>package-windows</strong> — <code>.zip</code> with Vulkan SDK</li>
+            <li><strong>python-wheels</strong> — via <code>cibuildwheel</code> for Linux/macOS/Windows × Python 3.9–3.13</li>
+            <li><strong>python-sdist</strong> — Source distribution</li>
+            <li><strong>release</strong> — GitHub Release with all artifacts, publishes to PyPI</li>
+          </ol>
+          <pre><code># Trigger a release
+git tag v0.1.0 &amp;&amp; git push origin v0.1.0</code></pre>
+        </div>
+      </section>
+
+      <!-- VERIFY -->
+      <section class="section">
+        <div class="container">
+          <h2>Verify Installation</h2>
+          <pre><code>cd build &amp;&amp; ctest --output-on-failure
+vulkaninfo --summary</code></pre>
+        </div>
+      </section>
+
+      <!-- WHERE NEXT -->
+      <section class="section">
+        <div class="container">
+          <h2>Where Next?</h2>
+          <div class="grid cards-2 docs-grid">
+            <article class="card link-card">
+              <h3>Feature Guide</h3>
+              <p>Complete capability matrix — rendering, 3D, animation, UI, Python, export.</p>
+              <a href="features.html">View features →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Examples</h3>
+              <p>40+ C++ and Python examples by use case.</p>
+              <a href="examples.html">Browse examples →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Architecture</h3>
+              <p>System topology, project structure, design decisions.</p>
+              <a href="architecture.html">Read architecture →</a>
+            </article>
+            <article class="card link-card">
+              <h3>ROS2 Adapter</h3>
+              <p>GPU-accelerated ROS2 visualization — topic monitor, live plotting, bags, and more.</p>
+              <a href="ros2-adapter.html">View ROS2 docs →</a>
+            </article>
+          </div>
         </div>
       </section>
     </main>

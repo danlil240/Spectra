@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Architecture | Spectra Docs</title>
-    <meta name="description" content="Understand Spectra's rendering and runtime architecture." />
+    <meta name="description" content="Spectra architecture — system topology, runtime modes, project structure, and design decisions." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="top">
@@ -15,6 +15,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2 Adapter</a>
       </div>
     </nav>
 
@@ -22,11 +23,13 @@
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Architecture</span></div>
         <h1>Architecture Overview</h1>
-        <p class="lead">How Spectra organizes rendering, windows, and IPC runtime modes.</p>
+        <p class="lead">System topology, runtime modes, project structure, and core design decisions.</p>
       </div>
     </header>
 
     <main>
+
+      <!-- HIGH-LEVEL LAYERS -->
       <section class="section section-tight">
         <div class="container">
           <h2>High-Level Layers</h2>
@@ -35,7 +38,7 @@
               <h3>API Layer</h3>
               <ul class="list-tight">
                 <li>Easy API one-liners</li>
-                <li>Object API: App/Figure/Axes/Series</li>
+                <li>Object API: App / Figure / Axes / Series</li>
                 <li>Python proxies over IPC</li>
               </ul>
             </article>
@@ -44,7 +47,7 @@
               <ul class="list-tight">
                 <li>Input handling and gestures</li>
                 <li>Docking, tabs, split view</li>
-                <li>Command/undo/workspace systems</li>
+                <li>Command / undo / workspace systems</li>
               </ul>
             </article>
             <article class="card">
@@ -59,6 +62,52 @@
         </div>
       </section>
 
+      <!-- SYSTEM TOPOLOGY -->
+      <section class="section">
+        <div class="container">
+          <h2>System Topology</h2>
+
+          <h3>Inproc Mode (Default)</h3>
+          <pre><code>App
+├── FigureRegistry (stable FigureId ownership)
+├── FigureManager (tabs, per-figure state, queued ops)
+├── WindowManager (multi-window, per-window swapchain)
+├── DockSystem → SplitViewManager (binary tree panes)
+├── CommandRegistry (30+ commands, fuzzy search)
+├── ShortcutManager + ShortcutConfig (persistent bindings)
+├── UndoManager (push/undo/redo, grouped operations)
+├── ThemeManager (dark/light, 8 palettes, CVD simulation)
+├── TransitionEngine (float/Color/AxisLimits/Camera anims)
+├── TimelineEditor → KeyframeInterpolator (7 interp modes)
+├── AxisLinkManager (linked axes, shared cursor)
+├── DataInteraction (tooltips, crosshair, markers, regions)
+└── Renderer (Vulkan backend, TextRenderer, GPU pipelines)
+     └── Figure
+          ├── Axes (2D) / Axes3D (3D + Camera + Lighting)
+          └── Series (Line, Scatter, Surface, Mesh, 3D...)</code></pre>
+
+          <h3 style="margin-top:1.5rem">Multiproc Mode (IPC)</h3>
+          <pre><code>┌─────────────┐  Unix socket  ┌──────────────────┐
+│  Python     │──────────────▶│  spectra-backend  │
+│  client     │◀──────────────│  (daemon)         │
+└─────────────┘               │  FigureModel      │
+                              │  SessionGraph     │
+┌─────────────┐               │  ClientRouter     │
+│  C++ App    │──────────────▶│  ProcessManager   │
+│ (multiproc) │◀──────────────└────┬────┬────┬───┘
+└─────────────┘                    │    │    │
+                        ┌──────────┘    │    └──────────┐
+                        ▼               ▼               ▼
+                 ┌───────────┐   ┌───────────┐   ┌───────────┐
+                 │  spectra-  │   │  spectra-  │   │  spectra-  │
+                 │  window    │   │  window    │   │  window    │
+                 │  (agent)   │   │  (agent)   │   │  (agent)   │
+                 │  Vulkan    │   │  Vulkan    │   │  Vulkan    │
+                 └───────────┘   └───────────┘   └───────────┘</code></pre>
+        </div>
+      </section>
+
+      <!-- RUNTIME MODES -->
       <section class="section">
         <div class="container">
           <h2>Runtime Modes</h2>
@@ -68,41 +117,158 @@
             </thead>
             <tbody>
               <tr>
-                <td>In-process</td>
+                <td><strong>In-process</strong></td>
                 <td>UI, renderer, and plotting state in one process</td>
                 <td>Desktop apps, low-latency interactive use</td>
               </tr>
               <tr>
-                <td>Multi-process</td>
-                <td>Backend daemon + window/agent process via IPC protocol</td>
+                <td><strong>Multi-process</strong></td>
+                <td>Backend daemon + window/agent processes via IPC protocol</td>
                 <td>Isolation, orchestration, Python-driven sessions</td>
               </tr>
             </tbody>
           </table>
+
+          <h3 style="margin-top:1.5rem">Mode Selection</h3>
+          <table>
+            <thead><tr><th>Condition</th><th>Mode</th></tr></thead>
+            <tbody>
+              <tr><td><code>AppConfig::socket_path</code> is set</td><td>Multiproc (connects to <code>spectra-backend</code>)</td></tr>
+              <tr><td><code>SPECTRA_SOCKET</code> env var is set</td><td>Multiproc</td></tr>
+              <tr><td>Neither</td><td>Inproc (default, single-process)</td></tr>
+            </tbody>
+          </table>
+          <div class="callout">Both code paths are always compiled — mode is selected at runtime (no <code>#ifdef</code>).</div>
         </div>
       </section>
 
+      <!-- KEY DESIGN DECISIONS -->
+      <section class="section">
+        <div class="container">
+          <h2>Key Design Decisions</h2>
+          <ul>
+            <li><strong>Vulkan 1.2+</strong> — Explicit memory management, headless rendering, async buffer uploads, depth buffer for 3D, MSAA</li>
+            <li><strong>Screen-space SDF rendering</strong> — Lines and markers use signed-distance-field anti-aliasing; resolution-independent at any zoom</li>
+            <li><strong>GPU-accelerated styling</strong> — Dash patterns and 18 marker types rendered entirely in fragment shaders</li>
+            <li><strong>GPU text pipeline</strong> — Vulkan text rendering with stb_truetype atlas, depth-tested 3D labels</li>
+            <li><strong>Lock-free threading</strong> — SPSC ring buffer decouples the user's app thread from the GPU render thread</li>
+            <li><strong>No global state</strong> — All managers are stack-allocated and passed by pointer; thread-safe via <code>std::mutex</code></li>
+            <li><strong>No primary window</strong> — All OS windows are peer-equivalent, managed uniformly by <code>WindowManager</code></li>
+            <li><strong>Stable figure IDs</strong> — <code>FigureId</code> typedef with <code>FigureRegistry</code> replaces positional indexing</li>
+            <li><strong>Runtime dual-mode</strong> — Inproc vs multiproc selected at runtime, both code paths always compiled</li>
+            <li><strong>Header-only math</strong> — Self-contained vec3/vec4/mat4/quat library (~350 LOC); no GLM dependency</li>
+            <li><strong>Workspace backward compat</strong> — v4 format loads v1/v2/v3 files with sensible defaults</li>
+            <li><strong>IPC protocol</strong> — Versioned TLV binary protocol with <code>request_id</code> correlation, <code>seq</code> ordering, snapshot + diff</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- RENDERING SAFETY -->
       <section class="section">
         <div class="container">
           <h2>Rendering Safety Principles</h2>
           <ul>
-            <li>Fence-aware frame lifecycle</li>
-            <li>Swapchain recreation paths for resize/out-of-date</li>
-            <li>No per-frame pipeline rebuilds in hot paths</li>
-            <li>Validation-focused CI with golden regression tests</li>
+            <li>Fence-aware frame lifecycle — never destroy resources without waiting on fences</li>
+            <li>Swapchain recreation paths for resize / <code>VK_ERROR_OUT_OF_DATE_KHR</code></li>
+            <li>No per-frame pipeline rebuilds or descriptor pool allocations in hot paths</li>
+            <li>No <code>vkDeviceWaitIdle()</code> inside the frame loop</li>
+            <li>Safe resize sequence: wait fences → destroy → recreate swapchain → recreate framebuffers → update projection → re-record</li>
+            <li>Validation-focused CI with golden regression tests via lavapipe</li>
           </ul>
-          <div class="callout warn">For implementation details, see <code>src/render/vulkan</code> and <code>plans/</code> docs in the repository.</div>
         </div>
       </section>
 
+      <!-- PROJECT STRUCTURE -->
+      <section class="section">
+        <div class="container">
+          <h2>Project Structure</h2>
+          <pre><code>spectra/
+├── include/spectra/       # Public headers: spectra.hpp, easy.hpp, math3d.hpp,
+│                          #   plot_style.hpp, axes.hpp, axes3d.hpp, series.hpp,
+│                          #   series3d.hpp, fwd.hpp, ...
+├── src/
+│   ├── core/             # Figure, Axes, Axes3D, Series, Series3D, layout, coords
+│   ├── render/           # Renderer, TextRenderer, abstract Backend interface
+│   │   └── vulkan/       # VulkanBackend, device, swapchain, pipeline, buffers,
+│   │                     #   WindowContext
+│   ├── gpu/shaders/      # GLSL 450: line, scatter, grid, text, surface3d, mesh3d
+│   ├── anim/             # Animator, easing, frame scheduler, frame profiler
+│   ├── ui/               # App, WindowManager, FigureManager, DockSystem,
+│   │                     #   ThemeManager, CommandRegistry, ShortcutManager,
+│   │                     #   UndoManager, TransitionEngine, TimelineEditor,
+│   │                     #   KeyframeInterpolator, AnimationCurveEditor,
+│   │                     #   CameraAnimator, ModeTransition, Inspector,
+│   │                     #   DataInteraction, AxisLinkManager, DataTransform,
+│   │                     #   RecordingExport, Workspace, PluginAPI, CsvLoader
+│   ├── ipc/              # IPC protocol: message types, TLV codec, transport
+│   ├── daemon/           # spectra-backend: FigureModel, SessionGraph,
+│   │                     #   ClientRouter, ProcessManager
+│   └── agent/            # spectra-window: agent main loop, snapshot→Figure
+├── python/
+│   ├── spectra/          # Python package: Session, Figure, Axes, Series,
+│   │                     #   easy API, codec, transport
+│   ├── examples/         # Python example scripts
+│   └── tests/            # Python test suite (50+ tests)
+├── examples/             # 40+ C++ example programs
+├── tests/
+│   ├── unit/             # 1,200+ unit tests (Google Test)
+│   ├── golden/           # Golden image tests (2D + 3D phases)
+│   ├── bench/            # Performance benchmarks (100+)
+│   └── util/             # MultiWindowFixture, ValidationGuard, GpuHangDetector
+├── docker/               # Docker Compose + Dockerfile
+├── packaging/            # AppImage, AUR, Homebrew, shell completions
+├── third_party/          # stb_image, stb_image_write, stb_truetype, VMA
+├── plans/                # Architecture plans, roadmap, UI redesign spec
+├── cmake/                # CompileShaders, EmbedShaders, EmbedAssets, config
+├── .github/workflows/    # CI + Release pipeline
+├── version.txt           # Single source of truth: 0.1.0
+├── Makefile              # Developer workflow shortcuts
+└── CMakeLists.txt        # Root build configuration</code></pre>
+        </div>
+      </section>
+
+      <!-- DEEP DIVES -->
       <section class="section">
         <div class="container">
           <h2>Deep Dives</h2>
-          <ul class="list-tight">
-            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/MULTI_WINDOW_ARCHITECTURE.md">Multi-window architecture plan</a></li>
-            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/PYTHON_IPC_ARCHITECTURE.md">Python IPC architecture</a></li>
-            <li><a href="https://github.com/danlil240/Spectra/blob/main/plans/ROADMAP.md">Roadmap and delivery phases</a></li>
-          </ul>
+          <div class="grid cards-3">
+            <article class="card link-card">
+              <h3>Multi-Window Architecture</h3>
+              <p>WindowContext extraction, per-window swapchain, figure registry, tear-off UX.</p>
+              <a href="https://github.com/danlil240/Spectra/blob/main/plans/MULTI_WINDOW_ARCHITECTURE.md">Read plan →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Python IPC Architecture</h3>
+              <p>TLV protocol, session management, codec layers, backend daemon design.</p>
+              <a href="https://github.com/danlil240/Spectra/blob/main/plans/PYTHON_IPC_ARCHITECTURE.md">Read plan →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Roadmap &amp; Delivery</h3>
+              <p>Weekly progress, agent breakdown, phase tracking, test summary.</p>
+              <a href="https://github.com/danlil240/Spectra/blob/main/plans/ROADMAP.md">Read roadmap →</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTRIBUTING -->
+      <section class="section">
+        <div class="container">
+          <h2>Contributing Guidelines</h2>
+          <p>The codebase is organized into independent modules — see <a href="https://github.com/danlil240/Spectra/blob/main/plans/agents_plan.md"><code>plans/agents_plan.md</code></a> for the module decomposition.</p>
+          <ol>
+            <li><strong>C++20</strong> — No global state, RAII throughout, thread-safe via <code>std::mutex</code></li>
+            <li><strong>Public headers</strong> — Keep <code>include/spectra/</code> minimal; implementation in <code>src/</code></li>
+            <li><strong>Tests required</strong> — Add unit tests for new functionality; run <code>ctest</code> before submitting</li>
+            <li><strong>No speculative fixes</strong> — Measure first (add instrumentation, capture timing) before optimizing</li>
+            <li><strong>Vulkan safety</strong> — Never destroy resources without waiting on fences; follow the safe resize sequence</li>
+            <li><strong>Window independence</strong> — No "primary window" assumptions; all windows must behave identically</li>
+          </ol>
+          <pre><code># Development workflow
+make build test     # Build + run tests
+make format         # clang-format
+make pip-dev        # Python dev install
+cd docker &amp;&amp; docker compose up --build spectra-xvfb</code></pre>
         </div>
       </section>
     </main>

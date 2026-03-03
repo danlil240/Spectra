@@ -452,11 +452,19 @@ std::string RosSessionManager::serialize_preset(const ExpressionPresetEntry& e)
 std::string RosSessionManager::serialize_panels(const PanelVisibility& p)
 {
     std::string out = "{";
-    out += "\"topic_list\":" + std::string(p.topic_list  ? "true" : "false") + ",";
-    out += "\"topic_echo\":" + std::string(p.topic_echo  ? "true" : "false") + ",";
+    out += "\"topic_list\":" + std::string(p.topic_list ? "true" : "false") + ",";
+    out += "\"topic_echo\":" + std::string(p.topic_echo ? "true" : "false") + ",";
     out += "\"topic_stats\":" + std::string(p.topic_stats ? "true" : "false") + ",";
-    out += "\"plot_area\":" + std::string(p.plot_area   ? "true" : "false") + ",";
-    out += "\"bag_info\":" + std::string(p.bag_info    ? "true" : "false");
+    out += "\"plot_area\":" + std::string(p.plot_area ? "true" : "false") + ",";
+    out += "\"bag_info\":" + std::string(p.bag_info ? "true" : "false") + ",";
+    out += "\"bag_playback\":" + std::string(p.bag_playback ? "true" : "false") + ",";
+    out += "\"log_viewer\":" + std::string(p.log_viewer ? "true" : "false") + ",";
+    out += "\"diagnostics\":" + std::string(p.diagnostics ? "true" : "false") + ",";
+    out += "\"node_graph\":" + std::string(p.node_graph ? "true" : "false") + ",";
+    out += "\"tf_tree\":" + std::string(p.tf_tree ? "true" : "false") + ",";
+    out += "\"param_editor\":" + std::string(p.param_editor ? "true" : "false") + ",";
+    out += "\"service_caller\":" + std::string(p.service_caller ? "true" : "false") + ",";
+    out += "\"nav_rail\":" + std::string(p.nav_rail ? "true" : "false");
     out += "}";
     return out;
 }
@@ -475,6 +483,8 @@ std::string RosSessionManager::serialize(const RosSession& session)
     out += "  \"subplot_rows\": " + std::to_string(session.subplot_rows) + ",\n";
     out += "  \"subplot_cols\": " + std::to_string(session.subplot_cols) + ",\n";
     out += "  \"time_window_s\": " + std::to_string(session.time_window_s) + ",\n";
+    out += "  \"nav_rail_expanded\": " + std::string(session.nav_rail_expanded ? "true" : "false") + ",\n";
+    out += "  \"nav_rail_width\": " + std::to_string(session.nav_rail_width) + ",\n";
     out += "  \"saved_at\": \"" + json_escape(session.saved_at) + "\",\n";
     out += "  \"description\": \"" + json_escape(session.description) + "\",\n";
 
@@ -743,11 +753,19 @@ ExpressionPresetEntry RosSessionManager::deserialize_preset(const std::string& j
 PanelVisibility RosSessionManager::deserialize_panels(const std::string& json)
 {
     PanelVisibility p;
-    p.topic_list  = json_get_bool(json, "topic_list",  true);
-    p.topic_echo  = json_get_bool(json, "topic_echo",  true);
-    p.topic_stats = json_get_bool(json, "topic_stats", true);
-    p.plot_area   = json_get_bool(json, "plot_area",   true);
-    p.bag_info    = json_get_bool(json, "bag_info",    false);
+    p.topic_list     = json_get_bool(json, "topic_list", true);
+    p.topic_echo     = json_get_bool(json, "topic_echo", true);
+    p.topic_stats    = json_get_bool(json, "topic_stats", true);
+    p.plot_area      = json_get_bool(json, "plot_area", true);
+    p.bag_info       = json_get_bool(json, "bag_info", false);
+    p.bag_playback   = json_get_bool(json, "bag_playback", false);
+    p.log_viewer     = json_get_bool(json, "log_viewer", false);
+    p.diagnostics    = json_get_bool(json, "diagnostics", false);
+    p.node_graph     = json_get_bool(json, "node_graph", false);
+    p.tf_tree        = json_get_bool(json, "tf_tree", false);
+    p.param_editor   = json_get_bool(json, "param_editor", false);
+    p.service_caller = json_get_bool(json, "service_caller", false);
+    p.nav_rail       = json_get_bool(json, "nav_rail", true);
     return p;
 }
 
@@ -784,6 +802,8 @@ bool RosSessionManager::deserialize(const std::string& json,
     out.subplot_rows  = json_get_int(json, "subplot_rows", 4);
     out.subplot_cols  = json_get_int(json, "subplot_cols", 1);
     out.time_window_s = json_get_double(json, "time_window_s", 30.0);
+    out.nav_rail_expanded = json_get_bool(json, "nav_rail_expanded", false);
+    out.nav_rail_width = json_get_double(json, "nav_rail_width", 220.0);
     out.saved_at      = json_get_string(json, "saved_at");
     out.description   = json_get_string(json, "description");
 

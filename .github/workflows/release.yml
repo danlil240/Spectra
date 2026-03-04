@@ -13,7 +13,14 @@ env:
 jobs:
   # ─── Linux Packages (.deb, .tar.gz) ────────────────────────────────────
   package-linux:
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: ubuntu22.04
+          - os: ubuntu-24.04
+            label: ubuntu24.04
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,17 +74,36 @@ jobs:
           curl -fsSL -o linuxdeploy-x86_64.AppImage \
             "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
           chmod +x linuxdeploy-x86_64.AppImage
-          bash packaging/AppImage/build-appimage.sh build
+          test -f "${GITHUB_WORKSPACE}/packaging/AppImage/build-appimage.sh"
+          bash "${GITHUB_WORKSPACE}/packaging/AppImage/build-appimage.sh" build
+
+      - name: Normalize Linux artifact names
+        run: |
+          mkdir -p artifacts
+          for f in build/*.deb; do
+            b="$(basename "$f" .deb)"
+            cp "$f" "artifacts/${b}_${{ matrix.label }}.deb"
+          done
+          for f in build/*.tar.gz; do
+            b="$(basename "$f" .tar.gz)"
+            cp "$f" "artifacts/${b}_${{ matrix.label }}.tar.gz"
+          done
+          for f in build/*.rpm; do
+            [ -f "$f" ] || continue
+            b="$(basename "$f" .rpm)"
+            cp "$f" "artifacts/${b}_${{ matrix.label }}.rpm"
+          done
+          for f in build/*.AppImage; do
+            b="$(basename "$f" .AppImage)"
+            cp "$f" "artifacts/${b}_${{ matrix.label }}.AppImage"
+          done
+          ls -la artifacts
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages
-          path: |
-            build/*.tar.gz
-            build/*.deb
-            build/*.rpm
-            build/*.AppImage
+          name: linux-packages-${{ matrix.label }}
+          path: artifacts/*
 
   # ─── macOS Package (.tar.gz) ────────────────────────────────────────────
   package-macos:
@@ -207,6 +233,20 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf -y install
+            vulkan-loader-devel
+            vulkan-headers
+            glslang
+            glfw-devel
+            mesa-libGL-devel
+            libXrandr-devel
+            libXinerama-devel
+            libXcursor-devel
+            libXi-devel
+            libxkbcommon-devel
+            wayland-devel
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -274,7 +314,9 @@ jobs:
             **Linux (.deb):**
             ```
             sudo apt update
-            sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64.deb
+            sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu22.04.deb
+            # or:
+            sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu24.04.deb
             ```
 
             **From source:**

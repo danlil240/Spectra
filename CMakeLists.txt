@@ -524,6 +524,18 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     endif()
 endif()
 
+# ROS2 adapter deployment (only when built with SPECTRA_USE_ROS2=ON)
+if(TARGET spectra_ros2_adapter)
+    install(TARGETS spectra_ros2_adapter
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+if(TARGET spectra-ros)
+    install(TARGETS spectra-ros RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+
 # Python wheel: bundle backend binary into the Python package
 if(SPECTRA_PYTHON_WHEEL AND TARGET spectra-backend)
     install(TARGETS spectra-backend
@@ -600,7 +612,9 @@ set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
 set(CPACK_RESOURCE_FILE_README  ${CMAKE_CURRENT_SOURCE_DIR}/README.md)
 
 # Debian
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1 (>= 1.2)")
+# Auto-detect shared-library runtime dependencies from built binaries
+# (glibc, X11/Wayland, stdlib, etc.) so apt can resolve them automatically.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_SECTION "science")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 

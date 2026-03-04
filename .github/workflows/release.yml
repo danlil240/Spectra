@@ -49,6 +49,19 @@ jobs:
           cpack -G DEB
           cpack -G RPM || true
 
+      - name: Inspect DEB metadata
+        run: |
+          for f in build/*.deb; do
+            echo "==== $f ===="
+            dpkg-deb -I "$f" | sed -n '1,120p'
+          done
+
+      - name: Smoke-test DEB install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./build/*.deb
+          spectra-backend --version
+
       - name: Build AppImage
         run: |
           curl -fsSL -o linuxdeploy-x86_64.AppImage \
@@ -260,7 +273,8 @@ jobs:
 
             **Linux (.deb):**
             ```
-            sudo dpkg -i spectra_${{ steps.version.outputs.version }}_amd64.deb
+            sudo apt update
+            sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64.deb
             ```
 
             **From source:**

@@ -235,9 +235,9 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_MANYLINUX_X86_64_IMAGE: quay.io/pypa/manylinux_2_34_x86_64:latest
-          # manylinux_2_34 toolchains can default to x86_64_v2; force portable x86_64 ISA
-          # so auditwheel can repair to manylinux_2_34_x86_64.
+          # manylinux_2_34 is currently emitting x86_64_v2 ISA notes for our wheel.
+          # Use manylinux_2_28 for a stable x86_64 baseline auditwheel target.
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_ENVIRONMENT_LINUX: >
             CFLAGS="-march=x86-64 -mtune=generic"
             CXXFLAGS="-march=x86-64 -mtune=generic"

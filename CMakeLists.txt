@@ -43,13 +43,11 @@ option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
-# manylinux_2_34 toolchains may default to x86_64_v2, which auditwheel rejects
-# for manylinux_x86_64 wheels. Force portable ISA for Linux x86_64 wheel builds.
+# Linux wheel builds: keep code generation on portable x86_64 ISA.
 if(SPECTRA_PYTHON_WHEEL
    AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     add_compile_options(-march=x86-64 -mtune=generic)
-    add_link_options(-Wl,-z,x86-64-baseline)
     message(STATUS "SPECTRA_PYTHON_WHEEL: forcing portable x86_64 ISA (-march=x86-64 -mtune=generic)")
 endif()
 
@@ -259,6 +257,15 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
         src/ui/imgui/imgui_integration.cpp
     )
+
+    # GCC 14 warns on an upstream ImGui backend memset pattern; keep -Werror for
+    # project code while relaxing this one third-party source file.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set_source_files_properties(
+            ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+            PROPERTIES COMPILE_OPTIONS "-Wno-error=class-memaccess"
+        )
+    endif()
 
     # ImGui-dependent UI sources — guarded so parallel agents don't break the build.
     # When adding a new .cpp that depends on ImGui, add an if(EXISTS) block here.

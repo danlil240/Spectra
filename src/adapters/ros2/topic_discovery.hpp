@@ -166,10 +166,17 @@ private:
     RefreshDoneCallback refresh_done_cb_;
 
     std::chrono::milliseconds interval_{2000};
-    rclcpp::TimerBase::SharedPtr timer_;
+
+    // Background refresh thread (replaces the wall timer so that expensive
+    // graph queries do not block the SingleThreadedExecutor and starve
+    // subscription / service response delivery).
+    std::thread              refresh_thread_;
+    std::mutex               stop_mutex_;
+    std::condition_variable  stop_cv_;
 
     std::atomic<bool> running_{false};
     std::atomic<bool> refresh_in_progress_{false};
+    std::atomic<bool> stop_requested_{false};
 };
 
 }   // namespace spectra::adapters::ros2

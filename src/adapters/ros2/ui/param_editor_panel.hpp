@@ -48,10 +48,13 @@
 //   panel.draw();         // renders ImGui window
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -337,8 +340,20 @@ private:
     void do_refresh();
 
     // Internal set one parameter (live-edit path + apply_staged path).
+    // WARNING: blocks for up to 7 s — never call from the render thread.
     ParamSetResult set_param_internal(const std::string& param_name,
                                       const ParamValue& value);
+
+    // Queue a set operation for the background worker thread (non-blocking).
+    // Safe to call from the render thread.
+    void queue_set_param(const std::string& param_name,
+                         const ParamValue& value);
+
+    // Background worker that drains set_queue_ and calls set_param_internal.
+    void set_worker_func();
+
+    // Poll completed async set results (called from draw() each frame).
+    void poll_set_results();
 
     // ImGui helpers (compiled only with SPECTRA_USE_IMGUI)
     void draw_toolbar();
@@ -393,6 +408,28 @@ private:
     // Callbacks
     RefreshDoneCallback refresh_done_cb_;
     ParamSetCallback    param_set_cb_;
+
+    // ---------- async set worker (separate lock domain) -------------------
+
+    struct PendingSetOp
+    {
+        std::string name;
+        ParamValue  value;
+    };
+
+    struct SetResultEntry
+    {
+        std::string    name;
+        ParamValue     value;
+        ParamSetResult result;
+    };
+
+    std::mutex              set_queue_mutex_;
+    std::condition_variable set_cv_;
+    std::deque<PendingSetOp> set_queue_;          // pending operations
+    std::deque<SetResultEntry> set_results_;      // completed results
+    std::thread             set_worker_;
+    std::atomic<bool>       stop_worker_{false};
 
     // ImGui transient state (render thread only — no lock needed)
     char   node_input_buf_[256]{};   // node name text box

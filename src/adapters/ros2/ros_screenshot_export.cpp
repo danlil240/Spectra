@@ -25,6 +25,7 @@
     #pragma GCC diagnostic ignored "-Wunused-function"
     #pragma GCC diagnostic ignored "-Wsign-conversion"
     #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+    #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
 #define STB_IMAGE_WRITE_STATIC

@@ -16,6 +16,12 @@
 //   --cols N                     subplot grid cols (default 1)
 //
 // SIGINT terminates cleanly: bridge shuts down, Vulkan resources freed.
+//
+// ASan note: ROS2 Humble's librcl has a known new-delete-type-mismatch in
+// rcl_wait_set_resize.  When running under AddressSanitizer, launch with:
+//   ASAN_OPTIONS=new_delete_type_mismatch=0 ./spectra-ros
+// or set SPECTRA_NO_VALIDATION=1 to also skip Vulkan validation layers
+// (which add ~8s to startup in debug builds).
 
 #include "ros2_adapter.hpp"
 #include "ros_app_shell.hpp"
@@ -29,6 +35,27 @@
 
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
+
+// ---------------------------------------------------------------------------
+// ASan default options: suppress ROS2 Humble's rcl_wait_set_resize
+// new-delete-type-mismatch (upstream bug in retyped_reallocate).
+// ---------------------------------------------------------------------------
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+#    define HAS_ASAN 1
+#  endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) && !defined(HAS_ASAN)
+#  define HAS_ASAN 1
+#endif
+
+#ifdef HAS_ASAN
+extern "C" const char* __asan_default_options()
+{
+    return "new_delete_type_mismatch=0";
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Global shutdown flag set by the SIGINT handler
@@ -137,10 +164,17 @@ int main(int argc, char** argv)
     auto* ui_ctx = app.ui_context();
     if (ui_ctx && ui_ctx->imgui_ui)
     {
+        // Enable ImGui docking BEFORE the first NewFrame() call.
+        ui_ctx->imgui_ui->enable_docking();
         auto& lm = ui_ctx->imgui_ui->get_layout_manager();
         lm.set_inspector_visible(false);
         lm.set_tab_bar_visible(false);
         ui_ctx->imgui_ui->set_nav_rail_visible(false);
+        // Suppress all Spectra chrome — spectra-ros owns its own menu bar,
+        // status bar, canvas, and docking layout via RosAppShell.
+        ui_ctx->imgui_ui->set_command_bar_visible(false);
+        ui_ctx->imgui_ui->set_status_bar_visible(false);
+        ui_ctx->imgui_ui->set_canvas_visible(false);
         ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
         {
             shell.draw();

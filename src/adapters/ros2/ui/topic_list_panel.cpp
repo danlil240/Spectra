@@ -443,10 +443,9 @@ void TopicListPanel::draw(bool* p_open)
             auto it = std::find_if(topics_.begin(), topics_.end(),
                                    [&](const TopicInfo& ti) { return ti.name == tname; });
             if (it == topics_.end()) continue;
-            TopicStats* stats_ptr = nullptr;
             {
                 std::lock_guard<std::mutex> lk_s(stats_mutex_);
-                stats_ptr = &stats_map_[tname];  // ensure entry exists
+                (void)stats_map_[tname];  // ensure entry exists
             }
             // We temporarily unlock stats to avoid nested lock; we only read here.
             std::lock_guard<std::mutex> lk_s(stats_mutex_);

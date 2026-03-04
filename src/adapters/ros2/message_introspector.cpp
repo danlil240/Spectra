@@ -407,6 +407,7 @@ static bool parse_type_string(
 }
 
 // Replace '/' with '__' for symbol names.
+[[maybe_unused]]
 static std::string to_symbol_part(const std::string& s)
 {
     std::string r = s;

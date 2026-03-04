@@ -121,7 +121,6 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
 
     // --- Drop detection ---
     if (hz_avg > 0.0 && last_gap_ns > 0) {
-        const double expected_gap_ns = 1e9 / hz_avg;
         // Use the stored drop_detected flag; caller sets drop_factor externally.
         // Here we compare: if last_gap_ns > 3× expected, flag it.
         // The actual factor is applied in TopicStatsOverlay::compute_now().

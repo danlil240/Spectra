@@ -172,6 +172,11 @@ struct RosSession
 
     // Optional user-visible description / notes.
     std::string description;
+
+    // ImGui docking layout snapshot (from ImGui::SaveIniSettingsToMemory).
+    // Empty on sessions created before layout persistence was supported.
+    // When non-empty, applied via LoadIniSettingsFromMemory on session restore.
+    std::string imgui_ini_data;
 };
 
 // ---------------------------------------------------------------------------

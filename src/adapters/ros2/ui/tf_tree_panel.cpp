@@ -562,7 +562,8 @@ void TfTreePanel::set_select_callback(FrameSelectCallback cb)
 
 #ifdef SPECTRA_USE_IMGUI
 
-// Helper: draw a single row for a frame
+// Helper: draw a single row for a frame (used by table-mode rendering below)
+[[maybe_unused]]
 static void draw_frame_row(const TfFrameStats& f, bool selected,
                             const std::string& filter,
                             std::string& out_selected,

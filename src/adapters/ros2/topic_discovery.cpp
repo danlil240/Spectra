@@ -62,34 +62,45 @@ TopicDiscovery::~TopicDiscovery()
 
 void TopicDiscovery::start()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-
     if (running_.load(std::memory_order_acquire))
         return;
 
     running_.store(true, std::memory_order_release);
+    stop_requested_.store(false, std::memory_order_release);
 
-    // Create a wall timer on the node's executor.  The lambda captures this
-    // by raw pointer — safe because stop() cancels the timer before this
-    // object is destroyed.
-    timer_ = node_->create_wall_timer(
-        interval_,
-        [this]() { do_refresh(); });
+    // Run graph queries on a dedicated thread so the executor stays free for
+    // subscriptions and service responses.
+    refresh_thread_ = std::thread([this]() {
+        while (!stop_requested_.load(std::memory_order_acquire))
+        {
+            do_refresh();
+
+            // Sleep for the configured interval, but wake early if stop is
+            // requested.
+            std::unique_lock<std::mutex> lk(stop_mutex_);
+            std::chrono::milliseconds iv;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                iv = interval_;
+            }
+            stop_cv_.wait_for(lk, iv, [this] {
+                return stop_requested_.load(std::memory_order_acquire);
+            });
+        }
+    });
 }
 
 void TopicDiscovery::stop()
 {
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (!running_.load(std::memory_order_acquire))
-            return;
-        running_.store(false, std::memory_order_release);
-        if (timer_)
-        {
-            timer_->cancel();
-            timer_.reset();
-        }
-    }
+    if (!running_.load(std::memory_order_acquire))
+        return;
+
+    running_.store(false, std::memory_order_release);
+    stop_requested_.store(true, std::memory_order_release);
+    stop_cv_.notify_all();
+
+    if (refresh_thread_.joinable())
+        refresh_thread_.join();
 }
 
 void TopicDiscovery::refresh()

@@ -99,6 +99,13 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     // backend init operate on the correct context/atlas.
     ImGui::SetCurrentContext(imgui_context_);
 
+    // Disable ImGui's automatic imgui.ini persistence for this window.  Spectra
+    // handles layout/workspace persistence via WorkspaceData (JSON) rather than
+    // imgui.ini, so letting ImGui write/read its own .ini file only causes
+    // conflicts (especially in spectra-ros where docking state is managed by
+    // RosSessionManager).
+    ImGui::GetIO().IniFilename = nullptr;
+
     // Initialize theme system
     ui::ThemeManager::instance();
 
@@ -199,6 +206,19 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
     initialized_        = true;
     return true;
+}
+
+void ImGuiIntegration::enable_docking()
+{
+#ifdef IMGUI_HAS_DOCK
+    if (imgui_context_)
+    {
+        ImGuiContext* prev = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(imgui_context_);
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        ImGui::SetCurrentContext(prev);
+    }
+#endif
 }
 
 void ImGuiIntegration::shutdown()
@@ -355,20 +375,30 @@ void ImGuiIntegration::build_ui(Figure& figure)
         layout_manager_->set_bottom_panel_height(new_h);
     }
 
-    // Draw all zones using layout manager
-    draw_command_bar();
+    // Draw all zones using layout manager.
+    // Each draw call is gated so adapter shells (e.g. spectra-ros) can suppress
+    // Spectra's own chrome and replace it with their own menu/status/canvas.
+    if (command_bar_visible_)
+        draw_command_bar();
     draw_nav_rail();
-    draw_canvas(figure);
-    draw_plot_overlays(figure);
-    draw_axis_link_indicators(figure);
-    draw_axes_context_menu(figure);
-    if (layout_manager_->is_inspector_visible())
+    if (canvas_visible_)
+    {
+        draw_canvas(figure);
+        draw_plot_overlays(figure);
+        draw_axis_link_indicators(figure);
+        draw_axes_context_menu(figure);
+    }
+    if (canvas_visible_ && layout_manager_->is_inspector_visible())
     {
         draw_inspector(figure);
     }
-    draw_status_bar();
-    draw_pane_tab_headers();   // Must run before splitters so pane_tab_hovered_ is set
-    draw_split_view_splitters();
+    if (status_bar_visible_)
+        draw_status_bar();
+    if (canvas_visible_)
+    {
+        draw_pane_tab_headers();   // Must run before splitters so pane_tab_hovered_ is set
+        draw_split_view_splitters();
+    }
 
     // Draw timeline panel (Agent G — bottom dock)
     if (show_timeline_ && timeline_editor_)
@@ -707,8 +737,10 @@ void ImGuiIntegration::build_empty_ui()
     float dt = ImGui::GetIO().DeltaTime;
     ui::ThemeManager::instance().update(dt);
 
-    // Draw command bar (menu) so user can create figures / load CSV
-    draw_command_bar();
+    // Draw command bar (menu) so user can create figures / load CSV.
+    // Suppressed when an adapter shell provides its own menu (e.g. spectra-ros).
+    if (command_bar_visible_)
+        draw_command_bar();
 
     // Fill the rest with the background color
     auto&       theme = ui::theme();

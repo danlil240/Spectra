@@ -113,6 +113,7 @@ static std::string json_get_object(const std::string& json, const std::string& k
 }
 
 // Build a simple flat JSON object from key-value string pairs.
+[[maybe_unused]]
 static std::string build_json_object(
     const std::vector<std::pair<std::string,std::string>>& kv,
     bool values_are_strings = true)

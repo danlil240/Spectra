@@ -265,6 +265,19 @@ class ImGuiIntegration
     bool is_nav_rail_visible() const { return show_nav_rail_; }
     void set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
 
+    // Chrome visibility — set to false by adapters that provide their own UI
+    // (e.g. spectra-ros supplies its own menu bar, status bar, and canvas).
+    bool is_command_bar_visible() const { return command_bar_visible_; }
+    void set_command_bar_visible(bool v) { command_bar_visible_ = v; }
+    bool is_status_bar_visible() const { return status_bar_visible_; }
+    void set_status_bar_visible(bool v) { status_bar_visible_ = v; }
+    bool is_canvas_visible() const { return canvas_visible_; }
+    void set_canvas_visible(bool v) { canvas_visible_ = v; }
+
+    // Enable ImGui docking support.  Must be called BEFORE the first
+    // NewFrame() to avoid an ImGui assertion.
+    void enable_docking();
+
     // Series selection from canvas click (updates inspector context, toggles on re-click)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
 
@@ -412,6 +425,11 @@ class ImGuiIntegration
     // Panel state
     bool panel_open_    = false;
     bool show_nav_rail_ = true;   // Nav rail toolbar visibility
+
+    // Adapter chrome suppression flags (all default true — safe for normal builds)
+    bool command_bar_visible_ = true;   // Spectra command bar / menu
+    bool status_bar_visible_  = true;   // Spectra status bar
+    bool canvas_visible_      = true;   // Plot canvas, overlays, splitters, tab headers
 
     enum class Section
     {

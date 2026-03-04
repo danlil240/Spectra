@@ -75,6 +75,54 @@ struct RosAppConfig
 
 RosAppConfig parse_args(int argc, char** argv, std::string& error_out);
 
+// ---------------------------------------------------------------------------
+// RosWorkspaceState — global selection context shared across all panels.
+//
+// Owned by RosAppShell and reset once per frame.  Panels read this struct
+// to react to user selection changes without coupling to each other.
+// ---------------------------------------------------------------------------
+
+struct RosWorkspaceState
+{
+    // Currently selected topic / type / field.
+    std::string selected_topic;
+    std::string selected_type;
+    std::string selected_field;   // fully-qualified field path within the topic
+
+    // Index of the subplot slot that should receive new series (-1 = auto).
+    int active_subplot_idx = -1;
+
+    // Per-frame event flags — set by shell actions, consumed during draw().
+    bool selection_changed = false;   // topic or field changed this frame
+    bool plot_requested    = false;   // user asked to add selected_field to plot
+
+    // Select a topic; type is resolved by the shell via TopicDiscovery.
+    // Marks selection_changed = true and resets selected_field.
+    void select_topic(const std::string& topic, const std::string& type)
+    {
+        if (selected_topic == topic && selected_type == type)
+            return;
+        selected_topic    = topic;
+        selected_type     = type;
+        selected_field    = "";
+        selection_changed = true;
+    }
+
+    void select_field(const std::string& field)
+    {
+        selected_field    = field;
+        selection_changed = true;
+    }
+
+    void request_plot() { plot_requested = true; }
+
+    void reset_events()
+    {
+        selection_changed = false;
+        plot_requested    = false;
+    }
+};
+
 class RosAppShell
 {
 public:
@@ -193,8 +241,14 @@ public:
     RosSessionManager& session_manager() { return *session_mgr_; }
     const RosSessionManager& session_manager() const { return *session_mgr_; }
 
-    void on_topic_selected(const std::string& topic);
+    // topic_hint allows callers (e.g. BagInfoPanel) to supply the ROS type
+    // directly when discovery may not have it yet.  Empty = auto-discover.
+    void on_topic_selected(const std::string& topic,
+                           const std::string& type_hint = "");
     void on_topic_plot(const std::string& topic);
+
+    // Read-only access to the shared workspace selection context.
+    const RosWorkspaceState& workspace() const { return workspace_state_; }
 
 private:
     void subscribe_initial_topics();
@@ -280,8 +334,8 @@ private:
 
     std::atomic<uint64_t> total_messages_{0};
 
-    std::string selected_topic_;
-    std::string selected_type_;
+    // Centralised selection context — reset each frame in draw().
+    RosWorkspaceState workspace_state_;
 
     int next_replace_slot_ = 1;
 
@@ -290,6 +344,11 @@ private:
 
     // For per-frame dt in poll()
     double last_poll_time_s_ = 0.0;
+
+    // Layout persistence: cached ini updated each frame via WantSaveIniSettings;
+    // pending ini is applied before the next DockSpace() call after a load.
+    std::string cached_imgui_ini_;
+    std::string pending_imgui_ini_;
 
 #ifdef SPECTRA_USE_IMGUI
     unsigned int dockspace_id_ = 0;

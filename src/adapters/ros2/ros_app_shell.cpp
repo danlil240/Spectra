@@ -195,8 +195,8 @@ bool RosAppShell::init(int argc, char** argv)
     bag_info_->set_topic_select_callback(
         [this](const std::string& topic, const std::string& type)
         {
-            selected_type_ = type;
-            on_topic_selected(topic);
+            // Pass the bag-provided type directly so discovery is not needed.
+            on_topic_selected(topic, type);
         });
     bag_info_->set_topic_plot_callback(
         [this](const std::string& topic, const std::string& /*type*/)
@@ -350,8 +350,21 @@ void RosAppShell::draw()
 #ifdef SPECTRA_USE_IMGUI
     if (shutdown_requested()) return;
 
+    // Reset per-frame workspace events so panels see a clean state.
+    workspace_state_.reset_events();
+
 #ifdef IMGUI_HAS_DOCK
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // Cache ImGui layout whenever ImGui requests a settings save.
+    // This lets capture_session() include layout data without calling
+    // SaveIniSettingsToMemory at shutdown (when ImGui may already be torn down).
+    if (ImGui::GetIO().WantSaveIniSettings)
+    {
+        size_t ini_sz = 0;
+        const char* ini_ptr = ImGui::SaveIniSettingsToMemory(&ini_sz);
+        if (ini_ptr && ini_sz > 0)
+            cached_imgui_ini_.assign(ini_ptr, ini_sz);
+        ImGui::GetIO().WantSaveIniSettings = false;
+    }
 #endif
 
     draw_menu_bar();
@@ -412,7 +425,17 @@ void RosAppShell::draw()
     {
         FieldDragPayload p;
         PlotTarget       t = PlotTarget::CurrentAxes;
-        drag_drop_->consume_pending_request(p, t);
+        if (drag_drop_->consume_pending_request(p, t) && p.valid())
+            handle_plot_request(p, t);
+    }
+
+    // Handle "Add to Plot" requests raised from the Plot Area or menu.
+    if (workspace_state_.plot_requested && !workspace_state_.selected_topic.empty())
+    {
+        std::string topic_field = workspace_state_.selected_topic;
+        if (!workspace_state_.selected_field.empty())
+            topic_field += ':' + workspace_state_.selected_field;
+        add_topic_plot(topic_field);
     }
 
     draw_status_bar();
@@ -491,6 +514,16 @@ void RosAppShell::draw_dockspace()
 {
 #ifdef SPECTRA_USE_IMGUI
 #ifdef IMGUI_HAS_DOCK
+    // Restore a pending ImGui layout BEFORE the DockSpace() call; ImGui
+    // requires LoadIniSettingsFromMemory to be called before the first
+    // DockSpace frame on which the layout should take effect.
+    if (!pending_imgui_ini_.empty())
+    {
+        ImGui::LoadIniSettingsFromMemory(pending_imgui_ini_.c_str(),
+                                         pending_imgui_ini_.size());
+        pending_imgui_ini_.clear();
+    }
+
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const float menu_h = ImGui::GetFrameHeightWithSpacing();
     const float status_h = ImGui::GetFrameHeight();
@@ -729,11 +762,43 @@ void RosAppShell::draw_plot_area(bool* p_open)
             if (ImGui::Button("Pause All Scroll")) subplot_mgr_->pause_all_scroll();
         }
 
-        if (!selected_topic_.empty())
-            ImGui::TextDisabled("Selected topic: %s", selected_topic_.c_str());
+        ImGui::Separator();
+
+        if (!workspace_state_.selected_topic.empty())
+        {
+            ImGui::TextDisabled("Selected: %s", workspace_state_.selected_topic.c_str());
+            if (!workspace_state_.selected_field.empty())
+            {
+                ImGui::SameLine();
+                ImGui::TextDisabled("[%s]", workspace_state_.selected_field.c_str());
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Add to Plot"))
+                    workspace_state_.request_plot();
+            }
+            else
+            {
+                // No field selected — offer a quick-add from the default field.
+                const std::string def_field =
+                    default_numeric_field(workspace_state_.selected_topic,
+                                         workspace_state_.selected_type);
+                if (!def_field.empty())
+                {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("Plot default field"))
+                    {
+                        workspace_state_.select_field(def_field);
+                        workspace_state_.request_plot();
+                    }
+                }
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("Select a topic in the Topic Monitor to plot its fields.");
+        }
 
         ImGui::Separator();
-        ImGui::TextDisabled("Drop a topic/field here to add a live plot");
+        ImGui::TextDisabled("Drag a topic/field from the Topic Monitor and drop it here.");
 
         if (drag_drop_)
             drag_drop_->draw_drop_zone();
@@ -900,6 +965,17 @@ void RosAppShell::draw_menu_bar()
 
     if (ImGui::BeginMenu("Plots"))
     {
+        // Add the current workspace selection to the plot.
+        // Enabled when a topic is selected; uses the specific field if one is
+        // selected, otherwise falls back to the first numeric field.
+        const bool has_topic = !workspace_state_.selected_topic.empty();
+        const bool has_field = !workspace_state_.selected_field.empty();
+        const char* add_label = has_field ? "Add Selected Field to Plot"
+                                          : "Add Selected Topic to Plot";
+        if (ImGui::MenuItem(add_label, nullptr, false, has_topic))
+            workspace_state_.request_plot();
+        ImGui::Separator();
+
         if (ImGui::MenuItem("Clear All Plots"))
             clear_plots();
         ImGui::Separator();
@@ -1050,17 +1126,19 @@ int RosAppShell::active_plot_count() const
     return n;
 }
 
-void RosAppShell::on_topic_selected(const std::string& topic)
+void RosAppShell::on_topic_selected(const std::string& topic,
+                                    const std::string& type_hint)
 {
-    selected_topic_ = topic;
-
-    std::string type;
-    if (discovery_)
+    // Resolve the ROS type: prefer the caller-supplied hint (e.g. from a bag
+    // file), falling back to live TopicDiscovery.
+    std::string type = type_hint;
+    if (type.empty() && discovery_)
     {
         TopicInfo info = discovery_->topic(topic);
         if (!info.types.empty()) type = info.types.front();
     }
-    selected_type_ = type;
+
+    workspace_state_.select_topic(topic, type);
 
     if (topic_echo_)  topic_echo_->set_topic(topic, type);
     if (topic_stats_) topic_stats_->set_topic(topic);
@@ -1336,6 +1414,10 @@ RosSession RosAppShell::capture_session() const
     s.nav_rail_expanded = nav_rail_expanded_;
     s.nav_rail_width    = nav_rail_width_;
 
+    // Persist the most recently cached ImGui docking layout.
+    // The cache is updated in draw() whenever ImGui sets WantSaveIniSettings.
+    s.imgui_ini_data = cached_imgui_ini_;
+
     if (subplot_mgr_)
     {
         for (const auto& h : subplot_mgr_->handles())
@@ -1394,7 +1476,18 @@ void RosAppShell::apply_session(const RosSession& session)
     nav_rail_expanded_ = session.nav_rail_expanded;
     set_nav_rail_width(static_cast<float>(session.nav_rail_width));
 
-    dock_layout_initialized_ = false;
+    // Queue the ImGui layout for restoration before the next DockSpace() call.
+    // If the session was saved before layout persistence was added, this is
+    // empty and apply_default_dock_layout() will run instead.
+    if (!session.imgui_ini_data.empty())
+    {
+        pending_imgui_ini_   = session.imgui_ini_data;
+        dock_layout_initialized_ = true;   // skip default layout; ini will apply
+    }
+    else
+    {
+        dock_layout_initialized_ = false;  // rebuild default layout
+    }
 
     if (subplot_mgr_) subplot_mgr_->clear();
     if (plot_mgr_)    plot_mgr_->clear();
@@ -1543,13 +1636,10 @@ std::string RosAppShell::detect_topic_type(const std::string& topic) const
             return ti.types.front();
     }
 
-    if (bridge_ && bridge_->is_ok() && bridge_->node())
-    {
-        const auto names = bridge_->node()->get_topic_names_and_types();
-        const auto it = names.find(topic);
-        if (it != names.end() && !it->second.empty())
-            return it->second.front();
-    }
+    // Do NOT fall back to node_->get_topic_names_and_types() here — that
+    // call goes through the DDS graph layer and can block the render thread
+    // for hundreds of milliseconds (or indefinitely during discovery).
+    // The TopicDiscovery cache is refreshed periodically and is sufficient.
 
     return {};
 }

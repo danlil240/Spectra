@@ -821,8 +821,12 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->begin_stage("cmd_record");
 #ifdef SPECTRA_USE_IMGUI
+        // Skip Vulkan figure rendering when the canvas is hidden (e.g. spectra-ros
+        // owns its own layout and suppresses the Spectra canvas).  This prevents
+        // plot axes and gridlines from bleeding through the dockspace background.
+        const bool render_canvas = !ui_ctx.imgui_ui || ui_ctx.imgui_ui->is_canvas_visible();
         auto& dock_system = ui_ctx.dock_system;
-        if (active_figure && dock_system.is_split())
+        if (render_canvas && active_figure && dock_system.is_split())
         {
             auto pane_infos = dock_system.get_pane_infos();
             for (const auto& pinfo : pane_infos)
@@ -834,7 +838,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 }
             }
         }
-        else if (active_figure)
+        else if (render_canvas && active_figure)
         {
             renderer_.render_figure_content(*active_figure);
         }
@@ -848,6 +852,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // Flush Vulkan plot text BEFORE ImGui so that UI overlays (command
         // palette, inspector, menus) render on top of plot labels.
         // The ImGui canvas ##window uses NoBackground so it won't overwrite text.
+#ifdef SPECTRA_USE_IMGUI
+        if (render_canvas)
+#endif
         {
             float sw = static_cast<float>(backend_.swapchain_width());
             float sh = static_cast<float>(backend_.swapchain_height());

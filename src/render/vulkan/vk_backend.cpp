@@ -21,6 +21,7 @@
     #include <imgui_impl_vulkan.h>
 #endif
 
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -84,7 +85,14 @@ bool VulkanBackend::init(bool headless)
 #ifdef NDEBUG
         bool enable_validation = false;
 #else
+        // Validation layers add ~8s to startup on some drivers.
+        // Set SPECTRA_NO_VALIDATION=1 to disable in debug builds.
         bool enable_validation = true;
+        {
+            const char* env = std::getenv("SPECTRA_NO_VALIDATION");
+            if (env && env[0] == '1')
+                enable_validation = false;
+        }
 #endif
         SPECTRA_LOG_DEBUG(
             "vulkan",

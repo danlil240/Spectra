@@ -261,10 +261,19 @@ ParamEditorPanel::ParamEditorPanel(rclcpp::Node::SharedPtr node)
     std::memset(search_buf_,      0, sizeof(search_buf_));
     std::memset(preset_name_buf_, 0, sizeof(preset_name_buf_));
     std::memset(preset_path_buf_, 0, sizeof(preset_path_buf_));
+
+    // Start background worker for non-blocking parameter set operations.
+    set_worker_ = std::thread(&ParamEditorPanel::set_worker_func, this);
 }
 
 ParamEditorPanel::~ParamEditorPanel()
 {
+    // Signal the set-worker thread to stop and join.
+    stop_worker_.store(true, std::memory_order_release);
+    set_cv_.notify_one();
+    if (set_worker_.joinable())
+        set_worker_.join();
+
     std::lock_guard<std::mutex> lk(mutex_);
     destroy_clients();
 }
@@ -512,19 +521,11 @@ bool ParamEditorPanel::apply_staged()
         }
     }
 
-    bool all_ok = true;
-    for (const auto& kv : to_set) {
-        auto result = set_param_internal(kv.first, kv.second);
-        if (!result.ok) {
-            all_ok = false;
-            std::lock_guard<std::mutex> lk(mutex_);
-            if (param_map_.count(kv.first)) {
-                param_map_[kv.first].set_error        = true;
-                param_map_[kv.first].set_error_reason = result.reason;
-            }
-        }
-    }
-    return all_ok;
+    // Queue all dirty params for async set (non-blocking).
+    for (const auto& [name, value] : to_set)
+        queue_set_param(name, value);
+
+    return true; // result will be reflected asynchronously via set_error flags
 }
 
 bool ParamEditorPanel::undo_last()
@@ -536,8 +537,10 @@ bool ParamEditorPanel::undo_last()
         entry = undo_slot_;
         undo_slot_.valid = false;
     }
-    auto result = set_param_internal(entry.param_name, entry.before);
-    return result.ok;
+
+    // Queue for async set (non-blocking).
+    queue_set_param(entry.param_name, entry.before);
+    return true; // result reflected asynchronously
 }
 
 bool ParamEditorPanel::can_undo() const
@@ -547,7 +550,65 @@ bool ParamEditorPanel::can_undo() const
 }
 
 // ---------------------------------------------------------------------------
-// Internal set
+// Async set queue — never block the render thread on ROS2 service calls
+// ---------------------------------------------------------------------------
+
+void ParamEditorPanel::queue_set_param(const std::string& param_name,
+                                       const ParamValue& value)
+{
+    std::lock_guard<std::mutex> lk(set_queue_mutex_);
+    // Deduplicate: if there is already a pending set for this param, replace
+    // its value so we only send the latest (avoids queue build-up on rapid
+    // slider drags).
+    for (auto& op : set_queue_) {
+        if (op.name == param_name) {
+            op.value = value;
+            return; // already queued, cv already notified from prior push
+        }
+    }
+    set_queue_.push_back({param_name, value});
+    set_cv_.notify_one();
+}
+
+void ParamEditorPanel::set_worker_func()
+{
+    while (!stop_worker_.load(std::memory_order_acquire)) {
+        PendingSetOp op;
+        {
+            std::unique_lock<std::mutex> lk(set_queue_mutex_);
+            set_cv_.wait(lk, [this] {
+                return !set_queue_.empty() ||
+                       stop_worker_.load(std::memory_order_acquire);
+            });
+            if (stop_worker_.load(std::memory_order_acquire))
+                break;
+            op = std::move(set_queue_.front());
+            set_queue_.pop_front();
+        }
+
+        auto result = set_param_internal(op.name, op.value);
+
+        // On failure, mark the error on the entry so the UI shows it.
+        if (!result.ok) {
+            std::lock_guard<std::mutex> lk(mutex_);
+            auto it = param_map_.find(op.name);
+            if (it != param_map_.end()) {
+                it->second.set_error        = true;
+                it->second.set_error_reason = result.reason;
+            }
+        }
+    }
+}
+
+void ParamEditorPanel::poll_set_results()
+{
+    // Currently results are applied directly in set_worker_func via
+    // set_param_internal.  This method is a hook for future use (e.g.
+    // toasts / status bar notifications).  Called once per frame from draw().
+}
+
+// ---------------------------------------------------------------------------
+// Internal set (called ONLY from background threads, never render thread)
 // ---------------------------------------------------------------------------
 
 ParamSetResult ParamEditorPanel::set_param_internal(const std::string& param_name,
@@ -1013,8 +1074,7 @@ bool ParamEditorPanel::load_preset(const std::string& file_path)
 
     bool all_ok = true;
     for (const auto& kv : parsed) {
-        auto result = set_param_internal(kv.first, kv.second);
-        if (!result.ok) all_ok = false;
+        queue_set_param(kv.first, kv.second);
     }
     return all_ok;
 }
@@ -1063,6 +1123,7 @@ void ParamEditorPanel::draw(bool* p_open)
     ImGui::Separator();
     draw_param_table();
     draw_preset_popup();
+    poll_set_results();
 
     ImGui::End();
 }
@@ -1274,11 +1335,7 @@ void ParamEditorPanel::draw_bool_widget(ParamEntry& entry)
         entry.staged.type     = ParamType::Bool;
         entry.staged_dirty    = (entry.staged != entry.current);
         if (live_edit_) {
-            auto result = set_param_internal(entry.name, entry.staged);
-            if (!result.ok) {
-                entry.set_error        = true;
-                entry.set_error_reason = result.reason;
-            }
+            queue_set_param(entry.name, entry.staged);
         }
     }
 }
@@ -1300,11 +1357,7 @@ void ParamEditorPanel::draw_int_widget(ParamEntry& entry)
         entry.staged.type     = ParamType::Integer;
         entry.staged_dirty    = (entry.staged != entry.current);
         if (live_edit_) {
-            auto result = set_param_internal(entry.name, entry.staged);
-            if (!result.ok) {
-                entry.set_error        = true;
-                entry.set_error_reason = result.reason;
-            }
+            queue_set_param(entry.name, entry.staged);
         }
     }
 }
@@ -1326,11 +1379,7 @@ void ParamEditorPanel::draw_double_widget(ParamEntry& entry)
         entry.staged.type       = ParamType::Double;
         entry.staged_dirty      = (entry.staged != entry.current);
         if (live_edit_) {
-            auto result = set_param_internal(entry.name, entry.staged);
-            if (!result.ok) {
-                entry.set_error        = true;
-                entry.set_error_reason = result.reason;
-            }
+            queue_set_param(entry.name, entry.staged);
         }
     }
 }
@@ -1349,11 +1398,7 @@ void ParamEditorPanel::draw_string_widget(ParamEntry& entry)
         entry.staged.type       = ParamType::String;
         entry.staged_dirty      = (entry.staged != entry.current);
         if (live_edit_) {
-            auto result = set_param_internal(entry.name, entry.staged);
-            if (!result.ok) {
-                entry.set_error        = true;
-                entry.set_error_reason = result.reason;
-            }
+            queue_set_param(entry.name, entry.staged);
         }
     }
 }

@@ -356,7 +356,7 @@ std::string RosSessionManager::current_iso8601()
 #else
     gmtime_r(&t, &tm_utc);
 #endif
-    char buf[32];
+    char buf[64];
     std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02dZ",
                   tm_utc.tm_year + 1900, tm_utc.tm_mon + 1, tm_utc.tm_mday,
                   tm_utc.tm_hour, tm_utc.tm_min, tm_utc.tm_sec);
@@ -512,9 +512,11 @@ std::string RosSessionManager::serialize(const RosSession& session)
     }
     out += (session.expression_presets.empty() ? "" : "\n  ") + std::string("],\n");
 
-    // Panels object.
-    out += "  \"panels\": " + serialize_panels(session.panels) + "\n";
-    out += "}\n";
+    // Panels object (no trailing comma — must be last, or before imgui_layout).
+    out += "  \"panels\": " + serialize_panels(session.panels);
+    if (!session.imgui_ini_data.empty())
+        out += ",\n  \"imgui_layout\": \"" + json_escape(session.imgui_ini_data) + "\"";
+    out += "\n}\n";
     return out;
 }
 
@@ -839,6 +841,9 @@ bool RosSessionManager::deserialize(const std::string& json,
     if (!panels_obj.empty()) {
         out.panels = deserialize_panels(panels_obj);
     }
+
+    // ImGui docking layout (optional; absent in older sessions).
+    out.imgui_ini_data = json_get_string(json, "imgui_layout");
 
     return true;
 }

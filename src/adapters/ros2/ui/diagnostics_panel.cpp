@@ -717,7 +717,7 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp,
         level_color(e.level, cr, cg, cb, ca);
 
         // Map level to Y: OK=bottom, ERROR=top.
-        float y_norm;
+        float y_norm = 0.9f;
         switch (e.level)
         {
             case DiagLevel::OK:    y_norm = 0.9f; break;
@@ -740,7 +740,7 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp,
             const DiagSparkEntry& ne = comp.history[i + 1];
             float nr, ng, nb, na2;
             level_color(ne.level, nr, ng, nb, na2);
-            float ny_norm;
+            float ny_norm = 0.9f;
             switch (ne.level)
             {
                 case DiagLevel::OK:    ny_norm = 0.9f;  break;

@@ -241,8 +241,11 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        # GIT_SHALLOW TRUE is intentionally NOT set here: v1.91.8-docking is on
+        # a separate branch from v1.91.8. GIT_SHALLOW TRUE causes FetchContent
+        # to sometimes resolve the wrong tag (main branch tip instead of the
+        # docking branch). A full clone ensures the correct commit is checked out.
         GIT_TAG        v1.91.8-docking
-        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(imgui)
 

@@ -289,6 +289,23 @@ void NodeGraphPanel::set_activate_callback(ActivateCallback cb)
     activate_cb_ = std::move(cb);
 }
 
+void NodeGraphPanel::set_node_filter_callback(NodeFilterCallback cb)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    node_filter_cb_ = std::move(cb);
+}
+
+std::string NodeGraphPanel::selected_ros_node() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Return only if the selected item is a ROS node (not a topic).
+    if (selected_id_.empty()) return {};
+    auto it = node_index_.find(selected_id_);
+    if (it == node_index_.end()) return {};
+    const GraphNode& n = nodes_[it->second];
+    return (n.kind == GraphNodeKind::RosNode) ? n.id : std::string{};
+}
+
 // ---------------------------------------------------------------------------
 // graph building
 // ---------------------------------------------------------------------------
@@ -739,9 +756,13 @@ void NodeGraphPanel::draw_graph_canvas()
                 auto it = node_index_.find(hit);
                 if (it != node_index_.end())
                 {
+                    const GraphNode& gn = nodes_[it->second];
                     nodes_[it->second].selected = true;
                     if (select_cb_)
-                        select_cb_(nodes_[it->second]);
+                        select_cb_(gn);
+                    // Fire the topic-filter callback only for ROS nodes.
+                    if (node_filter_cb_ && gn.kind == GraphNodeKind::RosNode)
+                        node_filter_cb_(gn.id);
                 }
             }
         }

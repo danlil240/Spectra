@@ -33,8 +33,10 @@
 //   All rendering is gated behind SPECTRA_USE_IMGUI.
 //   Pure-logic helpers (format_time, rate_label) are always compiled.
 
+#include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace spectra::adapters::ros2
 {
@@ -94,6 +96,30 @@ public:
     void set_show_rate_slider(bool v) { show_rate_slider_ = v; }
 
     // ------------------------------------------------------------------
+    // Timeline event markers
+    // ------------------------------------------------------------------
+
+    // One event-marker tick rendered on the progress/scrub bar.
+    // `position` is normalized [0, 1] (0 = bag start, 1 = bag end).
+    struct EventMarker
+    {
+        float                position{0.0f};
+        std::array<float, 4> color{0.4f, 0.8f, 1.0f, 0.7f};  // RGBA [0,1]
+        std::string          tooltip;   // optional — shown on hover
+    };
+
+    // Replace the entire event marker list.
+    // Call after the bag is opened or topic selection changes.
+    void set_event_markers(std::vector<EventMarker> markers)
+    {
+        event_markers_ = std::move(markers);
+    }
+
+    const std::vector<EventMarker>& event_markers() const { return event_markers_; }
+
+    void clear_event_markers() { event_markers_.clear(); }
+
+    // ------------------------------------------------------------------
     // Drawing
     // ------------------------------------------------------------------
 
@@ -137,6 +163,9 @@ private:
     // Rate slider state (local to avoid ImGui id conflicts).
     float rate_slider_{1.0f};
     bool  rate_slider_dirty_{false};
+
+    // Event marker list (render-thread only).
+    std::vector<EventMarker> event_markers_;
 };
 
 }   // namespace spectra::adapters::ros2

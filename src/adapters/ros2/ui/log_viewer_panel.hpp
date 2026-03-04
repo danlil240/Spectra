@@ -89,6 +89,25 @@ public:
     bool auto_scroll()    const { return auto_scroll_; }
     int  selected_row()   const { return selected_row_; }
 
+    // -----------------------------------------------------------------------
+    // Seek callback
+    // -----------------------------------------------------------------------
+
+    // Called when the user clicks a log entry row.
+    // Signature: void(int64_t timestamp_ns)
+    // Callers can seek subplot scroll controllers to this timestamp.
+    using SeekCallback = std::function<void(int64_t timestamp_ns)>;
+    void set_seek_callback(SeekCallback cb) { seek_cb_ = std::move(cb); }
+    void clear_seek_callback()              { seek_cb_ = {}; }
+
+    // -----------------------------------------------------------------------
+    // Severity pill toggles (testable without ImGui)
+    // -----------------------------------------------------------------------
+
+    // Show/hide entries of a specific severity (complement to the old dropdown).
+    void set_severity_visible(LogSeverity sev, bool visible);
+    bool severity_visible(LogSeverity sev) const;
+
     // Last snapshot size (entries after filter).
     size_t visible_count() const { return visible_count_; }
 
@@ -151,7 +170,14 @@ private:
     // We store local copies so we can edit them in text inputs.
     char   node_filter_buf_[256]{};
     char   regex_filter_buf_[256]{};
-    int    severity_combo_idx_{0};   // index into severity_levels_[]
+    int    severity_combo_idx_{0};   // kept for backward compat; pills take precedence
+
+    // Per-severity pill visibility (DEBUG/INFO/WARN/ERROR/FATAL + ALL toggle).
+    // Index maps to LogSeverity enum value.
+    bool severity_pill_visible_[6]{true, true, true, true, true, true};
+
+    // Seek callback.
+    SeekCallback seek_cb_;
 
     // Last clipboard text (headless fallback for tests).
     std::string last_clipboard_text_;

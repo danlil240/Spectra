@@ -80,6 +80,17 @@ void ScrollController::tick(spectra::LineSeries* series, spectra::Axes* axes)
         view_min_ = win_start;
         view_max_ = win_end;
     }
+    // Always track live "now" so seconds_behind() is accurate while paused.
+    if (!paused_)
+    {
+        // view_min_/max_ already set above when axes != nullptr; keep in sync
+        // even without axes so status_text_detailed() is correct.
+        if (axes == nullptr)
+        {
+            view_min_ = win_start;
+            view_max_ = win_end;
+        }
+    }
 
     // Prune series data outside 2 × window regardless of pause state.
     if (series != nullptr)
@@ -102,6 +113,30 @@ size_t ScrollController::memory_bytes(const spectra::LineSeries* series)
 // ---------------------------------------------------------------------------
 // Status text helpers
 // ---------------------------------------------------------------------------
+
+std::string ScrollController::status_text_detailed() const
+{
+    if (!paused_)
+        return "following";
+    const double behind = seconds_behind();
+    std::ostringstream oss;
+    oss << "paused";
+    if (behind > 0.1)
+    {
+        oss << " \xe2\x80\x94 ";   // UTF-8 em-dash
+        if (behind < 60.0)
+        {
+            oss.precision(1);
+            oss << std::fixed << behind << " s behind";
+        }
+        else
+        {
+            oss.precision(1);
+            oss << std::fixed << (behind / 60.0) << " min behind";
+        }
+    }
+    return oss.str();
+}
 
 std::string ScrollController::window_label() const
 {

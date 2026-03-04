@@ -657,9 +657,19 @@ void TopicEchoPanel::draw_message_tree(EchoMessage& msg)
     // logical tree via ImGui TreeNode.  Array heads track open state per
     // entry so the user can expand/collapse individual arrays.
 
+    // Reset hovered_field_ at frame start — each field node sets it on hover.
+    hovered_field_.clear();
+
     size_t idx = 0;
     while (idx < msg.fields.size()) {
         draw_field_node(msg.fields[idx], idx, msg.fields);
+    }
+
+    // Fire hover callback if the hovered field changed.
+    if (hovered_field_ != prev_hovered_field_) {
+        prev_hovered_field_ = hovered_field_;
+        if (hover_cb_)
+            hover_cb_(topic_name_, hovered_field_);
     }
 }
 
@@ -716,6 +726,20 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue& fv,
                               ImGuiSelectableFlags_AllowOverlap |
                               ImGuiSelectableFlags_SpanAllColumns,
                               ImVec2(0, ImGui::GetTextLineHeight()));
+            // Hover highlight + copy button.
+            if (ImGui::IsItemHovered()) {
+                hovered_field_ = fv.path;
+                // Small clipboard icon button on hover.
+                ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
+                char copy_id[280];
+                std::snprintf(copy_id, sizeof(copy_id), "##cp_%s", fv.path.c_str());
+                if (ImGui::SmallButton(copy_id)) {
+                    ImGui::SetClipboardText(fv.path.c_str());
+                }
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+                    ImGui::SetTooltip("Copy field path: %s", fv.path.c_str());
+                }
+            }
             // Drag source for numeric array element.
             if (drag_drop_) {
                 FieldDragPayload payload;
@@ -743,6 +767,19 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue& fv,
                               ImGuiSelectableFlags_AllowOverlap |
                               ImGuiSelectableFlags_SpanAllColumns,
                               ImVec2(0, ImGui::GetTextLineHeight()));
+            // Hover highlight + copy button.
+            if (ImGui::IsItemHovered()) {
+                hovered_field_ = fv.path;
+                ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
+                char copy_id[280];
+                std::snprintf(copy_id, sizeof(copy_id), "##cp_%s", fv.path.c_str());
+                if (ImGui::SmallButton(copy_id)) {
+                    ImGui::SetClipboardText(fv.path.c_str());
+                }
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+                    ImGui::SetTooltip("Copy field path: %s", fv.path.c_str());
+                }
+            }
             // Drag source + right-click menu.
             if (drag_drop_) {
                 FieldDragPayload payload;

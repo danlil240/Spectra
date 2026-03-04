@@ -43,6 +43,15 @@ option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
+# manylinux_2_34 toolchains may default to x86_64_v2, which auditwheel rejects
+# for manylinux_x86_64 wheels. Force portable ISA for Linux x86_64 wheel builds.
+if(SPECTRA_PYTHON_WHEEL
+   AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
+   AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+    add_compile_options(-march=x86-64 -mtune=generic)
+    message(STATUS "SPECTRA_PYTHON_WHEEL: forcing portable x86_64 ISA (-march=x86-64 -mtune=generic)")
+endif()
+
 # Runtime mode: inproc (single-process, all windows in one process)
 #               multiproc (future: each window in its own process via IPC)
 set(SPECTRA_RUNTIME_MODE "multiproc" CACHE STRING "Runtime mode: inproc | multiproc")
@@ -186,7 +195,11 @@ endif()
 
 # GLFW adapter (optional)
 if(SPECTRA_USE_GLFW)
-    find_package(glfw3 3.3 QUIET)
+    # For Python wheels, prefer building GLFW from source to avoid inheriting
+    # ISA requirements from distro-provided binaries in manylinux images.
+    if(NOT SPECTRA_PYTHON_WHEEL)
+        find_package(glfw3 3.3 QUIET)
+    endif()
     if(NOT glfw3_FOUND)
         include(FetchContent)
         FetchContent_Declare(

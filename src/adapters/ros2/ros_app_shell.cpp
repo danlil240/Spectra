@@ -893,23 +893,8 @@ void RosAppShell::draw_menu_bar()
     {
         if (ImGui::MenuItem("Reset Docked Layout"))
             dock_layout_initialized_ = false;
-        ImGui::Separator();
-
-        if (ImGui::MenuItem("Default", nullptr, cfg_.layout == LayoutMode::Default))
-        {
-            cfg_.layout = LayoutMode::Default;
-            setup_layout_visibility();
-        }
-        if (ImGui::MenuItem("Plot Only", nullptr, cfg_.layout == LayoutMode::PlotOnly))
-        {
-            cfg_.layout = LayoutMode::PlotOnly;
-            setup_layout_visibility();
-        }
-        if (ImGui::MenuItem("Monitor", nullptr, cfg_.layout == LayoutMode::Monitor))
-        {
-            cfg_.layout = LayoutMode::Monitor;
-            setup_layout_visibility();
-        }
+        ImGui::SeparatorText("Presets");
+        draw_layout_preset_menu();
         ImGui::EndMenu();
     }
 
@@ -945,19 +930,10 @@ void RosAppShell::draw_menu_bar()
 
         if (ImGui::BeginMenu("Recent Sessions"))
         {
+            // Quick-switch: load any of the last 5 sessions with one click.
+            draw_recent_sessions_menu();
+
             auto recent = session_mgr_->load_recent();
-            if (recent.empty())
-                ImGui::TextDisabled("(none)");
-
-            for (const auto& e : recent)
-            {
-                const auto sep = e.path.rfind('/');
-                const char* name = (sep != std::string::npos)
-                    ? e.path.c_str() + sep + 1 : e.path.c_str();
-                if (ImGui::MenuItem(name, e.node.c_str()))
-                    load_session(e.path);
-            }
-
             if (!recent.empty())
             {
                 ImGui::Separator();
@@ -1192,6 +1168,144 @@ void RosAppShell::setup_layout_visibility()
             show_log_viewer_  = true;
             break;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Layout presets
+// ---------------------------------------------------------------------------
+
+/*static*/ const char* RosAppShell::layout_preset_name(LayoutPreset p)
+{
+    switch (p)
+    {
+        case LayoutPreset::Default:   return "Default";
+        case LayoutPreset::Debug:     return "Debug";
+        case LayoutPreset::Monitor:   return "Monitor";
+        case LayoutPreset::BagReview: return "Bag Review";
+    }
+    return "Default";
+}
+
+void RosAppShell::apply_layout_preset(LayoutPreset preset)
+{
+    current_preset_ = preset;
+
+    // Hide everything first; each preset enables what it needs.
+    show_topic_list_     = false;
+    show_topic_echo_     = false;
+    show_topic_stats_    = false;
+    show_plot_area_      = false;
+    show_bag_info_       = false;
+    show_bag_playback_   = false;
+    show_log_viewer_     = false;
+    show_diagnostics_    = false;
+    show_node_graph_     = false;
+    show_tf_tree_        = false;
+    show_param_editor_   = false;
+    show_service_caller_ = false;
+
+    switch (preset)
+    {
+        case LayoutPreset::Default:
+            show_topic_list_  = true;
+            show_topic_echo_  = true;
+            show_topic_stats_ = true;
+            show_plot_area_   = true;
+            break;
+
+        case LayoutPreset::Debug:
+            // Topic List + Echo + Log Viewer — ideal for live debugging.
+            show_topic_list_  = true;
+            show_topic_echo_  = true;
+            show_log_viewer_  = true;
+            show_topic_stats_ = true;
+            break;
+
+        case LayoutPreset::Monitor:
+            // Multi-subplot + Diagnostics + Stats — ops dashboard.
+            show_plot_area_   = true;
+            show_diagnostics_ = true;
+            show_topic_stats_ = true;
+            show_topic_list_  = true;
+            break;
+
+        case LayoutPreset::BagReview:
+            // Bag controls + subplots — offline data review.
+            show_bag_playback_ = true;
+            show_bag_info_     = true;
+            show_plot_area_    = true;
+            break;
+    }
+
+    // Force a dock-layout rebuild on the next frame.
+    dock_layout_initialized_ = false;
+}
+
+// ---------------------------------------------------------------------------
+// draw_layout_preset_menu (inline submenu items)
+// ---------------------------------------------------------------------------
+
+void RosAppShell::draw_layout_preset_menu()
+{
+#ifdef SPECTRA_USE_IMGUI
+    static const LayoutPreset kPresets[] = {
+        LayoutPreset::Default,
+        LayoutPreset::Debug,
+        LayoutPreset::Monitor,
+        LayoutPreset::BagReview,
+    };
+    for (const auto p : kPresets)
+    {
+        const bool sel = (current_preset_ == p);
+        if (ImGui::MenuItem(layout_preset_name(p), nullptr, sel))
+            apply_layout_preset(p);
+    }
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// draw_recent_sessions_menu (inline submenu items)
+// ---------------------------------------------------------------------------
+
+void RosAppShell::draw_recent_sessions_menu()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!session_mgr_)
+    {
+        ImGui::TextDisabled("(no session manager)");
+        return;
+    }
+    const auto recents = session_mgr_->load_recent();
+    if (recents.empty())
+    {
+        ImGui::TextDisabled("(no recent sessions)");
+        return;
+    }
+    for (size_t i = 0; i < recents.size() && i < 5; ++i)
+    {
+        const std::string& path = recents[i].path;
+        // Show only the filename part as label; node name as shortcut hint.
+        const auto slash = path.rfind('/');
+        const std::string label = (slash != std::string::npos)
+            ? path.substr(slash + 1) : path;
+        if (ImGui::MenuItem(label.c_str(), recents[i].node.c_str()))
+        {
+            const auto result = load_session(path);
+            if (result.ok)
+            {
+                session_status_msg_   = "Loaded: " + label;
+                session_status_timer_ = 3.0f;
+            }
+            else
+            {
+                session_status_msg_   = "Load failed: " + result.error;
+                session_status_timer_ = 4.0f;
+            }
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            ImGui::SetTooltip("%s", path.c_str());
+    }
+#endif
 }
 
 RosSession RosAppShell::capture_session() const

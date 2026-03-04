@@ -93,6 +93,34 @@ public:
     void set_on_binding(BindingCallback cb) { on_binding_cb_ = std::move(cb); }
 
     // ------------------------------------------------------------------
+    // Field autocomplete
+    // ------------------------------------------------------------------
+
+    // One entry in the autocomplete list: "$topic/field.path"
+    struct FieldEntry
+    {
+        std::string topic;       // e.g. "/imu"
+        std::string field_path;  // e.g. "linear_acceleration.x"
+        std::string display;     // e.g. "$imu/linear_acceleration.x" — shown in popup
+
+        // Convenience ctor.
+        FieldEntry(std::string t, std::string f)
+            : topic(std::move(t))
+            , field_path(std::move(f))
+            , display("$" + topic + "/" + field_path)
+        {}
+    };
+
+    // Replace the entire autocomplete list.  Call once after discovery changes.
+    // Typically built by iterating TopicDiscovery + MessageIntrospector.
+    void set_field_entries(std::vector<FieldEntry> entries)
+    {
+        field_entries_ = std::move(entries);
+    }
+
+    const std::vector<FieldEntry>& field_entries() const { return field_entries_; }
+
+    // ------------------------------------------------------------------
     // State
     // ------------------------------------------------------------------
 
@@ -155,6 +183,15 @@ private:
 
     ApplyCallback   on_apply_cb_;
     BindingCallback on_binding_cb_;
+
+    // Field autocomplete.
+    std::vector<FieldEntry> field_entries_;
+
+    // Autocomplete popup state (render-thread only).
+    bool        autocomplete_open_{false};
+    int         autocomplete_selected_{0};
+    std::string autocomplete_prefix_;      // text after the last '$' that triggered popup
+    int         autocomplete_trigger_pos_{-1}; // cursor position of '$' that opened popup
 };
 
 }   // namespace spectra::adapters::ros2

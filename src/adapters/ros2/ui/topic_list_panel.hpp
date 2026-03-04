@@ -71,6 +71,14 @@ struct TopicStats
     uint64_t total_messages{0};
     uint64_t total_bytes{0};
 
+    // Rolling Hz history for sparkline rendering (sampled once per second,
+    // newest at back, capped at HZ_HISTORY_LEN entries).
+    static constexpr size_t HZ_HISTORY_LEN = 30;
+    std::deque<float> hz_history;
+
+    // Wall-clock ns of the last time hz_history was sampled.
+    int64_t last_hz_sample_ns{0};
+
     // Push a new arrival.  Called from executor thread (lock held by caller).
     void push(int64_t now_ns, size_t bytes);
 

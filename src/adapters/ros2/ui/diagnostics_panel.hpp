@@ -136,6 +136,15 @@ struct DiagComponent
     // Count of transitions (OK→WARN, OK→ERROR, WARN→ERROR, etc.).
     uint32_t transition_count{0};
 
+    // Seconds elapsed since the last update (computed from now_ns at draw time).
+    // Returns 0.0 if never updated.
+    double seconds_since_update(int64_t now_ns) const
+    {
+        if (last_update_ns <= 0) return 0.0;
+        const double diff = static_cast<double>(now_ns - last_update_ns) * 1e-9;
+        return diff > 0.0 ? diff : 0.0;
+    }
+
     // Push a new status update; appends to history, detects transitions.
     // Returns true if the level changed (i.e. a transition occurred).
     bool update(const DiagStatus& s);

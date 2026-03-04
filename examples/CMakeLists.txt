@@ -7,6 +7,18 @@ function(add_spectra_example name)
 endfunction()
 
 add_spectra_example(basic_line)
+
+# ROS2 UI preview — mock of new spectra-ros panel features (no ROS2 required)
+if(SPECTRA_USE_IMGUI)
+    add_executable(ros2_ui_preview ros2_ui_preview.cpp)
+    target_link_libraries(ros2_ui_preview PRIVATE spectra)
+    target_compile_features(ros2_ui_preview PRIVATE cxx_std_20)
+    target_include_directories(ros2_ui_preview PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+        ${imgui_SOURCE_DIR}
+    )
+endif()
 add_spectra_example(live_stream)
 add_spectra_example(animated_scatter)
 add_spectra_example(multi_subplot)

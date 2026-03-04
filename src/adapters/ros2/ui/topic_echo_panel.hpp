@@ -144,6 +144,22 @@ public:
     void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
     FieldDragDrop* drag_drop() const { return drag_drop_; }
 
+    // ---------- hover highlight callback --------------------------------
+
+    // Called when the user hovers a numeric field row.
+    // Signature: void(const std::string& topic, const std::string& field_path)
+    // Callers can use this to highlight matching plot series.
+    using HoverCallback = std::function<void(const std::string& topic,
+                                             const std::string& field_path)>;
+    void set_hover_callback(HoverCallback cb) { hover_cb_ = std::move(cb); }
+
+    // Called when the cursor leaves all field rows (field_path will be "").
+    // Reuses HoverCallback with an empty field_path to signal "no hover".
+    void clear_hover_callback() { hover_cb_ = {}; }
+
+    // Currently hovered field path ("" if none).
+    const std::string& hovered_field() const { return hovered_field_; }
+
     // Maximum messages kept in the ring buffer (default 100).
     void set_max_messages(size_t n);
     size_t max_messages() const { return max_messages_; }
@@ -253,6 +269,11 @@ private:
 
     // Drag-and-drop controller (optional, not owned).
     FieldDragDrop* drag_drop_{nullptr};
+
+    // Hover highlight state (render-thread only).
+    HoverCallback hover_cb_;
+    std::string   hovered_field_;
+    std::string   prev_hovered_field_;  // to detect changes and fire callback once
 };
 
 }   // namespace spectra::adapters::ros2

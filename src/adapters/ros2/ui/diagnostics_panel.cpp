@@ -643,7 +643,26 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
 
     // ---- Message column ----
     ImGui::TableSetColumnIndex(2);
-    ImGui::TextUnformatted(comp.message.c_str());
+    {
+        const int64_t now = wall_ns();
+        const double since_s = comp.seconds_since_update(now);
+        if (comp.level == DiagLevel::Stale && since_s > 0.5)
+        {
+            // Show "STALE (Xs)" badge in muted orange before the message.
+            char stale_buf[64];
+            if (since_s < 60.0)
+                std::snprintf(stale_buf, sizeof(stale_buf), "STALE (%.0fs)", since_s);
+            else
+                std::snprintf(stale_buf, sizeof(stale_buf), "STALE (%.0fmin)", since_s / 60.0);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.55f, 0.15f, 1.0f));
+            ImGui::TextUnformatted(stale_buf);
+            ImGui::PopStyleColor();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+                ImGui::SetTooltip("No update for %.1f seconds", since_s);
+            ImGui::SameLine(0.0f, 6.0f);
+        }
+        ImGui::TextUnformatted(comp.message.c_str());
+    }
 
     // ---- Sparkline column ----
     ImGui::TableSetColumnIndex(3);

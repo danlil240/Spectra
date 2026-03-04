@@ -61,6 +61,15 @@ void TopicStats::prune_and_compute(int64_t now_ns, int64_t window_ns)
 
     const int64_t stale_ns = 2'000'000'000LL;  // 2 s
     active = (last_msg_ns > 0) && (now_ns - last_msg_ns < stale_ns);
+
+    // Sample Hz history once per second for sparkline.
+    const int64_t sample_interval_ns = 1'000'000'000LL;
+    if (last_hz_sample_ns == 0 || (now_ns - last_hz_sample_ns) >= sample_interval_ns) {
+        hz_history.push_back(static_cast<float>(hz));
+        if (hz_history.size() > HZ_HISTORY_LEN)
+            hz_history.pop_front();
+        last_hz_sample_ns = now_ns;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -274,9 +283,71 @@ void TopicListPanel::rebuild_tree()
 #ifdef SPECTRA_USE_IMGUI
 
 // Color constants.
-static constexpr ImVec4 kColorActive  = {0.20f, 0.80f, 0.30f, 1.0f};  // green
-static constexpr ImVec4 kColorStale   = {0.50f, 0.50f, 0.50f, 1.0f};  // gray
+static constexpr ImVec4 kColorActive   = {0.20f, 0.80f, 0.30f, 1.0f};  // green
+static constexpr ImVec4 kColorStale    = {0.50f, 0.50f, 0.50f, 1.0f};  // gray
 static constexpr ImVec4 kColorSelected = {0.26f, 0.59f, 0.98f, 0.25f}; // blue tint
+
+// Returns a distinguishing color for a ROS2 message type package prefix.
+// e.g. "sensor_msgs/msg/Imu" → sensor category color.
+static ImVec4 topic_type_color(const std::string& type_name)
+{
+    // Match on the package name prefix before "/msg/".
+    auto slash = type_name.find('/');
+    const std::string pkg = (slash != std::string::npos) ? type_name.substr(0, slash) : type_name;
+
+    // Sensor data — orange
+    if (pkg == "sensor_msgs")   return {1.00f, 0.60f, 0.10f, 1.0f};
+    // Geometry / transforms — cyan
+    if (pkg == "geometry_msgs") return {0.20f, 0.85f, 0.90f, 1.0f};
+    // Navigation — purple
+    if (pkg == "nav_msgs")      return {0.75f, 0.40f, 0.90f, 1.0f};
+    // Diagnostics — yellow
+    if (pkg == "diagnostic_msgs") return {0.95f, 0.90f, 0.15f, 1.0f};
+    // Std messages — light blue
+    if (pkg == "std_msgs")      return {0.40f, 0.70f, 1.00f, 1.0f};
+    // Actions / lifecycle — pink
+    if (pkg == "action_msgs" || pkg == "lifecycle_msgs")
+                                return {1.00f, 0.45f, 0.70f, 1.0f};
+    // TF — teal
+    if (pkg == "tf2_msgs")      return {0.20f, 0.90f, 0.70f, 1.0f};
+    // Default — neutral gray-white
+    return {0.75f, 0.75f, 0.75f, 1.0f};
+}
+
+// Draw a small inline sparkline using ImDrawList.
+// Renders in the current cursor position using width × height pixels.
+static void draw_hz_sparkline(const std::deque<float>& history,
+                               float width, float height)
+{
+    if (history.empty()) return;
+
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    float max_val = 0.0f;
+    for (float v : history) if (v > max_val) max_val = v;
+    if (max_val <= 0.0f) {
+        // No data — draw a flat baseline.
+        const float y = p.y + height;
+        dl->AddLine({p.x, y}, {p.x + width, y},
+                    IM_COL32(80, 80, 80, 180), 1.0f);
+        ImGui::Dummy({width, height});
+        return;
+    }
+
+    const float inv_max = 1.0f / max_val;
+    const int n = static_cast<int>(history.size());
+    const float step = (n > 1) ? width / static_cast<float>(n - 1) : width;
+
+    for (int i = 1; i < n; ++i) {
+        const float x0 = p.x + static_cast<float>(i - 1) * step;
+        const float x1 = p.x + static_cast<float>(i)     * step;
+        const float y0 = p.y + height * (1.0f - history[i - 1] * inv_max);
+        const float y1 = p.y + height * (1.0f - history[i]     * inv_max);
+        dl->AddLine({x0, y0}, {x1, y1}, IM_COL32(80, 200, 120, 200), 1.0f);
+    }
+    ImGui::Dummy({width, height});
+}
 
 void TopicListPanel::draw(bool* p_open)
 {
@@ -548,24 +619,35 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         ImGui::EndTooltip();
     }
 
-    // Column 1: Type (first type, abbreviated).
+    // Column 1: Type (first type, abbreviated + colored).
     ImGui::TableSetColumnIndex(1);
     if (!info.types.empty()) {
-        // Abbreviate: drop "xxx_msgs/msg/" prefix.
         const std::string& t = info.types[0];
+        const ImVec4 tc = topic_type_color(t);
+        // Abbreviated leaf name after last '/'.
         const auto slash = t.rfind('/');
-        ImGui::TextUnformatted(slash != std::string::npos ? t.c_str() + slash + 1 : t.c_str());
+        const char* leaf_type = (slash != std::string::npos) ? t.c_str() + slash + 1 : t.c_str();
+        ImGui::TextColored(tc, "%s", leaf_type);
     } else {
         ImGui::TextDisabled("—");
     }
 
-    // Column 2: Hz.
+    // Column 2: Hz + sparkline.
     ImGui::TableSetColumnIndex(2);
-    const std::string hz_str = format_hz(stats.hz);
-    if (stats.hz > 0.0)
-        ImGui::TextUnformatted(hz_str.c_str());
-    else
-        ImGui::TextDisabled("%s", hz_str.c_str());
+    {
+        const float col_w   = ImGui::GetContentRegionAvail().x;
+        const float spark_w = std::min(col_w * 0.5f, 36.0f);
+        const float spark_h = ImGui::GetTextLineHeight() * 0.85f;
+        const std::string hz_str = format_hz(stats.hz);
+        if (stats.hz > 0.0)
+            ImGui::TextUnformatted(hz_str.c_str());
+        else
+            ImGui::TextDisabled("%s", hz_str.c_str());
+        if (!stats.hz_history.empty() && spark_w > 4.0f) {
+            ImGui::SameLine(0.0f, 4.0f);
+            draw_hz_sparkline(stats.hz_history, spark_w, spark_h);
+        }
+    }
 
     // Column 3: Pubs.
     ImGui::TableSetColumnIndex(3);

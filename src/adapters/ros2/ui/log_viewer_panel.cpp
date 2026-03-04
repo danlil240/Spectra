@@ -273,15 +273,36 @@ void LogViewerPanel::draw_filter_bar()
 #ifdef SPECTRA_USE_IMGUI
     bool filter_changed = false;
 
-    // Severity combo.
-    ImGui::SetNextItemWidth(120.0f);
-    if (ImGui::Combo("##sev", &severity_combo_idx_,
-                     severity_labels_, severity_count_))
+    // Severity pill toggles (DEBUG / INFO / WARN / ERROR / FATAL).
+    // Each pill is a small toggle button that shows/hides entries of that level.
+    struct PillDef { const char* label; LogSeverity sev; ImVec4 col_on; ImVec4 col_off; };
+    static const PillDef kPills[] = {
+        {"DBG",   LogSeverity::Debug, {0.55f,0.55f,0.55f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+        {"INFO",  LogSeverity::Info,  {0.85f,0.85f,0.85f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+        {"WARN",  LogSeverity::Warn,  {0.95f,0.75f,0.10f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+        {"ERROR", LogSeverity::Error, {0.95f,0.30f,0.30f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+        {"FATAL", LogSeverity::Fatal, {1.00f,0.30f,0.80f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+    };
+    for (int pi = 0; pi < 5; ++pi)
     {
-        viewer_.set_min_severity(severity_values_[severity_combo_idx_]);
-        filter_changed = true;
+        const int idx = static_cast<int>(kPills[pi].sev);
+        const bool on = (idx >= 0 && idx < 6) ? severity_pill_visible_[idx] : true;
+        const ImVec4& col = on ? kPills[pi].col_on : kPills[pi].col_off;
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(col.x*0.5f, col.y*0.5f, col.z*0.5f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(col.x*0.7f, col.y*0.7f, col.z*0.7f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, col);
+        char btn_id[32];
+        std::snprintf(btn_id, sizeof(btn_id), "%s##pill", kPills[pi].label);
+        if (ImGui::SmallButton(btn_id))
+        {
+            if (idx >= 0 && idx < 6)
+                severity_pill_visible_[idx] = !severity_pill_visible_[idx];
+            filter_changed = true;
+        }
+        ImGui::PopStyleColor(3);
+        if (pi < 4) ImGui::SameLine(0.0f, 3.0f);
     }
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, 8.0f);
 
     // Node filter.
     ImGui::SetNextItemWidth(160.0f);
@@ -401,6 +422,14 @@ void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
     for (int i = 0; i < n; ++i)
     {
         const LogEntry& e = entries[i];
+
+        // Pill filter: skip entries whose severity is toggled off.
+        {
+            const int sev_idx = static_cast<int>(e.severity);
+            if (sev_idx >= 0 && sev_idx < 6 && !severity_pill_visible_[sev_idx])
+                continue;
+        }
+
         ImGui::TableNextRow();
 
         const bool is_selected = (selected_row_ == i);
@@ -432,6 +461,9 @@ void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
             selected_row_       = (is_selected) ? -1 : i;
             scroll_to_bottom_   = false; // user clicked — stop following
             auto_scroll_        = false;
+            // Fire seek callback so subplot panels can jump to this timestamp.
+            if (seek_cb_ && !is_selected)
+                seek_cb_(e.stamp_ns);
         }
         ImGui::PopStyleColor();
 
@@ -530,6 +562,25 @@ void LogViewerPanel::draw_status_bar(const std::vector<LogEntry>& entries)
 #else
     (void)entries;
 #endif
+}
+
+// ---------------------------------------------------------------------------
+// Severity pill helpers (always compiled — no ImGui dependency)
+// ---------------------------------------------------------------------------
+
+void LogViewerPanel::set_severity_visible(LogSeverity sev, bool visible)
+{
+    const int idx = static_cast<int>(sev);
+    if (idx >= 0 && idx < 6)
+        severity_pill_visible_[idx] = visible;
+}
+
+bool LogViewerPanel::severity_visible(LogSeverity sev) const
+{
+    const int idx = static_cast<int>(sev);
+    if (idx >= 0 && idx < 6)
+        return severity_pill_visible_[idx];
+    return true;
 }
 
 }   // namespace spectra::adapters::ros2

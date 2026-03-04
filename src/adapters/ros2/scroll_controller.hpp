@@ -128,6 +128,17 @@ public:
     // Returns "following" or "paused" for display.
     const char* status_text() const { return paused_ ? "paused" : "following"; }
 
+    // How many seconds behind live the view is when paused.
+    // Returns 0.0 when following.
+    double seconds_behind() const
+    {
+        if (!paused_ || now_ <= 0.0) return 0.0;
+        return now_ - view_max_;
+    }
+
+    // Human-readable status: "following", or "paused — 4.2 s behind".
+    std::string status_text_detailed() const;
+
     // Human-readable window description: "30 s", "2 min", "1 h".
     std::string window_label() const;
 

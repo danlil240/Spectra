@@ -204,7 +204,35 @@ bool FieldDragDrop::draw_drop_zone()
     if (avail.x <= 0.0f) avail.x = 1.0f;
     if (avail.y <= 0.0f) avail.y = 1.0f;
 
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##drop_zone", avail);
+
+    // Highlighted overlay when a compatible payload is in flight.
+    if (is_dragging()) {
+        const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const ImU32 fill_col = hovered
+            ? IM_COL32(60, 180, 255, 55)
+            : IM_COL32(60, 180, 255, 22);
+        const ImU32 border_col = hovered
+            ? IM_COL32(60, 180, 255, 220)
+            : IM_COL32(60, 180, 255, 100);
+
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 pmax = {pos.x + avail.x, pos.y + avail.y};
+        dl->AddRectFilled(pos, pmax, fill_col, 4.0f);
+        dl->AddRect(pos, pmax, border_col, 4.0f, 0, 2.0f);
+
+        if (hovered) {
+            // Center label.
+            const char* lbl = "Drop to plot here";
+            const ImVec2 text_sz = ImGui::CalcTextSize(lbl);
+            const ImVec2 text_pos = {
+                pos.x + (avail.x - text_sz.x) * 0.5f,
+                pos.y + (avail.y - text_sz.y) * 0.5f
+            };
+            dl->AddText(text_pos, IM_COL32(60, 180, 255, 240), lbl);
+        }
+    }
 
     return accept_drop_current_axes();
 #else

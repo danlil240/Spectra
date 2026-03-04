@@ -8,6 +8,9 @@
 #include <chrono>
 #include <cmath>
 #include <spectra/color.hpp>
+#ifdef SPECTRA_USE_IMGUI
+#include <imgui.h>
+#endif
 
 // AxisLinkManager lives under src/ui/data/ — included here (not in the public
 // header) so that adapter users don't need src/ui on their include path.
@@ -475,6 +478,103 @@ size_t SubplotManager::total_memory_bytes() const
     for (const auto& se : slots_)
         total += ScrollController::memory_bytes(se.series);
     return total;
+}
+
+// ---------------------------------------------------------------------------
+// Per-slot time-window override
+// ---------------------------------------------------------------------------
+
+void SubplotManager::set_slot_time_window(int slot, double seconds)
+{
+    SlotEntry* se = slot_entry(slot);
+    if (!se) return;
+    if (seconds > 0.0)
+    {
+        se->time_window_override_s = seconds;
+        se->scroll.set_window_s(seconds);
+    }
+    else
+    {
+        se->time_window_override_s = -1.0;
+        se->scroll.set_window_s(scroll_window_s_);
+    }
+}
+
+double SubplotManager::slot_time_window(int slot) const
+{
+    const SlotEntry* se = slot_entry(slot);
+    if (!se) return scroll_window_s_;
+    return (se->time_window_override_s > 0.0) ? se->time_window_override_s : scroll_window_s_;
+}
+
+void SubplotManager::clear_slot_time_window(int slot)
+{
+    set_slot_time_window(slot, -1.0);
+}
+
+// ---------------------------------------------------------------------------
+// Subplot context menu
+// ---------------------------------------------------------------------------
+
+SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot,
+                                                                      const char* popup_id)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::BeginPopupContextItem(popup_id))
+        return SubplotAction::None;
+
+    SubplotAction action = SubplotAction::None;
+
+    const bool has = has_plot(slot);
+    const std::string topic_label = has ? slots_[static_cast<size_t>(slot - 1)].topic : "";
+
+    // Header.
+    if (has)
+        ImGui::TextDisabled("Slot %d: %s", slot, topic_label.c_str());
+    else
+        ImGui::TextDisabled("Slot %d (empty)", slot);
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Clear", nullptr, false, has))
+        action = SubplotAction::Clear;
+
+    if (ImGui::MenuItem("Duplicate to next slot", nullptr, false, has))
+        action = SubplotAction::Duplicate;
+
+    if (ImGui::MenuItem("Detach to new window", nullptr, false, has))
+        action = SubplotAction::Detach;
+
+    ImGui::Separator();
+
+    // Per-slot time-window submenu.
+    if (ImGui::BeginMenu("Time window", has))
+    {
+        const double current_win = slot_time_window(slot);
+        const bool has_override  = (slot < 1 || slot > capacity())
+            ? false
+            : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
+
+        static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
+        static const char*  kLabels[]  = {"5 s","10 s","30 s","1 min","5 min","10 min"};
+        for (int i = 0; i < 6; ++i)
+        {
+            const bool sel = std::abs(current_win - kPresets[i]) < 0.1;
+            if (ImGui::MenuItem(kLabels[i], nullptr, sel))
+                set_slot_time_window(slot, kPresets[i]);
+        }
+        ImGui::Separator();
+        if (has_override && ImGui::MenuItem("Reset to global"))
+            clear_slot_time_window(slot);
+
+        ImGui::EndMenu();
+    }
+
+    ImGui::EndPopup();
+    return action;
+#else
+    (void)slot; (void)popup_id;
+    return SubplotAction::None;
+#endif
 }
 
 // ---------------------------------------------------------------------------

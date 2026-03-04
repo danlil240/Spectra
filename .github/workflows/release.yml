@@ -236,6 +236,12 @@ jobs:
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
           CIBW_BUILD_VERBOSITY: 1
           CIBW_MANYLINUX_X86_64_IMAGE: quay.io/pypa/manylinux_2_34_x86_64:latest
+          # manylinux_2_34 toolchains can default to x86_64_v2; force portable x86_64 ISA
+          # so auditwheel can repair to manylinux_2_34_x86_64.
+          CIBW_ENVIRONMENT_LINUX: >
+            CFLAGS="-march=x86-64 -mtune=generic"
+            CXXFLAGS="-march=x86-64 -mtune=generic"
+            CMAKE_ARGS="-DCMAKE_C_FLAGS=-march=x86-64 -DCMAKE_CXX_FLAGS=-march=x86-64"
           CIBW_BEFORE_ALL_LINUX: >
             dnf -y install
             vulkan-loader-devel

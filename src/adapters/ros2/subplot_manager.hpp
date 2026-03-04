@@ -234,6 +234,40 @@ public:
     size_t total_memory_bytes() const;
 
     // -----------------------------------------------------------------
+    // Per-slot time-window override
+    // -----------------------------------------------------------------
+
+    // Override the scroll time-window for a specific slot.
+    // Pass seconds <= 0 to revert the slot to the global window.
+    void set_slot_time_window(int slot, double seconds);
+
+    // Returns the effective window for a slot (per-slot override or global).
+    double slot_time_window(int slot) const;
+
+    // Clear any per-slot override, reverting to the global window.
+    void clear_slot_time_window(int slot);
+
+    // -----------------------------------------------------------------
+    // Subplot context menu helpers (ImGui, render-thread only)
+    // -----------------------------------------------------------------
+
+    // Possible actions returned from draw_slot_context_menu().
+    enum class SubplotAction : uint8_t
+    {
+        None      = 0,
+        Rename    = 1,
+        Clear     = 2,
+        Duplicate = 3,
+        Detach    = 4,
+    };
+
+    // Draw an ImGui right-click popup for a subplot slot.
+    // Call this after drawing the subplot's axes/canvas widget.
+    // Returns the action the user selected (None if popup not open or no action).
+    // `popup_id` must be unique per slot — callers typically pass e.g. "##sctx_1".
+    SubplotAction draw_slot_context_menu(int slot, const char* popup_id);
+
+    // -----------------------------------------------------------------
     // Configuration
     // -----------------------------------------------------------------
 
@@ -280,6 +314,9 @@ private:
 
         // Per-slot auto-scroll controller.
         ScrollController scroll;
+
+        // Per-slot time-window override (seconds). <= 0 means use global.
+        double time_window_override_s{-1.0};
 
         bool active() const { return slot >= 1 && axes != nullptr; }
     };

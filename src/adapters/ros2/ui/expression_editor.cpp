@@ -5,8 +5,10 @@
 #include "expression_editor.hpp"
 #include "../expression_plot.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
@@ -169,6 +171,94 @@ void ExpressionEditor::draw_expression_input()
 
     if (edited || ctrl_enter)
         expr_buf_ = expr_buf_raw_;
+
+    // ---- Field autocomplete popup ----
+    // When the user types '$', open a filterable dropdown.
+    if (edited && !field_entries_.empty())
+    {
+        // Find the last '$' before the cursor in expr_buf_.
+        const int cursor = static_cast<int>(std::strlen(expr_buf_raw_));
+        int dollar_pos = -1;
+        for (int i = cursor - 1; i >= 0; --i) {
+            if (expr_buf_raw_[i] == '$') { dollar_pos = i; break; }
+            // Stop if we hit whitespace or an operator (not a field-name char).
+            if (std::strchr(" \t\n+-*/()^,", expr_buf_raw_[i])) break;
+        }
+
+        if (dollar_pos >= 0) {
+            autocomplete_trigger_pos_ = dollar_pos;
+            autocomplete_prefix_      = std::string(expr_buf_raw_ + dollar_pos + 1,
+                                                    static_cast<size_t>(cursor - dollar_pos - 1));
+            autocomplete_open_        = true;
+            autocomplete_selected_    = 0;
+            ImGui::OpenPopup("##field_ac");
+        } else {
+            autocomplete_open_ = false;
+        }
+    }
+
+    // Draw the autocomplete popup.
+    if (autocomplete_open_ && !field_entries_.empty())
+    {
+        ImGui::SetNextWindowSizeConstraints(ImVec2(300, 0), ImVec2(480, 280));
+        if (ImGui::BeginPopup("##field_ac",
+                ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+        {
+            // Build filtered list.
+            std::vector<int> matches;
+            for (int i = 0; i < static_cast<int>(field_entries_.size()); ++i) {
+                const auto& e = field_entries_[static_cast<size_t>(i)];
+                if (autocomplete_prefix_.empty()
+                    || e.display.find(autocomplete_prefix_) != std::string::npos) {
+                    matches.push_back(i);
+                }
+            }
+
+            if (matches.empty()) {
+                ImGui::TextDisabled("No matching fields");
+            } else {
+                // Clamp selection.
+                if (autocomplete_selected_ >= static_cast<int>(matches.size()))
+                    autocomplete_selected_ = static_cast<int>(matches.size()) - 1;
+
+                for (int mi = 0; mi < static_cast<int>(matches.size()); ++mi) {
+                    const auto& e = field_entries_[static_cast<size_t>(matches[mi])];
+                    const bool sel = (mi == autocomplete_selected_);
+                    if (ImGui::Selectable(e.display.c_str(), sel)) {
+                        // Insert the completion into the buffer.
+                        // Replace from dollar_pos to current cursor.
+                        const std::string insert = e.display; // "$topic/field"
+                        const int before_dollar  = autocomplete_trigger_pos_;
+                        const int after_cursor   = static_cast<int>(std::strlen(expr_buf_raw_));
+                        std::string new_expr = std::string(expr_buf_raw_, static_cast<size_t>(before_dollar))
+                            + insert
+                            + std::string(expr_buf_raw_ + after_cursor);
+                        const size_t copy_len = std::min(new_expr.size(), EXPR_BUF_SIZE - 1);
+                        std::memcpy(expr_buf_raw_, new_expr.c_str(), copy_len);
+                        expr_buf_raw_[copy_len] = '\0';
+                        expr_buf_         = expr_buf_raw_;
+                        autocomplete_open_ = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    if (sel) ImGui::SetScrollHereY();
+                }
+
+                // Keyboard navigation.
+                if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+                    autocomplete_selected_ = std::min(autocomplete_selected_ + 1,
+                                                      static_cast<int>(matches.size()) - 1);
+                if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+                    autocomplete_selected_ = std::max(autocomplete_selected_ - 1, 0);
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    autocomplete_open_ = false;
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::EndPopup();
+        } else {
+            autocomplete_open_ = false;
+        }
+    }
 
     // Live-validate while typing (no full compile, just extract vars).
     if (edited)

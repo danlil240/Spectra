@@ -345,6 +345,33 @@ void BagPlaybackPanel::draw_progress_bar()
                           bar_h * 0.5f);
     }
 
+    // Event-marker ticks: small vertical lines above the bar.
+    if (!event_markers_.empty())
+    {
+        const float tick_h = bar_h * 0.9f;
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        for (const auto& m : event_markers_)
+        {
+            const float tx    = pos.x + bar_w * std::clamp(m.position, 0.0f, 1.0f);
+            const ImVec2 tp0  = {tx, bmin.y};
+            const ImVec2 tp1  = {tx, bmin.y + tick_h};
+            const ImU32  col  = IM_COL32(
+                static_cast<int>(m.color[0] * 255),
+                static_cast<int>(m.color[1] * 255),
+                static_cast<int>(m.color[2] * 255),
+                static_cast<int>(m.color[3] * 255));
+            dl->AddLine(tp0, tp1, col, 1.5f);
+
+            // Tooltip on hover near tick.
+            if (!m.tooltip.empty())
+            {
+                const float dist = std::abs(mouse.x - tx);
+                if (dist < 4.0f && mouse.y >= bmin.y && mouse.y <= bmax.y)
+                    ImGui::SetTooltip("%s", m.tooltip.c_str());
+            }
+        }
+    }
+
     // Playhead thumb (circle).
     const float thumb_x = pos.x + bar_w * frac;
     const float thumb_y = pos.y + bar_h * 0.5f;

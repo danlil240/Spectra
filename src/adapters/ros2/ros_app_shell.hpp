@@ -170,6 +170,26 @@ public:
     SaveResult save_session(const std::string& path);
     LoadResult load_session(const std::string& path);
 
+    // ------------------------------------------------------------------
+    // Named layout presets
+    // ------------------------------------------------------------------
+
+    enum class LayoutPreset : uint8_t
+    {
+        Default   = 0,  // Topic List + Echo + Subplots + Stats
+        Debug     = 1,  // Topic List + Echo + Log Viewer
+        Monitor   = 2,  // 4×1 subplots + Diagnostics + Stats
+        BagReview = 3,  // Bag Playback + Subplots
+    };
+
+    // Apply a preset: adjusts panel visibility and calls setup_layout_visibility().
+    // Resets dock layout so it rebuilds for the new panel set.
+    void apply_layout_preset(LayoutPreset preset);
+
+    LayoutPreset current_preset() const { return current_preset_; }
+
+    static const char* layout_preset_name(LayoutPreset p);
+
     RosSessionManager& session_manager() { return *session_mgr_; }
     const RosSessionManager& session_manager() const { return *session_mgr_; }
 
@@ -188,6 +208,8 @@ private:
 
     void draw_session_save_dialog();
     void draw_session_load_dialog();
+    void draw_recent_sessions_menu();   // inline submenu items for "Recent"
+    void draw_layout_preset_menu();     // inline submenu items for "Layout"
 
     std::string detect_topic_type(const std::string& topic) const;
     std::string default_numeric_field(const std::string& topic,
@@ -262,6 +284,9 @@ private:
     std::string selected_type_;
 
     int next_replace_slot_ = 1;
+
+    // Active layout preset.
+    LayoutPreset current_preset_ = LayoutPreset::Default;
 
     // For per-frame dt in poll()
     double last_poll_time_s_ = 0.0;

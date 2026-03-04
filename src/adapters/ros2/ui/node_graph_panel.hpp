@@ -190,6 +190,16 @@ public:
     using ActivateCallback = std::function<void(const GraphNode&)>;
     void set_activate_callback(ActivateCallback cb);
 
+    // Called when user clicks a ROS node — provides the node's fully-qualified name
+    // so the caller can filter another panel (e.g. TopicListPanel) to that node's topics.
+    // Signature: void(const std::string& node_name)
+    using NodeFilterCallback = std::function<void(const std::string& node_name)>;
+    void set_node_filter_callback(NodeFilterCallback cb);
+
+    // Returns the name of the currently selected graph node (empty = none).
+    // Filtered topic list can use this on each refresh.
+    std::string selected_ros_node() const;
+
     // ---------- graph building helpers (public for testing) --------------
 
     // Build the internal graph from a topics + nodes snapshot.
@@ -263,8 +273,9 @@ private:
     bool  dragging_canvas_{false};
 
     // Callbacks (protected by mutex_)
-    SelectCallback   select_cb_;
-    ActivateCallback activate_cb_;
+    SelectCallback    select_cb_;
+    ActivateCallback  activate_cb_;
+    NodeFilterCallback node_filter_cb_;
 
     // Random seed for initial scatter (not cryptographic)
     uint32_t rng_state_{12345};

@@ -262,6 +262,11 @@ jobs:
             libXi-devel
             libxkbcommon-devel
             wayland-devel
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=10.15
+            CFLAGS="-mmacosx-version-min=10.15"
+            CXXFLAGS="-mmacosx-version-min=10.15"
+            CMAKE_ARGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

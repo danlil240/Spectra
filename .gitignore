@@ -43,6 +43,7 @@
 
 build
 build*
+!packaging/AppImage/build-appimage.sh
 .cache
 
 # Golden image test output (actual renders + diff images — not baselines)

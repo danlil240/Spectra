@@ -39,6 +39,7 @@ jobs:
             libxkbcommon-dev \
             libgl1-mesa-dev \
             glslang-tools \
+            ffmpeg \
             rpm
 
       - name: Configure + Build
@@ -138,7 +139,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}-packages
+          name: macos-${{ matrix.os }}-${{ matrix.arch }}-packages
           path: build/*.tar.gz
 
   # ─── Windows Package (.zip) ─────────────────────────────────────────────
@@ -233,7 +234,7 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
           CIBW_BEFORE_ALL_LINUX: >
             dnf -y install
             vulkan-loader-devel

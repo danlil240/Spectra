@@ -171,16 +171,14 @@ private:
 
     std::chrono::milliseconds interval_{2000};
 
-    // Background refresh thread (replaces the wall timer so that expensive
-    // graph queries do not block the SingleThreadedExecutor and starve
-    // subscription / service response delivery).
-    std::thread              refresh_thread_;
-    std::mutex               stop_mutex_;
-    std::condition_variable  stop_cv_;
+    // Wall timer — fires on the executor thread so that all DDS graph
+    // API calls (get_topic_names_and_types, count_publishers, etc.) are
+    // serialised with subscription / service callback processing.  This
+    // avoids deadlocking with rmw_fastrtps's internal participant mutexes.
+    rclcpp::TimerBase::SharedPtr timer_;
 
     std::atomic<bool> running_{false};
     std::atomic<bool> refresh_in_progress_{false};
-    std::atomic<bool> stop_requested_{false};
 
     // Rolling index for lazy per-topic enrichment (pub/sub counts, QoS).
     size_t enrich_index_{0};

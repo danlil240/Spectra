@@ -68,41 +68,26 @@ void TopicDiscovery::start()
         return;
 
     running_.store(true, std::memory_order_release);
-    stop_requested_.store(false, std::memory_order_release);
 
-    // Run graph queries on a dedicated thread so the executor stays free for
-    // subscriptions and service responses.
-    refresh_thread_ = std::thread([this]() {
-        // Initial delay: give FastDDS time to complete SPDP/SEDP participant
-        // discovery before making any graph API calls.  Without this pause,
-        // graph queries issued while DDS discovery is still settling can
-        // deadlock with the executor's rcl_wait() in rmw_fastrtps.
-        {
-            std::unique_lock<std::mutex> lk(stop_mutex_);
-            stop_cv_.wait_for(lk, std::chrono::seconds(2), [this] {
-                return stop_requested_.load(std::memory_order_acquire);
-            });
-            if (stop_requested_.load(std::memory_order_acquire))
+    // All DDS graph API calls (get_topic_names_and_types, count_publishers,
+    // get_publishers_info_by_topic, etc.) MUST run on the executor thread.
+    // Running them from a separate thread causes deadlocks inside
+    // rmw_fastrtps: the dedicated thread holds an internal DDS participant
+    // mutex while the executor's rcl_wait() tries to acquire the same
+    // mutex (or vice-versa).
+    //
+    // A wall timer fires as a callback on the executor, so graph queries
+    // and subscription processing are serialised — no concurrent DDS
+    // access, no deadlock.  The lightweight query_topics() (single DDS
+    // call) + enrich_batch() (≤15 DDS calls) complete in <100 ms, which
+    // is acceptable for a 2-second timer.
+    timer_ = node_->create_wall_timer(
+        interval_,
+        [this]() {
+            if (!running_.load(std::memory_order_acquire))
                 return;
-        }
-
-        while (!stop_requested_.load(std::memory_order_acquire))
-        {
             do_refresh();
-
-            // Sleep for the configured interval, but wake early if stop is
-            // requested.
-            std::unique_lock<std::mutex> lk(stop_mutex_);
-            std::chrono::milliseconds iv;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                iv = interval_;
-            }
-            stop_cv_.wait_for(lk, iv, [this] {
-                return stop_requested_.load(std::memory_order_acquire);
-            });
-        }
-    });
+        });
 }
 
 void TopicDiscovery::stop()
@@ -111,11 +96,12 @@ void TopicDiscovery::stop()
         return;
 
     running_.store(false, std::memory_order_release);
-    stop_requested_.store(true, std::memory_order_release);
-    stop_cv_.notify_all();
 
-    if (refresh_thread_.joinable())
-        refresh_thread_.join();
+    if (timer_)
+    {
+        timer_->cancel();
+        timer_.reset();
+    }
 }
 
 void TopicDiscovery::refresh()
@@ -305,7 +291,7 @@ void TopicDiscovery::enrich_batch()
 
     for (size_t i = 0; i < batch; ++i)
     {
-        if (stop_requested_.load(std::memory_order_acquire))
+        if (!running_.load(std::memory_order_acquire))
             return;
 
         const size_t idx  = (start + i) % total;
@@ -316,7 +302,7 @@ void TopicDiscovery::enrich_batch()
         const int sub_count =
             static_cast<int>(node_->count_subscribers(name));
 
-        if (stop_requested_.load(std::memory_order_acquire))
+        if (!running_.load(std::memory_order_acquire))
             return;
 
         QosInfo qos;

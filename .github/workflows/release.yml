@@ -243,10 +243,12 @@ jobs:
             CXXFLAGS="-march=x86-64 -mtune=generic"
             CMAKE_ARGS="-DCMAKE_C_FLAGS=-march=x86-64 -DCMAKE_CXX_FLAGS=-march=x86-64"
           CIBW_BEFORE_ALL_LINUX: >
+            dnf -y install epel-release &&
+            dnf -y update &&
             dnf -y install
             vulkan-loader-devel
             vulkan-headers
-            glslang-devel
+            glslang
             mesa-libGL-devel
             libXrandr-devel
             libXinerama-devel

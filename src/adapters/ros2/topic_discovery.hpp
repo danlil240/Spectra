@@ -140,6 +140,10 @@ private:
     // Internal refresh implementation (mutex already NOT held when called).
     void do_refresh();
 
+    // Lazily enrich a small batch of topics with per-topic DDS data
+    // (pub/sub counts, QoS).  Called after do_refresh(), outside the mutex.
+    void enrich_batch();
+
     // Diff helpers — compare new snapshot against cache, fire callbacks.
     void diff_topics(const std::vector<TopicInfo>& fresh);
     void diff_services(const std::vector<ServiceInfo>& fresh);
@@ -177,6 +181,9 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<bool> refresh_in_progress_{false};
     std::atomic<bool> stop_requested_{false};
+
+    // Rolling index for lazy per-topic enrichment (pub/sub counts, QoS).
+    size_t enrich_index_{0};
 };
 
 }   // namespace spectra::adapters::ros2

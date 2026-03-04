@@ -1,5 +1,7 @@
 #include "topic_discovery.hpp"
 
+#include <algorithm>
+
 namespace spectra::adapters::ros2
 {
 
@@ -71,6 +73,19 @@ void TopicDiscovery::start()
     // Run graph queries on a dedicated thread so the executor stays free for
     // subscriptions and service responses.
     refresh_thread_ = std::thread([this]() {
+        // Initial delay: give FastDDS time to complete SPDP/SEDP participant
+        // discovery before making any graph API calls.  Without this pause,
+        // graph queries issued while DDS discovery is still settling can
+        // deadlock with the executor's rcl_wait() in rmw_fastrtps.
+        {
+            std::unique_lock<std::mutex> lk(stop_mutex_);
+            stop_cv_.wait_for(lk, std::chrono::seconds(2), [this] {
+                return stop_requested_.load(std::memory_order_acquire);
+            });
+            if (stop_requested_.load(std::memory_order_acquire))
+                return;
+        }
+
         while (!stop_requested_.load(std::memory_order_acquire))
         {
             do_refresh();
@@ -248,7 +263,88 @@ void TopicDiscovery::do_refresh()
             refresh_done_cb_();
     }
 
+    // Lazily enrich a small batch of topics with pub/sub counts and QoS.
+    // Done AFTER the diff/callback phase and outside the main mutex to
+    // minimise contention with render-thread readers and the executor.
+    enrich_batch();
+
     refresh_in_progress_.store(false, std::memory_order_release);
+}
+
+// ---------------------------------------------------------------------------
+// Lazy per-topic enrichment
+// ---------------------------------------------------------------------------
+
+void TopicDiscovery::enrich_batch()
+{
+    // Enrich at most BATCH_SIZE topics per refresh cycle.  This spreads the
+    // heavy per-topic DDS calls (count_publishers, count_subscribers,
+    // get_publishers_info_by_topic) over many 2-second cycles instead of
+    // issuing hundreds of concurrent DDS calls that deadlock with
+    // rmw_fastrtps's rcl_wait() on the executor thread.
+    constexpr size_t BATCH_SIZE = 5;
+
+    // Snapshot topic names under the lock.
+    std::vector<std::string> names;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        names.reserve(topic_map_.size());
+        for (const auto& [name, _] : topic_map_)
+            names.push_back(name);
+    }
+
+    if (names.empty())
+        return;
+
+    // Sort for stable iteration order across refresh cycles.
+    std::sort(names.begin(), names.end());
+
+    const size_t total = names.size();
+    const size_t batch = std::min(BATCH_SIZE, total);
+    const size_t start = enrich_index_ % total;
+
+    for (size_t i = 0; i < batch; ++i)
+    {
+        if (stop_requested_.load(std::memory_order_acquire))
+            return;
+
+        const size_t idx  = (start + i) % total;
+        const auto&  name = names[idx];
+
+        const int pub_count =
+            static_cast<int>(node_->count_publishers(name));
+        const int sub_count =
+            static_cast<int>(node_->count_subscribers(name));
+
+        if (stop_requested_.load(std::memory_order_acquire))
+            return;
+
+        QosInfo qos;
+        auto pub_infos = node_->get_publishers_info_by_topic(name);
+        if (!pub_infos.empty())
+        {
+            const rmw_qos_profile_t& rmw_qos =
+                pub_infos.front().qos_profile().get_rmw_qos_profile();
+            qos.reliability = qos_reliability_str(rmw_qos.reliability);
+            qos.durability  = qos_durability_str(rmw_qos.durability);
+            qos.history     = qos_history_str(rmw_qos.history);
+            qos.depth       = static_cast<int>(rmw_qos.depth);
+        }
+
+        // Write enriched data back under the lock.
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = topic_map_.find(name);
+            if (it != topic_map_.end())
+            {
+                it->second.publisher_count  = pub_count;
+                it->second.subscriber_count = sub_count;
+                it->second.qos              = qos;
+            }
+        }
+    }
+
+    enrich_index_ = (start + batch) % total;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,8 +385,11 @@ void TopicDiscovery::diff_topics(const std::vector<TopicInfo>& fresh)
         }
         else
         {
-            // Update in-place (pub/sub counts, QoS may have changed).
-            it->second = t;
+            // Update types (which come from the lightweight query) but
+            // preserve enriched per-topic data (pub/sub counts, QoS) that
+            // was filled in by enrich_batch().  The lightweight query_topics()
+            // returns 0 for counts; overwriting would discard valid data.
+            it->second.types = t.types;
         }
     }
 }
@@ -371,7 +470,11 @@ void TopicDiscovery::diff_nodes(const std::vector<NodeInfo>& fresh)
 
 std::vector<TopicInfo> TopicDiscovery::query_topics() const
 {
-    // get_topic_names_and_types() returns map<name, vector<type_string>>.
+    // get_topic_names_and_types() is a single lightweight DDS call.
+    // Per-topic calls (count_publishers, count_subscribers,
+    // get_publishers_info_by_topic) are deferred to enrich_batch() to avoid
+    // sustained concurrent DDS graph API access with the executor's
+    // rcl_wait(), which can deadlock in rmw_fastrtps (ROS 2 Humble).
     const auto name_types = node_->get_topic_names_and_types();
 
     std::vector<TopicInfo> result;
@@ -382,27 +485,8 @@ std::vector<TopicInfo> TopicDiscovery::query_topics() const
         TopicInfo info;
         info.name  = name;
         info.types = types;
-
-        // Publisher and subscriber counts.
-        info.publisher_count  =
-            static_cast<int>(node_->count_publishers(name));
-        info.subscriber_count =
-            static_cast<int>(node_->count_subscribers(name));
-
-        // QoS: query publisher endpoint info for the first publisher.
-        auto pub_infos = node_->get_publishers_info_by_topic(name);
-        if (!pub_infos.empty())
-        {
-            // qos_profile() returns rclcpp::QoS; get_rmw_qos_profile() gives
-            // the underlying rmw_qos_profile_t with plain enum fields.
-            const rmw_qos_profile_t& rmw_qos =
-                pub_infos.front().qos_profile().get_rmw_qos_profile();
-            info.qos.reliability = qos_reliability_str(rmw_qos.reliability);
-            info.qos.durability  = qos_durability_str(rmw_qos.durability);
-            info.qos.history     = qos_history_str(rmw_qos.history);
-            info.qos.depth       = static_cast<int>(rmw_qos.depth);
-        }
-
+        // pub/sub counts and QoS left at defaults (0 / empty);
+        // enrich_batch() fills them in gradually.
         result.push_back(std::move(info));
     }
 

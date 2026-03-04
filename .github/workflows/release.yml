@@ -246,7 +246,7 @@ jobs:
             dnf -y install
             vulkan-loader-devel
             vulkan-headers
-            glslang
+            glslang-devel
             mesa-libGL-devel
             libXrandr-devel
             libXinerama-devel

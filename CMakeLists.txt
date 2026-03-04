@@ -49,6 +49,7 @@ if(SPECTRA_PYTHON_WHEEL
    AND CMAKE_SYSTEM_NAME STREQUAL "Linux"
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     add_compile_options(-march=x86-64 -mtune=generic)
+    add_link_options(-Wl,-z,x86-64-baseline)
     message(STATUS "SPECTRA_PYTHON_WHEEL: forcing portable x86_64 ISA (-march=x86-64 -mtune=generic)")
 endif()
 
@@ -528,7 +529,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
 )
 
 # Multiproc binaries
-if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc" AND NOT SPECTRA_PYTHON_WHEEL)
     if(TARGET spectra-backend)
         install(TARGETS spectra-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()

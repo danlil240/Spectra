@@ -305,16 +305,12 @@ bool ExpressionPlot::load_preset(const std::string& name)
 
 std::string ExpressionPlot::detect_type(const std::string& topic) const
 {
-    if (!bridge_.is_ok())
-        return {};
-    auto node = bridge_.node();
-    if (!node)
-        return {};
-    auto names_and_types = node->get_topic_names_and_types();
-    auto it = names_and_types.find(topic);
-    if (it == names_and_types.end() || it->second.empty())
-        return {};
-    return it->second.front();
+    // Do NOT call node_->get_topic_names_and_types() here — that goes
+    // through the DDS graph layer and can deadlock with rmw_fastrtps's
+    // discovery thread when namespaced participants are present.
+    // The caller should supply the type_name via add_variable() instead.
+    (void)topic;
+    return {};
 }
 
 void ExpressionPlot::rebuild_series_label()

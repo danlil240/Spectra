@@ -69,25 +69,48 @@ void TopicDiscovery::start()
 
     running_.store(true, std::memory_order_release);
 
-    // All DDS graph API calls (get_topic_names_and_types, count_publishers,
-    // get_publishers_info_by_topic, etc.) MUST run on the executor thread.
-    // Running them from a separate thread causes deadlocks inside
-    // rmw_fastrtps: the dedicated thread holds an internal DDS participant
-    // mutex while the executor's rcl_wait() tries to acquire the same
-    // mutex (or vice-versa).
+    // Run DDS graph queries on a dedicated background thread instead of
+    // the executor's wall-timer callback.  When graph API calls
+    // (get_topic_names_and_types, count_publishers, etc.) run inside
+    // spin_once(), they create an ABBA deadlock with rmw_fastrtps:
     //
-    // A wall timer fires as a callback on the executor, so graph queries
-    // and subscription processing are serialised — no concurrent DDS
-    // access, no deadlock.  The lightweight query_topics() (single DDS
-    // call) + enrich_batch() (≤15 DDS calls) complete in <100 ms, which
-    // is acceptable for a 2-second timer.
-    timer_ = node_->create_wall_timer(
-        interval_,
-        [this]() {
-            if (!running_.load(std::memory_order_acquire))
-                return;
-            do_refresh();
-        });
+    //   Executor thread: spin_once() holds wait-set state
+    //     → timer callback → DDS graph API → needs participant lock
+    //   FastDDS discovery thread: holds participant lock
+    //     → needs to signal executor via wait-set → BLOCKED
+    //
+    // A dedicated thread breaks this cycle: it only needs the participant
+    // lock (no executor wait-set involvement), so the discovery thread
+    // can signal the executor freely and then release the participant
+    // lock, unblocking the query thread.  Simple contention, not deadlock.
+    refresh_thread_ = std::thread([this]() {
+        while (running_.load(std::memory_order_acquire))
+        {
+            // Startup grace period: skip the first N cycles to let DDS
+            // discovery settle after the node joins the domain.
+            if (startup_grace_ > 0)
+            {
+                --startup_grace_;
+            }
+            // Full-query cooldown: skip ALL DDS graph queries when the
+            // topology recently changed, letting rmw_fastrtps finish
+            // processing new participants before we hit it with reads.
+            else if (query_cooldown_ > 0)
+            {
+                --query_cooldown_;
+            }
+            else
+            {
+                do_refresh();
+            }
+
+            // Sleep for interval_, but wake early on stop.
+            std::unique_lock<std::mutex> lk(stop_mutex_);
+            stop_cv_.wait_for(lk, interval_, [this]() {
+                return !running_.load(std::memory_order_acquire);
+            });
+        }
+    });
 }
 
 void TopicDiscovery::stop()
@@ -97,11 +120,11 @@ void TopicDiscovery::stop()
 
     running_.store(false, std::memory_order_release);
 
-    if (timer_)
-    {
-        timer_->cancel();
-        timer_.reset();
-    }
+    // Wake the background thread so it exits promptly.
+    stop_cv_.notify_one();
+
+    if (refresh_thread_.joinable())
+        refresh_thread_.join();
 }
 
 void TopicDiscovery::refresh()
@@ -226,33 +249,187 @@ void TopicDiscovery::set_refresh_done_callback(RefreshDoneCallback cb)
 
 void TopicDiscovery::do_refresh()
 {
-    // Guard against re-entrant refresh (timer fires while manual refresh runs).
     bool expected = false;
     if (!refresh_in_progress_.compare_exchange_strong(expected, true,
                                                        std::memory_order_acq_rel))
         return;
 
-    // Query the graph outside the mutex to avoid holding it during potentially
-    // slow ROS2 graph calls.
     auto fresh_topics   = query_topics();
     auto fresh_services = query_services();
     auto fresh_nodes    = query_nodes();
 
-    // Now diff and fire callbacks under the mutex.
+    // Collect callbacks to fire, but release the lock first.
+    TopicCallback       topic_cb;
+    ServiceCallback     service_cb;
+    NodeCallback        node_cb;
+    RefreshDoneCallback refresh_done_cb;
+
+    std::vector<std::pair<TopicInfo, bool>>   topic_events;
+    std::vector<std::pair<ServiceInfo, bool>> service_events;
+    std::vector<std::pair<NodeInfo, bool>>    node_events;
+    bool prev_was_empty = false;
+
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        diff_topics(fresh_topics);
-        diff_services(fresh_services);
-        diff_nodes(fresh_nodes);
 
-        if (refresh_done_cb_)
-            refresh_done_cb_();
+        // Track whether the cache was previously empty (first-time
+        // population vs. topology change from a populated cache).
+        prev_was_empty = topic_map_.empty() &&
+                         service_map_.empty() &&
+                         node_map_.empty();
+
+        // Snapshot callbacks
+        topic_cb       = topic_cb_;
+        service_cb     = service_cb_;
+        node_cb        = node_cb_;
+        refresh_done_cb = refresh_done_cb_;
+
+        // Diff topics — collect events instead of firing inline
+        // (replicate diff logic but store events)
+        {
+            std::unordered_map<std::string, const TopicInfo*> fresh_map;
+            fresh_map.reserve(fresh_topics.size());
+            for (const auto& t : fresh_topics)
+                fresh_map[t.name] = &t;
+
+            std::vector<std::string> removed_keys;
+            for (const auto& [name, info] : topic_map_)
+            {
+                if (fresh_map.count(name) == 0)
+                {
+                    topic_events.emplace_back(info, false);
+                    removed_keys.push_back(name);
+                }
+            }
+            for (const auto& k : removed_keys)
+                topic_map_.erase(k);
+
+            for (const auto& t : fresh_topics)
+            {
+                auto it = topic_map_.find(t.name);
+                if (it == topic_map_.end())
+                {
+                    topic_map_[t.name] = t;
+                    topic_events.emplace_back(t, true);
+                }
+                else
+                {
+                    it->second.types = t.types;
+                }
+            }
+        }
+
+        // Diff services — same pattern as topics
+        {
+            std::unordered_map<std::string, const ServiceInfo*> fresh_map;
+            fresh_map.reserve(fresh_services.size());
+            for (const auto& s : fresh_services)
+                fresh_map[s.name] = &s;
+
+            std::vector<std::string> removed_keys;
+            for (const auto& [name, info] : service_map_)
+            {
+                if (fresh_map.count(name) == 0)
+                {
+                    service_events.emplace_back(info, false);
+                    removed_keys.push_back(name);
+                }
+            }
+            for (const auto& k : removed_keys)
+                service_map_.erase(k);
+
+            for (const auto& s : fresh_services)
+            {
+                if (service_map_.count(s.name) == 0)
+                {
+                    service_map_[s.name] = s;
+                    service_events.emplace_back(s, true);
+                }
+                else
+                {
+                    service_map_[s.name] = s;
+                }
+            }
+        }
+
+        // Diff nodes — same pattern
+        {
+            std::unordered_map<std::string, const NodeInfo*> fresh_map;
+            fresh_map.reserve(fresh_nodes.size());
+            for (const auto& n : fresh_nodes)
+                fresh_map[n.full_name] = &n;
+
+            std::vector<std::string> removed_keys;
+            for (const auto& [name, info] : node_map_)
+            {
+                if (fresh_map.count(name) == 0)
+                {
+                    node_events.emplace_back(info, false);
+                    removed_keys.push_back(name);
+                }
+            }
+            for (const auto& k : removed_keys)
+                node_map_.erase(k);
+
+            for (const auto& n : fresh_nodes)
+            {
+                if (node_map_.count(n.full_name) == 0)
+                {
+                    node_map_[n.full_name] = n;
+                    node_events.emplace_back(n, true);
+                }
+                else
+                {
+                    node_map_[n.full_name] = n;
+                }
+            }
+        }
+
+    }
+    // Lock released — now fire callbacks safely
+
+    if (topic_cb)
+        for (const auto& [info, added] : topic_events)
+            topic_cb(info, added);
+
+    if (service_cb)
+        for (const auto& [info, added] : service_events)
+            service_cb(info, added);
+
+    if (node_cb)
+        for (const auto& [info, added] : node_events)
+            node_cb(info, added);
+
+    if (refresh_done_cb)
+        refresh_done_cb();
+
+    // If the topology changed AND we already had a populated cache,
+    // skip ALL DDS queries for several cycles.  This lets rmw_fastrtps's
+    // internal DDS discovery protocol finish updating the participant
+    // database before we hit it with graph reads.  Without this cooldown,
+    // rapid DDS graph reads contend with the FastDDS discovery thread's
+    // writer lock, especially when namespaced participants join.
+    //
+    // We do NOT set cooldowns on the very first population (from empty
+    // cache) because that is normal startup, not a discovery burst.
+    const bool topology_changed = !topic_events.empty() ||
+                                  !service_events.empty() ||
+                                  !node_events.empty();
+    if (topology_changed && !prev_was_empty)
+    {
+        // Skip ALL DDS queries (core + enrichment) for several cycles.
+        query_cooldown_  = 5;   // skip core queries for 5 cycles (~10 s)
+        enrich_cooldown_ = 8;   // skip enrichment for 8 cycles (~16 s)
     }
 
-    // Lazily enrich a small batch of topics with pub/sub counts and QoS.
-    // Done AFTER the diff/callback phase and outside the main mutex to
-    // minimise contention with render-thread readers and the executor.
-    enrich_batch();
+    if (enrich_cooldown_ > 0)
+    {
+        --enrich_cooldown_;
+    }
+    else
+    {
+        enrich_batch();
+    }
 
     refresh_in_progress_.store(false, std::memory_order_release);
 }
@@ -266,9 +443,13 @@ void TopicDiscovery::enrich_batch()
     // Enrich at most BATCH_SIZE topics per refresh cycle.  This spreads the
     // heavy per-topic DDS calls (count_publishers, count_subscribers,
     // get_publishers_info_by_topic) over many 2-second cycles instead of
-    // issuing hundreds of concurrent DDS calls that deadlock with
-    // rmw_fastrtps's rcl_wait() on the executor thread.
-    constexpr size_t BATCH_SIZE = 5;
+    // issuing hundreds of concurrent DDS calls that contend with
+    // rmw_fastrtps's internal participant locks.
+    //
+    // Keep the batch small (2) to minimise sustained DDS read-lock
+    // acquisition that can starve the FastDDS discovery writer thread
+    // when new participants (especially namespaced ones) are joining.
+    constexpr size_t BATCH_SIZE = 2;
 
     // Snapshot topic names under the lock.
     std::vector<std::string> names;
@@ -459,8 +640,8 @@ std::vector<TopicInfo> TopicDiscovery::query_topics() const
     // get_topic_names_and_types() is a single lightweight DDS call.
     // Per-topic calls (count_publishers, count_subscribers,
     // get_publishers_info_by_topic) are deferred to enrich_batch() to avoid
-    // sustained concurrent DDS graph API access with the executor's
-    // rcl_wait(), which can deadlock in rmw_fastrtps (ROS 2 Humble).
+    // sustained DDS graph API access that contends with rmw_fastrtps's
+    // internal participant locks (ROS 2 Humble / FastDDS).
     const auto name_types = node_->get_topic_names_and_types();
 
     std::vector<TopicInfo> result;
@@ -513,10 +694,16 @@ std::vector<NodeInfo> TopicDiscovery::query_nodes() const
         info.full_name = fq;
 
         const auto slash = fq.rfind('/');
-        if (slash == std::string::npos || slash == 0)
+        if (slash == std::string::npos)
         {
             // Bare name with no namespace prefix (edge case).
             info.name       = fq;
+            info.namespace_ = "/";
+        }
+        else if (slash == 0)
+        {
+            // Root namespace: "/node_name" → name = "node_name", ns = "/"
+            info.name       = fq.substr(1);
             info.namespace_ = "/";
         }
         else

@@ -76,6 +76,9 @@ struct PlotHandle
     bool valid() const { return id >= 1 && figure != nullptr && series != nullptr; }
 };
 
+
+class TopicDiscovery;
+
 // ---------------------------------------------------------------------------
 // RosPlotManager — main class.
 // ---------------------------------------------------------------------------
@@ -154,6 +157,9 @@ public:
     // Override how many samples to collect before the first Y auto-fit.
     // Default: AUTO_FIT_SAMPLES (100).
     void set_auto_fit_samples(size_t n);
+
+    // Set the TopicDiscovery instance for safe (non-blocking) type resolution.
+    void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
 
     // ---------- auto-scroll (C2) -----------------------------------------
 
@@ -250,6 +256,8 @@ private:
     double   scroll_window_s_      = DEFAULT_SCROLL_WINDOW_S;
 
     OnDataCallback on_data_cb_;
+
+    TopicDiscovery*      discovery_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

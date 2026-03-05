@@ -114,9 +114,6 @@ void Ros2Bridge::spin_thread_func()
 
     while (rclcpp::ok() && !stop_requested_.load(std::memory_order_acquire))
     {
-        // spin_some drains available callbacks without blocking indefinitely.
-        // spin_once with a short timeout keeps the loop responsive to
-        // stop_requested_ while still sleeping when idle.
         executor_->spin_once(std::chrono::milliseconds(10));
     }
 

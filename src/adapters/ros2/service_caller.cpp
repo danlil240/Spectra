@@ -197,10 +197,10 @@ void ServiceCaller::refresh_services()
         for (auto& si : raw)
             fresh.push_back(entry_from_info(si));
     }
-    else
-    {
-        fresh = query_services_from_node();
-    }
+    // Do NOT fall back to query_services_from_node() — that direct DDS
+    // graph call can deadlock with rmw_fastrtps's discovery thread when
+    // namespaced participants are present.  Return empty and let the
+    // caller retry after TopicDiscovery has refreshed.
 
     std::lock_guard<std::mutex> lk(services_mutex_);
     // Merge: preserve schema_loaded / schema_ok from existing entries.

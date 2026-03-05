@@ -409,7 +409,7 @@ class ImGuiIntegration
 
     bool     initialized_        = false;
     bool     headless_           = false;   // True when initialized via init_headless()
-    uint64_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
+    uintptr_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 
     // Inspector system (Agent C)

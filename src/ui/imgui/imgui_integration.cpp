@@ -143,7 +143,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
+    cached_render_pass_ = reinterpret_cast<uintptr_t>(ii.RenderPass);
     initialized_        = true;
     return true;
 }
@@ -203,7 +203,7 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = reinterpret_cast<uint64_t>(ii.RenderPass);
+    cached_render_pass_ = reinterpret_cast<uintptr_t>(ii.RenderPass);
     initialized_        = true;
     return true;
 }
@@ -262,7 +262,7 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
     // Vulkan backend to pick up the new render pass.  This is a no-op in the
     // common case where recreate_swapchain reuses the render pass handle.
     VkRenderPass current_rp      = backend.render_pass();
-    auto         current_rp_bits = reinterpret_cast<uint64_t>(current_rp);
+    auto         current_rp_bits = reinterpret_cast<uintptr_t>(current_rp);
     if (current_rp_bits != cached_render_pass_ && current_rp != VK_NULL_HANDLE)
     {
         SPECTRA_LOG_WARN(

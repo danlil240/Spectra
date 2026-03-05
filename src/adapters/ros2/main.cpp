@@ -185,12 +185,14 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------
     // Render loop — runs until window is closed or SIGINT received.
     // ---------------------------------------------------------------------------
+
     for (;;)
     {
         if (shell.shutdown_requested())
             break;
 
         auto result = app.step();
+
         if (result.should_exit)
             break;
     }

@@ -280,7 +280,11 @@ bool BagRecorder::subscribe_topics()
     }
 
     // Discover topic type info for the requested topics.
-    // Use get_topic_names_and_types() — available without TopicDiscovery.
+    // NOTE: get_topic_names_and_types() is a DDS graph API call.  When called
+    // from a non-executor thread it can deadlock with rmw_fastrtps's discovery
+    // thread when namespaced participants are present.  Bag recording is
+    // user-initiated and infrequent, so the risk is low.  A future improvement
+    // would be to resolve types from a TopicDiscovery cache instead.
     const auto graph_topics = node_->get_topic_names_and_types();
     for (const auto& [tname, ttypes] : graph_topics) {
         if (!ttypes.empty()) {

@@ -17,9 +17,11 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -171,17 +173,42 @@ private:
 
     std::chrono::milliseconds interval_{2000};
 
-    // Wall timer — fires on the executor thread so that all DDS graph
-    // API calls (get_topic_names_and_types, count_publishers, etc.) are
-    // serialised with subscription / service callback processing.  This
-    // avoids deadlocking with rmw_fastrtps's internal participant mutexes.
-    rclcpp::TimerBase::SharedPtr timer_;
+    // Dedicated background thread for DDS graph queries.  Running graph
+    // API calls (get_topic_names_and_types, count_publishers, etc.) on the
+    // executor thread causes an ABBA deadlock with rmw_fastrtps: the
+    // executor's spin_once() holds wait-set state while the timer callback
+    // calls DDS graph API needing the FastDDS participant lock, while the
+    // discovery thread holds the participant lock and needs to signal the
+    // executor via the wait-set.  A dedicated thread breaks this cycle
+    // because it never holds executor wait-set state.
+    std::thread refresh_thread_;
+    std::mutex  stop_mutex_;          // protects stop_cv_ wait
+    std::condition_variable stop_cv_; // wakes thread for early shutdown
 
     std::atomic<bool> running_{false};
     std::atomic<bool> refresh_in_progress_{false};
 
     // Rolling index for lazy per-topic enrichment (pub/sub counts, QoS).
     size_t enrich_index_{0};
+
+    // Cooldown counter: when the DDS topology changes (new topics/services/
+    // nodes appear), we skip ALL DDS graph queries for a few refresh
+    // cycles to let rmw_fastrtps's internal discovery settle.  Without
+    // this cooldown, rapid DDS graph reads contend with the FastDDS
+    // discovery thread's writer lock on the participant database.
+    int enrich_cooldown_{0};
+
+    // Full-query cooldown: when > 0, skip the core graph queries
+    // (query_topics, query_services, query_nodes) in addition to
+    // enrichment.  Set on topology change to avoid hammering DDS during
+    // active discovery bursts (e.g. namespaced node join).
+    int query_cooldown_{0};
+
+    // Startup grace period: skip the first N refresh cycles to let DDS
+    // discovery settle after the node joins the domain.  Prevents the
+    // very first graph query from deadlocking with FastDDS when other
+    // participants are already present.
+    int startup_grace_{2};
 };
 
 }   // namespace spectra::adapters::ros2

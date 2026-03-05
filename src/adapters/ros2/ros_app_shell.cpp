@@ -2,9 +2,8 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <cinttypes>
-#include <cstdio>
+#include <cmath>
 #include <cstring>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -148,6 +147,10 @@ bool RosAppShell::init(int argc, char** argv)
     subplot_mgr_->set_time_window(cfg_.time_window_s);
     plot_mgr_->set_time_window(cfg_.time_window_s);
 
+    plot_mgr_->set_topic_discovery(discovery_.get());
+    subplot_mgr_->set_topic_discovery(discovery_.get());
+
+    
     topic_list_  = std::make_unique<TopicListPanel>();
     topic_stats_ = std::make_unique<TopicStatsOverlay>();
     topic_echo_  = std::make_unique<TopicEchoPanel>(bridge_->node(), *intr_);
@@ -327,8 +330,10 @@ void RosAppShell::poll()
 
     if (plot_mgr_)
         plot_mgr_->poll();
+
     if (subplot_mgr_)
         subplot_mgr_->poll();
+
     if (bag_player_)
         bag_player_->advance(dt);
 

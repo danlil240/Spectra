@@ -10,6 +10,8 @@
 
 #include <spectra/color.hpp>
 
+#include "topic_discovery.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -293,6 +295,7 @@ void RosPlotManager::set_auto_fit_samples(size_t n)
     auto_fit_samples_ = n;
 }
 
+
 void RosPlotManager::set_time_window(double seconds)
 {
     scroll_window_s_ = seconds;
@@ -385,21 +388,24 @@ const RosPlotManager::PlotEntry* RosPlotManager::find_entry(int id) const
 
 std::string RosPlotManager::detect_type(const std::string& topic) const
 {
-    if (!bridge_.is_ok())
+    // Prefer the TopicDiscovery cache — queries DDS on the executor thread,
+    // never deadlocks with rmw_fastrtps.
+    if (discovery_)
+    {
+        if (discovery_->has_topic(topic))
+        {
+            TopicInfo ti = discovery_->topic(topic);
+            if (!ti.types.empty())
+                return ti.types.front();
+        }
         return {};
+    }
 
-    auto node = bridge_.node();
-    if (!node)
-        return {};
-
-    // Query the topic graph for type names.
-    auto names_and_types = node->get_topic_names_and_types();
-    auto it = names_and_types.find(topic);
-    if (it == names_and_types.end() || it->second.empty())
-        return {};
-
-    // Return the first advertised type.
-    return it->second.front();
+    // Do NOT fall back to node_->get_topic_names_and_types() — that DDS
+    // graph call can deadlock with rmw_fastrtps's discovery thread when
+    // namespaced participants are present.  Return empty and let the caller
+    // retry after TopicDiscovery has refreshed.
+    return {};
 }
 
 spectra::Color RosPlotManager::next_color()

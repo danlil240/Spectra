@@ -351,16 +351,36 @@ static void draw_hz_sparkline(const std::deque<float>& history,
 
 void TopicListPanel::draw(bool* p_open)
 {
-    // Poll discovery for topic list updates.
+    // Fetch discovery data OUTSIDE any lock to avoid ABBA with
+    // TopicDiscovery::mutex_.
+    std::vector<TopicInfo> fresh;
+    bool have_fresh = false;
     if (disc_) {
-        auto fresh = disc_->topics();
-        std::lock_guard<std::mutex> lk(topics_mutex_);
+        fresh = disc_->topics();
+        have_fresh = true;
+    }
+
+    // Prune and compute stats under stats_mutex_ once per frame.
+    // This lock is scoped — released before topics_mutex_ is acquired.
+    const int64_t cur_ns = wall_clock_ns();
+    const int64_t win_ns = static_cast<int64_t>(stats_window_ms_) * 1'000'000LL;
+    {
+        std::lock_guard<std::mutex> lk(stats_mutex_);
+        for (auto& [name, st] : stats_map_) {
+            st.prune_and_compute(cur_ns, win_ns);
+        }
+    }
+
+    // Single topics_mutex_ lock: covers discovery update + rendering.
+    std::lock_guard<std::mutex> lk_t(topics_mutex_);
+
+    // Apply discovery update (still under topics_mutex_).
+    if (have_fresh) {
         if (fresh.size() != topics_.size()) {
             topics_ = std::move(fresh);
             rebuild_tree();
             filter_dirty_ = true;
         } else {
-            // Check if any name changed.
             bool changed = false;
             for (size_t i = 0; i < topics_.size(); ++i) {
                 if (topics_[i].name != fresh[i].name) { changed = true; break; }
@@ -370,16 +390,6 @@ void TopicListPanel::draw(bool* p_open)
                 rebuild_tree();
                 filter_dirty_ = true;
             }
-        }
-    }
-
-    // Prune and compute stats under stats_mutex_ once per frame.
-    const int64_t cur_ns = wall_clock_ns();
-    const int64_t win_ns = static_cast<int64_t>(stats_window_ms_) * 1'000'000LL;
-    {
-        std::lock_guard<std::mutex> lk(stats_mutex_);
-        for (auto& [name, st] : stats_map_) {
-            st.prune_and_compute(cur_ns, win_ns);
         }
     }
 
@@ -431,15 +441,12 @@ void TopicListPanel::draw(bool* p_open)
     ImGui::TableSetupColumn("BW",       ImGuiTableColumnFlags_WidthFixed,   72.0f);
     ImGui::TableHeadersRow();
 
-    // --- Rows ---
-    std::lock_guard<std::mutex> lk_t(topics_mutex_);
-
+    // --- Rows (already holding topics_mutex_) ---
     if (group_by_namespace_) {
         // Root-level loose topics first (e.g. /rosout at "/").
         for (const auto& tname : root_topics_) {
             if (!filter_str_.empty() && tname.find(filter_str_) == std::string::npos)
                 continue;
-            // Find TopicInfo.
             auto it = std::find_if(topics_.begin(), topics_.end(),
                                    [&](const TopicInfo& ti) { return ti.name == tname; });
             if (it == topics_.end()) continue;
@@ -447,7 +454,6 @@ void TopicListPanel::draw(bool* p_open)
                 std::lock_guard<std::mutex> lk_s(stats_mutex_);
                 (void)stats_map_[tname];  // ensure entry exists
             }
-            // We temporarily unlock stats to avoid nested lock; we only read here.
             std::lock_guard<std::mutex> lk_s(stats_mutex_);
             draw_topic_row(*it, stats_map_[tname]);
         }
@@ -536,18 +542,22 @@ void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
     const bool open = ImGui::TreeNodeEx(node.label.c_str(), tree_flags);
 
     if (open) {
-        // Leaf topics.
-        std::lock_guard<std::mutex> lk_s(stats_mutex_);
-        for (const auto& tname : node.topic_names) {
-            if (!filter_str_.empty() && tname.find(filter_str_) == std::string::npos)
-                continue;
-            auto tit = std::find_if(topics_.begin(), topics_.end(),
-                                    [&](const TopicInfo& ti) { return ti.name == tname; });
-            if (tit == topics_.end()) continue;
-            draw_topic_row(*tit, stats_map_[tname]);
+        // Leaf topics — lock stats_mutex_ only for this section.
+        // Must release before recursing into child namespaces, because
+        // std::mutex is non-recursive and the recursive call also locks it.
+        {
+            std::lock_guard<std::mutex> lk_s(stats_mutex_);
+            for (const auto& tname : node.topic_names) {
+                if (!filter_str_.empty() && tname.find(filter_str_) == std::string::npos)
+                    continue;
+                auto tit = std::find_if(topics_.begin(), topics_.end(),
+                                        [&](const TopicInfo& ti) { return ti.name == tname; });
+                if (tit == topics_.end()) continue;
+                draw_topic_row(*tit, stats_map_[tname]);
+            }
         }
 
-        // Child namespaces.
+        // Child namespaces (recursive — stats_mutex_ must NOT be held here).
         std::vector<std::string> sorted_children = node.children;
         std::sort(sorted_children.begin(), sorted_children.end());
         for (const auto& child : sorted_children) {

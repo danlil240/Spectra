@@ -405,10 +405,25 @@ void ParamEditorPanel::do_refresh()
         return;
     }
 
+    // Helper: poll service_is_ready() with sleeps instead of calling
+    // wait_for_service().  wait_for_service() internally polls the DDS
+    // graph from this detached thread, which fights FastDDS's discovery
+    // thread for the participant mutex and deadlocks when namespaced
+    // nodes are present.
+    auto poll_service_ready = [](auto& client, int max_attempts, int sleep_ms) -> bool {
+        for (int i = 0; i < max_attempts; ++i)
+        {
+            if (client->service_is_ready())
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        }
+        return false;
+    };
+
     // 1) ListParameters
     auto list_req = std::make_shared<rcl_interfaces::srv::ListParameters::Request>();
     list_req->depth = rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE;
-    if (!lc->wait_for_service(2s)) {
+    if (!poll_service_ready(lc, 20, 100)) {
         finish(false, "ListParameters service unavailable for " + node_name);
         return;
     }
@@ -434,7 +449,7 @@ void ParamEditorPanel::do_refresh()
 
     // 2) DescribeParameters
     std::unordered_map<std::string, ParamDescriptor> descs;
-    if (dc && dc->wait_for_service(2s)) {
+    if (dc && poll_service_ready(dc, 20, 100)) {
         auto desc_req  = std::make_shared<rcl_interfaces::srv::DescribeParameters::Request>();
         desc_req->names = names;
         auto desc_future = dc->async_send_request(desc_req);
@@ -449,7 +464,7 @@ void ParamEditorPanel::do_refresh()
     }
 
     // 3) GetParameters
-    if (!gc->wait_for_service(2s)) {
+    if (!poll_service_ready(gc, 20, 100)) {
         finish(false, "GetParameters service unavailable");
         return;
     }
@@ -625,7 +640,20 @@ ParamSetResult ParamEditorPanel::set_param_internal(const std::string& param_nam
     }
 
     if (!sc) return {false, "no set_client"};
-    if (!sc->wait_for_service(2s)) return {false, "SetParameters service unavailable"};
+
+    // Poll with sleeps instead of wait_for_service() to avoid DDS
+    // participant mutex deadlock with rmw_fastrtps discovery thread.
+    {
+        bool ready = false;
+        for (int i = 0; i < 20 && !ready; ++i)
+        {
+            ready = sc->service_is_ready();
+            if (!ready)
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        if (!ready)
+            return {false, "SetParameters service unavailable"};
+    }
 
     rcl_interfaces::msg::Parameter param_msg;
     param_msg.name  = param_name;
@@ -1138,8 +1166,20 @@ void ParamEditorPanel::draw_toolbar()
         refresh();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Refresh") || (!is_loaded() && !is_refreshing() &&
-                                     node_input_buf_[0] != '\0')) {
+
+    // Auto-refresh: only attempt once when the node name changes.
+    // Do NOT auto-fire every frame — that spams detached threads with
+    // DDS graph queries that deadlock with rmw_fastrtps discovery.
+    bool auto_refresh = false;
+    if (!is_loaded() && !is_refreshing() && node_input_buf_[0] != '\0')
+    {
+        // Only auto-refresh if the target hasn't been attempted yet.
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (last_error_.empty() && !target_node_.empty())
+            auto_refresh = true;
+    }
+
+    if (ImGui::Button("Refresh") || auto_refresh) {
         set_target_node(std::string(node_input_buf_));
         refresh();
     }

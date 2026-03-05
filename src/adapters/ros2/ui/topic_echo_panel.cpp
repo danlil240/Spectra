@@ -287,10 +287,42 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
             const uint8_t* base = static_cast<const uint8_t*>(msg_ptr) + fd.offset;
             size_t count = 0;
 
+            // Determine element byte-size from type (needed for dynamic array
+            // count computation below).
+            size_t elem_sz = 0;
+            if (fd.type != FieldType::Message && is_numeric(fd.type)) {
+                elem_sz = 8; // default: double/int64
+                switch (fd.type) {
+                    case FieldType::Bool:    elem_sz = 1; break;
+                    case FieldType::Byte:    elem_sz = 1; break;
+                    case FieldType::Char:    elem_sz = 1; break;
+                    case FieldType::Int8:    elem_sz = 1; break;
+                    case FieldType::Uint8:   elem_sz = 1; break;
+                    case FieldType::Int16:   elem_sz = 2; break;
+                    case FieldType::Uint16:  elem_sz = 2; break;
+                    case FieldType::Int32:   elem_sz = 4; break;
+                    case FieldType::Uint32:  elem_sz = 4; break;
+                    case FieldType::Float32: elem_sz = 4; break;
+                    case FieldType::Float64: elem_sz = 8; break;
+                    case FieldType::Int64:   elem_sz = 8; break;
+                    case FieldType::Uint64:  elem_sz = 8; break;
+                    default:                 elem_sz = 8; break;
+                }
+            }
+
             if (fd.is_dynamic_array) {
-                // std::vector layout: pointer + size + capacity.
-                // Read count from offset sizeof(void*) (the size member).
-                std::memcpy(&count, base + sizeof(void*), sizeof(size_t));
+                // std::vector layout (libstdc++/libc++):
+                //   offset 0:              _M_start         (T*)
+                //   offset sizeof(void*):  _M_finish        (T*)
+                //   offset 2*sizeof(void*): _M_end_of_storage (T*)
+                // Count = (_M_finish - _M_start) / sizeof(T).
+                const uint8_t* start_ptr = nullptr;
+                const uint8_t* finish_ptr = nullptr;
+                std::memcpy(&start_ptr, base, sizeof(void*));
+                std::memcpy(&finish_ptr, base + sizeof(void*), sizeof(void*));
+                if (start_ptr && finish_ptr >= start_ptr && elem_sz > 0) {
+                    count = static_cast<size_t>(finish_ptr - start_ptr) / elem_sz;
+                }
             } else {
                 count = static_cast<size_t>(fd.array_size);
             }
@@ -311,25 +343,6 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
                     std::memcpy(&data_ptr, base, sizeof(void*));
                 } else {
                     data_ptr = base;
-                }
-
-                // Determine element byte-size from type.
-                size_t elem_sz = 8; // default: double/int64
-                switch (fd.type) {
-                    case FieldType::Bool:    elem_sz = 1; break;
-                    case FieldType::Byte:    elem_sz = 1; break;
-                    case FieldType::Char:    elem_sz = 1; break;
-                    case FieldType::Int8:    elem_sz = 1; break;
-                    case FieldType::Uint8:   elem_sz = 1; break;
-                    case FieldType::Int16:   elem_sz = 2; break;
-                    case FieldType::Uint16:  elem_sz = 2; break;
-                    case FieldType::Int32:   elem_sz = 4; break;
-                    case FieldType::Uint32:  elem_sz = 4; break;
-                    case FieldType::Float32: elem_sz = 4; break;
-                    case FieldType::Float64: elem_sz = 8; break;
-                    case FieldType::Int64:   elem_sz = 8; break;
-                    case FieldType::Uint64:  elem_sz = 8; break;
-                    default:                 elem_sz = 8; break;
                 }
 
                 const size_t max_elems = std::min(count, size_t{64});

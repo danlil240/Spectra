@@ -85,6 +85,8 @@ struct SubplotHandle
     bool valid() const { return slot >= 1 && axes != nullptr && series != nullptr; }
 };
 
+class TopicDiscovery;
+
 // ---------------------------------------------------------------------------
 // SubplotManager — main class.
 // ---------------------------------------------------------------------------
@@ -274,6 +276,7 @@ public:
     void set_figure_size(uint32_t w, uint32_t h);
     void set_auto_fit_samples(size_t n) { auto_fit_samples_ = n; }
     size_t auto_fit_samples() const { return auto_fit_samples_; }
+    void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
 
     // -----------------------------------------------------------------
     // Callbacks
@@ -360,6 +363,8 @@ private:
     size_t   auto_fit_samples_   = AUTO_FIT_SAMPLES;
 
     OnDataCallback on_data_cb_;
+
+    TopicDiscovery*      discovery_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

@@ -15,6 +15,7 @@
 // AxisLinkManager lives under src/ui/data/ — included here (not in the public
 // header) so that adapter users don't need src/ui on their include path.
 #include "ui/data/axis_link.hpp"
+#include "topic_discovery.hpp"
 
 namespace spectra::adapters::ros2
 {
@@ -607,19 +608,25 @@ const SubplotManager::SlotEntry* SubplotManager::slot_entry(int slot) const
 
 std::string SubplotManager::detect_type(const std::string& topic) const
 {
-    if (!bridge_.is_ok())
-        return {};
+    // Use the TopicDiscovery cache — it queries DDS on a dedicated background
+    // thread, avoiding the ABBA deadlock between the executor's wait-set and
+    // FastDDS's participant lock that occurs with rmw_fastrtps.
+    if (discovery_)
+    {
+        if (discovery_->has_topic(topic))
+        {
+            TopicInfo ti = discovery_->topic(topic);
+            if (!ti.types.empty())
+                return ti.types.front();
+        }
+        return {};  // topic not yet discovered; will succeed on retry
+    }
 
-    auto node = bridge_.node();
-    if (!node)
-        return {};
-
-    auto names_and_types = node->get_topic_names_and_types();
-    auto it = names_and_types.find(topic);
-    if (it == names_and_types.end() || it->second.empty())
-        return {};
-
-    return it->second.front();
+    // Do NOT fall back to node_->get_topic_names_and_types() — that DDS
+    // graph call can deadlock with rmw_fastrtps's discovery thread when
+    // namespaced participants are present.  Return empty and let the caller
+    // retry after TopicDiscovery has refreshed.
+    return {};
 }
 
 spectra::Color SubplotManager::next_color()

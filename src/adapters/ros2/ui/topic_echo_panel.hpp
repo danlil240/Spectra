@@ -144,6 +144,15 @@ public:
     void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
     FieldDragDrop* drag_drop() const { return drag_drop_; }
 
+    // ---------- message arrival callback ---------------------------------
+
+    // Called from the executor thread each time a message arrives on the
+    // subscribed topic.  Signature: void(topic_name, serialised_bytes)
+    // Thread-safe: the callback is stored atomically-guarded.
+    using MessageCallback = std::function<void(const std::string& topic,
+                                               size_t bytes)>;
+    void set_message_callback(MessageCallback cb) { message_cb_ = std::move(cb); }
+
     // ---------- hover highlight callback --------------------------------
 
     // Called when the user hovers a numeric field row.
@@ -269,6 +278,9 @@ private:
 
     // Drag-and-drop controller (optional, not owned).
     FieldDragDrop* drag_drop_{nullptr};
+
+    // Message arrival callback (fires from executor thread).
+    MessageCallback message_cb_;
 
     // Hover highlight state (render-thread only).
     HoverCallback hover_cb_;

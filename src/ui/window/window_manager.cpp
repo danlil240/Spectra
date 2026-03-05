@@ -1599,7 +1599,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     // Dock system → tab bar sync
     auto* figure_tabs_raw = ui->figure_tabs.get();
     ui->dock_system.split_view().set_on_active_changed(
-        [figure_tabs_raw, fig_mgr_ptr, guard_ptr](size_t figure_index)
+        [figure_tabs_raw, fig_mgr_ptr, guard_ptr](FigureId figure_index)
         {
             if (*guard_ptr)
                 return;

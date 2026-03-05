@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "ui/layout/layout_manager.hpp"
+
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
 #ifdef IMGUI_HAS_DOCK
@@ -222,15 +224,74 @@ bool RosAppShell::init(int argc, char** argv)
 
     topic_list_->set_topic_discovery(discovery_.get());
 
+    // Automatically create lightweight subscriptions for every discovered
+    // topic so the Topic Monitor can show Hz and BW for all topics, not just
+    // the ones that are plotted or currently selected in the echo panel.
+    discovery_->set_topic_callback(
+        [this](const TopicInfo& info, bool added)
+        {
+            if (added)
+            {
+                // Create a monitoring subscription for Hz/BW tracking.
+                if (info.types.empty())
+                    return;
+                auto node = bridge_->node();
+                auto qos  = rclcpp::QoS(rclcpp::KeepLast(1))
+                                .best_effort()
+                                .durability_volatile();
+                const std::string topic = info.name;
+                const std::string type  = info.types.front();
+                try
+                {
+                    auto sub = node->create_generic_subscription(
+                        info.name,
+                        type,
+                        qos,
+                        [this, topic](std::shared_ptr<rclcpp::SerializedMessage> msg)
+                        {
+                            const size_t bytes = msg ? msg->size() : 0;
+                            if (topic_list_)
+                                topic_list_->notify_message(topic, bytes);
+                            if (topic_stats_)
+                                topic_stats_->notify_message(topic, bytes, -1);
+                        });
+                    std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+                    monitor_subs_[info.name] = std::move(sub);
+                }
+                catch (const std::exception& e)
+                {
+                    // Subscription creation can fail for topics with
+                    // unavailable type support — silently ignore.
+                    (void)e;
+                }
+            }
+            else
+            {
+                // Topic removed — drop the monitoring subscription.
+                std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+                monitor_subs_.erase(info.name);
+            }
+        });
+
     plot_mgr_->set_on_data(
         [this](int id, double /*t*/, double /*v*/)
         {
             ++total_messages_;
             const PlotHandle h = plot_mgr_->handle(id);
-            if (h.valid() && topic_list_)
-                topic_list_->notify_message(h.topic, sizeof(double));
-            if (h.valid() && topic_stats_)
-                topic_stats_->notify_message(h.topic, sizeof(double), -1);
+            if (!h.valid()) return;
+            // Skip if a monitor subscription already handles notify.
+            bool has_monitor = false;
+            {
+                std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+                has_monitor = monitor_subs_.count(h.topic) > 0;
+            }
+            if (!has_monitor)
+            {
+                if (topic_list_)
+                    topic_list_->notify_message(h.topic, sizeof(double));
+                if (topic_stats_)
+                    topic_stats_->notify_message(h.topic, sizeof(double), -1);
+            }
         });
 
     subplot_mgr_->set_on_data(
@@ -240,10 +301,19 @@ bool RosAppShell::init(int argc, char** argv)
             const SubplotHandle h = subplot_mgr_->handle(slot);
             if (!h.valid())
                 return;
-            if (topic_list_)
-                topic_list_->notify_message(h.topic, sizeof(double));
-            if (topic_stats_)
-                topic_stats_->notify_message(h.topic, sizeof(double), -1);
+            // Skip if a monitor subscription already handles notify.
+            bool has_monitor = false;
+            {
+                std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+                has_monitor = monitor_subs_.count(h.topic) > 0;
+            }
+            if (!has_monitor)
+            {
+                if (topic_list_)
+                    topic_list_->notify_message(h.topic, sizeof(double));
+                if (topic_stats_)
+                    topic_stats_->notify_message(h.topic, sizeof(double), -1);
+            }
         });
 
     wire_panel_callbacks();
@@ -295,6 +365,12 @@ void RosAppShell::shutdown()
     topic_stats_.reset();
     topic_list_.reset();
     drag_drop_.reset();
+
+    // Drop all monitoring subscriptions before destroying the node.
+    {
+        std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+        monitor_subs_.clear();
+    }
 
     if (discovery_)
     {
@@ -743,12 +819,26 @@ void RosAppShell::draw_topic_stats(bool* p_open)
 void RosAppShell::draw_plot_area(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGui::SetNextWindowBgAlpha(1.0f);
+    // Transparent background so the Vulkan-rendered figure canvas shows through.
+    ImGui::SetNextWindowBgAlpha(0.0f);
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
     if (ImGui::Begin("Plot Area", p_open, flags))
     {
+        // Update the Spectra LayoutManager canvas rect to match this panel's
+        // content region so the Vulkan renderer draws the figure here.
+        if (layout_manager_)
+        {
+            const ImVec2 wpos  = ImGui::GetWindowPos();
+            const ImVec2 wsz   = ImGui::GetWindowSize();
+            // Account for title bar height in docked windows.
+            const float title_h = ImGui::GetCurrentWindow()->TitleBarHeight
+                                + ImGui::GetCurrentWindow()->MenuBarHeight;
+            layout_manager_->set_canvas_override(
+                spectra::Rect{wpos.x, wpos.y + title_h, wsz.x, wsz.y - title_h});
+        }
+
         const int active = subplot_mgr_ ? subplot_mgr_->active_count() : 0;
         const int cap    = subplot_mgr_ ? subplot_mgr_->capacity() : 0;
         ImGui::Text("Active plots: %d / %d", active, cap);
@@ -1186,6 +1276,32 @@ void RosAppShell::wire_panel_callbacks()
 
     if (topic_list_) topic_list_->set_drag_drop(drag_drop_.get());
     if (topic_echo_) topic_echo_->set_drag_drop(drag_drop_.get());
+
+    // Forward echo panel message arrivals to topic stats and topic list so
+    // that statistics update for the selected topic even when it isn't plotted.
+    if (topic_echo_)
+    {
+        topic_echo_->set_message_callback(
+            [this](const std::string& topic, size_t bytes)
+            {
+                // Only forward to topic_list / topic_stats if there is no
+                // active monitor subscription for this topic — the monitor
+                // sub already calls notify_message, so forwarding here too
+                // would double-count and inflate the displayed Hz.
+                bool has_monitor = false;
+                {
+                    std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+                    has_monitor = monitor_subs_.count(topic) > 0;
+                }
+                if (!has_monitor)
+                {
+                    if (topic_stats_)
+                        topic_stats_->notify_message(topic, bytes, -1);
+                    if (topic_list_)
+                        topic_list_->notify_message(topic, bytes);
+                }
+            });
+    }
 
     if (node_graph_panel_)
     {

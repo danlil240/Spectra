@@ -274,6 +274,12 @@ class ImGuiIntegration
     bool is_canvas_visible() const { return canvas_visible_; }
     void set_canvas_visible(bool v) { canvas_visible_ = v; }
 
+    // When true, Vulkan figure rendering (axes, series, gridlines) proceeds
+    // even if the ImGui canvas overlay is hidden.  This lets adapter shells
+    // suppress Spectra's canvas chrome while still rendering plot content.
+    bool is_render_figure_enabled() const { return render_figure_; }
+    void set_render_figure_enabled(bool v) { render_figure_ = v; }
+
     // Enable ImGui docking support.  Must be called BEFORE the first
     // NewFrame() to avoid an ImGui assertion.
     void enable_docking();
@@ -409,7 +415,7 @@ class ImGuiIntegration
 
     bool     initialized_        = false;
     bool     headless_           = false;   // True when initialized via init_headless()
-    uintptr_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
+    uint64_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 
     // Inspector system (Agent C)
@@ -430,6 +436,7 @@ class ImGuiIntegration
     bool command_bar_visible_ = true;   // Spectra command bar / menu
     bool status_bar_visible_  = true;   // Spectra status bar
     bool canvas_visible_      = true;   // Plot canvas, overlays, splitters, tab headers
+    bool render_figure_       = true;   // Vulkan figure rendering (independent of canvas UI)
 
     enum class Section
     {

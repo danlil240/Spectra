@@ -44,6 +44,12 @@ class LayoutManager
     void set_tab_bar_visible(bool visible);
     void reset_inspector_width();
 
+    // Canvas rect override — allows adapter shells (e.g. spectra-ros) to
+    // specify the exact canvas region instead of computing it from chrome zones.
+    void  set_canvas_override(Rect r) { canvas_override_ = r; canvas_override_set_ = true; }
+    void  clear_canvas_override()     { canvas_override_set_ = false; }
+    bool  has_canvas_override() const { return canvas_override_set_; }
+
     // Bottom panel (timeline)
     void  set_bottom_panel_height(float h) { bottom_panel_height_ = h; }
     float bottom_panel_height() const { return bottom_panel_height_; }
@@ -109,6 +115,11 @@ class LayoutManager
     // Inspector resize interaction state
     bool inspector_resize_hovered_ = false;
     bool inspector_resize_active_  = false;
+
+    // External canvas override
+    Rect canvas_override_{};
+    bool canvas_override_set_ = false;
+
     // Helper: exponential smoothing toward target
     static float smooth_toward(float current, float target, float speed, float dt);
 

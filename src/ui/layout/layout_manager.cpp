@@ -90,6 +90,10 @@ Rect LayoutManager::compute_tab_bar() const
 
 Rect LayoutManager::compute_canvas() const
 {
+    // If an external override is active (e.g. spectra-ros dockspace), use it.
+    if (canvas_override_set_)
+        return canvas_override_;
+
     float x = NAV_TOOLBAR_INSET;
     float w = window_width_ - NAV_TOOLBAR_INSET - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;

@@ -240,6 +240,13 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
     }
 
     total_received_.fetch_add(1, std::memory_order_relaxed);
+
+    // Notify external listeners (e.g. topic stats) about the received message.
+    if (message_cb_)
+    {
+        const size_t msg_bytes = raw_msg ? raw_msg->size() : members->size_of_;
+        message_cb_(topic_name_, msg_bytes);
+    }
 }
 
 // ---------------------------------------------------------------------------

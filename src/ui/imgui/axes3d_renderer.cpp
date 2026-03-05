@@ -238,9 +238,15 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/)
         auto y_ticks_d = axes.compute_y_ticks().positions;
         auto z_ticks_d = axes.compute_z_ticks().positions;
         // 3D grid generators expect float vectors — convert from double
-        std::vector<float> x_ticks(x_ticks_d.begin(), x_ticks_d.end());
-        std::vector<float> y_ticks(y_ticks_d.begin(), y_ticks_d.end());
-        std::vector<float> z_ticks(z_ticks_d.begin(), z_ticks_d.end());
+        auto to_float_vec = [](const std::vector<double>& src) {
+            std::vector<float> dst(src.size());
+            for (size_t i = 0; i < src.size(); ++i)
+                dst[i] = static_cast<float>(src[i]);
+            return dst;
+        };
+        std::vector<float> x_ticks = to_float_vec(x_ticks_d);
+        std::vector<float> y_ticks = to_float_vec(y_ticks_d);
+        std::vector<float> z_ticks = to_float_vec(z_ticks_d);
 
         if (static_cast<int>(gp & Axes3D::GridPlane::XY))
         {

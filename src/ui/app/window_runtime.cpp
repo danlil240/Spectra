@@ -821,10 +821,13 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->begin_stage("cmd_record");
 #ifdef SPECTRA_USE_IMGUI
-        // Skip Vulkan figure rendering when the canvas is hidden (e.g. spectra-ros
-        // owns its own layout and suppresses the Spectra canvas).  This prevents
-        // plot axes and gridlines from bleeding through the dockspace background.
-        const bool render_canvas = !ui_ctx.imgui_ui || ui_ctx.imgui_ui->is_canvas_visible();
+        // Decide whether Vulkan figure content (axes, gridlines, series) should
+        // be rendered.  Adapter shells may suppress the ImGui canvas overlay
+        // (set_canvas_visible(false)) while still enabling Vulkan rendering
+        // via set_render_figure_enabled(true).
+        const bool render_canvas = !ui_ctx.imgui_ui
+            || ui_ctx.imgui_ui->is_canvas_visible()
+            || ui_ctx.imgui_ui->is_render_figure_enabled();
         auto& dock_system = ui_ctx.dock_system;
         if (render_canvas && active_figure && dock_system.is_split())
         {

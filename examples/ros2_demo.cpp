@@ -24,7 +24,7 @@
 //     F2 — TfTreePanel: /tf + /tf_static subscriber, frame tree, Hz/age badges
 //
 // Build (requires sourced ROS2 Humble+):
-//   cmake -DSPECTRA_USE_ROS2=ON -DSPECTRA_USE_IMGUI=ON -B build-ros2 && \
+//   cmake -DSPECTRA_USE_ROS2=ON -DSPECTRA_USE_IMGUI=ON -B build-ros2
 //   ninja -C build-ros2 ros2_demo
 //
 // Run:

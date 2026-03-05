@@ -171,10 +171,16 @@ int main(int argc, char** argv)
         lm.set_tab_bar_visible(false);
         ui_ctx->imgui_ui->set_nav_rail_visible(false);
         // Suppress all Spectra chrome — spectra-ros owns its own menu bar,
-        // status bar, canvas, and docking layout via RosAppShell.
+        // status bar, and docking layout via RosAppShell.
+        // Hide the ImGui canvas overlay (Figure 1 tab, etc.) since the ROS
+        // shell provides its own Plot Area panel, but keep Vulkan figure
+        // rendering enabled so axes/gridlines/series are drawn.  The shell
+        // overrides canvas_rect via the LayoutManager each frame.
+        ui_ctx->imgui_ui->set_canvas_visible(false);
+        ui_ctx->imgui_ui->set_render_figure_enabled(true);
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
-        ui_ctx->imgui_ui->set_canvas_visible(false);
+        shell.set_layout_manager(&lm);
         ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
         {
             shell.draw();

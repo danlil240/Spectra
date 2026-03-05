@@ -247,7 +247,7 @@ void TopicListPanel::rebuild_tree()
 
 /*static*/ std::string TopicListPanel::format_hz(double hz)
 {
-    if (hz <= 0.0) return "—";
+    if (hz <= 0.0) return "-";
     char buf[32];
     if (hz >= 100.0)
         std::snprintf(buf, sizeof(buf), "%.0f", hz);
@@ -260,7 +260,7 @@ void TopicListPanel::rebuild_tree()
 
 /*static*/ std::string TopicListPanel::format_bw(double bps)
 {
-    if (bps <= 0.0) return "—";
+    if (bps <= 0.0) return "-";
     char buf[32];
     if (bps >= 1024.0 * 1024.0)
         std::snprintf(buf, sizeof(buf), "%.1f MB/s", bps / (1024.0 * 1024.0));
@@ -638,7 +638,7 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         const char* leaf_type = (slash != std::string::npos) ? t.c_str() + slash + 1 : t.c_str();
         ImGui::TextColored(tc, "%s", leaf_type);
     } else {
-        ImGui::TextDisabled("—");
+        ImGui::TextDisabled("-");
     }
 
     // Column 2: Hz + sparkline.

@@ -540,7 +540,8 @@ TEST(ExpressionEnginePresets, PresetsContainVariables)
     eng.save_preset("sum");
 
     ASSERT_EQ(eng.presets().size(), 1u);
-    const auto& p = eng.presets()[0];
+    auto presets_copy = eng.presets();
+    const auto& p = presets_copy[0];
     EXPECT_EQ(p.variables.size(), 2u);
     EXPECT_TRUE(std::find(p.variables.begin(), p.variables.end(), "$ax") != p.variables.end());
     EXPECT_TRUE(std::find(p.variables.begin(), p.variables.end(), "$ay") != p.variables.end());

@@ -222,6 +222,12 @@ private:
     std::string title_{"Topic Statistics"};
     int         window_ms_{1000};
     double      drop_factor_{3.0};
+
+    // Display throttle — only recompute the snapshot at ~4 Hz to reduce
+    // visual noise in Hz / BW values.
+    StatsSnapshot cached_snap_;
+    int64_t       last_snap_ns_{0};
+    static constexpr int64_t SNAP_INTERVAL_NS = 250'000'000LL;  // 250 ms
 };
 
 }   // namespace spectra::adapters::ros2

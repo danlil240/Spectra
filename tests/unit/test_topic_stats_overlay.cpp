@@ -33,53 +33,9 @@ using namespace spectra::adapters::ros2;
 // Helpers
 // ---------------------------------------------------------------------------
 
-static int64_t ns_now()
-{
-    using namespace std::chrono;
-    return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
-}
-
-// Inject N evenly-spaced samples at a given Hz directly via notify_message.
-// We set the topic, then call notify_message in a tight loop with artificial
-// delays to simulate Hz.  For deterministic tests we use compute_now() with
-// a fake now_ns instead.
-static void inject_samples(TopicStatsOverlay& overlay,
-                            const std::string& topic,
-                            int count,
-                            size_t bytes_each,
-                            int64_t first_ns,
-                            int64_t gap_ns,
-                            int64_t latency_us = -1)
-{
-    // Access internal stats via the TopicDetailStats directly through the
-    // snapshot mechanism.  We simulate by calling notify_message with wall
-    // clock, then call compute_now with a controlled now.
-    //
-    // Since notify_message only records if topic == current_topic, we set the
-    // topic first.
-    overlay.set_topic(topic);
-
-    // We need to push samples at controlled timestamps.  TopicDetailStats::push
-    // is called from notify_message, but uses wall_ns() internally.
-    // To have deterministic timestamps we use the TopicDetailStats via
-    // the overlay's snapshot() forcing recompute, which is fine for all tests
-    // that check ratios, not absolute timestamps.
-    //
-    // For deterministic-timestamp tests we directly manipulate the stats object
-    // through a test-only accessor:  stats() returns const ref, so we expose
-    // a friend or use the approach below.
-    //
-    // Strategy: call notify_message in a tight loop (timestamps will be
-    // close together but real), then rely on compute_now() with a "future"
-    // now_ns to include all samples.
-    for (int i = 0; i < count; ++i) {
-        overlay.notify_message(topic, bytes_each, latency_us);
-        // Tiny sleep so timestamps are strictly increasing.
-        std::this_thread::sleep_for(std::chrono::microseconds(50));
-    }
-    (void)first_ns;
-    (void)gap_ns;
-}
+// Helpers are currently unused but kept as commented-out reference.
+// static int64_t ns_now() { ... }
+// static void inject_samples(...) { ... }
 
 // ---------------------------------------------------------------------------
 // Suite: Construction
@@ -281,8 +237,9 @@ TEST(TopicStatsOverlay, HzMinLessThanOrEqualAvg)
         std::this_thread::sleep_for(std::chrono::microseconds(200));
     }
     const auto snap = overlay.snapshot();
-    if (snap.hz_avg > 0.0 && snap.hz_min > 0.0)
+    if (snap.hz_avg > 0.0 && snap.hz_min > 0.0) {
         EXPECT_LE(snap.hz_min, snap.hz_avg + 1.0);
+    }
 }
 
 TEST(TopicStatsOverlay, HzMaxGreaterThanOrEqualAvg)
@@ -294,8 +251,9 @@ TEST(TopicStatsOverlay, HzMaxGreaterThanOrEqualAvg)
         std::this_thread::sleep_for(std::chrono::microseconds(200));
     }
     const auto snap = overlay.snapshot();
-    if (snap.hz_avg > 0.0 && snap.hz_max > 0.0)
+    if (snap.hz_avg > 0.0 && snap.hz_max > 0.0) {
         EXPECT_GE(snap.hz_max, snap.hz_avg - 1.0);
+    }
 }
 
 TEST(TopicStatsOverlay, OldSamplesPrunedFromWindow)

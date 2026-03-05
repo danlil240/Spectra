@@ -16,7 +16,19 @@
     #include <spectra/series.hpp>
     #include <spectra/series3d.hpp>
     #include <algorithm>
+    #include <type_traits>
     #include <unordered_map>
+
+// Portable conversion: VkRenderPass is a pointer on 64-bit, uint64_t on 32-bit.
+// Must be a template so if-constexpr discards the invalid branch.
+template <typename H>
+static inline uint64_t vk_rp_to_u64(H rp)
+{
+    if constexpr (std::is_pointer_v<H>)
+        return reinterpret_cast<uint64_t>(rp);
+    else
+        return static_cast<uint64_t>(rp);
+}
 
     #include "render/vulkan/vk_backend.hpp"
     #include "ui/animation/animation_curve_editor.hpp"
@@ -143,7 +155,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = reinterpret_cast<uintptr_t>(ii.RenderPass);
+    cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
     return true;
 }
@@ -203,7 +215,7 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     ImGui_ImplVulkan_Init(&ii);
     ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = reinterpret_cast<uintptr_t>(ii.RenderPass);
+    cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
     return true;
 }
@@ -262,7 +274,7 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
     // Vulkan backend to pick up the new render pass.  This is a no-op in the
     // common case where recreate_swapchain reuses the render pass handle.
     VkRenderPass current_rp      = backend.render_pass();
-    auto         current_rp_bits = reinterpret_cast<uintptr_t>(current_rp);
+    auto         current_rp_bits = vk_rp_to_u64(current_rp);
     if (current_rp_bits != cached_render_pass_ && current_rp != VK_NULL_HANDLE)
     {
         SPECTRA_LOG_WARN(

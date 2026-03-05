@@ -247,7 +247,7 @@ TopicStatsOverlay::StatsSnapshot TopicStatsOverlay::snapshot()
 std::string TopicStatsOverlay::format_hz(double hz)
 {
     if (hz <= 0.0)
-        return "—";
+        return "-";
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.1f", hz);
     return buf;
@@ -256,7 +256,7 @@ std::string TopicStatsOverlay::format_hz(double hz)
 std::string TopicStatsOverlay::format_bw(double bps)
 {
     if (bps <= 0.0)
-        return "—";
+        return "-";
     char buf[32];
     if (bps >= 1024.0 * 1024.0) {
         std::snprintf(buf, sizeof(buf), "%.2f MB/s", bps / (1024.0 * 1024.0));
@@ -290,7 +290,7 @@ std::string TopicStatsOverlay::format_bytes(uint64_t bytes)
 std::string TopicStatsOverlay::format_latency(double us)
 {
     if (us < 0.0)
-        return "—";
+        return "-";
     char buf[32];
     if (us >= 1000.0) {
         std::snprintf(buf, sizeof(buf), "%.2f ms", us / 1000.0);
@@ -329,8 +329,14 @@ void TopicStatsOverlay::draw_stat_row(const char* label, const std::string& valu
 
 void TopicStatsOverlay::draw_inline()
 {
-    // Compute stats under lock, then render without lock.
-    StatsSnapshot snap = snapshot();
+    // Throttle updates to ~4 Hz to reduce visual noise in Hz / BW values.
+    const int64_t now = now_ns();
+    if (now - last_snap_ns_ >= SNAP_INTERVAL_NS || last_snap_ns_ == 0)
+    {
+        cached_snap_  = snapshot();
+        last_snap_ns_ = now;
+    }
+    const StatsSnapshot& snap = cached_snap_;
 
     if (snap.topic.empty()) {
         ImGui::TextDisabled("No topic selected.");
@@ -418,7 +424,7 @@ void TopicStatsOverlay::draw_inline()
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
             ImGui::TextUnformatted("LATENCY");
             ImGui::PopStyleColor();
-            draw_stat_row("  Avg", "— (no header)");
+            draw_stat_row("  Avg", "- (no header)");
         }
 
         // --- Drop info ---
@@ -428,7 +434,7 @@ void TopicStatsOverlay::draw_inline()
                 std::snprintf(buf, sizeof(buf), "%.1f ms",
                               static_cast<double>(snap.last_gap_ns) * 1e-6);
             } else {
-                std::snprintf(buf, sizeof(buf), "—");
+                std::snprintf(buf, sizeof(buf), "-");
             }
             draw_stat_row("  Last gap", buf, snap.drop_detected);
         }

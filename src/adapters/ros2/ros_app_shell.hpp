@@ -9,7 +9,9 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "bag_player.hpp"
@@ -37,6 +39,7 @@
 namespace spectra
 {
 class Figure;
+class LayoutManager;
 }
 
 namespace spectra::adapters::ros2
@@ -137,6 +140,10 @@ public:
     // Optional: bind SubplotManager to the application's render figure.
     // Must be called before init().
     void set_canvas_figure(spectra::Figure* fig) { canvas_figure_ = fig; }
+
+    // Optional: bind to the Spectra LayoutManager so we can override canvas_rect
+    // to match the Plot Area docked panel's position.
+    void set_layout_manager(spectra::LayoutManager* lm) { layout_manager_ = lm; }
 
     bool init(int argc, char** argv);
     void shutdown();
@@ -331,6 +338,16 @@ private:
 
     // Optional external render figure for subplot manager integration.
     spectra::Figure* canvas_figure_ = nullptr;
+
+    // Optional layout manager (owned by ImGuiIntegration; lifetime >= shell).
+    spectra::LayoutManager* layout_manager_ = nullptr;
+
+    // Lightweight per-topic subscriptions for Hz/BW monitoring.
+    // Created automatically for every discovered topic so the Topic Monitor
+    // shows Hz and bandwidth columns for all topics, not just plotted ones.
+    std::mutex monitor_subs_mutex_;
+    std::unordered_map<std::string,
+                       rclcpp::GenericSubscription::SharedPtr> monitor_subs_;
 
     std::atomic<uint64_t> total_messages_{0};
 

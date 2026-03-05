@@ -219,6 +219,12 @@ void RosPlotManager::poll()
 
     for (auto& entry : entries_)
     {
+        // Set the time origin on first frame so that all series x-values and
+        // xlim calls use small relative seconds instead of epoch seconds
+        // (~1.7e9), which exceed float's ~7-digit precision.
+        if (!entry->scroll.has_time_origin())
+            entry->scroll.set_time_origin(wall_now);
+
         // Advance scroll clock every frame regardless of subscription state.
         entry->scroll.set_now(wall_now);
 
@@ -248,12 +254,16 @@ void RosPlotManager::poll()
 
         if (n > 0)
         {
-            // Append to the LineSeries.
+            // Append to the LineSeries using relative time (seconds since
+            // origin) so that float precision is not lost at epoch-scale
+            // timestamps (~1.7e9 exceeds float's ~7-digit mantissa).
+            const double origin = entry->scroll.time_origin();
             for (size_t i = 0; i < n; ++i)
             {
                 const FieldSample& s = entry->drain_buf[i];
                 const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-                entry->series->append(static_cast<float>(t_sec),
+                const double t_rel   = t_sec - origin;
+                entry->series->append(static_cast<float>(t_rel),
                                       static_cast<float>(s.value));
 
                 if (on_data_cb_)

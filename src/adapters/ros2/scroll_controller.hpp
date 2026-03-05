@@ -132,8 +132,8 @@ public:
     // Returns 0.0 when following.
     double seconds_behind() const
     {
-        if (!paused_ || now_ <= 0.0) return 0.0;
-        return now_ - view_max_;
+        if (!paused_ || now_rel_ <= 0.0) return 0.0;
+        return now_rel_ - view_max_;
     }
 
     // Human-readable status: "following", or "paused — 4.2 s behind".
@@ -152,13 +152,29 @@ public:
     // Samples pruned since last tick() call.
     size_t last_pruned_count() const { return last_pruned_count_; }
 
+    // -----------------------------------------------------------------------
+    // Time origin — converts absolute epoch seconds to relative seconds
+    // -----------------------------------------------------------------------
+
+    // Returns the time origin (epoch seconds).  All series x-values and
+    // xlim calls use (absolute_time - time_origin) so that float precision
+    // is sufficient for sub-second accuracy.
+    double time_origin() const { return time_origin_; }
+    bool   has_time_origin() const { return has_origin_; }
+
+    // Explicitly set the time origin.  Normally auto-set on first set_now().
+    void set_time_origin(double origin);
+
 private:
-    // Prune series data older than (now_ - PRUNE_FACTOR * window_s_).
+    // Prune series data older than (now_rel - PRUNE_FACTOR * window_s_).
     // Returns number of samples removed.
     size_t prune(spectra::LineSeries* series) const;
 
     double window_s_           = DEFAULT_WINDOW_S;
-    double now_                = 0.0;
+    double now_                = 0.0;      // absolute epoch seconds
+    double now_rel_            = 0.0;      // relative seconds (now_ - time_origin_)
+    double time_origin_        = 0.0;      // epoch seconds of first set_now()
+    bool   has_origin_         = false;
     bool   paused_             = false;
     double view_min_           = 0.0;
     double view_max_           = 0.0;

@@ -343,6 +343,11 @@ void SubplotManager::poll()
         if (!se.active())
             continue;
 
+        // Set the time origin on first frame so all series x-values use small
+        // relative seconds instead of epoch seconds (~1.7e9 exceeds float precision).
+        if (!se.scroll.has_time_origin())
+            se.scroll.set_time_origin(wall_now);
+
         // Advance scroll clock.
         se.scroll.set_now(wall_now);
 
@@ -368,11 +373,15 @@ void SubplotManager::poll()
 
         if (n > 0)
         {
+            // Append data using relative time (seconds since origin) to avoid
+            // float precision loss at epoch-scale timestamps (~1.7e9).
+            const double origin = se.scroll.time_origin();
             for (size_t i = 0; i < n; ++i)
             {
                 const FieldSample& s = se.drain_buf[i];
                 const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-                se.series->append(static_cast<float>(t_sec),
+                const double t_rel   = t_sec - origin;
+                se.series->append(static_cast<float>(t_rel),
                                   static_cast<float>(s.value));
 
                 if (on_data_cb_)
@@ -437,7 +446,11 @@ void SubplotManager::set_time_window(double seconds)
 void SubplotManager::set_now(double wall_time_s)
 {
     for (auto& se : slots_)
+    {
+        if (!se.scroll.has_time_origin())
+            se.scroll.set_time_origin(wall_time_s);
         se.scroll.set_now(wall_time_s);
+    }
 }
 
 void SubplotManager::pause_scroll(int slot)

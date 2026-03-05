@@ -233,7 +233,7 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
-          CIBW_SKIP: "*-musllinux_* *-manylinux_i686 pp*"
+          CIBW_SKIP: "*-musllinux_* *-manylinux_i686 *-win32 pp*"
           CIBW_BUILD_VERBOSITY: 1
           # manylinux_2_34 is currently emitting x86_64_v2 ISA notes for our wheel.
           # Use manylinux_2_28 for a stable x86_64 baseline auditwheel target.

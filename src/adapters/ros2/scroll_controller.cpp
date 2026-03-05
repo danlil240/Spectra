@@ -16,7 +16,8 @@ namespace spectra::adapters::ros2
 // ---------------------------------------------------------------------------
 
 ScrollController::ScrollController()
-    : window_s_(DEFAULT_WINDOW_S), now_(0.0), paused_(false),
+    : window_s_(DEFAULT_WINDOW_S), now_(0.0), now_rel_(0.0),
+      time_origin_(0.0), has_origin_(false), paused_(false),
       view_min_(0.0), view_max_(0.0), last_pruned_count_(0)
 {
 }
@@ -40,7 +41,15 @@ void ScrollController::set_window_s(double seconds)
 
 void ScrollController::set_now(double wall_time_s)
 {
-    now_ = wall_time_s;
+    now_     = wall_time_s;
+    now_rel_ = now_ - time_origin_;
+}
+
+void ScrollController::set_time_origin(double origin)
+{
+    time_origin_ = origin;
+    has_origin_  = true;
+    now_rel_     = now_ - time_origin_;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,9 +79,11 @@ void ScrollController::tick(spectra::LineSeries* series, spectra::Axes* axes)
 {
     last_pruned_count_ = 0;
 
-    // Compute desired view window even when paused (needed for view_min_/max_).
-    const double win_end   = now_;
-    const double win_start = now_ - window_s_;
+    // Use relative time (seconds since origin) for xlim so that float-precision
+    // series x-values remain accurate.  Absolute epoch seconds (~1.7e9) exceed
+    // float's ~7-digit precision, collapsing all points within ~128 s.
+    const double win_end   = now_rel_;
+    const double win_start = now_rel_ - window_s_;
 
     if (!paused_ && axes != nullptr)
     {
@@ -185,7 +196,7 @@ size_t ScrollController::prune(spectra::LineSeries* series) const
     if (series == nullptr)
         return 0;
 
-    const double prune_before = now_ - PRUNE_FACTOR * window_s_;
+    const double prune_before = now_rel_ - PRUNE_FACTOR * window_s_;
 
     // x_data() is sorted ascending (timestamps always increase).
     // Find the first index where x >= prune_before.

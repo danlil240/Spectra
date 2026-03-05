@@ -281,7 +281,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         break;
                     }
             }
-            if (!has_any_series)
+            if (!has_any_series && !fig->anim_loop_)
             {
                 fig->anim_on_frame_ = nullptr;
             }

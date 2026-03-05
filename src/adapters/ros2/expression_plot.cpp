@@ -177,6 +177,10 @@ void ExpressionPlot::poll()
         std::chrono::duration<double>(
             std::chrono::system_clock::now().time_since_epoch()).count();
 
+    // Set time origin on first frame for float precision.
+    if (!scroll_.has_time_origin())
+        scroll_.set_time_origin(wall_now);
+
     scroll_.set_now(wall_now);
 
     if (!engine_.is_compiled())
@@ -228,7 +232,11 @@ void ExpressionPlot::poll()
         const double result = engine_.evaluate();
         if (!std::isnan(result))
         {
-            series_->append(static_cast<float>(newest_t_sec),
+            // Use relative time (seconds since scroll origin) to preserve
+            // float precision at epoch-scale timestamps.
+            const double origin = scroll_.time_origin();
+            const double t_rel  = newest_t_sec - origin;
+            series_->append(static_cast<float>(t_rel),
                             static_cast<float>(result));
 
             if (on_data_cb_)

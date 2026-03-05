@@ -396,13 +396,18 @@ void RosAppShell::poll()
     const double now_s = std::chrono::duration<double>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 
+    // Wall-clock time for scroll controllers (must be system_clock to match
+    // ROS2 message timestamps which use wall time or header.stamp).
+    const double wall_now_s = std::chrono::duration<double>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
     double dt = 1.0 / 60.0;
     if (last_poll_time_s_ > 0.0)
         dt = std::clamp(now_s - last_poll_time_s_, 1.0 / 300.0, 0.25);
     last_poll_time_s_ = now_s;
 
     if (subplot_mgr_)
-        subplot_mgr_->set_now(now_s);
+        subplot_mgr_->set_now(wall_now_s);
 
     if (plot_mgr_)
         plot_mgr_->poll();

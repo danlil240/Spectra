@@ -51,6 +51,7 @@
 #include <vector>
 
 #ifdef SPECTRA_USE_ROS2
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <rclcpp/rclcpp.hpp>
 #endif
 
@@ -366,7 +367,7 @@ private:
 
 #ifdef SPECTRA_USE_ROS2
     rclcpp::Node*                                node_{nullptr};
-    rclcpp::GenericSubscription::SharedPtr       subscription_;
+    rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr subscription_;
 #endif
 
     std::atomic<bool>  running_{false};
@@ -391,6 +392,11 @@ private:
 
     // Alert callback.
     AlertCallback alert_cb_;
+
+    // Typed ROS2 diagnostic callbacks stage parsed status arrays here so the
+    // render thread can apply them during poll().
+    std::mutex                                pending_mutex_;
+    std::vector<std::vector<DiagStatus>>      pending_status_batches_;
 };
 
 }   // namespace spectra::adapters::ros2

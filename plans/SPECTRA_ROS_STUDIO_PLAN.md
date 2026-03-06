@@ -85,7 +85,7 @@
 | **Subplots** | `subplot_manager.hpp` | `SubplotManager` — NxM grid, `AxisLinkManager` for shared X |
 | **Expressions** | `expression_engine.hpp` | `ExpressionEngine` — math expression parser/evaluator over ROS field streams |
 | **Bag playback** | `bag_player.hpp` | `BagPlayer` — rosbag2 reader, state machine, rate control, seek, `inject_sample()` |
-| **Shell** | `ros_app_shell.hpp` | `RosAppShell` — owns everything, ImGui dockspace, 4 layout presets, `RosWorkspaceState` |
+| **Shell** | `ros_app_shell.hpp` | `RosAppShell` — owns everything, ImGui dockspace, 3 layout presets (Default, PlotOnly, Monitor), `RosWorkspaceState` |
 | **Session** | `ros_session.hpp` | `RosSessionManager` — save/load `.spectra-ros-session` JSON, MRU list |
 
 ### 1.3 Current 3D Renderer Capabilities
@@ -146,9 +146,9 @@ Already implemented (core Spectra, not ROS-specific):
 **Extend existing:**
 - `src/render/backend.hpp` — add `PipelineType::PointCloud`, `PipelineType::Marker3D`, `PipelineType::Image3D`
 - `src/render/vulkan/vk_backend.cpp` — add pipeline configs + shaders for new types
-- `src/render/renderer.hpp` — add `render_scene()` method + scene-aware UBO fill
-- `src/adapters/ros2/ros_app_shell.hpp` — add display panel, fixed frame, scene viewport management
-- `src/adapters/ros2/ros_session.hpp` — persist display configs + fixed frame + camera pose
+- `src/render/renderer.hpp` — add `render_scene()` method (Phase 2) alongside existing `render_figure()` / `render_figure_content()`. Phase 1 renders through Axes3D wrapper; Phase 2 introduces the scene-based dispatch path.
+- `src/adapters/ros2/ros_app_shell.hpp` — add display panel, fixed frame, scene viewport management, new layout presets (RViz, RVizPlot)
+- `src/adapters/ros2/ros_session.hpp` — migrate to nlohmann::json, bump to v2, persist display configs + fixed frame + camera pose (v1 backward compat preserved)
 - `src/adapters/ros2/ui/tf_tree_panel.hpp` → factor out TF data into reusable `TfBuffer`
 - `include/spectra/math3d.hpp` — add `Transform` (translation + rotation) with compose/inverse
 - `include/spectra/camera.hpp` — add free-fly mode (post-MVP)
@@ -299,7 +299,11 @@ GenericSubscription::on_message(CDR bytes)
 | `PathData` | `nav_msgs/Path` | poses[] (vec of position+orientation), stamp, frame_id |
 | `TfData` | `tf2_msgs/TFMessage` | transforms[] (parent, child, translation, rotation, stamp) |
 
-Each adapter is a standalone header in `src/adapters/ros2/messages/` and uses CDR byte-level parsing (like `DiagnosticsPanel` does) OR `rosidl_typesupport_introspection_cpp` field offsets. No compile-time message type dependency required — all runtime introspection.
+Each adapter is a standalone header in `src/adapters/ros2/messages/` and may use either:
+- **Typed subscriptions** (`rclcpp::Subscription<T>`) for complex binary formats where field-level CDR parsing is error-prone or performance-critical (PointCloud2, Image, DiagnosticArray). This is the approach already taken by `DiagnosticsPanel`.
+- **Runtime introspection** via `rosidl_typesupport_introspection_cpp` field offsets for simpler messages (PoseStamped, Path).
+
+The choice is per-adapter — there is no blanket "runtime-only" rule. Typed subscriptions are preferred when the message format is complex or high-throughput.
 
 ### 2.3 Transform Layer
 
@@ -374,9 +378,11 @@ SceneManager
 
 ### 2.5 Workspace System (Extended)
 
-Extend `RosSession` to persist 3D scene state:
+Extend `RosSession` to persist 3D scene state.
 
-**Additional fields in session JSON:**
+> **Migration note:** The current session serializer is hand-rolled JSON (`serialize()`/`deserialize()` with manual string concatenation and custom helpers like `json_escape()`, `json_get_string()`, etc.) at `SESSION_FORMAT_VERSION = 1`. The display/camera/scene extensions below require nested objects and arrays that are painful to hand-roll. **Phase 1 must add `nlohmann/json.hpp` to `third_party/` and migrate `RosSession` to use it**, bumping the format version to 2. The deserializer should detect v1 sessions and load them via the legacy path (preserving existing subscriptions/expressions/panels) while writing v2 on save.
+
+**Additional fields in session JSON (v2):**
 - `fixed_frame`: string
 - `camera_pose`: `{azimuth, elevation, distance, target: [x,y,z], projection: "perspective"|"orthographic", fov}`
 - `displays`: array of `{type_id, enabled, topic, config: {...}}`
@@ -386,7 +392,7 @@ Extend `RosSession` to persist 3D scene state:
 **Workspace presets** (extend `LayoutPreset` enum):
 - `RViz` — Scene Viewport + Displays Panel + Inspector + TF Tree
 - `RVizPlot` — Scene Viewport + Displays + Plot Area + Topic List
-- `Monitoring` — (existing) 4×1 subplots + Diagnostics + Stats
+- `Monitor` — (existing) monitor-focused panels, plot hidden
 
 ---
 
@@ -467,6 +473,7 @@ public:
     virtual std::vector<std::string> compatible_message_types() const = 0;
 
     // --- Persistence ---
+    // Requires nlohmann/json.hpp (added to third_party/ in Phase 1)
     virtual nlohmann::json serialize() const = 0;
     virtual void deserialize(const nlohmann::json& j) = 0;
 
@@ -657,22 +664,23 @@ GPU: Image3D pipeline
 
 ### Phase 1: Foundation (2-3 weeks)
 
-**Goal:** Plugin skeleton + TfBuffer + scene viewport shell — no actual 3D content yet, but the framework is wired end-to-end.
+**Goal:** Plugin skeleton + TfBuffer + scene viewport shell + first display (Grid). The framework is wired end-to-end with one concrete display type rendering through the existing Axes3D/Grid3D pipeline. Scene-based rendering (`render_scene()`) is deferred to Phase 2.
 
 **Files/modules touched:**
-- EXTEND: `src/adapters/ros2/ros_app_shell.hpp/.cpp` — add `DisplayRegistry`, `SceneManager`, fixed frame state, new layout preset
-- EXTEND: `src/adapters/ros2/ros_session.hpp/.cpp` — add display configs + fixed frame + camera to session JSON
+- EXTEND: `src/adapters/ros2/ros_app_shell.hpp/.cpp` — add `DisplayRegistry`, `SceneManager`, fixed frame state, new `RViz` and `RVizPlot` layout presets (added to existing `LayoutMode` enum alongside Default/PlotOnly/Monitor)
+- EXTEND: `src/adapters/ros2/ros_session.hpp/.cpp` — migrate to nlohmann::json, bump format to v2, add display configs + fixed frame + camera to session JSON (v1 backward-compat read path preserved)
 - EXTEND: `src/adapters/ros2/ui/tf_tree_panel.hpp/.cpp` — factor TF data storage out into `TfBuffer`
 - EXTEND: `include/spectra/math3d.hpp` — add `struct Transform { vec3 translation; quat rotation; }` with `compose()`, `inverse()`, `to_mat4()`
+- ADD: `third_party/nlohmann/json.hpp` — single-header JSON library (required for nested display config serialization; the existing hand-rolled serializer cannot handle the complexity)
 
 **New modules created:**
 - `src/adapters/ros2/display/display_plugin.hpp` — ABC
 - `src/adapters/ros2/display/display_registry.hpp` — factory + type list
 - `src/adapters/ros2/tf/tf_buffer.hpp` — time-aware TF cache (factored from `TfTreePanel`)
-- `src/adapters/ros2/scene/scene_manager.hpp` — entity container (empty render dispatch)
+- `src/adapters/ros2/scene/scene_manager.hpp` — entity container (empty render dispatch — `render_all()` is a no-op in Phase 1)
 - `src/adapters/ros2/ui/displays_panel.hpp/.cpp` — displays list (add/remove/enable, no 3D yet)
-- `src/adapters/ros2/ui/scene_viewport.hpp/.cpp` — dockable ImGui panel with camera orbit (renders to existing Axes3D)
-- `src/adapters/ros2/display/grid_display.hpp/.cpp` — first plugin (uses existing Grid3D pipeline)
+- `src/adapters/ros2/ui/scene_viewport.hpp/.cpp` — dockable ImGui panel with camera orbit (wraps an Axes3D instance for rendering; scene viewport owns its own Figure + Axes3D + Camera, separate from plot figures)
+- `src/adapters/ros2/display/grid_display.hpp/.cpp` — first plugin (renders via the scene viewport's Axes3D using the existing Grid3D pipeline — does NOT require `render_scene()`, which is added in Phase 2)
 
 **Acceptance criteria:**
 1. User sees "Displays" panel in dock layout with an "Add Display" button
@@ -683,17 +691,19 @@ GPU: Image3D pipeline
 6. Grid display renders at 60 FPS with no hitches
 
 **Verification steps:**
-1. Launch `spectra-ros`, select "RViz" layout preset
-2. Verify 3D viewport panel appears with orbit camera
-3. Click "Add Display" → "Grid" → ground plane visible
+1. Launch `spectra-ros`. The new "RViz" layout preset (created in this phase, added to the LayoutMode enum alongside the existing Default/PlotOnly/Monitor presets) is selectable from the layout dropdown.
+2. Select "RViz" layout → verify 3D viewport panel appears with orbit camera
+3. Click "Add Display" → "Grid" → ground plane visible in the scene viewport's Axes3D
 4. In a terminal: `ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 world base_link`
 5. Fixed frame dropdown shows "world" and "base_link"
-6. Save session → restart → grid + fixed frame restored
+6. Save session → restart → grid + fixed frame restored (session is now v2 format; verify a v1 session from before the migration still loads correctly with existing subscriptions preserved)
 7. Run `ctest -L ros2 --output-on-failure` — all green
+8. Verify existing TfTreePanel still shows Hz, age, and stale detection correctly after the TfBuffer refactor
 
 **Risks & mitigations:**
-- Risk: Factoring `TfBuffer` from `TfTreePanel` breaks existing TF UI → Mitigation: `TfTreePanel` becomes a thin UI wrapper over shared `TfBuffer`
-- Risk: Scene viewport camera conflicts with existing Axes3D mouse handling → Mitigation: Scene viewport owns its own `Camera` instance, separate from plot figure cameras
+- Risk: Factoring `TfBuffer` from `TfTreePanel` breaks existing TF UI → Mitigation: `TfTreePanel` becomes a thin UI wrapper over shared `TfBuffer`. Integration test: TfTreePanel still shows Hz, age, stale correctly.
+- Risk: Scene viewport camera conflicts with existing Axes3D mouse handling → Mitigation: Scene viewport owns its own `Camera` instance and its own Figure/Axes3D, fully separate from plot figure cameras
+- Risk: Session format migration breaks existing saved sessions → Mitigation: Deserializer detects format version; v1 sessions load via legacy hand-rolled path, all saves write v2 (nlohmann::json). Add unit test for v1→v2 migration round-trip.
 
 ---
 
@@ -704,8 +714,9 @@ GPU: Image3D pipeline
 **Files/modules touched:**
 - EXTEND: `src/render/backend.hpp` — add `PipelineType::Marker3D`
 - EXTEND: `src/render/vulkan/vk_backend.cpp` — new pipeline config for Marker3D (instanced primitives)
-- EXTEND: `src/render/renderer.hpp/.cpp` — add `render_scene()` method that takes SceneManager renderables
+- EXTEND: `src/render/renderer.hpp/.cpp` — add `render_scene()` method that takes SceneManager renderables + camera + TF UBO. This is the transition point away from the Phase 1 Axes3D-backed rendering: displays now submit renderables to SceneManager, and `render_scene()` dispatches them through the Vulkan backend. The existing `render_figure()` / `render_figure_content()` paths remain unchanged for 2D plots.
 - EXTEND: `src/adapters/ros2/scene/scene_manager.hpp/.cpp` — implement `render_all()`, `pick()` with ray-AABB
+- EXTEND: `src/adapters/ros2/display/grid_display.hpp/.cpp` — migrate from Axes3D grid to SceneManager renderable (GridRenderable → Line3D pipeline)
 
 **New modules created:**
 - `src/adapters/ros2/display/tf_display.hpp/.cpp` — subscribe /tf + /tf_static, render frame axes in 3D
@@ -962,6 +973,7 @@ GPU: Image3D pipeline
 | `test_scene_manager.cpp` | SceneManager | 25 | Add/remove entities, pick ray-AABB, render order (opaque/transparent) |
 | `test_urdf_parser.cpp` | UrdfParser | 30 | Box/cylinder/sphere collision, joint types (revolute/prismatic/fixed), malformed XML |
 | `test_path_pose_display.cpp` | PathDisplay, PoseDisplay | 15 | Line strip generation, arrow rendering, TF transform |
+| `test_session_migration.cpp` | RosSession v1→v2 | 10 | Load v1 session (hand-rolled JSON), save as v2, round-trip, backward compat, missing version field |
 
 ### 7.3 Stress Test Scenarios
 
@@ -1014,6 +1026,8 @@ GPU: Image3D pipeline
 | **R10** | Plugin interface changes during development break existing displays | Low | Medium | Freeze `DisplayPlugin` ABC after Phase 1. Add new capabilities via optional virtual methods with default no-op implementations. |
 | **R11** | CDR message parsing for PointCloud2/Image is fragile | Medium | Medium | Exhaustive unit tests for field descriptor parsing. Test with little/big endian, different field orderings, padded/compact layouts. |
 | **R12** | Simplified URDF (no meshes) looks unappealing | High | Low | Communicate clearly in UI: "Collision shapes" label. Post-MVP: add STL mesh loading via `assimp`. |
+| **R13** | Session v1→v2 migration loses user data | Medium | High | Deserializer detects version; v1 sessions load via legacy hand-rolled path. All existing fields (subscriptions, expressions, panels, ImGui layout) preserved. Dedicated `test_session_migration.cpp` unit tests. |
+| **R14** | nlohmann::json header increases compile time | Low | Low | Single-header included only in session/display serialization TUs, not in hot paths. Forward-declare `nlohmann::json` in headers where possible. |
 
 ---
 
@@ -1048,6 +1062,8 @@ struct Transform {
 ```
 
 ## Appendix C: Session Schema Extension
+
+> **Migration:** Current sessions (v1) use hand-rolled JSON with `json_escape()` / `json_get_string()` helpers. This schema uses `nlohmann::json` (added in Phase 1 as `third_party/nlohmann/json.hpp`). The deserializer must detect `"version": 1` (or missing version) and load via the legacy path, preserving existing subscriptions/expressions/panels. All saves write v2 format.
 
 ```json
 {
@@ -1109,6 +1125,10 @@ struct Transform {
 ### New Files (Phase 1-5)
 
 ```
+third_party/
+└── nlohmann/
+    └── json.hpp                    # Phase 1 (single-header JSON library)
+
 src/adapters/ros2/
 ├── display/
 │   ├── display_plugin.hpp          # Phase 1
@@ -1150,6 +1170,7 @@ src/gpu/shaders/
 tests/unit/
 ├── test_tf_buffer.cpp              # Phase 1
 ├── test_display_registry.cpp       # Phase 1
+├── test_session_migration.cpp      # Phase 1 (v1→v2 round-trip, backward compat)
 ├── test_display_lifecycle.cpp      # Phase 2
 ├── test_marker_display.cpp         # Phase 2
 ├── test_pointcloud_adapter.cpp     # Phase 3
@@ -1163,4 +1184,4 @@ tests/bench/
 └── bench_ros3d.cpp                 # Phase 6
 ```
 
-Total: ~45 new files across 6 phases.
+Total: ~47 new files across 6 phases.

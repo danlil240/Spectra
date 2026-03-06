@@ -2,7 +2,7 @@
 
 > **Purpose**: This document is the single source of truth for understanding the Spectra codebase.
 > **All agents MUST read this file before executing any task.**
-> Last updated: 2026-02-26
+> Last updated: 2026-03-06
 
 ---
 
@@ -33,20 +33,30 @@ Spectra/
 │   │   ├── imgui/            # ImGuiIntegration (main UI), Axes3DRenderer, Widgets
 │   │   ├── figures/          # FigureRegistry, FigureManager, TabBar, TabDragController
 │   │   ├── window/           # WindowManager, GlfwAdapter, GlfwUtils
-│   │   ├── input/            # InputHandler, BoxZoomOverlay, GestureRecognizer, RegionSelect
-│   │   ├── overlay/          # Crosshair, DataInteraction, DataMarker, Inspector, KnobManager,
-│   │   │                     #   LegendInteraction, Tooltip
-│   │   ├── commands/         # CommandRegistry, CommandPalette, ShortcutManager, UndoManager,
-│   │   │                     #   SeriesClipboard, ShortcutConfig, UndoableProperty
+│   │   ├── input/            # InputHandler, BoxZoomOverlay, GestureRecognizer, RegionSelect,
+│   │   │                     #   SelectionContext
+│   │   ├── overlay/          # Crosshair, DataEditor, DataInteraction, DataMarker, Inspector,
+│   │   │                     #   KnobManager, LegendInteraction, Tooltip
+│   │   ├── commands/         # CommandRegistry, CommandPalette, CommandQueue, ShortcutManager,
+│   │   │                     #   UndoManager, SeriesClipboard, ShortcutConfig, UndoableProperty
 │   │   ├── docking/          # DockSystem, SplitViewManager, SplitPane
 │   │   ├── animation/        # AnimationController, TimelineEditor, KeyframeInterpolator,
 │   │   │                     #   AnimationCurveEditor, CameraAnimator, ModeTransition,
 │   │   │                     #   RecordingExport, TransitionEngine
 │   │   ├── theme/            # ThemeManager, Theme, DesignTokens, Icons
-│   │   ├── data/             # AxisLinkManager, CsvLoader
+│   │   ├── data/             # AxisLinkManager, CsvLoader, ClipboardExport
 │   │   ├── camera/           # Camera implementation
 │   │   ├── layout/           # LayoutManager
 │   │   └── workspace/        # Workspace save/load, FigureSerializer, PluginAPI
+│   ├── embed/                # EmbedSurface impl, C FFI wrapper
+│   ├── platform/
+│   │   └── window_system/    # SurfaceHost abstraction, GlfwSurfaceHost
+│   ├── adapters/
+│   │   ├── qt/               # QtRuntime, QtSurfaceHost (Qt embedding)
+│   │   └── ros2/             # ROS2 adapter: RosAppShell, BagPlayer, ExpressionEngine,
+│   │                         #   TopicDiscovery, GenericSubscriber, SubplotManager, etc.
+│   │        └── ui/          # ROS2 UI panels: topic list, diagnostics, TF tree,
+│   │                         #   bag playback, param editor, service caller, etc.
 │   ├── anim/                 # Animator, Easing, FrameScheduler, FrameProfiler
 │   ├── data/                 # Decimation (LTTB, min-max), Filters
 │   ├── math/                 # DataTransform, TransformPipeline, TransformRegistry
@@ -56,20 +66,24 @@ Spectra/
 │   ├── agent/                # Window agent process entry point
 │   └── gpu/shaders/          # GLSL shaders (compiled to SPIR-V)
 ├── tests/
-│   ├── unit/                 # ~76 unit test files
-│   ├── bench/                # Benchmarks (3D, decimation, etc.)
+│   ├── unit/                 # ~126 unit test files
+│   ├── bench/                # Benchmarks (3D, decimation, multi-window, etc.)
 │   ├── golden/               # Golden image regression tests
-│   └── qa/                   # QA agent (automated visual testing)
-├── examples/                 # ~40 example programs
+│   ├── qa/                   # QA agent (automated visual testing, ROS QA)
+│   └── util/                 # Test utilities (GPU hang detector, fixtures, validation guard)
+├── examples/                 # ~49 example programs
 ├── python/                   # Python bindings (spectra package)
-│   ├── spectra/              # Python module
-│   ├── examples/             # Python examples
-│   └── tests/                # Python tests
+│   ├── spectra/              # Python module (18 core files + qt backend)
+│   ├── examples/             # Python examples (16 demos)
+│   └── tests/                # Python tests (12 test files)
 ├── third_party/              # STB, VMA, fonts
 ├── plans/                    # Architecture plans (markdown)
 ├── cmake/                    # CMake modules (shader compilation, asset embedding)
 ├── tools/                    # Dev tools (find_unused, generate_atlas, icon font gen)
-└── .windsurf/workflows/      # Agent workflows
+├── skills/                   # QA skill agents (7 domains)
+├── packaging/                # Distribution: AppImage, AUR, Homebrew, Scoop, completions
+├── docs/                     # HTML docs, man pages, getting started guide
+└── icons/                    # Desktop icons and banner
 ```
 
 ---
@@ -99,6 +113,10 @@ These are the user-facing headers. Everything in `src/` is internal.
 | `eigen.hpp` | Optional Eigen adapters. |
 | `logger.hpp` | `Logger` singleton, `LogLevel`, sink system, `SPECTRA_LOG_*` macros. |
 | `fwd.hpp` | Forward declarations for all classes — **91 entries**. |
+| `easy_embed.hpp` | One-liner offscreen rendering: `RenderedImage`, `RenderOptions`, `SeriesDesc`, `render()`, `render_scatter()`. |
+| `embed.hpp` | `EmbedSurface` class — CPU readback (`render_to_buffer`) and Vulkan interop (`render_to_image`); `EmbedConfig`, `VulkanInteropInfo`. |
+| `eigen_easy.hpp` | Eigen overload templates for all easy.hpp functions (`plot`, `scatter`, `plot3`); header-only. |
+| `spectra_embed_c.h` | Pure-C FFI: opaque handles `SpectraEmbed`, `SpectraFigure`, `SpectraAxes`, `SpectraSeries` for ctypes/Rust/C# bindings. |
 
 ---
 
@@ -457,13 +475,26 @@ Export flow:
 ```
 python/spectra/
  ├── __init__.py               # Public API re-exports
- ├── _connection.py            # Unix socket connection management
- ├── _codec.py                 # Python-side message encode/decode
- ├── _figure.py                # Figure class (proxy to daemon)
- ├── _axes.py                  # Axes class (proxy)
- ├── _series.py                # Series class (proxy)
  ├── _animation.py             # Animation helpers
- └── ... (13 modules total)
+ ├── _axes.py                  # Axes class (proxy)
+ ├── _blob.py                  # Blob data handling
+ ├── _cli.py                   # CLI entry points
+ ├── _codec.py                 # Python-side message encode/decode
+ ├── _easy.py                  # Python easy API (MATLAB-style)
+ ├── _embed.py                 # Embedding support
+ ├── _errors.py                # Error types
+ ├── _figure.py                # Figure class (proxy to daemon)
+ ├── _launcher.py              # Backend daemon launcher
+ ├── _log.py                   # Logging
+ ├── _persistence.py           # Session persistence
+ ├── _protocol.py              # Protocol constants
+ ├── _series.py                # Series class (proxy)
+ ├── _session.py               # Session management
+ ├── _transport.py             # Socket transport layer
+ ├── embed.py                  # Public embed API
+ └── backends/
+      ├── _qt_compat.py        # Qt compatibility shim
+      └── backend_qtagg.py     # Qt/Agg matplotlib-style backend
 
 Flow: Python → encode message → Unix socket → Backend daemon → FigureModel mutation
       Backend daemon → STATE_DIFF → Agent process → WindowRuntime renders
@@ -490,8 +521,9 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 - `spectra` — main shared library
 - `spectra-backend` — daemon process (multiproc mode)
 - `spectra-window` — agent process (multiproc mode)
-- ~40 example executables
-- ~76 unit test executables + benchmarks + golden tests
+- `spectra-ros` — ROS2 adapter standalone application
+- ~49 example executables
+- ~126 unit test executables + benchmarks + golden tests
 
 ### 11.3 Compile Defines
 
@@ -499,6 +531,7 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 - `SPECTRA_USE_IMGUI` — enables ImGui-dependent code
 - `SPECTRA_USE_FFMPEG` — enables video export
 - `SPECTRA_USE_EIGEN` — enables Eigen adapters
+- `SPECTRA_BUILD_GOLDEN_TESTS` — enables golden image regression tests
 
 ---
 
@@ -609,6 +642,49 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 | PNG export | `src/io/png_export.cpp` |
 | SVG export | `src/io/svg_export.cpp` |
 | Video export | `src/io/video_export.cpp` |
+| Embed surface | `src/embed/embed_surface.cpp` |
+| C FFI wrapper | `src/embed/spectra_embed_c.cpp` |
+| SurfaceHost abstraction | `src/platform/window_system/surface_host.hpp` |
+| GLFW surface host | `src/platform/window_system/glfw_surface_host.cpp` |
+| Qt runtime | `src/adapters/qt/qt_runtime.cpp` |
+| Qt surface host | `src/adapters/qt/qt_surface_host.cpp` |
+| ROS2 adapter entry | `src/adapters/ros2/main.cpp` |
+| ROS2 app shell | `src/adapters/ros2/ros_app_shell.cpp` |
+| ROS2 bridge | `src/adapters/ros2/ros2_bridge.cpp` |
+| ROS2 topic discovery | `src/adapters/ros2/topic_discovery.cpp` |
+| ROS2 generic subscriber | `src/adapters/ros2/generic_subscriber.cpp` |
+| ROS2 message introspector | `src/adapters/ros2/message_introspector.cpp` |
+| ROS2 expression engine | `src/adapters/ros2/expression_engine.cpp` |
+| ROS2 bag player | `src/adapters/ros2/bag_player.cpp` |
+| ROS2 bag reader | `src/adapters/ros2/bag_reader.cpp` |
+| ROS2 bag recorder | `src/adapters/ros2/bag_recorder.cpp` |
+| ROS2 subplot manager | `src/adapters/ros2/subplot_manager.cpp` |
+| ROS2 plot manager | `src/adapters/ros2/ros_plot_manager.cpp` |
+| ROS2 session | `src/adapters/ros2/ros_session.cpp` |
+| ROS2 log viewer | `src/adapters/ros2/ros_log_viewer.cpp` |
+| ROS2 CSV export | `src/adapters/ros2/ros_csv_export.cpp` |
+| ROS2 clipboard export | `src/adapters/ros2/ros_clipboard_export.cpp` |
+| ROS2 screenshot export | `src/adapters/ros2/ros_screenshot_export.cpp` |
+| ROS2 service caller | `src/adapters/ros2/service_caller.cpp` |
+| ROS2 expression plot | `src/adapters/ros2/expression_plot.cpp` |
+| ROS2 UI: topic list panel | `src/adapters/ros2/ui/topic_list_panel.cpp` |
+| ROS2 UI: topic echo panel | `src/adapters/ros2/ui/topic_echo_panel.cpp` |
+| ROS2 UI: topic stats overlay | `src/adapters/ros2/ui/topic_stats_overlay.cpp` |
+| ROS2 UI: diagnostics panel | `src/adapters/ros2/ui/diagnostics_panel.cpp` |
+| ROS2 UI: TF tree panel | `src/adapters/ros2/ui/tf_tree_panel.cpp` |
+| ROS2 UI: node graph panel | `src/adapters/ros2/ui/node_graph_panel.cpp` |
+| ROS2 UI: bag playback panel | `src/adapters/ros2/ui/bag_playback_panel.cpp` |
+| ROS2 UI: bag info panel | `src/adapters/ros2/ui/bag_info_panel.cpp` |
+| ROS2 UI: param editor panel | `src/adapters/ros2/ui/param_editor_panel.cpp` |
+| ROS2 UI: service caller panel | `src/adapters/ros2/ui/service_caller_panel.cpp` |
+| ROS2 UI: expression editor | `src/adapters/ros2/ui/expression_editor.cpp` |
+| ROS2 UI: field drag-drop | `src/adapters/ros2/ui/field_drag_drop.cpp` |
+| ROS2 UI: log viewer panel | `src/adapters/ros2/ui/log_viewer_panel.cpp` |
+| Clipboard export | `src/ui/data/clipboard_export.cpp` |
+| Data editor overlay | `src/ui/overlay/data_editor.cpp` |
+| Tooltip overlay | `src/ui/overlay/tooltip.cpp` |
+| Command queue | `src/ui/commands/command_queue.hpp` |
+| Selection context | `src/ui/input/selection_context.hpp` |
 
 ---
 
@@ -616,16 +692,17 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 
 | Directory | Contents |
 |---|---|
-| `tests/unit/` | ~76 files: test_axes, test_series, test_figure, test_renderer, test_backend, test_3d_*, test_command_*, test_dock_*, test_theme, test_workspace, test_ipc_*, test_input, test_animation_*, etc. |
-| `tests/bench/` | Benchmarks: bench_3d, bench_decimation, bench_render, etc. |
-| `tests/golden/` | Golden image regression: renders figures, compares against baseline PNGs |
-| `tests/qa/` | QA agent: automated visual testing with `named_screenshot()` + image comparison |
+| `tests/unit/` | ~126 files: test_axes, test_series, test_figure, test_renderer, test_backend, test_3d_*, test_command_*, test_dock_*, test_theme, test_workspace, test_ipc_*, test_input, test_animation_*, test_ros_*, test_bag_*, test_topic_*, test_expression_*, test_diagnostics_*, test_embed_*, etc. |
+| `tests/bench/` | 8 benchmarks: bench_3d, bench_3d_phase3, bench_decimation, bench_multi_window, bench_phase2, bench_phase3, bench_render, bench_ui |
+| `tests/golden/` | Golden image regression: renders figures, compares against baseline PNGs (2D + 3D + phase variants) |
+| `tests/qa/` | QA agents: qa_agent.cpp (visual testing), ros_qa_agent.cpp (ROS2 QA) |
+| `tests/util/` | Test utilities: gpu_hang_detector.hpp, multi_window_fixture.hpp, validation_guard.hpp |
 
 ---
 
 ## 16. Naming Conventions
 
-- **Namespace**: `spectra` (public), `spectra::ui` (theme), `spectra::ipc` (IPC), `spectra::daemon` (daemon), `spectra::data` (decimation)
+- **Namespace**: `spectra` (public), `spectra::ui` (theme), `spectra::ipc` (IPC), `spectra::daemon` (daemon), `spectra::data` (decimation), `spectra::ros2` (ROS2 adapter)
 - **Classes**: PascalCase (`FigureManager`, `VulkanBackend`)
 - **Methods**: snake_case (`create_figure()`, `begin_frame()`)
 - **Members**: snake_case with trailing underscore (`active_figure_id_`, `backend_`)
@@ -633,3 +710,68 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 - **Enums**: PascalCase enum class (`LineStyle::Dashed`, `ToolMode::Pan`)
 - **Files**: snake_case (`figure_manager.cpp`, `vk_backend.hpp`)
 - **Macros**: `SPECTRA_` prefix (`SPECTRA_LOG_INFO`, `SPECTRA_USE_GLFW`)
+
+---
+
+## 17. Embedding & Platform Abstraction
+
+### 17.1 EmbedSurface (include/spectra/embed.hpp)
+- Headless or foreign-window Vulkan rendering without GLFW ownership
+- `render_to_buffer()` for CPU readback (PNG export, testing)
+- `render_to_image()` for Vulkan interop (external compositors, Qt)
+- Owns `VulkanBackend`, `Renderer`, `FigureRegistry`, `InputHandler`
+
+### 17.2 SurfaceHost (src/platform/window_system/)
+- Abstract `SurfaceHost` interface for platform-specific Vulkan surface creation
+- `GlfwSurfaceHost` — GLFW implementation (default)
+- `QtSurfaceHost` — Qt/QVulkanInstance implementation
+
+### 17.3 Qt Adapter (src/adapters/qt/)
+- `QtRuntime` — owns VulkanBackend + Renderer, manages multiple QWindow canvases
+- Integrates with Qt event loop via `QVulkanInstance`
+
+### 17.4 C FFI (include/spectra/spectra_embed_c.h)
+- Opaque handle API for non-C++ consumers (Python ctypes, Rust, C#)
+- Wraps `EmbedSurface`, `Figure`, `Axes`, `Series` as C handles
+
+---
+
+## 18. ROS2 Adapter (src/adapters/ros2/)
+
+### 18.1 Architecture
+```
+spectra-ros (standalone executable)
+ └── RosAppShell                         (src/adapters/ros2/ros_app_shell.hpp)
+      ├── Ros2Bridge                     (ROS2 node, spins in background thread)
+      ├── TopicDiscovery                 (enumerates topics + types)
+      ├── GenericSubscriber              (type-erased subscription to any topic)
+      ├── MessageIntrospector            (parses message fields at runtime)
+      ├── SubplotManager                 (NxM grid, shared cursor, linked X-axis)
+      ├── RosPlotManager                 (manages subscriptions → plot series)
+      ├── ExpressionEngine               (math expressions with $topic.field variables)
+      ├── BagPlayer / BagReader / BagRecorder  (rosbag2 playback/recording)
+      ├── RosSession                     (save/load ROS2 workspace state)
+      ├── ServiceCaller                  (call ROS2 services interactively)
+      ├── RosLogViewer                   (rosout log capture and display)
+      └── UI Panels (src/adapters/ros2/ui/)
+           ├── TopicListPanel            (browse and subscribe to topics)
+           ├── TopicEchoPanel            (raw message echo)
+           ├── TopicStatsOverlay         (Hz, bandwidth, latency)
+           ├── DiagnosticsPanel          (diagnostic_msgs aggregated view)
+           ├── TfTreePanel               (TF2 frame tree visualization)
+           ├── NodeGraphPanel            (ROS2 computation graph)
+           ├── BagPlaybackPanel          (bag player transport controls)
+           ├── BagInfoPanel              (bag metadata inspector)
+           ├── ParamEditorPanel          (live parameter editing)
+           ├── ServiceCallerPanel        (service call UI)
+           ├── ExpressionEditorPanel     (math expression builder)
+           ├── FieldDragDrop             (drag fields from topic to plot)
+           └── LogViewerPanel            (rosout log table)
+```
+
+### 18.2 Data Flow
+```
+ROS2 Topic → GenericSubscriber → MessageIntrospector → field extraction
+  → RosPlotManager → Series::set_data() → GPU upload
+  → ExpressionEngine (optional) → computed series
+```

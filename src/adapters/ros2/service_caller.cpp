@@ -34,6 +34,26 @@ static double wall_time_s_impl()
         system_clock::now().time_since_epoch()).count();
 }
 
+static std::pair<std::string, std::string> service_message_type_names(const std::string& service_type)
+{
+    std::pair<std::string, std::string> names;
+    names.first = service_type + "_Request";
+    names.second = service_type + "_Response";
+    return names;
+}
+
+static std::pair<std::string, std::string> legacy_service_message_type_names(const std::string& service_type)
+{
+    auto names = service_message_type_names(service_type);
+    auto pos = names.first.find("/srv/");
+    if (pos != std::string::npos)
+        names.first.replace(pos, 5, "/msg/");
+    pos = names.second.find("/srv/");
+    if (pos != std::string::npos)
+        names.second.replace(pos, 5, "/msg/");
+    return names;
+}
+
 // ---------------------------------------------------------------------------
 // Minimal JSON helpers (no third-party dependency)
 // ---------------------------------------------------------------------------
@@ -268,21 +288,18 @@ bool ServiceCaller::load_schema(const std::string& service_name)
     }
     if (type_str.empty()) return false;
 
-    // Convert service type to request/response type strings.
-    // "package/srv/Type" → "package/msg/Type_Request" and "package/msg/Type_Response"
-    // ROS2 introspection uses the message sub-types for srv fields.
-    std::string req_type  = type_str + "_Request";
-    std::string resp_type = type_str + "_Response";
-    // Normalize: "package/srv/Type" → "package/msg/Type_Request"
-    {
-        auto pos = req_type.find("/srv/");
-        if (pos != std::string::npos) req_type.replace(pos, 5, "/msg/");
-        pos = resp_type.find("/srv/");
-        if (pos != std::string::npos) resp_type.replace(pos, 5, "/msg/");
-    }
-
+    auto [req_type, resp_type] = service_message_type_names(type_str);
     auto req_schema  = introspector_->introspect(req_type);
     auto resp_schema = introspector_->introspect(resp_type);
+
+    if (!req_schema || !resp_schema)
+    {
+        auto [legacy_req_type, legacy_resp_type] = legacy_service_message_type_names(type_str);
+        if (!req_schema)
+            req_schema = introspector_->introspect(legacy_req_type);
+        if (!resp_schema)
+            resp_schema = introspector_->introspect(legacy_resp_type);
+    }
 
     std::lock_guard<std::mutex> lk(services_mutex_);
     for (auto& e : services_)

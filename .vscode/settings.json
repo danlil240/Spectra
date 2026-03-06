@@ -1,16 +1,10 @@
 {
     "cmake.configureOnOpen": true,
     "cmake.generator": "Unix Makefiles",
-    "cmake.buildDirectory": "${workspaceFolder}/build_clang_asan",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.configureArgs": [
         "-DCMAKE_BUILD_TYPE=Debug",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        "-DCMAKE_CXX_COMPILER=clang++-17",
-        "-DCMAKE_C_COMPILER=clang-17",
-        "-DCMAKE_CXX_FLAGS_DEBUG=-g -O1 -fsanitize=address -fno-omit-frame-pointer",
-        "-DCMAKE_C_FLAGS_DEBUG=-g -O1 -fsanitize=address -fno-omit-frame-pointer",
-        "-DCMAKE_EXE_LINKER_FLAGS_DEBUG=-fsanitize=address",
-        "-DCMAKE_SHARED_LINKER_FLAGS_DEBUG=-fsanitize=address",
         "-DSPECTRA_BUILD_EXAMPLES=ON",
         "-DSPECTRA_BUILD_TESTS=ON",
         "-DSPECTRA_USE_QT=ON",
@@ -21,30 +15,16 @@
     ],
     "cmake.buildArgs": [],
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
-    "cmake.defaultBuildTask": "Build Project with Clang ASan",
-    "C_Cpp.default.compilerPath": "/usr/bin/clang++-17",
+    "cmake.defaultBuildTask": "Build Project with Examples",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build_clang_asan/compile_commands.json",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
     "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}/build_clang_asan"
+        "--compile-commands-dir=${workspaceFolder}/build"
     ],
     "files.associations": {
         "*.hpp": "cpp",
         "*.cpp": "cpp",
         "*.vert": "glsl",
         "*.frag": "glsl"
-    },
-    "cmake.debugConfig": {
-        "cwd": "${workspaceFolder}",
-        "environment": [
-            {
-                "name": "ASAN_OPTIONS",
-                "value": "detect_leaks=1:abort_on_error=1:log_path=${workspaceFolder}/asan.log"
-            },
-            {
-                "name": "LSAN_OPTIONS",
-                "value": "suppressions=${workspaceFolder}/tools/sanitizers/lsan.supp"
-            }
-        ]
     }
 }

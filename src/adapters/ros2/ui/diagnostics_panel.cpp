@@ -10,6 +10,7 @@
 #endif
 
 #ifdef SPECTRA_USE_ROS2
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <rclcpp/serialized_message.hpp>
 #endif
 
@@ -165,18 +166,33 @@ bool DiagnosticsPanel::start()
 
     try
     {
-        subscription_ = node_->create_generic_subscription(
+        subscription_ = node_->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
             topic_,
-            "diagnostic_msgs/msg/DiagnosticArray",
             rclcpp::QoS(10),
-            [this](std::shared_ptr<rclcpp::SerializedMessage> msg)
+            [this](diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg)
             {
-                DiagRawMessage raw;
-                raw.arrival_ns = wall_ns();
-                const auto& rcl_msg = msg->get_rcl_serialized_message();
-                raw.data.assign(rcl_msg.buffer,
-                                rcl_msg.buffer + rcl_msg.buffer_length);
-                ring_push(std::move(raw));
+                if (!msg)
+                    return;
+
+                const int64_t arrival_ns = wall_ns();
+                std::vector<DiagStatus> statuses;
+                statuses.reserve(msg->status.size());
+                for (const auto& status : msg->status)
+                {
+                    DiagStatus parsed;
+                    parsed.level = static_cast<DiagLevel>(status.level);
+                    parsed.name = status.name;
+                    parsed.message = status.message;
+                    parsed.hardware_id = status.hardware_id;
+                    parsed.arrival_ns = arrival_ns;
+                    parsed.values.reserve(status.values.size());
+                    for (const auto& value : status.values)
+                        parsed.values.push_back({value.key, value.value});
+                    statuses.push_back(std::move(parsed));
+                }
+
+                std::lock_guard<std::mutex> lock(pending_mutex_);
+                pending_status_batches_.push_back(std::move(statuses));
             });
     }
     catch (const std::exception&)
@@ -384,6 +400,29 @@ std::vector<DiagStatus> DiagnosticsPanel::parse_diag_array(const uint8_t* data,
 void DiagnosticsPanel::poll()
 {
     const int64_t now = wall_ns();
+
+    std::vector<std::vector<DiagStatus>> pending_batches;
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_batches.swap(pending_status_batches_);
+    }
+
+    for (auto& batch : pending_batches)
+    {
+        for (auto& s : batch)
+        {
+            const std::string transitioned = model_.apply(s);
+            if (!transitioned.empty() && alert_cb_)
+            {
+                const auto& comp = model_.components.at(transitioned);
+                if (comp.level == DiagLevel::Warn ||
+                    comp.level == DiagLevel::Error)
+                {
+                    alert_cb_(transitioned, comp.level);
+                }
+            }
+        }
+    }
 
     // Drain ring buffer.
     DiagRawMessage raw;

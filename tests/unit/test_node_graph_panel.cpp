@@ -135,6 +135,30 @@ TEST(NodeGraphPanel, BuildMixed)
     EXPECT_EQ(p.node_count(), 5u);
 }
 
+TEST(NodeGraphPanel, BuildGraphAddsEdgesFromTopicEndpoints)
+{
+    NodeGraphPanel p;
+
+    TopicInfo topic = make_topic("/chatter", 1, 1);
+    topic.publisher_nodes = {"/talker"};
+    topic.subscriber_nodes = {"/listener"};
+
+    p.build_graph(
+        {topic},
+        {make_node("", "talker"), make_node("", "listener")}
+    );
+
+    auto snap = p.snapshot();
+    ASSERT_EQ(3u, snap.nodes.size());
+    ASSERT_EQ(2u, snap.edges.size());
+    EXPECT_EQ("/talker", snap.edges[0].from_id);
+    EXPECT_EQ("/chatter", snap.edges[0].to_id);
+    EXPECT_TRUE(snap.edges[0].is_publish);
+    EXPECT_EQ("/chatter", snap.edges[1].from_id);
+    EXPECT_EQ("/listener", snap.edges[1].to_id);
+    EXPECT_FALSE(snap.edges[1].is_publish);
+}
+
 TEST(NodeGraphPanel, NodeKinds)
 {
     NodeGraphPanel p;

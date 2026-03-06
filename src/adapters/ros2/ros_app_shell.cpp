@@ -307,6 +307,7 @@ bool RosAppShell::init(int argc, char** argv)
                         [this, topic](std::shared_ptr<rclcpp::SerializedMessage> msg)
                         {
                             const size_t bytes = msg ? msg->size() : 0;
+                            ++total_messages_;
                             if (topic_list_)
                                 topic_list_->notify_message(topic, bytes);
                             if (topic_stats_)
@@ -333,7 +334,6 @@ bool RosAppShell::init(int argc, char** argv)
     plot_mgr_->set_on_data(
         [this](int id, double /*t*/, double /*v*/)
         {
-            ++total_messages_;
             const PlotHandle h = plot_mgr_->handle(id);
             if (!h.valid()) return;
             // Skip if a monitor subscription already handles notify.
@@ -344,6 +344,7 @@ bool RosAppShell::init(int argc, char** argv)
             }
             if (!has_monitor)
             {
+                ++total_messages_;
                 if (topic_list_)
                     topic_list_->notify_message(h.topic, sizeof(double));
                 if (topic_stats_)
@@ -354,7 +355,6 @@ bool RosAppShell::init(int argc, char** argv)
     subplot_mgr_->set_on_data(
         [this](int slot, double /*t*/, double /*v*/)
         {
-            ++total_messages_;
             const SubplotHandle h = subplot_mgr_->handle(slot);
             if (!h.valid())
                 return;
@@ -366,6 +366,7 @@ bool RosAppShell::init(int argc, char** argv)
             }
             if (!has_monitor)
             {
+                ++total_messages_;
                 if (topic_list_)
                     topic_list_->notify_message(h.topic, sizeof(double));
                 if (topic_stats_)

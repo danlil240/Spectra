@@ -321,6 +321,8 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
     nodes_.clear();
     edges_.clear();
 
+    std::unordered_map<std::string, bool> known_nodes;
+
     // Add ROS2 nodes
     for (const auto& ni : nodes)
     {
@@ -337,10 +339,11 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
             gn.px = it->second.first;
             gn.py = it->second.second;
         }
+        known_nodes[gn.id] = true;
         nodes_.push_back(std::move(gn));
     }
 
-    // Add topic nodes and edges
+    // Add topic nodes, then connect them to known publisher/subscriber nodes.
     for (const auto& ti : topics)
     {
         GraphNode tn;
@@ -359,23 +362,26 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
         }
         nodes_.push_back(std::move(tn));
 
-        // We don't have per-node pub/sub detail from TopicDiscovery directly,
-        // so we create edges from the topic's publisher_count / subscriber_count
-        // as summaries.  When a full node→topic mapping is available (via
-        // get_publishers_info_by_topic), we would add individual edges.
-        // For now: one synthetic "publisher" edge per topic with publishers,
-        //          one synthetic "subscriber" edge per topic with subscribers.
-        // This keeps the graph non-empty and meaningful.
-        if (ti.publisher_count > 0)
+        for (const auto& publisher : ti.publisher_nodes)
         {
+            if (!known_nodes.count(publisher))
+                continue;
             GraphEdge e;
-            e.from_id    = ti.name + "__pub_summary";
+            e.from_id    = publisher;
             e.to_id      = ti.name;
             e.is_publish = true;
-            // We skip adding the edge if there's no matching node — the
-            // summary node is virtual and only used for layout hints.
-            // Instead, add a topic→sink marker only when node graph gives us
-            // actual publisher node names. (Discovery upgrade in F1-ext.)
+            edges_.push_back(std::move(e));
+        }
+
+        for (const auto& subscriber : ti.subscriber_nodes)
+        {
+            if (!known_nodes.count(subscriber))
+                continue;
+            GraphEdge e;
+            e.from_id    = ti.name;
+            e.to_id      = subscriber;
+            e.is_publish = false;
+            edges_.push_back(std::move(e));
         }
     }
 

@@ -42,6 +42,40 @@ std::string qos_history_str(rmw_qos_history_policy_t p)
     }
 }
 
+std::string normalize_node_namespace(const std::string& ns)
+{
+    if (ns.empty() || ns == "/")
+        return "/";
+    if (ns.front() == '/')
+        return ns;
+    return "/" + ns;
+}
+
+std::string make_fully_qualified_node_name(const std::string& ns, const std::string& name)
+{
+    const std::string normalized_ns = normalize_node_namespace(ns);
+    if (name.empty())
+        return normalized_ns;
+    if (normalized_ns == "/")
+        return "/" + name;
+    return normalized_ns + "/" + name;
+}
+
+template <typename EndpointInfo>
+std::vector<std::string> collect_endpoint_nodes(const std::vector<EndpointInfo>& infos)
+{
+    std::vector<std::string> result;
+    result.reserve(infos.size());
+    for (const auto& info : infos)
+    {
+        const std::string full_name =
+            make_fully_qualified_node_name(info.node_namespace(), info.node_name());
+        if (std::find(result.begin(), result.end(), full_name) == result.end())
+            result.push_back(full_name);
+    }
+    return result;
+}
+
 }   // namespace
 
 // ---------------------------------------------------------------------------
@@ -485,6 +519,7 @@ void TopicDiscovery::enrich_batch()
 
         QosInfo qos;
         auto pub_infos = node_->get_publishers_info_by_topic(name);
+        auto sub_infos = node_->get_subscriptions_info_by_topic(name);
         if (!pub_infos.empty())
         {
             const rmw_qos_profile_t& rmw_qos =
@@ -504,6 +539,8 @@ void TopicDiscovery::enrich_batch()
                 it->second.publisher_count  = pub_count;
                 it->second.subscriber_count = sub_count;
                 it->second.qos              = qos;
+                it->second.publisher_nodes  = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes = collect_endpoint_nodes(sub_infos);
             }
         }
     }
@@ -530,6 +567,7 @@ void TopicDiscovery::enrich_all()
 
         QosInfo qos;
         auto pub_infos = node_->get_publishers_info_by_topic(name);
+        auto sub_infos = node_->get_subscriptions_info_by_topic(name);
         if (!pub_infos.empty())
         {
             const rmw_qos_profile_t& rmw_qos =
@@ -548,6 +586,8 @@ void TopicDiscovery::enrich_all()
                 it->second.publisher_count  = pub_count;
                 it->second.subscriber_count = sub_count;
                 it->second.qos              = qos;
+                it->second.publisher_nodes  = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes = collect_endpoint_nodes(sub_infos);
             }
         }
     }

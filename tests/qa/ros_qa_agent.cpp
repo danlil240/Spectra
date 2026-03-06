@@ -22,6 +22,7 @@
 #include "ros_log_viewer.hpp"
 #include "ros_screenshot_export.hpp"
 #include "ros_session.hpp"
+#include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
 #include "ui/app/window_ui_context.hpp"
@@ -263,6 +264,14 @@ struct ScenarioResult
     std::string    screenshot_path;
 };
 
+struct DesignCapture
+{
+    std::string name;
+    std::string description;
+    std::string path;
+    uint64_t    frame{0};
+};
+
 struct QAOptions
 {
     uint64_t    seed{0};
@@ -270,6 +279,7 @@ struct QAOptions
     std::string scenario_name;
     std::string output_dir{"/tmp/spectra_ros_qa"};
     bool        list_scenarios{false};
+    bool        design_review{false};
 };
 
 QAOptions parse_args(int argc, char** argv)
@@ -291,6 +301,8 @@ QAOptions parse_args(int argc, char** argv)
             opts.output_dir = argv[++i];
         else if (arg == "--list-scenarios")
             opts.list_scenarios = true;
+        else if (arg == "--design-review")
+            opts.design_review = true;
         else if (arg == "--help" || arg == "-h")
         {
             std::fprintf(stderr,
@@ -299,6 +311,7 @@ QAOptions parse_args(int argc, char** argv)
                          "  --duration <sec>    Max wall-clock runtime (default: 120)\n"
                          "  --scenario <name>   Run single scenario\n"
                          "  --output-dir <dir>  Output dir for report + screenshots\n"
+                         "  --design-review     Capture named ROS shell design-review screenshots\n"
                          "  --list-scenarios    List scenarios and exit\n");
             std::exit(0);
         }
@@ -627,6 +640,11 @@ public:
         {
             if (!opts_.scenario_name.empty() && opts_.scenario_name != scenario.name)
                 continue;
+            if (opts_.scenario_name.empty() && scenario.name == "design_review"
+                && !opts_.design_review)
+            {
+                continue;
+            }
 
             if (wall_clock_exceeded())
             {
@@ -852,6 +870,158 @@ private:
         scenarios_.push_back({"bag_playback",
                               "Open a synthetic bag and validate playback injection when enabled",
                               [this]() { return scenario_bag_playback(); }});
+        scenarios_.push_back({"design_review",
+                              "Capture named ROS shell design states and verify theme/layout presentation",
+                              [this]() { return scenario_design_review(); }});
+    }
+
+    bool ensure_ros_topics_ready(std::chrono::milliseconds timeout)
+    {
+        return wait_until(
+            [this]() {
+                shell_->discovery().refresh();
+                return shell_->discovery().has_topic("/qa/float")
+                    && shell_->discovery().has_topic("/qa/cmd_vel");
+            },
+            timeout);
+    }
+
+    bool ensure_design_plot_state()
+    {
+        if (!shell_ || !fixture_ || !canvas_figure_)
+            return false;
+
+        if (!ensure_ros_topics_ready(3s))
+            return false;
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
+        shell_->set_nav_rail_visible(true);
+        shell_->set_nav_rail_expanded(true);
+        shell_->set_nav_rail_width(280.0f);
+
+        if (shell_->active_plot_count() == 0)
+        {
+            if (!shell_->add_topic_plot("/qa/float"))
+                return false;
+            if (!shell_->add_topic_plot("/qa/cmd_vel:linear.x"))
+                return false;
+        }
+
+        for (int i = 0; i < 24; ++i)
+        {
+            fixture_->publish_float(std::sin(static_cast<double>(i) * 0.25) * 2.0 + 4.0);
+            fixture_->publish_twist(0.4 + static_cast<double>(i) * 0.05,
+                                    std::cos(static_cast<double>(i) * 0.18) * 0.35);
+            if (!pump_frames(2))
+                return false;
+        }
+
+        const bool has_messages = wait_until(
+            [this]() {
+                return shell_->total_messages() > 0 && shell_->active_plot_count() >= 2
+                    && !canvas_figure_->axes().empty();
+            },
+            2s);
+        if (!has_messages)
+            return false;
+
+        canvas_figure_->legend().visible = true;
+        auto& axes = canvas_figure_->axes_mut();
+        for (size_t idx = 0; idx < axes.size(); ++idx)
+        {
+            auto& ax = axes[idx];
+            ax->title("ROS Stream " + std::to_string(idx + 1));
+            ax->xlabel("time");
+            ax->ylabel(idx == 0 ? "value" : "velocity");
+            ax->grid(true);
+            ax->show_border(true);
+
+            auto& series = ax->series_mut();
+            for (size_t series_idx = 0; series_idx < series.size(); ++series_idx)
+            {
+                if (series[series_idx] && series[series_idx]->label().empty())
+                {
+                    series[series_idx]->label("stream_" + std::to_string(idx + 1) + "_"
+                                              + std::to_string(series_idx + 1));
+                }
+            }
+        }
+
+        return pump_frames(6);
+    }
+
+    bool verify_theme_contrast(const std::string& theme_name,
+                               float              min_ratio,
+                               std::string*       error_message)
+    {
+        ui::ThemeManager::instance().set_theme(theme_name);
+        const auto& colors = ui::ThemeManager::instance().colors();
+        const float canvas_ratio = colors.text_primary.contrast_ratio(colors.bg_primary);
+        const float panel_ratio = colors.text_primary.contrast_ratio(colors.bg_secondary);
+        if (canvas_ratio < min_ratio || panel_ratio < min_ratio)
+        {
+            if (error_message)
+            {
+                std::ostringstream out;
+                out << "Theme '" << theme_name << "' contrast was too low (canvas="
+                    << canvas_ratio << ", panel=" << panel_ratio << ")";
+                *error_message = out.str();
+            }
+            return false;
+        }
+        return pump_frames(4);
+    }
+
+    std::string capture_named_screenshot(const std::string& relative_path)
+    {
+        if (!app_ || !app_->backend())
+            return {};
+
+        const uint32_t width = shell_cfg_.window_width;
+        const uint32_t height = shell_cfg_.window_height;
+        std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4u);
+
+        if (!app_->backend()->readback_framebuffer(rgba.data(), width, height))
+            return {};
+
+        const std::string path = opts_.output_dir + "/" + relative_path;
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+        if (!RosScreenshotExport::write_png(path, rgba.data(), width, height))
+            return {};
+        return path;
+    }
+
+    bool record_design_capture(const std::string& name, const std::string& description)
+    {
+        const std::string path = capture_named_screenshot("design/" + sanitize_filename(name) + ".png");
+        if (path.empty())
+            return false;
+        design_captures_.push_back({name, description, path, total_frames_});
+        return true;
+    }
+
+    bool write_design_manifest()
+    {
+        if (design_captures_.empty())
+            return false;
+
+        design_manifest_path_ = opts_.output_dir + "/design/manifest.txt";
+        std::filesystem::create_directories(std::filesystem::path(design_manifest_path_).parent_path());
+        std::ofstream out(design_manifest_path_);
+        if (!out)
+            return false;
+
+        out << "spectra-ros design review manifest\n";
+        out << "seed=" << opts_.seed << "\n";
+        out << "captures=" << design_captures_.size() << "\n\n";
+        for (const auto& capture : design_captures_)
+        {
+            out << capture.name << " | frame=" << capture.frame << "\n";
+            out << "  description: " << capture.description << "\n";
+            out << "  path: " << capture.path << "\n";
+        }
+
+        return true;
     }
 
     ScenarioOutcome scenario_boot_and_layout()
@@ -1278,6 +1448,93 @@ private:
 #endif
     }
 
+    ScenarioOutcome scenario_design_review()
+    {
+        if (!shell_ || !app_ || !canvas_figure_)
+            return fail("design", "Design review requires a live shell and render figure");
+
+        design_captures_.clear();
+        design_manifest_path_.clear();
+
+        if (!ensure_design_plot_state())
+            return fail("design", "Failed to prepare representative ROS plot state for design review");
+
+        std::string contrast_error;
+        if (!verify_theme_contrast("dark", 4.5f, &contrast_error))
+            return fail("design", contrast_error);
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
+        shell_->set_nav_rail_visible(true);
+        shell_->set_nav_rail_expanded(true);
+        shell_->set_topic_list_visible(true);
+        shell_->set_topic_echo_visible(true);
+        shell_->set_topic_stats_visible(true);
+        shell_->set_plot_area_visible(true);
+        if (!pump_frames(6) || !record_design_capture("01_dark_default_live",
+                                                       "Dark theme default layout with live plots, echo, stats, and expanded nav rail"))
+        {
+            return fail("design", "Failed to capture dark default design state");
+        }
+
+        fixture_->emit_info_log("design-review-log-" + std::to_string(opts_.seed));
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Debug);
+        shell_->set_nav_rail_visible(true);
+        if (!pump_frames(6) || !record_design_capture("02_debug_logs",
+                                                       "Debug layout with log viewer and topic monitoring chrome"))
+        {
+            return fail("design", "Failed to capture debug design state");
+        }
+
+        fixture_->publish_diagnostics();
+        fixture_->publish_tf_chain();
+        const bool diagnostics_ready = wait_until(
+            [this]() {
+                const auto& model = shell_->diagnostics_panel()->model();
+                return model.count_warn >= 1 && model.count_error >= 1
+                    && shell_->tf_tree_panel()->has_frame("laser");
+            },
+            3s);
+        if (!diagnostics_ready)
+            return fail("design", "Failed to populate diagnostics/TF state before design capture");
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
+        shell_->set_tf_tree_visible(true);
+        if (!pump_frames(6) || !record_design_capture("03_monitor_diagnostics_tf",
+                                                       "Monitor layout with diagnostics, TF tree, and active live plots"))
+        {
+            return fail("design", "Failed to capture monitor design state");
+        }
+
+        if (!verify_theme_contrast("light", 4.5f, &contrast_error))
+            return fail("design", contrast_error);
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
+        shell_->set_nav_rail_visible(true);
+        shell_->set_nav_rail_expanded(false);
+        if (!pump_frames(6) || !record_design_capture("04_light_default_compact",
+                                                       "Light theme default layout with compact nav rail and restored live plots"))
+        {
+            return fail("design", "Failed to capture light-theme design state");
+        }
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::BagReview);
+        shell_->set_nav_rail_visible(true);
+        if (!pump_frames(6) || !record_design_capture("05_bag_review_empty_state",
+                                                       "Bag review layout empty state for playback-disabled builds"))
+        {
+            return fail("design", "Failed to capture bag-review design state");
+        }
+
+        ui::ThemeManager::instance().set_theme("dark");
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
+        shell_->set_nav_rail_visible(true);
+        shell_->set_nav_rail_expanded(true);
+        if (!write_design_manifest())
+            return fail("design", "Failed to write design review manifest");
+
+        return pass("Design review captured 5 named ROS shell states with contrast checks");
+    }
+
     void write_report() const
     {
         const std::string text_path = opts_.output_dir + "/qa_report.txt";
@@ -1312,6 +1569,22 @@ private:
                     << "ms max=" << frame_stats_.max_value() << "ms\n";
                 out << "RSS: initial=" << to_mb(initial_rss_)
                     << "MB peak=" << to_mb(peak_rss_) << "MB\n\n";
+
+                if (opts_.design_review || !design_captures_.empty())
+                {
+                    out << "Design Review:\n";
+                    out << "  requested: " << (opts_.design_review ? "yes" : "no") << "\n";
+                    out << "  captures: " << design_captures_.size() << "\n";
+                    if (!design_manifest_path_.empty())
+                        out << "  manifest: " << design_manifest_path_ << "\n";
+                    for (const auto& capture : design_captures_)
+                    {
+                        out << "  - " << capture.name << " | frame=" << capture.frame
+                            << " | path=" << capture.path
+                            << " | detail=" << capture.description << "\n";
+                    }
+                    out << "\n";
+                }
 
                 out << "Scenario Results:\n";
                 for (const auto& result : results_)
@@ -1360,6 +1633,26 @@ private:
                 out << "  \"rss\": {\n";
                 out << "    \"initial_mb\": " << to_mb(initial_rss_) << ",\n";
                 out << "    \"peak_mb\": " << to_mb(peak_rss_) << "\n";
+                out << "  },\n";
+                out << "  \"design_review\": {\n";
+                out << "    \"requested\": " << (opts_.design_review ? "true" : "false") << ",\n";
+                out << "    \"manifest\": \"" << json_escape(design_manifest_path_) << "\",\n";
+                out << "    \"captures\": [\n";
+                for (size_t i = 0; i < design_captures_.size(); ++i)
+                {
+                    const auto& capture = design_captures_[i];
+                    out << "      {\n";
+                    out << "        \"name\": \"" << json_escape(capture.name) << "\",\n";
+                    out << "        \"description\": \""
+                        << json_escape(capture.description) << "\",\n";
+                    out << "        \"path\": \"" << json_escape(capture.path) << "\",\n";
+                    out << "        \"frame\": " << capture.frame << "\n";
+                    out << "      }";
+                    if (i + 1 < design_captures_.size())
+                        out << ",";
+                    out << "\n";
+                }
+                out << "    ]\n";
                 out << "  },\n";
                 out << "  \"scenarios\": [\n";
                 for (size_t i = 0; i < results_.size(); ++i)
@@ -1420,12 +1713,14 @@ private:
     std::unique_ptr<RosQaFixture>           fixture_;
     std::vector<Scenario>                   scenarios_;
     std::vector<ScenarioResult>             results_;
+    std::vector<DesignCapture>              design_captures_;
     std::vector<QAIssue>                    issues_;
     FrameStats                              frame_stats_;
     std::chrono::steady_clock::time_point   start_time_{std::chrono::steady_clock::now()};
     uint64_t                                total_frames_{0};
     size_t                                  initial_rss_{0};
     size_t                                  peak_rss_{0};
+    std::string                             design_manifest_path_;
 };
 
 int main(int argc, char** argv)

@@ -6,6 +6,7 @@ description: Run spectra-ros stability and workflow QA end-to-end with `spectra_
 # QA ROS Performance Agent
 
 Drive reproducible spectra-ros QA sessions focused on discovery, plotting, session persistence, diagnostics, TF, parameters, services, and bag playback, then convert findings into verified fixes and updated ROS QA notes.
+When requested, also run the ROS shell design-review path to capture named screenshots, validate key theme contrast, and verify layout/chrome presentation.
 
 ---
 
@@ -52,6 +53,11 @@ env ROS_LOG_DIR=/tmp/ros_logs ROS_HOME=/tmp/spectra_ros_home \
 env ROS_LOG_DIR=/tmp/ros_logs ROS_HOME=/tmp/spectra_ros_home \
   ./build-ros2/tests/spectra_ros_qa_agent --seed $(date +%s) --duration 120 \
   --output-dir /tmp/spectra_ros_qa_random
+
+# Optional ROS design review
+env ROS_LOG_DIR=/tmp/ros_logs ROS_HOME=/tmp/spectra_ros_home \
+  ./build-ros2/tests/spectra_ros_qa_agent --seed 42 --duration 120 \
+  --design-review --output-dir /tmp/spectra_ros_qa_design
 ```
 
 ### 4. Triage findings
@@ -123,6 +129,7 @@ ctest --test-dir build-ros2 --output-on-failure
 --duration <sec>     Max wall-clock runtime (default: 120)
 --scenario <name>    Run one named scenario
 --output-dir <path>  Report and screenshot directory
+--design-review      Run the named ROS-shell design review scenario and emit a manifest
 --list-scenarios     Print scenario list and exit
 ```
 
@@ -146,6 +153,7 @@ ctest --test-dir build-ros2 --output-on-failure
 | `diagnostics_and_tf` | Diagnostic status ingestion, TF tree population, transform lookup |
 | `parameters_and_services` | Parameter discovery/editing, preset save/load, service schema/call flow |
 | `bag_playback` | Synthetic rosbag open, playback injection, activity bands, bag metadata |
+| `design_review` | Theme contrast, ROS shell layout/chrome captures, and named screenshot manifest |
 
 ---
 

@@ -49,6 +49,8 @@ struct TopicInfo
     int                      publisher_count{0};
     int                      subscriber_count{0};
     QosInfo                  qos;        // QoS of first publisher (if any)
+    std::vector<std::string> publisher_nodes;  // fully-qualified publisher node names
+    std::vector<std::string> subscriber_nodes; // fully-qualified subscriber node names
 };
 
 struct ServiceInfo

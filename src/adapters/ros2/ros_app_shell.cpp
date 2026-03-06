@@ -1607,6 +1607,16 @@ void RosAppShell::bridge_imgui_to_input_handler()
         const auto& vp = se->axes->viewport();
         input_handler_.set_viewport(vp.x, vp.y, vp.w, vp.h);
     };
+    const auto sync_tracked_manual_y = [&]() {
+        if (!tracked_manual_y_valid_ || tracked_manual_y_slot_ < 1)
+            return;
+        auto* se = subplot_mgr_->slot_entry_pub(tracked_manual_y_slot_);
+        if (!se || !se->axes)
+            return;
+        const auto current_y = se->axes->y_limits();
+        if (axis_limits_changed(current_y, tracked_manual_y_limits_))
+            subplot_mgr_->set_slot_ylim(tracked_manual_y_slot_, current_y.min, current_y.max);
+    };
 
     // ── Scroll-wheel zoom ────────────────────────────────────────────────
     if (io.MouseWheel != 0.0f)
@@ -1730,6 +1740,7 @@ void RosAppShell::bridge_imgui_to_input_handler()
     {
         input_handler_.on_mouse_move(static_cast<double>(mx),
                                      static_cast<double>(my));
+        sync_tracked_manual_y();
     }
 #endif
 }

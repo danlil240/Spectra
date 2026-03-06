@@ -873,8 +873,8 @@ void ThemeManager::initialize_default_themes()
                    .info    = Color::from_hex(0x4D8FD6),
 
                    // Plot-specific — grid recedes, data is hero
-                   .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.04f),   // Barely visible
-                   .axis_line        = Color(0.45f, 0.48f, 0.53f, 0.25f),   // Hairline spines
+                   .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.12f),   // Subtle but visible
+                   .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.60f),   // Visible spines
                    .tick_label       = Color::from_hex(0x6B7582),   // Calm tick text
                    .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
                    .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),

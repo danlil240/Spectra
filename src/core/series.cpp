@@ -47,6 +47,31 @@ void LineSeries::append(float x, float y)
     dirty_ = true;
 }
 
+size_t LineSeries::erase_before(float x_threshold)
+{
+    if (x_.empty())
+        return 0;
+
+    // Binary search for the first element >= x_threshold (x_ is sorted ascending).
+    size_t lo = 0, hi = x_.size();
+    while (lo < hi)
+    {
+        size_t mid = lo + (hi - lo) / 2;
+        if (x_[mid] < x_threshold)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+
+    if (lo == 0)
+        return 0;
+
+    x_.erase(x_.begin(), x_.begin() + static_cast<ptrdiff_t>(lo));
+    y_.erase(y_.begin(), y_.begin() + static_cast<ptrdiff_t>(lo));
+    dirty_ = true;
+    return lo;
+}
+
 LineSeries& LineSeries::format(std::string_view fmt)
 {
     PlotStyle ps        = parse_format_string(fmt);

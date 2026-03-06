@@ -183,6 +183,8 @@ void TopicStatsOverlay::reset_stats()
 {
     std::lock_guard<std::mutex> lk(mutex_);
     stats_.reset_window();
+    stats_.total_messages = 0;
+    stats_.total_bytes    = 0;
 }
 
 void TopicStatsOverlay::set_window_ms(int ms)
@@ -329,6 +331,7 @@ void TopicStatsOverlay::draw_stat_row(const char* label, const std::string& valu
 
 void TopicStatsOverlay::draw_inline()
 {
+    if (!ImGui::GetCurrentContext()) return;
     // Throttle updates to ~4 Hz to reduce visual noise in Hz / BW values.
     const int64_t now = now_ns();
     if (now - last_snap_ns_ >= SNAP_INTERVAL_NS || last_snap_ns_ == 0)
@@ -445,6 +448,7 @@ void TopicStatsOverlay::draw_inline()
 
 void TopicStatsOverlay::draw(bool* p_open)
 {
+    if (!ImGui::GetCurrentContext()) return;
     if (!ImGui::Begin(title_.c_str(), p_open)) {
         ImGui::End();
         return;

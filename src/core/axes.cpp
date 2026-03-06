@@ -135,18 +135,22 @@ BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> he
 
 void Axes::xlim(double min, double max)
 {
-    // Explicit manual limits pause streaming follow mode, but keep the
-    // configured buffer so users can resume via the Live button.
+    // Explicit X limits freeze live follow, but keep the configured buffer so
+    // users can resume via the Live button.
     presented_buffer_following_ = false;
     xlim_                       = AxisLimits{min, max};
 }
 
 void Axes::ylim(double min, double max)
 {
-    // Explicit manual limits pause streaming follow mode, but keep the
-    // configured buffer so users can resume via the Live button.
-    presented_buffer_following_ = false;
-    ylim_                       = AxisLimits{min, max};
+    // Y overrides are independent from live X-follow: callers can keep a
+    // streaming time window while locking or zooming the Y axis manually.
+    ylim_ = AxisLimits{min, max};
+}
+
+void Axes::clear_ylim()
+{
+    ylim_.reset();
 }
 
 void Axes::title(const std::string& t)
@@ -208,9 +212,9 @@ void Axes::presented_buffer(float seconds)
     {
         presented_buffer_seconds_   = seconds;
         presented_buffer_following_ = true;
-        // Presented buffer drives limits from data, so clear explicit limits.
+        // Presented buffer drives the X window from data, so clear any manual
+        // X override but preserve manual Y if the user explicitly set one.
         xlim_.reset();
-        ylim_.reset();
         if (autoscale_mode_ == AutoscaleMode::Manual)
             autoscale_mode_ = AutoscaleMode::Padded;
     }
@@ -218,7 +222,23 @@ void Axes::presented_buffer(float seconds)
     {
         presented_buffer_seconds_.reset();
         presented_buffer_following_ = false;
+        presented_buffer_right_edge_.reset();
     }
+}
+
+void Axes::resume_follow()
+{
+    if (presented_buffer_seconds_.has_value())
+    {
+        presented_buffer_following_ = true;
+        xlim_.reset();
+    }
+}
+
+void Axes::set_presented_buffer_right_edge(double x)
+{
+    if (std::isfinite(x))
+        presented_buffer_right_edge_ = x;
 }
 
 // --- Limits ---
@@ -496,6 +516,13 @@ AxisLimits Axes::x_limits() const
     if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
         && presented_buffer_seconds_.value() > 0.0f)
     {
+        if (presented_buffer_right_edge_.has_value())
+        {
+            const double right = presented_buffer_right_edge_.value();
+            const double left  = right - static_cast<double>(presented_buffer_seconds_.value());
+            return {left, right};
+        }
+
         float latest_x = 0.0f;
         if (latest_x_value(series_, latest_x))
         {
@@ -512,16 +539,46 @@ AxisLimits Axes::x_limits() const
 
 AxisLimits Axes::y_limits() const
 {
-    if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
-        && presented_buffer_seconds_.value() > 0.0f)
+    if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
+        return ylim_.value_or(AxisLimits{0.0, 1.0});
+
+    if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
     {
-        float latest_x = 0.0f;
-        if (latest_x_value(series_, latest_x))
+        float window_min = 0.0f;
+        float window_max = 0.0f;
+        bool  have_window = false;
+
+        if (presented_buffer_following_)
+        {
+            if (presented_buffer_right_edge_.has_value())
+            {
+                window_max  = static_cast<float>(presented_buffer_right_edge_.value());
+                window_min  = window_max - presented_buffer_seconds_.value();
+                have_window = true;
+            }
+            else
+            {
+                float latest_x = 0.0f;
+                if (latest_x_value(series_, latest_x))
+                {
+                    window_min  = latest_x - presented_buffer_seconds_.value();
+                    window_max  = latest_x;
+                    have_window = true;
+                }
+            }
+        }
+        else if (xlim_.has_value())
+        {
+            window_min  = static_cast<float>(xlim_->min);
+            window_max  = static_cast<float>(xlim_->max);
+            have_window = true;
+        }
+
+        if (have_window)
         {
             float y_min = 0.0f;
             float y_max = 0.0f;
-            float x_min = latest_x - presented_buffer_seconds_.value();
-            if (windowed_y_extent(series_, x_min, latest_x, y_min, y_max))
+            if (windowed_y_extent(series_, window_min, window_max, y_min, y_max))
             {
                 if (autoscale_mode_ == AutoscaleMode::Tight)
                     return {y_min, y_max};
@@ -534,8 +591,6 @@ AxisLimits Axes::y_limits() const
         }
     }
 
-    if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
-        return ylim_.value_or(AxisLimits{0.0, 1.0});
     float xmin, xmax, ymin, ymax;
     data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {ymin, ymax};

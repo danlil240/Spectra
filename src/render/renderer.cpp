@@ -280,7 +280,7 @@ void Renderer::render_figure_content(Figure& figure)
     // Flushed later by render_text().
     render_plot_text(figure);
 
-    // Render screen-space plot geometry (2D tick marks) via Vulkan grid pipeline.
+    // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
 }
@@ -404,7 +404,10 @@ void Renderer::render_plot_text(Figure& figure)
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            float           center_x   = vp.x - tick_padding * 2.0f - 20.0f;
+            const auto      label_ext  = text_renderer_.measure_text(axes.get_ylabel(),
+                                                                     FontSize::Label);
+            float           center_x   = vp.x - tl - tick_padding - 18.0f
+                                       - label_ext.height * 0.5f;
             float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
             text_renderer_.draw_text_rotated(axes.get_ylabel(),
@@ -679,13 +682,46 @@ void Renderer::render_plot_geometry(Figure& figure)
     overlay_line_scratch_.clear();
     overlay_tri_scratch_.clear();
 
-    // ── 2D Axes: tick mark lines ──
+    // ── 2D Axes: border and tick mark lines ──
     for (auto& axes_ptr : figure.axes())
     {
         if (!axes_ptr)
             continue;
         auto&       axes = *axes_ptr;
         const auto& vp   = axes.viewport();
+
+        // ── Border: 4 lines at viewport edges (screen-space) ──
+        // Rendered in screen space to avoid a GPU buffer race condition:
+        // the previous data-space border vertex buffer was shared across
+        // in-flight frames, causing misalignment during fast zoom.
+        if (axes.border_enabled())
+        {
+            float bx0 = vp.x;
+            float by0 = vp.y;
+            float bx1 = vp.x + vp.w;
+            float by1 = vp.y + vp.h;
+            // Bottom edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by1);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by1);
+            // Top edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by0);
+            // Left edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by1);
+            // Right edge
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by1);
+        }
+
         auto        xlim = axes.x_limits();
         auto        ylim = axes.y_limits();
 
@@ -733,8 +769,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // NOTE: 3D axis arrows are now rendered by render_arrows() inside render_axes()
     // with depth testing, so they are properly occluded by 3D geometry.
 
-    // ── Upload and draw 2D tick marks ──
-    // Set up screen-space ortho projection in UBO.
+    // ── Set up screen-space ortho projection in UBO ──
     // Screen coordinates are Y-down (0=top, h=bottom), matching Vulkan clip space,
     // so use positive Y scale (same as TextRenderer::flush).
     // Do NOT use build_ortho_projection() — that negates Y for data-space (Y-up).
@@ -762,7 +797,116 @@ void Renderer::render_plot_geometry(Figure& figure)
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
-    // Draw 2D tick mark lines
+    // ── Draw 2D grid lines per-axes (screen-space, scissored to viewport) ──
+    // Rendered in screen-space to avoid the same GPU buffer race that
+    // affected the border (shared host-visible buffers overwritten while
+    // previous flight frames still reference them during fast zoom).
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto* axes2d = dynamic_cast<Axes*>(axes_ptr.get());
+        if (!axes2d || !axes2d->grid_enabled())
+            continue;
+
+        const auto& vp   = axes2d->viewport();
+        auto        xlim = axes2d->x_limits();
+        auto        ylim = axes2d->y_limits();
+
+        double x_range = xlim.max - xlim.min;
+        double y_range = ylim.max - ylim.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
+
+        auto data_to_px_x = [&](double dx) -> float
+        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_y = [&](double dy) -> float
+        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+
+        auto x_ticks = axes2d->compute_x_ticks();
+        auto y_ticks = axes2d->compute_y_ticks();
+
+        size_t num_x = x_ticks.positions.size();
+        size_t num_y = y_ticks.positions.size();
+        if (num_x == 0 && num_y == 0)
+            continue;
+
+        grid_scratch_.clear();
+        float fy_top    = vp.y;
+        float fy_bottom = vp.y + vp.h;
+        float fx_left   = vp.x;
+        float fx_right  = vp.x + vp.w;
+        for (size_t i = 0; i < num_x; ++i)
+        {
+            float px = data_to_px_x(x_ticks.positions[i]);
+            grid_scratch_.push_back(px);
+            grid_scratch_.push_back(fy_top);
+            grid_scratch_.push_back(px);
+            grid_scratch_.push_back(fy_bottom);
+        }
+        for (size_t i = 0; i < num_y; ++i)
+        {
+            float py = data_to_px_y(y_ticks.positions[i]);
+            grid_scratch_.push_back(fx_left);
+            grid_scratch_.push_back(py);
+            grid_scratch_.push_back(fx_right);
+            grid_scratch_.push_back(py);
+        }
+
+        uint32_t grid_vert_count = static_cast<uint32_t>(grid_scratch_.size() / 2);
+        if (grid_vert_count == 0)
+            continue;
+
+        size_t grid_bytes = grid_scratch_.size() * sizeof(float);
+        auto&  gpu        = axes_gpu_data_[axes2d];
+        if (!gpu.grid_buffer || gpu.grid_capacity < grid_bytes)
+        {
+            if (gpu.grid_buffer)
+                backend_.destroy_buffer(gpu.grid_buffer);
+            gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, grid_bytes * 2);
+            gpu.grid_capacity = grid_bytes * 2;
+        }
+        backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), grid_bytes);
+
+        // Scissor to axes viewport so grid lines don't bleed outside
+        backend_.set_scissor(static_cast<int32_t>(vp.x),
+                             static_cast<int32_t>(vp.y),
+                             static_cast<uint32_t>(vp.w),
+                             static_cast<uint32_t>(vp.h));
+
+        backend_.bind_pipeline(grid_pipeline_);
+
+        SeriesPushConstants grid_pc{};
+        const auto&         as = axes2d->axis_style();
+        if (as.grid_color.a > 0.0f)
+        {
+            grid_pc.color[0] = as.grid_color.r;
+            grid_pc.color[1] = as.grid_color.g;
+            grid_pc.color[2] = as.grid_color.b;
+            grid_pc.color[3] = as.grid_color.a;
+        }
+        else
+        {
+            grid_pc.color[0] = colors.grid_line.r;
+            grid_pc.color[1] = colors.grid_line.g;
+            grid_pc.color[2] = colors.grid_line.b;
+            grid_pc.color[3] = colors.grid_line.a;
+        }
+        grid_pc.line_width = as.grid_width;
+        backend_.push_constants(grid_pc);
+
+        backend_.set_line_width(std::max(1.0f, as.grid_width));
+        backend_.bind_buffer(gpu.grid_buffer, 0);
+        backend_.draw(grid_vert_count);
+        backend_.set_line_width(1.0f);
+    }
+
+    // Restore full-figure scissor for border + tick overlay
+    backend_.set_scissor(0, 0, fig_w, fig_h);
+
+    // ── Draw 2D border + tick mark lines ──
     uint32_t line_vert_count = static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
     if (line_vert_count > 0)
     {
@@ -1162,8 +1306,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
 
 void Renderer::render_axes(AxesBase&   axes,
                            const Rect& viewport,
-                           uint32_t    fig_width,
-                           uint32_t    fig_height)
+                           uint32_t    /*fig_width*/,
+                           uint32_t    /*fig_height*/)
 {
     // Set scissor to axes viewport
     backend_.set_scissor(static_cast<int32_t>(viewport.x),
@@ -1259,10 +1403,16 @@ void Renderer::render_axes(AxesBase&   axes,
         double half_rx = (xlim.max - xlim.min) * 0.5;
         double half_ry = (ylim.max - ylim.min) * 0.5;
 
-        // Store view center for grid/border rendering
+        // Cache limits and view center for all sub-functions this frame.
+        // Reading x_limits()/y_limits() only once prevents mid-frame
+        // inconsistency when external threads modify series data.
         auto& axes_gpu      = axes_gpu_data_[&axes];
-        axes_gpu.view_center_x = view_cx;
-        axes_gpu.view_center_y = view_cy;
+        axes_gpu.view_center_x  = view_cx;
+        axes_gpu.view_center_y  = view_cy;
+        axes_gpu.cached_xlim_min = xlim.min;
+        axes_gpu.cached_xlim_max = xlim.max;
+        axes_gpu.cached_ylim_min = ylim.min;
+        axes_gpu.cached_ylim_max = ylim.max;
 
         // Centered projection: maps [-half_range, +half_range] → NDC.
         // Translation term m[12] = 0 exactly, avoiding catastrophic cancellation.
@@ -1298,9 +1448,10 @@ void Renderer::render_axes(AxesBase&   axes,
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
 
-    // Render axis border (2D only)
-    if (axes.border_enabled() && !dynamic_cast<Axes3D*>(&axes))
-        render_axis_border(axes, viewport, fig_width, fig_height);
+    // 2D border is now rendered in screen-space by render_plot_geometry()
+    // to avoid a GPU buffer race condition (the per-axes border vertex buffer
+    // could be overwritten by a later flight frame while a previous frame's
+    // GPU work was still reading it, causing border misalignment during fast zoom).
 
     // Render 3D bounding box, tick marks, and axis arrows (all depth-tested)
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes))
@@ -1310,8 +1461,10 @@ void Renderer::render_axes(AxesBase&   axes,
         render_arrows(*axes3d, viewport);
     }
 
-    // Render grid BEFORE series so series appears on top (for 3D)
-    render_grid(axes, viewport);
+    // Render 3D grid BEFORE series so series appears on top.
+    // 2D grid is rendered in screen-space by render_plot_geometry().
+    if (dynamic_cast<Axes3D*>(&axes))
+        render_grid(axes, viewport);
 
     // For 3D axes, sort series by distance from camera for correct transparency.
     // Opaque series render first (front-to-back for early-Z benefit),
@@ -1401,33 +1554,30 @@ void Renderer::render_axes(AxesBase&   axes,
     else
     {
         // 2D: render in order (no sorting needed)
-        // Camera-relative rendering: retrieve the view center computed
-        // during projection setup so we can trigger re-uploads and set
-        // data_offset push constants.
+        // Camera-relative rendering: use the cached view center and limits
+        // from projection setup for re-uploads and data_offset push constants.
         auto*  axes2d  = dynamic_cast<Axes*>(&axes);
         double view_cx = 0.0, view_cy = 0.0;
         double half_rx = 0.0, half_ry = 0.0;
         if (axes2d)
         {
-            auto xlim = axes2d->x_limits();
-            auto ylim = axes2d->y_limits();
-            view_cx   = (xlim.min + xlim.max) * 0.5;
-            view_cy   = (ylim.min + ylim.max) * 0.5;
-            half_rx   = (xlim.max - xlim.min) * 0.5;
-            half_ry   = (ylim.max - ylim.min) * 0.5;
+            auto& agpu = axes_gpu_data_[&axes];
+            view_cx    = agpu.view_center_x;
+            view_cy    = agpu.view_center_y;
+            half_rx    = (agpu.cached_xlim_max - agpu.cached_xlim_min) * 0.5;
+            half_ry    = (agpu.cached_ylim_max - agpu.cached_ylim_min) * 0.5;
         }
 
         // Pass visible x-range for draw-call culling on large series.
-        // Uses absolute coordinates because the CPU-side x_data() being
-        // binary-searched is still in absolute float format.
+        // Uses the cached limits for consistency within this frame.
         VisibleRange        vis{};
         const VisibleRange* vis_ptr = nullptr;
         if (axes2d)
         {
-            auto xlim_cull = axes2d->x_limits();
-            vis.x_min      = xlim_cull.min;
-            vis.x_max      = xlim_cull.max;
-            vis_ptr        = &vis;
+            auto& agpu = axes_gpu_data_[&axes];
+            vis.x_min  = agpu.cached_xlim_min;
+            vis.x_max  = agpu.cached_xlim_max;
+            vis_ptr    = &vis;
         }
 
         // Re-upload threshold: when the series' upload origin drifts more
@@ -1577,113 +1727,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_buffer(gpu.grid_buffer, 0);
         backend_.draw(gpu.grid_vertex_count);
     }
-    else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
-    {
-        // 2D grid rendering — camera-relative coordinates.
-        // Grid vertices are generated relative to the view center stored
-        // in AxesGpuData so they match the centered projection.
-        if (!axes2d->grid_enabled())
-            return;
-
-        auto  xlim = axes2d->x_limits();
-        auto  ylim = axes2d->y_limits();
-        auto& gpu  = axes_gpu_data_[&axes];
-
-        // Check if limits changed — skip regeneration if cached
-        auto& gc             = gpu.grid_cache;
-        bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
-                              || gc.ymin != ylim.min || gc.ymax != ylim.max;
-
-        if (limits_changed)
-        {
-            double vcx = gpu.view_center_x;
-            double vcy = gpu.view_center_y;
-
-            auto x_ticks = axes2d->compute_x_ticks();
-            auto y_ticks = axes2d->compute_y_ticks();
-
-            size_t num_x = x_ticks.positions.size();
-            size_t num_y = y_ticks.positions.size();
-            if (num_x == 0 && num_y == 0)
-                return;
-
-            size_t total_lines   = num_x + num_y;
-            size_t grid2d_floats = total_lines * 4;
-            if (grid_scratch_.size() < grid2d_floats)
-                grid_scratch_.resize(grid2d_floats);
-            size_t wi = 0;
-
-            // Generate view-relative grid vertices
-            float fy_min = static_cast<float>(ylim.min - vcy);
-            float fy_max = static_cast<float>(ylim.max - vcy);
-            float fx_min = static_cast<float>(xlim.min - vcx);
-            float fx_max = static_cast<float>(xlim.max - vcx);
-            for (size_t i = 0; i < num_x; ++i)
-            {
-                float x             = static_cast<float>(x_ticks.positions[i] - vcx);
-                grid_scratch_[wi++] = x;
-                grid_scratch_[wi++] = fy_min;
-                grid_scratch_[wi++] = x;
-                grid_scratch_[wi++] = fy_max;
-            }
-            for (size_t i = 0; i < num_y; ++i)
-            {
-                float y             = static_cast<float>(y_ticks.positions[i] - vcy);
-                grid_scratch_[wi++] = fx_min;
-                grid_scratch_[wi++] = y;
-                grid_scratch_[wi++] = fx_max;
-                grid_scratch_[wi++] = y;
-            }
-
-            size_t byte_size = wi * sizeof(float);
-            if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
-            {
-                if (gpu.grid_buffer)
-                    backend_.destroy_buffer(gpu.grid_buffer);
-                gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-                gpu.grid_capacity = byte_size * 2;
-            }
-            backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
-            gpu.grid_vertex_count = static_cast<uint32_t>(total_lines * 2);
-            gc.xmin               = xlim.min;
-            gc.xmax               = xlim.max;
-            gc.ymin               = ylim.min;
-            gc.ymax               = ylim.max;
-            gc.valid              = true;
-        }
-
-        if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
-            return;
-
-        backend_.bind_pipeline(grid_pipeline_);
-
-        SeriesPushConstants pc{};
-        const auto&         as = axes2d->axis_style();
-        if (as.grid_color.a > 0.0f)
-        {
-            pc.color[0] = as.grid_color.r;
-            pc.color[1] = as.grid_color.g;
-            pc.color[2] = as.grid_color.b;
-            pc.color[3] = as.grid_color.a;
-        }
-        else
-        {
-            const auto& theme_colors = ui::ThemeManager::instance().colors();
-            pc.color[0]              = theme_colors.grid_line.r;
-            pc.color[1]              = theme_colors.grid_line.g;
-            pc.color[2]              = theme_colors.grid_line.b;
-            pc.color[3]              = theme_colors.grid_line.a;
-        }
-        pc.line_width    = as.grid_width;
-        pc.data_offset_x = 0.0f;
-        pc.data_offset_y = 0.0f;
-        backend_.push_constants(pc);
-
-        backend_.set_line_width(std::max(1.0f, as.grid_width));
-        backend_.bind_buffer(gpu.grid_buffer, 0);
-        backend_.draw(gpu.grid_vertex_count);
-        backend_.set_line_width(1.0f);
-    }
+    // 2D grid is now rendered in screen-space by render_plot_geometry()
+    // to avoid the same GPU buffer race that affected the border.
 }
 
 void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)

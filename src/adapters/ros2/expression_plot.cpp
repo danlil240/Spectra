@@ -35,6 +35,9 @@ ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
 
     axes_->xlabel("time (s)");
     axes_->ylabel("value");
+
+    // Configure auto-scroll via presented_buffer.
+    axes_->presented_buffer(30.0f);
 }
 
 ExpressionPlot::~ExpressionPlot()
@@ -178,16 +181,25 @@ void ExpressionPlot::poll()
             std::chrono::system_clock::now().time_since_epoch()).count();
 
     // Set time origin on first frame for float precision.
-    if (!scroll_.has_time_origin())
-        scroll_.set_time_origin(wall_now);
+    if (!has_time_origin_)
+    {
+        time_origin_     = wall_now;
+        has_time_origin_ = true;
+    }
 
-    scroll_.set_now(wall_now);
+    const double now_rel = wall_now - time_origin_;
+    axes_->set_presented_buffer_right_edge(now_rel);
+
+    // Prune old data regardless of expression state.
+    if (series_)
+    {
+        const float window_s = axes_->presented_buffer_seconds();
+        const float prune_before = static_cast<float>(now_rel - 2.0 * window_s);
+        series_->erase_before(prune_before);
+    }
 
     if (!engine_.is_compiled())
-    {
-        scroll_.tick(series_, axes_);
         return;
-    }
 
     // For each variable, drain its ring buffer and update last_value.
     // We track the newest timestamp seen across all variables.
@@ -232,10 +244,9 @@ void ExpressionPlot::poll()
         const double result = engine_.evaluate();
         if (!std::isnan(result))
         {
-            // Use relative time (seconds since scroll origin) to preserve
+            // Use relative time (seconds since origin) to preserve
             // float precision at epoch-scale timestamps.
-            const double origin = scroll_.time_origin();
-            const double t_rel  = newest_t_sec - origin;
+            const double t_rel = newest_t_sec - time_origin_;
             series_->append(static_cast<float>(t_rel),
                             static_cast<float>(result));
 
@@ -251,8 +262,6 @@ void ExpressionPlot::poll()
             }
         }
     }
-
-    scroll_.tick(series_, axes_);
 }
 
 // ---------------------------------------------------------------------------
@@ -261,21 +270,38 @@ void ExpressionPlot::poll()
 
 void ExpressionPlot::set_time_window(double seconds)
 {
-    scroll_.set_window_s(seconds);
+    if (axes_)
+        axes_->presented_buffer(static_cast<float>(seconds));
 }
 
 double ExpressionPlot::time_window() const
 {
-    return scroll_.window_s();
+    return axes_ ? static_cast<double>(axes_->presented_buffer_seconds()) : 0.0;
 }
 
-void ExpressionPlot::pause_scroll()  { scroll_.pause(); }
-void ExpressionPlot::resume_scroll() { scroll_.resume(); }
-bool ExpressionPlot::is_scroll_paused() const { return scroll_.is_paused(); }
+void ExpressionPlot::pause_scroll()
+{
+    if (axes_)
+    {
+        auto lim = axes_->x_limits();
+        axes_->xlim(lim.min, lim.max);
+    }
+}
+
+void ExpressionPlot::resume_scroll()
+{
+    if (axes_)
+        axes_->resume_follow();
+}
+
+bool ExpressionPlot::is_scroll_paused() const
+{
+    return axes_ ? !axes_->is_presented_buffer_following() : false;
+}
 
 size_t ExpressionPlot::memory_bytes() const
 {
-    return ScrollController::memory_bytes(series_);
+    return series_ ? series_->memory_bytes() : 0;
 }
 
 // ---------------------------------------------------------------------------

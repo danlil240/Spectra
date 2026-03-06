@@ -69,7 +69,7 @@ class Renderer
     // Must be called after render_figure_content() and before render_text().
     void render_plot_text(Figure& figure);
 
-    // Render screen-space plot geometry (2D tick marks only).
+    // Render screen-space plot geometry (2D grid, border, tick marks).
     // Uses Vulkan grid pipeline with a screen-space ortho projection.
     // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
@@ -192,6 +192,13 @@ class Renderer
         // Grid and border vertices are generated relative to this origin.
         double view_center_x = 0.0;
         double view_center_y = 0.0;
+        // Cached per-frame axis limits — read once at the top of render_axes
+        // and reused by all sub-functions to prevent mid-frame inconsistency
+        // (e.g. when a ROS subscriber appends data on another thread).
+        double cached_xlim_min = 0.0;
+        double cached_xlim_max = 1.0;
+        double cached_ylim_min = 0.0;
+        double cached_ylim_max = 1.0;
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
 

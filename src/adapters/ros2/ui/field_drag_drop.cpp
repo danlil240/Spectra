@@ -70,6 +70,7 @@ FieldDragPayload from_raw(const RawPayload& raw)
 bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return false;
     if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
         return false;
 
@@ -100,6 +101,7 @@ bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
 bool FieldDragDrop::accept_drop_current_axes()
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return false;
     if (!ImGui::BeginDragDropTarget())
         return false;
 
@@ -126,6 +128,7 @@ bool FieldDragDrop::accept_drop_current_axes()
 bool FieldDragDrop::accept_drop_new_window()
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return false;
     if (!ImGui::BeginDragDropTarget())
         return false;
 
@@ -153,6 +156,7 @@ void FieldDragDrop::show_context_menu(const FieldDragPayload& payload,
                                       const char* popup_id)
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return;
     if (!ImGui::BeginPopupContextItem(popup_id))
         return;
 
@@ -199,6 +203,7 @@ void FieldDragDrop::show_context_menu(const FieldDragPayload& payload,
 bool FieldDragDrop::draw_drop_zone()
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return false;
     // Invisible button covering the entire content region acts as the drop target.
     ImVec2 avail = ImGui::GetContentRegionAvail();
     if (avail.x <= 0.0f) avail.x = 1.0f;

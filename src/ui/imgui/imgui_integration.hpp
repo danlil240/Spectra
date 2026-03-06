@@ -64,6 +64,7 @@ class ImGuiIntegration
     ImGuiIntegration& operator=(const ImGuiIntegration&) = delete;
 
     bool init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks = true);
+    bool is_initialized() const { return initialized_; }
 
     // Headless init: no GLFW window, no platform backend.
     // Input is fed manually via new_frame_headless().
@@ -100,8 +101,15 @@ class ImGuiIntegration
 
     void on_swapchain_recreated(VulkanBackend& backend);
 
-    // Layout management
-    LayoutManager& get_layout_manager() { return *layout_manager_; }
+    // Layout state can be queried by commands even when ImGui init failed.
+    // Lazily materialize it so those command paths degrade safely instead of
+    // dereferencing a null LayoutManager.
+    LayoutManager& get_layout_manager()
+    {
+        if (!layout_manager_)
+            layout_manager_ = std::make_unique<LayoutManager>();
+        return *layout_manager_;
+    }
     void           update_layout(float window_width, float window_height, float dt = 0.0f);
 
     bool wants_capture_mouse() const;

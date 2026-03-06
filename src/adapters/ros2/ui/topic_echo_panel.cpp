@@ -9,6 +9,8 @@
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+
+#include "ui/theme/icons.hpp"
 #endif
 
 // rclcpp deserialization helpers
@@ -541,6 +543,8 @@ static constexpr ImVec4 kColorArray    = {0.75f, 0.60f, 0.90f, 1.0f};  // lavend
 
 void TopicEchoPanel::draw(bool* p_open)
 {
+    if (!ImGui::GetCurrentContext()) return;
+
     // Rate throttle: only rebuild/display at display_hz.
     const double now = wall_time_s_now();
     const bool   should_refresh = (display_interval_s_ <= 0.0) ||
@@ -639,11 +643,15 @@ void TopicEchoPanel::draw_controls()
 {
     // Topic label.
     if (topic_name_.empty()) {
-        ImGui::TextColored(kColorDisabled, "● No topic");
+        ImGui::TextColored(kColorDisabled, "%s No topic", ui::icon_str(ui::Icon::Circle));
     } else if (is_paused()) {
-        ImGui::TextColored(kColorPaused, "⏸ %s", topic_name_.c_str());
+        ImGui::TextColored(kColorPaused, "%s %s",
+                           ui::icon_str(ui::Icon::Pause),
+                           topic_name_.c_str());
     } else {
-        ImGui::TextColored(kColorLive, "● %s", topic_name_.c_str());
+        ImGui::TextColored(kColorLive, "%s %s",
+                           ui::icon_str(ui::Icon::Circle),
+                           topic_name_.c_str());
     }
 
     ImGui::SameLine(0, 16.0f);

@@ -2,7 +2,7 @@
 //
 // Headless integration test for Phase C (Live Plotting Engine):
 //   C1 — RosPlotManager: subscribe topic, poll 100 frames, verify data
-//   C2 — ScrollController: auto-scroll time window, scroll bounds, pruning
+//   C2 — Auto-scroll: time window via presented_buffer, scroll bounds, pruning
 //   C4 — SubplotManager: NxM grid, X-axis linked, shared cursor
 //
 // Scenario A (RosPlotManager — C1/C2):
@@ -22,7 +22,7 @@
 //   4. Drive poll() until data arrives.
 //   5. Verify each slot has the correct data (no cross-contamination).
 //   6. Verify X-axis linking: changing the time window on the manager
-//      propagates to all scroll controllers.
+//      propagates to all axes via presented_buffer.
 //   7. Verify shared cursor: notify_cursor broadcasts to AxisLinkManager.
 //
 // These tests compile and run only when SPECTRA_USE_ROS2 is ON.
@@ -33,7 +33,6 @@
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
 #include "ros_plot_manager.hpp"
-#include "scroll_controller.hpp"
 #include "subplot_manager.hpp"
 #include "ui/data/axis_link.hpp"
 
@@ -439,16 +438,16 @@ TEST_F(PhaseCIntegrationTest, OnDataCallbackFiresPerSample)
 }
 
 // ===========================================================================
-// Suite 3: ScrollController auto-scroll time window (C2)
+// Suite 3: Auto-scroll time window (C2) — via presented_buffer
 // ===========================================================================
 
-TEST_F(PhaseCIntegrationTest, ScrollControllerDefaultWindowIs30Seconds)
+TEST_F(PhaseCIntegrationTest, AutoScrollDefaultWindowIs30Seconds)
 {
     RosPlotManager mgr(*bridge_, intr_);
-    EXPECT_DOUBLE_EQ(mgr.time_window(), ScrollController::DEFAULT_WINDOW_S);
+    EXPECT_DOUBLE_EQ(mgr.time_window(), 30.0);
 }
 
-TEST_F(PhaseCIntegrationTest, ScrollControllerWindowCanBeChanged)
+TEST_F(PhaseCIntegrationTest, AutoScrollWindowCanBeChanged)
 {
     RosPlotManager mgr(*bridge_, intr_);
     mgr.set_time_window(10.0);
@@ -458,118 +457,159 @@ TEST_F(PhaseCIntegrationTest, ScrollControllerWindowCanBeChanged)
     EXPECT_DOUBLE_EQ(mgr.time_window(), 120.0);
 }
 
-TEST_F(PhaseCIntegrationTest, ScrollControllerWindowClamped)
+TEST_F(PhaseCIntegrationTest, AutoScrollWindowClamped)
 {
     RosPlotManager mgr(*bridge_, intr_);
 
     mgr.set_time_window(0.001);  // below MIN
-    EXPECT_GE(mgr.time_window(), ScrollController::MIN_WINDOW_S);
+    EXPECT_GE(mgr.time_window(), RosPlotManager::MIN_WINDOW_S);
 
     mgr.set_time_window(999999.0);  // above MAX
-    EXPECT_LE(mgr.time_window(), ScrollController::MAX_WINDOW_S);
+    EXPECT_LE(mgr.time_window(), RosPlotManager::MAX_WINDOW_S);
 }
 
-TEST_F(PhaseCIntegrationTest, ScrollControllerScrollBoundsMatchWindow)
+TEST_F(PhaseCIntegrationTest, PresentedBufferScrollBoundsMatchWindow)
 {
-    // Build a standalone ScrollController and verify bounds after tick().
-    ScrollController ctrl;
-    ctrl.set_window_s(10.0);
-
-    // Use a mock series (nullptr) — tick() with null series skips pruning.
-    const double t_now = 1000.0;
-    ctrl.set_now(t_now);
-    ctrl.tick(nullptr, nullptr);
-
-    EXPECT_NEAR(ctrl.view_min(), t_now - 10.0, 1e-9);
-    EXPECT_NEAR(ctrl.view_max(), t_now,         1e-9);
-}
-
-TEST_F(PhaseCIntegrationTest, ScrollControllerPauseStopsViewUpdate)
-{
-    ScrollController ctrl;
-    ctrl.set_window_s(10.0);
-
-    const double t0 = 1000.0;
-    ctrl.set_now(t0);
-    ctrl.tick(nullptr, nullptr);
-    EXPECT_NEAR(ctrl.view_max(), t0, 1e-9);
-
-    ctrl.pause();
-    EXPECT_TRUE(ctrl.is_paused());
-
-    const double t1 = 1020.0;
-    ctrl.set_now(t1);
-    ctrl.tick(nullptr, nullptr);
-
-    // View should NOT have advanced while paused.
-    EXPECT_NEAR(ctrl.view_max(), t0, 1e-9) << "View advanced while paused";
-}
-
-TEST_F(PhaseCIntegrationTest, ScrollControllerResumeRestoresFollowing)
-{
-    ScrollController ctrl;
-    ctrl.set_window_s(10.0);
-
-    ctrl.set_now(1000.0);
-    ctrl.tick(nullptr, nullptr);
-
-    ctrl.pause();
-    ctrl.set_now(1020.0);
-    ctrl.tick(nullptr, nullptr);
-
-    ctrl.resume();
-    EXPECT_FALSE(ctrl.is_paused());
-
-    const double t_resumed = 1030.0;
-    ctrl.set_now(t_resumed);
-    ctrl.tick(nullptr, nullptr);
-
-    EXPECT_NEAR(ctrl.view_max(), t_resumed, 1e-9);
-}
-
-TEST_F(PhaseCIntegrationTest, ScrollControllerStatusText)
-{
-    ScrollController ctrl;
-    EXPECT_STREQ(ctrl.status_text(), "following");
-    ctrl.pause();
-    EXPECT_STREQ(ctrl.status_text(), "paused");
-    ctrl.resume();
-    EXPECT_STREQ(ctrl.status_text(), "following");
-}
-
-TEST_F(PhaseCIntegrationTest, ScrollControllerPrunesOldDataFromSeries)
-{
-    // Build a LineSeries manually, populate with old and recent data,
-    // then verify ScrollController prunes the old samples.
-    ScrollController ctrl;
-    ctrl.set_window_s(5.0);
-
+    // Use presented_buffer directly on Axes and verify view bounds.
     spectra::Figure fig;
-    auto& axes_ref = fig.subplot(1, 1, 1);
-    auto& series   = axes_ref.line();
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
 
-    // Inject data: 10 samples 100+ seconds ago, 5 samples "recent".
-    const double t_now = 1000.0;
+    axes.presented_buffer(10.0f);
+
+    // Add data up to t=1000.
+    for (int i = 0; i < 20; ++i)
+        series.append(static_cast<float>(990.0 + i), static_cast<float>(i));
+
+    // x_limits should reflect [latest_x - 10, latest_x].
+    auto lim = axes.x_limits();
+    const float latest_x = series.x_data().back();
+    EXPECT_NEAR(lim.min, latest_x - 10.0f, 0.5f);
+    EXPECT_NEAR(lim.max, latest_x, 0.5f);
+}
+
+TEST_F(PhaseCIntegrationTest, PauseStopsViewUpdate)
+{
+    spectra::Figure fig;
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
+
+    axes.presented_buffer(10.0f);
+
+    // Add initial data.
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(990.0 + i), static_cast<float>(i));
+
+    // Pause by setting explicit xlim.
+    axes.xlim(985.0f, 995.0f);
+    EXPECT_FALSE(axes.is_presented_buffer_following());
+
+    // Add more data — view should NOT advance.
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(1000.0 + i), static_cast<float>(i));
+
+    auto lim = axes.x_limits();
+    EXPECT_NEAR(lim.max, 995.0f, 0.1f) << "View advanced while paused";
+}
+
+TEST_F(PhaseCIntegrationTest, ResumeRestoresFollowing)
+{
+    spectra::Figure fig;
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
+
+    axes.presented_buffer(10.0f);
+
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(990.0 + i), static_cast<float>(i));
+
+    // Pause.
+    axes.xlim(985.0f, 995.0f);
+    EXPECT_FALSE(axes.is_presented_buffer_following());
+
+    // Resume.
+    axes.resume_follow();
+    EXPECT_TRUE(axes.is_presented_buffer_following());
+
+    // Add more data — view should track latest.
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(1010.0 + i), static_cast<float>(i));
+
+    auto lim = axes.x_limits();
+    const float latest_x = series.x_data().back();
+    EXPECT_NEAR(lim.max, latest_x, 0.5f);
+}
+
+TEST_F(PhaseCIntegrationTest, ManualYOverrideKeepsPresentedBufferFollowing)
+{
+    spectra::Figure fig;
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
+
+    axes.presented_buffer(10.0f);
+
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(990.0 + i), static_cast<float>(i));
+
+    axes.ylim(-2.0f, 2.0f);
+    EXPECT_TRUE(axes.is_presented_buffer_following());
+
+    auto x_before = axes.x_limits();
+
+    for (int i = 0; i < 10; ++i)
+        series.append(static_cast<float>(1010.0 + i), static_cast<float>(100 + i));
+
+    auto x_after = axes.x_limits();
+    auto y_after = axes.y_limits();
+    EXPECT_GT(x_after.max, x_before.max);
+    EXPECT_DOUBLE_EQ(y_after.min, -2.0);
+    EXPECT_DOUBLE_EQ(y_after.max, 2.0);
+}
+
+TEST_F(PhaseCIntegrationTest, PausedPresentedBufferKeepsVisibleWindowYRange)
+{
+    spectra::Figure fig;
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
+
+    axes.presented_buffer(10.0f);
+
+    for (int i = 0; i <= 30; ++i)
+    {
+        float x = static_cast<float>(i);
+        float y = (i >= 10 && i <= 20) ? x : (1000.0f + x);
+        series.append(x, y);
+    }
+
+    axes.xlim(10.0f, 20.0f);
+    EXPECT_FALSE(axes.is_presented_buffer_following());
+
+    auto yl = axes.y_limits();
+    EXPECT_LT(yl.min, 10.0f);
+    EXPECT_GT(yl.max, 20.0f);
+    EXPECT_LT(yl.max, 100.0f);
+}
+
+TEST_F(PhaseCIntegrationTest, EraseBeforePrunesOldData)
+{
+    spectra::Figure fig;
+    auto& axes = fig.subplot(1, 1, 1);
+    auto& series = axes.line();
+
+    // Inject data: 10 old samples, 5 recent samples.
     for (int i = 0; i < 10; ++i)
         series.append(static_cast<float>(800.0 + i), static_cast<float>(i));
-    const size_t old_count = series.point_count();  // = 10
-    ASSERT_EQ(old_count, 10u);
+    ASSERT_EQ(series.point_count(), 10u);
 
     for (int i = 0; i < 5; ++i)
         series.append(static_cast<float>(998.0 + i), static_cast<float>(100 + i));
+    ASSERT_EQ(series.point_count(), 15u);
 
-    // PRUNE_FACTOR = 2.0, window = 5 s → prune_threshold = t_now - 10 s = 990
-    // All 10 "old" samples (x ≤ 810) and the recent samples < 990 will be pruned.
-    ctrl.set_now(t_now);
-    ctrl.tick(&series, &axes_ref);
-
-    // All samples with x < (t_now - 2*window_s) = 990 should be pruned.
-    // Old samples (x ∈ [800,809]) and recent samples (x ∈ [998,1002]) should
-    // be split: all old ones removed, recent ones kept.
-    const size_t after_count = series.point_count();
-    EXPECT_LT(after_count, 10u + 5u)
-        << "Expected pruning to remove some samples; count remained " << after_count;
-    (void)axes_ref;
+    // Prune everything before x=990.
+    size_t removed = series.erase_before(990.0f);
+    EXPECT_EQ(removed, 10u);           // all 10 old samples removed
+    EXPECT_EQ(series.point_count(), 5u); // 5 recent samples remain
+    EXPECT_GE(series.x_data().front(), 990.0f);
 }
 
 TEST_F(PhaseCIntegrationTest, RosPlotManagerPauseAndResumeAllScroll)
@@ -1187,12 +1227,12 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
     }
 
     // --- Step 5: Verify scroll bounds ---
-    // Advance "now" to a known time and tick all scroll controllers.
+    // Advance "now" to a known time and poll all slots.
     const double t_known = 2000.0;
     mgr.set_now(t_known);
     mgr.poll();
 
-    // ScrollController view bounds must be [t_known - WINDOW_S, t_known].
+    // Auto-scroll view bounds must be [t_known - WINDOW_S, t_known].
     // We can verify via set_time_window / time_window() consistency.
     EXPECT_DOUBLE_EQ(mgr.time_window(), WINDOW_S);
 

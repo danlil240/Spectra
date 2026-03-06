@@ -140,11 +140,14 @@ public:
 
 private:
     // Internal refresh implementation (mutex already NOT held when called).
-    void do_refresh();
+    void do_refresh(bool full_enrich = false);
 
     // Lazily enrich a small batch of topics with per-topic DDS data
     // (pub/sub counts, QoS).  Called after do_refresh(), outside the mutex.
     void enrich_batch();
+
+    // Enrich ALL topics at once (used by synchronous refresh()).
+    void enrich_all();
 
     // Diff helpers — compare new snapshot against cache, fire callbacks.
     void diff_topics(const std::vector<TopicInfo>& fresh);

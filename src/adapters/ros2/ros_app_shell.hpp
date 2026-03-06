@@ -23,6 +23,8 @@
 #include "service_caller.hpp"
 #include "subplot_manager.hpp"
 #include "topic_discovery.hpp"
+
+#include <ui/input/input.hpp>
 #include "ui/bag_info_panel.hpp"
 #include "ui/bag_playback_panel.hpp"
 #include "ui/diagnostics_panel.hpp"
@@ -54,6 +56,9 @@ enum class LayoutMode
 
 LayoutMode parse_layout_mode(const std::string& s);
 const char* layout_mode_name(LayoutMode m);
+bool should_skip_debug_validation_for_ros_app(const char* no_validation_env,
+                                              const char* enable_validation_env);
+bool should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_loader_env);
 
 struct RosAppConfig
 {
@@ -69,7 +74,7 @@ struct RosAppConfig
 
     double time_window_s = 30.0;
 
-    int subplot_rows = 4;
+    int subplot_rows = 1;
     int subplot_cols = 1;
 
     uint32_t window_width  = 1600;
@@ -211,6 +216,23 @@ public:
     RosPlotManager&      plot_manager()    { return *plot_mgr_; }
     SubplotManager&      subplot_manager() { return *subplot_mgr_; }
 
+    // Automation / QA accessors. These expose non-owning pointers to shell-managed
+    // components so external harnesses can verify end-to-end state without duplicating
+    // the shell wiring. Callers must handle nullptr before init() / after shutdown().
+    TopicListPanel*       topic_list_panel()       const { return topic_list_.get(); }
+    TopicEchoPanel*       topic_echo_panel()       const { return topic_echo_.get(); }
+    TopicStatsOverlay*    topic_stats_panel()      const { return topic_stats_.get(); }
+    BagInfoPanel*         bag_info_panel()         const { return bag_info_.get(); }
+    BagPlayer*            bag_player()             const { return bag_player_.get(); }
+    RosLogViewer*         log_viewer()             const { return log_viewer_.get(); }
+    DiagnosticsPanel*     diagnostics_panel()      const { return diag_panel_.get(); }
+    NodeGraphPanel*       node_graph_panel()       const { return node_graph_panel_.get(); }
+    TfTreePanel*          tf_tree_panel()          const { return tf_tree_panel_.get(); }
+    ParamEditorPanel*     param_editor_panel()     const { return param_editor_.get(); }
+    ServiceCaller*        service_caller()         const { return service_caller_.get(); }
+    ServiceCallerPanel*   service_caller_panel()   const { return service_caller_panel_.get(); }
+    RosScreenshotExport*  screenshot_export()      const { return screenshot_export_.get(); }
+
     const RosAppConfig& config() const { return cfg_; }
 
     uint64_t total_messages() const { return total_messages_.load(std::memory_order_relaxed); }
@@ -271,6 +293,19 @@ private:
     void draw_session_load_dialog();
     void draw_recent_sessions_menu();   // inline submenu items for "Recent"
     void draw_layout_preset_menu();     // inline submenu items for "Layout"
+    void handle_plot_shortcuts();
+    void reset_plot_display(int slot = -1);
+    void restore_plot_autofit(int slot = -1);
+    void remember_active_subplot(int slot);
+    void begin_manual_y_tracking(int slot);
+    void finish_manual_y_tracking(int slot);
+
+    // Bridge ImGui mouse/scroll events to the core InputHandler.
+    // Handles ROS2-specific live-mode time-window scroll zoom.
+    void bridge_imgui_to_input_handler();
+
+    // Find which subplot slot the mouse cursor is over (1-based, -1 if none).
+    int hit_test_subplot_slot(float mx, float my, bool include_y_gutter = false) const;
 
     std::string detect_topic_type(const std::string& topic) const;
     std::string default_numeric_field(const std::string& topic,
@@ -318,6 +353,7 @@ private:
     bool show_topic_echo_      = true;
     bool show_topic_stats_     = true;
     bool show_plot_area_       = true;
+    bool plot_area_was_visible_= true;  // tracks previous frame for close detection
     bool show_bag_info_        = false;
     bool show_bag_playback_    = false;
     bool show_log_viewer_      = false;
@@ -355,6 +391,19 @@ private:
     RosWorkspaceState workspace_state_;
 
     int next_replace_slot_ = 1;
+
+    // Core input handler — replaces reimplemented pan/zoom/scroll handlers.
+    InputHandler input_handler_;
+
+    // Tracks previous ImGui mouse button state for edge detection.
+    bool prev_mouse_left_  = false;
+    bool prev_mouse_right_ = false;
+
+    // Track drag-start Y limits so manual zoom/pan disables live auto-fit only
+    // when the user actually changed Y.
+    int                tracked_manual_y_slot_ = -1;
+    spectra::AxisLimits tracked_manual_y_limits_{};
+    bool               tracked_manual_y_valid_ = false;
 
     // Active layout preset.
     LayoutPreset current_preset_ = LayoutPreset::Default;

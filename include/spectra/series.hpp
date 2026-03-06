@@ -128,6 +128,13 @@ class LineSeries : public Series
     std::span<const float> y_data() const { return y_; }
     size_t                 point_count() const { return x_.size(); }
 
+    // Remove all points with x < x_threshold.  Assumes x is sorted ascending.
+    // Returns the number of points removed.
+    size_t erase_before(float x_threshold);
+
+    // Estimated memory consumption in bytes (x + y vectors).
+    size_t memory_bytes() const { return x_.size() * 2 * sizeof(float); }
+
     void record_commands(Renderer& renderer) override;
 
     // Bring base-class getters into scope (setters below would otherwise hide them)

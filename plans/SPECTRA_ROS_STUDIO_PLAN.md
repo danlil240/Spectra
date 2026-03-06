@@ -81,7 +81,7 @@
 | **Topic discovery** | `topic_discovery.hpp` | `TopicDiscovery` — 2s wall-timer, differential callbacks, QoS enrichment |
 | **Subscriptions** | `generic_subscriber.hpp` | `GenericSubscriber` — type-erased CDR, per-field `FieldExtractor` with SPSC `RingBuffer` (10K capacity) |
 | **Introspection** | `message_introspector.hpp` | `MessageIntrospector` — `rosidl_typesupport_introspection_cpp`, `MessageSchema` tree, `FieldAccessor` |
-| **Plot bridge** | `ros_plot_manager.hpp` | `RosPlotManager` — drain 4096 samples/poll → `LineSeries::append()`, `ScrollController` |
+| **Plot bridge** | `ros_plot_manager.hpp` | `RosPlotManager` — drain 4096 samples/poll → `LineSeries::append()`, auto-scroll via `presented_buffer` |
 | **Subplots** | `subplot_manager.hpp` | `SubplotManager` — NxM grid, `AxisLinkManager` for shared X |
 | **Expressions** | `expression_engine.hpp` | `ExpressionEngine` — math expression parser/evaluator over ROS field streams |
 | **Bag playback** | `bag_player.hpp` | `BagPlayer` — rosbag2 reader, state machine, rate control, seek, `inject_sample()` |

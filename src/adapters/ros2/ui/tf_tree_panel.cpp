@@ -365,17 +365,16 @@ TransformStamp TfTreePanel::invert(const TransformStamp& t)
     // Inverse of quaternion
     const double qw = t.qw, qx = -t.qx, qy = -t.qy, qz = -t.qz;
 
-    // Inverse translation: R^{-1} * (-p)
-    // R^{-1} q v = conjugate(q) * v * q
-    const double tx = -(2.0 * (0.5 - qy * qy - qz * qz) * (-t.tx) +
-                        2.0 * (qx * qy + qw * qz) * (-t.ty) +
-                        2.0 * (qx * qz - qw * qy) * (-t.tz));
-    const double ty = -(2.0 * (qx * qy - qw * qz) * (-t.tx) +
-                        2.0 * (0.5 - qx * qx - qz * qz) * (-t.ty) +
-                        2.0 * (qy * qz + qw * qx) * (-t.tz));
-    const double tz = -(2.0 * (qx * qz + qw * qy) * (-t.tx) +
-                        2.0 * (qy * qz - qw * qx) * (-t.ty) +
-                        2.0 * (0.5 - qx * qx - qy * qy) * (-t.tz));
+    // Inverse translation: -R^{-1} * t
+    const double tx = -(2.0 * (0.5 - qy * qy - qz * qz) * t.tx +
+                        2.0 * (qx * qy + qw * qz) * t.ty +
+                        2.0 * (qx * qz - qw * qy) * t.tz);
+    const double ty = -(2.0 * (qx * qy - qw * qz) * t.tx +
+                        2.0 * (0.5 - qx * qx - qz * qz) * t.ty +
+                        2.0 * (qy * qz + qw * qx) * t.tz);
+    const double tz = -(2.0 * (qx * qz + qw * qy) * t.tx +
+                        2.0 * (qy * qz - qw * qx) * t.ty +
+                        2.0 * (0.5 - qx * qx - qy * qy) * t.tz);
 
     TransformStamp inv;
     inv.parent_frame = t.child_frame;
@@ -729,6 +728,7 @@ static void draw_tree_node(const std::string& frame_id,
 
 void TfTreePanel::draw_inline()
 {
+    if (!ImGui::GetCurrentContext()) return;
     TfTreeSnapshot snap = snapshot();
 
     // ── Toolbar ───────────────────────────────────────────────────────────────
@@ -871,6 +871,7 @@ void TfTreePanel::draw_inline()
 
 void TfTreePanel::draw(bool* p_open)
 {
+    if (!ImGui::GetCurrentContext()) return;
     std::string panel_title;
     {
         std::lock_guard<std::mutex> lk(mutex_);

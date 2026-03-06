@@ -1,7 +1,7 @@
 # QA Results — Program Fixes & Optimizations
 
 > Living document. Updated after each QA session with actionable Spectra fixes.
-> Last updated: 2026-03-01 (Performance Agent Session 4) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro), 18335134330653 (memory-agent), 42 (perf-agent repro #2), 42 (perf-agent verify #2), 27243840318184 (perf-agent random #2)
+> Last updated: 2026-03-05 (Real Desktop Performance Workflow) | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 42 (perf), 99 (perf), 42 (session 25), 42 (perf-agent), 23756320363876 (perf-agent random), 13062186744256 (perf-agent repro), 18335134330653 (memory-agent), 42 (perf-agent repro #2), 42 (perf-agent verify #2), 27243840318184 (perf-agent random #2), 42 (memory-agent telemetry), 42 (real desktop perf), 35619058242308 (real desktop perf random)
 
 ---
 
@@ -187,6 +187,7 @@
   4. Updated `window_runtime.cpp` recovery path: only attempt swapchain recreation when `swapchain_invalidated` is set, not on timeouts.
   5. Skip `vkQueueWaitIdle` between windows when `render()` returned false (no GPU work submitted).
 - **Results after fix:** seed 42 runs complete with 0 crashes, 0 errors, 0 critical. Max frame time still ~1008ms due to N windows × 100ms timeout cascading. Further reduction requires per-window buffers (architectural change).
+- **Real-desktop update (2026-03-05, RTX 3080 Ti):** deterministic seed `42` and random seed `35619058242308` completed with exit code `0`; max frame times were `187.452ms` and `115.108ms` respectively. The earlier ~1s acquire stalls did not reproduce on the real desktop/GPU in this session, but resize/multi-window spike behavior is still present in the warning profile.
 - **Files modified:**
   - `src/render/vulkan/vk_backend.cpp` — bounded timeouts, `swapchain_invalidated` on OUT_OF_DATE, VK_TIMEOUT/VK_NOT_READY handling
   - `src/ui/app/window_runtime.cpp` — skip recovery on timeout, only recreate on invalidation
@@ -209,6 +210,16 @@
   5. ASan regression introduced during fix (UAF in `DataInteraction::draw_legend_for_figure`) was detected and fixed in the same file; no UAF after patch. LSan still reports external `libdbus` leak (2002 bytes).
   6. Follow-up isolation session (2026-03-01 19:37): full scenarios-only run measured +160MB (178→338). Targeted isolated scenarios remained low (`0–4MB`) except `command_exhaustion` (`+115MB`), confirming it is still the dominant source.
   7. GPU budget telemetry in the same isolation run stayed flat for device-local memory (`28MB -> 28MB`) across targeted scenarios, suggesting RSS growth is CPU-side retention/fragmentation rather than GPU allocation leak.
+- **Memory-agent update (2026-03-05):**
+  1. Added automatic per-scenario retention reporting in `tests/qa/qa_agent.cpp`; every scenario now records RSS and GPU device-local deltas in both QA report formats.
+  2. Added automatic warning thresholds for scenario teardown retention: `+20MB` RSS and `+5MB` device-local GPU memory.
+  3. Smoke verification on `rapid_figure_lifecycle` (`seed 42`) stayed low: normal build `+0MB` RSS / `+0MB` GPU-local, ASan smoke `+3MB` RSS / `+0MB` GPU-local.
+  4. Full `command_exhaustion` revalidation was not possible in this sandbox because the QA agent still requires a GLFW display for window/export-heavy scenarios.
+- **Real-desktop update (2026-03-05):**
+  1. Full real-display runs now completed for deterministic `seed 42` and random `seed 35619058242308`.
+  2. Peak RSS reached `360MB` from a `157MB` baseline in both runs.
+  3. Stable per-scenario retention warnings were `massive_datasets` `+53MB` and `command_exhaustion` `+63MB`; deterministic seed `42` also retained `+23MB` in `multi_window_lifecycle`.
+  4. Device-local GPU usage stayed flat at `31MB -> 31MB`, which continues to point toward CPU-side retention/fragmentation rather than a GPU leak.
 - **Analysis:** Growth is expected to some degree — the fuzzer creates up to 20 figures with 10–500K point series each. But 115MB for ~20 figures seems high.
 - **Breakdown needed:**
   1. CPU-side series data: 20 figures × ~200K points × 8 bytes (x+y float) = ~32MB
@@ -225,7 +236,7 @@
   - `src/render/vulkan/vk_backend.cpp` — VMA allocation tracking
   - `src/core/series.cpp` — data buffer ownership
 - **Priority:** **P1**
-- **Status:** 🟡 Open (improved; further baseline/per-scenario instrumentation still needed)
+- **Status:** 🟡 Open (improved; per-scenario instrumentation added, further baseline stabilization still needed)
 
 ---
 
@@ -337,6 +348,36 @@
 
 ### No Fixes Needed
 All existing fixes remain stable. No new crashes or errors to address.
+
+---
+
+## Session 11 Results (2026-03-05, Real Desktop Performance Workflow)
+
+### Environment
+- **OS:** Linux desktop (real GLFW display)
+- **GPU:** NVIDIA GeForce RTX 3080 Ti
+- **Build:** Debug, GCC 12, C++20
+- **QA runs:** 2 (seed `42`, 120s deterministic + seed `35619058242308`, 60s randomized)
+
+### Summary
+- **Deterministic (seed 42):** exit `0`, 20/20 pass, avg=`12.49ms`, p95=`66.91ms`, p99=`96.56ms`, max=`187.45ms`, peak RSS=`360MB`, **0 errors, 0 critical**
+- **Randomized (seed 35619058242308):** exit `0`, 20/20 pass, avg=`10.67ms`, p95=`38.09ms`, p99=`84.11ms`, max=`115.11ms`, peak RSS=`360MB`, **0 errors, 0 critical**
+- **Validation:** monitor inactive in both runs, so validation counts stayed `0/0` but Vulkan-layout claims were not re-checked in this mode
+
+### Analysis
+- Earlier sandbox-only GLFW/display failures and bogus SIGSEGV triage did not reproduce on the real desktop/GPU. `3d_zoom_then_rotate`, clipboard, and figure-removal safety scenarios all passed in both runs.
+- The remaining stable warnings still map to known open issues: frame-time spikes during heavy/resizing paths plus CPU-side RSS retention. Per-scenario retention warnings were `massive_datasets` `+53MB`, `command_exhaustion` `+63MB`, and deterministic-only `multi_window_lifecycle` `+23MB`.
+- H4-style ~1s acquire stalls were not reproduced in this session on the RTX 3080 Ti. The warning profile still shows resize/multi-window spike behavior, so H4 remains partial rather than closed.
+
+### Fixes Applied
+1. Added `ImGuiIntegration::is_initialized()` and guarded `select_series()` so command-driven selection does not touch ImGui IO before ImGui is live.
+2. Made `get_layout_manager()` lazily instantiate the layout manager so `file.save_workspace` can degrade safely even when ImGui init failed.
+3. Hardened `register_commands.cpp` series commands (`cycle_selection`, `copy`, `cut`, `paste`, `delete`, `deselect`) against missing/uninitialized ImGui state and used `FigureManager::active_figure()` as the primary current-figure source.
+4. Hardened QA clipboard/series-removal scenarios against stale selected-series pointers before dereferencing them.
+
+### Verification
+- Targeted regression tests passed: `unit_test_figure_serializer`, `unit_test_multi_window`, `unit_test_window_manager`, `unit_test_series_clipboard`.
+- Full `ctest --test-dir build --output-on-failure` remains red in unrelated suites and later hung in `unit_test_param_editor_panel`. Observed failures included `golden_image_tests`, `unit_test_generic_subscriber`, multiple no-ImGui panel tests, ROS/subplot integration tests, `unit_test_ros_app_shell`, and `unit_test_ros_screenshot_export`.
 
 ---
 

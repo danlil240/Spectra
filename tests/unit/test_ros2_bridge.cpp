@@ -58,6 +58,9 @@ protected:
     }
     void TearDown() override
     {
+        // Clear any state callback that might reference test-local variables
+        // (already destroyed by the time TearDown runs).
+        bridge_.set_state_callback(nullptr);
         // If the bridge is still alive, shut it down cleanly.
         bridge_.shutdown();
     }

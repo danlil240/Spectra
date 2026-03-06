@@ -12,7 +12,7 @@
 //   --layout default|plot-only|monitor
 //   --window-s SECONDS           auto-scroll time window (default 30)
 //   --node-name NAME             ROS2 node name (default spectra_ros)
-//   --rows N                     subplot grid rows (default 4)
+//   --rows N                     subplot grid rows (default 1)
 //   --cols N                     subplot grid cols (default 1)
 //
 // SIGINT terminates cleanly: bridge shuts down, Vulkan resources freed.
@@ -20,8 +20,12 @@
 // ASan note: ROS2 Humble's librcl has a known new-delete-type-mismatch in
 // rcl_wait_set_resize.  When running under AddressSanitizer, launch with:
 //   ASAN_OPTIONS=new_delete_type_mismatch=0 ./spectra-ros
-// or set SPECTRA_NO_VALIDATION=1 to also skip Vulkan validation layers
-// (which add ~8s to startup in debug builds).
+// Debug note: spectra-ros disables Vulkan validation by default in debug
+// builds because some drivers spend ~8s in validation startup. Set
+// SPECTRA_ENABLE_VALIDATION=1 to turn it back on for renderer debugging.
+// When an NVIDIA ICD is detected, debug launches also pin VK_DRIVER_FILES to
+// avoid probing every Vulkan driver manifest; set
+// SPECTRA_PRESERVE_VULKAN_LOADER_ENV=1 to disable that fast path.
 
 #include "ros2_adapter.hpp"
 #include "ros_app_shell.hpp"
@@ -36,6 +40,12 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <string>
+
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 // ---------------------------------------------------------------------------
 // ASan default options: suppress ROS2 Humble's rcl_wait_set_resize
@@ -62,6 +72,126 @@ extern "C" const char* __asan_default_options()
 // ---------------------------------------------------------------------------
 
 static spectra::adapters::ros2::RosAppShell* g_shell = nullptr;
+
+#if !defined(_WIN32)
+static bool set_env_value(const char* name, const char* value)
+{
+    return ::setenv(name, value, 1) == 0;
+}
+
+static bool unset_env_value(const char* name)
+{
+    return ::unsetenv(name) == 0;
+}
+#else
+static bool set_env_value(const char* name, const char* value)
+{
+    return _putenv_s(name, value) == 0;
+}
+
+static bool unset_env_value(const char* name)
+{
+    return _putenv_s(name, "") == 0;
+}
+#endif
+
+static bool set_env_if_unset(const char* name, const char* value)
+{
+    if (std::getenv(name) != nullptr)
+        return false;
+
+    return set_env_value(name, value);
+}
+
+#ifndef NDEBUG
+static constexpr const char* k_vulkan_startup_reexec_env = "SPECTRA_VULKAN_STARTUP_REEXEC_DONE";
+static constexpr const char* k_vulkan_driver_hint_env    = "SPECTRA_VULKAN_DRIVER_FILES_AUTOSET";
+
+static const char* detect_fast_start_vulkan_driver_manifest()
+{
+#if defined(_WIN32)
+    return nullptr;
+#else
+    if (std::getenv("VK_DRIVER_FILES") != nullptr || std::getenv("VK_ICD_FILENAMES") != nullptr)
+        return nullptr;
+
+    const std::filesystem::path nvidia_driver = "/proc/driver/nvidia/version";
+    const std::filesystem::path nvidia_icd    = "/usr/share/vulkan/icd.d/nvidia_icd.json";
+    if (std::filesystem::exists(nvidia_driver) && std::filesystem::is_regular_file(nvidia_icd))
+        return "/usr/share/vulkan/icd.d/nvidia_icd.json";
+
+    return nullptr;
+#endif
+}
+
+static void maybe_reexec_for_fast_vulkan_startup(int argc, char** argv)
+{
+#if defined(_WIN32)
+    (void)argc;
+    (void)argv;
+#else
+    using namespace spectra::adapters::ros2;
+
+    if (std::getenv(k_vulkan_startup_reexec_env) != nullptr)
+        return;
+
+    if (!should_trim_vulkan_loader_environment_for_ros_app(
+            std::getenv("SPECTRA_PRESERVE_VULKAN_LOADER_ENV")))
+    {
+        return;
+    }
+
+    const char* manifest = detect_fast_start_vulkan_driver_manifest();
+    if (manifest == nullptr)
+        return;
+
+    if (!set_env_value(k_vulkan_startup_reexec_env, "1"))
+        return;
+    if (!set_env_value(k_vulkan_driver_hint_env, manifest))
+        return;
+    if (!set_env_value("VK_DRIVER_FILES", manifest))
+        return;
+
+    ::execvp(argv[0], argv);
+
+    std::perror("spectra-ros: execvp");
+    (void)unset_env_value("VK_DRIVER_FILES");
+    (void)unset_env_value(k_vulkan_driver_hint_env);
+    (void)unset_env_value(k_vulkan_startup_reexec_env);
+#endif
+}
+
+static void report_fast_vulkan_startup_policy()
+{
+    const char* manifest = std::getenv(k_vulkan_driver_hint_env);
+    if (manifest == nullptr || manifest[0] == '\0')
+        return;
+
+    std::printf("spectra-ros: using %s for faster Vulkan startup. "
+                "Set SPECTRA_PRESERVE_VULKAN_LOADER_ENV=1 to disable.\n",
+                manifest);
+
+    (void)unset_env_value(k_vulkan_driver_hint_env);
+    (void)unset_env_value(k_vulkan_startup_reexec_env);
+}
+
+static void apply_debug_startup_policy()
+{
+    using namespace spectra::adapters::ros2;
+
+    if (!should_skip_debug_validation_for_ros_app(std::getenv("SPECTRA_NO_VALIDATION"),
+                                                  std::getenv("SPECTRA_ENABLE_VALIDATION")))
+    {
+        return;
+    }
+
+    if (set_env_if_unset("SPECTRA_NO_VALIDATION", "1"))
+    {
+        std::printf("spectra-ros: Vulkan validation disabled by default in debug builds. "
+                    "Set SPECTRA_ENABLE_VALIDATION=1 to re-enable.\n");
+    }
+}
+#endif
 
 static void sigint_handler(int /*sig*/)
 {
@@ -90,11 +220,20 @@ int main(int argc, char** argv)
         return is_help ? 0 : 1;
     }
 
+#ifndef NDEBUG
+    maybe_reexec_for_fast_vulkan_startup(argc, argv);
+#endif
+
     // Print version banner.
     std::printf("spectra-ros %s  |  layout: %s  |  node: %s\n",
                 adapter_version(),
                 layout_mode_name(cfg.layout),
                 cfg.node_name.c_str());
+
+#ifndef NDEBUG
+    report_fast_vulkan_startup_policy();
+    apply_debug_startup_policy();
+#endif
 
     // ---------------------------------------------------------------------------
     // Create Spectra App with GLFW + Vulkan + ImGui windowed rendering.
@@ -103,14 +242,12 @@ int main(int argc, char** argv)
     spectra::AppConfig app_cfg;
     spectra::App app(app_cfg);
 
-    // Create a placeholder figure so the App has something to render.
-    // Add a dummy subplot so the "Welcome to Spectra" page is suppressed —
-    // the ROS2 shell owns the entire UI layout.
+    // Create the figure that spectra-ros binds its subplot manager to.
+    // The shell will create the actual subplot axes during init().
     spectra::FigureConfig fig_cfg;
     fig_cfg.width  = cfg.window_width;
     fig_cfg.height = cfg.window_height;
     auto& fig = app.figure(fig_cfg);
-    fig.subplot(1, 1, 1);  // suppress welcome page
 
     // Create shell and install SIGINT handler before init.
     RosAppShell shell(cfg);

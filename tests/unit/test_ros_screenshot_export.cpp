@@ -233,18 +233,24 @@ TEST(TakeScreenshot, ZeroWidth)
 {
     RosScreenshotExport exporter;
     exporter.set_frame_grab_callback(checker_grab);
+    // 0 width falls back to dialog config default (1280).
     const auto r = exporter.take_screenshot("/tmp/test_zw.png", 0, 64);
-    EXPECT_FALSE(r.ok);
-    EXPECT_FALSE(r.error.empty());
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.width, 1280u);
+    EXPECT_EQ(r.height, 64u);
+    fs::remove("/tmp/test_zw.png");
 }
 
 TEST(TakeScreenshot, ZeroHeight)
 {
     RosScreenshotExport exporter;
     exporter.set_frame_grab_callback(checker_grab);
+    // 0 height falls back to dialog config default (720).
     const auto r = exporter.take_screenshot("/tmp/test_zh.png", 64, 0);
-    EXPECT_FALSE(r.ok);
-    EXPECT_FALSE(r.error.empty());
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.width, 64u);
+    EXPECT_EQ(r.height, 720u);
+    fs::remove("/tmp/test_zh.png");
 }
 
 TEST(TakeScreenshot, FailingGrabCallback)

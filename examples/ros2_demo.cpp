@@ -17,7 +17,7 @@
 //
 //   Phase C (Live Plotting):
 //     C1 — RosPlotManager: topic/field → Figure/LineSeries bridge, poll()
-//     C2 — ScrollController / auto-scroll time window (via RosPlotManager)
+//     C2 — Auto-scroll time window (via presented_buffer)
 //     C4 — SubplotManager: NxM grid, shared X-axis, shared cursor
 //
 //   Phase F (Advanced ROS2 Tools):
@@ -67,7 +67,6 @@
 
 // ── ROS2 Adapter — Phase C (plotting) ────────────────────────────────────────
 #include "ros_plot_manager.hpp"
-#include "scroll_controller.hpp"
 #include "subplot_manager.hpp"
 
 // ── ROS2 Adapter — Phase D (bag) ─────────────────────────────────────────────
@@ -119,7 +118,7 @@ static void print_progress_summary()
         "+----------------------------------------------------------+\n"
         "|  Phase C -- Live Plotting Engine               DONE [x]  |\n"
         "|    C1  RosPlotManager (topic/field -> Figure+Series) [x]  |\n"
-        "|    C2  Auto-scroll time window (ScrollController)    [x]  |\n"
+        "|    C2  Auto-scroll time window (presented_buffer)    [x]  |\n"
         "|    C3  Drag-and-drop field to plot                   [x]  |\n"
         "|    C4  SubplotManager NxM (shared X-axis+cursor)     [x]  |\n"
         "|    C5  Expression fields                             [x]  |\n"

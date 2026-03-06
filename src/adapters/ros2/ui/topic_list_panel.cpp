@@ -6,6 +6,8 @@
 #include <cstring>
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+
+#include "ui/theme/icons.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -249,10 +251,8 @@ void TopicListPanel::rebuild_tree()
 {
     if (hz <= 0.0) return "-";
     char buf[32];
-    if (hz >= 100.0)
+    if (hz >= 1000.0)
         std::snprintf(buf, sizeof(buf), "%.0f", hz);
-    else if (hz >= 10.0)
-        std::snprintf(buf, sizeof(buf), "%.1f", hz);
     else
         std::snprintf(buf, sizeof(buf), "%.2f", hz);
     return buf;
@@ -394,6 +394,7 @@ void TopicListPanel::draw(bool* p_open)
     }
 
     // --- Window ---
+    if (!ImGui::GetCurrentContext()) return;
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_FirstUseEver);
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
     if (!ImGui::Begin(title_.c_str(), p_open, flags)) {
@@ -435,7 +436,7 @@ void TopicListPanel::draw(bool* p_open)
     ImGui::TableSetupScrollFreeze(0, 1);  // freeze header row
     ImGui::TableSetupColumn("Topic",    ImGuiTableColumnFlags_WidthStretch, 3.0f);
     ImGui::TableSetupColumn("Type",     ImGuiTableColumnFlags_WidthStretch, 2.5f);
-    ImGui::TableSetupColumn("Hz",       ImGuiTableColumnFlags_WidthFixed,   52.0f);
+    ImGui::TableSetupColumn("Hz",       ImGuiTableColumnFlags_WidthFixed,   60.0f);
     ImGui::TableSetupColumn("Pubs",     ImGuiTableColumnFlags_WidthFixed,   38.0f);
     ImGui::TableSetupColumn("Subs",     ImGuiTableColumnFlags_WidthFixed,   38.0f);
     ImGui::TableSetupColumn("BW",       ImGuiTableColumnFlags_WidthFixed,   72.0f);
@@ -581,9 +582,10 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
                                ImGui::ColorConvertFloat4ToU32(kColorSelected));
     }
 
-    // Status dot (colored circle) via text.
+    // Reuse Spectra's merged icon font so monitor status markers don't depend
+    // on ad hoc Unicode glyph availability in the current atlas.
     const ImVec4 dot_col = stats.active ? kColorActive : kColorStale;
-    ImGui::TextColored(dot_col, "%s", stats.active ? "●" : "○");
+    ImGui::TextColored(dot_col, "%s", ui::icon_str(ui::Icon::Circle));
     ImGui::SameLine();
 
     // Leaf topic name (last segment).

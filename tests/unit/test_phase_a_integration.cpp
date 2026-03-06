@@ -249,6 +249,7 @@ TEST_F(PhaseAIntegrationTest, MultipleFloat64ValuesPreserveOrder)
         std_msgs::msg::Float64 msg;
         msg.data = values[i];
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     bool got = spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 3000ms);
@@ -321,6 +322,7 @@ TEST_F(PhaseAIntegrationTest, StatsAccountForReceivedSamples)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 3000ms);

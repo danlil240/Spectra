@@ -214,6 +214,7 @@ void BagInfoPanel::plot_row(int index)
 void BagInfoPanel::draw(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return;
     ImGui::SetNextWindowSize(ImVec2(520, 480), ImGuiCond_FirstUseEver);
 
     if (!ImGui::Begin(title_.c_str(), p_open, ImGuiWindowFlags_NoCollapse)) {
@@ -232,6 +233,7 @@ void BagInfoPanel::draw(bool* p_open)
 void BagInfoPanel::draw_inline()
 {
 #ifdef SPECTRA_USE_IMGUI
+    if (!ImGui::GetCurrentContext()) return;
     handle_imgui_drag_drop();
 
     if (!summary_.is_open) {

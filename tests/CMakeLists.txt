@@ -567,29 +567,6 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_bag_recorder PROPERTIES LABELS "ros2")
     endif()
 
-    # ScrollController tests — pure C++ logic, no ROS2 runtime needed.
-    # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scroll_controller.cpp)
-        add_executable(unit_test_scroll_controller
-            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scroll_controller.cpp
-        )
-        target_link_libraries(unit_test_scroll_controller PRIVATE
-            spectra_ros2_adapter
-            GTest::gtest_main
-        )
-        target_compile_features(unit_test_scroll_controller PRIVATE cxx_std_20)
-        target_include_directories(unit_test_scroll_controller PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
-            ${CMAKE_CURRENT_SOURCE_DIR}/util
-        )
-        target_compile_definitions(unit_test_scroll_controller PRIVATE
-            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-        )
-        add_test(NAME unit_test_scroll_controller COMMAND unit_test_scroll_controller)
-        set_tests_properties(unit_test_scroll_controller PROPERTIES LABELS "ros2")
-    endif()
-
     # TfTreePanel tests (F2) — pure C++ logic, no ROS2 runtime needed.
     # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_tf_tree_panel.cpp)
@@ -680,7 +657,7 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_expression_engine PROPERTIES LABELS "ros2")
     endif()
 
-    # Phase C integration test — C1 (RosPlotManager), C2 (ScrollController),
+    # Phase C integration test — C1 (RosPlotManager), C2 (auto-scroll),
     # C4 (SubplotManager) end-to-end: 3 topics, 100 frames, scroll, pruning, linked axes.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_phase_c_integration.cpp)
         add_executable(unit_test_phase_c_integration
@@ -1017,7 +994,7 @@ if(SPECTRA_USE_ROS2)
 
 endif()
 
-# QA Agent (interactive stress test / fuzzer — not a CTest, run manually)
+# QA Agents (interactive/manual harnesses, not registered as CTest tests)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
@@ -1031,6 +1008,24 @@ if(SPECTRA_BUILD_QA_AGENT)
             ${imgui_SOURCE_DIR}/backends
         )
         target_compile_definitions(spectra_qa_agent PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+            $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+            $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
+        )
+    endif()
+
+    if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/ros_qa_agent.cpp)
+        add_executable(spectra_ros_qa_agent qa/ros_qa_agent.cpp)
+        target_link_libraries(spectra_ros_qa_agent PRIVATE spectra_ros2_adapter)
+        target_compile_features(spectra_ros_qa_agent PRIVATE cxx_std_20)
+        target_include_directories(spectra_ros_qa_agent PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+        )
+        target_compile_definitions(spectra_ros_qa_agent PRIVATE
             SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
             $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
             $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>

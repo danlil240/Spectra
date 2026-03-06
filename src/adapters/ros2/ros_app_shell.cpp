@@ -1,12 +1,17 @@
 #include "ros_app_shell.hpp"
 
 #include <algorithm>
+#include <cfloat>
 #include <chrono>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
+#include <string_view>
 
 #include "ui/layout/layout_manager.hpp"
+
+// AxisLinkManager — needed for wiring InputHandler to subplot link manager.
+#include "ui/data/axis_link.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
@@ -17,6 +22,35 @@
 
 namespace spectra::adapters::ros2
 {
+
+namespace
+{
+bool axis_limits_changed(const spectra::AxisLimits& a,
+                         const spectra::AxisLimits& b,
+                         double                     eps = 1e-6)
+{
+    return std::abs(a.min - b.min) > eps || std::abs(a.max - b.max) > eps;
+}
+
+bool env_flag_is_truthy(const char* value)
+{
+    if (!value || value[0] == '\0')
+        return false;
+
+    const std::string_view text(value);
+    return text == "1" || text == "true" || text == "TRUE"
+        || text == "yes" || text == "YES"
+        || text == "on" || text == "ON";
+}
+
+constexpr float kPlotAreaMinWindowWidth    = 900.0f;
+constexpr float kPlotAreaMinWindowHeight   = 200.0f;
+constexpr float kPlotAreaTimeSliderMinWidth = 180.0f;
+constexpr float kPlotAreaTimeSliderMaxWidth = 320.0f;
+constexpr float kPlotAreaMinViewportHeight = 120.0f;
+constexpr float kPlotAreaGlobalDropHeight  = 56.0f;
+constexpr float kPlotAreaButtonSpacing     = 8.0f;
+}   // namespace
 
 LayoutMode parse_layout_mode(const std::string& s)
 {
@@ -34,6 +68,23 @@ const char* layout_mode_name(LayoutMode m)
         case LayoutMode::Monitor:  return "monitor";
     }
     return "default";
+}
+
+bool should_skip_debug_validation_for_ros_app(const char* no_validation_env,
+                                              const char* enable_validation_env)
+{
+    if (no_validation_env != nullptr)
+        return env_flag_is_truthy(no_validation_env);
+
+    if (enable_validation_env != nullptr)
+        return !env_flag_is_truthy(enable_validation_env);
+
+    return true;
+}
+
+bool should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_loader_env)
+{
+    return !env_flag_is_truthy(preserve_loader_env);
 }
 
 RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
@@ -106,10 +157,10 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 
     if (cfg.subplot_rows < 1) cfg.subplot_rows = 1;
     if (cfg.subplot_cols < 1) cfg.subplot_cols = 1;
-    if (cfg.time_window_s < ScrollController::MIN_WINDOW_S)
-        cfg.time_window_s = ScrollController::MIN_WINDOW_S;
-    if (cfg.time_window_s > ScrollController::MAX_WINDOW_S)
-        cfg.time_window_s = ScrollController::MAX_WINDOW_S;
+    if (cfg.time_window_s < RosPlotManager::MIN_WINDOW_S)
+        cfg.time_window_s = RosPlotManager::MIN_WINDOW_S;
+    if (cfg.time_window_s > RosPlotManager::MAX_WINDOW_S)
+        cfg.time_window_s = RosPlotManager::MAX_WINDOW_S;
 
     return cfg;
 }
@@ -152,7 +203,13 @@ bool RosAppShell::init(int argc, char** argv)
     plot_mgr_->set_topic_discovery(discovery_.get());
     subplot_mgr_->set_topic_discovery(discovery_.get());
 
-    
+    // Wire the core InputHandler to the SubplotManager's figure so all
+    // pan/zoom/scroll interactions use the existing, well-tested code path
+    // (with animations, inertia, undo, axis linking, etc.) instead of the
+    // manual reimplementations that were here before.
+    input_handler_.set_figure(&subplot_mgr_->figure());
+    input_handler_.set_axis_link_manager(&subplot_mgr_->link_manager());
+
     topic_list_  = std::make_unique<TopicListPanel>();
     topic_stats_ = std::make_unique<TopicStatsOverlay>();
     topic_echo_  = std::make_unique<TopicEchoPanel>(bridge_->node(), *intr_);
@@ -407,7 +464,12 @@ void RosAppShell::poll()
     last_poll_time_s_ = now_s;
 
     if (subplot_mgr_)
+    {
+        // Establish a shared time origin on first poll so all subplots sync.
+        if (!subplot_mgr_->has_shared_time_origin())
+            subplot_mgr_->set_shared_time_origin(wall_now_s);
         subplot_mgr_->set_now(wall_now_s);
+    }
 
     if (plot_mgr_)
         plot_mgr_->poll();
@@ -426,6 +488,9 @@ void RosAppShell::poll()
 
     if (screenshot_export_)
         screenshot_export_->tick(static_cast<float>(dt));
+
+    // Advance InputHandler animations (inertial pan, animated zoom, etc.).
+    input_handler_.update(static_cast<float>(dt));
 
     if (session_status_timer_ > 0.0f)
         session_status_timer_ = std::max(0.0f, session_status_timer_ - static_cast<float>(dt));
@@ -465,6 +530,15 @@ void RosAppShell::draw()
     {
         draw_plot_area(&show_plot_area_);
     }
+
+    // Issue 1: When the Plot Area panel is closed (X button), clear all subplots
+    // so they don't remain active in the background.
+    if (plot_area_was_visible_ && !show_plot_area_)
+    {
+        if (subplot_mgr_)
+            subplot_mgr_->clear();
+    }
+    plot_area_was_visible_ = show_plot_area_;
     if (show_topic_stats_)
     {
         draw_topic_stats(&show_topic_stats_);
@@ -634,7 +708,15 @@ void RosAppShell::draw_dockspace()
     if (ImGui::Begin("##ros_dockspace_host", nullptr, host_flags))
     {
         dockspace_id_ = ImGui::GetID("##ros_dockspace");
+
+        // Push transparent WindowBg so dock node backgrounds don't cover the
+        // Vulkan-rendered figure content beneath the "Plot Area" panel.
+        // Each docked panel still draws its own window background (Topic
+        // Monitor, Topic Echo, etc.), so only the central plot area becomes
+        // truly see-through to the Vulkan render pass.
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
         ImGui::DockSpace(dockspace_id_, ImVec2(0.0f, 0.0f), dock_flags);
+        ImGui::PopStyleColor();
 
         if (!dock_layout_initialized_)
             apply_default_dock_layout();
@@ -826,86 +908,829 @@ void RosAppShell::draw_plot_area(bool* p_open)
 #ifdef SPECTRA_USE_IMGUI
     // Transparent background so the Vulkan-rendered figure canvas shows through.
     ImGui::SetNextWindowBgAlpha(0.0f);
+    // Enforce a minimum window size so toolbar buttons are always visible.
+    ImGui::SetNextWindowSizeConstraints(ImVec2(kPlotAreaMinWindowWidth, kPlotAreaMinWindowHeight),
+                                        ImVec2(FLT_MAX, FLT_MAX));
     const ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground;
+
+    // Fixed-size raw payload for ImGui drag-drop (mirrors field_drag_drop.cpp).
+    struct RawPayload {
+        char topic_name[256]{};
+        char field_path[256]{};
+        char type_name[128]{};
+        char label[320]{};
+    };
 
     if (ImGui::Begin("Plot Area", p_open, flags))
     {
-        // Update the Spectra LayoutManager canvas rect to match this panel's
-        // content region so the Vulkan renderer draws the figure here.
-        if (layout_manager_)
-        {
-            const ImVec2 wpos  = ImGui::GetWindowPos();
-            const ImVec2 wsz   = ImGui::GetWindowSize();
-            // Account for title bar height in docked windows.
-            const float title_h = ImGui::GetCurrentWindow()->TitleBarHeight
-                                + ImGui::GetCurrentWindow()->MenuBarHeight;
-            layout_manager_->set_canvas_override(
-                spectra::Rect{wpos.x, wpos.y + title_h, wsz.x, wsz.y - title_h});
-        }
-
         const int active = subplot_mgr_ ? subplot_mgr_->active_count() : 0;
         const int cap    = subplot_mgr_ ? subplot_mgr_->capacity() : 0;
         ImGui::Text("Active plots: %d / %d", active, cap);
+        float canvas_top    = ImGui::GetCursorScreenPos().y;
+        float canvas_bottom = canvas_top;
+        const auto same_line_button = []() {
+            ImGui::SameLine(0.0f, kPlotAreaButtonSpacing);
+        };
 
         if (subplot_mgr_)
         {
             float tw = static_cast<float>(subplot_mgr_->time_window());
-            if (ImGui::SliderFloat("Time Window", &tw, 1.0f, 3600.0f, "%.1f s"))
+            ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
+                                               kPlotAreaTimeSliderMinWidth,
+                                               kPlotAreaTimeSliderMaxWidth));
+            if (ImGui::SliderFloat("##TimeWindow", &tw, 1.0f, 3600.0f, "%.1f s"))
             {
-                subplot_mgr_->set_time_window(static_cast<double>(tw));
-                if (plot_mgr_) plot_mgr_->set_time_window(static_cast<double>(tw));
-            }
+                const double new_tw = static_cast<double>(tw);
+                subplot_mgr_->set_time_window(new_tw);
+                if (plot_mgr_) plot_mgr_->set_time_window(new_tw);
 
-            if (ImGui::Button("Resume All Scroll")) subplot_mgr_->resume_all_scroll();
-            ImGui::SameLine();
-            if (ImGui::Button("Pause All Scroll")) subplot_mgr_->pause_all_scroll();
+                // When any subplot is paused, apply the new time window as
+                // a zoom centred on the current view so the user sees an
+                // actual zoom instead of a no-op slider change.
+                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                {
+                    if (!subplot_mgr_->is_scroll_paused(s)) continue;
+                    auto* se = subplot_mgr_->slot_entry_pub(s);
+                    if (!se || !se->axes) continue;
+                    auto xl = se->axes->x_limits();
+                    double mid = (xl.min + xl.max) * 0.5;
+                    se->axes->xlim(mid - new_tw * 0.5, mid + new_tw * 0.5);
+                }
+            }
+            ImGui::TextDisabled("Time Window");
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+            if (ImGui::Button("Live All")) subplot_mgr_->resume_all_scroll();
+            ImGui::PopStyleColor(2);
+            same_line_button();
+            if (ImGui::Button("Pause All")) subplot_mgr_->pause_all_scroll();
+            same_line_button();
+            if (ImGui::Button("Reset (R)"))
+                reset_plot_display();
+            same_line_button();
+            if (ImGui::Button("Auto Y (A)"))
+                restore_plot_autofit(workspace_state_.active_subplot_idx);
+
+            same_line_button();
+            if (ImGui::Button("+ Add Subplot"))
+            {
+                subplot_mgr_->add_row();
+            }
+            same_line_button();
+            ImGui::BeginDisabled(subplot_mgr_->rows() <= 1);
+            {
+                if (ImGui::Button("- Remove Last"))
+                    subplot_mgr_->remove_last_row();
+            }
+            ImGui::EndDisabled();
         }
 
         ImGui::Separator();
+        canvas_top = ImGui::GetCursorScreenPos().y;
 
-        if (!workspace_state_.selected_topic.empty())
+        // Per-subplot controls and targeted drop zones.
+        if (subplot_mgr_)
         {
-            ImGui::TextDisabled("Selected: %s", workspace_state_.selected_topic.c_str());
-            if (!workspace_state_.selected_field.empty())
+            const int total_slots = subplot_mgr_->capacity();
+            const auto& fig_style = subplot_mgr_->figure().style();
+            const float min_slot_height =
+                std::max(120.0f,
+                         fig_style.margin_top + fig_style.margin_bottom
+                             + kPlotAreaMinViewportHeight);
+            const float avail_h = ImGui::GetContentRegionAvail().y;
+            // Reserve space for the global drop zone at the bottom.
+            const float reserved_bottom =
+                kPlotAreaGlobalDropHeight + ImGui::GetTextLineHeightWithSpacing()
+                + ImGui::GetStyle().ItemSpacing.y + 12.0f;
+            const float usable_h = std::max(0.0f, avail_h - reserved_bottom);
+            const float slot_h = (total_slots > 0)
+                ? std::max(min_slot_height, usable_h / static_cast<float>(total_slots))
+                : usable_h;
+
+            for (int s = 1; s <= total_slots; ++s)
             {
-                ImGui::SameLine();
-                ImGui::TextDisabled("[%s]", workspace_state_.selected_field.c_str());
-                ImGui::SameLine();
-                if (ImGui::SmallButton("Add to Plot"))
-                    workspace_state_.request_plot();
-            }
-            else
-            {
-                // No field selected — offer a quick-add from the default field.
-                const std::string def_field =
-                    default_numeric_field(workspace_state_.selected_topic,
-                                         workspace_state_.selected_type);
-                if (!def_field.empty())
+                ImGui::PushID(s);
+                const float slot_start_y = ImGui::GetCursorPosY();
+
+                const bool has = subplot_mgr_->has_plot(s);
+                const int  n_series = subplot_mgr_->slot_series_count(s);
+
+                // Slot header — compact single line with controls.
+                ImGui::BeginGroup();
+
+                if (has)
                 {
+                    // First line: plot title + action buttons, no series text.
+                    const bool selected = (workspace_state_.active_subplot_idx == s);
+                    ImGui::TextColored(selected ? ImVec4(0.6f, 0.95f, 0.55f, 1.0f)
+                                                : ImVec4(0.4f, 0.85f, 1.0f, 1.0f),
+                                       "Plot %d", s);
                     ImGui::SameLine();
-                    if (ImGui::SmallButton("Plot default field"))
+                    ImGui::TextDisabled("(%d series)", n_series);
+                    if (selected)
                     {
-                        workspace_state_.select_field(def_field);
-                        workspace_state_.request_plot();
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("[active]");
                     }
+
+                    // Scroll control per-slot.
+                    ImGui::SameLine(0.0f, 12.0f);
+                    if (subplot_mgr_->is_scroll_paused(s))
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                        if (ImGui::SmallButton("Live##scroll"))
+                        {
+                            remember_active_subplot(s);
+                            subplot_mgr_->resume_scroll(s);
+                        }
+                        ImGui::PopStyleColor(2);
+                    }
+                    else
+                    {
+                        if (ImGui::SmallButton("Pause##scroll"))
+                        {
+                            remember_active_subplot(s);
+                            subplot_mgr_->pause_scroll(s);
+                        }
+                    }
+
+                    ImGui::SameLine(0.0f, 8.0f);
+                    if (ImGui::SmallButton("Auto Y"))
+                        restore_plot_autofit(s);
+
+                    ImGui::SameLine();
+                    char ylim_popup_id[32];
+                    std::snprintf(ylim_popup_id, sizeof(ylim_popup_id), "ylim_%d", s);
+                    if (ImGui::SmallButton("Y Limits"))
+                    {
+                        remember_active_subplot(s);
+                        ImGui::OpenPopup(ylim_popup_id);
+                    }
+
+                    if (ImGui::BeginPopup(ylim_popup_id))
+                    {
+                        ImGui::TextDisabled("Y-Axis Limits for Plot %d", s);
+                        ImGui::Separator();
+
+                        auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
+                        if (slot_entry && slot_entry->axes)
+                        {
+                            auto yl = slot_entry->axes->y_limits();
+                            float ymin_f = static_cast<float>(yl.min);
+                            float ymax_f = static_cast<float>(yl.max);
+
+                            ImGui::SetNextItemWidth(120.0f);
+                            ImGui::DragFloat("Y Min", &ymin_f, 0.01f);
+                            ImGui::SetNextItemWidth(120.0f);
+                            ImGui::DragFloat("Y Max", &ymax_f, 0.01f);
+
+                            if (ymin_f < ymax_f)
+                            {
+                                subplot_mgr_->set_slot_ylim(s,
+                                    static_cast<double>(ymin_f),
+                                    static_cast<double>(ymax_f));
+                            }
+
+                            ImGui::Separator();
+                            if (ImGui::Button("Reset to Auto"))
+                            {
+                                subplot_mgr_->auto_fit_slot_y(s);
+                                ImGui::CloseCurrentPopup();
+                            }
+                        }
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::SameLine(0.0f, 8.0f);
+                    char style_popup_id[32];
+                    std::snprintf(style_popup_id, sizeof(style_popup_id), "style_%d", s);
+                    if (ImGui::SmallButton("Style"))
+                    {
+                        remember_active_subplot(s);
+                        ImGui::OpenPopup(style_popup_id);
+                    }
+
+                    if (ImGui::BeginPopup(style_popup_id))
+                    {
+                        auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
+                        if (slot_entry && slot_entry->axes)
+                        {
+                            auto* axes = slot_entry->axes;
+
+                            char title_buf[128];
+                            std::strncpy(title_buf, axes->title().c_str(), sizeof(title_buf) - 1);
+                            title_buf[sizeof(title_buf) - 1] = '\0';
+                            if (ImGui::InputText("Title", title_buf, sizeof(title_buf)))
+                                axes->title(title_buf);
+
+                            char xlabel_buf[128];
+                            std::strncpy(xlabel_buf, axes->xlabel().c_str(), sizeof(xlabel_buf) - 1);
+                            xlabel_buf[sizeof(xlabel_buf) - 1] = '\0';
+                            if (ImGui::InputText("X Label", xlabel_buf, sizeof(xlabel_buf)))
+                                axes->xlabel(xlabel_buf);
+
+                            char ylabel_buf[128];
+                            std::strncpy(ylabel_buf, axes->ylabel().c_str(), sizeof(ylabel_buf) - 1);
+                            ylabel_buf[sizeof(ylabel_buf) - 1] = '\0';
+                            if (ImGui::InputText("Y Label", ylabel_buf, sizeof(ylabel_buf)))
+                                axes->ylabel(ylabel_buf);
+
+                            bool show_grid = axes->grid_enabled();
+                            if (ImGui::Checkbox("Show Grid", &show_grid))
+                                axes->grid(show_grid);
+
+                            bool show_border = axes->border_enabled();
+                            if (ImGui::Checkbox("Show Border", &show_border))
+                                axes->show_border(show_border);
+
+                            bool live_auto_y = !slot_entry->manual_ylim.has_value();
+                            if (ImGui::Checkbox("Live Auto-Fit Y", &live_auto_y))
+                            {
+                                if (live_auto_y)
+                                {
+                                    subplot_mgr_->auto_fit_slot_y(s);
+                                }
+                                else
+                                {
+                                    auto yl = axes->y_limits();
+                                    subplot_mgr_->set_slot_ylim(s, yl.min, yl.max);
+                                }
+                            }
+                        }
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::SameLine(0.0f, 8.0f);
+                    if (ImGui::SmallButton("Clear##plot"))
+                    {
+                        remember_active_subplot(s);
+                        subplot_mgr_->clear_slot_data(s);
+                    }
+
+                    // Series details on a second line, indented.
+                    for (int si = 0; si < n_series; ++si)
+                    {
+                        const auto* se = subplot_mgr_->slot_series(s, si);
+                        if (!se) continue;
+                        ImGui::Indent(16.0f);
+                        ImGui::TextColored(
+                            ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+                            "%s/%s", se->topic.c_str(), se->field_path.c_str());
+                        ImGui::SameLine();
+                        char rm_id[32];
+                        std::snprintf(rm_id, sizeof(rm_id), "x##rm_%d_%d", s, si);
+                        if (ImGui::SmallButton(rm_id))
+                        {
+                            subplot_mgr_->remove_series_from_slot(
+                                s, se->topic, se->field_path);
+                            if (!subplot_mgr_->has_plot(s))
+                                subplot_mgr_->compact();
+                        }
+                        ImGui::Unindent(16.0f);
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("Plot %d (empty)  - Drop a topic/field here", s);
+                }
+
+                ImGui::EndGroup();
+
+                // Drop zone — fills remaining slot height so subplots
+                // expand to use all available vertical space.
+                {
+                    const float used_h = ImGui::GetCursorPosY() - slot_start_y;
+                    const float remaining = std::max(8.0f, slot_h - used_h);
+                    const ImVec2 pos = ImGui::GetCursorScreenPos();
+                    const float drop_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+                    ImGui::InvisibleButton("##slot_drop", ImVec2(drop_w, remaining));
+
+                    // Accept drag-drop payloads targeted at this slot.
+                    if (drag_drop_ && drag_drop_->is_dragging())
+                    {
+                        const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+                        ImDrawList* dl = ImGui::GetWindowDrawList();
+                        const ImVec2 pmax = {pos.x + drop_w, pos.y + std::min(remaining, 8.0f)};
+
+                        if (hovered)
+                        {
+                            dl->AddRectFilled(pos, pmax, IM_COL32(60, 180, 255, 80), 3.0f);
+                            dl->AddRect(pos, pmax, IM_COL32(60, 180, 255, 200), 3.0f, 0, 2.0f);
+                        }
+
+                        if (ImGui::BeginDragDropTarget())
+                        {
+                            if (const ImGuiPayload* imgui_payload =
+                                    ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE))
+                            {
+                                if (imgui_payload->DataSize < static_cast<int>(sizeof(RawPayload)))
+                                {
+                                    ImGui::EndDragDropTarget();
+                                    continue;
+                                }
+                                const auto* raw = static_cast<const RawPayload*>(imgui_payload->Data);
+                                std::string topic = raw->topic_name;
+                                std::string field = raw->field_path;
+                                std::string type  = raw->type_name;
+
+                                if (!topic.empty())
+                                {
+                                    if (field.empty())
+                                        field = default_numeric_field(topic, type);
+                                    if (!field.empty())
+                                        subplot_mgr_->add_plot(s, topic, field, type);
+                                }
+                            }
+                            ImGui::EndDragDropTarget();
+                        }
+                    }
+
+                }
+
+                if (s < total_slots)
+                    ImGui::Separator();
+
+                ImGui::PopID();
+            }
+        }
+
+        canvas_bottom = ImGui::GetCursorScreenPos().y;
+
+        // Global drop zone at the bottom — drops to first empty slot or adds a new row.
+        ImGui::Separator();
+        ImGui::TextDisabled("Drop a topic/field here to add to a new subplot");
+
+        {
+            ImVec2 avail = ImVec2(std::max(1.0f, ImGui::GetContentRegionAvail().x),
+                                  kPlotAreaGlobalDropHeight);
+
+            const ImVec2 pos = ImGui::GetCursorScreenPos();
+            ImGui::InvisibleButton("##global_drop", avail);
+
+            if (drag_drop_ && drag_drop_->is_dragging())
+            {
+                const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                const ImVec2 pmax = {pos.x + avail.x, pos.y + avail.y};
+                dl->AddRectFilled(pos, pmax,
+                                  hovered ? IM_COL32(60, 200, 100, 55) : IM_COL32(60, 200, 100, 22),
+                                  4.0f);
+                if (hovered)
+                {
+                    dl->AddRect(pos, pmax, IM_COL32(60, 200, 100, 220), 4.0f, 0, 2.0f);
+                    const char* lbl = "Drop to create new subplot";
+                    const ImVec2 text_sz = ImGui::CalcTextSize(lbl);
+                    dl->AddText({pos.x + (avail.x - text_sz.x) * 0.5f,
+                                 pos.y + (avail.y - text_sz.y) * 0.5f},
+                                IM_COL32(60, 200, 100, 240), lbl);
+                }
+
+                if (ImGui::BeginDragDropTarget())
+                {
+                    if (const ImGuiPayload* imgui_payload =
+                            ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE))
+                    {
+                        if (imgui_payload->DataSize >= static_cast<int>(sizeof(RawPayload)))
+                        {
+                            const auto* raw = static_cast<const RawPayload*>(imgui_payload->Data);
+                            std::string topic = raw->topic_name;
+                            std::string field = raw->field_path;
+                            std::string type  = raw->type_name;
+
+                            if (!topic.empty())
+                            {
+                                if (field.empty())
+                                    field = default_numeric_field(topic, type);
+                                if (!field.empty())
+                                {
+                                    // Find first empty slot, or add a new row.
+                                    int target_slot = -1;
+                                    if (subplot_mgr_)
+                                    {
+                                        for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                                        {
+                                            if (!subplot_mgr_->has_plot(s))
+                                            {
+                                                target_slot = s;
+                                                break;
+                                            }
+                                        }
+                                        if (target_slot < 0)
+                                            target_slot = subplot_mgr_->add_row();
+                                    }
+                                    if (target_slot > 0)
+                                        subplot_mgr_->add_plot(target_slot, topic, field, type);
+                                }
+                            }
+                        }
+                    }
+                    ImGui::EndDragDropTarget();
                 }
             }
         }
-        else
+
+        // Forward mouse/scroll events to the core InputHandler which provides
+        // animated zoom, inertial pan, box zoom, undo, axis linking, and more.
+        handle_plot_shortcuts();
+        bridge_imgui_to_input_handler();
+
+        // Canvas override for Vulkan rendering.
+        if (layout_manager_)
         {
-            ImGui::TextDisabled("Select a topic in the Topic Monitor to plot its fields.");
+            const ImVec2 wpos         = ImGui::GetWindowPos();
+            const ImVec2 content_min  = ImGui::GetWindowContentRegionMin();
+            const ImVec2 content_max  = ImGui::GetWindowContentRegionMax();
+            const float  canvas_x     = wpos.x + content_min.x;
+            const float  canvas_w     = std::max(0.0f, content_max.x - content_min.x);
+            const float  plot_top     = canvas_top;
+            const float  plot_bottom  = std::max(canvas_top, canvas_bottom);
+            const float  canvas_h     = plot_bottom - plot_top;
+            if (canvas_w > 0.0f && canvas_h > 0.0f)
+            {
+                layout_manager_->set_canvas_override(
+                    spectra::Rect{canvas_x, plot_top, canvas_w, canvas_h});
+            }
         }
-
-        ImGui::Separator();
-        ImGui::TextDisabled("Drag a topic/field from the Topic Monitor and drop it here.");
-
-        if (drag_drop_)
-            drag_drop_->draw_drop_zone();
     }
     ImGui::End();
 #else
     (void)p_open;
+#endif
+}
+
+// ─── Input bridging ──────────────────────────────────────────────────────────
+//
+// Translates ImGui mouse/scroll events into core InputHandler calls.
+// The InputHandler provides animated zoom, inertial pan, axis-lock detection,
+// box zoom, undo, and axis linking — all features that were previously
+// reimplemented (without animation or undo) in the old handle_plot_*() methods.
+//
+// ROS2-specific behaviours preserved:
+//   - Left-click pan pauses auto-scroll on all subplots.
+//   - Zoom and manual Y changes do not pause follow mode on their own.
+//   - Scroll-wheel zoom in live (following) mode adjusts the global time
+//     window instead of zooming the X axis, keeping the "spread/compress"
+//     UX that lets users see more or less history without pausing.
+//   - Scroll-wheel zoom in paused mode forwards to InputHandler for normal
+//     anchor-based zoom (with animation).
+// ──────────────────────────────────────────────────────────────────────────────
+
+int RosAppShell::hit_test_subplot_slot(float mx, float my, bool include_y_gutter) const
+{
+    if (!subplot_mgr_)
+        return -1;
+    const float y_gutter = include_y_gutter ? subplot_mgr_->figure().style().margin_left : 0.0f;
+    const int cap = subplot_mgr_->capacity();
+    for (int s = 1; s <= cap; ++s)
+    {
+        const auto* se = subplot_mgr_->slot_entry_pub(s);
+        if (!se || !se->axes)
+            continue;
+        const auto& vp = se->axes->viewport();
+        const float min_x = std::max(0.0f, vp.x - y_gutter);
+        if (mx >= min_x && mx <= vp.x + vp.w && my >= vp.y && my <= vp.y + vp.h)
+            return s;
+    }
+    return -1;
+}
+
+void RosAppShell::remember_active_subplot(int slot)
+{
+    if (!subplot_mgr_ || slot < 1 || slot > subplot_mgr_->capacity())
+        return;
+    workspace_state_.active_subplot_idx = slot;
+}
+
+void RosAppShell::begin_manual_y_tracking(int slot)
+{
+    tracked_manual_y_slot_   = -1;
+    tracked_manual_y_valid_  = false;
+
+    if (!subplot_mgr_ || slot < 1 || slot > subplot_mgr_->capacity())
+        return;
+
+    auto* se = subplot_mgr_->slot_entry_pub(slot);
+    if (!se || !se->axes)
+        return;
+
+    tracked_manual_y_slot_   = slot;
+    tracked_manual_y_limits_ = se->axes->y_limits();
+    tracked_manual_y_valid_  = true;
+    remember_active_subplot(slot);
+}
+
+void RosAppShell::finish_manual_y_tracking(int slot)
+{
+    if (!subplot_mgr_ || !tracked_manual_y_valid_)
+        return;
+
+    const int tracked_slot = (slot > 0) ? slot : tracked_manual_y_slot_;
+    auto* se = subplot_mgr_->slot_entry_pub(tracked_slot);
+    if (se && se->axes)
+    {
+        const auto current_y = se->axes->y_limits();
+        if (axis_limits_changed(current_y, tracked_manual_y_limits_))
+            subplot_mgr_->set_slot_ylim(tracked_slot, current_y.min, current_y.max);
+    }
+
+    tracked_manual_y_slot_  = -1;
+    tracked_manual_y_valid_ = false;
+}
+
+void RosAppShell::restore_plot_autofit(int slot)
+{
+    if (!subplot_mgr_)
+        return;
+
+    if (slot >= 1 && slot <= subplot_mgr_->capacity())
+    {
+        subplot_mgr_->auto_fit_slot_y(slot);
+        remember_active_subplot(slot);
+        return;
+    }
+
+    for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+        subplot_mgr_->auto_fit_slot_y(s);
+}
+
+void RosAppShell::reset_plot_display(int slot)
+{
+    const double default_window = cfg_.time_window_s;
+
+    if (subplot_mgr_)
+    {
+        if (slot >= 1 && slot <= subplot_mgr_->capacity())
+        {
+            subplot_mgr_->clear_slot_time_window(slot);
+            subplot_mgr_->clear_slot_ylim(slot);
+            subplot_mgr_->resume_scroll(slot);
+            remember_active_subplot(slot);
+        }
+        else
+        {
+            subplot_mgr_->set_time_window(default_window);
+            for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+            {
+                subplot_mgr_->clear_slot_time_window(s);
+                subplot_mgr_->clear_slot_ylim(s);
+            }
+            subplot_mgr_->resume_all_scroll();
+        }
+    }
+
+    if (plot_mgr_)
+    {
+        plot_mgr_->set_time_window(default_window);
+        plot_mgr_->resume_all_scroll();
+    }
+}
+
+void RosAppShell::handle_plot_shortcuts()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!subplot_mgr_)
+        return;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    if (io.KeyCtrl || io.KeyAlt || io.KeySuper || io.WantTextInput || ImGui::IsAnyItemActive())
+        return;
+
+    int target_slot = workspace_state_.active_subplot_idx;
+    if (target_slot < 1 || target_slot > subplot_mgr_->capacity())
+        target_slot = -1;
+
+    // R — Reset basic display: resume live, reset time window, clear Y limits.
+    if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+        reset_plot_display();
+
+    // A — Auto-fit Y on active subplot (or all if none active).
+    if (ImGui::IsKeyPressed(ImGuiKey_A, false))
+        restore_plot_autofit(target_slot);
+
+    // Space — Toggle pause/resume on active subplot (or all if none active).
+    if (ImGui::IsKeyPressed(ImGuiKey_Space, false))
+    {
+        if (target_slot > 0)
+        {
+            if (subplot_mgr_->is_scroll_paused(target_slot))
+                subplot_mgr_->resume_scroll(target_slot);
+            else
+                subplot_mgr_->pause_scroll(target_slot);
+        }
+        else
+        {
+            // Toggle all: if any is live, pause all; otherwise resume all.
+            bool any_live = false;
+            for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+            {
+                if (subplot_mgr_->has_plot(s) && !subplot_mgr_->is_scroll_paused(s))
+                {
+                    any_live = true;
+                    break;
+                }
+            }
+            if (any_live)
+                subplot_mgr_->pause_all_scroll();
+            else
+                subplot_mgr_->resume_all_scroll();
+        }
+    }
+
+    // Home — Resume live mode (like pressing "Live All").
+    if (ImGui::IsKeyPressed(ImGuiKey_Home, false))
+    {
+        if (target_slot > 0)
+            subplot_mgr_->resume_scroll(target_slot);
+        else
+            subplot_mgr_->resume_all_scroll();
+    }
+
+    // G — Toggle grid on active subplot.
+    if (ImGui::IsKeyPressed(ImGuiKey_G, false))
+    {
+        if (target_slot > 0)
+        {
+            auto* se = subplot_mgr_->slot_entry_pub(target_slot);
+            if (se && se->axes)
+                se->axes->grid(!se->axes->grid_enabled());
+        }
+    }
+
+    // Escape — Forward to InputHandler for box zoom cancellation.
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        input_handler_.on_key(256 /* KEY_ESCAPE */, 1 /* ACTION_PRESS */, 0);
+    }
+#endif
+}
+
+void RosAppShell::bridge_imgui_to_input_handler()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!subplot_mgr_)
+        return;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    const float mx = io.MousePos.x;
+    const float my = io.MousePos.y;
+    const int hovered_slot = hit_test_subplot_slot(mx, my);
+    const int y_drag_slot = hit_test_subplot_slot(mx, my, true);
+    const bool plot_window_hovered =
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
+                               | ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+    if (!plot_window_hovered && hovered_slot <= 0 && y_drag_slot <= 0
+        && !prev_mouse_left_ && !prev_mouse_right_)
+        return;
+
+    // GLFW-compatible constants expected by InputHandler.
+    constexpr int BTN_LEFT    = 0;
+    constexpr int BTN_RIGHT   = 1;
+    constexpr int ACTION_PRESS   = 1;
+    constexpr int ACTION_RELEASE = 0;
+    constexpr int MOD_CTRL  = 0x0002;
+    constexpr int MOD_SHIFT = 0x0001;
+
+    int mods = 0;
+    if (io.KeyCtrl)  mods |= MOD_CTRL;
+    if (io.KeyShift) mods |= MOD_SHIFT;
+
+    const auto sync_input_handler_slot = [&](int slot) {
+        if (slot < 1)
+            return;
+        const auto* se = subplot_mgr_->slot_entry_pub(slot);
+        if (!se || !se->axes)
+            return;
+        input_handler_.set_active_axes(se->axes);
+        const auto& vp = se->axes->viewport();
+        input_handler_.set_viewport(vp.x, vp.y, vp.w, vp.h);
+    };
+
+    // ── Scroll-wheel zoom ────────────────────────────────────────────────
+    if (io.MouseWheel != 0.0f)
+    {
+        const int slot = hovered_slot;
+        if (slot > 0)
+        {
+            remember_active_subplot(slot);
+            sync_input_handler_slot(slot);
+            // Live mode: adjust the global time window (spread/compress UX).
+            if (!subplot_mgr_->is_scroll_paused(slot))
+            {
+                constexpr double SCROLL_SENSITIVITY = 0.1;
+                const double factor =
+                    1.0 - static_cast<double>(io.MouseWheel) * SCROLL_SENSITIVITY;
+                const double clamped = std::clamp(factor, 0.8, 1.25);
+                const double new_w =
+                    std::clamp(subplot_mgr_->time_window() * clamped, 0.5, 86400.0);
+                subplot_mgr_->set_time_window(new_w);
+
+                // Also zoom Y axis for the hovered slot via InputHandler.
+                // We forward the scroll so the Y-axis gets the normal
+                // anchor-based animated zoom while X stays time-window-managed.
+                // But to avoid InputHandler also zooming X, we pause auto-scroll
+                // first so subsequent InputHandler X zoom has visible effect,
+                // then restore.  Simpler: just zoom Y directly.
+                const auto* se = subplot_mgr_->slot_entry_pub(slot);
+                if (se && se->axes)
+                {
+                    const auto& vp = se->axes->viewport();
+                    const auto ylim = se->axes->y_limits();
+                    const float norm_y = (vp.h > 0.0f) ? 1.0f - (my - vp.y) / vp.h : 0.5f;
+                    const double anchor_y = ylim.min + norm_y * (ylim.max - ylim.min);
+                    const double new_ymin = anchor_y - (anchor_y - ylim.min) * clamped;
+                    const double new_ymax = anchor_y + (ylim.max - anchor_y) * clamped;
+                    se->axes->ylim(new_ymin, new_ymax);
+                    subplot_mgr_->set_slot_ylim(slot, new_ymin, new_ymax);
+                }
+            }
+            else
+            {
+                // Paused mode: forward to InputHandler for full anchor-based
+                // animated zoom on both axes.
+                const auto* se = subplot_mgr_->slot_entry_pub(slot);
+                const auto y_before = (se && se->axes) ? se->axes->y_limits()
+                                                       : spectra::AxisLimits{};
+                input_handler_.on_scroll(0.0, static_cast<double>(io.MouseWheel),
+                                         static_cast<double>(mx),
+                                         static_cast<double>(my));
+                se = subplot_mgr_->slot_entry_pub(slot);
+                if (se && se->axes)
+                {
+                    const auto y_after = se->axes->y_limits();
+                    if (axis_limits_changed(y_after, y_before))
+                        subplot_mgr_->set_slot_ylim(slot, y_after.min, y_after.max);
+                }
+            }
+        }
+    }
+
+    // ── Left mouse button (pan) ──────────────────────────────────────────
+    const bool left_down = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    if (left_down && !prev_mouse_left_)
+    {
+        // Press — pause auto-scroll so the user can inspect previous data,
+        // then forward to InputHandler for inertial pan with undo.
+        const int slot = hovered_slot;
+        if (slot > 0)
+        {
+            subplot_mgr_->pause_all_scroll();
+            begin_manual_y_tracking(slot);
+            sync_input_handler_slot(slot);
+            input_handler_.on_mouse_button(BTN_LEFT, ACTION_PRESS, mods,
+                                           static_cast<double>(mx),
+                                           static_cast<double>(my));
+        }
+    }
+    else if (!left_down && prev_mouse_left_)
+    {
+        // Release
+        input_handler_.on_mouse_button(BTN_LEFT, ACTION_RELEASE, mods,
+                                       static_cast<double>(mx),
+                                       static_cast<double>(my));
+        finish_manual_y_tracking(-1);
+    }
+    prev_mouse_left_ = left_down;
+
+    // ── Right mouse button (drag zoom) ───────────────────────────────────
+    const bool right_down = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (right_down && !prev_mouse_right_)
+    {
+        // Press — allow zoom while live; only pan or explicit pause exits follow mode.
+        const int slot = y_drag_slot;
+        if (slot > 0)
+        {
+            begin_manual_y_tracking(slot);
+            sync_input_handler_slot(slot);
+            input_handler_.on_mouse_button(BTN_RIGHT, ACTION_PRESS, mods,
+                                           static_cast<double>(mx),
+                                           static_cast<double>(my));
+        }
+    }
+    else if (!right_down && prev_mouse_right_)
+    {
+        // Release
+        input_handler_.on_mouse_button(BTN_RIGHT, ACTION_RELEASE, mods,
+                                       static_cast<double>(mx),
+                                       static_cast<double>(my));
+        finish_manual_y_tracking(-1);
+    }
+    prev_mouse_right_ = right_down;
+
+    // ── Mouse move (always forward for cursor readout + drag updates) ────
+    const int interaction_slot = (hovered_slot > 0) ? hovered_slot : y_drag_slot;
+    if (interaction_slot > 0)
+    {
+        remember_active_subplot(interaction_slot);
+        sync_input_handler_slot(interaction_slot);
+    }
+    if (interaction_slot > 0 || prev_mouse_left_ || prev_mouse_right_)
+    {
+        input_handler_.on_mouse_move(static_cast<double>(mx),
+                                     static_cast<double>(my));
+    }
 #endif
 }
 
@@ -1066,8 +1891,6 @@ void RosAppShell::draw_menu_bar()
     if (ImGui::BeginMenu("Plots"))
     {
         // Add the current workspace selection to the plot.
-        // Enabled when a topic is selected; uses the specific field if one is
-        // selected, otherwise falls back to the first numeric field.
         const bool has_topic = !workspace_state_.selected_topic.empty();
         const bool has_field = !workspace_state_.selected_field.empty();
         const char* add_label = has_field ? "Add Selected Field to Plot"
@@ -1076,16 +1899,68 @@ void RosAppShell::draw_menu_bar()
             workspace_state_.request_plot();
         ImGui::Separator();
 
+        if (subplot_mgr_)
+        {
+            if (ImGui::MenuItem("Add Subplot Row"))
+                subplot_mgr_->add_row();
+            if (ImGui::MenuItem("Remove Last Row", nullptr, false, subplot_mgr_->rows() > 1))
+                subplot_mgr_->remove_last_row();
+            ImGui::Separator();
+        }
+
         if (ImGui::MenuItem("Clear All Plots"))
             clear_plots();
         ImGui::Separator();
-        if (ImGui::MenuItem("Resume All Scroll"))
+        if (ImGui::MenuItem("Reset Basic Display", "R"))
+            reset_plot_display();
+        if (ImGui::MenuItem("Auto-Fit Y", "A", false, subplot_mgr_ != nullptr))
+            restore_plot_autofit(workspace_state_.active_subplot_idx);
+        ImGui::Separator();
+        if (ImGui::MenuItem("Toggle Pause/Live", "Space", false, subplot_mgr_ != nullptr))
+        {
+            int slot = workspace_state_.active_subplot_idx;
+            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
+            {
+                if (subplot_mgr_->is_scroll_paused(slot))
+                    subplot_mgr_->resume_scroll(slot);
+                else
+                    subplot_mgr_->pause_scroll(slot);
+            }
+            else if (subplot_mgr_)
+            {
+                bool any_live = false;
+                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                {
+                    if (subplot_mgr_->has_plot(s) && !subplot_mgr_->is_scroll_paused(s))
+                    {
+                        any_live = true;
+                        break;
+                    }
+                }
+                if (any_live)
+                    subplot_mgr_->pause_all_scroll();
+                else
+                    subplot_mgr_->resume_all_scroll();
+            }
+        }
+        if (ImGui::MenuItem("Resume All Scroll", "Home"))
         {
             if (subplot_mgr_) subplot_mgr_->resume_all_scroll();
         }
         if (ImGui::MenuItem("Pause All Scroll"))
         {
             if (subplot_mgr_) subplot_mgr_->pause_all_scroll();
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Toggle Grid", "G", false, subplot_mgr_ != nullptr))
+        {
+            int slot = workspace_state_.active_subplot_idx;
+            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
+            {
+                auto* se = subplot_mgr_->slot_entry_pub(slot);
+                if (se && se->axes)
+                    se->axes->grid(!se->axes->grid_enabled());
+            }
         }
         ImGui::EndMenu();
     }
@@ -1197,10 +2072,10 @@ bool RosAppShell::add_topic_plot(const std::string& topic_field)
         }
     }
 
+    // If all slots are full, add a new row instead of replacing.
     if (slot < 0)
     {
-        slot = std::clamp(next_replace_slot_, 1, cap);
-        next_replace_slot_ = (slot % cap) + 1;
+        slot = subplot_mgr_->add_row();
     }
 
     const SubplotHandle h = subplot_mgr_->add_plot(slot, topic, field_path, type_name);
@@ -1334,13 +2209,30 @@ void RosAppShell::wire_panel_callbacks()
 }
 
 void RosAppShell::handle_plot_request(const FieldDragPayload& payload,
-                                      PlotTarget /*target*/)
+                                      PlotTarget target)
 {
     if (!payload.valid()) return;
 
     std::string topic_field = payload.topic_name;
     if (!payload.field_path.empty())
         topic_field += ':' + payload.field_path;
+
+    // If workspace has an active subplot selection, target that slot.
+    if (target == PlotTarget::CurrentAxes && workspace_state_.active_subplot_idx > 0
+        && subplot_mgr_)
+    {
+        const int slot = workspace_state_.active_subplot_idx;
+        std::string field = payload.field_path;
+        if (field.empty())
+            field = default_numeric_field(payload.topic_name, payload.type_name);
+        if (!field.empty())
+        {
+            subplot_mgr_->add_plot(slot, payload.topic_name, field, payload.type_name);
+            show_plot_area_ = true;
+            return;
+        }
+    }
+
     add_topic_plot(topic_field);
 }
 

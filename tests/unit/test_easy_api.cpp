@@ -241,6 +241,30 @@ TEST_F(EasyAPITest, ManualLimitsPausePresentedBufferFollow)
     EXPECT_FLOAT_EQ(yl.max, 3.0f);
 }
 
+TEST_F(EasyAPITest, ManualYLimitKeepsPresentedBufferFollow)
+{
+    auto& line = spectra::plot();
+    spectra::presented_buffer(5.0f);
+
+    for (int i = 0; i <= 10; ++i)
+        line.append(static_cast<float>(i), static_cast<float>(i));
+
+    spectra::ylim(-3.0f, 3.0f);
+    EXPECT_TRUE(spectra::gca()->is_presented_buffer_following());
+
+    auto xl_before = spectra::gca()->x_limits();
+
+    for (int i = 11; i <= 20; ++i)
+        line.append(static_cast<float>(i), static_cast<float>(i));
+
+    auto xl_after = spectra::gca()->x_limits();
+    auto yl_after = spectra::gca()->y_limits();
+
+    EXPECT_GT(xl_after.max, xl_before.max);
+    EXPECT_FLOAT_EQ(yl_after.min, -3.0f);
+    EXPECT_FLOAT_EQ(yl_after.max, 3.0f);
+}
+
 // ─── Legend ──────────────────────────────────────────────────────────────────
 
 TEST_F(EasyAPITest, LegendEnables)

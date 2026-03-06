@@ -109,8 +109,8 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         entry->subscriber = std::move(sub);
     }
 
-    // Configure scroll controller for this plot.
-    entry->scroll.set_window_s(scroll_window_s_);
+    // Configure presented_buffer on the axes for auto-scroll.
+    entry->axes->presented_buffer(static_cast<float>(scroll_window_s_));
 
     // Reserve scratch buffer up front — avoids the first-poll allocation.
     entry->drain_buf.resize(std::min(buffer_depth, MAX_DRAIN_PER_POLL));
@@ -219,28 +219,32 @@ void RosPlotManager::poll()
 
     for (auto& entry : entries_)
     {
-        // Set the time origin on first frame so that all series x-values and
-        // xlim calls use small relative seconds instead of epoch seconds
-        // (~1.7e9), which exceed float's ~7-digit precision.
-        if (!entry->scroll.has_time_origin())
-            entry->scroll.set_time_origin(wall_now);
+        // Set the time origin on first frame so that all series x-values
+        // use small relative seconds instead of epoch seconds (~1.7e9),
+        // which exceed float's ~7-digit precision.
+        if (!entry->has_time_origin)
+        {
+            entry->time_origin     = wall_now;
+            entry->has_time_origin = true;
+        }
 
-        // Advance scroll clock every frame regardless of subscription state.
-        entry->scroll.set_now(wall_now);
+        const double now_rel = wall_now - entry->time_origin;
+        entry->axes->set_presented_buffer_right_edge(now_rel);
+
+        // Prune old data regardless of subscription state.
+        if (entry->series)
+        {
+            const float prune_before =
+                static_cast<float>(now_rel - PRUNE_FACTOR * entry->axes->presented_buffer_seconds());
+            entry->series->erase_before(prune_before);
+        }
 
         if (!entry->subscriber || !entry->subscriber->is_running())
-        {
-            // Still tick scroll (applies xlim + prune) even if no new data.
-            entry->scroll.tick(entry->series, entry->axes);
             continue;
-        }
 
         const int eid = entry->extractor_id;
         if (eid < 0)
-        {
-            entry->scroll.tick(entry->series, entry->axes);
             continue;
-        }
 
         // Ensure scratch buffer is large enough (grows only).
         if (entry->drain_buf.capacity() < MAX_DRAIN_PER_POLL)
@@ -257,7 +261,7 @@ void RosPlotManager::poll()
             // Append to the LineSeries using relative time (seconds since
             // origin) so that float precision is not lost at epoch-scale
             // timestamps (~1.7e9 exceeds float's ~7-digit mantissa).
-            const double origin = entry->scroll.time_origin();
+            const double origin = entry->time_origin;
             for (size_t i = 0; i < n; ++i)
             {
                 const FieldSample& s = entry->drain_buf[i];
@@ -279,9 +283,6 @@ void RosPlotManager::poll()
                 entry->auto_fitted = true;
             }
         }
-
-        // Apply auto-scroll window and prune old data.
-        entry->scroll.tick(entry->series, entry->axes);
     }
 }
 
@@ -308,10 +309,12 @@ void RosPlotManager::set_auto_fit_samples(size_t n)
 
 void RosPlotManager::set_time_window(double seconds)
 {
+    if (seconds < MIN_WINDOW_S) seconds = MIN_WINDOW_S;
+    if (seconds > MAX_WINDOW_S) seconds = MAX_WINDOW_S;
     scroll_window_s_ = seconds;
     // Apply to all existing entries immediately.
     for (auto& e : entries_)
-        e->scroll.set_window_s(seconds);
+        e->axes->presented_buffer(static_cast<float>(seconds));
 }
 
 double RosPlotManager::time_window() const
@@ -322,53 +325,79 @@ double RosPlotManager::time_window() const
 void RosPlotManager::pause_scroll(int id)
 {
     PlotEntry* e = find_entry(id);
-    if (e)
-        e->scroll.pause();
+    if (e && e->axes)
+    {
+        // Freeze current view by setting explicit xlim (pauses follow).
+        auto lim = e->axes->x_limits();
+        e->axes->xlim(lim.min, lim.max);
+    }
 }
 
 void RosPlotManager::resume_scroll(int id)
 {
     PlotEntry* e = find_entry(id);
-    if (e)
-        e->scroll.resume();
+    if (e && e->axes)
+        e->axes->resume_follow();
 }
 
 void RosPlotManager::toggle_scroll_paused(int id)
 {
     PlotEntry* e = find_entry(id);
-    if (e)
-        e->scroll.toggle_paused();
+    if (e && e->axes)
+    {
+        if (e->axes->is_presented_buffer_following())
+        {
+            auto lim = e->axes->x_limits();
+            e->axes->xlim(lim.min, lim.max);
+        }
+        else
+        {
+            e->axes->resume_follow();
+        }
+    }
 }
 
 bool RosPlotManager::is_scroll_paused(int id) const
 {
     const PlotEntry* e = find_entry(id);
-    return e ? e->scroll.is_paused() : false;
+    return e && e->axes ? !e->axes->is_presented_buffer_following() : false;
 }
 
 void RosPlotManager::pause_all_scroll()
 {
     for (auto& e : entries_)
-        e->scroll.pause();
+    {
+        if (e->axes)
+        {
+            auto lim = e->axes->x_limits();
+            e->axes->xlim(lim.min, lim.max);
+        }
+    }
 }
 
 void RosPlotManager::resume_all_scroll()
 {
     for (auto& e : entries_)
-        e->scroll.resume();
+    {
+        if (e->axes)
+            e->axes->resume_follow();
+    }
 }
 
 size_t RosPlotManager::memory_bytes(int id) const
 {
     const PlotEntry* e = find_entry(id);
-    return e ? ScrollController::memory_bytes(e->series) : 0;
+    return (e && e->series) ? e->series->memory_bytes() : 0;
 }
 
 size_t RosPlotManager::total_memory_bytes() const
 {
     size_t total = 0;
     for (const auto& e : entries_)
-        total += ScrollController::memory_bytes(e->series);
+    {
+        if (e->series)
+            total += e->series->memory_bytes();
+    }
     return total;
 }
 

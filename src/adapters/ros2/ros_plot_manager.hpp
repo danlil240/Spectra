@@ -48,7 +48,6 @@
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
-#include "scroll_controller.hpp"
 
 namespace spectra::adapters::ros2
 {
@@ -87,7 +86,10 @@ class RosPlotManager
 {
 public:
     // Default auto-scroll time window (seconds).
-    static constexpr double DEFAULT_SCROLL_WINDOW_S = ScrollController::DEFAULT_WINDOW_S;
+    static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
+    static constexpr double MIN_WINDOW_S            = 1.0;
+    static constexpr double MAX_WINDOW_S            = 3600.0;
+    static constexpr double PRUNE_FACTOR            = 2.0;
 
     // Number of samples after which the first Y auto-fit is applied.
     static constexpr size_t AUTO_FIT_SAMPLES = 100;
@@ -164,7 +166,7 @@ public:
     // ---------- auto-scroll (C2) -----------------------------------------
 
     // Set the sliding time window width (seconds) applied to all plots.
-    // Clamped to [ScrollController::MIN_WINDOW_S, ScrollController::MAX_WINDOW_S].
+    // Clamped to [MIN_WINDOW_S, MAX_WINDOW_S].
     void set_time_window(double seconds);
     double time_window() const;
 
@@ -221,8 +223,9 @@ private:
         // Scratch buffer reused by poll() — avoids per-frame heap alloc.
         std::vector<FieldSample> drain_buf;
 
-        // Auto-scroll time window controller (one per plot).
-        ScrollController scroll;
+        // Time origin for relative timestamps (seconds since epoch).
+        double time_origin{0.0};
+        bool   has_time_origin{false};
     };
 
     // Find entry by id; returns nullptr if not found.

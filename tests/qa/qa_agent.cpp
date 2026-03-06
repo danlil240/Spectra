@@ -91,6 +91,25 @@ static uint64_t to_mb(uint64_t bytes)
     return bytes / (1024ull * 1024ull);
 }
 
+static int64_t signed_byte_delta(uint64_t before, uint64_t after)
+{
+    if (after >= before)
+        return static_cast<int64_t>(after - before);
+    return -static_cast<int64_t>(before - after);
+}
+
+static int64_t to_mb_signed(int64_t bytes)
+{
+    return bytes / (1024ll * 1024ll);
+}
+
+static std::string format_mb_delta(int64_t delta_bytes)
+{
+    const int64_t abs_bytes = (delta_bytes >= 0) ? delta_bytes : -delta_bytes;
+    const int64_t abs_mb    = to_mb_signed(abs_bytes);
+    return std::string(delta_bytes >= 0 ? "+" : "-") + std::to_string(abs_mb) + "MB";
+}
+
 // ─── Issue tracking ──────────────────────────────────────────────────────────
 enum class IssueSeverity
 {
@@ -364,6 +383,20 @@ struct Scenario
     std::string                         name;
     std::string                         description;
     std::function<bool(class QAAgent&)> run;
+};
+
+struct ScenarioMemoryMetric
+{
+    std::string                   name;
+    bool                          passed = false;
+    uint64_t                      frame_start = 0;
+    uint64_t                      frame_end = 0;
+    size_t                        rss_before_bytes = 0;
+    size_t                        rss_after_bytes = 0;
+    bool                          gpu_before_valid = false;
+    bool                          gpu_after_valid = false;
+    VulkanBackend::GpuMemoryStats gpu_before{};
+    VulkanBackend::GpuMemoryStats gpu_after{};
 };
 
 // ─── QAAgent class ───────────────────────────────────────────────────────────
@@ -771,6 +804,9 @@ class QAAgent
 
     void run_scenarios()
     {
+        static constexpr size_t   SCENARIO_RSS_WARNING_BYTES = 20ull * 1024ull * 1024ull;
+        static constexpr uint64_t SCENARIO_GPU_WARNING_BYTES = 5ull * 1024ull * 1024ull;
+
         register_scenarios();
 
         for (auto& scenario : scenarios_)
@@ -781,6 +817,10 @@ class QAAgent
             fprintf(stderr, "[QA] Running scenario: %s\n", scenario.name.c_str());
             snprintf(g_last_action, sizeof(g_last_action), "scenario:%s", scenario.name.c_str());
             uint64_t start_frame = total_frames_;
+            size_t   rss_before  = get_rss_bytes();
+
+            VulkanBackend::GpuMemoryStats gpu_before{};
+            bool                          gpu_before_valid = snapshot_gpu_memory(gpu_before);
 
             bool ok = false;
             try
@@ -803,6 +843,73 @@ class QAAgent
             {
                 scenarios_failed_++;
                 add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
+            }
+
+            size_t rss_after = get_rss_bytes();
+            if (rss_after > peak_rss_)
+                peak_rss_ = rss_after;
+
+            VulkanBackend::GpuMemoryStats gpu_after{};
+            bool                          gpu_after_valid = snapshot_gpu_memory(gpu_after);
+
+            scenario_memory_.push_back({scenario.name,
+                                        ok,
+                                        start_frame,
+                                        total_frames_,
+                                        rss_before,
+                                        rss_after,
+                                        gpu_before_valid,
+                                        gpu_after_valid,
+                                        gpu_before,
+                                        gpu_after});
+
+            const int64_t rss_delta = signed_byte_delta(rss_before, rss_after);
+            std::string   delta_log = "[QA]   Memory delta: RSS " + format_mb_delta(rss_delta)
+                                    + " (" + std::to_string(to_mb(rss_before)) + "->"
+                                    + std::to_string(to_mb(rss_after)) + "MB)";
+            if (gpu_before_valid && gpu_after_valid)
+            {
+                const int64_t gpu_delta =
+                    signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                      gpu_after.device_local_usage_bytes);
+                delta_log += ", GPU local " + format_mb_delta(gpu_delta) + " ("
+                           + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
+                           + std::to_string(to_mb(gpu_after.device_local_usage_bytes)) + "MB)";
+            }
+            else
+            {
+                delta_log += ", GPU local n/a";
+            }
+            fprintf(stderr, "%s\n", delta_log.c_str());
+
+            if (rss_after > rss_before + SCENARIO_RSS_WARNING_BYTES)
+            {
+                add_issue(IssueSeverity::Warning,
+                          "scenario_memory",
+                          "Scenario '" + scenario.name + "' retained "
+                              + format_mb_delta(rss_delta) + " RSS after teardown ("
+                              + std::to_string(to_mb(rss_before)) + "->"
+                              + std::to_string(to_mb(rss_after))
+                              + "MB, threshold +20MB)",
+                          false);
+            }
+
+            if (gpu_before_valid && gpu_after_valid
+                && gpu_after.device_local_usage_bytes
+                       > gpu_before.device_local_usage_bytes + SCENARIO_GPU_WARNING_BYTES)
+            {
+                const int64_t gpu_delta =
+                    signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                      gpu_after.device_local_usage_bytes);
+                add_issue(IssueSeverity::Warning,
+                          "scenario_gpu_memory",
+                          "Scenario '" + scenario.name + "' retained "
+                              + format_mb_delta(gpu_delta) + " GPU device-local memory after "
+                                                            "teardown ("
+                              + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
+                              + std::to_string(to_mb(gpu_after.device_local_usage_bytes))
+                              + "MB, threshold +5MB)",
+                          false);
             }
 
             if (wall_clock_exceeded())
@@ -1043,7 +1150,7 @@ class QAAgent
         ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
-        if (!ui)
+        if (!ui || !ui->imgui_ui || !ui->data_interaction || !ui->imgui_ui->is_initialized())
             return true;
 
         // 50 undoable ops (create figures)
@@ -1089,7 +1196,7 @@ class QAAgent
         ensure_lightweight_active_figure();
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
-        if (!ui)
+        if (!ui || !ui->imgui_ui || !ui->data_interaction || !ui->imgui_ui->is_initialized())
             return true;
 
         // Rapid play/pause toggling every 5 frames for 300 frames
@@ -1968,11 +2075,23 @@ class QAAgent
         pump_frames(5);
 
         auto& sel = ui->imgui_ui->selection_context();
-        if (sel.type != ui::SelectionType::Series || !sel.series)
+        bool  selection_matches_current_series = false;
+        if (sel.series)
+        {
+            for (const auto& series_ptr : ax.series())
+            {
+                if (series_ptr.get() == sel.series)
+                {
+                    selection_matches_current_series = true;
+                    break;
+                }
+            }
+        }
+        if (sel.type != ui::SelectionType::Series || !sel.series || !selection_matches_current_series)
         {
             add_issue(IssueSeverity::Error,
                       "clipboard",
-                      "series.cycle_selection did not select a series");
+                      "series.cycle_selection did not select a live series in the active axes");
             return false;
         }
         std::string first_label = sel.series->label();
@@ -2251,7 +2370,7 @@ class QAAgent
     {
 #ifdef SPECTRA_USE_IMGUI
         auto* ui = app_->ui_context();
-        if (!ui || !ui->data_interaction)
+        if (!ui || !ui->data_interaction || !ui->imgui_ui || !ui->imgui_ui->is_initialized())
             return true;
 
         // Create a figure with 3 series
@@ -3653,6 +3772,35 @@ class QAAgent
 
             named_screenshot("51_empty_figure_after_delete");
         }
+
+        // ── 52. Legend overflow (8+ series) ────────────────────────────────
+        {
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(100);
+
+            // Create 8 series to test legend overflow behavior
+            for (int series = 0; series < 8; ++series)
+            {
+                std::vector<float> y(100);
+                for (int i = 0; i < 100; ++i)
+                {
+                    x[i] = static_cast<float>(i) * 0.1f;
+                    y[i] = std::sin(x[i] + series * 0.5f) * (1.0f + series * 0.2f);
+                }
+                ax.line(x, y).label("Series " + std::to_string(series + 1) + " (long name to test wrapping)");
+            }
+
+            ax.title("Legend Overflow Test (8 series)");
+            ax.xlabel("Time (s)");
+            ax.ylabel("Amplitude");
+
+            // Ensure legend is visible
+            fig.legend().visible = true;
+
+            pump_frames(15);
+            named_screenshot("52_legend_overflow_8_series");
+        }
 #endif
 
         // ── Summary ─────────────────────────────────────────────────────
@@ -3661,7 +3809,7 @@ class QAAgent
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 52;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 53;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,
@@ -4178,6 +4326,19 @@ class QAAgent
             peak_gpu_memory_.budget_extension_enabled || stats.budget_extension_enabled;
     }
 
+    bool snapshot_gpu_memory(VulkanBackend::GpuMemoryStats& stats)
+    {
+        sample_gpu_memory();
+        if (!gpu_memory_tracking_available_)
+        {
+            stats = {};
+            return false;
+        }
+
+        stats = current_gpu_memory_;
+        return true;
+    }
+
     // ── Per-frame monitoring ─────────────────────────────────────────────
     void check_frame(const App::StepResult& result)
     {
@@ -4334,6 +4495,36 @@ class QAAgent
             }
             out << "\n";
 
+            if (!scenario_memory_.empty())
+            {
+                out << "Per-Scenario Memory Retention:\n";
+                out << "  Thresholds: RSS > +20MB, GPU device-local > +5MB\n";
+                for (const auto& metric : scenario_memory_)
+                {
+                    const int64_t rss_delta =
+                        signed_byte_delta(metric.rss_before_bytes, metric.rss_after_bytes);
+                    out << "  " << metric.name << ": RSS " << format_mb_delta(rss_delta) << " ("
+                        << to_mb(metric.rss_before_bytes) << "->"
+                        << to_mb(metric.rss_after_bytes) << "MB)";
+                    if (metric.gpu_before_valid && metric.gpu_after_valid)
+                    {
+                        const int64_t gpu_delta =
+                            signed_byte_delta(metric.gpu_before.device_local_usage_bytes,
+                                              metric.gpu_after.device_local_usage_bytes);
+                        out << ", GPU local " << format_mb_delta(gpu_delta) << " ("
+                            << to_mb(metric.gpu_before.device_local_usage_bytes) << "->"
+                            << to_mb(metric.gpu_after.device_local_usage_bytes) << "MB)";
+                    }
+                    else
+                    {
+                        out << ", GPU local n/a";
+                    }
+                    out << ", frames=" << (metric.frame_end - metric.frame_start)
+                        << ", status=" << (metric.passed ? "PASS" : "FAIL") << "\n";
+                }
+                out << "\n";
+            }
+
             out << "Validation:\n";
             out << "  Monitor active: " << (validation_active ? "yes" : "no") << "\n";
             out << "  Errors: " << validation_errors << "\n";
@@ -4447,6 +4638,36 @@ class QAAgent
             out << "    \"error_count\": " << validation_errors << ",\n";
             out << "    \"warning_count\": " << validation_warnings << "\n";
             out << "  },\n";
+            out << "  \"scenario_memory\": [\n";
+            for (size_t i = 0; i < scenario_memory_.size(); ++i)
+            {
+                const auto& metric = scenario_memory_[i];
+                const int64_t rss_delta_mb =
+                    to_mb_signed(signed_byte_delta(metric.rss_before_bytes, metric.rss_after_bytes));
+                out << "    {\"name\": \"" << metric.name << "\", \"passed\": "
+                    << (metric.passed ? "true" : "false") << ", \"frames\": "
+                    << (metric.frame_end - metric.frame_start) << ", \"rss_start_mb\": "
+                    << to_mb(metric.rss_before_bytes) << ", \"rss_end_mb\": "
+                    << to_mb(metric.rss_after_bytes) << ", \"rss_delta_mb\": " << rss_delta_mb
+                    << ", \"gpu_memory_tracked\": "
+                    << ((metric.gpu_before_valid && metric.gpu_after_valid) ? "true" : "false");
+                if (metric.gpu_before_valid && metric.gpu_after_valid)
+                {
+                    const int64_t gpu_delta_mb = to_mb_signed(
+                        signed_byte_delta(metric.gpu_before.device_local_usage_bytes,
+                                          metric.gpu_after.device_local_usage_bytes));
+                    out << ", \"gpu_device_local_start_mb\": "
+                        << to_mb(metric.gpu_before.device_local_usage_bytes)
+                        << ", \"gpu_device_local_end_mb\": "
+                        << to_mb(metric.gpu_after.device_local_usage_bytes)
+                        << ", \"gpu_device_local_delta_mb\": " << gpu_delta_mb;
+                }
+                out << "}";
+                if (i + 1 < scenario_memory_.size())
+                    out << ",";
+                out << "\n";
+            }
+            out << "  ],\n";
             out << "  \"issues\": [\n";
             for (size_t i = 0; i < issues_.size(); ++i)
             {
@@ -4521,6 +4742,7 @@ class QAAgent
 
     std::vector<QAIssue>  issues_;
     std::vector<Scenario> scenarios_;
+    std::vector<ScenarioMemoryMetric> scenario_memory_;
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;

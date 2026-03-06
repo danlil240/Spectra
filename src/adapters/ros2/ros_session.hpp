@@ -145,7 +145,7 @@ struct RosSession
     std::string layout{"default"};
 
     // Subplot grid.
-    int subplot_rows{4};
+    int subplot_rows{1};
     int subplot_cols{1};
 
     // Global auto-scroll time window (seconds).

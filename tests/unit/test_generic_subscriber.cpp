@@ -443,6 +443,7 @@ TEST_F(GenericSubscriberTest, Float64MultiplePublishedValues)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     // Wait for all samples.
@@ -582,6 +583,7 @@ TEST_F(GenericSubscriberTest, PopBulk)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i) * 10.0;
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     bool got = spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
@@ -639,6 +641,7 @@ TEST_F(GenericSubscriberTest, StatsAfterMessages)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
@@ -740,6 +743,7 @@ TEST_F(GenericSubscriberTest, RingBufferOverflowDropsOldest)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(1ms);
     }
 
     // Give executor time to drain incoming queue.

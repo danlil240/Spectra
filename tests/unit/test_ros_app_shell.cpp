@@ -85,10 +85,38 @@ TEST(RosAppConfig, Defaults)
     EXPECT_TRUE(cfg.initial_topics.empty());
     EXPECT_TRUE(cfg.bag_file.empty());
     EXPECT_DOUBLE_EQ(cfg.time_window_s, 30.0);
-    EXPECT_EQ(cfg.subplot_rows, 4);
+    EXPECT_EQ(cfg.subplot_rows, 1);
     EXPECT_EQ(cfg.subplot_cols, 1);
     EXPECT_EQ(cfg.window_width,  1600u);
     EXPECT_EQ(cfg.window_height,  900u);
+}
+
+TEST(StartupPolicy, DisablesValidationWhenEnvIsUnset)
+{
+    EXPECT_TRUE(should_skip_debug_validation_for_ros_app(nullptr, nullptr));
+}
+
+TEST(StartupPolicy, RespectsExplicitNoValidationEnv)
+{
+    EXPECT_TRUE(should_skip_debug_validation_for_ros_app("1", nullptr));
+    EXPECT_FALSE(should_skip_debug_validation_for_ros_app("0", nullptr));
+}
+
+TEST(StartupPolicy, EnableValidationEnvOverridesDefault)
+{
+    EXPECT_FALSE(should_skip_debug_validation_for_ros_app(nullptr, "1"));
+    EXPECT_TRUE(should_skip_debug_validation_for_ros_app(nullptr, "0"));
+}
+
+TEST(StartupPolicy, TrimsVulkanLoaderEnvironmentByDefault)
+{
+    EXPECT_TRUE(should_trim_vulkan_loader_environment_for_ros_app(nullptr));
+}
+
+TEST(StartupPolicy, PreserveLoaderEnvDisablesTrim)
+{
+    EXPECT_FALSE(should_trim_vulkan_loader_environment_for_ros_app("1"));
+    EXPECT_TRUE(should_trim_vulkan_loader_environment_for_ros_app("0"));
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +290,7 @@ TEST(ParseArgs, WindowSecondsClampedToMin)
     std::string err;
     auto cfg = parse_args(static_cast<int>(ptrs.size()), ptrs.data(), err);
     EXPECT_TRUE(err.empty());
-    EXPECT_DOUBLE_EQ(cfg.time_window_s, ScrollController::MIN_WINDOW_S);
+    EXPECT_DOUBLE_EQ(cfg.time_window_s, RosPlotManager::MIN_WINDOW_S);
 }
 
 TEST(ParseArgs, WindowSecondsClampedToMax)
@@ -272,7 +300,7 @@ TEST(ParseArgs, WindowSecondsClampedToMax)
     std::string err;
     auto cfg = parse_args(static_cast<int>(ptrs.size()), ptrs.data(), err);
     EXPECT_TRUE(err.empty());
-    EXPECT_DOUBLE_EQ(cfg.time_window_s, ScrollController::MAX_WINDOW_S);
+    EXPECT_DOUBLE_EQ(cfg.time_window_s, RosPlotManager::MAX_WINDOW_S);
 }
 
 TEST(ParseArgs, InvalidWindowSeconds)

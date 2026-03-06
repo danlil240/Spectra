@@ -452,7 +452,7 @@ TEST_F(RosPlotManagerTest, PollFloat64SingleValue)
     ASSERT_TRUE(h.valid());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 3.14;
@@ -478,7 +478,7 @@ TEST_F(RosPlotManagerTest, PollFloat64MultipleValues)
     ASSERT_TRUE(h.valid());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 20);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     const int N = 10;
     for (int i = 0; i < N; ++i)
@@ -486,6 +486,7 @@ TEST_F(RosPlotManagerTest, PollFloat64MultipleValues)
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     bool got_data = spin_until([&]() {
@@ -507,7 +508,7 @@ TEST_F(RosPlotManagerTest, PollXAxisIsTimeSeconds)
     ASSERT_TRUE(h.valid());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 1.0;
@@ -533,7 +534,7 @@ TEST_F(RosPlotManagerTest, PollTwistLinearX)
     ASSERT_TRUE(h.valid());
 
     auto pub = pub_node_->create_publisher<geometry_msgs::msg::Twist>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     geometry_msgs::msg::Twist msg;
     msg.linear.x = 2.5;
@@ -560,7 +561,7 @@ TEST_F(RosPlotManagerTest, PollMultiplePlotsSameTopicDifferentFields)
     ASSERT_TRUE(hy.valid());
 
     auto pub = pub_node_->create_publisher<geometry_msgs::msg::Twist>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     geometry_msgs::msg::Twist msg;
     msg.linear.x = 1.1;
@@ -598,7 +599,7 @@ TEST_F(RosPlotManagerTest, OnDataCallbackFired)
     });
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 7.77;
@@ -626,7 +627,7 @@ TEST_F(RosPlotManagerTest, OnDataCallbackReceivesCorrectPlotId)
     });
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 1.0;
@@ -655,13 +656,14 @@ TEST_F(RosPlotManagerTest, AutoFitNotTriggeredBeforeThreshold)
     ASSERT_TRUE(h.valid());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    std::this_thread::sleep_for(100ms);
+    spin_until([&]{ return pub->get_subscription_count() >= 1; });
 
     for (int i = 0; i < 5; ++i)
     {
         std_msgs::msg::Float64 msg;
         msg.data = static_cast<double>(i);
         pub->publish(msg);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     spin_until([&]() {

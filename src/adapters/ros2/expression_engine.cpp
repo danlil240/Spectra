@@ -338,8 +338,9 @@ void ExpressionEngine::set_variables(const std::unordered_map<std::string, doubl
 
 void ExpressionEngine::reset_variables()
 {
-    for (auto& kv : var_values_)
-        kv.second = 0.0;
+    var_values_.clear();
+    for (const auto& name : variables_)
+        var_values_[name] = 0.0;
 }
 
 // ---------------------------------------------------------------------------

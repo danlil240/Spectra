@@ -104,6 +104,13 @@ class Figure
     int grid_rows() const { return grid_rows_; }
     int grid_cols() const { return grid_cols_; }
 
+    // Explicitly set grid dimensions (e.g. after removing rows/cols).
+    void set_grid(int rows, int cols)
+    {
+        if (rows >= 1) grid_rows_ = rows;
+        if (cols >= 1) grid_cols_ = cols;
+    }
+
     // Animation property accessors
     float anim_fps() const { return anim_fps_; }
     float anim_duration() const { return anim_duration_; }

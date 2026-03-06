@@ -606,6 +606,15 @@ void register_standard_commands(const CommandBindings& b)
         "Save Workspace",
         [&]()
         {
+            WorkspaceData::PanelState panels;
+            if (imgui_ui)
+            {
+                auto& lm                = imgui_ui->get_layout_manager();
+                panels.inspector_visible = lm.is_inspector_visible();
+                panels.inspector_width   = lm.inspector_width();
+                panels.nav_rail_expanded = lm.is_nav_rail_expanded();
+            }
+
             std::vector<Figure*> figs;
             for (auto id : fig_mgr.figure_ids())
             {
@@ -616,9 +625,9 @@ void register_standard_commands(const CommandBindings& b)
             auto data = Workspace::capture(figs,
                                            fig_mgr.active_index(),
                                            ui::ThemeManager::instance().current_theme_name(),
-                                           imgui_ui->get_layout_manager().is_inspector_visible(),
-                                           imgui_ui->get_layout_manager().inspector_width(),
-                                           imgui_ui->get_layout_manager().is_nav_rail_expanded());
+                                           panels.inspector_visible,
+                                           panels.inspector_width,
+                                           panels.nav_rail_expanded);
             if (data_interaction)
             {
                 data.interaction.crosshair_enabled = data_interaction->crosshair_active();
@@ -819,14 +828,19 @@ void register_standard_commands(const CommandBindings& b)
         "Cycle Series Selection",
         [&]()
         {
-            if (!active_figure)
+            Figure* current_fig = fig_mgr.active_figure();
+            if (!current_fig)
+                current_fig = active_figure;
+            if (!current_fig)
+                return;
+            if (!imgui_ui || !imgui_ui->is_initialized())
                 return;
             // Find the first non-empty 2D axes
             Axes* target_ax  = nullptr;
             int   target_idx = -1;
-            for (size_t i = 0; i < active_figure->axes().size(); ++i)
+            for (size_t i = 0; i < current_fig->axes().size(); ++i)
             {
-                auto* ax = active_figure->axes_mut()[i].get();
+                auto* ax = current_fig->axes_mut()[i].get();
                 if (ax && !ax->series().empty())
                 {
                     target_ax  = ax;
@@ -847,7 +861,7 @@ void register_standard_commands(const CommandBindings& b)
             }
 
             auto* s = target_ax->series()[next_s_idx].get();
-            imgui_ui->select_series(active_figure, target_ax, target_idx, s, next_s_idx);
+            imgui_ui->select_series(current_fig, target_ax, target_idx, s, next_s_idx);
             imgui_ui->set_inspector_section_series();
         },
         "Tab",
@@ -859,6 +873,8 @@ void register_standard_commands(const CommandBindings& b)
         "Copy Series",
         [&]()
         {
+            if (!imgui_ui || !imgui_ui->is_initialized())
+                return;
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series || !imgui_ui->series_clipboard())
             {
@@ -890,6 +906,8 @@ void register_standard_commands(const CommandBindings& b)
         "Cut Series",
         [&]()
         {
+            if (!imgui_ui || !imgui_ui->is_initialized())
+                return;
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series || !imgui_ui->series_clipboard())
                 return;
@@ -925,6 +943,8 @@ void register_standard_commands(const CommandBindings& b)
         "Paste Series",
         [&]()
         {
+            if (!imgui_ui || !imgui_ui->is_initialized())
+                return;
             if (!imgui_ui->series_clipboard() || !imgui_ui->series_clipboard()->has_data())
             {
                 SPECTRA_LOG_DEBUG("clipboard", "series.paste: no clipboard or no data");
@@ -972,6 +992,8 @@ void register_standard_commands(const CommandBindings& b)
         "Delete Series",
         [&]()
         {
+            if (!imgui_ui || !imgui_ui->is_initialized())
+                return;
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series)
                 return;
@@ -993,7 +1015,12 @@ void register_standard_commands(const CommandBindings& b)
     cmd_registry.register_command(
         "series.deselect",
         "Deselect Series",
-        [&]() { imgui_ui->deselect_series(); },
+        [&]()
+        {
+            if (!imgui_ui || !imgui_ui->is_initialized())
+                return;
+            imgui_ui->deselect_series();
+        },
         "Escape",
         "Series");
 

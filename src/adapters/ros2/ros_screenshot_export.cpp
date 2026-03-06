@@ -88,8 +88,9 @@ void RosScreenshotExport::set_frame_render_callback(FrameRenderCallback cb)
 // Screenshot
 // ---------------------------------------------------------------------------
 
-ScreenshotResult RosScreenshotExport::take_screenshot(const ScreenshotConfig& cfg)
+ScreenshotResult RosScreenshotExport::take_screenshot(const ScreenshotConfig& cfg_in)
 {
+    ScreenshotConfig cfg = cfg_in;
     ScreenshotResult result;
     result.path   = cfg.path;
     result.width  = cfg.width;
@@ -104,6 +105,13 @@ ScreenshotResult RosScreenshotExport::take_screenshot(const ScreenshotConfig& cf
         last_screenshot_ = result;
         return result;
     }
+    // Fall back to dialog config defaults when caller passes 0.
+    if (cfg.width == 0)
+        cfg.width = dialog_cfg_.default_width;
+    if (cfg.height == 0)
+        cfg.height = dialog_cfg_.default_height;
+    result.width  = cfg.width;
+    result.height = cfg.height;
     if (cfg.width == 0 || cfg.height == 0)
     {
         result.error = "Screenshot dimensions must be > 0";

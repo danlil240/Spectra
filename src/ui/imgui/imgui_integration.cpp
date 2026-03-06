@@ -3978,9 +3978,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
                         if (ax && ax->has_presented_buffer())
                         {
                             AxisLimits xlim = ax->x_limits();
-                            AxisLimits ylim = ax->y_limits();
                             ax->xlim(xlim.min, xlim.max);
-                            ax->ylim(ylim.min, ylim.max);
                         }
                     }
                 }
@@ -4422,8 +4420,12 @@ void ImGuiIntegration::draw_curve_editor_panel()
 
 void ImGuiIntegration::select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
 {
+    bool shift_down = false;
+    if (initialized_ && ImGui::GetCurrentContext() == imgui_context_)
+        shift_down = ImGui::GetIO().KeyShift;
+
     // Shift+click: toggle in multi-selection (add/remove without clearing others)
-    if (ImGui::GetIO().KeyShift)
+    if (shift_down)
     {
         toggle_series_in_selection(fig, ax, static_cast<AxesBase*>(ax), ax_idx, s, s_idx);
         return;

@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-03-01 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653, 42 (perf-agent repro), 27243840318184
+> Last updated: 2026-03-05 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653, 42 (perf-agent repro), 27243840318184, 42 (memory-agent telemetry), 42 (real desktop perf), 35619058242308 (real desktop perf random)
 
 ---
 
@@ -288,6 +288,32 @@
 
 ---
 
+## Session 11 Findings (2026-03-05, Real Desktop Performance Workflow)
+
+### Run Summary
+
+| Metric | Seed 42 | Random seed |
+|--------|---------|-------------|
+| Command | `--seed 42 --duration 120` | `--duration 60` |
+| Exit code | 0 | 0 |
+| Seed | 42 | 35619058242308 |
+| Frames | 7,319 | 4,813 |
+| Scenarios | 20/20 passed | 20/20 passed |
+| Errors/Critical | 0/0 | 0/0 |
+| Validation monitor | inactive (`0/0`) | inactive (`0/0`) |
+| Peak RSS | 360MB | 360MB |
+| Max frame | 187.452ms | 115.108ms |
+| Scenario retention warnings | 3 | 2 |
+
+### Analysis
+- The sandbox-only GLFW/display failures from the earlier triage did not reproduce on the real desktop/GPU. Clipboard, 3D, and figure-removal scenarios all passed cleanly once the QA agent ran against a real display instead of the sandbox.
+- Stable remaining signal still maps to existing open issues: frame-time spikes during heavy resize/multi-window churn and RSS retention in `massive_datasets` (`+53MB`) plus `command_exhaustion` (`+63MB`), with deterministic-only `multi_window_lifecycle` (`+23MB`).
+- H4-style ~1s acquire stalls were not reproduced on the RTX 3080 Ti in this session. That reduces urgency for the exact earlier repro path, but it does not close H4 because resize churn still generates real spikes.
+- Validation monitoring was inactive in both real desktop runs, so "0 validation errors" here only means "not monitored", not "V2 class issues disproved".
+- Full `ctest --test-dir build --output-on-failure` is broadly red and later hung in `unit_test_param_editor_panel`; targeted tests around the touched paths passed (`unit_test_figure_serializer`, `unit_test_multi_window`, `unit_test_window_manager`, `unit_test_series_clipboard`).
+
+---
+
 ## P1 — Important Improvements
 
 ### 4. Add Vulkan Validation Layer Monitoring
@@ -308,7 +334,8 @@
 ### 7. Memory Growth Tracking Needs Baseline Stabilization
 - **Problem:** RSS grows 80-115MB over session. Unclear if this is leak or expected (figure data, GPU allocations, ImGui atlas).
 - **Progress (2026-03-01):** Reduced retained RSS contamination by tearing down windows/figures after `command_exhaustion` in `tests/qa/qa_agent.cpp`; full `--no-fuzz` peak dropped `529MB -> 337MB` for seed 42. Follow-up run remains `+160MB` (`178->338`) with targeted isolation showing `command_exhaustion` at `+115MB` and other sampled scenarios at `0–4MB`.
-- **Remaining fix:** (a) Take RSS baseline after first 100 frames. (b) Track RSS per-scenario directly in report. (c) Add a dedicated `--leak-check` summary mode.
+- **Progress update (2026-03-05):** QA reports now record per-scenario RSS and GPU device-local deltas directly in both `qa_report.txt` and `qa_report.json`, with automatic warnings above `+20MB` RSS and `+5MB` GPU-local retention. Smoke verified on `rapid_figure_lifecycle` (`seed 42`).
+- **Remaining fix:** (a) Take RSS baseline after first 100 frames. (b) Add a dedicated `--leak-check` summary mode. (c) Add true headless/virtual-display coverage so window-dependent scenarios such as `command_exhaustion` can be profiled in sandbox/CI.
 - **Priority:** P1 — 🟡 In progress.
 
 ### 16. Add Acquire/Present Stall Diagnostics for ~1s Hitches
@@ -320,6 +347,11 @@
 - **Problem (Session 10, seed 42):** stale-figure crashes surfaced as different top stacks (`LegendInteraction::draw`, `Crosshair::draw_all_axes`) but share one root cause class. Manual triage had to infer the common pattern.
 - **Fix:** Add crash-signature grouping in QA agent report: classify stacks touching `DataInteraction::draw_overlays`, `LegendInteraction`, or `Crosshair::draw_all_axes` under one `overlay_stale_figure` bucket, and emit targeted repro hints.
 - **Priority:** P1 — faster root-cause convergence for UAF/stale-pointer families.
+
+### 18. Detect Sandboxed or Invalid Display Environments Before GLFW QA
+- **Problem (Session 11, 2026-03-05):** sandboxed runs produced false GLFW/display failures, bogus clipboard/3D crash signatures, and misleading SIGSEGV triage. The same workflow passed cleanly on the real desktop/GPU.
+- **Fix:** Add a startup environment probe for `DISPLAY`/`WAYLAND_DISPLAY` plus a minimal GLFW create-show-pump smoke check. If the environment is invalid or sandboxed, fail fast or auto-skip GLFW-dependent scenarios and report `environment_invalid` instead of a product failure.
+- **Priority:** P1 — protects QA signal integrity and avoids chasing fake crashes.
 
 ---
 
@@ -358,6 +390,7 @@
   - QA reports now include GPU memory metrics in both `qa_report.txt` and `qa_report.json` (initial/peak usage + budget for all heaps and device-local heaps).
   - Smoke verified with `--scenario rapid_figure_lifecycle --no-fuzz` (`seed 42`), reporting device-local `28MB` usage against `10966MB` budget.
 - **Progress update (2026-03-01 follow-up):** Full `--no-fuzz --duration 60` and targeted isolation runs now completed. Device-local GPU usage stayed flat (`28MB -> 28MB`) including `command_exhaustion`.
+- **Progress update (2026-03-05):** Per-scenario device-local GPU deltas are now emitted at scenario teardown in both report formats, so GPU retention regressions surface without manual VMA-budget greps.
 - **Remaining fix:** Extend validation to known multi-window validation-error paths (`window_resize_glfw`, `window_drag_stress`) after Vulkan layout issues are addressed.
 - **Priority:** P2 — 🟡 In progress.
 

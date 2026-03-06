@@ -1379,6 +1379,16 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     float factor = std::pow(1.0f / (1.0f + ZOOM_FACTOR), static_cast<float>(y_offset));
     factor       = std::clamp(factor, 0.1f, 10.0f);
 
+    // Live views keep following while the user changes the visible history
+    // span with the wheel. Manual Y overrides are handled separately.
+    if (active_axes_->is_presented_buffer_following() && active_axes_->has_presented_buffer())
+    {
+        float seconds = active_axes_->presented_buffer_seconds();
+        seconds       = std::clamp(seconds * factor, 0.1f, 86400.0f);
+        active_axes_->presented_buffer(seconds);
+        return;
+    }
+
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
     // Use double arithmetic to preserve precision at deep zoom levels.

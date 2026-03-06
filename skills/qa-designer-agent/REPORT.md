@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-01 Session 8 |
-| Screenshot count confirmed | 52 |
+| Last run | 2026-03-05 Session 9 |
+| Screenshot count confirmed | 53 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
 | Open P2+ issues | 0 |
 | Last golden refresh | — |
-| SKILL.md last self-updated | 2026-03-01 (coverage + backlog update for DES-I1) |
+| SKILL.md last self-updated | 2026-03-05 (coverage + backlog update for DES-I2) |
 
 ---
 
@@ -23,8 +23,54 @@
 <!-- One line per self-update: date | section changed | reason -->
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-05 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `52_legend_overflow_8_series`, updated expected count to 53, and marked DES-I2 done |
 | 2026-03-01 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `51_empty_figure_after_delete`, updated expected count to 52, and marked DES-I1 done |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-05 19:03 (Session 9)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260305` (baseline), `/tmp/spectra_qa_design_after_20260305` (after improvement)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 12.2s baseline (1039 frames), 12.5s after (1055 frames)
+- Frame time (after): avg=8.0ms p95=38.9ms max=107.4ms spikes=60
+- Memory (after): initial=156MB peak=183MB
+
+**Screenshot audit**
+- Expected: 53 (after improvement)
+- Captured: 53
+- Missing: none
+- New screenshot: `52_legend_overflow_8_series`
+
+**Issues found**
+- No new visual defects identified in automated capture artifacts.
+- Manual full-image review was not completed; this session focused on deterministic coverage expansion.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I2 | `tests/qa/qa_agent.cpp` | Added design-review scenario `52_legend_overflow_8_series` with 8 series and long names to test legend overflow/wrapping behavior |
+
+**Goldens updated**
+- none
+
+**ctest**
+- Build succeeded, no regressions detected
+
+**Self-updates to SKILL.md**
+- Updated expected design screenshot count `52` → `53`
+- Added coverage row `52_legend_overflow_8_series`
+- Marked `DES-I2` as completed in Improvement Backlog
+
+## Self-Improvement — 2026-03-05
+Improvement: Added design-review screenshot `52_legend_overflow_8_series` to verify legend handles 8+ series with long names without overflow/overlap issues.
+Motivation: Previous coverage only tested legends with 1-4 series, which could miss regressions in legend overflow behavior, text wrapping, or scrollbar appearance when many series are present.
+Change: `tests/qa/qa_agent.cpp` (new scenario + expected count), `skills/qa-designer-agent/SKILL.md` (coverage table/count + backlog status).
+Next gap: Add screenshot for split view with mismatched axis ranges (`53_split_view_mismatched_zoom`) to verify no visual bleed between panes with different zoom levels.
 
 ---
 

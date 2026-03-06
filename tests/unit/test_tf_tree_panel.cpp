@@ -5,6 +5,7 @@
 // No rclcpp runtime required — uses GTest::gtest_main.
 
 #include <gtest/gtest.h>
+#include <chrono>
 
 #include "ui/tf_tree_panel.hpp"
 
@@ -13,6 +14,15 @@ using namespace spectra::adapters::ros2;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+static uint64_t steady_now_ns()
+{
+    using namespace std::chrono;
+    return static_cast<uint64_t>(
+        duration_cast<nanoseconds>(
+            steady_clock::now().time_since_epoch())
+        .count());
+}
 
 static uint64_t ms_to_ns(uint64_t ms) { return ms * 1'000'000ULL; }
 
@@ -284,7 +294,7 @@ TEST(TfTreePanel_Stale, FreshTransformNotStale)
 {
     TfTreePanel panel;
     panel.set_stale_threshold_ms(500);
-    const uint64_t now = 1'000'000'000ULL;  // 1 second in ns
+    const uint64_t now = steady_now_ns();
     auto ts = make_ts("map", "base_link");
     ts.recv_ns = now;
     panel.inject_transform(ts);

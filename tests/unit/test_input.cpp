@@ -168,6 +168,38 @@ TEST_F(InputHandlerTest, RightDragExtendsPresentedBuffer)
     EXPECT_GT(axes().presented_buffer_seconds(), before_seconds);
 }
 
+TEST_F(InputHandlerTest, ScrollAdjustsPresentedBufferWithoutPausingFollow)
+{
+    auto& line = axes().line();
+    for (int i = 0; i <= 200; ++i)
+    {
+        float x = static_cast<float>(i) * 0.1f;
+        line.append(x, std::sin(x));
+    }
+
+    axes().presented_buffer(5.0f);
+    float before_seconds = axes().presented_buffer_seconds();
+
+    auto& vp = axes().viewport();
+    float cx = vp.x + vp.w * 0.5f;
+    float cy = vp.y + vp.h * 0.5f;
+
+    handler_.on_scroll(0.0, 1.0, cx, cy);
+
+    EXPECT_TRUE(axes().is_presented_buffer_following());
+    EXPECT_LT(axes().presented_buffer_seconds(), before_seconds);
+}
+
+TEST_F(InputHandlerTest, PresentedBufferCanFollowExplicitClock)
+{
+    axes().presented_buffer(5.0f);
+    axes().set_presented_buffer_right_edge(42.0);
+
+    auto xlim = axes().x_limits();
+    EXPECT_DOUBLE_EQ(xlim.min, 37.0);
+    EXPECT_DOUBLE_EQ(xlim.max, 42.0);
+}
+
 TEST_F(InputHandlerTest, RightDragTwentyDegreesIsMostlyX)
 {
     auto& vp = axes().viewport();
@@ -222,6 +254,24 @@ TEST_F(InputHandlerTest, RightDragSeventyDegreesIsMostlyY)
     EXPECT_GT(dx_range, 0.0f);
     EXPECT_GT(dy_range, 0.0f);
     EXPECT_GT(dy_range, dx_range);
+}
+
+TEST_F(InputHandlerTest, RightDragCanStartFromLeftGutterWhenAxesAreAlreadyActive)
+{
+    auto& vp = axes().viewport();
+    float press_x = vp.x - 24.0f;
+    float press_y = vp.y + vp.h * 0.5f;
+
+    auto  ylim_before   = axes().y_limits();
+    float yrange_before = ylim_before.max - ylim_before.min;
+
+    handler_.on_mouse_button(1, 1, 0, press_x, press_y);
+    handler_.on_mouse_move(press_x, press_y + 50.0f);
+    handler_.on_mouse_button(1, 0, 0, press_x, press_y + 50.0f);
+
+    auto  ylim_after   = axes().y_limits();
+    float yrange_after = ylim_after.max - ylim_after.min;
+    EXPECT_GT(yrange_after, yrange_before);
 }
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────

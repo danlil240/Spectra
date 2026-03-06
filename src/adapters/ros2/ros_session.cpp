@@ -801,7 +801,7 @@ bool RosSessionManager::deserialize(const std::string& json,
     out.node_ns       = json_get_string(json, "node_ns");
     out.layout        = json_get_string(json, "layout");
     if (out.layout.empty()) out.layout = "default";
-    out.subplot_rows  = json_get_int(json, "subplot_rows", 4);
+    out.subplot_rows  = json_get_int(json, "subplot_rows", 1);
     out.subplot_cols  = json_get_int(json, "subplot_cols", 1);
     out.time_window_s = json_get_double(json, "time_window_s", 30.0);
     out.nav_rail_expanded = json_get_bool(json, "nav_rail_expanded", false);

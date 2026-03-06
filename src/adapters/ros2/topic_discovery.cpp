@@ -101,7 +101,7 @@ void TopicDiscovery::start()
             }
             else
             {
-                do_refresh();
+                do_refresh(/*full_enrich=*/false);
             }
 
             // Sleep for interval_, but wake early on stop.
@@ -129,7 +129,7 @@ void TopicDiscovery::stop()
 
 void TopicDiscovery::refresh()
 {
-    do_refresh();
+    do_refresh(/*full_enrich=*/true);
 }
 
 // ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ void TopicDiscovery::set_refresh_done_callback(RefreshDoneCallback cb)
 // internal refresh
 // ---------------------------------------------------------------------------
 
-void TopicDiscovery::do_refresh()
+void TopicDiscovery::do_refresh(bool full_enrich)
 {
     bool expected = false;
     if (!refresh_in_progress_.compare_exchange_strong(expected, true,
@@ -422,13 +422,16 @@ void TopicDiscovery::do_refresh()
         enrich_cooldown_ = 8;   // skip enrichment for 8 cycles (~16 s)
     }
 
-    if (enrich_cooldown_ > 0)
+    if (enrich_cooldown_ > 0 && !full_enrich)
     {
         --enrich_cooldown_;
     }
     else
     {
-        enrich_batch();
+        if (full_enrich)
+            enrich_all();
+        else
+            enrich_batch();
     }
 
     refresh_in_progress_.store(false, std::memory_order_release);
@@ -472,9 +475,6 @@ void TopicDiscovery::enrich_batch()
 
     for (size_t i = 0; i < batch; ++i)
     {
-        if (!running_.load(std::memory_order_acquire))
-            return;
-
         const size_t idx  = (start + i) % total;
         const auto&  name = names[idx];
 
@@ -482,9 +482,6 @@ void TopicDiscovery::enrich_batch()
             static_cast<int>(node_->count_publishers(name));
         const int sub_count =
             static_cast<int>(node_->count_subscribers(name));
-
-        if (!running_.load(std::memory_order_acquire))
-            return;
 
         QosInfo qos;
         auto pub_infos = node_->get_publishers_info_by_topic(name);
@@ -512,6 +509,48 @@ void TopicDiscovery::enrich_batch()
     }
 
     enrich_index_ = (start + batch) % total;
+}
+
+void TopicDiscovery::enrich_all()
+{
+    std::vector<std::string> names;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        names.reserve(topic_map_.size());
+        for (const auto& [name, _] : topic_map_)
+            names.push_back(name);
+    }
+
+    for (const auto& name : names)
+    {
+        const int pub_count =
+            static_cast<int>(node_->count_publishers(name));
+        const int sub_count =
+            static_cast<int>(node_->count_subscribers(name));
+
+        QosInfo qos;
+        auto pub_infos = node_->get_publishers_info_by_topic(name);
+        if (!pub_infos.empty())
+        {
+            const rmw_qos_profile_t& rmw_qos =
+                pub_infos.front().qos_profile().get_rmw_qos_profile();
+            qos.reliability = qos_reliability_str(rmw_qos.reliability);
+            qos.durability  = qos_durability_str(rmw_qos.durability);
+            qos.history     = qos_history_str(rmw_qos.history);
+            qos.depth       = static_cast<int>(rmw_qos.depth);
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = topic_map_.find(name);
+            if (it != topic_map_.end())
+            {
+                it->second.publisher_count  = pub_count;
+                it->second.subscriber_count = sub_count;
+                it->second.qos              = qos;
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

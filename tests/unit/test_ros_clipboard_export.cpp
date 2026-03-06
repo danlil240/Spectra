@@ -39,6 +39,10 @@ static std::vector<std::vector<std::string>> parse_tsv(const std::string& text)
         std::string cell;
         while (std::getline(row_stream, cell, '\t'))
             cols.push_back(cell);
+        // Handle trailing tab: if line ends with '\t', the last field is empty
+        // and std::getline won't produce it, so add it manually.
+        if (!line.empty() && line.back() == '\t')
+            cols.push_back(std::string());
         rows.push_back(std::move(cols));
     }
     return rows;

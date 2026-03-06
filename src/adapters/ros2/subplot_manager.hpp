@@ -9,7 +9,7 @@
 //
 // Relationship to RosPlotManager:
 //   SubplotManager owns its own Figure, its own set of GenericSubscribers (one
-//   per slot), and its own ScrollControllers.  It is entirely independent of
+//   per slot), and uses presented_buffer auto-scroll.  It is entirely independent of
 //   RosPlotManager — both can coexist in the same application.
 //
 // Typical usage:
@@ -46,6 +46,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,7 +57,6 @@
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
-#include "scroll_controller.hpp"
 
 // AxisLinkManager lives under src/ui/data/ — not a public include header.
 // We forward-declare here and include the .hpp from subplot_manager.cpp.
@@ -64,6 +64,28 @@ namespace spectra { class AxisLinkManager; }
 
 namespace spectra::adapters::ros2
 {
+
+// ---------------------------------------------------------------------------
+// SeriesEntry — one (topic, field) subscription within a subplot slot.
+// ---------------------------------------------------------------------------
+
+struct SeriesEntry
+{
+    std::string topic;
+    std::string field_path;
+    std::string type_name;
+
+    spectra::LineSeries* series{nullptr};
+    std::unique_ptr<GenericSubscriber> subscriber;
+    int         extractor_id{-1};
+    size_t      samples_received{0};
+    bool        auto_fitted{false};
+    size_t      color_index{0};
+
+    std::vector<FieldSample> drain_buf;
+
+    bool active() const { return series != nullptr && !topic.empty(); }
+};
 
 // ---------------------------------------------------------------------------
 // SubplotHandle — returned by add_plot(); allows direct access to axes/series.
@@ -94,8 +116,8 @@ class TopicDiscovery;
 class SubplotManager
 {
 public:
-    // Number of samples after which the first Y auto-fit fires.
-    static constexpr size_t AUTO_FIT_SAMPLES  = 100;
+    // Minimum samples before live Y auto-fit starts.
+    static constexpr size_t AUTO_FIT_SAMPLES  = 1;
 
     // Maximum samples drained per slot per poll() call.
     static constexpr size_t MAX_DRAIN_PER_POLL = 4096;
@@ -133,15 +155,27 @@ public:
     int index_of(int row, int col) const;
 
     // -----------------------------------------------------------------
-    // Plot management
+    // Dynamic grid management
     // -----------------------------------------------------------------
 
-    // Subscribe to (topic, field_path) and assign it to slot (1-based).
-    // If the slot already has a plot, it is replaced.
-    // type_name — ROS2 message type (e.g. "std_msgs/msg/Float64").
-    //             If empty, auto-discovered from the ROS2 graph.
-    // buffer_depth — ring buffer capacity for the GenericSubscriber.
-    // Returns a valid SubplotHandle on success; slot == -1 on failure.
+    // Add a new row to the bottom of the grid.  Returns the 1-based slot
+    // index of the first cell in the new row.
+    int add_row();
+
+    // Remove the last row from the grid.  Stops any subscriptions in the
+    // removed slots.  Returns false if only 1 row remains.
+    bool remove_last_row();
+
+    // Compact the grid: shift active plots up to fill gaps, then remove
+    // empty trailing rows.  Call after remove_plot() to reclaim space.
+    void compact();
+
+    // -----------------------------------------------------------------
+    // Plot management  (multi-series per slot)
+    // -----------------------------------------------------------------
+
+    // Subscribe to (topic, field_path) and add it to slot (1-based).
+    // A slot can hold multiple series — each add_plot() appends.
     SubplotHandle add_plot(int                slot,
                            const std::string& topic,
                            const std::string& field_path,
@@ -156,17 +190,28 @@ public:
                            const std::string& type_name   = "",
                            size_t             buffer_depth = 10000);
 
-    // Remove the plot in a slot.  Returns false if slot is empty.
+    // Remove the plot in a slot (removes all series).  Returns false if slot is empty.
     bool remove_plot(int slot);
+
+    // Remove a specific series from a slot by topic:field_path. Returns false
+    // if not found.
+    bool remove_series_from_slot(int slot, const std::string& topic,
+                                 const std::string& field_path);
 
     // Clear all slots (removes all subscriptions, clears series data).
     void clear();
 
-    // Is slot active (has a subscription)?
+    // Is slot active (has at least one subscription)?
     bool has_plot(int slot) const;
 
     // Number of active (non-empty) slots.
     int active_count() const;
+
+    // Number of active series in a specific slot.
+    int slot_series_count(int slot) const;
+
+    // Access individual series entries in a slot (0-based series index).
+    const SeriesEntry* slot_series(int slot, int series_idx) const;
 
     // Retrieve handle for a slot.  Returns invalid handle if slot is empty.
     SubplotHandle handle(int slot) const;
@@ -179,7 +224,7 @@ public:
     // -----------------------------------------------------------------
 
     // Drain ring buffers and append new points to all active series.
-    // Also advances all ScrollControllers.
+    // Also prunes old data and manages auto-scroll via presented_buffer.
     // Call once per frame from the render thread.
     void poll();
 
@@ -212,14 +257,24 @@ public:
     void clear_cursor();
 
     // -----------------------------------------------------------------
+    // Shared time origin
+    // -----------------------------------------------------------------
+
+    // Set a shared time origin for all slots.  New subplots inherit this
+    // origin so their X-axis is synchronized with existing ones.
+    void set_shared_time_origin(double epoch_seconds);
+    double shared_time_origin() const { return shared_time_origin_; }
+    bool   has_shared_time_origin() const { return has_shared_origin_; }
+
+    // -----------------------------------------------------------------
     // Auto-scroll (C2)
     // -----------------------------------------------------------------
 
-    // Set the sliding time window (seconds) for all scroll controllers.
+    // Set the sliding time window (seconds) for all axes.
     void set_time_window(double seconds);
     double time_window() const { return scroll_window_s_; }
 
-    // Advance "now" for all scroll controllers (call once per frame
+    // Advance "now" for auto-scroll (call once per frame
     // before poll(), or let poll() call it automatically with wall clock).
     void set_now(double wall_time_s);
 
@@ -234,6 +289,23 @@ public:
 
     // Total estimated memory across all active series.
     size_t total_memory_bytes() const;
+
+    // -----------------------------------------------------------------
+    // Y-axis limit controls
+    // -----------------------------------------------------------------
+
+    // Set explicit Y-axis limits for a slot.
+    void set_slot_ylim(int slot, double ymin, double ymax);
+
+    // Clear manual Y limits so Y is derived automatically from the current X
+    // view (live window while following, paused window otherwise).
+    void clear_slot_ylim(int slot);
+
+    // Clear all series data in a slot without removing the subplot or subscription.
+    void clear_slot_data(int slot);
+
+    // Restore automatic Y fitting for a slot.
+    void auto_fit_slot_y(int slot);
 
     // -----------------------------------------------------------------
     // Per-slot time-window override
@@ -278,21 +350,14 @@ public:
     size_t auto_fit_samples() const { return auto_fit_samples_; }
     void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
 
-    // -----------------------------------------------------------------
-    // Callbacks
-    // -----------------------------------------------------------------
-
-    // Called (render thread, inside poll()) when a new point is appended.
-    using OnDataCallback = std::function<void(int slot, double t_sec, double value)>;
-    void set_on_data(OnDataCallback cb) { on_data_cb_ = std::move(cb); }
-
-private:
     // ------------------------------------------------------------------
-    // SlotEntry — per-slot state.
+    // SlotEntry — per-slot state.  Now supports multiple series per slot.
     // ------------------------------------------------------------------
     struct SlotEntry
     {
         int         slot{-1};   // 1-based
+
+        // Legacy single-series fields (kept for backwards compat in handle()).
         std::string topic;
         std::string field_path;
         std::string type_name;
@@ -301,7 +366,7 @@ private:
         spectra::Axes*       axes{nullptr};
         spectra::LineSeries* series{nullptr};
 
-        // ROS2 subscription.
+        // ROS2 subscription (for legacy single-series mode).
         std::unique_ptr<GenericSubscriber> subscriber;
         int                                extractor_id{-1};
 
@@ -315,14 +380,39 @@ private:
         // Per-slot scratch drain buffer.
         std::vector<FieldSample> drain_buf;
 
-        // Per-slot auto-scroll controller.
-        ScrollController scroll;
-
         // Per-slot time-window override (seconds). <= 0 means use global.
         double time_window_override_s{-1.0};
 
+        // Multi-series support: additional series in this slot.
+        std::vector<std::unique_ptr<SeriesEntry>> extra_series;
+
+        // Manual Y-axis limits (nullopt = auto).
+        std::optional<spectra::AxisLimits> manual_ylim;
+
         bool active() const { return slot >= 1 && axes != nullptr; }
+
+        // Total number of series (1 if legacy, 1+extra otherwise)
+        int series_count() const
+        {
+            if (topic.empty() && extra_series.empty()) return 0;
+            int n = topic.empty() ? 0 : 1;
+            return n + static_cast<int>(extra_series.size());
+        }
     };
+
+    // Public access to a SlotEntry (for UI controls).
+    const SlotEntry* slot_entry_pub(int slot) const { return slot_entry(slot); }
+    SlotEntry* slot_entry_pub(int slot) { return slot_entry(slot); }
+
+    // -----------------------------------------------------------------
+    // Callbacks
+    // -----------------------------------------------------------------
+
+    // Called (render thread, inside poll()) when a new point is appended.
+    using OnDataCallback = std::function<void(int slot, double t_sec, double value)>;
+    void set_on_data(OnDataCallback cb) { on_data_cb_ = std::move(cb); }
+
+private:
 
     // Retrieve entry by 1-based slot (creates if needed up to capacity).
     SlotEntry* slot_entry(int slot);
@@ -336,6 +426,9 @@ private:
 
     // Re-link all active axes (called after add_plot / remove_plot).
     void rebuild_x_links();
+
+    // Update the ylabel for a slot based on all series it contains.
+    void update_slot_ylabel(SlotEntry& se);
 
     // -----------------------------------------------------------------
     // Members
@@ -359,8 +452,14 @@ private:
     size_t color_cursor_{0};
 
     // Configuration.
-    double   scroll_window_s_    = ScrollController::DEFAULT_WINDOW_S;
+    static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
+    static constexpr double PRUNE_FACTOR            = 2.0;
+    double   scroll_window_s_    = DEFAULT_SCROLL_WINDOW_S;
     size_t   auto_fit_samples_   = AUTO_FIT_SAMPLES;
+
+    // Shared time origin across all slots.
+    double shared_time_origin_{0.0};
+    bool   has_shared_origin_{false};
 
     OnDataCallback on_data_cb_;
 

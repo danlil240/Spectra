@@ -333,7 +333,6 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/message_introspector.cpp
         src/adapters/ros2/generic_subscriber.cpp
         src/adapters/ros2/ros_plot_manager.cpp
-        src/adapters/ros2/scroll_controller.cpp
         src/adapters/ros2/ui/topic_list_panel.cpp
         src/adapters/ros2/ui/topic_echo_panel.cpp
         src/adapters/ros2/ui/topic_stats_overlay.cpp

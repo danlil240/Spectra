@@ -51,7 +51,6 @@
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
-#include "scroll_controller.hpp"
 
 namespace spectra::adapters::ros2
 {
@@ -244,8 +243,9 @@ private:
     size_t output_count_{0};
     bool   auto_fitted_{false};
 
-    // Auto-scroll.
-    ScrollController scroll_;
+    // Time origin for relative timestamps.
+    double time_origin_{0.0};
+    bool   has_time_origin_{false};
 
     // User-supplied label; empty = use expression string.
     std::string label_;

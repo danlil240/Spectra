@@ -130,6 +130,7 @@ class Axes : public AxesBase
     // Axis configuration
     void xlim(double min, double max);
     void ylim(double min, double max);
+    void clear_ylim();
     void title(const std::string& t);
     void xlabel(const std::string& lbl);
     void ylabel(const std::string& lbl);
@@ -137,6 +138,7 @@ class Axes : public AxesBase
     void show_border(bool enabled);
     void autoscale_mode(AutoscaleMode mode);
     void presented_buffer(float seconds);
+    void set_presented_buffer_right_edge(double x);
 
     // Accessors
     AxisLimits         x_limits() const;
@@ -153,6 +155,10 @@ class Axes : public AxesBase
         return presented_buffer_following_ && presented_buffer_seconds_.has_value();
     }
     float presented_buffer_seconds() const { return presented_buffer_seconds_.value_or(0.0f); }
+
+    // Re-enable live X-follow without clearing any manual Y override.
+    // No-op if no presented_buffer has been configured.
+    void resume_follow();
 
     // Deprecated aliases
     const std::string& get_title() const { return title_; }
@@ -176,6 +182,7 @@ class Axes : public AxesBase
     AutoscaleMode        autoscale_mode_ = AutoscaleMode::Padded;
     std::optional<float> presented_buffer_seconds_;
     bool                 presented_buffer_following_ = false;
+    std::optional<double> presented_buffer_right_edge_;
 };
 
 }   // namespace spectra

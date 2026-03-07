@@ -115,15 +115,27 @@ void Camera::fit_to_bounds(vec3 min_bound, vec3 max_bound)
 
 void Camera::reset()
 {
-    position        = {0.0f, 0.0f, 5.0f};
-    target          = {0.0f, 0.0f, 0.0f};
-    up              = {0.0f, 1.0f, 0.0f};
-    azimuth         = 45.0f;
-    elevation       = 30.0f;
+    if (up_axis == UpAxis::Z)
+    {
+        position        = {5.0f, 5.0f, 3.0f};
+        target          = {0.0f, 0.0f, 0.0f};
+        up              = {0.0f, 0.0f, 1.0f};
+        azimuth         = 45.0f;
+        elevation       = 30.0f;
+    }
+    else
+    {
+        position        = {0.0f, 0.0f, 5.0f};
+        target          = {0.0f, 0.0f, 0.0f};
+        up              = {0.0f, 1.0f, 0.0f};
+        azimuth         = 45.0f;
+        elevation       = 30.0f;
+    }
     distance        = 5.0f;
     fov             = 45.0f;
     ortho_size      = 10.0f;
     projection_mode = ProjectionMode::Perspective;
+    update_position_from_orbit();
 }
 
 void Camera::update_position_from_orbit()
@@ -132,9 +144,24 @@ void Camera::update_position_from_orbit()
     float el_rad = deg_to_rad(elevation);
 
     float cos_el = std::cos(el_rad);
-    vec3  offset{distance * cos_el * std::cos(az_rad),
-                distance * std::sin(el_rad),
-                distance * cos_el * std::sin(az_rad)};
+
+    vec3 offset;
+    if (up_axis == UpAxis::Z)
+    {
+        // Z-up: azimuth rotates in XY plane, elevation lifts toward +Z
+        offset = {distance * cos_el * std::cos(az_rad),
+                  distance * cos_el * std::sin(az_rad),
+                  distance * std::sin(el_rad)};
+        up = {0.0f, 0.0f, 1.0f};
+    }
+    else
+    {
+        // Y-up (default): azimuth rotates in XZ plane, elevation lifts toward +Y
+        offset = {distance * cos_el * std::cos(az_rad),
+                  distance * std::sin(el_rad),
+                  distance * cos_el * std::sin(az_rad)};
+        up = {0.0f, 1.0f, 0.0f};
+    }
 
     position = target + offset;
 }
@@ -148,6 +175,7 @@ std::string Camera::serialize() const
         << "\"target\":[" << target.x << "," << target.y << "," << target.z << "],"
         << "\"up\":[" << up.x << "," << up.y << "," << up.z << "],"
         << "\"projection_mode\":" << (projection_mode == ProjectionMode::Perspective ? 0 : 1) << ","
+        << "\"up_axis\":" << (up_axis == UpAxis::Z ? 1 : 0) << ","
         << "\"fov\":" << fov << ","
         << "\"near_clip\":" << near_clip << ","
         << "\"far_clip\":" << far_clip << ","
@@ -214,6 +242,13 @@ void Camera::deserialize(const std::string& json)
     {
         int mode        = parse_int(json, pos);
         projection_mode = mode == 0 ? ProjectionMode::Perspective : ProjectionMode::Orthographic;
+    }
+
+    pos = json.find("\"up_axis\"");
+    if (pos != std::string::npos)
+    {
+        int axis = parse_int(json, pos);
+        up_axis = axis == 1 ? UpAxis::Z : UpAxis::Y;
     }
 
     pos = json.find("\"fov\"");

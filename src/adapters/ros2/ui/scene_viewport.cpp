@@ -18,6 +18,7 @@ namespace spectra::adapters::ros2
 
 SceneViewport::SceneViewport()
 {
+    camera_.set_up_axis(spectra::Camera::UpAxis::Z);
     camera_.reset();
 }
 
@@ -425,6 +426,44 @@ SceneCanvasResult draw_scene_canvas(SceneManager& scene,
                                ImVec2(center.x + half_w, center.y + half_h),
                                color,
                                1.0f);
+        }
+        else if (entity.point_set.has_value() && !entity.point_set->points.empty())
+        {
+            const auto& point_set = *entity.point_set;
+            const bool per_point_color = point_set.use_per_point_color;
+            const float radius = std::max(1.0f, point_set.point_size * 0.5f);
+
+            // Stride-based sampling to cap ImGui draw cost
+            constexpr size_t kMaxPreviewPoints = 4000;
+            const size_t stride = std::max<size_t>(
+                1, (point_set.points.size() + kMaxPreviewPoints - 1) / kMaxPreviewPoints);
+
+            for (size_t p = 0; p < point_set.points.size(); p += stride)
+            {
+                const auto& pt = point_set.points[p];
+                const spectra::vec3 world_pos =
+                    entity.transform.transform_point(pt.position);
+                ImVec2 screen{};
+                if (!project_point(camera, world_pos, origin, size, screen))
+                    continue;
+                // Clip to canvas bounds
+                if (screen.x < origin.x || screen.x > origin.x + size.x
+                    || screen.y < origin.y || screen.y > origin.y + size.y)
+                    continue;
+
+                ImU32 pt_color = color;
+                if (per_point_color)
+                {
+                    pt_color = IM_COL32(
+                        (pt.rgba >> 0) & 0xFF,
+                        (pt.rgba >> 8) & 0xFF,
+                        (pt.rgba >> 16) & 0xFF,
+                        (pt.rgba >> 24) & 0xFF);
+                }
+                draw_list->AddCircleFilled(screen, radius, pt_color, 6);
+            }
+            if (center_visible)
+                draw_list->AddCircleFilled(center, selected ? 5.0f : 4.0f, color);
         }
         else
         {

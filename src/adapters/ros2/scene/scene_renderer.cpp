@@ -266,6 +266,9 @@ void SceneRenderer::render(Renderer& renderer,
         std::memcpy(ubo.projection, proj, sizeof(float) * 16);
         std::memcpy(ubo.view, view_mat, sizeof(float) * 16);
         ubo.model[0] = 1.0f; ubo.model[5] = 1.0f; ubo.model[10] = 1.0f; ubo.model[15] = 1.0f;
+        ubo.model[12] = static_cast<float>(entity.transform.translation.x);
+        ubo.model[13] = static_cast<float>(entity.transform.translation.y);
+        ubo.model[14] = static_cast<float>(entity.transform.translation.z);
         ubo.viewport_width  = viewport.w;
         ubo.viewport_height = viewport.h;
         set_camera_pos(ubo);
@@ -273,8 +276,17 @@ void SceneRenderer::render(Renderer& renderer,
         backend.upload_buffer(frame_ubo_, &ubo, sizeof(FrameUBO));
 
         SeriesPushConstants pc{};
-        pc.color[0] = 0.45f; pc.color[1] = 0.45f; pc.color[2] = 0.45f; pc.color[3] = 0.6f;
-        pc.opacity = 0.6f;
+        const std::string grid_color_str = entity_property(entity, "color", "");
+        if (!grid_color_str.empty())
+        {
+            std::sscanf(grid_color_str.c_str(), "%f, %f, %f, %f",
+                        &pc.color[0], &pc.color[1], &pc.color[2], &pc.color[3]);
+        }
+        else
+        {
+            pc.color[0] = 0.45f; pc.color[1] = 0.45f; pc.color[2] = 0.45f; pc.color[3] = 0.6f;
+        }
+        pc.opacity = pc.color[3];
 
         backend.bind_pipeline(grid3d_pipeline_);
         backend.bind_buffer(frame_ubo_, 0);

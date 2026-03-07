@@ -590,6 +590,216 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_tf_tree_panel PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_tf_buffer.cpp)
+        add_executable(unit_test_tf_buffer
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_tf_buffer.cpp
+        )
+        target_link_libraries(unit_test_tf_buffer PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_tf_buffer PRIVATE cxx_std_20)
+        target_include_directories(unit_test_tf_buffer PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_tf_buffer PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_tf_buffer COMMAND unit_test_tf_buffer)
+        set_tests_properties(unit_test_tf_buffer PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_urdf_parser.cpp)
+        add_executable(unit_test_urdf_parser
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_urdf_parser.cpp
+        )
+        target_link_libraries(unit_test_urdf_parser PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_urdf_parser PRIVATE cxx_std_20)
+        target_include_directories(unit_test_urdf_parser PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_urdf_parser PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_urdf_parser COMMAND unit_test_urdf_parser)
+        set_tests_properties(unit_test_urdf_parser PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_robot_model_display.cpp)
+        add_executable(unit_test_robot_model_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_robot_model_display.cpp
+        )
+        target_link_libraries(unit_test_robot_model_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_robot_model_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_robot_model_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_robot_model_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_robot_model_display COMMAND unit_test_robot_model_display)
+        set_tests_properties(unit_test_robot_model_display PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_display_registry.cpp)
+        add_executable(unit_test_display_registry
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_display_registry.cpp
+        )
+        target_link_libraries(unit_test_display_registry PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_display_registry PRIVATE cxx_std_20)
+        target_include_directories(unit_test_display_registry PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_display_registry PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_display_registry COMMAND unit_test_display_registry)
+        set_tests_properties(unit_test_display_registry PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_manager.cpp)
+        add_executable(unit_test_scene_manager
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_manager.cpp
+        )
+        target_link_libraries(unit_test_scene_manager PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_scene_manager PRIVATE cxx_std_20)
+        target_include_directories(unit_test_scene_manager PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_scene_manager PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_scene_manager COMMAND unit_test_scene_manager)
+        set_tests_properties(unit_test_scene_manager PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_marker_display.cpp)
+        add_executable(unit_test_marker_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_marker_display.cpp
+        )
+        target_link_libraries(unit_test_marker_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_marker_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_marker_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_marker_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_marker_display COMMAND unit_test_marker_display)
+        set_tests_properties(unit_test_marker_display PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_pointcloud_display.cpp)
+        add_executable(unit_test_pointcloud_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_pointcloud_display.cpp
+        )
+        target_link_libraries(unit_test_pointcloud_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_pointcloud_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_pointcloud_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_pointcloud_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_pointcloud_display COMMAND unit_test_pointcloud_display)
+        set_tests_properties(unit_test_pointcloud_display PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_laserscan_display.cpp)
+        add_executable(unit_test_laserscan_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_laserscan_display.cpp
+        )
+        target_link_libraries(unit_test_laserscan_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_laserscan_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_laserscan_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_laserscan_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_laserscan_display COMMAND unit_test_laserscan_display)
+        set_tests_properties(unit_test_laserscan_display PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_image_display.cpp)
+        add_executable(unit_test_image_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_image_display.cpp
+        )
+        target_link_libraries(unit_test_image_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_image_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_image_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_image_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_image_display COMMAND unit_test_image_display)
+        set_tests_properties(unit_test_image_display PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_path_pose_display.cpp)
+        add_executable(unit_test_path_pose_display
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_path_pose_display.cpp
+        )
+        target_link_libraries(unit_test_path_pose_display PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_path_pose_display PRIVATE cxx_std_20)
+        target_include_directories(unit_test_path_pose_display PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_path_pose_display PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_path_pose_display COMMAND unit_test_path_pose_display)
+        set_tests_properties(unit_test_path_pose_display PROPERTIES LABELS "ros2")
+    endif()
+
     # NodeGraphPanel tests — pure C++ logic, no ROS2 runtime needed.
     # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_node_graph_panel.cpp)

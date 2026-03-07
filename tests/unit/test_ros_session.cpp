@@ -17,6 +17,7 @@ namespace ros2 = spectra::adapters::ros2;
 using ros2::RosSession;
 using ros2::RosSessionManager;
 using ros2::SubscriptionEntry;
+using ros2::DisplaySessionEntry;
 using ros2::ExpressionEntry;
 using ros2::ExpressionPresetEntry;
 using ros2::PanelVisibility;
@@ -70,11 +71,30 @@ static RosSession make_session()
     preset.variables  = {"$val"};
     s.expression_presets.push_back(preset);
 
+    DisplaySessionEntry display;
+    display.type_id     = "grid";
+    display.topic       = "";
+    display.enabled     = true;
+    display.config_blob = "cell_size=0.500;cell_count=42;plane=xy";
+    s.displays.push_back(display);
+
+    s.fixed_frame = "world";
+    s.camera_pose.azimuth = 135.0;
+    s.camera_pose.elevation = 22.5;
+    s.camera_pose.distance = 14.0;
+    s.camera_pose.target = {1.0, 2.0, 3.0};
+    s.camera_pose.projection = "orthographic";
+    s.camera_pose.fov = 55.0;
+    s.scene_background_color = {0.15, 0.18, 0.24, 1.0};
+
     s.panels.topic_list  = true;
     s.panels.topic_echo  = false;
     s.panels.topic_stats = true;
     s.panels.plot_area   = true;
     s.panels.bag_info    = false;
+    s.panels.displays_panel = true;
+    s.panels.scene_viewport = true;
+    s.panels.inspector_panel = true;
 
     return s;
 }
@@ -380,6 +400,9 @@ TEST(RoundTrip, PanelVisibility)
     s.panels.topic_stats = false;
     s.panels.plot_area   = true;
     s.panels.bag_info    = true;
+    s.panels.displays_panel = true;
+    s.panels.scene_viewport = true;
+    s.panels.inspector_panel = true;
 
     auto json = RosSessionManager::serialize(s);
     RosSession out; std::string err;
@@ -390,6 +413,49 @@ TEST(RoundTrip, PanelVisibility)
     EXPECT_FALSE(out.panels.topic_stats);
     EXPECT_TRUE(out.panels.plot_area);
     EXPECT_TRUE(out.panels.bag_info);
+    EXPECT_TRUE(out.panels.displays_panel);
+    EXPECT_TRUE(out.panels.scene_viewport);
+    EXPECT_TRUE(out.panels.inspector_panel);
+}
+
+TEST(RoundTrip, FixedFrameAndDisplays)
+{
+    RosSession s;
+    s.fixed_frame = "base_link";
+    s.camera_pose.azimuth = 90.0;
+    s.camera_pose.elevation = 15.0;
+    s.camera_pose.distance = 8.5;
+    s.camera_pose.target = {4.0, 5.0, 6.0};
+    s.camera_pose.projection = "perspective";
+    s.camera_pose.fov = 70.0;
+    s.scene_background_color = {0.25, 0.20, 0.15, 0.95};
+
+    DisplaySessionEntry display;
+    display.type_id     = "grid";
+    display.topic       = "";
+    display.enabled     = false;
+    display.config_blob = "cell_size=1.000;cell_count=20;plane=xz";
+    s.displays.push_back(display);
+
+    auto json = RosSessionManager::serialize(s);
+    RosSession out; std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
+
+    EXPECT_EQ(out.fixed_frame, "base_link");
+    EXPECT_DOUBLE_EQ(out.camera_pose.azimuth, 90.0);
+    EXPECT_DOUBLE_EQ(out.camera_pose.elevation, 15.0);
+    EXPECT_DOUBLE_EQ(out.camera_pose.distance, 8.5);
+    EXPECT_EQ(out.camera_pose.target[0], 4.0);
+    EXPECT_EQ(out.camera_pose.target[1], 5.0);
+    EXPECT_EQ(out.camera_pose.target[2], 6.0);
+    EXPECT_EQ(out.camera_pose.projection, "perspective");
+    EXPECT_DOUBLE_EQ(out.camera_pose.fov, 70.0);
+    EXPECT_DOUBLE_EQ(out.scene_background_color[0], 0.25);
+    EXPECT_DOUBLE_EQ(out.scene_background_color[3], 0.95);
+    ASSERT_EQ(out.displays.size(), 1u);
+    EXPECT_EQ(out.displays[0].type_id, "grid");
+    EXPECT_FALSE(out.displays[0].enabled);
+    EXPECT_NE(out.displays[0].config_blob.find("plane=xz"), std::string::npos);
 }
 
 TEST(RoundTrip, FullSession)
@@ -406,9 +472,18 @@ TEST(RoundTrip, FullSession)
     EXPECT_EQ(out.subplot_cols, s.subplot_cols);
     EXPECT_DOUBLE_EQ(out.time_window_s, s.time_window_s);
     EXPECT_EQ(out.description,  s.description);
+    EXPECT_EQ(out.fixed_frame,  s.fixed_frame);
+    EXPECT_DOUBLE_EQ(out.camera_pose.azimuth, s.camera_pose.azimuth);
+    EXPECT_DOUBLE_EQ(out.camera_pose.elevation, s.camera_pose.elevation);
+    EXPECT_DOUBLE_EQ(out.camera_pose.distance, s.camera_pose.distance);
+    EXPECT_EQ(out.camera_pose.target, s.camera_pose.target);
+    EXPECT_EQ(out.camera_pose.projection, s.camera_pose.projection);
+    EXPECT_DOUBLE_EQ(out.camera_pose.fov, s.camera_pose.fov);
+    EXPECT_EQ(out.scene_background_color, s.scene_background_color);
     EXPECT_EQ(out.subscriptions.size(),      s.subscriptions.size());
     EXPECT_EQ(out.expressions.size(),        s.expressions.size());
     EXPECT_EQ(out.expression_presets.size(), s.expression_presets.size());
+    EXPECT_EQ(out.displays.size(),           s.displays.size());
 }
 
 TEST(RoundTrip, Description)
@@ -449,8 +524,9 @@ TEST(DeserializeErrors, EmptyInput)
 TEST(DeserializeErrors, MissingVersion)
 {
     RosSession out; std::string err;
-    EXPECT_FALSE(RosSessionManager::deserialize("{\"node_name\": \"x\"}", out, err));
-    EXPECT_FALSE(err.empty());
+    EXPECT_TRUE(RosSessionManager::deserialize("{\"node_name\": \"x\"}", out, err)) << err;
+    EXPECT_EQ(out.version, 1);
+    EXPECT_EQ(out.node_name, "x");
 }
 
 TEST(DeserializeErrors, FutureVersion)
@@ -467,6 +543,72 @@ TEST(DeserializeErrors, ValidVersion1)
     std::string json = "{\"version\": 1}";
     EXPECT_TRUE(RosSessionManager::deserialize(json, out, err)) << err;
     EXPECT_EQ(out.version, 1);
+}
+
+TEST(Serialize, WritesVersion2NestedSchema)
+{
+    RosSession s = make_session();
+    const std::string json = RosSessionManager::serialize(s);
+
+    EXPECT_NE(json.find("\"version\": 2"), std::string::npos);
+    EXPECT_NE(json.find("\"scene\""), std::string::npos);
+    EXPECT_NE(json.find("\"ui\""), std::string::npos);
+    EXPECT_NE(json.find("\"fixed_frame\": \"world\""), std::string::npos);
+    EXPECT_NE(json.find("\"camera_pose\""), std::string::npos);
+    EXPECT_NE(json.find("\"background_color\""), std::string::npos);
+    EXPECT_NE(json.find("\"nav_rail\""), std::string::npos);
+    EXPECT_NE(json.find("\"inspector_panel\": true"), std::string::npos);
+    EXPECT_EQ(json.find("\"nav_rail_expanded\""), std::string::npos);
+    EXPECT_EQ(json.find("\"nav_rail_width\""), std::string::npos);
+}
+
+TEST(Deserialize, LegacyVersion1SessionRemainsSupported)
+{
+    const std::string json = R"({
+  "version": 1,
+  "node_name": "legacy_node",
+  "layout": "rviz",
+  "subplot_rows": 2,
+  "subplot_cols": 3,
+  "time_window_s": 15.5,
+  "nav_rail_expanded": true,
+  "nav_rail_width": 260.0,
+  "fixed_frame": "map",
+  "subscriptions": [
+    {"topic":"/imu","field_path":"linear_acceleration.x","type_name":"sensor_msgs/msg/Imu","subplot_slot":1,"time_window_s":15.5,"scroll_paused":true}
+  ],
+  "displays": [
+    {"type_id":"grid","topic":"","enabled":false,"config_blob":"cell_size=1.000;cell_count=20;plane=xz"}
+  ],
+  "panels": {
+    "topic_list": false,
+    "displays_panel": true,
+    "scene_viewport": true,
+    "inspector_panel": true,
+    "nav_rail": false
+  },
+  "imgui_layout": "[window][legacy]"
+})";
+
+    RosSession out;
+    std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err)) << err;
+    EXPECT_EQ(out.version, 1);
+    EXPECT_EQ(out.node_name, "legacy_node");
+    EXPECT_EQ(out.layout, "rviz");
+    EXPECT_EQ(out.fixed_frame, "map");
+    EXPECT_TRUE(out.nav_rail_expanded);
+    EXPECT_DOUBLE_EQ(out.nav_rail_width, 260.0);
+    ASSERT_EQ(out.subscriptions.size(), 1u);
+    EXPECT_EQ(out.subscriptions[0].topic, "/imu");
+    ASSERT_EQ(out.displays.size(), 1u);
+    EXPECT_EQ(out.displays[0].type_id, "grid");
+    EXPECT_FALSE(out.displays[0].enabled);
+    EXPECT_TRUE(out.panels.displays_panel);
+    EXPECT_TRUE(out.panels.scene_viewport);
+    EXPECT_TRUE(out.panels.inspector_panel);
+    EXPECT_FALSE(out.panels.nav_rail);
+    EXPECT_EQ(out.imgui_ini_data, "[window][legacy]");
 }
 
 // ===========================================================================
@@ -889,5 +1031,5 @@ TEST(EdgeCases, MaxRecentConst)
 
 TEST(EdgeCases, FormatVersionConst)
 {
-    EXPECT_GE(ros2::SESSION_FORMAT_VERSION, 1);
+    EXPECT_EQ(ros2::SESSION_FORMAT_VERSION, 2);
 }

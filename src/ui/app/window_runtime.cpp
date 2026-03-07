@@ -852,6 +852,18 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("cmd_record");
 
+        // Invoke scene render callback — allows adapter shells (spectra-ros)
+        // to issue GPU draw calls for 3D scene content during the active
+        // Vulkan render pass, before ImGui overlays.
+#ifdef SPECTRA_USE_IMGUI
+        if (ui_ctx.imgui_ui)
+        {
+            const auto& scene_cb = ui_ctx.imgui_ui->scene_render_callback();
+            if (scene_cb)
+                scene_cb(renderer_);
+        }
+#endif
+
         // Flush Vulkan plot text BEFORE ImGui so that UI overlays (command
         // palette, inspector, menus) render on top of plot labels.
         // The ImGui canvas ##window uses NoBackground so it won't overwrite text.

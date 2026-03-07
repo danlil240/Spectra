@@ -29,9 +29,13 @@
 
 #include "ros2_adapter.hpp"
 #include "ros_app_shell.hpp"
+#include "scene/scene_renderer.hpp"
 
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/series.hpp>
+
+#include "render/renderer.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
 #include "ui/app/window_ui_context.hpp"
@@ -41,6 +45,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 #if !defined(_WIN32)
@@ -322,6 +327,22 @@ int main(int argc, char** argv)
         {
             shell.draw();
         });
+        // GPU scene render callback — invoked during the active Vulkan render
+        // pass (before ImGui overlay) so the 3D scene viewport is drawn with
+        // real GPU pipelines instead of the software ImGui preview.
+        auto scene_renderer = std::make_shared<spectra::adapters::ros2::SceneRenderer>();
+        ui_ctx->imgui_ui->set_scene_render_callback(
+            [&shell, scene_renderer](spectra::Renderer& renderer)
+            {
+                auto* sv = shell.scene_viewport();
+                if (!sv || !shell.scene_viewport_visible())
+                    return;
+                auto rect = sv->canvas_rect();
+                if (rect.w < 1.0f || rect.h < 1.0f)
+                    return;
+                scene_renderer->render(renderer, shell.scene_manager(),
+                                       sv->camera(), rect);
+            });
     }
 #endif
 
@@ -354,7 +375,10 @@ int main(int argc, char** argv)
     {
         auto* ctx = app.ui_context();
         if (ctx && ctx->imgui_ui)
+        {
             ctx->imgui_ui->set_extra_draw_callback(nullptr);
+            ctx->imgui_ui->set_scene_render_callback(nullptr);
+        }
     }
 #endif
 

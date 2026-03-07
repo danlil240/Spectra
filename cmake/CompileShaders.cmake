@@ -36,8 +36,12 @@ set(SHADER_SOURCES
     ${SHADER_SOURCE_DIR}/line.vert
     ${SHADER_SOURCE_DIR}/line3d.frag
     ${SHADER_SOURCE_DIR}/line3d.vert
+    ${SHADER_SOURCE_DIR}/marker3d.frag
+    ${SHADER_SOURCE_DIR}/marker3d.vert
     ${SHADER_SOURCE_DIR}/mesh3d.frag
     ${SHADER_SOURCE_DIR}/mesh3d.vert
+    ${SHADER_SOURCE_DIR}/pointcloud.frag
+    ${SHADER_SOURCE_DIR}/pointcloud.vert
     ${SHADER_SOURCE_DIR}/scatter.frag
     ${SHADER_SOURCE_DIR}/scatter.vert
     ${SHADER_SOURCE_DIR}/scatter3d.frag

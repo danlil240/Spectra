@@ -15,12 +15,14 @@
 #include <vector>
 
 #include "bag_player.hpp"
+#include "display/display_registry.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
 #include "ros_plot_manager.hpp"
 #include "ros_screenshot_export.hpp"
 #include "ros_session.hpp"
 #include "service_caller.hpp"
+#include "scene/scene_manager.hpp"
 #include "subplot_manager.hpp"
 #include "topic_discovery.hpp"
 
@@ -28,10 +30,13 @@
 #include "ui/bag_info_panel.hpp"
 #include "ui/bag_playback_panel.hpp"
 #include "ui/diagnostics_panel.hpp"
+#include "ui/displays_panel.hpp"
 #include "ui/field_drag_drop.hpp"
+#include "ui/inspector_panel.hpp"
 #include "ui/log_viewer_panel.hpp"
 #include "ui/node_graph_panel.hpp"
 #include "ui/param_editor_panel.hpp"
+#include "ui/scene_viewport.hpp"
 #include "ui/service_caller_panel.hpp"
 #include "ui/tf_tree_panel.hpp"
 #include "ui/topic_echo_panel.hpp"
@@ -52,6 +57,8 @@ enum class LayoutMode
     Default,    // monitor + plot + right stats/tools
     PlotOnly,   // central plot area only
     Monitor,    // monitor-focused panels, plot hidden
+    RViz,       // scene viewport + displays panels
+    RVizPlot,   // scene viewport + displays + plot area
 };
 
 LayoutMode parse_layout_mode(const std::string& s);
@@ -99,6 +106,9 @@ struct RosWorkspaceState
 
     // Index of the subplot slot that should receive new series (-1 = auto).
     int active_subplot_idx = -1;
+
+    // Current TF fixed frame for scene-space displays.
+    std::string fixed_frame;
 
     // Per-frame event flags — set by shell actions, consumed during draw().
     bool selection_changed = false;   // topic or field changed this frame
@@ -168,7 +178,10 @@ public:
     void draw_bag_playback(bool* p_open = nullptr);
     void draw_log_viewer(bool* p_open = nullptr);
     void draw_diagnostics(bool* p_open = nullptr);
+    void draw_displays_panel(bool* p_open = nullptr);
     void draw_node_graph(bool* p_open = nullptr);
+    void draw_scene_viewport(bool* p_open = nullptr);
+    void draw_inspector_panel(bool* p_open = nullptr);
     void draw_tf_tree(bool* p_open = nullptr);
     void draw_param_editor(bool* p_open = nullptr);
     void draw_service_caller(bool* p_open = nullptr);
@@ -185,7 +198,10 @@ public:
     bool bag_playback_visible() const  { return show_bag_playback_; }
     bool log_viewer_visible() const    { return show_log_viewer_; }
     bool diagnostics_visible() const   { return show_diagnostics_; }
+    bool displays_panel_visible() const { return show_displays_panel_; }
     bool node_graph_visible() const    { return show_node_graph_; }
+    bool scene_viewport_visible() const { return show_scene_viewport_; }
+    bool inspector_panel_visible() const { return show_inspector_panel_; }
     bool tf_tree_visible() const       { return show_tf_tree_; }
     bool param_editor_visible() const  { return show_param_editor_; }
     bool service_caller_visible() const { return show_service_caller_; }
@@ -198,7 +214,10 @@ public:
     void set_bag_playback_visible(bool v)   { show_bag_playback_ = v; }
     void set_log_viewer_visible(bool v)     { show_log_viewer_ = v; }
     void set_diagnostics_visible(bool v)    { show_diagnostics_ = v; }
+    void set_displays_panel_visible(bool v) { show_displays_panel_ = v; }
     void set_node_graph_visible(bool v)     { show_node_graph_ = v; }
+    void set_scene_viewport_visible(bool v) { show_scene_viewport_ = v; }
+    void set_inspector_panel_visible(bool v) { show_inspector_panel_ = v; }
     void set_tf_tree_visible(bool v)        { show_tf_tree_ = v; }
     void set_param_editor_visible(bool v)   { show_param_editor_ = v; }
     void set_service_caller_visible(bool v) { show_service_caller_ = v; }
@@ -226,7 +245,10 @@ public:
     BagPlayer*            bag_player()             const { return bag_player_.get(); }
     RosLogViewer*         log_viewer()             const { return log_viewer_.get(); }
     DiagnosticsPanel*     diagnostics_panel()      const { return diag_panel_.get(); }
+    DisplaysPanel*        displays_panel()         const { return displays_panel_.get(); }
     NodeGraphPanel*       node_graph_panel()       const { return node_graph_panel_.get(); }
+    SceneViewport*        scene_viewport()         const { return scene_viewport_.get(); }
+    InspectorPanel*       inspector_panel()        const { return inspector_panel_.get(); }
     TfTreePanel*          tf_tree_panel()          const { return tf_tree_panel_.get(); }
     ParamEditorPanel*     param_editor_panel()     const { return param_editor_.get(); }
     ServiceCaller*        service_caller()         const { return service_caller_.get(); }
@@ -255,8 +277,10 @@ public:
     {
         Default   = 0,  // Topic List + Echo + Subplots + Stats
         Debug     = 1,  // Topic List + Echo + Log Viewer
-        Monitor   = 2,  // 4×1 subplots + Diagnostics + Stats
+        Monitor   = 2,  // 4x1 subplots + Diagnostics + Stats
         BagReview = 3,  // Bag Playback + Subplots
+        RViz      = 4,  // Scene viewport + displays + TF tools
+        RVizPlot  = 5,  // Scene viewport + displays + plots
     };
 
     // Apply a preset: adjusts panel visibility and calls setup_layout_visibility().
@@ -278,12 +302,18 @@ public:
 
     // Read-only access to the shared workspace selection context.
     const RosWorkspaceState& workspace() const { return workspace_state_; }
+    const std::vector<std::unique_ptr<DisplayPlugin>>& displays() const { return displays_; }
+    const std::string& fixed_frame() const { return workspace_state_.fixed_frame; }
+    void set_fixed_frame(const std::string& frame_id) { workspace_state_.fixed_frame = frame_id; }
+    SceneManager& scene_manager() { return scene_manager_; }
 
 private:
     void subscribe_initial_topics();
     void wire_panel_callbacks();
     void handle_plot_request(const FieldDragPayload& payload, PlotTarget target);
     void setup_layout_visibility();
+    void refresh_scene_displays(float dt);
+    void draw_display_auxiliary_windows();
 
     void draw_dockspace();
     void apply_default_dock_layout();
@@ -329,7 +359,10 @@ private:
     std::unique_ptr<RosLogViewer>        log_viewer_;
     std::unique_ptr<LogViewerPanel>      log_viewer_panel_;
     std::unique_ptr<DiagnosticsPanel>    diag_panel_;
+    std::unique_ptr<DisplaysPanel>       displays_panel_;
     std::unique_ptr<NodeGraphPanel>      node_graph_panel_;
+    std::unique_ptr<SceneViewport>       scene_viewport_;
+    std::unique_ptr<InspectorPanel>      inspector_panel_;
     std::unique_ptr<TfTreePanel>         tf_tree_panel_;
     std::unique_ptr<ParamEditorPanel>    param_editor_;
     std::unique_ptr<ServiceCaller>       service_caller_;
@@ -358,7 +391,10 @@ private:
     bool show_bag_playback_    = false;
     bool show_log_viewer_      = false;
     bool show_diagnostics_     = false;
+    bool show_displays_panel_  = false;
     bool show_node_graph_      = false;
+    bool show_scene_viewport_  = false;
+    bool show_inspector_panel_ = false;
     bool show_tf_tree_         = false;
     bool show_param_editor_    = false;
     bool show_service_caller_  = false;
@@ -389,6 +425,12 @@ private:
 
     // Centralised selection context — reset each frame in draw().
     RosWorkspaceState workspace_state_;
+
+    DisplayRegistry display_registry_;
+    SceneManager scene_manager_;
+    std::vector<std::unique_ptr<DisplayPlugin>> displays_;
+    std::unordered_map<DisplayPlugin*, bool> display_activation_state_;
+    std::string last_display_context_fixed_frame_;
 
     int next_replace_slot_ = 1;
 

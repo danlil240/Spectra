@@ -517,6 +517,68 @@ inline quat quat_slerp(quat a, quat b, float t)
     };
 }
 
+// ─── Transform ─────────────────────────────────────────────────────────────
+
+struct Transform
+{
+    vec3 translation{0.0, 0.0, 0.0};
+    quat rotation{0.0, 0.0, 0.0, 1.0};
+
+    mat4 to_mat4() const
+    {
+        return mat4_mul(mat4_translate(translation), quat_to_mat4(rotation));
+    }
+
+    static Transform from_mat4(const mat4& m)
+    {
+        Transform result;
+        result.translation = {m.m[12], m.m[13], m.m[14]};
+
+        mat4 rotation_only = m;
+        rotation_only.m[12] = 0.0f;
+        rotation_only.m[13] = 0.0f;
+        rotation_only.m[14] = 0.0f;
+        rotation_only.m[15] = 1.0f;
+        result.rotation = quat_from_mat4(rotation_only);
+        return result;
+    }
+
+    Transform inverse() const
+    {
+        const quat inv_rotation = quat_conjugate(quat_normalize(rotation));
+        return {
+            quat_rotate(inv_rotation, -translation),
+            inv_rotation,
+        };
+    }
+
+    Transform compose(const Transform& child) const
+    {
+        return {
+            translation + quat_rotate(rotation, child.translation),
+            quat_normalize(quat_mul(rotation, child.rotation)),
+        };
+    }
+
+    vec3 transform_point(const vec3& p) const
+    {
+        return translation + quat_rotate(rotation, p);
+    }
+
+    vec3 transform_vector(const vec3& v) const
+    {
+        return quat_rotate(rotation, v);
+    }
+
+    static Transform lerp(const Transform& a, const Transform& b, float t)
+    {
+        return {
+            vec3_lerp(a.translation, b.translation, t),
+            quat_slerp(a.rotation, b.rotation, t),
+        };
+    }
+};
+
 // ─── Ray ─────────────────────────────────────────────────────────────────────
 
 struct Ray

@@ -844,6 +844,62 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_attributes.push_back(
                 {2, 0, VK_FORMAT_R32_UINT, static_cast<uint32_t>(sizeof(float) * 5)});   // color
             break;
+        // ── Marker3D pipeline (instanced marker primitives for ROS displays) ──
+        case PipelineType::Marker3D:
+            cfg.vert_spirv         = shaders::marker3d_vert;
+            cfg.vert_spirv_size    = shaders::marker3d_vert_size;
+            cfg.frag_spirv         = shaders::marker3d_frag;
+            cfg.frag_spirv_size    = shaders::marker3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // Same vertex layout as Mesh3D: {pos.xyz, normal.xyz}
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1,
+                                             0,
+                                             VK_FORMAT_R32G32B32_SFLOAT,
+                                             static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
+        case PipelineType::Marker3D_Transparent:
+            cfg.vert_spirv         = shaders::marker3d_vert;
+            cfg.vert_spirv_size    = shaders::marker3d_vert_size;
+            cfg.frag_spirv         = shaders::marker3d_frag;
+            cfg.frag_spirv_size    = shaders::marker3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
+            cfg.vertex_attributes.push_back({1,
+                                             0,
+                                             VK_FORMAT_R32G32B32_SFLOAT,
+                                             static_cast<uint32_t>(sizeof(float) * 3)});
+            break;
+        // ── Point cloud pipeline (per-point color from SSBO) ──
+        case PipelineType::PointCloud:
+            cfg.vert_spirv         = shaders::pointcloud_vert;
+            cfg.vert_spirv_size    = shaders::pointcloud_vert_size;
+            cfg.frag_spirv         = shaders::pointcloud_frag;
+            cfg.frag_spirv_size    = shaders::pointcloud_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // No vertex attributes — reads from SSBO via gl_VertexIndex
+            break;
+        case PipelineType::PointCloud_Transparent:
+            cfg.vert_spirv         = shaders::pointcloud_vert;
+            cfg.vert_spirv_size    = shaders::pointcloud_vert_size;
+            cfg.frag_spirv         = shaders::pointcloud_frag;
+            cfg.frag_spirv_size    = shaders::pointcloud_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
+            break;
     }
 
     // All pipelines must match the render pass sample count

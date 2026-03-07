@@ -310,15 +310,23 @@ endif()
 # Zero impact on any target when SPECTRA_USE_ROS2=OFF.
 if(SPECTRA_USE_ROS2)
     find_package(ament_cmake QUIET)
+    find_package(TinyXML2 REQUIRED CONFIG)
     find_package(rclcpp REQUIRED)
     find_package(rcl_interfaces REQUIRED)
     find_package(rosidl_typesupport_introspection_cpp REQUIRED)
     find_package(std_msgs REQUIRED)
     find_package(geometry_msgs REQUIRED)
+    find_package(nav_msgs REQUIRED)
     find_package(sensor_msgs REQUIRED)
     find_package(diagnostic_msgs REQUIRED)
     find_package(tf2_msgs REQUIRED)
+    find_package(visualization_msgs REQUIRED)
     find_package(rcpputils QUIET)
+    find_path(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp)
+
+    if(NOT SPECTRA_NLOHMANN_JSON_INCLUDE_DIR)
+        message(FATAL_ERROR "SPECTRA_USE_ROS2 requires nlohmann/json.hpp to build ros_session.cpp")
+    endif()
 
     if(SPECTRA_ROS2_BAG)
         find_package(rosbag2_cpp REQUIRED)
@@ -338,6 +346,24 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/ui/topic_stats_overlay.cpp
         src/adapters/ros2/ui/field_drag_drop.cpp
         src/adapters/ros2/ui/node_graph_panel.cpp
+        src/adapters/ros2/display/display_registry.cpp
+        src/adapters/ros2/display/grid_display.cpp
+        src/adapters/ros2/display/tf_display.cpp
+        src/adapters/ros2/display/marker_display.cpp
+        src/adapters/ros2/display/pointcloud_display.cpp
+        src/adapters/ros2/display/laserscan_display.cpp
+        src/adapters/ros2/display/image_display.cpp
+        src/adapters/ros2/display/path_display.cpp
+        src/adapters/ros2/display/pose_display.cpp
+        src/adapters/ros2/display/robot_model_display.cpp
+        src/adapters/ros2/scene/scene_manager.cpp
+        src/adapters/ros2/scene/mesh_primitives.cpp
+        src/adapters/ros2/scene/scene_renderer.cpp
+        src/adapters/ros2/tf/tf_buffer.cpp
+        src/adapters/ros2/urdf/urdf_parser.cpp
+        src/adapters/ros2/ui/displays_panel.cpp
+        src/adapters/ros2/ui/inspector_panel.cpp
+        src/adapters/ros2/ui/scene_viewport.cpp
         src/adapters/ros2/ui/tf_tree_panel.cpp
         src/adapters/ros2/subplot_manager.cpp
         src/adapters/ros2/expression_engine.cpp
@@ -361,6 +387,7 @@ if(SPECTRA_USE_ROS2)
 
     target_link_libraries(spectra_ros2_adapter PUBLIC
         spectra
+        tinyxml2::tinyxml2
         rclcpp::rclcpp
         rosidl_typesupport_introspection_cpp::rosidl_typesupport_introspection_cpp
     )
@@ -368,9 +395,11 @@ if(SPECTRA_USE_ROS2)
     target_link_libraries(spectra_ros2_adapter PUBLIC
         ${std_msgs_TARGETS}
         ${geometry_msgs_TARGETS}
+        ${nav_msgs_TARGETS}
         ${sensor_msgs_TARGETS}
         ${diagnostic_msgs_TARGETS}
         ${tf2_msgs_TARGETS}
+        ${visualization_msgs_TARGETS}
     )
 
     if(SPECTRA_ROS2_BAG)
@@ -396,6 +425,7 @@ if(SPECTRA_USE_ROS2)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+        ${SPECTRA_NLOHMANN_JSON_INCLUDE_DIR}
     )
 
     target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_USE_ROS2)

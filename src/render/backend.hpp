@@ -49,6 +49,12 @@ enum class PipelineType
     Text,
     // Text with depth test (for 3D labels occluded by geometry)
     TextDepth,
+    // 3D marker primitives (cubes, spheres, cylinders — used by ROS display plugins)
+    Marker3D,
+    Marker3D_Transparent,
+    // Point cloud rendering (per-point color from SSBO)
+    PointCloud,
+    PointCloud_Transparent,
 };
 
 struct BufferHandle

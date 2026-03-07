@@ -38,6 +38,7 @@ class DataInteraction;
 class DockSystem;
 class KeyframeInterpolator;
 class ModeTransition;
+class Renderer;
 class ShortcutManager;
 class TabBar;
 class TimelineEditor;
@@ -264,6 +265,13 @@ class ImGuiIntegration
     // ImGui frame.  Used by spectra-ros to inject ROS2 panels.
     using ExtraDrawCallback = std::function<void()>;
     void set_extra_draw_callback(ExtraDrawCallback cb) { extra_draw_cb_ = std::move(cb); }
+
+    // Scene render callback — called by the render loop DURING the active
+    // Vulkan render pass, right after figure content and before ImGui overlay.
+    // Used by spectra-ros to issue GPU draw calls for the 3D scene viewport.
+    using SceneRenderCallback = std::function<void(Renderer&)>;
+    void set_scene_render_callback(SceneRenderCallback cb) { scene_render_cb_ = std::move(cb); }
+    const SceneRenderCallback& scene_render_callback() const { return scene_render_cb_; }
 
     // Panel visibility toggles
     bool is_timeline_visible() const { return show_timeline_; }
@@ -663,6 +671,9 @@ class ImGuiIntegration
 
     // Extra draw callback (set by spectra-ros or other adapters)
     ExtraDrawCallback extra_draw_cb_;
+
+    // Scene render callback (set by spectra-ros for GPU 3D viewport)
+    SceneRenderCallback scene_render_cb_;
 
     // CSV column picker dialog state (file selected via native OS dialog)
     bool        pending_open_csv_ = false;   // Set by welcome screen, handled in draw()

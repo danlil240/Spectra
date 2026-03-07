@@ -485,8 +485,10 @@ TEST(LayoutVisibility, SettersWorkWithoutInit)
     RosAppShell shell(cfg);
     shell.set_topic_list_visible(false);
     shell.set_plot_area_visible(false);
+    shell.set_inspector_panel_visible(true);
     EXPECT_FALSE(shell.topic_list_visible());
     EXPECT_FALSE(shell.plot_area_visible());
+    EXPECT_TRUE(shell.inspector_panel_visible());
     EXPECT_TRUE(shell.topic_echo_visible());
     EXPECT_TRUE(shell.topic_stats_visible());
 }

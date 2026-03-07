@@ -32,6 +32,7 @@
 //   All RosSessionManager methods must be called from the render thread.
 //   No internal locking.
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -42,7 +43,7 @@ namespace spectra::adapters::ros2
 // Session format version
 // ---------------------------------------------------------------------------
 
-inline constexpr int SESSION_FORMAT_VERSION = 1;
+inline constexpr int SESSION_FORMAT_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // SubscriptionEntry — one active plot (RosPlotManager or SubplotManager slot)
@@ -108,6 +109,32 @@ struct ExpressionPresetEntry
 };
 
 // ---------------------------------------------------------------------------
+// DisplaySessionEntry — one visualization display instance
+// ---------------------------------------------------------------------------
+
+struct DisplaySessionEntry
+{
+    std::string type_id;
+    std::string topic;
+    bool        enabled{true};
+    std::string config_blob;
+};
+
+// ---------------------------------------------------------------------------
+// SceneCameraPose — persisted viewport camera state
+// ---------------------------------------------------------------------------
+
+struct SceneCameraPose
+{
+    double azimuth{45.0};
+    double elevation{30.0};
+    double distance{5.0};
+    std::array<double, 3> target{{0.0, 0.0, 0.0}};
+    std::string projection{"perspective"};
+    double fov{45.0};
+};
+
+// ---------------------------------------------------------------------------
 // PanelVisibility — which panels are shown
 // ---------------------------------------------------------------------------
 
@@ -125,6 +152,9 @@ struct PanelVisibility
     bool tf_tree        = false;
     bool param_editor   = false;
     bool service_caller = false;
+    bool displays_panel = false;
+    bool scene_viewport = false;
+    bool inspector_panel = false;
     bool nav_rail       = true;
 };
 
@@ -141,7 +171,7 @@ struct RosSession
     std::string node_name;
     std::string node_ns;
 
-    // Layout mode string: "default" / "plot-only" / "monitor".
+    // Layout mode string: "default" / "plot-only" / "monitor" / "rviz" / "rviz-plot".
     std::string layout{"default"};
 
     // Subplot grid.
@@ -159,6 +189,18 @@ struct RosSession
 
     // Saved expression presets (from ExpressionEngine).
     std::vector<ExpressionPresetEntry> expression_presets;
+
+    // Active display plugins for the scene viewport.
+    std::vector<DisplaySessionEntry> displays;
+
+    // Current TF fixed frame for scene-space displays.
+    std::string fixed_frame;
+
+    // Current scene viewport camera.
+    SceneCameraPose camera_pose;
+
+    // Scene viewport background color.
+    std::array<double, 4> scene_background_color{{0.08, 0.09, 0.12, 1.0}};
 
     // Panel visibility.
     PanelVisibility panels;
@@ -373,11 +415,13 @@ private:
     static std::string serialize_subscription(const SubscriptionEntry& e);
     static std::string serialize_expression(const ExpressionEntry& e);
     static std::string serialize_preset(const ExpressionPresetEntry& e);
+    static std::string serialize_display(const DisplaySessionEntry& e);
     static std::string serialize_panels(const PanelVisibility& p);
 
     static SubscriptionEntry    deserialize_subscription(const std::string& json);
     static ExpressionEntry      deserialize_expression(const std::string& json);
     static ExpressionPresetEntry deserialize_preset(const std::string& json);
+    static DisplaySessionEntry  deserialize_display(const std::string& json);
     static PanelVisibility      deserialize_panels(const std::string& json);
 
     // Extract a JSON array body (the content between the first '[' and last ']').

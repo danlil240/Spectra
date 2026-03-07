@@ -1,6 +1,6 @@
 # Spectra ROS Studio — RViz-Class Visualization Plan
 
-> **Status:** DRAFT v1 — March 2026  
+> **Status:** DRAFT v1 with implementation audit — March 7, 2026  
 > **Scope:** Evolve spectra-ros from rqt-replacement to next-generation RViz-class 3D visualization  
 > **Principle:** Incremental expansion on existing architecture — no big-bang rewrite
 
@@ -16,6 +16,26 @@
 6. [Phased Roadmap](#6-phased-roadmap)
 7. [Testing & Validation](#7-testing--validation)
 8. [Risk Register](#8-risk-register)
+
+---
+
+## 0. Mission Status Snapshot
+
+Implementation audit as of **March 7, 2026**:
+
+| Mission | Status | Notes |
+|---------|--------|-------|
+| **Phase 1: Foundation** | **Mostly complete** | Core shell, session v2, display registry, `TfBuffer`, scene viewport shell, grid display, fixed-frame UI all exist. Remaining gap: the broader ROS2 test suite is not fully green. |
+| **Phase 2: TF + Markers** | **Partial** | TF and marker displays exist, plus picking and inspector basics. Missing: renderer `render_scene()` transition, `Marker3D` pipeline/shaders, `mesh_primitives`, and several performance/label requirements. |
+| **Phase 3: Point Cloud + LaserScan** | **Partial** | Point cloud and laser scan displays plus adapters exist. Missing: dedicated GPU pipelines/shaders, scene renderables, and the performance/memory hardening promised in the phase. |
+| **Phase 4: Image + Path + Pose** | **Partial** | Image, path, and pose displays exist and are session-persisted. Missing: `Image3D` pipeline/shaders and Vulkan texture streaming path described in the plan. |
+| **Phase 5: Robot Model + Polish** | **Partial** | URDF parser and a basic robot-model display exist. Missing: `joint_state_adapter`, joint-state articulation, frame/joint axis toggles, and refined picking for robot links. |
+| **Phase 6: Integration & Hardening** | **Not complete** | The repo is not yet at the “all green / hardened / benchmarked” bar. `ctest -L ros2 --output-on-failure` still has unrelated failures. |
+
+Legend:
+- `Mostly complete`: core scope is implemented, with validation or hardening gaps remaining.
+- `Partial`: meaningful implementation exists, but major planned components are still absent.
+- `Not complete`: the phase acceptance bar is clearly not met.
 
 ---
 
@@ -664,6 +684,18 @@ GPU: Image3D pipeline
 
 ### Phase 1: Foundation (2-3 weeks)
 
+**Mission status (March 7, 2026):** `Mostly complete`
+
+**What is implemented now:**
+- `RosAppShell` owns `DisplayRegistry`, `SceneManager`, fixed-frame state, RViz/RViz+Plot layouts, scene viewport, displays panel, and inspector panel.
+- `RosSession` was migrated to v2 JSON with backward-compatible v1 loading, and now persists fixed frame, displays, dock layout, and viewport camera/background state.
+- `TfBuffer` was factored out of `TfTreePanel`, and dedicated unit tests exist.
+- `display_plugin`, `display_registry`, `scene_manager`, `displays_panel`, `scene_viewport`, and `grid_display` modules all exist.
+
+**Known gaps vs the original Phase 1 target:**
+- The scene viewport is still a lightweight ImGui preview rather than a true Axes3D/Vulkan-backed 3D viewport.
+- The plan's “`ctest -L ros2 --output-on-failure` all green” verification bar is not met yet.
+
 **Goal:** Plugin skeleton + TfBuffer + scene viewport shell + first display (Grid). The framework is wired end-to-end with one concrete display type rendering through the existing Axes3D/Grid3D pipeline. Scene-based rendering (`render_scene()`) is deferred to Phase 2.
 
 **Files/modules touched:**
@@ -690,6 +722,14 @@ GPU: Image3D pipeline
 5. `TfBuffer` unit tests pass: insert/lookup/interpolation/can_transform
 6. Grid display renders at 60 FPS with no hitches
 
+**Acceptance status (March 7, 2026):**
+- `[x]` Displays panel exists with add/remove/configure workflow.
+- `[~]` Grid display exists and is visible in the current scene viewport preview, but not through the later scene-renderer path.
+- `[x]` Fixed frame selector exists in the main toolbar.
+- `[x]` Session save/load persists display list and fixed frame.
+- `[x]` `TfBuffer` unit tests exist and pass in targeted runs.
+- `[ ]` 60 FPS / no hitch validation has not been established in this document or test suite.
+
 **Verification steps:**
 1. Launch `spectra-ros`. The new "RViz" layout preset (created in this phase, added to the LayoutMode enum alongside the existing Default/PlotOnly/Monitor presets) is selectable from the layout dropdown.
 2. Select "RViz" layout → verify 3D viewport panel appears with orbit camera
@@ -708,6 +748,20 @@ GPU: Image3D pipeline
 ---
 
 ### Phase 2: TF + Markers (2-4 weeks)
+
+**Mission status (March 7, 2026):** `Partial`
+
+**What is implemented now:**
+- `tf_display`, `marker_display`, `marker_adapter`, `tf_adapter`, and `inspector_panel` exist.
+- `SceneManager::pick()` exists with ray-vs-AABB picking.
+- Marker lifetime expiration and marker deletion behavior are covered by unit tests.
+
+**Known gaps vs the original Phase 2 target:**
+- `src/render/backend.hpp` does not define `PipelineType::Marker3D`.
+- `Renderer::render_scene()` does not exist, and the scene path has not been migrated into the Vulkan renderer.
+- `src/adapters/ros2/scene/mesh_primitives.hpp/.cpp` is absent.
+- `src/gpu/shaders/marker3d.vert/.frag` is absent.
+- The current TF/marker displays submit simplified `SceneEntity` records into the preview scene, not GPU renderables.
 
 **Goal:** TF axes rendering in 3D + Marker/MarkerArray display — the two most fundamental RViz display types.
 
@@ -737,6 +791,15 @@ GPU: Image3D pipeline
 7. Click entity in 3D → Inspector panel shows entity details
 8. 100 markers rendering at 30 Hz — maintains 60 FPS
 
+**Acceptance status (March 7, 2026):**
+- `[~]` TF display exists and submits frame entities into the scene preview, but not a full renderer-backed TF axes path.
+- `[ ]` Depth-tested frame labels are not implemented as described here.
+- `[~]` Fixed-frame behavior exists in the display context and tests, but the exact viewport transform behavior from the phase narrative is not fully verified.
+- `[~]` Marker display exists with core add/delete/lifetime handling, but the phase-specific rendering coverage is reduced to preview entities.
+- `[~]` MarkerArray support is present in the display implementation, but efficiency/perf targets are not validated.
+- `[x]` Inspector selection exists for picked scene entities.
+- `[ ]` Marker stress-performance target is not validated.
+
 **Verification steps:**
 1. `ros2 run tf2_ros static_transform_publisher 0 0 1 0 0 0 world camera_link`
 2. Add TF Display → frame axes visible at world origin and at (0,0,1) for camera_link
@@ -754,6 +817,19 @@ GPU: Image3D pipeline
 ---
 
 ### Phase 3: Point Cloud + LaserScan (3-4 weeks)
+
+**Mission status (March 7, 2026):** `Partial`
+
+**What is implemented now:**
+- `pointcloud_display`, `laserscan_display`, `pointcloud_adapter`, and `laserscan_adapter` exist.
+- Unit tests cover adapter/display basics, TF-fixed-frame resolution, and config round-trips.
+
+**Known gaps vs the original Phase 3 target:**
+- `PipelineType::PointCloud` is absent from the renderer backend.
+- `src/gpu/shaders/pointcloud.vert/.frag` is absent.
+- `SceneManager` still handles generic `SceneEntity` records, not dedicated `PointCloudRenderable` / `LaserScanRenderable` objects.
+- The current displays emit summary entities into the scene preview rather than GPU point/line submissions.
+- The plan’s performance and memory-budget claims are not backed by current test or benchmark evidence.
 
 **Goal:** GPU-accelerated point cloud and laser scan rendering with LOD and configurable coloring.
 
@@ -788,6 +864,14 @@ GPU: Image3D pipeline
 8. Both displays transform correctly with fixed frame via TfBuffer
 9. Memory usage stays within configured budget
 
+**Acceptance status (March 7, 2026):**
+- `[~]` PointCloud2 display exists and resolves into the fixed frame, but it renders as a summary scene entity in the preview path, not a true GPU cloud.
+- `[x]` Color mode and point-size configuration exist in the display UI/state.
+- `[ ]` 100K / 500K performance targets are not validated.
+- `[~]` LaserScan display exists and supports stored trail state, but the planned visual point/line GPU path is not implemented.
+- `[x]` Fixed-frame transform logic exists in both displays.
+- `[ ]` Memory-budget enforcement is not implemented as described.
+
 **Verification steps:**
 1. Play a rosbag with PointCloud2 data: `ros2 bag play <bag> --loop`
 2. Add PointCloud2 display, select topic
@@ -806,6 +890,19 @@ GPU: Image3D pipeline
 ---
 
 ### Phase 4: Image + Path + Pose (2-3 weeks)
+
+**Mission status (March 7, 2026):** `Partial`
+
+**What is implemented now:**
+- `image_display`, `path_display`, `pose_display`, `image_adapter`, and `path_adapter` exist.
+- Image display supports an ImGui preview window and a billboard-style scene entity.
+- Path and pose displays submit scene entities and are covered by targeted tests.
+- Session persistence now includes these displays through the generic display save/load path.
+
+**Known gaps vs the original Phase 4 target:**
+- `PipelineType::Image3D` is absent from the renderer backend.
+- `src/gpu/shaders/image3d.vert/.frag` is absent.
+- The planned Vulkan texture ring-buffer streaming path is not implemented; image display currently relies on CPU preview data and simplified billboard metadata.
 
 **Goal:** Camera image display, navigation path, and pose arrow — completing the sensor+nav display set.
 
@@ -838,6 +935,14 @@ GPU: Image3D pipeline
 5. All three displays persist in session save/load
 6. Image display handles encoding switching (e.g., mono8 ↔ rgb8) gracefully
 
+**Acceptance status (March 7, 2026):**
+- `[x]` Image display can show a live image in a dockable auxiliary ImGui panel.
+- `[ ]` Source-rate/no-frame-drop behavior has not been validated against the target.
+- `[x]` Path display exists and shows a line-strip style scene entity.
+- `[x]` Pose display exists and resolves orientation through an arrow scene entity.
+- `[x]` Displays persist through the generic session system.
+- `[~]` Encoding handling exists for the MVP subset, but graceful runtime switching has not been verified to the level described here.
+
 **Verification steps:**
 1. Run camera node: `ros2 run image_tools cam2image`
 2. Add Image display → live video feed in panel
@@ -852,6 +957,19 @@ GPU: Image3D pipeline
 ---
 
 ### Phase 5: Robot Model + Polish (3-5 weeks)
+
+**Mission status (March 7, 2026):** `Partial`
+
+**What is implemented now:**
+- `urdf_parser` exists and parses simplified collision geometry.
+- `robot_model_display` exists, loads robot description text, and submits collision-shape scene entities.
+- Unit tests cover config round-trip, URDF parsing, and collision entity submission.
+
+**Known gaps vs the original Phase 5 target:**
+- `src/adapters/ros2/messages/joint_state_adapter.hpp` is absent.
+- The robot model display does not subscribe to `/joint_states` or articulate the model.
+- The display does not yet implement the planned collision/frame/joint-axis toggles.
+- Refined per-triangle picking for robot links is not implemented in `SceneManager`.
 
 **Goal:** Simplified URDF robot model display + selection/picking polish + performance hardening.
 
@@ -882,6 +1000,14 @@ GPU: Image3D pipeline
 5. Selection: click a link → Inspector shows link name, joint name, joint position
 6. Performance: 50-DOF robot at 100 Hz joint states — 60 FPS maintained
 
+**Acceptance status (March 7, 2026):**
+- `[x]` URDF collision shapes can be loaded and displayed.
+- `[ ]` Joint-state articulation is not implemented.
+- `[ ]` Link transforms are not driven by the planned TF/joint-state articulation model.
+- `[ ]` Collision/frame/joint axis toggles are not implemented.
+- `[~]` Generic scene picking plus inspector exists, but not the robot-specific link/joint inspection promised here.
+- `[ ]` Performance target is not validated.
+
 **Verification steps:**
 1. Launch robot_state_publisher with a URDF
 2. Add RobotModel display → collision shapes visible
@@ -897,6 +1023,17 @@ GPU: Image3D pipeline
 ---
 
 ### Phase 6: Integration & Hardening (2-3 weeks)
+
+**Mission status (March 7, 2026):** `Not complete`
+
+**What is implemented now:**
+- Many display modules and focused unit tests exist.
+- Session save/load includes displays, fixed frame, dock layout, and viewport camera/background state.
+
+**Known blockers vs the original Phase 6 target:**
+- The full renderer migration described by earlier phases is incomplete.
+- Several planned tests/benchmarks are absent.
+- `ctest -L ros2 --output-on-failure` is not fully green as of the latest audit run.
 
 **Goal:** End-to-end robustness, stress testing, documentation, workspace polish.
 
@@ -924,6 +1061,14 @@ GPU: Image3D pipeline
 6. Zero Vulkan validation errors in debug build
 7. All new unit tests pass
 8. `ctest -L ros2 --output-on-failure` — 100% pass
+
+**Acceptance status (March 7, 2026):**
+- `[~]` All nine display classes exist, but several are still preview-path implementations rather than the full planned renderer path.
+- `[~]` Workspace save/load covers much of the 3D session state, but “perfect round-trip” is not proven.
+- `[ ]` Stress/performance/memory targets are not validated.
+- `[ ]` Zero Vulkan validation errors have not been established in this plan.
+- `[ ]` All new unit tests do not yet pass as a whole.
+- `[ ]` `ctest -L ros2 --output-on-failure` is not currently 100% green.
 
 **Verification steps:**
 1. Launch full stress test (script provided):

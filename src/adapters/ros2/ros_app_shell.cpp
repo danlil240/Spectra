@@ -55,11 +55,11 @@ bool env_flag_is_truthy(const char* value)
 
 constexpr float kPlotAreaMinWindowWidth    = 900.0f;
 constexpr float kPlotAreaMinWindowHeight   = 200.0f;
-constexpr float kPlotAreaTimeSliderMinWidth = 180.0f;
-constexpr float kPlotAreaTimeSliderMaxWidth = 320.0f;
+constexpr float kPlotAreaTimeSliderMinWidth = 120.0f;
+constexpr float kPlotAreaTimeSliderMaxWidth = 220.0f;
 constexpr float kPlotAreaMinViewportHeight = 120.0f;
-constexpr float kPlotAreaGlobalDropHeight  = 56.0f;
-constexpr float kPlotAreaButtonSpacing     = 8.0f;
+constexpr float kPlotAreaGlobalDropHeight  = 28.0f;
+constexpr float kPlotAreaButtonSpacing     = 4.0f;
 }   // namespace
 
 LayoutMode parse_layout_mode(const std::string& s)
@@ -808,9 +808,9 @@ void RosAppShell::apply_default_dock_layout()
                std::max(240.0f, vp->WorkSize.y - menu_h - status_h)));
 
     ImGuiID dock_main         = dockspace_id_;
-    ImGuiID dock_left         = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22f, nullptr, &dock_main);
-    ImGuiID dock_right        = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.31f, nullptr, &dock_main);
-    ImGuiID dock_bottom       = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.38f, nullptr, &dock_main);
+    ImGuiID dock_left         = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
+    ImGuiID dock_right        = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.22f, nullptr, &dock_main);
+    ImGuiID dock_bottom       = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.22f, nullptr, &dock_main);
     ImGuiID dock_right_bottom = ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Down, 0.42f, nullptr, &dock_right);
     ImGuiID dock_bottom_left  = ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Left, 0.28f, nullptr, &dock_bottom);
     ImGuiID dock_bottom_right = ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Right, 0.42f, nullptr, &dock_bottom);
@@ -989,9 +989,6 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
     if (ImGui::Begin("Plot Area", p_open, flags))
     {
-        const int active = subplot_mgr_ ? subplot_mgr_->active_count() : 0;
-        const int cap    = subplot_mgr_ ? subplot_mgr_->capacity() : 0;
-        ImGui::Text("Active plots: %d / %d", active, cap);
         float canvas_top    = ImGui::GetCursorScreenPos().y;
         float canvas_bottom = canvas_top;
         const auto same_line_button = []() {
@@ -1041,30 +1038,28 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     se->axes->xlim(mid - new_tw * 0.5, mid + new_tw * 0.5);
                 }
             }
-            ImGui::TextDisabled("Time Window");
-
+            same_line_button();
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-            if (ImGui::Button("Live All")) subplot_mgr_->resume_all_scroll();
+            if (ImGui::SmallButton("Live All")) subplot_mgr_->resume_all_scroll();
             ImGui::PopStyleColor(2);
             same_line_button();
-            if (ImGui::Button("Pause All")) subplot_mgr_->pause_all_scroll();
+            if (ImGui::SmallButton("Pause All")) subplot_mgr_->pause_all_scroll();
             same_line_button();
-            if (ImGui::Button("Reset (R)"))
+            if (ImGui::SmallButton("Reset"))
                 reset_plot_display();
             same_line_button();
-            if (ImGui::Button("Auto Y (A)"))
+            if (ImGui::SmallButton("Auto Y"))
                 restore_plot_autofit(workspace_state_.active_subplot_idx);
-
             same_line_button();
-            if (ImGui::Button("+ Add Subplot"))
+            if (ImGui::SmallButton("+Sub"))
             {
                 subplot_mgr_->add_row();
             }
             same_line_button();
             ImGui::BeginDisabled(subplot_mgr_->rows() <= 1);
             {
-                if (ImGui::Button("- Remove Last"))
+                if (ImGui::SmallButton("-Sub"))
                     subplot_mgr_->remove_last_row();
             }
             ImGui::EndDisabled();
@@ -1085,8 +1080,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
             const float avail_h = ImGui::GetContentRegionAvail().y;
             // Reserve space for the global drop zone at the bottom.
             const float reserved_bottom =
-                kPlotAreaGlobalDropHeight + ImGui::GetTextLineHeightWithSpacing()
-                + ImGui::GetStyle().ItemSpacing.y + 12.0f;
+                kPlotAreaGlobalDropHeight + ImGui::GetStyle().ItemSpacing.y;
             const float usable_h = std::max(0.0f, avail_h - reserved_bottom);
             const float slot_h = (total_slots > 0)
                 ? std::max(min_slot_height, usable_h / static_cast<float>(total_slots))

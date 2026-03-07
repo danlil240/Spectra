@@ -610,15 +610,13 @@ void SceneViewport::draw(bool* p_open,
         return;
     }
 
-    ImGui::Text("Fixed frame: %s", fixed_frame.empty() ? "(unset)" : fixed_frame.c_str());
-    ImGui::Text("Displays: %zu | Scene entities: %zu", display_count, scene.entity_count());
-    if (ImGui::Button("Reset View"))
+    if (ImGui::SmallButton("Reset View"))
     {
         camera_.reset();
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Fit View"))
+    if (ImGui::SmallButton("Fit View"))
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
     ImGui::SameLine();
     int projection = camera_.projection_mode == spectra::Camera::ProjectionMode::Perspective ? 0 : 1;
@@ -628,19 +626,21 @@ void SceneViewport::draw(bool* p_open,
     if (ImGui::RadioButton("Ortho", projection == 1))
         camera_.set_projection(spectra::Camera::ProjectionMode::Orthographic);
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(150.0f);
     ImGui::ColorEdit4("Background",
                       background_rgba_.data(),
                       ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreviewHalf);
-    ImGui::Text("Camera: az %.1f | el %.1f | dist %.2f",
+    ImGui::SameLine();
+    ImGui::TextDisabled("az %.1f el %.1f d %.2f | %s | %zu disp, %zu ent",
                 camera_.azimuth,
                 camera_.elevation,
-                camera_.distance);
-    ImGui::TextDisabled("Drag LMB to orbit, RMB/MMB to pan, wheel to zoom, double-click to fit.");
+                camera_.distance,
+                fixed_frame.empty() ? "(unset)" : fixed_frame.c_str(),
+                display_count,
+                scene.entity_count());
     ImGui::Separator();
 
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float canvas_height = std::max(140.0f, avail.y * 0.45f);
+    const float canvas_height = std::max(140.0f, avail.y * 0.72f);
 
     // Record screen-space canvas rect for GPU scene rendering.
     {
@@ -662,7 +662,7 @@ void SceneViewport::draw(bool* p_open,
         scene.clear_selection();
 
     ImGui::Separator();
-    const float list_height = std::max(90.0f, avail.y * 0.20f);
+    const float list_height = std::max(60.0f, avail.y * 0.10f);
     if (ImGui::BeginChild("##scene_entities", ImVec2(0.0f, list_height), true))
     {
         const auto selected_index = scene.selected_index();

@@ -87,7 +87,7 @@ void GridDisplay::draw_inspector_ui()
     ImGui::SliderFloat("Cell Size", &cell_size_, 0.1f, 10.0f, "%.2f");
     ImGui::SliderInt("Cell Count", &cell_count_, 1, 200);
     const char* planes[] = {"xy", "xz", "yz"};
-    int current = plane_ == "xy" ? 0 : (plane_ == "yz" ? 2 : 1);
+    int current = plane_ == "xz" ? 1 : (plane_ == "yz" ? 2 : 0);
     if (ImGui::Combo("Plane", &current, planes, 3))
         plane_ = planes[current];
     ImGui::ColorEdit3("Color", color_);

@@ -225,6 +225,44 @@ bool project_point(const spectra::Camera& camera,
     return true;
 }
 
+// Project a line segment, clipping to the near plane so that lines crossing
+// the camera plane still produce visible geometry.
+bool project_line_clipped(const spectra::Camera& camera,
+                          const spectra::vec3& world_a,
+                          const spectra::vec3& world_b,
+                          const ImVec2& origin,
+                          const ImVec2& size,
+                          ImVec2& out_a,
+                          ImVec2& out_b)
+{
+    const CameraBasis basis = make_camera_basis(camera);
+    const double za = spectra::vec3_dot(world_a - camera.position, basis.forward);
+    const double zb = spectra::vec3_dot(world_b - camera.position, basis.forward);
+    const double near = static_cast<double>(camera.near_clip) + 0.01;
+
+    // Both behind the camera — fully clipped.
+    if (za <= near && zb <= near)
+        return false;
+
+    spectra::vec3 a = world_a;
+    spectra::vec3 b = world_b;
+
+    // Clip whichever endpoint is behind the near plane.
+    if (za <= near)
+    {
+        const double t = (near - za) / (zb - za);
+        a = {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+    }
+    else if (zb <= near)
+    {
+        const double t = (near - zb) / (za - zb);
+        b = {b.x + (a.x - b.x) * t, b.y + (a.y - b.y) * t, b.z + (a.z - b.z) * t};
+    }
+
+    return project_point(camera, a, origin, size, out_a)
+           && project_point(camera, b, origin, size, out_b);
+}
+
 spectra::Ray build_pick_ray(const spectra::Camera& camera,
                             const ImVec2& mouse,
                             const ImVec2& origin,
@@ -426,6 +464,79 @@ SceneCanvasResult draw_scene_canvas(SceneManager& scene,
                                ImVec2(center.x + half_w, center.y + half_h),
                                color,
                                1.0f);
+        }
+        else if (entity.type == "grid")
+        {
+            const float cell_size = static_cast<float>(std::max(0.05, std::abs(entity.scale.x)));
+            const int cell_count  = static_cast<int>(std::max(1.0, std::abs(entity.scale.z)));
+            const float half = cell_size * static_cast<float>(cell_count) * 0.5f;
+
+            // Determine which plane from entity properties
+            std::string plane = "xy";
+            for (const auto& prop : entity.properties)
+            {
+                if (prop.key == "plane")
+                {
+                    plane = prop.value;
+                    break;
+                }
+            }
+
+            // Parse grid color from properties
+            ImU32 grid_color = IM_COL32(120, 120, 120, 100);
+            for (const auto& prop : entity.properties)
+            {
+                if (prop.key == "color")
+                {
+                    float r = 0.45f, g = 0.45f, b = 0.45f, a = 0.6f;
+                    std::sscanf(prop.value.c_str(), "%f, %f, %f, %f", &r, &g, &b, &a);
+                    grid_color = IM_COL32(
+                        static_cast<int>(std::clamp(r, 0.0f, 1.0f) * 255.0f),
+                        static_cast<int>(std::clamp(g, 0.0f, 1.0f) * 255.0f),
+                        static_cast<int>(std::clamp(b, 0.0f, 1.0f) * 255.0f),
+                        static_cast<int>(std::clamp(a, 0.0f, 1.0f) * 255.0f));
+                    break;
+                }
+            }
+
+            const spectra::vec3 offset = entity.transform.translation;
+
+            for (int line = 0; line <= cell_count; ++line)
+            {
+                const float t = -half + cell_size * static_cast<float>(line);
+                spectra::vec3 a_world{}, b_world{}, c_world{}, d_world{};
+                if (plane == "xy")
+                {
+                    a_world = {offset.x - half, offset.y + t, offset.z};
+                    b_world = {offset.x + half, offset.y + t, offset.z};
+                    c_world = {offset.x + t, offset.y - half, offset.z};
+                    d_world = {offset.x + t, offset.y + half, offset.z};
+                }
+                else if (plane == "yz")
+                {
+                    a_world = {offset.x, offset.y - half, offset.z + t};
+                    b_world = {offset.x, offset.y + half, offset.z + t};
+                    c_world = {offset.x, offset.y + t, offset.z - half};
+                    d_world = {offset.x, offset.y + t, offset.z + half};
+                }
+                else   // xz
+                {
+                    a_world = {offset.x - half, offset.y, offset.z + t};
+                    b_world = {offset.x + half, offset.y, offset.z + t};
+                    c_world = {offset.x + t, offset.y, offset.z - half};
+                    d_world = {offset.x + t, offset.y, offset.z + half};
+                }
+
+                ImVec2 sa{}, sb{}, sc{}, sd{};
+                if (project_line_clipped(camera, a_world, b_world, origin, size, sa, sb))
+                {
+                    draw_list->AddLine(sa, sb, grid_color, 1.0f);
+                }
+                if (project_line_clipped(camera, c_world, d_world, origin, size, sc, sd))
+                {
+                    draw_list->AddLine(sc, sd, grid_color, 1.0f);
+                }
+            }
         }
         else if (entity.point_set.has_value() && !entity.point_set->points.empty())
         {

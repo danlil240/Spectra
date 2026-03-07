@@ -26,7 +26,7 @@ public:
 private:
     float cell_size_{1.0f};
     int   cell_count_{20};
-    std::string plane_{"xz"};
+    std::string plane_{"xy"};
     float color_[3]{0.45f, 0.45f, 0.45f};
     float alpha_{0.6f};
     float offset_[3]{0.0f, 0.0f, 0.0f};

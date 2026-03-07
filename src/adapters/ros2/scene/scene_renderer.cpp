@@ -213,7 +213,8 @@ void SceneRenderer::render(Renderer& renderer,
         const int cell_count  = static_cast<int>(std::max(1.0, std::abs(entity.scale.z)));
         const std::string plane = entity_property(entity, "plane", "xz");
 
-        if (cell_size != gpu_.grid_cell_size || cell_count != gpu_.grid_cell_count)
+        if (cell_size != gpu_.grid_cell_size || cell_count != gpu_.grid_cell_count
+            || plane != gpu_.grid_plane)
         {
             const float half = cell_size * static_cast<float>(cell_count) * 0.5f;
             std::vector<float> verts;
@@ -257,6 +258,7 @@ void SceneRenderer::render(Renderer& renderer,
             gpu_.grid_vertex_count = static_cast<uint32_t>(verts.size() / 3);
             gpu_.grid_cell_size    = cell_size;
             gpu_.grid_cell_count   = cell_count;
+            gpu_.grid_plane        = plane;
         }
 
         if (!gpu_.grid_vbo || gpu_.grid_vertex_count == 0)

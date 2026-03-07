@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 
 #include "render/backend.hpp"
@@ -65,6 +66,7 @@ private:
         uint32_t     grid_vertex_count{0};
         float        grid_cell_size{0.0f};
         int          grid_cell_count{0};
+        std::string  grid_plane;
 
         BufferHandle point_ssbo;
         size_t       point_capacity{0};

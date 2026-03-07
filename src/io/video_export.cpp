@@ -1,9 +1,10 @@
 #include <spectra/export.hpp>
 
+#include "io/ffmpeg_command.hpp"
+
 #ifdef SPECTRA_USE_FFMPEG
 
     #include <cstdio>
-    #include <sstream>
     #include <stdexcept>
 
 namespace spectra
@@ -11,20 +12,23 @@ namespace spectra
 
 VideoExporter::VideoExporter(const Config& config) : config_(config)
 {
-    // Build ffmpeg command line:
-    //   ffmpeg -y -f rawvideo -vcodec rawvideo -pix_fmt rgba
-    //          -s WxH -r FPS -i - -c:v CODEC -pix_fmt PIX_FMT OUTPUT
-    std::ostringstream cmd;
-    cmd << "ffmpeg -y"
-        << " -f rawvideo"
-        << " -vcodec rawvideo"
-        << " -pix_fmt rgba"
-        << " -s " << config_.width << "x" << config_.height << " -r "
-        << static_cast<int>(config_.fps) << " -i -"
-        << " -c:v " << config_.codec << " -pix_fmt " << config_.pix_fmt << " "
-        << config_.output_path << " 2>/dev/null";
+    std::string error;
+    if (!detail::ensure_ffmpeg_output_parent(config_.output_path, &error))
+    {
+        throw std::runtime_error(error);
+    }
 
-    pipe_ = popen(cmd.str().c_str(), "w");
+    const detail::FfmpegCommandConfig ffmpeg_config{
+        .output_path = config_.output_path,
+        .width       = config_.width,
+        .height      = config_.height,
+        .fps         = config_.fps,
+        .codec       = config_.codec,
+        .pix_fmt     = config_.pix_fmt,
+    };
+
+    const std::string cmd = detail::build_ffmpeg_command(ffmpeg_config);
+    pipe_                 = popen(cmd.c_str(), "w");
 }
 
 VideoExporter::~VideoExporter()

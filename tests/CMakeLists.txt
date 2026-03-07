@@ -713,6 +713,27 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_scene_manager PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_viewport.cpp)
+        add_executable(unit_test_scene_viewport
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_viewport.cpp
+        )
+        target_link_libraries(unit_test_scene_viewport PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_scene_viewport PRIVATE cxx_std_20)
+        target_include_directories(unit_test_scene_viewport PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_scene_viewport PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_scene_viewport COMMAND unit_test_scene_viewport)
+        set_tests_properties(unit_test_scene_viewport PROPERTIES LABELS "ros2")
+    endif()
+
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_marker_display.cpp)
         add_executable(unit_test_marker_display
             ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_marker_display.cpp

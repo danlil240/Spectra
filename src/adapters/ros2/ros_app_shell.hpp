@@ -312,6 +312,8 @@ private:
     void wire_panel_callbacks();
     void handle_plot_request(const FieldDragPayload& payload, PlotTarget target);
     void setup_layout_visibility();
+    void register_builtin_displays();
+    void seed_default_rviz_displays_if_needed();
     void refresh_scene_displays(float dt);
     void draw_display_auxiliary_windows();
 
@@ -383,7 +385,7 @@ private:
     std::atomic<bool> shutdown_requested_{false};
 
     bool show_topic_list_      = true;
-    bool show_topic_echo_      = true;
+    bool show_topic_echo_      = false;
     bool show_topic_stats_     = true;
     bool show_plot_area_       = true;
     bool plot_area_was_visible_= true;  // tracks previous frame for close detection

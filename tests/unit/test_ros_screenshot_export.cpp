@@ -13,7 +13,11 @@
 #include <string>
 #include <vector>
 
+#define private public
 #include "ros_screenshot_export.hpp"
+#undef private
+
+#include "ui/animation/recording_export.hpp"
 
 namespace fs = std::filesystem;
 using namespace spectra::adapters::ros2;
@@ -43,6 +47,12 @@ static bool checker_grab(uint8_t* buf, uint32_t w, uint32_t h)
 static bool failing_grab(uint8_t* /*buf*/, uint32_t /*w*/, uint32_t /*h*/)
 {
     return false;
+}
+
+static bool solid_render(uint8_t* buf, uint32_t w, uint32_t h, uint8_t value)
+{
+    std::memset(buf, value, static_cast<size_t>(w) * static_cast<size_t>(h) * 4u);
+    return true;
 }
 
 // Returns a temp path unique per test.
@@ -160,6 +170,116 @@ TEST(RosScreenshotExport, SetDialogConfig)
     cfg.default_fps = 24.0f;
     exporter.set_dialog_config(cfg);
     EXPECT_FLOAT_EQ(exporter.dialog_config().default_fps, 24.0f);
+}
+
+TEST(RosScreenshotExport, CaptureSizeCallbackPreferredForAutoSizing)
+{
+    RosScreenshotExport exporter;
+    exporter.set_frame_grab_callback(checker_grab);
+    exporter.set_capture_size_callback(
+        [](uint32_t& w, uint32_t& h)
+        {
+            w = 1600;
+            h = 900;
+            return true;
+        });
+
+    const std::string path = tmp_png("capture_size_callback");
+    const auto r = exporter.take_screenshot(path, 0, 0);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.width, 1600u);
+    EXPECT_EQ(r.height, 900u);
+    fs::remove(path);
+}
+
+TEST(RosScreenshotExport, CurrentCaptureSizeFallsBackToDefaults)
+{
+    RecordingDialogConfig cfg;
+    cfg.default_width = 640;
+    cfg.default_height = 480;
+    RosScreenshotExport exporter(cfg);
+
+    uint32_t w = 0;
+    uint32_t h = 0;
+    EXPECT_TRUE(exporter.current_capture_size(w, h));
+    EXPECT_EQ(w, 640u);
+    EXPECT_EQ(h, 480u);
+}
+
+TEST(RosScreenshotExport, TickAdvancesFramesByWallTime)
+{
+    RosScreenshotExport exporter;
+    exporter.set_capture_size_callback(
+        [](uint32_t& w, uint32_t& h)
+        {
+            w = 8;
+            h = 8;
+            return true;
+        });
+    exporter.set_frame_render_callback(
+        [](uint32_t /*frame_index*/, float /*time*/, uint8_t* buf, uint32_t w, uint32_t h)
+        {
+            return solid_render(buf, w, h, 0x5A);
+        });
+
+    std::strncpy(exporter.dialog_path_buf_, "/tmp/test_ros_record_tick_frames",
+                 sizeof(exporter.dialog_path_buf_) - 1);
+    exporter.dialog_path_buf_[sizeof(exporter.dialog_path_buf_) - 1] = '\0';
+    exporter.dialog_format_idx_ = 0;
+    exporter.dialog_fps_ = 60.0f;
+    exporter.dialog_duration_s_ = 10.0f;
+
+    exporter.begin_recording_from_dialog();
+    ASSERT_NE(exporter.session_, nullptr);
+    ASSERT_TRUE(exporter.session_->is_active());
+
+    exporter.tick(1.0f);
+    EXPECT_EQ(exporter.session_->current_frame(), 60u);
+
+    exporter.cancel_recording();
+    fs::remove_all("/tmp/test_ros_record_tick_frames");
+}
+
+TEST(RosScreenshotExport, TickReusesLatestCaptureWithinOnePoll)
+{
+    RosScreenshotExport exporter;
+    exporter.set_capture_size_callback(
+        [](uint32_t& w, uint32_t& h)
+        {
+            w = 4;
+            h = 4;
+            return true;
+        });
+
+    int render_calls = 0;
+    exporter.set_frame_render_callback(
+        [&render_calls](uint32_t /*frame_index*/, float /*time*/, uint8_t* buf, uint32_t w, uint32_t h)
+        {
+            ++render_calls;
+            return solid_render(buf, w, h, static_cast<uint8_t>(0x20 + render_calls));
+        });
+
+    std::strncpy(exporter.dialog_path_buf_, "/tmp/test_ros_record_tick_cache",
+                 sizeof(exporter.dialog_path_buf_) - 1);
+    exporter.dialog_path_buf_[sizeof(exporter.dialog_path_buf_) - 1] = '\0';
+    exporter.dialog_format_idx_ = 0;
+    exporter.dialog_fps_ = 60.0f;
+    exporter.dialog_duration_s_ = 10.0f;
+
+    exporter.begin_recording_from_dialog();
+    ASSERT_NE(exporter.session_, nullptr);
+    ASSERT_TRUE(exporter.session_->is_active());
+
+    exporter.tick(0.05f);
+    EXPECT_EQ(exporter.session_->current_frame(), 3u);
+    EXPECT_EQ(render_calls, 1);
+
+    exporter.tick(0.05f);
+    EXPECT_EQ(exporter.session_->current_frame(), 6u);
+    EXPECT_EQ(render_calls, 2);
+
+    exporter.cancel_recording();
+    fs::remove_all("/tmp/test_ros_record_tick_cache");
 }
 
 // ---------------------------------------------------------------------------

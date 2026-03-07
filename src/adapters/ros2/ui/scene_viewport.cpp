@@ -25,12 +25,21 @@ SceneViewport::SceneViewport()
 void SceneViewport::set_camera(const spectra::Camera& camera)
 {
     camera_ = camera;
+    camera_.set_up_axis(spectra::Camera::UpAxis::Z);
     camera_initialized_ = true;
 }
 
 spectra::Rect SceneViewport::canvas_rect() const
 {
     return {canvas_x_, canvas_y_, canvas_w_, canvas_h_};
+}
+
+void SceneViewport::invalidate_canvas_rect()
+{
+    canvas_x_ = 0.0f;
+    canvas_y_ = 0.0f;
+    canvas_w_ = 0.0f;
+    canvas_h_ = 0.0f;
 }
 
 #ifdef SPECTRA_USE_IMGUI
@@ -333,6 +342,9 @@ SceneCanvasResult draw_scene_canvas(SceneManager& scene,
                        ImVec2(origin.x + size.x, origin.y + size.y),
                        IM_COL32(75, 82, 92, 255),
                        6.0f);
+    draw_list->PushClipRect(origin,
+                            ImVec2(origin.x + size.x, origin.y + size.y),
+                            true);
 
     SceneBounds bounds;
     for (const auto& entity : scene.entities())
@@ -346,6 +358,7 @@ SceneCanvasResult draw_scene_canvas(SceneManager& scene,
         draw_list->AddText(ImVec2(origin.x + 12.0f, origin.y + 12.0f),
                            IM_COL32(170, 170, 170, 255),
                            "No geometry to preview yet.");
+        draw_list->PopClipRect();
         return result;
     }
 
@@ -591,6 +604,7 @@ SceneCanvasResult draw_scene_canvas(SceneManager& scene,
 
     const ImVec2 mouse = ImGui::GetIO().MousePos;
     result.picked_index = scene.pick(build_pick_ray(camera, mouse, origin, size));
+    draw_list->PopClipRect();
     return result;
 }
 }   // namespace
@@ -604,6 +618,7 @@ void SceneViewport::draw(bool* p_open,
 #ifdef SPECTRA_USE_IMGUI
     if (!ImGui::GetCurrentContext())
         return;
+    invalidate_canvas_rect();
     if (!ImGui::Begin(title_.c_str(), p_open))
     {
         ImGui::End();

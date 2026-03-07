@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
+#include "io/ffmpeg_command.hpp"
 #include "ui/animation/recording_export.hpp"
 
 using namespace spectra;
@@ -127,6 +128,42 @@ TEST(RecordingSessionValidation, NullCallback)
 
     EXPECT_FALSE(rs.begin(cfg, nullptr));
     EXPECT_EQ(rs.state(), RecordingState::Failed);
+}
+
+TEST(FfmpegCommand, QuotesShellSensitiveArguments)
+{
+    const detail::FfmpegCommandConfig cfg{
+        .output_path = "/tmp/recordings/clip 'final'.mp4",
+        .width       = 1920,
+        .height      = 1080,
+        .fps         = 30.25f,
+        .codec       = "libx264",
+        .pix_fmt     = "yuv420p",
+        .crf         = 18,
+    };
+
+    const std::string cmd = detail::build_ffmpeg_command(cfg);
+    EXPECT_NE(cmd.find("-hide_banner -loglevel error -nostats"), std::string::npos);
+    EXPECT_NE(cmd.find("-r 30.250000"), std::string::npos);
+    EXPECT_NE(cmd.find("-c:v 'libx264'"), std::string::npos);
+    EXPECT_NE(cmd.find("-pix_fmt 'yuv420p'"), std::string::npos);
+    EXPECT_NE(cmd.find("'/tmp/recordings/clip '\"'\"'final'\"'\"'.mp4'"), std::string::npos);
+}
+
+TEST(FfmpegCommand, CreatesOutputParentDirectory)
+{
+    namespace fs = std::filesystem;
+
+    const fs::path dir = fs::path("/tmp") / "spectra_ffmpeg_parent" / "nested";
+    const fs::path out = dir / "clip.mp4";
+    fs::remove_all(dir.parent_path());
+
+    std::string error;
+    EXPECT_TRUE(detail::ensure_ffmpeg_output_parent(out.string(), &error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_TRUE(fs::exists(dir));
+
+    fs::remove_all(dir.parent_path());
 }
 
 #ifndef SPECTRA_USE_FFMPEG

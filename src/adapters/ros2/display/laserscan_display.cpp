@@ -328,9 +328,6 @@ void LaserScanDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
-
     const char* render_styles[] = {"Points", "Lines"};
     int render_style = static_cast<int>(render_style_);
     if (ImGui::Combo("Render Style", &render_style, render_styles, 2))

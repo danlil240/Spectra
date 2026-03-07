@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstring>
 #include <string_view>
+#include <unordered_set>
 
 #include "display/grid_display.hpp"
 #include "display/image_display.hpp"
@@ -99,6 +100,48 @@ bool should_skip_debug_validation_for_ros_app(const char* no_validation_env,
 bool should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_loader_env)
 {
     return !env_flag_is_truthy(preserve_loader_env);
+}
+
+bool is_rviz_layout(LayoutMode layout)
+{
+    return layout == LayoutMode::RViz || layout == LayoutMode::RVizPlot;
+}
+
+std::string normalize_frame_label(const std::string& frame)
+{
+    if (!frame.empty() && frame.front() == '/')
+        return frame.substr(1);
+    return frame;
+}
+
+std::vector<std::string> collect_known_fixed_frames(const TfTreePanel* tf_tree_panel,
+                                                    const SceneManager& scene_manager,
+                                                    const std::string& current_fixed_frame)
+{
+    std::unordered_set<std::string> seen;
+    std::vector<std::string> frames;
+
+    auto add_frame = [&](const std::string& frame) {
+        const std::string normalized = normalize_frame_label(frame);
+        if (normalized.empty())
+            return;
+        if (seen.insert(normalized).second)
+            frames.push_back(normalized);
+    };
+
+    if (tf_tree_panel)
+    {
+        for (const auto& frame : tf_tree_panel->buffer().all_frames())
+            add_frame(frame);
+    }
+
+    for (const auto& entity : scene_manager.entities())
+        add_frame(entity.frame_id);
+
+    add_frame(current_fixed_frame);
+
+    std::sort(frames.begin(), frames.end());
+    return frames;
 }
 
 RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
@@ -276,15 +319,7 @@ bool RosAppShell::init(int argc, char** argv)
     service_caller_panel_ = std::make_unique<ServiceCallerPanel>(service_caller_.get());
     service_caller_panel_->set_title("Service Caller");
 
-    display_registry_.register_display<GridDisplay>();
-    display_registry_.register_display<TfDisplay>();
-    display_registry_.register_display<MarkerDisplay>();
-    display_registry_.register_display<PointCloudDisplay>();
-    display_registry_.register_display<LaserScanDisplay>();
-    display_registry_.register_display<ImageDisplay>();
-    display_registry_.register_display<PathDisplay>();
-    display_registry_.register_display<PoseDisplay>();
-    display_registry_.register_display<RobotModelDisplay>();
+    register_builtin_displays();
 
     bag_info_->set_topic_select_callback(
         [this](const std::string& topic, const std::string& type)
@@ -408,6 +443,7 @@ bool RosAppShell::init(int argc, char** argv)
 
     wire_panel_callbacks();
     setup_layout_visibility();
+    seed_default_rviz_displays_if_needed();
 
     bridge_->start_spin();
     discovery_->start();
@@ -546,6 +582,9 @@ void RosAppShell::draw()
 {
 #ifdef SPECTRA_USE_IMGUI
     if (shutdown_requested()) return;
+
+    if (scene_viewport_)
+        scene_viewport_->invalidate_canvas_rect();
 
     // Reset per-frame workspace events so panels see a clean state.
     workspace_state_.reset_events();
@@ -744,15 +783,14 @@ void RosAppShell::draw_dockspace()
     }
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float menu_h = ImGui::GetFrameHeightWithSpacing();
     const float status_h = ImGui::GetFrameHeight();
     const float rail_w = show_nav_rail_ ? (nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_)
                                         : 0.0f;
 
-    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + rail_w, vp->WorkPos.y + menu_h), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + rail_w, vp->WorkPos.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(
         ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
-               std::max(240.0f, vp->WorkSize.y - menu_h - status_h)),
+               std::max(240.0f, vp->WorkSize.y - status_h)),
         ImGuiCond_Always);
     ImGui::SetNextWindowViewport(vp->ID);
 
@@ -764,6 +802,7 @@ void RosAppShell::draw_dockspace()
     const ImGuiDockNodeFlags dock_flags = ImGuiDockNodeFlags_PassthruCentralNode;
     host_flags |= ImGuiWindowFlags_NoBackground;
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     if (ImGui::Begin("##ros_dockspace_host", nullptr, host_flags))
     {
         dockspace_id_ = ImGui::GetID("##ros_dockspace");
@@ -781,6 +820,7 @@ void RosAppShell::draw_dockspace()
             apply_default_dock_layout();
     }
     ImGui::End();
+    ImGui::PopStyleVar();
 #else
     dock_layout_initialized_ = true;
 #endif
@@ -798,14 +838,13 @@ void RosAppShell::apply_default_dock_layout()
     ImGui::DockBuilderAddNode(dockspace_id_, ImGuiDockNodeFlags_DockSpace);
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float menu_h = ImGui::GetFrameHeightWithSpacing();
     const float status_h = ImGui::GetFrameHeight();
     const float rail_w = show_nav_rail_ ? (nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_)
                                         : 0.0f;
     ImGui::DockBuilderSetNodeSize(
         dockspace_id_,
         ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
-               std::max(240.0f, vp->WorkSize.y - menu_h - status_h)));
+               std::max(240.0f, vp->WorkSize.y - status_h)));
 
     ImGuiID dock_main         = dockspace_id_;
     ImGuiID dock_left         = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
@@ -850,13 +889,12 @@ void RosAppShell::draw_nav_rail()
         return;
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float menu_h = ImGui::GetFrameHeightWithSpacing();
     const float status_h = ImGui::GetFrameHeight();
     const float rail_w = nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_;
 
-    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + menu_h), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(
-        ImVec2(rail_w, std::max(1.0f, vp->WorkSize.y - menu_h - status_h)),
+        ImVec2(rail_w, std::max(1.0f, vp->WorkSize.y - status_h)),
         ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(1.0f);
 
@@ -2230,8 +2268,10 @@ void RosAppShell::draw_menu_bar()
     ImGui::TextUnformatted("Fixed Frame");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180.0f);
-    const std::vector<std::string> frames =
-        tf_tree_panel_ ? tf_tree_panel_->buffer().all_frames() : std::vector<std::string>{};
+    const std::vector<std::string> frames = collect_known_fixed_frames(
+        tf_tree_panel_.get(),
+        scene_manager_,
+        workspace_state_.fixed_frame);
     std::string current_label = workspace_state_.fixed_frame.empty()
         ? "(auto)"
         : workspace_state_.fixed_frame;
@@ -2393,6 +2433,10 @@ void RosAppShell::wire_panel_callbacks()
     if (topic_list_) topic_list_->set_drag_drop(drag_drop_.get());
     if (topic_echo_) topic_echo_->set_drag_drop(drag_drop_.get());
 
+    // Wire echo panel into topic list so the monitor can show inline echo.
+    if (topic_list_ && topic_echo_)
+        topic_list_->set_echo_panel(topic_echo_.get());
+
     // Forward echo panel message arrivals to topic stats and topic list so
     // that statistics update for the selected topic even when it isn't plotted.
     if (topic_echo_)
@@ -2552,7 +2596,7 @@ void RosAppShell::setup_layout_visibility()
         case LayoutMode::Default:
             current_preset_   = LayoutPreset::Default;
             show_topic_list_  = true;
-            show_topic_echo_  = true;
+            show_topic_echo_  = false;
             show_topic_stats_ = true;
             show_plot_area_   = true;
             show_inspector_panel_ = false;
@@ -2572,7 +2616,7 @@ void RosAppShell::setup_layout_visibility()
         case LayoutMode::Monitor:
             current_preset_   = LayoutPreset::Monitor;
             show_topic_list_  = true;
-            show_topic_echo_  = true;
+            show_topic_echo_  = false;
             show_topic_stats_ = true;
             show_plot_area_   = false;
             show_inspector_panel_ = false;
@@ -2605,6 +2649,45 @@ void RosAppShell::setup_layout_visibility()
             show_log_viewer_     = false;
             break;
     }
+}
+
+void RosAppShell::register_builtin_displays()
+{
+    display_registry_.register_display<GridDisplay>();
+    display_registry_.register_display<TfDisplay>();
+    display_registry_.register_display<MarkerDisplay>();
+    display_registry_.register_display<PointCloudDisplay>();
+    display_registry_.register_display<LaserScanDisplay>();
+    display_registry_.register_display<ImageDisplay>();
+    display_registry_.register_display<PathDisplay>();
+    display_registry_.register_display<PoseDisplay>();
+    display_registry_.register_display<RobotModelDisplay>();
+}
+
+void RosAppShell::seed_default_rviz_displays_if_needed()
+{
+    if (!is_rviz_layout(cfg_.layout) || !displays_.empty())
+        return;
+
+    auto grid = display_registry_.create("grid");
+    if (!grid)
+        return;
+
+    DisplayContext context;
+    context.fixed_frame = workspace_state_.fixed_frame;
+    context.tf_buffer = tf_tree_panel_ ? &tf_tree_panel_->buffer() : nullptr;
+    context.topic_discovery = discovery_.get();
+#ifdef SPECTRA_USE_ROS2
+    context.node = bridge_ ? bridge_->node() : nullptr;
+#endif
+
+    if (grid->enabled())
+    {
+        grid->on_enable(context);
+        display_activation_state_[grid.get()] = true;
+    }
+
+    displays_.push_back(std::move(grid));
 }
 
 // ---------------------------------------------------------------------------
@@ -2650,7 +2733,7 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     {
         case LayoutPreset::Default:
             show_topic_list_  = true;
-            show_topic_echo_  = true;
+            show_topic_echo_  = false;
             show_topic_stats_ = true;
             show_plot_area_   = true;
             break;
@@ -2802,6 +2885,16 @@ RosSession RosAppShell::capture_session() const
     s.nav_rail_expanded = nav_rail_expanded_;
     s.nav_rail_width    = nav_rail_width_;
 
+    if (topic_list_)
+    {
+        const auto columns = topic_list_->column_visibility();
+        s.topic_monitor.show_type = columns.show_type;
+        s.topic_monitor.show_hz = columns.show_hz;
+        s.topic_monitor.show_pubs = columns.show_pubs;
+        s.topic_monitor.show_subs = columns.show_subs;
+        s.topic_monitor.show_bw = columns.show_bw;
+    }
+
     if (scene_viewport_)
     {
         const auto& camera = scene_viewport_->camera();
@@ -2905,6 +2998,17 @@ void RosAppShell::apply_session(const RosSession& session)
 
     nav_rail_expanded_ = session.nav_rail_expanded;
     set_nav_rail_width(static_cast<float>(session.nav_rail_width));
+
+    if (topic_list_)
+    {
+        topic_list_->set_column_visibility({
+            .show_type = session.topic_monitor.show_type,
+            .show_hz = session.topic_monitor.show_hz,
+            .show_pubs = session.topic_monitor.show_pubs,
+            .show_subs = session.topic_monitor.show_subs,
+            .show_bw = session.topic_monitor.show_bw,
+        });
+    }
 
     if (scene_viewport_)
     {

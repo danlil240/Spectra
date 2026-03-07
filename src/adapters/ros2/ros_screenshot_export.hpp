@@ -49,6 +49,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace spectra
 {
@@ -125,6 +126,10 @@ using FrameRenderCallback =
     std::function<bool(uint32_t frame_index, float time,
                        uint8_t* buf, uint32_t width, uint32_t height)>;
 
+// Called to resolve the current capture size for auto-sized screenshot/video
+// export. Returns true when a live size is available.
+using CaptureSizeCallback = std::function<bool(uint32_t& width, uint32_t& height)>;
+
 // ---------------------------------------------------------------------------
 // RosScreenshotExport — main class
 // ---------------------------------------------------------------------------
@@ -150,6 +155,9 @@ public:
 
     // Set the callback invoked per frame during RecordingSession video export.
     void set_frame_render_callback(FrameRenderCallback cb);
+
+    // Set the callback used to resolve the current live capture size.
+    void set_capture_size_callback(CaptureSizeCallback cb);
 
     // -----------------------------------------------------------------------
     // Screenshot
@@ -215,6 +223,9 @@ public:
     // Returns the path of the most recently written screenshot (empty if none).
     const std::string& last_screenshot_path() const { return last_screenshot_.path; }
 
+    // Resolve the capture size currently used for auto-sized exports.
+    bool current_capture_size(uint32_t& width, uint32_t& height) const;
+
     // True if a screenshot toast notification should still be shown.
     // Resets after toast_duration_s (default 3 s) or on next take_screenshot().
     bool screenshot_toast_active() const;
@@ -228,6 +239,7 @@ private:
     // -----------------------------------------------------------------------
 
     void begin_recording_from_dialog();
+    void reset_recording_timing_state();
 
     // -----------------------------------------------------------------------
     // Members
@@ -237,6 +249,7 @@ private:
 
     FrameGrabCallback    grab_cb_;
     FrameRenderCallback  render_cb_;
+    CaptureSizeCallback  capture_size_cb_;
 
     // Screenshot state.
     ScreenshotResult last_screenshot_;
@@ -247,16 +260,22 @@ private:
     std::unique_ptr<spectra::RecordingSession> session_;
     bool last_record_ok_ = false;
 
+    // Live ROS recording is driven by wall-clock ticks rather than by the UI
+    // repaint rate. When multiple output frames are due in one poll, reuse the
+    // latest captured framebuffer instead of forcing repeated readbacks.
+    std::vector<uint8_t> recording_frame_cache_;
+    float                recording_accumulator_s_        = 0.0f;
+    uint64_t             recording_capture_generation_   = 0;
+    uint64_t             recording_cached_generation_    = 0;
+    bool                 recording_cache_valid_          = false;
+
     // Dialog input buffers.
     // Sized for ImGui::InputText calls (no dynamic allocation per frame).
     static constexpr int kPathBuf = 512;
-    static constexpr int kFpsBuf  =  16;
 
     char   dialog_path_buf_[kPathBuf];
     float  dialog_fps_         = 30.0f;
     float  dialog_duration_s_  = 10.0f;
-    int    dialog_width_       = 1280;
-    int    dialog_height_      = 720;
     int    dialog_format_idx_  = 0;   // 0=PNG_Sequence 1=GIF 2=MP4
     bool   dialog_initialized_ = false;
 };

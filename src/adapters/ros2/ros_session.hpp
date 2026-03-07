@@ -158,6 +158,15 @@ struct PanelVisibility
     bool nav_rail       = true;
 };
 
+struct TopicMonitorState
+{
+    bool show_type{true};
+    bool show_hz{true};
+    bool show_pubs{true};
+    bool show_subs{true};
+    bool show_bw{true};
+};
+
 // ---------------------------------------------------------------------------
 // RosSession — the full in-memory session data model
 // ---------------------------------------------------------------------------
@@ -204,6 +213,9 @@ struct RosSession
 
     // Panel visibility.
     PanelVisibility panels;
+
+    // Topic Monitor column visibility.
+    TopicMonitorState topic_monitor;
 
     // Spectra-ROS nav rail state.
     bool   nav_rail_expanded{false};

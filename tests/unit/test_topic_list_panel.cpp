@@ -68,6 +68,42 @@ TEST(TopicListPanel, SetConfig)
     EXPECT_FALSE(panel.group_by_namespace());
 }
 
+TEST(TopicListPanel, ColumnVisibilityRoundTrips)
+{
+    TopicListPanel panel;
+
+    panel.set_column_visibility({
+        .show_type = false,
+        .show_hz = true,
+        .show_pubs = false,
+        .show_subs = true,
+        .show_bw = false,
+    });
+
+    const auto visibility = panel.column_visibility();
+    EXPECT_FALSE(visibility.show_type);
+    EXPECT_TRUE(visibility.show_hz);
+    EXPECT_FALSE(visibility.show_pubs);
+    EXPECT_TRUE(visibility.show_subs);
+    EXPECT_FALSE(visibility.show_bw);
+}
+
+TEST(TopicListPanel, ExpansionStateTracksMultipleTopics)
+{
+    TopicListPanel panel;
+    panel.set_topic_expanded("/tf", true);
+    panel.set_topic_expanded("/odom", true);
+
+    EXPECT_TRUE(panel.is_topic_expanded("/tf"));
+    EXPECT_TRUE(panel.is_topic_expanded("/odom"));
+    EXPECT_EQ(panel.expanded_topic_count(), 2u);
+
+    panel.set_topic_expanded("/tf", false);
+    EXPECT_FALSE(panel.is_topic_expanded("/tf"));
+    EXPECT_TRUE(panel.is_topic_expanded("/odom"));
+    EXPECT_EQ(panel.expanded_topic_count(), 1u);
+}
+
 // ---------------------------------------------------------------------------
 // Suite: Topic Management
 // ---------------------------------------------------------------------------

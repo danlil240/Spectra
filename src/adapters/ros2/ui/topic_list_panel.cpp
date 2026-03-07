@@ -1,5 +1,6 @@
 #include "ui/topic_list_panel.hpp"
 #include "ui/field_drag_drop.hpp"
+#include "ui/topic_echo_panel.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -21,6 +22,11 @@ static int64_t wall_clock_ns()
 {
     using namespace std::chrono;
     return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+}
+
+static int displayed_endpoint_count(int total_count, int local_count)
+{
+    return std::max(0, total_count - local_count);
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +107,28 @@ void TopicStats::prune_and_compute(int64_t now_ns, int64_t window_ns)
 TopicListPanel::TopicListPanel()
 {
     std::memset(filter_buf_, 0, sizeof(filter_buf_));
+}
+
+TopicListPanel::~TopicListPanel() = default;
+
+void TopicListPanel::set_column_visibility(const ColumnVisibility& visibility)
+{
+    col_show_type_ = visibility.show_type;
+    col_show_hz_ = visibility.show_hz;
+    col_show_pubs_ = visibility.show_pubs;
+    col_show_subs_ = visibility.show_subs;
+    col_show_bw_ = visibility.show_bw;
+}
+
+TopicListPanel::ColumnVisibility TopicListPanel::column_visibility() const
+{
+    return {
+        .show_type = col_show_type_,
+        .show_hz = col_show_hz_,
+        .show_pubs = col_show_pubs_,
+        .show_subs = col_show_subs_,
+        .show_bw = col_show_bw_,
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +334,12 @@ void TopicListPanel::rebuild_tree()
 static constexpr ImVec4 kColorActive   = {0.20f, 0.80f, 0.30f, 1.0f};  // green
 static constexpr ImVec4 kColorStale    = {0.50f, 0.50f, 0.50f, 1.0f};  // gray
 static constexpr ImVec4 kColorSelected = {0.26f, 0.59f, 0.98f, 0.25f}; // blue tint
+
+// Echo field colors (matching TopicEchoPanel for visual consistency).
+static constexpr ImVec4 kEchoNumeric = {0.60f, 0.88f, 1.00f, 1.0f};  // light blue
+static constexpr ImVec4 kEchoText    = {0.90f, 0.90f, 0.65f, 1.0f};  // light yellow
+static constexpr ImVec4 kEchoNested  = {0.80f, 0.70f, 0.50f, 1.0f};  // tan
+static constexpr ImVec4 kEchoArray   = {0.75f, 0.60f, 0.90f, 1.0f};  // lavender
 
 // Returns a distinguishing color for a ROS2 message type package prefix.
 // e.g. "sensor_msgs/msg/Imu" → sensor category color.
@@ -623,9 +657,38 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
     ImGui::TableSetColumnIndex(0);
 
     const bool is_selected = (info.name == selected_topic_);
+    const bool is_expanded = is_topic_expanded(info.name);
     if (is_selected) {
         ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg1,
                                ImGui::ColorConvertFloat4ToU32(kColorSelected));
+    }
+
+    // Expand/collapse toggle for inline echo (small triangle arrow).
+    if (echo_panel_)
+    {
+        ImGui::PushID(info.name.c_str());
+        const char* arrow = is_expanded ? ui::icon_str(ui::Icon::ChevronDown)
+                                        : ui::icon_str(ui::Icon::ChevronRight);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.1f));
+        if (ImGui::SmallButton(arrow))
+        {
+            if (is_expanded)
+            {
+                set_topic_expanded(info.name, false);
+            }
+            else
+            {
+                set_topic_expanded(info.name, true);
+                cached_echo_msgs_.erase(info.name);
+                // Select the topic to trigger echo subscription.
+                selected_topic_ = info.name;
+                if (select_cb_) select_cb_(info.name);
+            }
+        }
+        ImGui::PopStyleColor(2);
+        ImGui::PopID();
+        ImGui::SameLine();
     }
 
     // Reuse Spectra's merged icon font so monitor status markers don't depend
@@ -712,13 +775,17 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
     // Column: Pubs.
     if (col_show_pubs_) {
         ImGui::TableSetColumnIndex(next_col++);
-        ImGui::Text("%d", info.publisher_count);
+        ImGui::Text("%d",
+                    displayed_endpoint_count(info.publisher_count,
+                                             info.local_publisher_count));
     }
 
     // Column: Subs.
     if (col_show_subs_) {
         ImGui::TableSetColumnIndex(next_col++);
-        ImGui::Text("%d", info.subscriber_count);
+        ImGui::Text("%d",
+                    displayed_endpoint_count(info.subscriber_count,
+                                             info.local_subscriber_count));
     }
 
     // Column: BW.
@@ -730,6 +797,205 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         else
             ImGui::TextDisabled("%s", bw_str.c_str());
     }
+
+    // --- Inline echo expansion (rqt-style) ---
+    if (is_expanded && echo_panel_)
+    {
+        draw_inline_echo(info.name);
+    }
+}
+
+bool TopicListPanel::is_topic_expanded(const std::string& topic_name) const
+{
+    return expanded_echo_topics_.find(topic_name) != expanded_echo_topics_.end();
+}
+
+void TopicListPanel::set_topic_expanded(const std::string& topic_name, bool expanded)
+{
+    if (expanded)
+    {
+        expanded_echo_topics_.insert(topic_name);
+    }
+    else
+    {
+        expanded_echo_topics_.erase(topic_name);
+        cached_echo_msgs_.erase(topic_name);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// draw_inline_echo — render latest echo message fields inside the topic table
+// ---------------------------------------------------------------------------
+
+void TopicListPanel::draw_inline_echo(const std::string& topic_name)
+{
+    // Refresh the cached message from the echo panel.
+    if (echo_panel_->topic_name() == topic_name)
+    {
+        cached_echo_msgs_[topic_name] = echo_panel_->latest_message();
+    }
+
+    auto it = cached_echo_msgs_.find(topic_name);
+    auto* cached_echo_msg =
+        (it != cached_echo_msgs_.end()) ? it->second.get() : nullptr;
+
+    // Insert a full-width row for the echo content.
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+
+    if (!cached_echo_msg || cached_echo_msg->fields.empty())
+    {
+        ImGui::Indent(24.0f);
+        ImGui::TextDisabled("(waiting for data...)");
+        ImGui::Unindent(24.0f);
+        return;
+    }
+
+    ImGui::Indent(24.0f);
+
+    size_t idx = 0;
+    while (idx < cached_echo_msg->fields.size())
+    {
+        draw_echo_field(topic_name,
+                        cached_echo_msg->fields[idx],
+                        idx,
+                        cached_echo_msg->fields);
+    }
+
+    ImGui::Unindent(24.0f);
+}
+
+// ---------------------------------------------------------------------------
+// draw_echo_field — render one field node in the inline echo tree
+// ---------------------------------------------------------------------------
+
+void TopicListPanel::draw_echo_field(const std::string& topic_name,
+                                     EchoFieldValue& fv,
+                                     size_t&         idx,
+                                     const std::vector<EchoFieldValue>& all_fields)
+{
+    const float indent = static_cast<float>(fv.depth) * ImGui::GetStyle().IndentSpacing;
+    if (indent > 0.0f) ImGui::Indent(indent);
+
+    switch (fv.kind)
+    {
+        case EchoFieldValue::Kind::NestedHead:
+        {
+            ImGui::TextColored(kEchoNested, "%s:", fv.display_name.c_str());
+            ++idx;
+            const int parent_depth = fv.depth;
+            while (idx < all_fields.size() && all_fields[idx].depth > parent_depth)
+            {
+                auto& child = const_cast<EchoFieldValue&>(all_fields[idx]);
+                draw_echo_field(topic_name, child, idx, all_fields);
+            }
+            break;
+        }
+        case EchoFieldValue::Kind::ArrayHead:
+        {
+            char label[128];
+            std::snprintf(label, sizeof(label), "%s  [%d items]",
+                          fv.display_name.c_str(), fv.array_len);
+            const std::string tree_id =
+                std::string("##ie_") + topic_name + "_" + fv.path;
+            const bool open = ImGui::TreeNodeEx(
+                tree_id.c_str(), ImGuiTreeNodeFlags_SpanFullWidth, "%s", label);
+            fv.is_open = open;
+            ++idx;
+            const int parent_depth = fv.depth;
+            if (open)
+            {
+                while (idx < all_fields.size() && all_fields[idx].depth > parent_depth)
+                {
+                    auto& child = const_cast<EchoFieldValue&>(all_fields[idx]);
+                    draw_echo_field(topic_name, child, idx, all_fields);
+                }
+                ImGui::TreePop();
+            }
+            else
+            {
+                while (idx < all_fields.size() && all_fields[idx].depth > parent_depth)
+                    ++idx;
+            }
+            break;
+        }
+        case EchoFieldValue::Kind::ArrayElement:
+        {
+            char sel_id[256];
+            std::snprintf(sel_id, sizeof(sel_id), "##topic_monitor_sel_%s", fv.path.c_str());
+            ImGui::Selectable(sel_id,
+                              false,
+                              ImGuiSelectableFlags_AllowOverlap |
+                                  ImGuiSelectableFlags_SpanAllColumns,
+                              ImVec2(0, ImGui::GetTextLineHeight()));
+
+            if (drag_drop_)
+            {
+                FieldDragPayload payload;
+                payload.topic_name = topic_name;
+                payload.field_path = fv.path;
+                payload.type_name = selected_topic_ == topic_name && echo_panel_
+                    ? echo_panel_->type_name()
+                    : std::string();
+                payload.label = FieldDragPayload::make_label(topic_name, fv.path);
+                drag_drop_->begin_drag_source(payload);
+                char ctx_id[280];
+                std::snprintf(ctx_id, sizeof(ctx_id), "##topic_monitor_ctx_%s", fv.path.c_str());
+                drag_drop_->show_context_menu(payload, ctx_id);
+            }
+
+            ImGui::SameLine();
+            ImGui::TextColored(kEchoArray, "%-8s", fv.display_name.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(kEchoNumeric, "%s",
+                               TopicEchoPanel::format_numeric(fv.numeric).c_str());
+            ++idx;
+            break;
+        }
+        case EchoFieldValue::Kind::Numeric:
+        {
+            char sel_id[256];
+            std::snprintf(sel_id, sizeof(sel_id), "##topic_monitor_sel_%s", fv.path.c_str());
+            ImGui::Selectable(sel_id,
+                              false,
+                              ImGuiSelectableFlags_AllowOverlap |
+                                  ImGuiSelectableFlags_SpanAllColumns,
+                              ImVec2(0, ImGui::GetTextLineHeight()));
+
+            if (drag_drop_)
+            {
+                FieldDragPayload payload;
+                payload.topic_name = topic_name;
+                payload.field_path = fv.path;
+                payload.type_name = selected_topic_ == topic_name && echo_panel_
+                    ? echo_panel_->type_name()
+                    : std::string();
+                payload.label = FieldDragPayload::make_label(topic_name, fv.path);
+                drag_drop_->begin_drag_source(payload);
+                char ctx_id[280];
+                std::snprintf(ctx_id, sizeof(ctx_id), "##topic_monitor_ctx_%s", fv.path.c_str());
+                drag_drop_->show_context_menu(payload, ctx_id);
+            }
+
+            ImGui::SameLine();
+            ImGui::TextUnformatted(fv.display_name.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(kEchoNumeric, "%s",
+                               TopicEchoPanel::format_numeric(fv.numeric).c_str());
+            ++idx;
+            break;
+        }
+        case EchoFieldValue::Kind::Text:
+        {
+            ImGui::TextUnformatted(fv.display_name.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(kEchoText, "\"%s\"", fv.text.c_str());
+            ++idx;
+            break;
+        }
+    }
+
+    if (indent > 0.0f) ImGui::Unindent(indent);
 }
 
 #else   // !SPECTRA_USE_IMGUI
@@ -737,6 +1003,10 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
 void TopicListPanel::draw(bool* /*p_open*/) {}
 void TopicListPanel::draw_namespace_node(const std::string& /*ns*/, int /*depth*/) {}
 void TopicListPanel::draw_topic_row(const TopicInfo& /*info*/, TopicStats& /*stats*/) {}
+void TopicListPanel::draw_inline_echo(const std::string& /*topic_name*/) {}
+void TopicListPanel::draw_echo_field(const std::string& /*topic_name*/,
+                                     EchoFieldValue& /*fv*/, size_t& /*idx*/,
+                                     const std::vector<EchoFieldValue>& /*all*/) {}
 
 #endif  // SPECTRA_USE_IMGUI
 

@@ -48,6 +48,8 @@ struct TopicInfo
     std::vector<std::string> types;      // may have multiple type alternatives
     int                      publisher_count{0};
     int                      subscriber_count{0};
+    int                      local_publisher_count{0};
+    int                      local_subscriber_count{0};
     QosInfo                  qos;        // QoS of first publisher (if any)
     std::vector<std::string> publisher_nodes;  // fully-qualified publisher node names
     std::vector<std::string> subscriber_nodes; // fully-qualified subscriber node names

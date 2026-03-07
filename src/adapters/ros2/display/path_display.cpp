@@ -153,9 +153,6 @@ void PathDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
-
     ImGui::SliderFloat("Line Width", &line_width_, 1.0f, 8.0f, "%.1f");
     ImGui::SliderFloat("Alpha", &alpha_, 0.1f, 1.0f, "%.2f");
     ImGui::Checkbox("Pose Arrows", &show_pose_arrows_);

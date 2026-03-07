@@ -153,9 +153,6 @@ void PoseDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
-
     ImGui::SliderFloat("Shaft Length", &shaft_length_, 0.1f, 4.0f, "%.2f");
     ImGui::SliderFloat("Shaft Width", &shaft_width_, 0.01f, 1.0f, "%.2f");
     ImGui::SliderFloat("Head Length", &head_length_, 0.05f, 2.0f, "%.2f");

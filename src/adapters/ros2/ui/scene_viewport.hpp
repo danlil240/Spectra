@@ -33,6 +33,7 @@ public:
     // Returns the screen-space canvas rect recorded during the last draw().
     // Used by the GPU scene render callback.
     spectra::Rect canvas_rect() const;
+    void invalidate_canvas_rect();
 
     void draw(bool* p_open,
               const std::string& fixed_frame,

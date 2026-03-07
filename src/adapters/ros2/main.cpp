@@ -300,6 +300,36 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------
     app.init_runtime();
 
+    if (auto* exporter = shell.screenshot_export())
+    {
+        exporter->set_capture_size_callback(
+            [&app](uint32_t& w, uint32_t& h) -> bool
+            {
+                auto* backend = app.backend();
+                if (!backend)
+                    return false;
+                w = backend->swapchain_width();
+                h = backend->swapchain_height();
+                return w > 0 && h > 0;
+            });
+        exporter->set_frame_grab_callback(
+            [&app](uint8_t* buf, uint32_t w, uint32_t h) -> bool
+            {
+                auto* backend = app.backend();
+                return backend != nullptr && backend->readback_framebuffer(buf, w, h);
+            });
+        exporter->set_frame_render_callback(
+            [&app](uint32_t /*frame_index*/,
+                   float /*time*/,
+                   uint8_t* buf,
+                   uint32_t w,
+                   uint32_t h) -> bool
+            {
+                auto* backend = app.backend();
+                return backend != nullptr && backend->readback_framebuffer(buf, w, h);
+            });
+    }
+
 #ifdef SPECTRA_USE_IMGUI
     // Hide Spectra's default chrome — the ROS2 shell provides its own menu bar,
     // status bar, and panel layout.  Keep only the bare canvas.

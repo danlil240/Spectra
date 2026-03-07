@@ -228,9 +228,6 @@ void ImageDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
-
     const char* modes[] = {"2D Panel", "3D Billboard", "Panel + Billboard"};
     int current_mode = static_cast<int>(mode_);
     if (ImGui::Combo("Mode", &current_mode, modes, 3))

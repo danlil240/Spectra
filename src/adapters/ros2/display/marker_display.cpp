@@ -275,8 +275,6 @@ void MarkerDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
     ImGui::Checkbox("Use Message Stamp", &use_message_stamp_);
     ImGui::Checkbox("Show Expired Count", &show_expired_count_);
     ImGui::Text("Active markers: %zu", marker_count());

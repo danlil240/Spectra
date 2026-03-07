@@ -8,6 +8,8 @@
 #include <numeric>
 #include <sstream>
 
+#include "io/ffmpeg_command.hpp"
+
 // Suppress warnings in third-party STB headers
 #if defined(__clang__)
     #pragma clang diagnostic push
@@ -783,18 +785,25 @@ bool RecordingSession::prepare_output()
         case RecordingFormat::MP4:
         {
 #ifdef SPECTRA_USE_FFMPEG
-            // Build ffmpeg command
-            std::ostringstream cmd;
-            cmd << "ffmpeg -y"
-                << " -f rawvideo"
-                << " -vcodec rawvideo"
-                << " -pix_fmt rgba"
-                << " -s " << config_.width << "x" << config_.height << " -r "
-                << static_cast<int>(config_.fps) << " -i -"
-                << " -c:v " << config_.codec << " -pix_fmt " << config_.pix_fmt << " -crf "
-                << config_.crf << " " << config_.output_path << " 2>/dev/null";
+            std::string error;
+            if (!detail::ensure_ffmpeg_output_parent(config_.output_path, &error))
+            {
+                set_error(error);
+                return false;
+            }
 
-            ffmpeg_pipe_ = popen(cmd.str().c_str(), "w");
+            const detail::FfmpegCommandConfig ffmpeg_config{
+                .output_path = config_.output_path,
+                .width       = config_.width,
+                .height      = config_.height,
+                .fps         = config_.fps,
+                .codec       = config_.codec,
+                .pix_fmt     = config_.pix_fmt,
+                .crf         = config_.crf,
+            };
+
+            const std::string cmd = detail::build_ffmpeg_command(ffmpeg_config);
+            ffmpeg_pipe_          = popen(cmd.c_str(), "w");
             if (!ffmpeg_pipe_)
             {
                 set_error("Failed to open ffmpeg pipe");

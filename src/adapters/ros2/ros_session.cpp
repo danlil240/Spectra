@@ -107,6 +107,17 @@ json to_json(const PanelVisibility& panels)
     };
 }
 
+json to_json(const TopicMonitorState& topic_monitor)
+{
+    return json{
+        {"show_type", topic_monitor.show_type},
+        {"show_hz", topic_monitor.show_hz},
+        {"show_pubs", topic_monitor.show_pubs},
+        {"show_subs", topic_monitor.show_subs},
+        {"show_bw", topic_monitor.show_bw},
+    };
+}
+
 PanelVisibility panel_visibility_from_json(const json& value)
 {
     PanelVisibility panels;
@@ -114,7 +125,7 @@ PanelVisibility panel_visibility_from_json(const json& value)
         return panels;
 
     panels.topic_list = value.value("topic_list", true);
-    panels.topic_echo = value.value("topic_echo", true);
+    panels.topic_echo = value.value("topic_echo", false);
     panels.topic_stats = value.value("topic_stats", true);
     panels.plot_area = value.value("plot_area", true);
     panels.bag_info = value.value("bag_info", false);
@@ -130,6 +141,20 @@ PanelVisibility panel_visibility_from_json(const json& value)
     panels.inspector_panel = value.value("inspector_panel", false);
     panels.nav_rail = value.value("nav_rail", true);
     return panels;
+}
+
+TopicMonitorState topic_monitor_state_from_json(const json& value)
+{
+    TopicMonitorState topic_monitor;
+    if (!value.is_object())
+        return topic_monitor;
+
+    topic_monitor.show_type = value.value("show_type", true);
+    topic_monitor.show_hz = value.value("show_hz", true);
+    topic_monitor.show_pubs = value.value("show_pubs", true);
+    topic_monitor.show_subs = value.value("show_subs", true);
+    topic_monitor.show_bw = value.value("show_bw", true);
+    return topic_monitor;
 }
 
 SceneCameraPose scene_camera_pose_from_json(const json& value)
@@ -207,6 +232,7 @@ json serialize_session_v2_json(const RosSession& session)
         {"ui",
          {
              {"panels", to_json(session.panels)},
+             {"topic_monitor", to_json(session.topic_monitor)},
              {"nav_rail",
               {
                   {"visible", session.panels.nav_rail},
@@ -337,6 +363,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
         : json::object();
     if (const auto it = ui.find("panels"); it != ui.end())
         out.panels = panel_visibility_from_json(*it);
+    if (const auto it = ui.find("topic_monitor"); it != ui.end())
+        out.topic_monitor = topic_monitor_state_from_json(*it);
     const json& nav_rail = ui.contains("nav_rail") && ui["nav_rail"].is_object()
         ? ui["nav_rail"]
         : json::object();
@@ -1084,7 +1112,7 @@ PanelVisibility RosSessionManager::deserialize_panels(const std::string& json)
 {
     PanelVisibility p;
     p.topic_list     = json_get_bool(json, "topic_list", true);
-    p.topic_echo     = json_get_bool(json, "topic_echo", true);
+    p.topic_echo     = json_get_bool(json, "topic_echo", false);
     p.topic_stats    = json_get_bool(json, "topic_stats", true);
     p.plot_area      = json_get_bool(json, "plot_area", true);
     p.bag_info       = json_get_bool(json, "bag_info", false);
@@ -1100,6 +1128,17 @@ PanelVisibility RosSessionManager::deserialize_panels(const std::string& json)
     p.inspector_panel = json_get_bool(json, "inspector_panel", false);
     p.nav_rail       = json_get_bool(json, "nav_rail", true);
     return p;
+}
+
+static TopicMonitorState deserialize_topic_monitor(const std::string& json)
+{
+    TopicMonitorState state;
+    state.show_type = RosSessionManager::json_get_bool(json, "show_type", true);
+    state.show_hz = RosSessionManager::json_get_bool(json, "show_hz", true);
+    state.show_pubs = RosSessionManager::json_get_bool(json, "show_pubs", true);
+    state.show_subs = RosSessionManager::json_get_bool(json, "show_subs", true);
+    state.show_bw = RosSessionManager::json_get_bool(json, "show_bw", true);
+    return state;
 }
 
 // ---------------------------------------------------------------------------
@@ -1175,6 +1214,11 @@ bool RosSessionManager::deserialize(const std::string& text,
         std::string panels_obj = extract_nested_object(text, "panels");
         if (!panels_obj.empty()) {
             out.panels = deserialize_panels(panels_obj);
+        }
+
+        std::string topic_monitor_obj = extract_nested_object(text, "topic_monitor");
+        if (!topic_monitor_obj.empty()) {
+            out.topic_monitor = deserialize_topic_monitor(topic_monitor_obj);
         }
 
         out.imgui_ini_data = json_get_string(text, "imgui_layout");

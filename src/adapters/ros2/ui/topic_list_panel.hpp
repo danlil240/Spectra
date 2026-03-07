@@ -35,9 +35,11 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "topic_discovery.hpp"
@@ -45,6 +47,11 @@
 
 namespace spectra::adapters::ros2
 {
+
+// Forward declarations.
+class  TopicEchoPanel;
+struct EchoMessage;
+struct EchoFieldValue;
 
 // ---------------------------------------------------------------------------
 // TopicStats — rolling Hz/BW statistics for one topic
@@ -95,8 +102,17 @@ struct TopicStats
 class TopicListPanel
 {
 public:
+    struct ColumnVisibility
+    {
+        bool show_type{true};
+        bool show_hz{true};
+        bool show_pubs{true};
+        bool show_subs{true};
+        bool show_bw{true};
+    };
+
     TopicListPanel();
-    ~TopicListPanel() = default;
+    ~TopicListPanel();
 
     TopicListPanel(const TopicListPanel&)            = delete;
     TopicListPanel& operator=(const TopicListPanel&) = delete;
@@ -144,6 +160,19 @@ public:
     void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
     FieldDragDrop* drag_drop() const { return drag_drop_; }
 
+    // ---------- inline echo (rqt-style expand) -------------------------------
+
+    // Wire to an echo panel.  When a topic row is expanded, the latest
+    // message from that topic is shown inline.  The pointer must outlive
+    // this panel.  Pass nullptr to disable inline echo.
+    void set_echo_panel(TopicEchoPanel* ep) { echo_panel_ = ep; }
+    TopicEchoPanel* echo_panel() const { return echo_panel_; }
+
+    // Expanded inline-echo state for render-thread use and tests.
+    bool is_topic_expanded(const std::string& topic_name) const;
+    size_t expanded_topic_count() const { return expanded_echo_topics_.size(); }
+    void set_topic_expanded(const std::string& topic_name, bool expanded);
+
     // ---------- configuration ------------------------------------------------
 
     // Window title (default: "ROS2 Topics").
@@ -162,6 +191,9 @@ public:
     // If true, topics are grouped into namespace nodes (default true).
     void set_group_by_namespace(bool v) { group_by_namespace_ = v; }
     bool group_by_namespace() const { return group_by_namespace_; }
+
+    void set_column_visibility(const ColumnVisibility& visibility);
+    ColumnVisibility column_visibility() const;
 
     // ---------- testing helpers (no ImGui dependency) ------------------------
 
@@ -206,6 +238,15 @@ private:
 
     // Render one topic row (columns already pushed).
     void draw_topic_row(const TopicInfo& info, TopicStats& stats);
+
+    // Render inline echo fields for the expanded row.
+    void draw_inline_echo(const std::string& topic_name);
+
+    // Render one echo field node (reuses echo panel's flat-tree logic).
+    void draw_echo_field(const std::string& topic_name,
+                         EchoFieldValue& fv,
+                         size_t& idx,
+                         const std::vector<EchoFieldValue>& all_fields);
 
     // Format Hz as a compact string ("12.3", "—" if 0).
     static std::string format_hz(double hz);
@@ -269,6 +310,11 @@ private:
 
     // Drag-and-drop controller (optional, not owned).
     FieldDragDrop* drag_drop_{nullptr};
+
+    // Inline echo state (render-thread only).
+    TopicEchoPanel* echo_panel_{nullptr};
+    std::unordered_set<std::string> expanded_echo_topics_;
+    std::unordered_map<std::string, std::unique_ptr<EchoMessage>> cached_echo_msgs_;
 };
 
 }   // namespace spectra::adapters::ros2

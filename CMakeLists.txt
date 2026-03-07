@@ -33,13 +33,13 @@ endif()
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
 option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
-option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
-option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  OFF)
-option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         OFF)
-option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" OFF)
-option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    OFF)
+option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        ON)
+option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
+option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
+option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ON)
+option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    ON)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
-option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
+option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     ON)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
@@ -174,11 +174,13 @@ endif()
 
 target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 
-target_compile_definitions(spectra PRIVATE
+target_compile_definitions(spectra PUBLIC
     $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+    SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE}
+)
+target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
-target_compile_definitions(spectra PUBLIC SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE})
 target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESENT_MODE})
 
 # MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.

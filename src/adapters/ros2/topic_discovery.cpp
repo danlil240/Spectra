@@ -76,6 +76,21 @@ std::vector<std::string> collect_endpoint_nodes(const std::vector<EndpointInfo>&
     return result;
 }
 
+template <typename EndpointInfo>
+int count_local_endpoints(const std::vector<EndpointInfo>& infos,
+                          const std::string& local_node)
+{
+    int count = 0;
+    for (const auto& info : infos)
+    {
+        const std::string full_name =
+            make_fully_qualified_node_name(info.node_namespace(), info.node_name());
+        if (!local_node.empty() && full_name == local_node)
+            ++count;
+    }
+    return count;
+}
+
 }   // namespace
 
 // ---------------------------------------------------------------------------
@@ -506,16 +521,15 @@ void TopicDiscovery::enrich_batch()
     const size_t total = names.size();
     const size_t batch = std::min(BATCH_SIZE, total);
     const size_t start = enrich_index_ % total;
+    const std::string local_node = node_ ? node_->get_fully_qualified_name() : std::string{};
 
     for (size_t i = 0; i < batch; ++i)
     {
         const size_t idx  = (start + i) % total;
         const auto&  name = names[idx];
 
-        const int pub_count =
-            static_cast<int>(node_->count_publishers(name));
-        const int sub_count =
-            static_cast<int>(node_->count_subscribers(name));
+        const int pub_count = static_cast<int>(node_->count_publishers(name));
+        const int sub_count = static_cast<int>(node_->count_subscribers(name));
 
         QosInfo qos;
         auto pub_infos = node_->get_publishers_info_by_topic(name);
@@ -536,11 +550,13 @@ void TopicDiscovery::enrich_batch()
             auto it = topic_map_.find(name);
             if (it != topic_map_.end())
             {
-                it->second.publisher_count  = pub_count;
-                it->second.subscriber_count = sub_count;
-                it->second.qos              = qos;
-                it->second.publisher_nodes  = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes = collect_endpoint_nodes(sub_infos);
+                it->second.publisher_count       = pub_count;
+                it->second.subscriber_count      = sub_count;
+                it->second.local_publisher_count = count_local_endpoints(pub_infos, local_node);
+                it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
+                it->second.qos                   = qos;
+                it->second.publisher_nodes       = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes      = collect_endpoint_nodes(sub_infos);
             }
         }
     }
@@ -558,12 +574,12 @@ void TopicDiscovery::enrich_all()
             names.push_back(name);
     }
 
+    const std::string local_node = node_ ? node_->get_fully_qualified_name() : std::string{};
+
     for (const auto& name : names)
     {
-        const int pub_count =
-            static_cast<int>(node_->count_publishers(name));
-        const int sub_count =
-            static_cast<int>(node_->count_subscribers(name));
+        const int pub_count = static_cast<int>(node_->count_publishers(name));
+        const int sub_count = static_cast<int>(node_->count_subscribers(name));
 
         QosInfo qos;
         auto pub_infos = node_->get_publishers_info_by_topic(name);
@@ -583,11 +599,13 @@ void TopicDiscovery::enrich_all()
             auto it = topic_map_.find(name);
             if (it != topic_map_.end())
             {
-                it->second.publisher_count  = pub_count;
-                it->second.subscriber_count = sub_count;
-                it->second.qos              = qos;
-                it->second.publisher_nodes  = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes = collect_endpoint_nodes(sub_infos);
+                it->second.publisher_count       = pub_count;
+                it->second.subscriber_count      = sub_count;
+                it->second.local_publisher_count = count_local_endpoints(pub_infos, local_node);
+                it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
+                it->second.qos                   = qos;
+                it->second.publisher_nodes       = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes      = collect_endpoint_nodes(sub_infos);
             }
         }
     }

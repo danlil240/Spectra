@@ -14,7 +14,9 @@
 
 #include <gtest/gtest.h>
 
+#define private public
 #include "ros_app_shell.hpp"
+#undef private
 
 using namespace spectra::adapters::ros2;
 
@@ -58,6 +60,16 @@ TEST(LayoutMode, ParseMonitor)
     EXPECT_EQ(parse_layout_mode("monitor"), LayoutMode::Monitor);
 }
 
+TEST(LayoutMode, ParseRviz)
+{
+    EXPECT_EQ(parse_layout_mode("rviz"), LayoutMode::RViz);
+}
+
+TEST(LayoutMode, ParseRvizPlot)
+{
+    EXPECT_EQ(parse_layout_mode("rviz-plot"), LayoutMode::RVizPlot);
+}
+
 TEST(LayoutMode, ParseUnknownFallsBackToDefault)
 {
     EXPECT_EQ(parse_layout_mode("bogus"),   LayoutMode::Default);
@@ -70,6 +82,8 @@ TEST(LayoutMode, NameRoundTrip)
     EXPECT_STREQ(layout_mode_name(LayoutMode::Default),  "default");
     EXPECT_STREQ(layout_mode_name(LayoutMode::PlotOnly), "plot-only");
     EXPECT_STREQ(layout_mode_name(LayoutMode::Monitor),  "monitor");
+    EXPECT_STREQ(layout_mode_name(LayoutMode::RViz),     "rviz");
+    EXPECT_STREQ(layout_mode_name(LayoutMode::RVizPlot), "rviz-plot");
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +492,32 @@ TEST(LayoutVisibility, MonitorHidesPlot)
     EXPECT_EQ(shell.config().layout, LayoutMode::Monitor);
 }
 
+TEST(RosAppShell, SeedDefaultRvizDisplaysAddsGridForRvizLayouts)
+{
+    RosAppConfig cfg;
+    cfg.layout = LayoutMode::RViz;
+    RosAppShell shell(cfg);
+
+    shell.register_builtin_displays();
+    shell.seed_default_rviz_displays_if_needed();
+
+    ASSERT_EQ(shell.displays().size(), 1u);
+    EXPECT_EQ(shell.displays().front()->type_id(), "grid");
+    EXPECT_EQ(shell.displays().front()->display_name(), "Grid");
+}
+
+TEST(RosAppShell, SeedDefaultRvizDisplaysSkipsNonRvizLayouts)
+{
+    RosAppConfig cfg;
+    cfg.layout = LayoutMode::Default;
+    RosAppShell shell(cfg);
+
+    shell.register_builtin_displays();
+    shell.seed_default_rviz_displays_if_needed();
+
+    EXPECT_TRUE(shell.displays().empty());
+}
+
 // Visibility setters work before init.
 TEST(LayoutVisibility, SettersWorkWithoutInit)
 {
@@ -489,7 +529,7 @@ TEST(LayoutVisibility, SettersWorkWithoutInit)
     EXPECT_FALSE(shell.topic_list_visible());
     EXPECT_FALSE(shell.plot_area_visible());
     EXPECT_TRUE(shell.inspector_panel_visible());
-    EXPECT_TRUE(shell.topic_echo_visible());
+    EXPECT_FALSE(shell.topic_echo_visible());
     EXPECT_TRUE(shell.topic_stats_visible());
 }
 

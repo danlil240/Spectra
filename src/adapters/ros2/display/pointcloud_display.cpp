@@ -284,9 +284,6 @@ void PointCloudDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    if (ImGui::InputText("Topic", topic_input_.data(), topic_input_.size()))
-        set_topic(std::string(topic_input_.data()));
-
     const char* modes[] = {"Flat", "Intensity", "Height", "RGB"};
     int current_mode = static_cast<int>(color_mode_);
     if (ImGui::Combo("Color Mode", &current_mode, modes, 4))

@@ -24,6 +24,7 @@ using ros2::PanelVisibility;
 using ros2::RecentEntry;
 using ros2::SaveResult;
 using ros2::LoadResult;
+using ros2::TopicMonitorState;
 
 // ===========================================================================
 // Helpers
@@ -95,6 +96,12 @@ static RosSession make_session()
     s.panels.displays_panel = true;
     s.panels.scene_viewport = true;
     s.panels.inspector_panel = true;
+
+    s.topic_monitor.show_type = false;
+    s.topic_monitor.show_hz = true;
+    s.topic_monitor.show_pubs = false;
+    s.topic_monitor.show_subs = true;
+    s.topic_monitor.show_bw = false;
 
     return s;
 }
@@ -458,6 +465,27 @@ TEST(RoundTrip, FixedFrameAndDisplays)
     EXPECT_NE(out.displays[0].config_blob.find("plane=xz"), std::string::npos);
 }
 
+TEST(RoundTrip, TopicMonitorColumnVisibility)
+{
+    RosSession s;
+    s.topic_monitor.show_type = false;
+    s.topic_monitor.show_hz = false;
+    s.topic_monitor.show_pubs = true;
+    s.topic_monitor.show_subs = false;
+    s.topic_monitor.show_bw = true;
+
+    const auto json = RosSessionManager::serialize(s);
+    RosSession out;
+    std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
+
+    EXPECT_FALSE(out.topic_monitor.show_type);
+    EXPECT_FALSE(out.topic_monitor.show_hz);
+    EXPECT_TRUE(out.topic_monitor.show_pubs);
+    EXPECT_FALSE(out.topic_monitor.show_subs);
+    EXPECT_TRUE(out.topic_monitor.show_bw);
+}
+
 TEST(RoundTrip, FullSession)
 {
     RosSession s = make_session();
@@ -557,6 +585,7 @@ TEST(Serialize, WritesVersion2NestedSchema)
     EXPECT_NE(json.find("\"camera_pose\""), std::string::npos);
     EXPECT_NE(json.find("\"background_color\""), std::string::npos);
     EXPECT_NE(json.find("\"nav_rail\""), std::string::npos);
+    EXPECT_NE(json.find("\"topic_monitor\""), std::string::npos);
     EXPECT_NE(json.find("\"inspector_panel\": true"), std::string::npos);
     EXPECT_EQ(json.find("\"nav_rail_expanded\""), std::string::npos);
     EXPECT_EQ(json.find("\"nav_rail_width\""), std::string::npos);

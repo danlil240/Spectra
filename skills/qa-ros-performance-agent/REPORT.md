@@ -8,14 +8,14 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-06 21:42 |
+| Last run | 2026-03-08 00:18 |
 | Last seed | 42 |
 | Last exit code | 0 |
 | Scenarios passing | 6 / 7 |
 | Scenarios skipped | 1 / 7 (`bag_playback`, expected with `SPECTRA_ROS2_BAG=OFF`) |
-| Frame time avg | 5.88 ms |
-| Frame time max | 8.37 ms |
-| RSS delta | 19 MB (191 -> 210 MB) |
+| Frame time avg | 5.84 ms |
+| Frame time max | 8.39 ms |
+| RSS delta | 24 MB (193 -> 217 MB) |
 | Open failures | None in the latest deterministic ROS QA baseline |
 | Open warnings | Present-queue-family fallback warning only; bag playback remains an expected skip until rosbag support is enabled |
 | SKILL.md last self-updated | 2026-03-06 (design review mode added) |
@@ -27,6 +27,106 @@
 | Date | Section | Reason |
 |---|---|---|
 | 2026-03-06 | Initial file created | Added ROS-specific QA report scaffold |
+
+---
+
+## Session 2026-03-08 00:18
+
+**Run config**
+- Build: reused existing `build-ros2/tests/spectra_ros_qa_agent`
+- Command(s): `env ROS_LOG_DIR=/tmp/ros_logs ROS_HOME=/tmp/spectra_ros_home ./build-ros2/tests/spectra_ros_qa_agent --seed 42 --duration 120 --output-dir /tmp/spectra_ros_qa_topic_monitor_columns_fix`
+- Exit code: `0`
+- Output dir: `/tmp/spectra_ros_qa_topic_monitor_columns_fix`
+
+**Summary**
+- Added session persistence for Topic Monitor hidden-column state.
+- The Topic Monitor now saves and restores its Type, Hz, Pubs, Subs, and BW column visibility along with the rest of the ROS workspace.
+- The deterministic ROS QA baseline passed cleanly after the change, including `session_roundtrip`.
+
+**Scenario results**
+- `boot_and_layout`: passed | 4 frames | shell initialized and layout presets behaved as expected
+- `live_topic_monitoring`: passed | 52 frames | discovery, echo, stats, and live plotting all responded to ROS traffic
+- `session_roundtrip`: passed | 15 frames | session save/load restored plots and shell visibility state
+- `node_graph_and_logs`: passed | 6 frames | node graph and ROS log capture both reflected live helper-node activity
+- `diagnostics_and_tf`: passed | 9 frames | diagnostics and TF panels both consumed live ROS traffic
+- `parameters_and_services`: passed | 6 frames | parameter editing worked and service caller failed gracefully on Humble
+- `bag_playback`: skipped | 0 frames | expected skip with `SPECTRA_ROS2_BAG=OFF`
+
+**Performance metrics**
+- Frame time: avg `5.84 ms`
+- RSS: `193 MB` initial, `217 MB` peak
+- Scenario coverage: full deterministic baseline completed with `6 passed, 0 failed, 1 skipped`
+
+**Root cause + fix**
+- Root cause: Topic Monitor column visibility lived only inside `TopicListPanel` UI state and was not included in `RosSession` capture or restore.
+- Fix: added `TopicMonitorState` to the session model, plus `TopicListPanel::column_visibility()` / `set_column_visibility()` so the shell can persist and restore hidden-column state.
+- Regression coverage: extended unit coverage in `test_topic_list_panel.cpp` and `test_ros_session.cpp`, and verified shell integration via `unit_test_ros_app_shell`.
+
+**Files changed**
+- `src/adapters/ros2/ui/topic_list_panel.hpp`
+- `src/adapters/ros2/ui/topic_list_panel.cpp`
+- `src/adapters/ros2/ros_session.hpp`
+- `src/adapters/ros2/ros_session.cpp`
+- `src/adapters/ros2/ros_app_shell.cpp`
+- `tests/unit/test_topic_list_panel.cpp`
+- `tests/unit/test_ros_session.cpp`
+- `skills/qa-ros-performance-agent/REPORT.md`
+
+**Test status**
+- `unit_test_topic_list_panel`: passed
+- `unit_test_ros_session`: passed
+- `unit_test_ros_app_shell`: passed
+- Deterministic ROS QA baseline: `6 passed, 0 failed, 1 skipped`
+
+**Self-updates to SKILL.md**
+- None
+
+---
+
+## Session 2026-03-08 00:14
+
+**Run config**
+- Build: `Build_CMakeTools` target `unit_test_scene_viewport`; reused existing `build-ros2/tests/spectra_ros_qa_agent`
+- Command(s): `env ROS_LOG_DIR=/tmp/ros_logs ROS_HOME=/tmp/spectra_ros_home ./build-ros2/tests/spectra_ros_qa_agent --seed 42 --duration 120 --output-dir /tmp/spectra_ros_qa_scene_viewport_fix_full`
+- Exit code: `0`
+- Output dir: `/tmp/spectra_ros_qa_scene_viewport_fix_full`
+
+**Summary**
+- Fixed the RViz scene viewport session restore path so restored cameras stay in the viewport's Z-up orbit convention.
+- Added a focused unit regression test for restored viewport cameras, then validated the full deterministic ROS QA baseline.
+- The deterministic baseline passed cleanly, including `session_roundtrip`, with no new issue buckets.
+
+**Scenario results**
+- `boot_and_layout`: passed | 4 frames | shell initialized and layout presets behaved as expected
+- `live_topic_monitoring`: passed | 52 frames | discovery, echo, stats, and live plotting all responded to ROS traffic
+- `session_roundtrip`: passed | 15 frames | session save/load restored plots and shell visibility state
+- `node_graph_and_logs`: passed | 7 frames | node graph and ROS log capture both reflected live helper-node activity
+- `diagnostics_and_tf`: passed | 9 frames | diagnostics and TF panels both consumed live ROS traffic
+- `parameters_and_services`: passed | 6 frames | parameter editing worked and service caller failed gracefully on Humble
+- `bag_playback`: skipped | 0 frames | expected skip with `SPECTRA_ROS2_BAG=OFF`
+
+**Performance metrics**
+- Frame time: avg `5.74 ms`
+- RSS: `193 MB` initial, `217 MB` peak
+- Scenario coverage: full deterministic baseline completed with `6 passed, 0 failed, 1 skipped`
+
+**Root cause + fix**
+- Root cause: `RosAppShell::apply_session()` rebuilt a plain default `Camera`, which starts Y-up, before handing it to `SceneViewport`. The viewport camera pose values were therefore reapplied against the wrong orbit plane on restore.
+- Fix: `SceneViewport::set_camera()` now normalizes any incoming camera to `Camera::UpAxis::Z`, preserving the stored orbit parameters while rebuilding the camera basis in RViz mode.
+- Regression coverage: added `tests/unit/test_scene_viewport.cpp` to assert restored cameras remain Z-up and keep the expected target/orbit values.
+
+**Files changed**
+- `src/adapters/ros2/ui/scene_viewport.cpp`
+- `tests/unit/test_scene_viewport.cpp`
+- `tests/CMakeLists.txt`
+- `skills/qa-ros-performance-agent/REPORT.md`
+
+**Test status**
+- `unit_test_scene_viewport`: passed
+- Deterministic ROS QA baseline: `6 passed, 0 failed, 1 skipped`
+
+**Self-updates to SKILL.md**
+- None
 
 ---
 

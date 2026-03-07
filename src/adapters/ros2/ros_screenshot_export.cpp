@@ -57,8 +57,6 @@ RosScreenshotExport::RosScreenshotExport(const RecordingDialogConfig& cfg)
     : dialog_cfg_(cfg)
     , dialog_fps_(cfg.default_fps)
     , dialog_duration_s_(cfg.default_duration)
-    , dialog_width_(static_cast<int>(cfg.default_width))
-    , dialog_height_(static_cast<int>(cfg.default_height))
 {
     std::memset(dialog_path_buf_, 0, sizeof(dialog_path_buf_));
     std::strncpy(dialog_path_buf_, cfg.default_path.c_str(), kPathBuf - 1);
@@ -84,6 +82,11 @@ void RosScreenshotExport::set_frame_render_callback(FrameRenderCallback cb)
     render_cb_ = std::move(cb);
 }
 
+void RosScreenshotExport::set_capture_size_callback(CaptureSizeCallback cb)
+{
+    capture_size_cb_ = std::move(cb);
+}
+
 // ---------------------------------------------------------------------------
 // Screenshot
 // ---------------------------------------------------------------------------
@@ -105,11 +108,16 @@ ScreenshotResult RosScreenshotExport::take_screenshot(const ScreenshotConfig& cf
         last_screenshot_ = result;
         return result;
     }
-    // Fall back to dialog config defaults when caller passes 0.
+
+    uint32_t live_width = 0;
+    uint32_t live_height = 0;
+    const bool have_live_size = current_capture_size(live_width, live_height);
+
+    // Prefer the live framebuffer size when the caller requests auto sizing.
     if (cfg.width == 0)
-        cfg.width = dialog_cfg_.default_width;
+        cfg.width = have_live_size ? live_width : dialog_cfg_.default_width;
     if (cfg.height == 0)
-        cfg.height = dialog_cfg_.default_height;
+        cfg.height = have_live_size ? live_height : dialog_cfg_.default_height;
     result.width  = cfg.width;
     result.height = cfg.height;
     if (cfg.width == 0 || cfg.height == 0)
@@ -213,6 +221,24 @@ bool RosScreenshotExport::screenshot_toast_active() const
     return toast_timer_s_ > 0.0f;
 }
 
+bool RosScreenshotExport::current_capture_size(uint32_t& width, uint32_t& height) const
+{
+    width = 0;
+    height = 0;
+
+    if (capture_size_cb_ && capture_size_cb_(width, height) && width > 0 && height > 0)
+        return true;
+
+    if (dialog_cfg_.default_width > 0 && dialog_cfg_.default_height > 0)
+    {
+        width = dialog_cfg_.default_width;
+        height = dialog_cfg_.default_height;
+        return true;
+    }
+
+    return false;
+}
+
 void RosScreenshotExport::tick(float dt)
 {
     if (toast_timer_s_ > 0.0f)
@@ -226,10 +252,30 @@ void RosScreenshotExport::tick(float dt)
     // headless usage and shell integration).
     if (session_ && session_->is_active())
     {
-        if (!session_->advance())
+        const auto session_cfg = session_->config();
+        const float frame_interval_s =
+            session_cfg.fps > 0.0f ? (1.0f / session_cfg.fps) : 0.0f;
+
+        recording_capture_generation_++;
+        if (frame_interval_s <= 0.0f)
         {
-            // No more frames — finalize.
-            last_record_ok_ = session_->finish();
+            if (!session_->advance())
+                last_record_ok_ = session_->finish();
+            return;
+        }
+
+        recording_accumulator_s_ += std::max(0.0f, dt);
+
+        while (session_->is_active() && recording_accumulator_s_ + 1e-6f >= frame_interval_s)
+        {
+            recording_accumulator_s_ -= frame_interval_s;
+            if (!session_->advance())
+            {
+                // No more frames — finalize.
+                last_record_ok_ = session_->finish();
+                reset_recording_timing_state();
+                break;
+            }
         }
     }
 }
@@ -249,6 +295,7 @@ void RosScreenshotExport::cancel_recording()
     {
         session_->cancel();
         last_record_ok_ = false;
+        reset_recording_timing_state();
     }
 }
 
@@ -261,8 +308,14 @@ void RosScreenshotExport::begin_recording_from_dialog()
     cfg.output_path = std::string(dialog_path_buf_);
     cfg.fps         = dialog_fps_;
     cfg.end_time    = dialog_duration_s_;
-    cfg.width       = static_cast<uint32_t>(dialog_width_);
-    cfg.height      = static_cast<uint32_t>(dialog_height_);
+
+    uint32_t capture_width = 0;
+    uint32_t capture_height = 0;
+    if (!current_capture_size(capture_width, capture_height))
+        return;
+
+    cfg.width       = capture_width;
+    cfg.height      = capture_height;
 
     switch (dialog_format_idx_)
     {
@@ -275,19 +328,47 @@ void RosScreenshotExport::begin_recording_from_dialog()
     // Build FrameRenderCallback bridging our adapter callback signature.
     FrameRenderCallback local_cb = render_cb_;
     spectra::FrameRenderCallback session_cb =
-        [local_cb](uint32_t fi, float t, uint8_t* buf, uint32_t w, uint32_t h) -> bool
+        [this, local_cb](uint32_t fi, float t, uint8_t* buf, uint32_t w, uint32_t h) -> bool
         {
-            return local_cb(fi, t, buf, w, h);
+            const size_t required_bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 4u;
+            if (recording_frame_cache_.size() != required_bytes)
+            {
+                recording_frame_cache_.assign(required_bytes, 0u);
+                recording_cache_valid_ = false;
+            }
+
+            if (!recording_cache_valid_
+                || recording_cached_generation_ != recording_capture_generation_)
+            {
+                if (!local_cb(fi, t, recording_frame_cache_.data(), w, h))
+                    return false;
+                recording_cache_valid_ = true;
+                recording_cached_generation_ = recording_capture_generation_;
+            }
+
+            std::memcpy(buf, recording_frame_cache_.data(), required_bytes);
+            return true;
         };
 
     if (!session_)
         session_ = std::make_unique<spectra::RecordingSession>();
 
     last_record_ok_ = false;
+    reset_recording_timing_state();
     if (!session_->begin(cfg, session_cb))
     {
         // begin() failed — session remains Idle/Failed.
+        reset_recording_timing_state();
     }
+}
+
+void RosScreenshotExport::reset_recording_timing_state()
+{
+    recording_accumulator_s_ = 0.0f;
+    recording_capture_generation_ = 0;
+    recording_cached_generation_ = 0;
+    recording_cache_valid_ = false;
+    recording_frame_cache_.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +380,12 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
 #ifdef SPECTRA_USE_IMGUI
     if (!ImGui::GetCurrentContext()) return false;
 
+#ifdef SPECTRA_USE_FFMPEG
+    constexpr bool kMp4Available = true;
+#else
+    constexpr bool kMp4Available = false;
+#endif
+
     // Initialize dialog buffers from config on first open.
     if (!dialog_initialized_)
     {
@@ -307,8 +394,6 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
         std::strncpy(dialog_path_buf_, dialog_cfg_.default_path.c_str(), kPathBuf - 1);
         dialog_fps_        = dialog_cfg_.default_fps;
         dialog_duration_s_ = dialog_cfg_.default_duration;
-        dialog_width_      = static_cast<int>(dialog_cfg_.default_width);
-        dialog_height_     = static_cast<int>(dialog_cfg_.default_height);
     }
 
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse |
@@ -361,41 +446,56 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
     ImGui::Text("Format:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(140.0f);
-    const char* format_items[] = { "PNG Sequence", "GIF", "MP4 (ffmpeg)" };
+    const char* format_items[] = {
+        "PNG Sequence",
+        "GIF",
+        kMp4Available ? "MP4 (ffmpeg)" : "MP4 (unavailable)",
+    };
     ImGui::Combo("##rec_fmt", &dialog_format_idx_, format_items, 3);
     ImGui::EndDisabled();
 
+    if (!kMp4Available && dialog_format_idx_ == 2)
+    {
+        ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f),
+                           "MP4 export requires a build with SPECTRA_USE_FFMPEG=ON.");
+    }
+
     // ── Settings ─────────────────────────────────────────────────────────────
     ImGui::BeginDisabled(recording_now);
+    uint32_t capture_width = 0;
+    uint32_t capture_height = 0;
+    const bool have_capture_size = current_capture_size(capture_width, capture_height);
+
+    int fps_value = static_cast<int>(dialog_fps_ + 0.5f);
     ImGui::Text("FPS:");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
-    ImGui::InputFloat("##rec_fps", &dialog_fps_, 1.0f, 5.0f, "%.1f");
+    ImGui::SetNextItemWidth(220.0f);
+    ImGui::SliderInt("##rec_fps", &fps_value, 1, 120, "%d fps");
+    dialog_fps_ = static_cast<float>(fps_value);
     if (dialog_fps_ < 1.0f)  dialog_fps_ = 1.0f;
-    if (dialog_fps_ > 240.0f) dialog_fps_ = 240.0f;
+    if (dialog_fps_ > 120.0f) dialog_fps_ = 120.0f;
 
+    ImGui::Text("Duration:");
     ImGui::SameLine();
-    ImGui::Text("  Duration (s):");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
-    ImGui::InputFloat("##rec_dur", &dialog_duration_s_, 1.0f, 10.0f, "%.1f");
-    if (dialog_duration_s_ < 0.1f)  dialog_duration_s_ = 0.1f;
-    if (dialog_duration_s_ > 3600.0f) dialog_duration_s_ = 3600.0f;
+    ImGui::SetNextItemWidth(220.0f);
+    ImGui::SliderFloat("##rec_dur", &dialog_duration_s_, 1.0f, 300.0f, "%.0f s");
+    if (dialog_duration_s_ < 1.0f)  dialog_duration_s_ = 1.0f;
+    if (dialog_duration_s_ > 300.0f) dialog_duration_s_ = 300.0f;
 
-    ImGui::Text("Width:");
+    ImGui::Text("Capture:");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(70.0f);
-    ImGui::InputInt("##rec_w", &dialog_width_);
-    if (dialog_width_ < 64)    dialog_width_ = 64;
-    if (dialog_width_ > 7680)  dialog_width_ = 7680;
+    if (have_capture_size)
+    {
+        ImGui::TextDisabled("Auto window size (%u x %u)", capture_width, capture_height);
+    }
+    else
+    {
+        ImGui::TextDisabled("Auto window size unavailable");
+    }
 
-    ImGui::SameLine();
-    ImGui::Text("  Height:");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(70.0f);
-    ImGui::InputInt("##rec_h", &dialog_height_);
-    if (dialog_height_ < 64)    dialog_height_ = 64;
-    if (dialog_height_ > 4320)  dialog_height_ = 4320;
+    const uint32_t total_frames =
+        static_cast<uint32_t>(std::ceil(dialog_duration_s_ * dialog_fps_));
+    ImGui::TextDisabled("Approx. %u frames", total_frames);
 
     ImGui::EndDisabled();
 
@@ -405,6 +505,7 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
         const auto prog = session_->progress();
         ImGui::Separator();
         ImGui::Text("Recording: frame %u / %u", prog.current_frame, prog.total_frames);
+        ImGui::TextDisabled("Elapsed: %.1f / %.1f s", prog.elapsed_sec, dialog_duration_s_);
         ImGui::ProgressBar(prog.percent / 100.0f, ImVec2(-1.0f, 0.0f));
         char eta_buf[64];
         std::snprintf(eta_buf, sizeof(eta_buf), "ETA: %.1f s",
@@ -426,22 +527,49 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
                                session_->error().c_str());
         }
     }
+    else if (session_ && session_->state() == spectra::RecordingState::Failed)
+    {
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Failed: %s",
+                           session_->error().c_str());
+    }
 
     // ── Buttons ───────────────────────────────────────────────────────────────
     ImGui::Separator();
 
     if (!recording_now)
     {
-        const bool can_record = render_cb_ && (dialog_path_buf_[0] != '\0');
+        const bool format_supported = dialog_format_idx_ != 2 || kMp4Available;
+        const bool can_record = render_cb_ && (dialog_path_buf_[0] != '\0')
+            && format_supported && have_capture_size;
         ImGui::BeginDisabled(!can_record);
         if (ImGui::Button("Start Recording##rec_start"))
+        {
             begin_recording_from_dialog();
+            if (session_ && session_->is_active())
+            {
+                if (p_open)
+                    *p_open = false;
+                else
+                    open = false;
+            }
+        }
         ImGui::EndDisabled();
 
         if (!can_record)
         {
             ImGui::SameLine();
-            ImGui::TextDisabled("(set a render callback to enable recording)");
+            if (!render_cb_)
+            {
+                ImGui::TextDisabled("(set a render callback to enable recording)");
+            }
+            else if (!format_supported)
+            {
+                ImGui::TextDisabled("(MP4 recording is unavailable in this build)");
+            }
+            else if (!have_capture_size)
+            {
+                ImGui::TextDisabled("(window size is not available yet)");
+            }
         }
     }
     else

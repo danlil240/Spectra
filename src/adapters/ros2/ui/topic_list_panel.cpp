@@ -61,7 +61,27 @@ void TopicStats::prune_and_compute(int64_t now_ns, int64_t window_ns)
         bandwidth_bps = static_cast<double>(total) / win_s;
     }
 
-    const int64_t stale_ns = 2'000'000'000LL;  // 2 s
+    // EMA smoothing for displayed Hz — alpha chosen so the display
+    // settles in ~2-3 seconds (lower alpha = smoother, slower response).
+    constexpr double EMA_ALPHA = 0.15;
+    if (displayed_hz <= 0.0 && hz > 0.0)
+        displayed_hz = hz;   // initialise on first sample
+    else
+        displayed_hz = EMA_ALPHA * hz + (1.0 - EMA_ALPHA) * displayed_hz;
+    // Snap to zero when raw Hz drops below a tiny threshold.
+    if (hz <= 0.0)
+        displayed_hz *= (1.0 - EMA_ALPHA);  // decay towards zero
+    if (displayed_hz < 0.05)
+        displayed_hz = 0.0;
+
+    // Adaptive stale threshold: for low-frequency topics (≤ 2 Hz) give
+    // at least 3× the expected period so the dot doesn't flicker.
+    int64_t stale_ns = 2'000'000'000LL;  // 2 s default
+    if (displayed_hz > 0.0 && displayed_hz <= 2.0)
+    {
+        const int64_t period_ns = static_cast<int64_t>(1.0e9 / displayed_hz);
+        stale_ns = std::max(stale_ns, period_ns * 3);
+    }
     active = (last_msg_ns > 0) && (now_ns - last_msg_ns < stale_ns);
 
     // Sample Hz history once per second for sparkline.
@@ -403,12 +423,30 @@ void TopicListPanel::draw(bool* p_open)
     }
 
     // --- Search bar ---
-    ImGui::SetNextItemWidth(-80.0f);
+    ImGui::SetNextItemWidth(-120.0f);
     const bool filter_changed =
         ImGui::InputTextWithHint("##filter", "Search topics...", filter_buf_, sizeof(filter_buf_));
     if (filter_changed) {
         filter_str_   = filter_buf_;
         filter_dirty_ = true;
+    }
+    ImGui::SameLine();
+
+    // Column visibility settings gear.
+    if (ImGui::SmallButton(ui::icon_str(ui::Icon::Settings)))
+        ImGui::OpenPopup("##col_vis");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Column visibility");
+    if (ImGui::BeginPopup("##col_vis"))
+    {
+        ImGui::TextDisabled("Visible columns");
+        ImGui::Separator();
+        ImGui::Checkbox("Type", &col_show_type_);
+        ImGui::Checkbox("Hz",   &col_show_hz_);
+        ImGui::Checkbox("Pubs", &col_show_pubs_);
+        ImGui::Checkbox("Subs", &col_show_subs_);
+        ImGui::Checkbox("BW",   &col_show_bw_);
+        ImGui::EndPopup();
     }
     ImGui::SameLine();
     ImGui::TextDisabled("%zu topic%s",
@@ -428,18 +466,26 @@ void TopicListPanel::draw(bool* p_open)
     const float footer_h  = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
     const ImVec2 table_sz = {0.0f, ImGui::GetContentRegionAvail().y - footer_h};
 
-    if (!ImGui::BeginTable("##topics", 6, kTableFlags, table_sz)) {
+    // Count visible optional columns: always Topic + optionally Type/Hz/Pubs/Subs/BW.
+    const int n_cols = 1
+        + (col_show_type_ ? 1 : 0)
+        + (col_show_hz_   ? 1 : 0)
+        + (col_show_pubs_ ? 1 : 0)
+        + (col_show_subs_ ? 1 : 0)
+        + (col_show_bw_   ? 1 : 0);
+
+    if (!ImGui::BeginTable("##topics", n_cols, kTableFlags, table_sz)) {
         ImGui::End();
         return;
     }
 
     ImGui::TableSetupScrollFreeze(0, 1);  // freeze header row
     ImGui::TableSetupColumn("Topic",    ImGuiTableColumnFlags_WidthStretch, 3.0f);
-    ImGui::TableSetupColumn("Type",     ImGuiTableColumnFlags_WidthStretch, 2.5f);
-    ImGui::TableSetupColumn("Hz",       ImGuiTableColumnFlags_WidthFixed,   60.0f);
-    ImGui::TableSetupColumn("Pubs",     ImGuiTableColumnFlags_WidthFixed,   38.0f);
-    ImGui::TableSetupColumn("Subs",     ImGuiTableColumnFlags_WidthFixed,   38.0f);
-    ImGui::TableSetupColumn("BW",       ImGuiTableColumnFlags_WidthFixed,   72.0f);
+    if (col_show_type_) ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 2.5f);
+    if (col_show_hz_)   ImGui::TableSetupColumn("Hz",   ImGuiTableColumnFlags_WidthFixed,   60.0f);
+    if (col_show_pubs_) ImGui::TableSetupColumn("Pubs", ImGuiTableColumnFlags_WidthFixed,   38.0f);
+    if (col_show_subs_) ImGui::TableSetupColumn("Subs", ImGuiTableColumnFlags_WidthFixed,   38.0f);
+    if (col_show_bw_)   ImGui::TableSetupColumn("BW",   ImGuiTableColumnFlags_WidthFixed,   72.0f);
     ImGui::TableHeadersRow();
 
     // --- Rows (already holding topics_mutex_) ---
@@ -631,26 +677,29 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
     }
 
     // Column 1: Type (first type, abbreviated + colored).
-    ImGui::TableSetColumnIndex(1);
-    if (!info.types.empty()) {
-        const std::string& t = info.types[0];
-        const ImVec4 tc = topic_type_color(t);
-        // Abbreviated leaf name after last '/'.
-        const auto slash = t.rfind('/');
-        const char* leaf_type = (slash != std::string::npos) ? t.c_str() + slash + 1 : t.c_str();
-        ImGui::TextColored(tc, "%s", leaf_type);
-    } else {
-        ImGui::TextDisabled("-");
+    int next_col = 1;
+    if (col_show_type_) {
+        ImGui::TableSetColumnIndex(next_col++);
+        if (!info.types.empty()) {
+            const std::string& t = info.types[0];
+            const ImVec4 tc = topic_type_color(t);
+            // Abbreviated leaf name after last '/'.
+            const auto slash = t.rfind('/');
+            const char* leaf_type = (slash != std::string::npos) ? t.c_str() + slash + 1 : t.c_str();
+            ImGui::TextColored(tc, "%s", leaf_type);
+        } else {
+            ImGui::TextDisabled("-");
+        }
     }
 
-    // Column 2: Hz + sparkline.
-    ImGui::TableSetColumnIndex(2);
-    {
+    // Column: Hz + sparkline.
+    if (col_show_hz_) {
+        ImGui::TableSetColumnIndex(next_col++);
         const float col_w   = ImGui::GetContentRegionAvail().x;
         const float spark_w = std::min(col_w * 0.5f, 36.0f);
         const float spark_h = ImGui::GetTextLineHeight() * 0.85f;
-        const std::string hz_str = format_hz(stats.hz);
-        if (stats.hz > 0.0)
+        const std::string hz_str = format_hz(stats.displayed_hz);
+        if (stats.displayed_hz > 0.0)
             ImGui::TextUnformatted(hz_str.c_str());
         else
             ImGui::TextDisabled("%s", hz_str.c_str());
@@ -660,21 +709,27 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         }
     }
 
-    // Column 3: Pubs.
-    ImGui::TableSetColumnIndex(3);
-    ImGui::Text("%d", info.publisher_count);
+    // Column: Pubs.
+    if (col_show_pubs_) {
+        ImGui::TableSetColumnIndex(next_col++);
+        ImGui::Text("%d", info.publisher_count);
+    }
 
-    // Column 4: Subs.
-    ImGui::TableSetColumnIndex(4);
-    ImGui::Text("%d", info.subscriber_count);
+    // Column: Subs.
+    if (col_show_subs_) {
+        ImGui::TableSetColumnIndex(next_col++);
+        ImGui::Text("%d", info.subscriber_count);
+    }
 
-    // Column 5: BW.
-    ImGui::TableSetColumnIndex(5);
-    const std::string bw_str = format_bw(stats.bandwidth_bps);
-    if (stats.bandwidth_bps > 0.0)
-        ImGui::TextUnformatted(bw_str.c_str());
-    else
-        ImGui::TextDisabled("%s", bw_str.c_str());
+    // Column: BW.
+    if (col_show_bw_) {
+        ImGui::TableSetColumnIndex(next_col++);
+        const std::string bw_str = format_bw(stats.bandwidth_bps);
+        if (stats.bandwidth_bps > 0.0)
+            ImGui::TextUnformatted(bw_str.c_str());
+        else
+            ImGui::TextDisabled("%s", bw_str.c_str());
+    }
 }
 
 #else   // !SPECTRA_USE_IMGUI

@@ -58,10 +58,11 @@ struct TopicStats
     std::deque<size_t> sizes;
 
     // Last computed values (updated each draw frame by prune_and_compute())
-    double hz{0.0};              // messages per second
+    double hz{0.0};              // messages per second (raw)
+    double displayed_hz{0.0};    // EMA-smoothed Hz shown in the UI
     double bandwidth_bps{0.0};   // bytes per second
 
-    // True if a message arrived within the last 2 seconds
+    // True if a message arrived within a grace period (adaptive to frequency)
     bool active{false};
 
     // Timestamp of the most recently received message (ns)
@@ -250,6 +251,13 @@ private:
     int         stale_threshold_ms_{2000};
     int         stats_window_ms_{1000};
     std::string title_{"ROS2 Topics"};
+
+    // Column visibility (render-thread only).
+    bool col_show_type_{true};
+    bool col_show_hz_{true};
+    bool col_show_pubs_{true};
+    bool col_show_subs_{true};
+    bool col_show_bw_{true};
 
     // Cached filtered list (rebuilt each frame if dirty).
     mutable bool                      filter_dirty_{true};

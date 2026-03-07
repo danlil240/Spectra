@@ -48,12 +48,24 @@ sp.show()
 
 ## Install
 
+Source build dependencies on Ubuntu/Debian:
+
+```bash
+sudo apt install build-essential cmake libvulkan-dev libglfw3-dev glslang-tools
+```
+
 ```bash
 git clone https://github.com/danlil240/Spectra.git
 cd Spectra
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
+
+Released artifact dependencies:
+
+- `.deb`: install with `sudo apt install ./spectra_<version>_amd64.deb`. Do not preinstall `-dev` packages; `apt` resolves runtime dependencies automatically.
+- `AppImage`: no manual package installs in the common case; a working Vulkan-capable driver/runtime is still required.
+- Python wheel: `pip install spectra-plot`; no compiler or Vulkan SDK is needed on the target machine, but the backend still needs a working Vulkan runtime/driver.
 
 ```bash
 # Python

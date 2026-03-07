@@ -40,8 +40,9 @@
             <tbody>
               <tr><td><strong>C++20 compiler</strong></td><td>Yes</td><td>GCC 12+, Clang 15+, or MSVC 2022+</td></tr>
               <tr><td><strong>CMake 3.20+</strong></td><td>Yes</td><td>Build system</td></tr>
-              <tr><td><strong>Vulkan drivers</strong></td><td>Yes</td><td>Usually installed with graphics drivers</td></tr>
-              <tr><td><strong>Vulkan SDK</strong></td><td>Optional</td><td>Only needed for validation layers / debugging</td></tr>
+              <tr><td><strong>Vulkan runtime / drivers</strong></td><td>Yes</td><td>Required to run Spectra binaries; usually installed with graphics drivers</td></tr>
+              <tr><td><strong>Vulkan development files</strong></td><td>Source builds only</td><td><code>libvulkan-dev</code> on Linux, Vulkan SDK on Windows, <code>vulkan-headers</code> + <code>vulkan-loader</code> on macOS</td></tr>
+              <tr><td><strong>glslangValidator</strong></td><td>Source builds only</td><td><code>glslang-tools</code> on Linux, <code>glslang</code> on macOS</td></tr>
               <tr><td><strong>Python 3.9+</strong></td><td>Optional</td><td>For the Python API</td></tr>
             </tbody>
           </table>
@@ -56,11 +57,8 @@
             <article class="card">
               <h3>Linux (Ubuntu / Debian)</h3>
               <pre><code>sudo apt install build-essential cmake git \
-    vulkan-tools libvulkan-dev \
-    libwayland-dev libxrandr-dev \
-    libxinerama-dev libxcursor-dev \
-    libxi-dev libxkbcommon-dev \
-    libgl1-mesa-dev glslang-tools</code></pre>
+    libvulkan-dev libglfw3-dev glslang-tools</code></pre>
+              <p>For headless builds, you can omit <code>libglfw3-dev</code> and configure with <code>-DSPECTRA_USE_GLFW=OFF -DSPECTRA_USE_IMGUI=OFF</code>.</p>
             </article>
             <article class="card">
               <h3>macOS</h3>
@@ -88,7 +86,7 @@ brew install cmake vulkan-headers \
 cd Spectra
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)</code></pre>
-          <div class="callout">The build system automatically fetches GLFW and Google Test via <code>FetchContent</code>.</div>
+          <div class="callout">The build system requires Vulkan development files and <code>glslangValidator</code> for source builds. GLFW is optional as a system package and is fetched automatically if missing.</div>
 
           <h3 style="margin-top:1.5rem">Makefile Shortcuts</h3>
           <table>
@@ -233,6 +231,17 @@ target_link_libraries(myapp PRIVATE spectra::spectra)</code></pre>
 cmake --build build -j$(nproc)
 sudo cmake --install build --prefix /usr/local</code></pre>
           <p>This installs headers to <code>include/spectra/</code>, libraries to <code>lib/</code>, binaries (<code>spectra-backend</code>, <code>spectra-window</code>) to <code>bin/</code>, and fonts/icons to <code>share/spectra/</code>.</p>
+
+          <h3 style="margin-top:1.5rem">Runtime Dependencies by Artifact</h3>
+          <table>
+            <thead><tr><th>Artifact</th><th>How to install</th><th>What the user must install manually first</th></tr></thead>
+            <tbody>
+              <tr><td>Debian package</td><td><code>sudo apt install ./spectra_&lt;version&gt;_amd64.deb</code></td><td>Nothing in the common case. Do not preinstall <code>-dev</code> packages; <code>apt</code> resolves runtime dependencies.</td></tr>
+              <tr><td>AppImage</td><td>Run the downloaded <code>.AppImage</code></td><td>Usually nothing beyond a working Vulkan-capable driver/runtime.</td></tr>
+              <tr><td>Python wheel</td><td><code>pip install spectra-plot</code></td><td>No compiler, CMake, or Vulkan SDK. A working Vulkan runtime/driver is still required to run the backend.</td></tr>
+              <tr><td>Source build</td><td>Build from the repository</td><td><code>libvulkan-dev</code> and <code>glslang-tools</code> on Linux, plus optional <code>libglfw3-dev</code> for system GLFW.</td></tr>
+            </tbody>
+          </table>
 
           <h3 style="margin-top:1.5rem">CPack Packages</h3>
           <table>

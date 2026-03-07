@@ -18,6 +18,7 @@
 #include "display/robot_model_display.hpp"
 #include "display/tf_display.hpp"
 #include "ui/layout/layout_manager.hpp"
+#include "ui/theme/icons.hpp"
 
 // AxisLinkManager — needed for wiring InputHandler to subplot link manager.
 #include "ui/data/axis_link.hpp"
@@ -999,7 +1000,25 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
         if (subplot_mgr_)
         {
+            // Synchronize the slider with the actual visible X extent.
+            // When the user right-click-drags (box zoom) or scrolls while paused,
+            // the axes X limits change but subplot_mgr_->time_window() doesn't
+            // update.  Read the actual extent from the active subplot.
             float tw = static_cast<float>(subplot_mgr_->time_window());
+            {
+                int active_slot = workspace_state_.active_subplot_idx;
+                if (active_slot >= 1 && active_slot <= subplot_mgr_->capacity())
+                {
+                    const auto* se = subplot_mgr_->slot_entry_pub(active_slot);
+                    if (se && se->axes)
+                    {
+                        auto xl      = se->axes->x_limits();
+                        float actual = static_cast<float>(xl.max - xl.min);
+                        if (actual > 0.5f && actual < 86400.0f)
+                            tw = actual;
+                    }
+                }
+            }
             ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
                                                kPlotAreaTimeSliderMinWidth,
                                                kPlotAreaTimeSliderMaxWidth));
@@ -1234,26 +1253,92 @@ void RosAppShell::draw_plot_area(bool* p_open)
                         subplot_mgr_->clear_slot_data(s);
                     }
 
-                    // Series details on a second line, indented.
-                    for (int si = 0; si < n_series; ++si)
+                    // Series dropdown — compact combo with hide/delete per series.
                     {
-                        const auto* se = subplot_mgr_->slot_series(s, si);
-                        if (!se) continue;
-                        ImGui::Indent(16.0f);
-                        ImGui::TextColored(
-                            ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-                            "%s/%s", se->topic.c_str(), se->field_path.c_str());
-                        ImGui::SameLine();
-                        char rm_id[32];
-                        std::snprintf(rm_id, sizeof(rm_id), "x##rm_%d_%d", s, si);
-                        if (ImGui::SmallButton(rm_id))
+                        // Build summary label for the combo preview.
+                        const auto* first_se = subplot_mgr_->slot_series(s, 0);
+                        char combo_label[256];
+                        if (n_series == 1 && first_se)
+                            std::snprintf(combo_label, sizeof(combo_label),
+                                          "%s/%s", first_se->topic.c_str(),
+                                          first_se->field_path.c_str());
+                        else
+                            std::snprintf(combo_label, sizeof(combo_label),
+                                          "%d series", n_series);
+
+                        char combo_id[32];
+                        std::snprintf(combo_id, sizeof(combo_id), "##series_%d", s);
+                        ImGui::SetNextItemWidth(
+                            std::max(200.0f, ImGui::GetContentRegionAvail().x * 0.5f));
+
+                        if (ImGui::BeginCombo(combo_id, combo_label,
+                                              ImGuiComboFlags_HeightLarge))
                         {
-                            subplot_mgr_->remove_series_from_slot(
-                                s, se->topic, se->field_path);
-                            if (!subplot_mgr_->has_plot(s))
-                                subplot_mgr_->compact();
+                            int remove_si = -1;
+                            for (int si = 0; si < n_series; ++si)
+                            {
+                                const auto* se = subplot_mgr_->slot_series(s, si);
+                                if (!se) continue;
+                                ImGui::PushID(si);
+
+                                // Eye icon — toggle series visibility.
+                                bool vis = se->series ? se->series->visible() : true;
+                                const char* eye_icon = vis
+                                    ? ui::icon_str(ui::Icon::Eye)
+                                    : ui::icon_str(ui::Icon::EyeOff);
+                                ImGui::PushStyleColor(ImGuiCol_Text,
+                                    vis ? ImVec4(0.3f, 0.85f, 0.4f, 1.0f)
+                                        : ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
+                                char eye_id[32];
+                                std::snprintf(eye_id, sizeof(eye_id),
+                                              "%s##eye", eye_icon);
+                                if (ImGui::SmallButton(eye_id))
+                                {
+                                    if (se->series)
+                                        se->series->visible(!vis);
+                                }
+                                ImGui::PopStyleColor();
+                                if (ImGui::IsItemHovered())
+                                    ImGui::SetTooltip(vis ? "Hide series" : "Show series");
+
+                                // Trash icon — remove series.
+                                ImGui::SameLine(0.0f, 6.0f);
+                                ImGui::PushStyleColor(ImGuiCol_Text,
+                                    ImVec4(0.9f, 0.3f, 0.3f, 0.85f));
+                                char trash_id[32];
+                                std::snprintf(trash_id, sizeof(trash_id),
+                                              "%s##del", ui::icon_str(ui::Icon::Trash));
+                                if (ImGui::SmallButton(trash_id))
+                                    remove_si = si;
+                                ImGui::PopStyleColor();
+                                if (ImGui::IsItemHovered())
+                                    ImGui::SetTooltip("Remove series");
+
+                                // Series label.
+                                ImGui::SameLine(0.0f, 8.0f);
+                                ImGui::TextColored(
+                                    ImVec4(0.75f, 0.75f, 0.75f, 1.0f),
+                                    "%s/%s",
+                                    se->topic.c_str(),
+                                    se->field_path.c_str());
+
+                                ImGui::PopID();
+                            }
+                            ImGui::EndCombo();
+
+                            // Deferred removal (after EndCombo to avoid iterator invalidation).
+                            if (remove_si >= 0)
+                            {
+                                const auto* rse = subplot_mgr_->slot_series(s, remove_si);
+                                if (rse)
+                                {
+                                    subplot_mgr_->remove_series_from_slot(
+                                        s, rse->topic, rse->field_path);
+                                    if (!subplot_mgr_->has_plot(s))
+                                        subplot_mgr_->compact();
+                                }
+                            }
                         }
-                        ImGui::Unindent(16.0f);
                     }
                 }
                 else

@@ -119,3 +119,111 @@ TEST(PoseDisplay, ComposesPoseWithFixedFrameTransform)
     EXPECT_NEAR(scene.entities().front().transform.translation.x, 5.5, 1e-6);
     EXPECT_NEAR(scene.entities().front().transform.translation.y, -0.5, 1e-6);
 }
+
+// --- Phase 6 expanded coverage ---
+
+TEST(PathAdapter, EmptyPathReturnsNullopt)
+{
+    nav_msgs::msg::Path msg;
+    msg.header.frame_id = "map";
+    msg.header.stamp.sec = 0;
+    msg.header.stamp.nanosec = 100;
+    msg.poses.clear();
+
+    const auto frame = adapt_path_message(msg, "/plan");
+    EXPECT_FALSE(frame.has_value());
+}
+
+TEST(PathAdapter, SinglePosePathHasZeroLength)
+{
+    nav_msgs::msg::Path msg;
+    msg.header.frame_id = "map";
+    msg.header.stamp.sec = 0;
+    msg.header.stamp.nanosec = 100;
+    msg.poses.resize(1);
+    msg.poses[0].pose.position.x = 5.0;
+    msg.poses[0].pose.position.y = 3.0;
+
+    const auto frame = adapt_path_message(msg, "/plan");
+    ASSERT_TRUE(frame.has_value());
+    EXPECT_EQ(frame->pose_count, 1u);
+    EXPECT_DOUBLE_EQ(frame->path_length_m, 0.0);
+    EXPECT_DOUBLE_EQ(frame->start_point.x, 5.0);
+    EXPECT_DOUBLE_EQ(frame->end_point.x, 5.0);
+}
+
+TEST(PathDisplay, ConfigBlobRoundTrip)
+{
+    PathDisplay display;
+    display.deserialize_config_blob(
+        "topic=/global_plan;line_width=3.00;alpha=0.80;pose_arrows=1;use_message_stamp=0");
+
+    const auto blob = display.serialize_config_blob();
+    EXPECT_NE(blob.find("topic=/global_plan"), std::string::npos);
+    EXPECT_NE(blob.find("line_width=3.00"), std::string::npos);
+    EXPECT_NE(blob.find("alpha=0.80"), std::string::npos);
+    EXPECT_NE(blob.find("pose_arrows=1"), std::string::npos);
+    EXPECT_NE(blob.find("use_message_stamp=0"), std::string::npos);
+}
+
+TEST(PathDisplay, ConfigBlobEmptyNoOp)
+{
+    PathDisplay display;
+    display.deserialize_config_blob("");
+    const auto blob = display.serialize_config_blob();
+    EXPECT_NE(blob.find("line_width=2.00"), std::string::npos);
+}
+
+TEST(PathDisplay, LatestFrameReturnsIngested)
+{
+    PathDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    EXPECT_FALSE(display.latest_frame().has_value());
+
+    auto frame = adapt_path_message(make_path(), "/plan");
+    ASSERT_TRUE(frame.has_value());
+    display.ingest_path_frame(*frame);
+
+    ASSERT_TRUE(display.latest_frame().has_value());
+    EXPECT_EQ(display.latest_frame()->pose_count, 3u);
+}
+
+TEST(PoseDisplay, ConfigBlobRoundTrip)
+{
+    PoseDisplay display;
+    display.deserialize_config_blob(
+        "topic=/goal_pose;shaft_length=1.20;shaft_width=0.10;head_length=0.30;head_width=0.20;use_message_stamp=0");
+
+    const auto blob = display.serialize_config_blob();
+    EXPECT_NE(blob.find("topic=/goal_pose"), std::string::npos);
+    EXPECT_NE(blob.find("shaft_length=1.20"), std::string::npos);
+    EXPECT_NE(blob.find("head_length=0.30"), std::string::npos);
+    EXPECT_NE(blob.find("use_message_stamp=0"), std::string::npos);
+}
+
+TEST(PoseDisplay, ConfigBlobEmptyNoOp)
+{
+    PoseDisplay display;
+    display.deserialize_config_blob("");
+    const auto blob = display.serialize_config_blob();
+    EXPECT_NE(blob.find("shaft_length=0.80"), std::string::npos);
+}
+
+TEST(PoseDisplay, LatestFrameReturnsIngested)
+{
+    PoseDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    EXPECT_FALSE(display.latest_frame().has_value());
+
+    auto frame = adapt_pose_stamped_message(make_pose(), "/pose");
+    ASSERT_TRUE(frame.has_value());
+    display.ingest_pose_frame(*frame);
+
+    ASSERT_TRUE(display.latest_frame().has_value());
+}

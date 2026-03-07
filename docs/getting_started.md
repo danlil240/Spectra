@@ -4,12 +4,27 @@ Spectra is a GPU-accelerated plotting library for C++20, built on Vulkan 1.2+.
 
 ## Prerequisites
 
-- **C++20 compiler**: GCC 13+, Clang 17+, or MSVC 2022+
-- **Vulkan SDK**: 1.2 or later (install from [LunarG](https://vulkan.lunarg.com/))
+- **C++20 compiler**: GCC 12+, Clang 15+, or MSVC 2022+
 - **CMake**: 3.20+
-- **GLFW** (optional, fetched automatically): For windowed display
+- **Vulkan development files**: `libvulkan-dev` on Linux, LunarG Vulkan SDK on Windows, or `vulkan-headers` + `vulkan-loader` on macOS
+- **glslangValidator**: `glslang-tools` on Linux or `glslang` on macOS
+- **GLFW**: optional as a system package; if missing, Spectra fetches/builds it automatically for windowed builds
+
+For released binaries, the requirements are smaller than for source builds:
+
+- **`.deb` / `.rpm` packages**: do not manually install `-dev` packages first; use the package manager and let it resolve runtime dependencies
+- **AppImage**: usually only requires a working Vulkan-capable driver/runtime on the host
+- **Python wheel**: no compiler or Vulkan SDK required on the target machine, but the backend still needs a working Vulkan runtime/driver
 
 ## Building
+
+Ubuntu/Debian source-build dependencies:
+
+```bash
+sudo apt install build-essential cmake git libvulkan-dev libglfw3-dev glslang-tools
+```
+
+If you are building a headless configuration, you can omit `libglfw3-dev` and configure with `-DSPECTRA_USE_GLFW=OFF -DSPECTRA_USE_IMGUI=OFF`.
 
 ```bash
 # Clone the repository
@@ -32,6 +47,29 @@ cmake --build build -j$(nproc)
 | `SPECTRA_BUILD_TESTS` | `ON` | Build unit tests and benchmarks |
 | `SPECTRA_BUILD_BENCHMARKS` | `OFF` | Build performance benchmarks |
 | `SPECTRA_BUILD_GOLDEN_TESTS` | `ON` | Build golden image regression tests |
+
+## Deployment Options
+
+### Debian / Ubuntu package
+
+```bash
+sudo apt update
+sudo apt install ./spectra_<version>_amd64.deb
+```
+
+Do not preinstall `libvulkan-dev`, `libglfw3-dev`, or other `-dev` packages for `.deb` installation. Those are source-build dependencies. The Debian package metadata is expected to pull runtime libraries automatically.
+
+### AppImage
+
+AppImage is the lowest-friction Linux artifact for end users. It bundles most user-space libraries, but still requires a working Vulkan-capable driver/runtime on the host system.
+
+### Python wheel
+
+```bash
+pip install spectra-plot
+```
+
+Python wheels do not require a compiler, CMake, or Vulkan SDK on the target machine. They still require the target machine to have working Vulkan runtime support.
 
 ## Quick Start
 

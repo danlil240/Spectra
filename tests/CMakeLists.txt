@@ -286,6 +286,24 @@ if(SPECTRA_BUILD_BENCHMARKS)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_multi_window.cpp)
         add_spectra_bench(bench_multi_window)
     endif()
+
+    if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_ros3d.cpp)
+        add_executable(bench_ros3d bench/bench_ros3d.cpp)
+        target_link_libraries(bench_ros3d PRIVATE
+            spectra_ros2_adapter
+            benchmark::benchmark
+            benchmark::benchmark_main
+        )
+        target_compile_features(bench_ros3d PRIVATE cxx_std_20)
+        target_include_directories(bench_ros3d PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(bench_ros3d PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+    endif()
 endif()
 
 # ROS2 adapter tests — only built when SPECTRA_USE_ROS2 is ON and a ROS2

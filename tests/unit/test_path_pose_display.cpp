@@ -89,6 +89,7 @@ TEST(PathDisplay, ResolvesPathCentroidIntoFixedFrame)
     EXPECT_EQ(scene.entities().front().type, "path");
     ASSERT_TRUE(scene.entities().front().polyline.has_value());
     EXPECT_EQ(scene.entities().front().polyline->points.size(), 3u);
+    EXPECT_NEAR(scene.entities().front().polyline->points.front().x, -(4.0 / 3.0), 1e-6);
     EXPECT_NEAR(scene.entities().front().transform.translation.x, 10.0 + (4.0 / 3.0), 1e-6);
 }
 

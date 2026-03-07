@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <unordered_map>
 
 #include "render/backend.hpp"
 
@@ -64,6 +65,14 @@ private:
         uint32_t     grid_vertex_count{0};
         float        grid_cell_size{0.0f};
         int          grid_cell_count{0};
+
+        BufferHandle point_ssbo;
+        size_t       point_capacity{0};
+
+        BufferHandle line_ssbo;
+        size_t       line_capacity{0};
+
+        BufferHandle image_quad_vbo;
     };
 
     GpuData gpu_;
@@ -71,8 +80,20 @@ private:
     PipelineHandle grid3d_pipeline_;
     PipelineHandle marker3d_pipeline_;
     PipelineHandle line3d_pipeline_;
+    PipelineHandle line3d_transparent_pipeline_;
+    PipelineHandle pointcloud_pipeline_;
+    PipelineHandle pointcloud_transparent_pipeline_;
+    PipelineHandle image3d_pipeline_;
     BufferHandle   frame_ubo_;
     bool           pipelines_ready_{false};
+
+    struct ImageTexture
+    {
+        TextureHandle handle;
+        uint32_t      width{0};
+        uint32_t      height{0};
+    };
+    std::unordered_map<uint64_t, ImageTexture> image_textures_;
 };
 
 }   // namespace spectra::adapters::ros2

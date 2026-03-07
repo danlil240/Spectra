@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -19,6 +20,15 @@
 namespace spectra::adapters::ros2
 {
 
+struct PointCloudPoint
+{
+    spectra::vec3 position{};
+    float intensity{0.0f};
+    uint32_t rgba{0xFFFFFFFFu};
+    bool has_rgb{false};
+    bool has_intensity{false};
+};
+
 struct PointCloudFrame
 {
     std::string topic;
@@ -26,11 +36,14 @@ struct PointCloudFrame
     uint64_t stamp_ns{0};
     size_t point_count{0};
     size_t original_point_count{0};
+    std::vector<PointCloudPoint> points;
     spectra::vec3 min_bounds{};
     spectra::vec3 max_bounds{};
     spectra::vec3 centroid{};
     bool has_rgb{false};
     bool has_intensity{false};
+    float min_intensity{0.0f};
+    float max_intensity{0.0f};
 };
 
 #ifdef SPECTRA_USE_ROS2
@@ -102,6 +115,73 @@ inline bool read_numeric_field(const uint8_t* data,
     }
 }
 
+inline size_t datatype_size(uint8_t datatype)
+{
+    switch (datatype)
+    {
+        case sensor_msgs::msg::PointField::INT8:
+        case sensor_msgs::msg::PointField::UINT8:
+            return 1;
+        case sensor_msgs::msg::PointField::INT16:
+        case sensor_msgs::msg::PointField::UINT16:
+            return 2;
+        case sensor_msgs::msg::PointField::INT32:
+        case sensor_msgs::msg::PointField::UINT32:
+        case sensor_msgs::msg::PointField::FLOAT32:
+            return 4;
+        case sensor_msgs::msg::PointField::FLOAT64:
+            return 8;
+        default:
+            return 0;
+    }
+}
+
+inline uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    return static_cast<uint32_t>(r)
+         | (static_cast<uint32_t>(g) << 8)
+         | (static_cast<uint32_t>(b) << 16)
+         | (static_cast<uint32_t>(a) << 24);
+}
+
+inline bool read_rgb_field(const uint8_t*                      data,
+                           const sensor_msgs::msg::PointField& field,
+                           bool                                swap_endianness,
+                           bool                                source_has_alpha,
+                           uint32_t&                           packed_rgba_out)
+{
+    if (field.datatype == sensor_msgs::msg::PointField::UINT8 && field.count >= 3)
+    {
+        const uint8_t r = data[0];
+        const uint8_t g = data[1];
+        const uint8_t b = data[2];
+        const uint8_t a = (source_has_alpha && field.count >= 4) ? data[3] : 0xFFu;
+        packed_rgba_out = pack_rgba(r, g, b, a);
+        return true;
+    }
+
+    uint32_t source = 0;
+    switch (field.datatype)
+    {
+        case sensor_msgs::msg::PointField::INT32:
+        case sensor_msgs::msg::PointField::UINT32:
+        case sensor_msgs::msg::PointField::FLOAT32:
+            source = read_typed_value<uint32_t>(data, swap_endianness);
+            break;
+        default:
+            return false;
+    }
+
+    const uint8_t b = static_cast<uint8_t>((source >> 0) & 0xFFu);
+    const uint8_t g = static_cast<uint8_t>((source >> 8) & 0xFFu);
+    const uint8_t r = static_cast<uint8_t>((source >> 16) & 0xFFu);
+    const uint8_t a = source_has_alpha
+        ? static_cast<uint8_t>((source >> 24) & 0xFFu)
+        : 0xFFu;
+    packed_rgba_out = pack_rgba(r, g, b, a);
+    return true;
+}
+
 inline const sensor_msgs::msg::PointField* find_field(
     const std::vector<sensor_msgs::msg::PointField>& fields,
     const char*                                      name)
@@ -142,8 +222,6 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
     frame.stamp_ns = static_cast<uint64_t>(message.header.stamp.sec) * 1'000'000'000ULL
                    + static_cast<uint64_t>(message.header.stamp.nanosec);
     frame.original_point_count = total_points;
-    frame.has_rgb = field_rgb != nullptr || field_rgba != nullptr;
-    frame.has_intensity = field_intensity != nullptr;
 
     spectra::vec3 min_bounds{
         std::numeric_limits<double>::infinity(),
@@ -156,10 +234,27 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
         -std::numeric_limits<double>::infinity(),
     };
     spectra::vec3 centroid_sum{};
+    float min_intensity = std::numeric_limits<float>::infinity();
+    float max_intensity = -std::numeric_limits<float>::infinity();
+    bool observed_rgb = false;
+    bool observed_intensity = false;
 
     const size_t stride = max_points > 0
         ? std::max<size_t>(1, (total_points + max_points - 1) / max_points)
         : 1;
+    frame.points.reserve((total_points + stride - 1) / stride);
+
+    const auto field_fits = [&](const sensor_msgs::msg::PointField& field)
+    {
+        const size_t elem_size = detail::datatype_size(field.datatype);
+        if (elem_size == 0)
+            return false;
+        const size_t width = elem_size * std::max<uint32_t>(1u, field.count);
+        return static_cast<size_t>(field.offset) + width <= static_cast<size_t>(message.point_step);
+    };
+
+    if (!field_fits(*field_x) || !field_fits(*field_y) || !field_fits(*field_z))
+        return std::nullopt;
 
     for (size_t point_index = 0; point_index < total_points; point_index += stride)
     {
@@ -185,11 +280,58 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
         {
             continue;
         }
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
+            continue;
 
-        const spectra::vec3 point{x, y, z};
-        min_bounds = spectra::vec3_min(min_bounds, point);
-        max_bounds = spectra::vec3_max(max_bounds, point);
-        centroid_sum += point;
+        PointCloudPoint point;
+        point.position = {x, y, z};
+
+        if (field_intensity != nullptr && field_fits(*field_intensity))
+        {
+            double intensity = 0.0;
+            if (detail::read_numeric_field(message.data.data() + base + field_intensity->offset,
+                                           field_intensity->datatype,
+                                           swap_endianness,
+                                           intensity)
+                && std::isfinite(intensity))
+            {
+                point.intensity = static_cast<float>(intensity);
+                point.has_intensity = true;
+                min_intensity = std::min(min_intensity, point.intensity);
+                max_intensity = std::max(max_intensity, point.intensity);
+                observed_intensity = true;
+            }
+        }
+
+        if (field_rgba != nullptr && field_fits(*field_rgba))
+        {
+            if (detail::read_rgb_field(message.data.data() + base + field_rgba->offset,
+                                       *field_rgba,
+                                       swap_endianness,
+                                       true,
+                                       point.rgba))
+            {
+                point.has_rgb = true;
+                observed_rgb = true;
+            }
+        }
+        else if (field_rgb != nullptr && field_fits(*field_rgb))
+        {
+            if (detail::read_rgb_field(message.data.data() + base + field_rgb->offset,
+                                       *field_rgb,
+                                       swap_endianness,
+                                       false,
+                                       point.rgba))
+            {
+                point.has_rgb = true;
+                observed_rgb = true;
+            }
+        }
+
+        frame.points.push_back(point);
+        min_bounds = spectra::vec3_min(min_bounds, point.position);
+        max_bounds = spectra::vec3_max(max_bounds, point.position);
+        centroid_sum += point.position;
         ++frame.point_count;
     }
 
@@ -199,6 +341,13 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
     frame.min_bounds = min_bounds;
     frame.max_bounds = max_bounds;
     frame.centroid = centroid_sum / static_cast<double>(frame.point_count);
+    frame.has_rgb = observed_rgb;
+    frame.has_intensity = observed_intensity;
+    if (observed_intensity)
+    {
+        frame.min_intensity = min_intensity;
+        frame.max_intensity = max_intensity;
+    }
     return frame;
 }
 #endif

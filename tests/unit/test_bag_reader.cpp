@@ -78,7 +78,6 @@ static std::string make_temp_bag_dir(const std::string& test_name)
                              std::to_string(std::chrono::steady_clock::now()
                                                 .time_since_epoch()
                                                 .count());
-    fs::create_directories(base);
     return base;
 }
 

@@ -32,6 +32,8 @@ set(SHADER_SOURCES
     ${SHADER_SOURCE_DIR}/grid.vert
     ${SHADER_SOURCE_DIR}/grid3d.frag
     ${SHADER_SOURCE_DIR}/grid3d.vert
+    ${SHADER_SOURCE_DIR}/image3d.frag
+    ${SHADER_SOURCE_DIR}/image3d.vert
     ${SHADER_SOURCE_DIR}/line.frag
     ${SHADER_SOURCE_DIR}/line.vert
     ${SHADER_SOURCE_DIR}/line3d.frag

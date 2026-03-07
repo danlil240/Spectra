@@ -1,6 +1,8 @@
 #include "display/laserscan_display.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdio>
 
 #include "scene/scene_manager.hpp"
@@ -16,6 +18,70 @@ namespace spectra::adapters::ros2
 
 namespace
 {
+uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    return static_cast<uint32_t>(r)
+         | (static_cast<uint32_t>(g) << 8)
+         | (static_cast<uint32_t>(b) << 16)
+         | (static_cast<uint32_t>(a) << 24);
+}
+
+std::array<float, 4> unpack_rgba(uint32_t rgba)
+{
+    return {
+        static_cast<float>((rgba >> 0) & 0xFFu) / 255.0f,
+        static_cast<float>((rgba >> 8) & 0xFFu) / 255.0f,
+        static_cast<float>((rgba >> 16) & 0xFFu) / 255.0f,
+        static_cast<float>((rgba >> 24) & 0xFFu) / 255.0f,
+    };
+}
+
+uint32_t gradient_color(float t, uint8_t alpha = 0xFFu)
+{
+    t = std::clamp(t, 0.0f, 1.0f);
+
+    const auto lerp = [](float a, float b, float u)
+    {
+        return a + (b - a) * u;
+    };
+    const auto lerp_color = [&](const std::array<float, 3>& a,
+                                const std::array<float, 3>& b,
+                                float                       u)
+    {
+        return std::array<uint8_t, 3>{
+            static_cast<uint8_t>(std::clamp(lerp(a[0], b[0], u), 0.0f, 1.0f) * 255.0f),
+            static_cast<uint8_t>(std::clamp(lerp(a[1], b[1], u), 0.0f, 1.0f) * 255.0f),
+            static_cast<uint8_t>(std::clamp(lerp(a[2], b[2], u), 0.0f, 1.0f) * 255.0f),
+        };
+    };
+
+    constexpr std::array<float, 3> kBlue   {0.15f, 0.35f, 0.95f};
+    constexpr std::array<float, 3> kCyan   {0.10f, 0.85f, 0.95f};
+    constexpr std::array<float, 3> kGreen  {0.20f, 0.82f, 0.28f};
+    constexpr std::array<float, 3> kYellow {0.96f, 0.86f, 0.22f};
+    constexpr std::array<float, 3> kRed    {0.95f, 0.26f, 0.16f};
+
+    std::array<uint8_t, 3> rgb{};
+    if (t < 0.25f)
+        rgb = lerp_color(kBlue, kCyan, t / 0.25f);
+    else if (t < 0.5f)
+        rgb = lerp_color(kCyan, kGreen, (t - 0.25f) / 0.25f);
+    else if (t < 0.75f)
+        rgb = lerp_color(kGreen, kYellow, (t - 0.5f) / 0.25f);
+    else
+        rgb = lerp_color(kYellow, kRed, (t - 0.75f) / 0.25f);
+
+    return pack_rgba(rgb[0], rgb[1], rgb[2], alpha);
+}
+
+float normalize_range(float value, float min_value, float max_value)
+{
+    const float denom = max_value - min_value;
+    if (!std::isfinite(value) || denom <= 1e-6f)
+        return 0.5f;
+    return std::clamp((value - min_value) / denom, 0.0f, 1.0f);
+}
+
 spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
                                            const std::string&  fixed_frame,
                                            const std::string&  frame_id,
@@ -44,6 +110,12 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
         static_cast<float>(result.qw),
     };
     return transform;
+}
+
+uint32_t laserscan_flat_color(float alpha)
+{
+    const uint8_t a = static_cast<uint8_t>(std::clamp(alpha, 0.0f, 1.0f) * 255.0f);
+    return pack_rgba(128, 226, 255, a);
 }
 }   // namespace
 
@@ -147,13 +219,105 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
         entity.transform.translation = frame_transform.transform_point(frame.centroid);
         entity.scale = frame.max_bounds - frame.min_bounds;
         entity.stamp_ns = frame.stamp_ns;
+
+        const float fade = scans.size() <= 1
+            ? 1.0f
+            : 0.25f + 0.75f * (static_cast<float>(index) / static_cast<float>(scans.size() - 1));
+        const bool use_range_color = color_mode_ == ColorMode::Range;
+        const bool use_intensity_color = color_mode_ == ColorMode::Intensity && frame.has_intensity;
+        const uint32_t default_rgba = laserscan_flat_color(fade);
+        const auto default_color = unpack_rgba(default_rgba);
+        char color_buffer[96];
+        std::snprintf(color_buffer,
+                      sizeof(color_buffer),
+                      "%.3f, %.3f, %.3f, %.3f",
+                      default_color[0],
+                      default_color[1],
+                      default_color[2],
+                      default_color[3]);
+
+        if (render_style_ == RenderStyle::Points)
+        {
+            ScenePointSet point_set;
+            point_set.point_size = 4.0f;
+            point_set.default_rgba = default_rgba;
+            point_set.use_per_point_color = use_range_color || use_intensity_color;
+            point_set.transparent = fade < 0.999f;
+            point_set.points.reserve(frame.points.size());
+
+            for (const auto& point : frame.points)
+            {
+                ScenePoint scene_point;
+                scene_point.position = point.position - frame.centroid;
+
+                if (use_intensity_color && point.has_intensity)
+                {
+                    scene_point.rgba = gradient_color(
+                        normalize_range(point.intensity,
+                                        frame.min_intensity,
+                                        frame.max_intensity),
+                        static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
+                }
+                else if (use_range_color)
+                {
+                    scene_point.rgba = gradient_color(
+                        normalize_range(point.range, frame.min_range, frame.max_range),
+                        static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
+                }
+                else
+                {
+                    scene_point.rgba = default_rgba;
+                }
+
+                point_set.points.push_back(scene_point);
+            }
+            entity.point_set = std::move(point_set);
+        }
+        else
+        {
+            ScenePolyline polyline;
+            polyline.points.reserve(frame.points.size());
+            for (const auto& point : frame.points)
+                polyline.points.push_back(point.position - frame.centroid);
+            entity.polyline = std::move(polyline);
+
+            uint32_t line_rgba = default_rgba;
+            if (use_intensity_color)
+            {
+                line_rgba = gradient_color(
+                    normalize_range(frame.average_intensity, frame.min_intensity, frame.max_intensity),
+                    static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
+            }
+            else if (use_range_color)
+            {
+                line_rgba = gradient_color(
+                    normalize_range(frame.average_range, frame.min_range, frame.max_range),
+                    static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
+            }
+
+            const auto line_color = unpack_rgba(line_rgba);
+            std::snprintf(color_buffer,
+                          sizeof(color_buffer),
+                          "%.3f, %.3f, %.3f, %.3f",
+                          line_color[0],
+                          line_color[1],
+                          line_color[2],
+                          line_color[3]);
+            entity.properties.push_back({"line_width", "2.0"});
+        }
+
         entity.properties.push_back({"points", std::to_string(frame.point_count)});
         entity.properties.push_back({"render_style", render_style_name(render_style_)});
         entity.properties.push_back({"color_mode", color_mode_name(color_mode_)});
+        entity.properties.push_back({"gpu_color_mode",
+                                     (entity.point_set.has_value() && entity.point_set->use_per_point_color)
+                                         ? "per-point"
+                                         : "flat"});
         entity.properties.push_back({"min_range", std::to_string(frame.min_range)});
         entity.properties.push_back({"max_range", std::to_string(frame.max_range)});
         entity.properties.push_back({"average_range", std::to_string(frame.average_range)});
         entity.properties.push_back({"has_intensity", frame.has_intensity ? "true" : "false"});
+        entity.properties.push_back({"color", color_buffer});
         scene.add_entity(std::move(entity));
     }
 }

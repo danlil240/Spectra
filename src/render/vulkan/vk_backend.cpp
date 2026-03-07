@@ -574,7 +574,8 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
     }
 
     pipelines_[h.id]        = create_pipeline_for_type(type, rp);
-    pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth)
+    pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth
+                                  || type == PipelineType::Image3D)
                                   ? text_pipeline_layout_
                                   : pipeline_layout_;
     return h;
@@ -900,6 +901,23 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.enable_depth_write = false;
             cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             break;
+        // ── Image3D pipeline (textured 3D billboard quad for camera images) ──
+        case PipelineType::Image3D:
+            cfg.pipeline_layout    = text_pipeline_layout_;
+            cfg.vert_spirv         = shaders::image3d_vert;
+            cfg.vert_spirv_size    = shaders::image3d_vert_size;
+            cfg.frag_spirv         = shaders::image3d_frag;
+            cfg.frag_spirv_size    = shaders::image3d_frag_size;
+            cfg.topology           = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            cfg.enable_depth_test  = true;
+            cfg.enable_depth_write = true;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            // Image3D vertex: {pos.xyz, uv.xy} = 5 floats per vertex
+            cfg.vertex_bindings.push_back({0, sizeof(float) * 5, VK_VERTEX_INPUT_RATE_VERTEX});
+            cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});   // position
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});   // uv
+            break;
     }
 
     // All pipelines must match the render pass sample count
@@ -931,7 +949,8 @@ void VulkanBackend::ensure_pipelines()
             {
                 pipeline = create_pipeline_for_type(it->second, rp);
                 pipeline_layouts_[id] =
-                    (it->second == PipelineType::Text || it->second == PipelineType::TextDepth)
+                    (it->second == PipelineType::Text || it->second == PipelineType::TextDepth
+                         || it->second == PipelineType::Image3D)
                         ? text_pipeline_layout_
                         : pipeline_layout_;
             }

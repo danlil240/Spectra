@@ -125,6 +125,13 @@ SceneBounds entity_bounds(const SceneEntity& entity)
         bounds.include(entity.transform.translation + spectra::vec3{half_w, half_h, 0.05});
     }
 
+    if (entity.point_set.has_value())
+    {
+        for (const auto& point : entity.point_set->points)
+            bounds.include(entity.transform.transform_point(point.position));
+        bounds.expand(0.05);
+    }
+
     return bounds;
 }
 

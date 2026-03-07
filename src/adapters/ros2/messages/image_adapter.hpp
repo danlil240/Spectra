@@ -32,6 +32,7 @@ struct ImageFrame
     double mean_intensity{0.0};
     std::string warning;
     std::vector<uint8_t> preview_rgba;
+    std::vector<uint8_t> full_rgba;
 };
 
 #ifdef SPECTRA_USE_ROS2
@@ -136,7 +137,8 @@ inline bool decode_image_pixel(const sensor_msgs::msg::Image& message,
 
 inline std::optional<ImageFrame> adapt_image_message(const sensor_msgs::msg::Image& message,
                                                      const std::string&             topic,
-                                                     uint32_t                       preview_max_dim = 48)
+                                                     uint32_t                       preview_max_dim = 48,
+                                                     bool                           retain_full_image = false)
 {
     if (message.width == 0 || message.height == 0 || message.step == 0 || message.data.empty())
         return std::nullopt;
@@ -225,6 +227,35 @@ inline std::optional<ImageFrame> adapt_image_message(const sensor_msgs::msg::Ima
     frame.min_intensity = min_intensity;
     frame.max_intensity = max_intensity;
     frame.mean_intensity = sum_intensity / static_cast<double>(sampled_pixels);
+
+    // Optionally retain full-resolution RGBA for GPU upload.
+    if (retain_full_image)
+    {
+        const size_t pixel_count =
+            static_cast<size_t>(message.width) * static_cast<size_t>(message.height);
+        frame.full_rgba.resize(pixel_count * 4u);
+
+        for (uint32_t y = 0; y < message.height; ++y)
+        {
+            for (uint32_t x = 0; x < message.width; ++x)
+            {
+                uint8_t rgba[4] = {};
+                double intensity_unused = 0.0;
+                if (!image_detail::decode_image_pixel(message, x, y, rgba, intensity_unused))
+                {
+                    // Fill with black on decode failure.
+                    rgba[0] = rgba[1] = rgba[2] = 0;
+                    rgba[3] = 255;
+                }
+                const size_t dst = (static_cast<size_t>(y) * message.width + x) * 4u;
+                frame.full_rgba[dst + 0] = rgba[0];
+                frame.full_rgba[dst + 1] = rgba[1];
+                frame.full_rgba[dst + 2] = rgba[2];
+                frame.full_rgba[dst + 3] = rgba[3];
+            }
+        }
+    }
+
     return frame;
 }
 #endif

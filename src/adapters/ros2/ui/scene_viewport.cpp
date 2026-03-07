@@ -117,6 +117,14 @@ void include_entity_bounds(const SceneEntity& entity, SceneBounds& bounds)
 {
     bounds.include(entity.transform.translation);
 
+    const spectra::vec3 half_scale{
+        std::max(0.025, std::abs(entity.scale.x) * 0.5),
+        std::max(0.025, std::abs(entity.scale.y) * 0.5),
+        std::max(0.025, std::abs(entity.scale.z) * 0.5),
+    };
+    bounds.include(entity.transform.translation - half_scale);
+    bounds.include(entity.transform.translation + half_scale);
+
     if (entity.polyline.has_value())
     {
         for (const auto& point : entity.polyline->points)
@@ -140,6 +148,12 @@ void include_entity_bounds(const SceneEntity& entity, SceneBounds& bounds)
         const double half_h = entity.billboard->height * 0.5;
         bounds.include(entity.transform.translation + spectra::vec3{-half_w, -half_h, 0.0});
         bounds.include(entity.transform.translation + spectra::vec3{half_w, half_h, 0.0});
+    }
+
+    if (entity.point_set.has_value())
+    {
+        for (const auto& point : entity.point_set->points)
+            bounds.include(entity.transform.transform_point(point.position));
     }
 }
 

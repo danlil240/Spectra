@@ -149,3 +149,146 @@ TEST(MarkerDisplay, DeleteActionRemovesMarker)
     display.ingest_marker_data(marker);
     EXPECT_EQ(display.marker_count(), 0u);
 }
+
+TEST(MarkerDisplay, LineStripMarkerCreatesPolylineEntity)
+{
+    MarkerDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    MarkerData marker;
+    marker.topic = "/markers";
+    marker.ns = "lines";
+    marker.id = 1;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.primitive = MarkerPrimitive::LineStrip;
+    marker.frame_id = "world";
+    marker.scale = {0.01, 0.0, 0.0};
+    marker.color = {0.0f, 1.0f, 0.0f, 1.0f};
+    marker.points = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}};
+
+    display.ingest_marker_data(marker);
+    display.on_update(0.016f);
+
+    SceneManager scene;
+    display.submit_renderables(scene);
+
+    ASSERT_EQ(scene.entity_count(), 1u);
+    const SceneEntity& entity = scene.entities()[0];
+    ASSERT_TRUE(entity.polyline.has_value());
+    EXPECT_EQ(entity.polyline->points.size(), 3u);
+    EXPECT_DOUBLE_EQ(entity.polyline->points[0].x, 0.0);
+    EXPECT_DOUBLE_EQ(entity.polyline->points[1].x, 1.0);
+    EXPECT_DOUBLE_EQ(entity.polyline->points[2].y, 1.0);
+}
+
+TEST(MarkerDisplay, LineListMarkerCreatesPolylineEntities)
+{
+    MarkerDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    MarkerData marker;
+    marker.topic = "/markers";
+    marker.ns = "lines";
+    marker.id = 2;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.primitive = MarkerPrimitive::LineList;
+    marker.frame_id = "world";
+    marker.scale = {0.02, 0.0, 0.0};
+    marker.color = {1.0f, 0.0f, 0.0f, 1.0f};
+    marker.points = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}};
+
+    display.ingest_marker_data(marker);
+    display.on_update(0.016f);
+
+    SceneManager scene;
+    display.submit_renderables(scene);
+
+    // 4 points = 2 line segments = 2 entities
+    ASSERT_EQ(scene.entity_count(), 2u);
+    for (const auto& entity : scene.entities())
+    {
+        ASSERT_TRUE(entity.polyline.has_value());
+        EXPECT_EQ(entity.polyline->points.size(), 2u);
+    }
+    // First segment: (0,0,0) -> (1,0,0)
+    EXPECT_DOUBLE_EQ(scene.entities()[0].polyline->points[0].x, 0.0);
+    EXPECT_DOUBLE_EQ(scene.entities()[0].polyline->points[1].x, 1.0);
+    // Second segment: (0,1,0) -> (1,1,0)
+    EXPECT_DOUBLE_EQ(scene.entities()[1].polyline->points[0].y, 1.0);
+    EXPECT_DOUBLE_EQ(scene.entities()[1].polyline->points[1].y, 1.0);
+}
+
+TEST(MarkerDisplay, PointsMarkerCreatesPointSetEntity)
+{
+    MarkerDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    MarkerData marker;
+    marker.topic = "/markers";
+    marker.ns = "pts";
+    marker.id = 3;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.primitive = MarkerPrimitive::Points;
+    marker.frame_id = "world";
+    marker.scale = {0.05, 0.05, 0.0};
+    marker.color = {0.0f, 0.0f, 1.0f, 0.8f};
+    marker.points = {{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}};
+
+    display.ingest_marker_data(marker);
+    display.on_update(0.016f);
+
+    SceneManager scene;
+    display.submit_renderables(scene);
+
+    ASSERT_EQ(scene.entity_count(), 1u);
+    const SceneEntity& entity = scene.entities()[0];
+    ASSERT_TRUE(entity.point_set.has_value());
+    EXPECT_EQ(entity.point_set->points.size(), 3u);
+    EXPECT_TRUE(entity.point_set->transparent);
+    EXPECT_DOUBLE_EQ(entity.point_set->points[0].position.x, 1.0);
+    EXPECT_DOUBLE_EQ(entity.point_set->points[1].position.x, 4.0);
+    EXPECT_DOUBLE_EQ(entity.point_set->points[2].position.x, 7.0);
+}
+
+TEST(MarkerDisplay, TextViewFacingMarkerSubmitsEntity)
+{
+    MarkerDisplay display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+
+    MarkerData marker;
+    marker.topic = "/markers";
+    marker.ns = "text";
+    marker.id = 4;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.primitive = MarkerPrimitive::TextViewFacing;
+    marker.frame_id = "world";
+    marker.scale = {0.0, 0.0, 0.3};
+    marker.text = "Hello";
+    marker.color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    display.ingest_marker_data(marker);
+    display.on_update(0.016f);
+
+    SceneManager scene;
+    display.submit_renderables(scene);
+
+    ASSERT_EQ(scene.entity_count(), 1u);
+    const SceneEntity& entity = scene.entities()[0];
+    EXPECT_EQ(entity.type, "marker");
+    // Check that the text property is preserved
+    bool has_text = false;
+    for (const auto& prop : entity.properties)
+    {
+        if (prop.key == "text" && prop.value == "Hello")
+            has_text = true;
+    }
+    EXPECT_TRUE(has_text);
+}

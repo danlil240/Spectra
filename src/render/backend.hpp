@@ -55,6 +55,8 @@ enum class PipelineType
     // Point cloud rendering (per-point color from SSBO)
     PointCloud,
     PointCloud_Transparent,
+    // 3D textured quad (camera image billboard in scene)
+    Image3D,
 };
 
 struct BufferHandle

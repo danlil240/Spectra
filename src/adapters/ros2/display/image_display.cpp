@@ -200,6 +200,19 @@ void ImageDisplay::submit_renderables(SceneManager& scene)
         frame->height == 0 ? 1.0 : static_cast<double>(frame->width) / static_cast<double>(frame->height),
         1.0,
     };
+
+    // Attach full-resolution image data for GPU texture upload.
+    if (!frame->full_rgba.empty())
+    {
+        SceneImage img;
+        img.width = frame->width;
+        img.height = frame->height;
+        img.rgba_data = frame->full_rgba;
+        img.texture_id = reinterpret_cast<uint64_t>(this);
+        img.needs_upload = true;
+        entity.image = std::move(img);
+    }
+
     entity.properties.push_back({"mode", mode_name(mode_)});
     entity.properties.push_back({"encoding", frame->encoding});
     entity.properties.push_back({"resolution",
@@ -373,7 +386,8 @@ void ImageDisplay::ensure_subscription()
         rclcpp::QoS(rclcpp::KeepLast(2)).best_effort(),
         [this](const sensor_msgs::msg::Image::SharedPtr msg)
         {
-            const auto frame = adapt_image_message(*msg, topic_, preview_max_dim_);
+            const bool need_full = (mode_ == Mode::Billboard3D || mode_ == Mode::PanelAndBillboard);
+            const auto frame = adapt_image_message(*msg, topic_, preview_max_dim_, need_full);
             if (frame.has_value())
                 ingest_image_frame(*frame);
         });

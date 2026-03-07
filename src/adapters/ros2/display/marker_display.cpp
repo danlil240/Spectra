@@ -36,6 +36,14 @@ std::string color_string(const spectra::Color& color)
                   color.a);
     return buffer;
 }
+
+uint32_t pack_color_rgba(const spectra::Color& color)
+{
+    return static_cast<uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f)
+         | (static_cast<uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f) << 8)
+         | (static_cast<uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f) << 16)
+         | (static_cast<uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f) << 24);
+}
 }   // namespace
 
 MarkerDisplay::MarkerDisplay()
@@ -143,11 +151,106 @@ void MarkerDisplay::submit_renderables(SceneManager& scene)
             transform = frame_transform.compose(marker.pose);
         }
 
-        SceneEntity entity;
-        entity.type         = "marker";
-        entity.label        = marker.ns.empty()
+        const std::string label = marker.ns.empty()
             ? "Marker " + std::to_string(marker.id)
             : marker.ns + "/" + std::to_string(marker.id);
+
+        // LINE_LIST markers: emit each pair as a separate polyline entity.
+        if (marker.primitive == MarkerPrimitive::LineList && marker.points.size() >= 2)
+        {
+            for (size_t p = 0; p + 1 < marker.points.size(); p += 2)
+            {
+                SceneEntity entity;
+                entity.type         = "marker";
+                entity.label        = label + " [" + std::to_string(p / 2) + "]";
+                entity.display_name = display_name();
+                entity.topic        = marker.topic;
+                entity.frame_id     = marker.frame_id;
+                entity.transform    = transform;
+                entity.scale        = {1.0, 1.0, 1.0};
+                entity.stamp_ns     = marker.stamp_ns;
+                entity.properties.push_back({"primitive", "line_list"});
+                entity.properties.push_back(
+                    {"color", color_string(marker.color)});
+                entity.properties.push_back(
+                    {"line_width",
+                     std::to_string(static_cast<float>(marker.scale.x) * 100.0f)});
+
+                ScenePolyline polyline;
+                polyline.points.push_back(marker.points[p]);
+                polyline.points.push_back(marker.points[p + 1]);
+                entity.polyline = std::move(polyline);
+                scene.add_entity(std::move(entity));
+            }
+            continue;
+        }
+
+        // LINE_STRIP markers: emit as a single polyline entity.
+        if (marker.primitive == MarkerPrimitive::LineStrip && marker.points.size() >= 2)
+        {
+            SceneEntity entity;
+            entity.type         = "marker";
+            entity.label        = label;
+            entity.display_name = display_name();
+            entity.topic        = marker.topic;
+            entity.frame_id     = marker.frame_id;
+            entity.transform    = transform;
+            entity.scale        = {1.0, 1.0, 1.0};
+            entity.stamp_ns     = marker.stamp_ns;
+            entity.properties.push_back({"primitive", "line_strip"});
+            entity.properties.push_back({"color", color_string(marker.color)});
+            entity.properties.push_back({"points", std::to_string(marker.points.size())});
+            entity.properties.push_back(
+                {"line_width",
+                 std::to_string(static_cast<float>(marker.scale.x) * 100.0f)});
+
+            ScenePolyline polyline;
+            polyline.points = marker.points;
+            entity.polyline = std::move(polyline);
+            scene.add_entity(std::move(entity));
+            continue;
+        }
+
+        // POINTS markers: emit as a point-set entity.
+        if (marker.primitive == MarkerPrimitive::Points && !marker.points.empty())
+        {
+            SceneEntity entity;
+            entity.type         = "marker";
+            entity.label        = label;
+            entity.display_name = display_name();
+            entity.topic        = marker.topic;
+            entity.frame_id     = marker.frame_id;
+            entity.transform    = transform;
+            entity.scale        = {1.0, 1.0, 1.0};
+            entity.stamp_ns     = marker.stamp_ns;
+            entity.properties.push_back({"primitive", "points"});
+            entity.properties.push_back({"color", color_string(marker.color)});
+            entity.properties.push_back({"points", std::to_string(marker.points.size())});
+
+            const uint32_t rgba = pack_color_rgba(marker.color);
+            ScenePointSet point_set;
+            point_set.point_size = static_cast<float>(marker.scale.x) * 100.0f;
+            point_set.default_rgba = rgba;
+            point_set.use_per_point_color = false;
+            point_set.transparent = marker.color.a < 0.999f;
+            point_set.points.reserve(marker.points.size());
+            for (const auto& pt : marker.points)
+            {
+                ScenePoint scene_point;
+                scene_point.position = pt;
+                scene_point.rgba = rgba;
+                point_set.points.push_back(scene_point);
+            }
+            entity.point_set = std::move(point_set);
+            scene.add_entity(std::move(entity));
+            continue;
+        }
+
+        // All other primitive types (cube, sphere, cylinder, arrow, cone,
+        // text_view_facing) are submitted as mesh-based entities.
+        SceneEntity entity;
+        entity.type         = "marker";
+        entity.label        = label;
         entity.display_name = display_name();
         entity.topic        = marker.topic;
         entity.frame_id     = marker.frame_id;

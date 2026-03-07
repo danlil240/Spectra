@@ -182,8 +182,10 @@ bool GenericSubscriber::start()
     }
 
     // Create the generic subscription.
-    // QoS: best_effort sensor data — matches most ROS2 sensor topics.
-    auto qos = rclcpp::SystemDefaultsQoS();
+    // Use an explicit keep-last depth tied to the ring buffer so short
+    // publisher bursts are queued for the executor instead of being dropped
+    // by the middleware before we can deserialize them.
+    auto qos = rclcpp::QoS(rclcpp::KeepLast(buffer_depth_)).best_effort();
     subscription_ = node_->create_generic_subscription(
         topic_,
         type_name_,

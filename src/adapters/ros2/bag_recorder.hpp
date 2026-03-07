@@ -75,9 +75,9 @@ struct RecordingSplitInfo
 {
     std::string  closed_path;    // path of the file just closed
     std::string  new_path;       // path of the newly opened file
-    uint32_t     split_index;    // 0-based split number (0 = no split yet)
-    uint64_t     messages_in_closed;  // message count in the closed file
-    uint64_t     bytes_in_closed;     // approximate bytes in the closed file
+    uint32_t     split_index{0};      // 0-based split number (0 = no split yet)
+    uint64_t     messages_in_closed{0};  // message count in the closed file
+    uint64_t     bytes_in_closed{0};     // approximate bytes in the closed file
 };
 
 // ---------------------------------------------------------------------------

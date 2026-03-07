@@ -117,7 +117,7 @@ protected:
     static double wall_time_s()
     {
         using namespace std::chrono;
-        return duration<double>(steady_clock::now().time_since_epoch()).count();
+        return duration<double>(system_clock::now().time_since_epoch()).count();
     }
 
     std::unique_ptr<Ros2Bridge> bridge_;
@@ -1228,7 +1228,7 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
 
     // --- Step 5: Verify scroll bounds ---
     // Advance "now" to a known time and poll all slots.
-    const double t_known = 2000.0;
+    const double t_known = wall_time_s();
     mgr.set_now(t_known);
     mgr.poll();
 
@@ -1243,18 +1243,26 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
         auto* axes   = ha.axes;
         auto* series = ha.series;
         const size_t before = series->point_count();
-        series->append(static_cast<float>(t_known - WINDOW_S * 3.0), 999.0f);
+        const auto xlim = axes->x_limits();
+        series->append(static_cast<float>(xlim.max + 1.0), 999.0f);
 
         const size_t after_inject = series->point_count();
         ASSERT_EQ(after_inject, before + 1u) << "append() failed";
 
-        // Trigger one more poll which will call scroll.tick() on each slot.
+        // Advance "now" so the injected point is older than 2x the live window,
+        // then trigger one more poll to prune it.
+        mgr.set_now(t_known + WINDOW_S * 4.0);
         mgr.poll();
 
         // The injected old sample should have been pruned.
         const size_t after_prune = series->point_count();
+        const auto x_after = series->x_data();
+        const auto lim_after = axes->x_limits();
         EXPECT_LT(after_prune, after_inject)
-            << "Pruning did not remove old sample; count: " << after_prune;
+            << "Pruning did not remove old sample; count: " << after_prune
+            << " front_x=" << (x_after.empty() ? 0.0f : x_after.front())
+            << " back_x=" << (x_after.empty() ? 0.0f : x_after.back())
+            << " xlim=[" << lim_after.min << ", " << lim_after.max << "]";
 
         (void)axes;
     }

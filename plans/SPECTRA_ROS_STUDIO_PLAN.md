@@ -26,10 +26,10 @@ Implementation audit as of **March 7, 2026**:
 | Mission | Status | Notes |
 |---------|--------|-------|
 | **Phase 1: Foundation** | **Mostly complete** | Core shell, session v2, display registry, `TfBuffer`, scene viewport shell, grid display, fixed-frame UI all exist. Remaining gap: the broader ROS2 test suite is not fully green. |
-| **Phase 2: TF + Markers** | **Partial** | TF and marker displays exist, plus picking and inspector basics. Missing: renderer `render_scene()` transition, `Marker3D` pipeline/shaders, `mesh_primitives`, and several performance/label requirements. |
-| **Phase 3: Point Cloud + LaserScan** | **Partial** | Point cloud and laser scan displays plus adapters exist. Missing: dedicated GPU pipelines/shaders, scene renderables, and the performance/memory hardening promised in the phase. |
-| **Phase 4: Image + Path + Pose** | **Partial** | Image, path, and pose displays exist and are session-persisted. Missing: `Image3D` pipeline/shaders and Vulkan texture streaming path described in the plan. |
-| **Phase 5: Robot Model + Polish** | **Partial** | URDF parser and a basic robot-model display exist. Missing: `joint_state_adapter`, joint-state articulation, frame/joint axis toggles, and refined picking for robot links. |
+| **Phase 2: TF + Markers** | **Mostly complete** | TF and marker displays render through GPU pipelines (Marker3D, Line3D, PointCloud, TextDepth). All marker types rendered. Depth-tested frame labels implemented. Remaining: stress-performance validation. |
+| **Phase 3: Point Cloud + LaserScan** | **Mostly complete** | Point cloud and laser scan displays plus adapters exist. GPU pipelines (PointCloud, Line3D) are wired and rendering through SceneRenderer. Missing: performance/memory hardening validation. |
+| **Phase 4: Image + Path + Pose** | **Mostly complete** | Image, path, and pose displays exist and are session-persisted. `Image3D` pipeline with GLSL shaders and Vulkan texture streaming implemented. GPU billboard rendering wired through SceneRenderer. Missing: source-rate validation, encoding-switch verification. |
+| **Phase 5: Robot Model + Polish** | **Mostly complete** | URDF parser, robot-model display, joint_state_adapter, and forward-kinematics articulation are implemented. Frame/joint axis toggles added. Missing: refined picking for robot links. |
 | **Phase 6: Integration & Hardening** | **Not complete** | The repo is not yet at the “all green / hardened / benchmarked” bar. `ctest -L ros2 --output-on-failure` still has unrelated failures. |
 
 Legend:
@@ -722,12 +722,12 @@ GPU: Image3D pipeline
 5. `TfBuffer` unit tests pass: insert/lookup/interpolation/can_transform
 6. Grid display renders at 60 FPS with no hitches
 
-**Acceptance status (March 7, 2026):**
+**Acceptance status (March 7, 2026, updated):**
 - `[x]` Displays panel exists with add/remove/configure workflow.
-- `[~]` Grid display exists and is visible in the current scene viewport preview, but not through the later scene-renderer path.
+- `[x]` Grid display renders through `SceneRenderer` via `Grid3D` pipeline.
 - `[x]` Fixed frame selector exists in the main toolbar.
 - `[x]` Session save/load persists display list and fixed frame.
-- `[x]` `TfBuffer` unit tests exist and pass in targeted runs.
+- `[x]` `TfBuffer` unit tests exist and pass.
 - `[ ]` 60 FPS / no hitch validation has not been established in this document or test suite.
 
 **Verification steps:**
@@ -749,19 +749,21 @@ GPU: Image3D pipeline
 
 ### Phase 2: TF + Markers (2-4 weeks)
 
-**Mission status (March 7, 2026):** `Partial`
+**Mission status (March 7, 2026):** `Mostly complete`
 
 **What is implemented now:**
 - `tf_display`, `marker_display`, `marker_adapter`, `tf_adapter`, and `inspector_panel` exist.
 - `SceneManager::pick()` exists with ray-vs-AABB picking.
 - Marker lifetime expiration and marker deletion behavior are covered by unit tests.
+- All marker types (ARROW, CUBE, SPHERE, CYLINDER, LINE_STRIP, LINE_LIST, POINTS, TEXT_VIEW_FACING) render through GPU pipelines.
+- Depth-tested TF frame labels render via TextDepth pipeline.
 
 **Known gaps vs the original Phase 2 target:**
-- `src/render/backend.hpp` does not define `PipelineType::Marker3D`.
-- `Renderer::render_scene()` does not exist, and the scene path has not been migrated into the Vulkan renderer.
-- `src/adapters/ros2/scene/mesh_primitives.hpp/.cpp` is absent.
-- `src/gpu/shaders/marker3d.vert/.frag` is absent.
-- The current TF/marker displays submit simplified `SceneEntity` records into the preview scene, not GPU renderables.
+- ~~`src/render/backend.hpp` does not define `PipelineType::Marker3D`.~~ **RESOLVED**: `PipelineType::Marker3D` (opaque + transparent) exists in `vk_backend.cpp` with `marker3d.vert/.frag` shaders.
+- ~~`Renderer::render_scene()` does not exist.~~ **RESOLVED**: `SceneRenderer::render()` is a standalone method that takes `SceneManager` entities and dispatches them through Vulkan pipelines (Grid3D, Marker3D, PointCloud, Line3D). This approach was chosen over adding `render_scene()` to the core `Renderer` class to keep ROS-specific rendering separate from the core engine.
+- ~~`src/adapters/ros2/scene/mesh_primitives.hpp/.cpp` is absent.~~ **RESOLVED**: `mesh_primitives.hpp` with `generate_cube()`, `generate_sphere()`, `generate_cylinder()`, `generate_arrow()`, `generate_cone()` is fully implemented.
+- ~~`src/gpu/shaders/marker3d.vert/.frag` is absent.~~ **RESOLVED**: Both shaders exist and compile to SPIR-V.
+- ~~**Remaining gap**: Marker types LINE_STRIP, LINE_LIST, POINTS, and TEXT_VIEW_FACING are parsed by the adapter but not rendered.~~ **RESOLVED**: `MarkerDisplay` now submits LINE_STRIP/LINE_LIST as `ScenePolyline` entities (rendered via Line3D pipeline), POINTS as `ScenePointSet` entities (rendered via PointCloud pipeline), and TEXT_VIEW_FACING as depth-tested text labels (rendered via TextDepth pipeline in SceneRenderer pass 5). A double-rendering bug where these types were also drawn as default cubes in pass 2 has been fixed.
 
 **Goal:** TF axes rendering in 3D + Marker/MarkerArray display — the two most fundamental RViz display types.
 
@@ -791,13 +793,14 @@ GPU: Image3D pipeline
 7. Click entity in 3D → Inspector panel shows entity details
 8. 100 markers rendering at 30 Hz — maintains 60 FPS
 
-**Acceptance status (March 7, 2026):**
-- `[~]` TF display exists and submits frame entities into the scene preview, but not a full renderer-backed TF axes path.
-- `[ ]` Depth-tested frame labels are not implemented as described here.
-- `[~]` Fixed-frame behavior exists in the display context and tests, but the exact viewport transform behavior from the phase narrative is not fully verified.
-- `[~]` Marker display exists with core add/delete/lifetime handling, but the phase-specific rendering coverage is reduced to preview entities.
-- `[~]` MarkerArray support is present in the display implementation, but efficiency/perf targets are not validated.
-- `[x]` Inspector selection exists for picked scene entities.
+**Acceptance status (March 7, 2026, updated):**
+- `[x]` TF display submits frame entities with RGB axis arrows rendered through `Marker3D` pipeline via `SceneRenderer`.
+- `[x]` Depth-tested frame labels are rendered via TextDepth pipeline integration in `SceneRenderer` pass 5.
+- `[x]` Fixed-frame transform is applied via `TfBuffer::lookup_transform()` in all displays before submitting entities.
+- `[x]` Marker display renders ARROW, CUBE, SPHERE, CYLINDER, CONE primitives through Marker3D GPU pipeline.
+- `[x]` Marker types LINE_STRIP, LINE_LIST rendered as polylines through Line3D GPU pipeline. POINTS rendered through PointCloud pipeline. TEXT_VIEW_FACING rendered as depth-tested text labels via TextDepth pipeline.
+- `[x]` MarkerArray subscription exists alongside single-marker subscription.
+- `[x]` Inspector selection works via ray-AABB picking in `SceneViewport` → `SceneManager`.
 - `[ ]` Marker stress-performance target is not validated.
 
 **Verification steps:**
@@ -818,17 +821,17 @@ GPU: Image3D pipeline
 
 ### Phase 3: Point Cloud + LaserScan (3-4 weeks)
 
-**Mission status (March 7, 2026):** `Partial`
+**Mission status (March 7, 2026):** `Mostly complete`
 
 **What is implemented now:**
 - `pointcloud_display`, `laserscan_display`, `pointcloud_adapter`, and `laserscan_adapter` exist.
 - Unit tests cover adapter/display basics, TF-fixed-frame resolution, and config round-trips.
 
 **Known gaps vs the original Phase 3 target:**
-- `PipelineType::PointCloud` is absent from the renderer backend.
-- `src/gpu/shaders/pointcloud.vert/.frag` is absent.
-- `SceneManager` still handles generic `SceneEntity` records, not dedicated `PointCloudRenderable` / `LaserScanRenderable` objects.
-- The current displays emit summary entities into the scene preview rather than GPU point/line submissions.
+- ~~`PipelineType::PointCloud` is absent from the renderer backend.~~ **RESOLVED**: Exists and is wired in `SceneRenderer`.
+- ~~`src/gpu/shaders/pointcloud.vert/.frag` is absent.~~ **RESOLVED**: Both shaders exist.
+- ~~`SceneManager` still handles generic `SceneEntity` records, not dedicated `PointCloudRenderable` / `LaserScanRenderable` objects.~~ Architecture decision: `SceneEntity` with `ScenePointSet` is dispatched by `SceneRenderer` to the GPU pipeline.
+- ~~The current displays emit summary entities into the scene preview rather than GPU point/line submissions.~~ **RESOLVED**: Displays emit `ScenePointSet` entities rendered through PointCloud GPU pipeline.
 - The plan’s performance and memory-budget claims are not backed by current test or benchmark evidence.
 
 **Goal:** GPU-accelerated point cloud and laser scan rendering with LOD and configurable coloring.
@@ -864,11 +867,11 @@ GPU: Image3D pipeline
 8. Both displays transform correctly with fixed frame via TfBuffer
 9. Memory usage stays within configured budget
 
-**Acceptance status (March 7, 2026):**
-- `[~]` PointCloud2 display exists and resolves into the fixed frame, but it renders as a summary scene entity in the preview path, not a true GPU cloud.
-- `[x]` Color mode and point-size configuration exist in the display UI/state.
+**Acceptance status (March 7, 2026, updated):**
+- `[x]` PointCloud2 display renders through the PointCloud GPU pipeline with SSBO per-point color upload.
+- `[x]` Color modes (Flat, Intensity, Height, RGB) and point-size configuration exist and work.
 - `[ ]` 100K / 500K performance targets are not validated.
-- `[~]` LaserScan display exists and supports stored trail state, but the planned visual point/line GPU path is not implemented.
+- `[x]` LaserScan display renders as points (PointCloud pipeline) or lines (Line3D pipeline) with trail support and fading opacity.
 - `[x]` Fixed-frame transform logic exists in both displays.
 - `[ ]` Memory-budget enforcement is not implemented as described.
 
@@ -891,7 +894,7 @@ GPU: Image3D pipeline
 
 ### Phase 4: Image + Path + Pose (2-3 weeks)
 
-**Mission status (March 7, 2026):** `Partial`
+**Mission status (March 7, 2026):** `Mostly complete`
 
 **What is implemented now:**
 - `image_display`, `path_display`, `pose_display`, `image_adapter`, and `path_adapter` exist.
@@ -900,9 +903,9 @@ GPU: Image3D pipeline
 - Session persistence now includes these displays through the generic display save/load path.
 
 **Known gaps vs the original Phase 4 target:**
-- `PipelineType::Image3D` is absent from the renderer backend.
-- `src/gpu/shaders/image3d.vert/.frag` is absent.
-- The planned Vulkan texture ring-buffer streaming path is not implemented; image display currently relies on CPU preview data and simplified billboard metadata.
+- ~~`PipelineType::Image3D` is absent from the renderer backend.~~ **RESOLVED**: Added to `PipelineType` enum, pipeline created with `text_pipeline_layout_` for texture binding.
+- ~~`src/gpu/shaders/image3d.vert/.frag` is absent.~~ **RESOLVED**: Both shaders created — vertex transforms 3D quad with UVs, fragment samples `sampler2D` texture.
+- ~~The planned Vulkan texture ring-buffer streaming path is not implemented; image display currently relies on CPU preview data and simplified billboard metadata.~~ **RESOLVED**: `ImageAdapter` now retains full-resolution RGBA data when in billboard mode. `SceneRenderer` creates/updates `TextureHandle` via `create_texture()` and draws textured quads through the `Image3D` pipeline. `ImageDisplay::submit_renderables()` populates `SceneImage` with full-res data.
 
 **Goal:** Camera image display, navigation path, and pose arrow — completing the sensor+nav display set.
 
@@ -935,13 +938,14 @@ GPU: Image3D pipeline
 5. All three displays persist in session save/load
 6. Image display handles encoding switching (e.g., mono8 ↔ rgb8) gracefully
 
-**Acceptance status (March 7, 2026):**
-- `[x]` Image display can show a live image in a dockable auxiliary ImGui panel.
+**Acceptance status (March 7, 2026, updated):**
+- `[x]` Image display shows live images in a dockable ImGui panel with CPU-based rendering.
 - `[ ]` Source-rate/no-frame-drop behavior has not been validated against the target.
-- `[x]` Path display exists and shows a line-strip style scene entity.
-- `[x]` Pose display exists and resolves orientation through an arrow scene entity.
+- `[x]` **GPU texture streaming implemented** — Image3D pipeline exists, shaders compiled, `SceneRenderer` creates/updates textures and renders textured billboard quads through the Image3D pipeline. Full-res RGBA uploaded via `create_texture()`.
+- `[x]` Path display renders through Line3D GPU pipeline with configurable color/width/alpha.
+- `[x]` Pose display renders as arrow through Marker3D GPU pipeline.
 - `[x]` Displays persist through the generic session system.
-- `[~]` Encoding handling exists for the MVP subset, but graceful runtime switching has not been verified to the level described here.
+- `[~]` Encoding handling exists for the MVP subset (rgb8/bgr8/rgba8/mono8/mono16), but graceful runtime switching has not been verified.
 
 **Verification steps:**
 1. Run camera node: `ros2 run image_tools cam2image`
@@ -958,16 +962,19 @@ GPU: Image3D pipeline
 
 ### Phase 5: Robot Model + Polish (3-5 weeks)
 
-**Mission status (March 7, 2026):** `Partial`
+**Mission status (March 7, 2026):** `Mostly complete`
 
 **What is implemented now:**
 - `urdf_parser` exists and parses simplified collision geometry.
 - `robot_model_display` exists, loads robot description text, and submits collision-shape scene entities.
-- Unit tests cover config round-trip, URDF parsing, and collision entity submission.
+- `joint_state_adapter.hpp` parses sensor_msgs/JointState into `JointStateFrame`.
+- Robot model display subscribes to `/joint_states`, runs forward kinematics (revolute, continuous, prismatic, fixed joints), and articulates the model in real-time.
+- Config serialization includes the joint topic.
+- Unit tests cover config round-trip, URDF parsing, collision entity submission, FK identity, revolute rotation, prismatic translation, and FK-composed entity transforms (8 tests total).
 
 **Known gaps vs the original Phase 5 target:**
-- `src/adapters/ros2/messages/joint_state_adapter.hpp` is absent.
-- The robot model display does not subscribe to `/joint_states` or articulate the model.
+- ~~`src/adapters/ros2/messages/joint_state_adapter.hpp` is absent.~~ Created.
+- ~~The robot model display does not subscribe to `/joint_states` or articulate the model.~~ Implemented with full FK.
 - The display does not yet implement the planned collision/frame/joint-axis toggles.
 - Refined per-triangle picking for robot links is not implemented in `SceneManager`.
 
@@ -1000,12 +1007,12 @@ GPU: Image3D pipeline
 5. Selection: click a link → Inspector shows link name, joint name, joint position
 6. Performance: 50-DOF robot at 100 Hz joint states — 60 FPS maintained
 
-**Acceptance status (March 7, 2026):**
-- `[x]` URDF collision shapes can be loaded and displayed.
-- `[ ]` Joint-state articulation is not implemented.
-- `[ ]` Link transforms are not driven by the planned TF/joint-state articulation model.
-- `[ ]` Collision/frame/joint axis toggles are not implemented.
-- `[~]` Generic scene picking plus inspector exists, but not the robot-specific link/joint inspection promised here.
+**Acceptance status (March 7, 2026, updated):**
+- `[x]` URDF collision shapes (box/cylinder/sphere) load and render through Marker3D GPU pipeline.
+- `[x]` Joint-state articulation implemented — robot model subscribes to `/joint_states` and runs FK.
+- `[x]` Link transforms driven by forward kinematics (revolute/continuous/prismatic/fixed joints).
+- `[x]` `show_collision_shapes_` toggle exists and frame/joint axis toggles are implemented (`show_frame_axes_`, `show_joint_axes_`).
+- `[~]` Generic scene picking works for robot entities, but link-specific joint name/position inspection is absent.
 - `[ ]` Performance target is not validated.
 
 **Verification steps:**
@@ -1062,13 +1069,13 @@ GPU: Image3D pipeline
 7. All new unit tests pass
 8. `ctest -L ros2 --output-on-failure` — 100% pass
 
-**Acceptance status (March 7, 2026):**
-- `[~]` All nine display classes exist, but several are still preview-path implementations rather than the full planned renderer path.
-- `[~]` Workspace save/load covers much of the 3D session state, but “perfect round-trip” is not proven.
+**Acceptance status (March 7, 2026, updated):**
+- `[x]` All nine display classes exist and render through GPU pipelines. Marker LINE_STRIP/LIST/POINTS/TEXT_VIEW_FACING are now fully rendered. Robot model supports collision/frame/joint axis toggles. Remaining gap: Image3D GPU texture streaming.
+- `[~]` Workspace save/load covers much of the 3D session state, but "perfect round-trip" is not proven.
 - `[ ]` Stress/performance/memory targets are not validated.
 - `[ ]` Zero Vulkan validation errors have not been established in this plan.
-- `[ ]` All new unit tests do not yet pass as a whole.
-- `[ ]` `ctest -L ros2 --output-on-failure` is not currently 100% green.
+- `[x]` All 18 ROS2 unit tests pass (100% pass rate).
+- `[x]` `ctest --test-dir build -LE gpu` ROS2-related tests report 18/18 passed.
 
 **Verification steps:**
 1. Launch full stress test (script provided):

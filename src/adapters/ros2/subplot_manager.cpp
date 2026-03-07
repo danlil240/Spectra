@@ -550,9 +550,9 @@ std::vector<SubplotHandle> SubplotManager::handles() const
 
 void SubplotManager::poll()
 {
-    const double wall_now =
+    const double wall_now = explicit_now_s_.value_or(
         std::chrono::duration<double>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+            std::chrono::system_clock::now().time_since_epoch()).count());
 
     for (auto& se : slots_)
     {
@@ -712,6 +712,8 @@ void SubplotManager::set_time_window(double seconds)
 
 void SubplotManager::set_now(double wall_time_s)
 {
+    explicit_now_s_ = wall_time_s;
+
     if (!has_shared_origin_)
         set_shared_time_origin(wall_time_s);
 

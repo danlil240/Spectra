@@ -38,6 +38,30 @@ struct SceneBillboard
     double height{1.0};
 };
 
+struct ScenePoint
+{
+    spectra::vec3 position{};
+    uint32_t rgba{0xFFFFFFFFu};
+};
+
+struct ScenePointSet
+{
+    std::vector<ScenePoint> points;
+    float point_size{3.0f};
+    uint32_t default_rgba{0xFFFFFFFFu};
+    bool use_per_point_color{false};
+    bool transparent{false};
+};
+
+struct SceneImage
+{
+    uint32_t width{0};
+    uint32_t height{0};
+    std::vector<uint8_t> rgba_data;
+    uint64_t texture_id{0};
+    bool needs_upload{false};
+};
+
 struct SceneEntity
 {
     std::string type;
@@ -51,6 +75,8 @@ struct SceneEntity
     std::optional<ScenePolyline> polyline;
     std::optional<SceneArrow> arrow;
     std::optional<SceneBillboard> billboard;
+    std::optional<ScenePointSet> point_set;
+    std::optional<SceneImage> image;
     std::vector<SceneProperty> properties;
 };
 

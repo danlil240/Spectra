@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 #include "display/laserscan_display.hpp"
@@ -47,11 +49,14 @@ TEST(LaserScanAdapter, ConvertsPolarRangesToBounds)
     const auto frame = adapt_laserscan_message(make_scan(), "/scan");
     ASSERT_TRUE(frame.has_value());
     EXPECT_EQ(frame->point_count, 2u);
+    ASSERT_EQ(frame->points.size(), 2u);
     EXPECT_NEAR(frame->centroid.x, 0.5, 1e-6);
     EXPECT_NEAR(frame->centroid.y, 1.0, 1e-6);
     EXPECT_FLOAT_EQ(frame->min_range, 1.0f);
     EXPECT_FLOAT_EQ(frame->max_range, 2.0f);
     EXPECT_TRUE(frame->has_intensity);
+    EXPECT_FLOAT_EQ(frame->average_intensity, 7.0f);
+    EXPECT_NEAR(frame->points[1].position.y, 2.0, 1e-6);
 }
 
 TEST(LaserScanDisplay, KeepsTrailAndResolvesFrame)
@@ -80,4 +85,7 @@ TEST(LaserScanDisplay, KeepsTrailAndResolvesFrame)
     ASSERT_EQ(scene.entity_count(), 2u);
     EXPECT_EQ(scene.entities().front().type, "laserscan");
     EXPECT_NEAR(scene.entities().front().transform.translation.x, 4.5, 1e-6);
+    ASSERT_TRUE(scene.entities().front().point_set.has_value());
+    ASSERT_EQ(scene.entities().front().point_set->points.size(), 2u);
+    EXPECT_NEAR(scene.entities().front().point_set->points.front().position.x, 0.5, 1e-6);
 }

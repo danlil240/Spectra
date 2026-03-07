@@ -135,7 +135,9 @@ void PathDisplay::submit_renderables(SceneManager& scene)
     entity.scale = frame->max_bounds - frame->min_bounds;
     entity.stamp_ns = frame->stamp_ns;
     ScenePolyline polyline;
-    polyline.points = frame->points;
+    polyline.points.reserve(frame->points.size());
+    for (const auto& point : frame->points)
+        polyline.points.push_back(point - frame->centroid);
     entity.polyline = std::move(polyline);
     entity.properties.push_back({"poses", std::to_string(frame->pose_count)});
     entity.properties.push_back({"length_m", std::to_string(frame->path_length_m)});

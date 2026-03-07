@@ -460,6 +460,7 @@ private:
     // Shared time origin across all slots.
     double shared_time_origin_{0.0};
     bool   has_shared_origin_{false};
+    std::optional<double> explicit_now_s_;
 
     OnDataCallback on_data_cb_;
 

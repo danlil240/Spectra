@@ -135,7 +135,6 @@ jobs:
   golden-tests:
     runs-on: ubuntu-24.04
     needs: build-linux
-    continue-on-error: true  # lavapipe on GH Actions segfaults intermittently — tracked separately
 
     steps:
       - uses: actions/checkout@v4

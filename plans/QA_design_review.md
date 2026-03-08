@@ -1,7 +1,8 @@
 # QA Design Review — UI/UX Improvements
 
 > Living document. Updated after each design review session with visual findings and concrete improvements.
-> Last updated: 2026-03-01 | Screenshots: `/tmp/spectra_qa_design_after_20260301_200727/design/`
+> Last updated: 2026-03-08 | Screenshots: `/tmp/spectra_qa_design_after_20260308/design/`
+> Session 10: 2026-03-08 — QA Designer Agent pass (DES-I3 coverage expansion: split view mismatched zoom)
 > Session 8: 2026-03-01 — QA Designer Agent pass (D46 coverage expansion: empty-after-delete state)
 > Session 4: 2026-02-27 — QA Designer Agent pass (D45)
 > Session 2: 2026-02-23 — QA Designer Agent pass (D5, D6, D7/D16, D9, D10, D11)
@@ -11,6 +12,23 @@
 > Session 11: 2026-02-24 — QA Designer Agent pass (D25, D26, D27) — legend theme fix, grid/crosshair toggle drift fixes
 > Session 21: 2026-02-24 — Screenshot capture fix (D28), 3D colormap verified, FPS thresholds fixed (D32)
 > Session 24: 2026-02-24 — Open-item triage pass (D29, D30, D31, D33)
+
+---
+
+## Session 10 — Coverage Expansion (2026-03-08)
+
+### Screenshots Captured
+- Baseline: 53 screenshots (`/tmp/spectra_qa_design_20260308/design/`)
+- After improvement: 54 screenshots (`/tmp/spectra_qa_design_after_20260308/design/`)
+
+### DES-I3: Missing Split View Mismatched Zoom Coverage ✅ FIXED
+- **Screenshot (after):** `53_split_view_mismatched_zoom.png`
+- **Problem:** Design review coverage captured split view with two similarly-ranged figures (screenshot 33) but did not verify the rendering when panes have dramatically different axis ranges (auto-fit vs manually zoomed).
+- **Root cause:** `run_design_review()` had no scenario exercising `xlim()`/`ylim()` on one pane while the other remains auto-fit, in a split view.
+- **Fix applied:** Added scenario 53 to `run_design_review()` that creates two figures — one with auto-fit full range, one with explicit `xlim(2,6)` / `ylim(-1.5,1.5)` — splits them side by side, and captures. Verifies no visual bleed between panes.
+- **Files changed:** `tests/qa/qa_agent.cpp`
+- **Verified:** 2026-03-08 — design review exit code `0`, manifest confirms `Captured: 54 screenshots`, includes `53_split_view_mismatched_zoom`.
+- **Status:** ✅ Fixed
 
 ---
 

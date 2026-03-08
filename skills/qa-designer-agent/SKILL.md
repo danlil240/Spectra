@@ -36,7 +36,7 @@ cmake --build build -j$(nproc)
 
 - Screenshots land in `<output-dir>/design/` with descriptive names.
 - `manifest.txt` lists all captured files.
-- **Expect 53 named screenshots** (see coverage table below).
+- **Expect 54 named screenshots** (see coverage table below).
 - Requires a live display — no headless path.
 
 ### 3. Triage open items
@@ -81,7 +81,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## Design-Review Screenshot Coverage (52 total)
+## Design-Review Screenshot Coverage (54 total)
 
 ### Core UI (01–20)
 | # | Name | What it covers |
@@ -147,6 +147,7 @@ ctest --test-dir build --output-on-failure
 | 50 | `50_minimal_chrome_all_panels_closed` | Minimal chrome (all panels closed) |
 | 51 | `51_empty_figure_after_delete` | Empty/error state after deleting the last series in a figure |
 | 52 | `52_legend_overflow_8_series` | Legend with 8 series testing overflow/wrapping behavior |
+| 53 | `53_split_view_mismatched_zoom` | Split view with mismatched axis ranges (auto-fit vs zoomed panes) |
 
 > **Multi-window captures (45/45b):** `named_screenshot()` now accepts a `WindowContext*` parameter. Screenshots 45 and 45b are captured with `target_window` set to the primary and secondary `WindowContext*` respectively, so the capture fires only during that window's `end_frame`. Do not use `set_active_window` + `pump_frames` as a workaround — it gets overridden by `step()`.
 
@@ -345,7 +346,7 @@ Next gap: <one sentence describing the next visual blind spot to tackle next ses
 |---|---|---|
 | DES-I1 | ✅ Done (2026-03-01): Add screenshot for error/empty state after deleting the last series | Implemented as `51_empty_figure_after_delete` in `qa_agent.cpp` design review coverage |
 | DES-I2 | ✅ Done (2026-03-05): Add screenshot for legend with 8+ series (overflow/truncation behavior) | Implemented as `52_legend_overflow_8_series`; verifies legend handles 8 series with long names without overflow/overlap |
-| DES-I3 | Add screenshot for split view with mismatched axis ranges (zoomed vs auto-fit panes) | Add `53_split_view_mismatched_zoom`; verify no visual bleed between panes |
+| DES-I3 | ✅ Done (2026-03-08): Add screenshot for split view with mismatched axis ranges (zoomed vs auto-fit panes) | Implemented as `53_split_view_mismatched_zoom`; verifies no visual bleed between panes with different zoom levels |
 | DES-I4 | Audit all ImGui separator lines for 1px blurriness at non-integer DPI positions | In `imgui_integration.cpp`, check that `AddLine` calls use `ImFloor()`-snapped coordinates |
 | DES-I5 | Add screenshot for command palette with 20+ results (scrollbar visibility) | Add `54_command_palette_scrolled`; verify scrollbar appears and doesn't overlap text |
 | DES-I6 | Check toolbar icon alignment at 125% and 150% DPI scale | Add DPI-scaled design review run; verify nav rail icons don't have sub-pixel misalignment |

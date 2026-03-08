@@ -33,13 +33,13 @@ endif()
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
 option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
-option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        ON)
+option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
 option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ON)
 option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    ON)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
-option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     ON)
+option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
@@ -298,7 +298,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})
-        endif()
+        endif() 
     endforeach()
     target_include_directories(spectra PRIVATE
         ${imgui_SOURCE_DIR}
@@ -312,7 +312,27 @@ endif()
 # Zero impact on any target when SPECTRA_USE_ROS2=OFF.
 if(SPECTRA_USE_ROS2)
     find_package(ament_cmake QUIET)
-    find_package(TinyXML2 REQUIRED CONFIG)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(TINYXML2 QUIET tinyxml2)
+    endif()
+    if(NOT TARGET tinyxml2::tinyxml2)
+        find_path(TINYXML2_INCLUDE_DIR tinyxml2.h HINTS ${TINYXML2_INCLUDE_DIRS})
+        find_library(TINYXML2_LIBRARY NAMES tinyxml2 HINTS ${TINYXML2_LIBRARY_DIRS})
+
+        if(TINYXML2_INCLUDE_DIR AND TINYXML2_LIBRARY)
+            add_library(tinyxml2::tinyxml2 UNKNOWN IMPORTED)
+            set_target_properties(tinyxml2::tinyxml2 PROPERTIES
+                IMPORTED_LOCATION "${TINYXML2_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${TINYXML2_INCLUDE_DIR}"
+            )
+        endif()
+    endif()
+    if(NOT TARGET tinyxml2::tinyxml2)
+        message(FATAL_ERROR
+            "TinyXML2 not found. Install libtinyxml2-dev or make tinyxml2 discoverable via pkg-config/CMAKE_PREFIX_PATH."
+        )
+    endif()
     find_package(rclcpp REQUIRED)
     find_package(rcl_interfaces REQUIRED)
     find_package(rosidl_typesupport_introspection_cpp REQUIRED)

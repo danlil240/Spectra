@@ -2,6 +2,12 @@
 
 #include "io/ffmpeg_command.hpp"
 
+// Windows does not expose POSIX popen/pclose; use the MSVC equivalents.
+#if defined(_WIN32)
+    #define popen  _popen
+    #define pclose _pclose
+#endif
+
 #ifdef SPECTRA_USE_FFMPEG
 
     #include <cstdio>

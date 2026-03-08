@@ -10,6 +10,12 @@
 
 #include "io/ffmpeg_command.hpp"
 
+// Windows does not expose POSIX popen/pclose; use the MSVC equivalents.
+#if defined(_WIN32)
+    #define popen  _popen
+    #define pclose _pclose
+#endif
+
 // Suppress warnings in third-party STB headers
 #if defined(__clang__)
     #pragma clang diagnostic push

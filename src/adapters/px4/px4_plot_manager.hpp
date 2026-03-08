@@ -111,6 +111,7 @@ public:
 
     const std::vector<PlotField>& fields() const { return fields_; }
     size_t field_count() const { return fields_.size(); }
+    uint64_t revision() const { return revision_; }
 
     // Get all available topics from the loaded ULog or bridge.
     std::vector<std::string> available_topics() const;
@@ -122,14 +123,16 @@ public:
     bool has_ulog_data() const { return ulog_ != nullptr; }
 
 private:
+    void bump_revision() { ++revision_; }
     void refresh_ulog_field(PlotField& f);
-    void refresh_live_field(PlotField& f);
+    bool refresh_live_field(PlotField& f);
 
     const ULogReader*     ulog_{nullptr};
     Px4Bridge*            bridge_{nullptr};
 
     std::vector<PlotField> fields_;
     double                 time_window_s_{30.0};
+    uint64_t               revision_{0};
 
     // Live mode: track last-seen timestamps per channel.
     std::unordered_map<std::string, uint64_t> last_seen_ts_;

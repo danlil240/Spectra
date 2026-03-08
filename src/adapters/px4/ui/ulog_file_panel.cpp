@@ -90,8 +90,7 @@ void ULogFilePanel::draw_file_header()
 #ifdef SPECTRA_USE_IMGUI
     if (ImGui::Button("Open..."))
     {
-        // In a full implementation, this would open a file dialog.
-        // For now, the file_cb_ callback is used by external code.
+        // The shell owns the actual file dialog and load flow.
         if (file_cb_)
             file_cb_("");
     }
@@ -201,10 +200,10 @@ void ULogFilePanel::draw_topic_tree()
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {
-                        // Add to plot.
-                        plot_mgr_.add_field(topic, field_name, array_idx);
                         if (field_cb_)
                             field_cb_(topic, field_name, array_idx);
+                        else
+                            plot_mgr_.add_field(topic, field_name, array_idx);
                     }
                 }
             }

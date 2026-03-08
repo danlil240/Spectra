@@ -90,8 +90,10 @@ public:
     const Px4AppConfig& config() const { return cfg_; }
 
 private:
+    bool open_ulog_with_dialog();
     void draw_menu_bar();
     void draw_status_bar();
+    void sync_canvas_figure(bool force = false);
 
     Px4AppConfig cfg_;
 
@@ -103,11 +105,13 @@ private:
     std::unique_ptr<LiveConnectionPanel> live_panel_;
 
     spectra::Figure* canvas_figure_{nullptr};
+    uint64_t         last_canvas_revision_{static_cast<uint64_t>(-1)};
 
     std::atomic<bool> shutdown_requested_{false};
 
     bool show_file_panel_{true};
     bool show_live_panel_{false};
+    std::string last_open_error_;
 };
 
 }   // namespace spectra::adapters::px4

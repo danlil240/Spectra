@@ -22,6 +22,7 @@ void Px4PlotManager::load_ulog(const ULogReader& reader)
     // Refresh all existing fields with new data.
     for (auto& f : fields_)
         refresh_ulog_field(f);
+    bump_revision();
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ void Px4PlotManager::clear()
     ulog_ = nullptr;
     bridge_ = nullptr;
     last_seen_ts_.clear();
+    bump_revision();
 }
 
 // ---------------------------------------------------------------------------
@@ -45,8 +47,12 @@ void Px4PlotManager::poll()
     if (!bridge_ || !bridge_->is_receiving())
         return;
 
+    bool changed = false;
     for (auto& f : fields_)
-        refresh_live_field(f);
+        changed |= refresh_live_field(f);
+
+    if (changed)
+        bump_revision();
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +80,7 @@ size_t Px4PlotManager::add_field(const std::string& topic, const std::string& fi
         refresh_ulog_field(pf);
 
     fields_.push_back(std::move(pf));
+    bump_revision();
     return fields_.size() - 1;
 }
 
@@ -89,6 +96,7 @@ size_t Px4PlotManager::add_live_field(const std::string& channel, const std::str
     pf.label = channel + "." + field;
 
     fields_.push_back(std::move(pf));
+    bump_revision();
     return fields_.size() - 1;
 }
 
@@ -99,7 +107,10 @@ size_t Px4PlotManager::add_live_field(const std::string& channel, const std::str
 void Px4PlotManager::remove_field(size_t index)
 {
     if (index < fields_.size())
+    {
         fields_.erase(fields_.begin() + static_cast<ptrdiff_t>(index));
+        bump_revision();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -108,10 +119,13 @@ void Px4PlotManager::remove_field(size_t index)
 
 void Px4PlotManager::remove_topic(const std::string& topic)
 {
+    const size_t old_size = fields_.size();
     fields_.erase(
         std::remove_if(fields_.begin(), fields_.end(),
                         [&](const PlotField& f) { return f.topic == topic; }),
         fields_.end());
+    if (fields_.size() != old_size)
+        bump_revision();
 }
 
 // ---------------------------------------------------------------------------
@@ -206,14 +220,14 @@ void Px4PlotManager::refresh_ulog_field(PlotField& f)
 // refresh_live_field
 // ---------------------------------------------------------------------------
 
-void Px4PlotManager::refresh_live_field(PlotField& f)
+bool Px4PlotManager::refresh_live_field(PlotField& f)
 {
     if (!bridge_)
-        return;
+        return false;
 
     auto msgs = bridge_->channel_snapshot(f.topic);
     if (msgs.empty())
-        return;
+        return false;
 
     // Rebuild time series from channel buffer.
     f.times.clear();
@@ -244,6 +258,8 @@ void Px4PlotManager::refresh_live_field(PlotField& f)
             }
         }
     }
+
+    return true;
 }
 
 }   // namespace spectra::adapters::px4

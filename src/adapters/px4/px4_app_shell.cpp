@@ -1,14 +1,38 @@
 #include "px4_app_shell.hpp"
 
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
+
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+#include "../../../third_party/tinyfiledialogs.h"
 #endif
 
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
 namespace spectra::adapters::px4
 {
+
+namespace
+{
+
+#ifdef SPECTRA_USE_IMGUI
+std::string choose_ulog_file_path()
+{
+    char const* filter_patterns[] = {"*.ulg", "*.ulog"};
+    const char* home_env = std::getenv("HOME");
+    std::string default_path = home_env ? std::string(home_env) + "/" : "/";
+    const char* result = tinyfd_openFileDialog(
+        "Open ULog", default_path.c_str(), 2, filter_patterns, "PX4 ULog (*.ulg)", 0);
+
+    return result ? std::string(result) : std::string();
+}
+#endif
+
+}   // namespace
 
 // ---------------------------------------------------------------------------
 // parse_px4_args
@@ -90,12 +114,23 @@ bool Px4AppShell::init()
 
     file_panel_ = std::make_unique<ULogFilePanel>(reader_, plot_mgr_);
     live_panel_ = std::make_unique<LiveConnectionPanel>(bridge_, plot_mgr_);
+    file_panel_->set_file_callback([this](const std::string& path)
+    {
+        if (path.empty())
+        {
+            open_ulog_with_dialog();
+            return;
+        }
+
+        open_ulog(path);
+    });
 
     // Wire field callback: add to plot on double-click.
     file_panel_->set_field_callback(
         [this](const std::string& topic, const std::string& field, int array_idx)
         {
             plot_mgr_.add_field(topic, field, array_idx);
+            sync_canvas_figure();
         });
 
     // Open initial ULog file if specified.
@@ -139,6 +174,8 @@ void Px4AppShell::poll()
     // Update live data if connected.
     if (bridge_.is_receiving())
         plot_mgr_.poll();
+
+    sync_canvas_figure();
 }
 
 // ---------------------------------------------------------------------------
@@ -166,12 +203,108 @@ void Px4AppShell::draw()
 
 bool Px4AppShell::open_ulog(const std::string& path)
 {
-    if (!reader_.open(path))
+    if (path.empty())
+    {
+        last_open_error_ = "No ULog file was selected.";
         return false;
+    }
+
+    if (!reader_.open(path))
+    {
+        plot_mgr_.clear();
+        show_file_panel_ = true;
+        last_open_error_ = reader_.last_error();
+        sync_canvas_figure(true);
+        return false;
+    }
 
     plot_mgr_.load_ulog(reader_);
     show_file_panel_ = true;
+    last_open_error_.clear();
+    sync_canvas_figure(true);
     return true;
+}
+
+void Px4AppShell::sync_canvas_figure(bool force)
+{
+    if (!canvas_figure_)
+        return;
+
+    const uint64_t revision = plot_mgr_.revision();
+    if (!force && revision == last_canvas_revision_)
+        return;
+
+    auto& ax = canvas_figure_->subplot(1, 1, 1);
+    ax.xlabel("time (s)");
+    ax.grid(true);
+    ax.show_border(true);
+
+    if (plot_mgr_.field_count() == 1)
+        ax.ylabel(plot_mgr_.fields().front().label);
+    else
+        ax.ylabel("value");
+
+    if (bridge_.is_receiving())
+        ax.title("PX4 Live Telemetry");
+    else if (reader_.is_open())
+        ax.title("PX4 ULog Fields");
+    else
+        ax.title("PX4");
+
+    const bool needs_rebuild = ax.series().size() != plot_mgr_.field_count();
+    if (needs_rebuild)
+    {
+        ax.clear_series();
+        for (const auto& field : plot_mgr_.fields())
+        {
+            auto& ls = ax.line(field.times, field.values);
+            ls.label(field.label);
+            ls.visible(field.visible);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < plot_mgr_.fields().size(); ++i)
+        {
+            const auto& field = plot_mgr_.fields()[i];
+            auto* line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[i].get());
+            if (!line)
+            {
+                ax.clear_series();
+                for (const auto& rebuild_field : plot_mgr_.fields())
+                {
+                    auto& ls = ax.line(rebuild_field.times, rebuild_field.values);
+                    ls.label(rebuild_field.label);
+                    ls.visible(rebuild_field.visible);
+                }
+                break;
+            }
+
+            line->set_x(field.times);
+            line->set_y(field.values);
+            line->label(field.label);
+            line->visible(field.visible);
+        }
+    }
+
+    if (plot_mgr_.field_count() > 0)
+        ax.auto_fit();
+
+    canvas_figure_->legend().visible = plot_mgr_.field_count() > 0;
+    last_canvas_revision_            = revision;
+}
+
+bool Px4AppShell::open_ulog_with_dialog()
+{
+#ifdef SPECTRA_USE_IMGUI
+    const std::string path = choose_ulog_file_path();
+    if (path.empty())
+        return false;
+
+    return open_ulog(path);
+#else
+    return false;
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +320,7 @@ void Px4AppShell::draw_menu_bar()
         {
             if (ImGui::MenuItem("Open ULog...", "Ctrl+O"))
             {
-                // File dialog integration would go here.
+                open_ulog_with_dialog();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Ctrl+Q"))
@@ -251,6 +384,12 @@ void Px4AppShell::draw_status_bar()
 
     if (ImGui::Begin("##StatusBar", nullptr, flags))
     {
+        if (!last_open_error_.empty())
+        {
+            ImGui::Text("ULog open failed: %s", last_open_error_.c_str());
+            ImGui::SameLine();
+        }
+
         if (reader_.is_open())
         {
             ImGui::Text("ULog: %s | Duration: %.1fs | Topics: %zu | Messages: %zu",

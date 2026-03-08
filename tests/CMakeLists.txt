@@ -1311,6 +1311,28 @@ if(SPECTRA_USE_PX4)
         add_test(NAME unit_test_px4_bridge COMMAND unit_test_px4_bridge)
         set_tests_properties(unit_test_px4_bridge PROPERTIES LABELS "px4")
     endif()
+
+    # Px4AppShell tests — argument parsing and offline ULog open flow.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_app_shell.cpp)
+        add_executable(unit_test_px4_app_shell
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_app_shell.cpp
+        )
+        target_link_libraries(unit_test_px4_app_shell PRIVATE
+            spectra_px4_adapter
+            GTest::gtest
+        )
+        target_compile_features(unit_test_px4_app_shell PRIVATE cxx_std_20)
+        target_include_directories(unit_test_px4_app_shell PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/px4
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        target_compile_definitions(unit_test_px4_app_shell PRIVATE
+            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        )
+        add_test(NAME unit_test_px4_app_shell COMMAND unit_test_px4_app_shell)
+        set_tests_properties(unit_test_px4_app_shell PROPERTIES LABELS "px4")
+    endif()
 endif()
 
 # QA Agents (interactive/manual harnesses, not registered as CTest tests)

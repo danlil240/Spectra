@@ -239,35 +239,39 @@ void Px4AppShell::draw_status_bar()
 #ifdef SPECTRA_USE_IMGUI
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar |
                               ImGuiWindowFlags_NoSavedSettings |
-                              ImGuiWindowFlags_MenuBar;
+                              ImGuiWindowFlags_NoTitleBar |
+                              ImGuiWindowFlags_NoResize |
+                              ImGuiWindowFlags_NoMove;
 
-    if (ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(),
-                                     ImGuiDir_Down, ImGui::GetFrameHeight(),
-                                     flags))
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float bar_h = ImGui::GetFrameHeight();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x,
+                                    viewport->WorkPos.y + viewport->WorkSize.y - bar_h));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, bar_h));
+
+    if (ImGui::Begin("##StatusBar", nullptr, flags))
     {
-        if (ImGui::BeginMenuBar())
+        if (reader_.is_open())
+        {
+            ImGui::Text("ULog: %s | Duration: %.1fs | Topics: %zu | Messages: %zu",
+                        reader_.metadata().path.c_str(),
+                        reader_.metadata().duration_sec(),
+                        reader_.topic_count(),
+                        reader_.metadata().message_count);
+        }
+
+        if (bridge_.is_receiving())
         {
             if (reader_.is_open())
-            {
-                ImGui::Text("ULog: %s | Duration: %.1fs | Topics: %zu | Messages: %zu",
-                            reader_.metadata().path.c_str(),
-                            reader_.metadata().duration_sec(),
-                            reader_.topic_count(),
-                            reader_.metadata().message_count);
-            }
-
-            if (bridge_.is_receiving())
-            {
                 ImGui::SameLine();
-                ImGui::Text(" | Live: %s:%d (%.0f msg/s)",
-                            bridge_.host().c_str(), bridge_.port(),
-                            bridge_.message_rate());
-            }
-
-            ImGui::Text(" | Fields: %zu", plot_mgr_.field_count());
-
-            ImGui::EndMenuBar();
+            ImGui::Text("Live: %s:%d (%.0f msg/s)",
+                        bridge_.host().c_str(), bridge_.port(),
+                        bridge_.message_rate());
         }
+
+        if (reader_.is_open() || bridge_.is_receiving())
+            ImGui::SameLine();
+        ImGui::Text("Fields: %zu", plot_mgr_.field_count());
     }
     ImGui::End();
 #endif

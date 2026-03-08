@@ -22,6 +22,10 @@
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
 
+#ifdef SPECTRA_USE_IMGUI
+#include "ui/app/window_ui_context.hpp"
+#endif
+
 #include <csignal>
 #include <cstdio>
 #include <string>

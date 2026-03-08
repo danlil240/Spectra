@@ -27,6 +27,7 @@
 //   NOT thread-safe.  All methods must be called from the same thread.
 
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <memory>

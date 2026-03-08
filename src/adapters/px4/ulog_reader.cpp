@@ -1043,12 +1043,14 @@ bool ULogReader::parse_data_message(const uint8_t* payload, uint16_t len)
     ULogDataRow row;
     row.timestamp_us = timestamp;
 
-    // Payload after msg_id + timestamp.
-    size_t data_len = len - 10;
+    // Store the full field data (starting after msg_id), including the
+    // timestamp field.  This way, field offsets from the FORMAT definition
+    // map directly into the payload.
+    size_t data_len = len - 2;   // everything after msg_id
     if (data_len > 0)
     {
         row.payload.resize(data_len);
-        std::memcpy(row.payload.data(), payload + 10, data_len);
+        std::memcpy(row.payload.data(), payload + 2, data_len);
     }
 
     data_it->second.rows.push_back(std::move(row));

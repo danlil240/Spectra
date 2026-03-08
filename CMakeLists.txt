@@ -38,6 +38,7 @@ option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
 option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ON)
 option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    ON)
+option(SPECTRA_USE_PX4     "Enable PX4 ULog adapter (ULog visualizer + MAVLink)"   ON)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
@@ -496,6 +497,57 @@ if(SPECTRA_USE_EIGEN)
     endif()
 endif()
 
+# PX4 / ULog adapter (optional) — standalone flight log viewer + MAVLink bridge.
+# No external dependencies beyond POSIX sockets — always buildable.
+if(SPECTRA_USE_PX4)
+    add_library(spectra_px4_adapter
+        src/adapters/px4/px4_adapter.cpp
+        src/adapters/px4/ulog_reader.cpp
+        src/adapters/px4/px4_bridge.cpp
+        src/adapters/px4/px4_plot_manager.cpp
+        src/adapters/px4/px4_app_shell.cpp
+        src/adapters/px4/ui/ulog_file_panel.cpp
+        src/adapters/px4/ui/live_connection_panel.cpp
+    )
+
+    target_link_libraries(spectra_px4_adapter PUBLIC spectra)
+    target_compile_features(spectra_px4_adapter PRIVATE cxx_std_20)
+
+    target_include_directories(spectra_px4_adapter PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/px4
+    )
+    target_include_directories(spectra_px4_adapter PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+
+    target_compile_definitions(spectra_px4_adapter PUBLIC SPECTRA_USE_PX4)
+
+    # Forward ImGui include paths so UI panels can find imgui.h.
+    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+        target_include_directories(spectra_px4_adapter PRIVATE
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+        )
+    endif()
+
+    # spectra-px4 standalone executable
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/px4/main.cpp)
+        add_executable(spectra-px4
+            src/adapters/px4/main.cpp
+        )
+        target_link_libraries(spectra-px4 PRIVATE spectra_px4_adapter)
+        target_compile_features(spectra-px4 PRIVATE cxx_std_20)
+        target_include_directories(spectra-px4 PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/px4
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
+        )
+    endif()
+
+    message(STATUS "PX4/ULog adapter enabled")
+endif()
+
 # ─── Logical library split (spectra-core, spectra-ipc, spectra-render) ────────
 # These are INTERFACE targets that expose subsets of the monolithic spectra lib.
 # Downstream consumers can depend on spectra-core (no rendering), spectra-ipc
@@ -620,6 +672,18 @@ if(TARGET spectra_ros2_adapter)
 endif()
 if(TARGET spectra-ros)
     install(TARGETS spectra-ros RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+
+# PX4 adapter deployment (only when built with SPECTRA_USE_PX4=ON)
+if(TARGET spectra_px4_adapter)
+    install(TARGETS spectra_px4_adapter
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+if(TARGET spectra-px4)
+    install(TARGETS spectra-px4 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
 # Python wheel: bundle backend binary into the Python package

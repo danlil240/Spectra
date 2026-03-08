@@ -486,9 +486,14 @@ endif()
 
 # Eigen adapter (optional)
 if(SPECTRA_USE_EIGEN)
-    find_package(Eigen3 REQUIRED)
-    target_link_libraries(spectra PUBLIC Eigen3::Eigen)
-    target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
+    find_package(Eigen3 QUIET)
+    if(NOT Eigen3_FOUND)
+        message(STATUS "Eigen3 not found — disabling Eigen adapters (SPECTRA_USE_EIGEN=OFF)")
+        set(SPECTRA_USE_EIGEN OFF)
+    else()
+        target_link_libraries(spectra PUBLIC Eigen3::Eigen)
+        target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
+    endif()
 endif()
 
 # ─── Logical library split (spectra-core, spectra-ipc, spectra-render) ────────

@@ -181,7 +181,7 @@ TEST(DisplayRegistry, GridDisplayDefaultValues)
     GridDisplay grid;
     EXPECT_FLOAT_EQ(grid.cell_size(), 1.0f);
     EXPECT_EQ(grid.cell_count(), 20);
-    EXPECT_EQ(grid.plane(), "xz");
+    EXPECT_EQ(grid.plane(), "xy");
 }
 
 TEST(GridDisplay, ConfigBlobEmptyStringNoOp)

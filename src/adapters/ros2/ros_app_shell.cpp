@@ -1077,6 +1077,27 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
             }
             same_line_button();
+            bool prune_enabled = subplot_mgr_->pruning_enabled();
+            if (ImGui::Checkbox("Prune Old", &prune_enabled))
+            {
+                subplot_mgr_->set_pruning_enabled(prune_enabled);
+                if (plot_mgr_)
+                    plot_mgr_->set_pruning_enabled(prune_enabled);
+            }
+            same_line_button();
+            float prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
+            if (!prune_enabled)
+                ImGui::BeginDisabled();
+            ImGui::SetNextItemWidth(90.0f);
+            if (ImGui::SliderFloat("##PruneBuffer", &prune_buf, 0.0f, 600.0f, "%.0f s"))
+            {
+                subplot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
+                if (plot_mgr_)
+                    plot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
+            }
+            if (!prune_enabled)
+                ImGui::EndDisabled();
+            same_line_button();
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
             if (ImGui::SmallButton("Live All")) subplot_mgr_->resume_all_scroll();
@@ -2863,6 +2884,10 @@ RosSession RosAppShell::capture_session() const
     s.subplot_cols  = cfg_.subplot_cols;
     s.time_window_s = subplot_mgr_ ? subplot_mgr_->time_window()
                                    : cfg_.time_window_s;
+    s.pruning_enabled = subplot_mgr_ ? subplot_mgr_->pruning_enabled()
+                                     : (plot_mgr_ ? plot_mgr_->pruning_enabled() : true);
+    s.prune_buffer_s = subplot_mgr_ ? subplot_mgr_->prune_buffer()
+                                    : (plot_mgr_ ? plot_mgr_->prune_buffer() : 20.0);
     s.fixed_frame   = workspace_state_.fixed_frame;
 
     s.panels.topic_list      = show_topic_list_;
@@ -2976,6 +3001,16 @@ void RosAppShell::apply_session(const RosSession& session)
     {
         if (subplot_mgr_) subplot_mgr_->set_time_window(session.time_window_s);
         if (plot_mgr_)    plot_mgr_->set_time_window(session.time_window_s);
+    }
+    if (subplot_mgr_)
+    {
+        subplot_mgr_->set_pruning_enabled(session.pruning_enabled);
+        subplot_mgr_->set_prune_buffer(session.prune_buffer_s);
+    }
+    if (plot_mgr_)
+    {
+        plot_mgr_->set_pruning_enabled(session.pruning_enabled);
+        plot_mgr_->set_prune_buffer(session.prune_buffer_s);
     }
 
     show_topic_list_     = session.panels.topic_list;

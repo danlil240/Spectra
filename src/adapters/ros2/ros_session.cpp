@@ -217,6 +217,8 @@ json serialize_session_v2_json(const RosSession& session)
         {"subplot_rows", session.subplot_rows},
         {"subplot_cols", session.subplot_cols},
         {"time_window_s", session.time_window_s},
+        {"pruning_enabled", session.pruning_enabled},
+        {"prune_buffer_s", session.prune_buffer_s},
         {"saved_at", session.saved_at},
         {"description", session.description},
         {"subscriptions", std::move(subscriptions)},
@@ -260,6 +262,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
     out.subplot_rows = root.value("subplot_rows", 1);
     out.subplot_cols = root.value("subplot_cols", 1);
     out.time_window_s = root.value("time_window_s", 30.0);
+    out.pruning_enabled = root.value("pruning_enabled", true);
+    out.prune_buffer_s = root.value("prune_buffer_s", 20.0);
     out.saved_at = root.value("saved_at", std::string{});
     out.description = root.value("description", std::string{});
 
@@ -1173,6 +1177,8 @@ bool RosSessionManager::deserialize(const std::string& text,
         out.subplot_rows = json_get_int(text, "subplot_rows", 1);
         out.subplot_cols = json_get_int(text, "subplot_cols", 1);
         out.time_window_s = json_get_double(text, "time_window_s", 30.0);
+        out.pruning_enabled = json_get_bool(text, "pruning_enabled", true);
+        out.prune_buffer_s = json_get_double(text, "prune_buffer_s", 20.0);
         out.nav_rail_expanded = json_get_bool(text, "nav_rail_expanded", false);
         out.nav_rail_width = json_get_double(text, "nav_rail_width", 220.0);
         out.fixed_frame = json_get_string(text, "fixed_frame");

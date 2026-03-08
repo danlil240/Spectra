@@ -156,6 +156,11 @@ public:
     void set_time_window(double seconds);
     double time_window() const;
 
+    void set_prune_buffer(double seconds);
+    double prune_buffer() const { return prune_buffer_s_; }
+    void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
+    bool pruning_enabled() const { return pruning_enabled_; }
+
     void pause_scroll();
     void resume_scroll();
     bool is_scroll_paused() const;
@@ -246,6 +251,10 @@ private:
     // Time origin for relative timestamps.
     double time_origin_{0.0};
     bool   has_time_origin_{false};
+
+    // Pruning state.
+    double prune_buffer_s_{20.0};
+    bool   pruning_enabled_{true};
 
     // User-supplied label; empty = use expression string.
     std::string label_;

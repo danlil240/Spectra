@@ -652,15 +652,18 @@ void SubplotManager::poll()
         if (se.manual_ylim.has_value())
             se.axes->ylim(se.manual_ylim->min, se.manual_ylim->max);
 
-        // Prune old data to bound memory.
-        const float window_s = se.axes->presented_buffer_seconds();
-        const float prune_before = static_cast<float>(now_rel - PRUNE_FACTOR * window_s);
-        if (se.series)
-            se.series->erase_before(prune_before);
-        for (auto& es : se.extra_series)
+        // Prune data older than the visible view plus the configured history buffer.
+        if (pruning_enabled_)
         {
-            if (es->series)
-                es->series->erase_before(prune_before);
+            const auto  xlim         = se.axes->x_limits();
+            const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+            if (se.series)
+                se.series->erase_before(prune_before);
+            for (auto& es : se.extra_series)
+            {
+                if (es->series)
+                    es->series->erase_before(prune_before);
+            }
         }
     }
 }
@@ -708,6 +711,11 @@ void SubplotManager::set_time_window(double seconds)
         if (se.axes)
             se.axes->presented_buffer(static_cast<float>(seconds));
     }
+}
+
+void SubplotManager::set_prune_buffer(double seconds)
+{
+    prune_buffer_s_ = std::max(0.0, seconds);
 }
 
 void SubplotManager::set_now(double wall_time_s)

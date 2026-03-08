@@ -282,7 +282,13 @@ TEST(CameraTest, Reset)
 
     cam.reset();
 
-    EXPECT_EQ(cam.position, vec3(0.0f, 0.0f, 5.0f));
+    // After reset, position is derived from orbit params (azimuth=45, elevation=30, distance=5)
+    // via update_position_from_orbit().
+    EXPECT_TRUE(vec3_near(cam.position,
+                          {5.0f * std::cos(deg_to_rad(30.0f)) * std::cos(deg_to_rad(45.0f)),
+                           5.0f * std::sin(deg_to_rad(30.0f)),
+                           5.0f * std::cos(deg_to_rad(30.0f)) * std::sin(deg_to_rad(45.0f))},
+                          1e-4f));
     EXPECT_EQ(cam.target, vec3(0.0f, 0.0f, 0.0f));
     EXPECT_EQ(cam.up, vec3(0.0f, 1.0f, 0.0f));
     EXPECT_FLOAT_EQ(cam.azimuth, 45.0f);

@@ -190,11 +190,11 @@ void ExpressionPlot::poll()
     const double now_rel = wall_now - time_origin_;
     axes_->set_presented_buffer_right_edge(now_rel);
 
-    // Prune old data regardless of expression state.
-    if (series_)
+    // Prune data older than the visible view plus the configured history buffer.
+    if (series_ && pruning_enabled_)
     {
-        const float window_s = axes_->presented_buffer_seconds();
-        const float prune_before = static_cast<float>(now_rel - 2.0 * window_s);
+        const auto  xlim         = axes_->x_limits();
+        const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
         series_->erase_before(prune_before);
     }
 
@@ -272,6 +272,11 @@ void ExpressionPlot::set_time_window(double seconds)
 {
     if (axes_)
         axes_->presented_buffer(static_cast<float>(seconds));
+}
+
+void ExpressionPlot::set_prune_buffer(double seconds)
+{
+    prune_buffer_s_ = std::max(0.0, seconds);
 }
 
 double ExpressionPlot::time_window() const

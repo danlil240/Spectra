@@ -129,6 +129,21 @@ TEST_F(RosPlotManagerTest, ConstructionBridgeRunning)
     EXPECT_TRUE(bridge_->is_ok());
 }
 
+TEST_F(RosPlotManagerTest, DefaultPruneSettings)
+{
+    EXPECT_TRUE(mgr_->pruning_enabled());
+    EXPECT_DOUBLE_EQ(mgr_->prune_buffer(), 20.0);
+}
+
+TEST_F(RosPlotManagerTest, SetPruneSettings)
+{
+    mgr_->set_pruning_enabled(false);
+    mgr_->set_prune_buffer(12.5);
+
+    EXPECT_FALSE(mgr_->pruning_enabled());
+    EXPECT_DOUBLE_EQ(mgr_->prune_buffer(), 12.5);
+}
+
 // ===========================================================================
 // Suite 2: PlotHandle validity
 // ===========================================================================

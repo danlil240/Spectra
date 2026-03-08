@@ -411,6 +411,23 @@ TEST_F(SubplotManagerTest, SetTimeWindowApplied)
     EXPECT_DOUBLE_EQ(mgr.time_window(), 60.0);
 }
 
+TEST_F(SubplotManagerTest, DefaultPruneSettings)
+{
+    SubplotManager mgr(bridge_, intr_, 2, 1);
+    EXPECT_TRUE(mgr.pruning_enabled());
+    EXPECT_DOUBLE_EQ(mgr.prune_buffer(), 20.0);
+}
+
+TEST_F(SubplotManagerTest, SetPruneSettings)
+{
+    SubplotManager mgr(bridge_, intr_, 2, 1);
+    mgr.set_pruning_enabled(false);
+    mgr.set_prune_buffer(8.0);
+
+    EXPECT_FALSE(mgr.pruning_enabled());
+    EXPECT_DOUBLE_EQ(mgr.prune_buffer(), 8.0);
+}
+
 TEST_F(SubplotManagerTest, PauseScrollInvalidSlotNoOp)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);

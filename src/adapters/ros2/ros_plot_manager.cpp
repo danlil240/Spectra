@@ -231,11 +231,11 @@ void RosPlotManager::poll()
         const double now_rel = wall_now - entry->time_origin;
         entry->axes->set_presented_buffer_right_edge(now_rel);
 
-        // Prune old data regardless of subscription state.
-        if (entry->series)
+        // Prune data older than the visible view plus the configured history buffer.
+        if (entry->series && pruning_enabled_)
         {
-            const float prune_before =
-                static_cast<float>(now_rel - PRUNE_FACTOR * entry->axes->presented_buffer_seconds());
+            const auto  xlim         = entry->axes->x_limits();
+            const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
             entry->series->erase_before(prune_before);
         }
 
@@ -304,6 +304,26 @@ void RosPlotManager::set_default_buffer_depth(size_t depth)
 void RosPlotManager::set_auto_fit_samples(size_t n)
 {
     auto_fit_samples_ = n;
+}
+
+void RosPlotManager::set_prune_buffer(double seconds)
+{
+    prune_buffer_s_ = std::max(0.0, seconds);
+}
+
+double RosPlotManager::prune_buffer() const
+{
+    return prune_buffer_s_;
+}
+
+void RosPlotManager::set_pruning_enabled(bool enabled)
+{
+    pruning_enabled_ = enabled;
+}
+
+bool RosPlotManager::pruning_enabled() const
+{
+    return pruning_enabled_;
 }
 
 

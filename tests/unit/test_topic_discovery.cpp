@@ -289,24 +289,26 @@ TEST_F(TopicDiscoveryTest, UnknownTopicReturnsEmptyInfo)
 TEST_F(TopicDiscoveryTest, AddCallbackFiredForNewTopic)
 {
     std::atomic<int>  added_count{0};
-    std::string       added_name;
+    bool              found_target{false};
+
+    const std::string topic = "/spectra_cb_add";
 
     disc_->set_topic_callback([&](const TopicInfo& t, bool added) {
         if (added)
         {
-            added_name = t.name;
+            if (t.name == topic)
+                found_target = true;
             ++added_count;
         }
     });
 
-    const std::string topic = "/spectra_cb_add";
     auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
 
     EXPECT_GE(added_count.load(), 1);
-    EXPECT_EQ(added_name, topic);
+    EXPECT_TRUE(found_target) << "Expected callback for " << topic;
 }
 
 TEST_F(TopicDiscoveryTest, AddCallbackNotFiredForAlreadyKnownTopic)

@@ -89,7 +89,7 @@ public:
     static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
     static constexpr double MIN_WINDOW_S            = 1.0;
     static constexpr double MAX_WINDOW_S            = 3600.0;
-    static constexpr double PRUNE_FACTOR            = 2.0;
+    static constexpr double DEFAULT_PRUNE_BUFFER_S  = 20.0;
 
     // Number of samples after which the first Y auto-fit is applied.
     static constexpr size_t AUTO_FIT_SAMPLES = 100;
@@ -162,6 +162,12 @@ public:
 
     // Set the TopicDiscovery instance for safe (non-blocking) type resolution.
     void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
+
+    // Configure pruning of samples older than the current visible left edge.
+    void set_prune_buffer(double seconds);
+    double prune_buffer() const;
+    void set_pruning_enabled(bool enabled);
+    bool pruning_enabled() const;
 
     // ---------- auto-scroll (C2) -----------------------------------------
 
@@ -257,6 +263,8 @@ private:
     size_t   default_buffer_depth_ = 10000;
     size_t   auto_fit_samples_     = AUTO_FIT_SAMPLES;
     double   scroll_window_s_      = DEFAULT_SCROLL_WINDOW_S;
+    double   prune_buffer_s_       = DEFAULT_PRUNE_BUFFER_S;
+    bool     pruning_enabled_      = true;
 
     OnDataCallback on_data_cb_;
 

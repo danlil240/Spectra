@@ -190,6 +190,10 @@ struct RosSession
     // Global auto-scroll time window (seconds).
     double time_window_s{30.0};
 
+    // Global prune-history settings.
+    bool   pruning_enabled{true};
+    double prune_buffer_s{20.0};
+
     // Active subscriptions.
     std::vector<SubscriptionEntry> subscriptions;
 

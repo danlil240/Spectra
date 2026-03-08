@@ -274,6 +274,12 @@ public:
     void set_time_window(double seconds);
     double time_window() const { return scroll_window_s_; }
 
+    // Configure pruning of samples older than the current visible left edge.
+    void set_prune_buffer(double seconds);
+    double prune_buffer() const { return prune_buffer_s_; }
+    void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
+    bool pruning_enabled() const { return pruning_enabled_; }
+
     // Advance "now" for auto-scroll (call once per frame
     // before poll(), or let poll() call it automatically with wall clock).
     void set_now(double wall_time_s);
@@ -453,8 +459,10 @@ private:
 
     // Configuration.
     static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
-    static constexpr double PRUNE_FACTOR            = 2.0;
+    static constexpr double DEFAULT_PRUNE_BUFFER_S  = 20.0;
     double   scroll_window_s_    = DEFAULT_SCROLL_WINDOW_S;
+    double   prune_buffer_s_     = DEFAULT_PRUNE_BUFFER_S;
+    bool     pruning_enabled_    = true;
     size_t   auto_fit_samples_   = AUTO_FIT_SAMPLES;
 
     // Shared time origin across all slots.

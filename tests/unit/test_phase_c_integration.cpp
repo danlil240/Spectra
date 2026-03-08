@@ -1159,6 +1159,7 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
     SubplotManager mgr(*bridge_, intr_, 3, 1);
     const double WINDOW_S = 5.0;
     mgr.set_time_window(WINDOW_S);
+    mgr.set_prune_buffer(2.0);  // Small buffer so pruning triggers within test time advance
 
     const auto ha = mgr.add_plot(1, ta, "data",     "std_msgs/msg/Float64");
     const auto hb = mgr.add_plot(2, tb, "data",     "std_msgs/msg/Float64");

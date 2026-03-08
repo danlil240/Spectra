@@ -304,6 +304,18 @@ TEST(RoundTrip, TimeWindow)
     EXPECT_DOUBLE_EQ(out.time_window_s, 120.0);
 }
 
+TEST(RoundTrip, PruneSettings)
+{
+    RosSession s;
+    s.pruning_enabled = false;
+    s.prune_buffer_s = 12.0;
+    auto json = RosSessionManager::serialize(s);
+    RosSession out; std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
+    EXPECT_EQ(out.pruning_enabled, s.pruning_enabled);
+    EXPECT_DOUBLE_EQ(out.prune_buffer_s, s.prune_buffer_s);
+}
+
 TEST(RoundTrip, SingleSubscription)
 {
     RosSession s;
@@ -499,6 +511,8 @@ TEST(RoundTrip, FullSession)
     EXPECT_EQ(out.subplot_rows, s.subplot_rows);
     EXPECT_EQ(out.subplot_cols, s.subplot_cols);
     EXPECT_DOUBLE_EQ(out.time_window_s, s.time_window_s);
+    EXPECT_EQ(out.pruning_enabled, s.pruning_enabled);
+    EXPECT_DOUBLE_EQ(out.prune_buffer_s, s.prune_buffer_s);
     EXPECT_EQ(out.description,  s.description);
     EXPECT_EQ(out.fixed_frame,  s.fixed_frame);
     EXPECT_DOUBLE_EQ(out.camera_pose.azimuth, s.camera_pose.azimuth);

@@ -30,20 +30,15 @@ static constexpr uint8_t MAVLINK_STX_V2 = 0xFD;
 // Full MAVLink parsing would require the full dialect; we extract a subset.
 static constexpr uint32_t MAVLINK_MSG_HEARTBEAT        = 0;
 static constexpr uint32_t MAVLINK_MSG_SYS_STATUS       = 1;
-static constexpr uint32_t MAVLINK_MSG_ATTITUDE          = 30;
-static constexpr uint32_t MAVLINK_MSG_ATTITUDE_QUATERNION = 31;
+static constexpr uint32_t MAVLINK_MSG_ATTITUDE           = 30;
 static constexpr uint32_t MAVLINK_MSG_LOCAL_POSITION_NED = 32;
 static constexpr uint32_t MAVLINK_MSG_GLOBAL_POSITION_INT = 33;
 static constexpr uint32_t MAVLINK_MSG_GPS_RAW_INT       = 24;
 static constexpr uint32_t MAVLINK_MSG_SCALED_IMU        = 26;
-static constexpr uint32_t MAVLINK_MSG_RAW_IMU           = 27;
-static constexpr uint32_t MAVLINK_MSG_SCALED_PRESSURE   = 29;
 static constexpr uint32_t MAVLINK_MSG_RC_CHANNELS       = 65;
 static constexpr uint32_t MAVLINK_MSG_SERVO_OUTPUT_RAW  = 36;
 static constexpr uint32_t MAVLINK_MSG_VFR_HUD           = 74;
 static constexpr uint32_t MAVLINK_MSG_HIGHRES_IMU       = 105;
-static constexpr uint32_t MAVLINK_MSG_BATTERY_STATUS     = 147;
-static constexpr uint32_t MAVLINK_MSG_ESTIMATOR_STATUS   = 230;
 
 // ---------------------------------------------------------------------------
 // Helpers

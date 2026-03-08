@@ -3801,6 +3801,48 @@ class QAAgent
             pump_frames(15);
             named_screenshot("52_legend_overflow_8_series");
         }
+
+        // ── 53. Split view with mismatched axis ranges ────────────────
+        {
+            // Left pane: auto-fit (full data range)
+            auto&              fig1 = app_->figure({1280, 720});
+            auto&              ax1  = fig1.subplot(1, 1, 1);
+            std::vector<float> x1(300), y1(300);
+            for (int i = 0; i < 300; ++i)
+            {
+                x1[i] = static_cast<float>(i) * 0.05f;
+                y1[i] = std::sin(x1[i]) * 2.0f;
+            }
+            ax1.line(x1, y1).label("Full Range");
+            ax1.title("Auto-fit (full)");
+            ax1.auto_fit();
+
+            // Right pane: zoomed-in (narrow x/y range)
+            auto&              fig2 = app_->figure({1280, 720});
+            auto&              ax2  = fig2.subplot(1, 1, 1);
+            std::vector<float> x2(300), y2(300);
+            for (int i = 0; i < 300; ++i)
+            {
+                x2[i] = static_cast<float>(i) * 0.05f;
+                y2[i] = std::cos(x2[i]) * 3.0f;
+            }
+            ax2.line(x2, y2).label("Zoomed");
+            ax2.title("Zoomed In");
+            ax2.xlim(2.0, 6.0);
+            ax2.ylim(-1.5, 1.5);
+
+            pump_frames(10);
+
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                ui->cmd_registry.execute("view.split_right");
+                pump_frames(15);
+                named_screenshot("53_split_view_mismatched_zoom");
+                ui->cmd_registry.execute("view.reset_splits");
+                pump_frames(5);
+            }
+        }
 #endif
 
         // ── Summary ─────────────────────────────────────────────────────
@@ -3809,7 +3851,7 @@ class QAAgent
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 53;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 54;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,

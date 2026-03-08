@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-05 Session 9 |
-| Screenshot count confirmed | 53 |
+| Last run | 2026-03-08 Session 10 |
+| Screenshot count confirmed | 54 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
 | Open P2+ issues | 0 |
 | Last golden refresh | — |
-| SKILL.md last self-updated | 2026-03-05 (coverage + backlog update for DES-I2) |
+| SKILL.md last self-updated | 2026-03-08 (coverage + backlog update for DES-I3) |
 
 ---
 
@@ -23,9 +23,55 @@
 <!-- One line per self-update: date | section changed | reason -->
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-08 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `53_split_view_mismatched_zoom`, updated expected count to 54, and marked DES-I3 done |
 | 2026-03-05 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `52_legend_overflow_8_series`, updated expected count to 53, and marked DES-I2 done |
 | 2026-03-01 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `51_empty_figure_after_delete`, updated expected count to 52, and marked DES-I1 done |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-08 12:39 (Session 10)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260308` (baseline), `/tmp/spectra_qa_design_after_20260308` (after improvement)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 15.9s baseline (1055 frames), 14.0s after (1086 frames)
+- Frame time (after): avg=9.2ms p95=12.9ms max=187.4ms spikes=6
+- Memory (after): initial=140MB peak=211MB
+
+**Screenshot audit**
+- Expected: 54 (after improvement)
+- Captured: 54
+- Missing: none
+- New screenshot: `53_split_view_mismatched_zoom`
+
+**Issues found**
+- No new visual defects identified in full visual inspection of all 53 baseline screenshots.
+- All UI elements render correctly: themes, grid, axes borders, legends, inspector, command palette, split views, 3D surfaces, multi-window, resize states.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I3 | `tests/qa/qa_agent.cpp` | Added design-review scenario `53_split_view_mismatched_zoom` with two figures — one auto-fit (full range), one zoomed (xlim/ylim restricted) — split side by side to verify no visual bleed between panes |
+
+**Goldens updated**
+- none
+
+**ctest**
+- 65/65 pass, 0 failures
+
+**Self-updates to SKILL.md**
+- Updated expected design screenshot count `53` → `54`
+- Added coverage row `53_split_view_mismatched_zoom`
+- Marked `DES-I3` as completed in Improvement Backlog
+
+## Self-Improvement — 2026-03-08
+Improvement: Added design-review screenshot `53_split_view_mismatched_zoom` to verify split view renders correctly when panes have mismatched axis ranges (one auto-fit, one zoomed in with explicit xlim/ylim).
+Motivation: Previous split view coverage (screenshot 33) used two figures with similar auto-fit ranges, which could miss rendering bleed, shared-state corruption, or axis label overlap regressions when panes have dramatically different zoom levels.
+Change: `tests/qa/qa_agent.cpp` (new scenario + expected count 53→54), `skills/qa-designer-agent/SKILL.md` (coverage table/count + backlog status).
+Next gap: Audit all ImGui separator lines for 1px blurriness at non-integer DPI positions (DES-I4).
 
 ---
 

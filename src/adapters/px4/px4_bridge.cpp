@@ -70,6 +70,13 @@ static uint32_t read_u32_le(const uint8_t* p)
     return v;
 }
 
+static uint64_t read_u64_le(const uint8_t* p)
+{
+    uint64_t v;
+    std::memcpy(&v, p, 8);
+    return v;
+}
+
 static int16_t read_i16_le(const uint8_t* p)
 {
     int16_t v;
@@ -495,7 +502,7 @@ bool Px4Bridge::decode_mavlink_message(const uint8_t* data, size_t len,
         out.name = "GPS_RAW_INT";
         if (payload_len >= 30)
         {
-            out.fields.push_back({"time_usec", static_cast<double>(read_u32_le(payload))});
+            out.fields.push_back({"time_usec", static_cast<double>(read_u64_le(payload))});
             out.fields.push_back(
                 {"lat", static_cast<double>(read_i32_le(payload + 8)) * 1e-7});
             out.fields.push_back(
@@ -515,7 +522,8 @@ bool Px4Bridge::decode_mavlink_message(const uint8_t* data, size_t len,
         out.name = "HIGHRES_IMU";
         if (payload_len >= 62)
         {
-            // time_usec (8 bytes) at offset 0, but we read the 4-byte part.
+            out.fields.push_back(
+                {"time_usec", static_cast<double>(read_u64_le(payload))});
             out.fields.push_back({"xacc", static_cast<double>(read_f32_le(payload + 8))});
             out.fields.push_back({"yacc", static_cast<double>(read_f32_le(payload + 12))});
             out.fields.push_back({"zacc", static_cast<double>(read_f32_le(payload + 16))});

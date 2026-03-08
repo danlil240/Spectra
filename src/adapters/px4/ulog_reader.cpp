@@ -653,7 +653,7 @@ bool ULogReader::parse_definitions(const uint8_t* data, size_t size, size_t& off
             break;
 
         case MSG_PARAMETER:
-            if (!parse_parameter_message(payload, msg_size, false))
+            if (!parse_parameter_message(payload, msg_size, true))
                 return false;
             break;
 
@@ -886,6 +886,8 @@ bool ULogReader::parse_multi_info_message(const uint8_t* payload, uint16_t len)
         return true;
 
     // Format: is_continued (1 byte) + key_len (1 byte) + key + value
+    // The is_continued flag signals multi-part values; for read-only parsing
+    // we store each part as a separate info entry, so the flag is not needed.
     // uint8_t is_continued = payload[0];
     uint8_t key_len = payload[1];
 
@@ -921,7 +923,7 @@ bool ULogReader::parse_multi_info_message(const uint8_t* payload, uint16_t len)
 // parse_parameter_message
 // ---------------------------------------------------------------------------
 
-bool ULogReader::parse_parameter_message(const uint8_t* payload, uint16_t len, bool is_default)
+bool ULogReader::parse_parameter_message(const uint8_t* payload, uint16_t len, bool is_initial)
 {
     if (len < 2)
         return true;
@@ -956,10 +958,10 @@ bool ULogReader::parse_parameter_message(const uint8_t* payload, uint16_t len, b
         param.value_int = read_i32(val_ptr);
     }
 
-    if (is_default)
+    if (is_initial)
         initial_params_.push_back(std::move(param));
     else
-        initial_params_.push_back(std::move(param));
+        changed_params_.push_back(std::move(param));
 
     return true;
 }

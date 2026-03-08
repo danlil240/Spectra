@@ -423,8 +423,8 @@ TEST(ULogReaderTest, MultiInstanceSubscription)
     ASSERT_EQ(ts0->rows.size(), 1u);
     ASSERT_EQ(ts1->rows.size(), 1u);
 
-    auto [_, v0] = ts0->extract_field("temp");
-    auto [__, v1] = ts1->extract_field("temp");
+    auto [times0, v0] = ts0->extract_field("temp");
+    auto [times1, v1] = ts1->extract_field("temp");
 
     ASSERT_EQ(v0.size(), 1u);
     ASSERT_EQ(v1.size(), 1u);

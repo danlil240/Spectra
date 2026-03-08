@@ -341,7 +341,7 @@ private:
     bool parse_format_message(const uint8_t* payload, uint16_t len);
     bool parse_info_message(const uint8_t* payload, uint16_t len);
     bool parse_multi_info_message(const uint8_t* payload, uint16_t len);
-    bool parse_parameter_message(const uint8_t* payload, uint16_t len, bool is_default);
+    bool parse_parameter_message(const uint8_t* payload, uint16_t len, bool is_initial);
     bool parse_subscription_message(const uint8_t* payload, uint16_t len);
     bool parse_unsubscription_message(const uint8_t* payload, uint16_t len);
     bool parse_data_message(const uint8_t* payload, uint16_t len);

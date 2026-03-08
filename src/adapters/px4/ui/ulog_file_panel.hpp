@@ -61,9 +61,6 @@ private:
     std::string title_{"ULog File"};
     std::string current_file_;
 
-    // Tab state.
-    int active_tab_{0};
-
     // Topic tree filter.
     char topic_filter_buf_[128]{};
 

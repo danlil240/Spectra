@@ -1,0 +1,121 @@
+name: Update Golden Baselines
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_message:
+        description: 'Commit message for baseline update'
+        required: false
+        default: 'chore: regenerate golden test baselines on lavapipe'
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  update-baselines:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies + lavapipe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            vulkan-tools \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            mesa-vulkan-drivers \
+            mesa-utils \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev \
+            xvfb \
+            glslang-tools
+
+      - name: Pin Vulkan ICD to lavapipe
+        run: |
+          set -e
+          ICD_DIRS=(
+            /usr/share/vulkan/icd.d
+            /etc/vulkan/icd.d
+            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
+          )
+
+          LVP_ICD=""
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+              [ -f "$f" ] || continue
+              LVP_ICD="$f"
+              break 2
+            done
+          done
+
+          if [ -z "$LVP_ICD" ]; then
+            for d in "${ICD_DIRS[@]}"; do
+              [ -d "$d" ] || continue
+              F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
+              if [ -n "$F_MATCH" ]; then
+                LVP_ICD="$F_MATCH"
+                break
+              fi
+            done
+          fi
+
+          if [ -n "$LVP_ICD" ]; then
+            echo "Using lavapipe ICD: $LVP_ICD"
+            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+          else
+            echo "::error::lavapipe ICD not found"
+            exit 1
+          fi
+
+      - name: Configure + Build
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
+            -DSPECTRA_BUILD_EXAMPLES=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Regenerate baselines
+        env:
+          SPECTRA_UPDATE_BASELINES: "1"
+          SPECTRA_GOLDEN_BASELINE_DIR: ${{ github.workspace }}/tests/golden/baseline
+          SPECTRA_GOLDEN_OUTPUT_DIR: ${{ github.workspace }}/tests/golden/output
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          mkdir -p tests/golden/output
+          cd build
+          xvfb-run -a ctest -L golden -j1 || true
+
+      - name: Verify baselines were generated
+        run: |
+          count=$(ls tests/golden/baseline/*.raw 2>/dev/null | wc -l)
+          echo "Baseline files: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No baseline files were generated"
+            exit 1
+          fi
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/golden/baseline/
+          if git diff --cached --quiet; then
+            echo "No baseline changes to commit"
+          else
+            git commit -m "${{ inputs.commit_message }}"
+            git push
+          fi

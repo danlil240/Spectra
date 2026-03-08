@@ -342,8 +342,8 @@ void Px4Bridge::receive_thread_func()
 
     while (!stop_requested_.load(std::memory_order_relaxed))
     {
-        ssize_t n = ::recvfrom(socket_fd_, reinterpret_cast<char*>(recv_buf),
-                               sizeof(recv_buf), 0, nullptr, nullptr);
+        int n = static_cast<int>(::recvfrom(socket_fd_, reinterpret_cast<char*>(recv_buf),
+                               sizeof(recv_buf), 0, nullptr, nullptr));
         if (n <= 0)
             continue;  // timeout or error, retry
 
@@ -412,7 +412,7 @@ bool Px4Bridge::decode_mavlink_message(const uint8_t* data, size_t len,
                | (static_cast<uint32_t>(data[9]) << 16);
         payload = data + 10;
 
-        if (10 + payload_len + 2 > len)   // payload + CRC
+        if (static_cast<size_t>(10) + payload_len + 2u > len)   // payload + CRC
             return false;
     }
     else
@@ -422,7 +422,7 @@ bool Px4Bridge::decode_mavlink_message(const uint8_t* data, size_t len,
         msg_id = data[5];
         payload = data + 6;
 
-        if (6 + payload_len + 2 > len)   // payload + CRC
+        if (static_cast<size_t>(6) + payload_len + 2u > len)   // payload + CRC
             return false;
     }
 

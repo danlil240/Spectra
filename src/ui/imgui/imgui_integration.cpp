@@ -3348,6 +3348,56 @@ void ImGuiIntegration::draw_pane_tab_headers()
             }
         }
 
+        // ── Add button (+) after last tab ──
+        if (!is_menu_open())
+        {
+            float add_x = hr.x + 2.0f;
+            if (!ph.tabs.empty())
+            {
+                auto& last_tab = ph.tabs.back();
+                add_x          = last_tab.x + last_tab.w + 4.0f;
+            }
+            constexpr float ADD_BTN_W = 24.0f;
+            constexpr float ADD_BTN_H_PAD = 6.0f;
+            float add_y = hr.y + ADD_BTN_H_PAD;
+            float add_h = hr.h - ADD_BTN_H_PAD * 2;
+
+            if (add_x + ADD_BTN_W < hr.x + hr.w - 4.0f)
+            {
+                bool add_hovered = (mouse.x >= add_x && mouse.x < add_x + ADD_BTN_W
+                                    && mouse.y >= add_y && mouse.y < add_y + add_h);
+
+                ImU32 add_bg =
+                    add_hovered ? to_col(theme.accent_subtle) : to_col(theme.bg_secondary, 0.0f);
+                draw_list->AddRectFilled(ImVec2(add_x, add_y),
+                                         ImVec2(add_x + ADD_BTN_W, add_y + add_h),
+                                         add_bg,
+                                         4.0f);
+
+                ImVec2 center(add_x + ADD_BTN_W * 0.5f, add_y + add_h * 0.5f);
+                ImU32  plus_col =
+                    add_hovered ? to_col(theme.accent) : to_col(theme.text_tertiary);
+                float sz = 5.0f;
+                draw_list->AddLine(ImVec2(center.x - sz, center.y),
+                                   ImVec2(center.x + sz, center.y),
+                                   plus_col,
+                                   1.5f);
+                draw_list->AddLine(ImVec2(center.x, center.y - sz),
+                                   ImVec2(center.x, center.y + sz),
+                                   plus_col,
+                                   1.5f);
+
+                if (add_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    if (pane_tab_add_cb_)
+                        pane_tab_add_cb_();
+                    pane_tab_hovered_ = true;
+                }
+                if (add_hovered)
+                    pane_tab_hovered_ = true;
+            }
+        }
+
         ImGui::End();
         ImGui::PopStyleColor();
         ImGui::PopStyleVar(3);
@@ -3708,6 +3758,12 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 {
                     if (pane_tab_duplicate_cb_)
                         pane_tab_duplicate_cb_(pane_ctx_menu_fig_);
+                }
+
+                if (menu_item("New Tab"))
+                {
+                    if (pane_tab_add_cb_)
+                        pane_tab_add_cb_();
                 }
 
                 ImGui::Dummy(ImVec2(0, 2));

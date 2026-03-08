@@ -1546,6 +1546,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->data_interaction->set_axis_link_manager(&ui->axis_link_mgr);
 
     // Wire pane tab context menu callbacks
+    ui->imgui_ui->set_pane_tab_add_cb([fig_mgr_ptr]() { fig_mgr_ptr->queue_create(); });
     ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
                                             { fig_mgr_ptr->duplicate_figure(index); });
     ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)

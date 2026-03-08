@@ -239,8 +239,11 @@ class ImGuiIntegration
     using PaneTabRenameCallback =
         std::function<void(FigureId figure_id, const std::string& new_title)>;
 
+    using PaneTabAddCallback = std::function<void()>;
+
     void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
     void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
+    void set_pane_tab_add_cb(PaneTabAddCallback cb) { pane_tab_add_cb_ = std::move(cb); }
     void set_pane_tab_split_right_cb(PaneTabCallback cb)
     {
         pane_tab_split_right_cb_ = std::move(cb);
@@ -546,6 +549,7 @@ class ImGuiIntegration
     // Pane tab context menu callbacks
     PaneTabCallback       pane_tab_duplicate_cb_;
     PaneTabCallback       pane_tab_close_cb_;
+    PaneTabAddCallback    pane_tab_add_cb_;
     PaneTabCallback       pane_tab_split_right_cb_;
     PaneTabCallback       pane_tab_split_down_cb_;
     PaneTabDetachCallback pane_tab_detach_cb_;

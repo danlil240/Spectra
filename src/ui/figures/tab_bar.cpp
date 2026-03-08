@@ -764,6 +764,12 @@ void TabBar::draw_context_menu()
                     on_tab_duplicate_(context_menu_tab_);
             }
 
+            if (menu_item("New Tab"))
+            {
+                if (on_tab_add_)
+                    on_tab_add_();
+            }
+
             ImGui::Dummy(ImVec2(0, 2));
             ImGui::PushStyleColor(ImGuiCol_Separator,
                                   ImVec4(colors.border_subtle.r,

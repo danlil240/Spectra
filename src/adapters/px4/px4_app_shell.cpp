@@ -268,6 +268,30 @@ void Px4AppShell::shutdown()
 }
 
 // ---------------------------------------------------------------------------
+// set_window_manager
+// ---------------------------------------------------------------------------
+
+void Px4AppShell::set_window_manager(spectra::WindowManager* wm)
+{
+    if (file_panel_)
+        file_panel_->set_window_manager(wm);
+    if (live_panel_)
+        live_panel_->set_window_manager(wm);
+}
+
+// ---------------------------------------------------------------------------
+// process_pending_panels — deferred OS window create/destroy
+// ---------------------------------------------------------------------------
+
+void Px4AppShell::process_pending_panels()
+{
+    if (file_panel_)
+        file_panel_->process_pending();
+    if (live_panel_)
+        live_panel_->process_pending();
+}
+
+// ---------------------------------------------------------------------------
 // poll
 // ---------------------------------------------------------------------------
 
@@ -299,7 +323,6 @@ void Px4AppShell::draw()
         ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + menu_bar_h));
     ImGui::SetNextWindowSize(
         ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - menu_bar_h - status_bar_h));
-    ImGui::SetNextWindowViewport(viewport->ID);
 
     ImGuiWindowFlags host_flags =
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |

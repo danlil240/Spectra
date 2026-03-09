@@ -111,6 +111,10 @@ int main(int argc, char** argv)
             shell.draw();
         });
     }
+
+    // Wire WindowManager so panels can create real OS windows on detach.
+    if (auto* wm = app.window_manager())
+        shell.set_window_manager(wm);
 #endif
 
     // Render loop.
@@ -119,6 +123,7 @@ int main(int argc, char** argv)
         if (shell.shutdown_requested())
             break;
         auto result = app.step();
+        shell.process_pending_panels();
         if (result.should_exit)
             break;
     }

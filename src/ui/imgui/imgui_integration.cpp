@@ -30,6 +30,8 @@ static inline uint64_t vk_rp_to_u64(H rp)
         return static_cast<uint64_t>(rp);
 }
 
+
+
     #include "render/vulkan/vk_backend.hpp"
     #include "ui/animation/animation_curve_editor.hpp"
     #include "ui/data/axis_link.hpp"
@@ -235,12 +237,9 @@ void ImGuiIntegration::enable_docking()
 
 void ImGuiIntegration::enable_viewports()
 {
-    // Multi-viewport (ImGuiConfigFlags_ViewportsEnable) is intentionally NOT
-    // enabled.  Spectra draws many lightweight overlay windows (legends,
-    // tooltips, scrollbars) that must stay inside the main window.  Enabling
-    // viewports would turn each of these into a separate OS window.
-    // For true OS-level panel tearoff, use Spectra's native multi-window
-    // system (WindowManager) instead.
+    // Multi-viewport is incompatible with Spectra's overlay coordinate
+    // system (all positions are window-relative, ViewportsEnable switches
+    // them to screen-absolute).  Kept as a no-op for API stability.
 }
 
 void ImGuiIntegration::shutdown()
@@ -792,7 +791,7 @@ void ImGuiIntegration::render(VulkanBackend& backend)
 
 void ImGuiIntegration::render_viewports()
 {
-    // No-op — multi-viewport is not enabled.  Kept for API compatibility.
+    // No-op — see enable_viewports().
 }
 
 bool ImGuiIntegration::wants_capture_mouse() const

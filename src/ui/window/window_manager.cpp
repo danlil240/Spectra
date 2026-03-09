@@ -397,6 +397,35 @@ void WindowManager::shutdown()
     active_ptrs_.clear();
     pending_close_ids_.clear();
 
+    // Destroy pooled preview window if it exists
+    if (pooled_preview_)
+    {
+        if (pooled_preview_->ui_ctx)
+        {
+#ifdef SPECTRA_USE_IMGUI
+            if (pooled_preview_->ui_ctx->imgui_ui)
+            {
+                auto* prev_active = backend_->active_window();
+                backend_->set_active_window(pooled_preview_.get());
+                pooled_preview_->ui_ctx->imgui_ui->shutdown();
+                backend_->set_active_window(prev_active);
+            }
+            pooled_preview_->imgui_context = nullptr;
+#endif
+            pooled_preview_->ui_ctx.reset();
+        }
+        backend_->destroy_window_context(*pooled_preview_);
+#ifdef SPECTRA_USE_GLFW
+        if (pooled_preview_->glfw_window)
+        {
+            glfwDestroyWindow(static_cast<GLFWwindow*>(pooled_preview_->glfw_window));
+            pooled_preview_->native_window = nullptr;
+            pooled_preview_->glfw_window   = nullptr;
+        }
+#endif
+        pooled_preview_.reset();
+    }
+
     // Null active_window_ before backend_->shutdown() runs (via destructor or
     // explicit call). All WindowContext objects owned by windows_ are now
     // destroyed — active_window_ is a dangling pointer. Clearing it prevents
@@ -587,6 +616,85 @@ WindowContext* WindowManager::detach_figure(FigureId           figure_id,
     return wctx;
 }
 
+// ── Detached-panel window ───────────────────────────────────────────────────
+
+WindowContext* WindowManager::create_panel_window(uint32_t              width,
+                                                  uint32_t              height,
+                                                  const std::string&    title,
+                                                  std::function<void()> draw_callback,
+                                                  int                   screen_x,
+                                                  int                   screen_y)
+{
+    if (!backend_ || backend_->is_headless())
+        return nullptr;
+
+#ifdef SPECTRA_USE_GLFW
+    // Create a normal decorated, resizable window.
+    auto* wctx = create_window(width, height, title);
+    if (!wctx)
+        return nullptr;
+
+    set_window_position(*wctx, screen_x, screen_y);
+    wctx->title              = title;
+    wctx->panel_draw_callback = std::move(draw_callback);
+
+    // Install full input callbacks (cursor, mouse, key, scroll).
+    auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+    if (glfw_win)
+    {
+        glfwSetCursorPosCallback(glfw_win, glfw_cursor_pos_callback);
+        glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
+        glfwSetScrollCallback(glfw_win, glfw_scroll_callback);
+        glfwSetKeyCallback(glfw_win, glfw_key_callback);
+        glfwSetCharCallback(glfw_win, glfw_char_callback);
+        glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
+    }
+
+    // Minimal UI context: ImGuiIntegration only (no FigureManager/DockSystem).
+    auto ui      = std::make_unique<WindowUIContext>();
+    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+
+    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
+    auto*         prev_active    = backend_->active_window();
+    backend_->set_active_window(wctx);
+
+    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    {
+        SPECTRA_LOG_ERROR("window_manager",
+                          "create_panel_window: ImGui init failed for window "
+                              + std::to_string(wctx->id));
+        backend_->set_active_window(prev_active);
+        ImGui::SetCurrentContext(prev_imgui_ctx);
+        return nullptr;
+    }
+
+    wctx->imgui_context = ImGui::GetCurrentContext();
+    backend_->set_active_window(prev_active);
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+
+    wctx->ui_ctx = std::move(ui);
+
+    SPECTRA_LOG_INFO("window_manager",
+                     "Created panel window " + std::to_string(wctx->id) + ": "
+                         + std::to_string(width) + "x" + std::to_string(height)
+                         + " \"" + title + "\"");
+    return wctx;
+#else
+    (void)width;
+    (void)height;
+    (void)title;
+    (void)draw_callback;
+    (void)screen_x;
+    (void)screen_y;
+    return nullptr;
+#endif
+}
+
+void WindowManager::destroy_panel_window(uint32_t window_id)
+{
+    destroy_window(window_id);
+}
+
 // ── Tearoff preview window ──────────────────────────────────────────────────
 
 void WindowManager::request_preview_window(uint32_t           width,
@@ -602,6 +710,87 @@ void WindowManager::request_destroy_preview()
 {
     pending_preview_destroy_ = true;
     pending_preview_create_.reset();   // Cancel any pending create
+}
+
+void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
+{
+    if (pooled_preview_ || !backend_ || backend_->is_headless())
+        return;
+
+#ifdef SPECTRA_USE_GLFW
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);   // Create hidden
+
+    GLFWwindow* glfw_win = glfwCreateWindow(static_cast<int>(width),
+                                            static_cast<int>(height),
+                                            "Preview",
+                                            nullptr,
+                                            nullptr);
+
+    // Reset hints to defaults for future windows
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+    glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+
+    if (!glfw_win)
+    {
+        SPECTRA_LOG_WARN("window_manager", "warmup_preview_window: glfwCreateWindow failed");
+        return;
+    }
+
+    auto wctx            = std::make_unique<WindowContext>();
+    wctx->id             = next_window_id_++;
+    wctx->native_window  = glfw_win;
+    wctx->glfw_window    = glfw_win;
+    wctx->is_preview     = true;
+
+    if (!backend_->init_window_context(*wctx, width, height))
+    {
+        SPECTRA_LOG_WARN("window_manager", "warmup_preview_window: Vulkan init failed");
+        glfwDestroyWindow(glfw_win);
+        return;
+    }
+
+    glfwSetWindowUserPointer(glfw_win, this);
+    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
+    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+    glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
+
+    auto ui      = std::make_unique<WindowUIContext>();
+    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+
+    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
+    auto*         prev_active    = backend_->active_window();
+    backend_->set_active_window(wctx.get());
+
+    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    {
+        SPECTRA_LOG_WARN("window_manager", "warmup_preview_window: ImGui init failed");
+        backend_->set_active_window(prev_active);
+        ImGui::SetCurrentContext(prev_imgui_ctx);
+        backend_->destroy_window_context(*wctx);
+        glfwDestroyWindow(glfw_win);
+        return;
+    }
+
+    wctx->imgui_context = ImGui::GetCurrentContext();
+    backend_->set_active_window(prev_active);
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+
+    wctx->ui_ctx = std::move(ui);
+    pooled_preview_ = std::move(wctx);
+
+    SPECTRA_LOG_INFO("window_manager",
+                     "Warmed up preview window (id=" + std::to_string(pooled_preview_->id) + ")");
+#endif
 }
 
 void WindowManager::process_deferred_preview()
@@ -634,13 +823,56 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
                                                          int                screen_y,
                                                          const std::string& figure_title)
 {
-    // Destroy any existing preview window first
+    // Destroy any existing visible preview window first
     destroy_preview_window_impl();
 
     if (!backend_ || backend_->is_headless())
         return nullptr;
 
 #ifdef SPECTRA_USE_GLFW
+    // ── Fast path: reuse the pre-created hidden preview window ──────
+    if (pooled_preview_)
+    {
+        auto* glfw_win = static_cast<GLFWwindow*>(pooled_preview_->glfw_window);
+
+        // Update title, resize if needed, and position before showing
+        glfwSetWindowTitle(glfw_win, figure_title.c_str());
+
+        int cur_w = 0, cur_h = 0;
+        glfwGetWindowSize(glfw_win, &cur_w, &cur_h);
+        if (cur_w != static_cast<int>(width) || cur_h != static_cast<int>(height))
+        {
+            glfwSetWindowSize(glfw_win, static_cast<int>(width), static_cast<int>(height));
+            pooled_preview_->swapchain_dirty = true;
+        }
+
+        glfwSetWindowPos(glfw_win,
+                         screen_x - static_cast<int>(width) / 2,
+                         screen_y - static_cast<int>(height) / 3);
+
+        // Suppress spurious mouse release from glfwShowWindow on X11
+        if (mouse_release_tracking_)
+        {
+            suppress_release_until_ =
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+        }
+
+        glfwShowWindow(glfw_win);
+
+        pooled_preview_->title       = figure_title;
+        pooled_preview_->should_close = false;
+        preview_window_id_ = pooled_preview_->id;
+
+        WindowContext* ptr = pooled_preview_.get();
+        windows_.push_back(std::move(pooled_preview_));
+        rebuild_active_list();
+
+        SPECTRA_LOG_DEBUG("window_manager",
+                          "Activated pooled preview window " + std::to_string(ptr->id));
+        return ptr;
+    }
+
+    // ── Slow path: create from scratch (fallback) ──────────────────
     // Save and restore window hints after creating the preview window
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
@@ -775,6 +1007,30 @@ void WindowManager::destroy_preview_window_impl()
 
     uint32_t id        = preview_window_id_;
     preview_window_id_ = 0;
+
+#ifdef SPECTRA_USE_GLFW
+    // Recycle the preview window back into the pool instead of destroying it.
+    // Find it in windows_ and move it to pooled_preview_ after hiding.
+    auto it = std::find_if(windows_.begin(),
+                           windows_.end(),
+                           [id](const auto& w) { return w->id == id; });
+    if (it != windows_.end() && (*it)->is_preview && !pooled_preview_)
+    {
+        auto* glfw_win = static_cast<GLFWwindow*>((*it)->glfw_window);
+        if (glfw_win)
+            glfwHideWindow(glfw_win);
+
+        pooled_preview_ = std::move(*it);
+        windows_.erase(it);
+        rebuild_active_list();
+
+        SPECTRA_LOG_DEBUG("window_manager",
+                          "Recycled preview window " + std::to_string(id) + " to pool");
+        return;
+    }
+#endif
+
+    // Fallback: destroy if we couldn't recycle
     destroy_window(id);
 }
 

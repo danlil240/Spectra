@@ -286,6 +286,8 @@ struct EmbedSurface::Impl
         renderer->end_render_pass();
         backend->end_frame();
 
+
+
         return true;
     }
 };

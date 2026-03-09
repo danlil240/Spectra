@@ -849,6 +849,9 @@ int main(int argc, char* argv[])
             }
         }
     }
+
+    // Pre-create a hidden preview window so tab tearoff is instant.
+    window_mgr->warmup_preview_window();
 #endif
 
     // Headless fallback

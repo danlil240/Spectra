@@ -21,6 +21,7 @@
 namespace spectra
 {
 class Figure;
+class WindowManager;
 }
 
 namespace spectra::adapters::px4
@@ -88,6 +89,9 @@ public:
     // Bind to the Spectra render figure.
     void set_canvas_figure(spectra::Figure* fig) { canvas_figure_ = fig; }
 
+    // Wire WindowManager for OS-level panel tearoff.
+    void set_window_manager(spectra::WindowManager* wm);
+
     // Initialise components.
     bool init();
 
@@ -99,6 +103,9 @@ public:
 
     // Draw ImGui UI (call from ImGui frame).
     void draw();
+
+    // Process deferred panel create/destroy — call AFTER app.step().
+    void process_pending_panels();
 
     // Request graceful shutdown.
     void request_shutdown() { shutdown_requested_.store(true, std::memory_order_relaxed); }

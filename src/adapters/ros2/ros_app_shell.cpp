@@ -792,7 +792,6 @@ void RosAppShell::draw_dockspace()
         ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
                std::max(240.0f, vp->WorkSize.y - status_h)),
         ImGuiCond_Always);
-    ImGui::SetNextWindowViewport(vp->ID);
 
     ImGuiWindowFlags host_flags =
         ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |

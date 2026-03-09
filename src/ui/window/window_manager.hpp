@@ -144,7 +144,28 @@ class WindowManager
     // Returns the number of open windows.
     size_t window_count() const { return active_ptrs_.size(); }
 
+    // ── Detached-panel window ─────────────────────────────────────────
+
+    // Create a lightweight OS window that renders only panel content via
+    // the supplied draw callback.  Session runtime detects the callback
+    // and runs a minimal ImGui frame (no FigureManager / DockSystem).
+    // Returns the new WindowContext, or nullptr on failure.
+    WindowContext* create_panel_window(uint32_t                width,
+                                       uint32_t                height,
+                                       const std::string&      title,
+                                       std::function<void()>   draw_callback,
+                                       int                     screen_x = 0,
+                                       int                     screen_y = 0);
+
+    // Destroy a panel window by its ID (immediate, GPU-wait + cleanup).
+    void destroy_panel_window(uint32_t window_id);
+
     // ── Tearoff preview window ───────────────────────────────────────
+
+    // Pre-create a hidden preview window so tearoff drags are instant.
+    // Call once after the first window is fully initialized.
+    // Safe to call multiple times (no-op if already warmed up).
+    void warmup_preview_window(uint32_t width = 280, uint32_t height = 200);
 
     // Request creation of a preview window (deferred to avoid mutating
     // windows_ while iterating).  Safe to call from TabDragController.
@@ -272,6 +293,10 @@ class WindowManager
     // Tearoff preview window (0 = none active)
     uint32_t preview_window_id_ = 0;
     bool     preview_rendered_  = false;   // True after preview has been rendered at least once
+
+    // Pre-created hidden preview window for instant tearoff.
+    // Lives outside windows_ when pooled; moved in on show, back on hide.
+    std::unique_ptr<WindowContext> pooled_preview_;
 
     // Tab drag handlers (applied to every new window's TabDragController)
     TabDetachHandler tab_detach_handler_;

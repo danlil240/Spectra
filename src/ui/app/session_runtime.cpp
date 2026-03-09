@@ -169,7 +169,53 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         vk->end_render_pass();
                         vk->end_frame();
 
+
                         // Wait for GPU before the next window overwrites shared buffers.
+                        if (window_mgr->windows().size() > 1)
+                            vkQueueWaitIdle(vk->graphics_queue());
+                    }
+                    else
+                    {
+                        ImGui::EndFrame();
+                    }
+                }
+                continue;
+            }
+
+            // ── Panel window: lightweight ImGui frame with panel callback ──
+            if (wctx->panel_draw_callback)
+            {
+                if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui)
+                {
+                    wctx->ui_ctx->imgui_ui->new_frame();
+
+                    // Fill the entire OS window with a single ImGui window.
+                    ImGuiViewport* pvp = ImGui::GetMainViewport();
+                    ImGui::SetNextWindowPos(pvp->WorkPos);
+                    ImGui::SetNextWindowSize(pvp->WorkSize);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));
+
+                    ImGuiWindowFlags panel_flags =
+                        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                        ImGuiWindowFlags_NoBringToFrontOnFocus |
+                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+
+                    if (ImGui::Begin("##PanelContent", nullptr, panel_flags))
+                        wctx->panel_draw_callback();
+                    ImGui::End();
+                    ImGui::PopStyleVar(3);
+
+                    bool frame_ok = vk->begin_frame();
+                    if (frame_ok)
+                    {
+                        vk->begin_render_pass(Color{0.0f, 0.0f, 0.0f, 1.0f});
+                        wctx->ui_ctx->imgui_ui->render(*vk);
+                        vk->end_render_pass();
+                        vk->end_frame();
+
                         if (window_mgr->windows().size() > 1)
                             vkQueueWaitIdle(vk->graphics_queue());
                     }

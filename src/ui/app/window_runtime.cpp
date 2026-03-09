@@ -972,6 +972,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("end_frame");
 
+
+
         // Post-present recovery: if vkQueuePresentKHR returned OUT_OF_DATE,
         // the swapchain is permanently invalidated (Vulkan spec). Recreate
         // now so the next frame's begin_frame() starts with a valid swapchain

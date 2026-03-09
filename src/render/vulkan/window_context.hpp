@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <spectra/fwd.hpp>
 #include <string>
@@ -97,6 +98,10 @@ struct WindowContext
     // nullptr for legacy secondary windows that have no ImGui.
     // Set for windows created via WindowManager::create_window_with_ui().
     std::unique_ptr<WindowUIContext> ui_ctx;
+
+    // Panel window: when set, session_runtime renders only this callback
+    // instead of the full Spectra UI.  Used for detached panels.
+    std::function<void()> panel_draw_callback;
 };
 
 }   // namespace spectra

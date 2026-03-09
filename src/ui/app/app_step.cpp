@@ -273,6 +273,9 @@ void App::init_runtime()
                 rt.ui_ctx_ptr = initial_wctx->ui_ctx.get();
             }
 
+            // Pre-create a hidden preview window so tab tearoff is instant.
+            rt.window_mgr->warmup_preview_window();
+
             for (size_t gi = 1; gi < window_groups.size(); ++gi)
             {
                 auto& group = window_groups[gi];

@@ -14,9 +14,11 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 LiveConnectionPanel::LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr)
-    : bridge_(bridge)
+    : DetachablePanel("PX4 Live")
+    , bridge_(bridge)
     , plot_mgr_(plot_mgr)
 {
+    set_detached_size(450.0f, 350.0f);
 }
 
 LiveConnectionPanel::~LiveConnectionPanel() = default;
@@ -25,24 +27,14 @@ LiveConnectionPanel::~LiveConnectionPanel() = default;
 // draw
 // ---------------------------------------------------------------------------
 
-void LiveConnectionPanel::draw(bool* p_open)
+void LiveConnectionPanel::draw_content()
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::Begin(title_.c_str(), p_open))
-    {
-        ImGui::End();
-        return;
-    }
-
     draw_connection_controls();
     ImGui::Separator();
     draw_status();
     ImGui::Separator();
     draw_channel_list();
-
-    ImGui::End();
-#else
-    (void)p_open;
 #endif
 }
 

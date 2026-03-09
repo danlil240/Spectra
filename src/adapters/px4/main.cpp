@@ -105,6 +105,7 @@ int main(int argc, char** argv)
     auto* ui_ctx = app.ui_context();
     if (ui_ctx && ui_ctx->imgui_ui)
     {
+        ui_ctx->imgui_ui->enable_docking();
         ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
         {
             shell.draw();

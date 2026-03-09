@@ -9,6 +9,8 @@
 #include "../px4_bridge.hpp"
 #include "../px4_plot_manager.hpp"
 
+#include <ui/panel/detachable_panel.hpp>
+
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -21,17 +23,14 @@ namespace spectra::adapters::px4
 // LiveConnectionPanel
 // ---------------------------------------------------------------------------
 
-class LiveConnectionPanel
+class LiveConnectionPanel : public spectra::ui::DetachablePanel
 {
 public:
     explicit LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr);
-    ~LiveConnectionPanel();
+    ~LiveConnectionPanel() override;
 
-    // Draw the panel.
-    void draw(bool* p_open = nullptr);
-
-    const std::string& title() const { return title_; }
-    void set_title(const std::string& t) { title_ = t; }
+protected:
+    void draw_content() override;
 
 private:
     void draw_connection_controls();
@@ -40,8 +39,6 @@ private:
 
     Px4Bridge&      bridge_;
     Px4PlotManager& plot_mgr_;
-
-    std::string title_{"PX4 Live"};
 
     // Connection config.
     char host_buf_[64]{"127.0.0.1"};

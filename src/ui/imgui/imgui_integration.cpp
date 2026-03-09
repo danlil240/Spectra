@@ -233,6 +233,16 @@ void ImGuiIntegration::enable_docking()
 #endif
 }
 
+void ImGuiIntegration::enable_viewports()
+{
+    // Multi-viewport (ImGuiConfigFlags_ViewportsEnable) is intentionally NOT
+    // enabled.  Spectra draws many lightweight overlay windows (legends,
+    // tooltips, scrollbars) that must stay inside the main window.  Enabling
+    // viewports would turn each of these into a separate OS window.
+    // For true OS-level panel tearoff, use Spectra's native multi-window
+    // system (WindowManager) instead.
+}
+
 void ImGuiIntegration::shutdown()
 {
     if (!initialized_)
@@ -778,6 +788,11 @@ void ImGuiIntegration::render(VulkanBackend& backend)
     auto* dd = ImGui::GetDrawData();
     if (dd)
         ImGui_ImplVulkan_RenderDrawData(dd, backend.current_command_buffer());
+}
+
+void ImGuiIntegration::render_viewports()
+{
+    // No-op — multi-viewport is not enabled.  Kept for API compatibility.
 }
 
 bool ImGuiIntegration::wants_capture_mouse() const
@@ -2309,6 +2324,92 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
+
+    // Draw interactive page scrollbar when subplots overflow the visible canvas area
+    if (figure.needs_scroll(bounds.h))
+    {
+        float content_h  = figure.content_height();
+        float scroll_off = figure.scroll_offset_y();
+        float max_scroll = std::max(0.0f, content_h - bounds.h);
+
+        constexpr float SCROLLBAR_WIDTH = 12.0f;
+        constexpr float SCROLLBAR_PAD   = 2.0f;
+        constexpr float MIN_THUMB_H     = 20.0f;
+
+        float sb_x = bounds.x + bounds.w - SCROLLBAR_WIDTH - SCROLLBAR_PAD;
+        float sb_y = bounds.y + SCROLLBAR_PAD;
+        float sb_h = bounds.h - SCROLLBAR_PAD * 2.0f;
+
+        // Thumb size proportional to visible/total ratio
+        float ratio   = bounds.h / content_h;
+        float thumb_h = std::max(MIN_THUMB_H, sb_h * ratio);
+        float track_h = sb_h - thumb_h;
+        float thumb_y = sb_y + (max_scroll > 0.0f ? (scroll_off / max_scroll) * track_h : 0.0f);
+
+        // Interactive scrollbar: invisible window over the scrollbar track
+        ImGui::SetNextWindowPos(ImVec2(sb_x, sb_y));
+        ImGui::SetNextWindowSize(ImVec2(SCROLLBAR_WIDTH, sb_h));
+        ImGuiWindowFlags sb_flags =
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+            | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        if (ImGui::Begin("##page_scrollbar", nullptr, sb_flags))
+        {
+            ImGui::SetCursorScreenPos(ImVec2(sb_x, sb_y));
+            ImGui::InvisibleButton("##sb_track", ImVec2(SCROLLBAR_WIDTH, sb_h));
+            bool track_hovered = ImGui::IsItemHovered();
+            bool track_active  = ImGui::IsItemActive();
+
+            if (track_active && max_scroll > 0.0f)
+            {
+                float mouse_y   = ImGui::GetIO().MousePos.y;
+                float rel        = (mouse_y - sb_y - thumb_h * 0.5f) / track_h;
+                rel              = std::clamp(rel, 0.0f, 1.0f);
+                float new_scroll = rel * max_scroll;
+                figure.set_scroll_offset_y(new_scroll);
+                scroll_off = new_scroll;
+                thumb_y    = sb_y + rel * track_h;
+            }
+
+            // Determine thumb visual state
+            bool thumb_hovered = track_hovered
+                                 && ImGui::GetIO().MousePos.y >= thumb_y
+                                 && ImGui::GetIO().MousePos.y <= thumb_y + thumb_h;
+
+            ImDrawList* dl = ImGui::GetForegroundDrawList();
+
+            // Track background
+            auto  bg        = ui::theme().bg_elevated;
+            ImU32 track_col = IM_COL32(
+                static_cast<uint8_t>(bg.r * 255),
+                static_cast<uint8_t>(bg.g * 255),
+                static_cast<uint8_t>(bg.b * 255),
+                100);
+            dl->AddRectFilled(
+                ImVec2(sb_x, sb_y),
+                ImVec2(sb_x + SCROLLBAR_WIDTH, sb_y + sb_h),
+                track_col,
+                SCROLLBAR_WIDTH * 0.5f);
+
+            // Thumb with hover/active highlight
+            auto    accent = ui::theme().accent;
+            uint8_t alpha  = track_active ? 240 : (thumb_hovered ? 210 : 180);
+            ImU32   thumb_col = IM_COL32(
+                static_cast<uint8_t>(accent.r * 255),
+                static_cast<uint8_t>(accent.g * 255),
+                static_cast<uint8_t>(accent.b * 255),
+                alpha);
+            dl->AddRectFilled(
+                ImVec2(sb_x, thumb_y),
+                ImVec2(sb_x + SCROLLBAR_WIDTH, thumb_y + thumb_h),
+                thumb_col,
+                SCROLLBAR_WIDTH * 0.5f);
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+    }
 }
 
 void ImGuiIntegration::draw_inspector(Figure& figure)

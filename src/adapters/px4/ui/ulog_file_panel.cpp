@@ -16,9 +16,11 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 ULogFilePanel::ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr)
-    : reader_(reader)
+    : DetachablePanel("ULog File")
+    , reader_(reader)
     , plot_mgr_(plot_mgr)
 {
+    set_detached_size(500.0f, 400.0f);
 }
 
 ULogFilePanel::~ULogFilePanel() = default;
@@ -27,15 +29,9 @@ ULogFilePanel::~ULogFilePanel() = default;
 // draw
 // ---------------------------------------------------------------------------
 
-void ULogFilePanel::draw(bool* p_open)
+void ULogFilePanel::draw_content()
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::Begin(title_.c_str(), p_open))
-    {
-        ImGui::End();
-        return;
-    }
-
     draw_file_header();
 
     if (reader_.is_open())
@@ -74,10 +70,6 @@ void ULogFilePanel::draw(bool* p_open)
     {
         ImGui::TextWrapped("No ULog file loaded. Click 'Open' to load a .ulg file.");
     }
-
-    ImGui::End();
-#else
-    (void)p_open;
 #endif
 }
 

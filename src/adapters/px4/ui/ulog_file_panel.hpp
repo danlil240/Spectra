@@ -9,6 +9,8 @@
 #include "../px4_plot_manager.hpp"
 #include "../ulog_reader.hpp"
 
+#include <ui/panel/detachable_panel.hpp>
+
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -21,14 +23,11 @@ namespace spectra::adapters::px4
 // ULogFilePanel
 // ---------------------------------------------------------------------------
 
-class ULogFilePanel
+class ULogFilePanel : public spectra::ui::DetachablePanel
 {
 public:
     explicit ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr);
-    ~ULogFilePanel();
-
-    // Draw the panel.  Call once per frame inside an ImGui context.
-    void draw(bool* p_open = nullptr);
+    ~ULogFilePanel() override;
 
     // Set callback for when a field is double-clicked (add to plot).
     using FieldCallback = std::function<void(const std::string& topic,
@@ -40,12 +39,11 @@ public:
     using FileCallback = std::function<void(const std::string& path)>;
     void set_file_callback(FileCallback cb) { file_cb_ = std::move(cb); }
 
-    // Panel title.
-    const std::string& title() const { return title_; }
-    void set_title(const std::string& t) { title_ = t; }
-
     // Last opened file path.
     const std::string& current_file() const { return current_file_; }
+
+protected:
+    void draw_content() override;
 
 private:
     void draw_file_header();
@@ -58,7 +56,6 @@ private:
     ULogReader&     reader_;
     Px4PlotManager& plot_mgr_;
 
-    std::string title_{"ULog File"};
     std::string current_file_;
 
     // Topic tree filter.

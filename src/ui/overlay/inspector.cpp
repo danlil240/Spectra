@@ -146,6 +146,7 @@ void Inspector::draw_figure_properties(Figure& fig)
             widgets::section_spacing();
             widgets::drag_field("H Gap", sty.subplot_hgap, 0.5f, 0.0f, 200.0f, "%.0f px");
             widgets::drag_field("V Gap", sty.subplot_vgap, 0.5f, 0.0f, 200.0f, "%.0f px");
+            widgets::drag_field("Min Row H", sty.min_subplot_height, 1.0f, 0.0f, 1000.0f, "%.0f px");
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();

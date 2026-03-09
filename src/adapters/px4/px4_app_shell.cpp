@@ -6,6 +6,9 @@
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+#ifdef IMGUI_HAS_DOCK
+#include <imgui_internal.h>
+#endif
 #include "../../../third_party/tinyfiledialogs.h"
 #endif
 
@@ -286,6 +289,67 @@ void Px4AppShell::draw()
 #ifdef SPECTRA_USE_IMGUI
     draw_menu_bar();
 
+    // Create a dockspace over the main viewport so panels can dock/undock.
+#ifdef IMGUI_HAS_DOCK
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float menu_bar_h = ImGui::GetFrameHeight();
+    float status_bar_h = ImGui::GetFrameHeight();
+
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + menu_bar_h));
+    ImGui::SetNextWindowSize(
+        ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - menu_bar_h - status_bar_h));
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGuiWindowFlags host_flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("##Px4DockHost", nullptr, host_flags);
+    ImGui::PopStyleVar(3);
+
+    ImGuiID dockspace_id = ImGui::GetID("Px4Dockspace");
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
+                     ImGuiDockNodeFlags_PassthruCentralNode);
+
+    // Apply default layout once — after DockSpace() has created the node.
+    if (!dock_layout_initialized_)
+    {
+        dock_layout_initialized_ = true;
+
+        // The DockSpace() call above already created/refreshed the node.
+        // Just set its size and split it — do NOT call DockBuilderAddNode
+        // with DockSpace flag (it internally removes-then-recreates via
+        // KeepAliveOnly which fails on the first frame).
+        ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+        // Split: left panel (30%) | main plot area (70%).
+        ImGuiID dock_left, dock_main;
+        ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f,
+                                    &dock_left, &dock_main);
+
+        if (file_panel_)
+            ImGui::DockBuilderDockWindow(file_panel_->title().c_str(), dock_left);
+        if (live_panel_)
+            ImGui::DockBuilderDockWindow(live_panel_->title().c_str(), dock_left);
+
+        ImGui::DockBuilderFinish(dockspace_id);
+    }
+
+    // Store dockspace ID on panels so they can re-attach.
+    if (file_panel_)
+        file_panel_->set_dock_id(dockspace_id);
+    if (live_panel_)
+        live_panel_->set_dock_id(dockspace_id);
+
+    ImGui::End();
+#endif   // IMGUI_HAS_DOCK
+
     if (show_file_panel_ && file_panel_)
         file_panel_->draw(&show_file_panel_);
 
@@ -461,6 +525,9 @@ void Px4AppShell::sync_auto_plot_figure()
     if (!canvas_figure_)
         return;
 
+    const uint64_t revision = plot_mgr_.revision();
+    const bool     data_changed = (revision != last_canvas_revision_);
+
     const int n = static_cast<int>(auto_plot_groups_.size());
     if (n == 0)
     {
@@ -469,6 +536,7 @@ void Px4AppShell::sync_auto_plot_figure()
         ax.title("PX4 ULog — no data");
         ax.xlabel("time (s)");
         canvas_figure_->legend().visible = false;
+        last_canvas_revision_ = revision;
         return;
     }
 
@@ -501,7 +569,7 @@ void Px4AppShell::sync_auto_plot_figure()
                 ls.label(f.label);
             }
         }
-        else
+        else if (data_changed)
         {
             for (size_t j = 0; j < group.fields.size(); ++j)
             {
@@ -524,11 +592,13 @@ void Px4AppShell::sync_auto_plot_figure()
             }
         }
 
-        if (!group.fields.empty())
+        // Only auto-fit when data actually changed, so user zoom is preserved.
+        if (!group.fields.empty() && (needs_rebuild || data_changed))
             ax.auto_fit();
     }
 
     canvas_figure_->legend().visible = true;
+    last_canvas_revision_ = revision;
 }
 
 // ---------------------------------------------------------------------------
@@ -665,6 +735,32 @@ void Px4AppShell::draw_menu_bar()
         {
             ImGui::MenuItem("ULog File", nullptr, &show_file_panel_);
             ImGui::MenuItem("Live Connection", nullptr, &show_live_panel_);
+
+            ImGui::Separator();
+
+            if (file_panel_)
+            {
+                bool detached = file_panel_->is_detached();
+                if (ImGui::MenuItem("Detach ULog Panel", nullptr, detached))
+                {
+                    if (detached)
+                        file_panel_->attach();
+                    else
+                        file_panel_->detach();
+                }
+            }
+            if (live_panel_)
+            {
+                bool detached = live_panel_->is_detached();
+                if (ImGui::MenuItem("Detach Live Panel", nullptr, detached))
+                {
+                    if (detached)
+                        live_panel_->attach();
+                    else
+                        live_panel_->detach();
+                }
+            }
+
             ImGui::EndMenu();
         }
 

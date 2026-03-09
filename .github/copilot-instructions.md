@@ -56,6 +56,12 @@ When a request in this workspace matches one of the skill domains below, read th
 - Golden image failures, rendering regressions, baseline updates, and pixel-diff validation: `skills/qa-regression-agent/SKILL.md`
 - ROS2 QA, spectra-ros workflows, ROS session validation, diagnostics, TF, and bag playback: `skills/qa-ros-performance-agent/SKILL.md`
 - General Spectra engine guidance for Vulkan diagnostics, synchronization, resize stability, animation determinism, multi-window behavior, memory discipline, and architectural boundaries: `.windsurf/skills/spectra-skills/SKILL.md`
+- GLSL shader development, new GPU pipelines, SPIR-V compilation, SDF rendering, and pipeline configuration: `skills/vulkan-shader-dev/SKILL.md`
+- IPC protocol changes, new message types, codec encode/decode, transport layer, daemon routing, and multi-process communication: `skills/ipc-protocol-dev/SKILL.md`
+- CMake build system, adding targets, feature flags, shader/asset compilation, dependency management, and CI configuration: `skills/build-system/SKILL.md`
+- Python client library, Python API extension, easy API, embedding, session management, and Python↔Backend codec sync: `skills/python-bindings/SKILL.md`
+- 3D rendering, new 3D series types, camera, lighting, colormaps, depth buffer, Axes3D, and 3D shader development: `skills/3d-rendering/SKILL.md`
+- Data decimation, filters, transforms, live streaming, CSV import, GPU data upload, and series data model: `skills/data-pipeline/SKILL.md`
 
 ## Operating Rules
 

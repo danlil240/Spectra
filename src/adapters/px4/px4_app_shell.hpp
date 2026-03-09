@@ -151,6 +151,7 @@ private:
 
     bool show_file_panel_{true};
     bool show_live_panel_{false};
+    bool dock_layout_initialized_{false};
     std::string last_open_error_;
 };
 

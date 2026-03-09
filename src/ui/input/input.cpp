@@ -1300,6 +1300,17 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
             }
         }
     }
+    else if (figure_ && figure_->needs_scroll(visible_height_) && visible_height_ > 0.0f)
+    {
+        // Cursor is not over any axes and the figure has scrollable overflow.
+        // Scroll the page instead of zooming.
+        constexpr float SCROLL_SPEED = 40.0f;
+        float new_offset = figure_->scroll_offset_y() - static_cast<float>(y_offset) * SCROLL_SPEED;
+        float max_scroll = std::max(0.0f, figure_->content_height() - visible_height_);
+        new_offset        = std::clamp(new_offset, 0.0f, max_scroll);
+        figure_->set_scroll_offset_y(new_offset);
+        return;
+    }
 
     // Handle 3D zoom by scaling axis limits (box stays fixed visual size)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))

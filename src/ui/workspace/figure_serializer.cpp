@@ -502,6 +502,7 @@ bool FigureSerializer::save(const std::string& path, const Figure& figure)
         w.write_f32(s.margin_right);
         w.write_f32(s.subplot_hgap);
         w.write_f32(s.subplot_vgap);
+        w.write_f32(s.min_subplot_height);
         w.end_chunk(pos);
     }
 
@@ -635,6 +636,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 s.margin_right  = r.read_f32();
                 s.subplot_hgap  = r.read_f32();
                 s.subplot_vgap  = r.read_f32();
+                if (r.good() && len >= 32)   // backward compat: field added after v3
+                    s.min_subplot_height = r.read_f32();
                 break;
             }
 

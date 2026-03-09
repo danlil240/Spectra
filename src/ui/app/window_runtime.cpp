@@ -669,13 +669,30 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         pane_margins.bottom =
                             std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
                         pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
+
+                        float content_h  = 0.0f;
+                        float min_sub_h  = fs_style.min_subplot_height;
+                        float origin_y   = pinfo.bounds.y - fig->scroll_offset_y();
+
                         const auto rects = compute_subplot_layout(pinfo.bounds.w,
                                                                   pinfo.bounds.h,
                                                                   fig->grid_rows_,
                                                                   fig->grid_cols_,
                                                                   pane_margins,
                                                                   pinfo.bounds.x,
-                                                                  pinfo.bounds.y);
+                                                                  origin_y,
+                                                                  min_sub_h,
+                                                                  &content_h);
+                        fig->set_content_height(content_h);
+
+                        // Clamp scroll offset to valid range
+                        float max_scroll =
+                            std::max(0.0f, content_h - pinfo.bounds.h);
+                        if (fig->scroll_offset_y() > max_scroll)
+                            fig->set_scroll_offset_y(max_scroll);
+                        if (fig->scroll_offset_y() < 0.0f)
+                            fig->set_scroll_offset_y(0.0f);
+
                         for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i)
                         {
                             if (fig->axes_mut()[i])
@@ -704,13 +721,28 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 fig_margins.right  = af_style.margin_right;
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
+
+                float content_h  = 0.0f;
+                float min_sub_h  = af_style.min_subplot_height;
+                float origin_y   = cb.y - active_figure->scroll_offset_y();
+
                 const auto rects   = compute_subplot_layout(cb.w,
                                                           cb.h,
                                                           active_figure->grid_rows_,
                                                           active_figure->grid_cols_,
                                                           fig_margins,
                                                           cb.x,
-                                                          cb.y);
+                                                          origin_y,
+                                                          min_sub_h,
+                                                          &content_h);
+                active_figure->set_content_height(content_h);
+
+                // Clamp scroll offset to valid range
+                float max_scroll = std::max(0.0f, content_h - cb.h);
+                if (active_figure->scroll_offset_y() > max_scroll)
+                    active_figure->set_scroll_offset_y(max_scroll);
+                if (active_figure->scroll_offset_y() < 0.0f)
+                    active_figure->set_scroll_offset_y(0.0f);
 
                 for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i)
                 {
@@ -736,6 +768,20 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #else
         if (active_figure)
             active_figure->compute_layout();
+#endif
+
+#ifdef SPECTRA_USE_GLFW
+        // Update input handler with visible canvas height for page scroll
+        if (active_figure)
+        {
+#ifdef SPECTRA_USE_IMGUI
+            if (imgui_ui)
+            {
+                const Rect c = imgui_ui->get_layout_manager().canvas_rect();
+                ui_ctx.input_handler.set_visible_height(c.h);
+            }
+#endif
+        }
 #endif
         if (profiler)
             profiler->end_stage("scene_update");

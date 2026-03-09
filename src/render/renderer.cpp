@@ -308,6 +308,9 @@ void Renderer::render_plot_text(Figure& figure)
 
     constexpr float tick_padding = 5.0f;
 
+    uint32_t fig_w = figure.width();
+    uint32_t fig_h = figure.height();
+
     // ── 2D Axes: tick labels, axis labels, title ──
     for (auto& axes_ptr : figure.axes())
     {
@@ -315,6 +318,11 @@ void Renderer::render_plot_text(Figure& figure)
             continue;
         auto&       axes = *axes_ptr;
         const auto& vp   = axes.viewport();
+
+        // Skip axes entirely outside the framebuffer (scrolled off-screen)
+        if (vp.y + vp.h < 0.0f || vp.y > static_cast<float>(fig_h))
+            continue;
+
         auto        xlim = axes.x_limits();
         auto        ylim = axes.y_limits();
 
@@ -689,6 +697,10 @@ void Renderer::render_plot_geometry(Figure& figure)
             continue;
         auto&       axes = *axes_ptr;
         const auto& vp   = axes.viewport();
+
+        // Skip axes entirely outside the framebuffer (scrolled off-screen)
+        if (vp.y + vp.h < 0.0f || vp.y > fh)
+            continue;
 
         // ── Border: 4 lines at viewport edges (screen-space) ──
         // Rendered in screen space to avoid a GPU buffer race condition:
@@ -1306,16 +1318,30 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
 
 void Renderer::render_axes(AxesBase&   axes,
                            const Rect& viewport,
-                           uint32_t    /*fig_width*/,
-                           uint32_t    /*fig_height*/)
+                           uint32_t    fig_width,
+                           uint32_t    fig_height)
 {
-    // Set scissor to axes viewport
-    backend_.set_scissor(static_cast<int32_t>(viewport.x),
-                         static_cast<int32_t>(viewport.y),
-                         static_cast<uint32_t>(viewport.w),
-                         static_cast<uint32_t>(viewport.h));
+    // Skip axes entirely outside the framebuffer (scrolled off-screen)
+    if (viewport.y + viewport.h < 0.0f || viewport.y > static_cast<float>(fig_height))
+        return;
+    if (viewport.x + viewport.w < 0.0f || viewport.x > static_cast<float>(fig_width))
+        return;
 
-    // Set viewport
+    // Clamp scissor to framebuffer bounds to avoid negative offsets
+    float sx = std::max(0.0f, viewport.x);
+    float sy = std::max(0.0f, viewport.y);
+    float sx2 = std::min(static_cast<float>(fig_width), viewport.x + viewport.w);
+    float sy2 = std::min(static_cast<float>(fig_height), viewport.y + viewport.h);
+    float sw = std::max(0.0f, sx2 - sx);
+    float sh = std::max(0.0f, sy2 - sy);
+
+    // Set scissor to clamped axes viewport
+    backend_.set_scissor(static_cast<int32_t>(sx),
+                         static_cast<int32_t>(sy),
+                         static_cast<uint32_t>(sw),
+                         static_cast<uint32_t>(sh));
+
+    // Set viewport (Vulkan viewport can have negative origin for proper rendering)
     backend_.set_viewport(viewport.x, viewport.y, viewport.w, viewport.h);
 
     FrameUBO ubo{};

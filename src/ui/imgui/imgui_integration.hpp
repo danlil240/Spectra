@@ -300,6 +300,14 @@ class ImGuiIntegration
     // NewFrame() to avoid an ImGui assertion.
     void enable_docking();
 
+    // Enable ImGui multi-viewport support (tear-off OS windows).
+    // Must be called BEFORE the first NewFrame().
+    void enable_viewports();
+
+    // Render secondary viewport windows (detached panels in their own OS windows).
+    // Must be called AFTER the main render pass ends and command buffer is submitted.
+    void render_viewports();
+
     // Series selection from canvas click (updates inspector context, toggles on re-click)
     void select_series(Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx);
 

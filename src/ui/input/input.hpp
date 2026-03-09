@@ -132,6 +132,10 @@ class InputHandler
     // Set the viewport rect for coordinate mapping (single-axes fallback)
     void set_viewport(float vp_x, float vp_y, float vp_w, float vp_h);
 
+    // Set visible canvas height (for page scroll when subplots overflow)
+    void  set_visible_height(float h) { visible_height_ = h; }
+    float visible_height() const { return visible_height_; }
+
     // Current interaction state (dragging)
     InteractionMode mode() const { return mode_; }
     void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
@@ -221,6 +225,9 @@ class InputHandler
     float vp_y_ = 0.0f;
     float vp_w_ = 1.0f;
     float vp_h_ = 1.0f;
+
+    // Visible canvas height for page scroll
+    float visible_height_ = 0.0f;
 
     // Callbacks
     SavePngCallback save_callback_;

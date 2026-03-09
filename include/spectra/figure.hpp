@@ -37,13 +37,14 @@ struct LegendConfig
 
 struct FigureStyle
 {
-    Color background    = colors::white;
-    float margin_top    = 40.0f;
-    float margin_bottom = 60.0f;
-    float margin_left   = 70.0f;
-    float margin_right  = 20.0f;
-    float subplot_hgap  = 40.0f;
-    float subplot_vgap  = 50.0f;
+    Color background        = colors::white;
+    float margin_top        = 40.0f;
+    float margin_bottom     = 60.0f;
+    float margin_left       = 70.0f;
+    float margin_right      = 20.0f;
+    float subplot_hgap      = 40.0f;
+    float subplot_vgap      = 50.0f;
+    float min_subplot_height = 150.0f;   // Minimum pixel height per subplot row
 };
 
 class AnimationBuilder
@@ -104,6 +105,13 @@ class Figure
     int grid_rows() const { return grid_rows_; }
     int grid_cols() const { return grid_cols_; }
 
+    // Scroll state for overflowing subplot grids
+    float scroll_offset_y() const { return scroll_offset_y_; }
+    void  set_scroll_offset_y(float offset) { scroll_offset_y_ = offset; }
+    float content_height() const { return content_height_; }
+    void  set_content_height(float h) { content_height_ = h; }
+    bool  needs_scroll(float visible_height) const { return content_height_ > visible_height + 0.5f; }
+
     // Explicitly set grid dimensions (e.g. after removing rows/cols).
     void set_grid(int rows, int cols)
     {
@@ -133,6 +141,10 @@ class Figure
     std::vector<std::unique_ptr<AxesBase>> all_axes_;
     int                                    grid_rows_ = 1;
     int                                    grid_cols_ = 1;
+
+    // Scroll state for overflow when subplots exceed visible area
+    float scroll_offset_y_ = 0.0f;
+    float content_height_  = 0.0f;
 
     // Pending PNG export path (set by save_png, executed after render)
     std::string png_export_path_;

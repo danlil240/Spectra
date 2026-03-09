@@ -44,6 +44,33 @@ struct Px4AppConfig
 Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out);
 
 // ---------------------------------------------------------------------------
+// AutoPlotField — one field within an auto-plot group.
+// ---------------------------------------------------------------------------
+
+struct AutoPlotField
+{
+    std::string topic;
+    std::string field;
+    int         array_idx{-1};
+    uint8_t     multi_id{0};
+    std::string label;
+
+    std::vector<float> times;
+    std::vector<float> values;
+};
+
+// ---------------------------------------------------------------------------
+// AutoPlotGroup — a logical group of related fields shown in one subplot.
+// ---------------------------------------------------------------------------
+
+struct AutoPlotGroup
+{
+    std::string               title;
+    std::string               ylabel;
+    std::vector<AutoPlotField> fields;
+};
+
+// ---------------------------------------------------------------------------
 // Px4AppShell
 // ---------------------------------------------------------------------------
 
@@ -83,6 +110,12 @@ public:
     // Open a ULog file (offline analysis).
     bool open_ulog(const std::string& path);
 
+    // Auto-plot interesting fields from the loaded ULog (flight-review style).
+    void auto_plot_ulog();
+
+    // Close all auto-generated and manually added plots.
+    void close_all_plots();
+
     // Accessors.
     ULogReader&         reader()      { return reader_; }
     Px4Bridge&          bridge()      { return bridge_; }
@@ -94,6 +127,9 @@ private:
     void draw_menu_bar();
     void draw_status_bar();
     void sync_canvas_figure(bool force = false);
+    void sync_auto_plot_figure();
+    void sync_manual_plot_figure(bool force);
+    void rebuild_figure_axes(int num_groups);
 
     Px4AppConfig cfg_;
 
@@ -106,6 +142,10 @@ private:
 
     spectra::Figure* canvas_figure_{nullptr};
     uint64_t         last_canvas_revision_{static_cast<uint64_t>(-1)};
+
+    // Auto-plot state.
+    std::vector<AutoPlotGroup> auto_plot_groups_;
+    bool                       auto_plot_active_{false};
 
     std::atomic<bool> shutdown_requested_{false};
 

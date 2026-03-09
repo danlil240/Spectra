@@ -1,4 +1,5 @@
-// Unit tests for Px4AppShell — CLI parsing and offline ULog open flow.
+// Unit tests for Px4AppShell — CLI parsing, offline ULog open flow,
+// and auto-plot / close-all-plots functionality.
 
 #include <gtest/gtest.h>
 
@@ -221,6 +222,168 @@ TEST(Px4AppShellTest, FailedOpenClearsCanvasSeries)
     EXPECT_FALSE(shell.open_ulog("/tmp/this_file_should_not_exist_canvas_clear.ulg"));
     shell.poll();
 
+    ASSERT_EQ(fig.axes().size(), 1u);
+    EXPECT_TRUE(fig.axes()[0]->series().empty());
+
+    std::remove(path.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// AutoPlotUlog: verifies that opening a ULog with known interesting topics
+// triggers multi-subplot auto-plot mode.
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, AutoPlotUlogCreatesSubplotsForKnownTopics)
+{
+    // Build a ULog with battery_status (voltage_v, current_a) — one of the
+    // predefined auto-plot groups.
+    ULogBuilder builder;
+    // Format: timestamp + two floats
+    builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+    builder.add_subscription(0, 1, "battery_status");
+
+    struct BatRow { float voltage_v; float current_a; };
+    BatRow row1{12.0f, 5.0f};
+    BatRow row2{11.9f, 5.2f};
+    BatRow row3{11.8f, 5.3f};
+    builder.add_data(1, 1000000,
+                     reinterpret_cast<const uint8_t*>(&row1), sizeof(row1));
+    builder.add_data(1, 2000000,
+                     reinterpret_cast<const uint8_t*>(&row2), sizeof(row2));
+    builder.add_data(1, 3000000,
+                     reinterpret_cast<const uint8_t*>(&row3), sizeof(row3));
+
+    std::string path = builder.write_to_file(temp_path("auto_plot_battery"));
+
+    Px4AppShell shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 1200});
+    shell.set_canvas_figure(&fig);
+
+    ASSERT_TRUE(shell.open_ulog(path));
+
+    // Auto-plot should be active since battery_status is a known topic.
+    // There should be at least one subplot (for battery).
+    EXPECT_GE(fig.axes().size(), 1u);
+
+    // Verify at least one axes has a non-empty series (battery voltage/current).
+    bool has_battery_series = false;
+    for (const auto& ax : fig.axes())
+    {
+        if (ax && ax->series().size() >= 1)
+        {
+            has_battery_series = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(has_battery_series);
+
+    std::remove(path.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// AutoPlotUlog: a ULog with no known topics should NOT produce any subplots
+// beyond the placeholder empty axes.
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, AutoPlotUlogNoMatchingTopicsGivesEmptyPlot)
+{
+    ULogBuilder builder;
+    builder.add_format("unknown_topic:uint64_t timestamp;float x");
+    builder.add_subscription(0, 1, "unknown_topic");
+
+    float x = 1.0f;
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&x), sizeof(x));
+
+    std::string path = builder.write_to_file(temp_path("auto_plot_no_match"));
+
+    Px4AppShell shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 600});
+    shell.set_canvas_figure(&fig);
+
+    ASSERT_TRUE(shell.open_ulog(path));
+
+    // No auto-plot groups should be created; figure should have 1 placeholder axes.
+    ASSERT_EQ(fig.axes().size(), 1u);
+    // The placeholder axes has no data series.
+    EXPECT_TRUE(fig.axes()[0]->series().empty());
+
+    std::remove(path.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// CloseAllPlots: verifies that close_all_plots() clears auto-plot state and
+// reverts to a single empty subplot.
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, CloseAllPlotsRevertsToSingleEmptySubplot)
+{
+    ULogBuilder builder;
+    builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+    builder.add_subscription(0, 1, "battery_status");
+
+    struct BatRow { float voltage_v; float current_a; };
+    BatRow row{12.0f, 5.0f};
+    builder.add_data(1, 1000000,
+                     reinterpret_cast<const uint8_t*>(&row), sizeof(row));
+
+    std::string path = builder.write_to_file(temp_path("close_all"));
+
+    Px4AppShell shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 1200});
+    shell.set_canvas_figure(&fig);
+
+    ASSERT_TRUE(shell.open_ulog(path));
+    // After auto-plot there should be at least 1 axes with data.
+    EXPECT_GE(fig.axes().size(), 1u);
+
+    // Close all plots.
+    shell.close_all_plots();
+    shell.poll();
+
+    // Figure should be back to a single empty axes.
+    ASSERT_EQ(fig.axes().size(), 1u);
+    EXPECT_TRUE(fig.axes()[0]->series().empty());
+    // Manual fields should also be gone.
+    EXPECT_EQ(shell.plot_manager().field_count(), 0u);
+
+    std::remove(path.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// CloseAllPlots: manually added fields are also removed.
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, CloseAllPlotsRemovesManuallyAddedFields)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+
+    float roll = 1.0f;
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&roll), sizeof(roll));
+
+    std::string path = builder.write_to_file(temp_path("close_all_manual"));
+
+    Px4AppShell shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 600});
+    shell.set_canvas_figure(&fig);
+
+    ASSERT_TRUE(shell.open_ulog(path));
+    shell.plot_manager().add_field("vehicle_attitude", "roll");
+    shell.poll();
+
+    // There should be at least 1 series after adding the field.
+    ASSERT_FALSE(fig.axes().empty());
+    bool has_series = false;
+    for (const auto& ax : fig.axes())
+        if (ax && !ax->series().empty()) { has_series = true; break; }
+    EXPECT_TRUE(has_series);
+
+    shell.close_all_plots();
+    shell.poll();
+
+    // All fields and series should be gone.
+    EXPECT_EQ(shell.plot_manager().field_count(), 0u);
     ASSERT_EQ(fig.axes().size(), 1u);
     EXPECT_TRUE(fig.axes()[0]->series().empty());
 

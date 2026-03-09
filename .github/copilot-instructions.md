@@ -62,6 +62,7 @@ When a request in this workspace matches one of the skill domains below, read th
 - Python client library, Python API extension, easy API, embedding, session management, and Python↔Backend codec sync: `skills/python-bindings/SKILL.md`
 - 3D rendering, new 3D series types, camera, lighting, colormaps, depth buffer, Axes3D, and 3D shader development: `skills/3d-rendering/SKILL.md`
 - Data decimation, filters, transforms, live streaming, CSV import, GPU data upload, and series data model: `skills/data-pipeline/SKILL.md`
+- Code simplification, duplication reduction, control flow flattening, dead code removal, interface narrowing, and safe refactoring: `skills/code-simplifier/SKILL.md`
 
 ## Operating Rules
 

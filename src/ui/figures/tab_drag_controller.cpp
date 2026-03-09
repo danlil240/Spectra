@@ -226,7 +226,7 @@ void TabDragController::update(float mouse_x,
             }
 
             // Create preview window once drag exceeds tearoff threshold
-            constexpr float TEAROFF_THRESHOLD = 2.0f;
+            constexpr float TEAROFF_THRESHOLD = 25.0f;
             if (!preview_created_ && std::abs(dy) > TEAROFF_THRESHOLD && window_manager_)
             {
                 constexpr uint32_t PREVIEW_W = 280;

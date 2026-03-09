@@ -107,6 +107,21 @@ std::string Logger::timestamp_to_string(const std::chrono::system_clock::time_po
 namespace sinks
 {
 
+static std::string format_log_entry(const Logger::LogEntry& entry)
+{
+    std::string result = Logger::timestamp_to_string(entry.timestamp) + " "
+                         + Logger::level_to_string(entry.level) + " "
+                         + "[" + entry.category + "] " + entry.message;
+    if (!entry.file.empty())
+    {
+        result += " (" + entry.file + ":" + std::to_string(entry.line);
+        if (!entry.function.empty())
+            result += " in " + entry.function;
+        result += ")";
+    }
+    return result;
+}
+
 Logger::LogSink console_sink()
 {
     return [](const Logger::LogEntry& entry)
@@ -136,21 +151,7 @@ Logger::LogSink console_sink()
                 break;
         }
 
-        std::cout << color_code << Logger::timestamp_to_string(entry.timestamp) << " "
-                  << Logger::level_to_string(entry.level) << " "
-                  << "[" << entry.category << "] " << entry.message;
-
-        if (!entry.file.empty())
-        {
-            std::cout << " (" << entry.file << ":" << entry.line;
-            if (!entry.function.empty())
-            {
-                std::cout << " in " << entry.function;
-            }
-            std::cout << ")";
-        }
-
-        std::cout << reset_code << std::endl;
+        std::cout << color_code << format_log_entry(entry) << reset_code << std::endl;
     };
 }
 
@@ -161,21 +162,7 @@ Logger::LogSink file_sink(const std::string& filename)
     {
         if (file->is_open())
         {
-            *file << Logger::timestamp_to_string(entry.timestamp) << " "
-                  << Logger::level_to_string(entry.level) << " "
-                  << "[" << entry.category << "] " << entry.message;
-
-            if (!entry.file.empty())
-            {
-                *file << " (" << entry.file << ":" << entry.line;
-                if (!entry.function.empty())
-                {
-                    *file << " in " << entry.function;
-                }
-                *file << ")";
-            }
-
-            *file << std::endl;
+            *file << format_log_entry(entry) << std::endl;
             file->flush();
         }
     };

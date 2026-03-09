@@ -7,6 +7,62 @@
 namespace spectra
 {
 
+namespace
+{
+
+void assign_coord(std::vector<float>& out, std::span<const float> in, bool& dirty)
+{
+    out.assign(in.begin(), in.end());
+    dirty = true;
+}
+
+vec3 compute_centroid_xyz(const std::vector<float>& x,
+                          const std::vector<float>& y,
+                          const std::vector<float>& z)
+{
+    if (x.empty())
+        return {0.0f, 0.0f, 0.0f};
+
+    vec3   sum{0.0f, 0.0f, 0.0f};
+    size_t n = std::min({x.size(), y.size(), z.size()});
+    for (size_t i = 0; i < n; ++i)
+    {
+        sum.x += x[i];
+        sum.y += y[i];
+        sum.z += z[i];
+    }
+    return sum / static_cast<float>(n);
+}
+
+void get_bounds_xyz(const std::vector<float>& x,
+                    const std::vector<float>& y,
+                    const std::vector<float>& z,
+                    vec3&                     min_out,
+                    vec3&                     max_out)
+{
+    if (x.empty())
+    {
+        min_out = max_out = {0.0f, 0.0f, 0.0f};
+        return;
+    }
+
+    size_t n = std::min({x.size(), y.size(), z.size()});
+    min_out  = {x[0], y[0], z[0]};
+    max_out  = min_out;
+
+    for (size_t i = 1; i < n; ++i)
+    {
+        min_out.x = std::fmin(min_out.x, x[i]);
+        min_out.y = std::fmin(min_out.y, y[i]);
+        min_out.z = std::fmin(min_out.z, z[i]);
+        max_out.x = std::fmax(max_out.x, x[i]);
+        max_out.y = std::fmax(max_out.y, y[i]);
+        max_out.z = std::fmax(max_out.z, z[i]);
+    }
+}
+
+}   // anonymous namespace
+
 // ─── LineSeries3D ────────────────────────────────────────────────────────────
 
 LineSeries3D::LineSeries3D(std::span<const float> x,
@@ -20,22 +76,19 @@ LineSeries3D::LineSeries3D(std::span<const float> x,
 
 LineSeries3D& LineSeries3D::set_x(std::span<const float> x)
 {
-    x_.assign(x.begin(), x.end());
-    dirty_ = true;
+    assign_coord(x_, x, dirty_);
     return *this;
 }
 
 LineSeries3D& LineSeries3D::set_y(std::span<const float> y)
 {
-    y_.assign(y.begin(), y.end());
-    dirty_ = true;
+    assign_coord(y_, y, dirty_);
     return *this;
 }
 
 LineSeries3D& LineSeries3D::set_z(std::span<const float> z)
 {
-    z_.assign(z.begin(), z.end());
-    dirty_ = true;
+    assign_coord(z_, z, dirty_);
     return *this;
 }
 
@@ -49,41 +102,12 @@ void LineSeries3D::append(float x, float y, float z)
 
 vec3 LineSeries3D::compute_centroid() const
 {
-    if (x_.empty())
-        return {0.0f, 0.0f, 0.0f};
-
-    vec3   sum{0.0f, 0.0f, 0.0f};
-    size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    for (size_t i = 0; i < n; ++i)
-    {
-        sum.x += x_[i];
-        sum.y += y_[i];
-        sum.z += z_[i];
-    }
-    return sum / static_cast<float>(n);
+    return compute_centroid_xyz(x_, y_, z_);
 }
 
 void LineSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
 {
-    if (x_.empty())
-    {
-        min_out = max_out = {0.0f, 0.0f, 0.0f};
-        return;
-    }
-
-    size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    min_out  = {x_[0], y_[0], z_[0]};
-    max_out  = min_out;
-
-    for (size_t i = 1; i < n; ++i)
-    {
-        min_out.x = std::fmin(min_out.x, x_[i]);
-        min_out.y = std::fmin(min_out.y, y_[i]);
-        min_out.z = std::fmin(min_out.z, z_[i]);
-        max_out.x = std::fmax(max_out.x, x_[i]);
-        max_out.y = std::fmax(max_out.y, y_[i]);
-        max_out.z = std::fmax(max_out.z, z_[i]);
-    }
+    get_bounds_xyz(x_, y_, z_, min_out, max_out);
 }
 
 void LineSeries3D::record_commands(Renderer& renderer)
@@ -106,22 +130,19 @@ ScatterSeries3D::ScatterSeries3D(std::span<const float> x,
 
 ScatterSeries3D& ScatterSeries3D::set_x(std::span<const float> x)
 {
-    x_.assign(x.begin(), x.end());
-    dirty_ = true;
+    assign_coord(x_, x, dirty_);
     return *this;
 }
 
 ScatterSeries3D& ScatterSeries3D::set_y(std::span<const float> y)
 {
-    y_.assign(y.begin(), y.end());
-    dirty_ = true;
+    assign_coord(y_, y, dirty_);
     return *this;
 }
 
 ScatterSeries3D& ScatterSeries3D::set_z(std::span<const float> z)
 {
-    z_.assign(z.begin(), z.end());
-    dirty_ = true;
+    assign_coord(z_, z, dirty_);
     return *this;
 }
 
@@ -135,41 +156,12 @@ void ScatterSeries3D::append(float x, float y, float z)
 
 vec3 ScatterSeries3D::compute_centroid() const
 {
-    if (x_.empty())
-        return {0.0f, 0.0f, 0.0f};
-
-    vec3   sum{0.0f, 0.0f, 0.0f};
-    size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    for (size_t i = 0; i < n; ++i)
-    {
-        sum.x += x_[i];
-        sum.y += y_[i];
-        sum.z += z_[i];
-    }
-    return sum / static_cast<float>(n);
+    return compute_centroid_xyz(x_, y_, z_);
 }
 
 void ScatterSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
 {
-    if (x_.empty())
-    {
-        min_out = max_out = {0.0f, 0.0f, 0.0f};
-        return;
-    }
-
-    size_t n = std::min({x_.size(), y_.size(), z_.size()});
-    min_out  = {x_[0], y_[0], z_[0]};
-    max_out  = min_out;
-
-    for (size_t i = 1; i < n; ++i)
-    {
-        min_out.x = std::fmin(min_out.x, x_[i]);
-        min_out.y = std::fmin(min_out.y, y_[i]);
-        min_out.z = std::fmin(min_out.z, z_[i]);
-        max_out.x = std::fmax(max_out.x, x_[i]);
-        max_out.y = std::fmax(max_out.y, y_[i]);
-        max_out.z = std::fmax(max_out.z, z_[i]);
-    }
+    get_bounds_xyz(x_, y_, z_, min_out, max_out);
 }
 
 void ScatterSeries3D::record_commands(Renderer& renderer)

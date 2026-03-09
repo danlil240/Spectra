@@ -88,6 +88,7 @@ class Renderer
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
     void render_tick_marks(Axes3D& axes, const Rect& viewport);
+
     // Visible x-range for 2D culling (nullopt = draw all)
     struct VisibleRange
     {
@@ -237,6 +238,10 @@ class Renderer
         double origin_y = 0.0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
+    void destroy_series_buffers(SeriesGpuData& gpu);
+    void destroy_axes_buffers(AxesGpuData& gpu);
 
     // Currently selected series for GPU-rendered highlight.
     std::vector<const Series*> selected_series_;

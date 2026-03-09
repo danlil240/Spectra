@@ -74,6 +74,42 @@ void fft_radix2(std::vector<std::complex<float>>& buf)
     }
 }
 
+template <class LogFn>
+void apply_positive_log(std::span<const float> x_in,
+                        std::span<const float> y_in,
+                        std::vector<float>&    x_out,
+                        std::vector<float>&    y_out,
+                        LogFn                  log_fn)
+{
+    const size_t n = std::min(x_in.size(), y_in.size());
+    x_out.clear();
+    y_out.clear();
+    x_out.reserve(n);
+    y_out.reserve(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (y_in[i] > 0.0f)
+        {
+            x_out.push_back(x_in[i]);
+            y_out.push_back(log_fn(y_in[i]));
+        }
+    }
+}
+
+template <class Fn>
+void apply_elementwise_y(std::span<const float> x_in,
+                         std::span<const float> y_in,
+                         std::vector<float>&    x_out,
+                         std::vector<float>&    y_out,
+                         Fn                     fn)
+{
+    const size_t n = std::min(x_in.size(), y_in.size());
+    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
+    y_out.resize(n);
+    for (size_t i = 0; i < n; ++i)
+        y_out[i] = fn(y_in[i]);
+}
+
 }   // namespace
 
 // ─── DataTransform construction ─────────────────────────────────────────────
@@ -311,19 +347,7 @@ void DataTransform::apply_log10(std::span<const float> x_in,
                                 std::vector<float>&    x_out,
                                 std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.clear();
-    y_out.clear();
-    x_out.reserve(n);
-    y_out.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        if (y_in[i] > 0.0f)
-        {
-            x_out.push_back(x_in[i]);
-            y_out.push_back(std::log10(y_in[i]));
-        }
-    }
+    apply_positive_log(x_in, y_in, x_out, y_out, [](float v) { return std::log10(v); });
 }
 
 void DataTransform::apply_ln(std::span<const float> x_in,
@@ -331,19 +355,7 @@ void DataTransform::apply_ln(std::span<const float> x_in,
                              std::vector<float>&    x_out,
                              std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.clear();
-    y_out.clear();
-    x_out.reserve(n);
-    y_out.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        if (y_in[i] > 0.0f)
-        {
-            x_out.push_back(x_in[i]);
-            y_out.push_back(std::log(y_in[i]));
-        }
-    }
+    apply_positive_log(x_in, y_in, x_out, y_out, [](float v) { return std::log(v); });
 }
 
 void DataTransform::apply_abs(std::span<const float> x_in,
@@ -351,13 +363,7 @@ void DataTransform::apply_abs(std::span<const float> x_in,
                               std::vector<float>&    x_out,
                               std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
-    y_out.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        y_out[i] = std::abs(y_in[i]);
-    }
+    apply_elementwise_y(x_in, y_in, x_out, y_out, [](float v) { return std::abs(v); });
 }
 
 void DataTransform::apply_negate(std::span<const float> x_in,
@@ -365,13 +371,7 @@ void DataTransform::apply_negate(std::span<const float> x_in,
                                  std::vector<float>&    x_out,
                                  std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
-    y_out.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        y_out[i] = -y_in[i];
-    }
+    apply_elementwise_y(x_in, y_in, x_out, y_out, [](float v) { return -v; });
 }
 
 void DataTransform::apply_normalize(std::span<const float> x_in,
@@ -527,13 +527,8 @@ void DataTransform::apply_scale(std::span<const float> x_in,
                                 std::vector<float>&    x_out,
                                 std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
-    y_out.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        y_out[i] = y_in[i] * params_.scale_factor;
-    }
+    const float s = params_.scale_factor;
+    apply_elementwise_y(x_in, y_in, x_out, y_out, [s](float v) { return v * s; });
 }
 
 void DataTransform::apply_offset(std::span<const float> x_in,
@@ -541,13 +536,8 @@ void DataTransform::apply_offset(std::span<const float> x_in,
                                  std::vector<float>&    x_out,
                                  std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
-    y_out.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        y_out[i] = y_in[i] + params_.offset_value;
-    }
+    const float o = params_.offset_value;
+    apply_elementwise_y(x_in, y_in, x_out, y_out, [o](float v) { return v + o; });
 }
 
 void DataTransform::apply_clamp(std::span<const float> x_in,
@@ -555,13 +545,9 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
                                 std::vector<float>&    x_out,
                                 std::vector<float>&    y_out) const
 {
-    const size_t n = std::min(x_in.size(), y_in.size());
-    x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
-    y_out.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        y_out[i] = std::clamp(y_in[i], params_.clamp_min, params_.clamp_max);
-    }
+    const float lo = params_.clamp_min;
+    const float hi = params_.clamp_max;
+    apply_elementwise_y(x_in, y_in, x_out, y_out, [lo, hi](float v) { return std::clamp(v, lo, hi); });
 }
 
 // ─── FFT (left-sided magnitude spectrum) ────────────────────────────────────

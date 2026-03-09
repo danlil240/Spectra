@@ -39,42 +39,38 @@ bool AxesBase::move_series(size_t from, size_t to)
     return true;
 }
 
+// --- Internal series factory ---
+
+template <typename T, typename... Args>
+T& Axes::add_series(Args&&... args)
+{
+    auto  s   = std::make_unique<T>(std::forward<Args>(args)...);
+    auto& ref = *s;
+    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    series_.push_back(std::move(s));
+    return ref;
+}
+
 // --- Series creation ---
 
 LineSeries& Axes::line(std::span<const float> x, std::span<const float> y)
 {
-    auto  s   = std::make_unique<LineSeries>(x, y);
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<LineSeries>(x, y);
 }
 
 LineSeries& Axes::line()
 {
-    auto  s   = std::make_unique<LineSeries>();
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<LineSeries>();
 }
 
 ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 {
-    auto  s   = std::make_unique<ScatterSeries>(x, y);
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<ScatterSeries>(x, y);
 }
 
 ScatterSeries& Axes::scatter()
 {
-    auto  s   = std::make_unique<ScatterSeries>();
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<ScatterSeries>();
 }
 
 // --- MATLAB-style plot ---
@@ -97,38 +93,22 @@ LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y, const
 
 BoxPlotSeries& Axes::box_plot()
 {
-    auto  s   = std::make_unique<BoxPlotSeries>();
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<BoxPlotSeries>();
 }
 
 ViolinSeries& Axes::violin()
 {
-    auto  s   = std::make_unique<ViolinSeries>();
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<ViolinSeries>();
 }
 
 HistogramSeries& Axes::histogram(std::span<const float> values, int bins)
 {
-    auto  s   = std::make_unique<HistogramSeries>(values, bins);
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<HistogramSeries>(values, bins);
 }
 
 BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> heights)
 {
-    auto  s   = std::make_unique<BarSeries>(positions, heights);
-    auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
-    series_.push_back(std::move(s));
-    return ref;
+    return add_series<BarSeries>(positions, heights);
 }
 
 // --- Axis configuration ---

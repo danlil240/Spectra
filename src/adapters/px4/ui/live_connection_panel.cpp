@@ -2,6 +2,9 @@
 
 #ifdef SPECTRA_USE_IMGUI
 #include <imgui.h>
+#ifdef IMGUI_HAS_DOCK
+#include <imgui_internal.h>
+#endif
 #endif
 
 #include <cstdio>
@@ -14,14 +17,103 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 LiveConnectionPanel::LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr)
-    : DetachablePanel("PX4 Live")
-    , bridge_(bridge)
+    : bridge_(bridge)
     , plot_mgr_(plot_mgr)
 {
-    set_detached_size(450.0f, 350.0f);
+    detach_ctrl_.set_title("PX4 Live");
+    detach_ctrl_.set_detached_size(450.0f, 350.0f);
+    detach_ctrl_.set_draw_callback([this]() { draw_content(); });
 }
 
 LiveConnectionPanel::~LiveConnectionPanel() = default;
+
+// ---------------------------------------------------------------------------
+// draw — the panel owns all ImGui rendering; controller is pure state machine
+// ---------------------------------------------------------------------------
+
+void LiveConnectionPanel::draw(bool* p_open)
+{
+#ifdef SPECTRA_USE_IMGUI
+    // Let controller detect OS window close.
+    detach_ctrl_.update();
+
+    auto state = detach_ctrl_.state();
+
+    // Detached — content rendered by session_runtime in the OS window.
+    if (state == spectra::PanelDetachController::State::Detached)
+        return;
+
+    // DetachPending — skip one frame so the dock slot is released cleanly.
+    if (state == spectra::PanelDetachController::State::DetachPending)
+        return;
+
+    // After re-attach: force back into the target dockspace.
+#ifdef IMGUI_HAS_DOCK
+    if (state == spectra::PanelDetachController::State::AttachPending
+        && detach_ctrl_.dock_id() != 0)
+    {
+        ImGui::SetNextWindowDockID(
+            static_cast<ImGuiID>(detach_ctrl_.dock_id()), ImGuiCond_Always);
+    }
+#endif
+
+    if (!ImGui::Begin(detach_ctrl_.title().c_str(), p_open))
+    {
+        ImGui::End();
+        return;
+    }
+
+    // ── Drag-to-detach: detect ImGui undocking and replace with OS window ──
+    // Let ImGui handle the drag natively. When it undocks the window
+    // (transition from docked → floating), intercept it immediately
+    // and create a real OS window via PanelDetachController instead.
+#ifdef IMGUI_HAS_DOCK
+    bool currently_docked = ImGui::IsWindowDocked();
+    if (was_docked_ && !currently_docked && detach_ctrl_.is_docked())
+    {
+        double sx, sy;
+        detach_ctrl_.get_screen_cursor(sx, sy);
+        detach_ctrl_.set_screen_position(static_cast<int>(sx), static_cast<int>(sy));
+        detach_ctrl_.detach();
+        was_docked_ = false;
+        ImGui::End();
+        return;
+    }
+    was_docked_ = currently_docked;
+#endif
+
+    draw_context_menu();
+    draw_content();
+
+    ImGui::End();
+#else
+    (void)p_open;
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// draw_context_menu
+// ---------------------------------------------------------------------------
+
+void LiveConnectionPanel::draw_context_menu()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (ImGui::BeginPopupContextWindow("##LivePanelDetach"))
+    {
+        if (detach_ctrl_.is_docked())
+        {
+            if (ImGui::MenuItem("Detach to Window"))
+                detach_ctrl_.detach();
+        }
+        else if (detach_ctrl_.is_detached())
+        {
+            if (ImGui::MenuItem("Attach to Dockspace"))
+                detach_ctrl_.attach();
+        }
+        ImGui::EndPopup();
+    }
+#endif
+}
 
 // ---------------------------------------------------------------------------
 // draw

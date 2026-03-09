@@ -17,6 +17,19 @@ Series& Series::plot_style(const PlotStyle& ps)
     return *this;
 }
 
+Series& Series::apply_format_string(std::string_view fmt)
+{
+    PlotStyle ps        = parse_format_string(fmt);
+    style_.line_style   = ps.line_style;
+    style_.marker_style = ps.marker_style;
+    if (ps.color.has_value())
+    {
+        color_ = *ps.color;
+    }
+    dirty_ = true;
+    return *this;
+}
+
 // --- LineSeries ---
 
 LineSeries::LineSeries(std::span<const float> x, std::span<const float> y)
@@ -74,14 +87,7 @@ size_t LineSeries::erase_before(float x_threshold)
 
 LineSeries& LineSeries::format(std::string_view fmt)
 {
-    PlotStyle ps        = parse_format_string(fmt);
-    style_.line_style   = ps.line_style;
-    style_.marker_style = ps.marker_style;
-    if (ps.color.has_value())
-    {
-        color_ = *ps.color;
-    }
-    dirty_ = true;
+    Series::apply_format_string(fmt);
     return *this;
 }
 
@@ -123,14 +129,7 @@ void ScatterSeries::append(float x, float y)
 
 ScatterSeries& ScatterSeries::format(std::string_view fmt)
 {
-    PlotStyle ps        = parse_format_string(fmt);
-    style_.line_style   = ps.line_style;
-    style_.marker_style = ps.marker_style;
-    if (ps.color.has_value())
-    {
-        color_ = *ps.color;
-    }
-    dirty_ = true;
+    Series::apply_format_string(fmt);
     return *this;
 }
 

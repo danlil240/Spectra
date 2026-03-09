@@ -107,7 +107,7 @@ foreach(_ui_src
     src/ui/animation/recording_export.cpp
     src/ui/docking/split_view.cpp
     src/ui/docking/dock_system.cpp
-    src/ui/panel/detachable_panel.cpp
+    src/ui/panel/panel_detach_controller.cpp
     src/ui/data/axis_link.cpp
     src/ui/animation/keyframe_interpolator.cpp
     src/ui/animation/camera_animator.cpp

@@ -174,6 +174,10 @@ class Axes : public AxesBase
     void auto_fit() override;
 
    private:
+    // Internal helper: construct T(args...), assign default cycle color, push to series_
+    template <typename T, typename... Args>
+    T& add_series(Args&&... args);
+
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
 

@@ -72,6 +72,35 @@ bool is_series_3d(Series* s)
            || dynamic_cast<ScatterSeries3D*>(s) != nullptr;
 }
 
+// Build a de-duplicated list of all axes (2D from axes_, 3D from all_axes_)
+std::vector<AxesBase*> build_unified_axes(Figure& figure)
+{
+    std::vector<AxesBase*> result;
+    for (auto& ax : figure.axes_mut())
+    {
+        if (ax)
+            result.push_back(ax.get());
+    }
+    for (auto& ax : figure.all_axes_mut())
+    {
+        if (ax)
+        {
+            bool already = false;
+            for (auto* u : result)
+            {
+                if (u == ax.get())
+                {
+                    already = true;
+                    break;
+                }
+            }
+            if (!already)
+                result.push_back(ax.get());
+        }
+    }
+    return result;
+}
+
 }   // namespace
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -105,31 +134,7 @@ void DataEditor::draw(Figure& figure)
     widgets::section_spacing();
 
     // Build a unified list of axes pointers (2D from axes_, 3D from all_axes_)
-    std::vector<AxesBase*> unified_axes;
-    for (auto& ax : figure.axes_mut())
-    {
-        if (ax)
-            unified_axes.push_back(ax.get());
-    }
-    for (auto& ax : figure.all_axes_mut())
-    {
-        if (ax)
-        {
-            // Avoid duplicates — all_axes_ may overlap with axes_ in some layouts,
-            // but typically axes_ holds 2D and all_axes_ holds 3D.
-            bool already = false;
-            for (auto* u : unified_axes)
-            {
-                if (u == ax.get())
-                {
-                    already = true;
-                    break;
-                }
-            }
-            if (!already)
-                unified_axes.push_back(ax.get());
-        }
-    }
+    std::vector<AxesBase*> unified_axes = build_unified_axes(figure);
 
     // Axes selector
     draw_axes_selector(figure);
@@ -228,30 +233,7 @@ void DataEditor::draw(Figure& figure)
 
 void DataEditor::draw_axes_selector(Figure& figure)
 {
-    // Build unified axes list (same as in draw())
-    std::vector<AxesBase*> unified;
-    for (auto& ax : figure.axes_mut())
-    {
-        if (ax)
-            unified.push_back(ax.get());
-    }
-    for (auto& ax : figure.all_axes_mut())
-    {
-        if (ax)
-        {
-            bool already = false;
-            for (auto* u : unified)
-            {
-                if (u == ax.get())
-                {
-                    already = true;
-                    break;
-                }
-            }
-            if (!already)
-                unified.push_back(ax.get());
-        }
-    }
+    std::vector<AxesBase*> unified = build_unified_axes(figure);
 
     if (unified.size() <= 1)
         return;   // No need for selector with single axes

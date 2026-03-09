@@ -99,6 +99,8 @@ class Series
     virtual void record_commands(Renderer& renderer) = 0;
 
    protected:
+    Series& apply_format_string(std::string_view fmt);
+
     std::string label_;
     Color       color_ = colors::blue;
     PlotStyle   style_;   // line/marker style, sizes, opacity

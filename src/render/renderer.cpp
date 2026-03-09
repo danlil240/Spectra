@@ -20,6 +20,34 @@ namespace spectra
 
 Renderer::Renderer(Backend& backend) : backend_(backend) {}
 
+void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
+{
+    if (gpu.ssbo)
+        backend_.destroy_buffer(gpu.ssbo);
+    if (gpu.index_buffer)
+        backend_.destroy_buffer(gpu.index_buffer);
+    if (gpu.fill_buffer)
+        backend_.destroy_buffer(gpu.fill_buffer);
+    if (gpu.outlier_buffer)
+        backend_.destroy_buffer(gpu.outlier_buffer);
+}
+
+void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
+{
+    if (gpu.grid_buffer)
+        backend_.destroy_buffer(gpu.grid_buffer);
+    if (gpu.border_buffer)
+        backend_.destroy_buffer(gpu.border_buffer);
+    if (gpu.bbox_buffer)
+        backend_.destroy_buffer(gpu.bbox_buffer);
+    if (gpu.tick_buffer)
+        backend_.destroy_buffer(gpu.tick_buffer);
+    if (gpu.arrow_line_buffer)
+        backend_.destroy_buffer(gpu.arrow_line_buffer);
+    if (gpu.arrow_tri_buffer)
+        backend_.destroy_buffer(gpu.arrow_tri_buffer);
+}
+
 void Renderer::notify_series_removed(const Series* series)
 {
     auto it = series_gpu_data_.find(series);
@@ -41,14 +69,7 @@ void Renderer::flush_pending_deletions()
     auto&    slot         = deletion_ring_[destroy_slot];
     for (auto& gpu : slot)
     {
-        if (gpu.ssbo)
-            backend_.destroy_buffer(gpu.ssbo);
-        if (gpu.index_buffer)
-            backend_.destroy_buffer(gpu.index_buffer);
-        if (gpu.fill_buffer)
-            backend_.destroy_buffer(gpu.fill_buffer);
-        if (gpu.outlier_buffer)
-            backend_.destroy_buffer(gpu.outlier_buffer);
+        destroy_series_buffers(gpu);
     }
     slot.clear();
 
@@ -87,45 +108,18 @@ Renderer::~Renderer()
     for (auto& slot : deletion_ring_)
     {
         for (auto& gpu : slot)
-        {
-            if (gpu.ssbo)
-                backend_.destroy_buffer(gpu.ssbo);
-            if (gpu.index_buffer)
-                backend_.destroy_buffer(gpu.index_buffer);
-        }
+            destroy_series_buffers(gpu);
         slot.clear();
     }
 
     // Clean up per-series GPU data
     for (auto& [ptr, data] : series_gpu_data_)
-    {
-        if (data.ssbo)
-        {
-            backend_.destroy_buffer(data.ssbo);
-        }
-        if (data.index_buffer)
-        {
-            backend_.destroy_buffer(data.index_buffer);
-        }
-    }
+        destroy_series_buffers(data);
     series_gpu_data_.clear();
 
     // Clean up per-axes GPU data (grid + border + bbox + tick buffers)
     for (auto& [ptr, data] : axes_gpu_data_)
-    {
-        if (data.grid_buffer)
-            backend_.destroy_buffer(data.grid_buffer);
-        if (data.border_buffer)
-            backend_.destroy_buffer(data.border_buffer);
-        if (data.bbox_buffer)
-            backend_.destroy_buffer(data.bbox_buffer);
-        if (data.tick_buffer)
-            backend_.destroy_buffer(data.tick_buffer);
-        if (data.arrow_line_buffer)
-            backend_.destroy_buffer(data.arrow_line_buffer);
-        if (data.arrow_tri_buffer)
-            backend_.destroy_buffer(data.arrow_tri_buffer);
-    }
+        destroy_axes_buffers(data);
     axes_gpu_data_.clear();
 
     if (overlay_line_buffer_)

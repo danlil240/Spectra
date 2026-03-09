@@ -533,6 +533,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     if (imgui_ui)
         imgui_ui->flush_deferred_series_removals();
 
+    FigureId prev_dock_active = dock_system.active_figure_index();
+
     // Process queued figure operations (create, close, switch)
     fig_mgr.process_pending();
 
@@ -603,6 +605,34 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     root->set_active_local_index(li);
                     break;
                 }
+            }
+        }
+    }
+    else
+    {
+        FigureId active = fig_mgr.active_index();
+        if (active != INVALID_FIGURE_ID && !dock_system.split_view().is_figure_visible(active))
+        {
+            SplitPane* target_pane = dock_system.split_view().pane_for_figure(prev_dock_active);
+            if (!target_pane)
+            {
+                auto panes = dock_system.split_view().all_panes();
+                if (!panes.empty())
+                    target_pane = panes.front();
+            }
+
+            if (target_pane)
+            {
+                target_pane->add_figure(active);
+                for (size_t li = 0; li < target_pane->figure_indices().size(); ++li)
+                {
+                    if (target_pane->figure_indices()[li] == active)
+                    {
+                        target_pane->set_active_local_index(li);
+                        break;
+                    }
+                }
+                dock_system.set_active_figure_index(active);
             }
         }
     }

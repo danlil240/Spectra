@@ -2972,6 +2972,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     constexpr float TAB_MIN_W      = 60.0f;
     constexpr float TAB_MAX_W      = 150.0f;
     constexpr float CLOSE_SZ       = 12.0f;
+    constexpr float ADD_BTN_W      = 22.0f;
     constexpr float ANIM_SPEED     = 14.0f;
     constexpr float DRAG_THRESHOLD = 5.0f;
 
@@ -3011,6 +3012,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         SplitPane*           pane;
         Rect                 header_rect;
         std::vector<TabRect> tabs;
+        Rect                 add_button_rect{};
+        bool                 show_add_button = false;
     };
 
     std::vector<PaneHeader> headers;
@@ -3152,6 +3155,14 @@ void ImGuiIntegration::draw_pane_tab_headers()
             ph.tabs.push_back(tr);
 
             cur_x += tw + 1.0f;
+        }
+
+        float add_x = figs.empty() ? (hr.x + 4.0f) : (cur_x + 4.0f);
+        float add_w = ADD_BTN_W;
+        if (add_x + add_w <= hr.x + hr.w - 4.0f)
+        {
+            ph.show_add_button = true;
+            ph.add_button_rect = Rect{add_x, hr.y + 4.0f, add_w, TAB_H - 8.0f};
         }
 
         headers.push_back(std::move(ph));
@@ -3345,6 +3356,41 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     pane_ctx_menu_open_ = true;
                     ImGui::OpenPopup("##pane_tab_ctx");
                 }
+            }
+        }
+
+        if (ph.show_add_button)
+        {
+            const Rect& add_rect = ph.add_button_rect;
+            bool add_hovered =
+                (mouse.x >= add_rect.x && mouse.x < add_rect.x + add_rect.w && mouse.y >= add_rect.y
+                 && mouse.y < add_rect.y + add_rect.h);
+
+            if (add_hovered)
+                pane_tab_hovered_ = true;
+
+            ImU32 add_bg = add_hovered ? to_col(theme.accent_subtle) : to_col(theme.bg_secondary, 0.0f);
+            draw_list->AddRectFilled(ImVec2(add_rect.x, add_rect.y),
+                                     ImVec2(add_rect.x + add_rect.w, add_rect.y + add_rect.h),
+                                     add_bg,
+                                     4.0f);
+
+            ImVec2 center(add_rect.x + add_rect.w * 0.5f, add_rect.y + add_rect.h * 0.5f);
+            ImU32  add_col = add_hovered ? to_col(theme.accent) : to_col(theme.text_tertiary);
+            float  add_sz  = 4.5f;
+            draw_list->AddLine(ImVec2(center.x - add_sz, center.y),
+                               ImVec2(center.x + add_sz, center.y),
+                               add_col,
+                               1.5f);
+            draw_list->AddLine(ImVec2(center.x, center.y - add_sz),
+                               ImVec2(center.x, center.y + add_sz),
+                               add_col,
+                               1.5f);
+
+            if (add_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                if (command_registry_)
+                    command_registry_->execute("figure.new");
             }
         }
 
@@ -3702,6 +3748,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     std::string title    = fig_title(pane_ctx_menu_fig_);
                     strncpy(pane_tab_rename_buf_, title.c_str(), sizeof(pane_tab_rename_buf_) - 1);
                     pane_tab_rename_buf_[sizeof(pane_tab_rename_buf_) - 1] = '\0';
+                }
+
+                if (command_registry_ && menu_item("New Tab"))
+                {
+                    command_registry_->execute("figure.new");
                 }
 
                 if (menu_item("Duplicate"))

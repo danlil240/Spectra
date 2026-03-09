@@ -758,6 +758,12 @@ void TabBar::draw_context_menu()
                 rename_buffer_[sizeof(rename_buffer_) - 1] = '\0';
             }
 
+            if (menu_item("New Tab"))
+            {
+                if (on_tab_add_)
+                    on_tab_add_();
+            }
+
             if (menu_item("Duplicate"))
             {
                 if (on_tab_duplicate_)

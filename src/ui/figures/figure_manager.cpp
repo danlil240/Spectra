@@ -57,7 +57,12 @@ void FigureManager::set_tab_bar(TabBar* tab_bar)
 
 FigureId FigureManager::create_figure(const FigureConfig& config)
 {
-    auto id = registry_.register_figure(std::make_unique<Figure>(config));
+    auto new_figure = std::make_unique<Figure>(config);
+    // UI-created figures should open directly on a plot canvas, not the
+    // startup welcome state shown for a truly blank figure.
+    new_figure->subplot(1, 1, 1);
+
+    auto id = registry_.register_figure(std::move(new_figure));
     ordered_ids_.push_back(id);
 
     // Add state for the new figure (use next available figure number)

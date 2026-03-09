@@ -225,6 +225,17 @@ TEST_F(FigureManagerTest, DuplicatePreservesDimensions)
     EXPECT_EQ(dup->height(), 1080u);
 }
 
+TEST_F(FigureManagerTest, CreateFigureStartsWithDefaultCanvas)
+{
+    FigureManager mgr(registry_);
+    FigureId      id  = mgr.create_figure();
+    Figure*       fig = registry_.get(id);
+
+    ASSERT_NE(fig, nullptr);
+    ASSERT_FALSE(fig->axes().empty());
+    ASSERT_NE(fig->axes()[0], nullptr);
+}
+
 TEST_F(FigureManagerTest, DuplicateOutOfBounds)
 {
     FigureManager mgr(registry_);

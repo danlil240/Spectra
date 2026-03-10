@@ -57,6 +57,45 @@
 				"cwd": "${workspaceFolder}"
 			},
 			"dependsOn": ["CMake: Configure Project"]
+		},
+		{
+			"label": "clang-tidy: Check All Files",
+			"type": "shell",
+			"command": "/usr/lib/llvm-17/bin/run-clang-tidy -clang-tidy-binary /usr/bin/clang-tidy-17 -p ${workspaceFolder}/build -j ${input:parallelJobs} '${workspaceFolder}/src/.*\\.cpp$'",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test",
+			"detail": "Run clang-tidy on all src/ files using compile_commands.json",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "new",
+				"clear": true
+			},
+			"problemMatcher": {
+				"owner": "clang-tidy",
+				"fileLocation": ["absolute"],
+				"pattern": {
+					"regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)\\s+\\[(.+)\\]$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5,
+					"code": 6
+				}
+			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "parallelJobs",
+			"type": "pickString",
+			"description": "Parallel jobs for clang-tidy",
+			"options": ["4", "8", "16"],
+			"default": "8"
 		}
 	]
 }

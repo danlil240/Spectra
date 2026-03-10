@@ -1,0 +1,24 @@
+---
+# Checks that apply to the whole project (used by run-clang-tidy and clangd).
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-default-member-init,
+  modernize-loop-convert,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+  readability-redundant-smartptr-get,
+  -bugprone-easily-swappable-parameters,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: 'include/spectra/.*'
+
+FormatStyle: file
+
+CheckOptions:
+  - key: modernize-use-default-member-init.UseAssignment
+    value: true

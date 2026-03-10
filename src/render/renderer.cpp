@@ -302,7 +302,7 @@ void Renderer::render_plot_text(Figure& figure)
 
     constexpr float tick_padding = 5.0f;
 
-    uint32_t fig_w = figure.width();
+    // uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
 
     // ── 2D Axes: tick labels, axis labels, title ──

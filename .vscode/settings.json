@@ -17,10 +17,16 @@
     "cmake.buildArgs": [],
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
     "cmake.defaultBuildTask": "Build Project with Examples",
+    "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
     "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}/build"
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--clang-tidy",
+        "--background-index",
+        "--header-insertion=iwyu",
+        "--completion-style=detailed",
+        "--inlay-hints=true"
     ],
     "files.associations": {
         "*.hpp": "cpp",

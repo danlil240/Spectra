@@ -379,65 +379,66 @@ TEST(Golden3D, Mixed2DAnd3D)
 
 TEST(Golden3D, Mesh3D_Triangle)
 {
-    run_golden_test_3d("3d_mesh_triangle",
-                       [](App& /*app*/, Figure& fig)
-                       {
-                           auto& ax = fig.subplot3d(1, 1, 1);
+    run_golden_test_3d(
+        "3d_mesh_triangle",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           // A simple colored triangle with normals
-                           std::vector<float> vertices = {
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               1.0f,
-                               2.0f,
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               1.0f,
-                               1.0f,
-                               2.0f,
-                               0.0f,
-                               0.0f,
-                               0.0f,
-                               1.0f,
-                           };
-                           std::vector<uint32_t> indices = {0, 1, 2};
+            // A simple colored triangle with normals
+            std::vector<float> vertices = {
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+                2.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f,
+                2.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                1.0f,
+            };
+            std::vector<uint32_t> indices = {0, 1, 2};
 
-                           ax.mesh(vertices, indices).color(colors::cyan);
-                           ax.title("Mesh: Single Triangle");
-                       },
-                       640,
-                       480,
-                       4.0,
-                       4.0);
+            ax.mesh(vertices, indices).color(colors::cyan);
+            ax.title("Mesh: Single Triangle");
+        },
+        640,
+        480,
+        4.0,
+        4.0);
 }
 
 TEST(Golden3D, Mesh3D_Quad)
 {
-    run_golden_test_3d("3d_mesh_quad",
-                       [](App& /*app*/, Figure& fig)
-                       {
-                           auto& ax = fig.subplot3d(1, 1, 1);
+    run_golden_test_3d(
+        "3d_mesh_quad",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           // A quad made of 2 triangles
-                           std::vector<float> vertices = {
-                               -1.0f, -1.0f, 0.0f,  0.0f, 0.0f, 1.0f, 1.0f, -1.0f,
-                               0.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, 0.0f, 0.0f,
-                               0.0f,  1.0f,  -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-                           };
-                           std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
+            // A quad made of 2 triangles
+            std::vector<float> vertices = {
+                -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+                1.0f,  1.0f,  0.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f,  0.0f, 0.0f, 0.0f, 1.0f,
+            };
+            std::vector<uint32_t> indices = {0, 1, 2, 0, 2, 3};
 
-                           ax.mesh(vertices, indices).color(colors::green);
-                           ax.title("Mesh: Quad");
-                       },
-                       640,
-                       480,
-                       6.0,
-                       4.0);
+            ax.mesh(vertices, indices).color(colors::green);
+            ax.title("Mesh: Quad");
+        },
+        640,
+        480,
+        6.0,
+        4.0);
 }
 
 TEST(Golden3D, Surface_Colormap)
@@ -473,32 +474,33 @@ TEST(Golden3D, Surface_Colormap)
 
 TEST(Golden3D, CameraAngle_Orthographic)
 {
-    run_golden_test_3d("3d_camera_ortho",
-                       [](App& /*app*/, Figure& fig)
-                       {
-                           auto& ax = fig.subplot3d(1, 1, 1);
+    run_golden_test_3d(
+        "3d_camera_ortho",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
-                           std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f};
-                           std::vector<float> z = {0.0f, 0.5f, 1.0f, 0.5f};
+            std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f};
+            std::vector<float> y = {0.0f, 1.0f, 0.5f, 1.5f};
+            std::vector<float> z = {0.0f, 0.5f, 1.0f, 0.5f};
 
-                           ax.scatter3d(x, y, z).color(colors::red).size(8.0f);
-                           ax.line3d(x, y, z).color(colors::blue).width(2.0f);
+            ax.scatter3d(x, y, z).color(colors::red).size(8.0f);
+            ax.line3d(x, y, z).color(colors::blue).width(2.0f);
 
-                           ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
-                           ax.camera().ortho_size      = 5.0f;
-                           ax.camera().azimuth         = 45.0f;
-                           ax.camera().elevation       = 30.0f;
+            ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
+            ax.camera().ortho_size      = 5.0f;
+            ax.camera().azimuth         = 45.0f;
+            ax.camera().elevation       = 30.0f;
 
-                           ax.title("Orthographic Projection");
-                       },
-                       640,
-                       480,
-                       2.0,
-                       3.0,
-                       // Orthographic edge rasterization differs slightly across Mesa/LLVM
-                       // versions on CI (single-digit/low-teens pixels).
-                       16);
+            ax.title("Orthographic Projection");
+        },
+        640,
+        480,
+        2.0,
+        3.0,
+        // Orthographic edge rasterization differs slightly across Mesa/LLVM
+        // versions on CI (single-digit/low-teens pixels).
+        16);
 }
 
 TEST(Golden3D, MultiSubplot3D)

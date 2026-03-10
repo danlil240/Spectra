@@ -63,7 +63,7 @@ using namespace std::chrono_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -80,13 +80,15 @@ public:
 // Helper: get introspection type support for a message type T
 // ---------------------------------------------------------------------------
 
-template<typename MsgT>
+template <typename MsgT>
 const rosidl_message_type_support_t* get_introspection_ts()
 {
     const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<MsgT>();
-    if (!ts) return nullptr;
+    if (!ts)
+        return nullptr;
     return get_message_typesupport_handle(
-        ts, rosidl_typesupport_introspection_cpp::typesupport_identifier);
+        ts,
+        rosidl_typesupport_introspection_cpp::typesupport_identifier);
 }
 
 // ---------------------------------------------------------------------------
@@ -95,25 +97,26 @@ const rosidl_message_type_support_t* get_introspection_ts()
 
 class DiscoveryFixture : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         if (!rclcpp::ok())
             rclcpp::init(0, nullptr);
 
         static std::atomic<int> counter{0};
-        const std::string name =
-            "di_test_" + std::to_string(counter.fetch_add(1));
+        const std::string       name = "di_test_" + std::to_string(counter.fetch_add(1));
 
         node_     = std::make_shared<rclcpp::Node>(name);
         executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
         executor_->add_node(node_);
 
         stop_spin_.store(false);
-        spin_thread_ = std::thread([this]() {
-            while (rclcpp::ok() && !stop_spin_.load(std::memory_order_acquire))
-                executor_->spin_once(10ms);
-        });
+        spin_thread_ = std::thread(
+            [this]()
+            {
+                while (rclcpp::ok() && !stop_spin_.load(std::memory_order_acquire))
+                    executor_->spin_once(10ms);
+            });
 
         disc_ = std::make_unique<TopicDiscovery>(node_);
     }
@@ -132,7 +135,7 @@ protected:
 
     void spin_for(std::chrono::milliseconds d) { std::this_thread::sleep_for(d); }
 
-    template<typename Pred>
+    template <typename Pred>
     bool wait_for(Pred pred, std::chrono::milliseconds timeout = 2000ms)
     {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -154,7 +157,7 @@ protected:
 
 class IntrospectionFixture : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override { intr_ = std::make_unique<MessageIntrospector>(); }
     void TearDown() override { intr_.reset(); }
 
@@ -167,7 +170,7 @@ protected:
 
 TEST_F(DiscoveryFixture, TopicsInSameNamespaceAreDiscovered)
 {
-    auto p1 = node_->create_publisher<std_msgs::msg::Float64>("/sensors/temp",     10);
+    auto p1 = node_->create_publisher<std_msgs::msg::Float64>("/sensors/temp", 10);
     auto p2 = node_->create_publisher<std_msgs::msg::Float64>("/sensors/humidity", 10);
 
     spin_for(200ms);
@@ -193,8 +196,7 @@ TEST_F(DiscoveryFixture, TopicsInDifferentNamespacesAreDiscovered)
 
 TEST_F(DiscoveryFixture, DeeplyNestedTopicNameDiscovered)
 {
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(
-        "/robot/arm/joint1/position", 10);
+    auto pub = node_->create_publisher<std_msgs::msg::Float64>("/robot/arm/joint1/position", 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -240,8 +242,7 @@ TEST_F(DiscoveryFixture, MultiplePublishersOnSameTopicReflectedInCount)
     disc_->refresh();
 
     const auto info = disc_->topic("/di_multi_pub");
-    EXPECT_GE(info.publisher_count, 2)
-        << "Expected at least 2 publishers on /di_multi_pub";
+    EXPECT_GE(info.publisher_count, 2) << "Expected at least 2 publishers on /di_multi_pub";
 }
 
 // ===========================================================================
@@ -252,8 +253,7 @@ TEST_F(DiscoveryFixture, QosDurabilityTransientLocalPopulated)
 {
     rclcpp::QoS qos(1);
     qos.transient_local();
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(
-        "/di_qos_transient", qos);
+    auto pub = node_->create_publisher<std_msgs::msg::Float64>("/di_qos_transient", qos);
 
     spin_for(200ms);
     disc_->refresh();
@@ -266,8 +266,7 @@ TEST_F(DiscoveryFixture, QosDurabilityVolatilePopulated)
 {
     rclcpp::QoS qos(10);
     qos.durability_volatile();
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(
-        "/di_qos_volatile", qos);
+    auto pub = node_->create_publisher<std_msgs::msg::Float64>("/di_qos_volatile", qos);
 
     spin_for(200ms);
     disc_->refresh();
@@ -278,10 +277,9 @@ TEST_F(DiscoveryFixture, QosDurabilityVolatilePopulated)
 
 TEST_F(DiscoveryFixture, QosDepthReflectedForKnownPublisher)
 {
-    const int depth = 42;
+    const int   depth = 42;
     rclcpp::QoS qos(depth);
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(
-        "/di_qos_depth", qos);
+    auto        pub = node_->create_publisher<std_msgs::msg::Float64>("/di_qos_depth", qos);
 
     spin_for(200ms);
     disc_->refresh();
@@ -300,9 +298,16 @@ TEST_F(DiscoveryFixture, ConcurrentRefreshDoesNotCrash)
     disc_->refresh();   // initial populate
 
     std::atomic<int> errors{0};
-    auto worker = [&]() {
-        try { disc_->refresh(); }
-        catch (...) { ++errors; }
+    auto             worker = [&]()
+    {
+        try
+        {
+            disc_->refresh();
+        }
+        catch (...)
+        {
+            ++errors;
+        }
     };
 
     std::vector<std::thread> threads;
@@ -320,8 +325,10 @@ TEST_F(DiscoveryFixture, ConcurrentTopicsAndServicesQuerySafe)
     disc_->refresh();
 
     std::atomic<int> errors{0};
-    auto query = [&]() {
-        try {
+    auto             query = [&]()
+    {
+        try
+        {
             (void)disc_->topics();
             (void)disc_->services();
             (void)disc_->nodes();
@@ -329,7 +336,10 @@ TEST_F(DiscoveryFixture, ConcurrentTopicsAndServicesQuerySafe)
             (void)disc_->service_count();
             (void)disc_->node_count();
         }
-        catch (...) { ++errors; }
+        catch (...)
+        {
+            ++errors;
+        }
     };
 
     std::vector<std::thread> threads;
@@ -349,19 +359,19 @@ TEST_F(DiscoveryFixture, ConcurrentTopicsAndServicesQuerySafe)
 TEST_F(DiscoveryFixture, SetCallbackAfterRefreshReceivesNewTopicsOnly)
 {
     // Register existing topics before setting callback.
-    auto existing = node_->create_publisher<std_msgs::msg::Float64>(
-        "/di_pre_cb", 10);
+    auto existing = node_->create_publisher<std_msgs::msg::Float64>("/di_pre_cb", 10);
     spin_for(200ms);
     disc_->refresh();
 
     std::atomic<int> new_added{0};
-    disc_->set_topic_callback([&](const TopicInfo& t, bool added) {
-        if (added && t.name == "/di_new_cb")
-            ++new_added;
-    });
+    disc_->set_topic_callback(
+        [&](const TopicInfo& t, bool added)
+        {
+            if (added && t.name == "/di_new_cb")
+                ++new_added;
+        });
 
-    auto fresh = node_->create_publisher<std_msgs::msg::Float64>(
-        "/di_new_cb", 10);
+    auto fresh = node_->create_publisher<std_msgs::msg::Float64>("/di_new_cb", 10);
     spin_for(200ms);
     disc_->refresh();
 
@@ -385,10 +395,12 @@ TEST_F(DiscoveryFixture, NodeCallbackFiresForSelfNodeOnFirstRefresh)
     std::atomic<bool> found_self{false};
     const std::string own_name = node_->get_name();
 
-    disc_->set_node_callback([&](const NodeInfo& n, bool added) {
-        if (added && n.name == own_name)
-            found_self.store(true);
-    });
+    disc_->set_node_callback(
+        [&](const NodeInfo& n, bool added)
+        {
+            if (added && n.name == own_name)
+                found_self.store(true);
+        });
 
     disc_->refresh();
     EXPECT_TRUE(found_self.load());
@@ -482,8 +494,8 @@ TEST_F(DiscoveryFixture, RefreshAfterDestructionGuardedBySharedPtr)
 
 TEST_F(IntrospectionFixture, Float32FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float32>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float32>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Float32");
     ASSERT_NE(schema, nullptr);
 
@@ -502,9 +514,8 @@ TEST_F(IntrospectionFixture, Float32FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, Int8FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int8>();
-    auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Int8");
+    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int8>();
+    auto        schema = intr_->introspect_type_support(ts, "std_msgs/msg/Int8");
     ASSERT_NE(schema, nullptr);
 
     const auto* fd = schema->find_field("data");
@@ -521,8 +532,8 @@ TEST_F(IntrospectionFixture, Int8FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, Int16FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int16>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int16>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Int16");
     ASSERT_NE(schema, nullptr);
 
@@ -536,8 +547,8 @@ TEST_F(IntrospectionFixture, Int16FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, Int64FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int64>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Int64");
     ASSERT_NE(schema, nullptr);
 
@@ -550,8 +561,8 @@ TEST_F(IntrospectionFixture, Int64FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, UInt8FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::UInt8>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::UInt8>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/UInt8");
     ASSERT_NE(schema, nullptr);
 
@@ -565,8 +576,8 @@ TEST_F(IntrospectionFixture, UInt8FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, UInt16FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::UInt16>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::UInt16>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/UInt16");
     ASSERT_NE(schema, nullptr);
 
@@ -579,8 +590,8 @@ TEST_F(IntrospectionFixture, UInt16FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, UInt32FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::UInt32>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::UInt32>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/UInt32");
     ASSERT_NE(schema, nullptr);
 
@@ -594,8 +605,8 @@ TEST_F(IntrospectionFixture, UInt32FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, UInt64FieldTypeAndExtraction)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::UInt64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::UInt64>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/UInt64");
     ASSERT_NE(schema, nullptr);
 
@@ -608,9 +619,8 @@ TEST_F(IntrospectionFixture, UInt64FieldTypeAndExtraction)
 
 TEST_F(IntrospectionFixture, BoolTrueExtractsAs1)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Bool>();
-    auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Bool");
+    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Bool>();
+    auto        schema = intr_->introspect_type_support(ts, "std_msgs/msg/Bool");
     ASSERT_NE(schema, nullptr);
 
     std_msgs::msg::Bool msg;
@@ -623,9 +633,8 @@ TEST_F(IntrospectionFixture, BoolTrueExtractsAs1)
 
 TEST_F(IntrospectionFixture, BoolFalseExtractsAs0)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Bool>();
-    auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Bool");
+    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Bool>();
+    auto        schema = intr_->introspect_type_support(ts, "std_msgs/msg/Bool");
     ASSERT_NE(schema, nullptr);
 
     std_msgs::msg::Bool msg;
@@ -642,12 +651,12 @@ TEST_F(IntrospectionFixture, BoolFalseExtractsAs0)
 
 class PoseSchemaTest : public IntrospectionFixture
 {
-protected:
+   protected:
     void SetUp() override
     {
         IntrospectionFixture::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            geometry_msgs::msg::Pose>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Pose>();
         schema_ = intr_->introspect_type_support(ts, "geometry_msgs/msg/Pose");
         ASSERT_NE(schema_, nullptr);
     }
@@ -720,9 +729,13 @@ TEST_F(PoseSchemaTest, AllSevenFieldsExtractIndependently)
     msg.orientation.w = 0.9;
 
     const std::vector<std::pair<std::string, double>> expected = {
-        {"position.x",    1.0}, {"position.y",    2.0}, {"position.z",    3.0},
-        {"orientation.x", 0.1}, {"orientation.y", 0.2},
-        {"orientation.z", 0.3}, {"orientation.w", 0.9},
+        {"position.x", 1.0},
+        {"position.y", 2.0},
+        {"position.z", 3.0},
+        {"orientation.x", 0.1},
+        {"orientation.y", 0.2},
+        {"orientation.z", 0.3},
+        {"orientation.w", 0.9},
     };
 
     for (const auto& [path, want] : expected)
@@ -739,14 +752,13 @@ TEST_F(PoseSchemaTest, AllSevenFieldsExtractIndependently)
 
 class MultiArraySchemaTest : public IntrospectionFixture
 {
-protected:
+   protected:
     void SetUp() override
     {
         IntrospectionFixture::SetUp();
         const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
             std_msgs::msg::Float64MultiArray>();
-        schema_ = intr_->introspect_type_support(
-            ts, "std_msgs/msg/Float64MultiArray");
+        schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/Float64MultiArray");
         ASSERT_NE(schema_, nullptr);
     }
 
@@ -828,12 +840,12 @@ TEST_F(MultiArraySchemaTest, OutOfBoundsArrayIndexReturnsNaN)
 
 class ImuDetailTest : public IntrospectionFixture
 {
-protected:
+   protected:
     void SetUp() override
     {
         IntrospectionFixture::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            sensor_msgs::msg::Imu>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<sensor_msgs::msg::Imu>();
         schema_ = intr_->introspect_type_support(ts, "sensor_msgs/msg/Imu");
         ASSERT_NE(schema_, nullptr);
     }
@@ -908,22 +920,22 @@ TEST_F(IntrospectionFixture, CacheSizeZeroOnConstruction)
 TEST_F(IntrospectionFixture, CacheGrowsPerUniqueType)
 {
     {
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Float64>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
         intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     }
     EXPECT_EQ(intr_->cache_size(), 1u);
 
     {
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Int32>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int32>();
         intr_->introspect_type_support(ts, "std_msgs/msg/Int32");
     }
     EXPECT_EQ(intr_->cache_size(), 2u);
 
     {
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            geometry_msgs::msg::Twist>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
         intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
     }
     EXPECT_EQ(intr_->cache_size(), 3u);
@@ -931,22 +943,29 @@ TEST_F(IntrospectionFixture, CacheGrowsPerUniqueType)
 
 TEST_F(IntrospectionFixture, ConcurrentIntrospectionSameTypeSafe)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
 
-    std::atomic<int> errors{0};
+    std::atomic<int>         errors{0};
     std::vector<std::thread> threads;
     threads.reserve(8);
 
     for (int i = 0; i < 8; ++i)
     {
-        threads.emplace_back([&]() {
-            try {
-                auto s = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
-                if (!s) ++errors;
-            }
-            catch (...) { ++errors; }
-        });
+        threads.emplace_back(
+            [&]()
+            {
+                try
+                {
+                    auto s = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
+                    if (!s)
+                        ++errors;
+                }
+                catch (...)
+                {
+                    ++errors;
+                }
+            });
     }
     for (auto& t : threads)
         t.join();
@@ -957,8 +976,8 @@ TEST_F(IntrospectionFixture, ConcurrentIntrospectionSameTypeSafe)
 
 TEST_F(IntrospectionFixture, IntrospectSameTypeTwiceGivesSamePointer)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int64>();
     auto s1 = intr_->introspect_type_support(ts, "std_msgs/msg/Int64");
     auto s2 = intr_->introspect_type_support(ts, "std_msgs/msg/Int64");
     ASSERT_NE(s1, nullptr);
@@ -968,10 +987,10 @@ TEST_F(IntrospectionFixture, IntrospectSameTypeTwiceGivesSamePointer)
 
 TEST_F(IntrospectionFixture, ClearCacheDropsAllEntries)
 {
-    const auto* ts1 = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
-    const auto* ts2 = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int32>();
+    const auto* ts1 =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
+    const auto* ts2 =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int32>();
     intr_->introspect_type_support(ts1, "std_msgs/msg/Float64");
     intr_->introspect_type_support(ts2, "std_msgs/msg/Int32");
     EXPECT_EQ(intr_->cache_size(), 2u);
@@ -986,8 +1005,8 @@ TEST_F(IntrospectionFixture, ClearCacheDropsAllEntries)
 
 TEST_F(IntrospectionFixture, FieldDescriptorFullPathMatchesPath)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        geometry_msgs::msg::Twist>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
     auto schema = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
     ASSERT_NE(schema, nullptr);
 
@@ -1007,8 +1026,8 @@ TEST_F(IntrospectionFixture, FieldDescriptorOffsetIsNonZeroForNestedField)
 {
     // For a nested message, the second field (e.g. angular in Twist) should
     // have a nonzero offset since linear comes before it.
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        geometry_msgs::msg::Twist>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
     auto schema = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
     ASSERT_NE(schema, nullptr);
     ASSERT_EQ(schema->fields.size(), 2u);
@@ -1020,8 +1039,8 @@ TEST_F(IntrospectionFixture, FieldDescriptorOffsetIsNonZeroForNestedField)
 
 TEST_F(IntrospectionFixture, NumericPathsContainAllLeafPaths)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        geometry_msgs::msg::Twist>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
     auto schema = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
     ASSERT_NE(schema, nullptr);
 
@@ -1042,8 +1061,8 @@ TEST_F(IntrospectionFixture, NumericPathsContainAllLeafPaths)
 
 TEST_F(IntrospectionFixture, MultipleAccessorsOnSameSchemaAreIndependent)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        sensor_msgs::msg::Imu>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<sensor_msgs::msg::Imu>();
     auto schema = intr_->introspect_type_support(ts, "sensor_msgs/msg/Imu");
     ASSERT_NE(schema, nullptr);
 
@@ -1071,8 +1090,8 @@ TEST_F(IntrospectionFixture, MultipleAccessorsOnSameSchemaAreIndependent)
 
 TEST_F(IntrospectionFixture, AccessorPathMembersMatchRequested)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        geometry_msgs::msg::Twist>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
     auto schema = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
     ASSERT_NE(schema, nullptr);
 
@@ -1093,8 +1112,8 @@ TEST_F(IntrospectionFixture, DefaultConstructedAccessorIsInvalid)
 
 TEST_F(IntrospectionFixture, ExtractDoubleFromNullPtrReturnsNaN)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     ASSERT_NE(schema, nullptr);
 
@@ -1105,8 +1124,8 @@ TEST_F(IntrospectionFixture, ExtractDoubleFromNullPtrReturnsNaN)
 
 TEST_F(IntrospectionFixture, ExtractInt64FromNullPtrReturnsZero)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Int32>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int32>();
     auto schema = intr_->introspect_type_support(ts, "std_msgs/msg/Int32");
     ASSERT_NE(schema, nullptr);
 
@@ -1121,11 +1140,11 @@ TEST_F(IntrospectionFixture, ExtractInt64FromNullPtrReturnsZero)
 
 TEST(FieldTypeUtilsExtra, FieldTypeNamesForAllIntegerTypes)
 {
-    EXPECT_STREQ(field_type_name(FieldType::Int8),   "int8");
-    EXPECT_STREQ(field_type_name(FieldType::Int16),  "int16");
-    EXPECT_STREQ(field_type_name(FieldType::Int32),  "int32");
-    EXPECT_STREQ(field_type_name(FieldType::Int64),  "int64");
-    EXPECT_STREQ(field_type_name(FieldType::Uint8),  "uint8");
+    EXPECT_STREQ(field_type_name(FieldType::Int8), "int8");
+    EXPECT_STREQ(field_type_name(FieldType::Int16), "int16");
+    EXPECT_STREQ(field_type_name(FieldType::Int32), "int32");
+    EXPECT_STREQ(field_type_name(FieldType::Int64), "int64");
+    EXPECT_STREQ(field_type_name(FieldType::Uint8), "uint8");
     EXPECT_STREQ(field_type_name(FieldType::Uint16), "uint16");
     EXPECT_STREQ(field_type_name(FieldType::Uint32), "uint32");
     EXPECT_STREQ(field_type_name(FieldType::Uint64), "uint64");
@@ -1145,10 +1164,17 @@ TEST(FieldTypeUtilsExtra, FieldTypeNameForBool)
 TEST(FieldTypeUtilsExtra, IsNumericTrueForAllScalars)
 {
     const std::vector<FieldType> numeric_types = {
-        FieldType::Bool,    FieldType::Float32, FieldType::Float64,
-        FieldType::Int8,    FieldType::Uint8,   FieldType::Int16,
-        FieldType::Uint16,  FieldType::Int32,   FieldType::Uint32,
-        FieldType::Int64,   FieldType::Uint64,
+        FieldType::Bool,
+        FieldType::Float32,
+        FieldType::Float64,
+        FieldType::Int8,
+        FieldType::Uint8,
+        FieldType::Int16,
+        FieldType::Uint16,
+        FieldType::Int32,
+        FieldType::Uint32,
+        FieldType::Int64,
+        FieldType::Uint64,
     };
     for (const auto t : numeric_types)
         EXPECT_TRUE(is_numeric(t)) << "type: " << static_cast<int>(t);
@@ -1173,7 +1199,7 @@ TEST_F(DiscoveryFixture, DiscoverTopicThenIntrospectItsType)
 {
     // Publish a Float64 topic, discover it, introspect its type.
     const std::string topic = "/di_e2e_float64";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -1191,8 +1217,8 @@ TEST_F(DiscoveryFixture, DiscoverTopicThenIntrospectItsType)
 
     // Introspect via type support handle (no string-based lookup needed).
     MessageIntrospector intr;
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto*         ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
     auto schema = intr.introspect_type_support(ts, "std_msgs/msg/Float64");
 
     ASSERT_NE(schema, nullptr);
@@ -1204,7 +1230,7 @@ TEST_F(DiscoveryFixture, DiscoverTopicThenIntrospectItsType)
 TEST_F(DiscoveryFixture, DiscoverTwistTopicThenIntrospect)
 {
     const std::string topic = "/di_e2e_twist";
-    auto pub = node_->create_publisher<geometry_msgs::msg::Twist>(topic, 10);
+    auto              pub   = node_->create_publisher<geometry_msgs::msg::Twist>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -1214,8 +1240,8 @@ TEST_F(DiscoveryFixture, DiscoverTwistTopicThenIntrospect)
     ASSERT_FALSE(info.types.empty());
 
     MessageIntrospector intr;
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        geometry_msgs::msg::Twist>();
+    const auto*         ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
     auto schema = intr.introspect_type_support(ts, "geometry_msgs/msg/Twist");
 
     ASSERT_NE(schema, nullptr);

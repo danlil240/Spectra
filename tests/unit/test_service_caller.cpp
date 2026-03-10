@@ -104,11 +104,17 @@ static MessageSchema make_twist_schema()
     linear.type      = FieldType::Message;
 
     FieldDescriptor lx;
-    lx.name = "x"; lx.full_path = "linear.x"; lx.type = FieldType::Float64;
+    lx.name      = "x";
+    lx.full_path = "linear.x";
+    lx.type      = FieldType::Float64;
     FieldDescriptor ly;
-    ly.name = "y"; ly.full_path = "linear.y"; ly.type = FieldType::Float64;
+    ly.name      = "y";
+    ly.full_path = "linear.y";
+    ly.type      = FieldType::Float64;
     FieldDescriptor lz;
-    lz.name = "z"; lz.full_path = "linear.z"; lz.type = FieldType::Float64;
+    lz.name         = "z";
+    lz.full_path    = "linear.z";
+    lz.type         = FieldType::Float64;
     linear.children = {lx, ly, lz};
     s.fields.push_back(linear);
     return s;
@@ -119,11 +125,11 @@ TEST(FieldsFromSchema, BoolSingleField)
     auto schema = make_bool_schema();
     auto fields = ServiceCaller::fields_from_schema(schema);
     ASSERT_EQ(1u, fields.size());
-    EXPECT_EQ("data",        fields[0].path);
-    EXPECT_EQ("data",        fields[0].display_name);
+    EXPECT_EQ("data", fields[0].path);
+    EXPECT_EQ("data", fields[0].display_name);
     EXPECT_EQ(FieldType::Bool, fields[0].type);
-    EXPECT_EQ(0,             fields[0].depth);
-    EXPECT_EQ("false",       fields[0].value_str);
+    EXPECT_EQ(0, fields[0].depth);
+    EXPECT_EQ("false", fields[0].value_str);
 }
 
 TEST(FieldsFromSchema, NestedTwistSchema)
@@ -134,11 +140,11 @@ TEST(FieldsFromSchema, NestedTwistSchema)
     ASSERT_EQ(4u, fields.size());
     EXPECT_TRUE(fields[0].is_struct_head());
     EXPECT_EQ("linear", fields[0].display_name);
-    EXPECT_EQ(0,        fields[0].depth);
+    EXPECT_EQ(0, fields[0].depth);
 
     EXPECT_EQ("linear.x", fields[1].path);
-    EXPECT_EQ(1,           fields[1].depth);
-    EXPECT_EQ("0",         fields[1].value_str);
+    EXPECT_EQ(1, fields[1].depth);
+    EXPECT_EQ("0", fields[1].value_str);
 
     EXPECT_EQ("linear.y", fields[2].path);
     EXPECT_EQ("linear.z", fields[3].path);
@@ -147,7 +153,7 @@ TEST(FieldsFromSchema, NestedTwistSchema)
 TEST(FieldsFromSchema, EmptySchema)
 {
     MessageSchema empty;
-    auto fields = ServiceCaller::fields_from_schema(empty);
+    auto          fields = ServiceCaller::fields_from_schema(empty);
     EXPECT_TRUE(fields.empty());
 }
 
@@ -158,21 +164,25 @@ TEST(FieldsFromSchema, EmptySchema)
 TEST(FieldsToJson, SingleBoolTrue)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "data"; fv.type = FieldType::Bool; fv.value_str = "true";
+    ServiceFieldValue              fv;
+    fv.path      = "data";
+    fv.type      = FieldType::Bool;
+    fv.value_str = "true";
     fields.push_back(fv);
 
     std::string json = ServiceCaller::fields_to_json(fields);
     EXPECT_NE(std::string::npos, json.find("\"data\""));
     EXPECT_NE(std::string::npos, json.find("true"));
-    EXPECT_EQ(std::string::npos, json.find("\"true\""));  // bool, not string
+    EXPECT_EQ(std::string::npos, json.find("\"true\""));   // bool, not string
 }
 
 TEST(FieldsToJson, SingleBoolFalse)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "data"; fv.type = FieldType::Bool; fv.value_str = "false";
+    ServiceFieldValue              fv;
+    fv.path      = "data";
+    fv.type      = FieldType::Bool;
+    fv.value_str = "false";
     fields.push_back(fv);
     std::string json = ServiceCaller::fields_to_json(fields);
     EXPECT_NE(std::string::npos, json.find("false"));
@@ -181,8 +191,10 @@ TEST(FieldsToJson, SingleBoolFalse)
 TEST(FieldsToJson, NumericField)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "linear.x"; fv.type = FieldType::Float64; fv.value_str = "1.5";
+    ServiceFieldValue              fv;
+    fv.path      = "linear.x";
+    fv.type      = FieldType::Float64;
+    fv.value_str = "1.5";
     fields.push_back(fv);
     std::string json = ServiceCaller::fields_to_json(fields);
     EXPECT_NE(std::string::npos, json.find("\"linear.x\""));
@@ -192,8 +204,10 @@ TEST(FieldsToJson, NumericField)
 TEST(FieldsToJson, StringField)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "name"; fv.type = FieldType::String; fv.value_str = "hello";
+    ServiceFieldValue              fv;
+    fv.path      = "name";
+    fv.type      = FieldType::String;
+    fv.value_str = "hello";
     fields.push_back(fv);
     std::string json = ServiceCaller::fields_to_json(fields);
     EXPECT_NE(std::string::npos, json.find("\"name\""));
@@ -203,10 +217,13 @@ TEST(FieldsToJson, StringField)
 TEST(FieldsToJson, StructHeadSkipped)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue head;
-    head.path = "linear"; head.type = FieldType::Message;
+    ServiceFieldValue              head;
+    head.path = "linear";
+    head.type = FieldType::Message;
     ServiceFieldValue leaf;
-    leaf.path = "linear.x"; leaf.type = FieldType::Float64; leaf.value_str = "2.0";
+    leaf.path      = "linear.x";
+    leaf.type      = FieldType::Float64;
+    leaf.value_str = "2.0";
     fields.push_back(head);
     fields.push_back(leaf);
 
@@ -219,7 +236,7 @@ TEST(FieldsToJson, StructHeadSkipped)
 TEST(FieldsToJson, EmptyFields)
 {
     std::vector<ServiceFieldValue> fields;
-    std::string json = ServiceCaller::fields_to_json(fields);
+    std::string                    json = ServiceCaller::fields_to_json(fields);
     EXPECT_EQ("{}", json);
 }
 
@@ -230,8 +247,10 @@ TEST(FieldsToJson, EmptyFields)
 TEST(JsonToFields, PopulatesExistingFields)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "data"; fv.type = FieldType::Bool; fv.value_str = "false";
+    ServiceFieldValue              fv;
+    fv.path      = "data";
+    fv.type      = FieldType::Bool;
+    fv.value_str = "false";
     fields.push_back(fv);
 
     bool ok = ServiceCaller::json_to_fields(R"({"data": "true"})", fields);
@@ -242,13 +261,15 @@ TEST(JsonToFields, PopulatesExistingFields)
 TEST(JsonToFields, EmptyJsonNoChange)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "x"; fv.type = FieldType::Float64; fv.value_str = "1.0";
+    ServiceFieldValue              fv;
+    fv.path      = "x";
+    fv.type      = FieldType::Float64;
+    fv.value_str = "1.0";
     fields.push_back(fv);
 
     bool ok = ServiceCaller::json_to_fields("{}", fields);
     EXPECT_TRUE(ok);
-    EXPECT_EQ("1.0", fields[0].value_str);  // unchanged
+    EXPECT_EQ("1.0", fields[0].value_str);   // unchanged
 }
 
 TEST(JsonToFields, MultipleFields)
@@ -257,11 +278,14 @@ TEST(JsonToFields, MultipleFields)
     for (auto& p : std::vector<std::string>{"linear.x", "linear.y", "linear.z"})
     {
         ServiceFieldValue fv;
-        fv.path = p; fv.type = FieldType::Float64; fv.value_str = "0";
+        fv.path      = p;
+        fv.type      = FieldType::Float64;
+        fv.value_str = "0";
         fields.push_back(fv);
     }
     bool ok = ServiceCaller::json_to_fields(
-        R"({"linear.x": "1.0", "linear.y": "2.0", "linear.z": "3.0"})", fields);
+        R"({"linear.x": "1.0", "linear.y": "2.0", "linear.z": "3.0"})",
+        fields);
     EXPECT_TRUE(ok);
     EXPECT_EQ("1.0", fields[0].value_str);
     EXPECT_EQ("2.0", fields[1].value_str);
@@ -274,21 +298,21 @@ TEST(JsonToFields, MultipleFields)
 
 static std::shared_ptr<CallRecord> make_done_record()
 {
-    auto rec = std::make_shared<CallRecord>();
-    rec->id             = 42;
-    rec->service_name   = "/set_bool";
-    rec->service_type   = "std_srvs/srv/SetBool";
-    rec->request_json   = R"({"data": true})";
-    rec->response_json  = R"({"success": true, "message": "ok"})";
-    rec->latency_ms     = 12.5;
-    rec->call_time_s    = 1000.0;
+    auto rec           = std::make_shared<CallRecord>();
+    rec->id            = 42;
+    rec->service_name  = "/set_bool";
+    rec->service_type  = "std_srvs/srv/SetBool";
+    rec->request_json  = R"({"data": true})";
+    rec->response_json = R"({"success": true, "message": "ok"})";
+    rec->latency_ms    = 12.5;
+    rec->call_time_s   = 1000.0;
     rec->state.store(CallState::Done, std::memory_order_release);
     return rec;
 }
 
 TEST(RecordJson, RoundTripDoneRecord)
 {
-    auto rec = make_done_record();
+    auto        rec  = make_done_record();
     std::string json = ServiceCaller::record_to_json(*rec);
 
     EXPECT_NE(std::string::npos, json.find("/set_bool"));
@@ -327,7 +351,7 @@ TEST(RecordJson, TimedOutRecord)
     rec.error_message = "Timed out";
     rec.state.store(CallState::TimedOut, std::memory_order_release);
     std::string json = ServiceCaller::record_to_json(rec);
-    CallRecord out;
+    CallRecord  out;
     ASSERT_TRUE(ServiceCaller::record_from_json(json, out));
     EXPECT_EQ(CallState::TimedOut, out.state.load());
 }
@@ -346,7 +370,7 @@ TEST(RecordJson, SpecialCharsInServiceName)
     rec.service_name = "/robot/arm/set_joint_angles";
     rec.state.store(CallState::Pending, std::memory_order_release);
     std::string json = ServiceCaller::record_to_json(rec);
-    CallRecord out;
+    CallRecord  out;
     ASSERT_TRUE(ServiceCaller::record_from_json(json, out));
     EXPECT_EQ("/robot/arm/set_joint_angles", out.service_name);
 }
@@ -359,7 +383,7 @@ TEST(RecordJson, SpecialCharsInServiceName)
 // but all pure-logic methods work without a node.
 class NullNodeCaller : public ::testing::Test
 {
-protected:
+   protected:
     ServiceCaller caller_{nullptr, nullptr, nullptr};
 };
 
@@ -382,13 +406,12 @@ TEST_F(NullNodeCaller, HistoryToJsonEmpty)
 
 TEST_F(NullNodeCaller, HistoryFromJsonImportsRecords)
 {
-    std::string arr =
-        R"([{"service": "/set_bool", "type": "std_srvs/srv/SetBool",)"
-        R"( "request": {}, "response": {}, "state": "Done",)"
-        R"( "latency_ms": 5.0, "call_time": 100.0, "error": ""},)"
-        R"({"service": "/echo", "type": "std_srvs/srv/Trigger",)"
-        R"( "request": {}, "response": {}, "state": "Error",)"
-        R"( "latency_ms": 0.0, "call_time": 101.0, "error": "unavailable"}])";
+    std::string arr = R"([{"service": "/set_bool", "type": "std_srvs/srv/SetBool",)"
+                      R"( "request": {}, "response": {}, "state": "Done",)"
+                      R"( "latency_ms": 5.0, "call_time": 100.0, "error": ""},)"
+                      R"({"service": "/echo", "type": "std_srvs/srv/Trigger",)"
+                      R"( "request": {}, "response": {}, "state": "Error",)"
+                      R"( "latency_ms": 0.0, "call_time": 101.0, "error": "unavailable"}])";
 
     std::size_t n = caller_.history_from_json(arr);
     EXPECT_EQ(2u, n);
@@ -397,10 +420,9 @@ TEST_F(NullNodeCaller, HistoryFromJsonImportsRecords)
 
 TEST_F(NullNodeCaller, HistoryRoundTrip)
 {
-    std::string arr =
-        R"([{"service": "/trigger", "type": "std_srvs/srv/Trigger",)"
-        R"( "request": {}, "response": {}, "state": "Done",)"
-        R"( "latency_ms": 8.5, "call_time": 200.0, "error": ""}])";
+    std::string arr = R"([{"service": "/trigger", "type": "std_srvs/srv/Trigger",)"
+                      R"( "request": {}, "response": {}, "state": "Done",)"
+                      R"( "latency_ms": 8.5, "call_time": 200.0, "error": ""}])";
 
     caller_.history_from_json(arr);
     ASSERT_EQ(1u, caller_.history_count());
@@ -412,9 +434,8 @@ TEST_F(NullNodeCaller, HistoryRoundTrip)
 
 TEST_F(NullNodeCaller, ClearHistory)
 {
-    std::string arr =
-        R"([{"service": "/a", "type": "pkg/srv/A", "request": {}, "response": {},)"
-        R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""}])";
+    std::string arr = R"([{"service": "/a", "type": "pkg/srv/A", "request": {}, "response": {},)"
+                      R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""}])";
     caller_.history_from_json(arr);
     EXPECT_EQ(1u, caller_.history_count());
     caller_.clear_history();
@@ -423,10 +444,9 @@ TEST_F(NullNodeCaller, ClearHistory)
 
 TEST_F(NullNodeCaller, PruneHistory)
 {
-    std::string entry =
-        R"({"service": "/svc", "type": "pkg/srv/T", "request": {}, "response": {},)"
-        R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""})";
-    std::string arr = "[" + entry + "," + entry + "," + entry + "," + entry + "," + entry + "]";
+    std::string entry = R"({"service": "/svc", "type": "pkg/srv/T", "request": {}, "response": {},)"
+                        R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""})";
+    std::string arr   = "[" + entry + "," + entry + "," + entry + "," + entry + "," + entry + "]";
     caller_.history_from_json(arr);
     ASSERT_EQ(5u, caller_.history_count());
     caller_.prune_history(3);
@@ -438,10 +458,9 @@ TEST_F(NullNodeCaller, MaxHistoryEnforced)
     caller_.set_max_history(3);
     EXPECT_EQ(3u, caller_.max_history());
 
-    std::string entry =
-        R"({"service": "/svc", "type": "pkg/srv/T", "request": {}, "response": {},)"
-        R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""})";
-    std::string arr = "[" + entry + "," + entry + "," + entry + "," + entry + "," + entry + "]";
+    std::string entry = R"({"service": "/svc", "type": "pkg/srv/T", "request": {}, "response": {},)"
+                        R"( "state": "Done", "latency_ms": 1.0, "call_time": 1.0, "error": ""})";
+    std::string arr   = "[" + entry + "," + entry + "," + entry + "," + entry + "," + entry + "]";
     caller_.history_from_json(arr);
     EXPECT_LE(caller_.history_count(), 3u);
 }
@@ -479,8 +498,8 @@ TEST_F(NullNodeCaller, RefreshServicesNullNodeNoThrow)
 
 class PanelTest : public ::testing::Test
 {
-protected:
-    ServiceCaller    caller_{nullptr, nullptr, nullptr};
+   protected:
+    ServiceCaller      caller_{nullptr, nullptr, nullptr};
     ServiceCallerPanel panel_{&caller_};
 };
 
@@ -527,8 +546,8 @@ TEST_F(PanelTest, SetAndGetRequestFields)
 
 TEST_F(PanelTest, BuildRequestJsonFromFields)
 {
-    auto schema = make_bool_schema();
-    auto fields = ServiceCaller::fields_from_schema(schema);
+    auto schema         = make_bool_schema();
+    auto fields         = ServiceCaller::fields_from_schema(schema);
     fields[0].value_str = "true";
     panel_.set_request_fields(fields);
 
@@ -564,13 +583,15 @@ TEST_F(PanelTest, RequestRefreshFlag)
 TEST(FieldsRoundTrip, BoolFieldRoundTrip)
 {
     std::vector<ServiceFieldValue> fields;
-    ServiceFieldValue fv;
-    fv.path = "data"; fv.type = FieldType::Bool; fv.value_str = "true";
+    ServiceFieldValue              fv;
+    fv.path      = "data";
+    fv.type      = FieldType::Bool;
+    fv.value_str = "true";
     fields.push_back(fv);
 
-    std::string json = ServiceCaller::fields_to_json(fields);
+    std::string                    json     = ServiceCaller::fields_to_json(fields);
     std::vector<ServiceFieldValue> restored = fields;
-    restored[0].value_str = "false";  // mutate, then restore from json
+    restored[0].value_str                   = "false";   // mutate, then restore from json
     ServiceCaller::json_to_fields(json, restored);
     // json_to_fields reads string values (quoted), so the bool was stored as
     // unquoted "true" — value lookup returns the raw token.
@@ -581,11 +602,13 @@ TEST(FieldsRoundTrip, BoolFieldRoundTrip)
 TEST(FieldsRoundTrip, MultipleNumericFields)
 {
     std::vector<ServiceFieldValue> fields;
-    for (auto& [path, val] : std::vector<std::pair<std::string,std::string>>{
-            {"x","1.0"}, {"y","2.0"}, {"z","3.0"}})
+    for (auto& [path, val] :
+         std::vector<std::pair<std::string, std::string>>{{"x", "1.0"}, {"y", "2.0"}, {"z", "3.0"}})
     {
         ServiceFieldValue fv;
-        fv.path = path; fv.type = FieldType::Float64; fv.value_str = val;
+        fv.path      = path;
+        fv.type      = FieldType::Float64;
+        fv.value_str = val;
         fields.push_back(fv);
     }
     std::string json = ServiceCaller::fields_to_json(fields);
@@ -601,34 +624,36 @@ TEST(FieldsRoundTrip, MultipleNumericFields)
 TEST(EdgeCases, HistoryFromJsonMalformed)
 {
     ServiceCaller caller{nullptr, nullptr, nullptr};
-    std::size_t n = caller.history_from_json("not json");
+    std::size_t   n = caller.history_from_json("not json");
     EXPECT_EQ(0u, n);
 }
 
 TEST(EdgeCases, HistoryFromJsonEmptyArray)
 {
     ServiceCaller caller{nullptr, nullptr, nullptr};
-    std::size_t n = caller.history_from_json("[]");
+    std::size_t   n = caller.history_from_json("[]");
     EXPECT_EQ(0u, n);
 }
 
 TEST(EdgeCases, FieldsFromSchemaStringField)
 {
-    MessageSchema s;
+    MessageSchema   s;
     FieldDescriptor fd;
-    fd.name = "message"; fd.full_path = "message"; fd.type = FieldType::String;
+    fd.name      = "message";
+    fd.full_path = "message";
+    fd.type      = FieldType::String;
     s.fields.push_back(fd);
     auto fields = ServiceCaller::fields_from_schema(s);
     ASSERT_EQ(1u, fields.size());
-    EXPECT_EQ("", fields[0].value_str);  // string default is empty
+    EXPECT_EQ("", fields[0].value_str);   // string default is empty
 }
 
 TEST(EdgeCases, RecordToJsonContainsAllKeys)
 {
-    auto rec = make_done_record();
+    auto        rec  = make_done_record();
     std::string json = ServiceCaller::record_to_json(*rec);
-    for (auto key : {"service", "type", "request", "response",
-                     "state", "latency_ms", "call_time", "error"})
+    for (auto key :
+         {"service", "type", "request", "response", "state", "latency_ms", "call_time", "error"})
     {
         EXPECT_NE(std::string::npos, json.find(key)) << "Missing key: " << key;
     }

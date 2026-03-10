@@ -3,7 +3,7 @@
 #include "scene/scene_manager.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -40,10 +40,7 @@ void InspectorPanel::draw(bool* p_open, SceneManager& scene)
                     entity->transform.translation.x,
                     entity->transform.translation.y,
                     entity->transform.translation.z);
-        ImGui::Text("Scale: (%.3f, %.3f, %.3f)",
-                    entity->scale.x,
-                    entity->scale.y,
-                    entity->scale.z);
+        ImGui::Text("Scale: (%.3f, %.3f, %.3f)", entity->scale.x, entity->scale.y, entity->scale.z);
         if (entity->polyline.has_value())
             ImGui::Text("Polyline points: %zu", entity->polyline->points.size());
         if (entity->arrow.has_value())

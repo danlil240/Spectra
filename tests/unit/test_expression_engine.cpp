@@ -20,14 +20,18 @@ using spectra::adapters::ros2::ExpressionPreset;
 // Helpers
 // ---------------------------------------------------------------------------
 
-static bool isnan_d(double v) { return std::isnan(v); }
+static bool isnan_d(double v)
+{
+    return std::isnan(v);
+}
 
-static double eval(const std::string& expr,
+static double eval(const std::string&                             expr,
                    const std::unordered_map<std::string, double>& vars = {})
 {
     ExpressionEngine eng;
-    auto r = eng.compile(expr);
-    if (!r.ok) return std::numeric_limits<double>::quiet_NaN();
+    auto             r = eng.compile(expr);
+    if (!r.ok)
+        return std::numeric_limits<double>::quiet_NaN();
     return eng.evaluate(vars);
 }
 
@@ -38,7 +42,7 @@ static double eval(const std::string& expr,
 TEST(ExpressionEngineCompile, EmptyExpressionFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("");
+    auto             r = eng.compile("");
     EXPECT_FALSE(r.ok);
     EXPECT_FALSE(r.error.empty());
 }
@@ -46,7 +50,7 @@ TEST(ExpressionEngineCompile, EmptyExpressionFails)
 TEST(ExpressionEngineCompile, SimpleNumberSucceeds)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("42");
+    auto             r = eng.compile("42");
     EXPECT_TRUE(r.ok) << r.error;
     EXPECT_TRUE(eng.is_compiled());
 }
@@ -54,42 +58,42 @@ TEST(ExpressionEngineCompile, SimpleNumberSucceeds)
 TEST(ExpressionEngineCompile, TrailingGarbageFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("1 + 2 ???");
+    auto             r = eng.compile("1 + 2 ???");
     EXPECT_FALSE(r.ok);
 }
 
 TEST(ExpressionEngineCompile, UnknownIdentifierFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("foo");
+    auto             r = eng.compile("foo");
     EXPECT_FALSE(r.ok);
 }
 
 TEST(ExpressionEngineCompile, MissingParenFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("(1 + 2");
+    auto             r = eng.compile("(1 + 2");
     EXPECT_FALSE(r.ok);
 }
 
 TEST(ExpressionEngineCompile, UnknownFunctionFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("foobar(1)");
+    auto             r = eng.compile("foobar(1)");
     EXPECT_FALSE(r.ok);
 }
 
 TEST(ExpressionEngineCompile, EmptyVariableNameFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("$");
+    auto             r = eng.compile("$");
     EXPECT_FALSE(r.ok);
 }
 
 TEST(ExpressionEngineCompile, RecompileReplacesOld)
 {
     ExpressionEngine eng;
-    auto r1 = eng.compile("1 + 1");
+    auto             r1 = eng.compile("1 + 1");
     EXPECT_TRUE(r1.ok);
 
     auto r2 = eng.compile("2 + 2");
@@ -182,7 +186,7 @@ TEST(ExpressionEngineFunctions, Sqrt)
 TEST(ExpressionEngineFunctions, Abs)
 {
     EXPECT_NEAR(eval("abs(-7.5)"), 7.5, 1e-12);
-    EXPECT_NEAR(eval("abs(3)"),    3.0, 1e-12);
+    EXPECT_NEAR(eval("abs(3)"), 3.0, 1e-12);
 }
 
 TEST(ExpressionEngineFunctions, Sin)
@@ -231,13 +235,13 @@ TEST(ExpressionEngineFunctions, Exp)
 
 TEST(ExpressionEngineFunctions, Floor)
 {
-    EXPECT_NEAR(eval("floor(3.7)"),  3.0, 1e-12);
+    EXPECT_NEAR(eval("floor(3.7)"), 3.0, 1e-12);
     EXPECT_NEAR(eval("floor(-1.2)"), -2.0, 1e-12);
 }
 
 TEST(ExpressionEngineFunctions, Ceil)
 {
-    EXPECT_NEAR(eval("ceil(3.2)"),  4.0, 1e-12);
+    EXPECT_NEAR(eval("ceil(3.2)"), 4.0, 1e-12);
     EXPECT_NEAR(eval("ceil(-1.9)"), -1.0, 1e-12);
 }
 
@@ -365,7 +369,7 @@ TEST(ExpressionEngineVariables, GetUnknownVariableIsNaN)
 TEST(ExpressionEngineVariables, VariableWithSlash)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("$/ns/imu.acc.x");
+    auto             r = eng.compile("$/ns/imu.acc.x");
     EXPECT_TRUE(r.ok) << r.error;
     const auto& vars = eng.variables();
     ASSERT_EQ(vars.size(), 1u);
@@ -379,8 +383,7 @@ TEST(ExpressionEngineVariables, VariableWithSlash)
 TEST(ExpressionEngineComplex, ImuNorm)
 {
     ExpressionEngine eng;
-    auto r = eng.compile(
-        "sqrt($imu.acc.x^2 + $imu.acc.y^2 + $imu.acc.z^2)");
+    auto             r = eng.compile("sqrt($imu.acc.x^2 + $imu.acc.y^2 + $imu.acc.z^2)");
     EXPECT_TRUE(r.ok) << r.error;
 
     eng.set_variable("$imu.acc.x", 0.0);
@@ -424,8 +427,7 @@ TEST(ExpressionEngineComplex, ChainedOperations)
 
 TEST(ExpressionEngineStatic, ExtractVariables)
 {
-    auto vars = ExpressionEngine::extract_variables(
-        "sqrt($imu.acc.x^2 + $imu.acc.y^2)");
+    auto vars = ExpressionEngine::extract_variables("sqrt($imu.acc.x^2 + $imu.acc.y^2)");
     EXPECT_EQ(vars.size(), 2u);
     EXPECT_TRUE(std::find(vars.begin(), vars.end(), "$imu.acc.x") != vars.end());
     EXPECT_TRUE(std::find(vars.begin(), vars.end(), "$imu.acc.y") != vars.end());
@@ -527,9 +529,9 @@ TEST(ExpressionEnginePresets, SerializeDeserializeRoundtrip)
     ExpressionEngine eng2;
     eng2.deserialize_presets(json);
     ASSERT_EQ(eng2.presets().size(), 2u);
-    EXPECT_EQ(eng2.presets()[0].name,       "norm2d");
+    EXPECT_EQ(eng2.presets()[0].name, "norm2d");
     EXPECT_EQ(eng2.presets()[0].expression, "sqrt($a^2 + $b^2)");
-    EXPECT_EQ(eng2.presets()[1].name,       "heading");
+    EXPECT_EQ(eng2.presets()[1].name, "heading");
     EXPECT_EQ(eng2.presets()[1].expression, "atan2($y, $x)");
 }
 
@@ -540,8 +542,8 @@ TEST(ExpressionEnginePresets, PresetsContainVariables)
     eng.save_preset("sum");
 
     ASSERT_EQ(eng.presets().size(), 1u);
-    auto presets_copy = eng.presets();
-    const auto& p = presets_copy[0];
+    auto        presets_copy = eng.presets();
+    const auto& p            = presets_copy[0];
     EXPECT_EQ(p.variables.size(), 2u);
     EXPECT_TRUE(std::find(p.variables.begin(), p.variables.end(), "$ax") != p.variables.end());
     EXPECT_TRUE(std::find(p.variables.begin(), p.variables.end(), "$ay") != p.variables.end());
@@ -554,8 +556,8 @@ TEST(ExpressionEnginePresets, PresetSerializeDeserializeWithEscape)
     p.expression = "1 + 2";
     p.variables  = {};
 
-    std::string json = p.serialize();
-    ExpressionPreset p2 = ExpressionPreset::deserialize(json);
+    std::string      json = p.serialize();
+    ExpressionPreset p2   = ExpressionPreset::deserialize(json);
     EXPECT_EQ(p2.name, "test\"preset");
     EXPECT_EQ(p2.expression, "1 + 2");
 }
@@ -567,7 +569,7 @@ TEST(ExpressionEnginePresets, PresetSerializeDeserializeWithEscape)
 TEST(ExpressionEngineErrors, ErrorColReported)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("1 + $");
+    auto             r = eng.compile("1 + $");
     EXPECT_FALSE(r.ok);
     // Column >= 4 (at or after the '$').
     EXPECT_GE(r.error_col, 4);
@@ -576,7 +578,7 @@ TEST(ExpressionEngineErrors, ErrorColReported)
 TEST(ExpressionEngineErrors, ErrorMessageNotEmpty)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("(1 + 2");
+    auto             r = eng.compile("(1 + 2");
     EXPECT_FALSE(r.ok);
     EXPECT_FALSE(r.error.empty());
 }
@@ -584,7 +586,7 @@ TEST(ExpressionEngineErrors, ErrorMessageNotEmpty)
 TEST(ExpressionEngineErrors, Atan2MissingSecondArgFails)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("atan2(1)");
+    auto             r = eng.compile("atan2(1)");
     EXPECT_FALSE(r.ok);
 }
 
@@ -595,7 +597,7 @@ TEST(ExpressionEngineErrors, Atan2MissingSecondArgFails)
 TEST(ExpressionEngineEdge, WhitespaceOnly)
 {
     ExpressionEngine eng;
-    auto r = eng.compile("   ");
+    auto             r = eng.compile("   ");
     EXPECT_FALSE(r.ok);
 }
 

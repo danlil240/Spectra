@@ -18,8 +18,7 @@ namespace spectra::adapters::ros2
 // ---------------------------------------------------------------------------
 
 ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
-    : bridge_(bridge)
-    , intr_(intr)
+    : bridge_(bridge), intr_(intr)
 {
     spectra::FigureConfig cfg;
     cfg.width  = 1280;
@@ -27,7 +26,7 @@ ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
     figure_    = std::make_unique<spectra::Figure>(cfg);
 
     // Create a single 1×1 subplot axes.
-    axes_   = &figure_->subplot(1, 1, 1);
+    axes_                   = &figure_->subplot(1, 1, 1);
     spectra::LineSeries& ls = axes_->line();
     ls.label("expression");
     ls.color(spectra::palette::default_cycle[0]);
@@ -98,17 +97,20 @@ bool ExpressionPlot::add_variable(const std::string& var_name,
     remove_variable(var_name);
 
     VarEntry ve;
-    ve.var_name   = var_name;
-    ve.topic      = topic;
-    ve.field_path = field_path;
-    ve.type_name  = resolved_type;
-    ve.last_value = 0.0;
+    ve.var_name     = var_name;
+    ve.topic        = topic;
+    ve.field_path   = field_path;
+    ve.type_name    = resolved_type;
+    ve.last_value   = 0.0;
     ve.received_any = false;
 
     if (bridge_.is_ok())
     {
-        auto sub = std::make_unique<GenericSubscriber>(
-            bridge_.node(), topic, resolved_type, intr_, buffer_depth);
+        auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
+                                                       topic,
+                                                       resolved_type,
+                                                       intr_,
+                                                       buffer_depth);
 
         int eid = sub->add_field(field_path);
         if (eid < 0)
@@ -133,8 +135,9 @@ bool ExpressionPlot::add_variable(const std::string& var_name,
 
 bool ExpressionPlot::remove_variable(const std::string& var_name)
 {
-    auto it = std::find_if(vars_.begin(), vars_.end(),
-                           [&var_name](const VarEntry& v){ return v.var_name == var_name; });
+    auto it = std::find_if(vars_.begin(),
+                           vars_.end(),
+                           [&var_name](const VarEntry& v) { return v.var_name == var_name; });
     if (it == vars_.end())
         return false;
 
@@ -166,8 +169,9 @@ std::vector<std::string> ExpressionPlot::variable_names() const
 
 bool ExpressionPlot::has_variable(const std::string& var_name) const
 {
-    return std::any_of(vars_.begin(), vars_.end(),
-                       [&var_name](const VarEntry& v){ return v.var_name == var_name; });
+    return std::any_of(vars_.begin(),
+                       vars_.end(),
+                       [&var_name](const VarEntry& v) { return v.var_name == var_name; });
 }
 
 // ---------------------------------------------------------------------------
@@ -177,8 +181,7 @@ bool ExpressionPlot::has_variable(const std::string& var_name) const
 void ExpressionPlot::poll()
 {
     const double wall_now =
-        std::chrono::duration<double>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+        std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     // Set time origin on first frame for float precision.
     if (!has_time_origin_)
@@ -221,8 +224,8 @@ void ExpressionPlot::poll()
         {
             // Use the last (most recent) sample for zero-order hold.
             const FieldSample& last = ve.drain_buf[n - 1];
-            ve.last_value   = last.value;
-            ve.received_any = true;
+            ve.last_value           = last.value;
+            ve.received_any         = true;
 
             const double t = static_cast<double>(last.timestamp_ns) * 1e-9;
             if (t > newest_t_sec)
@@ -247,8 +250,7 @@ void ExpressionPlot::poll()
             // Use relative time (seconds since origin) to preserve
             // float precision at epoch-scale timestamps.
             const double t_rel = newest_t_sec - time_origin_;
-            series_->append(static_cast<float>(t_rel),
-                            static_cast<float>(result));
+            series_->append(static_cast<float>(t_rel), static_cast<float>(result));
 
             if (on_data_cb_)
                 on_data_cb_(newest_t_sec, result);

@@ -17,8 +17,8 @@ namespace
 nav_msgs::msg::Path make_path()
 {
     nav_msgs::msg::Path msg;
-    msg.header.frame_id = "map";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "map";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 700;
     msg.poses.resize(3);
     msg.poses[0].pose.position.x = 0.0;
@@ -30,26 +30,26 @@ nav_msgs::msg::Path make_path()
 geometry_msgs::msg::PoseStamped make_pose()
 {
     geometry_msgs::msg::PoseStamped msg;
-    msg.header.frame_id = "base_link";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "base_link";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 900;
-    msg.pose.position.x = 1.5;
-    msg.pose.position.y = -0.5;
-    msg.pose.orientation.w = 1.0;
+    msg.pose.position.x      = 1.5;
+    msg.pose.position.y      = -0.5;
+    msg.pose.orientation.w   = 1.0;
     return msg;
 }
 
 TransformStamp make_tf(const std::string& parent,
                        const std::string& child,
-                       double tx,
-                       uint64_t recv_ns)
+                       double             tx,
+                       uint64_t           recv_ns)
 {
     TransformStamp stamp;
     stamp.parent_frame = parent;
-    stamp.child_frame = child;
-    stamp.tx = tx;
-    stamp.qw = 1.0;
-    stamp.recv_ns = recv_ns;
+    stamp.child_frame  = child;
+    stamp.tx           = tx;
+    stamp.qw           = 1.0;
+    stamp.recv_ns      = recv_ns;
     return stamp;
 }
 }   // namespace
@@ -71,10 +71,10 @@ TEST(PathDisplay, ResolvesPathCentroidIntoFixedFrame)
     TfBuffer buffer;
     buffer.inject_transform(make_tf("world", "map", 10.0, 700));
 
-    PathDisplay display;
+    PathDisplay    display;
     DisplayContext context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
     display.on_enable(context);
 
     auto frame = adapt_path_message(make_path(), "/plan");
@@ -98,10 +98,10 @@ TEST(PoseDisplay, ComposesPoseWithFixedFrameTransform)
     TfBuffer buffer;
     buffer.inject_transform(make_tf("world", "base_link", 4.0, 900));
 
-    PoseDisplay display;
+    PoseDisplay    display;
     DisplayContext context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
     display.on_enable(context);
 
     auto frame = adapt_pose_stamped_message(make_pose(), "/pose");
@@ -125,8 +125,8 @@ TEST(PoseDisplay, ComposesPoseWithFixedFrameTransform)
 TEST(PathAdapter, EmptyPathReturnsNullopt)
 {
     nav_msgs::msg::Path msg;
-    msg.header.frame_id = "map";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "map";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
     msg.poses.clear();
 
@@ -137,8 +137,8 @@ TEST(PathAdapter, EmptyPathReturnsNullopt)
 TEST(PathAdapter, SinglePosePathHasZeroLength)
 {
     nav_msgs::msg::Path msg;
-    msg.header.frame_id = "map";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "map";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
     msg.poses.resize(1);
     msg.poses[0].pose.position.x = 5.0;
@@ -176,7 +176,7 @@ TEST(PathDisplay, ConfigBlobEmptyNoOp)
 
 TEST(PathDisplay, LatestFrameReturnsIngested)
 {
-    PathDisplay display;
+    PathDisplay    display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -194,8 +194,9 @@ TEST(PathDisplay, LatestFrameReturnsIngested)
 TEST(PoseDisplay, ConfigBlobRoundTrip)
 {
     PoseDisplay display;
-    display.deserialize_config_blob(
-        "topic=/goal_pose;shaft_length=1.20;shaft_width=0.10;head_length=0.30;head_width=0.20;use_message_stamp=0");
+    display.deserialize_config_blob("topic=/"
+                                    "goal_pose;shaft_length=1.20;shaft_width=0.10;head_length=0.30;"
+                                    "head_width=0.20;use_message_stamp=0");
 
     const auto blob = display.serialize_config_blob();
     EXPECT_NE(blob.find("topic=/goal_pose"), std::string::npos);
@@ -214,7 +215,7 @@ TEST(PoseDisplay, ConfigBlobEmptyNoOp)
 
 TEST(PoseDisplay, LatestFrameReturnsIngested)
 {
-    PoseDisplay display;
+    PoseDisplay    display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);

@@ -13,8 +13,8 @@
 #include <spectra/math3d.hpp>
 
 #ifdef SPECTRA_USE_ROS2
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <sensor_msgs/msg/point_field.hpp>
+    #include <sensor_msgs/msg/point_cloud2.hpp>
+    #include <sensor_msgs/msg/point_field.hpp>
 #endif
 
 namespace spectra::adapters::ros2
@@ -23,27 +23,27 @@ namespace spectra::adapters::ros2
 struct PointCloudPoint
 {
     spectra::vec3 position{};
-    float intensity{0.0f};
-    uint32_t rgba{0xFFFFFFFFu};
-    bool has_rgb{false};
-    bool has_intensity{false};
+    float         intensity{0.0f};
+    uint32_t      rgba{0xFFFFFFFFu};
+    bool          has_rgb{false};
+    bool          has_intensity{false};
 };
 
 struct PointCloudFrame
 {
-    std::string topic;
-    std::string frame_id;
-    uint64_t stamp_ns{0};
-    size_t point_count{0};
-    size_t original_point_count{0};
+    std::string                  topic;
+    std::string                  frame_id;
+    uint64_t                     stamp_ns{0};
+    size_t                       point_count{0};
+    size_t                       original_point_count{0};
     std::vector<PointCloudPoint> points;
-    spectra::vec3 min_bounds{};
-    spectra::vec3 max_bounds{};
-    spectra::vec3 centroid{};
-    bool has_rgb{false};
-    bool has_intensity{false};
-    float min_intensity{0.0f};
-    float max_intensity{0.0f};
+    spectra::vec3                min_bounds{};
+    spectra::vec3                max_bounds{};
+    spectra::vec3                centroid{};
+    bool                         has_rgb{false};
+    bool                         has_intensity{false};
+    float                        min_intensity{0.0f};
+    float                        max_intensity{0.0f};
 };
 
 #ifdef SPECTRA_USE_ROS2
@@ -138,10 +138,8 @@ inline size_t datatype_size(uint8_t datatype)
 
 inline uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-    return static_cast<uint32_t>(r)
-         | (static_cast<uint32_t>(g) << 8)
-         | (static_cast<uint32_t>(b) << 16)
-         | (static_cast<uint32_t>(a) << 24);
+    return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
+           | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
 }
 
 inline bool read_rgb_field(const uint8_t*                      data,
@@ -175,9 +173,7 @@ inline bool read_rgb_field(const uint8_t*                      data,
     const uint8_t b = static_cast<uint8_t>((source >> 0) & 0xFFu);
     const uint8_t g = static_cast<uint8_t>((source >> 8) & 0xFFu);
     const uint8_t r = static_cast<uint8_t>((source >> 16) & 0xFFu);
-    const uint8_t a = source_has_alpha
-        ? static_cast<uint8_t>((source >> 24) & 0xFFu)
-        : 0xFFu;
+    const uint8_t a = source_has_alpha ? static_cast<uint8_t>((source >> 24) & 0xFFu) : 0xFFu;
     packed_rgba_out = pack_rgba(r, g, b, a);
     return true;
 }
@@ -207,20 +203,21 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
     if (!field_x || !field_y || !field_z || message.point_step == 0)
         return std::nullopt;
 
-    const size_t total_points = static_cast<size_t>(message.width) * static_cast<size_t>(message.height);
+    const size_t total_points =
+        static_cast<size_t>(message.width) * static_cast<size_t>(message.height);
     if (total_points == 0)
         return std::nullopt;
 
-    const bool swap_endianness = message.is_bigendian != detail::host_is_big_endian();
-    const auto* field_rgb = detail::find_field(message.fields, "rgb");
-    const auto* field_rgba = detail::find_field(message.fields, "rgba");
+    const bool  swap_endianness = message.is_bigendian != detail::host_is_big_endian();
+    const auto* field_rgb       = detail::find_field(message.fields, "rgb");
+    const auto* field_rgba      = detail::find_field(message.fields, "rgba");
     const auto* field_intensity = detail::find_field(message.fields, "intensity");
 
     PointCloudFrame frame;
-    frame.topic = topic;
+    frame.topic    = topic;
     frame.frame_id = message.header.frame_id;
     frame.stamp_ns = static_cast<uint64_t>(message.header.stamp.sec) * 1'000'000'000ULL
-                   + static_cast<uint64_t>(message.header.stamp.nanosec);
+                     + static_cast<uint64_t>(message.header.stamp.nanosec);
     frame.original_point_count = total_points;
 
     spectra::vec3 min_bounds{
@@ -234,14 +231,13 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
         -std::numeric_limits<double>::infinity(),
     };
     spectra::vec3 centroid_sum{};
-    float min_intensity = std::numeric_limits<float>::infinity();
-    float max_intensity = -std::numeric_limits<float>::infinity();
-    bool observed_rgb = false;
-    bool observed_intensity = false;
+    float         min_intensity      = std::numeric_limits<float>::infinity();
+    float         max_intensity      = -std::numeric_limits<float>::infinity();
+    bool          observed_rgb       = false;
+    bool          observed_intensity = false;
 
-    const size_t stride = max_points > 0
-        ? std::max<size_t>(1, (total_points + max_points - 1) / max_points)
-        : 1;
+    const size_t stride =
+        max_points > 0 ? std::max<size_t>(1, (total_points + max_points - 1) / max_points) : 1;
     frame.points.reserve((total_points + stride - 1) / stride);
 
     const auto field_fits = [&](const sensor_msgs::msg::PointField& field)
@@ -295,11 +291,11 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
                                            intensity)
                 && std::isfinite(intensity))
             {
-                point.intensity = static_cast<float>(intensity);
+                point.intensity     = static_cast<float>(intensity);
                 point.has_intensity = true;
-                min_intensity = std::min(min_intensity, point.intensity);
-                max_intensity = std::max(max_intensity, point.intensity);
-                observed_intensity = true;
+                min_intensity       = std::min(min_intensity, point.intensity);
+                max_intensity       = std::max(max_intensity, point.intensity);
+                observed_intensity  = true;
             }
         }
 
@@ -312,7 +308,7 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
                                        point.rgba))
             {
                 point.has_rgb = true;
-                observed_rgb = true;
+                observed_rgb  = true;
             }
         }
         else if (field_rgb != nullptr && field_fits(*field_rgb))
@@ -324,7 +320,7 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
                                        point.rgba))
             {
                 point.has_rgb = true;
-                observed_rgb = true;
+                observed_rgb  = true;
             }
         }
 
@@ -338,10 +334,10 @@ inline std::optional<PointCloudFrame> adapt_pointcloud_message(
     if (frame.point_count == 0)
         return std::nullopt;
 
-    frame.min_bounds = min_bounds;
-    frame.max_bounds = max_bounds;
-    frame.centroid = centroid_sum / static_cast<double>(frame.point_count);
-    frame.has_rgb = observed_rgb;
+    frame.min_bounds    = min_bounds;
+    frame.max_bounds    = max_bounds;
+    frame.centroid      = centroid_sum / static_cast<double>(frame.point_count);
+    frame.has_rgb       = observed_rgb;
     frame.has_intensity = observed_intensity;
     if (observed_intensity)
     {

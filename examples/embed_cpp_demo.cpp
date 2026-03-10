@@ -45,7 +45,7 @@ int main()
     auto& ax  = fig.subplot(1, 1, 1);
 
     // Generate sample data: sine + cosine
-    constexpr int N = 200;
+    constexpr int      N = 200;
     std::vector<float> x(N), y_sin(N), y_cos(N), y_damped(N);
     for (int i = 0; i < N; ++i)
     {

@@ -146,12 +146,8 @@ class DataInteraction
 
     // Point selection callback: fired when a concrete point is selected.
     // Args: (Figure*, Axes*, int axes_index, Series*, int series_index, size_t point_index)
-    using PointSelectedCallback =
-        std::function<void(Figure*, Axes*, int, Series*, int, size_t)>;
-    void set_on_point_selected(PointSelectedCallback cb)
-    {
-        on_point_selected_ = std::move(cb);
-    }
+    using PointSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int, size_t)>;
+    void set_on_point_selected(PointSelectedCallback cb) { on_point_selected_ = std::move(cb); }
 
     // Programmatically select/highlight a point (used by Data Editor row selection).
     // Returns true when the point was valid for the provided series and a marker was placed.

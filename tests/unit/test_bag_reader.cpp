@@ -24,14 +24,14 @@
 
 #ifdef SPECTRA_ROS2_BAG
 
-#include <rclcpp/rclcpp.hpp>
-#include <rcutils/logging_macros.h>
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/serialized_bag_message.hpp>
-#include <rosbag2_storage/storage_options.hpp>
-#include <rosbag2_storage/topic_metadata.hpp>
+    #include <rclcpp/rclcpp.hpp>
+    #include <rcutils/logging_macros.h>
+    #include <rosbag2_cpp/writer.hpp>
+    #include <rosbag2_storage/serialized_bag_message.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
+    #include <rosbag2_storage/topic_metadata.hpp>
 
-#endif // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG
 
 #include "bag_reader.hpp"
 
@@ -46,10 +46,11 @@ using namespace spectra::adapters::ros2;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
-        if (!rclcpp::ok()) {
+        if (!rclcpp::ok())
+        {
             int    argc = 0;
             char** argv = nullptr;
             rclcpp::init(argc, argv);
@@ -58,7 +59,8 @@ public:
 
     void TearDown() override
     {
-        if (rclcpp::ok()) {
+        if (rclcpp::ok())
+        {
             rclcpp::shutdown();
         }
     }
@@ -74,10 +76,9 @@ namespace
 // Unique temp dir per test to avoid collisions.
 static std::string make_temp_bag_dir(const std::string& test_name)
 {
-    const std::string base = std::string("/tmp/spectra_bag_test_") + test_name + "_" +
-                             std::to_string(std::chrono::steady_clock::now()
-                                                .time_since_epoch()
-                                                .count());
+    const std::string base =
+        std::string("/tmp/spectra_bag_test_") + test_name + "_"
+        + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     return base;
 }
 
@@ -87,10 +88,10 @@ static std::string make_temp_bag_dir(const std::string& test_name)
 static std::vector<uint8_t> make_float64_cdr(double value)
 {
     std::vector<uint8_t> buf(12);
-    buf[0] = 0x00; // CDR header byte 0 (big-endian indicator = 0 for little-endian)
-    buf[1] = 0x01; // encapsulation kind: CDR_LE
-    buf[2] = 0x00; // padding
-    buf[3] = 0x00; // padding
+    buf[0] = 0x00;   // CDR header byte 0 (big-endian indicator = 0 for little-endian)
+    buf[1] = 0x01;   // encapsulation kind: CDR_LE
+    buf[2] = 0x00;   // padding
+    buf[3] = 0x00;   // padding
     std::memcpy(buf.data() + 4, &value, sizeof(double));
     return buf;
 }
@@ -98,14 +99,13 @@ static std::vector<uint8_t> make_float64_cdr(double value)
 // Write `n_messages` Float64 messages to a new bag at `bag_path`.
 // start_ts_ns: timestamp of first message (nanoseconds).
 // step_ns:     timestamp increment between messages.
-static void write_float64_bag(
-    const std::string& bag_path,
-    const std::string& topic,
-    int                n_messages,
-    int64_t            start_ts_ns,
-    int64_t            step_ns,
-    double             value_start = 0.0,
-    double             value_step  = 1.0)
+static void write_float64_bag(const std::string& bag_path,
+                              const std::string& topic,
+                              int                n_messages,
+                              int64_t            start_ts_ns,
+                              int64_t            step_ns,
+                              double             value_start = 0.0,
+                              double             value_step  = 1.0)
 {
     rosbag2_storage::StorageOptions opts;
     opts.uri        = bag_path;
@@ -120,28 +120,28 @@ static void write_float64_bag(
     meta.serialization_format = "cdr";
     writer.create_topic(meta);
 
-    for (int i = 0; i < n_messages; ++i) {
-        auto msg                         = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-        msg->topic_name                  = topic;
-        msg->time_stamp                  = start_ts_ns + static_cast<int64_t>(i) * step_ns;
-        const double val                 = value_start + static_cast<double>(i) * value_step;
-        const auto   cdr                 = make_float64_cdr(val);
-        msg->serialized_data             = std::make_shared<rcutils_uint8_array_t>();
-        msg->serialized_data->buffer     = new uint8_t[cdr.size()];
-        msg->serialized_data->buffer_length = cdr.size();
+    for (int i = 0; i < n_messages; ++i)
+    {
+        auto msg                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+        msg->topic_name              = topic;
+        msg->time_stamp              = start_ts_ns + static_cast<int64_t>(i) * step_ns;
+        const double val             = value_start + static_cast<double>(i) * value_step;
+        const auto   cdr             = make_float64_cdr(val);
+        msg->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
+        msg->serialized_data->buffer = new uint8_t[cdr.size()];
+        msg->serialized_data->buffer_length   = cdr.size();
         msg->serialized_data->buffer_capacity = cdr.size();
-        msg->serialized_data->allocator = rcutils_get_default_allocator();
+        msg->serialized_data->allocator       = rcutils_get_default_allocator();
         std::memcpy(msg->serialized_data->buffer, cdr.data(), cdr.size());
         writer.write(msg);
     }
 }
 
 // Write a bag with two topics.
-static void write_two_topic_bag(
-    const std::string& bag_path,
-    int64_t            start_ts_ns,
-    int64_t            step_ns,
-    int                n_per_topic)
+static void write_two_topic_bag(const std::string& bag_path,
+                                int64_t            start_ts_ns,
+                                int64_t            step_ns,
+                                int                n_per_topic)
 {
     rosbag2_storage::StorageOptions opts;
     opts.uri        = bag_path;
@@ -162,36 +162,37 @@ static void write_two_topic_bag(
     meta2.serialization_format = "cdr";
     writer.create_topic(meta2);
 
-    for (int i = 0; i < n_per_topic; ++i) {
+    for (int i = 0; i < n_per_topic; ++i)
+    {
         const int64_t ts = start_ts_ns + static_cast<int64_t>(i) * step_ns;
 
-        auto m1                         = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-        m1->topic_name                  = "/topic_a";
-        m1->time_stamp                  = ts;
-        const auto cdr1                 = make_float64_cdr(static_cast<double>(i));
-        m1->serialized_data             = std::make_shared<rcutils_uint8_array_t>();
-        m1->serialized_data->buffer     = new uint8_t[cdr1.size()];
-        m1->serialized_data->buffer_length = cdr1.size();
+        auto m1                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+        m1->topic_name              = "/topic_a";
+        m1->time_stamp              = ts;
+        const auto cdr1             = make_float64_cdr(static_cast<double>(i));
+        m1->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
+        m1->serialized_data->buffer = new uint8_t[cdr1.size()];
+        m1->serialized_data->buffer_length   = cdr1.size();
         m1->serialized_data->buffer_capacity = cdr1.size();
-        m1->serialized_data->allocator  = rcutils_get_default_allocator();
+        m1->serialized_data->allocator       = rcutils_get_default_allocator();
         std::memcpy(m1->serialized_data->buffer, cdr1.data(), cdr1.size());
         writer.write(m1);
 
-        auto m2                         = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-        m2->topic_name                  = "/topic_b";
-        m2->time_stamp                  = ts + step_ns / 2; // interleaved
-        const auto cdr2                 = make_float64_cdr(static_cast<double>(i) * 2.0);
-        m2->serialized_data             = std::make_shared<rcutils_uint8_array_t>();
-        m2->serialized_data->buffer     = new uint8_t[cdr2.size()];
-        m2->serialized_data->buffer_length = cdr2.size();
+        auto m2                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+        m2->topic_name              = "/topic_b";
+        m2->time_stamp              = ts + step_ns / 2;   // interleaved
+        const auto cdr2             = make_float64_cdr(static_cast<double>(i) * 2.0);
+        m2->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
+        m2->serialized_data->buffer = new uint8_t[cdr2.size()];
+        m2->serialized_data->buffer_length   = cdr2.size();
         m2->serialized_data->buffer_capacity = cdr2.size();
-        m2->serialized_data->allocator  = rcutils_get_default_allocator();
+        m2->serialized_data->allocator       = rcutils_get_default_allocator();
         std::memcpy(m2->serialized_data->buffer, cdr2.data(), cdr2.size());
         writer.write(m2);
     }
 }
 
-} // anonymous namespace
+}   // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -199,14 +200,15 @@ static void write_two_topic_bag(
 
 class BagReaderTest : public ::testing::Test
 {
-protected:
+   protected:
     void TearDown() override
     {
         reader_.close();
         // Clean up temp directories.
-        for (const auto& d : temp_dirs_) {
+        for (const auto& d : temp_dirs_)
+        {
             std::error_code ec;
-            fs::remove_all(d, ec); // best-effort
+            fs::remove_all(d, ec);   // best-effort
         }
     }
 
@@ -445,9 +447,10 @@ TEST_F(BagReaderTest, ReadNext_ExhaustsMessages)
 
     ASSERT_TRUE(reader_.open(bag_path));
 
-    int count = 0;
+    int        count = 0;
     BagMessage msg;
-    while (reader_.read_next(msg)) {
+    while (reader_.read_next(msg))
+    {
         ++count;
     }
     EXPECT_EQ(count, n);
@@ -463,7 +466,8 @@ TEST_F(BagReaderTest, ReadNext_TimestampsMonotonic)
 
     int64_t    prev = -1;
     BagMessage msg;
-    while (reader_.read_next(msg)) {
+    while (reader_.read_next(msg))
+    {
         EXPECT_GE(msg.timestamp_ns, prev);
         prev = msg.timestamp_ns;
     }
@@ -524,8 +528,9 @@ TEST_F(BagReaderTest, TopicFilter_ExcludeOneOfTwo)
     reader_.set_topic_filter({"/topic_a"});
 
     BagMessage msg;
-    int count = 0;
-    while (reader_.read_next(msg)) {
+    int        count = 0;
+    while (reader_.read_next(msg))
+    {
         EXPECT_EQ(msg.topic, "/topic_a");
         ++count;
     }
@@ -540,12 +545,13 @@ TEST_F(BagReaderTest, TopicFilter_BothTopics)
     ASSERT_TRUE(reader_.open(bag_path));
     reader_.set_topic_filter({"/topic_a", "/topic_b"});
 
-    int count = 0;
+    int        count = 0;
     BagMessage msg;
-    while (reader_.read_next(msg)) {
+    while (reader_.read_next(msg))
+    {
         ++count;
     }
-    EXPECT_EQ(count, 6); // 3 per topic × 2 topics
+    EXPECT_EQ(count, 6);   // 3 per topic × 2 topics
 }
 
 TEST_F(BagReaderTest, TopicFilter_EmptyMeansAll)
@@ -554,14 +560,15 @@ TEST_F(BagReaderTest, TopicFilter_EmptyMeansAll)
     write_two_topic_bag(bag_path, 1'000'000'000LL, 100'000'000LL, 4);
 
     ASSERT_TRUE(reader_.open(bag_path));
-    reader_.set_topic_filter({}); // no filter
+    reader_.set_topic_filter({});   // no filter
 
-    int count = 0;
+    int        count = 0;
     BagMessage msg;
-    while (reader_.read_next(msg)) {
+    while (reader_.read_next(msg))
+    {
         ++count;
     }
-    EXPECT_EQ(count, 8); // 4 per topic × 2 topics
+    EXPECT_EQ(count, 8);   // 4 per topic × 2 topics
 }
 
 TEST_F(BagReaderTest, TopicFilter_GetterMatchesSetter)
@@ -588,7 +595,9 @@ TEST_F(BagReaderTest, SeekBegin_ReadsFromStart)
 
     // Read all.
     BagMessage msg;
-    while (reader_.read_next(msg)) {}
+    while (reader_.read_next(msg))
+    {
+    }
 
     // Seek back to start and verify first timestamp.
     ASSERT_TRUE(reader_.seek_begin());
@@ -598,10 +607,10 @@ TEST_F(BagReaderTest, SeekBegin_ReadsFromStart)
 
 TEST_F(BagReaderTest, Seek_AbsoluteTimestamp)
 {
-    const int64_t     start_ns  = 1'000'000'000LL;
-    const int64_t     step_ns   = 100'000'000LL;
-    const int         n         = 10;
-    const std::string bag_path  = alloc_temp_dir("SeekAbsolute");
+    const int64_t     start_ns = 1'000'000'000LL;
+    const int64_t     step_ns  = 100'000'000LL;
+    const int         n        = 10;
+    const std::string bag_path = alloc_temp_dir("SeekAbsolute");
     write_float64_bag(bag_path, "/seek_abs_topic", n, start_ns, step_ns);
 
     ASSERT_TRUE(reader_.open(bag_path));
@@ -630,8 +639,9 @@ TEST_F(BagReaderTest, SeekFraction_MidBag)
     ASSERT_TRUE(reader_.seek_fraction(0.5));
 
     BagMessage msg;
-    int remaining = 0;
-    while (reader_.read_next(msg)) {
+    int        remaining = 0;
+    while (reader_.read_next(msg))
+    {
         ++remaining;
     }
     // Should have read approximately half the messages (allow ±2).
@@ -660,7 +670,7 @@ TEST_F(BagReaderTest, SeekFraction_ClampedAbove1)
     write_float64_bag(bag_path, "/clamp_topic", 5, 1'000'000'000LL, 100'000'000LL);
 
     ASSERT_TRUE(reader_.open(bag_path));
-    EXPECT_TRUE(reader_.seek_fraction(1.5)); // should clamp to 1.0, not crash
+    EXPECT_TRUE(reader_.seek_fraction(1.5));   // should clamp to 1.0, not crash
 }
 
 TEST_F(BagReaderTest, SeekWhenClosed_ReturnsFalse)
@@ -694,7 +704,9 @@ TEST_F(BagReaderTest, Progress_IncreasesAfterRead)
     const double p0 = reader_.progress();
 
     BagMessage msg;
-    for (int i = 0; i < 5 && reader_.read_next(msg); ++i) {}
+    for (int i = 0; i < 5 && reader_.read_next(msg); ++i)
+    {
+    }
 
     const double p1 = reader_.progress();
     EXPECT_GE(p1, 0.0);
@@ -717,7 +729,7 @@ TEST_F(BagReaderTest, Reopen_ClosesAndOpensNewBag)
     EXPECT_EQ(reader_.metadata().message_count, 3u);
     EXPECT_TRUE(reader_.has_topic("/topic1"));
 
-    ASSERT_TRUE(reader_.open(bag2)); // reopen
+    ASSERT_TRUE(reader_.open(bag2));   // reopen
     EXPECT_EQ(reader_.metadata().message_count, 7u);
     EXPECT_TRUE(reader_.has_topic("/topic2"));
     EXPECT_FALSE(reader_.has_topic("/topic1"));
@@ -770,8 +782,8 @@ TEST_F(BagReaderTest, MetadataDurationHelpers)
     const auto& m = reader_.metadata();
 
     EXPECT_DOUBLE_EQ(m.start_time_sec(), static_cast<double>(m.start_time_ns) * 1e-9);
-    EXPECT_DOUBLE_EQ(m.end_time_sec(),   static_cast<double>(m.end_time_ns)   * 1e-9);
-    EXPECT_DOUBLE_EQ(m.duration_sec(),   static_cast<double>(m.duration_ns)   * 1e-9);
+    EXPECT_DOUBLE_EQ(m.end_time_sec(), static_cast<double>(m.end_time_ns) * 1e-9);
+    EXPECT_DOUBLE_EQ(m.duration_sec(), static_cast<double>(m.duration_ns) * 1e-9);
 }
 
 TEST_F(BagReaderTest, MultipleCloseCallsSafe)
@@ -781,7 +793,7 @@ TEST_F(BagReaderTest, MultipleCloseCallsSafe)
 
     ASSERT_TRUE(reader_.open(bag_path));
     reader_.close();
-    EXPECT_NO_THROW(reader_.close()); // second close must be safe
+    EXPECT_NO_THROW(reader_.close());   // second close must be safe
     EXPECT_FALSE(reader_.is_open());
 }
 
@@ -812,7 +824,7 @@ int main(int argc, char** argv)
     return RUN_ALL_TESTS();
 }
 
-#else // SPECTRA_ROS2_BAG not defined — compile-only stub tests.
+#else   // SPECTRA_ROS2_BAG not defined — compile-only stub tests.
 
 // ---------------------------------------------------------------------------
 // Stub tests — verify the stub BagReader API compiles and behaves correctly
@@ -834,7 +846,7 @@ TEST(BagReaderStub, LastErrorSet)
 
 TEST(BagReaderStub, ReadNextReturnsFalse)
 {
-    BagReader r;
+    BagReader  r;
     BagMessage msg;
     EXPECT_FALSE(r.read_next(msg));
 }
@@ -878,4 +890,4 @@ int main(int argc, char** argv)
     return RUN_ALL_TESTS();
 }
 
-#endif // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG

@@ -938,15 +938,15 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         if (use_msaa)
         {
             // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (color_view)
-            fb_attachments[0]   = ctx.msaa_color_view;
-            fb_attachments[1]   = ctx.depth_view;
-            fb_attachments[2]   = ctx.color_view;
+            fb_attachments[0]       = ctx.msaa_color_view;
+            fb_attachments[1]       = ctx.depth_view;
+            fb_attachments[2]       = ctx.color_view;
             fb_info.attachmentCount = 3;
         }
         else
         {
-            fb_attachments[0]   = ctx.color_view;
-            fb_attachments[1]   = ctx.depth_view;
+            fb_attachments[0]       = ctx.color_view;
+            fb_attachments[1]       = ctx.depth_view;
             fb_info.attachmentCount = 2;
         }
 

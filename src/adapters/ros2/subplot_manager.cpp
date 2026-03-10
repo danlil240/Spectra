@@ -9,7 +9,7 @@
 #include <cmath>
 #include <spectra/color.hpp>
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 // AxisLinkManager lives under src/ui/data/ — included here (not in the public
@@ -29,10 +29,7 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
                                int                  rows,
                                int                  cols,
                                spectra::Figure*     external_figure)
-    : bridge_(bridge)
-    , intr_(intr)
-    , rows_(rows < 1 ? 1 : rows)
-    , cols_(cols < 1 ? 1 : cols)
+    : bridge_(bridge), intr_(intr), rows_(rows < 1 ? 1 : rows), cols_(cols < 1 ? 1 : cols)
 {
     if (external_figure)
     {
@@ -48,15 +45,15 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
             cfg.height = 400;
 
         owned_figure_ = std::make_unique<spectra::Figure>(cfg);
-        figure_ = owned_figure_.get();
+        figure_       = owned_figure_.get();
     }
 
     if (figure_)
     {
-        auto& style = figure_->style();
-        style.margin_left   = std::max(style.margin_left,   92.0f);
-        style.margin_right  = std::max(style.margin_right,  28.0f);
-        style.margin_top    = std::max(style.margin_top,    52.0f);
+        auto& style         = figure_->style();
+        style.margin_left   = std::max(style.margin_left, 92.0f);
+        style.margin_right  = std::max(style.margin_right, 28.0f);
+        style.margin_top    = std::max(style.margin_top, 52.0f);
         style.margin_bottom = std::max(style.margin_bottom, 78.0f);
     }
 
@@ -163,7 +160,7 @@ SubplotHandle SubplotManager::add_plot(int                slot,
 
     // Check if this exact topic:field is already in the slot.
     if (se.topic == topic && se.field_path == field_path)
-        return bad;  // already plotting this
+        return bad;   // already plotting this
     for (const auto& es : se.extra_series)
     {
         if (es->topic == topic && es->field_path == field_path)
@@ -173,14 +170,14 @@ SubplotHandle SubplotManager::add_plot(int                slot,
     // If the slot already has a primary series, add as extra.
     if (!se.topic.empty() && se.series != nullptr)
     {
-        auto entry = std::make_unique<SeriesEntry>();
+        auto entry        = std::make_unique<SeriesEntry>();
         entry->topic      = topic;
         entry->field_path = field_path;
         entry->type_name  = resolved_type;
 
-        std::string lbl = topic + "/" + field_path;
+        std::string    lbl   = topic + "/" + field_path;
         spectra::Color color = next_color();
-        entry->color_index = color_cursor_ - 1;
+        entry->color_index   = color_cursor_ - 1;
 
         spectra::LineSeries& ls = se.axes->line();
         ls.label(lbl);
@@ -191,9 +188,12 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         // Configure subscriber.
         if (bridge_.is_ok())
         {
-            auto sub = std::make_unique<GenericSubscriber>(
-                bridge_.node(), topic, resolved_type, intr_, buffer_depth);
-            int eid = sub->add_field(field_path);
+            auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
+                                                           topic,
+                                                           resolved_type,
+                                                           intr_,
+                                                           buffer_depth);
+            int  eid = sub->add_field(field_path);
             if (eid < 0)
                 return bad;
             entry->extractor_id = eid;
@@ -242,8 +242,8 @@ SubplotHandle SubplotManager::add_plot(int                slot,
     std::string lbl = topic + "/" + field_path;
 
     // Add a LineSeries to the subplot axes.
-    spectra::Color color = next_color();
-    se.color_index       = color_cursor_ - 1;
+    spectra::Color color    = next_color();
+    se.color_index          = color_cursor_ - 1;
     spectra::LineSeries& ls = se.axes->line();
     ls.label(lbl);
     ls.color(color);
@@ -264,8 +264,11 @@ SubplotHandle SubplotManager::add_plot(int                slot,
     // Subscribe if the bridge is running.
     if (bridge_.is_ok())
     {
-        auto sub = std::make_unique<GenericSubscriber>(
-            bridge_.node(), topic, resolved_type, intr_, buffer_depth);
+        auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
+                                                       topic,
+                                                       resolved_type,
+                                                       intr_,
+                                                       buffer_depth);
 
         int eid = sub->add_field(field_path);
         if (eid < 0)
@@ -352,8 +355,9 @@ bool SubplotManager::remove_plot(int slot)
     return true;
 }
 
-bool SubplotManager::remove_series_from_slot(int slot, const std::string& topic,
-                                              const std::string& field_path)
+bool SubplotManager::remove_series_from_slot(int                slot,
+                                             const std::string& topic,
+                                             const std::string& field_path)
 {
     if (slot < 1 || slot > capacity())
         return false;
@@ -413,13 +417,13 @@ bool SubplotManager::remove_series_from_slot(int slot, const std::string& topic,
             }
         }
 
-        auto& first = se.extra_series.front();
-        se.topic         = first->topic;
-        se.field_path    = first->field_path;
-        se.type_name     = first->type_name;
-        se.series        = first->series;
-        se.subscriber    = std::move(first->subscriber);
-        se.extractor_id  = first->extractor_id;
+        auto& first         = se.extra_series.front();
+        se.topic            = first->topic;
+        se.field_path       = first->field_path;
+        se.type_name        = first->type_name;
+        se.series           = first->series;
+        se.subscriber       = std::move(first->subscriber);
+        se.extractor_id     = first->extractor_id;
         se.samples_received = first->samples_received;
         se.auto_fitted      = first->auto_fitted;
         se.color_index      = first->color_index;
@@ -476,11 +480,11 @@ const SeriesEntry* SubplotManager::slot_series(int slot, int series_idx) const
     if (series_idx == 0 && !se.topic.empty())
     {
         static thread_local SeriesEntry primary;
-        primary.topic         = se.topic;
-        primary.field_path    = se.field_path;
-        primary.type_name     = se.type_name;
-        primary.series        = se.series;
-        primary.color_index   = se.color_index;
+        primary.topic       = se.topic;
+        primary.field_path  = se.field_path;
+        primary.type_name   = se.type_name;
+        primary.series      = se.series;
+        primary.color_index = se.color_index;
         return &primary;
     }
 
@@ -551,8 +555,7 @@ std::vector<SubplotHandle> SubplotManager::handles() const
 void SubplotManager::poll()
 {
     const double wall_now = explicit_now_s_.value_or(
-        std::chrono::duration<double>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
+        std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count());
 
     for (auto& se : slots_)
     {
@@ -582,18 +585,17 @@ void SubplotManager::poll()
                 const double origin = shared_time_origin_;
                 for (size_t i = 0; i < n; ++i)
                 {
-                    const FieldSample& s = se.drain_buf[i];
-                    const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-                    const double t_rel   = t_sec - origin;
-                    se.series->append(static_cast<float>(t_rel),
-                                      static_cast<float>(s.value));
+                    const FieldSample& s     = se.drain_buf[i];
+                    const double       t_sec = static_cast<double>(s.timestamp_ns) * 1e-9;
+                    const double       t_rel = t_sec - origin;
+                    se.series->append(static_cast<float>(t_rel), static_cast<float>(s.value));
 
                     if (on_data_cb_)
                         on_data_cb_(se.slot, t_sec, s.value);
                 }
 
                 se.samples_received += n;
-                se.auto_fitted = (se.samples_received >= auto_fit_samples_);
+                se.auto_fitted         = (se.samples_received >= auto_fit_samples_);
                 slot_received_new_data = true;
             }
         }
@@ -607,26 +609,26 @@ void SubplotManager::poll()
             if (es->drain_buf.capacity() < MAX_DRAIN_PER_POLL)
                 es->drain_buf.reserve(MAX_DRAIN_PER_POLL);
 
-            const size_t n =
-                es->subscriber->pop_bulk(es->extractor_id, es->drain_buf.data(), MAX_DRAIN_PER_POLL);
+            const size_t n = es->subscriber->pop_bulk(es->extractor_id,
+                                                      es->drain_buf.data(),
+                                                      MAX_DRAIN_PER_POLL);
 
             if (n > 0)
             {
                 const double origin = shared_time_origin_;
                 for (size_t i = 0; i < n; ++i)
                 {
-                    const FieldSample& s = es->drain_buf[i];
-                    const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-                    const double t_rel   = t_sec - origin;
-                    es->series->append(static_cast<float>(t_rel),
-                                       static_cast<float>(s.value));
+                    const FieldSample& s     = es->drain_buf[i];
+                    const double       t_sec = static_cast<double>(s.timestamp_ns) * 1e-9;
+                    const double       t_rel = t_sec - origin;
+                    es->series->append(static_cast<float>(t_rel), static_cast<float>(s.value));
 
                     if (on_data_cb_)
                         on_data_cb_(se.slot, t_sec, s.value);
                 }
 
                 es->samples_received += n;
-                es->auto_fitted = (es->samples_received >= auto_fit_samples_);
+                es->auto_fitted        = (es->samples_received >= auto_fit_samples_);
                 slot_received_new_data = true;
             }
         }
@@ -644,8 +646,7 @@ void SubplotManager::poll()
             }
         }
 
-        if (slot_received_new_data && ready_for_live_autofit
-            && !se.manual_ylim.has_value())
+        if (slot_received_new_data && ready_for_live_autofit && !se.manual_ylim.has_value())
             se.auto_fitted = true;
 
         // Apply manual Y limits if set.
@@ -806,7 +807,8 @@ size_t SubplotManager::total_memory_bytes() const
 void SubplotManager::set_slot_time_window(int slot, double seconds)
 {
     SlotEntry* se = slot_entry(slot);
-    if (!se) return;
+    if (!se)
+        return;
     if (seconds > 0.0)
     {
         se->time_window_override_s = seconds;
@@ -824,7 +826,8 @@ void SubplotManager::set_slot_time_window(int slot, double seconds)
 double SubplotManager::slot_time_window(int slot) const
 {
     const SlotEntry* se = slot_entry(slot);
-    if (!se) return scroll_window_s_;
+    if (!se)
+        return scroll_window_s_;
     return (se->time_window_override_s > 0.0) ? se->time_window_override_s : scroll_window_s_;
 }
 
@@ -837,8 +840,7 @@ void SubplotManager::clear_slot_time_window(int slot)
 // Subplot context menu
 // ---------------------------------------------------------------------------
 
-SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot,
-                                                                      const char* popup_id)
+SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot, const char* popup_id)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (!ImGui::BeginPopupContextItem(popup_id))
@@ -846,7 +848,7 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot,
 
     SubplotAction action = SubplotAction::None;
 
-    const bool has = has_plot(slot);
+    const bool        has         = has_plot(slot);
     const std::string topic_label = has ? slots_[static_cast<size_t>(slot - 1)].topic : "";
 
     // Header.
@@ -871,12 +873,13 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot,
     if (ImGui::BeginMenu("Time window", has))
     {
         const double current_win = slot_time_window(slot);
-        const bool has_override  = (slot < 1 || slot > capacity())
-            ? false
-            : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
+        const bool   has_override =
+            (slot < 1 || slot > capacity())
+                  ? false
+                  : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
 
         static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
-        static const char*  kLabels[]  = {"5 s","10 s","30 s","1 min","5 min","10 min"};
+        static const char*  kLabels[]  = {"5 s", "10 s", "30 s", "1 min", "5 min", "10 min"};
         for (int i = 0; i < 6; ++i)
         {
             const bool sel = std::abs(current_win - kPresets[i]) < 0.1;
@@ -893,7 +896,8 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot,
     ImGui::EndPopup();
     return action;
 #else
-    (void)slot; (void)popup_id;
+    (void)slot;
+    (void)popup_id;
     return SubplotAction::None;
 #endif
 }
@@ -940,7 +944,7 @@ int SubplotManager::add_row()
         slots_.back().axes->presented_buffer(static_cast<float>(scroll_window_s_));
     }
 
-    return (rows_ - 1) * cols_ + 1;  // first slot in new row
+    return (rows_ - 1) * cols_ + 1;   // first slot in new row
 }
 
 bool SubplotManager::remove_last_row()
@@ -982,19 +986,19 @@ void SubplotManager::compact()
     // Collect active slot data in order.
     struct ActiveSlot
     {
-        std::string topic;
-        std::string field_path;
-        std::string type_name;
-        std::vector<float> x_data;
-        std::vector<float> y_data;
-        std::unique_ptr<GenericSubscriber> subscriber;
-        int         extractor_id;
-        size_t      samples_received;
-        bool        auto_fitted;
-        size_t      color_index;
-        std::vector<FieldSample> drain_buf;
-        double      time_window_override_s;
-        std::optional<spectra::AxisLimits> manual_ylim;
+        std::string                               topic;
+        std::string                               field_path;
+        std::string                               type_name;
+        std::vector<float>                        x_data;
+        std::vector<float>                        y_data;
+        std::unique_ptr<GenericSubscriber>        subscriber;
+        int                                       extractor_id;
+        size_t                                    samples_received;
+        bool                                      auto_fitted;
+        size_t                                    color_index;
+        std::vector<FieldSample>                  drain_buf;
+        double                                    time_window_override_s;
+        std::optional<spectra::AxisLimits>        manual_ylim;
         std::vector<std::unique_ptr<SeriesEntry>> extra_series;
         // Saved x/y data for each extra series (parallel to extra_series).
         std::vector<std::pair<std::vector<float>, std::vector<float>>> extra_xy;
@@ -1006,23 +1010,23 @@ void SubplotManager::compact()
         if (se.topic.empty() && se.extra_series.empty())
             continue;
         ActiveSlot a;
-        a.topic              = std::move(se.topic);
-        a.field_path         = std::move(se.field_path);
-        a.type_name          = std::move(se.type_name);
+        a.topic      = std::move(se.topic);
+        a.field_path = std::move(se.field_path);
+        a.type_name  = std::move(se.type_name);
         if (se.series)
         {
             a.x_data = std::vector<float>(se.series->x_data().begin(), se.series->x_data().end());
             a.y_data = std::vector<float>(se.series->y_data().begin(), se.series->y_data().end());
         }
-        a.subscriber         = std::move(se.subscriber);
-        a.extractor_id       = se.extractor_id;
-        a.samples_received   = se.samples_received;
-        a.auto_fitted        = se.auto_fitted;
-        a.color_index        = se.color_index;
-        a.drain_buf          = std::move(se.drain_buf);
+        a.subscriber             = std::move(se.subscriber);
+        a.extractor_id           = se.extractor_id;
+        a.samples_received       = se.samples_received;
+        a.auto_fitted            = se.auto_fitted;
+        a.color_index            = se.color_index;
+        a.drain_buf              = std::move(se.drain_buf);
         a.time_window_override_s = se.time_window_override_s;
-        a.manual_ylim        = se.manual_ylim;
-        a.extra_series       = std::move(se.extra_series);
+        a.manual_ylim            = se.manual_ylim;
+        a.extra_series           = std::move(se.extra_series);
         for (auto& es : a.extra_series)
         {
             if (es->series)
@@ -1048,7 +1052,8 @@ void SubplotManager::compact()
         se.drain_buf.clear();
         se.manual_ylim.reset();
         se.extra_series.clear();
-        if (se.axes) se.axes->clear_series();
+        if (se.axes)
+            se.axes->clear_series();
         actives.push_back(std::move(a));
     }
 
@@ -1062,7 +1067,8 @@ void SubplotManager::compact()
 
     // Determine how many rows we need.
     int needed_rows = (static_cast<int>(actives.size()) + cols_ - 1) / cols_;
-    if (needed_rows < 1) needed_rows = 1;
+    if (needed_rows < 1)
+        needed_rows = 1;
 
     // Shrink to needed rows (remove from bottom).
     while (rows_ > needed_rows && rows_ > 1)
@@ -1078,20 +1084,20 @@ void SubplotManager::compact()
         auto& a  = actives[i];
 
         // Move series data from old axes to new axes (re-add to the axes).
-        se.topic              = std::move(a.topic);
-        se.field_path         = std::move(a.field_path);
-        se.type_name          = std::move(a.type_name);
-        se.subscriber         = std::move(a.subscriber);
-        se.extractor_id       = a.extractor_id;
-        se.samples_received   = a.samples_received;
-        se.auto_fitted        = a.auto_fitted;
-        se.color_index        = a.color_index;
-        se.drain_buf          = std::move(a.drain_buf);
+        se.topic                  = std::move(a.topic);
+        se.field_path             = std::move(a.field_path);
+        se.type_name              = std::move(a.type_name);
+        se.subscriber             = std::move(a.subscriber);
+        se.extractor_id           = a.extractor_id;
+        se.samples_received       = a.samples_received;
+        se.auto_fitted            = a.auto_fitted;
+        se.color_index            = a.color_index;
+        se.drain_buf              = std::move(a.drain_buf);
         se.time_window_override_s = a.time_window_override_s;
-        se.manual_ylim        = a.manual_ylim;
+        se.manual_ylim            = a.manual_ylim;
 
         // Create new primary LineSeries in the target axes.
-        std::string lbl = se.topic + "/" + se.field_path;
+        std::string    lbl = se.topic + "/" + se.field_path;
         spectra::Color color =
             spectra::palette::default_cycle[se.color_index % spectra::palette::default_cycle_size];
         spectra::LineSeries& ls = se.axes->line();
@@ -1111,9 +1117,10 @@ void SubplotManager::compact()
         se.extra_series = std::move(a.extra_series);
         for (size_t ei = 0; ei < se.extra_series.size(); ++ei)
         {
-            auto& es = se.extra_series[ei];
+            auto&          es = se.extra_series[ei];
             spectra::Color ecol =
-                spectra::palette::default_cycle[es->color_index % spectra::palette::default_cycle_size];
+                spectra::palette::default_cycle[es->color_index
+                                                % spectra::palette::default_cycle_size];
             spectra::LineSeries& els = se.axes->line();
             els.label(es->topic + "/" + es->field_path);
             els.color(ecol);
@@ -1150,7 +1157,8 @@ void SubplotManager::set_shared_time_origin(double epoch_seconds)
 void SubplotManager::set_slot_ylim(int slot, double ymin, double ymax)
 {
     SlotEntry* se = slot_entry(slot);
-    if (!se) return;
+    if (!se)
+        return;
     se->manual_ylim = spectra::AxisLimits{ymin, ymax};
     se->axes->ylim(ymin, ymax);
 }
@@ -1158,7 +1166,8 @@ void SubplotManager::set_slot_ylim(int slot, double ymin, double ymax)
 void SubplotManager::clear_slot_ylim(int slot)
 {
     SlotEntry* se = slot_entry(slot);
-    if (!se) return;
+    if (!se)
+        return;
     se->manual_ylim.reset();
     if (se->axes)
         se->axes->clear_ylim();
@@ -1167,7 +1176,8 @@ void SubplotManager::clear_slot_ylim(int slot)
 void SubplotManager::auto_fit_slot_y(int slot)
 {
     SlotEntry* se = slot_entry(slot);
-    if (!se) return;
+    if (!se)
+        return;
     se->manual_ylim.reset();
     if (se->axes)
         se->axes->clear_ylim();
@@ -1176,7 +1186,8 @@ void SubplotManager::auto_fit_slot_y(int slot)
 void SubplotManager::clear_slot_data(int slot)
 {
     SlotEntry* se = slot_entry(slot);
-    if (!se) return;
+    if (!se)
+        return;
 
     // Clear data from primary series.
     if (se->series)
@@ -1220,7 +1231,8 @@ void SubplotManager::update_slot_ylabel(SlotEntry& se)
     }
     for (const auto& es : se.extra_series)
     {
-        if (!lbl.empty()) lbl += ", ";
+        if (!lbl.empty())
+            lbl += ", ";
         lbl += es->field_path;
     }
     se.axes->ylabel(lbl);
@@ -1257,7 +1269,7 @@ std::string SubplotManager::detect_type(const std::string& topic) const
             if (!ti.types.empty())
                 return ti.types.front();
         }
-        return {};  // topic not yet discovered; will succeed on retry
+        return {};   // topic not yet discovered; will succeed on retry
     }
 
     // Do NOT fall back to node_->get_topic_names_and_types() — that DDS

@@ -26,18 +26,17 @@ namespace spectra::adapters::px4
 struct AttitudeFrame
 {
     double timestamp_sec{0.0};   // seconds since boot
-    float  roll{0.0f};          // radians
-    float  pitch{0.0f};         // radians
-    float  yaw{0.0f};           // radians
-    float  q[4]{1, 0, 0, 0};   // quaternion [w, x, y, z]
+    float  roll{0.0f};           // radians
+    float  pitch{0.0f};          // radians
+    float  yaw{0.0f};            // radians
+    float  q[4]{1, 0, 0, 0};     // quaternion [w, x, y, z]
 };
 
 // ---------------------------------------------------------------------------
 // Extract attitude time series from ULog data.
 // ---------------------------------------------------------------------------
 
-inline std::vector<AttitudeFrame>
-extract_attitude(const ULogTimeSeries& ts)
+inline std::vector<AttitudeFrame> extract_attitude(const ULogTimeSeries& ts)
 {
     if (!ts.format)
         return {};
@@ -64,18 +63,16 @@ extract_attitude(const ULogTimeSeries& ts)
         if (q_field)
         {
             size_t off = q_field->offset;
-            af.q[0] = row.field_at<float>(off);       // w
-            af.q[1] = row.field_at<float>(off + 4);    // x
-            af.q[2] = row.field_at<float>(off + 8);    // y
-            af.q[3] = row.field_at<float>(off + 12);   // z
+            af.q[0]    = row.field_at<float>(off);        // w
+            af.q[1]    = row.field_at<float>(off + 4);    // x
+            af.q[2]    = row.field_at<float>(off + 8);    // y
+            af.q[3]    = row.field_at<float>(off + 12);   // z
 
             // Quaternion to Euler (ZYX convention).
             float w = af.q[0], x = af.q[1], y = af.q[2], z = af.q[3];
-            af.roll  = std::atan2(2.0f * (w * x + y * z),
-                                   1.0f - 2.0f * (x * x + y * y));
+            af.roll  = std::atan2(2.0f * (w * x + y * z), 1.0f - 2.0f * (x * x + y * y));
             af.pitch = std::asin(std::clamp(2.0f * (w * y - z * x), -1.0f, 1.0f));
-            af.yaw   = std::atan2(2.0f * (w * z + x * y),
-                                   1.0f - 2.0f * (y * y + z * z));
+            af.yaw   = std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
         }
 
         frames.push_back(af);

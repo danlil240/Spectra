@@ -27,13 +27,13 @@ using ros2::LogViewerPanel;
 // Helpers
 // ---------------------------------------------------------------------------
 
-static LogEntry make(uint64_t seq, LogSeverity sev,
-                     const std::string& node, const std::string& msg,
-                     double wall = 0.0)
+static LogEntry make(uint64_t           seq,
+                     LogSeverity        sev,
+                     const std::string& node,
+                     const std::string& msg,
+                     double             wall = 0.0)
 {
-    return RosLogViewer::make_entry(
-        seq, static_cast<uint8_t>(sev), 0, 0, wall,
-        node, msg);
+    return RosLogViewer::make_entry(seq, static_cast<uint8_t>(sev), 0, 0, wall, node, msg);
 }
 
 static std::unique_ptr<RosLogViewer> make_viewer(size_t cap = 100)
@@ -58,8 +58,8 @@ TEST(SeverityHelpers, FromRclKnownLevels)
 
 TEST(SeverityHelpers, FromRclUnsetAndRoundDown)
 {
-    EXPECT_EQ(ros2::severity_from_rcl(0),  LogSeverity::Unset);
-    EXPECT_EQ(ros2::severity_from_rcl(5),  LogSeverity::Unset);
+    EXPECT_EQ(ros2::severity_from_rcl(0), LogSeverity::Unset);
+    EXPECT_EQ(ros2::severity_from_rcl(5), LogSeverity::Unset);
     EXPECT_EQ(ros2::severity_from_rcl(15), LogSeverity::Debug);
     EXPECT_EQ(ros2::severity_from_rcl(25), LogSeverity::Info);
     EXPECT_EQ(ros2::severity_from_rcl(45), LogSeverity::Error);
@@ -69,8 +69,8 @@ TEST(SeverityHelpers, FromRclUnsetAndRoundDown)
 TEST(SeverityHelpers, NamesCorrect)
 {
     EXPECT_STREQ(ros2::severity_name(LogSeverity::Debug), "DEBUG");
-    EXPECT_STREQ(ros2::severity_name(LogSeverity::Info),  "INFO");
-    EXPECT_STREQ(ros2::severity_name(LogSeverity::Warn),  "WARN");
+    EXPECT_STREQ(ros2::severity_name(LogSeverity::Info), "INFO");
+    EXPECT_STREQ(ros2::severity_name(LogSeverity::Warn), "WARN");
     EXPECT_STREQ(ros2::severity_name(LogSeverity::Error), "ERROR");
     EXPECT_STREQ(ros2::severity_name(LogSeverity::Fatal), "FATAL");
     EXPECT_STREQ(ros2::severity_name(LogSeverity::Unset), "UNSET");
@@ -79,8 +79,8 @@ TEST(SeverityHelpers, NamesCorrect)
 TEST(SeverityHelpers, CharsCorrect)
 {
     EXPECT_EQ(ros2::severity_char(LogSeverity::Debug), 'D');
-    EXPECT_EQ(ros2::severity_char(LogSeverity::Info),  'I');
-    EXPECT_EQ(ros2::severity_char(LogSeverity::Warn),  'W');
+    EXPECT_EQ(ros2::severity_char(LogSeverity::Info), 'I');
+    EXPECT_EQ(ros2::severity_char(LogSeverity::Warn), 'W');
     EXPECT_EQ(ros2::severity_char(LogSeverity::Error), 'E');
     EXPECT_EQ(ros2::severity_char(LogSeverity::Fatal), 'F');
     EXPECT_EQ(ros2::severity_char(LogSeverity::Unset), '?');
@@ -92,18 +92,25 @@ TEST(SeverityHelpers, CharsCorrect)
 
 TEST(MakeEntry, FieldsPopulated)
 {
-    auto e = RosLogViewer::make_entry(7, 30, 100, 500, 1.5,
-                                      "/my_node", "hello world",
-                                      "foo.cpp", "bar()", 42u);
+    auto e = RosLogViewer::make_entry(7,
+                                      30,
+                                      100,
+                                      500,
+                                      1.5,
+                                      "/my_node",
+                                      "hello world",
+                                      "foo.cpp",
+                                      "bar()",
+                                      42u);
     EXPECT_EQ(e.seq, 7u);
     EXPECT_EQ(e.severity, LogSeverity::Warn);
     EXPECT_EQ(e.stamp_ns, 100LL * 1'000'000'000LL + 500LL);
     EXPECT_DOUBLE_EQ(e.wall_time_s, 1.5);
-    EXPECT_EQ(e.node,     "/my_node");
-    EXPECT_EQ(e.message,  "hello world");
-    EXPECT_EQ(e.file,     "foo.cpp");
+    EXPECT_EQ(e.node, "/my_node");
+    EXPECT_EQ(e.message, "hello world");
+    EXPECT_EQ(e.file, "foo.cpp");
     EXPECT_EQ(e.function, "bar()");
-    EXPECT_EQ(e.line,     42u);
+    EXPECT_EQ(e.line, 42u);
 }
 
 TEST(MakeEntry, DefaultOptionals)
@@ -162,9 +169,9 @@ TEST(RingBuffer, DefaultCapacity)
 TEST(RingBuffer, SetCapacityClamp)
 {
     RosLogViewer v(nullptr);
-    v.set_capacity(0);     // below MIN → clamped to MIN (1)
+    v.set_capacity(0);   // below MIN → clamped to MIN (1)
     EXPECT_EQ(v.capacity(), RosLogViewer::MIN_CAPACITY);
-    v.set_capacity(200'000); // above MAX → clamped to MAX
+    v.set_capacity(200'000);   // above MAX → clamped to MAX
     EXPECT_EQ(v.capacity(), RosLogViewer::MAX_CAPACITY);
     v.set_capacity(500);
     EXPECT_EQ(v.capacity(), 500u);
@@ -205,7 +212,7 @@ TEST(RingBuffer, TotalReceivedCountsAll)
     for (int i = 0; i < 20; ++i)
         v->inject(make(i, LogSeverity::Info, "n", "msg"));
     EXPECT_EQ(v->total_received(), 20u);
-    EXPECT_EQ(v->entry_count(),     5u);
+    EXPECT_EQ(v->entry_count(), 5u);
 }
 
 TEST(RingBuffer, SetCapacitySmallerPreservesNewest)
@@ -269,7 +276,7 @@ TEST(LogFilterSeverity, PassesAtExactLevel)
 {
     LogFilter f;
     f.min_severity = LogSeverity::Warn;
-    EXPECT_TRUE(f.passes(make(0, LogSeverity::Warn,  "n", "m")));
+    EXPECT_TRUE(f.passes(make(0, LogSeverity::Warn, "n", "m")));
     EXPECT_TRUE(f.passes(make(0, LogSeverity::Error, "n", "m")));
     EXPECT_TRUE(f.passes(make(0, LogSeverity::Fatal, "n", "m")));
 }
@@ -279,7 +286,7 @@ TEST(LogFilterSeverity, BlocksBelowLevel)
     LogFilter f;
     f.min_severity = LogSeverity::Warn;
     EXPECT_FALSE(f.passes(make(0, LogSeverity::Debug, "n", "m")));
-    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info,  "n", "m")));
+    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info, "n", "m")));
 }
 
 TEST(LogFilterSeverity, UnsetPassesAll)
@@ -306,7 +313,7 @@ TEST(LogFilterNode, SubstringMatch)
     LogFilter f;
     f.node_filter = "camera";
     EXPECT_TRUE(f.passes(make(0, LogSeverity::Info, "/camera_driver", "m")));
-    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info, "/lidar_node",   "m")));
+    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info, "/lidar_node", "m")));
 }
 
 TEST(LogFilterNode, CaseInsensitive)
@@ -395,9 +402,9 @@ TEST(LogFilterCombined, SeverityAndNodeAndRegexAllMustPass)
     // Passes all three
     EXPECT_TRUE(f.passes(make(0, LogSeverity::Error, "/camera_node", "frame lost")));
     // Fails severity
-    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info,  "/camera_node", "frame lost")));
+    EXPECT_FALSE(f.passes(make(0, LogSeverity::Info, "/camera_node", "frame lost")));
     // Fails node
-    EXPECT_FALSE(f.passes(make(0, LogSeverity::Error, "/lidar_node",  "frame lost")));
+    EXPECT_FALSE(f.passes(make(0, LogSeverity::Error, "/lidar_node", "frame lost")));
     // Fails regex
     EXPECT_FALSE(f.passes(make(0, LogSeverity::Error, "/camera_node", "all fine")));
 }
@@ -416,19 +423,21 @@ TEST(ViewerFilter, FilteredSnapshotRespectsSeverity)
     v->set_min_severity(LogSeverity::Info);
     auto snap = v->filtered_snapshot();
     EXPECT_EQ(snap.size(), 5u);
-    for (const auto& e : snap) EXPECT_EQ(e.severity, LogSeverity::Info);
+    for (const auto& e : snap)
+        EXPECT_EQ(e.severity, LogSeverity::Info);
 }
 
 TEST(ViewerFilter, FilteredSnapshotNodeFilter)
 {
     auto v = make_viewer(20);
     v->inject(make(0, LogSeverity::Info, "/camera", "msg"));
-    v->inject(make(1, LogSeverity::Info, "/lidar",  "msg"));
+    v->inject(make(1, LogSeverity::Info, "/lidar", "msg"));
     v->inject(make(2, LogSeverity::Info, "/camera", "msg"));
     v->set_node_filter("/camera");
     auto snap = v->filtered_snapshot();
     EXPECT_EQ(snap.size(), 2u);
-    for (const auto& e : snap) EXPECT_EQ(e.node, "/camera");
+    for (const auto& e : snap)
+        EXPECT_EQ(e.node, "/camera");
 }
 
 TEST(ViewerFilter, FilteredSnapshotRegex)
@@ -440,18 +449,19 @@ TEST(ViewerFilter, FilteredSnapshotRegex)
     v->set_message_regex("connection.*established");
     auto snap = v->filtered_snapshot();
     EXPECT_EQ(snap.size(), 2u);
-    for (const auto& e : snap) EXPECT_EQ(e.message, "connection established");
+    for (const auto& e : snap)
+        EXPECT_EQ(e.message, "connection established");
 }
 
 TEST(ViewerFilter, ForEachFilteredCounts)
 {
     auto v = make_viewer(20);
-    v->inject(make(0, LogSeverity::Warn,  "n", "warn1"));
-    v->inject(make(1, LogSeverity::Info,  "n", "info1"));
+    v->inject(make(0, LogSeverity::Warn, "n", "warn1"));
+    v->inject(make(1, LogSeverity::Info, "n", "info1"));
     v->inject(make(2, LogSeverity::Error, "n", "err1"));
     v->set_min_severity(LogSeverity::Warn);
     int count = 0;
-    v->for_each_filtered([&](const LogEntry&){ ++count; });
+    v->for_each_filtered([&](const LogEntry&) { ++count; });
     EXPECT_EQ(count, 2);
 }
 
@@ -459,7 +469,7 @@ TEST(ViewerFilter, SetFilterReplacesAll)
 {
     auto v = make_viewer(20);
     v->inject(make(0, LogSeverity::Debug, "/cam", "lost"));
-    v->inject(make(1, LogSeverity::Warn,  "/lidar", "ok"));
+    v->inject(make(1, LogSeverity::Warn, "/lidar", "ok"));
 
     LogFilter f;
     f.min_severity      = LogSeverity::Warn;
@@ -480,7 +490,8 @@ TEST(SeverityCounts, EmptyAllZero)
 {
     auto v    = make_viewer();
     auto cnts = v->severity_counts();
-    for (auto c : cnts) EXPECT_EQ(c, 0u);
+    for (auto c : cnts)
+        EXPECT_EQ(c, 0u);
 }
 
 TEST(SeverityCounts, MixedSeverities)
@@ -488,17 +499,17 @@ TEST(SeverityCounts, MixedSeverities)
     auto v = make_viewer(20);
     v->inject(make(0, LogSeverity::Debug, "n", "m"));
     v->inject(make(1, LogSeverity::Debug, "n", "m"));
-    v->inject(make(2, LogSeverity::Info,  "n", "m"));
-    v->inject(make(3, LogSeverity::Warn,  "n", "m"));
+    v->inject(make(2, LogSeverity::Info, "n", "m"));
+    v->inject(make(3, LogSeverity::Warn, "n", "m"));
     v->inject(make(4, LogSeverity::Error, "n", "m"));
     auto cnts = v->severity_counts();
     // Index = severity / 10: Unset=0, Debug=1, Info=2, Warn=3, Error=4, Fatal=5
-    EXPECT_EQ(cnts[0], 0u); // Unset
-    EXPECT_EQ(cnts[1], 2u); // Debug
-    EXPECT_EQ(cnts[2], 1u); // Info
-    EXPECT_EQ(cnts[3], 1u); // Warn
-    EXPECT_EQ(cnts[4], 1u); // Error
-    EXPECT_EQ(cnts[5], 0u); // Fatal
+    EXPECT_EQ(cnts[0], 0u);   // Unset
+    EXPECT_EQ(cnts[1], 2u);   // Debug
+    EXPECT_EQ(cnts[2], 1u);   // Info
+    EXPECT_EQ(cnts[3], 1u);   // Warn
+    EXPECT_EQ(cnts[4], 1u);   // Error
+    EXPECT_EQ(cnts[5], 0u);   // Fatal
 }
 
 TEST(SeverityCounts, AfterClearAllZero)
@@ -507,7 +518,8 @@ TEST(SeverityCounts, AfterClearAllZero)
     v->inject(make(0, LogSeverity::Error, "n", "m"));
     v->clear();
     auto cnts = v->severity_counts();
-    for (auto c : cnts) EXPECT_EQ(c, 0u);
+    for (auto c : cnts)
+        EXPECT_EQ(c, 0u);
 }
 
 // ---------------------------------------------------------------------------
@@ -519,11 +531,12 @@ TEST(ThreadSafety, ConcurrentInjectAndSnapshot)
     auto v = make_viewer(1000);
 
     constexpr int N = 500;
-    std::thread writer([&]()
-    {
-        for (int i = 0; i < N; ++i)
-            v->inject(make(i, LogSeverity::Info, "n", "msg"));
-    });
+    std::thread   writer(
+        [&]()
+        {
+            for (int i = 0; i < N; ++i)
+                v->inject(make(i, LogSeverity::Info, "n", "msg"));
+        });
 
     // Snapshot while writer is running — must not crash.
     std::vector<LogEntry> snap;
@@ -540,7 +553,7 @@ TEST(ThreadSafety, ConcurrentInjectAndSnapshot)
 
 TEST(LogViewerPanel, ConstructionDefaults)
 {
-    auto v = make_viewer(100);
+    auto           v = make_viewer(100);
     LogViewerPanel panel(*v);
     EXPECT_FALSE(panel.is_paused());
     EXPECT_TRUE(panel.auto_scroll());
@@ -550,17 +563,17 @@ TEST(LogViewerPanel, ConstructionDefaults)
 
 TEST(LogViewerPanel, BuildCopyTextEmpty)
 {
-    auto v = make_viewer(100);
+    auto           v = make_viewer(100);
     LogViewerPanel panel(*v);
     EXPECT_EQ(panel.build_copy_text({}), "");
 }
 
 TEST(LogViewerPanel, BuildCopyTextHasHeader)
 {
-    auto v = make_viewer();
-    LogViewerPanel panel(*v);
+    auto                  v = make_viewer();
+    LogViewerPanel        panel(*v);
     std::vector<LogEntry> entries{make(0, LogSeverity::Fatal, "/n", "boom")};
-    const std::string text = panel.build_copy_text(entries);
+    const std::string     text = panel.build_copy_text(entries);
     EXPECT_FALSE(text.empty());
     EXPECT_TRUE(text.find("FATAL") != std::string::npos);
     EXPECT_NE(text.find("Severity"), std::string::npos);
@@ -569,13 +582,11 @@ TEST(LogViewerPanel, BuildCopyTextHasHeader)
 
 TEST(LogViewerPanel, BuildCopyTextContainsEntries)
 {
-    auto v = make_viewer(10);
-    LogViewerPanel panel(*v);
-    std::vector<LogEntry> entries{
-        make(0, LogSeverity::Warn,  "/cam", "frame lost"),
-        make(1, LogSeverity::Error, "/lidar", "timeout")
-    };
-    const std::string text = panel.build_copy_text(entries);
+    auto                  v = make_viewer(10);
+    LogViewerPanel        panel(*v);
+    std::vector<LogEntry> entries{make(0, LogSeverity::Warn, "/cam", "frame lost"),
+                                  make(1, LogSeverity::Error, "/lidar", "timeout")};
+    const std::string     text = panel.build_copy_text(entries);
     EXPECT_TRUE(text.find("WARN") != std::string::npos);
     EXPECT_TRUE(text.find("ERROR") != std::string::npos);
     EXPECT_TRUE(text.find("frame lost") != std::string::npos);
@@ -586,9 +597,9 @@ TEST(LogViewerPanel, FormatRowTabSeparated)
 {
     auto e   = make(0, LogSeverity::Info, "/my_node", "test message", 3661.5);
     auto row = LogViewerPanel::format_row(e);
-    EXPECT_NE(row.find('\t'),           std::string::npos);
-    EXPECT_NE(row.find("INFO"),         std::string::npos);
-    EXPECT_NE(row.find("/my_node"),     std::string::npos);
+    EXPECT_NE(row.find('\t'), std::string::npos);
+    EXPECT_NE(row.find("INFO"), std::string::npos);
+    EXPECT_NE(row.find("/my_node"), std::string::npos);
     EXPECT_NE(row.find("test message"), std::string::npos);
 }
 
@@ -602,14 +613,14 @@ TEST(LogViewerPanel, FormatRowContainsTime)
 
 TEST(LogViewerPanel, TitleDefault)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     EXPECT_EQ(panel.title(), "ROS2 Log");
 }
 
 TEST(LogViewerPanel, SetTitle)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     panel.set_title("My Log");
     EXPECT_EQ(panel.title(), "My Log");
@@ -617,14 +628,14 @@ TEST(LogViewerPanel, SetTitle)
 
 TEST(LogViewerPanel, DisplayHzDefault)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     EXPECT_DOUBLE_EQ(panel.display_hz(), 20.0);
 }
 
 TEST(LogViewerPanel, SetDisplayHz)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     panel.set_display_hz(60.0);
     EXPECT_DOUBLE_EQ(panel.display_hz(), 60.0);
@@ -632,14 +643,14 @@ TEST(LogViewerPanel, SetDisplayHz)
 
 TEST(LogViewerPanel, MaxDisplayRowsDefault)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     EXPECT_EQ(panel.max_display_rows(), 2000u);
 }
 
 TEST(LogViewerPanel, SetMaxDisplayRows)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     panel.set_max_display_rows(500);
     EXPECT_EQ(panel.max_display_rows(), 500u);
@@ -647,7 +658,7 @@ TEST(LogViewerPanel, SetMaxDisplayRows)
 
 TEST(LogViewerPanel, SetMaxDisplayRowsZeroClampedToOne)
 {
-    auto v = make_viewer();
+    auto           v = make_viewer();
     LogViewerPanel panel(*v);
     panel.set_max_display_rows(0);
     EXPECT_EQ(panel.max_display_rows(), 1u);
@@ -659,7 +670,7 @@ TEST(LogViewerPanel, SetMaxDisplayRowsZeroClampedToOne)
 
 TEST(EdgeCases, InjectWithZeroSeqGetsAutoSeq)
 {
-    auto v = make_viewer(10);
+    auto     v = make_viewer(10);
     LogEntry e;
     e.seq      = 0;
     e.severity = LogSeverity::Info;
@@ -683,15 +694,15 @@ TEST(EdgeCases, EmptyViewerSnapshot)
 
 TEST(EdgeCases, ForEachOnEmptyNoCrash)
 {
-    auto v = make_viewer();
-    int count = 0;
-    v->for_each_filtered([&](const LogEntry&){ ++count; });
+    auto v     = make_viewer();
+    int  count = 0;
+    v->for_each_filtered([&](const LogEntry&) { ++count; });
     EXPECT_EQ(count, 0);
 }
 
 TEST(EdgeCases, LargeMessageDoesNotCrash)
 {
-    auto v = make_viewer(10);
+    auto              v = make_viewer(10);
     const std::string big(4096, 'X');
     v->inject(make(0, LogSeverity::Info, "/node", big));
     EXPECT_EQ(v->entry_count(), 1u);
@@ -700,11 +711,11 @@ TEST(EdgeCases, LargeMessageDoesNotCrash)
 
 TEST(EdgeCases, BuildCopyTextSingleEntry)
 {
-    auto v = make_viewer();
-    LogViewerPanel panel(*v);
+    auto                  v = make_viewer();
+    LogViewerPanel        panel(*v);
     std::vector<LogEntry> entries{make(0, LogSeverity::Fatal, "/n", "boom")};
-    const std::string text = panel.build_copy_text(entries);
-    EXPECT_NE(text.find("boom"),  std::string::npos);
+    const std::string     text = panel.build_copy_text(entries);
+    EXPECT_NE(text.find("boom"), std::string::npos);
     EXPECT_NE(text.find("FATAL"), std::string::npos);
 }
 
@@ -723,7 +734,7 @@ TEST(EdgeCases, NullNodeConstructionDoesNotCrash)
     // Constructing with nullptr node — subscribe() should be a no-op.
     RosLogViewer v(nullptr);
     EXPECT_FALSE(v.is_subscribed());
-    v.subscribe(); // should not crash even with null node_
+    v.subscribe();   // should not crash even with null node_
     EXPECT_FALSE(v.is_subscribed());
 }
 

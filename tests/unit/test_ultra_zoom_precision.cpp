@@ -31,7 +31,10 @@ static void build_ortho(double left, double right, double bottom, double top, fl
 }
 
 // Simulate the GPU transform: clip_x = m[0]*x + m[12], clip_y = m[5]*y + m[13]
-static float ndc_x(const float* m, float x) { return m[0] * x + m[12]; }
+static float ndc_x(const float* m, float x)
+{
+    return m[0] * x + m[12];
+}
 
 // Convert NDC [-1,1] to pixel [0, viewport_size]
 static float ndc_to_px(float ndc, float viewport_size)
@@ -65,8 +68,11 @@ struct NewResult
     float px;
 };
 
-static NewResult new_pipeline(double xlim_min, double xlim_max, float data_x, double origin_x,
-                              float vp_w)
+static NewResult new_pipeline(double xlim_min,
+                              double xlim_max,
+                              float  data_x,
+                              double origin_x,
+                              float  vp_w)
 {
     double view_cx = (xlim_min + xlim_max) * 0.5;
     double half_rx = (xlim_max - xlim_min) * 0.5;
@@ -88,7 +94,7 @@ static NewResult new_pipeline(double xlim_min, double xlim_max, float data_x, do
 
 class UltraZoomPrecision : public ::testing::Test
 {
-  protected:
+   protected:
     static constexpr float VP_W = 1920.0f;
 };
 
@@ -96,7 +102,7 @@ class UltraZoomPrecision : public ::testing::Test
 TEST_F(UltraZoomPrecision, ModerateZoom_BothPathsAgree)
 {
     double xmin = 0.0, xmax = 10.0;
-    float  data_x  = 5.0f;
+    float  data_x   = 5.0f;
     double origin_x = (xmin + xmax) * 0.5;
 
     auto old_r = old_pipeline(xmin, xmax, data_x, VP_W);
@@ -157,8 +163,8 @@ TEST_F(UltraZoomPrecision, DeepZoom_LargeOffset_OldPathHasError)
     float expected_ndc2 = 0.16f;
 
     // Old path has measurable NDC error due to float product rounding
-    float err1 = std::abs(r1.ndc - expected_ndc1);
-    float err2 = std::abs(r2.ndc - expected_ndc2);
+    float err1    = std::abs(r1.ndc - expected_ndc1);
+    float err2    = std::abs(r2.ndc - expected_ndc2);
     float max_err = std::max(err1, err2);
     // Error should be at least 0.02 NDC (~19 pixels) — catastrophic for precise plotting
     EXPECT_GT(max_err, 0.02f) << "Old path should have measurable error at deep zoom";
@@ -251,7 +257,7 @@ TEST_F(UltraZoomPrecision, MultiplePoints_MonotonicPixelOrder)
     double xmax   = center + range * 0.5;
     double origin = center;
 
-    constexpr int N = 10;
+    constexpr int N       = 10;
     float         prev_px = -1e30f;
     for (int i = 0; i < N; ++i)
     {

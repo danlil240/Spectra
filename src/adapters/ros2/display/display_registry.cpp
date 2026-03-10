@@ -5,9 +5,8 @@
 namespace spectra::adapters::ros2
 {
 
-bool DisplayRegistry::register_factory(
-    const DisplayTypeInfo& info,
-    std::function<std::unique_ptr<DisplayPlugin>()> factory)
+bool DisplayRegistry::register_factory(const DisplayTypeInfo&                          info,
+                                       std::function<std::unique_ptr<DisplayPlugin>()> factory)
 {
     if (!factory || info.type_id.empty() || factories_.find(info.type_id) != factories_.end())
         return false;

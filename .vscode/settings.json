@@ -15,7 +15,6 @@
         "-DSPECTRA_USE_FFMPEG=ON"
     ],
     "cmake.buildArgs": [],
-    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
     "cmake.defaultBuildTask": "Build Project with Examples",
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",

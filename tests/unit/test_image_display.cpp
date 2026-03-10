@@ -15,31 +15,35 @@ namespace
 sensor_msgs::msg::Image make_rgb_image()
 {
     sensor_msgs::msg::Image msg;
-    msg.header.frame_id = "camera";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "camera";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 500;
-    msg.width = 2;
-    msg.height = 1;
-    msg.encoding = "rgb8";
-    msg.step = 6;
-    msg.data = {
-        255, 0, 0,
-        0, 255, 0,
+    msg.width                = 2;
+    msg.height               = 1;
+    msg.encoding             = "rgb8";
+    msg.step                 = 6;
+    msg.data                 = {
+        255,
+        0,
+        0,
+        0,
+        255,
+        0,
     };
     return msg;
 }
 
 TransformStamp make_tf(const std::string& parent,
                        const std::string& child,
-                       double tx,
-                       uint64_t recv_ns)
+                       double             tx,
+                       uint64_t           recv_ns)
 {
     TransformStamp stamp;
     stamp.parent_frame = parent;
-    stamp.child_frame = child;
-    stamp.tx = tx;
-    stamp.qw = 1.0;
-    stamp.recv_ns = recv_ns;
+    stamp.child_frame  = child;
+    stamp.tx           = tx;
+    stamp.qw           = 1.0;
+    stamp.recv_ns      = recv_ns;
     return stamp;
 }
 }   // namespace
@@ -65,10 +69,10 @@ TEST(ImageDisplay, BillboardEntityResolvesIntoFixedFrame)
     TfBuffer buffer;
     buffer.inject_transform(make_tf("world", "camera", 2.0, 500));
 
-    ImageDisplay display;
+    ImageDisplay   display;
     DisplayContext context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
     display.on_enable(context);
     display.deserialize_config_blob(
         "topic=/image;mode=1;panel_visible=1;preview_max_dim=32;use_message_stamp=1");
@@ -96,14 +100,14 @@ TEST(ImageDisplay, BillboardEntityResolvesIntoFixedFrame)
 TEST(ImageAdapter, Bgr8EncodingSwizzle)
 {
     sensor_msgs::msg::Image msg;
-    msg.header.frame_id = "camera";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "camera";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.width = 1;
-    msg.height = 1;
-    msg.encoding = "bgr8";
-    msg.step = 3;
-    msg.data = {100, 150, 200};   // B=100, G=150, R=200
+    msg.width                = 1;
+    msg.height               = 1;
+    msg.encoding             = "bgr8";
+    msg.step                 = 3;
+    msg.data                 = {100, 150, 200};   // B=100, G=150, R=200
 
     const auto frame = adapt_image_message(msg, "/image", 16);
     ASSERT_TRUE(frame.has_value());
@@ -119,14 +123,14 @@ TEST(ImageAdapter, Bgr8EncodingSwizzle)
 TEST(ImageAdapter, Mono8EncodingGrayscale)
 {
     sensor_msgs::msg::Image msg;
-    msg.header.frame_id = "camera";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "camera";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.width = 2;
-    msg.height = 1;
-    msg.encoding = "mono8";
-    msg.step = 2;
-    msg.data = {0, 128};
+    msg.width                = 2;
+    msg.height               = 1;
+    msg.encoding             = "mono8";
+    msg.step                 = 2;
+    msg.data                 = {0, 128};
 
     const auto frame = adapt_image_message(msg, "/image", 16);
     ASSERT_TRUE(frame.has_value());
@@ -146,14 +150,14 @@ TEST(ImageAdapter, Mono8EncodingGrayscale)
 TEST(ImageAdapter, Rgba8EncodingPassThrough)
 {
     sensor_msgs::msg::Image msg;
-    msg.header.frame_id = "camera";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "camera";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.width = 1;
-    msg.height = 1;
-    msg.encoding = "rgba8";
-    msg.step = 4;
-    msg.data = {10, 20, 30, 128};
+    msg.width                = 1;
+    msg.height               = 1;
+    msg.encoding             = "rgba8";
+    msg.step                 = 4;
+    msg.data                 = {10, 20, 30, 128};
 
     const auto frame = adapt_image_message(msg, "/image", 16);
     ASSERT_TRUE(frame.has_value());
@@ -189,7 +193,7 @@ TEST(ImageDisplay, ConfigBlobEmptyNoOp)
 
 TEST(ImageDisplay, LatestFrameReturnsIngested)
 {
-    ImageDisplay display;
+    ImageDisplay   display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -209,14 +213,14 @@ TEST(ImageDisplay, LatestFrameReturnsIngested)
 TEST(ImageAdapter, Mono16EncodingDecoded)
 {
     sensor_msgs::msg::Image msg;
-    msg.header.frame_id = "camera";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "camera";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.width = 2;
-    msg.height = 1;
-    msg.encoding = "16UC1";
-    msg.step = 4;
-    msg.is_bigendian = false;
+    msg.width                = 2;
+    msg.height               = 1;
+    msg.encoding             = "16UC1";
+    msg.step                 = 4;
+    msg.is_bigendian         = false;
     // 16-bit values: 0 and 65535 (max)
     msg.data = {0, 0, 0xFF, 0xFF};
 
@@ -234,11 +238,11 @@ TEST(ImageAdapter, UnsupportedEncodingReturnsWarning)
 {
     sensor_msgs::msg::Image msg;
     msg.header.frame_id = "camera";
-    msg.width = 2;
-    msg.height = 1;
-    msg.encoding = "bayer_rggb8";
-    msg.step = 2;
-    msg.data = {10, 20};
+    msg.width           = 2;
+    msg.height          = 1;
+    msg.encoding        = "bayer_rggb8";
+    msg.step            = 2;
+    msg.data            = {10, 20};
 
     const auto frame = adapt_image_message(msg, "/cam", 16);
     ASSERT_TRUE(frame.has_value());
@@ -250,10 +254,10 @@ TEST(ImageAdapter, EmptyImageReturnsNullopt)
 {
     sensor_msgs::msg::Image msg;
     msg.header.frame_id = "camera";
-    msg.width = 0;
-    msg.height = 0;
-    msg.encoding = "rgb8";
-    msg.step = 0;
+    msg.width           = 0;
+    msg.height          = 0;
+    msg.encoding        = "rgb8";
+    msg.step            = 0;
 
     const auto frame = adapt_image_message(msg, "/cam", 16);
     EXPECT_FALSE(frame.has_value());
@@ -263,11 +267,11 @@ TEST(ImageAdapter, ZeroWidthReturnsNullopt)
 {
     sensor_msgs::msg::Image msg;
     msg.header.frame_id = "camera";
-    msg.width = 0;
-    msg.height = 1;
-    msg.encoding = "rgb8";
-    msg.step = 0;
-    msg.data = {};
+    msg.width           = 0;
+    msg.height          = 1;
+    msg.encoding        = "rgb8";
+    msg.step            = 0;
+    msg.data            = {};
 
     const auto frame = adapt_image_message(msg, "/cam", 16);
     EXPECT_FALSE(frame.has_value());
@@ -277,10 +281,10 @@ TEST(ImageAdapter, PreviewDownscalesLargeImage)
 {
     sensor_msgs::msg::Image msg;
     msg.header.frame_id = "camera";
-    msg.width = 640;
-    msg.height = 480;
-    msg.encoding = "rgb8";
-    msg.step = 640 * 3;
+    msg.width           = 640;
+    msg.height          = 480;
+    msg.encoding        = "rgb8";
+    msg.step            = 640 * 3;
     msg.data.resize(msg.step * msg.height, 128u);
 
     const auto frame = adapt_image_message(msg, "/cam", 48);
@@ -319,8 +323,8 @@ TEST(ImageAdapter, IntensityStatsComputed)
 
 TEST(ImageAdapter, StampConversion)
 {
-    auto msg = make_rgb_image();
-    msg.header.stamp.sec = 7;
+    auto msg                 = make_rgb_image();
+    msg.header.stamp.sec     = 7;
     msg.header.stamp.nanosec = 999;
 
     const auto frame = adapt_image_message(msg, "/cam", 16);
@@ -330,9 +334,9 @@ TEST(ImageAdapter, StampConversion)
 
 TEST(ImageAdapter, FrameIdPreserved)
 {
-    auto msg = make_rgb_image();
+    auto msg            = make_rgb_image();
     msg.header.frame_id = "front_camera";
-    const auto frame = adapt_image_message(msg, "/front", 16);
+    const auto frame    = adapt_image_message(msg, "/front", 16);
     ASSERT_TRUE(frame.has_value());
     EXPECT_EQ(frame->frame_id, "front_camera");
     EXPECT_EQ(frame->topic, "/front");
@@ -340,14 +344,14 @@ TEST(ImageAdapter, FrameIdPreserved)
 
 TEST(ImageAdapter, IsColorFlagCorrect)
 {
-    auto msg = make_rgb_image();
+    auto       msg       = make_rgb_image();
     const auto frame_rgb = adapt_image_message(msg, "/cam", 16);
     ASSERT_TRUE(frame_rgb.has_value());
     EXPECT_TRUE(frame_rgb->is_color);
 
-    msg.encoding = "mono8";
-    msg.step = 2;
-    msg.data = {128, 64};
+    msg.encoding          = "mono8";
+    msg.step              = 2;
+    msg.data              = {128, 64};
     const auto frame_mono = adapt_image_message(msg, "/cam", 16);
     ASSERT_TRUE(frame_mono.has_value());
     EXPECT_FALSE(frame_mono->is_color);
@@ -355,7 +359,7 @@ TEST(ImageAdapter, IsColorFlagCorrect)
 
 TEST(ImageDisplay, DisabledDisplayDoesNotSubmit)
 {
-    ImageDisplay display;
+    ImageDisplay   display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -374,6 +378,7 @@ TEST(ImageDisplay, DisabledDisplayDoesNotSubmit)
 TEST(ImageDisplay, TopicSetViaConfig)
 {
     ImageDisplay display;
-    display.deserialize_config_blob("topic=/webcam/image;mode=0;panel_visible=1;preview_max_dim=48;use_message_stamp=0");
+    display.deserialize_config_blob(
+        "topic=/webcam/image;mode=0;panel_visible=1;preview_max_dim=48;use_message_stamp=0");
     EXPECT_EQ(display.topic(), "/webcam/image");
 }

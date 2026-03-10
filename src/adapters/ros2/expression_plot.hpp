@@ -61,7 +61,7 @@ namespace spectra::adapters::ros2
 
 class ExpressionPlot
 {
-public:
+   public:
     // Maximum samples drained per variable per poll() call.
     static constexpr size_t MAX_DRAIN_PER_POLL = 4096;
 
@@ -113,7 +113,7 @@ public:
     bool add_variable(const std::string& var_name,
                       const std::string& topic,
                       const std::string& field_path,
-                      const std::string& type_name   = "",
+                      const std::string& type_name    = "",
                       size_t             buffer_depth = 10000);
 
     // Remove a variable binding and unsubscribe.  Returns false if not found.
@@ -140,26 +140,26 @@ public:
     // Figure / Series access
     // ------------------------------------------------------------------
 
-    spectra::Figure& figure() { return *figure_; }
+    spectra::Figure&       figure() { return *figure_; }
     const spectra::Figure& figure() const { return *figure_; }
 
-    spectra::Axes& axes() { return *axes_; }
+    spectra::Axes&       axes() { return *axes_; }
     const spectra::Axes& axes() const { return *axes_; }
 
-    spectra::LineSeries* series() { return series_; }
+    spectra::LineSeries*       series() { return series_; }
     const spectra::LineSeries* series() const { return series_; }
 
     // ------------------------------------------------------------------
     // Auto-scroll (C2)
     // ------------------------------------------------------------------
 
-    void set_time_window(double seconds);
+    void   set_time_window(double seconds);
     double time_window() const;
 
-    void set_prune_buffer(double seconds);
+    void   set_prune_buffer(double seconds);
     double prune_buffer() const { return prune_buffer_s_; }
-    void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
-    bool pruning_enabled() const { return pruning_enabled_; }
+    void   set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
+    bool   pruning_enabled() const { return pruning_enabled_; }
 
     void pause_scroll();
     void resume_scroll();
@@ -171,8 +171,8 @@ public:
     // Configuration
     // ------------------------------------------------------------------
 
-    void set_figure_size(uint32_t w, uint32_t h);
-    void set_label(const std::string& label);
+    void               set_figure_size(uint32_t w, uint32_t h);
+    void               set_label(const std::string& label);
     const std::string& label() const { return label_; }
 
     // ------------------------------------------------------------------
@@ -191,17 +191,17 @@ public:
     bool load_preset(const std::string& name);
     bool remove_preset(const std::string& name) { return engine_.remove_preset(name); }
     std::vector<ExpressionPreset> presets() const { return engine_.presets(); }
-    std::string serialize_presets() const { return engine_.serialize_presets(); }
+    std::string                   serialize_presets() const { return engine_.serialize_presets(); }
     void deserialize_presets(const std::string& json) { engine_.deserialize_presets(json); }
 
     // ------------------------------------------------------------------
     // Engine access (for testing / editor integration)
     // ------------------------------------------------------------------
 
-    ExpressionEngine& engine() { return engine_; }
+    ExpressionEngine&       engine() { return engine_; }
     const ExpressionEngine& engine() const { return engine_; }
 
-private:
+   private:
     // ------------------------------------------------------------------
     // VarEntry — one bound variable
     // ------------------------------------------------------------------
@@ -213,7 +213,7 @@ private:
         std::string type_name;
 
         std::unique_ptr<GenericSubscriber> subscriber;
-        int extractor_id{-1};
+        int                                extractor_id{-1};
 
         // Latest received value (zero-order hold).
         double last_value{0.0};
@@ -241,8 +241,8 @@ private:
 
     // Output figure + series.
     std::unique_ptr<spectra::Figure> figure_;
-    spectra::Axes*       axes_{nullptr};
-    spectra::LineSeries* series_{nullptr};
+    spectra::Axes*                   axes_{nullptr};
+    spectra::LineSeries*             series_{nullptr};
 
     // Auto-fit state.
     size_t output_count_{0};

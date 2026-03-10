@@ -49,7 +49,7 @@ namespace spectra::adapters::ros2
 {
 
 // Forward declarations.
-class  TopicEchoPanel;
+class TopicEchoPanel;
 struct EchoMessage;
 struct EchoFieldValue;
 
@@ -82,7 +82,7 @@ struct TopicStats
     // Rolling Hz history for sparkline rendering (sampled once per second,
     // newest at back, capped at HZ_HISTORY_LEN entries).
     static constexpr size_t HZ_HISTORY_LEN = 30;
-    std::deque<float> hz_history;
+    std::deque<float>       hz_history;
 
     // Wall-clock ns of the last time hz_history was sampled.
     int64_t last_hz_sample_ns{0};
@@ -101,7 +101,7 @@ struct TopicStats
 
 class TopicListPanel
 {
-public:
+   public:
     struct ColumnVisibility
     {
         bool show_type{true};
@@ -123,7 +123,7 @@ public:
 
     // Wire to a TopicDiscovery instance.  The pointer must outlive this panel.
     // If nullptr, the panel renders with whatever topics were manually set.
-    void set_topic_discovery(TopicDiscovery* disc);
+    void            set_topic_discovery(TopicDiscovery* disc);
     TopicDiscovery* topic_discovery() const { return disc_; }
 
     // ---------- statistics injection -----------------------------------------
@@ -157,7 +157,7 @@ public:
     // Wire a FieldDragDrop controller so that topic rows become drag sources
     // (dragging a whole topic with empty field_path) and get right-click menus.
     // Pass nullptr to disable.
-    void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
+    void           set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
     FieldDragDrop* drag_drop() const { return drag_drop_; }
 
     // ---------- inline echo (rqt-style expand) -------------------------------
@@ -165,18 +165,18 @@ public:
     // Wire to an echo panel.  When a topic row is expanded, the latest
     // message from that topic is shown inline.  The pointer must outlive
     // this panel.  Pass nullptr to disable inline echo.
-    void set_echo_panel(TopicEchoPanel* ep) { echo_panel_ = ep; }
+    void            set_echo_panel(TopicEchoPanel* ep) { echo_panel_ = ep; }
     TopicEchoPanel* echo_panel() const { return echo_panel_; }
 
     // Expanded inline-echo state for render-thread use and tests.
-    bool is_topic_expanded(const std::string& topic_name) const;
+    bool   is_topic_expanded(const std::string& topic_name) const;
     size_t expanded_topic_count() const { return expanded_echo_topics_.size(); }
-    void set_topic_expanded(const std::string& topic_name, bool expanded);
+    void   set_topic_expanded(const std::string& topic_name, bool expanded);
 
     // ---------- configuration ------------------------------------------------
 
     // Window title (default: "ROS2 Topics").
-    void set_title(const std::string& title) { title_ = title; }
+    void               set_title(const std::string& title) { title_ = title; }
     const std::string& title() const { return title_; }
 
     // Stale threshold: topic is considered stale if no message received in
@@ -192,7 +192,7 @@ public:
     void set_group_by_namespace(bool v) { group_by_namespace_ = v; }
     bool group_by_namespace() const { return group_by_namespace_; }
 
-    void set_column_visibility(const ColumnVisibility& visibility);
+    void             set_column_visibility(const ColumnVisibility& visibility);
     ColumnVisibility column_visibility() const;
 
     // ---------- testing helpers (no ImGui dependency) ------------------------
@@ -204,9 +204,9 @@ public:
     // Return a snapshot of all stats maps (for testing).
     struct StatsSnapshot
     {
-        double hz;
-        double bandwidth_bps;
-        bool   active;
+        double   hz;
+        double   bandwidth_bps;
+        bool     active;
         uint64_t total_messages;
     };
     StatsSnapshot stats_for(const std::string& topic_name) const;
@@ -223,7 +223,7 @@ public:
     // Set filter programmatically (for testing).
     void set_filter(const std::string& f);
 
-private:
+   private:
     // ---------- internal helpers ---------------------------------------------
 
     // Rebuild namespace_tree_ from topics_.  Called whenever topics_ changes.
@@ -243,9 +243,9 @@ private:
     void draw_inline_echo(const std::string& topic_name);
 
     // Render one echo field node (reuses echo panel's flat-tree logic).
-    void draw_echo_field(const std::string& topic_name,
-                         EchoFieldValue& fv,
-                         size_t& idx,
+    void draw_echo_field(const std::string&                 topic_name,
+                         EchoFieldValue&                    fv,
+                         size_t&                            idx,
                          const std::vector<EchoFieldValue>& all_fields);
 
     // Format Hz as a compact string ("12.3", "—" if 0).
@@ -262,27 +262,27 @@ private:
     // One node in the namespace tree.
     struct NamespaceNode
     {
-        std::string              ns;           // full namespace prefix
-        std::string              label;        // last segment (for display)
-        std::vector<std::string> topic_names;  // leaf topics under this ns
-        std::vector<std::string> children;     // child namespace prefixes
-        bool                     open{true};   // ImGui tree state
+        std::string              ns;            // full namespace prefix
+        std::string              label;         // last segment (for display)
+        std::vector<std::string> topic_names;   // leaf topics under this ns
+        std::vector<std::string> children;      // child namespace prefixes
+        bool                     open{true};    // ImGui tree state
     };
 
     // ---------- data ---------------------------------------------------------
 
     TopicDiscovery* disc_{nullptr};
 
-    mutable std::mutex stats_mutex_;
-    std::unordered_map<std::string, TopicStats> stats_map_;  // topic → stats
+    mutable std::mutex                          stats_mutex_;
+    std::unordered_map<std::string, TopicStats> stats_map_;   // topic → stats
 
-    mutable std::mutex topics_mutex_;
-    std::vector<TopicInfo> topics_;  // snapshot from last discovery refresh
+    mutable std::mutex     topics_mutex_;
+    std::vector<TopicInfo> topics_;   // snapshot from last discovery refresh
 
     // Namespace tree (render-thread only — rebuilt under topics_mutex_).
     std::unordered_map<std::string, NamespaceNode> ns_tree_;
-    std::vector<std::string> root_namespaces_;  // top-level ns prefixes
-    std::vector<std::string> root_topics_;      // topics at "/" level
+    std::vector<std::string>                       root_namespaces_;   // top-level ns prefixes
+    std::vector<std::string>                       root_topics_;       // topics at "/" level
 
     // UI state (render-thread only).
     std::string selected_topic_;
@@ -301,8 +301,8 @@ private:
     bool col_show_bw_{true};
 
     // Cached filtered list (rebuilt each frame if dirty).
-    mutable bool                      filter_dirty_{true};
-    mutable std::vector<std::string>  filtered_names_;  // filtered topic names
+    mutable bool                     filter_dirty_{true};
+    mutable std::vector<std::string> filtered_names_;   // filtered topic names
 
     // Callbacks.
     SelectCallback select_cb_;
@@ -312,8 +312,8 @@ private:
     FieldDragDrop* drag_drop_{nullptr};
 
     // Inline echo state (render-thread only).
-    TopicEchoPanel* echo_panel_{nullptr};
-    std::unordered_set<std::string> expanded_echo_topics_;
+    TopicEchoPanel*                                               echo_panel_{nullptr};
+    std::unordered_set<std::string>                               expanded_echo_topics_;
     std::unordered_map<std::string, std::unique_ptr<EchoMessage>> cached_echo_msgs_;
 };
 

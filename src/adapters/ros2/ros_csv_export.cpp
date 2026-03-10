@@ -26,7 +26,7 @@ std::string CsvExportResult::to_string() const
         return {};
 
     std::string out;
-    out.reserve(row_count * column_count * 12);  // rough estimate
+    out.reserve(row_count * column_count * 12);   // rough estimate
 
     if (write_header_)
     {
@@ -70,10 +70,10 @@ bool CsvExportResult::save_to_file(const std::string& path) const
 // Static helpers
 // ---------------------------------------------------------------------------
 
-void RosCsvExport::split_timestamp(double    timestamp_s,
-                                   int64_t   timestamp_ns,
-                                   int64_t&  out_sec,
-                                   int64_t&  out_nsec)
+void RosCsvExport::split_timestamp(double   timestamp_s,
+                                   int64_t  timestamp_ns,
+                                   int64_t& out_sec,
+                                   int64_t& out_nsec)
 {
     if (timestamp_ns != 0)
     {
@@ -82,21 +82,21 @@ void RosCsvExport::split_timestamp(double    timestamp_s,
         out_nsec = timestamp_ns % 1000000000LL;
         if (out_nsec < 0)
         {
-            out_sec  -= 1;
+            out_sec -= 1;
             out_nsec += 1000000000LL;
         }
     }
     else
     {
         // Fall back: derive from float seconds (loses sub-ns precision).
-        double sec_floor  = std::floor(timestamp_s);
-        out_sec           = static_cast<int64_t>(sec_floor);
-        double nsec_d     = (timestamp_s - sec_floor) * 1e9;
-        out_nsec          = static_cast<int64_t>(std::round(nsec_d));
+        double sec_floor = std::floor(timestamp_s);
+        out_sec          = static_cast<int64_t>(sec_floor);
+        double nsec_d    = (timestamp_s - sec_floor) * 1e9;
+        out_nsec         = static_cast<int64_t>(std::round(nsec_d));
         // Clamp nsec to valid range.
         if (out_nsec >= 1000000000LL)
         {
-            out_sec  += 1;
+            out_sec += 1;
             out_nsec -= 1000000000LL;
         }
         if (out_nsec < 0)
@@ -116,8 +116,7 @@ std::string RosCsvExport::format_int64(int64_t v)
     return std::to_string(v);
 }
 
-std::string RosCsvExport::make_column_name(const std::string& topic,
-                                           const std::string& field_path)
+std::string RosCsvExport::make_column_name(const std::string& topic, const std::string& field_path)
 {
     if (topic.empty())
         return field_path;
@@ -125,7 +124,7 @@ std::string RosCsvExport::make_column_name(const std::string& topic,
         return topic;
 
     // Ensure exactly one '/' separator between topic and field_path.
-    bool topic_ends_slash = topic.back() == '/';
+    bool topic_ends_slash   = topic.back() == '/';
     bool field_starts_slash = !field_path.empty() && field_path.front() == '/';
 
     if (topic_ends_slash || field_starts_slash)
@@ -140,15 +139,15 @@ std::vector<std::string> RosCsvExport::timestamp_headers()
 }
 
 std::vector<std::string> RosCsvExport::format_timestamp_cells(double  timestamp_s,
-                                                               int64_t timestamp_ns) const
+                                                              int64_t timestamp_ns) const
 {
     int64_t sec  = 0;
     int64_t nsec = 0;
     split_timestamp(timestamp_s, timestamp_ns, sec, nsec);
 
-    std::string sec_str      = format_int64(sec);
-    std::string nsec_str     = format_int64(nsec);
-    std::string wall_str     = format_value(timestamp_s, config_.wall_clock_precision);
+    std::string sec_str  = format_int64(sec);
+    std::string nsec_str = format_int64(nsec);
+    std::string wall_str = format_value(timestamp_s, config_.wall_clock_precision);
 
     return {sec_str, nsec_str, wall_str};
 }
@@ -157,10 +156,7 @@ std::vector<std::string> RosCsvExport::format_timestamp_cells(double  timestamp_
 // Constructor
 // ---------------------------------------------------------------------------
 
-RosCsvExport::RosCsvExport(RosPlotManager& mgr)
-    : mgr_(mgr)
-{
-}
+RosCsvExport::RosCsvExport(RosPlotManager& mgr) : mgr_(mgr) {}
 
 // ---------------------------------------------------------------------------
 // Export — single plot
@@ -171,9 +167,7 @@ CsvExportResult RosCsvExport::export_plot(int plot_id) const
     return export_plots({plot_id}, RangeMode::Full, 0.0, 0.0);
 }
 
-CsvExportResult RosCsvExport::export_plot(int    plot_id,
-                                          double x_min,
-                                          double x_max) const
+CsvExportResult RosCsvExport::export_plot(int plot_id, double x_min, double x_max) const
 {
     return export_plots({plot_id}, RangeMode::Visible, x_min, x_max);
 }
@@ -193,7 +187,7 @@ CsvExportResult RosCsvExport::export_plots(const std::vector<int>& plot_ids,
                                            double                  x_max) const
 {
     CsvExportResult bad;
-    bad.ok    = false;
+    bad.ok = false;
 
     if (plot_ids.empty())
     {
@@ -245,10 +239,10 @@ CsvExportResult RosCsvExport::build_result(const std::vector<SeriesData>& series
                                            double                         x_max) const
 {
     CsvExportResult result;
-    result.ok              = false;
-    result.separator_      = config_.separator;
-    result.line_ending_    = config_.line_ending;
-    result.write_header_   = config_.write_header;
+    result.ok            = false;
+    result.separator_    = config_.separator;
+    result.line_ending_  = config_.line_ending;
+    result.write_header_ = config_.write_header;
 
     if (series.empty())
     {
@@ -282,14 +276,14 @@ CsvExportResult RosCsvExport::build_result(const std::vector<SeriesData>& series
 
     if (all_x.empty())
     {
-        result.ok        = true;  // valid export, zero rows
+        result.ok        = true;   // valid export, zero rows
         result.row_count = 0;
         // Still build headers.
         auto hdrs = timestamp_headers();
         for (const auto& sd : series)
             hdrs.push_back(sd.column_name);
-        result.headers       = std::move(hdrs);
-        result.column_count  = result.headers.size();
+        result.headers      = std::move(hdrs);
+        result.column_count = result.headers.size();
         return result;
     }
 
@@ -324,7 +318,7 @@ CsvExportResult RosCsvExport::build_result(const std::vector<SeriesData>& series
     //         We use a per-series cursor since all series' X is sorted.
     // ---------------------------------------------------------------------------
 
-    constexpr double MATCH_EPS = 1e-9;  // ~1 nanosecond in seconds
+    constexpr double MATCH_EPS = 1e-9;   // ~1 nanosecond in seconds
 
     // Per-series lookup index (sorted input assumed — see SeriesData invariant).
     std::vector<size_t> cursors(series.size(), 0);
@@ -344,26 +338,23 @@ CsvExportResult RosCsvExport::build_result(const std::vector<SeriesData>& series
         // Value columns.
         for (size_t si = 0; si < series.size(); ++si)
         {
-            const SeriesData& sd = series[si];
+            const SeriesData& sd  = series[si];
             size_t&           cur = cursors[si];
 
             // Advance cursor to first X >= row_x.
-            while (cur < sd.x.size() &&
-                   static_cast<double>(sd.x[cur]) < row_x - MATCH_EPS)
+            while (cur < sd.x.size() && static_cast<double>(sd.x[cur]) < row_x - MATCH_EPS)
             {
                 ++cur;
             }
 
             // Check exact match.
-            if (cur < sd.x.size() &&
-                std::abs(static_cast<double>(sd.x[cur]) - row_x) <= MATCH_EPS)
+            if (cur < sd.x.size() && std::abs(static_cast<double>(sd.x[cur]) - row_x) <= MATCH_EPS)
             {
                 // Retrieve ns if available.
                 int64_t ns = (cur < sd.ns.size()) ? sd.ns[cur] : 0;
-                (void)ns;  // Used in future enhancement; fall through to float decomp.
+                (void)ns;   // Used in future enhancement; fall through to float decomp.
 
-                row.push_back(format_value(static_cast<double>(sd.y[cur]),
-                                           config_.precision));
+                row.push_back(format_value(static_cast<double>(sd.y[cur]), config_.precision));
             }
             else
             {

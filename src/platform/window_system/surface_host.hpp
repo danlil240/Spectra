@@ -27,8 +27,8 @@ class SurfaceHost
     virtual void append_instance_extensions(std::vector<const char*>& extensions) const = 0;
 
     // Create a Vulkan surface from a platform-native window handle.
-    virtual bool create_surface(VkInstance instance,
-                                void*      native_window,
+    virtual bool create_surface(VkInstance    instance,
+                                void*         native_window,
                                 VkSurfaceKHR& out_surface) const = 0;
 
     // Query framebuffer size in physical pixels.

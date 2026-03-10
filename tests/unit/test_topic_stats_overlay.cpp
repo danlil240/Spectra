@@ -87,7 +87,7 @@ TEST(TopicStatsOverlay, SetTopicClearsPreviousStats)
     overlay.set_topic("/topicB");
     const auto snap = overlay.snapshot();
     EXPECT_EQ(snap.total_messages, 0u);
-    EXPECT_EQ(snap.total_bytes,    0u);
+    EXPECT_EQ(snap.total_bytes, 0u);
 }
 
 TEST(TopicStatsOverlay, SetSameTopicIsNoop)
@@ -95,7 +95,7 @@ TEST(TopicStatsOverlay, SetSameTopicIsNoop)
     TopicStatsOverlay overlay;
     overlay.set_topic("/same");
     overlay.notify_message("/same", 50);
-    overlay.set_topic("/same");          // same topic — should NOT clear stats
+    overlay.set_topic("/same");   // same topic — should NOT clear stats
     const auto snap = overlay.snapshot();
     EXPECT_EQ(snap.total_messages, 1u);
 }
@@ -160,8 +160,8 @@ TEST(TopicStatsOverlay, NotifyWithLatencyRecorded)
 {
     TopicStatsOverlay overlay;
     overlay.set_topic("/latency_topic");
-    overlay.notify_message("/latency_topic", 100, 500);  // 500 µs latency
-    overlay.notify_message("/latency_topic", 100, 700);  // 700 µs
+    overlay.notify_message("/latency_topic", 100, 500);   // 500 µs latency
+    overlay.notify_message("/latency_topic", 100, 700);   // 700 µs
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     const auto snap = overlay.snapshot();
     // Latency should be between 500 and 700.
@@ -218,7 +218,8 @@ TEST(TopicStatsOverlay, HzApproximately10Hz)
     TopicStatsOverlay overlay;
     overlay.set_window_ms(2000);
     overlay.set_topic("/hz_10");
-    for (int i = 0; i < 11; ++i) {
+    for (int i = 0; i < 11; ++i)
+    {
         overlay.notify_message("/hz_10", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -232,12 +233,14 @@ TEST(TopicStatsOverlay, HzMinLessThanOrEqualAvg)
 {
     TopicStatsOverlay overlay;
     overlay.set_topic("/hz_minmax");
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         overlay.notify_message("/hz_minmax", 100);
         std::this_thread::sleep_for(std::chrono::microseconds(200));
     }
     const auto snap = overlay.snapshot();
-    if (snap.hz_avg > 0.0 && snap.hz_min > 0.0) {
+    if (snap.hz_avg > 0.0 && snap.hz_min > 0.0)
+    {
         EXPECT_LE(snap.hz_min, snap.hz_avg + 1.0);
     }
 }
@@ -246,12 +249,14 @@ TEST(TopicStatsOverlay, HzMaxGreaterThanOrEqualAvg)
 {
     TopicStatsOverlay overlay;
     overlay.set_topic("/hz_max");
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         overlay.notify_message("/hz_max", 100);
         std::this_thread::sleep_for(std::chrono::microseconds(200));
     }
     const auto snap = overlay.snapshot();
-    if (snap.hz_avg > 0.0 && snap.hz_max > 0.0) {
+    if (snap.hz_avg > 0.0 && snap.hz_max > 0.0)
+    {
         EXPECT_GE(snap.hz_max, snap.hz_avg - 1.0);
     }
 }
@@ -259,7 +264,7 @@ TEST(TopicStatsOverlay, HzMaxGreaterThanOrEqualAvg)
 TEST(TopicStatsOverlay, OldSamplesPrunedFromWindow)
 {
     TopicStatsOverlay overlay;
-    overlay.set_window_ms(100);  // 100 ms window
+    overlay.set_window_ms(100);   // 100 ms window
     overlay.set_topic("/prune");
 
     overlay.notify_message("/prune", 100);
@@ -276,7 +281,8 @@ TEST(TopicStatsOverlay, HzComputationWithManyMessages)
     TopicStatsOverlay overlay;
     overlay.set_window_ms(2000);
     overlay.set_topic("/many");
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 20; ++i)
+    {
         overlay.notify_message("/many", 32);
         std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
@@ -322,7 +328,7 @@ TEST(TopicStatsOverlay, TotalBytesPersistAcrossWindowExpiry)
     overlay.set_window_ms(50);
     overlay.set_topic("/persist");
     overlay.notify_message("/persist", 1000);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // expire window
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));   // expire window
     overlay.notify_message("/persist", 500);
     const auto snap = overlay.snapshot();
     // total_bytes must count all messages ever (cumulative counter).
@@ -432,7 +438,8 @@ TEST(TopicStatsOverlay, NoDropWithRegularMessages)
 {
     TopicStatsOverlay overlay;
     overlay.set_topic("/drop_no");
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         overlay.notify_message("/drop_no", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -448,7 +455,8 @@ TEST(TopicStatsOverlay, DropDetectedAfterLongGap)
     overlay.set_topic("/drop_yes");
 
     // Establish a baseline: ~100 Hz (10 ms apart).
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         overlay.notify_message("/drop_yes", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -467,7 +475,8 @@ TEST(TopicStatsOverlay, DropFlagClearsAfterNewTopic)
     overlay.set_window_ms(2000);
     overlay.set_topic("/drop_clear");
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         overlay.notify_message("/drop_clear", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -487,7 +496,8 @@ TEST(TopicStatsOverlay, DropFactorRespected)
     overlay.set_window_ms(2000);
     overlay.set_topic("/drop_factor");
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         overlay.notify_message("/drop_factor", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -546,7 +556,8 @@ TEST(TopicStatsOverlay, ResetDropFlag)
     overlay.set_drop_factor(2.0);
     overlay.set_window_ms(2000);
     overlay.set_topic("/reset_drop");
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         overlay.notify_message("/reset_drop", 50);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -572,7 +583,7 @@ TEST(TopicStatsOverlay, InvalidWindowMsClampedToMinimum)
 {
     TopicStatsOverlay overlay;
     overlay.set_window_ms(-100);
-    EXPECT_GE(overlay.window_ms(), 1);  // must not stay negative
+    EXPECT_GE(overlay.window_ms(), 1);   // must not stay negative
 }
 
 TEST(TopicStatsOverlay, SetDropFactor)
@@ -585,7 +596,7 @@ TEST(TopicStatsOverlay, SetDropFactor)
 TEST(TopicStatsOverlay, InvalidDropFactorClampedToMin)
 {
     TopicStatsOverlay overlay;
-    overlay.set_drop_factor(0.5);  // < 1.0 — invalid
+    overlay.set_drop_factor(0.5);   // < 1.0 — invalid
     EXPECT_GE(overlay.drop_factor(), 1.0);
 }
 
@@ -607,7 +618,7 @@ TEST(TopicStatsOverlay, VeryLargeMessageBytes)
 {
     TopicStatsOverlay overlay;
     overlay.set_topic("/large");
-    const size_t big = 100ULL * 1024ULL * 1024ULL;  // 100 MB
+    const size_t big = 100ULL * 1024ULL * 1024ULL;   // 100 MB
     overlay.notify_message("/large", big);
     const auto snap = overlay.snapshot();
     EXPECT_EQ(snap.total_bytes, big);
@@ -616,7 +627,7 @@ TEST(TopicStatsOverlay, VeryLargeMessageBytes)
 TEST(TopicStatsOverlay, SnapshotWithNoTopicReturnsEmpty)
 {
     TopicStatsOverlay overlay;
-    const auto snap = overlay.snapshot();
+    const auto        snap = overlay.snapshot();
     EXPECT_TRUE(snap.topic.empty());
     EXPECT_DOUBLE_EQ(snap.hz_avg, 0.0);
 }
@@ -626,13 +637,17 @@ TEST(TopicStatsOverlay, ConcurrentNotifyAndSnapshot)
     TopicStatsOverlay overlay;
     overlay.set_topic("/concurrent");
     std::atomic<bool> stop{false};
-    std::thread notifier([&]() {
-        while (!stop.load()) {
-            overlay.notify_message("/concurrent", 64);
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
-        }
-    });
-    for (int i = 0; i < 20; ++i) {
+    std::thread       notifier(
+        [&]()
+        {
+            while (!stop.load())
+            {
+                overlay.notify_message("/concurrent", 64);
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            }
+        });
+    for (int i = 0; i < 20; ++i)
+    {
         auto snap = overlay.snapshot();
         (void)snap;
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -712,7 +727,7 @@ TEST(TopicDetailStats, ComputePrunesOldSamples)
     // Push a sample at t=0 and one at t=500ms; window = 200ms from t=600ms.
     stats.push(0LL, 50);
     stats.push(500'000'000LL, 50);
-    stats.compute(600'000'000LL, 200'000'000LL);  // window: [400ms, 600ms]
+    stats.compute(600'000'000LL, 200'000'000LL);   // window: [400ms, 600ms]
     // Only the 500ms sample should survive.
     EXPECT_EQ(stats.samples.size(), 1u);
 }

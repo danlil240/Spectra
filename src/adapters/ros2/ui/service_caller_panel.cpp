@@ -5,7 +5,7 @@
 #include <sstream>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -15,10 +15,7 @@ namespace spectra::adapters::ros2
 // Construction
 // ---------------------------------------------------------------------------
 
-ServiceCallerPanel::ServiceCallerPanel(ServiceCaller* caller)
-    : caller_(caller)
-{
-}
+ServiceCallerPanel::ServiceCallerPanel(ServiceCaller* caller) : caller_(caller) {}
 
 // ---------------------------------------------------------------------------
 // select_service
@@ -26,7 +23,8 @@ ServiceCallerPanel::ServiceCallerPanel(ServiceCaller* caller)
 
 void ServiceCallerPanel::select_service(const std::string& name)
 {
-    if (name == selected_service_) return;
+    if (name == selected_service_)
+        return;
     selected_service_ = name;
     form_error_.clear();
     reload_request_form();
@@ -39,13 +37,15 @@ void ServiceCallerPanel::select_service(const std::string& name)
 void ServiceCallerPanel::reload_request_form()
 {
     request_fields_.clear();
-    if (!caller_ || selected_service_.empty()) return;
+    if (!caller_ || selected_service_.empty())
+        return;
 
     // Ensure schema is loaded.
     caller_->load_schema(selected_service_);
 
     auto entry = caller_->find_service(selected_service_);
-    if (!entry || !entry->schema_ok || !entry->request_schema) return;
+    if (!entry || !entry->schema_ok || !entry->request_schema)
+        return;
 
     request_fields_ = ServiceCaller::fields_from_schema(*entry->request_schema);
 }
@@ -69,10 +69,14 @@ const char* ServiceCallerPanel::state_badge(CallState s)
 {
     switch (s)
     {
-        case CallState::Pending:  return "[...]";
-        case CallState::Done:     return "[OK]";
-        case CallState::TimedOut: return "[TIMEOUT]";
-        case CallState::Error:    return "[ERROR]";
+        case CallState::Pending:
+            return "[...]";
+        case CallState::Done:
+            return "[OK]";
+        case CallState::TimedOut:
+            return "[TIMEOUT]";
+        case CallState::Error:
+            return "[ERROR]";
     }
     return "[?]";
 }
@@ -82,10 +86,18 @@ void ServiceCallerPanel::push_state_color(CallState s)
 #ifdef SPECTRA_USE_IMGUI
     switch (s)
     {
-        case CallState::Pending:  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f)); break;
-        case CallState::Done:     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.85f, 0.4f, 1.0f)); break;
-        case CallState::TimedOut: ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.5f, 0.1f, 1.0f)); break;
-        case CallState::Error:    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f)); break;
+        case CallState::Pending:
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
+            break;
+        case CallState::Done:
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.85f, 0.4f, 1.0f));
+            break;
+        case CallState::TimedOut:
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.5f, 0.1f, 1.0f));
+            break;
+        case CallState::Error:
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
+            break;
     }
 #else
     (void)s;
@@ -101,7 +113,8 @@ void ServiceCallerPanel::pop_state_color()
 
 std::string ServiceCallerPanel::format_latency(double ms)
 {
-    if (ms <= 0.0) return "—";
+    if (ms <= 0.0)
+        return "—";
     std::ostringstream oss;
     if (ms >= 1000.0)
         oss << static_cast<int>(ms / 1000.0) << "." << static_cast<int>(ms / 100.0) % 10 << " s";
@@ -123,7 +136,7 @@ void ServiceCallerPanel::draw(bool* p_open)
     if (refresh_requested_ && caller_)
     {
         caller_->refresh_services();
-        services_snap_ = caller_->services();
+        services_snap_     = caller_->services();
         refresh_requested_ = false;
     }
 
@@ -150,12 +163,12 @@ void ServiceCallerPanel::draw(bool* p_open)
     ImGui::Separator();
 
     // Three-pane layout using columns.
-    const float total_w   = ImGui::GetContentRegionAvail().x;
-    const float list_w    = total_w * list_ratio_;
-    const float form_w    = total_w * form_ratio_;
+    const float total_w = ImGui::GetContentRegionAvail().x;
+    const float list_w  = total_w * list_ratio_;
+    const float form_w  = total_w * form_ratio_;
     // history gets the rest minus two thin splitter gaps (4px each).
-    const float hist_w    = total_w - list_w - form_w - 8.0f;
-    const float avail_h   = ImGui::GetContentRegionAvail().y;
+    const float hist_w  = total_w - list_w - form_w - 8.0f;
+    const float avail_h = ImGui::GetContentRegionAvail().y;
 
     // --- Left pane: service list ---
     ImGui::BeginChild("##svc_list_pane", ImVec2(list_w, avail_h), true);
@@ -195,8 +208,8 @@ void ServiceCallerPanel::draw_service_list(float /*pane_width*/)
         // Filter.
         if (!filter_str_.empty())
         {
-            if (entry.name.find(filter_str_) == std::string::npos &&
-                entry.type.find(filter_str_) == std::string::npos)
+            if (entry.name.find(filter_str_) == std::string::npos
+                && entry.type.find(filter_str_) == std::string::npos)
                 continue;
         }
 
@@ -204,8 +217,7 @@ void ServiceCallerPanel::draw_service_list(float /*pane_width*/)
 
         // Selectable spanning full width.
         std::string label = entry.name + "##svc_" + entry.name;
-        if (ImGui::Selectable(label.c_str(), is_selected,
-                ImGuiSelectableFlags_SpanAllColumns))
+        if (ImGui::Selectable(label.c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns))
         {
             select_service(entry.name);
         }
@@ -243,19 +255,20 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     // Schema status.
     if (!entry)
     {
-        ImGui::TextColored(ImVec4(0.9f,0.4f,0.1f,1.f), "Service not in discovery list");
+        ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.1f, 1.f), "Service not in discovery list");
         ImGui::Separator();
     }
     else if (!entry->schema_loaded)
     {
         ImGui::TextDisabled("Loading schema…");
         // Trigger async load.
-        if (caller_) caller_->load_schema(selected_service_);
+        if (caller_)
+            caller_->load_schema(selected_service_);
         ImGui::Separator();
     }
     else if (!entry->schema_ok)
     {
-        ImGui::TextColored(ImVec4(0.9f,0.2f,0.2f,1.f), "Schema unavailable");
+        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.f), "Schema unavailable");
         ImGui::Separator();
     }
     else
@@ -291,8 +304,8 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     {
         form_error_.clear();
         std::string req_json = ServiceCaller::fields_to_json(request_fields_);
-        last_call_handle_    = caller_->call(selected_service_, req_json,
-                                              static_cast<double>(timeout_s_));
+        last_call_handle_ =
+            caller_->call(selected_service_, req_json, static_cast<double>(timeout_s_));
         if (last_call_handle_ == INVALID_CALL_HANDLE)
             form_error_ = "Failed to dispatch call.";
     }
@@ -303,7 +316,7 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     if (!form_error_.empty())
     {
         ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.9f,0.2f,0.2f,1.f), "%s", form_error_.c_str());
+        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.f), "%s", form_error_.c_str());
     }
 
     // Show latest call status inline.
@@ -327,8 +340,9 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
             else if (s == CallState::Error || s == CallState::TimedOut)
             {
                 ImGui::SameLine();
-                ImGui::TextColored(ImVec4(0.9f,0.4f,0.1f,1.f),
-                    "  %s", rec->error_message.c_str());
+                ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.1f, 1.f),
+                                   "  %s",
+                                   rec->error_message.c_str());
             }
         }
     }
@@ -380,7 +394,13 @@ void ServiceCallerPanel::draw_field_row(ServiceFieldValue& fv, int idx)
     {
         // Numeric: float drag (display) backed by string.
         float fval = 0.0f;
-        try { fval = std::stof(fv.value_str); } catch (...) {}
+        try
+        {
+            fval = std::stof(fv.value_str);
+        }
+        catch (...)
+        {
+        }
         if (ImGui::DragFloat(widget_id.c_str(), &fval, 0.01f))
         {
             std::ostringstream oss;
@@ -392,7 +412,8 @@ void ServiceCallerPanel::draw_field_row(ServiceFieldValue& fv, int idx)
     if (fv.depth > 0)
         ImGui::Unindent(static_cast<float>(fv.depth) * 16.0f);
 #else
-    (void)fv; (void)idx;
+    (void)fv;
+    (void)idx;
 #endif
 }
 
@@ -424,33 +445,33 @@ void ServiceCallerPanel::draw_history_pane()
     if (ImGui::SmallButton("Import") && caller_)
     {
         const char* clip = ImGui::GetClipboardText();
-        if (clip) caller_->history_from_json(clip);
+        if (clip)
+            caller_->history_from_json(clip);
     }
     ImGui::Separator();
 
     // Upper half: call log table.
     const float avail_h = ImGui::GetContentRegionAvail().y;
-    const float table_h = selected_history_ != INVALID_CALL_HANDLE
-                          ? avail_h * 0.55f
-                          : avail_h;
+    const float table_h = selected_history_ != INVALID_CALL_HANDLE ? avail_h * 0.55f : avail_h;
 
-    if (ImGui::BeginTable("##hist_table", 4,
-            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-            ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit,
-            ImVec2(-1.0f, table_h)))
+    if (ImGui::BeginTable("##hist_table",
+                          4,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY
+                              | ImGuiTableFlags_SizingFixedFit,
+                          ImVec2(-1.0f, table_h)))
     {
-        ImGui::TableSetupColumn("State",   ImGuiTableColumnFlags_WidthFixed,   68.0f);
+        ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 68.0f);
         ImGui::TableSetupColumn("Service", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Latency", ImGuiTableColumnFlags_WidthFixed,   62.0f);
-        ImGui::TableSetupColumn("Replay",  ImGuiTableColumnFlags_WidthFixed,   52.0f);
+        ImGui::TableSetupColumn("Latency", ImGuiTableColumnFlags_WidthFixed, 62.0f);
+        ImGui::TableSetupColumn("Replay", ImGuiTableColumnFlags_WidthFixed, 52.0f);
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
 
         // Iterate newest-first.
         for (auto it = history_snap_.rbegin(); it != history_snap_.rend(); ++it)
         {
-            const CallRecord& rec = **it;
-            bool selected = (rec.id == selected_history_);
+            const CallRecord& rec      = **it;
+            bool              selected = (rec.id == selected_history_);
             draw_history_entry(rec, selected);
         }
 
@@ -462,8 +483,10 @@ void ServiceCallerPanel::draw_history_pane()
     {
         ImGui::Separator();
         ImGui::TextDisabled("Response:");
-        ImGui::BeginChild("##json_view", ImVec2(-1.0f, 0.0f), false,
-            ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::BeginChild("##json_view",
+                          ImVec2(-1.0f, 0.0f),
+                          false,
+                          ImGuiWindowFlags_HorizontalScrollbar);
         ImGui::TextUnformatted(response_json_preview_.c_str());
         ImGui::EndChild();
     }
@@ -483,10 +506,11 @@ void ServiceCallerPanel::draw_history_entry(const CallRecord& rec, bool selected
     auto s = rec.state.load(std::memory_order_acquire);
     push_state_color(s);
 
-    bool clicked = ImGui::Selectable(state_badge(s),
-        selected,
-        ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
-        ImVec2(0.0f, 0.0f));
+    bool clicked =
+        ImGui::Selectable(state_badge(s),
+                          selected,
+                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
+                          ImVec2(0.0f, 0.0f));
 
     pop_state_color();
 
@@ -500,8 +524,9 @@ void ServiceCallerPanel::draw_history_entry(const CallRecord& rec, bool selected
         }
         else
         {
-            selected_history_     = rec.id;
-            response_json_preview_ = rec.response_json.empty() ? "(no response)" : rec.response_json;
+            selected_history_ = rec.id;
+            response_json_preview_ =
+                rec.response_json.empty() ? "(no response)" : rec.response_json;
         }
     }
 
@@ -526,7 +551,8 @@ void ServiceCallerPanel::draw_history_entry(const CallRecord& rec, bool selected
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Re-populate form from this call");
 #else
-    (void)rec; (void)selected;
+    (void)rec;
+    (void)selected;
 #endif
 }
 

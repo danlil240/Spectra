@@ -37,8 +37,7 @@ std::unordered_set<std::string> query_instance_extensions()
     vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
 
     std::vector<VkExtensionProperties> available_extensions(ext_count);
-    vkEnumerateInstanceExtensionProperties(
-        nullptr, &ext_count, available_extensions.data());
+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, available_extensions.data());
 
     std::unordered_set<std::string> names;
     names.reserve(available_extensions.size());

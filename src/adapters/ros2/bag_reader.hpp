@@ -40,16 +40,16 @@
 
 #ifdef SPECTRA_ROS2_BAG
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <unordered_set>
-#include <vector>
+    #include <cstdint>
+    #include <memory>
+    #include <optional>
+    #include <string>
+    #include <unordered_set>
+    #include <vector>
 
-#include <rosbag2_cpp/reader.hpp>
-#include <rosbag2_storage/storage_options.hpp>
-#include <rosbag2_storage/topic_metadata.hpp>
+    #include <rosbag2_cpp/reader.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
+    #include <rosbag2_storage/topic_metadata.hpp>
 
 namespace spectra::adapters::ros2
 {
@@ -60,11 +60,11 @@ namespace spectra::adapters::ros2
 
 struct BagTopicInfo
 {
-    std::string name;             // fully qualified topic name, e.g. "/cmd_vel"
-    std::string type;             // ROS2 type string, e.g. "geometry_msgs/msg/Twist"
-    std::string serialization_fmt; // usually "cdr"
-    uint64_t    message_count{0}; // total messages for this topic in the bag
-    int         offered_qos_count{0}; // number of QoS profiles recorded
+    std::string name;                   // fully qualified topic name, e.g. "/cmd_vel"
+    std::string type;                   // ROS2 type string, e.g. "geometry_msgs/msg/Twist"
+    std::string serialization_fmt;      // usually "cdr"
+    uint64_t    message_count{0};       // total messages for this topic in the bag
+    int         offered_qos_count{0};   // number of QoS profiles recorded
 };
 
 // ---------------------------------------------------------------------------
@@ -73,29 +73,20 @@ struct BagTopicInfo
 
 struct BagMetadata
 {
-    std::string path;                   // absolute path that was opened
-    std::string storage_id;             // "sqlite3" or "mcap"
-    int64_t     start_time_ns{0};       // earliest message timestamp (nanoseconds)
-    int64_t     end_time_ns{0};         // latest message timestamp (nanoseconds)
-    int64_t     duration_ns{0};         // end_time_ns - start_time_ns
-    uint64_t    message_count{0};       // total messages across all topics
-    uint64_t    compressed_size{0};     // bag file size in bytes (0 if not available)
-    std::vector<BagTopicInfo> topics;   // per-topic info (filled by open())
+    std::string               path;                 // absolute path that was opened
+    std::string               storage_id;           // "sqlite3" or "mcap"
+    int64_t                   start_time_ns{0};     // earliest message timestamp (nanoseconds)
+    int64_t                   end_time_ns{0};       // latest message timestamp (nanoseconds)
+    int64_t                   duration_ns{0};       // end_time_ns - start_time_ns
+    uint64_t                  message_count{0};     // total messages across all topics
+    uint64_t                  compressed_size{0};   // bag file size in bytes (0 if not available)
+    std::vector<BagTopicInfo> topics;               // per-topic info (filled by open())
 
-    double duration_sec() const noexcept
-    {
-        return static_cast<double>(duration_ns) * 1e-9;
-    }
+    double duration_sec() const noexcept { return static_cast<double>(duration_ns) * 1e-9; }
 
-    double start_time_sec() const noexcept
-    {
-        return static_cast<double>(start_time_ns) * 1e-9;
-    }
+    double start_time_sec() const noexcept { return static_cast<double>(start_time_ns) * 1e-9; }
 
-    double end_time_sec() const noexcept
-    {
-        return static_cast<double>(end_time_ns) * 1e-9;
-    }
+    double end_time_sec() const noexcept { return static_cast<double>(end_time_ns) * 1e-9; }
 };
 
 // ---------------------------------------------------------------------------
@@ -104,11 +95,11 @@ struct BagMetadata
 
 struct BagMessage
 {
-    std::string              topic;            // topic name
-    std::string              type;             // ROS2 message type string
-    std::string              serialization_fmt; // "cdr"
-    int64_t                  timestamp_ns{0};  // message receive timestamp in ns
-    std::vector<uint8_t>     serialized_data;  // raw CDR bytes (empty if invalid)
+    std::string          topic;               // topic name
+    std::string          type;                // ROS2 message type string
+    std::string          serialization_fmt;   // "cdr"
+    int64_t              timestamp_ns{0};     // message receive timestamp in ns
+    std::vector<uint8_t> serialized_data;     // raw CDR bytes (empty if invalid)
 
     bool valid() const noexcept { return !topic.empty() && !serialized_data.empty(); }
 };
@@ -119,7 +110,7 @@ struct BagMessage
 
 class BagReader
 {
-public:
+   public:
     BagReader();
     ~BagReader();
 
@@ -228,7 +219,7 @@ public:
     // Clear the last error.
     void clear_error() noexcept;
 
-private:
+   private:
     // Build BagMetadata from the reader's bag metadata after open.
     void build_metadata();
 
@@ -251,14 +242,14 @@ private:
     std::unordered_map<std::string, std::string> topic_fmt_map_;
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2
 
-#else // SPECTRA_ROS2_BAG not defined — empty stubs so headers compile cleanly.
+#else   // SPECTRA_ROS2_BAG not defined — empty stubs so headers compile cleanly.
 
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
+    #include <cstdint>
+    #include <optional>
+    #include <string>
+    #include <vector>
 
 namespace spectra::adapters::ros2
 {
@@ -274,18 +265,18 @@ struct BagTopicInfo
 
 struct BagMetadata
 {
-    std::string              path;
-    std::string              storage_id;
-    int64_t                  start_time_ns{0};
-    int64_t                  end_time_ns{0};
-    int64_t                  duration_ns{0};
-    uint64_t                 message_count{0};
-    uint64_t                 compressed_size{0};
+    std::string               path;
+    std::string               storage_id;
+    int64_t                   start_time_ns{0};
+    int64_t                   end_time_ns{0};
+    int64_t                   duration_ns{0};
+    uint64_t                  message_count{0};
+    uint64_t                  compressed_size{0};
     std::vector<BagTopicInfo> topics;
 
-    double duration_sec()    const noexcept { return 0.0; }
-    double start_time_sec()  const noexcept { return 0.0; }
-    double end_time_sec()    const noexcept { return 0.0; }
+    double duration_sec() const noexcept { return 0.0; }
+    double start_time_sec() const noexcept { return 0.0; }
+    double end_time_sec() const noexcept { return 0.0; }
 };
 
 struct BagMessage
@@ -295,38 +286,38 @@ struct BagMessage
     std::string          serialization_fmt;
     int64_t              timestamp_ns{0};
     std::vector<uint8_t> serialized_data;
-    bool valid() const noexcept { return false; }
+    bool                 valid() const noexcept { return false; }
 };
 
 class BagReader
 {
-public:
-    bool        open(const std::string&)                     { return false; }
-    void        close()                                      {}
-    bool        is_open()                        const noexcept { return false; }
-    const BagMetadata& metadata()               const noexcept { return meta_; }
-    const std::vector<BagTopicInfo>& topics()   const noexcept { return meta_.topics; }
-    std::optional<BagTopicInfo> topic_info(const std::string&) const { return std::nullopt; }
-    bool        has_topic(const std::string&)    const             { return false; }
-    size_t      topic_count()                    const noexcept { return 0; }
-    void        set_topic_filter(const std::vector<std::string>&) {}
-    const std::vector<std::string>& topic_filter() const noexcept { return filter_; }
-    bool        read_next(BagMessage&)                             { return false; }
-    bool        has_next()                       const             { return false; }
-    bool        seek(int64_t)                                      { return false; }
-    bool        seek_begin()                                       { return false; }
-    bool        seek_fraction(double)                              { return false; }
-    int64_t     current_timestamp_ns()           const noexcept { return 0; }
-    double      progress()                        const noexcept { return 0.0; }
-    const std::string& last_error()              const noexcept { return err_; }
-    void        clear_error()                    noexcept { err_.clear(); }
+   public:
+    bool                             open(const std::string&) { return false; }
+    void                             close() {}
+    bool                             is_open() const noexcept { return false; }
+    const BagMetadata&               metadata() const noexcept { return meta_; }
+    const std::vector<BagTopicInfo>& topics() const noexcept { return meta_.topics; }
+    std::optional<BagTopicInfo>      topic_info(const std::string&) const { return std::nullopt; }
+    bool                             has_topic(const std::string&) const { return false; }
+    size_t                           topic_count() const noexcept { return 0; }
+    void                             set_topic_filter(const std::vector<std::string>&) {}
+    const std::vector<std::string>&  topic_filter() const noexcept { return filter_; }
+    bool                             read_next(BagMessage&) { return false; }
+    bool                             has_next() const { return false; }
+    bool                             seek(int64_t) { return false; }
+    bool                             seek_begin() { return false; }
+    bool                             seek_fraction(double) { return false; }
+    int64_t                          current_timestamp_ns() const noexcept { return 0; }
+    double                           progress() const noexcept { return 0.0; }
+    const std::string&               last_error() const noexcept { return err_; }
+    void                             clear_error() noexcept { err_.clear(); }
 
-private:
+   private:
     BagMetadata              meta_;
     std::vector<std::string> filter_;
     std::string              err_{"BagReader: built without SPECTRA_ROS2_BAG"};
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2
 
-#endif // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG

@@ -11,8 +11,8 @@
 #include "../bag_player.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
-#include <ui/animation/timeline_editor.hpp>
+    #include <imgui.h>
+    #include <ui/animation/timeline_editor.hpp>
 #endif
 
 namespace spectra::adapters::ros2
@@ -23,8 +23,7 @@ namespace spectra::adapters::ros2
 // ---------------------------------------------------------------------------
 
 BagPlaybackPanel::BagPlaybackPanel(BagPlayer* player)
-    : player_(player)
-    , rate_slider_(player ? static_cast<float>(player->rate()) : 1.0f)
+    : player_(player), rate_slider_(player ? static_cast<float>(player->rate()) : 1.0f)
 {
 }
 
@@ -34,8 +33,8 @@ BagPlaybackPanel::BagPlaybackPanel(BagPlayer* player)
 
 void BagPlaybackPanel::set_player(BagPlayer* p)
 {
-    player_         = p;
-    rate_slider_    = p ? static_cast<float>(p->rate()) : 1.0f;
+    player_            = p;
+    rate_slider_       = p ? static_cast<float>(p->rate()) : 1.0f;
     rate_slider_dirty_ = false;
 }
 
@@ -127,18 +126,20 @@ void BagPlaybackPanel::draw_toolbar()
     }
     // Draw |<< icon manually.
     {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl      = ImGui::GetWindowDrawList();
         const ImVec2 btn_min = ImGui::GetItemRectMin();
         const ImVec2 btn_max = ImGui::GetItemRectMax();
-        const float cx = (btn_min.x + btn_max.x) * 0.5f;
-        const float cy = (btn_min.y + btn_max.y) * 0.5f;
-        const float r  = (btn_max.y - btn_min.y) * 0.30f;
-        const ImU32 col = ImGui::GetColorU32(ImGuiCol_Text);
+        const float  cx      = (btn_min.x + btn_max.x) * 0.5f;
+        const float  cy      = (btn_min.y + btn_max.y) * 0.5f;
+        const float  r       = (btn_max.y - btn_min.y) * 0.30f;
+        const ImU32  col     = ImGui::GetColorU32(ImGuiCol_Text);
         // Two left-pointing triangles side by side.
         dl->AddTriangleFilled({cx - r, cy}, {cx, cy - r}, {cx, cy + r}, col);
         dl->AddTriangleFilled({cx - r * 2.0f, cy}, {cx - r, cy - r}, {cx - r, cy + r}, col);
         dl->AddLine({btn_min.x + 2.0f, btn_min.y + 2.0f},
-                    {btn_min.x + 2.0f, btn_max.y - 2.0f}, col, 2.0f);
+                    {btn_min.x + 2.0f, btn_max.y - 2.0f},
+                    col,
+                    2.0f);
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Seek to start");
@@ -152,13 +153,13 @@ void BagPlaybackPanel::draw_toolbar()
             player_->step_backward();
     }
     {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 bmin = ImGui::GetItemRectMin();
         const ImVec2 bmax = ImGui::GetItemRectMax();
-        const float cx = (bmin.x + bmax.x) * 0.5f;
-        const float cy = (bmin.y + bmax.y) * 0.5f;
-        const float r  = (bmax.y - bmin.y) * 0.30f;
-        const ImU32 col = ImGui::GetColorU32(ImGuiCol_Text);
+        const float  cx   = (bmin.x + bmax.x) * 0.5f;
+        const float  cy   = (bmin.y + bmax.y) * 0.5f;
+        const float  r    = (bmax.y - bmin.y) * 0.30f;
+        const ImU32  col  = ImGui::GetColorU32(ImGuiCol_Text);
         dl->AddTriangleFilled({cx, cy}, {cx + r, cy - r}, {cx + r, cy + r}, col);
     }
     if (ImGui::IsItemHovered())
@@ -167,7 +168,7 @@ void BagPlaybackPanel::draw_toolbar()
     ImGui::SameLine();
 
     // Play / Pause toggle button.
-    const bool playing  = has_player && player_->is_playing();
+    const bool  playing = has_player && player_->is_playing();
     const char* pp_lbl  = playing ? "##pause" : "##play";
     if (ImGui::Button(pp_lbl))
     {
@@ -175,13 +176,13 @@ void BagPlaybackPanel::draw_toolbar()
             player_->toggle_play();
     }
     {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 bmin = ImGui::GetItemRectMin();
         const ImVec2 bmax = ImGui::GetItemRectMax();
-        const float cx = (bmin.x + bmax.x) * 0.5f;
-        const float cy = (bmin.y + bmax.y) * 0.5f;
-        const float r  = (bmax.y - bmin.y) * 0.32f;
-        const ImU32 col = ImGui::GetColorU32(ImGuiCol_Text);
+        const float  cx   = (bmin.x + bmax.x) * 0.5f;
+        const float  cy   = (bmin.y + bmax.y) * 0.5f;
+        const float  r    = (bmax.y - bmin.y) * 0.32f;
+        const ImU32  col  = ImGui::GetColorU32(ImGuiCol_Text);
         if (playing)
         {
             // Pause icon (two vertical bars).
@@ -207,14 +208,13 @@ void BagPlaybackPanel::draw_toolbar()
             player_->stop();
     }
     {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 bmin = ImGui::GetItemRectMin();
         const ImVec2 bmax = ImGui::GetItemRectMax();
-        const float r = (bmax.y - bmin.y) * 0.28f;
-        const float cx = (bmin.x + bmax.x) * 0.5f;
-        const float cy = (bmin.y + bmax.y) * 0.5f;
-        dl->AddRectFilled({cx - r, cy - r}, {cx + r, cy + r},
-                          ImGui::GetColorU32(ImGuiCol_Text));
+        const float  r    = (bmax.y - bmin.y) * 0.28f;
+        const float  cx   = (bmin.x + bmax.x) * 0.5f;
+        const float  cy   = (bmin.y + bmax.y) * 0.5f;
+        dl->AddRectFilled({cx - r, cy - r}, {cx + r, cy + r}, ImGui::GetColorU32(ImGuiCol_Text));
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Stop");
@@ -228,13 +228,13 @@ void BagPlaybackPanel::draw_toolbar()
             player_->step_forward();
     }
     {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 bmin = ImGui::GetItemRectMin();
         const ImVec2 bmax = ImGui::GetItemRectMax();
-        const float cx = (bmin.x + bmax.x) * 0.5f;
-        const float cy = (bmin.y + bmax.y) * 0.5f;
-        const float r  = (bmax.y - bmin.y) * 0.30f;
-        const ImU32 col = ImGui::GetColorU32(ImGuiCol_Text);
+        const float  cx   = (bmin.x + bmax.x) * 0.5f;
+        const float  cy   = (bmin.y + bmax.y) * 0.5f;
+        const float  r    = (bmax.y - bmin.y) * 0.30f;
+        const ImU32  col  = ImGui::GetColorU32(ImGuiCol_Text);
         dl->AddTriangleFilled({cx, cy}, {cx - r, cy - r}, {cx - r, cy + r}, col);
     }
     if (ImGui::IsItemHovered())
@@ -245,9 +245,7 @@ void BagPlaybackPanel::draw_toolbar()
     // Time display.
     const double cur_sec = has_player ? player_->playhead_sec() : 0.0;
     const double dur_sec = has_player ? player_->duration_sec() : 0.0;
-    ImGui::TextDisabled("%s / %s",
-                        format_time(cur_sec).c_str(),
-                        format_time(dur_sec).c_str());
+    ImGui::TextDisabled("%s / %s", format_time(cur_sec).c_str(), format_time(dur_sec).c_str());
 
     ImGui::SameLine();
 
@@ -260,7 +258,10 @@ void BagPlaybackPanel::draw_toolbar()
 
         ImGui::SetNextItemWidth(90.0f);
         ImGui::PushID("##rate_slider");
-        if (ImGui::SliderFloat("##r", &rate_slider_, 0.1f, 10.0f,
+        if (ImGui::SliderFloat("##r",
+                               &rate_slider_,
+                               0.1f,
+                               10.0f,
                                rate_label(static_cast<double>(rate_slider_)).c_str(),
                                ImGuiSliderFlags_Logarithmic))
         {
@@ -282,8 +283,7 @@ void BagPlaybackPanel::draw_toolbar()
     {
         const bool looping = has_player && player_->loop();
         if (looping)
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
         if (ImGui::Button("Loop"))
         {
             if (has_player)
@@ -305,9 +305,9 @@ void BagPlaybackPanel::draw_progress_bar()
     if (!player_ || !player_->is_open())
         return;
 
-    const double dur   = player_->duration_sec();
-    const double prog  = (dur > 0.0) ? player_->playhead_sec() / dur : 0.0;
-    const float  frac  = static_cast<float>(std::clamp(prog, 0.0, 1.0));
+    const double dur  = player_->duration_sec();
+    const double prog = (dur > 0.0) ? player_->playhead_sec() / dur : 0.0;
+    const float  frac = static_cast<float>(std::clamp(prog, 0.0, 1.0));
 
     ImGui::PushID("##prog_bar");
 
@@ -319,7 +319,7 @@ void BagPlaybackPanel::draw_progress_bar()
     ImGui::InvisibleButton("##scrub", ImVec2(bar_w, bar_h));
     if (ImGui::IsItemActive())
     {
-        const float mx  = ImGui::GetIO().MousePos.x - pos.x;
+        const float  mx = ImGui::GetIO().MousePos.x - pos.x;
         const double f  = std::clamp(static_cast<double>(mx / bar_w), 0.0, 1.0);
         player_->seek_fraction(f);
     }
@@ -327,39 +327,34 @@ void BagPlaybackPanel::draw_progress_bar()
         ImGui::SetTooltip("Scrub to position");
 
     // Draw bar background.
-    ImDrawList* dl    = ImGui::GetWindowDrawList();
+    ImDrawList*  dl   = ImGui::GetWindowDrawList();
     const ImVec2 bmin = pos;
     const ImVec2 bmax = {pos.x + bar_w, pos.y + bar_h};
 
     // Track background.
-    dl->AddRectFilled(bmin, bmax,
-                      ImGui::GetColorU32(ImGuiCol_FrameBg),
-                      bar_h * 0.5f);
+    dl->AddRectFilled(bmin, bmax, ImGui::GetColorU32(ImGuiCol_FrameBg), bar_h * 0.5f);
 
     // Progress fill.
     if (frac > 0.001f)
     {
         const ImVec2 fill_max = {pos.x + bar_w * frac, bmax.y};
-        dl->AddRectFilled(bmin, fill_max,
-                          ImGui::GetColorU32(ImGuiCol_PlotHistogram),
-                          bar_h * 0.5f);
+        dl->AddRectFilled(bmin, fill_max, ImGui::GetColorU32(ImGuiCol_PlotHistogram), bar_h * 0.5f);
     }
 
     // Event-marker ticks: small vertical lines above the bar.
     if (!event_markers_.empty())
     {
-        const float tick_h = bar_h * 0.9f;
-        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const float  tick_h = bar_h * 0.9f;
+        const ImVec2 mouse  = ImGui::GetIO().MousePos;
         for (const auto& m : event_markers_)
         {
-            const float tx    = pos.x + bar_w * std::clamp(m.position, 0.0f, 1.0f);
-            const ImVec2 tp0  = {tx, bmin.y};
-            const ImVec2 tp1  = {tx, bmin.y + tick_h};
-            const ImU32  col  = IM_COL32(
-                static_cast<int>(m.color[0] * 255),
-                static_cast<int>(m.color[1] * 255),
-                static_cast<int>(m.color[2] * 255),
-                static_cast<int>(m.color[3] * 255));
+            const float  tx  = pos.x + bar_w * std::clamp(m.position, 0.0f, 1.0f);
+            const ImVec2 tp0 = {tx, bmin.y};
+            const ImVec2 tp1 = {tx, bmin.y + tick_h};
+            const ImU32  col = IM_COL32(static_cast<int>(m.color[0] * 255),
+                                       static_cast<int>(m.color[1] * 255),
+                                       static_cast<int>(m.color[2] * 255),
+                                       static_cast<int>(m.color[3] * 255));
             dl->AddLine(tp0, tp1, col, 1.5f);
 
             // Tooltip on hover near tick.
@@ -375,10 +370,12 @@ void BagPlaybackPanel::draw_progress_bar()
     // Playhead thumb (circle).
     const float thumb_x = pos.x + bar_w * frac;
     const float thumb_y = pos.y + bar_h * 0.5f;
-    dl->AddCircleFilled({thumb_x, thumb_y}, bar_h * 0.65f,
-                        ImGui::GetColorU32(ImGuiCol_SliderGrab));
-    dl->AddCircle({thumb_x, thumb_y}, bar_h * 0.65f,
-                  ImGui::GetColorU32(ImGuiCol_SliderGrabActive), 0, 1.5f);
+    dl->AddCircleFilled({thumb_x, thumb_y}, bar_h * 0.65f, ImGui::GetColorU32(ImGuiCol_SliderGrab));
+    dl->AddCircle({thumb_x, thumb_y},
+                  bar_h * 0.65f,
+                  ImGui::GetColorU32(ImGuiCol_SliderGrabActive),
+                  0,
+                  1.5f);
 
     ImGui::PopID();
 }
@@ -412,10 +409,10 @@ void BagPlaybackPanel::draw_status_line()
     if (!player_ || !player_->is_open())
         return;
 
-    const auto& meta   = player_->metadata();
-    const char* state_str = player_->is_playing() ? "Playing"
-                          : player_->is_paused()  ? "Paused"
-                                                  : "Stopped";
+    const auto& meta      = player_->metadata();
+    const char* state_str = player_->is_playing()  ? "Playing"
+                            : player_->is_paused() ? "Paused"
+                                                   : "Stopped";
 
     const uint64_t injected = player_->total_injected();
 

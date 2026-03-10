@@ -58,13 +58,20 @@ struct EchoFieldValue
     int         depth{0};       // nesting depth (0 = top-level)
 
     // Value variants (only one is meaningful; discriminated by kind).
-    enum class Kind { Numeric, Text, ArrayHead, ArrayElement, NestedHead };
+    enum class Kind
+    {
+        Numeric,
+        Text,
+        ArrayHead,
+        ArrayElement,
+        NestedHead
+    };
     Kind kind{Kind::Numeric};
 
-    double      numeric{0.0};   // for Kind::Numeric / Kind::ArrayElement
-    std::string text;           // for Kind::Text
-    int         array_len{0};   // for Kind::ArrayHead: element count
-    bool        is_open{false}; // tree-node open state (render thread only)
+    double      numeric{0.0};     // for Kind::Numeric / Kind::ArrayElement
+    std::string text;             // for Kind::Text
+    int         array_len{0};     // for Kind::ArrayHead: element count
+    bool        is_open{false};   // tree-node open state (render thread only)
 };
 
 // ---------------------------------------------------------------------------
@@ -73,10 +80,10 @@ struct EchoFieldValue
 
 struct EchoMessage
 {
-    uint64_t            seq{0};           // monotonic receive counter
-    int64_t             timestamp_ns{0};  // ROS2 header stamp or wall clock
-    double              wall_time_s{0.0}; // wall clock at receive (for display rate)
-    std::vector<EchoFieldValue> fields;   // flat pre-expanded field list
+    uint64_t                    seq{0};             // monotonic receive counter
+    int64_t                     timestamp_ns{0};    // ROS2 header stamp or wall clock
+    double                      wall_time_s{0.0};   // wall clock at receive (for display rate)
+    std::vector<EchoFieldValue> fields;             // flat pre-expanded field list
 };
 
 // ---------------------------------------------------------------------------
@@ -85,7 +92,7 @@ struct EchoMessage
 
 class TopicEchoPanel
 {
-public:
+   public:
     // node  — ROS2 node used to create subscriptions (must outlive this panel)
     // intr  — MessageIntrospector (must outlive this panel)
     TopicEchoPanel(rclcpp::Node::SharedPtr node, MessageIntrospector& intr);
@@ -106,7 +113,7 @@ public:
     void set_topic(const std::string& topic_name, const std::string& type_name);
 
     const std::string& topic_name() const { return topic_name_; }
-    const std::string& type_name()  const { return type_name_; }
+    const std::string& type_name() const { return type_name_; }
 
     // True if a subscription is currently active.
     bool is_subscribed() const { return static_cast<bool>(subscription_); }
@@ -133,7 +140,7 @@ public:
 
     // ---------- configuration --------------------------------------------
 
-    void set_title(const std::string& t) { title_ = t; }
+    void               set_title(const std::string& t) { title_ = t; }
     const std::string& title() const { return title_; }
 
     // ---------- drag-and-drop (C3) --------------------------------------
@@ -141,7 +148,7 @@ public:
     // Wire a FieldDragDrop controller so that numeric fields become drag
     // sources and get a right-click "Plot" context menu.
     // Pass nullptr to disable drag-and-drop.
-    void set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
+    void           set_drag_drop(FieldDragDrop* dd) { drag_drop_ = dd; }
     FieldDragDrop* drag_drop() const { return drag_drop_; }
 
     // ---------- message arrival callback ---------------------------------
@@ -149,8 +156,7 @@ public:
     // Called from the executor thread each time a message arrives on the
     // subscribed topic.  Signature: void(topic_name, serialised_bytes)
     // Thread-safe: the callback is stored atomically-guarded.
-    using MessageCallback = std::function<void(const std::string& topic,
-                                               size_t bytes)>;
+    using MessageCallback = std::function<void(const std::string& topic, size_t bytes)>;
     void set_message_callback(MessageCallback cb) { message_cb_ = std::move(cb); }
 
     // ---------- hover highlight callback --------------------------------
@@ -158,8 +164,8 @@ public:
     // Called when the user hovers a numeric field row.
     // Signature: void(const std::string& topic, const std::string& field_path)
     // Callers can use this to highlight matching plot series.
-    using HoverCallback = std::function<void(const std::string& topic,
-                                             const std::string& field_path)>;
+    using HoverCallback =
+        std::function<void(const std::string& topic, const std::string& field_path)>;
     void set_hover_callback(HoverCallback cb) { hover_cb_ = std::move(cb); }
 
     // Called when the cursor leaves all field rows (field_path will be "").
@@ -170,12 +176,12 @@ public:
     const std::string& hovered_field() const { return hovered_field_; }
 
     // Maximum messages kept in the ring buffer (default 100).
-    void set_max_messages(size_t n);
+    void   set_max_messages(size_t n);
     size_t max_messages() const { return max_messages_; }
 
     // Maximum display rate in Hz (default 30).  Messages are still received
     // at full rate; the panel only redraws at this rate.
-    void set_display_hz(double hz) { display_interval_s_ = (hz > 0.0) ? 1.0 / hz : 0.0; }
+    void   set_display_hz(double hz) { display_interval_s_ = (hz > 0.0) ? 1.0 / hz : 0.0; }
     double display_hz() const
     {
         return (display_interval_s_ > 0.0) ? 1.0 / display_interval_s_ : 0.0;
@@ -201,11 +207,11 @@ public:
 
     // Build an EchoMessage from a raw deserialized message pointer and schema.
     // Public for testability.
-    static EchoMessage build_echo_message(const void*           msg_ptr,
-                                          const MessageSchema&  schema,
-                                          uint64_t              seq,
-                                          int64_t               timestamp_ns,
-                                          double                wall_time_s);
+    static EchoMessage build_echo_message(const void*          msg_ptr,
+                                          const MessageSchema& schema,
+                                          uint64_t             seq,
+                                          int64_t              timestamp_ns,
+                                          double               wall_time_s);
 
     // Format a timestamp_ns value as "sec.nsec" string.
     static std::string format_timestamp(int64_t ns);
@@ -213,7 +219,7 @@ public:
     // Format a numeric value compactly.
     static std::string format_numeric(double v);
 
-private:
+   private:
     // Called from executor thread when a message arrives.
     void on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg);
 
@@ -221,50 +227,51 @@ private:
     static double wall_time_s_now();
 
     // Recursively walk FieldDescriptors, appending EchoFieldValues.
-    static void extract_fields(const void*                        msg_ptr,
+    static void extract_fields(const void*                         msg_ptr,
                                const std::vector<FieldDescriptor>& fields,
                                std::vector<EchoFieldValue>&        out,
                                int                                 depth);
 
     // Extract a single field value from msg_ptr at given offset/type.
-    static EchoFieldValue make_scalar_value(const void*         msg_ptr,
+    static EchoFieldValue make_scalar_value(const void*            msg_ptr,
                                             const FieldDescriptor& fd,
-                                            int                 depth);
+                                            int                    depth);
 
     // ---------- ImGui draw helpers (SPECTRA_USE_IMGUI guard in .cpp) ----
 
     void draw_message_tree(EchoMessage& msg);
-    void draw_field_node(EchoFieldValue& fv, size_t& idx,
+    void draw_field_node(EchoFieldValue&                    fv,
+                         size_t&                            idx,
                          const std::vector<EchoFieldValue>& all_fields);
     void draw_controls();
     void draw_message_list();
 
     // ---------- members --------------------------------------------------
 
-    rclcpp::Node::SharedPtr       node_;
-    MessageIntrospector&          intr_;
+    rclcpp::Node::SharedPtr node_;
+    MessageIntrospector&    intr_;
 
-    std::string  topic_name_;
-    std::string  type_name_;
-    std::string  title_{"ROS2 Echo"};
+    std::string topic_name_;
+    std::string type_name_;
+    std::string title_{"ROS2 Echo"};
 
     // Subscription (executor thread owns creation/destruction; protected by
     // sub_mutex_).
-    mutable std::mutex                          sub_mutex_;
-    rclcpp::GenericSubscription::SharedPtr      subscription_;
-    std::shared_ptr<const MessageSchema>        schema_;
+    mutable std::mutex                     sub_mutex_;
+    rclcpp::GenericSubscription::SharedPtr subscription_;
+    std::shared_ptr<const MessageSchema>   schema_;
 
     // Ring buffer of captured messages (protected by ring_mutex_).
-    mutable std::mutex          ring_mutex_;
-    std::vector<EchoMessage>    ring_;          // circular, newest at back
-    size_t                      max_messages_{100};
+    mutable std::mutex       ring_mutex_;
+    std::vector<EchoMessage> ring_;   // circular, newest at back
+    size_t                   max_messages_{100};
 
     // Counters.
-    std::atomic<uint64_t>  total_received_{0};
-    uint64_t               next_seq_{0};        // protected by ring_mutex_
+    std::atomic<uint64_t> total_received_{0};
+    uint64_t              next_seq_{0};   // protected by ring_mutex_
 
     // Pause state.
-    std::atomic<bool>  paused_{false};
+    std::atomic<bool> paused_{false};
 
     // Display rate throttle (render thread only).
     double display_interval_s_{1.0 / 30.0};
@@ -285,7 +292,7 @@ private:
     // Hover highlight state (render-thread only).
     HoverCallback hover_cb_;
     std::string   hovered_field_;
-    std::string   prev_hovered_field_;  // to detect changes and fire callback once
+    std::string   prev_hovered_field_;   // to detect changes and fire callback once
 };
 
 }   // namespace spectra::adapters::ros2

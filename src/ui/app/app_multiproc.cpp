@@ -458,7 +458,8 @@ void App::run_multiproc()
     {
         size_t operator()(const AxisLimitsKey& k) const
         {
-            return std::hash<uint64_t>{}(k.ipc_fig_id) ^ (static_cast<size_t>(std::hash<uint32_t>{}(k.axes_idx)) << 16);
+            return std::hash<uint64_t>{}(k.ipc_fig_id)
+                   ^ (static_cast<size_t>(std::hash<uint32_t>{}(k.axes_idx)) << 16);
         }
     };
     struct AxisLimitsKeyEq

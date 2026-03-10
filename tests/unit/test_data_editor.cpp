@@ -16,10 +16,7 @@ using namespace spectra;
 class DataEditorDataTest : public ::testing::Test
 {
    protected:
-    void SetUp() override
-    {
-        fig_ = std::make_unique<Figure>();
-    }
+    void SetUp() override { fig_ = std::make_unique<Figure>(); }
 
     std::unique_ptr<Figure> fig_;
 };
@@ -28,10 +25,10 @@ class DataEditorDataTest : public ::testing::Test
 
 TEST_F(DataEditorDataTest, LineSeries2DDataAccess)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-    std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
-    auto& line = ax.line(x, y);
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    std::vector<float> y    = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+    auto&              line = ax.line(x, y);
 
     EXPECT_EQ(line.point_count(), 5u);
     EXPECT_FLOAT_EQ(line.x_data()[0], 1.0f);
@@ -40,10 +37,10 @@ TEST_F(DataEditorDataTest, LineSeries2DDataAccess)
 
 TEST_F(DataEditorDataTest, ScatterSeries2DDataAccess)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {0.5f, 1.5f, 2.5f};
-    std::vector<float> y = {5.0f, 15.0f, 25.0f};
-    auto& scatter = ax.scatter(x, y);
+    auto&              ax      = fig_->subplot(1, 1, 1);
+    std::vector<float> x       = {0.5f, 1.5f, 2.5f};
+    std::vector<float> y       = {5.0f, 15.0f, 25.0f};
+    auto&              scatter = ax.scatter(x, y);
 
     EXPECT_EQ(scatter.point_count(), 3u);
     EXPECT_FLOAT_EQ(scatter.x_data()[1], 1.5f);
@@ -54,10 +51,10 @@ TEST_F(DataEditorDataTest, ScatterSeries2DDataAccess)
 
 TEST_F(DataEditorDataTest, LineSeriesEditX)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {10.0f, 20.0f, 30.0f};
-    auto& line = ax.line(x, y);
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y    = {10.0f, 20.0f, 30.0f};
+    auto&              line = ax.line(x, y);
 
     // Edit X[1] from 2.0 to 99.0
     std::vector<float> new_x(line.x_data().begin(), line.x_data().end());
@@ -70,10 +67,10 @@ TEST_F(DataEditorDataTest, LineSeriesEditX)
 
 TEST_F(DataEditorDataTest, LineSeriesEditY)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {10.0f, 20.0f, 30.0f};
-    auto& line = ax.line(x, y);
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y    = {10.0f, 20.0f, 30.0f};
+    auto&              line = ax.line(x, y);
 
     std::vector<float> new_y(line.y_data().begin(), line.y_data().end());
     new_y[0] = -5.0f;
@@ -84,10 +81,10 @@ TEST_F(DataEditorDataTest, LineSeriesEditY)
 
 TEST_F(DataEditorDataTest, ScatterSeriesEditX)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f};
-    std::vector<float> y = {10.0f, 20.0f};
-    auto& scatter = ax.scatter(x, y);
+    auto&              ax      = fig_->subplot(1, 1, 1);
+    std::vector<float> x       = {1.0f, 2.0f};
+    std::vector<float> y       = {10.0f, 20.0f};
+    auto&              scatter = ax.scatter(x, y);
 
     std::vector<float> new_x(scatter.x_data().begin(), scatter.x_data().end());
     new_x[0] = 42.0f;
@@ -98,10 +95,10 @@ TEST_F(DataEditorDataTest, ScatterSeriesEditX)
 
 TEST_F(DataEditorDataTest, ScatterSeriesEditY)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f};
-    std::vector<float> y = {10.0f, 20.0f};
-    auto& scatter = ax.scatter(x, y);
+    auto&              ax      = fig_->subplot(1, 1, 1);
+    std::vector<float> x       = {1.0f, 2.0f};
+    std::vector<float> y       = {10.0f, 20.0f};
+    auto&              scatter = ax.scatter(x, y);
 
     std::vector<float> new_y(scatter.y_data().begin(), scatter.y_data().end());
     new_y[1] = -100.0f;
@@ -114,11 +111,11 @@ TEST_F(DataEditorDataTest, ScatterSeriesEditY)
 
 TEST_F(DataEditorDataTest, LineSeries3DDataAccess)
 {
-    auto& ax3d = fig_->subplot3d(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {4.0f, 5.0f, 6.0f};
-    std::vector<float> z = {7.0f, 8.0f, 9.0f};
-    auto& line3d = ax3d.line3d(x, y, z);
+    auto&              ax3d   = fig_->subplot3d(1, 1, 1);
+    std::vector<float> x      = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y      = {4.0f, 5.0f, 6.0f};
+    std::vector<float> z      = {7.0f, 8.0f, 9.0f};
+    auto&              line3d = ax3d.line3d(x, y, z);
 
     EXPECT_EQ(line3d.point_count(), 3u);
     EXPECT_FLOAT_EQ(line3d.x_data()[0], 1.0f);
@@ -128,11 +125,11 @@ TEST_F(DataEditorDataTest, LineSeries3DDataAccess)
 
 TEST_F(DataEditorDataTest, ScatterSeries3DDataAccess)
 {
-    auto& ax3d = fig_->subplot3d(1, 1, 1);
-    std::vector<float> x = {0.1f, 0.2f};
-    std::vector<float> y = {0.3f, 0.4f};
-    std::vector<float> z = {0.5f, 0.6f};
-    auto& scatter3d = ax3d.scatter3d(x, y, z);
+    auto&              ax3d      = fig_->subplot3d(1, 1, 1);
+    std::vector<float> x         = {0.1f, 0.2f};
+    std::vector<float> y         = {0.3f, 0.4f};
+    std::vector<float> z         = {0.5f, 0.6f};
+    auto&              scatter3d = ax3d.scatter3d(x, y, z);
 
     EXPECT_EQ(scatter3d.point_count(), 2u);
     EXPECT_FLOAT_EQ(scatter3d.x_data()[0], 0.1f);
@@ -143,11 +140,11 @@ TEST_F(DataEditorDataTest, ScatterSeries3DDataAccess)
 
 TEST_F(DataEditorDataTest, LineSeries3DEditZ)
 {
-    auto& ax3d = fig_->subplot3d(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f};
-    std::vector<float> y = {3.0f, 4.0f};
-    std::vector<float> z = {5.0f, 6.0f};
-    auto& line3d = ax3d.line3d(x, y, z);
+    auto&              ax3d   = fig_->subplot3d(1, 1, 1);
+    std::vector<float> x      = {1.0f, 2.0f};
+    std::vector<float> y      = {3.0f, 4.0f};
+    std::vector<float> z      = {5.0f, 6.0f};
+    auto&              line3d = ax3d.line3d(x, y, z);
 
     std::vector<float> new_z(line3d.z_data().begin(), line3d.z_data().end());
     new_z[0] = 999.0f;
@@ -158,11 +155,11 @@ TEST_F(DataEditorDataTest, LineSeries3DEditZ)
 
 TEST_F(DataEditorDataTest, ScatterSeries3DEditXYZ)
 {
-    auto& ax3d = fig_->subplot3d(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {4.0f, 5.0f, 6.0f};
-    std::vector<float> z = {7.0f, 8.0f, 9.0f};
-    auto& scatter3d = ax3d.scatter3d(x, y, z);
+    auto&              ax3d      = fig_->subplot3d(1, 1, 1);
+    std::vector<float> x         = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y         = {4.0f, 5.0f, 6.0f};
+    std::vector<float> z         = {7.0f, 8.0f, 9.0f};
+    auto&              scatter3d = ax3d.scatter3d(x, y, z);
 
     std::vector<float> new_x(scatter3d.x_data().begin(), scatter3d.x_data().end());
     new_x[2] = 100.0f;
@@ -230,7 +227,7 @@ TEST_F(DataEditorDataTest, EmptyAxes)
 
 TEST_F(DataEditorDataTest, EmptySeriesData)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
+    auto& ax   = fig_->subplot(1, 1, 1);
     auto& line = ax.line();
 
     EXPECT_EQ(line.point_count(), 0u);
@@ -242,20 +239,20 @@ TEST_F(DataEditorDataTest, EmptySeriesData)
 
 TEST_F(DataEditorDataTest, SeriesLabelDisplay)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f};
-    std::vector<float> y = {2.0f};
-    auto& line = ax.line(x, y).label("Temperature");
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f};
+    std::vector<float> y    = {2.0f};
+    auto&              line = ax.line(x, y).label("Temperature");
 
     EXPECT_EQ(line.label(), "Temperature");
 }
 
 TEST_F(DataEditorDataTest, SeriesColorDisplay)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f};
-    std::vector<float> y = {2.0f};
-    auto& line = ax.line(x, y).color(Color{1.0f, 0.0f, 0.0f, 1.0f});
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f};
+    std::vector<float> y    = {2.0f};
+    auto&              line = ax.line(x, y).color(Color{1.0f, 0.0f, 0.0f, 1.0f});
 
     EXPECT_FLOAT_EQ(line.color().r, 1.0f);
     EXPECT_FLOAT_EQ(line.color().g, 0.0f);
@@ -265,10 +262,10 @@ TEST_F(DataEditorDataTest, SeriesColorDisplay)
 
 TEST_F(DataEditorDataTest, DirtyFlagAfterSetX)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f};
-    std::vector<float> y = {3.0f, 4.0f};
-    auto& line = ax.line(x, y);
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f, 2.0f};
+    std::vector<float> y    = {3.0f, 4.0f};
+    auto&              line = ax.line(x, y);
 
     line.clear_dirty();
     EXPECT_FALSE(line.is_dirty());
@@ -280,10 +277,10 @@ TEST_F(DataEditorDataTest, DirtyFlagAfterSetX)
 
 TEST_F(DataEditorDataTest, DirtyFlagAfterSetY)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    std::vector<float> x = {1.0f, 2.0f};
-    std::vector<float> y = {3.0f, 4.0f};
-    auto& line = ax.line(x, y);
+    auto&              ax   = fig_->subplot(1, 1, 1);
+    std::vector<float> x    = {1.0f, 2.0f};
+    std::vector<float> y    = {3.0f, 4.0f};
+    auto&              line = ax.line(x, y);
 
     line.clear_dirty();
     std::vector<float> new_y = {30.0f, 40.0f};
@@ -295,8 +292,8 @@ TEST_F(DataEditorDataTest, DirtyFlagAfterSetY)
 
 TEST_F(DataEditorDataTest, LargeDataset)
 {
-    auto& ax = fig_->subplot(1, 1, 1);
-    constexpr size_t N = 10000;
+    auto&              ax = fig_->subplot(1, 1, 1);
+    constexpr size_t   N  = 10000;
     std::vector<float> x(N), y(N);
     for (size_t i = 0; i < N; ++i)
     {

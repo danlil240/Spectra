@@ -9,9 +9,9 @@
 #include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include "core/layout.hpp"
-#include "ui/imgui/imgui_integration.hpp"
-#include "ui/overlay/data_interaction.hpp"
+    #include "core/layout.hpp"
+    #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/overlay/data_interaction.hpp"
 #endif
 
 #include <spectra/figure.hpp>
@@ -21,15 +21,18 @@
 #include <QtGui/QWindow>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <QtGui/QCursor>
-#include <QtGui/QGuiApplication>
+    #include <QtGui/QCursor>
+    #include <QtGui/QGuiApplication>
 #endif
 
 namespace spectra::adapters::qt
 {
 
-QtRuntime::QtRuntime()  = default;
-QtRuntime::~QtRuntime() { shutdown(); }
+QtRuntime::QtRuntime() = default;
+QtRuntime::~QtRuntime()
+{
+    shutdown();
+}
 
 QtRuntime::WindowState* QtRuntime::find_window_state(QWindow* window)
 {
@@ -127,7 +130,8 @@ bool QtRuntime::init()
     ui::ThemeManager::instance().set_theme("dark");
 
     initialized_ = true;
-    SPECTRA_LOG_INFO("qt_runtime", "Initialized (swapchain/pipelines deferred until attach_window)");
+    SPECTRA_LOG_INFO("qt_runtime",
+                     "Initialized (swapchain/pipelines deferred until attach_window)");
     return true;
 }
 
@@ -209,9 +213,9 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
         window->setVulkanInstance(vulkan_instance_.get());
     }
 
-    auto state            = std::make_unique<WindowState>();
-    state->window_ctx     = VulkanBackend::create_window_context();
-    state->window_ctx->id = next_window_id_++;
+    auto state                       = std::make_unique<WindowState>();
+    state->window_ctx                = VulkanBackend::create_window_context();
+    state->window_ctx->id            = next_window_id_++;
     state->window_ctx->native_window = static_cast<void*>(window);
 
     if (auto pending_it = pending_input_handlers_.find(window);
@@ -248,8 +252,9 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
         imgui_ui_ = make_imgui_integration();
         if (!imgui_ui_->init_headless(*backend_, width, height))
         {
-            SPECTRA_LOG_WARN("qt_runtime",
-                             "ImGui headless init failed — Qt runtime continues with canvas-only rendering");
+            SPECTRA_LOG_WARN(
+                "qt_runtime",
+                "ImGui headless init failed — Qt runtime continues with canvas-only rendering");
             imgui_ui_.reset();
         }
         else
@@ -370,8 +375,8 @@ void QtRuntime::mark_swapchain_dirty(QWindow* window)
         return;
     }
 
-    state->resize_pending      = true;
-    state->last_resize_request = std::chrono::steady_clock::now();
+    state->resize_pending              = true;
+    state->last_resize_request         = std::chrono::steady_clock::now();
     state->window_ctx->swapchain_dirty = true;
 
     SPECTRA_LOG_DEBUG("qt_runtime",
@@ -415,7 +420,9 @@ bool QtRuntime::begin_frame(QWindow* window)
                 SPECTRA_LOG_DEBUG(
                     "qt_runtime",
                     "Resize debounce: {}ms < {}ms, skipping frame for window {} (skip #{})",
-                    elapsed.count(), k_resize_debounce.count(), state->window_ctx->id,
+                    elapsed.count(),
+                    k_resize_debounce.count(),
+                    state->window_ctx->id,
                     state->frame_skip_count);
                 return false;   // Wait for resize events to settle
             }
@@ -429,8 +436,11 @@ bool QtRuntime::begin_frame(QWindow* window)
             SPECTRA_LOG_DEBUG("qt_runtime",
                               "Recreating swapchain for window {}: {}x{} (recreate #{}, dirty={}, "
                               "invalidated={})",
-                              state->window_ctx->id, sz.width, sz.height,
-                              state->swapchain_recreate_count, state->window_ctx->swapchain_dirty,
+                              state->window_ctx->id,
+                              sz.width,
+                              sz.height,
+                              state->swapchain_recreate_count,
+                              state->window_ctx->swapchain_dirty,
                               state->window_ctx->swapchain_invalidated);
 
             if (!backend_->recreate_swapchain_for(*state->window_ctx, sz.width, sz.height))
@@ -457,7 +467,8 @@ bool QtRuntime::begin_frame(QWindow* window)
             SPECTRA_LOG_DEBUG(
                 "qt_runtime",
                 "Surface not ready (minimized?) for window {} — skipping frame (skip #{})",
-                state->window_ctx->id, state->frame_skip_count);
+                state->window_ctx->id,
+                state->frame_skip_count);
             return false;   // Surface not ready (minimized, etc.)
         }
     }
@@ -511,10 +522,10 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
 
     backend_->set_active_window(state->window_ctx.get());
 
-    auto sw_u = backend_->swapchain_width();
-    auto sh_u = backend_->swapchain_height();
-    float sw  = static_cast<float>(sw_u);
-    float sh  = static_cast<float>(sh_u);
+    auto  sw_u = backend_->swapchain_width();
+    auto  sh_u = backend_->swapchain_height();
+    float sw   = static_cast<float>(sw_u);
+    float sh   = static_cast<float>(sh_u);
 
     const bool size_changed = (figure.width() != sw_u || figure.height() != sh_u);
     if (size_changed)
@@ -550,21 +561,21 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
             }
         }
 
-        float dt = 1.0f / 60.0f;
+        float      dt  = 1.0f / 60.0f;
         const auto now = std::chrono::steady_clock::now();
         if (ui_has_last_frame_time_)
         {
             dt = std::chrono::duration<float>(now - ui_last_frame_time_).count();
             dt = std::clamp(dt, 1.0f / 240.0f, 0.1f);
         }
-        ui_last_frame_time_ = now;
+        ui_last_frame_time_     = now;
         ui_has_last_frame_time_ = true;
 
         ImGuiIntegration::HeadlessFrameInput fi{};
-        fi.display_w  = sw;
-        fi.display_h  = sh;
-        fi.dt         = dt;
-        fi.dpi_scale  = static_cast<float>(window->devicePixelRatio());
+        fi.display_w = sw;
+        fi.display_h = sh;
+        fi.dt        = dt;
+        fi.dpi_scale = static_cast<float>(window->devicePixelRatio());
 
         const QPoint local_pos = window->mapFromGlobal(QCursor::pos());
         const float  dpr       = std::max(fi.dpi_scale, 1.0f);
@@ -581,7 +592,7 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
 
         auto& lm = imgui_ui_->get_layout_manager();
 
-        const Rect canvas = lm.canvas_rect();
+        const Rect  canvas    = lm.canvas_rect();
         const auto& fig_style = figure.style();
         Margins     fig_margins;
         fig_margins.left   = fig_style.margin_left;

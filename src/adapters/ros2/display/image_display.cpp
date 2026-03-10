@@ -8,7 +8,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -16,12 +16,12 @@ namespace spectra::adapters::ros2
 
 namespace
 {
-spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
-                                           const std::string&  fixed_frame,
-                                           const std::string&  frame_id,
-                                           uint64_t            stamp_ns,
-                                           bool                use_message_stamp,
-                                           bool&               ok_out)
+spectra::Transform resolve_frame_transform(const TfBuffer*    tf_buffer,
+                                           const std::string& fixed_frame,
+                                           const std::string& frame_id,
+                                           uint64_t           stamp_ns,
+                                           bool               use_message_stamp,
+                                           bool&              ok_out)
 {
     ok_out = true;
     spectra::Transform transform{};
@@ -37,7 +37,7 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
     }
 
     transform.translation = {result.tx, result.ty, result.tz};
-    transform.rotation = {
+    transform.rotation    = {
         static_cast<float>(result.qx),
         static_cast<float>(result.qy),
         static_cast<float>(result.qz),
@@ -62,9 +62,9 @@ void draw_preview(const ImageFrame& frame)
         return;
     }
 
-    const float scale_x = avail.x / static_cast<float>(frame.preview_width);
-    const float scale_y = avail.y / static_cast<float>(frame.preview_height);
-    const float scale = std::max(0.5f, std::min(scale_x, scale_y));
+    const float  scale_x = avail.x / static_cast<float>(frame.preview_width);
+    const float  scale_y = avail.y / static_cast<float>(frame.preview_height);
+    const float  scale   = std::max(0.5f, std::min(scale_x, scale_y));
     const ImVec2 canvas_size{
         static_cast<float>(frame.preview_width) * scale,
         static_cast<float>(frame.preview_height) * scale,
@@ -77,18 +77,16 @@ void draw_preview(const ImageFrame& frame)
     {
         for (uint32_t x = 0; x < frame.preview_width; ++x)
         {
-            const size_t index =
-                (static_cast<size_t>(y) * frame.preview_width + x) * 4u;
-            const ImU32 color = IM_COL32(frame.preview_rgba[index + 0],
+            const size_t index = (static_cast<size_t>(y) * frame.preview_width + x) * 4u;
+            const ImU32  color = IM_COL32(frame.preview_rgba[index + 0],
                                          frame.preview_rgba[index + 1],
                                          frame.preview_rgba[index + 2],
                                          frame.preview_rgba[index + 3]);
-            draw_list->AddRectFilled(
-                ImVec2(origin.x + static_cast<float>(x) * scale,
-                       origin.y + static_cast<float>(y) * scale),
-                ImVec2(origin.x + static_cast<float>(x + 1u) * scale,
-                       origin.y + static_cast<float>(y + 1u) * scale),
-                color);
+            draw_list->AddRectFilled(ImVec2(origin.x + static_cast<float>(x) * scale,
+                                            origin.y + static_cast<float>(y) * scale),
+                                     ImVec2(origin.x + static_cast<float>(x + 1u) * scale,
+                                            origin.y + static_cast<float>(y + 1u) * scale),
+                                     color);
         }
     }
     draw_list->AddRect(origin,
@@ -105,15 +103,15 @@ ImageDisplay::ImageDisplay()
 
 void ImageDisplay::on_enable(const DisplayContext& context)
 {
-    tf_buffer_ = context.tf_buffer;
+    tf_buffer_       = context.tf_buffer;
     topic_discovery_ = context.topic_discovery;
-    fixed_frame_ = context.fixed_frame;
+    fixed_frame_     = context.fixed_frame;
 #ifdef SPECTRA_USE_ROS2
     node_ = context.node;
 #endif
     resubscribe_requested_ = true;
-    status_ = DisplayStatus::Warn;
-    status_text_ = "Waiting for image topic";
+    status_                = DisplayStatus::Warn;
+    status_text_           = "Waiting for image topic";
 }
 
 void ImageDisplay::on_disable()
@@ -123,7 +121,7 @@ void ImageDisplay::on_disable()
     node_.reset();
 #endif
     subscribed_topic_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -145,22 +143,21 @@ void ImageDisplay::on_update(float)
     if (!frame.has_value())
     {
         status_ = DisplayStatus::Warn;
-        status_text_ = subscribed_topic_.empty()
-            ? "Waiting for image topic"
-            : "Subscribed, no image received";
+        status_text_ =
+            subscribed_topic_.empty() ? "Waiting for image topic" : "Subscribed, no image received";
         return;
     }
 
     if (!frame->supported_encoding)
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = frame->warning.empty() ? "Unsupported image encoding" : frame->warning;
         return;
     }
 
     status_ = DisplayStatus::Ok;
-    status_text_ = std::to_string(frame->width) + "x" + std::to_string(frame->height)
-                 + " " + frame->encoding;
+    status_text_ =
+        std::to_string(frame->width) + "x" + std::to_string(frame->height) + " " + frame->encoding;
 }
 
 void ImageDisplay::submit_renderables(SceneManager& scene)
@@ -172,32 +169,33 @@ void ImageDisplay::submit_renderables(SceneManager& scene)
     if (!frame.has_value() || !frame->supported_encoding)
         return;
 
-    bool tf_ok = true;
-    const spectra::Transform frame_transform = resolve_frame_transform(
-        tf_buffer_,
-        fixed_frame_,
-        frame->frame_id,
-        frame->stamp_ns,
-        use_message_stamp_,
-        tf_ok);
+    bool                     tf_ok           = true;
+    const spectra::Transform frame_transform = resolve_frame_transform(tf_buffer_,
+                                                                       fixed_frame_,
+                                                                       frame->frame_id,
+                                                                       frame->stamp_ns,
+                                                                       use_message_stamp_,
+                                                                       tf_ok);
     if (!tf_ok)
         return;
 
     SceneEntity entity;
-    entity.type = "image";
-    entity.label = topic_.empty() ? display_name() : topic_;
+    entity.type         = "image";
+    entity.label        = topic_.empty() ? display_name() : topic_;
     entity.display_name = display_name();
-    entity.topic = frame->topic;
-    entity.frame_id = frame->frame_id;
-    entity.transform = frame_transform;
-    entity.scale = {
-        frame->height == 0 ? 1.0 : static_cast<double>(frame->width) / static_cast<double>(frame->height),
+    entity.topic        = frame->topic;
+    entity.frame_id     = frame->frame_id;
+    entity.transform    = frame_transform;
+    entity.scale        = {
+        frame->height == 0 ? 1.0
+                                  : static_cast<double>(frame->width) / static_cast<double>(frame->height),
         1.0,
         1.0,
     };
-    entity.stamp_ns = frame->stamp_ns;
+    entity.stamp_ns  = frame->stamp_ns;
     entity.billboard = SceneBillboard{
-        frame->height == 0 ? 1.0 : static_cast<double>(frame->width) / static_cast<double>(frame->height),
+        frame->height == 0 ? 1.0
+                           : static_cast<double>(frame->width) / static_cast<double>(frame->height),
         1.0,
     };
 
@@ -205,18 +203,18 @@ void ImageDisplay::submit_renderables(SceneManager& scene)
     if (!frame->full_rgba.empty())
     {
         SceneImage img;
-        img.width = frame->width;
-        img.height = frame->height;
-        img.rgba_data = frame->full_rgba;
-        img.texture_id = reinterpret_cast<uint64_t>(this);
+        img.width        = frame->width;
+        img.height       = frame->height;
+        img.rgba_data    = frame->full_rgba;
+        img.texture_id   = reinterpret_cast<uint64_t>(this);
         img.needs_upload = true;
-        entity.image = std::move(img);
+        entity.image     = std::move(img);
     }
 
     entity.properties.push_back({"mode", mode_name(mode_)});
     entity.properties.push_back({"encoding", frame->encoding});
-    entity.properties.push_back({"resolution",
-                                 std::to_string(frame->width) + "x" + std::to_string(frame->height)});
+    entity.properties.push_back(
+        {"resolution", std::to_string(frame->width) + "x" + std::to_string(frame->height)});
     entity.properties.push_back({"mean_intensity", std::to_string(frame->mean_intensity)});
     entity.properties.push_back({"preview_visible", panel_visible_ ? "true" : "false"});
     scene.add_entity(std::move(entity));
@@ -228,8 +226,8 @@ void ImageDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    const char* modes[] = {"2D Panel", "3D Billboard", "Panel + Billboard"};
-    int current_mode = static_cast<int>(mode_);
+    const char* modes[]      = {"2D Panel", "3D Billboard", "Panel + Billboard"};
+    int         current_mode = static_cast<int>(mode_);
     if (ImGui::Combo("Mode", &current_mode, modes, 3))
         mode_ = static_cast<Mode>(current_mode);
 
@@ -318,23 +316,25 @@ void ImageDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    char topic[256] = {};
-    int mode = static_cast<int>(mode_);
-    int panel_visible = panel_visible_ ? 1 : 0;
-    unsigned preview_max_dim = preview_max_dim_;
-    int use_message_stamp = use_message_stamp_ ? 1 : 0;
-    if (std::sscanf(blob.c_str(),
-                    "topic=%255[^;];mode=%d;panel_visible=%d;preview_max_dim=%u;use_message_stamp=%d",
-                    topic,
-                    &mode,
-                    &panel_visible,
-                    &preview_max_dim,
-                    &use_message_stamp) >= 1)
+    char     topic[256]        = {};
+    int      mode              = static_cast<int>(mode_);
+    int      panel_visible     = panel_visible_ ? 1 : 0;
+    unsigned preview_max_dim   = preview_max_dim_;
+    int      use_message_stamp = use_message_stamp_ ? 1 : 0;
+    if (std::sscanf(
+            blob.c_str(),
+            "topic=%255[^;];mode=%d;panel_visible=%d;preview_max_dim=%u;use_message_stamp=%d",
+            topic,
+            &mode,
+            &panel_visible,
+            &preview_max_dim,
+            &use_message_stamp)
+        >= 1)
     {
         set_topic(topic);
-        mode_ = static_cast<Mode>(std::clamp(mode, 0, 2));
-        panel_visible_ = panel_visible != 0;
-        preview_max_dim_ = std::clamp(preview_max_dim, 16u, 96u);
+        mode_              = static_cast<Mode>(std::clamp(mode, 0, 2));
+        panel_visible_     = panel_visible != 0;
+        preview_max_dim_   = std::clamp(preview_max_dim, 16u, 96u);
         use_message_stamp_ = use_message_stamp != 0;
     }
 }
@@ -367,13 +367,13 @@ void ImageDisplay::ensure_subscription()
     const TopicInfo info = topic_discovery_->topic(topic_);
     if (info.name.empty() || info.types.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Topic not discovered yet";
         return;
     }
     if (info.types.front() != "sensor_msgs/msg/Image")
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "Incompatible topic type: " + info.types.front();
         return;
     }
@@ -384,14 +384,14 @@ void ImageDisplay::ensure_subscription()
         [this](const sensor_msgs::msg::Image::SharedPtr msg)
         {
             const bool need_full = (mode_ == Mode::Billboard3D || mode_ == Mode::PanelAndBillboard);
-            const auto frame = adapt_image_message(*msg, topic_, preview_max_dim_, need_full);
+            const auto frame     = adapt_image_message(*msg, topic_, preview_max_dim_, need_full);
             if (frame.has_value())
                 ingest_image_frame(*frame);
         });
 
     subscribed_topic_ = topic_;
-    status_ = DisplayStatus::Ok;
-    status_text_ = "Subscribed to " + topic_;
+    status_           = DisplayStatus::Ok;
+    status_text_      = "Subscribed to " + topic_;
 #endif
 }
 
@@ -399,9 +399,12 @@ const char* ImageDisplay::mode_name(Mode mode)
 {
     switch (mode)
     {
-        case Mode::Panel2D: return "panel";
-        case Mode::Billboard3D: return "billboard";
-        case Mode::PanelAndBillboard: return "panel+billboard";
+        case Mode::Panel2D:
+            return "panel";
+        case Mode::Billboard3D:
+            return "billboard";
+        case Mode::PanelAndBillboard:
+            return "panel+billboard";
     }
     return "panel";
 }

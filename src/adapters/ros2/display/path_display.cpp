@@ -8,7 +8,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -16,12 +16,12 @@ namespace spectra::adapters::ros2
 
 namespace
 {
-spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
-                                           const std::string&  fixed_frame,
-                                           const std::string&  frame_id,
-                                           uint64_t            stamp_ns,
-                                           bool                use_message_stamp,
-                                           bool&               ok_out)
+spectra::Transform resolve_frame_transform(const TfBuffer*    tf_buffer,
+                                           const std::string& fixed_frame,
+                                           const std::string& frame_id,
+                                           uint64_t           stamp_ns,
+                                           bool               use_message_stamp,
+                                           bool&              ok_out)
 {
     ok_out = true;
     spectra::Transform transform{};
@@ -37,7 +37,7 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
     }
 
     transform.translation = {result.tx, result.ty, result.tz};
-    transform.rotation = {
+    transform.rotation    = {
         static_cast<float>(result.qx),
         static_cast<float>(result.qy),
         static_cast<float>(result.qz),
@@ -54,15 +54,15 @@ PathDisplay::PathDisplay()
 
 void PathDisplay::on_enable(const DisplayContext& context)
 {
-    tf_buffer_ = context.tf_buffer;
+    tf_buffer_       = context.tf_buffer;
     topic_discovery_ = context.topic_discovery;
-    fixed_frame_ = context.fixed_frame;
+    fixed_frame_     = context.fixed_frame;
 #ifdef SPECTRA_USE_ROS2
     node_ = context.node;
 #endif
     resubscribe_requested_ = true;
-    status_ = DisplayStatus::Warn;
-    status_text_ = "Waiting for path topic";
+    status_                = DisplayStatus::Warn;
+    status_text_           = "Waiting for path topic";
 }
 
 void PathDisplay::on_disable()
@@ -72,7 +72,7 @@ void PathDisplay::on_disable()
     node_.reset();
 #endif
     subscribed_topic_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -94,13 +94,12 @@ void PathDisplay::on_update(float)
     if (!frame.has_value())
     {
         status_ = DisplayStatus::Warn;
-        status_text_ = subscribed_topic_.empty()
-            ? "Waiting for path topic"
-            : "Subscribed, no path received";
+        status_text_ =
+            subscribed_topic_.empty() ? "Waiting for path topic" : "Subscribed, no path received";
         return;
     }
 
-    status_ = DisplayStatus::Ok;
+    status_      = DisplayStatus::Ok;
     status_text_ = std::to_string(frame->pose_count) + " poses";
 }
 
@@ -113,27 +112,26 @@ void PathDisplay::submit_renderables(SceneManager& scene)
     if (!frame.has_value())
         return;
 
-    bool tf_ok = true;
-    const spectra::Transform frame_transform = resolve_frame_transform(
-        tf_buffer_,
-        fixed_frame_,
-        frame->frame_id,
-        frame->stamp_ns,
-        use_message_stamp_,
-        tf_ok);
+    bool                     tf_ok           = true;
+    const spectra::Transform frame_transform = resolve_frame_transform(tf_buffer_,
+                                                                       fixed_frame_,
+                                                                       frame->frame_id,
+                                                                       frame->stamp_ns,
+                                                                       use_message_stamp_,
+                                                                       tf_ok);
     if (!tf_ok)
         return;
 
     SceneEntity entity;
-    entity.type = "path";
-    entity.label = topic_.empty() ? display_name() : topic_;
-    entity.display_name = display_name();
-    entity.topic = frame->topic;
-    entity.frame_id = frame->frame_id;
-    entity.transform = frame_transform;
+    entity.type                  = "path";
+    entity.label                 = topic_.empty() ? display_name() : topic_;
+    entity.display_name          = display_name();
+    entity.topic                 = frame->topic;
+    entity.frame_id              = frame->frame_id;
+    entity.transform             = frame_transform;
     entity.transform.translation = frame_transform.transform_point(frame->centroid);
-    entity.scale = frame->max_bounds - frame->min_bounds;
-    entity.stamp_ns = frame->stamp_ns;
+    entity.scale                 = frame->max_bounds - frame->min_bounds;
+    entity.stamp_ns              = frame->stamp_ns;
     ScenePolyline polyline;
     polyline.points.reserve(frame->points.size());
     for (const auto& point : frame->points)
@@ -195,24 +193,25 @@ void PathDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    char topic[256] = {};
-    float line_width = line_width_;
-    float alpha = alpha_;
-    int pose_arrows = show_pose_arrows_ ? 1 : 0;
-    int use_message_stamp = use_message_stamp_ ? 1 : 0;
+    char  topic[256]        = {};
+    float line_width        = line_width_;
+    float alpha             = alpha_;
+    int   pose_arrows       = show_pose_arrows_ ? 1 : 0;
+    int   use_message_stamp = use_message_stamp_ ? 1 : 0;
     if (std::sscanf(blob.c_str(),
                     "topic=%255[^;];line_width=%f;alpha=%f;pose_arrows=%d;use_message_stamp=%d",
                     topic,
                     &line_width,
                     &alpha,
                     &pose_arrows,
-                    &use_message_stamp) >= 1)
+                    &use_message_stamp)
+        >= 1)
     {
         set_topic(topic);
         if (line_width > 0.0f)
             line_width_ = line_width;
-        alpha_ = std::clamp(alpha, 0.1f, 1.0f);
-        show_pose_arrows_ = pose_arrows != 0;
+        alpha_             = std::clamp(alpha, 0.1f, 1.0f);
+        show_pose_arrows_  = pose_arrows != 0;
         use_message_stamp_ = use_message_stamp != 0;
     }
 }
@@ -245,13 +244,13 @@ void PathDisplay::ensure_subscription()
     const TopicInfo info = topic_discovery_->topic(topic_);
     if (info.name.empty() || info.types.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Topic not discovered yet";
         return;
     }
     if (info.types.front() != "nav_msgs/msg/Path")
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "Incompatible topic type: " + info.types.front();
         return;
     }
@@ -267,8 +266,8 @@ void PathDisplay::ensure_subscription()
         });
 
     subscribed_topic_ = topic_;
-    status_ = DisplayStatus::Ok;
-    status_text_ = "Subscribed to " + topic_;
+    status_           = DisplayStatus::Ok;
+    status_text_      = "Subscribed to " + topic_;
 #endif
 }
 

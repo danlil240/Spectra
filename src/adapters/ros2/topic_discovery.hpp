@@ -45,14 +45,14 @@ struct QosInfo
 struct TopicInfo
 {
     std::string              name;
-    std::vector<std::string> types;      // may have multiple type alternatives
+    std::vector<std::string> types;   // may have multiple type alternatives
     int                      publisher_count{0};
     int                      subscriber_count{0};
     int                      local_publisher_count{0};
     int                      local_subscriber_count{0};
-    QosInfo                  qos;        // QoS of first publisher (if any)
-    std::vector<std::string> publisher_nodes;  // fully-qualified publisher node names
-    std::vector<std::string> subscriber_nodes; // fully-qualified subscriber node names
+    QosInfo                  qos;                // QoS of first publisher (if any)
+    std::vector<std::string> publisher_nodes;    // fully-qualified publisher node names
+    std::vector<std::string> subscriber_nodes;   // fully-qualified subscriber node names
 };
 
 struct ServiceInfo
@@ -74,7 +74,7 @@ struct NodeInfo
 
 class TopicDiscovery
 {
-public:
+   public:
     // Construct with a shared node pointer.  The node must outlive this object.
     explicit TopicDiscovery(rclcpp::Node::SharedPtr node);
 
@@ -102,14 +102,14 @@ public:
 
     // Set the periodic refresh interval (default 2 s).  Takes effect on the
     // next start() call.
-    void set_refresh_interval(std::chrono::milliseconds interval);
+    void                      set_refresh_interval(std::chrono::milliseconds interval);
     std::chrono::milliseconds refresh_interval() const;
 
     // ---------- accessors (snapshot of last refresh) ---------------------
 
-    std::vector<TopicInfo>   topics()   const;
+    std::vector<TopicInfo>   topics() const;
     std::vector<ServiceInfo> services() const;
-    std::vector<NodeInfo>    nodes()    const;
+    std::vector<NodeInfo>    nodes() const;
 
     // Convenience: true if a topic with the given name is currently known.
     bool has_topic(const std::string& name) const;
@@ -119,9 +119,9 @@ public:
     TopicInfo topic(const std::string& name) const;
 
     // Number of known topics / services / nodes.
-    std::size_t topic_count()   const;
+    std::size_t topic_count() const;
     std::size_t service_count() const;
-    std::size_t node_count()    const;
+    std::size_t node_count() const;
 
     // ---------- callbacks ------------------------------------------------
 
@@ -142,7 +142,7 @@ public:
     using RefreshDoneCallback = std::function<void()>;
     void set_refresh_done_callback(RefreshDoneCallback cb);
 
-private:
+   private:
     // Internal refresh implementation (mutex already NOT held when called).
     void do_refresh(bool full_enrich = false);
 
@@ -159,9 +159,9 @@ private:
     void diff_nodes(const std::vector<NodeInfo>& fresh);
 
     // Query helpers.
-    std::vector<TopicInfo>   query_topics()   const;
+    std::vector<TopicInfo>   query_topics() const;
     std::vector<ServiceInfo> query_services() const;
-    std::vector<NodeInfo>    query_nodes()    const;
+    std::vector<NodeInfo>    query_nodes() const;
 
     rclcpp::Node::SharedPtr node_;
 
@@ -188,9 +188,9 @@ private:
     // discovery thread holds the participant lock and needs to signal the
     // executor via the wait-set.  A dedicated thread breaks this cycle
     // because it never holds executor wait-set state.
-    std::thread refresh_thread_;
-    std::mutex  stop_mutex_;          // protects stop_cv_ wait
-    std::condition_variable stop_cv_; // wakes thread for early shutdown
+    std::thread             refresh_thread_;
+    std::mutex              stop_mutex_;   // protects stop_cv_ wait
+    std::condition_variable stop_cv_;      // wakes thread for early shutdown
 
     std::atomic<bool> running_{false};
     std::atomic<bool> refresh_in_progress_{false};

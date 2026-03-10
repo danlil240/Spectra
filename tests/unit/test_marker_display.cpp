@@ -17,21 +17,21 @@ namespace
 {
 TransformStamp make_ts(const std::string& parent,
                        const std::string& child,
-                       double tx = 0.0,
-                       double ty = 0.0,
-                       double tz = 0.0,
-                       bool is_static = false,
-                       uint64_t recv_ns = 1'000)
+                       double             tx        = 0.0,
+                       double             ty        = 0.0,
+                       double             tz        = 0.0,
+                       bool               is_static = false,
+                       uint64_t           recv_ns   = 1'000)
 {
     TransformStamp ts;
     ts.parent_frame = parent;
-    ts.child_frame = child;
-    ts.tx = tx;
-    ts.ty = ty;
-    ts.tz = tz;
-    ts.qw = 1.0;
-    ts.is_static = is_static;
-    ts.recv_ns = recv_ns;
+    ts.child_frame  = child;
+    ts.tx           = tx;
+    ts.ty           = ty;
+    ts.tz           = tz;
+    ts.qw           = 1.0;
+    ts.is_static    = is_static;
+    ts.recv_ns      = recv_ns;
     return ts;
 }
 }   // namespace
@@ -41,10 +41,10 @@ TEST(TfDisplay, SubmitsTfFramesIntoScene)
     TfBuffer buffer;
     buffer.inject_transform(make_ts("world", "base_link", 1.0, 2.0, 3.0, false, 100));
 
-    TfDisplay display;
+    TfDisplay      display;
     DisplayContext context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
 
     display.on_enable(context);
     display.on_update(0.016f);
@@ -72,23 +72,23 @@ TEST(MarkerDisplay, MarkerPoseIsResolvedIntoFixedFrame)
     TfBuffer buffer;
     buffer.inject_transform(make_ts("world", "base_link", 1.0, 0.0, 0.0, false, 100));
 
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
 
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/visualization_marker";
-    marker.ns = "demo";
-    marker.id = 7;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "base_link";
-    marker.stamp_ns = 100;
+    marker.topic            = "/visualization_marker";
+    marker.ns               = "demo";
+    marker.id               = 7;
+    marker.action           = visualization_msgs::msg::Marker::ADD;
+    marker.primitive        = MarkerPrimitive::Cube;
+    marker.frame_id         = "base_link";
+    marker.stamp_ns         = 100;
     marker.pose.translation = {2.0, 0.0, 0.0};
-    marker.scale = {0.5, 0.5, 0.5};
+    marker.scale            = {0.5, 0.5, 0.5};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -105,18 +105,18 @@ TEST(MarkerDisplay, MarkerPoseIsResolvedIntoFixedFrame)
 
 TEST(MarkerDisplay, MarkerLifetimeExpires)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/visualization_marker";
-    marker.ns = "demo";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.primitive = MarkerPrimitive::Sphere;
-    marker.frame_id = "world";
+    marker.topic       = "/visualization_marker";
+    marker.ns          = "demo";
+    marker.id          = 1;
+    marker.action      = visualization_msgs::msg::Marker::ADD;
+    marker.primitive   = MarkerPrimitive::Sphere;
+    marker.frame_id    = "world";
     marker.lifetime_ns = 1;
 
     display.ingest_marker_data(marker);
@@ -130,18 +130,18 @@ TEST(MarkerDisplay, MarkerLifetimeExpires)
 
 TEST(MarkerDisplay, DeleteActionRemovesMarker)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/visualization_marker";
-    marker.ns = "demo";
-    marker.id = 3;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/visualization_marker";
+    marker.ns        = "demo";
+    marker.id        = 3;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Arrow;
-    marker.frame_id = "world";
+    marker.frame_id  = "world";
     display.ingest_marker_data(marker);
     ASSERT_EQ(display.marker_count(), 1u);
 
@@ -152,21 +152,21 @@ TEST(MarkerDisplay, DeleteActionRemovesMarker)
 
 TEST(MarkerDisplay, LineStripMarkerCreatesPolylineEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "lines";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "lines";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::LineStrip;
-    marker.frame_id = "world";
-    marker.scale = {0.01, 0.0, 0.0};
-    marker.color = {0.0f, 1.0f, 0.0f, 1.0f};
-    marker.points = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}};
+    marker.frame_id  = "world";
+    marker.scale     = {0.01, 0.0, 0.0};
+    marker.color     = {0.0f, 1.0f, 0.0f, 1.0f};
+    marker.points    = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -185,21 +185,21 @@ TEST(MarkerDisplay, LineStripMarkerCreatesPolylineEntity)
 
 TEST(MarkerDisplay, LineListMarkerCreatesPolylineEntities)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "lines";
-    marker.id = 2;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "lines";
+    marker.id        = 2;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::LineList;
-    marker.frame_id = "world";
-    marker.scale = {0.02, 0.0, 0.0};
-    marker.color = {1.0f, 0.0f, 0.0f, 1.0f};
-    marker.points = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}};
+    marker.frame_id  = "world";
+    marker.scale     = {0.02, 0.0, 0.0};
+    marker.color     = {1.0f, 0.0f, 0.0f, 1.0f};
+    marker.points    = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -224,21 +224,21 @@ TEST(MarkerDisplay, LineListMarkerCreatesPolylineEntities)
 
 TEST(MarkerDisplay, PointsMarkerCreatesPointSetEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "pts";
-    marker.id = 3;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "pts";
+    marker.id        = 3;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Points;
-    marker.frame_id = "world";
-    marker.scale = {0.05, 0.05, 0.0};
-    marker.color = {0.0f, 0.0f, 1.0f, 0.8f};
-    marker.points = {{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}};
+    marker.frame_id  = "world";
+    marker.scale     = {0.05, 0.05, 0.0};
+    marker.color     = {0.0f, 0.0f, 1.0f, 0.8f};
+    marker.points    = {{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -258,21 +258,21 @@ TEST(MarkerDisplay, PointsMarkerCreatesPointSetEntity)
 
 TEST(MarkerDisplay, TextViewFacingMarkerSubmitsEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "text";
-    marker.id = 4;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "text";
+    marker.id        = 4;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::TextViewFacing;
-    marker.frame_id = "world";
-    marker.scale = {0.0, 0.0, 0.3};
-    marker.text = "Hello";
-    marker.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    marker.frame_id  = "world";
+    marker.scale     = {0.0, 0.0, 0.3};
+    marker.text      = "Hello";
+    marker.color     = {1.0f, 1.0f, 1.0f, 1.0f};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -297,7 +297,7 @@ TEST(MarkerDisplay, TextViewFacingMarkerSubmitsEntity)
 
 TEST(MarkerDisplay, DeleteAllClearsAllMarkers)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -306,21 +306,21 @@ TEST(MarkerDisplay, DeleteAllClearsAllMarkers)
     for (int i = 0; i < 5; ++i)
     {
         MarkerData marker;
-        marker.topic = "/markers";
-        marker.ns = "demo";
-        marker.id = i;
-        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.topic     = "/markers";
+        marker.ns        = "demo";
+        marker.id        = i;
+        marker.action    = visualization_msgs::msg::Marker::ADD;
         marker.primitive = MarkerPrimitive::Sphere;
-        marker.frame_id = "world";
+        marker.frame_id  = "world";
         display.ingest_marker_data(marker);
     }
     ASSERT_EQ(display.marker_count(), 5u);
 
     // DELETEALL should remove all
     MarkerData delete_all;
-    delete_all.topic = "/markers";
-    delete_all.ns = "demo";
-    delete_all.id = 0;
+    delete_all.topic  = "/markers";
+    delete_all.ns     = "demo";
+    delete_all.id     = 0;
     delete_all.action = visualization_msgs::msg::Marker::DELETEALL;
     display.ingest_marker_data(delete_all);
 
@@ -329,26 +329,26 @@ TEST(MarkerDisplay, DeleteAllClearsAllMarkers)
 
 TEST(MarkerDisplay, ModifyActionOverwritesExistingMarker)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "demo";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "demo";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "world";
-    marker.scale = {1.0, 1.0, 1.0};
+    marker.frame_id  = "world";
+    marker.scale     = {1.0, 1.0, 1.0};
     display.ingest_marker_data(marker);
     ASSERT_EQ(display.marker_count(), 1u);
 
     // Modify with different primitive
-    marker.action = visualization_msgs::msg::Marker::MODIFY;
+    marker.action    = visualization_msgs::msg::Marker::MODIFY;
     marker.primitive = MarkerPrimitive::Sphere;
-    marker.scale = {2.0, 2.0, 2.0};
+    marker.scale     = {2.0, 2.0, 2.0};
     display.ingest_marker_data(marker);
 
     EXPECT_EQ(display.marker_count(), 1u);
@@ -363,27 +363,27 @@ TEST(MarkerDisplay, ModifyActionOverwritesExistingMarker)
 
 TEST(MarkerDisplay, MultipleNamespacesCoexist)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker_a;
-    marker_a.topic = "/markers";
-    marker_a.ns = "ns_a";
-    marker_a.id = 1;
-    marker_a.action = visualization_msgs::msg::Marker::ADD;
+    marker_a.topic     = "/markers";
+    marker_a.ns        = "ns_a";
+    marker_a.id        = 1;
+    marker_a.action    = visualization_msgs::msg::Marker::ADD;
     marker_a.primitive = MarkerPrimitive::Cube;
-    marker_a.frame_id = "world";
+    marker_a.frame_id  = "world";
     display.ingest_marker_data(marker_a);
 
     MarkerData marker_b;
-    marker_b.topic = "/markers";
-    marker_b.ns = "ns_b";
-    marker_b.id = 1;
-    marker_b.action = visualization_msgs::msg::Marker::ADD;
+    marker_b.topic     = "/markers";
+    marker_b.ns        = "ns_b";
+    marker_b.id        = 1;
+    marker_b.action    = visualization_msgs::msg::Marker::ADD;
     marker_b.primitive = MarkerPrimitive::Sphere;
-    marker_b.frame_id = "world";
+    marker_b.frame_id  = "world";
     display.ingest_marker_data(marker_b);
 
     EXPECT_EQ(display.marker_count(), 2u);
@@ -396,7 +396,7 @@ TEST(MarkerDisplay, MultipleNamespacesCoexist)
 
 TEST(MarkerDisplay, ConfigBlobRoundTrip)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -419,18 +419,18 @@ TEST(MarkerDisplay, ConfigBlobEmptyStringNoOp)
 
 TEST(MarkerDisplay, UnknownPrimitiveIgnored)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "demo";
-    marker.id = 99;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "demo";
+    marker.id        = 99;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Unknown;
-    marker.frame_id = "world";
+    marker.frame_id  = "world";
     display.ingest_marker_data(marker);
 
     EXPECT_EQ(display.marker_count(), 0u);
@@ -438,19 +438,19 @@ TEST(MarkerDisplay, UnknownPrimitiveIgnored)
 
 TEST(MarkerDisplay, CylinderMarkerSubmitsEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "shapes";
-    marker.id = 10;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "shapes";
+    marker.id        = 10;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cylinder;
-    marker.frame_id = "world";
-    marker.scale = {0.5, 0.5, 1.0};
+    marker.frame_id  = "world";
+    marker.scale     = {0.5, 0.5, 1.0};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -464,7 +464,7 @@ TEST(MarkerDisplay, CylinderMarkerSubmitsEntity)
 
 TEST(MarkerDisplay, MarkerCountMatchesSceneEntities)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -472,12 +472,12 @@ TEST(MarkerDisplay, MarkerCountMatchesSceneEntities)
     for (int i = 0; i < 3; ++i)
     {
         MarkerData marker;
-        marker.topic = "/markers";
-        marker.ns = "batch";
-        marker.id = i;
-        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.topic     = "/markers";
+        marker.ns        = "batch";
+        marker.id        = i;
+        marker.action    = visualization_msgs::msg::Marker::ADD;
         marker.primitive = MarkerPrimitive::Sphere;
-        marker.frame_id = "world";
+        marker.frame_id  = "world";
         display.ingest_marker_data(marker);
     }
 
@@ -493,19 +493,19 @@ TEST(MarkerDisplay, MarkerCountMatchesSceneEntities)
 
 TEST(MarkerDisplay, ArrowMarkerSubmitsEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "arrows";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "arrows";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Arrow;
-    marker.frame_id = "world";
-    marker.scale = {1.0, 0.1, 0.1};
+    marker.frame_id  = "world";
+    marker.scale     = {1.0, 0.1, 0.1};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -518,19 +518,19 @@ TEST(MarkerDisplay, ArrowMarkerSubmitsEntity)
 
 TEST(MarkerDisplay, SphereMarkerSubmitsEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "shapes";
-    marker.id = 2;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.primitive = MarkerPrimitive::Sphere;
-    marker.frame_id = "world";
-    marker.scale = {0.3, 0.3, 0.3};
+    marker.topic            = "/markers";
+    marker.ns               = "shapes";
+    marker.id               = 2;
+    marker.action           = visualization_msgs::msg::Marker::ADD;
+    marker.primitive        = MarkerPrimitive::Sphere;
+    marker.frame_id         = "world";
+    marker.scale            = {0.3, 0.3, 0.3};
     marker.pose.translation = {5.0, 0.0, 0.0};
 
     display.ingest_marker_data(marker);
@@ -544,19 +544,19 @@ TEST(MarkerDisplay, SphereMarkerSubmitsEntity)
 
 TEST(MarkerDisplay, CubeMarkerSubmitsEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "shapes";
-    marker.id = 3;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "shapes";
+    marker.id        = 3;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "world";
-    marker.scale = {1.0, 2.0, 3.0};
+    marker.frame_id  = "world";
+    marker.scale     = {1.0, 2.0, 3.0};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -569,18 +569,18 @@ TEST(MarkerDisplay, CubeMarkerSubmitsEntity)
 
 TEST(MarkerDisplay, ReAddAfterDelete)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "demo";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "demo";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "world";
+    marker.frame_id  = "world";
     display.ingest_marker_data(marker);
     ASSERT_EQ(display.marker_count(), 1u);
 
@@ -588,7 +588,7 @@ TEST(MarkerDisplay, ReAddAfterDelete)
     display.ingest_marker_data(marker);
     ASSERT_EQ(display.marker_count(), 0u);
 
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Sphere;
     display.ingest_marker_data(marker);
     EXPECT_EQ(display.marker_count(), 1u);
@@ -596,16 +596,16 @@ TEST(MarkerDisplay, ReAddAfterDelete)
 
 TEST(MarkerDisplay, DeleteNonexistentMarkerNoOp)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "nonexistent";
-    marker.id = 999;
-    marker.action = visualization_msgs::msg::Marker::DELETE;
+    marker.topic    = "/markers";
+    marker.ns       = "nonexistent";
+    marker.id       = 999;
+    marker.action   = visualization_msgs::msg::Marker::DELETE;
     marker.frame_id = "world";
 
     display.ingest_marker_data(marker);
@@ -614,7 +614,7 @@ TEST(MarkerDisplay, DeleteNonexistentMarkerNoOp)
 
 TEST(MarkerDisplay, DeleteAllOnEmptyNoOp)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -628,7 +628,7 @@ TEST(MarkerDisplay, DeleteAllOnEmptyNoOp)
 
 TEST(MarkerDisplay, SameIdDifferentNamespace)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -637,12 +637,12 @@ TEST(MarkerDisplay, SameIdDifferentNamespace)
     for (const auto& ns : {"ns1", "ns2", "ns3"})
     {
         MarkerData marker;
-        marker.topic = "/markers";
-        marker.ns = ns;
-        marker.id = 1;
-        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.topic     = "/markers";
+        marker.ns        = ns;
+        marker.id        = 1;
+        marker.action    = visualization_msgs::msg::Marker::ADD;
         marker.primitive = MarkerPrimitive::Cube;
-        marker.frame_id = "world";
+        marker.frame_id  = "world";
         display.ingest_marker_data(marker);
     }
     EXPECT_EQ(display.marker_count(), 3u);
@@ -650,7 +650,7 @@ TEST(MarkerDisplay, SameIdDifferentNamespace)
 
 TEST(MarkerDisplay, SameNamespaceDifferentIds)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
@@ -658,12 +658,12 @@ TEST(MarkerDisplay, SameNamespaceDifferentIds)
     for (int i = 0; i < 10; ++i)
     {
         MarkerData marker;
-        marker.topic = "/markers";
-        marker.ns = "batch";
-        marker.id = i;
-        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.topic     = "/markers";
+        marker.ns        = "batch";
+        marker.id        = i;
+        marker.action    = visualization_msgs::msg::Marker::ADD;
         marker.primitive = MarkerPrimitive::Sphere;
-        marker.frame_id = "world";
+        marker.frame_id  = "world";
         display.ingest_marker_data(marker);
     }
     EXPECT_EQ(display.marker_count(), 10u);
@@ -671,19 +671,19 @@ TEST(MarkerDisplay, SameNamespaceDifferentIds)
 
 TEST(MarkerDisplay, OverwriteChangesScale)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "demo";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "demo";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "world";
-    marker.scale = {1.0, 1.0, 1.0};
+    marker.frame_id  = "world";
+    marker.scale     = {1.0, 1.0, 1.0};
     display.ingest_marker_data(marker);
 
     marker.scale = {3.0, 4.0, 5.0};
@@ -701,19 +701,19 @@ TEST(MarkerDisplay, OverwriteChangesScale)
 
 TEST(MarkerDisplay, DisabledDisplayDoesNotSubmit)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
     display.set_enabled(false);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "demo";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "demo";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Cube;
-    marker.frame_id = "world";
+    marker.frame_id  = "world";
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
 
@@ -731,21 +731,21 @@ TEST(MarkerDisplay, TopicSetViaConfig)
 
 TEST(MarkerDisplay, PointsMarkerTransparentWhenAlphaLow)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "pts";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "pts";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::Points;
-    marker.frame_id = "world";
-    marker.scale = {0.05, 0.05, 0.0};
-    marker.color = {1.0f, 0.0f, 0.0f, 0.5f};
-    marker.points = {{0.0, 0.0, 0.0}};
+    marker.frame_id  = "world";
+    marker.scale     = {0.05, 0.05, 0.0};
+    marker.color     = {1.0f, 0.0f, 0.0f, 0.5f};
+    marker.points    = {{0.0, 0.0, 0.0}};
 
     display.ingest_marker_data(marker);
     display.on_update(0.016f);
@@ -760,18 +760,18 @@ TEST(MarkerDisplay, PointsMarkerTransparentWhenAlphaLow)
 
 TEST(MarkerDisplay, LineStripEmptyPointsNoEntity)
 {
-    MarkerDisplay display;
+    MarkerDisplay  display;
     DisplayContext context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
     MarkerData marker;
-    marker.topic = "/markers";
-    marker.ns = "lines";
-    marker.id = 1;
-    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.topic     = "/markers";
+    marker.ns        = "lines";
+    marker.id        = 1;
+    marker.action    = visualization_msgs::msg::Marker::ADD;
     marker.primitive = MarkerPrimitive::LineStrip;
-    marker.frame_id = "world";
+    marker.frame_id  = "world";
     // No points
 
     display.ingest_marker_data(marker);

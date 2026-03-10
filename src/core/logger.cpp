@@ -110,8 +110,8 @@ namespace sinks
 static std::string format_log_entry(const Logger::LogEntry& entry)
 {
     std::string result = Logger::timestamp_to_string(entry.timestamp) + " "
-                         + Logger::level_to_string(entry.level) + " "
-                         + "[" + entry.category + "] " + entry.message;
+                         + Logger::level_to_string(entry.level) + " " + "[" + entry.category + "] "
+                         + entry.message;
     if (!entry.file.empty())
     {
         result += " (" + entry.file + ":" + std::to_string(entry.line);

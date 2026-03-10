@@ -46,9 +46,13 @@ class LayoutManager
 
     // Canvas rect override — allows adapter shells (e.g. spectra-ros) to
     // specify the exact canvas region instead of computing it from chrome zones.
-    void  set_canvas_override(Rect r) { canvas_override_ = r; canvas_override_set_ = true; }
-    void  clear_canvas_override()     { canvas_override_set_ = false; }
-    bool  has_canvas_override() const { return canvas_override_set_; }
+    void set_canvas_override(Rect r)
+    {
+        canvas_override_     = r;
+        canvas_override_set_ = true;
+    }
+    void clear_canvas_override() { canvas_override_set_ = false; }
+    bool has_canvas_override() const { return canvas_override_set_; }
 
     // Bottom panel (timeline)
     void  set_bottom_panel_height(float h) { bottom_panel_height_ = h; }

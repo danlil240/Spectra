@@ -122,12 +122,12 @@ struct CsvExportResult
 
 class RosCsvExport
 {
-public:
+   public:
     // Export mode.
     enum class RangeMode
     {
-        Full,     // Export all data in the series
-        Visible,  // Export only samples in [x_min, x_max]
+        Full,      // Export all data in the series
+        Visible,   // Export only samples in [x_min, x_max]
     };
 
     explicit RosCsvExport(RosPlotManager& mgr);
@@ -155,9 +155,7 @@ public:
 
     // Export a single plot with range filtering.
     // Only rows where x (= timestamp_s) is in [x_min, x_max] are included.
-    CsvExportResult export_plot(int    plot_id,
-                                double x_min,
-                                double x_max) const;
+    CsvExportResult export_plot(int plot_id, double x_min, double x_max) const;
 
     // Export multiple plots (full history).
     // Rows are the union of all X timestamps across all plots.
@@ -177,10 +175,10 @@ public:
     //
     // When timestamp_ns == 0 the function falls back to deriving sec/nsec
     // from timestamp_s directly (treating it as a raw float seconds value).
-    static void split_timestamp(double    timestamp_s,
-                                int64_t   timestamp_ns,
-                                int64_t&  out_sec,
-                                int64_t&  out_nsec);
+    static void split_timestamp(double   timestamp_s,
+                                int64_t  timestamp_ns,
+                                int64_t& out_sec,
+                                int64_t& out_nsec);
 
     // Format a double value with the given precision into a string.
     static std::string format_value(double v, int precision);
@@ -190,8 +188,7 @@ public:
 
     // Build a column header name from topic + field_path.
     // e.g. "/imu" + "linear_acceleration.x" → "/imu/linear_acceleration.x"
-    static std::string make_column_name(const std::string& topic,
-                                        const std::string& field_path);
+    static std::string make_column_name(const std::string& topic, const std::string& field_path);
 
     // Build the fixed timestamp columns header: timestamp_sec, timestamp_nsec,
     // wall_clock (always three columns regardless of value columns).
@@ -200,18 +197,17 @@ public:
     // Populate timestamp string cells from a timestamp_s value.
     // timestamp_s is the X value from LineSeries (seconds as float).
     // Returns {sec_str, nsec_str, wall_clock_str}.
-    std::vector<std::string> format_timestamp_cells(double timestamp_s,
-                                                    int64_t timestamp_ns) const;
+    std::vector<std::string> format_timestamp_cells(double timestamp_s, int64_t timestamp_ns) const;
 
-private:
+   private:
     // Internal helper: build result from a set of (label, x[], y[], ns[]) tuples.
     // ns_data may be empty (timestamp_ns = 0 used as fallback).
     struct SeriesData
     {
-        std::string            column_name;
-        std::vector<float>     x;   // timestamp_s (from LineSeries::x_data())
-        std::vector<float>     y;   // value (from LineSeries::y_data())
-        std::vector<int64_t>   ns;  // timestamp_ns per sample (may be empty)
+        std::string          column_name;
+        std::vector<float>   x;    // timestamp_s (from LineSeries::x_data())
+        std::vector<float>   y;    // value (from LineSeries::y_data())
+        std::vector<int64_t> ns;   // timestamp_ns per sample (may be empty)
     };
 
     CsvExportResult build_result(const std::vector<SeriesData>& series,

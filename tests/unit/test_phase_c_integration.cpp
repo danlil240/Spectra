@@ -57,7 +57,7 @@ using namespace std::chrono_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -76,14 +76,14 @@ public:
 
 class PhaseCIntegrationTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         if (!rclcpp::ok())
             rclcpp::init(0, nullptr);
 
         static std::atomic<int> counter{0};
-        const int id = counter.fetch_add(1);
+        const int               id = counter.fetch_add(1);
 
         bridge_ = std::make_unique<Ros2Bridge>();
         bridge_->init("phase_c_bridge_" + std::to_string(id));
@@ -99,7 +99,7 @@ protected:
     }
 
     // Spin pub_node_ until predicate is true or timeout expires.
-    template<typename Pred>
+    template <typename Pred>
     bool spin_until(Pred pred, std::chrono::milliseconds timeout = 3000ms)
     {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -108,7 +108,8 @@ protected:
         while (std::chrono::steady_clock::now() < deadline)
         {
             exec.spin_once(10ms);
-            if (pred()) return true;
+            if (pred())
+                return true;
         }
         return pred();
     }
@@ -157,36 +158,32 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerAddPlotCreatesHandleWithFigureAndSer
 
     // Create publisher so the topic is discoverable.
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() == 0; }, 500ms);
+    spin_until([&] { return pub->get_subscription_count() == 0; }, 500ms);
     std::this_thread::sleep_for(200ms);
 
     RosPlotManager mgr(*bridge_, intr_);
-    const auto h = mgr.add_plot(topic, "data", "std_msgs/msg/Float64");
+    const auto     h = mgr.add_plot(topic, "data", "std_msgs/msg/Float64");
 
     ASSERT_TRUE(h.valid()) << "add_plot() returned invalid handle";
     EXPECT_GE(h.id, 1);
     EXPECT_EQ(h.topic, topic);
     EXPECT_EQ(h.field_path, "data");
-    EXPECT_NE(h.figure,  nullptr);
-    EXPECT_NE(h.axes,    nullptr);
-    EXPECT_NE(h.series,  nullptr);
+    EXPECT_NE(h.figure, nullptr);
+    EXPECT_NE(h.axes, nullptr);
+    EXPECT_NE(h.series, nullptr);
     EXPECT_EQ(mgr.plot_count(), 1u);
 }
 
 TEST_F(PhaseCIntegrationTest, RosPlotManagerAddThreePlotsEachHasFigureAndSeries)
 {
-    const std::string topics[3] = {
-        "/phase_c_three_a",
-        "/phase_c_three_b",
-        "/phase_c_three_c"
-    };
+    const std::string topics[3] = {"/phase_c_three_a", "/phase_c_three_b", "/phase_c_three_c"};
 
     std::vector<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr> pubs;
     for (const auto& t : topics)
         pubs.push_back(pub_node_->create_publisher<std_msgs::msg::Float64>(t, 10));
     std::this_thread::sleep_for(200ms);
 
-    RosPlotManager mgr(*bridge_, intr_);
+    RosPlotManager          mgr(*bridge_, intr_);
     std::vector<PlotHandle> handles;
     for (const auto& t : topics)
     {
@@ -198,8 +195,8 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerAddThreePlotsEachHasFigureAndSeries)
     EXPECT_EQ(mgr.plot_count(), 3u);
     for (size_t i = 0; i < handles.size(); ++i)
     {
-        EXPECT_NE(handles[i].figure,  nullptr) << "plot " << i << " has null figure";
-        EXPECT_NE(handles[i].series,  nullptr) << "plot " << i << " has null series";
+        EXPECT_NE(handles[i].figure, nullptr) << "plot " << i << " has null figure";
+        EXPECT_NE(handles[i].series, nullptr) << "plot " << i << " has null series";
         EXPECT_EQ(handles[i].topic, topics[i]);
     }
 }
@@ -211,9 +208,9 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerAddThreePlotsEachHasFigureAndSeries)
 TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
 {
     const std::string topic = "/phase_c_poll_100";
-    const int N = 100;
+    const int         N     = 100;
 
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, N + 10);
+    auto           pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, N + 10);
     RosPlotManager mgr(*bridge_, intr_);
     mgr.set_time_window(60.0);   // wide window so nothing is pruned
 
@@ -221,7 +218,7 @@ TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
     ASSERT_TRUE(h.valid());
 
     // Wait for subscription to be established.
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
     // Publish N known values.
     for (int i = 0; i < N; ++i)
@@ -232,8 +229,8 @@ TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
     }
 
     // Drive 100 poll frames, advancing the clock each time.
-    const double t0 = wall_time_s();
-    bool all_arrived = false;
+    const double t0          = wall_time_s();
+    bool         all_arrived = false;
     for (int frame = 0; frame < 100; ++frame)
     {
         mgr.poll();
@@ -245,17 +242,15 @@ TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
         std::this_thread::sleep_for(20ms);
     }
 
-    ASSERT_TRUE(all_arrived)
-        << "Only " << h.series->point_count() << " of " << N
-        << " samples arrived after 100 poll frames";
+    ASSERT_TRUE(all_arrived) << "Only " << h.series->point_count() << " of " << N
+                             << " samples arrived after 100 poll frames";
 
     // Verify Y values match published data (in order).
     const auto ydata = h.series->y_data();
     ASSERT_GE(ydata.size(), static_cast<size_t>(N));
     for (int i = 0; i < N; ++i)
     {
-        EXPECT_NEAR(static_cast<double>(ydata[i]),
-                    static_cast<double>(i) * 0.1, 1e-5)
+        EXPECT_NEAR(static_cast<double>(ydata[i]), static_cast<double>(i) * 0.1, 1e-5)
             << "Y mismatch at sample " << i;
     }
 
@@ -264,8 +259,7 @@ TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
     ASSERT_GE(xdata.size(), static_cast<size_t>(N));
     for (size_t i = 1; i < static_cast<size_t>(N); ++i)
     {
-        EXPECT_GE(xdata[i], xdata[i-1])
-            << "X (timestamp) went backwards at sample " << i;
+        EXPECT_GE(xdata[i], xdata[i - 1]) << "X (timestamp) went backwards at sample " << i;
     }
 
     (void)t0;
@@ -274,21 +268,19 @@ TEST_F(PhaseCIntegrationTest, PollDelivers100SamplesFromFloat64Topic)
 TEST_F(PhaseCIntegrationTest, PollDeliversTwistLinearXData)
 {
     const std::string topic = "/phase_c_twist_lx";
-    const int N = 20;
+    const int         N     = 20;
 
-    auto pub = pub_node_->create_publisher<geometry_msgs::msg::Twist>(topic, N + 10);
+    auto           pub = pub_node_->create_publisher<geometry_msgs::msg::Twist>(topic, N + 10);
     RosPlotManager mgr(*bridge_, intr_);
     mgr.set_time_window(60.0);
 
     const auto h = mgr.add_plot(topic, "linear.x", "geometry_msgs/msg/Twist");
     ASSERT_TRUE(h.valid());
 
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
-    const double expected_vals[20] = {
-        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
-        1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0
-    };
+    const double expected_vals[20] = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+                                      1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
 
     for (int i = 0; i < N; ++i)
     {
@@ -340,11 +332,13 @@ TEST_F(PhaseCIntegrationTest, ThreeTopicsReceiveIndependentData)
     ASSERT_TRUE(h2.valid());
     ASSERT_TRUE(h3.valid());
 
-    spin_until([&]{
-        return pub1->get_subscription_count() >= 1 &&
-               pub2->get_subscription_count() >= 1 &&
-               pub3->get_subscription_count() >= 1;
-    }, 3000ms);
+    spin_until(
+        [&]
+        {
+            return pub1->get_subscription_count() >= 1 && pub2->get_subscription_count() >= 1
+                   && pub3->get_subscription_count() >= 1;
+        },
+        3000ms);
 
     // Publish signature values: 100.x on t1, 200.x on t2, 300.x on t3.
     const int N = 10;
@@ -363,9 +357,9 @@ TEST_F(PhaseCIntegrationTest, ThreeTopicsReceiveIndependentData)
     for (int frame = 0; frame < 150; ++frame)
     {
         mgr.poll();
-        if (h1.series->point_count() >= static_cast<size_t>(N) &&
-            h2.series->point_count() >= static_cast<size_t>(N) &&
-            h3.series->point_count() >= static_cast<size_t>(N))
+        if (h1.series->point_count() >= static_cast<size_t>(N)
+            && h2.series->point_count() >= static_cast<size_t>(N)
+            && h3.series->point_count() >= static_cast<size_t>(N))
         {
             all_arrived = true;
             break;
@@ -373,18 +367,16 @@ TEST_F(PhaseCIntegrationTest, ThreeTopicsReceiveIndependentData)
         std::this_thread::sleep_for(20ms);
     }
 
-    ASSERT_TRUE(all_arrived)
-        << "Not all 3 topics delivered N samples. counts: "
-        << h1.series->point_count() << " "
-        << h2.series->point_count() << " "
-        << h3.series->point_count();
+    ASSERT_TRUE(all_arrived) << "Not all 3 topics delivered N samples. counts: "
+                             << h1.series->point_count() << " " << h2.series->point_count() << " "
+                             << h3.series->point_count();
 
     // Verify signature values — each topic must have its own data.
     const auto y1 = h1.series->y_data();
     const auto y2 = h2.series->y_data();
     const auto y3 = h3.series->y_data();
 
-    EXPECT_GE(y1[0], 99.9f)  << "t1 first sample should be ~100";
+    EXPECT_GE(y1[0], 99.9f) << "t1 first sample should be ~100";
     EXPECT_LE(y1[0], 101.0f) << "t1 first sample should be ~100";
 
     EXPECT_GE(y2[0], 199.9f) << "t2 first sample should be ~200";
@@ -397,7 +389,7 @@ TEST_F(PhaseCIntegrationTest, ThreeTopicsReceiveIndependentData)
 TEST_F(PhaseCIntegrationTest, OnDataCallbackFiresPerSample)
 {
     const std::string topic = "/phase_c_callback";
-    const int N = 5;
+    const int         N     = 5;
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
@@ -405,14 +397,12 @@ TEST_F(PhaseCIntegrationTest, OnDataCallbackFiresPerSample)
     mgr.set_time_window(60.0);
 
     std::atomic<int> cb_count{0};
-    mgr.set_on_data([&](int /*id*/, double /*t*/, double /*v*/) {
-        cb_count.fetch_add(1);
-    });
+    mgr.set_on_data([&](int /*id*/, double /*t*/, double /*v*/) { cb_count.fetch_add(1); });
 
     const auto h = mgr.add_plot(topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
     for (int i = 0; i < N; ++i)
     {
@@ -461,10 +451,10 @@ TEST_F(PhaseCIntegrationTest, AutoScrollWindowClamped)
 {
     RosPlotManager mgr(*bridge_, intr_);
 
-    mgr.set_time_window(0.001);  // below MIN
+    mgr.set_time_window(0.001);   // below MIN
     EXPECT_GE(mgr.time_window(), RosPlotManager::MIN_WINDOW_S);
 
-    mgr.set_time_window(999999.0);  // above MAX
+    mgr.set_time_window(999999.0);   // above MAX
     EXPECT_LE(mgr.time_window(), RosPlotManager::MAX_WINDOW_S);
 }
 
@@ -472,8 +462,8 @@ TEST_F(PhaseCIntegrationTest, PresentedBufferScrollBoundsMatchWindow)
 {
     // Use presented_buffer directly on Axes and verify view bounds.
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     axes.presented_buffer(10.0f);
 
@@ -482,7 +472,7 @@ TEST_F(PhaseCIntegrationTest, PresentedBufferScrollBoundsMatchWindow)
         series.append(static_cast<float>(990.0 + i), static_cast<float>(i));
 
     // x_limits should reflect [latest_x - 10, latest_x].
-    auto lim = axes.x_limits();
+    auto        lim      = axes.x_limits();
     const float latest_x = series.x_data().back();
     EXPECT_NEAR(lim.min, latest_x - 10.0f, 0.5f);
     EXPECT_NEAR(lim.max, latest_x, 0.5f);
@@ -491,8 +481,8 @@ TEST_F(PhaseCIntegrationTest, PresentedBufferScrollBoundsMatchWindow)
 TEST_F(PhaseCIntegrationTest, PauseStopsViewUpdate)
 {
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     axes.presented_buffer(10.0f);
 
@@ -515,8 +505,8 @@ TEST_F(PhaseCIntegrationTest, PauseStopsViewUpdate)
 TEST_F(PhaseCIntegrationTest, ResumeRestoresFollowing)
 {
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     axes.presented_buffer(10.0f);
 
@@ -535,7 +525,7 @@ TEST_F(PhaseCIntegrationTest, ResumeRestoresFollowing)
     for (int i = 0; i < 10; ++i)
         series.append(static_cast<float>(1010.0 + i), static_cast<float>(i));
 
-    auto lim = axes.x_limits();
+    auto        lim      = axes.x_limits();
     const float latest_x = series.x_data().back();
     EXPECT_NEAR(lim.max, latest_x, 0.5f);
 }
@@ -543,8 +533,8 @@ TEST_F(PhaseCIntegrationTest, ResumeRestoresFollowing)
 TEST_F(PhaseCIntegrationTest, ManualYOverrideKeepsPresentedBufferFollowing)
 {
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     axes.presented_buffer(10.0f);
 
@@ -569,8 +559,8 @@ TEST_F(PhaseCIntegrationTest, ManualYOverrideKeepsPresentedBufferFollowing)
 TEST_F(PhaseCIntegrationTest, PausedPresentedBufferKeepsVisibleWindowYRange)
 {
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     axes.presented_buffer(10.0f);
 
@@ -593,8 +583,8 @@ TEST_F(PhaseCIntegrationTest, PausedPresentedBufferKeepsVisibleWindowYRange)
 TEST_F(PhaseCIntegrationTest, EraseBeforePrunesOldData)
 {
     spectra::Figure fig;
-    auto& axes = fig.subplot(1, 1, 1);
-    auto& series = axes.line();
+    auto&           axes   = fig.subplot(1, 1, 1);
+    auto&           series = axes.line();
 
     // Inject data: 10 old samples, 5 recent samples.
     for (int i = 0; i < 10; ++i)
@@ -607,19 +597,19 @@ TEST_F(PhaseCIntegrationTest, EraseBeforePrunesOldData)
 
     // Prune everything before x=990.
     size_t removed = series.erase_before(990.0f);
-    EXPECT_EQ(removed, 10u);           // all 10 old samples removed
-    EXPECT_EQ(series.point_count(), 5u); // 5 recent samples remain
+    EXPECT_EQ(removed, 10u);               // all 10 old samples removed
+    EXPECT_EQ(series.point_count(), 5u);   // 5 recent samples remain
     EXPECT_GE(series.x_data().front(), 990.0f);
 }
 
 TEST_F(PhaseCIntegrationTest, RosPlotManagerPauseAndResumeAllScroll)
 {
     const std::string topic = "/phase_c_pause_resume";
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
     std::this_thread::sleep_for(200ms);
 
     RosPlotManager mgr(*bridge_, intr_);
-    const auto h = mgr.add_plot(topic, "data", "std_msgs/msg/Float64");
+    const auto     h = mgr.add_plot(topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
     EXPECT_FALSE(mgr.is_scroll_paused(h.id));
@@ -633,15 +623,15 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerPauseAndResumeAllScroll)
 
 TEST_F(PhaseCIntegrationTest, RosPlotManagerPauseResumeIndividualPlot)
 {
-    const std::string t1 = "/phase_c_pause_a";
-    const std::string t2 = "/phase_c_pause_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_pause_a";
+    const std::string t2   = "/phase_c_pause_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     RosPlotManager mgr(*bridge_, intr_);
-    const auto h1 = mgr.add_plot(t1, "data", "std_msgs/msg/Float64");
-    const auto h2 = mgr.add_plot(t2, "data", "std_msgs/msg/Float64");
+    const auto     h1 = mgr.add_plot(t1, "data", "std_msgs/msg/Float64");
+    const auto     h2 = mgr.add_plot(t2, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
 
@@ -659,15 +649,15 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerPauseResumeIndividualPlot)
 
 TEST_F(PhaseCIntegrationTest, RemovePlotReducesCount)
 {
-    const std::string t1 = "/phase_c_rm_a";
-    const std::string t2 = "/phase_c_rm_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_rm_a";
+    const std::string t2   = "/phase_c_rm_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     RosPlotManager mgr(*bridge_, intr_);
-    const auto h1 = mgr.add_plot(t1, "data", "std_msgs/msg/Float64");
-    const auto h2 = mgr.add_plot(t2, "data", "std_msgs/msg/Float64");
+    const auto     h1 = mgr.add_plot(t1, "data", "std_msgs/msg/Float64");
+    const auto     h2 = mgr.add_plot(t2, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
     ASSERT_EQ(mgr.plot_count(), 2u);
@@ -687,10 +677,10 @@ TEST_F(PhaseCIntegrationTest, RemoveNonExistentPlotReturnsFalse)
 
 TEST_F(PhaseCIntegrationTest, ClearRemovesAllPlots)
 {
-    const std::string t1 = "/phase_c_clear_a";
-    const std::string t2 = "/phase_c_clear_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_clear_a";
+    const std::string t2   = "/phase_c_clear_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     RosPlotManager mgr(*bridge_, intr_);
@@ -748,7 +738,7 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerFigureIsValid)
 TEST_F(PhaseCIntegrationTest, SubplotManagerAddPlotActivatesSlot)
 {
     const std::string topic = "/phase_c_sub_slot";
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 3, 1);
@@ -757,7 +747,7 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerAddPlotActivatesSlot)
     const auto h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid()) << "add_plot(slot=1) returned invalid handle";
     EXPECT_EQ(h.slot, 1);
-    EXPECT_NE(h.axes,   nullptr);
+    EXPECT_NE(h.axes, nullptr);
     EXPECT_NE(h.series, nullptr);
     EXPECT_EQ(mgr.active_count(), 1);
 }
@@ -765,11 +755,11 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerAddPlotActivatesSlot)
 TEST_F(PhaseCIntegrationTest, SubplotManagerAddPlotRowColConvenience)
 {
     const std::string topic = "/phase_c_sub_rowcol";
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 2);
-    const auto h = mgr.add_plot(2, 1, topic, "data", "std_msgs/msg/Float64");
+    const auto     h = mgr.add_plot(2, 1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
     EXPECT_EQ(h.slot, mgr.index_of(2, 1));
 }
@@ -798,11 +788,13 @@ TEST_F(PhaseCIntegrationTest, ThreeSlotsReceiveIndependentData)
     ASSERT_TRUE(h2.valid());
     ASSERT_TRUE(h3.valid());
 
-    spin_until([&]{
-        return pub1->get_subscription_count() >= 1 &&
-               pub2->get_subscription_count() >= 1 &&
-               pub3->get_subscription_count() >= 1;
-    }, 3000ms);
+    spin_until(
+        [&]
+        {
+            return pub1->get_subscription_count() >= 1 && pub2->get_subscription_count() >= 1
+                   && pub3->get_subscription_count() >= 1;
+        },
+        3000ms);
 
     // Publish 50 known values per topic.
     const int N = 50;
@@ -822,9 +814,9 @@ TEST_F(PhaseCIntegrationTest, ThreeSlotsReceiveIndependentData)
     for (int frame = 0; frame < 200; ++frame)
     {
         mgr.poll();
-        if (h1.series->point_count() >= static_cast<size_t>(N) &&
-            h2.series->point_count() >= static_cast<size_t>(N) &&
-            h3.series->point_count() >= static_cast<size_t>(N))
+        if (h1.series->point_count() >= static_cast<size_t>(N)
+            && h2.series->point_count() >= static_cast<size_t>(N)
+            && h3.series->point_count() >= static_cast<size_t>(N))
         {
             all_arrived = true;
             break;
@@ -832,11 +824,9 @@ TEST_F(PhaseCIntegrationTest, ThreeSlotsReceiveIndependentData)
         std::this_thread::sleep_for(20ms);
     }
 
-    ASSERT_TRUE(all_arrived)
-        << "Slots delivered: "
-        << h1.series->point_count() << " / "
-        << h2.series->point_count() << " / "
-        << h3.series->point_count() << " (expected " << N << " each)";
+    ASSERT_TRUE(all_arrived) << "Slots delivered: " << h1.series->point_count() << " / "
+                             << h2.series->point_count() << " / " << h3.series->point_count()
+                             << " (expected " << N << " each)";
 
     // Verify no cross-contamination: each slot's Y values are in the correct range.
     const auto y1 = h1.series->y_data();
@@ -846,7 +836,7 @@ TEST_F(PhaseCIntegrationTest, ThreeSlotsReceiveIndependentData)
     // Slot 1: values should be in [10, 10+N).
     for (size_t i = 0; i < static_cast<size_t>(N); ++i)
     {
-        EXPECT_GE(y1[i], 9.9f)   << "Slot 1 sample " << i << " out of range";
+        EXPECT_GE(y1[i], 9.9f) << "Slot 1 sample " << i << " out of range";
         EXPECT_LT(y1[i], 10.0f + N + 1.0f) << "Slot 1 sample " << i << " out of range";
     }
     // Slot 2: values should be in [20, 20+N).
@@ -860,7 +850,7 @@ TEST_F(PhaseCIntegrationTest, ThreeSlotsReceiveIndependentData)
 TEST_F(PhaseCIntegrationTest, SubplotManagerOnDataCallbackReceivesSlotId)
 {
     const std::string topic = "/phase_c_sub_cb";
-    const int N = 5;
+    const int         N     = 5;
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
@@ -868,15 +858,13 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerOnDataCallbackReceivesSlotId)
     mgr.set_time_window(120.0);
 
     std::atomic<int> cb_slot{-1};
-    mgr.set_on_data([&](int slot, double /*t*/, double /*v*/) {
-        cb_slot.store(slot);
-    });
+    mgr.set_on_data([&](int slot, double /*t*/, double /*v*/) { cb_slot.store(slot); });
 
     const auto h = mgr.add_plot(2, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
     EXPECT_EQ(h.slot, 2);
 
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
     for (int i = 0; i < N; ++i)
     {
@@ -916,10 +904,10 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerHasAxisLinkManager)
 
 TEST_F(PhaseCIntegrationTest, SubplotManagerSetTimeWindowPropagatesAll)
 {
-    const std::string t1 = "/phase_c_link_a";
-    const std::string t2 = "/phase_c_link_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_link_a";
+    const std::string t2   = "/phase_c_link_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 1);
@@ -935,10 +923,10 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerSetTimeWindowPropagatesAll)
 
 TEST_F(PhaseCIntegrationTest, SubplotManagerScrollPauseResume)
 {
-    const std::string t1 = "/phase_c_spause_a";
-    const std::string t2 = "/phase_c_spause_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_spause_a";
+    const std::string t2   = "/phase_c_spause_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 1);
@@ -959,10 +947,10 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerScrollPauseResume)
 
 TEST_F(PhaseCIntegrationTest, SubplotManagerPauseSingleSlot)
 {
-    const std::string t1 = "/phase_c_sps_a";
-    const std::string t2 = "/phase_c_sps_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_sps_a";
+    const std::string t2   = "/phase_c_sps_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 1);
@@ -984,11 +972,11 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerPauseSingleSlot)
 TEST_F(PhaseCIntegrationTest, SubplotManagerRemovePlotDeactivatesSlot)
 {
     const std::string topic = "/phase_c_srm";
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 3, 1);
-    const auto h = mgr.add_plot(2, topic, "data", "std_msgs/msg/Float64");
+    const auto     h = mgr.add_plot(2, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
     ASSERT_EQ(mgr.active_count(), 1);
 
@@ -999,10 +987,10 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerRemovePlotDeactivatesSlot)
 
 TEST_F(PhaseCIntegrationTest, SubplotManagerClearDeactivatesAllSlots)
 {
-    const std::string t1 = "/phase_c_scl_a";
-    const std::string t2 = "/phase_c_scl_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_scl_a";
+    const std::string t2   = "/phase_c_scl_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 1);
@@ -1032,15 +1020,15 @@ TEST_F(PhaseCIntegrationTest, SharedCursorNotifyClearDoesNotCrash)
 
 TEST_F(PhaseCIntegrationTest, SharedCursorIsForwardedToLinkManager)
 {
-    const std::string t1 = "/phase_c_cur_a";
-    const std::string t2 = "/phase_c_cur_b";
-    auto pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    const std::string t1   = "/phase_c_cur_a";
+    const std::string t2   = "/phase_c_cur_b";
+    auto              pub1 = pub_node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              pub2 = pub_node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
     std::this_thread::sleep_for(200ms);
 
     SubplotManager mgr(*bridge_, intr_, 2, 1);
-    const auto h1 = mgr.add_plot(1, t1, "data", "std_msgs/msg/Float64");
-    const auto h2 = mgr.add_plot(2, t2, "data", "std_msgs/msg/Float64");
+    const auto     h1 = mgr.add_plot(1, t1, "data", "std_msgs/msg/Float64");
+    const auto     h2 = mgr.add_plot(2, t2, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
 
@@ -1051,7 +1039,7 @@ TEST_F(PhaseCIntegrationTest, SharedCursorIsForwardedToLinkManager)
     const auto cursor = mgr.link_manager().shared_cursor_for(h1.axes);
     EXPECT_TRUE(cursor.valid);
     EXPECT_NEAR(cursor.data_x, 10.5, 1e-4);
-    EXPECT_NEAR(cursor.data_y, 3.2,  1e-4);
+    EXPECT_NEAR(cursor.data_y, 3.2, 1e-4);
 
     mgr.clear_cursor();
 }
@@ -1063,9 +1051,9 @@ TEST_F(PhaseCIntegrationTest, SharedCursorIsForwardedToLinkManager)
 TEST_F(PhaseCIntegrationTest, RosPlotManagerMemoryIncreasesWithData)
 {
     const std::string topic = "/phase_c_mem";
-    const int N = 50;
+    const int         N     = 50;
 
-    auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 60);
+    auto           pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 60);
     RosPlotManager mgr(*bridge_, intr_);
     mgr.set_time_window(120.0);
 
@@ -1074,7 +1062,7 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerMemoryIncreasesWithData)
 
     const size_t mem_before = mgr.total_memory_bytes();
 
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
     for (int i = 0; i < N; ++i)
     {
@@ -1103,7 +1091,7 @@ TEST_F(PhaseCIntegrationTest, RosPlotManagerMemoryIncreasesWithData)
 TEST_F(PhaseCIntegrationTest, SubplotManagerMemoryIncreasesWithData)
 {
     const std::string topic = "/phase_c_sub_mem";
-    const int N = 50;
+    const int         N     = 50;
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 60);
 
@@ -1115,7 +1103,7 @@ TEST_F(PhaseCIntegrationTest, SubplotManagerMemoryIncreasesWithData)
 
     const size_t mem_before = mgr.total_memory_bytes();
 
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 3000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 3000ms);
 
     for (int i = 0; i < N; ++i)
     {
@@ -1157,22 +1145,24 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
 
     // --- Step 1: SubplotManager with 3 rows ---
     SubplotManager mgr(*bridge_, intr_, 3, 1);
-    const double WINDOW_S = 5.0;
+    const double   WINDOW_S = 5.0;
     mgr.set_time_window(WINDOW_S);
-    mgr.set_prune_buffer(2.0);  // Small buffer so pruning triggers within test time advance
+    mgr.set_prune_buffer(2.0);   // Small buffer so pruning triggers within test time advance
 
-    const auto ha = mgr.add_plot(1, ta, "data",     "std_msgs/msg/Float64");
-    const auto hb = mgr.add_plot(2, tb, "data",     "std_msgs/msg/Float64");
+    const auto ha = mgr.add_plot(1, ta, "data", "std_msgs/msg/Float64");
+    const auto hb = mgr.add_plot(2, tb, "data", "std_msgs/msg/Float64");
     const auto hc = mgr.add_plot(3, tc, "linear.x", "geometry_msgs/msg/Twist");
     ASSERT_TRUE(ha.valid());
     ASSERT_TRUE(hb.valid());
     ASSERT_TRUE(hc.valid());
 
-    spin_until([&]{
-        return puba->get_subscription_count() >= 1 &&
-               pubb->get_subscription_count() >= 1 &&
-               pubc->get_subscription_count() >= 1;
-    }, 3000ms);
+    spin_until(
+        [&]
+        {
+            return puba->get_subscription_count() >= 1 && pubb->get_subscription_count() >= 1
+                   && pubc->get_subscription_count() >= 1;
+        },
+        3000ms);
 
     // --- Step 2: Publish known values ---
     const int N = 100;
@@ -1191,14 +1181,14 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
 
     // --- Step 3: Drive 100 poll frames ---
     const int MAX_FRAMES = 200;
-    int frames_run = 0;
+    int       frames_run = 0;
     for (int frame = 0; frame < MAX_FRAMES; ++frame)
     {
         mgr.poll();
         ++frames_run;
-        if (ha.series->point_count() >= static_cast<size_t>(N) &&
-            hb.series->point_count() >= static_cast<size_t>(N) &&
-            hc.series->point_count() >= static_cast<size_t>(N))
+        if (ha.series->point_count() >= static_cast<size_t>(N)
+            && hb.series->point_count() >= static_cast<size_t>(N)
+            && hc.series->point_count() >= static_cast<size_t>(N))
             break;
         std::this_thread::sleep_for(20ms);
     }
@@ -1218,7 +1208,7 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
 
         for (int i = 0; i < N; ++i)
         {
-            EXPECT_NEAR(static_cast<double>(ya[i]), static_cast<double>(i),       1e-4)
+            EXPECT_NEAR(static_cast<double>(ya[i]), static_cast<double>(i), 1e-4)
                 << "Slot A Y mismatch at i=" << i;
             EXPECT_NEAR(static_cast<double>(yb[i]), static_cast<double>(i) * 2.0, 1e-4)
                 << "Slot B Y mismatch at i=" << i;
@@ -1241,10 +1231,10 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
     // Add a "far past" sample manually into slot A's series to simulate old data,
     // then verify tick() prunes it.
     {
-        auto* axes   = ha.axes;
-        auto* series = ha.series;
+        auto*        axes   = ha.axes;
+        auto*        series = ha.series;
         const size_t before = series->point_count();
-        const auto xlim = axes->x_limits();
+        const auto   xlim   = axes->x_limits();
         series->append(static_cast<float>(xlim.max + 1.0), 999.0f);
 
         const size_t after_inject = series->point_count();
@@ -1257,13 +1247,13 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
 
         // The injected old sample should have been pruned.
         const size_t after_prune = series->point_count();
-        const auto x_after = series->x_data();
-        const auto lim_after = axes->x_limits();
+        const auto   x_after     = series->x_data();
+        const auto   lim_after   = axes->x_limits();
         EXPECT_LT(after_prune, after_inject)
             << "Pruning did not remove old sample; count: " << after_prune
             << " front_x=" << (x_after.empty() ? 0.0f : x_after.front())
-            << " back_x=" << (x_after.empty() ? 0.0f : x_after.back())
-            << " xlim=[" << lim_after.min << ", " << lim_after.max << "]";
+            << " back_x=" << (x_after.empty() ? 0.0f : x_after.back()) << " xlim=[" << lim_after.min
+            << ", " << lim_after.max << "]";
 
         (void)axes;
     }

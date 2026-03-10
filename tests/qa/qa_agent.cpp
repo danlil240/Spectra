@@ -177,10 +177,9 @@ class ValidationMonitor
         }
 
         VkDebugUtilsMessengerCreateInfoEXT ci{};
-        ci.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        ci.messageSeverity =
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        ci.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        ci.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
         ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                          | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
                          | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
@@ -223,11 +222,10 @@ class ValidationMonitor
     }
 
    private:
-    static VKAPI_ATTR VkBool32 VKAPI_CALL
-    callback(VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
-             VkDebugUtilsMessageTypeFlagsEXT,
-             const VkDebugUtilsMessengerCallbackDataEXT* data,
-             void*                                       user_data)
+    static VKAPI_ATTR VkBool32 VKAPI_CALL callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                                                   VkDebugUtilsMessageTypeFlagsEXT,
+                                                   const VkDebugUtilsMessengerCallbackDataEXT* data,
+                                                   void* user_data)
     {
         auto* self = static_cast<ValidationMonitor*>(user_data);
         if (!self || !data)
@@ -255,11 +253,11 @@ class ValidationMonitor
     VkDebugUtilsMessengerEXT            messenger_  = VK_NULL_HANDLE;
     PFN_vkDestroyDebugUtilsMessengerEXT destroy_fn_ = nullptr;
 
-    std::atomic<uint32_t>               error_count_{0};
-    std::atomic<uint32_t>               warning_count_{0};
-    std::mutex                          mutex_;
+    std::atomic<uint32_t>                error_count_{0};
+    std::atomic<uint32_t>                warning_count_{0};
+    std::mutex                           mutex_;
     std::vector<ValidationMessageRecord> messages_;
-    size_t                              next_unreported_index_ = 0;
+    size_t                               next_unreported_index_ = 0;
 };
 
 static uint64_t fnv1a64(const uint8_t* data, size_t size)
@@ -388,13 +386,13 @@ struct Scenario
 struct ScenarioMemoryMetric
 {
     std::string                   name;
-    bool                          passed = false;
-    uint64_t                      frame_start = 0;
-    uint64_t                      frame_end = 0;
+    bool                          passed           = false;
+    uint64_t                      frame_start      = 0;
+    uint64_t                      frame_end        = 0;
     size_t                        rss_before_bytes = 0;
-    size_t                        rss_after_bytes = 0;
+    size_t                        rss_after_bytes  = 0;
     bool                          gpu_before_valid = false;
-    bool                          gpu_after_valid = false;
+    bool                          gpu_after_valid  = false;
     VulkanBackend::GpuMemoryStats gpu_before{};
     VulkanBackend::GpuMemoryStats gpu_after{};
 };
@@ -864,17 +862,16 @@ class QAAgent
                                         gpu_after});
 
             const int64_t rss_delta = signed_byte_delta(rss_before, rss_after);
-            std::string   delta_log = "[QA]   Memory delta: RSS " + format_mb_delta(rss_delta)
-                                    + " (" + std::to_string(to_mb(rss_before)) + "->"
+            std::string delta_log = "[QA]   Memory delta: RSS " + format_mb_delta(rss_delta) + " ("
+                                    + std::to_string(to_mb(rss_before)) + "->"
                                     + std::to_string(to_mb(rss_after)) + "MB)";
             if (gpu_before_valid && gpu_after_valid)
             {
-                const int64_t gpu_delta =
-                    signed_byte_delta(gpu_before.device_local_usage_bytes,
-                                      gpu_after.device_local_usage_bytes);
+                const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                                            gpu_after.device_local_usage_bytes);
                 delta_log += ", GPU local " + format_mb_delta(gpu_delta) + " ("
-                           + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
-                           + std::to_string(to_mb(gpu_after.device_local_usage_bytes)) + "MB)";
+                             + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
+                             + std::to_string(to_mb(gpu_after.device_local_usage_bytes)) + "MB)";
             }
             else
             {
@@ -886,11 +883,9 @@ class QAAgent
             {
                 add_issue(IssueSeverity::Warning,
                           "scenario_memory",
-                          "Scenario '" + scenario.name + "' retained "
-                              + format_mb_delta(rss_delta) + " RSS after teardown ("
-                              + std::to_string(to_mb(rss_before)) + "->"
-                              + std::to_string(to_mb(rss_after))
-                              + "MB, threshold +20MB)",
+                          "Scenario '" + scenario.name + "' retained " + format_mb_delta(rss_delta)
+                              + " RSS after teardown (" + std::to_string(to_mb(rss_before)) + "->"
+                              + std::to_string(to_mb(rss_after)) + "MB, threshold +20MB)",
                           false);
             }
 
@@ -898,14 +893,13 @@ class QAAgent
                 && gpu_after.device_local_usage_bytes
                        > gpu_before.device_local_usage_bytes + SCENARIO_GPU_WARNING_BYTES)
             {
-                const int64_t gpu_delta =
-                    signed_byte_delta(gpu_before.device_local_usage_bytes,
-                                      gpu_after.device_local_usage_bytes);
+                const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                                            gpu_after.device_local_usage_bytes);
                 add_issue(IssueSeverity::Warning,
                           "scenario_gpu_memory",
-                          "Scenario '" + scenario.name + "' retained "
-                              + format_mb_delta(gpu_delta) + " GPU device-local memory after "
-                                                            "teardown ("
+                          "Scenario '" + scenario.name + "' retained " + format_mb_delta(gpu_delta)
+                              + " GPU device-local memory after "
+                                "teardown ("
                               + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
                               + std::to_string(to_mb(gpu_after.device_local_usage_bytes))
                               + "MB, threshold +5MB)",
@@ -930,15 +924,16 @@ class QAAgent
         const auto messages = validation_monitor_->drain_new_messages();
         for (const auto& msg : messages)
         {
-            const bool is_error = (msg.severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0;
+            const bool is_error =
+                (msg.severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0;
 
             std::string short_message = msg.message;
             if (short_message.size() > 320)
                 short_message = short_message.substr(0, 317) + "...";
 
-            const std::string id = msg.message_id.empty() ? "<no-id>" : msg.message_id;
+            const std::string id        = msg.message_id.empty() ? "<no-id>" : msg.message_id;
             const std::string signature = id + "|" + short_message.substr(0, 160);
-            const uint32_t hit_count = ++validation_message_hits_[signature];
+            const uint32_t    hit_count = ++validation_message_hits_[signature];
 
             // First occurrence is always reported. After that, sample repeats
             // so persistent validation spam doesn't drown real signal.
@@ -956,7 +951,7 @@ class QAAgent
         }
     }
 
-    void inspect_screenshot_artifacts(const std::string& screenshot_name,
+    void inspect_screenshot_artifacts(const std::string&          screenshot_name,
                                       const std::vector<uint8_t>& pixels,
                                       uint32_t                    w,
                                       uint32_t                    h)
@@ -985,16 +980,16 @@ class QAAgent
         const uint8_t b0 = pixels[2];
         const uint8_t a0 = pixels[3];
 
-        size_t same_as_first = 0;
-        size_t alpha_zero    = 0;
-        uint8_t min_luma     = 255;
-        uint8_t max_luma     = 0;
-        double  mean_luma    = 0.0;
-        double  m2_luma      = 0.0;
+        size_t  same_as_first = 0;
+        size_t  alpha_zero    = 0;
+        uint8_t min_luma      = 255;
+        uint8_t max_luma      = 0;
+        double  mean_luma     = 0.0;
+        double  m2_luma       = 0.0;
 
         for (size_t p = 0; p < pixel_count; ++p)
         {
-            const size_t i = p * 4;
+            const size_t  i = p * 4;
             const uint8_t r = pixels[i + 0];
             const uint8_t g = pixels[i + 1];
             const uint8_t b = pixels[i + 2];
@@ -1005,15 +1000,14 @@ class QAAgent
             if (a == 0)
                 alpha_zero++;
 
-            const uint8_t luma =
-                static_cast<uint8_t>((54u * static_cast<uint32_t>(r)
-                                      + 183u * static_cast<uint32_t>(g)
-                                      + 19u * static_cast<uint32_t>(b))
-                                     >> 8);
-            min_luma = std::min(min_luma, luma);
-            max_luma = std::max(max_luma, luma);
+            const uint8_t luma = static_cast<uint8_t>((54u * static_cast<uint32_t>(r)
+                                                       + 183u * static_cast<uint32_t>(g)
+                                                       + 19u * static_cast<uint32_t>(b))
+                                                      >> 8);
+            min_luma           = std::min(min_luma, luma);
+            max_luma           = std::max(max_luma, luma);
 
-            const double x = static_cast<double>(luma);
+            const double x     = static_cast<double>(luma);
             const double delta = x - mean_luma;
             mean_luma += delta / static_cast<double>(p + 1);
             const double delta2 = x - mean_luma;
@@ -2074,7 +2068,7 @@ class QAAgent
         ui->cmd_registry.execute("series.cycle_selection");
         pump_frames(5);
 
-        auto& sel = ui->imgui_ui->selection_context();
+        auto& sel                              = ui->imgui_ui->selection_context();
         bool  selection_matches_current_series = false;
         if (sel.series)
         {
@@ -2087,7 +2081,8 @@ class QAAgent
                 }
             }
         }
-        if (sel.type != ui::SelectionType::Series || !sel.series || !selection_matches_current_series)
+        if (sel.type != ui::SelectionType::Series || !sel.series
+            || !selection_matches_current_series)
         {
             add_issue(IssueSeverity::Error,
                       "clipboard",
@@ -3788,7 +3783,8 @@ class QAAgent
                     x[i] = static_cast<float>(i) * 0.1f;
                     y[i] = std::sin(x[i] + series * 0.5f) * (1.0f + series * 0.2f);
                 }
-                ax.line(x, y).label("Series " + std::to_string(series + 1) + " (long name to test wrapping)");
+                ax.line(x, y).label("Series " + std::to_string(series + 1)
+                                    + " (long name to test wrapping)");
             }
 
             ax.title("Legend Overflow Test (8 series)");
@@ -4483,8 +4479,8 @@ class QAAgent
 
     void write_report()
     {
-        float duration = wall_clock_seconds();
-        const bool validation_active = validation_monitor_ && validation_monitor_->active();
+        float          duration          = wall_clock_seconds();
+        const bool     validation_active = validation_monitor_ && validation_monitor_->active();
         const uint32_t validation_errors =
             validation_monitor_ ? validation_monitor_->error_count() : 0;
         const uint32_t validation_warnings =
@@ -4523,14 +4519,14 @@ class QAAgent
             out << "  Peak RSS: " << to_mb(peak_rss_) << "MB\n";
             if (gpu_memory_tracking_available_)
             {
-                out << "  GPU usage (all heaps): initial=" << to_mb(initial_gpu_memory_.total_usage_bytes)
+                out << "  GPU usage (all heaps): initial="
+                    << to_mb(initial_gpu_memory_.total_usage_bytes)
                     << "MB peak=" << to_mb(peak_gpu_memory_.total_usage_bytes)
                     << "MB budget=" << to_mb(current_gpu_memory_.total_budget_bytes) << "MB\n";
                 out << "  GPU usage (device-local): initial="
-                    << to_mb(initial_gpu_memory_.device_local_usage_bytes) << "MB peak="
-                    << to_mb(peak_gpu_memory_.device_local_usage_bytes)
-                    << "MB budget=" << to_mb(current_gpu_memory_.device_local_budget_bytes)
-                    << "MB";
+                    << to_mb(initial_gpu_memory_.device_local_usage_bytes)
+                    << "MB peak=" << to_mb(peak_gpu_memory_.device_local_usage_bytes)
+                    << "MB budget=" << to_mb(current_gpu_memory_.device_local_budget_bytes) << "MB";
                 if (!current_gpu_memory_.budget_extension_enabled)
                     out << " (VK_EXT_memory_budget unavailable; values may be approximate)";
                 out << "\n";
@@ -4546,8 +4542,8 @@ class QAAgent
                     const int64_t rss_delta =
                         signed_byte_delta(metric.rss_before_bytes, metric.rss_after_bytes);
                     out << "  " << metric.name << ": RSS " << format_mb_delta(rss_delta) << " ("
-                        << to_mb(metric.rss_before_bytes) << "->"
-                        << to_mb(metric.rss_after_bytes) << "MB)";
+                        << to_mb(metric.rss_before_bytes) << "->" << to_mb(metric.rss_after_bytes)
+                        << "MB)";
                     if (metric.gpu_before_valid && metric.gpu_after_valid)
                     {
                         const int64_t gpu_delta =
@@ -4658,16 +4654,16 @@ class QAAgent
             out << "  \"memory\": {\n";
             out << "    \"initial_rss_mb\": " << to_mb(initial_rss_) << ",\n";
             out << "    \"peak_rss_mb\": " << to_mb(peak_rss_) << ",\n";
-            out << "    \"gpu_memory_tracking\": " << (gpu_memory_tracking_available_ ? "true" : "false")
-                << ",\n";
+            out << "    \"gpu_memory_tracking\": "
+                << (gpu_memory_tracking_available_ ? "true" : "false") << ",\n";
             out << "    \"gpu_budget_extension\": "
                 << (current_gpu_memory_.budget_extension_enabled ? "true" : "false") << ",\n";
             out << "    \"gpu_initial_usage_mb\": " << to_mb(initial_gpu_memory_.total_usage_bytes)
                 << ",\n";
             out << "    \"gpu_peak_usage_mb\": " << to_mb(peak_gpu_memory_.total_usage_bytes)
                 << ",\n";
-            out << "    \"gpu_current_budget_mb\": " << to_mb(current_gpu_memory_.total_budget_bytes)
-                << ",\n";
+            out << "    \"gpu_current_budget_mb\": "
+                << to_mb(current_gpu_memory_.total_budget_bytes) << ",\n";
             out << "    \"gpu_initial_device_local_mb\": "
                 << to_mb(initial_gpu_memory_.device_local_usage_bytes) << ",\n";
             out << "    \"gpu_peak_device_local_mb\": "
@@ -4683,21 +4679,21 @@ class QAAgent
             out << "  \"scenario_memory\": [\n";
             for (size_t i = 0; i < scenario_memory_.size(); ++i)
             {
-                const auto& metric = scenario_memory_[i];
-                const int64_t rss_delta_mb =
-                    to_mb_signed(signed_byte_delta(metric.rss_before_bytes, metric.rss_after_bytes));
-                out << "    {\"name\": \"" << metric.name << "\", \"passed\": "
-                    << (metric.passed ? "true" : "false") << ", \"frames\": "
-                    << (metric.frame_end - metric.frame_start) << ", \"rss_start_mb\": "
-                    << to_mb(metric.rss_before_bytes) << ", \"rss_end_mb\": "
-                    << to_mb(metric.rss_after_bytes) << ", \"rss_delta_mb\": " << rss_delta_mb
-                    << ", \"gpu_memory_tracked\": "
+                const auto&   metric       = scenario_memory_[i];
+                const int64_t rss_delta_mb = to_mb_signed(
+                    signed_byte_delta(metric.rss_before_bytes, metric.rss_after_bytes));
+                out << "    {\"name\": \"" << metric.name
+                    << "\", \"passed\": " << (metric.passed ? "true" : "false")
+                    << ", \"frames\": " << (metric.frame_end - metric.frame_start)
+                    << ", \"rss_start_mb\": " << to_mb(metric.rss_before_bytes)
+                    << ", \"rss_end_mb\": " << to_mb(metric.rss_after_bytes)
+                    << ", \"rss_delta_mb\": " << rss_delta_mb << ", \"gpu_memory_tracked\": "
                     << ((metric.gpu_before_valid && metric.gpu_after_valid) ? "true" : "false");
                 if (metric.gpu_before_valid && metric.gpu_after_valid)
                 {
-                    const int64_t gpu_delta_mb = to_mb_signed(
-                        signed_byte_delta(metric.gpu_before.device_local_usage_bytes,
-                                          metric.gpu_after.device_local_usage_bytes));
+                    const int64_t gpu_delta_mb =
+                        to_mb_signed(signed_byte_delta(metric.gpu_before.device_local_usage_bytes,
+                                                       metric.gpu_after.device_local_usage_bytes));
                     out << ", \"gpu_device_local_start_mb\": "
                         << to_mb(metric.gpu_before.device_local_usage_bytes)
                         << ", \"gpu_device_local_end_mb\": "
@@ -4764,7 +4760,7 @@ class QAAgent
     QAOptions    opts_;
     std::mt19937 rng_;
 
-    std::unique_ptr<App> app_;
+    std::unique_ptr<App>               app_;
     std::unique_ptr<ValidationMonitor> validation_monitor_;
 
     std::chrono::steady_clock::time_point start_time_;
@@ -4775,15 +4771,15 @@ class QAAgent
 
     FrameStats frame_stats_;
 
-    size_t initial_rss_ = 0;
-    size_t peak_rss_    = 0;
-    bool   gpu_memory_tracking_available_ = false;
+    size_t                        initial_rss_                   = 0;
+    size_t                        peak_rss_                      = 0;
+    bool                          gpu_memory_tracking_available_ = false;
     VulkanBackend::GpuMemoryStats initial_gpu_memory_{};
     VulkanBackend::GpuMemoryStats current_gpu_memory_{};
     VulkanBackend::GpuMemoryStats peak_gpu_memory_{};
 
-    std::vector<QAIssue>  issues_;
-    std::vector<Scenario> scenarios_;
+    std::vector<QAIssue>              issues_;
+    std::vector<Scenario>             scenarios_;
     std::vector<ScenarioMemoryMetric> scenario_memory_;
 
     // P0 fix: screenshot rate limiting per category
@@ -4814,7 +4810,9 @@ static void crash_handler(int sig)
                        g_last_action,
                        static_cast<unsigned long>(g_qa_seed));
     if (len > 0)
-        if (write(STDERR_FILENO, buf, static_cast<size_t>(len))) {}
+        if (write(STDERR_FILENO, buf, static_cast<size_t>(len)))
+        {
+        }
 
 #ifdef __linux__
     // Stack trace via backtrace()
@@ -4823,7 +4821,9 @@ static void crash_handler(int sig)
     if (nframes > 0)
     {
         const char* hdr = "[QA] Stack trace:\n";
-        if (write(STDERR_FILENO, hdr, strlen(hdr))) {}
+        if (write(STDERR_FILENO, hdr, strlen(hdr)))
+        {
+        }
         backtrace_symbols_fd(frames, nframes, STDERR_FILENO);
     }
 #endif
@@ -4843,7 +4843,9 @@ static void crash_handler(int sig)
                                 static_cast<unsigned long>(g_qa_seed),
                                 g_last_action);
             if (clen > 0)
-                if (write(fd, crash_buf, static_cast<size_t>(clen))) {}
+                if (write(fd, crash_buf, static_cast<size_t>(clen)))
+                {
+                }
 #ifdef __linux__
             if (nframes > 0)
                 backtrace_symbols_fd(frames, nframes, fd);
@@ -4853,7 +4855,9 @@ static void crash_handler(int sig)
     }
 
     const char* footer = "[QA] ══════════════════════════════════════\n";
-    if (write(STDERR_FILENO, footer, strlen(footer))) {}
+    if (write(STDERR_FILENO, footer, strlen(footer)))
+    {
+    }
     _exit(2);
 }
 

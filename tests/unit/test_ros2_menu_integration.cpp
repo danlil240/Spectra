@@ -94,12 +94,13 @@ TEST_F(Ros2AdapterStateTest, ClearWithoutSetIsNoop)
 TEST(Ros2AdapterCommandTest, CommandRegisteredWithCorrectCategory)
 {
     spectra::CommandRegistry reg;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         []() {},   // no-op callback for test
-                         "",
-                         "Tools",
-                         0);
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []() {},   // no-op callback for test
+        "",
+        "Tools",
+        0);
 
     const spectra::Command* cmd = reg.find("tools.ros2_adapter");
     ASSERT_NE(cmd, nullptr);
@@ -109,12 +110,13 @@ TEST(Ros2AdapterCommandTest, CommandRegisteredWithCorrectCategory)
 TEST(Ros2AdapterCommandTest, CommandRegisteredWithCorrectLabel)
 {
     spectra::CommandRegistry reg;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         []() {},
-                         "",
-                         "Tools",
-                         0);
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []() {},
+        "",
+        "Tools",
+        0);
 
     const spectra::Command* cmd = reg.find("tools.ros2_adapter");
     ASSERT_NE(cmd, nullptr);
@@ -124,12 +126,13 @@ TEST(Ros2AdapterCommandTest, CommandRegisteredWithCorrectLabel)
 TEST(Ros2AdapterCommandTest, CommandEnabledByDefault)
 {
     spectra::CommandRegistry reg;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         []() {},
-                         "",
-                         "Tools",
-                         0);
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []() {},
+        "",
+        "Tools",
+        0);
 
     const spectra::Command* cmd = reg.find("tools.ros2_adapter");
     ASSERT_NE(cmd, nullptr);
@@ -145,13 +148,14 @@ TEST(Ros2AdapterCommandTest, CommandNotPresentByDefaultInEmptyRegistry)
 TEST(Ros2AdapterCommandTest, CommandExecuteInvokesCallback)
 {
     spectra::CommandRegistry reg;
-    bool called = false;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         [&called]() { called = true; },
-                         "",
-                         "Tools",
-                         0);
+    bool                     called = false;
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        [&called]() { called = true; },
+        "",
+        "Tools",
+        0);
 
     bool ok = reg.execute("tools.ros2_adapter");
     EXPECT_TRUE(ok);
@@ -161,12 +165,13 @@ TEST(Ros2AdapterCommandTest, CommandExecuteInvokesCallback)
 TEST(Ros2AdapterCommandTest, CommandAppearsInToolsCategory)
 {
     spectra::CommandRegistry reg;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         []() {},
-                         "",
-                         "Tools",
-                         0);
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []() {},
+        "",
+        "Tools",
+        0);
 
     auto tools_cmds = reg.commands_in_category("Tools");
     bool found      = false;
@@ -184,12 +189,13 @@ TEST(Ros2AdapterCommandTest, CommandAppearsInToolsCategory)
 TEST(Ros2AdapterCommandTest, CommandSearchFindsROS2Adapter)
 {
     spectra::CommandRegistry reg;
-    reg.register_command("tools.ros2_adapter",
-                         "ROS2 Adapter",
-                         []() {},
-                         "",
-                         "Tools",
-                         0);
+    reg.register_command(
+        "tools.ros2_adapter",
+        "ROS2 Adapter",
+        []() {},
+        "",
+        "Tools",
+        0);
 
     auto results = reg.search("ros2", 10);
     ASSERT_FALSE(results.empty());

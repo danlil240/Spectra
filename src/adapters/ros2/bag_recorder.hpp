@@ -39,19 +39,19 @@
 
 #ifdef SPECTRA_ROS2_BAG
 
-#include <atomic>
-#include <chrono>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <unordered_map>
-#include <vector>
+    #include <atomic>
+    #include <chrono>
+    #include <cstdint>
+    #include <functional>
+    #include <memory>
+    #include <mutex>
+    #include <string>
+    #include <unordered_map>
+    #include <vector>
 
-#include <rclcpp/rclcpp.hpp>
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/storage_options.hpp>
+    #include <rclcpp/rclcpp.hpp>
+    #include <rosbag2_cpp/writer.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
 
 namespace spectra::adapters::ros2
 {
@@ -62,9 +62,9 @@ namespace spectra::adapters::ros2
 
 enum class RecordingState
 {
-    Idle,       // not recording
-    Recording,  // actively writing messages
-    Stopping,   // stop() called, finishing current file
+    Idle,        // not recording
+    Recording,   // actively writing messages
+    Stopping,    // stop() called, finishing current file
 };
 
 // ---------------------------------------------------------------------------
@@ -73,11 +73,11 @@ enum class RecordingState
 
 struct RecordingSplitInfo
 {
-    std::string  closed_path;    // path of the file just closed
-    std::string  new_path;       // path of the newly opened file
-    uint32_t     split_index{0};      // 0-based split number (0 = no split yet)
-    uint64_t     messages_in_closed{0};  // message count in the closed file
-    uint64_t     bytes_in_closed{0};     // approximate bytes in the closed file
+    std::string closed_path;             // path of the file just closed
+    std::string new_path;                // path of the newly opened file
+    uint32_t    split_index{0};          // 0-based split number (0 = no split yet)
+    uint64_t    messages_in_closed{0};   // message count in the closed file
+    uint64_t    bytes_in_closed{0};      // approximate bytes in the closed file
 };
 
 // ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ struct RecordingSplitInfo
 
 class BagRecorder
 {
-public:
+   public:
     // Construct with a shared ROS2 node used to create subscriptions.
     explicit BagRecorder(rclcpp::Node::SharedPtr node);
     ~BagRecorder();
@@ -103,17 +103,17 @@ public:
 
     // Maximum bag file size in bytes before auto-split.
     // 0 = no size limit (default).
-    void set_max_size_bytes(uint64_t bytes) noexcept;
+    void     set_max_size_bytes(uint64_t bytes) noexcept;
     uint64_t max_size_bytes() const noexcept;
 
     // Maximum bag duration in seconds before auto-split.
     // 0.0 = no duration limit (default).
-    void set_max_duration_seconds(double seconds) noexcept;
+    void   set_max_duration_seconds(double seconds) noexcept;
     double max_duration_seconds() const noexcept;
 
     // Storage plugin: "sqlite3" (default) or "mcap".
     // Overrides auto-detection from path extension when non-empty.
-    void set_storage_id(const std::string& id);
+    void               set_storage_id(const std::string& id);
     const std::string& storage_id() const noexcept;
 
     // QoS reliability for subscriptions: true = reliable (default), false = best-effort.
@@ -139,8 +139,7 @@ public:
     //
     // Returns true on success; false on failure (see last_error()).
     // Calling start() while already recording returns false immediately.
-    bool start(const std::string& bag_path,
-               const std::vector<std::string>& topics);
+    bool start(const std::string& bag_path, const std::vector<std::string>& topics);
 
     // Stop recording and flush the writer.
     // Blocks until all pending writes complete and the file is finalized.
@@ -152,7 +151,7 @@ public:
     // ------------------------------------------------------------------
 
     RecordingState state() const noexcept;
-    bool is_recording() const noexcept;
+    bool           is_recording() const noexcept;
 
     // Path passed to the most recent start() call.
     std::string recording_path() const;
@@ -192,15 +191,15 @@ public:
     // ------------------------------------------------------------------
 
     const std::string& last_error() const noexcept;
-    void clear_error() noexcept;
+    void               clear_error() noexcept;
 
-private:
+   private:
     // Create subscriptions for each topic in topics_.
     bool subscribe_topics();
 
     // Message callback for all subscriptions (executor thread).
-    void on_message(const std::string& topic_name,
-                    const std::string& message_type,
+    void on_message(const std::string&                               topic_name,
+                    const std::string&                               message_type,
                     std::shared_ptr<const rclcpp::SerializedMessage> msg);
 
     // Check auto-split conditions and perform split if needed.
@@ -230,23 +229,23 @@ private:
     // Members
     // ------------------------------------------------------------------
 
-    rclcpp::Node::SharedPtr  node_;
-    mutable std::mutex       mutex_;
+    rclcpp::Node::SharedPtr node_;
+    mutable std::mutex      mutex_;
 
     // Configuration (immutable after start())
-    uint64_t     max_size_bytes_{0};
-    double       max_duration_seconds_{0.0};
-    std::string  storage_id_override_;
-    bool         reliable_qos_{true};
+    uint64_t    max_size_bytes_{0};
+    double      max_duration_seconds_{0.0};
+    std::string storage_id_override_;
+    bool        reliable_qos_{true};
 
     // Runtime state
-    RecordingState  state_{RecordingState::Idle};
-    std::string     base_path_;           // path as passed to start()
-    std::string     current_path_;        // path of the currently-open file
-    uint32_t        split_index_{0};
-    uint64_t        message_count_{0};    // total messages since start()
-    uint64_t        bytes_total_{0};      // total bytes since start()
-    uint64_t        bytes_since_split_{0};// bytes in the current file
+    RecordingState state_{RecordingState::Idle};
+    std::string    base_path_;      // path as passed to start()
+    std::string    current_path_;   // path of the currently-open file
+    uint32_t       split_index_{0};
+    uint64_t       message_count_{0};       // total messages since start()
+    uint64_t       bytes_total_{0};         // total bytes since start()
+    uint64_t       bytes_since_split_{0};   // bytes in the current file
 
     std::chrono::steady_clock::time_point start_time_;
     std::chrono::steady_clock::time_point split_start_time_;
@@ -263,26 +262,31 @@ private:
     std::vector<rclcpp::GenericSubscription::SharedPtr> subscriptions_;
 
     // Callbacks
-    SplitCallback  split_cb_;
-    ErrorCallback  error_cb_;
+    SplitCallback split_cb_;
+    ErrorCallback error_cb_;
 
     // Last error string
     std::string last_error_;
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2
 
-#else // SPECTRA_ROS2_BAG not defined — empty stubs so headers compile cleanly.
+#else   // SPECTRA_ROS2_BAG not defined — empty stubs so headers compile cleanly.
 
-#include <cstdint>
-#include <functional>
-#include <string>
-#include <vector>
+    #include <cstdint>
+    #include <functional>
+    #include <string>
+    #include <vector>
 
 namespace spectra::adapters::ros2
 {
 
-enum class RecordingState { Idle, Recording, Stopping };
+enum class RecordingState
+{
+    Idle,
+    Recording,
+    Stopping
+};
 
 struct RecordingSplitInfo
 {
@@ -295,31 +299,31 @@ struct RecordingSplitInfo
 
 class BagRecorder
 {
-public:
+   public:
     // Accept a void* node placeholder so callers don't need rclcpp in scope.
     explicit BagRecorder(void* /*node*/) {}
 
-    void     set_max_size_bytes(uint64_t)          noexcept {}
-    uint64_t max_size_bytes()               const  noexcept { return 0; }
-    void     set_max_duration_seconds(double)      noexcept {}
-    double   max_duration_seconds()         const  noexcept { return 0.0; }
-    void     set_storage_id(const std::string&)            {}
-    const std::string& storage_id()         const  noexcept { return storage_id_; }
-    void     set_reliable_qos(bool)                noexcept {}
-    bool     reliable_qos()                 const  noexcept { return true; }
+    void               set_max_size_bytes(uint64_t) noexcept {}
+    uint64_t           max_size_bytes() const noexcept { return 0; }
+    void               set_max_duration_seconds(double) noexcept {}
+    double             max_duration_seconds() const noexcept { return 0.0; }
+    void               set_storage_id(const std::string&) {}
+    const std::string& storage_id() const noexcept { return storage_id_; }
+    void               set_reliable_qos(bool) noexcept {}
+    bool               reliable_qos() const noexcept { return true; }
 
     bool start(const std::string&, const std::vector<std::string>&) { return false; }
     void stop() {}
 
-    RecordingState state()                  const  noexcept { return RecordingState::Idle; }
-    bool           is_recording()           const  noexcept { return false; }
-    std::string    recording_path()         const           { return {}; }
-    std::string    current_path()           const           { return {}; }
-    uint64_t       recorded_message_count() const  noexcept { return 0; }
-    uint64_t       recorded_bytes()         const  noexcept { return 0; }
-    double         elapsed_seconds()        const  noexcept { return 0.0; }
-    uint32_t       split_index()            const  noexcept { return 0; }
-    std::vector<std::string> recorded_topics() const        { return {}; }
+    RecordingState           state() const noexcept { return RecordingState::Idle; }
+    bool                     is_recording() const noexcept { return false; }
+    std::string              recording_path() const { return {}; }
+    std::string              current_path() const { return {}; }
+    uint64_t                 recorded_message_count() const noexcept { return 0; }
+    uint64_t                 recorded_bytes() const noexcept { return 0; }
+    double                   elapsed_seconds() const noexcept { return 0.0; }
+    uint32_t                 split_index() const noexcept { return 0; }
+    std::vector<std::string> recorded_topics() const { return {}; }
 
     using SplitCallback = std::function<void(const RecordingSplitInfo&)>;
     using ErrorCallback = std::function<void(const std::string&)>;
@@ -327,13 +331,13 @@ public:
     void set_error_callback(ErrorCallback) {}
 
     const std::string& last_error() const noexcept { return last_error_; }
-    void               clear_error()      noexcept { last_error_.clear(); }
+    void               clear_error() noexcept { last_error_.clear(); }
 
-private:
+   private:
     std::string storage_id_;
     std::string last_error_{"BagRecorder: built without SPECTRA_ROS2_BAG"};
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2
 
-#endif // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG

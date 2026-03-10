@@ -60,10 +60,10 @@ struct FieldDragPayload
     bool valid() const { return !topic_name.empty(); }
 
     // Build a canonical label from topic + field.
-    static std::string make_label(const std::string& topic,
-                                  const std::string& field)
+    static std::string make_label(const std::string& topic, const std::string& field)
     {
-        if (field.empty()) return topic;
+        if (field.empty())
+            return topic;
         return topic + "/" + field;
     }
 };
@@ -74,16 +74,15 @@ struct FieldDragPayload
 
 enum class PlotTarget : uint8_t
 {
-    NewWindow   = 0,  // create a new OS window / Figure
-    CurrentAxes = 1,  // overlay onto the currently active Axes
-    NewSubplot  = 2,  // add a new subplot row to the current Figure
+    NewWindow   = 0,   // create a new OS window / Figure
+    CurrentAxes = 1,   // overlay onto the currently active Axes
+    NewSubplot  = 2,   // add a new subplot row to the current Figure
 };
 
 // ---------------------------------------------------------------------------
 // PlotRequestCallback — fired when the user commits a drop or menu action.
 // ---------------------------------------------------------------------------
-using PlotRequestCallback =
-    std::function<void(const FieldDragPayload& payload, PlotTarget target)>;
+using PlotRequestCallback = std::function<void(const FieldDragPayload& payload, PlotTarget target)>;
 
 // ---------------------------------------------------------------------------
 // FieldDragDrop — stateful controller for C3 interaction.
@@ -91,7 +90,7 @@ using PlotRequestCallback =
 
 class FieldDragDrop
 {
-public:
+   public:
     // ImGui type-id string used for the drag payload.
     static constexpr const char* DRAG_TYPE = "ROS2_FIELD";
 
@@ -106,10 +105,7 @@ public:
     // ---------- wiring -------------------------------------------------------
 
     // Set the callback that is invoked whenever the user requests a plot action.
-    void set_plot_request_callback(PlotRequestCallback cb)
-    {
-        request_cb_ = std::move(cb);
-    }
+    void set_plot_request_callback(PlotRequestCallback cb) { request_cb_ = std::move(cb); }
 
     // ---------- drag source helpers ------------------------------------------
 
@@ -146,8 +142,7 @@ public:
     // corresponding target.
     //
     // `popup_id` must be unique per call site (used as ImGui popup label).
-    void show_context_menu(const FieldDragPayload& payload,
-                           const char* popup_id = "##field_ctx");
+    void show_context_menu(const FieldDragPayload& payload, const char* popup_id = "##field_ctx");
 
     // ---------- empty-area drop zone -----------------------------------------
 
@@ -170,19 +165,18 @@ public:
 
     // Returns true if a pending plot request was queued by the context menu
     // and clears the pending state.  Call once per frame.
-    bool consume_pending_request(FieldDragPayload& payload_out,
-                                 PlotTarget& target_out);
+    bool consume_pending_request(FieldDragPayload& payload_out, PlotTarget& target_out);
 
-private:
+   private:
     void fire_request(const FieldDragPayload& payload, PlotTarget target);
 
     PlotRequestCallback request_cb_;
 
     // Pending action from context menu (fires next frame, avoids reentrant call
     // inside the ImGui popup stack).
-    bool         pending_{false};
+    bool             pending_{false};
     FieldDragPayload pending_payload_;
-    PlotTarget   pending_target_{PlotTarget::NewWindow};
+    PlotTarget       pending_target_{PlotTarget::NewWindow};
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2

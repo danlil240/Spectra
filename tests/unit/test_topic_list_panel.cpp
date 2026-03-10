@@ -20,15 +20,15 @@ using namespace spectra::adapters::ros2;
 // ---------------------------------------------------------------------------
 
 static TopicInfo make_topic(const std::string& name,
-                            const std::string& type  = "std_msgs/msg/Float64",
-                            int pubs                 = 1,
-                            int subs                 = 0)
+                            const std::string& type = "std_msgs/msg/Float64",
+                            int                pubs = 1,
+                            int                subs = 0)
 {
     TopicInfo t;
-    t.name              = name;
-    t.types             = {type};
-    t.publisher_count   = pubs;
-    t.subscriber_count  = subs;
+    t.name             = name;
+    t.types            = {type};
+    t.publisher_count  = pubs;
+    t.subscriber_count = subs;
     return t;
 }
 
@@ -74,10 +74,10 @@ TEST(TopicListPanel, ColumnVisibilityRoundTrips)
 
     panel.set_column_visibility({
         .show_type = false,
-        .show_hz = true,
+        .show_hz   = true,
         .show_pubs = false,
         .show_subs = true,
-        .show_bw = false,
+        .show_bw   = false,
     });
 
     const auto visibility = panel.column_visibility();
@@ -211,7 +211,7 @@ TEST(TopicStats, SingleMessage)
 {
     TopicStats st;
     st.push(1'000'000'000LL, 64);
-    st.prune_and_compute(1'000'100'000LL);  // 100 µs later
+    st.prune_and_compute(1'000'100'000LL);   // 100 µs later
     // Only 1 sample → hz = 1.0 (special case), bw still 0
     EXPECT_DOUBLE_EQ(st.hz, 1.0);
     EXPECT_EQ(st.total_messages, 1u);
@@ -232,7 +232,8 @@ TEST(TopicStats, TenMessagesHz)
 {
     TopicStats st;
     // 10 messages at 100 ms intervals over 0.9 s → hz ≈ 10 Hz
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         st.push(static_cast<int64_t>(i) * 100'000'000LL, 50);
     }
     st.prune_and_compute(1'000'000'000LL);
@@ -243,7 +244,8 @@ TEST(TopicStats, BandwidthComputed)
 {
     TopicStats st;
     // Push 10 messages × 1024 bytes at 10 Hz within a 1 s window.
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         st.push(static_cast<int64_t>(i) * 100'000'000LL, 1024);
     }
     st.prune_and_compute(1'000'000'000LL);
@@ -253,9 +255,9 @@ TEST(TopicStats, BandwidthComputed)
 
 TEST(TopicStats, ActiveWithinThreshold)
 {
-    TopicStats st;
+    TopicStats    st;
     const int64_t now = 5'000'000'000LL;
-    st.push(now - 500'000'000LL, 64);  // 0.5 s ago
+    st.push(now - 500'000'000LL, 64);   // 0.5 s ago
     st.prune_and_compute(now);
     EXPECT_TRUE(st.active);
 }
@@ -275,7 +277,8 @@ TEST(TopicStats, OldMessagesDroppedFromHz)
     TopicStats st;
     // Push 5 old messages (> 1 s window), then 3 recent ones.
     const int64_t now = 10'000'000'000LL;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         st.push(now - 5'000'000'000LL + static_cast<int64_t>(i) * 100'000'000LL, 32);
     }
     // Recent messages within window.
@@ -305,7 +308,7 @@ TEST(TopicStats, Counters)
 TEST(TopicListPanel, NotifyMessage_StatsForUnknown)
 {
     TopicListPanel panel;
-    auto snap = panel.stats_for("/nonexistent");
+    auto           snap = panel.stats_for("/nonexistent");
     EXPECT_DOUBLE_EQ(snap.hz, 0.0);
     EXPECT_DOUBLE_EQ(snap.bandwidth_bps, 0.0);
     EXPECT_FALSE(snap.active);
@@ -348,8 +351,10 @@ TEST(TopicListPanel, NotifyMessage_ThreadSafe)
 {
     TopicListPanel panel;
     // Fire 100 notifications from two threads.
-    auto worker = [&] {
-        for (int i = 0; i < 50; ++i) {
+    auto worker = [&]
+    {
+        for (int i = 0; i < 50; ++i)
+        {
             panel.notify_message("/t", 64);
         }
     };
@@ -379,7 +384,7 @@ TEST(TopicListPanel, SelectCallbackNotFiredBeforeDraw)
 TEST(TopicListPanel, PlotCallbackSetAndGet)
 {
     TopicListPanel panel;
-    bool fired = false;
+    bool           fired = false;
     panel.set_plot_callback([&](const std::string&) { fired = true; });
     // Callback stored; draw() would fire it on double-click, not testable here.
     EXPECT_FALSE(fired);
@@ -393,7 +398,7 @@ TEST(TopicListPanel, TopicCountAfterSetTopics)
 {
     TopicListPanel panel;
     panel.set_topics({
-        make_topic("/"),         // degenerate root
+        make_topic("/"),   // degenerate root
         make_topic("/rosout"),
         make_topic("/robot/cmd_vel"),
         make_topic("/robot/arm/joint_states"),
@@ -435,7 +440,7 @@ TEST(TopicListPanel, DrawNoOpWithoutImGui)
     panel.draw(nullptr);
     bool open = true;
     panel.draw(&open);
-    EXPECT_TRUE(open);  // p_open must not be modified without ImGui
+    EXPECT_TRUE(open);   // p_open must not be modified without ImGui
 }
 
 // ---------------------------------------------------------------------------
@@ -445,9 +450,11 @@ TEST(TopicListPanel, DrawNoOpWithoutImGui)
 TEST(TopicListPanel, MultipleSetTopicsCalls)
 {
     TopicListPanel panel;
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         std::vector<TopicInfo> ts;
-        for (int j = 0; j < i; ++j) {
+        for (int j = 0; j < i; ++j)
+        {
             ts.push_back(make_topic("/t" + std::to_string(j)));
         }
         panel.set_topics(ts);
@@ -465,9 +472,10 @@ TEST(TopicListPanel, NotifyBeforeSetTopics)
 
 TEST(TopicListPanel, LargeTopicList)
 {
-    TopicListPanel panel;
+    TopicListPanel         panel;
     std::vector<TopicInfo> ts;
-    for (int i = 0; i < 200; ++i) {
+    for (int i = 0; i < 200; ++i)
+    {
         ts.push_back(make_topic("/ns/sub/topic_" + std::to_string(i)));
     }
     panel.set_topics(ts);
@@ -494,10 +502,10 @@ TEST(TopicListPanel, StatsWindowMs)
     // Push messages at t=0 and t=600ms — the 600ms one is within a 1s window
     // but outside a 500ms window so only the recent one counts.
     const int64_t now = 1'000'000'000LL;
-    st.push(now - 600'000'000LL, 50);  // outside 500 ms window
-    st.push(now - 100'000'000LL, 50);  // inside 500 ms window
+    st.push(now - 600'000'000LL, 50);   // outside 500 ms window
+    st.push(now - 100'000'000LL, 50);   // inside 500 ms window
     st.prune_and_compute(now, 500'000'000LL);
-    EXPECT_EQ(st.timestamps.size(), 1u);  // old one pruned
+    EXPECT_EQ(st.timestamps.size(), 1u);   // old one pruned
 }
 
 // ---------------------------------------------------------------------------

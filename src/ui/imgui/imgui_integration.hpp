@@ -80,15 +80,15 @@ class ImGuiIntegration
     // Call instead of new_frame() when initialized with init_headless().
     struct HeadlessFrameInput
     {
-        float    display_w  = 800.0f;
-        float    display_h  = 600.0f;
-        float    dt         = 1.0f / 60.0f;
-        float    mouse_x    = -FLT_MAX;
-        float    mouse_y    = -FLT_MAX;
-        bool     mouse_down[5] = {};
-        float    mouse_wheel   = 0.0f;
-        float    mouse_wheel_h = 0.0f;
-        float    dpi_scale     = 1.0f;
+        float display_w     = 800.0f;
+        float display_h     = 600.0f;
+        float dt            = 1.0f / 60.0f;
+        float mouse_x       = -FLT_MAX;
+        float mouse_y       = -FLT_MAX;
+        bool  mouse_down[5] = {};
+        float mouse_wheel   = 0.0f;
+        float mouse_wheel_h = 0.0f;
+        float dpi_scale     = 1.0f;
     };
     void new_frame_headless(const HeadlessFrameInput& input);
 
@@ -111,7 +111,7 @@ class ImGuiIntegration
             layout_manager_ = std::make_unique<LayoutManager>();
         return *layout_manager_;
     }
-    void           update_layout(float window_width, float window_height, float dt = 0.0f);
+    void update_layout(float window_width, float window_height, float dt = 0.0f);
 
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
@@ -439,7 +439,7 @@ class ImGuiIntegration
 
     bool     initialized_        = false;
     bool     headless_           = false;   // True when initialized via init_headless()
-    uint64_t cached_render_pass_ = 0;   // Opaque VkRenderPass handle for change detection
+    uint64_t cached_render_pass_ = 0;       // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 
     // Inspector system (Agent C)
@@ -447,7 +447,7 @@ class ImGuiIntegration
     ui::SelectionContext selection_ctx_;
 
     // Data editor (tabular series data view + inline editing)
-    ui::DataEditor       data_editor_;
+    ui::DataEditor data_editor_;
 
     // Deferred series removal queue (flushed after on_frame callback)
     std::vector<PendingSeriesRemoval> pending_series_removals_;
@@ -495,8 +495,8 @@ class ImGuiIntegration
     float cursor_data_x_     = 0.0f;
     float cursor_data_y_     = 0.0f;
     bool  cursor_data_valid_ = false;
-    float zoom_level_    = 1.0f;
-    float gpu_time_ms_   = 0.0f;
+    float zoom_level_        = 1.0f;
+    float gpu_time_ms_       = 0.0f;
 
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
@@ -573,7 +573,7 @@ class ImGuiIntegration
     Figure* current_figure_ = nullptr;
 
     // Axes context menu state (right-click on canvas)
-    AxesBase* context_menu_axes_ = nullptr;   // Which axes was right-clicked (2D or 3D)
+    AxesBase* context_menu_axes_         = nullptr;   // Which axes was right-clicked (2D or 3D)
     bool      context_menu_armed_        = false;
     AxesBase* context_menu_pressed_axes_ = nullptr;
     float     context_menu_press_x_      = 0.0f;

@@ -117,19 +117,19 @@ void Camera::reset()
 {
     if (up_axis == UpAxis::Z)
     {
-        position        = {5.0f, 5.0f, 3.0f};
-        target          = {0.0f, 0.0f, 0.0f};
-        up              = {0.0f, 0.0f, 1.0f};
-        azimuth         = 45.0f;
-        elevation       = 30.0f;
+        position  = {5.0f, 5.0f, 3.0f};
+        target    = {0.0f, 0.0f, 0.0f};
+        up        = {0.0f, 0.0f, 1.0f};
+        azimuth   = 45.0f;
+        elevation = 30.0f;
     }
     else
     {
-        position        = {0.0f, 0.0f, 5.0f};
-        target          = {0.0f, 0.0f, 0.0f};
-        up              = {0.0f, 1.0f, 0.0f};
-        azimuth         = 45.0f;
-        elevation       = 30.0f;
+        position  = {0.0f, 0.0f, 5.0f};
+        target    = {0.0f, 0.0f, 0.0f};
+        up        = {0.0f, 1.0f, 0.0f};
+        azimuth   = 45.0f;
+        elevation = 30.0f;
     }
     distance        = 5.0f;
     fov             = 45.0f;
@@ -152,7 +152,7 @@ void Camera::update_position_from_orbit()
         offset = {distance * cos_el * std::cos(az_rad),
                   distance * cos_el * std::sin(az_rad),
                   distance * std::sin(el_rad)};
-        up = {0.0f, 0.0f, 1.0f};
+        up     = {0.0f, 0.0f, 1.0f};
     }
     else
     {
@@ -160,7 +160,7 @@ void Camera::update_position_from_orbit()
         offset = {distance * cos_el * std::cos(az_rad),
                   distance * std::sin(el_rad),
                   distance * cos_el * std::sin(az_rad)};
-        up = {0.0f, 1.0f, 0.0f};
+        up     = {0.0f, 1.0f, 0.0f};
     }
 
     position = target + offset;
@@ -248,7 +248,7 @@ void Camera::deserialize(const std::string& json)
     if (pos != std::string::npos)
     {
         int axis = parse_int(json, pos);
-        up_axis = axis == 1 ? UpAxis::Z : UpAxis::Y;
+        up_axis  = axis == 1 ? UpAxis::Z : UpAxis::Y;
     }
 
     pos = json.find("\"fov\"");

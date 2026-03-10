@@ -717,7 +717,7 @@ int main(int argc, char* argv[])
                                 double cy = (ax.y_min + ax.y_max) * 0.5;
                                 double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;
                                 double hh = (ax.y_max - ax.y_min) * 0.5 * zoom;
-                                auto  op = fig_model.set_axis_limits(input->figure_id,
+                                auto   op = fig_model.set_axis_limits(input->figure_id,
                                                                     input->axes_index,
                                                                     cx - hw,
                                                                     cx + hw,

@@ -162,7 +162,7 @@ TEST(TickGeneration, DeepZoomFloatPrecisionLimit)
 {
     // At the float precision limit for value ~8.0
     // 8 * FLT_EPSILON ≈ 9.5e-7, so range of 1e-5 should work fine
-    Axes ax;
+    Axes  ax;
     float center = 8.0f;
     float half   = 5e-6f;
     ax.xlim(center - half, center + half);

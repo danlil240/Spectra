@@ -37,13 +37,13 @@ struct LegendConfig
 
 struct FigureStyle
 {
-    Color background        = colors::white;
-    float margin_top        = 40.0f;
-    float margin_bottom     = 60.0f;
-    float margin_left       = 70.0f;
-    float margin_right      = 20.0f;
-    float subplot_hgap      = 40.0f;
-    float subplot_vgap      = 50.0f;
+    Color background         = colors::white;
+    float margin_top         = 40.0f;
+    float margin_bottom      = 60.0f;
+    float margin_left        = 70.0f;
+    float margin_right       = 20.0f;
+    float subplot_hgap       = 40.0f;
+    float subplot_vgap       = 50.0f;
     float min_subplot_height = 150.0f;   // Minimum pixel height per subplot row
 };
 
@@ -85,7 +85,11 @@ class Figure
 
     uint32_t width() const { return config_.width; }
     uint32_t height() const { return config_.height; }
-    void set_size(uint32_t w, uint32_t h) { config_.width = w; config_.height = h; }
+    void     set_size(uint32_t w, uint32_t h)
+    {
+        config_.width  = w;
+        config_.height = h;
+    }
 
     const std::vector<std::unique_ptr<Axes>>& axes() const { return axes_; }
     std::vector<std::unique_ptr<Axes>>&       axes_mut() { return axes_; }
@@ -110,13 +114,18 @@ class Figure
     void  set_scroll_offset_y(float offset) { scroll_offset_y_ = offset; }
     float content_height() const { return content_height_; }
     void  set_content_height(float h) { content_height_ = h; }
-    bool  needs_scroll(float visible_height) const { return content_height_ > visible_height + 0.5f; }
+    bool  needs_scroll(float visible_height) const
+    {
+        return content_height_ > visible_height + 0.5f;
+    }
 
     // Explicitly set grid dimensions (e.g. after removing rows/cols).
     void set_grid(int rows, int cols)
     {
-        if (rows >= 1) grid_rows_ = rows;
-        if (cols >= 1) grid_cols_ = cols;
+        if (rows >= 1)
+            grid_rows_ = rows;
+        if (cols >= 1)
+            grid_cols_ = cols;
     }
 
     // Animation property accessors

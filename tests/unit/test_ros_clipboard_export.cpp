@@ -28,15 +28,15 @@ using namespace spectra::adapters::ros2;
 static std::vector<std::vector<std::string>> parse_tsv(const std::string& text)
 {
     std::vector<std::vector<std::string>> rows;
-    std::istringstream stream(text);
-    std::string line;
+    std::istringstream                    stream(text);
+    std::string                           line;
     while (std::getline(stream, line))
     {
         if (line.empty())
             continue;
         std::vector<std::string> cols;
-        std::istringstream row_stream(line);
-        std::string cell;
+        std::istringstream       row_stream(line);
+        std::string              cell;
         while (std::getline(row_stream, cell, '\t'))
             cols.push_back(cell);
         // Handle trailing tab: if line ends with '\t', the last field is empty
@@ -54,16 +54,13 @@ static std::vector<std::vector<std::string>> parse_tsv(const std::string& text)
 
 class ClipboardExportHarness
 {
-public:
+   public:
     static std::string format_value(double v, int prec)
     {
         return RosClipboardExport::format_value(v, prec);
     }
 
-    static std::string format_int64(int64_t v)
-    {
-        return RosClipboardExport::format_int64(v);
-    }
+    static std::string format_int64(int64_t v) { return RosClipboardExport::format_int64(v); }
 
     static std::string make_column_name(const std::string& t, const std::string& f)
     {
@@ -77,9 +74,10 @@ public:
 
     // Build a TSV directly without needing a RosPlotManager.
     static std::string build_tsv(const std::vector<RosClipboardExport::SeriesData>& sd,
-                                  RosClipboardExport::SelectionRange                  mode,
-                                  double x_min, double x_max,
-                                  const ClipboardExportConfig& cfg = {})
+                                 RosClipboardExport::SelectionRange                 mode,
+                                 double                                             x_min,
+                                 double                                             x_max,
+                                 const ClipboardExportConfig&                       cfg = {})
     {
         // We need a RosPlotManager to construct RosClipboardExport, but the
         // build_tsv method only uses config_ — we bypass the manager by
@@ -90,12 +88,12 @@ public:
         return build_tsv_impl(sd, mode, x_min, x_max, cfg);
     }
 
-private:
-    static std::string build_tsv_impl(
-        const std::vector<RosClipboardExport::SeriesData>& series,
-        RosClipboardExport::SelectionRange                  mode,
-        double x_min, double x_max,
-        const ClipboardExportConfig& cfg)
+   private:
+    static std::string build_tsv_impl(const std::vector<RosClipboardExport::SeriesData>& series,
+                                      RosClipboardExport::SelectionRange                 mode,
+                                      double                                             x_min,
+                                      double                                             x_max,
+                                      const ClipboardExportConfig&                       cfg)
     {
         if (series.empty())
             return {};
@@ -118,7 +116,8 @@ private:
         std::sort(all_x.begin(), all_x.end());
         {
             constexpr double EPS = 1e-12;
-            auto it = std::unique(all_x.begin(), all_x.end(),
+            auto             it  = std::unique(all_x.begin(),
+                                  all_x.end(),
                                   [](double a, double b) { return (b - a) < EPS; });
             all_x.erase(it, all_x.end());
         }
@@ -144,10 +143,10 @@ private:
             for (size_t si = 0; si < series.size(); ++si)
             {
                 const auto& sd = series[si];
-                size_t c = cursors[si];
+                size_t      c  = cursors[si];
                 if (c < sd.x.size())
                 {
-                    double xd = static_cast<double>(sd.x[c]);
+                    double           xd  = static_cast<double>(sd.x[c]);
                     constexpr double EPS = 1e-12;
                     if (std::abs(xd - row_x) < EPS && !sd.ns.empty())
                     {
@@ -160,24 +159,24 @@ private:
             int64_t sec = 0, nsec = 0;
             RosClipboardExport::split_timestamp(row_x, ts_ns, sec, nsec);
 
-            out << RosClipboardExport::format_int64(sec)
-                << "\t" << RosClipboardExport::format_int64(nsec)
-                << "\t" << RosClipboardExport::format_value(row_x, cfg.wall_clock_precision);
+            out << RosClipboardExport::format_int64(sec) << "\t"
+                << RosClipboardExport::format_int64(nsec) << "\t"
+                << RosClipboardExport::format_value(row_x, cfg.wall_clock_precision);
 
             for (size_t si = 0; si < series.size(); ++si)
             {
                 const auto& sd = series[si];
-                size_t& c = cursors[si];
+                size_t&     c  = cursors[si];
 
                 out << "\t";
                 if (c < sd.x.size())
                 {
-                    double xd = static_cast<double>(sd.x[c]);
+                    double           xd  = static_cast<double>(sd.x[c]);
                     constexpr double EPS = 1e-12;
                     if (std::abs(xd - row_x) < EPS)
                     {
-                        out << RosClipboardExport::format_value(
-                            static_cast<double>(sd.y[c]), cfg.precision);
+                        out << RosClipboardExport::format_value(static_cast<double>(sd.y[c]),
+                                                                cfg.precision);
                         ++c;
                         continue;
                     }
@@ -313,8 +312,7 @@ TEST(MakeColumnName, EmptyField)
 
 TEST(MakeColumnName, TrailingSlashTopic)
 {
-    EXPECT_EQ(ClipboardExportHarness::make_column_name("/imu/", "data"),
-              "/imu/data");
+    EXPECT_EQ(ClipboardExportHarness::make_column_name("/imu/", "data"), "/imu/data");
 }
 
 TEST(MakeColumnName, EmptyBoth)
@@ -373,11 +371,11 @@ TEST(BuildTsvSingleSeries, ProducesHeaderAndRows)
     sd.x           = {1.0f, 2.0f, 3.0f};
     sd.y           = {10.0f, 20.0f, 30.0f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     auto rows = parse_tsv(tsv);
-    ASSERT_EQ(rows.size(), 4u);  // header + 3 data rows
+    ASSERT_EQ(rows.size(), 4u);   // header + 3 data rows
 
     // Header check.
     EXPECT_EQ(rows[0][0], "timestamp_sec");
@@ -401,8 +399,11 @@ TEST(BuildTsvSingleSeries, ValueColumnCorrect)
     ClipboardExportConfig cfg;
     cfg.precision = 3;
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0, cfg);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0,
+                                                        cfg);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 2u);
@@ -419,8 +420,11 @@ TEST(BuildTsvSingleSeries, NoHeader)
     ClipboardExportConfig cfg;
     cfg.write_header = false;
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0, cfg);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0,
+                                                        cfg);
 
     auto rows = parse_tsv(tsv);
     EXPECT_EQ(rows.size(), 2u);
@@ -433,8 +437,8 @@ TEST(BuildTsvSingleSeries, EmptySeriesReturnsEmpty)
     RosClipboardExport::SeriesData sd;
     sd.column_name = "/empty";
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     EXPECT_TRUE(tsv.empty());
 }
@@ -446,8 +450,8 @@ TEST(BuildTsvSingleSeries, TabSeparatedNotComma)
     sd.x           = {1.0f};
     sd.y           = {5.0f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     EXPECT_NE(tsv.find('\t'), std::string::npos);
     EXPECT_EQ(tsv.find(','), std::string::npos);
@@ -464,8 +468,10 @@ TEST(BuildTsvRange, FilterIncludesBoundary)
     sd.x           = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
     sd.y           = {10.f, 20.f, 30.f, 40.f, 50.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Range, 2.0, 4.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Range,
+                                                        2.0,
+                                                        4.0);
 
     auto rows = parse_tsv(tsv);
     // Header + rows for x=2, 3, 4.
@@ -479,11 +485,13 @@ TEST(BuildTsvRange, FilterExcludesOutsideValues)
     sd.x           = {1.0f, 5.0f, 10.0f};
     sd.y           = {1.f, 5.f, 10.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Range, 4.0, 6.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Range,
+                                                        4.0,
+                                                        6.0);
 
     auto rows = parse_tsv(tsv);
-    ASSERT_EQ(rows.size(), 2u);  // header + x=5 only
+    ASSERT_EQ(rows.size(), 2u);   // header + x=5 only
 }
 
 TEST(BuildTsvRange, EmptyRangeReturnsEmpty)
@@ -493,8 +501,10 @@ TEST(BuildTsvRange, EmptyRangeReturnsEmpty)
     sd.x           = {1.0f, 2.0f};
     sd.y           = {1.f, 2.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Range, 5.0, 10.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Range,
+                                                        5.0,
+                                                        10.0);
 
     EXPECT_TRUE(tsv.empty());
 }
@@ -506,11 +516,11 @@ TEST(BuildTsvRange, FullModeIgnoresRange)
     sd.x           = {1.0f, 2.0f, 3.0f};
     sd.y           = {1.f, 2.f, 3.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 2.0, 2.5);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 2.0, 2.5);
 
     auto rows = parse_tsv(tsv);
-    ASSERT_EQ(rows.size(), 4u);  // header + all 3 rows despite range
+    ASSERT_EQ(rows.size(), 4u);   // header + all 3 rows despite range
 }
 
 // ---------------------------------------------------------------------------
@@ -529,11 +539,13 @@ TEST(BuildTsvMultiSeries, TwoSeriesSameTimestamps)
     s2.x           = {1.0f, 2.0f};
     s2.y           = {100.f, 200.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {s1, s2}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({s1, s2},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0);
 
     auto rows = parse_tsv(tsv);
-    ASSERT_EQ(rows.size(), 3u);  // header + 2 data rows
+    ASSERT_EQ(rows.size(), 3u);   // header + 2 data rows
 
     // Header has 5 columns.
     EXPECT_EQ(rows[0].size(), 5u);
@@ -557,31 +569,42 @@ TEST(BuildTsvMultiSeries, MissingValueFilledForStaggeredTimestamps)
     ClipboardExportConfig cfg;
     cfg.missing_value = "NaN";
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {s1, s2}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0, cfg);
+    std::string tsv = ClipboardExportHarness::build_tsv({s1, s2},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0,
+                                                        cfg);
 
     auto rows = parse_tsv(tsv);
     // header + rows for x=1, x=2, x=3
     ASSERT_EQ(rows.size(), 4u);
 
     // x=1: s1 has value, s2 is missing → "NaN"
-    EXPECT_NE(rows[1][3], "NaN");  // s1 value at x=1
-    EXPECT_EQ(rows[1][4], "NaN");  // s2 missing at x=1
+    EXPECT_NE(rows[1][3], "NaN");   // s1 value at x=1
+    EXPECT_EQ(rows[1][4], "NaN");   // s2 missing at x=1
 
     // x=3: s1 is missing → "NaN", s2 has value
-    EXPECT_EQ(rows[3][3], "NaN");  // s1 missing at x=3
-    EXPECT_NE(rows[3][4], "NaN");  // s2 value at x=3
+    EXPECT_EQ(rows[3][3], "NaN");   // s1 missing at x=3
+    EXPECT_NE(rows[3][4], "NaN");   // s2 value at x=3
 }
 
 TEST(BuildTsvMultiSeries, ThreeSeriesUnion)
 {
     RosClipboardExport::SeriesData s1, s2, s3;
-    s1.column_name = "/a";  s1.x = {1.f, 3.f};         s1.y = {1.f, 3.f};
-    s2.column_name = "/b";  s2.x = {2.f, 4.f};         s2.y = {2.f, 4.f};
-    s3.column_name = "/c";  s3.x = {1.f, 2.f, 3.f, 4.f}; s3.y = {0.f, 0.f, 0.f, 0.f};
+    s1.column_name = "/a";
+    s1.x           = {1.f, 3.f};
+    s1.y           = {1.f, 3.f};
+    s2.column_name = "/b";
+    s2.x           = {2.f, 4.f};
+    s2.y           = {2.f, 4.f};
+    s3.column_name = "/c";
+    s3.x           = {1.f, 2.f, 3.f, 4.f};
+    s3.y           = {0.f, 0.f, 0.f, 0.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {s1, s2, s3}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({s1, s2, s3},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0);
 
     auto rows = parse_tsv(tsv);
     // header + x=1,2,3,4 → 5 rows total, 6 columns each
@@ -592,11 +615,17 @@ TEST(BuildTsvMultiSeries, ThreeSeriesUnion)
 TEST(BuildTsvMultiSeries, DefaultMissingValueIsEmpty)
 {
     RosClipboardExport::SeriesData s1, s2;
-    s1.column_name = "/a";  s1.x = {1.f};  s1.y = {1.f};
-    s2.column_name = "/b";  s2.x = {2.f};  s2.y = {2.f};
+    s1.column_name = "/a";
+    s1.x           = {1.f};
+    s1.y           = {1.f};
+    s2.column_name = "/b";
+    s2.x           = {2.f};
+    s2.y           = {2.f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {s1, s2}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({s1, s2},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0);
 
     auto rows = parse_tsv(tsv);
     // x=1: s2 missing → empty string
@@ -616,8 +645,8 @@ TEST(BuildTsvTimestamp, TimestampColumnsAlwaysPresent)
     sd.x           = {1.0f};
     sd.y           = {0.0f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     auto rows = parse_tsv(tsv);
     ASSERT_GE(rows.size(), 2u);
@@ -634,15 +663,15 @@ TEST(BuildTsvTimestamp, NsPerSampleUsed)
     sd.x           = {0.0f};
     sd.y           = {5.0f};
     // 1s + 250000000 ns
-    sd.ns          = {1'250'000'000LL};
+    sd.ns = {1'250'000'000LL};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 2u);
-    EXPECT_EQ(rows[1][0], "1");             // sec
-    EXPECT_EQ(rows[1][1], "250000000");     // nsec
+    EXPECT_EQ(rows[1][0], "1");           // sec
+    EXPECT_EQ(rows[1][1], "250000000");   // nsec
 }
 
 // ---------------------------------------------------------------------------
@@ -725,8 +754,8 @@ TEST(SeriesData, EmptyNsAllowed)
     // ns left empty — split_timestamp falls back to float decomposition.
     EXPECT_TRUE(sd.ns.empty());
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
     EXPECT_FALSE(tsv.empty());
 }
 
@@ -737,8 +766,10 @@ TEST(SeriesData, EmptyNsAllowed)
 TEST(EdgeCases, EmptySeriesVectorReturnsEmpty)
 {
     std::vector<RosClipboardExport::SeriesData> empty;
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        empty, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string                                 tsv = ClipboardExportHarness::build_tsv(empty,
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0);
     EXPECT_TRUE(tsv.empty());
 }
 
@@ -752,8 +783,11 @@ TEST(EdgeCases, NegativeYValues)
     ClipboardExportConfig cfg;
     cfg.precision = 1;
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0, cfg);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0,
+                                                        cfg);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 2u);
@@ -765,11 +799,11 @@ TEST(EdgeCases, LargeEpochXTimestamp)
     RosClipboardExport::SeriesData sd;
     sd.column_name = "/epoch";
     // ROS2 epoch time ≈ 1700000000 seconds
-    sd.x           = {1.7e9f};
-    sd.y           = {0.0f};
+    sd.x = {1.7e9f};
+    sd.y = {0.0f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 2u);
@@ -784,8 +818,8 @@ TEST(EdgeCases, SingleSampleSingleColumnCount)
     sd.x           = {1.0f};
     sd.y           = {1.0f};
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
+    std::string tsv =
+        ClipboardExportHarness::build_tsv({sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0);
 
     auto rows = parse_tsv(tsv);
     ASSERT_GE(rows.size(), 2u);
@@ -804,8 +838,11 @@ TEST(EdgeCases, PrecisionZeroIntegerValues)
     ClipboardExportConfig cfg;
     cfg.precision = 0;
 
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Full, 0.0, 0.0, cfg);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Full,
+                                                        0.0,
+                                                        0.0,
+                                                        cfg);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 3u);
@@ -821,8 +858,10 @@ TEST(EdgeCases, RangeExactBoundaryInclusion)
     sd.y           = {1.f, 2.f, 3.f};
 
     // Range [1.0, 3.0] should include all three points.
-    std::string tsv = ClipboardExportHarness::build_tsv(
-        {sd}, RosClipboardExport::SelectionRange::Range, 1.0, 3.0);
+    std::string tsv = ClipboardExportHarness::build_tsv({sd},
+                                                        RosClipboardExport::SelectionRange::Range,
+                                                        1.0,
+                                                        3.0);
 
     auto rows = parse_tsv(tsv);
     ASSERT_EQ(rows.size(), 4u);

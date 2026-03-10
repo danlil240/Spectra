@@ -609,7 +609,7 @@ void register_standard_commands(const CommandBindings& b)
             WorkspaceData::PanelState panels;
             if (imgui_ui)
             {
-                auto& lm                = imgui_ui->get_layout_manager();
+                auto& lm                 = imgui_ui->get_layout_manager();
                 panels.inspector_visible = lm.is_inspector_visible();
                 panels.inspector_width   = lm.inspector_width();
                 panels.nav_rail_expanded = lm.is_nav_rail_expanded();
@@ -1258,18 +1258,18 @@ void register_standard_commands(const CommandBindings& b)
                 {
                     lm.set_inspector_visible(true);
                 }
-                undo_mgr.push(UndoAction{
-                    vis ? "Hide data editor" : "Show data editor",
-                    [&imgui_ui, vis]()
-                    {
-                        if (imgui_ui)
-                            imgui_ui->get_layout_manager().set_inspector_visible(vis);
-                    },
-                    [&imgui_ui, vis]()
-                    {
-                        if (imgui_ui)
-                            imgui_ui->get_layout_manager().set_inspector_visible(!vis);
-                    }});
+                undo_mgr.push(
+                    UndoAction{vis ? "Hide data editor" : "Show data editor",
+                               [&imgui_ui, vis]()
+                               {
+                                   if (imgui_ui)
+                                       imgui_ui->get_layout_manager().set_inspector_visible(vis);
+                               },
+                               [&imgui_ui, vis]()
+                               {
+                                   if (imgui_ui)
+                                       imgui_ui->get_layout_manager().set_inspector_visible(!vis);
+                               }});
             }
         },
         "",
@@ -1526,7 +1526,7 @@ void register_standard_commands(const CommandBindings& b)
         "ROS2 Adapter",
         []()
         {
-    #ifdef __unix__
+        #ifdef __unix__
             // Fork + exec: spectra-ros must be on PATH (installed via colcon install
             // or sourced from the workspace overlay).
             pid_t pid = fork();
@@ -1545,14 +1545,13 @@ void register_standard_commands(const CommandBindings& b)
             else
             {
                 SPECTRA_LOG_ERROR("ros2_adapter", "fork() failed — cannot launch spectra-ros");
-                spectra::ros2_adapter_set_error(
-                    "Failed to fork() a child process.\n"
-                    "Cannot launch spectra-ros.");
+                spectra::ros2_adapter_set_error("Failed to fork() a child process.\n"
+                                                "Cannot launch spectra-ros.");
             }
-    #elif defined(_WIN32)
+        #elif defined(_WIN32)
             // Windows: CreateProcess or ShellExecute.
             std::thread([]() { std::system("start spectra-ros"); }).detach();
-    #endif
+        #endif
         },
         "",
         "Tools",

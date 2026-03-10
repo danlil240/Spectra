@@ -92,12 +92,12 @@ struct ClipboardCopyResult
 
 class RosClipboardExport
 {
-public:
+   public:
     // Selection range mode.
     enum class SelectionRange
     {
-        Full,   // Copy all data stored in each series
-        Range,  // Copy only samples with X in [x_min, x_max]
+        Full,    // Copy all data stored in each series
+        Range,   // Copy only samples with X in [x_min, x_max]
     };
 
     explicit RosClipboardExport(RosPlotManager& mgr);
@@ -132,9 +132,9 @@ public:
 
     // Copy multiple plots with range filtering.
     ClipboardCopyResult copy_plots(const std::vector<int>& plot_ids,
-                                   SelectionRange           mode,
-                                   double                   x_min = 0.0,
-                                   double                   x_max = 0.0);
+                                   SelectionRange          mode,
+                                   double                  x_min = 0.0,
+                                   double                  x_max = 0.0);
 
     // ---------- keyboard helper ------------------------------------------
 
@@ -160,15 +160,15 @@ public:
     struct SeriesData
     {
         std::string          column_name;
-        std::vector<float>   x;   // timestamp_s (from LineSeries::x_data())
-        std::vector<float>   y;   // value (from LineSeries::y_data())
-        std::vector<int64_t> ns;  // timestamp_ns per sample (may be empty)
+        std::vector<float>   x;    // timestamp_s (from LineSeries::x_data())
+        std::vector<float>   y;    // value (from LineSeries::y_data())
+        std::vector<int64_t> ns;   // timestamp_ns per sample (may be empty)
     };
 
     std::string build_tsv(const std::vector<SeriesData>& series,
-                          SelectionRange                  mode,
-                          double                          x_min,
-                          double                          x_max) const;
+                          SelectionRange                 mode,
+                          double                         x_min,
+                          double                         x_max) const;
 
     // Format a double value with the given precision.
     static std::string format_value(double v, int precision);
@@ -177,8 +177,7 @@ public:
     static std::string format_int64(int64_t v);
 
     // Build column name: "<topic>/<field_path>".
-    static std::string make_column_name(const std::string& topic,
-                                        const std::string& field_path);
+    static std::string make_column_name(const std::string& topic, const std::string& field_path);
 
     // Split a timestamp_s + timestamp_ns into sec + nsec components.
     // When timestamp_ns == 0 falls back to float decomposition of timestamp_s.
@@ -187,19 +186,19 @@ public:
                                 int64_t& out_sec,
                                 int64_t& out_nsec);
 
-private:
+   private:
     // Internal: build TSV from manager-owned series identified by ids.
     ClipboardCopyResult build_and_copy(const std::vector<int>& ids,
-                                       SelectionRange           mode,
-                                       double                   x_min,
-                                       double                   x_max);
+                                       SelectionRange          mode,
+                                       double                  x_min,
+                                       double                  x_max);
 
     // Write text to the system clipboard (or internal buffer when no ImGui).
     void set_clipboard(const std::string& text);
 
     RosPlotManager&       mgr_;
     ClipboardExportConfig config_;
-    std::string           last_text_;  // last text placed on clipboard
+    std::string           last_text_;   // last text placed on clipboard
 };
 
 }   // namespace spectra::adapters::ros2

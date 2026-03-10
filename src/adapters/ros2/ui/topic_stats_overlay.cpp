@@ -7,7 +7,7 @@
 #include <numeric>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -30,9 +30,12 @@ static int64_t wall_ns()
 void TopicDetailStats::push(int64_t arrival_ns, size_t bytes, int64_t latency_us)
 {
     // Drop detection: compute gap before inserting.
-    if (last_msg_ns > 0) {
+    if (last_msg_ns > 0)
+    {
         last_gap_ns = arrival_ns - last_msg_ns;
-    } else {
+    }
+    else
+    {
         last_gap_ns = 0;
     }
 
@@ -47,35 +50,41 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
     const int64_t cutoff = now_ns - window_ns;
 
     // Prune old samples.
-    while (!samples.empty() && samples.front().arrival_ns < cutoff) {
+    while (!samples.empty() && samples.front().arrival_ns < cutoff)
+    {
         samples.pop_front();
     }
 
     const size_t n = samples.size();
 
     // --- Hz ---
-    if (n < 2) {
+    if (n < 2)
+    {
         hz_avg = (n == 1) ? 1.0 : 0.0;
         hz_min = hz_avg;
         hz_max = hz_avg;
-    } else {
+    }
+    else
+    {
         // Span-based average Hz.
         const double span_s =
-            static_cast<double>(samples.back().arrival_ns - samples.front().arrival_ns) *
-            1e-9;
+            static_cast<double>(samples.back().arrival_ns - samples.front().arrival_ns) * 1e-9;
         hz_avg = (span_s > 0.0) ? static_cast<double>(n - 1) / span_s : 0.0;
 
         // Instantaneous Hz between consecutive pairs.
         double inst_min = 1e18;
         double inst_max = 0.0;
-        for (size_t i = 1; i < n; ++i) {
+        for (size_t i = 1; i < n; ++i)
+        {
             const double gap_s =
-                static_cast<double>(samples[i].arrival_ns - samples[i - 1].arrival_ns) *
-                1e-9;
-            if (gap_s > 0.0) {
+                static_cast<double>(samples[i].arrival_ns - samples[i - 1].arrival_ns) * 1e-9;
+            if (gap_s > 0.0)
+            {
                 const double inst = 1.0 / gap_s;
-                if (inst < inst_min) inst_min = inst;
-                if (inst > inst_max) inst_max = inst;
+                if (inst < inst_min)
+                    inst_min = inst;
+                if (inst > inst_max)
+                    inst_max = inst;
             }
         }
         hz_min = (inst_min < 1e17) ? inst_min : 0.0;
@@ -83,36 +92,46 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
     }
 
     // --- Bandwidth ---
-    if (n < 1) {
+    if (n < 1)
+    {
         bw_bps = 0.0;
-    } else {
+    }
+    else
+    {
         uint64_t total = 0;
         for (const auto& s : samples)
             total += s.bytes;
         const double win_s = static_cast<double>(window_ns) * 1e-9;
-        bw_bps = static_cast<double>(total) / win_s;
+        bw_bps             = static_cast<double>(total) / win_s;
     }
 
     // --- Latency (only samples with valid latency) ---
     {
-        double sum = 0.0;
-        double lmin = 1e18;
-        double lmax = -1e18;
+        double sum   = 0.0;
+        double lmin  = 1e18;
+        double lmax  = -1e18;
         int    count = 0;
-        for (const auto& s : samples) {
-            if (s.latency_us >= 0) {
+        for (const auto& s : samples)
+        {
+            if (s.latency_us >= 0)
+            {
                 const double v = static_cast<double>(s.latency_us);
                 sum += v;
-                if (v < lmin) lmin = v;
-                if (v > lmax) lmax = v;
+                if (v < lmin)
+                    lmin = v;
+                if (v > lmax)
+                    lmax = v;
                 ++count;
             }
         }
-        if (count > 0) {
+        if (count > 0)
+        {
             latency_avg_us = sum / count;
             latency_min_us = lmin;
             latency_max_us = lmax;
-        } else {
+        }
+        else
+        {
             latency_avg_us = -1.0;
             latency_min_us = -1.0;
             latency_max_us = -1.0;
@@ -120,12 +139,15 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
     }
 
     // --- Drop detection ---
-    if (hz_avg > 0.0 && last_gap_ns > 0) {
+    if (hz_avg > 0.0 && last_gap_ns > 0)
+    {
         // Use the stored drop_detected flag; caller sets drop_factor externally.
         // Here we compare: if last_gap_ns > 3× expected, flag it.
         // The actual factor is applied in TopicStatsOverlay::compute_now().
-        drop_detected = false;  // reset; TopicStatsOverlay sets this.
-    } else {
+        drop_detected = false;   // reset; TopicStatsOverlay sets this.
+    }
+    else
+    {
         drop_detected = false;
     }
 }
@@ -170,8 +192,8 @@ const std::string& TopicStatsOverlay::topic() const
 }
 
 void TopicStatsOverlay::notify_message(const std::string& topic_name,
-                                       size_t bytes,
-                                       int64_t latency_us)
+                                       size_t             bytes,
+                                       int64_t            latency_us)
 {
     std::lock_guard<std::mutex> lk(mutex_);
     if (topic_name != current_topic_ || current_topic_.empty())
@@ -200,45 +222,49 @@ void TopicStatsOverlay::set_drop_factor(double factor)
 void TopicStatsOverlay::compute_now(int64_t now_ns_val)
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    const int64_t window_ns = static_cast<int64_t>(window_ms_) * 1'000'000LL;
+    const int64_t               window_ns = static_cast<int64_t>(window_ms_) * 1'000'000LL;
     stats_.compute(now_ns_val, window_ns);
 
     // Apply drop detection using our factor.
-    if (stats_.hz_avg > 0.0 && stats_.last_gap_ns > 0) {
+    if (stats_.hz_avg > 0.0 && stats_.last_gap_ns > 0)
+    {
         const double expected_ns = 1e9 / stats_.hz_avg;
-        stats_.drop_detected =
-            static_cast<double>(stats_.last_gap_ns) > drop_factor_ * expected_ns;
-    } else {
+        stats_.drop_detected = static_cast<double>(stats_.last_gap_ns) > drop_factor_ * expected_ns;
+    }
+    else
+    {
         stats_.drop_detected = false;
     }
 }
 
 TopicStatsOverlay::StatsSnapshot TopicStatsOverlay::snapshot()
 {
-    const int64_t window_ns = static_cast<int64_t>(window_ms_) * 1'000'000LL;
+    const int64_t               window_ns = static_cast<int64_t>(window_ms_) * 1'000'000LL;
     std::lock_guard<std::mutex> lk(mutex_);
     stats_.compute(wall_ns(), window_ns);
-    if (stats_.hz_avg > 0.0 && stats_.last_gap_ns > 0) {
+    if (stats_.hz_avg > 0.0 && stats_.last_gap_ns > 0)
+    {
         const double expected_ns = 1e9 / stats_.hz_avg;
-        stats_.drop_detected =
-            static_cast<double>(stats_.last_gap_ns) > drop_factor_ * expected_ns;
-    } else {
+        stats_.drop_detected = static_cast<double>(stats_.last_gap_ns) > drop_factor_ * expected_ns;
+    }
+    else
+    {
         stats_.drop_detected = false;
     }
 
     StatsSnapshot snap;
-    snap.topic           = current_topic_;
-    snap.hz_avg          = stats_.hz_avg;
-    snap.hz_min          = stats_.hz_min;
-    snap.hz_max          = stats_.hz_max;
-    snap.bw_bps          = stats_.bw_bps;
-    snap.latency_avg_us  = stats_.latency_avg_us;
-    snap.latency_min_us  = stats_.latency_min_us;
-    snap.latency_max_us  = stats_.latency_max_us;
-    snap.total_messages  = stats_.total_messages;
-    snap.total_bytes     = stats_.total_bytes;
-    snap.drop_detected   = stats_.drop_detected;
-    snap.last_gap_ns     = stats_.last_gap_ns;
+    snap.topic          = current_topic_;
+    snap.hz_avg         = stats_.hz_avg;
+    snap.hz_min         = stats_.hz_min;
+    snap.hz_max         = stats_.hz_max;
+    snap.bw_bps         = stats_.bw_bps;
+    snap.latency_avg_us = stats_.latency_avg_us;
+    snap.latency_min_us = stats_.latency_min_us;
+    snap.latency_max_us = stats_.latency_max_us;
+    snap.total_messages = stats_.total_messages;
+    snap.total_bytes    = stats_.total_bytes;
+    snap.drop_detected  = stats_.drop_detected;
+    snap.last_gap_ns    = stats_.last_gap_ns;
     return snap;
 }
 
@@ -260,11 +286,16 @@ std::string TopicStatsOverlay::format_bw(double bps)
     if (bps <= 0.0)
         return "-";
     char buf[32];
-    if (bps >= 1024.0 * 1024.0) {
+    if (bps >= 1024.0 * 1024.0)
+    {
         std::snprintf(buf, sizeof(buf), "%.2f MB/s", bps / (1024.0 * 1024.0));
-    } else if (bps >= 1024.0) {
+    }
+    else if (bps >= 1024.0)
+    {
         std::snprintf(buf, sizeof(buf), "%.1f KB/s", bps / 1024.0);
-    } else {
+    }
+    else
+    {
         std::snprintf(buf, sizeof(buf), "%.0f B/s", bps);
     }
     return buf;
@@ -273,18 +304,24 @@ std::string TopicStatsOverlay::format_bw(double bps)
 std::string TopicStatsOverlay::format_bytes(uint64_t bytes)
 {
     char buf[32];
-    if (bytes >= 1024ULL * 1024ULL * 1024ULL) {
-        std::snprintf(buf, sizeof(buf), "%.2f GB",
+    if (bytes >= 1024ULL * 1024ULL * 1024ULL)
+    {
+        std::snprintf(buf,
+                      sizeof(buf),
+                      "%.2f GB",
                       static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
-    } else if (bytes >= 1024ULL * 1024ULL) {
-        std::snprintf(buf, sizeof(buf), "%.2f MB",
-                      static_cast<double>(bytes) / (1024.0 * 1024.0));
-    } else if (bytes >= 1024ULL) {
-        std::snprintf(buf, sizeof(buf), "%.1f KB",
-                      static_cast<double>(bytes) / 1024.0);
-    } else {
-        std::snprintf(buf, sizeof(buf), "%llu B",
-                      static_cast<unsigned long long>(bytes));
+    }
+    else if (bytes >= 1024ULL * 1024ULL)
+    {
+        std::snprintf(buf, sizeof(buf), "%.2f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    }
+    else if (bytes >= 1024ULL)
+    {
+        std::snprintf(buf, sizeof(buf), "%.1f KB", static_cast<double>(bytes) / 1024.0);
+    }
+    else
+    {
+        std::snprintf(buf, sizeof(buf), "%llu B", static_cast<unsigned long long>(bytes));
     }
     return buf;
 }
@@ -294,9 +331,12 @@ std::string TopicStatsOverlay::format_latency(double us)
     if (us < 0.0)
         return "-";
     char buf[32];
-    if (us >= 1000.0) {
+    if (us >= 1000.0)
+    {
         std::snprintf(buf, sizeof(buf), "%.2f ms", us / 1000.0);
-    } else {
+    }
+    else
+    {
         std::snprintf(buf, sizeof(buf), "%.1f µs", us);
     }
     return buf;
@@ -313,25 +353,28 @@ int64_t TopicStatsOverlay::now_ns()
 
 #ifdef SPECTRA_USE_IMGUI
 
-void TopicStatsOverlay::draw_stat_row(const char* label, const std::string& value,
-                                       bool highlight)
+void TopicStatsOverlay::draw_stat_row(const char* label, const std::string& value, bool highlight)
 {
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
     ImGui::TextDisabled("%s", label);
     ImGui::TableSetColumnIndex(1);
-    if (highlight) {
+    if (highlight)
+    {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.2f, 1.0f));
         ImGui::TextUnformatted(value.c_str());
         ImGui::PopStyleColor();
-    } else {
+    }
+    else
+    {
         ImGui::TextUnformatted(value.c_str());
     }
 }
 
 void TopicStatsOverlay::draw_inline()
 {
-    if (!ImGui::GetCurrentContext()) return;
+    if (!ImGui::GetCurrentContext())
+        return;
     // Throttle updates to ~4 Hz to reduce visual noise in Hz / BW values.
     const int64_t now = now_ns();
     if (now - last_snap_ns_ >= SNAP_INTERVAL_NS || last_snap_ns_ == 0)
@@ -341,7 +384,8 @@ void TopicStatsOverlay::draw_inline()
     }
     const StatsSnapshot& snap = cached_snap_;
 
-    if (snap.topic.empty()) {
+    if (snap.topic.empty())
+    {
         ImGui::TextDisabled("No topic selected.");
         return;
     }
@@ -353,13 +397,16 @@ void TopicStatsOverlay::draw_inline()
     ImGui::Separator();
 
     // Drop warning banner.
-    if (snap.drop_detected) {
+    if (snap.drop_detected)
+    {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
         ImGui::TextUnformatted("  Drop detected!");
         ImGui::PopStyleColor();
-        if (ImGui::IsItemHovered()) {
+        if (ImGui::IsItemHovered())
+        {
             char tip[128];
-            std::snprintf(tip, sizeof(tip),
+            std::snprintf(tip,
+                          sizeof(tip),
                           "Last inter-message gap: %.1f ms  (> %.0f× expected)",
                           static_cast<double>(snap.last_gap_ns) * 1e-6,
                           drop_factor_);
@@ -371,7 +418,8 @@ void TopicStatsOverlay::draw_inline()
     constexpr ImGuiTableFlags kTableFlags =
         ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoHostExtendX;
 
-    if (ImGui::BeginTable("##stats_table", 2, kTableFlags)) {
+    if (ImGui::BeginTable("##stats_table", 2, kTableFlags))
+    {
         ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 120.0f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
@@ -382,9 +430,9 @@ void TopicStatsOverlay::draw_inline()
         ImGui::TextUnformatted("FREQUENCY");
         ImGui::PopStyleColor();
 
-        draw_stat_row("  Avg Hz",     format_hz(snap.hz_avg));
-        draw_stat_row("  Min Hz",     format_hz(snap.hz_min));
-        draw_stat_row("  Max Hz",     format_hz(snap.hz_max));
+        draw_stat_row("  Avg Hz", format_hz(snap.hz_avg));
+        draw_stat_row("  Min Hz", format_hz(snap.hz_min));
+        draw_stat_row("  Max Hz", format_hz(snap.hz_max));
 
         // --- Message count ---
         ImGui::TableNextRow();
@@ -395,7 +443,9 @@ void TopicStatsOverlay::draw_inline()
 
         {
             char buf[32];
-            std::snprintf(buf, sizeof(buf), "%llu",
+            std::snprintf(buf,
+                          sizeof(buf),
+                          "%llu",
                           static_cast<unsigned long long>(snap.total_messages));
             draw_stat_row("  Total count", buf);
         }
@@ -407,21 +457,24 @@ void TopicStatsOverlay::draw_inline()
         ImGui::TextUnformatted("BANDWIDTH");
         ImGui::PopStyleColor();
 
-        draw_stat_row("  Rate",       format_bw(snap.bw_bps));
-        draw_stat_row("  Total",      format_bytes(snap.total_bytes));
+        draw_stat_row("  Rate", format_bw(snap.bw_bps));
+        draw_stat_row("  Total", format_bytes(snap.total_bytes));
 
         // --- Latency ---
-        if (snap.latency_avg_us >= 0.0) {
+        if (snap.latency_avg_us >= 0.0)
+        {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
             ImGui::TextUnformatted("LATENCY");
             ImGui::PopStyleColor();
 
-            draw_stat_row("  Avg",     format_latency(snap.latency_avg_us));
-            draw_stat_row("  Min",     format_latency(snap.latency_min_us));
-            draw_stat_row("  Max",     format_latency(snap.latency_max_us));
-        } else {
+            draw_stat_row("  Avg", format_latency(snap.latency_avg_us));
+            draw_stat_row("  Min", format_latency(snap.latency_min_us));
+            draw_stat_row("  Max", format_latency(snap.latency_max_us));
+        }
+        else
+        {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
@@ -433,10 +486,15 @@ void TopicStatsOverlay::draw_inline()
         // --- Drop info ---
         {
             char buf[64];
-            if (snap.last_gap_ns > 0) {
-                std::snprintf(buf, sizeof(buf), "%.1f ms",
+            if (snap.last_gap_ns > 0)
+            {
+                std::snprintf(buf,
+                              sizeof(buf),
+                              "%.1f ms",
                               static_cast<double>(snap.last_gap_ns) * 1e-6);
-            } else {
+            }
+            else
+            {
                 std::snprintf(buf, sizeof(buf), "-");
             }
             draw_stat_row("  Last gap", buf, snap.drop_detected);
@@ -448,8 +506,10 @@ void TopicStatsOverlay::draw_inline()
 
 void TopicStatsOverlay::draw(bool* p_open)
 {
-    if (!ImGui::GetCurrentContext()) return;
-    if (!ImGui::Begin(title_.c_str(), p_open)) {
+    if (!ImGui::GetCurrentContext())
+        return;
+    if (!ImGui::Begin(title_.c_str(), p_open))
+    {
         ImGui::End();
         return;
     }
@@ -457,19 +517,18 @@ void TopicStatsOverlay::draw(bool* p_open)
     ImGui::End();
 }
 
-#else  // SPECTRA_USE_IMGUI
+#else   // SPECTRA_USE_IMGUI
 
 void TopicStatsOverlay::draw_stat_row(const char* /*label*/,
-                                       const std::string& /*value*/,
-                                       bool /*highlight*/)
-{}
+                                      const std::string& /*value*/,
+                                      bool /*highlight*/)
+{
+}
 
-void TopicStatsOverlay::draw_inline()
-{}
+void TopicStatsOverlay::draw_inline() {}
 
-void TopicStatsOverlay::draw(bool* /*p_open*/)
-{}
+void TopicStatsOverlay::draw(bool* /*p_open*/) {}
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
 }   // namespace spectra::adapters::ros2

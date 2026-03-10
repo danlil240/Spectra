@@ -7,7 +7,7 @@
 #include "messages/tf_adapter.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -149,13 +149,13 @@ void TfTreePanel::on_tf_message(const tf2_msgs::msg::TFMessage& msg, bool is_sta
 #ifdef SPECTRA_USE_IMGUI
 namespace
 {
-void draw_tree_node(const std::string& frame_id,
-                    const TfTreeSnapshot& snapshot,
-                    const std::string& filter,
-                    std::string& selected_frame,
+void draw_tree_node(const std::string&                      frame_id,
+                    const TfTreeSnapshot&                   snapshot,
+                    const std::string&                      filter,
+                    std::string&                            selected_frame,
                     const TfTreePanel::FrameSelectCallback& callback,
-                    bool show_static,
-                    bool show_dynamic)
+                    bool                                    show_static,
+                    bool                                    show_dynamic)
 {
     const TfFrameStats* stats = nullptr;
     for (const auto& frame : snapshot.frames)
@@ -173,16 +173,17 @@ void draw_tree_node(const std::string& frame_id,
         return;
     if (!stats->is_static && !show_dynamic)
         return;
-    if (!filter.empty()
-        && frame_id.find(filter) == std::string::npos
+    if (!filter.empty() && frame_id.find(filter) == std::string::npos
         && stats->parent_frame_id.find(filter) == std::string::npos)
         return;
 
     const auto children_it = snapshot.children.find(frame_id);
-    const bool has_children = children_it != snapshot.children.end() && !children_it->second.empty();
+    const bool has_children =
+        children_it != snapshot.children.end() && !children_it->second.empty();
 
-    ImGuiTreeNodeFlags flags = has_children ? ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow
-                                            : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    ImGuiTreeNodeFlags flags = has_children
+                                   ? ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow
+                                   : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     if (selected_frame == frame_id)
         flags |= ImGuiTreeNodeFlags_Selected;
 
@@ -211,7 +212,13 @@ void draw_tree_node(const std::string& frame_id,
     if (has_children && opened)
     {
         for (const auto& child : children_it->second)
-            draw_tree_node(child, snapshot, filter, selected_frame, callback, show_static, show_dynamic);
+            draw_tree_node(child,
+                           snapshot,
+                           filter,
+                           selected_frame,
+                           callback,
+                           show_static,
+                           show_dynamic);
         ImGui::TreePop();
     }
 }
@@ -249,7 +256,9 @@ void TfTreePanel::draw_inline()
     }
 
     const std::string filter(filter_buf_);
-    ImGui::BeginChild("##tf_tree_scroll", ImVec2(0.0f, ImGui::GetContentRegionAvail().y * 0.55f), false);
+    ImGui::BeginChild("##tf_tree_scroll",
+                      ImVec2(0.0f, ImGui::GetContentRegionAvail().y * 0.55f),
+                      false);
     if (snapshot.frames.empty())
     {
         ImGui::TextDisabled("No TF frames received yet.");
@@ -257,12 +266,24 @@ void TfTreePanel::draw_inline()
     else if (snapshot.roots.empty())
     {
         for (const auto& frame : snapshot.frames)
-            draw_tree_node(frame.frame_id, snapshot, filter, selected_frame_, callback, show_static_, show_dynamic_);
+            draw_tree_node(frame.frame_id,
+                           snapshot,
+                           filter,
+                           selected_frame_,
+                           callback,
+                           show_static_,
+                           show_dynamic_);
     }
     else
     {
         for (const auto& root : snapshot.roots)
-            draw_tree_node(root, snapshot, filter, selected_frame_, callback, show_static_, show_dynamic_);
+            draw_tree_node(root,
+                           snapshot,
+                           filter,
+                           selected_frame_,
+                           callback,
+                           show_static_,
+                           show_dynamic_);
     }
     ImGui::EndChild();
 

@@ -6,17 +6,17 @@
 
 #ifdef SPECTRA_ROS2_BAG
 
-#include "bag_recorder.hpp"
+    #include "bag_recorder.hpp"
 
-#include <algorithm>
-#include <cassert>
-#include <cstdio>
-#include <filesystem>
-#include <sstream>
-#include <stdexcept>
+    #include <algorithm>
+    #include <cassert>
+    #include <cstdio>
+    #include <filesystem>
+    #include <sstream>
+    #include <stdexcept>
 
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/storage_options.hpp>
+    #include <rosbag2_cpp/writer.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
 
 namespace spectra::adapters::ros2
 {
@@ -25,10 +25,7 @@ namespace spectra::adapters::ros2
 // Construction / destruction
 // ---------------------------------------------------------------------------
 
-BagRecorder::BagRecorder(rclcpp::Node::SharedPtr node)
-    : node_(std::move(node))
-{
-}
+BagRecorder::BagRecorder(rclcpp::Node::SharedPtr node) : node_(std::move(node)) {}
 
 BagRecorder::~BagRecorder()
 {
@@ -92,20 +89,22 @@ bool BagRecorder::reliable_qos() const noexcept
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-bool BagRecorder::start(const std::string& bag_path,
-                        const std::vector<std::string>& topics)
+bool BagRecorder::start(const std::string& bag_path, const std::vector<std::string>& topics)
 {
     std::lock_guard<std::mutex> lk(mutex_);
 
-    if (state_ == RecordingState::Recording) {
+    if (state_ == RecordingState::Recording)
+    {
         last_error_ = "BagRecorder::start() called while already recording";
         return false;
     }
-    if (!node_) {
+    if (!node_)
+    {
         last_error_ = "BagRecorder::start() called with null node";
         return false;
     }
-    if (bag_path.empty()) {
+    if (bag_path.empty())
+    {
         last_error_ = "BagRecorder::start() called with empty path";
         return false;
     }
@@ -123,18 +122,19 @@ bool BagRecorder::start(const std::string& bag_path,
     topics_    = topics;
 
     // Determine actual storage ID
-    const std::string sid = storage_id_override_.empty()
-                          ? detect_storage_id(bag_path)
-                          : storage_id_override_;
+    const std::string sid =
+        storage_id_override_.empty() ? detect_storage_id(bag_path) : storage_id_override_;
 
     // Open writer at base path (split 0)
     current_path_ = bag_path;
-    if (!open_writer(current_path_, sid)) {
+    if (!open_writer(current_path_, sid))
+    {
         return false;
     }
 
     // Subscribe to requested topics
-    if (!subscribe_topics()) {
+    if (!subscribe_topics())
+    {
         close_writer();
         return false;
     }
@@ -150,7 +150,8 @@ void BagRecorder::stop()
 {
     std::lock_guard<std::mutex> lk(mutex_);
 
-    if (state_ == RecordingState::Idle) {
+    if (state_ == RecordingState::Idle)
+    {
         return;
     }
 
@@ -162,7 +163,7 @@ void BagRecorder::stop()
     // Finalize the current bag file
     close_writer();
 
-    state_         = RecordingState::Idle;
+    state_ = RecordingState::Idle;
     topic_type_map_.clear();
 }
 
@@ -209,7 +210,8 @@ uint64_t BagRecorder::recorded_bytes() const noexcept
 double BagRecorder::elapsed_seconds() const noexcept
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    if (state_ == RecordingState::Idle) {
+    if (state_ == RecordingState::Idle)
+    {
         return 0.0;
     }
     const auto now = std::chrono::steady_clock::now();
@@ -225,7 +227,8 @@ uint32_t BagRecorder::split_index() const noexcept
 std::vector<std::string> BagRecorder::recorded_topics() const
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    if (state_ == RecordingState::Idle) {
+    if (state_ == RecordingState::Idle)
+    {
         return {};
     }
     return topics_;
@@ -270,11 +273,13 @@ void BagRecorder::clear_error() noexcept
 bool BagRecorder::subscribe_topics()
 {
     // Called with mutex_ held.
-    if (!node_) {
+    if (!node_)
+    {
         last_error_ = "null node";
         return false;
     }
-    if (topics_.empty()) {
+    if (topics_.empty())
+    {
         last_error_ = "no topics to record";
         return false;
     }
@@ -286,22 +291,25 @@ bool BagRecorder::subscribe_topics()
     // user-initiated and infrequent, so the risk is low.  A future improvement
     // would be to resolve types from a TopicDiscovery cache instead.
     const auto graph_topics = node_->get_topic_names_and_types();
-    for (const auto& [tname, ttypes] : graph_topics) {
-        if (!ttypes.empty()) {
+    for (const auto& [tname, ttypes] : graph_topics)
+    {
+        if (!ttypes.empty())
+        {
             topic_type_map_[tname] = ttypes.front();
         }
     }
 
     // Build QoS
-    auto qos = reliable_qos_
-              ? rclcpp::QoS(rclcpp::KeepLast(1000)).reliable()
-              : rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort();
+    auto qos = reliable_qos_ ? rclcpp::QoS(rclcpp::KeepLast(1000)).reliable()
+                             : rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort();
 
     // Subscribe to each requested topic
-    for (const auto& topic : topics_) {
+    for (const auto& topic : topics_)
+    {
         // Resolve type
         auto it = topic_type_map_.find(topic);
-        if (it == topic_type_map_.end()) {
+        if (it == topic_type_map_.end())
+        {
             last_error_ = "topic not found in ROS2 graph: " + topic;
             subscriptions_.clear();
             return false;
@@ -310,28 +318,33 @@ bool BagRecorder::subscribe_topics()
 
         // Register topic with the writer (must happen before first write)
         rosbag2_storage::TopicMetadata tm;
-        tm.name              = topic;
-        tm.type              = msg_type;
+        tm.name                 = topic;
+        tm.type                 = msg_type;
         tm.serialization_format = "cdr";
-        try {
+        try
+        {
             writer_->create_topic(tm);
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e)
+        {
             last_error_ = std::string("create_topic failed for ") + topic + ": " + e.what();
             subscriptions_.clear();
             return false;
         }
 
         // Create generic subscription
-        try {
+        try
+        {
             auto sub = node_->create_generic_subscription(
                 topic,
                 msg_type,
                 qos,
-                [this, topic, msg_type](std::shared_ptr<const rclcpp::SerializedMessage> msg) {
-                    on_message(topic, msg_type, msg);
-                });
+                [this, topic, msg_type](std::shared_ptr<const rclcpp::SerializedMessage> msg)
+                { on_message(topic, msg_type, msg); });
             subscriptions_.push_back(std::move(sub));
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e)
+        {
             last_error_ = std::string("subscription failed for ") + topic + ": " + e.what();
             subscriptions_.clear();
             return false;
@@ -349,40 +362,46 @@ void BagRecorder::on_message(const std::string& topic_name,
                              const std::string& /*message_type*/,
                              std::shared_ptr<const rclcpp::SerializedMessage> msg)
 {
-    if (!msg) {
+    if (!msg)
+    {
         return;
     }
 
     std::lock_guard<std::mutex> lk(mutex_);
 
-    if (state_ != RecordingState::Recording || !writer_) {
+    if (state_ != RecordingState::Recording || !writer_)
+    {
         return;
     }
 
     // Build rosbag2 message
-    auto bag_msg           = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-    bag_msg->topic_name    = topic_name;
-    bag_msg->time_stamp    = node_->now().nanoseconds();
+    auto bag_msg        = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+    bag_msg->topic_name = topic_name;
+    bag_msg->time_stamp = node_->now().nanoseconds();
 
     // Copy serialized buffer
-    const auto& rcl_buf    = msg->get_rcl_serialized_message();
-    bag_msg->serialized_data = std::make_shared<rcutils_uint8_array_t>();
+    const auto& rcl_buf       = msg->get_rcl_serialized_message();
+    bag_msg->serialized_data  = std::make_shared<rcutils_uint8_array_t>();
     *bag_msg->serialized_data = rcl_buf;
 
     const uint64_t msg_bytes = rcl_buf.buffer_length;
 
-    try {
+    try
+    {
         writer_->write(bag_msg);
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e)
+    {
         last_error_ = std::string("write error: ") + e.what();
-        if (error_cb_) {
+        if (error_cb_)
+        {
             error_cb_(last_error_);
         }
         return;
     }
 
     ++message_count_;
-    bytes_total_       += msg_bytes;
+    bytes_total_ += msg_bytes;
     bytes_since_split_ += msg_bytes;
 
     // Check auto-split after updating counters
@@ -398,20 +417,24 @@ void BagRecorder::check_and_split()
     bool need_split = false;
 
     // Size-based split
-    if (max_size_bytes_ > 0 && bytes_since_split_ >= max_size_bytes_) {
+    if (max_size_bytes_ > 0 && bytes_since_split_ >= max_size_bytes_)
+    {
         need_split = true;
     }
 
     // Duration-based split
-    if (!need_split && max_duration_seconds_ > 0.0) {
-        const auto now     = std::chrono::steady_clock::now();
+    if (!need_split && max_duration_seconds_ > 0.0)
+    {
+        const auto   now     = std::chrono::steady_clock::now();
         const double elapsed = std::chrono::duration<double>(now - split_start_time_).count();
-        if (elapsed >= max_duration_seconds_) {
+        if (elapsed >= max_duration_seconds_)
+        {
             need_split = true;
         }
     }
 
-    if (need_split) {
+    if (need_split)
+    {
         do_split();
     }
 }
@@ -423,25 +446,25 @@ void BagRecorder::check_and_split()
 void BagRecorder::do_split()
 {
     // Snapshot info for the callback
-    const std::string closed_path = current_path_;
-    const uint64_t    msgs_closed = message_count_;
+    const std::string closed_path  = current_path_;
+    const uint64_t    msgs_closed  = message_count_;
     const uint64_t    bytes_closed = bytes_since_split_;
 
     // Determine new split path
-    const uint32_t new_split_idx = split_index_ + 1;
-    const std::string new_path   = make_split_path(base_path_, new_split_idx);
+    const uint32_t    new_split_idx = split_index_ + 1;
+    const std::string new_path      = make_split_path(base_path_, new_split_idx);
 
     // Determine storage ID from the existing or override setting
-    const std::string sid = storage_id_override_.empty()
-                          ? detect_storage_id(base_path_)
-                          : storage_id_override_;
+    const std::string sid =
+        storage_id_override_.empty() ? detect_storage_id(base_path_) : storage_id_override_;
 
     // Close current writer
     close_writer();
 
     // Open new writer
     current_path_ = new_path;
-    if (!open_writer(current_path_, sid)) {
+    if (!open_writer(current_path_, sid))
+    {
         // Error already set by open_writer; stop recording
         state_ = RecordingState::Idle;
         subscriptions_.clear();
@@ -449,16 +472,23 @@ void BagRecorder::do_split()
     }
 
     // Re-register all topics with the new writer
-    for (const auto& [tname, ttype] : topic_type_map_) {
+    for (const auto& [tname, ttype] : topic_type_map_)
+    {
         rosbag2_storage::TopicMetadata tm;
-        tm.name                   = tname;
-        tm.type                   = ttype;
-        tm.serialization_format   = "cdr";
-        try {
+        tm.name                 = tname;
+        tm.type                 = ttype;
+        tm.serialization_format = "cdr";
+        try
+        {
             writer_->create_topic(tm);
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e)
+        {
             last_error_ = std::string("re-register topic on split: ") + e.what();
-            if (error_cb_) { error_cb_(last_error_); }
+            if (error_cb_)
+            {
+                error_cb_(last_error_);
+            }
         }
     }
 
@@ -468,7 +498,8 @@ void BagRecorder::do_split()
     split_start_time_  = std::chrono::steady_clock::now();
 
     // Fire split callback
-    if (split_cb_) {
+    if (split_cb_)
+    {
         RecordingSplitInfo info;
         info.closed_path        = closed_path;
         info.new_path           = new_path;
@@ -485,7 +516,8 @@ void BagRecorder::do_split()
 
 bool BagRecorder::open_writer(const std::string& path, const std::string& sid)
 {
-    try {
+    try
+    {
         writer_ = std::make_unique<rosbag2_cpp::Writer>();
 
         rosbag2_storage::StorageOptions opts;
@@ -494,7 +526,9 @@ bool BagRecorder::open_writer(const std::string& path, const std::string& sid)
 
         writer_->open(opts);
         return true;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e)
+    {
         last_error_ = std::string("failed to open bag '") + path + "': " + e.what();
         writer_.reset();
         return false;
@@ -507,10 +541,14 @@ bool BagRecorder::open_writer(const std::string& path, const std::string& sid)
 
 void BagRecorder::close_writer()
 {
-    if (writer_) {
-        try {
-            writer_.reset();  // rosbag2_cpp::Writer finalizes on destruction
-        } catch (...) {
+    if (writer_)
+    {
+        try
+        {
+            writer_.reset();   // rosbag2_cpp::Writer finalizes on destruction
+        }
+        catch (...)
+        {
             // Suppress exceptions on close
         }
     }
@@ -520,18 +558,17 @@ void BagRecorder::close_writer()
 // Private — make_split_path
 // ---------------------------------------------------------------------------
 
-std::string BagRecorder::make_split_path(const std::string& base_path,
-                                         uint32_t idx) const
+std::string BagRecorder::make_split_path(const std::string& base_path, uint32_t idx) const
 {
     // Split the base path into stem + extension.
     // /path/to/output.db3 → /path/to/output_split001.db3
     // /path/to/output.mcap → /path/to/output_split001.mcap
     namespace fs = std::filesystem;
 
-    const fs::path p(base_path);
-    const std::string stem = p.stem().string();
-    const std::string ext  = p.extension().string();
-    const fs::path parent  = p.parent_path();
+    const fs::path    p(base_path);
+    const std::string stem   = p.stem().string();
+    const std::string ext    = p.extension().string();
+    const fs::path    parent = p.parent_path();
 
     char suffix[16];
     std::snprintf(suffix, sizeof(suffix), "_split%03u", idx);
@@ -547,18 +584,21 @@ std::string BagRecorder::make_split_path(const std::string& base_path,
 /*static*/ std::string BagRecorder::detect_storage_id(const std::string& path)
 {
     const auto dot = path.rfind('.');
-    if (dot != std::string::npos) {
+    if (dot != std::string::npos)
+    {
         const std::string ext = path.substr(dot);
-        if (ext == ".mcap") {
+        if (ext == ".mcap")
+        {
             return "mcap";
         }
-        if (ext == ".db3") {
+        if (ext == ".db3")
+        {
             return "sqlite3";
         }
     }
-    return "sqlite3";  // default
+    return "sqlite3";   // default
 }
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2
 
-#endif // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG

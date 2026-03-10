@@ -51,8 +51,8 @@
 #include <vector>
 
 #ifdef SPECTRA_USE_ROS2
-#include <diagnostic_msgs/msg/diagnostic_array.hpp>
-#include <rclcpp/rclcpp.hpp>
+    #include <diagnostic_msgs/msg/diagnostic_array.hpp>
+    #include <rclcpp/rclcpp.hpp>
 #endif
 
 namespace spectra::adapters::ros2
@@ -88,10 +88,10 @@ struct DiagKeyValue
 
 struct DiagStatus
 {
-    DiagLevel              level{DiagLevel::Stale};
-    std::string            name;
-    std::string            message;
-    std::string            hardware_id;
+    DiagLevel                 level{DiagLevel::Stale};
+    std::string               name;
+    std::string               message;
+    std::string               hardware_id;
     std::vector<DiagKeyValue> values;
 
     // Wall-clock arrival timestamp (nanoseconds since epoch).
@@ -116,19 +116,19 @@ struct DiagSparkEntry
 
 struct DiagComponent
 {
-    std::string name;           // e.g. "battery", "/driver/motor"
-    std::string hardware_id;    // last seen hardware_id
+    std::string name;          // e.g. "battery", "/driver/motor"
+    std::string hardware_id;   // last seen hardware_id
 
     // Current (most-recent) status.
-    DiagLevel   level{DiagLevel::Stale};
-    std::string message;
+    DiagLevel                 level{DiagLevel::Stale};
+    std::string               message;
     std::vector<DiagKeyValue> values;
 
     // Arrival timestamp of the most-recent status update.
     int64_t last_update_ns{0};
 
     // Sparkline history: up to MAX_SPARK entries, newest at back.
-    static constexpr size_t MAX_SPARK = 60;
+    static constexpr size_t    MAX_SPARK = 60;
     std::deque<DiagSparkEntry> history;
 
     // True if this component has ever transitioned to WARN or ERROR.
@@ -141,7 +141,8 @@ struct DiagComponent
     // Returns 0.0 if never updated.
     double seconds_since_update(int64_t now_ns) const
     {
-        if (last_update_ns <= 0) return 0.0;
+        if (last_update_ns <= 0)
+            return 0.0;
         const double diff = static_cast<double>(now_ns - last_update_ns) * 1e-9;
         return diff > 0.0 ? diff : 0.0;
     }
@@ -199,7 +200,7 @@ struct DiagRawMessage
 
 class DiagnosticsPanel
 {
-public:
+   public:
     DiagnosticsPanel();
     ~DiagnosticsPanel();
 
@@ -215,8 +216,8 @@ public:
 #ifdef SPECTRA_USE_ROS2
     // Set the ROS2 node to create the subscription on.
     // Must be called before start().  Pointer must outlive this panel.
-    void set_node(rclcpp::Node* node) { node_ = node; }
-    rclcpp::Node* node() const        { return node_; }
+    void          set_node(rclcpp::Node* node) { node_ = node; }
+    rclcpp::Node* node() const { return node_; }
 #endif
 
     // Create the /diagnostics subscription and start receiving.
@@ -250,22 +251,22 @@ public:
     // -----------------------------------------------------------------------
 
     // Topic to subscribe (default "/diagnostics").
-    void set_topic(const std::string& topic) { topic_ = topic; }
-    const std::string& topic() const         { return topic_; }
+    void               set_topic(const std::string& topic) { topic_ = topic; }
+    const std::string& topic() const { return topic_; }
 
     // Window title (default "Diagnostics").
-    void set_title(const std::string& t) { title_ = t; }
-    const std::string& title() const     { return title_; }
+    void               set_title(const std::string& t) { title_ = t; }
+    const std::string& title() const { return title_; }
 
     // Components not updated within stale_threshold_s seconds are
     // automatically marked STALE (default 5.0 s).
     void   set_stale_threshold_s(double s) { stale_threshold_s_ = s; }
-    double stale_threshold_s() const       { return stale_threshold_s_; }
+    double stale_threshold_s() const { return stale_threshold_s_; }
 
     // Maximum raw messages buffered from the executor thread (ring, default 256).
     // Must be set before start().
-    void   set_ring_depth(size_t d)  { ring_depth_ = d; }
-    size_t ring_depth() const        { return ring_depth_; }
+    void   set_ring_depth(size_t d) { ring_depth_ = d; }
+    size_t ring_depth() const { return ring_depth_; }
 
     // -----------------------------------------------------------------------
     // Callbacks
@@ -297,8 +298,8 @@ public:
     // Static so it can be unit-tested independently.
     // Returns parsed statuses; empty on parse failure.
     static std::vector<DiagStatus> parse_diag_array(const uint8_t* data,
-                                                     size_t         len,
-                                                     int64_t        arrival_ns);
+                                                    size_t         len,
+                                                    int64_t        arrival_ns);
 
     // Compute RGBA badge colour for a DiagLevel.
     // Returns {r, g, b, a} in [0, 1] float range.
@@ -307,7 +308,7 @@ public:
     // Short label for a DiagLevel: "OK", "WARN", "ERR", "STALE".
     static const char* level_short(DiagLevel l);
 
-private:
+   private:
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
@@ -352,8 +353,8 @@ private:
 
     std::vector<DiagRawMessage> ring_;
     size_t                      ring_mask_{0};
-    std::atomic<size_t>         ring_head_{0};  // producer
-    std::atomic<size_t>         ring_tail_{0};  // consumer
+    std::atomic<size_t>         ring_head_{0};   // producer
+    std::atomic<size_t>         ring_tail_{0};   // consumer
 
     // Push a raw message from the executor thread.
     void ring_push(DiagRawMessage msg);
@@ -366,37 +367,37 @@ private:
     // -----------------------------------------------------------------------
 
 #ifdef SPECTRA_USE_ROS2
-    rclcpp::Node*                                node_{nullptr};
+    rclcpp::Node*                                                          node_{nullptr};
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr subscription_;
 #endif
 
-    std::atomic<bool>  running_{false};
+    std::atomic<bool> running_{false};
 
-    std::string  topic_{"diagnostics"};   // without leading slash (rclcpp resolves)
-    std::string  title_{"Diagnostics"};
-    double       stale_threshold_s_{5.0};
-    size_t       ring_depth_{256};
+    std::string topic_{"diagnostics"};   // without leading slash (rclcpp resolves)
+    std::string title_{"Diagnostics"};
+    double      stale_threshold_s_{5.0};
+    size_t      ring_depth_{256};
 
     // Model (render-thread only after construction).
     DiagnosticsModel model_;
 
     // UI state (render-thread only).
-    char         filter_buf_[256]{};
-    std::string  filter_str_;
-    std::string  expanded_component_;     // name of currently expanded component
-    bool         show_ok_{true};
-    bool         show_warn_{true};
-    bool         show_error_{true};
-    bool         show_stale_{true};
-    bool         show_kv_all_{false};     // expand all key/value tables
+    char        filter_buf_[256]{};
+    std::string filter_str_;
+    std::string expanded_component_;   // name of currently expanded component
+    bool        show_ok_{true};
+    bool        show_warn_{true};
+    bool        show_error_{true};
+    bool        show_stale_{true};
+    bool        show_kv_all_{false};   // expand all key/value tables
 
     // Alert callback.
     AlertCallback alert_cb_;
 
     // Typed ROS2 diagnostic callbacks stage parsed status arrays here so the
     // render thread can apply them during poll().
-    std::mutex                                pending_mutex_;
-    std::vector<std::vector<DiagStatus>>      pending_status_batches_;
+    std::mutex                           pending_mutex_;
+    std::vector<std::vector<DiagStatus>> pending_status_batches_;
 };
 
 }   // namespace spectra::adapters::ros2

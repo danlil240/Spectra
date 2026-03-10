@@ -124,22 +124,22 @@ PanelVisibility panel_visibility_from_json(const json& value)
     if (!value.is_object())
         return panels;
 
-    panels.topic_list = value.value("topic_list", true);
-    panels.topic_echo = value.value("topic_echo", false);
-    panels.topic_stats = value.value("topic_stats", true);
-    panels.plot_area = value.value("plot_area", true);
-    panels.bag_info = value.value("bag_info", false);
-    panels.bag_playback = value.value("bag_playback", false);
-    panels.log_viewer = value.value("log_viewer", false);
-    panels.diagnostics = value.value("diagnostics", false);
-    panels.node_graph = value.value("node_graph", false);
-    panels.tf_tree = value.value("tf_tree", false);
-    panels.param_editor = value.value("param_editor", false);
-    panels.service_caller = value.value("service_caller", false);
-    panels.displays_panel = value.value("displays_panel", false);
-    panels.scene_viewport = value.value("scene_viewport", false);
+    panels.topic_list      = value.value("topic_list", true);
+    panels.topic_echo      = value.value("topic_echo", false);
+    panels.topic_stats     = value.value("topic_stats", true);
+    panels.plot_area       = value.value("plot_area", true);
+    panels.bag_info        = value.value("bag_info", false);
+    panels.bag_playback    = value.value("bag_playback", false);
+    panels.log_viewer      = value.value("log_viewer", false);
+    panels.diagnostics     = value.value("diagnostics", false);
+    panels.node_graph      = value.value("node_graph", false);
+    panels.tf_tree         = value.value("tf_tree", false);
+    panels.param_editor    = value.value("param_editor", false);
+    panels.service_caller  = value.value("service_caller", false);
+    panels.displays_panel  = value.value("displays_panel", false);
+    panels.scene_viewport  = value.value("scene_viewport", false);
     panels.inspector_panel = value.value("inspector_panel", false);
-    panels.nav_rail = value.value("nav_rail", true);
+    panels.nav_rail        = value.value("nav_rail", true);
     return panels;
 }
 
@@ -150,10 +150,10 @@ TopicMonitorState topic_monitor_state_from_json(const json& value)
         return topic_monitor;
 
     topic_monitor.show_type = value.value("show_type", true);
-    topic_monitor.show_hz = value.value("show_hz", true);
+    topic_monitor.show_hz   = value.value("show_hz", true);
     topic_monitor.show_pubs = value.value("show_pubs", true);
     topic_monitor.show_subs = value.value("show_subs", true);
-    topic_monitor.show_bw = value.value("show_bw", true);
+    topic_monitor.show_bw   = value.value("show_bw", true);
     return topic_monitor;
 }
 
@@ -163,11 +163,11 @@ SceneCameraPose scene_camera_pose_from_json(const json& value)
     if (!value.is_object())
         return pose;
 
-    pose.azimuth = value.value("azimuth", pose.azimuth);
-    pose.elevation = value.value("elevation", pose.elevation);
-    pose.distance = value.value("distance", pose.distance);
+    pose.azimuth    = value.value("azimuth", pose.azimuth);
+    pose.elevation  = value.value("elevation", pose.elevation);
+    pose.distance   = value.value("distance", pose.distance);
     pose.projection = value.value("projection", pose.projection);
-    pose.fov = value.value("fov", pose.fov);
+    pose.fov        = value.value("fov", pose.fov);
 
     if (const auto target_it = value.find("target");
         target_it != value.end() && target_it->is_array() && target_it->size() == 3)
@@ -254,18 +254,18 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
         return false;
     }
 
-    out = RosSession{};
-    out.version = root.value("version", SESSION_FORMAT_VERSION);
-    out.node_name = root.value("node_name", std::string{});
-    out.node_ns = root.value("node_ns", std::string{});
-    out.layout = root.value("layout", std::string{"default"});
-    out.subplot_rows = root.value("subplot_rows", 1);
-    out.subplot_cols = root.value("subplot_cols", 1);
-    out.time_window_s = root.value("time_window_s", 30.0);
+    out                 = RosSession{};
+    out.version         = root.value("version", SESSION_FORMAT_VERSION);
+    out.node_name       = root.value("node_name", std::string{});
+    out.node_ns         = root.value("node_ns", std::string{});
+    out.layout          = root.value("layout", std::string{"default"});
+    out.subplot_rows    = root.value("subplot_rows", 1);
+    out.subplot_cols    = root.value("subplot_cols", 1);
+    out.time_window_s   = root.value("time_window_s", 30.0);
     out.pruning_enabled = root.value("pruning_enabled", true);
-    out.prune_buffer_s = root.value("prune_buffer_s", 20.0);
-    out.saved_at = root.value("saved_at", std::string{});
-    out.description = root.value("description", std::string{});
+    out.prune_buffer_s  = root.value("prune_buffer_s", 20.0);
+    out.saved_at        = root.value("saved_at", std::string{});
+    out.description     = root.value("description", std::string{});
 
     if (const auto it = root.find("subscriptions"); it != root.end() && it->is_array())
     {
@@ -274,10 +274,10 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
             if (!item.is_object())
                 continue;
             SubscriptionEntry entry;
-            entry.topic = item.value("topic", std::string{});
-            entry.field_path = item.value("field_path", std::string{});
-            entry.type_name = item.value("type_name", std::string{});
-            entry.subplot_slot = item.value("subplot_slot", 0);
+            entry.topic         = item.value("topic", std::string{});
+            entry.field_path    = item.value("field_path", std::string{});
+            entry.type_name     = item.value("type_name", std::string{});
+            entry.subplot_slot  = item.value("subplot_slot", 0);
             entry.time_window_s = item.value("time_window_s", 0.0);
             entry.scroll_paused = item.value("scroll_paused", false);
             if (!entry.topic.empty())
@@ -292,8 +292,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
             if (!item.is_object())
                 continue;
             ExpressionEntry entry;
-            entry.expression = item.value("expression", std::string{});
-            entry.label = item.value("label", std::string{});
+            entry.expression   = item.value("expression", std::string{});
+            entry.label        = item.value("label", std::string{});
             entry.subplot_slot = item.value("subplot_slot", 0);
             if (const auto bindings_it = item.find("bindings");
                 bindings_it != item.end() && bindings_it->is_array())
@@ -303,8 +303,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
                     if (!binding_item.is_object())
                         continue;
                     ExpressionEntry::VarBinding binding;
-                    binding.variable = binding_item.value("variable", std::string{});
-                    binding.topic = binding_item.value("topic", std::string{});
+                    binding.variable   = binding_item.value("variable", std::string{});
+                    binding.topic      = binding_item.value("topic", std::string{});
                     binding.field_path = binding_item.value("field_path", std::string{});
                     if (!binding.variable.empty())
                         entry.bindings.push_back(std::move(binding));
@@ -322,7 +322,7 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
             if (!item.is_object())
                 continue;
             ExpressionPresetEntry entry;
-            entry.name = item.value("name", std::string{});
+            entry.name       = item.value("name", std::string{});
             entry.expression = item.value("expression", std::string{});
             if (const auto vars_it = item.find("variables");
                 vars_it != item.end() && vars_it->is_array())
@@ -338,9 +338,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
         }
     }
 
-    const json& scene = root.contains("scene") && root["scene"].is_object()
-        ? root["scene"]
-        : json::object();
+    const json& scene =
+        root.contains("scene") && root["scene"].is_object() ? root["scene"] : json::object();
     out.fixed_frame = scene.value("fixed_frame", std::string{});
     if (const auto it = scene.find("camera_pose"); it != scene.end())
         out.camera_pose = scene_camera_pose_from_json(*it);
@@ -353,29 +352,26 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
             if (!item.is_object())
                 continue;
             DisplaySessionEntry entry;
-            entry.type_id = item.value("type_id", std::string{});
-            entry.topic = item.value("topic", std::string{});
-            entry.enabled = item.value("enabled", true);
+            entry.type_id     = item.value("type_id", std::string{});
+            entry.topic       = item.value("topic", std::string{});
+            entry.enabled     = item.value("enabled", true);
             entry.config_blob = item.value("config_blob", std::string{});
             if (!entry.type_id.empty())
                 out.displays.push_back(std::move(entry));
         }
     }
 
-    const json& ui = root.contains("ui") && root["ui"].is_object()
-        ? root["ui"]
-        : json::object();
+    const json& ui = root.contains("ui") && root["ui"].is_object() ? root["ui"] : json::object();
     if (const auto it = ui.find("panels"); it != ui.end())
         out.panels = panel_visibility_from_json(*it);
     if (const auto it = ui.find("topic_monitor"); it != ui.end())
         out.topic_monitor = topic_monitor_state_from_json(*it);
-    const json& nav_rail = ui.contains("nav_rail") && ui["nav_rail"].is_object()
-        ? ui["nav_rail"]
-        : json::object();
-    out.panels.nav_rail = nav_rail.value("visible", out.panels.nav_rail);
+    const json& nav_rail =
+        ui.contains("nav_rail") && ui["nav_rail"].is_object() ? ui["nav_rail"] : json::object();
+    out.panels.nav_rail   = nav_rail.value("visible", out.panels.nav_rail);
     out.nav_rail_expanded = nav_rail.value("expanded", false);
-    out.nav_rail_width = nav_rail.value("width", 220.0);
-    out.imgui_ini_data = ui.value("imgui_layout", std::string{});
+    out.nav_rail_width    = nav_rail.value("width", 220.0);
+    out.imgui_ini_data    = ui.value("imgui_layout", std::string{});
 
     return true;
 }
@@ -397,12 +393,14 @@ SaveResult RosSessionManager::save(const RosSession& session, const std::string&
     SaveResult result;
     result.path = path;
 
-    if (path.empty()) {
+    if (path.empty())
+    {
         result.error = "path is empty";
         return result;
     }
 
-    if (!ensure_directory(path)) {
+    if (!ensure_directory(path))
+    {
         result.error = "failed to create parent directory for: " + path;
         return result;
     }
@@ -412,7 +410,8 @@ SaveResult RosSessionManager::save(const RosSession& session, const std::string&
     stamped.saved_at   = current_iso8601();
 
     std::string json = serialize(stamped);
-    if (!write_file(path, json)) {
+    if (!write_file(path, json))
+    {
         result.error = "failed to write session file: " + path;
         return result;
     }
@@ -433,19 +432,22 @@ LoadResult RosSessionManager::load(const std::string& path)
     LoadResult result;
     result.path = path;
 
-    if (path.empty()) {
+    if (path.empty())
+    {
         result.error = "path is empty";
         return result;
     }
 
     std::string content;
-    if (!read_file(path, content)) {
+    if (!read_file(path, content))
+    {
         result.error = "failed to read session file: " + path;
         return result;
     }
 
     std::string err;
-    if (!deserialize(content, result.session, err)) {
+    if (!deserialize(content, result.session, err))
+    {
         result.error = "JSON parse error: " + err;
         return result;
     }
@@ -463,7 +465,8 @@ LoadResult RosSessionManager::load(const std::string& path)
 
 SaveResult RosSessionManager::auto_save(const RosSession& session)
 {
-    if (last_path_.empty()) {
+    if (last_path_.empty())
+    {
         SaveResult r;
         r.ok    = false;
         r.error = "no last_path set — use save() first or set_last_path()";
@@ -480,7 +483,8 @@ std::vector<RecentEntry> RosSessionManager::load_recent()
 {
     std::string path = default_recent_path();
     std::string content;
-    if (!read_file(path, content)) {
+    if (!read_file(path, content))
+    {
         return {};
     }
     return deserialize_recent(content);
@@ -489,7 +493,8 @@ std::vector<RecentEntry> RosSessionManager::load_recent()
 bool RosSessionManager::save_recent(const std::vector<RecentEntry>& entries)
 {
     std::string path = default_recent_path();
-    if (!ensure_directory(path)) {
+    if (!ensure_directory(path))
+    {
         return false;
     }
     std::string json = serialize_recent(entries);
@@ -503,10 +508,10 @@ void RosSessionManager::push_recent(const std::string& path,
     auto list = load_recent();
 
     // Remove any existing entry with the same path.
-    list.erase(
-        std::remove_if(list.begin(), list.end(),
-                       [&path](const RecentEntry& e){ return e.path == path; }),
-        list.end());
+    list.erase(std::remove_if(list.begin(),
+                              list.end(),
+                              [&path](const RecentEntry& e) { return e.path == path; }),
+               list.end());
 
     // Insert at front.
     RecentEntry e;
@@ -516,7 +521,8 @@ void RosSessionManager::push_recent(const std::string& path,
     list.insert(list.begin(), e);
 
     // Trim to MAX_RECENT.
-    if (static_cast<int>(list.size()) > MAX_RECENT) {
+    if (static_cast<int>(list.size()) > MAX_RECENT)
+    {
         list.resize(MAX_RECENT);
     }
 
@@ -526,10 +532,10 @@ void RosSessionManager::push_recent(const std::string& path,
 void RosSessionManager::remove_recent(const std::string& path)
 {
     auto list = load_recent();
-    list.erase(
-        std::remove_if(list.begin(), list.end(),
-                       [&path](const RecentEntry& e){ return e.path == path; }),
-        list.end());
+    list.erase(std::remove_if(list.begin(),
+                              list.end(),
+                              [&path](const RecentEntry& e) { return e.path == path; }),
+               list.end());
     save_recent(list);
 }
 
@@ -546,7 +552,8 @@ std::string RosSessionManager::default_recent_path()
 {
     // Use $HOME/.config/spectra/ros_recent.json
     const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0') {
+    if (!home || home[0] == '\0')
+    {
         home = "/tmp";
     }
     std::string dir = std::string(home) + "/.config/spectra";
@@ -556,13 +563,16 @@ std::string RosSessionManager::default_recent_path()
 std::string RosSessionManager::default_session_path(const std::string& node_name)
 {
     const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0') {
+    if (!home || home[0] == '\0')
+    {
         home = "/tmp";
     }
     std::string name = node_name.empty() ? "default" : node_name;
     // Sanitise: replace '/' with '_'
-    for (char& c : name) {
-        if (c == '/' || c == '\\' || c == ':') c = '_';
+    for (char& c : name)
+    {
+        if (c == '/' || c == '\\' || c == ':')
+            c = '_';
     }
     return std::string(home) + "/.config/spectra/sessions/" + name + ".spectra-ros-session";
 }
@@ -579,21 +589,36 @@ std::string RosSessionManager::json_escape(const std::string& s)
 {
     std::string out;
     out.reserve(s.size() + 8);
-    for (unsigned char c : s) {
-        switch (c) {
-        case '"':  out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\n': out += "\\n";  break;
-        case '\r': out += "\\r";  break;
-        case '\t': out += "\\t";  break;
-        default:
-            if (c < 0x20) {
-                char buf[8];
-                std::snprintf(buf, sizeof(buf), "\\u%04x", c);
-                out += buf;
-            } else {
-                out += static_cast<char>(c);
-            }
+    for (unsigned char c : s)
+    {
+        switch (c)
+        {
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (c < 0x20)
+                {
+                    char buf[8];
+                    std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    out += buf;
+                }
+                else
+                {
+                    out += static_cast<char>(c);
+                }
         }
     }
     return out;
@@ -603,36 +628,55 @@ std::string RosSessionManager::json_escape(const std::string& s)
 // json_get_* — extract scalar values from a flat JSON object string
 // ---------------------------------------------------------------------------
 
-std::string RosSessionManager::json_get_string(const std::string& json,
-                                               const std::string& key)
+std::string RosSessionManager::json_get_string(const std::string& json, const std::string& key)
 {
     // Look for "key":"value" pattern.
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return {};
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return {};
 
     pos += pattern.size();
     // Skip whitespace and ':'
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size() || json[pos] != '"') return {};
-    ++pos;  // skip opening quote
+    if (pos >= json.size() || json[pos] != '"')
+        return {};
+    ++pos;   // skip opening quote
 
     std::string result;
-    while (pos < json.size() && json[pos] != '"') {
-        if (json[pos] == '\\' && pos + 1 < json.size()) {
+    while (pos < json.size() && json[pos] != '"')
+    {
+        if (json[pos] == '\\' && pos + 1 < json.size())
+        {
             ++pos;
-            switch (json[pos]) {
-            case '"':  result += '"';  break;
-            case '\\': result += '\\'; break;
-            case 'n':  result += '\n'; break;
-            case 'r':  result += '\r'; break;
-            case 't':  result += '\t'; break;
-            default:   result += json[pos]; break;
+            switch (json[pos])
+            {
+                case '"':
+                    result += '"';
+                    break;
+                case '\\':
+                    result += '\\';
+                    break;
+                case 'n':
+                    result += '\n';
+                    break;
+                case 'r':
+                    result += '\r';
+                    break;
+                case 't':
+                    result += '\t';
+                    break;
+                default:
+                    result += json[pos];
+                    break;
             }
-        } else {
+        }
+        else
+        {
             result += json[pos];
         }
         ++pos;
@@ -645,22 +689,28 @@ int RosSessionManager::json_get_int(const std::string& json,
                                     int                default_val)
 {
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return default_val;
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return default_val;
 
     pos += pattern.size();
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size()) return default_val;
+    if (pos >= json.size())
+        return default_val;
 
-    try {
+    try
+    {
         size_t consumed = 0;
-        int val = std::stoi(json.substr(pos), &consumed);
+        int    val      = std::stoi(json.substr(pos), &consumed);
         (void)consumed;
         return val;
-    } catch (...) {
+    }
+    catch (...)
+    {
         return default_val;
     }
 }
@@ -670,22 +720,28 @@ double RosSessionManager::json_get_double(const std::string& json,
                                           double             default_val)
 {
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return default_val;
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return default_val;
 
     pos += pattern.size();
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size()) return default_val;
+    if (pos >= json.size())
+        return default_val;
 
-    try {
+    try
+    {
         size_t consumed = 0;
-        double val = std::stod(json.substr(pos), &consumed);
+        double val      = std::stod(json.substr(pos), &consumed);
         (void)consumed;
         return val;
-    } catch (...) {
+    }
+    catch (...)
+    {
         return default_val;
     }
 }
@@ -695,18 +751,23 @@ bool RosSessionManager::json_get_bool(const std::string& json,
                                       bool               default_val)
 {
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return default_val;
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return default_val;
 
     pos += pattern.size();
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size()) return default_val;
+    if (pos >= json.size())
+        return default_val;
 
-    if (json.compare(pos, 4, "true") == 0)  return true;
-    if (json.compare(pos, 5, "false") == 0) return false;
+    if (json.compare(pos, 4, "true") == 0)
+        return true;
+    if (json.compare(pos, 5, "false") == 0)
+        return false;
     return default_val;
 }
 
@@ -716,18 +777,26 @@ bool RosSessionManager::json_get_bool(const std::string& json,
 
 std::string RosSessionManager::current_iso8601()
 {
-    auto now = std::chrono::system_clock::now();
-    std::time_t t = std::chrono::system_clock::to_time_t(now);
-    struct std::tm tm_utc{};
+    auto           now = std::chrono::system_clock::now();
+    std::time_t    t   = std::chrono::system_clock::to_time_t(now);
+    struct std::tm tm_utc
+    {
+    };
 #if defined(_WIN32)
     gmtime_s(&tm_utc, &t);
 #else
     gmtime_r(&t, &tm_utc);
 #endif
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02dZ",
-                  tm_utc.tm_year + 1900, tm_utc.tm_mon + 1, tm_utc.tm_mday,
-                  tm_utc.tm_hour, tm_utc.tm_min, tm_utc.tm_sec);
+    std::snprintf(buf,
+                  sizeof(buf),
+                  "%04d-%02d-%02dT%02d:%02d:%02dZ",
+                  tm_utc.tm_year + 1900,
+                  tm_utc.tm_mon + 1,
+                  tm_utc.tm_mday,
+                  tm_utc.tm_hour,
+                  tm_utc.tm_min,
+                  tm_utc.tm_sec);
     return buf;
 }
 
@@ -738,10 +807,12 @@ std::string RosSessionManager::current_iso8601()
 std::string RosSessionManager::build_object(
     std::initializer_list<std::pair<std::string, std::string>> kv)
 {
-    std::string out = "{";
-    bool first = true;
-    for (const auto& [k, v] : kv) {
-        if (!first) out += ",";
+    std::string out   = "{";
+    bool        first = true;
+    for (const auto& [k, v] : kv)
+    {
+        if (!first)
+            out += ",";
         out += "\n  \"" + k + "\": " + v;
         first = false;
     }
@@ -787,8 +858,10 @@ std::string RosSessionManager::serialize_expression(const ExpressionEntry& e)
     out += "\"label\":\"" + json_escape(e.label) + "\",";
     out += "\"subplot_slot\":" + std::to_string(e.subplot_slot) + ",";
     out += "\"bindings\":[";
-    for (size_t i = 0; i < e.bindings.size(); ++i) {
-        if (i > 0) out += ",";
+    for (size_t i = 0; i < e.bindings.size(); ++i)
+    {
+        if (i > 0)
+            out += ",";
         out += serialize_var_binding(e.bindings[i]);
     }
     out += "]}";
@@ -805,8 +878,10 @@ std::string RosSessionManager::serialize_preset(const ExpressionPresetEntry& e)
     out += "\"name\":\"" + json_escape(e.name) + "\",";
     out += "\"expression\":\"" + json_escape(e.expression) + "\",";
     out += "\"variables\":[";
-    for (size_t i = 0; i < e.variables.size(); ++i) {
-        if (i > 0) out += ",";
+    for (size_t i = 0; i < e.variables.size(); ++i)
+    {
+        if (i > 0)
+            out += ",";
         out += "\"" + json_escape(e.variables[i]) + "\"";
     }
     out += "]}";
@@ -862,7 +937,7 @@ std::string RosSessionManager::serialize_panels(const PanelVisibility& p)
 std::string RosSessionManager::serialize(const RosSession& session)
 {
     RosSession normalized = session;
-    normalized.version = SESSION_FORMAT_VERSION;
+    normalized.version    = SESSION_FORMAT_VERSION;
     return serialize_session_v2_json(normalized).dump(2) + "\n";
 }
 
@@ -874,32 +949,47 @@ std::string RosSessionManager::serialize(const RosSession& session)
 // extract_array — pull the JSON array body for a given key
 // ---------------------------------------------------------------------------
 
-std::string RosSessionManager::extract_array(const std::string& json,
-                                             const std::string& key)
+std::string RosSessionManager::extract_array(const std::string& json, const std::string& key)
 {
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return {};
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return {};
 
     pos += pattern.size();
     // Skip whitespace and ':'
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size() || json[pos] != '[') return {};
+    if (pos >= json.size() || json[pos] != '[')
+        return {};
 
     // Collect until matching ']'
-    int depth = 0;
+    int    depth = 0;
     size_t start = pos;
-    while (pos < json.size()) {
+    while (pos < json.size())
+    {
         char c = json[pos];
-        if (c == '[')      ++depth;
-        else if (c == ']') { --depth; if (depth == 0) { ++pos; break; } }
-        else if (c == '"') {
+        if (c == '[')
+            ++depth;
+        else if (c == ']')
+        {
+            --depth;
+            if (depth == 0)
+            {
+                ++pos;
+                break;
+            }
+        }
+        else if (c == '"')
+        {
             ++pos;
-            while (pos < json.size() && json[pos] != '"') {
-                if (json[pos] == '\\') ++pos;
+            while (pos < json.size() && json[pos] != '"')
+            {
+                if (json[pos] == '\\')
+                    ++pos;
                 ++pos;
             }
         }
@@ -915,22 +1005,41 @@ std::string RosSessionManager::extract_array(const std::string& json,
 std::vector<std::string> RosSessionManager::split_objects(const std::string& array_body)
 {
     std::vector<std::string> result;
-    size_t pos = 0;
+    size_t                   pos = 0;
     // Skip leading '['
-    while (pos < array_body.size() && array_body[pos] != '{') ++pos;
+    while (pos < array_body.size() && array_body[pos] != '{')
+        ++pos;
 
-    while (pos < array_body.size()) {
-        if (array_body[pos] != '{') { ++pos; continue; }
-        int depth = 0;
+    while (pos < array_body.size())
+    {
+        if (array_body[pos] != '{')
+        {
+            ++pos;
+            continue;
+        }
+        int    depth = 0;
         size_t start = pos;
-        while (pos < array_body.size()) {
+        while (pos < array_body.size())
+        {
             char c = array_body[pos];
-            if (c == '{')      ++depth;
-            else if (c == '}') { --depth; if (depth == 0) { ++pos; break; } }
-            else if (c == '"') {
+            if (c == '{')
+                ++depth;
+            else if (c == '}')
+            {
+                --depth;
+                if (depth == 0)
+                {
+                    ++pos;
+                    break;
+                }
+            }
+            else if (c == '"')
+            {
                 ++pos;
-                while (pos < array_body.size() && array_body[pos] != '"') {
-                    if (array_body[pos] == '\\') ++pos;
+                while (pos < array_body.size() && array_body[pos] != '"')
+                {
+                    if (array_body[pos] == '\\')
+                        ++pos;
                     ++pos;
                 }
             }
@@ -947,26 +1056,42 @@ std::vector<std::string> RosSessionManager::split_objects(const std::string& arr
 static std::string extract_nested_object(const std::string& json, const std::string& key)
 {
     std::string pattern = "\"" + key + "\"";
-    auto pos = json.find(pattern);
-    if (pos == std::string::npos) return {};
+    auto        pos     = json.find(pattern);
+    if (pos == std::string::npos)
+        return {};
 
     pos += pattern.size();
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                  json[pos] == '\n' || json[pos] == ':')) {
+    while (pos < json.size()
+           && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+    {
         ++pos;
     }
-    if (pos >= json.size() || json[pos] != '{') return {};
+    if (pos >= json.size() || json[pos] != '{')
+        return {};
 
-    int depth = 0;
+    int    depth = 0;
     size_t start = pos;
-    while (pos < json.size()) {
+    while (pos < json.size())
+    {
         char c = json[pos];
-        if (c == '{')      ++depth;
-        else if (c == '}') { --depth; if (depth == 0) { ++pos; break; } }
-        else if (c == '"') {
+        if (c == '{')
+            ++depth;
+        else if (c == '}')
+        {
+            --depth;
+            if (depth == 0)
+            {
+                ++pos;
+                break;
+            }
+        }
+        else if (c == '"')
+        {
             ++pos;
-            while (pos < json.size() && json[pos] != '"') {
-                if (json[pos] == '\\') ++pos;
+            while (pos < json.size() && json[pos] != '"')
+            {
+                if (json[pos] == '\\')
+                    ++pos;
                 ++pos;
             }
         }
@@ -979,30 +1104,47 @@ static std::string extract_nested_object(const std::string& json, const std::str
 // extract_string_array — pull ["a","b",...] for a given key
 // ---------------------------------------------------------------------------
 static std::vector<std::string> extract_string_array(const std::string& json,
-                                                      const std::string& key)
+                                                     const std::string& key)
 {
     // Inline the array body extraction (avoids calling private static member).
     std::string body;
     {
         std::string pattern = "\"" + key + "\"";
-        auto pos = json.find(pattern);
-        if (pos != std::string::npos) {
+        auto        pos     = json.find(pattern);
+        if (pos != std::string::npos)
+        {
             pos += pattern.size();
-            while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
-                                          json[pos] == '\n' || json[pos] == ':')) {
+            while (
+                pos < json.size()
+                && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == ':'))
+            {
                 ++pos;
             }
-            if (pos < json.size() && json[pos] == '[') {
-                int depth = 0;
+            if (pos < json.size() && json[pos] == '[')
+            {
+                int    depth = 0;
                 size_t start = pos;
-                while (pos < json.size()) {
+                while (pos < json.size())
+                {
                     char c = json[pos];
-                    if (c == '[')      ++depth;
-                    else if (c == ']') { --depth; if (depth == 0) { ++pos; break; } }
-                    else if (c == '"') {
+                    if (c == '[')
+                        ++depth;
+                    else if (c == ']')
+                    {
+                        --depth;
+                        if (depth == 0)
+                        {
+                            ++pos;
+                            break;
+                        }
+                    }
+                    else if (c == '"')
+                    {
                         ++pos;
-                        while (pos < json.size() && json[pos] != '"') {
-                            if (json[pos] == '\\') ++pos;
+                        while (pos < json.size() && json[pos] != '"')
+                        {
+                            if (json[pos] == '\\')
+                                ++pos;
                             ++pos;
                         }
                     }
@@ -1012,30 +1154,51 @@ static std::vector<std::string> extract_string_array(const std::string& json,
             }
         }
     }
-    if (body.empty()) return {};
+    if (body.empty())
+        return {};
 
     std::vector<std::string> result;
-    size_t pos = 0;
-    while (pos < body.size()) {
-        if (body[pos] != '"') { ++pos; continue; }
+    size_t                   pos = 0;
+    while (pos < body.size())
+    {
+        if (body[pos] != '"')
+        {
+            ++pos;
+            continue;
+        }
         ++pos;
         std::string val;
-        while (pos < body.size() && body[pos] != '"') {
-            if (body[pos] == '\\' && pos + 1 < body.size()) {
+        while (pos < body.size() && body[pos] != '"')
+        {
+            if (body[pos] == '\\' && pos + 1 < body.size())
+            {
                 ++pos;
-                switch (body[pos]) {
-                case '"':  val += '"';  break;
-                case '\\': val += '\\'; break;
-                case 'n':  val += '\n'; break;
-                case 't':  val += '\t'; break;
-                default:   val += body[pos]; break;
+                switch (body[pos])
+                {
+                    case '"':
+                        val += '"';
+                        break;
+                    case '\\':
+                        val += '\\';
+                        break;
+                    case 'n':
+                        val += '\n';
+                        break;
+                    case 't':
+                        val += '\t';
+                        break;
+                    default:
+                        val += body[pos];
+                        break;
                 }
-            } else {
+            }
+            else
+            {
                 val += body[pos];
             }
             ++pos;
         }
-        ++pos;  // closing quote
+        ++pos;   // closing quote
         result.push_back(std::move(val));
     }
     return result;
@@ -1064,17 +1227,19 @@ SubscriptionEntry RosSessionManager::deserialize_subscription(const std::string&
 ExpressionEntry RosSessionManager::deserialize_expression(const std::string& json)
 {
     ExpressionEntry e;
-    e.expression  = json_get_string(json, "expression");
-    e.label       = json_get_string(json, "label");
+    e.expression   = json_get_string(json, "expression");
+    e.label        = json_get_string(json, "label");
     e.subplot_slot = json_get_int(json, "subplot_slot", 0);
 
     std::string bindings_body = extract_array(json, "bindings");
-    for (const auto& obj : split_objects(bindings_body)) {
+    for (const auto& obj : split_objects(bindings_body))
+    {
         ExpressionEntry::VarBinding b;
         b.variable   = json_get_string(obj, "variable");
         b.topic      = json_get_string(obj, "topic");
         b.field_path = json_get_string(obj, "field_path");
-        if (!b.variable.empty()) {
+        if (!b.variable.empty())
+        {
             e.bindings.push_back(std::move(b));
         }
     }
@@ -1115,22 +1280,22 @@ DisplaySessionEntry RosSessionManager::deserialize_display(const std::string& js
 PanelVisibility RosSessionManager::deserialize_panels(const std::string& json)
 {
     PanelVisibility p;
-    p.topic_list     = json_get_bool(json, "topic_list", true);
-    p.topic_echo     = json_get_bool(json, "topic_echo", false);
-    p.topic_stats    = json_get_bool(json, "topic_stats", true);
-    p.plot_area      = json_get_bool(json, "plot_area", true);
-    p.bag_info       = json_get_bool(json, "bag_info", false);
-    p.bag_playback   = json_get_bool(json, "bag_playback", false);
-    p.log_viewer     = json_get_bool(json, "log_viewer", false);
-    p.diagnostics    = json_get_bool(json, "diagnostics", false);
-    p.node_graph     = json_get_bool(json, "node_graph", false);
-    p.tf_tree        = json_get_bool(json, "tf_tree", false);
-    p.param_editor   = json_get_bool(json, "param_editor", false);
-    p.service_caller = json_get_bool(json, "service_caller", false);
-    p.displays_panel = json_get_bool(json, "displays_panel", false);
-    p.scene_viewport = json_get_bool(json, "scene_viewport", false);
+    p.topic_list      = json_get_bool(json, "topic_list", true);
+    p.topic_echo      = json_get_bool(json, "topic_echo", false);
+    p.topic_stats     = json_get_bool(json, "topic_stats", true);
+    p.plot_area       = json_get_bool(json, "plot_area", true);
+    p.bag_info        = json_get_bool(json, "bag_info", false);
+    p.bag_playback    = json_get_bool(json, "bag_playback", false);
+    p.log_viewer      = json_get_bool(json, "log_viewer", false);
+    p.diagnostics     = json_get_bool(json, "diagnostics", false);
+    p.node_graph      = json_get_bool(json, "node_graph", false);
+    p.tf_tree         = json_get_bool(json, "tf_tree", false);
+    p.param_editor    = json_get_bool(json, "param_editor", false);
+    p.service_caller  = json_get_bool(json, "service_caller", false);
+    p.displays_panel  = json_get_bool(json, "displays_panel", false);
+    p.scene_viewport  = json_get_bool(json, "scene_viewport", false);
     p.inspector_panel = json_get_bool(json, "inspector_panel", false);
-    p.nav_rail       = json_get_bool(json, "nav_rail", true);
+    p.nav_rail        = json_get_bool(json, "nav_rail", true);
     return p;
 }
 
@@ -1138,10 +1303,10 @@ static TopicMonitorState deserialize_topic_monitor(const std::string& json)
 {
     TopicMonitorState state;
     state.show_type = RosSessionManager::json_get_bool(json, "show_type", true);
-    state.show_hz = RosSessionManager::json_get_bool(json, "show_hz", true);
+    state.show_hz   = RosSessionManager::json_get_bool(json, "show_hz", true);
     state.show_pubs = RosSessionManager::json_get_bool(json, "show_pubs", true);
     state.show_subs = RosSessionManager::json_get_bool(json, "show_subs", true);
-    state.show_bw = RosSessionManager::json_get_bool(json, "show_bw", true);
+    state.show_bw   = RosSessionManager::json_get_bool(json, "show_bw", true);
     return state;
 }
 
@@ -1153,77 +1318,89 @@ bool RosSessionManager::deserialize(const std::string& text,
                                     RosSession&        out,
                                     std::string&       error_out)
 {
-    if (text.empty()) {
+    if (text.empty())
+    {
         error_out = "empty input";
         return false;
     }
 
     int ver = json_get_int(text, "version", 1);
-    if (ver > SESSION_FORMAT_VERSION) {
-        error_out = "session format version " + std::to_string(ver) +
-                    " is newer than supported (" +
-                    std::to_string(SESSION_FORMAT_VERSION) + ")";
+    if (ver > SESSION_FORMAT_VERSION)
+    {
+        error_out = "session format version " + std::to_string(ver) + " is newer than supported ("
+                    + std::to_string(SESSION_FORMAT_VERSION) + ")";
         return false;
     }
 
     if (ver <= 1)
     {
-        out = RosSession{};
-        out.version = 1;
+        out           = RosSession{};
+        out.version   = 1;
         out.node_name = json_get_string(text, "node_name");
-        out.node_ns = json_get_string(text, "node_ns");
-        out.layout = json_get_string(text, "layout");
-        if (out.layout.empty()) out.layout = "default";
-        out.subplot_rows = json_get_int(text, "subplot_rows", 1);
-        out.subplot_cols = json_get_int(text, "subplot_cols", 1);
-        out.time_window_s = json_get_double(text, "time_window_s", 30.0);
-        out.pruning_enabled = json_get_bool(text, "pruning_enabled", true);
-        out.prune_buffer_s = json_get_double(text, "prune_buffer_s", 20.0);
+        out.node_ns   = json_get_string(text, "node_ns");
+        out.layout    = json_get_string(text, "layout");
+        if (out.layout.empty())
+            out.layout = "default";
+        out.subplot_rows      = json_get_int(text, "subplot_rows", 1);
+        out.subplot_cols      = json_get_int(text, "subplot_cols", 1);
+        out.time_window_s     = json_get_double(text, "time_window_s", 30.0);
+        out.pruning_enabled   = json_get_bool(text, "pruning_enabled", true);
+        out.prune_buffer_s    = json_get_double(text, "prune_buffer_s", 20.0);
         out.nav_rail_expanded = json_get_bool(text, "nav_rail_expanded", false);
-        out.nav_rail_width = json_get_double(text, "nav_rail_width", 220.0);
-        out.fixed_frame = json_get_string(text, "fixed_frame");
-        out.saved_at = json_get_string(text, "saved_at");
-        out.description = json_get_string(text, "description");
+        out.nav_rail_width    = json_get_double(text, "nav_rail_width", 220.0);
+        out.fixed_frame       = json_get_string(text, "fixed_frame");
+        out.saved_at          = json_get_string(text, "saved_at");
+        out.description       = json_get_string(text, "description");
 
         std::string subs_body = extract_array(text, "subscriptions");
-        for (const auto& obj : split_objects(subs_body)) {
+        for (const auto& obj : split_objects(subs_body))
+        {
             auto e = deserialize_subscription(obj);
-            if (!e.topic.empty()) {
+            if (!e.topic.empty())
+            {
                 out.subscriptions.push_back(std::move(e));
             }
         }
 
         std::string expr_body = extract_array(text, "expressions");
-        for (const auto& obj : split_objects(expr_body)) {
+        for (const auto& obj : split_objects(expr_body))
+        {
             auto e = deserialize_expression(obj);
-            if (!e.expression.empty()) {
+            if (!e.expression.empty())
+            {
                 out.expressions.push_back(std::move(e));
             }
         }
 
         std::string presets_body = extract_array(text, "expression_presets");
-        for (const auto& obj : split_objects(presets_body)) {
+        for (const auto& obj : split_objects(presets_body))
+        {
             auto e = deserialize_preset(obj);
-            if (!e.name.empty()) {
+            if (!e.name.empty())
+            {
                 out.expression_presets.push_back(std::move(e));
             }
         }
 
         std::string displays_body = extract_array(text, "displays");
-        for (const auto& obj : split_objects(displays_body)) {
+        for (const auto& obj : split_objects(displays_body))
+        {
             auto e = deserialize_display(obj);
-            if (!e.type_id.empty()) {
+            if (!e.type_id.empty())
+            {
                 out.displays.push_back(std::move(e));
             }
         }
 
         std::string panels_obj = extract_nested_object(text, "panels");
-        if (!panels_obj.empty()) {
+        if (!panels_obj.empty())
+        {
             out.panels = deserialize_panels(panels_obj);
         }
 
         std::string topic_monitor_obj = extract_nested_object(text, "topic_monitor");
-        if (!topic_monitor_obj.empty()) {
+        if (!topic_monitor_obj.empty())
+        {
             out.topic_monitor = deserialize_topic_monitor(topic_monitor_obj);
         }
 
@@ -1255,12 +1432,18 @@ bool RosSessionManager::deserialize(const std::string& text,
 std::string RosSessionManager::serialize_recent(const std::vector<RecentEntry>& entries)
 {
     std::string out = "[\n";
-    for (size_t i = 0; i < entries.size(); ++i) {
-        if (i > 0) out += ",\n";
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+        if (i > 0)
+            out += ",\n";
         const auto& e = entries[i];
-        out += "  {\"path\":\"" + json_escape(e.path) + "\","
-               "\"node\":\"" + json_escape(e.node) + "\","
-               "\"saved_at\":\"" + json_escape(e.saved_at) + "\"}";
+        out += "  {\"path\":\"" + json_escape(e.path)
+               + "\","
+                 "\"node\":\""
+               + json_escape(e.node)
+               + "\","
+                 "\"saved_at\":\""
+               + json_escape(e.saved_at) + "\"}";
     }
     out += "\n]\n";
     return out;
@@ -1274,12 +1457,14 @@ std::vector<RecentEntry> RosSessionManager::deserialize_recent(const std::string
 {
     std::vector<RecentEntry> result;
     // The recent file is a top-level array — parse objects directly.
-    for (const auto& obj : split_objects(json)) {
+    for (const auto& obj : split_objects(json))
+    {
         RecentEntry e;
         e.path     = json_get_string(obj, "path");
         e.node     = json_get_string(obj, "node");
         e.saved_at = json_get_string(obj, "saved_at");
-        if (!e.path.empty()) {
+        if (!e.path.empty())
+        {
             result.push_back(std::move(e));
         }
     }
@@ -1292,14 +1477,18 @@ std::vector<RecentEntry> RosSessionManager::deserialize_recent(const std::string
 
 bool RosSessionManager::ensure_directory(const std::string& path)
 {
-    try {
+    try
+    {
         std::filesystem::path p(path);
-        auto dir = p.parent_path();
-        if (!dir.empty() && !std::filesystem::exists(dir)) {
+        auto                  dir = p.parent_path();
+        if (!dir.empty() && !std::filesystem::exists(dir))
+        {
             std::filesystem::create_directories(dir);
         }
         return true;
-    } catch (...) {
+    }
+    catch (...)
+    {
         return false;
     }
 }
@@ -1310,16 +1499,21 @@ bool RosSessionManager::write_file(const std::string& path, const std::string& c
     std::string tmp = path + ".tmp";
     {
         std::ofstream ofs(tmp, std::ios::out | std::ios::trunc | std::ios::binary);
-        if (!ofs.is_open()) return false;
+        if (!ofs.is_open())
+            return false;
         ofs.write(content.data(), static_cast<std::streamsize>(content.size()));
-        if (!ofs.good()) return false;
+        if (!ofs.good())
+            return false;
     }
     std::error_code ec;
     std::filesystem::rename(tmp, path, ec);
-    if (ec) {
+    if (ec)
+    {
         // Fallback: copy then remove (different filesystems).
-        std::filesystem::copy_file(tmp, path,
-                                   std::filesystem::copy_options::overwrite_existing, ec);
+        std::filesystem::copy_file(tmp,
+                                   path,
+                                   std::filesystem::copy_options::overwrite_existing,
+                                   ec);
         std::filesystem::remove(tmp, ec);
         return !ec;
     }
@@ -1329,12 +1523,14 @@ bool RosSessionManager::write_file(const std::string& path, const std::string& c
 bool RosSessionManager::read_file(const std::string& path, std::string& content_out)
 {
     std::ifstream ifs(path, std::ios::in | std::ios::binary);
-    if (!ifs.is_open()) return false;
+    if (!ifs.is_open())
+        return false;
     std::ostringstream ss;
     ss << ifs.rdbuf();
-    if (!ifs.good() && !ifs.eof()) return false;
+    if (!ifs.good() && !ifs.eof())
+        return false;
     content_out = ss.str();
     return true;
 }
 
-}  // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2

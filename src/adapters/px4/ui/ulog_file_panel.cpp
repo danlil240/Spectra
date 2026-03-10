@@ -1,10 +1,10 @@
 #include "ulog_file_panel.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
-#ifdef IMGUI_HAS_DOCK
-#include <imgui_internal.h>
-#endif
+    #include <imgui.h>
+    #ifdef IMGUI_HAS_DOCK
+        #include <imgui_internal.h>
+    #endif
 #endif
 
 #include <algorithm>
@@ -19,8 +19,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 ULogFilePanel::ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr)
-    : reader_(reader)
-    , plot_mgr_(plot_mgr)
+    : reader_(reader), plot_mgr_(plot_mgr)
 {
     detach_ctrl_.set_title("ULog File");
     detach_ctrl_.set_detached_size(500.0f, 400.0f);
@@ -49,15 +48,14 @@ void ULogFilePanel::draw(bool* p_open)
     if (state == spectra::PanelDetachController::State::DetachPending)
         return;
 
-    // After re-attach: force back into the target dockspace.
-#ifdef IMGUI_HAS_DOCK
+        // After re-attach: force back into the target dockspace.
+    #ifdef IMGUI_HAS_DOCK
     if (state == spectra::PanelDetachController::State::AttachPending
         && detach_ctrl_.dock_id() != 0)
     {
-        ImGui::SetNextWindowDockID(
-            static_cast<ImGuiID>(detach_ctrl_.dock_id()), ImGuiCond_Always);
+        ImGui::SetNextWindowDockID(static_cast<ImGuiID>(detach_ctrl_.dock_id()), ImGuiCond_Always);
     }
-#endif
+    #endif
 
     if (!ImGui::Begin(detach_ctrl_.title().c_str(), p_open))
     {
@@ -69,7 +67,7 @@ void ULogFilePanel::draw(bool* p_open)
     // Let ImGui handle the drag natively. When it undocks the window
     // (transition from docked → floating), intercept it immediately
     // and create a real OS window via PanelDetachController instead.
-#ifdef IMGUI_HAS_DOCK
+    #ifdef IMGUI_HAS_DOCK
     bool currently_docked = ImGui::IsWindowDocked();
     if (was_docked_ && !currently_docked && detach_ctrl_.is_docked())
     {
@@ -82,7 +80,7 @@ void ULogFilePanel::draw(bool* p_open)
         return;
     }
     was_docked_ = currently_docked;
-#endif
+    #endif
 
     draw_context_menu();
     draw_content();
@@ -211,8 +209,8 @@ void ULogFilePanel::draw_metadata()
 
     // Vehicle info from info messages.
     auto sys_name = reader_.info_string("sys_name");
-    auto ver_hw = reader_.info_string("ver_hw");
-    auto ver_sw = reader_.info_string("ver_sw");
+    auto ver_hw   = reader_.info_string("ver_hw");
+    auto ver_sw   = reader_.info_string("ver_sw");
 
     if (!sys_name.empty())
         ImGui::Text("System: %s", sys_name.c_str());
@@ -230,8 +228,10 @@ void ULogFilePanel::draw_metadata()
 void ULogFilePanel::draw_topic_tree()
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGui::InputTextWithHint("##TopicFilter", "Filter topics...",
-                             topic_filter_buf_, sizeof(topic_filter_buf_));
+    ImGui::InputTextWithHint("##TopicFilter",
+                             "Filter topics...",
+                             topic_filter_buf_,
+                             sizeof(topic_filter_buf_));
 
     std::string filter(topic_filter_buf_);
     std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
@@ -246,14 +246,13 @@ void ULogFilePanel::draw_topic_tree()
         if (!filter.empty())
         {
             std::string lower_topic = topic;
-            std::transform(lower_topic.begin(), lower_topic.end(),
-                           lower_topic.begin(), ::tolower);
+            std::transform(lower_topic.begin(), lower_topic.end(), lower_topic.begin(), ::tolower);
             if (lower_topic.find(filter) == std::string::npos)
                 continue;
         }
 
         // Get row count for this topic.
-        auto* ts = reader_.data_for(topic);
+        auto*  ts    = reader_.data_for(topic);
         size_t count = ts ? ts->rows.size() : 0;
 
         char label[256];
@@ -266,21 +265,20 @@ void ULogFilePanel::draw_topic_tree()
             {
                 // Check if it's an array element: "name[idx]"
                 std::string field_name = field;
-                int array_idx = -1;
-                auto bracket = field.find('[');
+                int         array_idx  = -1;
+                auto        bracket    = field.find('[');
                 if (bracket != std::string::npos)
                 {
                     field_name = field.substr(0, bracket);
                     auto close = field.find(']', bracket);
                     if (close != std::string::npos)
                     {
-                        array_idx = std::atoi(
-                            field.substr(bracket + 1, close - bracket - 1).c_str());
+                        array_idx =
+                            std::atoi(field.substr(bracket + 1, close - bracket - 1).c_str());
                     }
                 }
 
-                if (ImGui::Selectable(field.c_str(), false,
-                                       ImGuiSelectableFlags_AllowDoubleClick))
+                if (ImGui::Selectable(field.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick))
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {
@@ -308,9 +306,10 @@ void ULogFilePanel::draw_info_table()
 #ifdef SPECTRA_USE_IMGUI
     auto& infos = reader_.info_messages();
 
-    if (ImGui::BeginTable("InfoTable", 3,
-                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                           ImGuiTableFlags_Resizable))
+    if (ImGui::BeginTable(
+            "InfoTable",
+            3,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable))
     {
         ImGui::TableSetupColumn("Key");
         ImGui::TableSetupColumn("Type");
@@ -342,9 +341,10 @@ void ULogFilePanel::draw_params_table()
 #ifdef SPECTRA_USE_IMGUI
     auto& params = reader_.parameters();
 
-    if (ImGui::BeginTable("ParamsTable", 3,
-                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                           ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable))
+    if (ImGui::BeginTable("ParamsTable",
+                          3,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+                              | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable))
     {
         ImGui::TableSetupColumn("Name");
         ImGui::TableSetupColumn("Type");
@@ -379,9 +379,10 @@ void ULogFilePanel::draw_log_messages()
 #ifdef SPECTRA_USE_IMGUI
     auto& logs = reader_.log_messages();
 
-    if (ImGui::BeginTable("LogTable", 3,
-                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                           ImGuiTableFlags_ScrollY))
+    if (ImGui::BeginTable(
+            "LogTable",
+            3,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY))
     {
         ImGui::TableSetupColumn("Time (s)", ImGuiTableColumnFlags_WidthFixed, 80.0f);
         ImGui::TableSetupColumn("Level", ImGuiTableColumnFlags_WidthFixed, 60.0f);

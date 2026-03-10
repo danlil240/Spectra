@@ -19,7 +19,7 @@ namespace spectra::adapters::px4
 struct ActuatorFrame
 {
     double timestamp_sec{0.0};
-    float  output[16]{};           // up to 16 output channels
+    float  output[16]{};   // up to 16 output channels
     int    noutputs{0};
 };
 
@@ -27,8 +27,7 @@ struct ActuatorFrame
 // Extract actuator time series from ULog data.
 // ---------------------------------------------------------------------------
 
-inline std::vector<ActuatorFrame>
-extract_actuator_outputs(const ULogTimeSeries& ts)
+inline std::vector<ActuatorFrame> extract_actuator_outputs(const ULogTimeSeries& ts)
 {
     if (!ts.format)
         return {};
@@ -63,8 +62,7 @@ extract_actuator_outputs(const ULogTimeSeries& ts)
         {
             int count = std::min(af.noutputs, std::min(f_output->array_size, 16));
             for (int i = 0; i < count; ++i)
-                af.output[i] = row.field_at<float>(f_output->offset +
-                                                    static_cast<size_t>(i) * 4);
+                af.output[i] = row.field_at<float>(f_output->offset + static_cast<size_t>(i) * 4);
         }
 
         frames.push_back(af);

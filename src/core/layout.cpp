@@ -14,14 +14,14 @@ std::vector<Rect> compute_subplot_layout(float          figure_width,
                                          float*         actual_content_height)
 {
     return compute_subplot_layout(figure_width,
-                                 figure_height,
-                                 rows,
-                                 cols,
-                                 margins,
-                                 0.0f,
-                                 0.0f,
-                                 min_subplot_height,
-                                 actual_content_height);
+                                  figure_height,
+                                  rows,
+                                  cols,
+                                  margins,
+                                  0.0f,
+                                  0.0f,
+                                  min_subplot_height,
+                                  actual_content_height);
 }
 
 std::vector<Rect> compute_subplot_layout(float          figure_width,

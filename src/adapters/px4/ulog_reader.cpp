@@ -12,24 +12,24 @@ namespace spectra::adapters::px4
 // ULog binary format constants
 // ---------------------------------------------------------------------------
 
-static constexpr uint8_t  k_magic[] = {0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35};
-static constexpr size_t   k_magic_size = sizeof(k_magic);
-static constexpr size_t   k_header_size = k_magic_size + 1 + 8;  // magic + version + timestamp
+static constexpr uint8_t k_magic[]     = {0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35};
+static constexpr size_t  k_magic_size  = sizeof(k_magic);
+static constexpr size_t  k_header_size = k_magic_size + 1 + 8;   // magic + version + timestamp
 
 // Message types (ULog spec).
-static constexpr uint8_t MSG_FORMAT          = 'F';
-static constexpr uint8_t MSG_DATA            = 'D';
-static constexpr uint8_t MSG_INFO            = 'I';
-static constexpr uint8_t MSG_INFO_MULTIPLE   = 'M';
-static constexpr uint8_t MSG_PARAMETER       = 'P';
-static constexpr uint8_t MSG_PARAMETER_DEF   = 'Q';
-static constexpr uint8_t MSG_ADD_LOGGED_MSG  = 'A';
-static constexpr uint8_t MSG_REMOVE_LOGGED   = 'R';
-static constexpr uint8_t MSG_SYNC            = 'S';
-static constexpr uint8_t MSG_DROPOUT         = 'O';
-static constexpr uint8_t MSG_LOGGING         = 'L';
-static constexpr uint8_t MSG_LOGGING_TAGGED  = 'C';
-static constexpr uint8_t MSG_FLAG_BITS       = 'B';
+static constexpr uint8_t MSG_FORMAT         = 'F';
+static constexpr uint8_t MSG_DATA           = 'D';
+static constexpr uint8_t MSG_INFO           = 'I';
+static constexpr uint8_t MSG_INFO_MULTIPLE  = 'M';
+static constexpr uint8_t MSG_PARAMETER      = 'P';
+static constexpr uint8_t MSG_PARAMETER_DEF  = 'Q';
+static constexpr uint8_t MSG_ADD_LOGGED_MSG = 'A';
+static constexpr uint8_t MSG_REMOVE_LOGGED  = 'R';
+static constexpr uint8_t MSG_SYNC           = 'S';
+static constexpr uint8_t MSG_DROPOUT        = 'O';
+static constexpr uint8_t MSG_LOGGING        = 'L';
+static constexpr uint8_t MSG_LOGGING_TAGGED = 'C';
+static constexpr uint8_t MSG_FLAG_BITS      = 'B';
 
 // Message header: 2-byte size + 1-byte type.
 static constexpr size_t MSG_HEADER_SIZE = 3;
@@ -81,19 +81,32 @@ size_t ulog_field_size(ULogFieldType t)
 {
     switch (t)
     {
-    case ULogFieldType::Int8:   return 1;
-    case ULogFieldType::UInt8:  return 1;
-    case ULogFieldType::Int16:  return 2;
-    case ULogFieldType::UInt16: return 2;
-    case ULogFieldType::Int32:  return 4;
-    case ULogFieldType::UInt32: return 4;
-    case ULogFieldType::Int64:  return 8;
-    case ULogFieldType::UInt64: return 8;
-    case ULogFieldType::Float:  return 4;
-    case ULogFieldType::Double: return 8;
-    case ULogFieldType::Bool:   return 1;
-    case ULogFieldType::Char:   return 1;
-    case ULogFieldType::Nested: return 0;  // depends on nested format
+        case ULogFieldType::Int8:
+            return 1;
+        case ULogFieldType::UInt8:
+            return 1;
+        case ULogFieldType::Int16:
+            return 2;
+        case ULogFieldType::UInt16:
+            return 2;
+        case ULogFieldType::Int32:
+            return 4;
+        case ULogFieldType::UInt32:
+            return 4;
+        case ULogFieldType::Int64:
+            return 8;
+        case ULogFieldType::UInt64:
+            return 8;
+        case ULogFieldType::Float:
+            return 4;
+        case ULogFieldType::Double:
+            return 8;
+        case ULogFieldType::Bool:
+            return 1;
+        case ULogFieldType::Char:
+            return 1;
+        case ULogFieldType::Nested:
+            return 0;   // depends on nested format
     }
     return 0;
 }
@@ -102,7 +115,7 @@ ULogFieldType parse_ulog_type(const std::string& type_str, int& array_size)
 {
     // Strip array suffix: "float[3]" → "float", array_size = 3.
     std::string base = type_str;
-    array_size = 1;
+    array_size       = 1;
 
     auto bracket = base.find('[');
     if (bracket != std::string::npos)
@@ -111,23 +124,35 @@ ULogFieldType parse_ulog_type(const std::string& type_str, int& array_size)
         if (close != std::string::npos)
         {
             std::string num_str = base.substr(bracket + 1, close - bracket - 1);
-            array_size = std::max(1, std::atoi(num_str.c_str()));
+            array_size          = std::max(1, std::atoi(num_str.c_str()));
         }
         base = base.substr(0, bracket);
     }
 
-    if (base == "int8_t")    return ULogFieldType::Int8;
-    if (base == "uint8_t")   return ULogFieldType::UInt8;
-    if (base == "int16_t")   return ULogFieldType::Int16;
-    if (base == "uint16_t")  return ULogFieldType::UInt16;
-    if (base == "int32_t")   return ULogFieldType::Int32;
-    if (base == "uint32_t")  return ULogFieldType::UInt32;
-    if (base == "int64_t")   return ULogFieldType::Int64;
-    if (base == "uint64_t")  return ULogFieldType::UInt64;
-    if (base == "float")     return ULogFieldType::Float;
-    if (base == "double")    return ULogFieldType::Double;
-    if (base == "bool")      return ULogFieldType::Bool;
-    if (base == "char")      return ULogFieldType::Char;
+    if (base == "int8_t")
+        return ULogFieldType::Int8;
+    if (base == "uint8_t")
+        return ULogFieldType::UInt8;
+    if (base == "int16_t")
+        return ULogFieldType::Int16;
+    if (base == "uint16_t")
+        return ULogFieldType::UInt16;
+    if (base == "int32_t")
+        return ULogFieldType::Int32;
+    if (base == "uint32_t")
+        return ULogFieldType::UInt32;
+    if (base == "int64_t")
+        return ULogFieldType::Int64;
+    if (base == "uint64_t")
+        return ULogFieldType::UInt64;
+    if (base == "float")
+        return ULogFieldType::Float;
+    if (base == "double")
+        return ULogFieldType::Double;
+    if (base == "bool")
+        return ULogFieldType::Bool;
+    if (base == "char")
+        return ULogFieldType::Char;
 
     // Anything else is a nested type reference.
     return ULogFieldType::Nested;
@@ -141,15 +166,24 @@ const char* ULogLogMessage::level_name() const
 {
     switch (log_level)
     {
-    case '0': return "EMERG";
-    case '1': return "ALERT";
-    case '2': return "CRIT";
-    case '3': return "ERROR";
-    case '4': return "WARN";
-    case '5': return "NOTICE";
-    case '6': return "INFO";
-    case '7': return "DEBUG";
-    default:  return "UNKNOWN";
+        case '0':
+            return "EMERG";
+        case '1':
+            return "ALERT";
+        case '2':
+            return "CRIT";
+        case '3':
+            return "ERROR";
+        case '4':
+            return "WARN";
+        case '5':
+            return "NOTICE";
+        case '6':
+            return "INFO";
+        case '7':
+            return "DEBUG";
+        default:
+            return "UNKNOWN";
     }
 }
 
@@ -208,8 +242,8 @@ double ULogInfoMessage::as_double() const
 // ULogTimeSeries
 // ---------------------------------------------------------------------------
 
-std::pair<std::vector<float>, std::vector<float>>
-ULogTimeSeries::extract_field(const std::string& field_name) const
+std::pair<std::vector<float>, std::vector<float>> ULogTimeSeries::extract_field(
+    const std::string& field_name) const
 {
     if (!format)
         return {};
@@ -238,50 +272,50 @@ ULogTimeSeries::extract_field(const std::string& field_name) const
 
         switch (target->base_type)
         {
-        case ULogFieldType::Float:
-            values.push_back(row.field_at<float>(target->offset));
-            break;
-        case ULogFieldType::Double:
-            values.push_back(static_cast<float>(row.field_at<double>(target->offset)));
-            break;
-        case ULogFieldType::Int32:
-            values.push_back(static_cast<float>(row.field_at<int32_t>(target->offset)));
-            break;
-        case ULogFieldType::UInt32:
-            values.push_back(static_cast<float>(row.field_at<uint32_t>(target->offset)));
-            break;
-        case ULogFieldType::Int16:
-            values.push_back(static_cast<float>(row.field_at<int16_t>(target->offset)));
-            break;
-        case ULogFieldType::UInt16:
-            values.push_back(static_cast<float>(row.field_at<uint16_t>(target->offset)));
-            break;
-        case ULogFieldType::Int8:
-            values.push_back(static_cast<float>(row.field_at<int8_t>(target->offset)));
-            break;
-        case ULogFieldType::UInt8:
-            values.push_back(static_cast<float>(row.field_at<uint8_t>(target->offset)));
-            break;
-        case ULogFieldType::Int64:
-            values.push_back(static_cast<float>(row.field_at<int64_t>(target->offset)));
-            break;
-        case ULogFieldType::UInt64:
-            values.push_back(static_cast<float>(row.field_at<uint64_t>(target->offset)));
-            break;
-        case ULogFieldType::Bool:
-            values.push_back(row.field_at<uint8_t>(target->offset) ? 1.0f : 0.0f);
-            break;
-        default:
-            values.push_back(0.0f);
-            break;
+            case ULogFieldType::Float:
+                values.push_back(row.field_at<float>(target->offset));
+                break;
+            case ULogFieldType::Double:
+                values.push_back(static_cast<float>(row.field_at<double>(target->offset)));
+                break;
+            case ULogFieldType::Int32:
+                values.push_back(static_cast<float>(row.field_at<int32_t>(target->offset)));
+                break;
+            case ULogFieldType::UInt32:
+                values.push_back(static_cast<float>(row.field_at<uint32_t>(target->offset)));
+                break;
+            case ULogFieldType::Int16:
+                values.push_back(static_cast<float>(row.field_at<int16_t>(target->offset)));
+                break;
+            case ULogFieldType::UInt16:
+                values.push_back(static_cast<float>(row.field_at<uint16_t>(target->offset)));
+                break;
+            case ULogFieldType::Int8:
+                values.push_back(static_cast<float>(row.field_at<int8_t>(target->offset)));
+                break;
+            case ULogFieldType::UInt8:
+                values.push_back(static_cast<float>(row.field_at<uint8_t>(target->offset)));
+                break;
+            case ULogFieldType::Int64:
+                values.push_back(static_cast<float>(row.field_at<int64_t>(target->offset)));
+                break;
+            case ULogFieldType::UInt64:
+                values.push_back(static_cast<float>(row.field_at<uint64_t>(target->offset)));
+                break;
+            case ULogFieldType::Bool:
+                values.push_back(row.field_at<uint8_t>(target->offset) ? 1.0f : 0.0f);
+                break;
+            default:
+                values.push_back(0.0f);
+                break;
         }
     }
 
     return {std::move(times), std::move(values)};
 }
 
-std::pair<std::vector<double>, std::vector<double>>
-ULogTimeSeries::extract_field_double(const std::string& field_name) const
+std::pair<std::vector<double>, std::vector<double>> ULogTimeSeries::extract_field_double(
+    const std::string& field_name) const
 {
     if (!format)
         return {};
@@ -309,29 +343,30 @@ ULogTimeSeries::extract_field_double(const std::string& field_name) const
 
         switch (target->base_type)
         {
-        case ULogFieldType::Float:
-            values.push_back(row.field_at<float>(target->offset));
-            break;
-        case ULogFieldType::Double:
-            values.push_back(row.field_at<double>(target->offset));
-            break;
-        case ULogFieldType::Int32:
-            values.push_back(row.field_at<int32_t>(target->offset));
-            break;
-        case ULogFieldType::UInt32:
-            values.push_back(row.field_at<uint32_t>(target->offset));
-            break;
-        default:
-            values.push_back(0.0);
-            break;
+            case ULogFieldType::Float:
+                values.push_back(row.field_at<float>(target->offset));
+                break;
+            case ULogFieldType::Double:
+                values.push_back(row.field_at<double>(target->offset));
+                break;
+            case ULogFieldType::Int32:
+                values.push_back(row.field_at<int32_t>(target->offset));
+                break;
+            case ULogFieldType::UInt32:
+                values.push_back(row.field_at<uint32_t>(target->offset));
+                break;
+            default:
+                values.push_back(0.0);
+                break;
         }
     }
 
     return {std::move(times), std::move(values)};
 }
 
-std::pair<std::vector<float>, std::vector<float>>
-ULogTimeSeries::extract_array_element(const std::string& field_name, int index) const
+std::pair<std::vector<float>, std::vector<float>> ULogTimeSeries::extract_array_element(
+    const std::string& field_name,
+    int                index) const
 {
     if (!format || index < 0)
         return {};
@@ -348,7 +383,7 @@ ULogTimeSeries::extract_array_element(const std::string& field_name, int index) 
     if (!target)
         return {};
 
-    size_t elem_size = ulog_field_size(target->base_type);
+    size_t elem_size   = ulog_field_size(target->base_type);
     size_t elem_offset = target->offset + static_cast<size_t>(index) * elem_size;
 
     std::vector<float> times;
@@ -362,21 +397,21 @@ ULogTimeSeries::extract_array_element(const std::string& field_name, int index) 
 
         switch (target->base_type)
         {
-        case ULogFieldType::Float:
-            values.push_back(row.field_at<float>(elem_offset));
-            break;
-        case ULogFieldType::Double:
-            values.push_back(static_cast<float>(row.field_at<double>(elem_offset)));
-            break;
-        case ULogFieldType::Int32:
-            values.push_back(static_cast<float>(row.field_at<int32_t>(elem_offset)));
-            break;
-        case ULogFieldType::UInt32:
-            values.push_back(static_cast<float>(row.field_at<uint32_t>(elem_offset)));
-            break;
-        default:
-            values.push_back(0.0f);
-            break;
+            case ULogFieldType::Float:
+                values.push_back(row.field_at<float>(elem_offset));
+                break;
+            case ULogFieldType::Double:
+                values.push_back(static_cast<float>(row.field_at<double>(elem_offset)));
+                break;
+            case ULogFieldType::Int32:
+                values.push_back(static_cast<float>(row.field_at<int32_t>(elem_offset)));
+                break;
+            case ULogFieldType::UInt32:
+                values.push_back(static_cast<float>(row.field_at<uint32_t>(elem_offset)));
+                break;
+            default:
+                values.push_back(0.0f);
+                break;
         }
     }
 
@@ -387,7 +422,7 @@ ULogTimeSeries::extract_array_element(const std::string& field_name, int index) 
 // ULogReader — construction / destruction
 // ---------------------------------------------------------------------------
 
-ULogReader::ULogReader() = default;
+ULogReader::ULogReader()  = default;
 ULogReader::~ULogReader() = default;
 
 // ---------------------------------------------------------------------------
@@ -445,7 +480,7 @@ bool ULogReader::open(const std::string& file_path)
     // Compute metadata summary.
     metadata_.message_count = 0;
     metadata_.start_time_us = UINT64_MAX;
-    metadata_.end_time_us = 0;
+    metadata_.end_time_us   = 0;
 
     for (auto& [key, ts] : data_)
     {
@@ -466,8 +501,8 @@ bool ULogReader::open(const std::string& file_path)
     if (metadata_.end_time_us == 0)
         metadata_.end_time_us = metadata_.start_time_us;
 
-    metadata_.duration_us = metadata_.end_time_us - metadata_.start_time_us;
-    metadata_.dropout_count = dropouts_.size();
+    metadata_.duration_us      = metadata_.end_time_us - metadata_.start_time_us;
+    metadata_.dropout_count    = dropouts_.size();
     metadata_.total_dropout_ms = 0;
     for (auto& d : dropouts_)
         metadata_.total_dropout_ms += d.duration_ms;
@@ -496,12 +531,21 @@ void ULogReader::close()
     last_error_.clear();
 }
 
-bool ULogReader::is_open() const noexcept { return open_; }
+bool ULogReader::is_open() const noexcept
+{
+    return open_;
+}
 
-const ULogMetadata& ULogReader::metadata() const noexcept { return metadata_; }
+const ULogMetadata& ULogReader::metadata() const noexcept
+{
+    return metadata_;
+}
 
-const std::unordered_map<std::string, ULogMessageFormat>&
-ULogReader::message_formats() const noexcept { return formats_; }
+const std::unordered_map<std::string, ULogMessageFormat>& ULogReader::message_formats()
+    const noexcept
+{
+    return formats_;
+}
 
 const ULogMessageFormat* ULogReader::format(const std::string& name) const
 {
@@ -525,16 +569,18 @@ std::vector<std::string> ULogReader::topic_names() const
 
 bool ULogReader::has_topic(const std::string& name) const
 {
-    return data_.find(name) != data_.end() ||
-           data_.find(make_data_key(name, 0)) != data_.end();
+    return data_.find(name) != data_.end() || data_.find(make_data_key(name, 0)) != data_.end();
 }
 
-size_t ULogReader::topic_count() const noexcept { return data_.size(); }
+size_t ULogReader::topic_count() const noexcept
+{
+    return data_.size();
+}
 
 const ULogTimeSeries* ULogReader::data_for(const std::string& topic, uint8_t multi_id) const
 {
     auto key = make_data_key(topic, multi_id);
-    auto it = data_.find(key);
+    auto it  = data_.find(key);
     return it != data_.end() ? &it->second : nullptr;
 }
 
@@ -558,7 +604,10 @@ const std::vector<ULogParameter>& ULogReader::changed_parameters() const noexcep
     return changed_params_;
 }
 
-const std::vector<ULogDropout>& ULogReader::dropouts() const noexcept { return dropouts_; }
+const std::vector<ULogDropout>& ULogReader::dropouts() const noexcept
+{
+    return dropouts_;
+}
 
 const std::vector<ULogLogMessage>& ULogReader::log_messages() const noexcept
 {
@@ -581,8 +630,14 @@ std::string ULogReader::info_string(const std::string& key) const
     return im ? im->as_string() : std::string{};
 }
 
-const std::string& ULogReader::last_error() const noexcept { return last_error_; }
-void ULogReader::clear_error() noexcept { last_error_.clear(); }
+const std::string& ULogReader::last_error() const noexcept
+{
+    return last_error_;
+}
+void ULogReader::clear_error() noexcept
+{
+    last_error_.clear();
+}
 
 // ---------------------------------------------------------------------------
 // parse_header
@@ -603,7 +658,7 @@ bool ULogReader::parse_header(const uint8_t* data, size_t size)
         return false;
     }
 
-    metadata_.version = data[k_magic_size];
+    metadata_.version      = data[k_magic_size];
     metadata_.timestamp_us = read_u64(data + k_magic_size + 1);
 
     return true;
@@ -633,38 +688,38 @@ bool ULogReader::parse_definitions(const uint8_t* data, size_t size, size_t& off
 
         switch (msg_type)
         {
-        case MSG_FLAG_BITS:
-            // Skip flag bits for now (v2 feature).
-            break;
+            case MSG_FLAG_BITS:
+                // Skip flag bits for now (v2 feature).
+                break;
 
-        case MSG_FORMAT:
-            if (!parse_format_message(payload, msg_size))
-                return false;
-            break;
+            case MSG_FORMAT:
+                if (!parse_format_message(payload, msg_size))
+                    return false;
+                break;
 
-        case MSG_INFO:
-            if (!parse_info_message(payload, msg_size))
-                return false;
-            break;
+            case MSG_INFO:
+                if (!parse_info_message(payload, msg_size))
+                    return false;
+                break;
 
-        case MSG_INFO_MULTIPLE:
-            if (!parse_multi_info_message(payload, msg_size))
-                return false;
-            break;
+            case MSG_INFO_MULTIPLE:
+                if (!parse_multi_info_message(payload, msg_size))
+                    return false;
+                break;
 
-        case MSG_PARAMETER:
-            if (!parse_parameter_message(payload, msg_size, true))
-                return false;
-            break;
+            case MSG_PARAMETER:
+                if (!parse_parameter_message(payload, msg_size, true))
+                    return false;
+                break;
 
-        case MSG_PARAMETER_DEF:
-            if (!parse_parameter_message(payload, msg_size, true))
-                return false;
-            break;
+            case MSG_PARAMETER_DEF:
+                if (!parse_parameter_message(payload, msg_size, true))
+                    return false;
+                break;
 
-        default:
-            // Non-definition message — data section starts here.
-            return true;
+            default:
+                // Non-definition message — data section starts here.
+                return true;
         }
 
         offset += MSG_HEADER_SIZE + msg_size;
@@ -685,52 +740,52 @@ bool ULogReader::parse_data_section(const uint8_t* data, size_t size, size_t off
         uint8_t  msg_type = data[offset + 2];
 
         if (offset + MSG_HEADER_SIZE + msg_size > size)
-            break;  // truncated message at EOF is tolerated
+            break;   // truncated message at EOF is tolerated
 
         const uint8_t* payload = data + offset + MSG_HEADER_SIZE;
 
         switch (msg_type)
         {
-        case MSG_ADD_LOGGED_MSG:
-            parse_subscription_message(payload, msg_size);
-            break;
+            case MSG_ADD_LOGGED_MSG:
+                parse_subscription_message(payload, msg_size);
+                break;
 
-        case MSG_REMOVE_LOGGED:
-            parse_unsubscription_message(payload, msg_size);
-            break;
+            case MSG_REMOVE_LOGGED:
+                parse_unsubscription_message(payload, msg_size);
+                break;
 
-        case MSG_DATA:
-            parse_data_message(payload, msg_size);
-            break;
+            case MSG_DATA:
+                parse_data_message(payload, msg_size);
+                break;
 
-        case MSG_LOGGING:
-        case MSG_LOGGING_TAGGED:
-            parse_logging_message(payload, msg_size);
-            break;
+            case MSG_LOGGING:
+            case MSG_LOGGING_TAGGED:
+                parse_logging_message(payload, msg_size);
+                break;
 
-        case MSG_DROPOUT:
-            parse_dropout_message(payload, msg_size);
-            break;
+            case MSG_DROPOUT:
+                parse_dropout_message(payload, msg_size);
+                break;
 
-        case MSG_SYNC:
-            parse_sync_message(payload, msg_size);
-            break;
+            case MSG_SYNC:
+                parse_sync_message(payload, msg_size);
+                break;
 
-        case MSG_PARAMETER:
-            parse_parameter_message(payload, msg_size, false);
-            break;
+            case MSG_PARAMETER:
+                parse_parameter_message(payload, msg_size, false);
+                break;
 
-        case MSG_INFO:
-            parse_info_message(payload, msg_size);
-            break;
+            case MSG_INFO:
+                parse_info_message(payload, msg_size);
+                break;
 
-        case MSG_INFO_MULTIPLE:
-            parse_multi_info_message(payload, msg_size);
-            break;
+            case MSG_INFO_MULTIPLE:
+                parse_multi_info_message(payload, msg_size);
+                break;
 
-        default:
-            // Unknown message type — skip.
-            break;
+            default:
+                // Unknown message type — skip.
+                break;
         }
 
         offset += MSG_HEADER_SIZE + msg_size;
@@ -762,7 +817,7 @@ bool ULogReader::parse_format_message(const uint8_t* payload, uint16_t len)
 
     // Split by ';'
     std::istringstream ss(fields_str);
-    std::string field_def;
+    std::string        field_def;
 
     while (std::getline(ss, field_def, ';'))
     {
@@ -785,14 +840,14 @@ bool ULogReader::parse_format_message(const uint8_t* payload, uint16_t len)
 
         ULogField f;
         f.type_str = field_def.substr(0, space);
-        f.name = field_def.substr(space + 1);
+        f.name     = field_def.substr(space + 1);
 
         // Trim padding fields (start with '_padding').
         if (f.name.find("_padding") == 0)
             continue;
 
         int arr_size = 1;
-        f.base_type = parse_ulog_type(f.type_str, arr_size);
+        f.base_type  = parse_ulog_type(f.type_str, arr_size);
         f.array_size = arr_size;
 
         if (f.base_type == ULogFieldType::Nested)
@@ -812,7 +867,7 @@ bool ULogReader::parse_format_message(const uint8_t* payload, uint16_t len)
 bool ULogReader::parse_info_message(const uint8_t* payload, uint16_t len)
 {
     if (len < 2)
-        return true;  // empty info message, skip
+        return true;   // empty info message, skip
 
     // Format: key_len (1 byte) + key (key_len bytes) + value (remaining)
     uint8_t key_len = payload[0];
@@ -831,10 +886,10 @@ bool ULogReader::parse_info_message(const uint8_t* payload, uint16_t len)
     std::string key_name = key_with_type.substr(space + 1);
 
     const uint8_t* val_ptr = payload + 1 + key_len;
-    uint16_t val_len = len - 1 - key_len;
+    uint16_t       val_len = len - 1 - key_len;
 
     ULogInfoMessage info;
-    info.key = key_name;
+    info.key      = key_name;
     info.type_str = type_str;
 
     // Parse value based on type.
@@ -904,10 +959,10 @@ bool ULogReader::parse_multi_info_message(const uint8_t* payload, uint16_t len)
     std::string key_name = key_with_type.substr(space + 1);
 
     const uint8_t* val_ptr = payload + 2 + key_len;
-    uint16_t val_len = len - 2 - key_len;
+    uint16_t       val_len = len - 2 - key_len;
 
     ULogInfoMessage info;
-    info.key = key_name;
+    info.key      = key_name;
     info.type_str = type_str;
 
     if (type_str.find("char[") == 0 || type_str == "char")
@@ -942,19 +997,19 @@ bool ULogReader::parse_parameter_message(const uint8_t* payload, uint16_t len, b
     std::string key_name = key_with_type.substr(space + 1);
 
     const uint8_t* val_ptr = payload + 1 + key_len;
-    uint16_t val_len = len - 1 - key_len;
+    uint16_t       val_len = len - 1 - key_len;
 
     ULogParameter param;
     param.key = key_name;
 
     if (type_str == "float" && val_len >= 4)
     {
-        param.is_float = true;
+        param.is_float    = true;
         param.value_float = read_f32(val_ptr);
     }
     else if (type_str == "int32_t" && val_len >= 4)
     {
-        param.is_float = false;
+        param.is_float  = false;
         param.value_int = read_i32(val_ptr);
     }
 
@@ -978,10 +1033,10 @@ bool ULogReader::parse_subscription_message(const uint8_t* payload, uint16_t len
 
     ULogSubscription sub;
     sub.multi_id = payload[0];
-    sub.msg_id = read_u16(payload + 1);
+    sub.msg_id   = read_u16(payload + 1);
 
     // Message name is null-terminated.
-    size_t name_len = len - 3;
+    size_t name_len  = len - 3;
     sub.message_name = std::string(reinterpret_cast<const char*>(payload + 3), name_len);
 
     // Strip trailing null bytes.
@@ -993,10 +1048,10 @@ bool ULogReader::parse_subscription_message(const uint8_t* payload, uint16_t len
     subscriptions_.push_back(sub);
 
     // Create time series entry.
-    auto key = make_data_key(sub.message_name, sub.multi_id);
-    auto& ts = data_[key];
+    auto  key       = make_data_key(sub.message_name, sub.multi_id);
+    auto& ts        = data_[key];
     ts.message_name = sub.message_name;
-    ts.multi_id = sub.multi_id;
+    ts.multi_id     = sub.multi_id;
 
     // Link to format definition.
     auto fmt_it = formats_.find(sub.message_name);
@@ -1029,16 +1084,16 @@ bool ULogReader::parse_data_message(const uint8_t* payload, uint16_t len)
     if (len < 10)   // msg_id (2) + timestamp (8) minimum
         return true;
 
-    uint16_t msg_id = read_u16(payload);
+    uint16_t msg_id    = read_u16(payload);
     uint64_t timestamp = read_u64(payload + 2);
 
     auto sub_it = sub_index_.find(msg_id);
     if (sub_it == sub_index_.end())
-        return true;  // unknown subscription, skip
+        return true;   // unknown subscription, skip
 
-    auto& sub = subscriptions_[sub_it->second];
-    auto key = make_data_key(sub.message_name, sub.multi_id);
-    auto data_it = data_.find(key);
+    auto& sub     = subscriptions_[sub_it->second];
+    auto  key     = make_data_key(sub.message_name, sub.multi_id);
+    auto  data_it = data_.find(key);
     if (data_it == data_.end())
         return true;
 
@@ -1069,7 +1124,7 @@ bool ULogReader::parse_logging_message(const uint8_t* payload, uint16_t len)
         return true;
 
     ULogLogMessage msg;
-    msg.log_level = payload[0];
+    msg.log_level    = payload[0];
     msg.timestamp_us = read_u64(payload + 1);
 
     size_t text_len = len - 9;
@@ -1127,7 +1182,7 @@ void ULogReader::resolve_field_offsets(ULogMessageFormat& fmt)
             if (it != formats_.end())
                 offset += it->second.byte_size * static_cast<size_t>(f.array_size);
             else
-                offset += 0;  // unknown nested type
+                offset += 0;   // unknown nested type
         }
         else
         {

@@ -146,7 +146,12 @@ void Inspector::draw_figure_properties(Figure& fig)
             widgets::section_spacing();
             widgets::drag_field("H Gap", sty.subplot_hgap, 0.5f, 0.0f, 200.0f, "%.0f px");
             widgets::drag_field("V Gap", sty.subplot_vgap, 0.5f, 0.0f, 200.0f, "%.0f px");
-            widgets::drag_field("Min Row H", sty.min_subplot_height, 1.0f, 0.0f, 1000.0f, "%.0f px");
+            widgets::drag_field("Min Row H",
+                                sty.min_subplot_height,
+                                1.0f,
+                                0.0f,
+                                1000.0f,
+                                "%.0f px");
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();
@@ -232,13 +237,14 @@ void Inspector::draw_series_browser(Figure& fig)
     // ── Header strip: Surface-2 background, uppercase tracking, hairline divider ──
     {
         ImVec2      header_min = ImGui::GetCursorScreenPos();
-        float       avail_w   = ImGui::GetContentRegionAvail().x;
-        float       header_h  = tokens::INSPECTOR_HEADER_H;
+        float       avail_w    = ImGui::GetContentRegionAvail().x;
+        float       header_h   = tokens::INSPECTOR_HEADER_H;
         ImVec2      header_max = ImVec2(header_min.x + avail_w, header_min.y + header_h);
         ImDrawList* dl         = ImGui::GetWindowDrawList();
 
         // Surface-2 background
-        dl->AddRectFilled(header_min, header_max,
+        dl->AddRectFilled(header_min,
+                          header_max,
                           ImGui::ColorConvertFloat4ToU32(
                               ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.5f)),
                           0.0f);
@@ -326,10 +332,10 @@ void Inspector::draw_series_browser(Figure& fig)
     bool multi_sel = ctx_.has_multi_selection();
     if (multi_sel && clipboard_)
     {
-        size_t      n      = ctx_.selected_count();
-        const auto& c2     = c;
-        ImDrawList* dl     = ImGui::GetWindowDrawList();
-        float       avail  = ImGui::GetContentRegionAvail().x;
+        size_t          n       = ctx_.selected_count();
+        const auto&     c2      = c;
+        ImDrawList*     dl      = ImGui::GetWindowDrawList();
+        float           avail   = ImGui::GetContentRegionAvail().x;
         constexpr float bar_h   = 28.0f;
         constexpr float pad_h   = 6.0f;
         constexpr float gap     = 4.0f;
@@ -338,21 +344,24 @@ void Inspector::draw_series_browser(Figure& fig)
         ImVec2          bar_max = ImVec2(bar_min.x + avail, bar_min.y + bar_h);
 
         // Subtle surface background
-        dl->AddRectFilled(bar_min, bar_max,
+        dl->AddRectFilled(bar_min,
+                          bar_max,
                           ImGui::ColorConvertFloat4ToU32(
-                              ImVec4(c2.bg_tertiary.r, c2.bg_tertiary.g,
-                                     c2.bg_tertiary.b, 0.6f)),
+                              ImVec4(c2.bg_tertiary.r, c2.bg_tertiary.g, c2.bg_tertiary.b, 0.6f)),
                           tokens::RADIUS_MD);
 
-        ImFont* icf  = icon_font(tokens::ICON_SM);
-        ImFont* fnt  = icf ? icf : ImGui::GetFont();
-        float   gsz  = tokens::ICON_SM;
+        ImFont* icf     = icon_font(tokens::ICON_SM);
+        ImFont* fnt     = icf ? icf : ImGui::GetFont();
+        float   gsz     = tokens::ICON_SM;
         ImU32   hov_col = ImGui::ColorConvertFloat4ToU32(
             ImVec4(c2.accent_subtle.r, c2.accent_subtle.g, c2.accent_subtle.b, 0.5f));
 
         // Helper: draw a labeled icon button inside the bar
-        auto bulk_btn = [&](const char* id, const char* glyph, const char* label_suffix,
-                            ImVec2 pos, ImVec4 txt_col) -> bool
+        auto bulk_btn = [&](const char* id,
+                            const char* glyph,
+                            const char* label_suffix,
+                            ImVec2      pos,
+                            ImVec4      txt_col) -> bool
         {
             ImVec2 bmax(pos.x + btn_w, pos.y + bar_h);
             ImGui::SetCursorScreenPos(pos);
@@ -362,18 +371,20 @@ void Inspector::draw_series_browser(Figure& fig)
                 dl->AddRectFilled(pos, bmax, hov_col, tokens::RADIUS_SM);
 
             // Icon
-            ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
-            float  cy2 = pos.y + bar_h * 0.5f;
+            ImVec2 tsz     = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
+            float  cy2     = pos.y + bar_h * 0.5f;
             float  total_w = tsz.x + 3.0f + ImGui::CalcTextSize(label_suffix).x;
-            float  tx  = pos.x + (btn_w - total_w) * 0.5f;
-            ImU32  col = ImGui::ColorConvertFloat4ToU32(
+            float  tx      = pos.x + (btn_w - total_w) * 0.5f;
+            ImU32  col     = ImGui::ColorConvertFloat4ToU32(
                 hovered ? ImVec4(txt_col.x, txt_col.y, txt_col.z, 1.0f) : txt_col);
             dl->AddText(fnt, gsz, ImVec2(tx, cy2 - gsz * 0.5f + 1.0f), col, glyph);
 
             // Text label
-            ImGui::SetCursorScreenPos(ImVec2(tx + tsz.x + 3.0f, cy2 - ImGui::GetTextLineHeight() * 0.5f));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(txt_col.x, txt_col.y, txt_col.z,
-                                                        hovered ? 1.0f : txt_col.w));
+            ImGui::SetCursorScreenPos(
+                ImVec2(tx + tsz.x + 3.0f, cy2 - ImGui::GetTextLineHeight() * 0.5f));
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(txt_col.x, txt_col.y, txt_col.z, hovered ? 1.0f : txt_col.w));
             ImGui::TextUnformatted(label_suffix);
             ImGui::PopStyleColor();
 
@@ -382,8 +393,8 @@ void Inspector::draw_series_browser(Figure& fig)
 
         char copy_lbl[32], cut_lbl[32], del_lbl[32];
         std::snprintf(copy_lbl, sizeof(copy_lbl), "Copy %zu", n);
-        std::snprintf(cut_lbl,  sizeof(cut_lbl),  "Cut %zu",  n);
-        std::snprintf(del_lbl,  sizeof(del_lbl),  "Delete %zu", n);
+        std::snprintf(cut_lbl, sizeof(cut_lbl), "Cut %zu", n);
+        std::snprintf(del_lbl, sizeof(del_lbl), "Delete %zu", n);
 
         ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.75f);
         ImVec4 red(0.85f, 0.35f, 0.35f, 0.85f);
@@ -391,8 +402,7 @@ void Inspector::draw_series_browser(Figure& fig)
         float bx = bar_min.x + pad_h;
 
         // Copy all selected
-        if (bulk_btn("##bulk_cp", icon_str(Icon::Copy), copy_lbl,
-                     ImVec2(bx, bar_min.y), muted))
+        if (bulk_btn("##bulk_cp", icon_str(Icon::Copy), copy_lbl, ImVec2(bx, bar_min.y), muted))
         {
             std::vector<const Series*> to_copy;
             for (const auto& e : ctx_.selected_series)
@@ -404,10 +414,17 @@ void Inspector::draw_series_browser(Figure& fig)
             ImGui::SetTooltip("Copy all selected series");
 
         // Cut all selected
-        struct PendingCutEntry { AxesBase* axes; Series* series; };
+        struct PendingCutEntry
+        {
+            AxesBase* axes;
+            Series*   series;
+        };
         std::vector<PendingCutEntry> pending_cuts;
-        if (bulk_btn("##bulk_ct", icon_str(Icon::Scissors), cut_lbl,
-                     ImVec2(bx + btn_w + gap, bar_min.y), muted))
+        if (bulk_btn("##bulk_ct",
+                     icon_str(Icon::Scissors),
+                     cut_lbl,
+                     ImVec2(bx + btn_w + gap, bar_min.y),
+                     muted))
         {
             std::vector<const Series*> to_cut;
             for (const auto& e : ctx_.selected_series)
@@ -423,8 +440,11 @@ void Inspector::draw_series_browser(Figure& fig)
 
         // Delete all selected
         std::vector<PendingCutEntry> pending_deletes;
-        if (bulk_btn("##bulk_dl", icon_str(Icon::Trash), del_lbl,
-                     ImVec2(bx + (btn_w + gap) * 2, bar_min.y), red))
+        if (bulk_btn("##bulk_dl",
+                     icon_str(Icon::Trash),
+                     del_lbl,
+                     ImVec2(bx + (btn_w + gap) * 2, bar_min.y),
+                     red))
         {
             for (const auto& e : ctx_.selected_series)
                 if (e.series && e.axes_base)
@@ -446,7 +466,11 @@ void Inspector::draw_series_browser(Figure& fig)
             {
                 auto& sv = pc.axes->series_mut();
                 for (size_t i = 0; i < sv.size(); ++i)
-                    if (sv[i].get() == pc.series) { pc.axes->remove_series(i); break; }
+                    if (sv[i].get() == pc.series)
+                    {
+                        pc.axes->remove_series(i);
+                        break;
+                    }
             }
         }
         for (auto& pd : pending_deletes)
@@ -457,7 +481,11 @@ void Inspector::draw_series_browser(Figure& fig)
             {
                 auto& sv = pd.axes->series_mut();
                 for (size_t i = 0; i < sv.size(); ++i)
-                    if (sv[i].get() == pd.series) { pd.axes->remove_series(i); break; }
+                    if (sv[i].get() == pd.series)
+                    {
+                        pd.axes->remove_series(i);
+                        break;
+                    }
             }
         }
         if (!pending_cuts.empty() || !pending_deletes.empty())
@@ -477,19 +505,20 @@ void Inspector::draw_series_browser(Figure& fig)
             }
             ImGui::PushID(ax_idx * 1000 + s_idx);
 
-            const char* name     = s->label().empty() ? "Unnamed" : s->label().c_str();
-            bool        unnamed  = s->label().empty();
-            float       row_h    = tokens::SERIES_ROW_HEIGHT;
-            ImVec2      row_min  = ImGui::GetCursorScreenPos();
-            float       avail_w  = ImGui::GetContentRegionAvail().x;
-            ImVec2      row_max  = ImVec2(row_min.x + avail_w, row_min.y + row_h);
+            const char* name    = s->label().empty() ? "Unnamed" : s->label().c_str();
+            bool        unnamed = s->label().empty();
+            float       row_h   = tokens::SERIES_ROW_HEIGHT;
+            ImVec2      row_min = ImGui::GetCursorScreenPos();
+            float       avail_w = ImGui::GetContentRegionAvail().x;
+            ImVec2      row_max = ImVec2(row_min.x + avail_w, row_min.y + row_h);
 
             // Subtle hover background (Surface+1)
             bool row_hovered = ImGui::IsMouseHoveringRect(row_min, row_max);
             if (row_hovered)
             {
                 ImGui::GetWindowDrawList()->AddRectFilled(
-                    row_min, row_max,
+                    row_min,
+                    row_max,
                     ImGui::ColorConvertFloat4ToU32(
                         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.4f)),
                     tokens::RADIUS_MD);
@@ -497,10 +526,11 @@ void Inspector::draw_series_browser(Figure& fig)
 
             // ── Absolute layout anchors ──
             // All elements positioned from row_min using fixed X offsets.
-            // Row:  [8px pad | 12px dot | 8px | 24px eye | 10px | name .... | 24+2+24+2+24 btns | 8px]
+            // Row:  [8px pad | 12px dot | 8px | 24px eye | 10px | name .... | 24+2+24+2+24 btns |
+            // 8px]
             constexpr float pad_l     = 8.0f;
             constexpr float dot_sz    = 12.0f;
-            constexpr float gap_1     = 8.0f;    // dot → eye
+            constexpr float gap_1     = 8.0f;   // dot → eye
             constexpr float eye_w     = 24.0f;
             constexpr float gap_2     = 10.0f;   // eye → name
             constexpr float btn_w     = 24.0f;
@@ -522,27 +552,24 @@ void Inspector::draw_series_browser(Figure& fig)
             if (is_selected)
             {
                 ImDrawList* dl = ImGui::GetWindowDrawList();
-                dl->AddRect(
-                    ImVec2(row_min.x + 2.0f, row_min.y + 2.0f),
-                    ImVec2(row_max.x - 2.0f, row_max.y - 2.0f),
-                    ImGui::ColorConvertFloat4ToU32(
-                        ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.7f)),
-                    tokens::RADIUS_MD,
-                    0,
-                    1.5f);
+                dl->AddRect(ImVec2(row_min.x + 2.0f, row_min.y + 2.0f),
+                            ImVec2(row_max.x - 2.0f, row_max.y - 2.0f),
+                            ImGui::ColorConvertFloat4ToU32(
+                                ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.7f)),
+                            tokens::RADIUS_MD,
+                            0,
+                            1.5f);
             }
 
             // ── Color dot (drawn directly, no Dummy) ──
             {
-                const auto& sc = s->color();
-                ImU32       col = ImGui::ColorConvertFloat4ToU32(
-                    ImVec4(sc.r, sc.g, sc.b, sc.a));
-                float dot_y = cy - dot_sz * 0.5f;
-                ImGui::GetWindowDrawList()->AddRectFilled(
-                    ImVec2(x_dot, dot_y),
-                    ImVec2(x_dot + dot_sz, dot_y + dot_sz),
-                    col,
-                    tokens::RADIUS_SM);
+                const auto& sc    = s->color();
+                ImU32       col   = ImGui::ColorConvertFloat4ToU32(ImVec4(sc.r, sc.g, sc.b, sc.a));
+                float       dot_y = cy - dot_sz * 0.5f;
+                ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(x_dot, dot_y),
+                                                          ImVec2(x_dot + dot_sz, dot_y + dot_sz),
+                                                          col,
+                                                          tokens::RADIUS_SM);
             }
 
             // ── Visibility toggle ──
@@ -559,18 +586,24 @@ void Inspector::draw_series_browser(Figure& fig)
 
             // Draw icon text centered within the button rect
             {
-                ImDrawList* dl      = ImGui::GetWindowDrawList();
-                ImVec4      icon_col = vis
-                    ? ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b,
-                             eye_hovered ? 1.0f : 0.7f)
-                    : ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b,
-                             eye_hovered ? 0.7f : 0.35f);
-                ImFont* fnt      = icon_f ? icon_f : ImGui::GetFont();
-                float   glyph_sz = tokens::ICON_SM;
-                ImVec2  tsz      = fnt->CalcTextSizeA(glyph_sz, FLT_MAX, 0.0f, eye_icon);
-                ImVec2  tpos(x_eye + (eye_w - tsz.x) * 0.5f, cy - glyph_sz * 0.5f + 1.0f);
-                dl->AddText(fnt, glyph_sz, tpos,
-                            ImGui::ColorConvertFloat4ToU32(icon_col), eye_icon);
+                ImDrawList* dl       = ImGui::GetWindowDrawList();
+                ImVec4      icon_col = vis ? ImVec4(c.text_secondary.r,
+                                               c.text_secondary.g,
+                                               c.text_secondary.b,
+                                               eye_hovered ? 1.0f : 0.7f)
+                                           : ImVec4(c.text_tertiary.r,
+                                               c.text_tertiary.g,
+                                               c.text_tertiary.b,
+                                               eye_hovered ? 0.7f : 0.35f);
+                ImFont*     fnt      = icon_f ? icon_f : ImGui::GetFont();
+                float       glyph_sz = tokens::ICON_SM;
+                ImVec2      tsz      = fnt->CalcTextSizeA(glyph_sz, FLT_MAX, 0.0f, eye_icon);
+                ImVec2      tpos(x_eye + (eye_w - tsz.x) * 0.5f, cy - glyph_sz * 0.5f + 1.0f);
+                dl->AddText(fnt,
+                            glyph_sz,
+                            tpos,
+                            ImGui::ColorConvertFloat4ToU32(icon_col),
+                            eye_icon);
             }
 
             // ── Series name (InvisibleButton + manual draw) ──
@@ -605,16 +638,16 @@ void Inspector::draw_series_browser(Figure& fig)
 
             // Draw name text
             {
-                ImVec4 text_col = is_selected
-                    ? ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f)
+                ImVec4 text_col =
+                    is_selected ? ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f)
                     : unnamed
                         ? ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.7f)
                         : ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f);
-                ImGui::GetWindowDrawList()->AddText(
-                    ImGui::GetFont(), ImGui::GetFontSize(),
-                    ImVec2(x_name, cy - text_h * 0.5f),
-                    ImGui::ColorConvertFloat4ToU32(text_col),
-                    name);
+                ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(),
+                                                    ImGui::GetFontSize(),
+                                                    ImVec2(x_name, cy - text_h * 0.5f),
+                                                    ImGui::ColorConvertFloat4ToU32(text_col),
+                                                    name);
             }
 
             // Drag source: start dragging this series row
@@ -633,8 +666,7 @@ void Inspector::draw_series_browser(Figure& fig)
             // Drop target: accept a dragged series and schedule reorder
             if (ImGui::BeginDragDropTarget())
             {
-                if (const ImGuiPayload* pl =
-                        ImGui::AcceptDragDropPayload("SERIES_REORDER"))
+                if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("SERIES_REORDER"))
                 {
                     struct DragPayload
                     {
@@ -657,36 +689,36 @@ void Inspector::draw_series_browser(Figure& fig)
             // Use InvisibleButton + manual draw so hover rect exactly matches the icon rect.
             if (clipboard_ && !(multi_sel && is_selected))
             {
-                float       btn_y  = cy - btn_h * 0.5f;
-                ImFont*     icf    = icon_font(tokens::ICON_SM);
-                ImFont*     fnt    = icf ? icf : ImGui::GetFont();
-                float       gsz    = tokens::ICON_SM;
-                ImDrawList* dl     = ImGui::GetWindowDrawList();
+                float       btn_y   = cy - btn_h * 0.5f;
+                ImFont*     icf     = icon_font(tokens::ICON_SM);
+                ImFont*     fnt     = icf ? icf : ImGui::GetFont();
+                float       gsz     = tokens::ICON_SM;
+                ImDrawList* dl      = ImGui::GetWindowDrawList();
                 ImU32       hov_col = ImGui::ColorConvertFloat4ToU32(
                     ImVec4(c.accent_subtle.r, c.accent_subtle.g, c.accent_subtle.b, 0.45f));
 
                 // Helper: draw one icon button, returns true if clicked
-                auto icon_btn = [&](const char* id, const char* glyph, ImVec2 pos,
-                                    ImVec4 normal_col) -> bool
+                auto icon_btn =
+                    [&](const char* id, const char* glyph, ImVec2 pos, ImVec4 normal_col) -> bool
                 {
                     ImGui::SetCursorScreenPos(pos);
                     bool clicked = ImGui::InvisibleButton(id, ImVec2(btn_w, btn_h));
                     bool hovered = ImGui::IsItemHovered();
                     if (hovered)
-                        dl->AddRectFilled(pos, ImVec2(pos.x + btn_w, pos.y + btn_h),
-                                          hov_col, tokens::RADIUS_SM);
-                    ImVec4  col = hovered
-                        ? ImVec4(normal_col.x, normal_col.y, normal_col.z, 1.0f)
-                        : normal_col;
-                    ImVec2  tsz  = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
-                    ImVec2  tpos(pos.x + (btn_w - tsz.x) * 0.5f, pos.y + (btn_h - gsz) * 0.5f + 1.0f);
-                    dl->AddText(fnt, gsz, tpos,
-                                ImGui::ColorConvertFloat4ToU32(col), glyph);
+                        dl->AddRectFilled(pos,
+                                          ImVec2(pos.x + btn_w, pos.y + btn_h),
+                                          hov_col,
+                                          tokens::RADIUS_SM);
+                    ImVec4 col = hovered ? ImVec4(normal_col.x, normal_col.y, normal_col.z, 1.0f)
+                                         : normal_col;
+                    ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, glyph);
+                    ImVec2 tpos(pos.x + (btn_w - tsz.x) * 0.5f,
+                                pos.y + (btn_h - gsz) * 0.5f + 1.0f);
+                    dl->AddText(fnt, gsz, tpos, ImGui::ColorConvertFloat4ToU32(col), glyph);
                     return clicked;
                 };
 
-                ImVec4 muted(c.text_secondary.r, c.text_secondary.g,
-                             c.text_secondary.b, 0.65f);
+                ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.65f);
                 ImVec4 red(0.85f, 0.35f, 0.35f, 0.75f);
 
                 // Copy
@@ -700,8 +732,10 @@ void Inspector::draw_series_browser(Figure& fig)
                 // Cut (scissors)
                 char cut_id[32];
                 std::snprintf(cut_id, sizeof(cut_id), "##ct%d_%d", ax_idx, s_idx);
-                if (icon_btn(cut_id, icon_str(Icon::Scissors),
-                             ImVec2(x_btns + btn_w + btn_gap, btn_y), muted))
+                if (icon_btn(cut_id,
+                             icon_str(Icon::Scissors),
+                             ImVec2(x_btns + btn_w + btn_gap, btn_y),
+                             muted))
                 {
                     clipboard_->cut(*s);
                     if (defer_removal_)
@@ -718,8 +752,10 @@ void Inspector::draw_series_browser(Figure& fig)
                 // Delete
                 char del_id[32];
                 std::snprintf(del_id, sizeof(del_id), "##dl%d_%d", ax_idx, s_idx);
-                if (icon_btn(del_id, icon_str(Icon::Trash),
-                             ImVec2(x_btns + (btn_w + btn_gap) * 2, btn_y), red))
+                if (icon_btn(del_id,
+                             icon_str(Icon::Trash),
+                             ImVec2(x_btns + (btn_w + btn_gap) * 2, btn_y),
+                             red))
                 {
                     Series* deleted = s.get();
                     if (defer_removal_)

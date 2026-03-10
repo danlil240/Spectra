@@ -547,7 +547,11 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
 {
     const float lo = params_.clamp_min;
     const float hi = params_.clamp_max;
-    apply_elementwise_y(x_in, y_in, x_out, y_out, [lo, hi](float v) { return std::clamp(v, lo, hi); });
+    apply_elementwise_y(x_in,
+                        y_in,
+                        x_out,
+                        y_out,
+                        [lo, hi](float v) { return std::clamp(v, lo, hi); });
 }
 
 // ─── FFT (left-sided magnitude spectrum) ────────────────────────────────────

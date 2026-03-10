@@ -10,7 +10,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -20,10 +20,8 @@ namespace
 {
 uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-    return static_cast<uint32_t>(r)
-         | (static_cast<uint32_t>(g) << 8)
-         | (static_cast<uint32_t>(b) << 16)
-         | (static_cast<uint32_t>(a) << 24);
+    return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
+           | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
 }
 
 std::array<float, 4> unpack_rgba(uint32_t rgba)
@@ -40,13 +38,9 @@ uint32_t gradient_color(float t, uint8_t alpha = 0xFFu)
 {
     t = std::clamp(t, 0.0f, 1.0f);
 
-    const auto lerp = [](float a, float b, float u)
-    {
-        return a + (b - a) * u;
-    };
-    const auto lerp_color = [&](const std::array<float, 3>& a,
-                                const std::array<float, 3>& b,
-                                float                       u)
+    const auto lerp = [](float a, float b, float u) { return a + (b - a) * u; };
+    const auto lerp_color =
+        [&](const std::array<float, 3>& a, const std::array<float, 3>& b, float u)
     {
         return std::array<uint8_t, 3>{
             static_cast<uint8_t>(std::clamp(lerp(a[0], b[0], u), 0.0f, 1.0f) * 255.0f),
@@ -55,11 +49,11 @@ uint32_t gradient_color(float t, uint8_t alpha = 0xFFu)
         };
     };
 
-    constexpr std::array<float, 3> kBlue   {0.15f, 0.35f, 0.95f};
-    constexpr std::array<float, 3> kCyan   {0.10f, 0.85f, 0.95f};
-    constexpr std::array<float, 3> kGreen  {0.20f, 0.82f, 0.28f};
-    constexpr std::array<float, 3> kYellow {0.96f, 0.86f, 0.22f};
-    constexpr std::array<float, 3> kRed    {0.95f, 0.26f, 0.16f};
+    constexpr std::array<float, 3> kBlue{0.15f, 0.35f, 0.95f};
+    constexpr std::array<float, 3> kCyan{0.10f, 0.85f, 0.95f};
+    constexpr std::array<float, 3> kGreen{0.20f, 0.82f, 0.28f};
+    constexpr std::array<float, 3> kYellow{0.96f, 0.86f, 0.22f};
+    constexpr std::array<float, 3> kRed{0.95f, 0.26f, 0.16f};
 
     std::array<uint8_t, 3> rgb{};
     if (t < 0.25f)
@@ -82,12 +76,12 @@ float normalize_range(float value, float min_value, float max_value)
     return std::clamp((value - min_value) / denom, 0.0f, 1.0f);
 }
 
-spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
-                                           const std::string&  fixed_frame,
-                                           const std::string&  frame_id,
-                                           uint64_t            stamp_ns,
-                                           bool                use_message_stamp,
-                                           bool&               ok_out)
+spectra::Transform resolve_frame_transform(const TfBuffer*    tf_buffer,
+                                           const std::string& fixed_frame,
+                                           const std::string& frame_id,
+                                           uint64_t           stamp_ns,
+                                           bool               use_message_stamp,
+                                           bool&              ok_out)
 {
     ok_out = true;
     spectra::Transform transform{};
@@ -103,7 +97,7 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
     }
 
     transform.translation = {result.tx, result.ty, result.tz};
-    transform.rotation = {
+    transform.rotation    = {
         static_cast<float>(result.qx),
         static_cast<float>(result.qy),
         static_cast<float>(result.qz),
@@ -126,15 +120,15 @@ LaserScanDisplay::LaserScanDisplay()
 
 void LaserScanDisplay::on_enable(const DisplayContext& context)
 {
-    tf_buffer_ = context.tf_buffer;
+    tf_buffer_       = context.tf_buffer;
     topic_discovery_ = context.topic_discovery;
-    fixed_frame_ = context.fixed_frame;
+    fixed_frame_     = context.fixed_frame;
 #ifdef SPECTRA_USE_ROS2
     node_ = context.node;
 #endif
     resubscribe_requested_ = true;
-    status_ = DisplayStatus::Warn;
-    status_text_ = "Waiting for laser scan topic";
+    status_                = DisplayStatus::Warn;
+    status_text_           = "Waiting for laser scan topic";
 }
 
 void LaserScanDisplay::on_disable()
@@ -144,7 +138,7 @@ void LaserScanDisplay::on_disable()
     node_.reset();
 #endif
     subscribed_topic_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -167,16 +161,13 @@ void LaserScanDisplay::on_update(float)
         return;
     if (scans_.empty())
     {
-        status_ = subscribed_topic_.empty()
-            ? DisplayStatus::Warn
-            : DisplayStatus::Warn;
-        status_text_ = subscribed_topic_.empty()
-            ? "Waiting for laser scan topic"
-            : "Subscribed, no scans received";
+        status_      = subscribed_topic_.empty() ? DisplayStatus::Warn : DisplayStatus::Warn;
+        status_text_ = subscribed_topic_.empty() ? "Waiting for laser scan topic"
+                                                 : "Subscribed, no scans received";
         return;
     }
 
-    status_ = DisplayStatus::Ok;
+    status_      = DisplayStatus::Ok;
     status_text_ = std::to_string(scans_.back().point_count) + " points";
     if (scans_.size() > 1)
         status_text_ += " x" + std::to_string(scans_.size());
@@ -195,39 +186,40 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
 
     for (size_t index = 0; index < scans.size(); ++index)
     {
-        const auto& frame = scans[index];
-        bool tf_ok = true;
-        const spectra::Transform frame_transform = resolve_frame_transform(
-            tf_buffer_,
-            fixed_frame_,
-            frame.frame_id,
-            frame.stamp_ns,
-            use_message_stamp_,
-            tf_ok);
+        const auto&              frame           = scans[index];
+        bool                     tf_ok           = true;
+        const spectra::Transform frame_transform = resolve_frame_transform(tf_buffer_,
+                                                                           fixed_frame_,
+                                                                           frame.frame_id,
+                                                                           frame.stamp_ns,
+                                                                           use_message_stamp_,
+                                                                           tf_ok);
         if (!tf_ok)
             continue;
 
         SceneEntity entity;
-        entity.type = "laserscan";
-        entity.label = topic_.empty()
-            ? display_name()
-            : topic_ + " [" + std::to_string(index + 1) + "/" + std::to_string(scans.size()) + "]";
-        entity.display_name = display_name();
-        entity.topic = frame.topic;
-        entity.frame_id = frame.frame_id;
-        entity.transform = frame_transform;
+        entity.type                  = "laserscan";
+        entity.label                 = topic_.empty() ? display_name()
+                                                      : topic_ + " [" + std::to_string(index + 1) + "/"
+                                            + std::to_string(scans.size()) + "]";
+        entity.display_name          = display_name();
+        entity.topic                 = frame.topic;
+        entity.frame_id              = frame.frame_id;
+        entity.transform             = frame_transform;
         entity.transform.translation = frame_transform.transform_point(frame.centroid);
-        entity.scale = frame.max_bounds - frame.min_bounds;
-        entity.stamp_ns = frame.stamp_ns;
+        entity.scale                 = frame.max_bounds - frame.min_bounds;
+        entity.stamp_ns              = frame.stamp_ns;
 
-        const float fade = scans.size() <= 1
-            ? 1.0f
-            : 0.25f + 0.75f * (static_cast<float>(index) / static_cast<float>(scans.size() - 1));
-        const bool use_range_color = color_mode_ == ColorMode::Range;
+        const float fade =
+            scans.size() <= 1
+                ? 1.0f
+                : 0.25f
+                      + 0.75f * (static_cast<float>(index) / static_cast<float>(scans.size() - 1));
+        const bool use_range_color     = color_mode_ == ColorMode::Range;
         const bool use_intensity_color = color_mode_ == ColorMode::Intensity && frame.has_intensity;
-        const uint32_t default_rgba = laserscan_flat_color(fade);
-        const auto default_color = unpack_rgba(default_rgba);
-        char color_buffer[96];
+        const uint32_t default_rgba    = laserscan_flat_color(fade);
+        const auto     default_color   = unpack_rgba(default_rgba);
+        char           color_buffer[96];
         std::snprintf(color_buffer,
                       sizeof(color_buffer),
                       "%.3f, %.3f, %.3f, %.3f",
@@ -239,10 +231,10 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
         if (render_style_ == RenderStyle::Points)
         {
             ScenePointSet point_set;
-            point_set.point_size = 4.0f;
-            point_set.default_rgba = default_rgba;
+            point_set.point_size          = 4.0f;
+            point_set.default_rgba        = default_rgba;
             point_set.use_per_point_color = use_range_color || use_intensity_color;
-            point_set.transparent = fade < 0.999f;
+            point_set.transparent         = fade < 0.999f;
             point_set.points.reserve(frame.points.size());
 
             for (const auto& point : frame.points)
@@ -253,9 +245,7 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
                 if (use_intensity_color && point.has_intensity)
                 {
                     scene_point.rgba = gradient_color(
-                        normalize_range(point.intensity,
-                                        frame.min_intensity,
-                                        frame.max_intensity),
+                        normalize_range(point.intensity, frame.min_intensity, frame.max_intensity),
                         static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
                 }
                 else if (use_range_color)
@@ -284,9 +274,11 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
             uint32_t line_rgba = default_rgba;
             if (use_intensity_color)
             {
-                line_rgba = gradient_color(
-                    normalize_range(frame.average_intensity, frame.min_intensity, frame.max_intensity),
-                    static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
+                line_rgba =
+                    gradient_color(normalize_range(frame.average_intensity,
+                                                   frame.min_intensity,
+                                                   frame.max_intensity),
+                                   static_cast<uint8_t>(std::clamp(fade, 0.0f, 1.0f) * 255.0f));
             }
             else if (use_range_color)
             {
@@ -309,10 +301,10 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
         entity.properties.push_back({"points", std::to_string(frame.point_count)});
         entity.properties.push_back({"render_style", render_style_name(render_style_)});
         entity.properties.push_back({"color_mode", color_mode_name(color_mode_)});
-        entity.properties.push_back({"gpu_color_mode",
-                                     (entity.point_set.has_value() && entity.point_set->use_per_point_color)
-                                         ? "per-point"
-                                         : "flat"});
+        entity.properties.push_back(
+            {"gpu_color_mode",
+             (entity.point_set.has_value() && entity.point_set->use_per_point_color) ? "per-point"
+                                                                                     : "flat"});
         entity.properties.push_back({"min_range", std::to_string(frame.min_range)});
         entity.properties.push_back({"max_range", std::to_string(frame.max_range)});
         entity.properties.push_back({"average_range", std::to_string(frame.average_range)});
@@ -329,12 +321,12 @@ void LaserScanDisplay::draw_inspector_ui()
         return;
 
     const char* render_styles[] = {"Points", "Lines"};
-    int render_style = static_cast<int>(render_style_);
+    int         render_style    = static_cast<int>(render_style_);
     if (ImGui::Combo("Render Style", &render_style, render_styles, 2))
         render_style_ = static_cast<RenderStyle>(render_style);
 
     const char* color_modes[] = {"Flat", "Range", "Intensity"};
-    int color_mode = static_cast<int>(color_mode_);
+    int         color_mode    = static_cast<int>(color_mode_);
     if (ImGui::Combo("Color Mode", &color_mode, color_modes, 3))
         color_mode_ = static_cast<ColorMode>(color_mode);
 
@@ -361,7 +353,8 @@ std::string LaserScanDisplay::serialize_config_blob() const
     char buffer[320];
     std::snprintf(buffer,
                   sizeof(buffer),
-                  "topic=%s;render_style=%d;color_mode=%d;trail_size=%d;min_range=%.3f;max_range=%.3f;use_message_stamp=%d",
+                  "topic=%s;render_style=%d;color_mode=%d;trail_size=%d;min_range=%.3f;max_range=%."
+                  "3f;use_message_stamp=%d",
                   topic_.c_str(),
                   static_cast<int>(render_style_),
                   static_cast<int>(color_mode_),
@@ -377,26 +370,28 @@ void LaserScanDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    char topic[256] = {};
-    int render_style = static_cast<int>(render_style_);
-    int color_mode = static_cast<int>(color_mode_);
-    int trail_size = trail_size_;
-    float min_range = min_range_filter_;
-    float max_range = max_range_filter_;
-    int use_message_stamp = use_message_stamp_ ? 1 : 0;
+    char  topic[256]        = {};
+    int   render_style      = static_cast<int>(render_style_);
+    int   color_mode        = static_cast<int>(color_mode_);
+    int   trail_size        = trail_size_;
+    float min_range         = min_range_filter_;
+    float max_range         = max_range_filter_;
+    int   use_message_stamp = use_message_stamp_ ? 1 : 0;
     if (std::sscanf(blob.c_str(),
-                    "topic=%255[^;];render_style=%d;color_mode=%d;trail_size=%d;min_range=%f;max_range=%f;use_message_stamp=%d",
+                    "topic=%255[^;];render_style=%d;color_mode=%d;trail_size=%d;min_range=%f;max_"
+                    "range=%f;use_message_stamp=%d",
                     topic,
                     &render_style,
                     &color_mode,
                     &trail_size,
                     &min_range,
                     &max_range,
-                    &use_message_stamp) >= 1)
+                    &use_message_stamp)
+        >= 1)
     {
         set_topic(topic);
         render_style_ = static_cast<RenderStyle>(std::clamp(render_style, 0, 1));
-        color_mode_ = static_cast<ColorMode>(std::clamp(color_mode, 0, 2));
+        color_mode_   = static_cast<ColorMode>(std::clamp(color_mode, 0, 2));
         if (trail_size > 0)
             trail_size_ = trail_size;
         if (min_range >= 0.0f)
@@ -437,13 +432,13 @@ void LaserScanDisplay::ensure_subscription()
     const TopicInfo info = topic_discovery_->topic(topic_);
     if (info.name.empty() || info.types.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Topic not discovered yet";
         return;
     }
     if (info.types.front() != "sensor_msgs/msg/LaserScan")
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "Incompatible topic type: " + info.types.front();
         return;
     }
@@ -453,17 +448,15 @@ void LaserScanDisplay::ensure_subscription()
         rclcpp::QoS(rclcpp::KeepLast(32)).best_effort(),
         [this](const sensor_msgs::msg::LaserScan::SharedPtr msg)
         {
-            const auto frame = adapt_laserscan_message(*msg,
-                                                       topic_,
-                                                       min_range_filter_,
-                                                       max_range_filter_);
+            const auto frame =
+                adapt_laserscan_message(*msg, topic_, min_range_filter_, max_range_filter_);
             if (frame.has_value())
                 ingest_scan_frame(*frame);
         });
 
     subscribed_topic_ = topic_;
-    status_ = DisplayStatus::Ok;
-    status_text_ = "Subscribed to " + topic_;
+    status_           = DisplayStatus::Ok;
+    status_text_      = "Subscribed to " + topic_;
 #endif
 }
 
@@ -476,9 +469,12 @@ const char* LaserScanDisplay::color_mode_name(ColorMode mode)
 {
     switch (mode)
     {
-        case ColorMode::Flat: return "flat";
-        case ColorMode::Range: return "range";
-        case ColorMode::Intensity: return "intensity";
+        case ColorMode::Flat:
+            return "flat";
+        case ColorMode::Range:
+            return "range";
+        case ColorMode::Intensity:
+            return "intensity";
     }
     return "flat";
 }

@@ -18,33 +18,39 @@ namespace
 sensor_msgs::msg::PointCloud2 make_cloud_xyz32()
 {
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "lidar";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "lidar";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.height = 1;
-    msg.width = 3;
-    msg.point_step = 12;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height               = 1;
+    msg.width                = 3;
+    msg.point_step           = 12;
+    msg.row_step             = msg.point_step * msg.width;
+    msg.is_bigendian         = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[0].count = 1;
-    msg.fields[1].name = "y";
-    msg.fields[1].offset = 4;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
     msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[1].count = 1;
-    msg.fields[2].name = "z";
-    msg.fields[2].offset = 8;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
     msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[2].count = 1;
+    msg.fields[2].count    = 1;
     msg.data.resize(msg.row_step);
 
     const float points[9] = {
-        1.0f, 0.0f, 0.0f,
-        3.0f, 0.0f, 0.0f,
-        5.0f, 0.0f, 0.0f,
+        1.0f,
+        0.0f,
+        0.0f,
+        3.0f,
+        0.0f,
+        0.0f,
+        5.0f,
+        0.0f,
+        0.0f,
     };
     std::memcpy(msg.data.data(), points, sizeof(points));
     return msg;
@@ -53,41 +59,41 @@ sensor_msgs::msg::PointCloud2 make_cloud_xyz32()
 sensor_msgs::msg::PointCloud2 make_cloud_xyz_rgb_intensity()
 {
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "lidar";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "lidar";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 200;
-    msg.height = 1;
-    msg.width = 2;
-    msg.point_step = 20;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height               = 1;
+    msg.width                = 2;
+    msg.point_step           = 20;
+    msg.row_step             = msg.point_step * msg.width;
+    msg.is_bigendian         = false;
     msg.fields.resize(5);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[0].count = 1;
-    msg.fields[1].name = "y";
-    msg.fields[1].offset = 4;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
     msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[1].count = 1;
-    msg.fields[2].name = "z";
-    msg.fields[2].offset = 8;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
     msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[2].count = 1;
-    msg.fields[3].name = "intensity";
-    msg.fields[3].offset = 12;
+    msg.fields[2].count    = 1;
+    msg.fields[3].name     = "intensity";
+    msg.fields[3].offset   = 12;
     msg.fields[3].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[3].count = 1;
-    msg.fields[4].name = "rgb";
-    msg.fields[4].offset = 16;
+    msg.fields[3].count    = 1;
+    msg.fields[4].name     = "rgb";
+    msg.fields[4].offset   = 16;
     msg.fields[4].datatype = sensor_msgs::msg::PointField::UINT32;
-    msg.fields[4].count = 1;
+    msg.fields[4].count    = 1;
     msg.data.resize(msg.row_step);
 
-    const float xyz_i_0[4] = {1.0f, 2.0f, 3.0f, 10.0f};
-    const float xyz_i_1[4] = {4.0f, 5.0f, 6.0f, 20.0f};
-    const uint32_t rgb_0 = 0x00112233u;
-    const uint32_t rgb_1 = 0x00ABCDEFu;
+    const float    xyz_i_0[4] = {1.0f, 2.0f, 3.0f, 10.0f};
+    const float    xyz_i_1[4] = {4.0f, 5.0f, 6.0f, 20.0f};
+    const uint32_t rgb_0      = 0x00112233u;
+    const uint32_t rgb_1      = 0x00ABCDEFu;
     std::memcpy(msg.data.data() + 0, xyz_i_0, sizeof(xyz_i_0));
     std::memcpy(msg.data.data() + 16, &rgb_0, sizeof(rgb_0));
     std::memcpy(msg.data.data() + 20, xyz_i_1, sizeof(xyz_i_1));
@@ -97,15 +103,15 @@ sensor_msgs::msg::PointCloud2 make_cloud_xyz_rgb_intensity()
 
 TransformStamp make_tf(const std::string& parent,
                        const std::string& child,
-                       double tx,
-                       uint64_t recv_ns)
+                       double             tx,
+                       uint64_t           recv_ns)
 {
     TransformStamp stamp;
     stamp.parent_frame = parent;
-    stamp.child_frame = child;
-    stamp.tx = tx;
-    stamp.qw = 1.0;
-    stamp.recv_ns = recv_ns;
+    stamp.child_frame  = child;
+    stamp.tx           = tx;
+    stamp.qw           = 1.0;
+    stamp.recv_ns      = recv_ns;
     return stamp;
 }
 }   // namespace
@@ -145,9 +151,9 @@ TEST(PointCloudDisplay, ResolvesIntoFixedFrame)
     buffer.inject_transform(make_tf("world", "lidar", 10.0, 100));
 
     PointCloudDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
     display.on_enable(context);
 
     auto frame = adapt_pointcloud_message(make_cloud_xyz32(), "/points", 8);
@@ -174,27 +180,27 @@ TEST(PointCloudDisplay, ResolvesIntoFixedFrame)
 TEST(PointCloudAdapter, EmptyCloudReturnsNullopt)
 {
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "lidar";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "lidar";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.height = 1;
-    msg.width = 0;
-    msg.point_step = 12;
-    msg.row_step = 0;
-    msg.is_bigendian = false;
+    msg.height               = 1;
+    msg.width                = 0;
+    msg.point_step           = 12;
+    msg.row_step             = 0;
+    msg.is_bigendian         = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[0].count = 1;
-    msg.fields[1].name = "y";
-    msg.fields[1].offset = 4;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
     msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[1].count = 1;
-    msg.fields[2].name = "z";
-    msg.fields[2].offset = 8;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
     msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[2].count = 1;
+    msg.fields[2].count    = 1;
 
     const auto frame = adapt_pointcloud_message(msg, "/points", 100);
     EXPECT_FALSE(frame.has_value());
@@ -203,30 +209,30 @@ TEST(PointCloudAdapter, EmptyCloudReturnsNullopt)
 TEST(PointCloudAdapter, NanPointsHandledGracefully)
 {
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "lidar";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "lidar";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.height = 1;
-    msg.width = 2;
-    msg.point_step = 12;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height               = 1;
+    msg.width                = 2;
+    msg.point_step           = 12;
+    msg.row_step             = msg.point_step * msg.width;
+    msg.is_bigendian         = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[0].count = 1;
-    msg.fields[1].name = "y";
-    msg.fields[1].offset = 4;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
     msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[1].count = 1;
-    msg.fields[2].name = "z";
-    msg.fields[2].offset = 8;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
     msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[2].count = 1;
+    msg.fields[2].count    = 1;
     msg.data.resize(msg.row_step);
 
-    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float nan       = std::numeric_limits<float>::quiet_NaN();
     const float points[6] = {nan, nan, nan, 1.0f, 2.0f, 3.0f};
     std::memcpy(msg.data.data(), points, sizeof(points));
 
@@ -271,7 +277,7 @@ TEST(PointCloudDisplay, ConfigBlobEmptyNoOp)
 TEST(PointCloudDisplay, LatestFrameReturnsIngested)
 {
     PointCloudDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
@@ -290,27 +296,27 @@ TEST(PointCloudDisplay, LatestFrameReturnsIngested)
 TEST(PointCloudAdapter, Float64FieldsDecoded)
 {
     sensor_msgs::msg::PointCloud2 msg;
-    msg.header.frame_id = "lidar";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "lidar";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 300;
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 24;
-    msg.row_step = msg.point_step;
-    msg.is_bigendian = false;
+    msg.height               = 1;
+    msg.width                = 1;
+    msg.point_step           = 24;
+    msg.row_step             = msg.point_step;
+    msg.is_bigendian         = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT64;
-    msg.fields[0].count = 1;
-    msg.fields[1].name = "y";
-    msg.fields[1].offset = 8;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 8;
     msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT64;
-    msg.fields[1].count = 1;
-    msg.fields[2].name = "z";
-    msg.fields[2].offset = 16;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 16;
     msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT64;
-    msg.fields[2].count = 1;
+    msg.fields[2].count    = 1;
     msg.data.resize(24);
 
     const double vals[3] = {10.0, 20.0, 30.0};
@@ -328,16 +334,16 @@ TEST(PointCloudAdapter, MissingXyzFieldReturnsNullopt)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 4;
-    msg.row_step = 4;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 1;
+    msg.point_step      = 4;
+    msg.row_step        = 4;
+    msg.is_bigendian    = false;
     msg.fields.resize(1);
-    msg.fields[0].name = "x";
-    msg.fields[0].offset = 0;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
     msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-    msg.fields[0].count = 1;
+    msg.fields[0].count    = 1;
     msg.data.resize(4);
     // Missing y and z fields
     const auto frame = adapt_pointcloud_message(msg, "/points", 10);
@@ -348,18 +354,24 @@ TEST(PointCloudAdapter, ZeroPointStepReturnsNullopt)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 0;
-    msg.row_step = 0;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 1;
+    msg.point_step      = 0;
+    msg.row_step        = 0;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(12);
 
     const auto frame = adapt_pointcloud_message(msg, "/points", 10);
@@ -370,21 +382,27 @@ TEST(PointCloudAdapter, AllNanPointsReturnsNullopt)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 2;
-    msg.point_step = 12;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 2;
+    msg.point_step      = 12;
+    msg.row_step        = msg.point_step * msg.width;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(msg.row_step);
 
-    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float nan       = std::numeric_limits<float>::quiet_NaN();
     const float points[6] = {nan, nan, nan, nan, nan, nan};
     std::memcpy(msg.data.data(), points, sizeof(points));
 
@@ -396,18 +414,24 @@ TEST(PointCloudAdapter, SinglePointHasCorrectBounds)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 12;
-    msg.row_step = 12;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 1;
+    msg.point_step      = 12;
+    msg.row_step        = 12;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(12);
 
     const float p[3] = {7.0f, -3.0f, 2.0f};
@@ -425,24 +449,32 @@ TEST(PointCloudAdapter, RgbaFieldExtracted)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 16;
-    msg.row_step = 16;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 1;
+    msg.point_step      = 16;
+    msg.row_step        = 16;
+    msg.is_bigendian    = false;
     msg.fields.resize(4);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
-    msg.fields[3].name = "rgba"; msg.fields[3].offset = 12;
-    msg.fields[3].datatype = sensor_msgs::msg::PointField::UINT32; msg.fields[3].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
+    msg.fields[3].name     = "rgba";
+    msg.fields[3].offset   = 12;
+    msg.fields[3].datatype = sensor_msgs::msg::PointField::UINT32;
+    msg.fields[3].count    = 1;
     msg.data.resize(16);
 
-    const float xyz[3] = {1.0f, 2.0f, 3.0f};
-    const uint32_t rgba_packed = 0x80112233u;  // ABGR in memory
+    const float    xyz[3]      = {1.0f, 2.0f, 3.0f};
+    const uint32_t rgba_packed = 0x80112233u;   // ABGR in memory
     std::memcpy(msg.data.data(), xyz, sizeof(xyz));
     std::memcpy(msg.data.data() + 12, &rgba_packed, sizeof(rgba_packed));
 
@@ -456,18 +488,24 @@ TEST(PointCloudAdapter, FieldOffsetBeyondPointStepRejected)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 1;
-    msg.point_step = 8;  // Too small for 3 floats
-    msg.row_step = 8;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 1;
+    msg.point_step      = 8;   // Too small for 3 floats
+    msg.row_step        = 8;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;  // Offset 8 + 4 > point_step 8
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;   // Offset 8 + 4 > point_step 8
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(8);
 
     const auto frame = adapt_pointcloud_message(msg, "/points", 10);
@@ -478,18 +516,24 @@ TEST(PointCloudAdapter, LargeCloudDecimation)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 1;
-    msg.width = 10'000;
-    msg.point_step = 12;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height          = 1;
+    msg.width           = 10'000;
+    msg.point_step      = 12;
+    msg.row_step        = msg.point_step * msg.width;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(msg.row_step, 0);
 
     for (uint32_t i = 0; i < msg.width; ++i)
@@ -525,18 +569,24 @@ TEST(PointCloudAdapter, MultiRowCloudParsed)
 {
     sensor_msgs::msg::PointCloud2 msg;
     msg.header.frame_id = "lidar";
-    msg.height = 2;
-    msg.width = 2;
-    msg.point_step = 12;
-    msg.row_step = msg.point_step * msg.width;
-    msg.is_bigendian = false;
+    msg.height          = 2;
+    msg.width           = 2;
+    msg.point_step      = 12;
+    msg.row_step        = msg.point_step * msg.width;
+    msg.is_bigendian    = false;
     msg.fields.resize(3);
-    msg.fields[0].name = "x"; msg.fields[0].offset = 0;
-    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[0].count = 1;
-    msg.fields[1].name = "y"; msg.fields[1].offset = 4;
-    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[1].count = 1;
-    msg.fields[2].name = "z"; msg.fields[2].offset = 8;
-    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32; msg.fields[2].count = 1;
+    msg.fields[0].name     = "x";
+    msg.fields[0].offset   = 0;
+    msg.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[0].count    = 1;
+    msg.fields[1].name     = "y";
+    msg.fields[1].offset   = 4;
+    msg.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[1].count    = 1;
+    msg.fields[2].name     = "z";
+    msg.fields[2].offset   = 8;
+    msg.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+    msg.fields[2].count    = 1;
     msg.data.resize(msg.row_step * msg.height, 0);
 
     float pts[12] = {1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0};
@@ -551,8 +601,8 @@ TEST(PointCloudAdapter, MultiRowCloudParsed)
 TEST(PointCloudAdapter, StampConversion)
 {
     sensor_msgs::msg::PointCloud2 msg = make_cloud_xyz32();
-    msg.header.stamp.sec = 5;
-    msg.header.stamp.nanosec = 123;
+    msg.header.stamp.sec              = 5;
+    msg.header.stamp.nanosec          = 123;
 
     const auto frame = adapt_pointcloud_message(msg, "/points", 100);
     ASSERT_TRUE(frame.has_value());
@@ -561,9 +611,9 @@ TEST(PointCloudAdapter, StampConversion)
 
 TEST(PointCloudAdapter, FrameIdPreserved)
 {
-    auto msg = make_cloud_xyz32();
+    auto msg            = make_cloud_xyz32();
     msg.header.frame_id = "custom_frame";
-    const auto frame = adapt_pointcloud_message(msg, "/topic", 100);
+    const auto frame    = adapt_pointcloud_message(msg, "/topic", 100);
     ASSERT_TRUE(frame.has_value());
     EXPECT_EQ(frame->frame_id, "custom_frame");
     EXPECT_EQ(frame->topic, "/topic");
@@ -572,7 +622,7 @@ TEST(PointCloudAdapter, FrameIdPreserved)
 TEST(PointCloudDisplay, DisabledDisplayDoesNotSubmit)
 {
     PointCloudDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
     context.fixed_frame = "world";
     display.on_enable(context);
     display.set_enabled(false);
@@ -590,6 +640,8 @@ TEST(PointCloudDisplay, DisabledDisplayDoesNotSubmit)
 TEST(PointCloudDisplay, TopicSetViaConfig)
 {
     PointCloudDisplay display;
-    display.deserialize_config_blob("topic=/velodyne_points;color_mode=1;point_size=4.00;max_points=200000;use_message_stamp=1");
+    display.deserialize_config_blob(
+        "topic=/"
+        "velodyne_points;color_mode=1;point_size=4.00;max_points=200000;use_message_stamp=1");
     EXPECT_EQ(display.topic(), "/velodyne_points");
 }

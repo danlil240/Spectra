@@ -22,8 +22,8 @@ TEST(RobotModelDisplay, ConfigBlobRoundTrip)
 TEST(RobotModelDisplay, ParsesUrdfAndSubmitsCollisionEntities)
 {
     RobotModelDisplay display;
-    DisplayContext context;
-    SceneManager scene;
+    DisplayContext    context;
+    SceneManager      scene;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test(R"(
@@ -60,8 +60,8 @@ TEST(RobotModelDisplay, ParsesUrdfAndSubmitsCollisionEntities)
 TEST(RobotModelDisplay, InvalidUrdfSetsErrorState)
 {
     RobotModelDisplay display;
-    DisplayContext context;
-    SceneManager scene;
+    DisplayContext    context;
+    SceneManager      scene;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test("<robot><link></robot>");
@@ -104,7 +104,7 @@ static const char* FK_URDF = R"(
 TEST(RobotModelDisplay, FkIdentityWhenZeroJoints)
 {
     RobotModelDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test(FK_URDF);
@@ -126,7 +126,7 @@ TEST(RobotModelDisplay, FkIdentityWhenZeroJoints)
 TEST(RobotModelDisplay, FkRevoluteRotatesChild)
 {
     RobotModelDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test(FK_URDF);
@@ -169,7 +169,7 @@ TEST(RobotModelDisplay, FkPrismaticTranslatesChild)
 </robot>)";
 
     RobotModelDisplay display;
-    DisplayContext context;
+    DisplayContext    context;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test(prismatic_urdf);
@@ -187,8 +187,8 @@ TEST(RobotModelDisplay, FkPrismaticTranslatesChild)
 TEST(RobotModelDisplay, FkSubmitRenderablesUsesTransform)
 {
     RobotModelDisplay display;
-    DisplayContext context;
-    SceneManager scene;
+    DisplayContext    context;
+    SceneManager      scene;
 
     display.on_enable(context);
     display.set_robot_description_xml_for_test(FK_URDF);

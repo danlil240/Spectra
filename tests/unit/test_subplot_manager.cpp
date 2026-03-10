@@ -37,7 +37,7 @@ using namespace spectra::adapters::ros2;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -61,17 +61,15 @@ public:
 
 class SubplotManagerTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
-        int argc = 0; char** argv = nullptr;
+        int    argc = 0;
+        char** argv = nullptr;
         bridge_.init("test_subplot_mgr", "/test", argc, argv);
         // Do NOT call start_spin() — keeps tests fast and headless.
     }
-    void TearDown() override
-    {
-        bridge_.shutdown();
-    }
+    void TearDown() override { bridge_.shutdown(); }
 
     Ros2Bridge          bridge_;
     MessageIntrospector intr_;
@@ -83,21 +81,20 @@ protected:
 
 class SubplotManagerLiveTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
-        int argc = 0; char** argv = nullptr;
+        int    argc = 0;
+        char** argv = nullptr;
         bridge_.init("test_subplot_mgr_live", "/test", argc, argv);
         bridge_.start_spin();
     }
-    void TearDown() override
-    {
-        bridge_.shutdown();
-    }
+    void TearDown() override { bridge_.shutdown(); }
 
     // Spin a publisher node until predicate returns true or deadline expires.
-    template<typename Pred>
-    bool spin_until(rclcpp::Node::SharedPtr node, Pred pred,
+    template <typename Pred>
+    bool spin_until(rclcpp::Node::SharedPtr   node,
+                    Pred                      pred,
                     std::chrono::milliseconds timeout = std::chrono::milliseconds(3000))
     {
         rclcpp::executors::SingleThreadedExecutor ex;
@@ -183,7 +180,7 @@ TEST_F(SubplotManagerTest, AxesPreCreatedForAllSlots)
 TEST_F(SubplotManagerTest, ExternalFigureDestroyedBeforeManager_NoUseAfterFree)
 {
     auto external_fig = std::make_unique<spectra::Figure>();
-    auto mgr = std::make_unique<SubplotManager>(bridge_, intr_, 1, 1, external_fig.get());
+    auto mgr          = std::make_unique<SubplotManager>(bridge_, intr_, 1, 1, external_fig.get());
 
     // bridge_ is initialized but not spinning; add_plot still creates slot series.
     auto h = mgr->add_plot(1, "/shutdown_test", "data", "std_msgs/msg/Float64");
@@ -240,28 +237,28 @@ TEST_F(SubplotManagerTest, IndexOf_1x1)
 TEST_F(SubplotManagerTest, AddPlot_InvalidSlotZero)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.add_plot(0, "/topic", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(0, "/topic", "data", "std_msgs/msg/Float64");
     EXPECT_FALSE(h.valid());
 }
 
 TEST_F(SubplotManagerTest, AddPlot_InvalidSlotTooLarge)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.add_plot(3, "/topic", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(3, "/topic", "data", "std_msgs/msg/Float64");
     EXPECT_FALSE(h.valid());
 }
 
 TEST_F(SubplotManagerTest, AddPlot_EmptyTopic)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.add_plot(1, "", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, "", "data", "std_msgs/msg/Float64");
     EXPECT_FALSE(h.valid());
 }
 
 TEST_F(SubplotManagerTest, AddPlot_EmptyField)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.add_plot(1, "/topic", "", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, "/topic", "", "std_msgs/msg/Float64");
     EXPECT_FALSE(h.valid());
 }
 
@@ -292,7 +289,7 @@ TEST_F(SubplotManagerTest, AddPlot_RowColOverload_ValidCell)
 TEST_F(SubplotManagerTest, AddPlot_RowColOverload_InvalidCell)
 {
     SubplotManager mgr(bridge_, intr_, 2, 2);
-    auto h = mgr.add_plot(3, 1, "/topic", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(3, 1, "/topic", "data", "std_msgs/msg/Float64");
     EXPECT_FALSE(h.valid());
 }
 
@@ -336,7 +333,7 @@ TEST_F(SubplotManagerTest, Clear_EmptyManagerNoOp)
 TEST_F(SubplotManagerTest, Handle_InvalidSlotReturnsInvalid)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.handle(0);
+    auto           h = mgr.handle(0);
     EXPECT_FALSE(h.valid());
     h = mgr.handle(3);
     EXPECT_FALSE(h.valid());
@@ -345,14 +342,14 @@ TEST_F(SubplotManagerTest, Handle_InvalidSlotReturnsInvalid)
 TEST_F(SubplotManagerTest, Handle_EmptySlotReturnsInvalid)
 {
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.handle(1);
+    auto           h = mgr.handle(1);
     EXPECT_FALSE(h.valid());
 }
 
 TEST_F(SubplotManagerTest, Handles_EmptyManagerReturnsEmpty)
 {
     SubplotManager mgr(bridge_, intr_, 2, 2);
-    auto hv = mgr.handles();
+    auto           hv = mgr.handles();
     EXPECT_TRUE(hv.empty());
 }
 
@@ -362,7 +359,7 @@ TEST_F(SubplotManagerTest, Handles_EmptyManagerReturnsEmpty)
 
 TEST_F(SubplotManagerTest, FigureAccessReturnsValidRef)
 {
-    SubplotManager mgr(bridge_, intr_, 2, 1);
+    SubplotManager   mgr(bridge_, intr_, 2, 1);
     spectra::Figure& fig = mgr.figure();
     EXPECT_EQ(fig.grid_rows(), 2);
     EXPECT_EQ(fig.grid_cols(), 1);
@@ -370,7 +367,7 @@ TEST_F(SubplotManagerTest, FigureAccessReturnsValidRef)
 
 TEST_F(SubplotManagerTest, ConstFigureAccessReturnsValidRef)
 {
-    const SubplotManager mgr(bridge_, intr_, 1, 1);
+    const SubplotManager   mgr(bridge_, intr_, 1, 1);
     const spectra::Figure& fig = mgr.figure();
     EXPECT_EQ(fig.grid_rows(), 1);
     EXPECT_EQ(fig.grid_cols(), 1);
@@ -382,14 +379,14 @@ TEST_F(SubplotManagerTest, ConstFigureAccessReturnsValidRef)
 
 TEST_F(SubplotManagerTest, LinkManagerAccessReturnsValidRef)
 {
-    SubplotManager mgr(bridge_, intr_, 2, 1);
+    SubplotManager            mgr(bridge_, intr_, 2, 1);
     spectra::AxisLinkManager& lm = mgr.link_manager();
     EXPECT_EQ(lm.group_count(), 0u);   // no plots yet
 }
 
 TEST_F(SubplotManagerTest, ConstLinkManagerAccessReturnsValidRef)
 {
-    const SubplotManager mgr(bridge_, intr_, 1, 1);
+    const SubplotManager            mgr(bridge_, intr_, 1, 1);
     const spectra::AxisLinkManager& lm = mgr.link_manager();
     EXPECT_EQ(lm.group_count(), 0u);
 }
@@ -516,7 +513,7 @@ TEST_F(SubplotManagerTest, DefaultAutoFitSamples)
 TEST_F(SubplotManagerTest, AutoFitSlotYPreservesCurrentXView)
 {
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto h = mgr.add_plot(1, "/autofit_y_logic", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, "/autofit_y_logic", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
     const std::vector<float> x{0.0f, 1.0f, 2.0f};
@@ -539,7 +536,7 @@ TEST_F(SubplotManagerTest, AutoFitSlotYPreservesCurrentXView)
 TEST_F(SubplotManagerTest, ClearSlotYLimPreservesXAndClearsManualOverride)
 {
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto h = mgr.add_plot(1, "/clear_ylim_logic", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, "/clear_ylim_logic", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
     const std::vector<float> x{0.0f, 1.0f, 2.0f};
@@ -625,11 +622,14 @@ TEST_F(SubplotManagerLiveTest, XAxisLinkingCreatedForTwoActivePlots)
 {
     // Publish two Float64 topics so add_plot can subscribe.
     auto pub_node = std::make_shared<rclcpp::Node>("test_link_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/link_test/a", 10);
-    auto pub2 = pub_node->create_publisher<std_msgs::msg::Float64>("/link_test/b", 10);
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/link_test/a", 10);
+    auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/link_test/b", 10);
 
     // Give discovery time.
-    spin_until(pub_node, []{ return false; }, std::chrono::milliseconds(300));
+    spin_until(
+        pub_node,
+        [] { return false; },
+        std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
 
@@ -656,11 +656,14 @@ TEST_F(SubplotManagerLiveTest, XAxisLinkingCreatedForTwoActivePlots)
 TEST_F(SubplotManagerLiveTest, XAxisLinkingNotCreatedForSinglePlot)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_single_link_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/single_link_test", 10);
-    spin_until(pub_node, []{ return false; }, std::chrono::milliseconds(300));
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/single_link_test", 10);
+    spin_until(
+        pub_node,
+        [] { return false; },
+        std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h1 = mgr.add_plot(1, "/single_link_test", "data", "std_msgs/msg/Float64");
+    auto           h1 = mgr.add_plot(1, "/single_link_test", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
 
     // Only one active subplot → no link group needed.
@@ -670,13 +673,16 @@ TEST_F(SubplotManagerLiveTest, XAxisLinkingNotCreatedForSinglePlot)
 TEST_F(SubplotManagerLiveTest, RemovePlotUnlinksAxes)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_unlink_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/a", 10);
-    auto pub2 = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/b", 10);
-    spin_until(pub_node, []{ return false; }, std::chrono::milliseconds(300));
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/a", 10);
+    auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/b", 10);
+    spin_until(
+        pub_node,
+        [] { return false; },
+        std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h1 = mgr.add_plot(1, "/unlink_test/a", "data", "std_msgs/msg/Float64");
-    auto h2 = mgr.add_plot(2, "/unlink_test/b", "data", "std_msgs/msg/Float64");
+    auto           h1 = mgr.add_plot(1, "/unlink_test/a", "data", "std_msgs/msg/Float64");
+    auto           h2 = mgr.add_plot(2, "/unlink_test/b", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
     ASSERT_GT(mgr.link_manager().group_count(), 0u);
@@ -690,15 +696,18 @@ TEST_F(SubplotManagerLiveTest, RemovePlotUnlinksAxes)
 TEST_F(SubplotManagerLiveTest, ThreeSubplotsAllLinked)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_three_link_pub");
-    auto p1 = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/a", 10);
-    auto p2 = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/b", 10);
-    auto p3 = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/c", 10);
-    spin_until(pub_node, []{ return false; }, std::chrono::milliseconds(300));
+    auto p1       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/a", 10);
+    auto p2       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/b", 10);
+    auto p3       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/c", 10);
+    spin_until(
+        pub_node,
+        [] { return false; },
+        std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 3, 1);
-    auto h1 = mgr.add_plot(1, "/three_link/a", "data", "std_msgs/msg/Float64");
-    auto h2 = mgr.add_plot(2, "/three_link/b", "data", "std_msgs/msg/Float64");
-    auto h3 = mgr.add_plot(3, "/three_link/c", "data", "std_msgs/msg/Float64");
+    auto           h1 = mgr.add_plot(1, "/three_link/a", "data", "std_msgs/msg/Float64");
+    auto           h2 = mgr.add_plot(2, "/three_link/b", "data", "std_msgs/msg/Float64");
+    auto           h3 = mgr.add_plot(3, "/three_link/c", "data", "std_msgs/msg/Float64");
 
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
@@ -715,15 +724,15 @@ TEST_F(SubplotManagerLiveTest, ThreeSubplotsAllLinked)
 
 TEST_F(SubplotManagerLiveTest, PollAppendsFloat64Data)
 {
-    auto pub_node = std::make_shared<rclcpp::Node>("test_poll_pub");
-    const std::string topic = "/subplot_poll_test";
-    auto pub = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub_node = std::make_shared<rclcpp::Node>("test_poll_pub");
+    const std::string topic    = "/subplot_poll_test";
+    auto              pub      = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
-    spin_until(pub_node, [&]{ return pub->get_subscription_count() >= 1; });
+    spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
 
     // Publish 5 messages.
     std_msgs::msg::Float64 msg;
@@ -735,8 +744,13 @@ TEST_F(SubplotManagerLiveTest, PollAppendsFloat64Data)
     }
 
     // Spin the publisher node to deliver messages.
-    bool got_data = spin_until(pub_node,
-        [&]{ mgr.poll(); return h.series->point_count() >= 5; },
+    bool got_data = spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h.series->point_count() >= 5;
+        },
         std::chrono::milliseconds(3000));
 
     EXPECT_TRUE(got_data);
@@ -745,29 +759,36 @@ TEST_F(SubplotManagerLiveTest, PollAppendsFloat64Data)
 
 TEST_F(SubplotManagerLiveTest, PollCallbackFired)
 {
-    auto pub_node = std::make_shared<rclcpp::Node>("test_cb_pub");
-    const std::string topic = "/subplot_cb_test";
-    auto pub = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub_node = std::make_shared<rclcpp::Node>("test_cb_pub");
+    const std::string topic    = "/subplot_cb_test";
+    auto              pub      = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     SubplotManager mgr(bridge_, intr_, 1, 1);
 
     int cb_count = 0;
-    mgr.set_on_data([&](int slot, double, double) {
-        EXPECT_EQ(slot, 1);
-        ++cb_count;
-    });
+    mgr.set_on_data(
+        [&](int slot, double, double)
+        {
+            EXPECT_EQ(slot, 1);
+            ++cb_count;
+        });
 
     auto h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
-    spin_until(pub_node, [&]{ return pub->get_subscription_count() >= 1; });
+    spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 42.0;
     pub->publish(msg);
 
-    spin_until(pub_node,
-        [&]{ mgr.poll(); return cb_count >= 1; },
+    spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return cb_count >= 1;
+        },
         std::chrono::milliseconds(3000));
 
     EXPECT_GE(cb_count, 1);
@@ -776,20 +797,22 @@ TEST_F(SubplotManagerLiveTest, PollCallbackFired)
 TEST_F(SubplotManagerLiveTest, TwoSubplotsReceiveIndependentData)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_two_data_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/two_sub/a", 10);
-    auto pub2 = pub_node->create_publisher<std_msgs::msg::Float64>("/two_sub/b", 10);
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/two_sub/a", 10);
+    auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/two_sub/b", 10);
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
-    auto h1 = mgr.add_plot(1, "/two_sub/a", "data", "std_msgs/msg/Float64");
-    auto h2 = mgr.add_plot(2, "/two_sub/b", "data", "std_msgs/msg/Float64");
+    auto           h1 = mgr.add_plot(1, "/two_sub/a", "data", "std_msgs/msg/Float64");
+    auto           h2 = mgr.add_plot(2, "/two_sub/b", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     ASSERT_TRUE(h2.valid());
 
-    spin_until(pub_node, [&]{ return pub1->get_subscription_count() >= 1
-                                  && pub2->get_subscription_count() >= 1; });
+    spin_until(
+        pub_node,
+        [&] { return pub1->get_subscription_count() >= 1 && pub2->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 m1, m2;
-    m1.data = 10.0; m2.data = 20.0;
+    m1.data = 10.0;
+    m2.data = 20.0;
     for (int i = 0; i < 3; ++i)
     {
         pub1->publish(m1);
@@ -797,9 +820,13 @@ TEST_F(SubplotManagerLiveTest, TwoSubplotsReceiveIndependentData)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    spin_until(pub_node,
-        [&]{ mgr.poll();
-             return h1.series->point_count() >= 3 && h2.series->point_count() >= 3; },
+    spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h1.series->point_count() >= 3 && h2.series->point_count() >= 3;
+        },
         std::chrono::milliseconds(3000));
 
     EXPECT_GE(h1.series->point_count(), 3u);
@@ -809,13 +836,13 @@ TEST_F(SubplotManagerLiveTest, TwoSubplotsReceiveIndependentData)
 TEST_F(SubplotManagerLiveTest, MemoryBytesIncreasesAfterData)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_mem_pub");
-    auto pub = pub_node->create_publisher<std_msgs::msg::Float64>("/mem_test", 10);
+    auto pub      = pub_node->create_publisher<std_msgs::msg::Float64>("/mem_test", 10);
 
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto h = mgr.add_plot(1, "/mem_test", "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, "/mem_test", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
-    spin_until(pub_node, [&]{ return pub->get_subscription_count() >= 1; });
+    spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
 
     const size_t before = mgr.total_memory_bytes();
 
@@ -827,8 +854,13 @@ TEST_F(SubplotManagerLiveTest, MemoryBytesIncreasesAfterData)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    spin_until(pub_node,
-        [&]{ mgr.poll(); return h.series->point_count() >= 10; },
+    spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h.series->point_count() >= 10;
+        },
         std::chrono::milliseconds(3000));
 
     EXPECT_GT(mgr.total_memory_bytes(), before);
@@ -836,15 +868,15 @@ TEST_F(SubplotManagerLiveTest, MemoryBytesIncreasesAfterData)
 
 TEST_F(SubplotManagerLiveTest, LiveYAutoFitStopsAfterManualOverride)
 {
-    auto pub_node = std::make_shared<rclcpp::Node>("test_live_autofit_pub");
-    const std::string topic = "/live_autofit_test";
-    auto pub = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub_node = std::make_shared<rclcpp::Node>("test_live_autofit_pub");
+    const std::string topic    = "/live_autofit_test";
+    auto              pub      = pub_node->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
+    auto           h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
 
-    spin_until(pub_node, [&]{ return pub->get_subscription_count() >= 1; });
+    spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
 
     std_msgs::msg::Float64 msg;
     msg.data = 1.0;
@@ -856,25 +888,27 @@ TEST_F(SubplotManagerLiveTest, LiveYAutoFitStopsAfterManualOverride)
     msg.data = 3.0;
     pub->publish(msg);
 
-    ASSERT_TRUE(spin_until(pub_node,
-                           [&]
-                           {
-                               mgr.poll();
-                               return h.series->point_count() >= 3;
-                           },
-                           std::chrono::milliseconds(3000)));
+    ASSERT_TRUE(spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h.series->point_count() >= 3;
+        },
+        std::chrono::milliseconds(3000)));
 
     const auto live_y_before = h.axes->y_limits();
 
     msg.data = 100.0;
     pub->publish(msg);
-    ASSERT_TRUE(spin_until(pub_node,
-                           [&]
-                           {
-                               mgr.poll();
-                               return h.series->point_count() >= 4;
-                           },
-                           std::chrono::milliseconds(3000)));
+    ASSERT_TRUE(spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h.series->point_count() >= 4;
+        },
+        std::chrono::milliseconds(3000)));
 
     const auto live_y_after = h.axes->y_limits();
     EXPECT_GT(live_y_after.max, live_y_before.max);
@@ -885,15 +919,16 @@ TEST_F(SubplotManagerLiveTest, LiveYAutoFitStopsAfterManualOverride)
 
     msg.data = 200.0;
     pub->publish(msg);
-    ASSERT_TRUE(spin_until(pub_node,
-                           [&]
-                           {
-                               mgr.poll();
-                               return h.series->point_count() >= 5;
-                           },
-                           std::chrono::milliseconds(3000)));
+    ASSERT_TRUE(spin_until(
+        pub_node,
+        [&]
+        {
+            mgr.poll();
+            return h.series->point_count() >= 5;
+        },
+        std::chrono::milliseconds(3000)));
 
-    const auto manual_y = h.axes->y_limits();
+    const auto manual_y     = h.axes->y_limits();
     const auto live_x_after = h.axes->x_limits();
     EXPECT_DOUBLE_EQ(manual_y.min, -1.0);
     EXPECT_DOUBLE_EQ(manual_y.max, 1.0);
@@ -908,8 +943,8 @@ TEST_F(SubplotManagerLiveTest, LiveYAutoFitStopsAfterManualOverride)
 TEST_F(SubplotManagerLiveTest, ClearRemovesAllSubscriptions)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_clear_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/clear_test/a", 10);
-    auto pub2 = pub_node->create_publisher<std_msgs::msg::Float64>("/clear_test/b", 10);
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/clear_test/a", 10);
+    auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/clear_test/b", 10);
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
     ASSERT_TRUE(mgr.add_plot(1, "/clear_test/a", "data", "std_msgs/msg/Float64").valid());
@@ -925,11 +960,11 @@ TEST_F(SubplotManagerLiveTest, ClearRemovesAllSubscriptions)
 TEST_F(SubplotManagerLiveTest, ReplacePlotInSlot)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_replace_pub");
-    auto pub1 = pub_node->create_publisher<std_msgs::msg::Float64>("/replace_a", 10);
-    auto pub2 = pub_node->create_publisher<std_msgs::msg::Float64>("/replace_b", 10);
+    auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/replace_a", 10);
+    auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/replace_b", 10);
 
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto h1 = mgr.add_plot(1, "/replace_a", "data", "std_msgs/msg/Float64");
+    auto           h1 = mgr.add_plot(1, "/replace_a", "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h1.valid());
     EXPECT_EQ(h1.topic, "/replace_a");
 

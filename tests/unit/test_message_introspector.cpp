@@ -47,7 +47,7 @@ using namespace std::string_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -64,13 +64,15 @@ public:
 // Helper: get the introspection type support for a message type T.
 // ---------------------------------------------------------------------------
 
-template<typename MsgT>
+template <typename MsgT>
 const rosidl_message_type_support_t* get_introspection_ts()
 {
     const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<MsgT>();
-    if (!ts) return nullptr;
+    if (!ts)
+        return nullptr;
     return get_message_typesupport_handle(
-        ts, rosidl_typesupport_introspection_cpp::typesupport_identifier);
+        ts,
+        rosidl_typesupport_introspection_cpp::typesupport_identifier);
 }
 
 // ---------------------------------------------------------------------------
@@ -79,16 +81,10 @@ const rosidl_message_type_support_t* get_introspection_ts()
 
 class MessageIntrospectorTest : public ::testing::Test
 {
-protected:
-    void SetUp() override
-    {
-        intr_ = std::make_unique<MessageIntrospector>();
-    }
+   protected:
+    void SetUp() override { intr_ = std::make_unique<MessageIntrospector>(); }
 
-    void TearDown() override
-    {
-        intr_.reset();
-    }
+    void TearDown() override { intr_.reset(); }
 
     std::unique_ptr<MessageIntrospector> intr_;
 };
@@ -105,8 +101,8 @@ TEST_F(MessageIntrospectorTest, ConstructsClean)
 TEST_F(MessageIntrospectorTest, ClearCacheWorks)
 {
     // Populate then clear.
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
     intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     EXPECT_EQ(intr_->cache_size(), 1u);
     intr_->clear_cache();
@@ -119,12 +115,12 @@ TEST_F(MessageIntrospectorTest, ClearCacheWorks)
 
 class Float64SchemaTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Float64>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
         ASSERT_NE(ts, nullptr);
         schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
         ASSERT_NE(schema_, nullptr);
@@ -195,12 +191,12 @@ TEST_F(Float64SchemaTest, NumericPathsContainsData)
 
 class TwistSchemaTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            geometry_msgs::msg::Twist>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
         ASSERT_NE(ts, nullptr);
         schema_ = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
         ASSERT_NE(schema_, nullptr);
@@ -272,12 +268,12 @@ TEST_F(TwistSchemaTest, FindNestedFieldReturnsCorrectPath)
 
 class ImuSchemaTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            sensor_msgs::msg::Imu>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<sensor_msgs::msg::Imu>();
         ASSERT_NE(ts, nullptr);
         schema_ = intr_->introspect_type_support(ts, "sensor_msgs/msg/Imu");
         ASSERT_NE(schema_, nullptr);
@@ -335,12 +331,12 @@ TEST_F(ImuSchemaTest, NumericPathsNonEmpty)
 
 class Float64AccessorTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Float64>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
         schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
         ASSERT_NE(schema_, nullptr);
     }
@@ -385,7 +381,7 @@ TEST_F(Float64AccessorTest, ExtractDoubleNegative)
     std_msgs::msg::Float64 msg;
     msg.data = -42.5;
 
-    auto acc = intr_->make_accessor(*schema_, "data");
+    auto         acc = intr_->make_accessor(*schema_, "data");
     const double val = acc.extract_double(&msg);
     EXPECT_NEAR(val, -42.5, 1e-10);
 }
@@ -401,7 +397,7 @@ TEST_F(Float64AccessorTest, ExtractDoubleZero)
 
 TEST_F(Float64AccessorTest, ExtractDoubleFromNullPtrReturnsNaN)
 {
-    auto acc = intr_->make_accessor(*schema_, "data");
+    auto         acc = intr_->make_accessor(*schema_, "data");
     const double val = acc.extract_double(nullptr);
     EXPECT_TRUE(std::isnan(val));
 }
@@ -418,12 +414,12 @@ TEST_F(Float64AccessorTest, InvalidAccessorReturnsNaN)
 
 class TwistAccessorTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            geometry_msgs::msg::Twist>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<geometry_msgs::msg::Twist>();
         schema_ = intr_->introspect_type_support(ts, "geometry_msgs/msg/Twist");
         ASSERT_NE(schema_, nullptr);
     }
@@ -498,12 +494,20 @@ TEST_F(TwistAccessorTest, ExtractAngularZ)
 TEST_F(TwistAccessorTest, AllSixFieldsExtractIndependently)
 {
     geometry_msgs::msg::Twist msg;
-    msg.linear.x  = 1.0; msg.linear.y  = 2.0; msg.linear.z  = 3.0;
-    msg.angular.x = 4.0; msg.angular.y = 5.0; msg.angular.z = 6.0;
+    msg.linear.x  = 1.0;
+    msg.linear.y  = 2.0;
+    msg.linear.z  = 3.0;
+    msg.angular.x = 4.0;
+    msg.angular.y = 5.0;
+    msg.angular.z = 6.0;
 
     const std::vector<std::pair<std::string, double>> expected = {
-        {"linear.x",  1.0}, {"linear.y",  2.0}, {"linear.z",  3.0},
-        {"angular.x", 4.0}, {"angular.y", 5.0}, {"angular.z", 6.0},
+        {"linear.x", 1.0},
+        {"linear.y", 2.0},
+        {"linear.z", 3.0},
+        {"angular.x", 4.0},
+        {"angular.y", 5.0},
+        {"angular.z", 6.0},
     };
 
     for (const auto& [path, want] : expected)
@@ -527,12 +531,12 @@ TEST_F(TwistAccessorTest, TopLevelNestedMessagePathInvalid)
 
 class ImuAccessorTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            sensor_msgs::msg::Imu>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<sensor_msgs::msg::Imu>();
         schema_ = intr_->introspect_type_support(ts, "sensor_msgs/msg/Imu");
         ASSERT_NE(schema_, nullptr);
     }
@@ -578,7 +582,9 @@ TEST_F(ImuAccessorTest, OrientationXYZExtract)
     msg.orientation.z = 0.3;
 
     const std::vector<std::pair<std::string, double>> expected = {
-        {"orientation.x", 0.1}, {"orientation.y", 0.2}, {"orientation.z", 0.3},
+        {"orientation.x", 0.1},
+        {"orientation.y", 0.2},
+        {"orientation.z", 0.3},
     };
 
     for (const auto& [path, want] : expected)
@@ -595,12 +601,12 @@ TEST_F(ImuAccessorTest, OrientationXYZExtract)
 
 class Int32AccessorTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Int32>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int32>();
         schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/Int32");
         ASSERT_NE(schema_, nullptr);
     }
@@ -647,12 +653,12 @@ TEST_F(Int32AccessorTest, ExtractInt64NullReturnsZero)
 
 class BoolAccessorTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Bool>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Bool>();
         schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/Bool");
         ASSERT_NE(schema_, nullptr);
     }
@@ -685,12 +691,12 @@ TEST_F(BoolAccessorTest, ExtractFalseAsDouble)
 
 class StringSchemaTest : public MessageIntrospectorTest
 {
-protected:
+   protected:
     void SetUp() override
     {
         MessageIntrospectorTest::SetUp();
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::String>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::String>();
         schema_ = intr_->introspect_type_support(ts, "std_msgs/msg/String");
         ASSERT_NE(schema_, nullptr);
     }
@@ -728,12 +734,14 @@ TEST_F(StringSchemaTest, NumericPathsEmpty)
 // Suite: Cache behaviour
 // ===========================================================================
 
-class CacheTest : public MessageIntrospectorTest {};
+class CacheTest : public MessageIntrospectorTest
+{
+};
 
 TEST_F(CacheTest, IntrospectSameTypeTwiceReturnsSamePointer)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
 
     auto s1 = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     auto s2 = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
@@ -746,14 +754,14 @@ TEST_F(CacheTest, IntrospectSameTypeTwiceReturnsSamePointer)
 TEST_F(CacheTest, CacheSizeGrowsWithNewTypes)
 {
     {
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Float64>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
         intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     }
     EXPECT_EQ(intr_->cache_size(), 1u);
     {
-        const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-            std_msgs::msg::Int32>();
+        const auto* ts =
+            rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Int32>();
         intr_->introspect_type_support(ts, "std_msgs/msg/Int32");
     }
     EXPECT_EQ(intr_->cache_size(), 2u);
@@ -761,8 +769,8 @@ TEST_F(CacheTest, CacheSizeGrowsWithNewTypes)
 
 TEST_F(CacheTest, ClearCacheAllowsReintrospection)
 {
-    const auto* ts = rosidl_typesupport_cpp::get_message_type_support_handle<
-        std_msgs::msg::Float64>();
+    const auto* ts =
+        rosidl_typesupport_cpp::get_message_type_support_handle<std_msgs::msg::Float64>();
 
     auto s1 = intr_->introspect_type_support(ts, "std_msgs/msg/Float64");
     intr_->clear_cache();
@@ -815,7 +823,9 @@ TEST(FieldTypeUtils, IsNumericReturnsFalseForNonNumeric)
 // Suite: Edge cases
 // ===========================================================================
 
-class EdgeCaseTest : public MessageIntrospectorTest {};
+class EdgeCaseTest : public MessageIntrospectorTest
+{
+};
 
 TEST_F(EdgeCaseTest, IntrospectNullTypeSupportReturnsNull)
 {
@@ -827,7 +837,7 @@ TEST_F(EdgeCaseTest, MakeAccessorOnEmptySchemaReturnsInvalid)
 {
     MessageSchema empty_schema;
     empty_schema.type_name = "empty/msg/Empty";
-    auto acc = intr_->make_accessor(empty_schema, "data");
+    auto acc               = intr_->make_accessor(empty_schema, "data");
     EXPECT_FALSE(acc.valid());
 }
 

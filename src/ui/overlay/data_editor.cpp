@@ -206,8 +206,13 @@ void DataEditor::draw(Figure& figure)
             const char* type = series_type_label(s);
 
             char header_buf[256];
-            std::snprintf(header_buf, sizeof(header_buf), "%s (%s) [%zu pts]##series_%d",
-                          lbl, type, get_point_count(s), i);
+            std::snprintf(header_buf,
+                          sizeof(header_buf),
+                          "%s (%s) [%zu pts]##series_%d",
+                          lbl,
+                          type,
+                          get_point_count(s),
+                          i);
 
             bool sec_open = true;
             if (widgets::section_header(header_buf, &sec_open, font_heading_))
@@ -240,11 +245,9 @@ void DataEditor::draw_axes_selector(Figure& figure)
 
     if (font_heading_)
         ImGui::PushFont(font_heading_);
-    ImGui::TextColored(ImVec4(theme().text_secondary.r,
-                              theme().text_secondary.g,
-                              theme().text_secondary.b,
-                              1.0f),
-                       "SUBPLOT");
+    ImGui::TextColored(
+        ImVec4(theme().text_secondary.r, theme().text_secondary.g, theme().text_secondary.b, 1.0f),
+        "SUBPLOT");
     if (font_heading_)
         ImGui::PopFont();
 
@@ -264,8 +267,12 @@ void DataEditor::draw_axes_selector(Figure& figure)
         AxesBase*   ab    = unified[current];
         bool        is_3d = is_axes_3d(ab);
         const char* title = ab->title().empty() ? "Untitled" : ab->title().c_str();
-        std::snprintf(preview, sizeof(preview), "Axes %d: %s%s",
-                      current + 1, title, is_3d ? " (3D)" : "");
+        std::snprintf(preview,
+                      sizeof(preview),
+                      "Axes %d: %s%s",
+                      current + 1,
+                      title,
+                      is_3d ? " (3D)" : "");
     }
 
     if (ImGui::BeginCombo("##axes_select", preview))
@@ -277,8 +284,12 @@ void DataEditor::draw_axes_selector(Figure& figure)
             const char* title = ab->title().empty() ? "Untitled" : ab->title().c_str();
 
             char item_buf[128];
-            std::snprintf(item_buf, sizeof(item_buf), "Axes %d: %s%s (%zu series)",
-                          i + 1, title, is_3d ? " (3D)" : "",
+            std::snprintf(item_buf,
+                          sizeof(item_buf),
+                          "Axes %d: %s%s (%zu series)",
+                          i + 1,
+                          title,
+                          is_3d ? " (3D)" : "",
                           ab->series().size());
 
             bool selected = (i == current);
@@ -308,11 +319,9 @@ void DataEditor::draw_series_selector(AxesBase& axes)
 
     if (font_heading_)
         ImGui::PushFont(font_heading_);
-    ImGui::TextColored(ImVec4(theme().text_secondary.r,
-                              theme().text_secondary.g,
-                              theme().text_secondary.b,
-                              1.0f),
-                       "SERIES");
+    ImGui::TextColored(
+        ImVec4(theme().text_secondary.r, theme().text_secondary.g, theme().text_secondary.b, 1.0f),
+        "SERIES");
     if (font_heading_)
         ImGui::PopFont();
 
@@ -332,8 +341,7 @@ void DataEditor::draw_series_selector(AxesBase& axes)
     }
     else
     {
-        std::snprintf(preview, sizeof(preview), "All Series (%zu)",
-                      series_vec.size());
+        std::snprintf(preview, sizeof(preview), "All Series (%zu)", series_vec.size());
     }
 
     ImGui::SetNextItemWidth(-1);
@@ -343,8 +351,7 @@ void DataEditor::draw_series_selector(AxesBase& axes)
         {
             bool selected = (current < 0);
             char all_buf[64];
-            std::snprintf(all_buf, sizeof(all_buf), "All Series (%zu)",
-                          series_vec.size());
+            std::snprintf(all_buf, sizeof(all_buf), "All Series (%zu)", series_vec.size());
             if (ImGui::Selectable(all_buf, selected))
                 selected_series_ = -1;
             if (selected)
@@ -355,13 +362,13 @@ void DataEditor::draw_series_selector(AxesBase& axes)
 
         for (int i = 0; i < static_cast<int>(series_vec.size()); ++i)
         {
-            Series*     s   = series_vec[i].get();
+            Series* s = series_vec[i].get();
             if (!s)
                 continue;
             const char* lbl = s->label().empty() ? "Unnamed" : s->label().c_str();
 
             // Color swatch before label
-            auto c = s->color();
+            auto   c = s->color();
             ImVec4 col(c.r, c.g, c.b, c.a);
             ImGui::PushStyleColor(ImGuiCol_Text, col);
             ImGui::TextUnformatted("\xe2\x96\x88");   // Unicode full block
@@ -369,8 +376,13 @@ void DataEditor::draw_series_selector(AxesBase& axes)
             ImGui::SameLine();
 
             char item_buf[128];
-            std::snprintf(item_buf, sizeof(item_buf), "%s (%s, %zu pts)##s_%d",
-                          lbl, series_type_label(s), get_point_count(s), i);
+            std::snprintf(item_buf,
+                          sizeof(item_buf),
+                          "%s (%s, %zu pts)##s_%d",
+                          lbl,
+                          series_type_label(s),
+                          get_point_count(s),
+                          i);
 
             bool selected = (i == current);
             if (ImGui::Selectable(item_buf, selected))
@@ -447,18 +459,14 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
 
     if (ImGui::BeginTable(table_id, 3, table_flags, ImVec2(0, avail_h)))
     {
-        ImGui::TableSetupColumn("#",
-                                ImGuiTableColumnFlags_WidthFixed,
-                                40.0f);
-        ImGui::TableSetupColumn("X",
-                                ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Y",
-                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+        ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Y", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
 
         // Use clipper for performance with large datasets
-        ImU32 highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
+        ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
                                        static_cast<int>(theme().accent_subtle.g * 255),
                                        static_cast<int>(theme().accent_subtle.b * 255),
                                        96);
@@ -495,7 +503,9 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id, edit_buf_, sizeof(edit_buf_),
+                        if (ImGui::InputText(cell_id,
+                                             edit_buf_,
+                                             sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
                                                  | ImGuiInputTextFlags_AutoSelectAll))
                         {
@@ -504,15 +514,13 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                             {
                                 if (auto* ls = dynamic_cast<LineSeries*>(&series))
                                 {
-                                    std::vector<float> xv(ls->x_data().begin(),
-                                                          ls->x_data().end());
+                                    std::vector<float> xv(ls->x_data().begin(), ls->x_data().end());
                                     xv[row] = val;
                                     ls->set_x(xv);
                                 }
                                 else if (auto* ss = dynamic_cast<ScatterSeries*>(&series))
                                 {
-                                    std::vector<float> xv(ss->x_data().begin(),
-                                                          ss->x_data().end());
+                                    std::vector<float> xv(ss->x_data().begin(), ss->x_data().end());
                                     xv[row] = val;
                                     ss->set_x(xv);
                                 }
@@ -522,9 +530,11 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                         if (ImGui::IsItemDeactivated())
                             editing_ = false;
                         if (!is_editing)
-                        {}   // Just set focus on first frame
+                        {
+                        }   // Just set focus on first frame
                         else if (ImGui::IsItemActive())
-                        {}
+                        {
+                        }
                     }
                     else
                     {
@@ -534,10 +544,10 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
-                            editing_      = true;
-                            edit_row_     = row;
-                            edit_col_     = 0;
-                            edit_series_  = series_idx;
+                            editing_     = true;
+                            edit_row_    = row;
+                            edit_col_    = 0;
+                            edit_series_ = series_idx;
                             std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", x_data[row]);
                         }
                     }
@@ -555,7 +565,9 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id, edit_buf_, sizeof(edit_buf_),
+                        if (ImGui::InputText(cell_id,
+                                             edit_buf_,
+                                             sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
                                                  | ImGuiInputTextFlags_AutoSelectAll))
                         {
@@ -564,15 +576,13 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                             {
                                 if (auto* ls = dynamic_cast<LineSeries*>(&series))
                                 {
-                                    std::vector<float> yv(ls->y_data().begin(),
-                                                          ls->y_data().end());
+                                    std::vector<float> yv(ls->y_data().begin(), ls->y_data().end());
                                     yv[row] = val;
                                     ls->set_y(yv);
                                 }
                                 else if (auto* ss = dynamic_cast<ScatterSeries*>(&series))
                                 {
-                                    std::vector<float> yv(ss->y_data().begin(),
-                                                          ss->y_data().end());
+                                    std::vector<float> yv(ss->y_data().begin(), ss->y_data().end());
                                     yv[row] = val;
                                     ss->set_y(yv);
                                 }
@@ -590,10 +600,10 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
-                            editing_      = true;
-                            edit_row_     = row;
-                            edit_col_     = 1;
-                            edit_series_  = series_idx;
+                            editing_     = true;
+                            edit_row_    = row;
+                            edit_col_    = 1;
+                            edit_series_ = series_idx;
                             std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", y_data[row]);
                         }
                     }
@@ -634,8 +644,11 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
 
         // Surface has different layout — show info
         char info[128];
-        std::snprintf(info, sizeof(info), "%d x %d grid (%zu z-values)",
-                      surf->rows(), surf->cols(),
+        std::snprintf(info,
+                      sizeof(info),
+                      "%d x %d grid (%zu z-values)",
+                      surf->rows(),
+                      surf->cols(),
                       surf->z_values().size());
         widgets::info_row("Grid", info);
         widgets::small_spacing();
@@ -737,19 +750,14 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
 
     if (ImGui::BeginTable(table_id, 4, table_flags, ImVec2(0, avail_h)))
     {
-        ImGui::TableSetupColumn("#",
-                                ImGuiTableColumnFlags_WidthFixed,
-                                40.0f);
-        ImGui::TableSetupColumn("X",
-                                ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Y",
-                                ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Z",
-                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+        ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Y", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Z", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
 
-        ImU32 highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
+        ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
                                        static_cast<int>(theme().accent_subtle.g * 255),
                                        static_cast<int>(theme().accent_subtle.b * 255),
                                        96);
@@ -786,7 +794,9 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id, edit_buf_, sizeof(edit_buf_),
+                        if (ImGui::InputText(cell_id,
+                                             edit_buf_,
+                                             sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
                                                  | ImGuiInputTextFlags_AutoSelectAll))
                         {
@@ -795,15 +805,13 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             {
                                 if (auto* ls = dynamic_cast<LineSeries3D*>(&series))
                                 {
-                                    std::vector<float> xv(ls->x_data().begin(),
-                                                          ls->x_data().end());
+                                    std::vector<float> xv(ls->x_data().begin(), ls->x_data().end());
                                     xv[row] = val;
                                     ls->set_x(xv);
                                 }
                                 else if (auto* ss = dynamic_cast<ScatterSeries3D*>(&series))
                                 {
-                                    std::vector<float> xv(ss->x_data().begin(),
-                                                          ss->x_data().end());
+                                    std::vector<float> xv(ss->x_data().begin(), ss->x_data().end());
                                     xv[row] = val;
                                     ss->set_x(xv);
                                 }
@@ -821,10 +829,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
-                            editing_      = true;
-                            edit_row_     = row;
-                            edit_col_     = 0;
-                            edit_series_  = series_idx;
+                            editing_     = true;
+                            edit_row_    = row;
+                            edit_col_    = 0;
+                            edit_series_ = series_idx;
                             std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", x_data[row]);
                         }
                     }
@@ -842,7 +850,9 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id, edit_buf_, sizeof(edit_buf_),
+                        if (ImGui::InputText(cell_id,
+                                             edit_buf_,
+                                             sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
                                                  | ImGuiInputTextFlags_AutoSelectAll))
                         {
@@ -851,15 +861,13 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             {
                                 if (auto* ls = dynamic_cast<LineSeries3D*>(&series))
                                 {
-                                    std::vector<float> yv(ls->y_data().begin(),
-                                                          ls->y_data().end());
+                                    std::vector<float> yv(ls->y_data().begin(), ls->y_data().end());
                                     yv[row] = val;
                                     ls->set_y(yv);
                                 }
                                 else if (auto* ss = dynamic_cast<ScatterSeries3D*>(&series))
                                 {
-                                    std::vector<float> yv(ss->y_data().begin(),
-                                                          ss->y_data().end());
+                                    std::vector<float> yv(ss->y_data().begin(), ss->y_data().end());
                                     yv[row] = val;
                                     ss->set_y(yv);
                                 }
@@ -877,10 +885,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
-                            editing_      = true;
-                            edit_row_     = row;
-                            edit_col_     = 1;
-                            edit_series_  = series_idx;
+                            editing_     = true;
+                            edit_row_    = row;
+                            edit_col_    = 1;
+                            edit_series_ = series_idx;
                             std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", y_data[row]);
                         }
                     }
@@ -898,7 +906,9 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id, edit_buf_, sizeof(edit_buf_),
+                        if (ImGui::InputText(cell_id,
+                                             edit_buf_,
+                                             sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
                                                  | ImGuiInputTextFlags_AutoSelectAll))
                         {
@@ -907,15 +917,13 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             {
                                 if (auto* ls = dynamic_cast<LineSeries3D*>(&series))
                                 {
-                                    std::vector<float> zv(ls->z_data().begin(),
-                                                          ls->z_data().end());
+                                    std::vector<float> zv(ls->z_data().begin(), ls->z_data().end());
                                     zv[row] = val;
                                     ls->set_z(zv);
                                 }
                                 else if (auto* ss = dynamic_cast<ScatterSeries3D*>(&series))
                                 {
-                                    std::vector<float> zv(ss->z_data().begin(),
-                                                          ss->z_data().end());
+                                    std::vector<float> zv(ss->z_data().begin(), ss->z_data().end());
                                     zv[row] = val;
                                     ss->set_z(zv);
                                 }
@@ -933,10 +941,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
-                            editing_      = true;
-                            edit_row_     = row;
-                            edit_col_     = 2;
-                            edit_series_  = series_idx;
+                            editing_     = true;
+                            edit_row_    = row;
+                            edit_col_    = 2;
+                            edit_series_ = series_idx;
                             std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", z_data[row]);
                         }
                     }

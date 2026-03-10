@@ -38,7 +38,7 @@
 #include "render/renderer.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include "ui/app/window_ui_context.hpp"
+    #include "ui/app/window_ui_context.hpp"
 #endif
 
 #include <csignal>
@@ -49,7 +49,7 @@
 #include <string>
 
 #if !defined(_WIN32)
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 
 // ---------------------------------------------------------------------------
@@ -57,12 +57,12 @@
 // new-delete-type-mismatch (upstream bug in retyped_reallocate).
 // ---------------------------------------------------------------------------
 #if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define HAS_ASAN 1
-#  endif
+    #if __has_feature(address_sanitizer)
+        #define HAS_ASAN 1
+    #endif
 #endif
 #if defined(__SANITIZE_ADDRESS__) && !defined(HAS_ASAN)
-#  define HAS_ASAN 1
+    #define HAS_ASAN 1
 #endif
 
 #ifdef HAS_ASAN
@@ -114,9 +114,9 @@ static constexpr const char* k_vulkan_driver_hint_env    = "SPECTRA_VULKAN_DRIVE
 
 static const char* detect_fast_start_vulkan_driver_manifest()
 {
-#if defined(_WIN32)
+    #if defined(_WIN32)
     return nullptr;
-#else
+    #else
     if (std::getenv("VK_DRIVER_FILES") != nullptr || std::getenv("VK_ICD_FILENAMES") != nullptr)
         return nullptr;
 
@@ -126,15 +126,15 @@ static const char* detect_fast_start_vulkan_driver_manifest()
         return "/usr/share/vulkan/icd.d/nvidia_icd.json";
 
     return nullptr;
-#endif
+    #endif
 }
 
 static void maybe_reexec_for_fast_vulkan_startup(int argc, char** argv)
 {
-#if defined(_WIN32)
+    #if defined(_WIN32)
     (void)argc;
     (void)argv;
-#else
+    #else
     using namespace spectra::adapters::ros2;
 
     if (std::getenv(k_vulkan_startup_reexec_env) != nullptr)
@@ -163,7 +163,7 @@ static void maybe_reexec_for_fast_vulkan_startup(int argc, char** argv)
     (void)unset_env_value("VK_DRIVER_FILES");
     (void)unset_env_value(k_vulkan_driver_hint_env);
     (void)unset_env_value(k_vulkan_startup_reexec_env);
-#endif
+    #endif
 }
 
 static void report_fast_vulkan_startup_policy()
@@ -200,7 +200,8 @@ static void apply_debug_startup_policy()
 
 static void sigint_handler(int /*sig*/)
 {
-    if (g_shell) g_shell->request_shutdown();
+    if (g_shell)
+        g_shell->request_shutdown();
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +213,7 @@ int main(int argc, char** argv)
     using namespace spectra::adapters::ros2;
 
     // Parse CLI args.
-    std::string err;
+    std::string        err;
     const RosAppConfig cfg = parse_args(argc, argv, err);
 
     if (!err.empty())
@@ -245,32 +246,32 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------
 
     spectra::AppConfig app_cfg;
-    spectra::App app(app_cfg);
+    spectra::App       app(app_cfg);
 
     // Create the figure that spectra-ros binds its subplot manager to.
     // The shell will create the actual subplot axes during init().
     spectra::FigureConfig fig_cfg;
     fig_cfg.width  = cfg.window_width;
     fig_cfg.height = cfg.window_height;
-    auto& fig = app.figure(fig_cfg);
+    auto& fig      = app.figure(fig_cfg);
 
     // Create shell and install SIGINT handler before init.
     RosAppShell shell(cfg);
     shell.set_canvas_figure(&fig);   // Bind ROS subplot manager to the visible app figure.
     g_shell = &shell;
-    std::signal(SIGINT,  sigint_handler);
+    std::signal(SIGINT, sigint_handler);
     std::signal(SIGTERM, sigint_handler);
 
     // Initialise ROS2, discovery, and all ROS panels.
     if (!shell.init(argc, argv))
     {
-        std::fprintf(stderr, "spectra-ros: failed to initialise ROS2 node '%s'\n",
+        std::fprintf(stderr,
+                     "spectra-ros: failed to initialise ROS2 node '%s'\n",
                      cfg.node_name.c_str());
         return 1;
     }
 
-    std::printf("spectra-ros: node '%s' started.  Ctrl+C to exit.\n",
-                cfg.node_name.c_str());
+    std::printf("spectra-ros: node '%s' started.  Ctrl+C to exit.\n", cfg.node_name.c_str());
 
     if (!cfg.initial_topics.empty())
     {
@@ -287,11 +288,12 @@ int main(int argc, char** argv)
     // and we can poll ROS2 messages each frame.
     fig.animate()
         .fps(60.0f)
-        .on_frame([&shell](spectra::Frame& /*frame*/)
-        {
-            // Drain ROS2 ring buffers each frame.
-            shell.poll();
-        })
+        .on_frame(
+            [&shell](spectra::Frame& /*frame*/)
+            {
+                // Drain ROS2 ring buffers each frame.
+                shell.poll();
+            })
         .loop(true)
         .play();
 
@@ -319,11 +321,8 @@ int main(int argc, char** argv)
                 return backend != nullptr && backend->readback_framebuffer(buf, w, h);
             });
         exporter->set_frame_render_callback(
-            [&app](uint32_t /*frame_index*/,
-                   float /*time*/,
-                   uint8_t* buf,
-                   uint32_t w,
-                   uint32_t h) -> bool
+            [&app](uint32_t /*frame_index*/, float /*time*/, uint8_t* buf, uint32_t w, uint32_t h)
+                -> bool
             {
                 auto* backend = app.backend();
                 return backend != nullptr && backend->readback_framebuffer(buf, w, h);
@@ -353,10 +352,7 @@ int main(int argc, char** argv)
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
-        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
-        {
-            shell.draw();
-        });
+        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]() { shell.draw(); });
         // GPU scene render callback — invoked during the active Vulkan render
         // pass (before ImGui overlay) so the 3D scene viewport is drawn with
         // real GPU pipelines instead of the software ImGui preview.
@@ -370,8 +366,7 @@ int main(int argc, char** argv)
                 auto rect = sv->canvas_rect();
                 if (rect.w < 1.0f || rect.h < 1.0f)
                     return;
-                scene_renderer->render(renderer, shell.scene_manager(),
-                                       sv->camera(), rect);
+                scene_renderer->render(renderer, shell.scene_manager(), sv->camera(), rect);
             });
     }
 #endif

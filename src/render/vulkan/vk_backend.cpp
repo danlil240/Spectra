@@ -139,9 +139,9 @@ bool VulkanBackend::init(bool headless)
             has_device_extension(ctx_.physical_device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 
         VmaAllocatorCreateInfo allocator_info{};
-        allocator_info.physicalDevice = ctx_.physical_device;
-        allocator_info.device         = ctx_.device;
-        allocator_info.instance       = ctx_.instance;
+        allocator_info.physicalDevice   = ctx_.physical_device;
+        allocator_info.device           = ctx_.device;
+        allocator_info.instance         = ctx_.instance;
         allocator_info.vulkanApiVersion = VK_API_VERSION_1_2;
         if (memory_budget_extension_enabled_)
         {
@@ -304,7 +304,7 @@ void VulkanBackend::shutdown()
 
     vkDestroyInstance(ctx_.instance, nullptr);
 
-    ctx_ = {};
+    ctx_                             = {};
     memory_budget_extension_enabled_ = false;
 }
 
@@ -377,7 +377,7 @@ void VulkanBackend::destroy_surface_for(WindowContext& wctx)
     wctx.surface = VK_NULL_HANDLE;
 }
 
-bool VulkanBackend::query_framebuffer_size(void* native_window,
+bool VulkanBackend::query_framebuffer_size(void*     native_window,
                                            uint32_t& width,
                                            uint32_t& height) const
 {
@@ -575,7 +575,7 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
 
     pipelines_[h.id]        = create_pipeline_for_type(type, rp);
     pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth
-                                  || type == PipelineType::Image3D)
+                               || type == PipelineType::Image3D)
                                   ? text_pipeline_layout_
                                   : pipeline_layout_;
     return h;
@@ -858,10 +858,8 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             // Same vertex layout as Mesh3D: {pos.xyz, normal.xyz}
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
-            cfg.vertex_attributes.push_back({1,
-                                             0,
-                                             VK_FORMAT_R32G32B32_SFLOAT,
-                                             static_cast<uint32_t>(sizeof(float) * 3)});
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
             break;
         case PipelineType::Marker3D_Transparent:
             cfg.vert_spirv         = shaders::marker3d_vert;
@@ -874,10 +872,8 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 6, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
-            cfg.vertex_attributes.push_back({1,
-                                             0,
-                                             VK_FORMAT_R32G32B32_SFLOAT,
-                                             static_cast<uint32_t>(sizeof(float) * 3)});
+            cfg.vertex_attributes.push_back(
+                {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(sizeof(float) * 3)});
             break;
         // ── Point cloud pipeline (per-point color from SSBO) ──
         case PipelineType::PointCloud:
@@ -950,7 +946,7 @@ void VulkanBackend::ensure_pipelines()
                 pipeline = create_pipeline_for_type(it->second, rp);
                 pipeline_layouts_[id] =
                     (it->second == PipelineType::Text || it->second == PipelineType::TextDepth
-                         || it->second == PipelineType::Image3D)
+                     || it->second == PipelineType::Image3D)
                         ? text_pipeline_layout_
                         : pipeline_layout_;
             }
@@ -1829,8 +1825,8 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     // Reuse persistent staging buffer when possible (headless path).
     // This avoids alloc+free every frame which is the main readback bottleneck.
-    VkBuffer staging_buf = VK_NULL_HANDLE;
-    void*    mapped_ptr  = nullptr;
+    VkBuffer staging_buf  = VK_NULL_HANDLE;
+    void*    mapped_ptr   = nullptr;
     bool     owns_staging = false;
 
     if (headless_ && offscreen_.readback_buffer != VK_NULL_HANDLE
@@ -1867,7 +1863,8 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
             if ((mem_req.memoryTypeBits & (1u << i))
                 && (mem_props.memoryTypes[i].propertyFlags
                     & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-                       == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+                       == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                           | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
             {
                 mem_type = i;
                 break;
@@ -1880,12 +1877,16 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         alloc.memoryTypeIndex = mem_type;
         vkAllocateMemory(ctx_.device, &alloc, nullptr, &offscreen_.readback_memory);
         vkBindBufferMemory(ctx_.device, offscreen_.readback_buffer, offscreen_.readback_memory, 0);
-        vkMapMemory(ctx_.device, offscreen_.readback_memory, 0, buffer_size, 0,
+        vkMapMemory(ctx_.device,
+                    offscreen_.readback_memory,
+                    0,
+                    buffer_size,
+                    0,
                     &offscreen_.readback_mapped_ptr);
 
         offscreen_.readback_capacity = buffer_size;
-        staging_buf = offscreen_.readback_buffer;
-        mapped_ptr  = offscreen_.readback_mapped_ptr;
+        staging_buf                  = offscreen_.readback_buffer;
+        mapped_ptr                   = offscreen_.readback_mapped_ptr;
     }
     else
     {
@@ -1893,12 +1894,14 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         owns_staging = true;
     }
 
-    VkBuffer copy_dst = staging_buf;
+    VkBuffer      copy_dst = staging_buf;
     vk::GpuBuffer temp_staging;
     if (owns_staging)
     {
         temp_staging = vk::GpuBuffer::create(
-            ctx_.device, ctx_.physical_device, buffer_size,
+            ctx_.device,
+            ctx_.physical_device,
+            buffer_size,
             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         copy_dst = temp_staging.buffer();
@@ -2249,8 +2252,8 @@ bool VulkanBackend::query_gpu_memory_stats(GpuMemoryStats& stats) const
 
     const uint32_t heap_count =
         std::min<uint32_t>(ctx_.memory_properties.memoryHeapCount, VK_MAX_MEMORY_HEAPS);
-    stats.heap_count                = heap_count;
-    stats.budget_extension_enabled  = memory_budget_extension_enabled_;
+    stats.heap_count               = heap_count;
+    stats.budget_extension_enabled = memory_budget_extension_enabled_;
 
     for (uint32_t i = 0; i < heap_count; ++i)
     {

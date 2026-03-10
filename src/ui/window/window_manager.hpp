@@ -150,12 +150,12 @@ class WindowManager
     // the supplied draw callback.  Session runtime detects the callback
     // and runs a minimal ImGui frame (no FigureManager / DockSystem).
     // Returns the new WindowContext, or nullptr on failure.
-    WindowContext* create_panel_window(uint32_t                width,
-                                       uint32_t                height,
-                                       const std::string&      title,
-                                       std::function<void()>   draw_callback,
-                                       int                     screen_x = 0,
-                                       int                     screen_y = 0);
+    WindowContext* create_panel_window(uint32_t              width,
+                                       uint32_t              height,
+                                       const std::string&    title,
+                                       std::function<void()> draw_callback,
+                                       int                   screen_x = 0,
+                                       int                   screen_y = 0);
 
     // Destroy a panel window by its ID (immediate, GPU-wait + cleanup).
     void destroy_panel_window(uint32_t window_id);

@@ -5,7 +5,7 @@
 #include <cstring>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -37,13 +37,12 @@ const LogSeverity LogViewerPanel::severity_values_[] = {
 // Construction
 // ---------------------------------------------------------------------------
 
-LogViewerPanel::LogViewerPanel(RosLogViewer& viewer)
-    : viewer_(viewer)
+LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer)
 {
     // Mirror initial filter state into UI buffers.
     const LogFilter& f = viewer_.filter();
-    std::strncpy(node_filter_buf_,  f.node_filter.c_str(),        sizeof(node_filter_buf_)  - 1);
-    std::strncpy(regex_filter_buf_, f.message_regex_str.c_str(),  sizeof(regex_filter_buf_) - 1);
+    std::strncpy(node_filter_buf_, f.node_filter.c_str(), sizeof(node_filter_buf_) - 1);
+    std::strncpy(regex_filter_buf_, f.message_regex_str.c_str(), sizeof(regex_filter_buf_) - 1);
 
     // Find matching severity combo index.
     severity_combo_idx_ = 0;
@@ -63,21 +62,20 @@ LogViewerPanel::LogViewerPanel(RosLogViewer& viewer)
 
 double LogViewerPanel::wall_time_now()
 {
-    return std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
+        .count();
 }
 
 std::string LogViewerPanel::format_row(const LogEntry& e)
 {
-    return RosLogViewer::format_wall_time(e.wall_time_s)
-        + "\t" + severity_name(e.severity)
-        + "\t" + e.node
-        + "\t" + e.message;
+    return RosLogViewer::format_wall_time(e.wall_time_s) + "\t" + severity_name(e.severity) + "\t"
+           + e.node + "\t" + e.message;
 }
 
 std::string LogViewerPanel::build_copy_text(const std::vector<LogEntry>& entries) const
 {
-    if (entries.empty()) return {};
+    if (entries.empty())
+        return {};
 
     std::string out;
     out.reserve(entries.size() * 80);
@@ -102,7 +100,8 @@ void LogViewerPanel::set_clipboard(const std::string& text)
 void LogViewerPanel::maybe_refresh()
 {
     const double now = wall_time_now();
-    if (now - last_refresh_time_s_ < display_interval_s_) return;
+    if (now - last_refresh_time_s_ < display_interval_s_)
+        return;
     last_refresh_time_s_ = now;
 
     cached_entries_ = viewer_.filtered_snapshot();
@@ -110,9 +109,10 @@ void LogViewerPanel::maybe_refresh()
 
     // Clamp to max_display_rows_ (show newest).
     if (cached_entries_.size() > max_display_rows_)
-        cached_entries_.erase(cached_entries_.begin(),
-                              cached_entries_.begin() +
-                              static_cast<ptrdiff_t>(cached_entries_.size() - max_display_rows_));
+        cached_entries_.erase(
+            cached_entries_.begin(),
+            cached_entries_.begin()
+                + static_cast<ptrdiff_t>(cached_entries_.size() - max_display_rows_));
 
     // Clamp selected row.
     if (selected_row_ >= static_cast<int>(cached_entries_.size()))
@@ -141,14 +141,14 @@ void LogViewerPanel::draw(bool* p_open)
 
     const float detail_height = show_detail_ && selected_row_ >= 0 ? 110.0f : 0.0f;
     const float status_height = ImGui::GetTextLineHeightWithSpacing() + 4.0f;
-    const float table_height  = ImGui::GetContentRegionAvail().y
-                                - detail_height - status_height - 4.0f;
+    const float table_height =
+        ImGui::GetContentRegionAvail().y - detail_height - status_height - 4.0f;
 
     draw_table(cached_entries_);
-    (void)table_height; // used inside draw_table via GetContentRegionAvail
+    (void)table_height;   // used inside draw_table via GetContentRegionAvail
 
-    if (show_detail_ && selected_row_ >= 0 &&
-        selected_row_ < static_cast<int>(cached_entries_.size()))
+    if (show_detail_ && selected_row_ >= 0
+        && selected_row_ < static_cast<int>(cached_entries_.size()))
     {
         ImGui::Separator();
         draw_detail_pane(cached_entries_[selected_row_]);
@@ -177,12 +177,14 @@ void LogViewerPanel::draw_toolbar()
     if (paused)
     {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.3f, 0.0f, 1.0f));
-        if (ImGui::Button("Resume")) viewer_.resume();
+        if (ImGui::Button("Resume"))
+            viewer_.resume();
         ImGui::PopStyleColor();
     }
     else
     {
-        if (ImGui::Button("Pause")) viewer_.pause();
+        if (ImGui::Button("Pause"))
+            viewer_.pause();
     }
     ImGui::SameLine();
 
@@ -204,9 +206,8 @@ void LogViewerPanel::draw_toolbar()
     ImGui::SameLine();
 
     // Copy selected row
-    if (ImGui::Button("Copy Row") &&
-        selected_row_ >= 0 &&
-        selected_row_ < static_cast<int>(cached_entries_.size()))
+    if (ImGui::Button("Copy Row") && selected_row_ >= 0
+        && selected_row_ < static_cast<int>(cached_entries_.size()))
     {
         set_clipboard(format_row(cached_entries_[selected_row_]));
     }
@@ -216,15 +217,16 @@ void LogViewerPanel::draw_toolbar()
     if (auto_scroll_)
     {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.1f, 1.0f));
-        if (ImGui::Button("Following")) auto_scroll_ = false;
+        if (ImGui::Button("Following"))
+            auto_scroll_ = false;
         ImGui::PopStyleColor();
     }
     else
     {
         if (ImGui::Button("Follow"))
         {
-            auto_scroll_       = true;
-            scroll_to_bottom_  = true;
+            auto_scroll_      = true;
+            scroll_to_bottom_ = true;
         }
     }
     ImGui::SameLine();
@@ -275,21 +277,29 @@ void LogViewerPanel::draw_filter_bar()
 
     // Severity pill toggles (DEBUG / INFO / WARN / ERROR / FATAL).
     // Each pill is a small toggle button that shows/hides entries of that level.
-    struct PillDef { const char* label; LogSeverity sev; ImVec4 col_on; ImVec4 col_off; };
+    struct PillDef
+    {
+        const char* label;
+        LogSeverity sev;
+        ImVec4      col_on;
+        ImVec4      col_off;
+    };
     static const PillDef kPills[] = {
-        {"DBG",   LogSeverity::Debug, {0.55f,0.55f,0.55f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
-        {"INFO",  LogSeverity::Info,  {0.85f,0.85f,0.85f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
-        {"WARN",  LogSeverity::Warn,  {0.95f,0.75f,0.10f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
-        {"ERROR", LogSeverity::Error, {0.95f,0.30f,0.30f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
-        {"FATAL", LogSeverity::Fatal, {1.00f,0.30f,0.80f,1.0f}, {0.25f,0.25f,0.25f,0.6f}},
+        {"DBG", LogSeverity::Debug, {0.55f, 0.55f, 0.55f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
+        {"INFO", LogSeverity::Info, {0.85f, 0.85f, 0.85f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
+        {"WARN", LogSeverity::Warn, {0.95f, 0.75f, 0.10f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
+        {"ERROR", LogSeverity::Error, {0.95f, 0.30f, 0.30f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
+        {"FATAL", LogSeverity::Fatal, {1.00f, 0.30f, 0.80f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
     };
     for (int pi = 0; pi < 5; ++pi)
     {
-        const int idx = static_cast<int>(kPills[pi].sev);
-        const bool on = (idx >= 0 && idx < 6) ? severity_pill_visible_[idx] : true;
+        const int     idx = static_cast<int>(kPills[pi].sev);
+        const bool    on  = (idx >= 0 && idx < 6) ? severity_pill_visible_[idx] : true;
         const ImVec4& col = on ? kPills[pi].col_on : kPills[pi].col_off;
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(col.x*0.5f, col.y*0.5f, col.z*0.5f, 0.8f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(col.x*0.7f, col.y*0.7f, col.z*0.7f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(col.x * 0.5f, col.y * 0.5f, col.z * 0.5f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                              ImVec4(col.x * 0.7f, col.y * 0.7f, col.z * 0.7f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, col);
         char btn_id[32];
         std::snprintf(btn_id, sizeof(btn_id), "%s##pill", kPills[pi].label);
@@ -300,7 +310,8 @@ void LogViewerPanel::draw_filter_bar()
             filter_changed = true;
         }
         ImGui::PopStyleColor(3);
-        if (pi < 4) ImGui::SameLine(0.0f, 3.0f);
+        if (pi < 4)
+            ImGui::SameLine(0.0f, 3.0f);
     }
     ImGui::SameLine(0.0f, 8.0f);
 
@@ -356,7 +367,8 @@ void LogViewerPanel::draw_filter_bar()
         viewer_.set_min_severity(LogSeverity::Unset);
         filter_changed = true;
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clear all filters");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Clear all filters");
 
     if (filter_changed)
     {
@@ -376,12 +388,18 @@ static ImVec4 severity_row_colour(LogSeverity s)
 {
     switch (s)
     {
-        case LogSeverity::Debug: return ImVec4(0.55f, 0.55f, 0.55f, 1.0f);
-        case LogSeverity::Info:  return ImVec4(0.90f, 0.90f, 0.90f, 1.0f);
-        case LogSeverity::Warn:  return ImVec4(1.00f, 0.85f, 0.10f, 1.0f);
-        case LogSeverity::Error: return ImVec4(1.00f, 0.35f, 0.35f, 1.0f);
-        case LogSeverity::Fatal: return ImVec4(1.00f, 0.20f, 0.80f, 1.0f);
-        default:                 return ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
+        case LogSeverity::Debug:
+            return ImVec4(0.55f, 0.55f, 0.55f, 1.0f);
+        case LogSeverity::Info:
+            return ImVec4(0.90f, 0.90f, 0.90f, 1.0f);
+        case LogSeverity::Warn:
+            return ImVec4(1.00f, 0.85f, 0.10f, 1.0f);
+        case LogSeverity::Error:
+            return ImVec4(1.00f, 0.35f, 0.35f, 1.0f);
+        case LogSeverity::Fatal:
+            return ImVec4(1.00f, 0.20f, 0.80f, 1.0f);
+        default:
+            return ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
     }
 }
 #endif
@@ -393,29 +411,24 @@ static ImVec4 severity_row_colour(LogSeverity s)
 void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
 {
 #ifdef SPECTRA_USE_IMGUI
-    const float detail_height  = show_detail_ && selected_row_ >= 0 ? 110.0f : 0.0f;
-    const float status_height  = ImGui::GetTextLineHeightWithSpacing() + 4.0f;
-    const float avail          = ImGui::GetContentRegionAvail().y;
-    const float table_height   = avail - detail_height - status_height - 4.0f;
+    const float detail_height = show_detail_ && selected_row_ >= 0 ? 110.0f : 0.0f;
+    const float status_height = ImGui::GetTextLineHeightWithSpacing() + 4.0f;
+    const float avail         = ImGui::GetContentRegionAvail().y;
+    const float table_height  = avail - detail_height - status_height - 4.0f;
 
     constexpr ImGuiTableFlags tbl_flags =
-        ImGuiTableFlags_BordersOuter  |
-        ImGuiTableFlags_BordersInnerV |
-        ImGuiTableFlags_ScrollY       |
-        ImGuiTableFlags_RowBg         |
-        ImGuiTableFlags_Resizable     |
-        ImGuiTableFlags_Reorderable   |
-        ImGuiTableFlags_Hideable      |
-        ImGuiTableFlags_SizingFixedFit;
+        ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY
+        | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable
+        | ImGuiTableFlags_Hideable | ImGuiTableFlags_SizingFixedFit;
 
     if (!ImGui::BeginTable("##logtbl", 4, tbl_flags, ImVec2(0.0f, table_height)))
         return;
 
     ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableSetupColumn("Time",     ImGuiTableColumnFlags_WidthFixed,   88.0f);
-    ImGui::TableSetupColumn("Level",    ImGuiTableColumnFlags_WidthFixed,   46.0f);
-    ImGui::TableSetupColumn("Node",     ImGuiTableColumnFlags_WidthFixed,  150.0f);
-    ImGui::TableSetupColumn("Message",  ImGuiTableColumnFlags_WidthStretch,  0.0f);
+    ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed, 88.0f);
+    ImGui::TableSetupColumn("Level", ImGuiTableColumnFlags_WidthFixed, 46.0f);
+    ImGui::TableSetupColumn("Node", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+    ImGui::TableSetupColumn("Message", ImGuiTableColumnFlags_WidthStretch, 0.0f);
     ImGui::TableHeadersRow();
 
     const int n = static_cast<int>(entries.size());
@@ -432,8 +445,8 @@ void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
 
         ImGui::TableNextRow();
 
-        const bool is_selected = (selected_row_ == i);
-        const ImVec4 col = severity_row_colour(e.severity);
+        const bool   is_selected = (selected_row_ == i);
+        const ImVec4 col         = severity_row_colour(e.severity);
 
         ImGui::TableSetColumnIndex(0);
         ImGui::PushStyleColor(ImGuiCol_Text, col);
@@ -454,13 +467,14 @@ void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
         ImGui::PushStyleColor(ImGuiCol_Text, col);
         // Selectable spanning the message column; clickable.
         const float row_h = ImGui::GetTextLineHeightWithSpacing();
-        if (ImGui::Selectable(e.message.c_str(), is_selected,
+        if (ImGui::Selectable(e.message.c_str(),
+                              is_selected,
                               ImGuiSelectableFlags_SpanAllColumns,
                               ImVec2(0.0f, row_h - 2.0f)))
         {
-            selected_row_       = (is_selected) ? -1 : i;
-            scroll_to_bottom_   = false; // user clicked — stop following
-            auto_scroll_        = false;
+            selected_row_     = (is_selected) ? -1 : i;
+            scroll_to_bottom_ = false;   // user clicked — stop following
+            auto_scroll_      = false;
             // Fire seek callback so subplot panels can jump to this timestamp.
             if (seek_cb_ && !is_selected)
                 seek_cb_(e.stamp_ns);
@@ -504,7 +518,9 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
 {
 #ifdef SPECTRA_USE_IMGUI
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.10f, 0.10f, 0.14f, 1.0f));
-    ImGui::BeginChild("##detail", ImVec2(0.0f, 106.0f), false,
+    ImGui::BeginChild("##detail",
+                      ImVec2(0.0f, 106.0f),
+                      false,
                       ImGuiWindowFlags_HorizontalScrollbar);
 
     const ImVec4 label_col = ImVec4(0.55f, 0.75f, 1.0f, 1.0f);
@@ -521,10 +537,10 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
         ImGui::PopStyleColor();
     };
 
-    row("Stamp:",    RosLogViewer::format_stamp(e.stamp_ns));
-    row("Node:",     e.node);
+    row("Stamp:", RosLogViewer::format_stamp(e.stamp_ns));
+    row("Node:", e.node);
     row("Severity:", severity_name(e.severity));
-    row("Message:",  e.message);
+    row("Message:", e.message);
     if (!e.file.empty() || e.line > 0)
     {
         char loc[512];

@@ -146,7 +146,7 @@ struct ParamDescriptor
     int64_t integer_range_max{0};
     int64_t integer_range_step{0};
 
-    bool has_float_range()   const { return float_range_min != 0.0 || float_range_max != 0.0; }
+    bool has_float_range() const { return float_range_min != 0.0 || float_range_max != 0.0; }
     bool has_integer_range() const { return integer_range_min != 0 || integer_range_max != 0; }
 
     // Construct from rcl_interfaces ParameterDescriptor
@@ -159,15 +159,15 @@ struct ParamDescriptor
 
 struct ParamEntry
 {
-    std::string    name;
-    ParamType      type{ParamType::NotSet};
-    ParamValue     current;       // last fetched value from node
-    ParamValue     staged;        // edited-but-not-yet-applied value (apply mode)
+    std::string     name;
+    ParamType       type{ParamType::NotSet};
+    ParamValue      current;   // last fetched value from node
+    ParamValue      staged;    // edited-but-not-yet-applied value (apply mode)
     ParamDescriptor descriptor;
 
-    bool staged_dirty{false};     // staged != current
-    bool set_error{false};        // last SetParameters call rejected this param
-    std::string set_error_reason; // reason string from rcl_interfaces
+    bool        staged_dirty{false};   // staged != current
+    bool        set_error{false};      // last SetParameters call rejected this param
+    std::string set_error_reason;      // reason string from rcl_interfaces
 };
 
 // ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ struct UndoEntry
 struct ParamSetResult
 {
     bool        ok{false};
-    std::string reason;  // on failure: reason from rcl_interfaces
+    std::string reason;   // on failure: reason from rcl_interfaces
 };
 
 // ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ struct PresetEntry
 
 class ParamEditorPanel
 {
-public:
+   public:
     // Construct with the shared node used for service calls.
     explicit ParamEditorPanel(rclcpp::Node::SharedPtr node);
     ~ParamEditorPanel();
@@ -228,7 +228,7 @@ public:
     // Set the fully-qualified node name to edit (e.g. "/my_ns/my_node").
     // Clears cached parameters and re-creates service clients.
     // Thread-safe.
-    void set_target_node(const std::string& node_name);
+    void        set_target_node(const std::string& node_name);
     std::string target_node() const;
 
     // Window title shown in ImGui title bar.
@@ -284,16 +284,15 @@ public:
 
     // Save the current parameter values to a YAML file.
     // Returns true on success.
-    bool save_preset(const std::string& display_name,
-                     const std::string& file_path);
+    bool save_preset(const std::string& display_name, const std::string& file_path);
 
     // Load parameters from a YAML file and apply them to the target node.
     // Returns true if all parameters were set successfully.
     bool load_preset(const std::string& file_path);
 
     // In-memory preset list (not persisted — session only).
-    void               add_preset(PresetEntry e);
-    void               remove_preset(size_t idx);
+    void                            add_preset(PresetEntry e);
+    void                            remove_preset(size_t idx);
     const std::vector<PresetEntry>& presets() const;
 
     // ---------- callbacks ------------------------------------------------
@@ -303,9 +302,8 @@ public:
     void set_on_refresh_done(RefreshDoneCallback cb);
 
     // Called (from the render thread) when a parameter is set.
-    using ParamSetCallback = std::function<void(const std::string& param,
-                                                const ParamValue& value,
-                                                bool success)>;
+    using ParamSetCallback =
+        std::function<void(const std::string& param, const ParamValue& value, bool success)>;
     void set_on_param_set(ParamSetCallback cb);
 
     // ---------- ImGui rendering ------------------------------------------
@@ -317,20 +315,19 @@ public:
 
     // Parse a ROS2-compatible YAML string into a name→value map.
     // Returns false if parsing fails; populates error_out on failure.
-    static bool parse_yaml(const std::string& yaml_text,
-                           const std::string& node_name,
+    static bool parse_yaml(const std::string&                           yaml_text,
+                           const std::string&                           node_name,
                            std::unordered_map<std::string, ParamValue>& out,
-                           std::string& error_out);
+                           std::string&                                 error_out);
 
     // Serialise a name→value map to ROS2-compatible YAML text.
-    static std::string serialize_yaml(
-        const std::string& node_name,
-        const std::unordered_map<std::string, ParamValue>& params);
+    static std::string serialize_yaml(const std::string&                                 node_name,
+                                      const std::unordered_map<std::string, ParamValue>& params);
 
     // Convert rcl_interfaces ParameterType integer to ParamType.
     static ParamType from_rcl_type(uint8_t rcl_type);
 
-private:
+   private:
     // Service client management (must be called with mutex_ held or from
     // refresh() which handles locking).
     void create_clients(const std::string& node_name);
@@ -341,13 +338,11 @@ private:
 
     // Internal set one parameter (live-edit path + apply_staged path).
     // WARNING: blocks for up to 7 s — never call from the render thread.
-    ParamSetResult set_param_internal(const std::string& param_name,
-                                      const ParamValue& value);
+    ParamSetResult set_param_internal(const std::string& param_name, const ParamValue& value);
 
     // Queue a set operation for the background worker thread (non-blocking).
     // Safe to call from the render thread.
-    void queue_set_param(const std::string& param_name,
-                         const ParamValue& value);
+    void queue_set_param(const std::string& param_name, const ParamValue& value);
 
     // Background worker that drains set_queue_ and calls set_param_internal.
     void set_worker_func();
@@ -369,9 +364,7 @@ private:
 
     // YAML helpers
     static std::string yaml_scalar(const ParamValue& v);
-    static bool        parse_yaml_scalar(const std::string& raw,
-                                         ParamType type,
-                                         ParamValue& out);
+    static bool        parse_yaml_scalar(const std::string& raw, ParamType type, ParamValue& out);
 
     // ---------- data (all protected by mutex_ unless noted) ---------------
 
@@ -384,13 +377,13 @@ private:
     bool        live_edit_{true};
 
     // Service clients (recreated on set_target_node)
-    rclcpp::Client<rcl_interfaces::srv::ListParameters>::SharedPtr    list_client_;
+    rclcpp::Client<rcl_interfaces::srv::ListParameters>::SharedPtr     list_client_;
     rclcpp::Client<rcl_interfaces::srv::DescribeParameters>::SharedPtr desc_client_;
     rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr      get_client_;
     rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr      set_client_;
 
     // Parameter model
-    std::vector<std::string>                    param_names_;  // ordered
+    std::vector<std::string>                    param_names_;   // ordered
     std::unordered_map<std::string, ParamEntry> param_map_;
 
     // State flags
@@ -424,21 +417,21 @@ private:
         ParamSetResult result;
     };
 
-    std::mutex              set_queue_mutex_;
-    std::condition_variable set_cv_;
-    std::deque<PendingSetOp> set_queue_;          // pending operations
-    std::deque<SetResultEntry> set_results_;      // completed results
-    std::thread             set_worker_;
-    std::atomic<bool>       stop_worker_{false};
+    std::mutex                 set_queue_mutex_;
+    std::condition_variable    set_cv_;
+    std::deque<PendingSetOp>   set_queue_;     // pending operations
+    std::deque<SetResultEntry> set_results_;   // completed results
+    std::thread                set_worker_;
+    std::atomic<bool>          stop_worker_{false};
 
     // ImGui transient state (render thread only — no lock needed)
-    char   node_input_buf_[256]{};   // node name text box
-    char   search_buf_[128]{};        // search/filter text
-    char   preset_name_buf_[128]{};   // save-preset name box
-    char   preset_path_buf_[512]{};   // save-preset path box
-    bool   show_preset_popup_{false};
-    bool   show_read_only_{true};
-    int    sort_mode_{0};             // 0=name, 1=type, 2=none
+    char node_input_buf_[256]{};    // node name text box
+    char search_buf_[128]{};        // search/filter text
+    char preset_name_buf_[128]{};   // save-preset name box
+    char preset_path_buf_[512]{};   // save-preset path box
+    bool show_preset_popup_{false};
+    bool show_read_only_{true};
+    int  sort_mode_{0};   // 0=name, 1=type, 2=none
 };
 
 }   // namespace spectra::adapters::ros2

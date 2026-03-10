@@ -85,50 +85,48 @@ void PanelDetachController::transition_to_detached(uint32_t window_id)
 
 void PanelDetachController::execute_create_window()
 {
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     if (!window_mgr_ || !draw_callback_)
     {
         state_ = State::Docked;
         return;
     }
 
-    auto* wctx = window_mgr_->create_panel_window(
-        static_cast<uint32_t>(detached_width_),
-        static_cast<uint32_t>(detached_height_),
-        title_,
-        draw_callback_,
-        screen_x_,
-        screen_y_);
+    auto* wctx = window_mgr_->create_panel_window(static_cast<uint32_t>(detached_width_),
+                                                  static_cast<uint32_t>(detached_height_),
+                                                  title_,
+                                                  draw_callback_,
+                                                  screen_x_,
+                                                  screen_y_);
 
     if (wctx)
     {
-        SPECTRA_LOG_INFO("panel_detach",
-                         "Created panel window " + std::to_string(wctx->id) + ": \""
-                             + title_ + "\"");
+        SPECTRA_LOG_INFO(
+            "panel_detach",
+            "Created panel window " + std::to_string(wctx->id) + ": \"" + title_ + "\"");
         transition_to_detached(wctx->id);
     }
     else
     {
-        SPECTRA_LOG_ERROR("panel_detach",
-                          "Failed to create panel window: \"" + title_ + "\"");
+        SPECTRA_LOG_ERROR("panel_detach", "Failed to create panel window: \"" + title_ + "\"");
         state_ = State::Docked;
     }
-#else
+    #else
     state_ = State::Docked;
-#endif
+    #endif
 }
 
 void PanelDetachController::execute_destroy_window()
 {
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     if (panel_window_id_ != 0 && window_mgr_)
     {
-        SPECTRA_LOG_INFO("panel_detach",
-                         "Destroying panel window " + std::to_string(panel_window_id_)
-                             + ": \"" + title_ + "\"");
+        SPECTRA_LOG_INFO(
+            "panel_detach",
+            "Destroying panel window " + std::to_string(panel_window_id_) + ": \"" + title_ + "\"");
         window_mgr_->destroy_panel_window(panel_window_id_);
     }
-#endif
+    #endif
     transition_to_docked();
 }
 

@@ -95,15 +95,19 @@ class Renderer
         double x_min;
         double x_max;
     };
-    void render_series(Series&            series,
+    void render_series(Series&             series,
                        const Rect&         viewport,
-                       const VisibleRange* visible    = nullptr,
-                       double              view_cx    = 0.0,
-                       double              view_cy    = 0.0);
+                       const VisibleRange* visible = nullptr,
+                       double              view_cx = 0.0,
+                       double              view_cy = 0.0);
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
-    void build_ortho_projection(double left, double right, double bottom, double top, float* out_mat4);
+    void build_ortho_projection(double left,
+                                double right,
+                                double bottom,
+                                double top,
+                                float* out_mat4);
     // Build orthographic projection with proper near/far depth (for 3D ortho views)
     void build_ortho_projection_3d(float  left,
                                    float  right,
@@ -270,7 +274,7 @@ class Renderer
     BufferHandle       legend_line_buffer_;
     size_t             legend_line_capacity_ = 0;
     BufferHandle       legend_tri_buffer_;
-    size_t             legend_tri_capacity_  = 0;
+    size_t             legend_tri_capacity_ = 0;
     std::vector<float> legend_line_scratch_;
     std::vector<float> legend_tri_scratch_;
 

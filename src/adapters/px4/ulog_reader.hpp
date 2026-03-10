@@ -75,11 +75,11 @@ ULogFieldType parse_ulog_type(const std::string& type_str, int& array_size);
 struct ULogField
 {
     std::string   name;
-    std::string   type_str;       // original type string, e.g. "float[3]"
+    std::string   type_str;   // original type string, e.g. "float[3]"
     ULogFieldType base_type{ULogFieldType::Float};
-    int           array_size{1};  // 1 for scalars, >1 for arrays
-    size_t        offset{0};      // byte offset within the message payload
-    std::string   nested_type;    // non-empty if base_type == Nested
+    int           array_size{1};   // 1 for scalars, >1 for arrays
+    size_t        offset{0};       // byte offset within the message payload
+    std::string   nested_type;     // non-empty if base_type == Nested
 };
 
 // ---------------------------------------------------------------------------
@@ -88,9 +88,9 @@ struct ULogField
 
 struct ULogMessageFormat
 {
-    std::string            name;       // e.g. "vehicle_attitude"
+    std::string            name;   // e.g. "vehicle_attitude"
     std::vector<ULogField> fields;
-    size_t                 byte_size{0}; // total size of one record (excluding timestamp)
+    size_t                 byte_size{0};   // total size of one record (excluding timestamp)
 };
 
 // ---------------------------------------------------------------------------
@@ -100,8 +100,8 @@ struct ULogMessageFormat
 struct ULogSubscription
 {
     uint16_t    msg_id{0};
-    uint8_t     multi_id{0};   // instance ID for multi-instance messages
-    std::string message_name;  // references a ULogMessageFormat
+    uint8_t     multi_id{0};    // instance ID for multi-instance messages
+    std::string message_name;   // references a ULogMessageFormat
 };
 
 // ---------------------------------------------------------------------------
@@ -130,31 +130,32 @@ struct ULogDataRow
 
 struct ULogTimeSeries
 {
-    std::string      message_name;
-    uint8_t          multi_id{0};
+    std::string              message_name;
+    uint8_t                  multi_id{0};
     const ULogMessageFormat* format{nullptr};   // non-owning pointer
     std::vector<ULogDataRow> rows;
 
     // Convenience: extract a named float field as parallel arrays.
     // Returns {timestamps_sec, values}.  Empty if field not found.
-    std::pair<std::vector<float>, std::vector<float>>
-    extract_field(const std::string& field_name) const;
+    std::pair<std::vector<float>, std::vector<float>> extract_field(
+        const std::string& field_name) const;
 
     // Extract a named field as doubles for higher precision.
-    std::pair<std::vector<double>, std::vector<double>>
-    extract_field_double(const std::string& field_name) const;
+    std::pair<std::vector<double>, std::vector<double>> extract_field_double(
+        const std::string& field_name) const;
 
     // Extract an array field element (e.g. "q[0]" from float[4] q).
-    std::pair<std::vector<float>, std::vector<float>>
-    extract_array_element(const std::string& field_name, int index) const;
+    std::pair<std::vector<float>, std::vector<float>> extract_array_element(
+        const std::string& field_name,
+        int                index) const;
 };
 
 // ---------------------------------------------------------------------------
 // ULogInfoMessage — key-value info from the log header.
 // ---------------------------------------------------------------------------
 
-using ULogValue = std::variant<int32_t, uint32_t, int64_t, uint64_t,
-                               float, double, bool, std::string>;
+using ULogValue =
+    std::variant<int32_t, uint32_t, int64_t, uint64_t, float, double, bool, std::string>;
 
 struct ULogInfoMessage
 {
@@ -211,30 +212,21 @@ struct ULogLogMessage
 struct ULogMetadata
 {
     std::string path;
-    uint8_t     version{0};             // ULog version (1 or 2)
-    uint64_t    timestamp_us{0};        // logging start time (microseconds)
-    uint64_t    start_time_us{0};       // first data timestamp
-    uint64_t    end_time_us{0};         // last data timestamp
-    uint64_t    duration_us{0};         // end - start
+    uint8_t     version{0};         // ULog version (1 or 2)
+    uint64_t    timestamp_us{0};    // logging start time (microseconds)
+    uint64_t    start_time_us{0};   // first data timestamp
+    uint64_t    end_time_us{0};     // last data timestamp
+    uint64_t    duration_us{0};     // end - start
 
-    size_t      message_count{0};       // total data messages
-    size_t      dropout_count{0};       // number of dropout events
-    uint32_t    total_dropout_ms{0};    // cumulative dropout time
+    size_t   message_count{0};      // total data messages
+    size_t   dropout_count{0};      // number of dropout events
+    uint32_t total_dropout_ms{0};   // cumulative dropout time
 
-    double duration_sec() const noexcept
-    {
-        return static_cast<double>(duration_us) * 1e-6;
-    }
+    double duration_sec() const noexcept { return static_cast<double>(duration_us) * 1e-6; }
 
-    double start_time_sec() const noexcept
-    {
-        return static_cast<double>(start_time_us) * 1e-6;
-    }
+    double start_time_sec() const noexcept { return static_cast<double>(start_time_us) * 1e-6; }
 
-    double end_time_sec() const noexcept
-    {
-        return static_cast<double>(end_time_us) * 1e-6;
-    }
+    double end_time_sec() const noexcept { return static_cast<double>(end_time_us) * 1e-6; }
 };
 
 // ---------------------------------------------------------------------------
@@ -243,7 +235,7 @@ struct ULogMetadata
 
 class ULogReader
 {
-public:
+   public:
     ULogReader();
     ~ULogReader();
 
@@ -330,9 +322,9 @@ public:
     // ------------------------------------------------------------------
 
     const std::string& last_error() const noexcept;
-    void clear_error() noexcept;
+    void               clear_error() noexcept;
 
-private:
+   private:
     // Internal parsing stages.
     bool parse_header(const uint8_t* data, size_t size);
     bool parse_definitions(const uint8_t* data, size_t size, size_t& offset);
@@ -360,14 +352,14 @@ private:
     // Parsed content.
     std::unordered_map<std::string, ULogMessageFormat> formats_;
     std::vector<ULogSubscription>                      subscriptions_;
-    std::unordered_map<uint16_t, size_t>               sub_index_;  // msg_id → subscriptions_ index
-    std::map<std::string, ULogTimeSeries>              data_;
+    std::unordered_map<uint16_t, size_t>  sub_index_;   // msg_id → subscriptions_ index
+    std::map<std::string, ULogTimeSeries> data_;
 
-    std::vector<ULogInfoMessage>  info_messages_;
-    std::vector<ULogParameter>    initial_params_;
-    std::vector<ULogParameter>    changed_params_;
-    std::vector<ULogDropout>      dropouts_;
-    std::vector<ULogLogMessage>   log_messages_;
+    std::vector<ULogInfoMessage> info_messages_;
+    std::vector<ULogParameter>   initial_params_;
+    std::vector<ULogParameter>   changed_params_;
+    std::vector<ULogDropout>     dropouts_;
+    std::vector<ULogLogMessage>  log_messages_;
 
     bool        open_{false};
     std::string last_error_;

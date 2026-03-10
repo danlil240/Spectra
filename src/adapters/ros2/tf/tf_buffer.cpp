@@ -35,9 +35,7 @@ void TfFrameStats::push(uint64_t now_ns, uint64_t stale_threshold_ms)
     (void)stale_threshold_ms;
 }
 
-void TfFrameStats::compute(uint64_t now_ns,
-                           uint64_t stale_threshold_ms,
-                           uint64_t hz_window_ns)
+void TfFrameStats::compute(uint64_t now_ns, uint64_t stale_threshold_ms, uint64_t hz_window_ns)
 {
     const uint64_t window_start = now_ns > hz_window_ns ? now_ns - hz_window_ns : 0;
     while (!recv_timestamps_ns.empty() && recv_timestamps_ns.front() < window_start)
@@ -49,7 +47,7 @@ void TfFrameStats::compute(uint64_t now_ns,
     if (ever_received)
     {
         const uint64_t last = last_transform.recv_ns;
-        age_ms = now_ns >= last ? (now_ns - last) / 1'000'000ULL : 0ULL;
+        age_ms              = now_ns >= last ? (now_ns - last) / 1'000'000ULL : 0ULL;
     }
     else
     {
@@ -83,11 +81,11 @@ void TfBuffer::inject_transform(const TransformStamp& ts)
     }
     else
     {
-        const auto insert_it = std::upper_bound(
-            history.begin(),
-            history.end(),
-            timed.stamp_ns,
-            [](uint64_t stamp, const TimedTransform& item) { return stamp < item.stamp_ns; });
+        const auto insert_it = std::upper_bound(history.begin(),
+                                                history.end(),
+                                                timed.stamp_ns,
+                                                [](uint64_t stamp, const TimedTransform& item)
+                                                { return stamp < item.stamp_ns; });
         history.insert(insert_it, timed);
         prune_history_unlocked(child_frame);
     }
@@ -97,16 +95,16 @@ void TfBuffer::inject_transform(const TransformStamp& ts)
     raw_stamp.child_frame    = child_frame;
     raw_stamp.recv_ns        = stamp_ns;
 
-    auto& stats = frames_[child_frame];
-    stats.frame_id         = child_frame;
-    stats.parent_frame_id  = parent_frame;
-    stats.is_static        = timed.is_static;
-    stats.last_transform   = raw_stamp;
+    auto& stats           = frames_[child_frame];
+    stats.frame_id        = child_frame;
+    stats.parent_frame_id = parent_frame;
+    stats.is_static       = timed.is_static;
+    stats.last_transform  = raw_stamp;
     stats.push(stamp_ns, stale_threshold_ms_);
 
     parent_of_[child_frame] = parent_frame;
 
-    auto& parent_stats = frames_[parent_frame];
+    auto& parent_stats    = frames_[parent_frame];
     parent_stats.frame_id = parent_frame;
 
     rebuild_tree_unlocked();
@@ -148,9 +146,7 @@ uint64_t TfBuffer::hz_window_ms() const
 void TfBuffer::set_cache_duration_s(double seconds)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    cache_duration_ns_ = seconds > 0.0
-                             ? static_cast<uint64_t>(seconds * 1e9)
-                             : 0ULL;
+    cache_duration_ns_ = seconds > 0.0 ? static_cast<uint64_t>(seconds * 1e9) : 0ULL;
     for (const auto& [child_frame, _] : history_by_child_)
         prune_history_unlocked(child_frame);
 }
@@ -178,7 +174,7 @@ TfTreeSnapshot TfBuffer::snapshot() const
     std::lock_guard<std::mutex> lock(mutex_);
 
     TfTreeSnapshot snapshot;
-    snapshot.snapshot_ns = steady_now_ns();
+    snapshot.snapshot_ns        = steady_now_ns();
     const uint64_t hz_window_ns = hz_window_ms_ * 1'000'000ULL;
 
     for (const auto& [_, stats] : frames_)
@@ -190,10 +186,7 @@ TfTreeSnapshot TfBuffer::snapshot() const
 
     std::sort(snapshot.frames.begin(),
               snapshot.frames.end(),
-              [](const TfFrameStats& a, const TfFrameStats& b)
-              {
-                  return a.frame_id < b.frame_id;
-              });
+              [](const TfFrameStats& a, const TfFrameStats& b) { return a.frame_id < b.frame_id; });
 
     for (const auto& frame : snapshot.frames)
     {
@@ -205,8 +198,8 @@ TfTreeSnapshot TfBuffer::snapshot() const
 
     for (const auto& frame : snapshot.frames)
     {
-        const bool has_parent = !frame.parent_frame_id.empty()
-                             && frames_.find(frame.parent_frame_id) != frames_.end();
+        const bool has_parent =
+            !frame.parent_frame_id.empty() && frames_.find(frame.parent_frame_id) != frames_.end();
         if (!has_parent)
             snapshot.roots.push_back(frame.frame_id);
 
@@ -225,7 +218,7 @@ TfTreeSnapshot TfBuffer::snapshot() const
 
 TransformResult TfBuffer::lookup_transform(const std::string& source_frame,
                                            const std::string& target_frame,
-                                           uint64_t lookup_time_ns) const
+                                           uint64_t           lookup_time_ns) const
 {
     TransformResult result;
 
@@ -265,7 +258,7 @@ TransformResult TfBuffer::lookup_transform(const std::string& source_frame,
         source_index[source_chain[i]] = i;
 
     std::string lca;
-    size_t target_lca_index = 0;
+    size_t      target_lca_index = 0;
     for (size_t i = 0; i < target_chain.size(); ++i)
     {
         if (source_index.find(target_chain[i]) != source_index.end())
@@ -282,12 +275,12 @@ TransformResult TfBuffer::lookup_transform(const std::string& source_frame,
         return result;
     }
 
-    const size_t source_lca_index = source_index[lca];
+    const size_t       source_lca_index = source_index[lca];
     spectra::Transform source_to_lca;
     for (size_t i = 0; i < source_lca_index; ++i)
     {
         const std::string& child_frame = source_chain[i];
-        const auto sampled = sample_edge_unlocked(child_frame, lookup_time_ns);
+        const auto         sampled     = sample_edge_unlocked(child_frame, lookup_time_ns);
         if (!sampled.has_value())
         {
             result.error = "No transform sample available for '" + child_frame + "'";
@@ -300,7 +293,7 @@ TransformResult TfBuffer::lookup_transform(const std::string& source_frame,
     for (size_t i = target_lca_index; i > 0; --i)
     {
         const std::string& child_frame = target_chain[i - 1];
-        const auto sampled = sample_edge_unlocked(child_frame, lookup_time_ns);
+        const auto         sampled     = sample_edge_unlocked(child_frame, lookup_time_ns);
         if (!sampled.has_value())
         {
             result.error = "No transform sample available for '" + child_frame + "'";
@@ -314,7 +307,7 @@ TransformResult TfBuffer::lookup_transform(const std::string& source_frame,
 
 bool TfBuffer::can_transform(const std::string& source_frame,
                              const std::string& target_frame,
-                             uint64_t lookup_time_ns) const
+                             uint64_t           lookup_time_ns) const
 {
     return lookup_transform(source_frame, target_frame, lookup_time_ns).ok;
 }
@@ -322,7 +315,7 @@ bool TfBuffer::can_transform(const std::string& source_frame,
 std::vector<std::string> TfBuffer::all_frames() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<std::string> names;
+    std::vector<std::string>    names;
     names.reserve(frames_.size());
     for (const auto& [name, _] : frames_)
         names.push_back(name);
@@ -349,8 +342,8 @@ void TfBuffer::prune_history_unlocked(const std::string& child_frame)
     if (it == history_by_child_.end() || it->second.empty() || it->second.back().is_static)
         return;
 
-    const uint64_t newest  = it->second.back().stamp_ns;
-    const uint64_t cutoff  = newest > cache_duration_ns_ ? newest - cache_duration_ns_ : 0;
+    const uint64_t newest = it->second.back().stamp_ns;
+    const uint64_t cutoff = newest > cache_duration_ns_ ? newest - cache_duration_ns_ : 0;
     while (it->second.size() > 1 && it->second.front().stamp_ns < cutoff)
         it->second.pop_front();
 }
@@ -358,8 +351,8 @@ void TfBuffer::prune_history_unlocked(const std::string& child_frame)
 std::vector<std::string> TfBuffer::chain_to_root_unlocked(const std::string& frame) const
 {
     std::vector<std::string> chain;
-    std::string current = frame;
-    const size_t max_depth = frames_.size() + 1;
+    std::string              current   = frame;
+    const size_t             max_depth = frames_.size() + 1;
     while (!current.empty() && chain.size() < max_depth)
     {
         chain.push_back(current);
@@ -371,8 +364,9 @@ std::vector<std::string> TfBuffer::chain_to_root_unlocked(const std::string& fra
     return chain;
 }
 
-std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(const std::string& child_frame,
-                                                                       uint64_t lookup_time_ns) const
+std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(
+    const std::string& child_frame,
+    uint64_t           lookup_time_ns) const
 {
     const auto it = history_by_child_.find(child_frame);
     if (it == history_by_child_.end() || it->second.empty())
@@ -385,11 +379,11 @@ std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(const std
     if (lookup_time_ns < history.front().stamp_ns || lookup_time_ns > history.back().stamp_ns)
         return std::nullopt;
 
-    const auto upper = std::lower_bound(
-        history.begin(),
-        history.end(),
-        lookup_time_ns,
-        [](const TimedTransform& item, uint64_t stamp) { return item.stamp_ns < stamp; });
+    const auto upper = std::lower_bound(history.begin(),
+                                        history.end(),
+                                        lookup_time_ns,
+                                        [](const TimedTransform& item, uint64_t stamp)
+                                        { return item.stamp_ns < stamp; });
 
     if (upper == history.begin())
         return *upper;
@@ -398,15 +392,14 @@ std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(const std
     if (upper->stamp_ns == lookup_time_ns)
         return *upper;
 
-    const auto& before = *(upper - 1);
-    const auto& after  = *upper;
+    const auto&    before  = *(upper - 1);
+    const auto&    after   = *upper;
     const uint64_t span_ns = after.stamp_ns - before.stamp_ns;
     if (span_ns == 0)
         return after;
 
-    const float t = static_cast<float>(
-        static_cast<double>(lookup_time_ns - before.stamp_ns)
-        / static_cast<double>(span_ns));
+    const float t = static_cast<float>(static_cast<double>(lookup_time_ns - before.stamp_ns)
+                                       / static_cast<double>(span_ns));
 
     TimedTransform interpolated;
     interpolated.stamp_ns  = lookup_time_ns;
@@ -415,8 +408,8 @@ std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(const std
     return interpolated;
 }
 
-TransformStamp TfBuffer::timed_to_stamp(const std::string& parent_frame,
-                                        const std::string& child_frame,
+TransformStamp TfBuffer::timed_to_stamp(const std::string&    parent_frame,
+                                        const std::string&    child_frame,
                                         const TimedTransform& timed)
 {
     TransformStamp stamp;
@@ -470,10 +463,10 @@ std::string TfBuffer::normalize_frame_id(std::string_view frame_id)
     return std::string(frame_id);
 }
 
-void TfBuffer::quat_to_euler_deg(double qx,
-                                 double qy,
-                                 double qz,
-                                 double qw,
+void TfBuffer::quat_to_euler_deg(double  qx,
+                                 double  qy,
+                                 double  qz,
+                                 double  qw,
                                  double& roll,
                                  double& pitch,
                                  double& yaw)
@@ -482,14 +475,14 @@ void TfBuffer::quat_to_euler_deg(double qx,
 
     const double sinr_cosp = 2.0 * (qw * qx + qy * qz);
     const double cosr_cosp = 1.0 - 2.0 * (qx * qx + qy * qy);
-    roll = std::atan2(sinr_cosp, cosr_cosp) * kRadToDeg;
+    roll                   = std::atan2(sinr_cosp, cosr_cosp) * kRadToDeg;
 
     const double sinp = 2.0 * (qw * qy - qz * qx);
     pitch = std::fabs(sinp) >= 1.0 ? std::copysign(90.0, sinp) : std::asin(sinp) * kRadToDeg;
 
     const double siny_cosp = 2.0 * (qw * qz + qx * qy);
     const double cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz);
-    yaw = std::atan2(siny_cosp, cosy_cosp) * kRadToDeg;
+    yaw                    = std::atan2(siny_cosp, cosy_cosp) * kRadToDeg;
 }
 
 }   // namespace spectra::adapters::ros2

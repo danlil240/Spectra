@@ -44,8 +44,8 @@
 // Forward-declare rclcpp types to avoid pulling in all ROS2 headers
 // in downstream code that only uses the panel's non-ROS2 API.
 #ifdef SPECTRA_USE_ROS2
-#include <rclcpp/rclcpp.hpp>
-#include <tf2_msgs/msg/tf_message.hpp>
+    #include <rclcpp/rclcpp.hpp>
+    #include <tf2_msgs/msg/tf_message.hpp>
 #endif
 
 #include "tf/tf_buffer.hpp"
@@ -55,7 +55,7 @@ namespace spectra::adapters::ros2
 
 class TfTreePanel
 {
-public:
+   public:
     TfTreePanel();
     ~TfTreePanel();
 
@@ -68,7 +68,7 @@ public:
 
 #ifdef SPECTRA_USE_ROS2
     // Wire the panel to a ROS2 node.  Must be called before start().
-    void set_node(rclcpp::Node::SharedPtr node);
+    void                    set_node(rclcpp::Node::SharedPtr node);
     rclcpp::Node::SharedPtr node() const { return node_; }
 #endif
 
@@ -112,8 +112,7 @@ public:
     // Returns !ok if either frame is unknown or no path exists.
     TransformResult lookup_transform(const std::string& source_frame,
                                      const std::string& target_frame) const;
-    bool can_transform(const std::string& source_frame,
-                       const std::string& target_frame) const;
+    bool can_transform(const std::string& source_frame, const std::string& target_frame) const;
 
     // Inject a transform directly (used by unit tests without a ROS2 node).
     void inject_transform(const TransformStamp& ts);
@@ -139,31 +138,31 @@ public:
     TfBuffer&       buffer() { return buffer_; }
     const TfBuffer& buffer() const { return buffer_; }
 
-private:
+   private:
 #ifdef SPECTRA_USE_ROS2
     void on_tf_message(const tf2_msgs::msg::TFMessage& msg, bool is_static);
 
-    rclcpp::Node::SharedPtr                     node_;
+    rclcpp::Node::SharedPtr                                   node_;
     rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr sub_tf_;
     rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr sub_tf_static_;
 #endif
 
-    std::atomic<bool>   started_{false};
-    std::string title_{"TF Frames"};
-    TfBuffer    buffer_;
+    std::atomic<bool> started_{false};
+    std::string       title_{"TF Frames"};
+    TfBuffer          buffer_;
 
     mutable std::mutex callback_mutex_;
 
     FrameSelectCallback select_cb_;
 
     // UI state (render-thread only, no mutex needed)
-    std::string  selected_frame_;
-    std::string  lookup_source_;
-    std::string  lookup_target_;
-    char         filter_buf_[128]{};
-    bool         show_lookup_{false};
-    bool         show_static_{true};
-    bool         show_dynamic_{true};
+    std::string selected_frame_;
+    std::string lookup_source_;
+    std::string lookup_target_;
+    char        filter_buf_[128]{};
+    bool        show_lookup_{false};
+    bool        show_static_{true};
+    bool        show_dynamic_{true};
 };
 
 }   // namespace spectra::adapters::ros2

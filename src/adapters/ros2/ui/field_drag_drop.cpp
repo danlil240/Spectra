@@ -3,7 +3,7 @@
 #include "field_drag_drop.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -37,15 +37,16 @@ struct RawPayload
 RawPayload to_raw(const FieldDragPayload& p)
 {
     RawPayload raw{};
-    auto safe_copy = [](char* dst, size_t n, const std::string& src) {
+    auto       safe_copy = [](char* dst, size_t n, const std::string& src)
+    {
         size_t len = src.size() < n - 1 ? src.size() : n - 1;
         src.copy(dst, len);
         dst[len] = '\0';
     };
-    safe_copy(raw.topic_name, PATH_MAX_LEN,  p.topic_name);
-    safe_copy(raw.field_path, PATH_MAX_LEN,  p.field_path);
-    safe_copy(raw.type_name,  TYPE_MAX_LEN,  p.type_name);
-    safe_copy(raw.label,      LABEL_MAX_LEN, p.label);
+    safe_copy(raw.topic_name, PATH_MAX_LEN, p.topic_name);
+    safe_copy(raw.field_path, PATH_MAX_LEN, p.field_path);
+    safe_copy(raw.type_name, TYPE_MAX_LEN, p.type_name);
+    safe_copy(raw.label, LABEL_MAX_LEN, p.label);
     return raw;
 }
 
@@ -59,9 +60,9 @@ FieldDragPayload from_raw(const RawPayload& raw)
     return p;
 }
 
-#endif // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
-} // anonymous namespace
+}   // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // FieldDragDrop::begin_drag_source
@@ -70,7 +71,8 @@ FieldDragPayload from_raw(const RawPayload& raw)
 bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::GetCurrentContext()) return false;
+    if (!ImGui::GetCurrentContext())
+        return false;
     if (!ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
         return false;
 
@@ -78,9 +80,9 @@ bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
     ImGui::SetDragDropPayload(DRAG_TYPE, &raw, sizeof(raw));
 
     // Tooltip shown while dragging.
-    const std::string& lbl = payload.label.empty()
-        ? FieldDragPayload::make_label(payload.topic_name, payload.field_path)
-        : payload.label;
+    const std::string& lbl =
+        payload.label.empty() ? FieldDragPayload::make_label(payload.topic_name, payload.field_path)
+                              : payload.label;
 
     ImGui::TextUnformatted("Plot:");
     ImGui::SameLine();
@@ -101,16 +103,16 @@ bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
 bool FieldDragDrop::accept_drop_current_axes()
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::GetCurrentContext()) return false;
+    if (!ImGui::GetCurrentContext())
+        return false;
     if (!ImGui::BeginDragDropTarget())
         return false;
 
     bool accepted = false;
-    if (const ImGuiPayload* imgui_payload =
-            ImGui::AcceptDragDropPayload(DRAG_TYPE))
+    if (const ImGuiPayload* imgui_payload = ImGui::AcceptDragDropPayload(DRAG_TYPE))
     {
-        const auto* raw = static_cast<const RawPayload*>(imgui_payload->Data);
-        FieldDragPayload p = from_raw(*raw);
+        const auto*      raw = static_cast<const RawPayload*>(imgui_payload->Data);
+        FieldDragPayload p   = from_raw(*raw);
         fire_request(p, PlotTarget::CurrentAxes);
         accepted = true;
     }
@@ -128,16 +130,16 @@ bool FieldDragDrop::accept_drop_current_axes()
 bool FieldDragDrop::accept_drop_new_window()
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::GetCurrentContext()) return false;
+    if (!ImGui::GetCurrentContext())
+        return false;
     if (!ImGui::BeginDragDropTarget())
         return false;
 
     bool accepted = false;
-    if (const ImGuiPayload* imgui_payload =
-            ImGui::AcceptDragDropPayload(DRAG_TYPE))
+    if (const ImGuiPayload* imgui_payload = ImGui::AcceptDragDropPayload(DRAG_TYPE))
     {
-        const auto* raw = static_cast<const RawPayload*>(imgui_payload->Data);
-        FieldDragPayload p = from_raw(*raw);
+        const auto*      raw = static_cast<const RawPayload*>(imgui_payload->Data);
+        FieldDragPayload p   = from_raw(*raw);
         fire_request(p, PlotTarget::NewWindow);
         accepted = true;
     }
@@ -152,17 +154,17 @@ bool FieldDragDrop::accept_drop_new_window()
 // FieldDragDrop::show_context_menu
 // ---------------------------------------------------------------------------
 
-void FieldDragDrop::show_context_menu(const FieldDragPayload& payload,
-                                      const char* popup_id)
+void FieldDragDrop::show_context_menu(const FieldDragPayload& payload, const char* popup_id)
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::GetCurrentContext()) return;
+    if (!ImGui::GetCurrentContext())
+        return;
     if (!ImGui::BeginPopupContextItem(popup_id))
         return;
 
-    const std::string& lbl = payload.label.empty()
-        ? FieldDragPayload::make_label(payload.topic_name, payload.field_path)
-        : payload.label;
+    const std::string& lbl =
+        payload.label.empty() ? FieldDragPayload::make_label(payload.topic_name, payload.field_path)
+                              : payload.label;
 
     // Header — non-interactive label showing what will be plotted.
     ImGui::TextDisabled("Plot: %s", lbl.c_str());
@@ -170,21 +172,21 @@ void FieldDragDrop::show_context_menu(const FieldDragPayload& payload,
 
     if (ImGui::MenuItem("Plot in new window"))
     {
-        pending_        = true;
+        pending_         = true;
         pending_payload_ = payload;
         pending_target_  = PlotTarget::NewWindow;
     }
 
     if (ImGui::MenuItem("Plot in current axes"))
     {
-        pending_        = true;
+        pending_         = true;
         pending_payload_ = payload;
         pending_target_  = PlotTarget::CurrentAxes;
     }
 
     if (ImGui::MenuItem("Plot in new subplot"))
     {
-        pending_        = true;
+        pending_         = true;
         pending_payload_ = payload;
         pending_target_  = PlotTarget::NewSubplot;
     }
@@ -203,38 +205,38 @@ void FieldDragDrop::show_context_menu(const FieldDragPayload& payload,
 bool FieldDragDrop::draw_drop_zone()
 {
 #ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::GetCurrentContext()) return false;
+    if (!ImGui::GetCurrentContext())
+        return false;
     // Invisible button covering the entire content region acts as the drop target.
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    if (avail.x <= 0.0f) avail.x = 1.0f;
-    if (avail.y <= 0.0f) avail.y = 1.0f;
+    if (avail.x <= 0.0f)
+        avail.x = 1.0f;
+    if (avail.y <= 0.0f)
+        avail.y = 1.0f;
 
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##drop_zone", avail);
 
     // Highlighted overlay when a compatible payload is in flight.
-    if (is_dragging()) {
-        const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-        const ImU32 fill_col = hovered
-            ? IM_COL32(60, 180, 255, 55)
-            : IM_COL32(60, 180, 255, 22);
-        const ImU32 border_col = hovered
-            ? IM_COL32(60, 180, 255, 220)
-            : IM_COL32(60, 180, 255, 100);
+    if (is_dragging())
+    {
+        const bool  hovered  = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const ImU32 fill_col = hovered ? IM_COL32(60, 180, 255, 55) : IM_COL32(60, 180, 255, 22);
+        const ImU32 border_col =
+            hovered ? IM_COL32(60, 180, 255, 220) : IM_COL32(60, 180, 255, 100);
 
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 pmax = {pos.x + avail.x, pos.y + avail.y};
         dl->AddRectFilled(pos, pmax, fill_col, 4.0f);
         dl->AddRect(pos, pmax, border_col, 4.0f, 0, 2.0f);
 
-        if (hovered) {
+        if (hovered)
+        {
             // Center label.
-            const char* lbl = "Drop to plot here";
-            const ImVec2 text_sz = ImGui::CalcTextSize(lbl);
-            const ImVec2 text_pos = {
-                pos.x + (avail.x - text_sz.x) * 0.5f,
-                pos.y + (avail.y - text_sz.y) * 0.5f
-            };
+            const char*  lbl      = "Drop to plot here";
+            const ImVec2 text_sz  = ImGui::CalcTextSize(lbl);
+            const ImVec2 text_pos = {pos.x + (avail.x - text_sz.x) * 0.5f,
+                                     pos.y + (avail.y - text_sz.y) * 0.5f};
             dl->AddText(text_pos, IM_COL32(60, 180, 255, 240), lbl);
         }
     }
@@ -255,9 +257,7 @@ bool FieldDragDrop::is_dragging() const
     if (!ImGui::GetCurrentContext())
         return false;
     const ImGuiPayload* payload = ImGui::GetDragDropPayload();
-    return payload != nullptr &&
-           payload->IsDataType(DRAG_TYPE) &&
-           payload->Data != nullptr;
+    return payload != nullptr && payload->IsDataType(DRAG_TYPE) && payload->Data != nullptr;
 #else
     return false;
 #endif
@@ -276,7 +276,7 @@ bool FieldDragDrop::try_get_dragging_payload(FieldDragPayload& out) const
     if (!payload || !payload->IsDataType(DRAG_TYPE) || !payload->Data)
         return false;
     const auto* raw = static_cast<const RawPayload*>(payload->Data);
-    out = from_raw(*raw);
+    out             = from_raw(*raw);
     return true;
 #else
     (void)out;
@@ -288,8 +288,7 @@ bool FieldDragDrop::try_get_dragging_payload(FieldDragPayload& out) const
 // FieldDragDrop::consume_pending_request
 // ---------------------------------------------------------------------------
 
-bool FieldDragDrop::consume_pending_request(FieldDragPayload& payload_out,
-                                            PlotTarget& target_out)
+bool FieldDragDrop::consume_pending_request(FieldDragPayload& payload_out, PlotTarget& target_out)
 {
     if (!pending_)
         return false;
@@ -308,11 +307,10 @@ bool FieldDragDrop::consume_pending_request(FieldDragPayload& payload_out,
 // FieldDragDrop::fire_request (private)
 // ---------------------------------------------------------------------------
 
-void FieldDragDrop::fire_request(const FieldDragPayload& payload,
-                                 PlotTarget target)
+void FieldDragDrop::fire_request(const FieldDragPayload& payload, PlotTarget target)
 {
     if (request_cb_)
         request_cb_(payload, target);
 }
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2

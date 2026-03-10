@@ -244,7 +244,11 @@ bool DataInteraction::dispatch_series_selection_from_nearest()
             {
                 if (on_series_selected_)
                 {
-                    on_series_selected_(last_figure_, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx);
+                    on_series_selected_(last_figure_,
+                                        axes_ptr.get(),
+                                        ax_idx,
+                                        series_ptr.get(),
+                                        s_idx);
                 }
                 if (on_point_selected_)
                 {
@@ -300,7 +304,10 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
         constexpr float SELECT_SNAP_PX = 30.0f;
         if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
         {
-            markers_.toggle_or_add(nearest_.data_x, nearest_.data_y, nearest_.series, nearest_.point_index);
+            markers_.toggle_or_add(nearest_.data_x,
+                                   nearest_.data_y,
+                                   nearest_.series,
+                                   nearest_.point_index);
             return true;
         }
     }
@@ -485,8 +492,8 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         if (cx < vp.x || cx > vp.x + vp.w || cy < vp.y || cy > vp.y + vp.h)
             continue;
 
-        auto  xlim    = axes_ptr->x_limits();
-        auto  ylim    = axes_ptr->y_limits();
+        auto   xlim    = axes_ptr->x_limits();
+        auto   ylim    = axes_ptr->y_limits();
         double x_range = xlim.max - xlim.min;
         double y_range = ylim.max - ylim.min;
         if (x_range == 0.0)

@@ -61,8 +61,8 @@ TEST(FieldDragPayloadConstruction, CopyAssignment)
     FieldDragPayload b = a;
     EXPECT_EQ(b.topic_name, a.topic_name);
     EXPECT_EQ(b.field_path, a.field_path);
-    EXPECT_EQ(b.type_name,  a.type_name);
-    EXPECT_EQ(b.label,      a.label);
+    EXPECT_EQ(b.type_name, a.type_name);
+    EXPECT_EQ(b.label, a.label);
     EXPECT_TRUE(b.valid());
 }
 
@@ -72,16 +72,16 @@ TEST(FieldDragPayloadConstruction, CopyAssignment)
 
 TEST(PlotTarget, EnumValues)
 {
-    EXPECT_EQ(static_cast<uint8_t>(PlotTarget::NewWindow),   0u);
+    EXPECT_EQ(static_cast<uint8_t>(PlotTarget::NewWindow), 0u);
     EXPECT_EQ(static_cast<uint8_t>(PlotTarget::CurrentAxes), 1u);
-    EXPECT_EQ(static_cast<uint8_t>(PlotTarget::NewSubplot),  2u);
+    EXPECT_EQ(static_cast<uint8_t>(PlotTarget::NewSubplot), 2u);
 }
 
 TEST(PlotTarget, AllValuesDistinct)
 {
-    EXPECT_NE(PlotTarget::NewWindow,   PlotTarget::CurrentAxes);
+    EXPECT_NE(PlotTarget::NewWindow, PlotTarget::CurrentAxes);
     EXPECT_NE(PlotTarget::CurrentAxes, PlotTarget::NewSubplot);
-    EXPECT_NE(PlotTarget::NewWindow,   PlotTarget::NewSubplot);
+    EXPECT_NE(PlotTarget::NewWindow, PlotTarget::NewSubplot);
 }
 
 // ---------------------------------------------------------------------------
@@ -90,9 +90,9 @@ TEST(PlotTarget, AllValuesDistinct)
 
 TEST(FieldDragDropConstruction, DefaultNoPending)
 {
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload p;
-    PlotTarget t;
+    PlotTarget       t;
     EXPECT_FALSE(dd.consume_pending_request(p, t));
 }
 
@@ -105,7 +105,7 @@ TEST(FieldDragDropConstruction, DefaultNotDragging)
 
 TEST(FieldDragDropConstruction, DefaultTryGetPayloadFalse)
 {
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload out;
     EXPECT_FALSE(dd.try_get_dragging_payload(out));
 }
@@ -118,15 +118,17 @@ TEST(FieldDragDropCallback, SetAndFiredViaConsume)
 {
     FieldDragDrop dd;
 
-    bool fired = false;
+    bool             fired = false;
     FieldDragPayload fired_payload;
-    PlotTarget fired_target = PlotTarget::NewWindow;
+    PlotTarget       fired_target = PlotTarget::NewWindow;
 
-    dd.set_plot_request_callback([&](const FieldDragPayload& p, PlotTarget t) {
-        fired         = true;
-        fired_payload = p;
-        fired_target  = t;
-    });
+    dd.set_plot_request_callback(
+        [&](const FieldDragPayload& p, PlotTarget t)
+        {
+            fired         = true;
+            fired_payload = p;
+            fired_target  = t;
+        });
 
     // Simulate context menu selection by injecting pending state via the
     // (white-box) consume path.  We directly set the private pending state
@@ -140,17 +142,17 @@ TEST(FieldDragDropCallback, SetAndFiredViaConsume)
     // false when nothing is queued (and callback is NOT spuriously called).
     FieldDragPayload out_p;
     PlotTarget       out_t;
-    bool consumed = dd.consume_pending_request(out_p, out_t);
+    bool             consumed = dd.consume_pending_request(out_p, out_t);
     EXPECT_FALSE(consumed);
-    EXPECT_FALSE(fired);  // callback must NOT fire when nothing pending
+    EXPECT_FALSE(fired);   // callback must NOT fire when nothing pending
 }
 
 TEST(FieldDragDropCallback, NullCallbackSafe)
 {
     // No callback set — consume with nothing pending should not crash.
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload p;
-    PlotTarget t;
+    PlotTarget       t;
     EXPECT_NO_THROW(dd.consume_pending_request(p, t));
 }
 
@@ -179,9 +181,9 @@ TEST(FieldDragDropNoOp, EndDragSourceSafe)
 
 TEST(FieldDragDropConsume, MultipleConsumeReturnsFalse)
 {
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload p;
-    PlotTarget t;
+    PlotTarget       t;
     EXPECT_FALSE(dd.consume_pending_request(p, t));
     EXPECT_FALSE(dd.consume_pending_request(p, t));
     EXPECT_FALSE(dd.consume_pending_request(p, t));
@@ -198,16 +200,12 @@ TEST(FieldDragDropCallback, ReplacedCallbackNoSpuriousFire)
     int call_count_a = 0;
     int call_count_b = 0;
 
-    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) {
-        ++call_count_a;
-    });
+    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) { ++call_count_a; });
 
-    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) {
-        ++call_count_b;
-    });
+    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) { ++call_count_b; });
 
     FieldDragPayload p;
-    PlotTarget t;
+    PlotTarget       t;
     dd.consume_pending_request(p, t);
 
     EXPECT_EQ(call_count_a, 0);
@@ -300,7 +298,7 @@ TEST(FieldDragDropNoOp, DrawDropZoneNoImGui)
 
 TEST(FieldDragDropNoOp, BeginDragSourceNoImGui)
 {
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload p;
     p.topic_name = "/test";
     EXPECT_NO_THROW({
@@ -311,7 +309,7 @@ TEST(FieldDragDropNoOp, BeginDragSourceNoImGui)
 
 TEST(FieldDragDropNoOp, ShowContextMenuNoImGui)
 {
-    FieldDragDrop dd;
+    FieldDragDrop    dd;
     FieldDragPayload p;
     p.topic_name = "/test";
     EXPECT_NO_THROW(dd.show_context_menu(p));
@@ -330,13 +328,11 @@ TEST(FieldDragDropIntegration, ConsumeWithNoPendingDoesNotFireCallback)
     FieldDragDrop dd;
 
     bool fired = false;
-    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) {
-        fired = true;
-    });
+    dd.set_plot_request_callback([&](const FieldDragPayload&, PlotTarget) { fired = true; });
 
     FieldDragPayload p;
-    PlotTarget t;
-    bool consumed = dd.consume_pending_request(p, t);
+    PlotTarget       t;
+    bool             consumed = dd.consume_pending_request(p, t);
 
     EXPECT_FALSE(consumed);
     EXPECT_FALSE(fired);
@@ -351,7 +347,7 @@ TEST(FieldDragDropIntegration, NullCallbackSetAfterNonNull)
     dd.set_plot_request_callback(nullptr);
 
     FieldDragPayload p;
-    PlotTarget t;
+    PlotTarget       t;
     EXPECT_NO_THROW(dd.consume_pending_request(p, t));
 }
 
@@ -361,15 +357,20 @@ TEST(FieldDragDropIntegration, NullCallbackSetAfterNonNull)
 
 TEST(PlotTargetCoverage, AllTargets)
 {
-    auto check = [](PlotTarget t) -> const char* {
-        switch (t) {
-            case PlotTarget::NewWindow:   return "new_window";
-            case PlotTarget::CurrentAxes: return "current_axes";
-            case PlotTarget::NewSubplot:  return "new_subplot";
+    auto check = [](PlotTarget t) -> const char*
+    {
+        switch (t)
+        {
+            case PlotTarget::NewWindow:
+                return "new_window";
+            case PlotTarget::CurrentAxes:
+                return "current_axes";
+            case PlotTarget::NewSubplot:
+                return "new_subplot";
         }
         return "unknown";
     };
-    EXPECT_STREQ(check(PlotTarget::NewWindow),   "new_window");
+    EXPECT_STREQ(check(PlotTarget::NewWindow), "new_window");
     EXPECT_STREQ(check(PlotTarget::CurrentAxes), "current_axes");
-    EXPECT_STREQ(check(PlotTarget::NewSubplot),  "new_subplot");
+    EXPECT_STREQ(check(PlotTarget::NewSubplot), "new_subplot");
 }

@@ -56,8 +56,8 @@ TEST(EmbedSurface, CreateFigure)
 TEST(EmbedSurface, MultipleFigures)
 {
     EmbedSurface surface;
-    auto& fig1 = surface.figure();
-    auto& fig2 = surface.figure();
+    auto&        fig1 = surface.figure();
+    auto&        fig2 = surface.figure();
 
     // First figure auto-activated
     EXPECT_EQ(surface.active_figure(), &fig1);
@@ -70,8 +70,8 @@ TEST(EmbedSurface, MultipleFigures)
 TEST(EmbedSurface, FigureWithSubplot)
 {
     EmbedSurface surface;
-    auto& fig = surface.figure();
-    auto& ax  = fig.subplot(1, 1, 1);
+    auto&        fig = surface.figure();
+    auto&        ax  = fig.subplot(1, 1, 1);
 
     std::vector<float> x = {0, 1, 2, 3, 4};
     std::vector<float> y = {0, 1, 4, 9, 16};
@@ -101,7 +101,7 @@ TEST(EmbedSurface, RenderToBufferEmpty)
     cfg.width  = 64;
     cfg.height = 64;
     EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
+    auto&        fig = surface.figure();
     fig.subplot(1, 1, 1);
 
     std::vector<uint8_t> pixels(64 * 64 * 4, 0);
@@ -125,7 +125,7 @@ TEST(EmbedSurface, RenderToBufferWithData)
     EmbedConfig cfg;
     cfg.width  = 128;
     cfg.height = 128;
-    EmbedSurface surface(cfg);
+    EmbedSurface       surface(cfg);
     auto&              fig = surface.figure();
     auto&              ax  = fig.subplot(1, 1, 1);
     std::vector<float> x   = {0, 1, 2, 3, 4, 5};
@@ -154,7 +154,7 @@ TEST(EmbedSurface, RenderToBufferNullptr)
 
 TEST(EmbedSurface, RenderToBufferNoFigure)
 {
-    EmbedSurface surface;
+    EmbedSurface         surface;
     std::vector<uint8_t> pixels(800 * 600 * 4, 0);
     // No figure created — should fail gracefully
     EXPECT_FALSE(surface.render_to_buffer(pixels.data()));
@@ -166,7 +166,7 @@ TEST(EmbedSurface, MultipleRenders)
     cfg.width  = 64;
     cfg.height = 64;
     EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
+    auto&        fig = surface.figure();
     fig.subplot(1, 1, 1);
 
     std::vector<uint8_t> pixels(64 * 64 * 4, 0);
@@ -186,7 +186,7 @@ TEST(EmbedSurface, Resize)
     cfg.width  = 100;
     cfg.height = 100;
     EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
+    auto&        fig = surface.figure();
     fig.subplot(1, 1, 1);
 
     EXPECT_TRUE(surface.resize(200, 150));
@@ -223,7 +223,7 @@ TEST(EmbedSurface, ResizeThenRender)
     EmbedConfig cfg;
     cfg.width  = 64;
     cfg.height = 64;
-    EmbedSurface surface(cfg);
+    EmbedSurface       surface(cfg);
     auto&              fig = surface.figure();
     auto&              ax  = fig.subplot(1, 1, 1);
     std::vector<float> x   = {0, 1, 2, 3};
@@ -250,7 +250,7 @@ TEST(EmbedSurface, InjectMouseMove)
     cfg.width  = 200;
     cfg.height = 200;
     EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
+    auto&        fig = surface.figure();
     fig.subplot(1, 1, 1);
 
     // Should not crash
@@ -264,14 +264,13 @@ TEST(EmbedSurface, InjectMouseButton)
     cfg.width  = 200;
     cfg.height = 200;
     EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
+    auto&        fig = surface.figure();
     fig.subplot(1, 1, 1);
 
     // Simulate left press + release
     surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_PRESS, 0, 100.0f, 100.0f);
     surface.inject_mouse_move(120.0f, 110.0f);
-    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, 120.0f,
-                                110.0f);
+    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, 120.0f, 110.0f);
 }
 
 TEST(EmbedSurface, InjectScroll)
@@ -279,11 +278,11 @@ TEST(EmbedSurface, InjectScroll)
     EmbedConfig cfg;
     cfg.width  = 200;
     cfg.height = 200;
-    EmbedSurface surface(cfg);
-    auto& fig = surface.figure();
-    auto& ax  = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0, 1, 2, 3, 4};
-    std::vector<float> y = {0, 1, 4, 9, 16};
+    EmbedSurface       surface(cfg);
+    auto&              fig = surface.figure();
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {0, 1, 2, 3, 4};
+    std::vector<float> y   = {0, 1, 4, 9, 16};
     ax.line(x, y);
 
     // Scroll to zoom — should not crash
@@ -361,7 +360,7 @@ TEST(EmbedSurface, RenderToImageNotEnabled)
 TEST(EmbedSurface, RedrawCallback)
 {
     EmbedSurface surface;
-    bool called = false;
+    bool         called = false;
     surface.set_redraw_callback([&]() { called = true; });
     // Callback is stored but not triggered in this test (it's host-driven)
     EXPECT_FALSE(called);
@@ -370,7 +369,7 @@ TEST(EmbedSurface, RedrawCallback)
 TEST(EmbedSurface, CursorChangeCallback)
 {
     EmbedSurface surface;
-    CursorShape last_shape = CursorShape::Arrow;
+    CursorShape  last_shape = CursorShape::Arrow;
     surface.set_cursor_change_callback([&](CursorShape s) { last_shape = s; });
     // Callback stored — cursor changes happen during input handling
     EXPECT_EQ(last_shape, CursorShape::Arrow);
@@ -419,8 +418,8 @@ TEST(EmbedSurface, RenderWith3DSubplot)
     cfg.width  = 64;
     cfg.height = 64;
     EmbedSurface surface(cfg);
-    auto& fig  = surface.figure();
-    auto& ax3d = fig.subplot3d(1, 1, 1);
+    auto&        fig  = surface.figure();
+    auto&        ax3d = fig.subplot3d(1, 1, 1);
 
     std::vector<float> x = {0, 1, 2};
     std::vector<float> y = {0, 1, 2};

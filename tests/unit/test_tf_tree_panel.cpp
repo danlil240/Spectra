@@ -19,29 +19,39 @@ static uint64_t steady_now_ns()
 {
     using namespace std::chrono;
     return static_cast<uint64_t>(
-        duration_cast<nanoseconds>(
-            steady_clock::now().time_since_epoch())
-        .count());
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count());
 }
 
-static uint64_t ms_to_ns(uint64_t ms) { return ms * 1'000'000ULL; }
+static uint64_t ms_to_ns(uint64_t ms)
+{
+    return ms * 1'000'000ULL;
+}
 
 // Build a simple TransformStamp
 static TransformStamp make_ts(const std::string& parent,
-                               const std::string& child,
-                               double tx = 0.0, double ty = 0.0, double tz = 0.0,
-                               double qx = 0.0, double qy = 0.0,
-                               double qz = 0.0, double qw = 1.0,
-                               bool is_static = false,
-                               uint64_t recv_ns = 0)
+                              const std::string& child,
+                              double             tx        = 0.0,
+                              double             ty        = 0.0,
+                              double             tz        = 0.0,
+                              double             qx        = 0.0,
+                              double             qy        = 0.0,
+                              double             qz        = 0.0,
+                              double             qw        = 1.0,
+                              bool               is_static = false,
+                              uint64_t           recv_ns   = 0)
 {
     TransformStamp ts;
     ts.parent_frame = parent;
     ts.child_frame  = child;
-    ts.tx = tx; ts.ty = ty; ts.tz = tz;
-    ts.qx = qx; ts.qy = qy; ts.qz = qz; ts.qw = qw;
-    ts.is_static = is_static;
-    ts.recv_ns   = recv_ns;
+    ts.tx           = tx;
+    ts.ty           = ty;
+    ts.tz           = tz;
+    ts.qx           = qx;
+    ts.qy           = qy;
+    ts.qz           = qz;
+    ts.qw           = qw;
+    ts.is_static    = is_static;
+    ts.recv_ns      = recv_ns;
     return ts;
 }
 
@@ -144,15 +154,17 @@ TEST(TfTreePanel_InjectTransform, MultipleFrames)
 TEST(TfTreePanel_InjectTransform, DuplicateFrameUpdateReplaces)
 {
     TfTreePanel panel;
-    auto ts = make_ts("map", "base_link", 1.0, 0.0, 0.0);
+    auto        ts = make_ts("map", "base_link", 1.0, 0.0, 0.0);
     panel.inject_transform(ts);
     auto ts2 = make_ts("map", "base_link", 2.0, 0.0, 0.0);
     panel.inject_transform(ts2);
     // Frame count unchanged; update was applied
     EXPECT_EQ(panel.frame_count(), 2u);
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link")
+        {
             EXPECT_DOUBLE_EQ(f.last_transform.tx, 2.0);
         }
     }
@@ -161,11 +173,12 @@ TEST(TfTreePanel_InjectTransform, DuplicateFrameUpdateReplaces)
 TEST(TfTreePanel_InjectTransform, StaticFlagPreserved)
 {
     TfTreePanel panel;
-    panel.inject_transform(make_ts("map", "odom", 0, 0, 0,
-                                    0, 0, 0, 1, true));
+    panel.inject_transform(make_ts("map", "odom", 0, 0, 0, 0, 0, 0, 1, true));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "odom") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "odom")
+        {
             EXPECT_TRUE(f.is_static);
         }
     }
@@ -174,11 +187,12 @@ TEST(TfTreePanel_InjectTransform, StaticFlagPreserved)
 TEST(TfTreePanel_InjectTransform, DynamicFlagPreserved)
 {
     TfTreePanel panel;
-    panel.inject_transform(make_ts("map", "base_link", 0, 0, 0,
-                                    0, 0, 0, 1, false));
+    panel.inject_transform(make_ts("map", "base_link", 0, 0, 0, 0, 0, 0, 1, false));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link")
+        {
             EXPECT_FALSE(f.is_static);
         }
     }
@@ -213,7 +227,7 @@ TEST(TfTreePanel_Clear, HasFrameAfterClear)
 TEST(TfTreePanel_Snapshot, EmptySnapshot)
 {
     TfTreePanel panel;
-    const auto snap = panel.snapshot();
+    const auto  snap = panel.snapshot();
     EXPECT_EQ(snap.total_frames, 0u);
     EXPECT_EQ(snap.static_frames, 0u);
     EXPECT_EQ(snap.dynamic_frames, 0u);
@@ -227,7 +241,7 @@ TEST(TfTreePanel_Snapshot, CountersCorrect)
     panel.inject_transform(make_ts("map", "odom", 0, 0, 0, 0, 0, 0, 1, false));
     panel.inject_transform(make_ts("odom", "base_link", 0, 0, 0, 0, 0, 0, 1, true));
     const auto snap = panel.snapshot();
-    EXPECT_EQ(snap.total_frames, 3u);  // map, odom, base_link
+    EXPECT_EQ(snap.total_frames, 3u);   // map, odom, base_link
 }
 
 TEST(TfTreePanel_Snapshot, RootsDetected)
@@ -238,8 +252,7 @@ TEST(TfTreePanel_Snapshot, RootsDetected)
     const auto snap = panel.snapshot();
     // "map" has no known parent → root
     EXPECT_FALSE(snap.roots.empty());
-    EXPECT_NE(std::find(snap.roots.begin(), snap.roots.end(), "map"),
-              snap.roots.end());
+    EXPECT_NE(std::find(snap.roots.begin(), snap.roots.end(), "map"), snap.roots.end());
 }
 
 TEST(TfTreePanel_Snapshot, ChildrenMapCorrect)
@@ -252,10 +265,8 @@ TEST(TfTreePanel_Snapshot, ChildrenMapCorrect)
     ASSERT_NE(snap.children.find("odom"), snap.children.end());
     const auto& children = snap.children.at("odom");
     EXPECT_EQ(children.size(), 2u);
-    EXPECT_NE(std::find(children.begin(), children.end(), "base_link"),
-              children.end());
-    EXPECT_NE(std::find(children.begin(), children.end(), "laser"),
-              children.end());
+    EXPECT_NE(std::find(children.begin(), children.end(), "base_link"), children.end());
+    EXPECT_NE(std::find(children.begin(), children.end(), "laser"), children.end());
 }
 
 TEST(TfTreePanel_Snapshot, EverReceivedFlag)
@@ -263,11 +274,14 @@ TEST(TfTreePanel_Snapshot, EverReceivedFlag)
     TfTreePanel panel;
     panel.inject_transform(make_ts("map", "base_link", 1.5));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link")
+        {
             EXPECT_TRUE(f.ever_received);
         }
-        if (f.frame_id == "map") {
+        if (f.frame_id == "map")
+        {
             // map was inserted as a parent entry, not itself received
             // it may or may not be ever_received depending on impl
             // Just check no crash
@@ -295,13 +309,15 @@ TEST(TfTreePanel_Stale, FreshTransformNotStale)
     TfTreePanel panel;
     panel.set_stale_threshold_ms(500);
     const uint64_t now = steady_now_ns();
-    auto ts = make_ts("map", "base_link");
-    ts.recv_ns = now;
+    auto           ts  = make_ts("map", "base_link");
+    ts.recv_ns         = now;
     panel.inject_transform(ts);
 
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link" && !f.is_static) {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link" && !f.is_static)
+        {
             EXPECT_FALSE(f.stale);
         }
     }
@@ -310,16 +326,18 @@ TEST(TfTreePanel_Stale, FreshTransformNotStale)
 TEST(TfTreePanel_Stale, StaticTransformNeverStale)
 {
     TfTreePanel panel;
-    panel.set_stale_threshold_ms(1);  // very short threshold
+    panel.set_stale_threshold_ms(1);   // very short threshold
 
-    auto ts = make_ts("map", "odom_static", 0, 0, 0, 0, 0, 0, 1, true);
-    ts.recv_ns = 1'000'000'000ULL;  // far in the past
+    auto ts    = make_ts("map", "odom_static", 0, 0, 0, 0, 0, 0, 1, true);
+    ts.recv_ns = 1'000'000'000ULL;   // far in the past
     panel.inject_transform(ts);
 
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "odom_static") {
-            EXPECT_FALSE(f.stale);  // static never stale
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "odom_static")
+        {
+            EXPECT_FALSE(f.stale);   // static never stale
         }
     }
 }
@@ -329,8 +347,8 @@ TEST(TfTreePanel_Stale, StaleCounterIncrements)
     TfTreePanel panel;
     panel.set_stale_threshold_ms(500);
 
-    auto ts = make_ts("map", "base_link");
-    ts.recv_ns = 1'000ULL;  // 1 microsecond — very old
+    auto ts      = make_ts("map", "base_link");
+    ts.recv_ns   = 1'000ULL;   // 1 microsecond — very old
     ts.is_static = false;
     panel.inject_transform(ts);
 
@@ -349,8 +367,10 @@ TEST(TfTreePanel_TransformData, TranslationPreserved)
     TfTreePanel panel;
     panel.inject_transform(make_ts("map", "base_link", 1.5, 2.5, 3.5));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link")
+        {
             EXPECT_DOUBLE_EQ(f.last_transform.tx, 1.5);
             EXPECT_DOUBLE_EQ(f.last_transform.ty, 2.5);
             EXPECT_DOUBLE_EQ(f.last_transform.tz, 3.5);
@@ -361,12 +381,12 @@ TEST(TfTreePanel_TransformData, TranslationPreserved)
 TEST(TfTreePanel_TransformData, QuaternionPreserved)
 {
     TfTreePanel panel;
-    panel.inject_transform(make_ts("map", "base_link",
-                                    0, 0, 0,
-                                    0.1, 0.2, 0.3, 0.9274));
+    panel.inject_transform(make_ts("map", "base_link", 0, 0, 0, 0.1, 0.2, 0.3, 0.9274));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "base_link") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "base_link")
+        {
             EXPECT_DOUBLE_EQ(f.last_transform.qx, 0.1);
             EXPECT_DOUBLE_EQ(f.last_transform.qy, 0.2);
             EXPECT_DOUBLE_EQ(f.last_transform.qz, 0.3);
@@ -380,8 +400,10 @@ TEST(TfTreePanel_TransformData, ParentFramePreserved)
     TfTreePanel panel;
     panel.inject_transform(make_ts("world", "robot_base"));
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "robot_base") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "robot_base")
+        {
             EXPECT_EQ(f.parent_frame_id, "world");
         }
     }
@@ -399,8 +421,10 @@ TEST(TfTreePanel_Hz, NoTransformsHzZero)
     // (inject uses now_ns so hz might be 0 or 1 depending on window)
     // Just verify it doesn't crash
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "sensor") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "sensor")
+        {
             EXPECT_GE(f.hz, 0.0);
         }
     }
@@ -412,14 +436,17 @@ TEST(TfTreePanel_Hz, MultipleInjectsRaisesHz)
     panel.set_hz_window_ms(1000);
     // Inject many transforms rapidly — hz should be > 0
     const uint64_t base_ns = 1'000'000'000ULL;
-    for (int i = 0; i < 30; ++i) {
-        auto ts = make_ts("map", "fast_sensor");
+    for (int i = 0; i < 30; ++i)
+    {
+        auto ts    = make_ts("map", "fast_sensor");
         ts.recv_ns = base_ns + static_cast<uint64_t>(i) * 10'000'000ULL;
         panel.inject_transform(ts);
     }
     const auto snap = panel.snapshot();
-    for (const auto& f : snap.frames) {
-        if (f.frame_id == "fast_sensor") {
+    for (const auto& f : snap.frames)
+    {
+        if (f.frame_id == "fast_sensor")
+        {
             // Should be around 30 Hz in a 1s window (or 0 if too old)
             EXPECT_GE(f.hz, 0.0);
         }
@@ -463,7 +490,7 @@ TEST(TfTreePanel_LookupTransform, UnknownTargetFails)
 TEST(TfTreePanel_LookupTransform, EmptyPanelFails)
 {
     TfTreePanel panel;
-    const auto result = panel.lookup_transform("a", "b");
+    const auto  result = panel.lookup_transform("a", "b");
     EXPECT_FALSE(result.ok);
 }
 
@@ -471,7 +498,7 @@ TEST(TfTreePanel_LookupTransform, DirectParentChildTranslation)
 {
     TfTreePanel panel;
     // map → base_link: translation (1, 2, 0)
-    auto ts = make_ts("map", "base_link", 1.0, 2.0, 0.0);
+    auto ts    = make_ts("map", "base_link", 1.0, 2.0, 0.0);
     ts.recv_ns = 1'000'000'000ULL;
     panel.inject_transform(ts);
 
@@ -486,12 +513,10 @@ TEST(TfTreePanel_LookupTransform, DirectParentChildTranslation)
 TEST(TfTreePanel_LookupTransform, NoCommonAncestorFails)
 {
     TfTreePanel panel;
-    panel.inject_transform(make_ts("world_a", "frame_a",
-                                    1, 0, 0, 0, 0, 0, 1, false,
-                                    1'000'000'000ULL));
-    panel.inject_transform(make_ts("world_b", "frame_b",
-                                    1, 0, 0, 0, 0, 0, 1, false,
-                                    1'000'000'000ULL));
+    panel.inject_transform(
+        make_ts("world_a", "frame_a", 1, 0, 0, 0, 0, 0, 1, false, 1'000'000'000ULL));
+    panel.inject_transform(
+        make_ts("world_b", "frame_b", 1, 0, 0, 0, 0, 0, 1, false, 1'000'000'000ULL));
     const auto result = panel.lookup_transform("frame_a", "frame_b");
     EXPECT_FALSE(result.ok);
 }
@@ -505,9 +530,9 @@ TEST(TfTreePanel_LookupChain, TwoHopTranslation)
     TfTreePanel panel;
     // map → odom: tx=1
     // odom → base_link: tx=2
-    auto ts1 = make_ts("map", "odom", 1.0, 0.0, 0.0);
+    auto ts1    = make_ts("map", "odom", 1.0, 0.0, 0.0);
     ts1.recv_ns = 1'000'000'000ULL;
-    auto ts2 = make_ts("odom", "base_link", 2.0, 0.0, 0.0);
+    auto ts2    = make_ts("odom", "base_link", 2.0, 0.0, 0.0);
     ts2.recv_ns = 1'000'000'000ULL;
     panel.inject_transform(ts1);
     panel.inject_transform(ts2);
@@ -524,9 +549,9 @@ TEST(TfTreePanel_LookupChain, CrossBranchLookup)
     TfTreePanel panel;
     // map → left_arm: tx=1
     // map → right_arm: tx=-1
-    auto ts1 = make_ts("map", "left_arm", 1.0, 0.0, 0.0);
+    auto ts1    = make_ts("map", "left_arm", 1.0, 0.0, 0.0);
     ts1.recv_ns = 1'000'000'000ULL;
-    auto ts2 = make_ts("map", "right_arm", -1.0, 0.0, 0.0);
+    auto ts2    = make_ts("map", "right_arm", -1.0, 0.0, 0.0);
     ts2.recv_ns = 1'000'000'000ULL;
     panel.inject_transform(ts1);
     panel.inject_transform(ts2);
@@ -544,24 +569,22 @@ TEST(TfTreePanel_LookupChain, CrossBranchLookup)
 TEST(TfTreePanel_Euler, IdentityQuatZeroEuler)
 {
     TfTreePanel panel;
-    auto ts = make_ts("map", "base_link", 0, 0, 0, 0, 0, 0, 1.0,
-                       false, 1'000'000'000ULL);
+    auto        ts = make_ts("map", "base_link", 0, 0, 0, 0, 0, 0, 1.0, false, 1'000'000'000ULL);
     panel.inject_transform(ts);
     const auto result = panel.lookup_transform("map", "base_link");
     ASSERT_TRUE(result.ok);
-    EXPECT_NEAR(result.roll_deg,  0.0, 1e-9);
+    EXPECT_NEAR(result.roll_deg, 0.0, 1e-9);
     EXPECT_NEAR(result.pitch_deg, 0.0, 1e-9);
-    EXPECT_NEAR(result.yaw_deg,   0.0, 1e-9);
+    EXPECT_NEAR(result.yaw_deg, 0.0, 1e-9);
 }
 
 TEST(TfTreePanel_Euler, Yaw90Degrees)
 {
     // 90° yaw: qz=sin(45°)=√2/2, qw=cos(45°)=√2/2
     const double half_sqrt2 = 0.70710678118;
-    TfTreePanel panel;
-    auto ts = make_ts("map", "base_link", 0, 0, 0,
-                       0, 0, half_sqrt2, half_sqrt2,
-                       false, 1'000'000'000ULL);
+    TfTreePanel  panel;
+    auto         ts =
+        make_ts("map", "base_link", 0, 0, 0, 0, 0, half_sqrt2, half_sqrt2, false, 1'000'000'000ULL);
     panel.inject_transform(ts);
     const auto result = panel.lookup_transform("map", "base_link");
     ASSERT_TRUE(result.ok);
@@ -577,7 +600,7 @@ TEST(TfTreePanel_Euler, Yaw90Degrees)
 TEST(TfTreePanel_Callback, SelectCallbackNotFiredWithoutImGui)
 {
     TfTreePanel panel;
-    int call_count = 0;
+    int         call_count = 0;
     panel.set_select_callback([&](const std::string&) { ++call_count; });
     panel.inject_transform(make_ts("map", "base_link"));
     // Without ImGui draw, callback should not fire
@@ -587,7 +610,7 @@ TEST(TfTreePanel_Callback, SelectCallbackNotFiredWithoutImGui)
 TEST(TfTreePanel_Callback, SelectCallbackReplacement)
 {
     TfTreePanel panel;
-    int count_a = 0, count_b = 0;
+    int         count_a = 0, count_b = 0;
     panel.set_select_callback([&](const std::string&) { ++count_a; });
     panel.set_select_callback([&](const std::string&) { ++count_b; });
     // The second callback replaces the first; no direct way to fire without ImGui
@@ -604,7 +627,7 @@ TEST(TfTreePanel_Callback, SelectCallbackReplacement)
 TEST(TfTreeSnapshot, SnapshotHasTimestamp)
 {
     TfTreePanel panel;
-    const auto snap = panel.snapshot();
+    const auto  snap = panel.snapshot();
     EXPECT_GT(snap.snapshot_ns, 0u);
 }
 
@@ -633,8 +656,7 @@ TEST(TfTreeSnapshot, RootsIncludesTopLevelFrame)
     panel.inject_transform(make_ts("map", "odom"));
     const auto snap = panel.snapshot();
     // "universe" has no parent in our tree → it's a root
-    EXPECT_NE(std::find(snap.roots.begin(), snap.roots.end(), "universe"),
-              snap.roots.end());
+    EXPECT_NE(std::find(snap.roots.begin(), snap.roots.end(), "universe"), snap.roots.end());
 }
 
 // ---------------------------------------------------------------------------
@@ -656,8 +678,8 @@ TEST(TfTreePanel_EdgeCases, DrawWithoutImGuiNocrash)
 TEST(TfTreePanel_EdgeCases, LookupAfterClear)
 {
     TfTreePanel panel;
-    auto ts = make_ts("map", "base_link", 1.0, 0.0, 0.0);
-    ts.recv_ns = 1'000'000'000ULL;
+    auto        ts = make_ts("map", "base_link", 1.0, 0.0, 0.0);
+    ts.recv_ns     = 1'000'000'000ULL;
     panel.inject_transform(ts);
     panel.clear();
     const auto result = panel.lookup_transform("map", "base_link");
@@ -680,11 +702,11 @@ TEST(TfTreePanel_EdgeCases, ManyFramesNocrash)
 {
     TfTreePanel panel;
     // Build a star topology: root → frame_0, root → frame_1, ...
-    for (int i = 0; i < 50; ++i) {
-        panel.inject_transform(
-            make_ts("root_frame", "frame_" + std::to_string(i)));
+    for (int i = 0; i < 50; ++i)
+    {
+        panel.inject_transform(make_ts("root_frame", "frame_" + std::to_string(i)));
     }
-    EXPECT_EQ(panel.frame_count(), 51u);  // root + 50 children
+    EXPECT_EQ(panel.frame_count(), 51u);   // root + 50 children
     const auto snap = panel.snapshot();
     EXPECT_EQ(snap.total_frames, 51u);
 }
@@ -693,11 +715,12 @@ TEST(TfTreePanel_EdgeCases, DeepChainNocrash)
 {
     TfTreePanel panel;
     // Build a deep chain: a → b → c → ... 20 levels
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 20; ++i)
+    {
         const std::string parent = "frame_" + std::to_string(i);
         const std::string child  = "frame_" + std::to_string(i + 1);
-        auto ts = make_ts(parent, child, 1.0, 0.0, 0.0);
-        ts.recv_ns = 1'000'000'000ULL;
+        auto              ts     = make_ts(parent, child, 1.0, 0.0, 0.0);
+        ts.recv_ns               = 1'000'000'000ULL;
         panel.inject_transform(ts);
     }
     EXPECT_EQ(panel.frame_count(), 21u);
@@ -713,10 +736,11 @@ TEST(TfTreePanel_EdgeCases, ConcurrentInjectAndSnapshot)
     TfTreePanel panel;
     // Fire inject from multiple "simulated contexts" sequentially —
     // verifies no internal corruption from repeated lock acquisition
-    for (int round = 0; round < 5; ++round) {
-        for (int i = 0; i < 10; ++i) {
-            panel.inject_transform(
-                make_ts("map", "robot_" + std::to_string(i)));
+    for (int round = 0; round < 5; ++round)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            panel.inject_transform(make_ts("map", "robot_" + std::to_string(i)));
         }
         const auto snap = panel.snapshot();
         EXPECT_GT(snap.total_frames, 0u);
@@ -741,7 +765,7 @@ TEST(TransformResult, DefaultValues)
 TEST(TransformResult, ErrorFieldPopulatedOnFailure)
 {
     TfTreePanel panel;
-    const auto result = panel.lookup_transform("a", "b");
+    const auto  result = panel.lookup_transform("a", "b");
     EXPECT_FALSE(result.ok);
     EXPECT_FALSE(result.error.empty());
 }
@@ -762,7 +786,7 @@ TEST(TfFrameStats, DefaultValues)
 
 TEST(TfFrameStats, PushSetsEverReceived)
 {
-    TfFrameStats s;
+    TfFrameStats   s;
     const uint64_t t = 1'000'000'000ULL;
     s.push(t, 500);
     EXPECT_TRUE(s.ever_received);
@@ -770,10 +794,10 @@ TEST(TfFrameStats, PushSetsEverReceived)
 
 TEST(TfFrameStats, ComputeWithFreshTimestampNotStale)
 {
-    TfFrameStats s;
-    const uint64_t t = 1'000'000'000ULL;
+    TfFrameStats   s;
+    const uint64_t t         = 1'000'000'000ULL;
     s.last_transform.recv_ns = t;
-    s.is_static = false;
+    s.is_static              = false;
     s.push(t, 500);
     s.compute(t + ms_to_ns(100), 500, 1'000'000'000ULL);
     EXPECT_FALSE(s.stale);
@@ -783,8 +807,8 @@ TEST(TfFrameStats, ComputeWithFreshTimestampNotStale)
 TEST(TfFrameStats, StaticNeverStale)
 {
     TfFrameStats s;
-    s.is_static = true;
-    const uint64_t t = 1'000'000'000ULL;
+    s.is_static              = true;
+    const uint64_t t         = 1'000'000'000ULL;
     s.last_transform.recv_ns = t;
     s.push(t, 500);
     // Compute with a "now" far in the future
@@ -795,8 +819,8 @@ TEST(TfFrameStats, StaticNeverStale)
 TEST(TfFrameStats, DynamicGoesStaleBeyondThreshold)
 {
     TfFrameStats s;
-    s.is_static = false;
-    const uint64_t t = 1'000'000'000ULL;
+    s.is_static              = false;
+    const uint64_t t         = 1'000'000'000ULL;
     s.last_transform.recv_ns = t;
     s.push(t, 500);
     // now = t + 1000 ms → age = 1000 ms > threshold 500 ms → stale
@@ -808,16 +832,17 @@ TEST(TfFrameStats, DynamicGoesStaleBeyondThreshold)
 TEST(TfFrameStats, HzComputedInWindow)
 {
     TfFrameStats s;
-    s.is_static = false;
-    const uint64_t base = 1'000'000'000ULL;
-    const uint64_t hz_window = 1'000'000'000ULL;  // 1 s window
+    s.is_static              = false;
+    const uint64_t base      = 1'000'000'000ULL;
+    const uint64_t hz_window = 1'000'000'000ULL;   // 1 s window
     // Push 10 timestamps evenly in 1 s → 10 samples → ~10 Hz
-    for (int i = 0; i < 10; ++i) {
-        const uint64_t t = base + static_cast<uint64_t>(i) * 100'000'000ULL;
+    for (int i = 0; i < 10; ++i)
+    {
+        const uint64_t t         = base + static_cast<uint64_t>(i) * 100'000'000ULL;
         s.last_transform.recv_ns = t;
         s.push(t, 500);
     }
-    const uint64_t now = base + 990'000'000ULL;  // just before last bucket rolls off
+    const uint64_t now       = base + 990'000'000ULL;   // just before last bucket rolls off
     s.last_transform.recv_ns = now;
     s.compute(now, 500, hz_window);
     EXPECT_GT(s.hz, 0.0);

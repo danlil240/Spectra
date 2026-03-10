@@ -42,7 +42,7 @@ namespace spectra::adapters::ros2
 
 class ServiceCallerPanel
 {
-public:
+   public:
     // Construct with a non-owning pointer to the ServiceCaller backend.
     // The pointer must outlive this panel.
     explicit ServiceCallerPanel(ServiceCaller* caller = nullptr);
@@ -55,7 +55,7 @@ public:
 
     // ---------- wiring -------------------------------------------------------
 
-    void set_caller(ServiceCaller* caller) { caller_ = caller; }
+    void           set_caller(ServiceCaller* caller) { caller_ = caller; }
     ServiceCaller* caller() const { return caller_; }
 
     // ---------- ImGui rendering ----------------------------------------------
@@ -77,7 +77,7 @@ public:
 
     // ---------- configuration ------------------------------------------------
 
-    void set_title(const std::string& t) { title_ = t; }
+    void               set_title(const std::string& t) { title_ = t; }
     const std::string& title() const { return title_; }
 
     // Trigger a service refresh on the next draw() call.
@@ -87,16 +87,10 @@ public:
 
     // Force-select a service for testing (skips ImGui click).
     // Does NOT load the schema; caller must ensure the schema is already loaded.
-    void set_selected_service_for_test(const std::string& name)
-    {
-        selected_service_ = name;
-    }
+    void set_selected_service_for_test(const std::string& name) { selected_service_ = name; }
 
     // Expose current request fields (for testing).
-    const std::vector<ServiceFieldValue>& request_fields() const
-    {
-        return request_fields_;
-    }
+    const std::vector<ServiceFieldValue>& request_fields() const { return request_fields_; }
 
     // Set request fields directly (for testing).
     void set_request_fields(std::vector<ServiceFieldValue> fields)
@@ -117,7 +111,7 @@ public:
     // Last dispatched call handle (INVALID_CALL_HANDLE if none).
     CallHandle last_call_handle() const { return last_call_handle_; }
 
-private:
+   private:
     // -----------------------------------------------------------------------
     // Internal draw helpers
     // -----------------------------------------------------------------------
@@ -155,25 +149,25 @@ private:
     // Data
     // -----------------------------------------------------------------------
 
-    ServiceCaller*  caller_{nullptr};
-    std::string     title_{"ROS2 Services"};
+    ServiceCaller* caller_{nullptr};
+    std::string    title_{"ROS2 Services"};
 
     // Service list state (render-thread only).
-    std::vector<ServiceEntry> services_snap_;    // refreshed each draw
-    std::string selected_service_;
-    char        filter_buf_[256]{};
-    std::string filter_str_;
-    bool        refresh_requested_{true};
+    std::vector<ServiceEntry> services_snap_;   // refreshed each draw
+    std::string               selected_service_;
+    char                      filter_buf_[256]{};
+    std::string               filter_str_;
+    bool                      refresh_requested_{true};
 
     // Request form state (render-thread only).
     std::vector<ServiceFieldValue> request_fields_;
-    float timeout_s_{5.0f};
-    std::string form_error_;             // shown below the call button
+    float                          timeout_s_{5.0f};
+    std::string                    form_error_;   // shown below the call button
 
     // History state (render-thread only).
-    std::vector<std::shared_ptr<CallRecord>> history_snap_;  // refreshed each draw
-    CallHandle selected_history_{INVALID_CALL_HANDLE};
-    std::string response_json_preview_;  // expanded JSON for selected entry
+    std::vector<std::shared_ptr<CallRecord>> history_snap_;   // refreshed each draw
+    CallHandle                               selected_history_{INVALID_CALL_HANDLE};
+    std::string response_json_preview_;   // expanded JSON for selected entry
 
     // Last dispatched call.
     CallHandle last_call_handle_{INVALID_CALL_HANDLE};

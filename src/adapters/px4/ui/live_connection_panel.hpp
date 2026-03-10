@@ -30,7 +30,7 @@ namespace spectra::adapters::px4
 
 class LiveConnectionPanel
 {
-public:
+   public:
     explicit LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr);
     ~LiveConnectionPanel();
 
@@ -52,12 +52,12 @@ public:
 
     // Convenience forwarders.
     const std::string& title() const { return detach_ctrl_.title(); }
-    void set_dock_id(uint32_t id) { detach_ctrl_.set_dock_id(id); }
-    bool is_detached() const { return detach_ctrl_.is_detached(); }
-    void detach() { detach_ctrl_.detach(); }
-    void attach() { detach_ctrl_.attach(); }
+    void               set_dock_id(uint32_t id) { detach_ctrl_.set_dock_id(id); }
+    bool               is_detached() const { return detach_ctrl_.is_detached(); }
+    void               detach() { detach_ctrl_.detach(); }
+    void               attach() { detach_ctrl_.attach(); }
 
-private:
+   private:
     void draw_content();
     void draw_context_menu();
     void draw_connection_controls();

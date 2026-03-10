@@ -23,7 +23,7 @@
 #include <spectra/figure.hpp>
 
 #ifdef SPECTRA_USE_IMGUI
-#include "ui/app/window_ui_context.hpp"
+    #include "ui/app/window_ui_context.hpp"
 #endif
 
 #include <csignal>
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
     using namespace spectra::adapters::px4;
 
     // Parse CLI args.
-    std::string err;
+    std::string        err;
     const Px4AppConfig cfg = parse_px4_args(argc, argv, err);
 
     if (!err.empty())
@@ -67,18 +67,18 @@ int main(int argc, char** argv)
 
     // Create Spectra App.
     spectra::AppConfig app_cfg;
-    spectra::App app(app_cfg);
+    spectra::App       app(app_cfg);
 
     spectra::FigureConfig fig_cfg;
     fig_cfg.width  = cfg.window_width;
     fig_cfg.height = cfg.window_height;
-    auto& fig = app.figure(fig_cfg);
+    auto& fig      = app.figure(fig_cfg);
 
     // Create shell.
     Px4AppShell shell(cfg);
     shell.set_canvas_figure(&fig);
     g_shell = &shell;
-    std::signal(SIGINT,  sigint_handler);
+    std::signal(SIGINT, sigint_handler);
     std::signal(SIGTERM, sigint_handler);
 
     if (!shell.init())
@@ -92,10 +92,7 @@ int main(int argc, char** argv)
     // Animation loop.
     fig.animate()
         .fps(60.0f)
-        .on_frame([&shell](spectra::Frame& /*frame*/)
-        {
-            shell.poll();
-        })
+        .on_frame([&shell](spectra::Frame& /*frame*/) { shell.poll(); })
         .loop(true)
         .play();
 
@@ -106,10 +103,7 @@ int main(int argc, char** argv)
     if (ui_ctx && ui_ctx->imgui_ui)
     {
         ui_ctx->imgui_ui->enable_docking();
-        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]()
-        {
-            shell.draw();
-        });
+        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]() { shell.draw(); });
     }
 
     // Wire WindowManager so panels can create real OS windows on detach.

@@ -24,8 +24,8 @@ std::vector<Rect> compute_subplot_layout(float          figure_width,
                                          float          figure_height,
                                          int            rows,
                                          int            cols,
-                                         const Margins& margins = {},
-                                         float          min_subplot_height = 0.0f,
+                                         const Margins& margins               = {},
+                                         float          min_subplot_height    = 0.0f,
                                          float*         actual_content_height = nullptr);
 
 // Chrome-aware overload: computes subplot rects inside a content region starting
@@ -37,7 +37,7 @@ std::vector<Rect> compute_subplot_layout(float          figure_width,
                                          const Margins& margins,
                                          float          origin_x,
                                          float          origin_y,
-                                         float          min_subplot_height = 0.0f,
+                                         float          min_subplot_height    = 0.0f,
                                          float*         actual_content_height = nullptr);
 
 }   // namespace spectra

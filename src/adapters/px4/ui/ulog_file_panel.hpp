@@ -30,7 +30,7 @@ namespace spectra::adapters::px4
 
 class ULogFilePanel
 {
-public:
+   public:
     explicit ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr);
     ~ULogFilePanel();
 
@@ -38,9 +38,8 @@ public:
     ULogFilePanel& operator=(const ULogFilePanel&) = delete;
 
     // Set callback for when a field is double-clicked (add to plot).
-    using FieldCallback = std::function<void(const std::string& topic,
-                                             const std::string& field,
-                                             int array_idx)>;
+    using FieldCallback =
+        std::function<void(const std::string& topic, const std::string& field, int array_idx)>;
     void set_field_callback(FieldCallback cb) { field_cb_ = std::move(cb); }
 
     // Set callback for file open requests.
@@ -65,12 +64,12 @@ public:
 
     // Convenience forwarders.
     const std::string& title() const { return detach_ctrl_.title(); }
-    void set_dock_id(uint32_t id) { detach_ctrl_.set_dock_id(id); }
-    bool is_detached() const { return detach_ctrl_.is_detached(); }
-    void detach() { detach_ctrl_.detach(); }
-    void attach() { detach_ctrl_.attach(); }
+    void               set_dock_id(uint32_t id) { detach_ctrl_.set_dock_id(id); }
+    bool               is_detached() const { return detach_ctrl_.is_detached(); }
+    void               detach() { detach_ctrl_.detach(); }
+    void               attach() { detach_ctrl_.attach(); }
 
-private:
+   private:
     void draw_content();
     void draw_context_menu();
     void draw_file_header();

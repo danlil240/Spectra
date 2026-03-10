@@ -47,7 +47,7 @@ namespace spectra
 {
 class Figure;
 class LayoutManager;
-}
+}   // namespace spectra
 
 namespace spectra::adapters::ros2
 {
@@ -61,11 +61,11 @@ enum class LayoutMode
     RVizPlot,   // scene viewport + displays + plot area
 };
 
-LayoutMode parse_layout_mode(const std::string& s);
+LayoutMode  parse_layout_mode(const std::string& s);
 const char* layout_mode_name(LayoutMode m);
-bool should_skip_debug_validation_for_ros_app(const char* no_validation_env,
-                                              const char* enable_validation_env);
-bool should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_loader_env);
+bool        should_skip_debug_validation_for_ros_app(const char* no_validation_env,
+                                                     const char* enable_validation_env);
+bool        should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_loader_env);
 
 struct RosAppConfig
 {
@@ -143,7 +143,7 @@ struct RosWorkspaceState
 
 class RosAppShell
 {
-public:
+   public:
     explicit RosAppShell(const RosAppConfig& cfg);
     ~RosAppShell();
 
@@ -190,70 +190,70 @@ public:
 
     std::string window_title() const;
 
-    bool topic_list_visible() const    { return show_topic_list_; }
-    bool topic_echo_visible() const    { return show_topic_echo_; }
-    bool topic_stats_visible() const   { return show_topic_stats_; }
-    bool plot_area_visible() const     { return show_plot_area_; }
-    bool bag_info_visible() const      { return show_bag_info_; }
-    bool bag_playback_visible() const  { return show_bag_playback_; }
-    bool log_viewer_visible() const    { return show_log_viewer_; }
-    bool diagnostics_visible() const   { return show_diagnostics_; }
+    bool topic_list_visible() const { return show_topic_list_; }
+    bool topic_echo_visible() const { return show_topic_echo_; }
+    bool topic_stats_visible() const { return show_topic_stats_; }
+    bool plot_area_visible() const { return show_plot_area_; }
+    bool bag_info_visible() const { return show_bag_info_; }
+    bool bag_playback_visible() const { return show_bag_playback_; }
+    bool log_viewer_visible() const { return show_log_viewer_; }
+    bool diagnostics_visible() const { return show_diagnostics_; }
     bool displays_panel_visible() const { return show_displays_panel_; }
-    bool node_graph_visible() const    { return show_node_graph_; }
+    bool node_graph_visible() const { return show_node_graph_; }
     bool scene_viewport_visible() const { return show_scene_viewport_; }
     bool inspector_panel_visible() const { return show_inspector_panel_; }
-    bool tf_tree_visible() const       { return show_tf_tree_; }
-    bool param_editor_visible() const  { return show_param_editor_; }
+    bool tf_tree_visible() const { return show_tf_tree_; }
+    bool param_editor_visible() const { return show_param_editor_; }
     bool service_caller_visible() const { return show_service_caller_; }
 
-    void set_topic_list_visible(bool v)     { show_topic_list_ = v; }
-    void set_topic_echo_visible(bool v)     { show_topic_echo_ = v; }
-    void set_topic_stats_visible(bool v)    { show_topic_stats_ = v; }
-    void set_plot_area_visible(bool v)      { show_plot_area_ = v; }
-    void set_bag_info_visible(bool v)       { show_bag_info_ = v; }
-    void set_bag_playback_visible(bool v)   { show_bag_playback_ = v; }
-    void set_log_viewer_visible(bool v)     { show_log_viewer_ = v; }
-    void set_diagnostics_visible(bool v)    { show_diagnostics_ = v; }
+    void set_topic_list_visible(bool v) { show_topic_list_ = v; }
+    void set_topic_echo_visible(bool v) { show_topic_echo_ = v; }
+    void set_topic_stats_visible(bool v) { show_topic_stats_ = v; }
+    void set_plot_area_visible(bool v) { show_plot_area_ = v; }
+    void set_bag_info_visible(bool v) { show_bag_info_ = v; }
+    void set_bag_playback_visible(bool v) { show_bag_playback_ = v; }
+    void set_log_viewer_visible(bool v) { show_log_viewer_ = v; }
+    void set_diagnostics_visible(bool v) { show_diagnostics_ = v; }
     void set_displays_panel_visible(bool v) { show_displays_panel_ = v; }
-    void set_node_graph_visible(bool v)     { show_node_graph_ = v; }
+    void set_node_graph_visible(bool v) { show_node_graph_ = v; }
     void set_scene_viewport_visible(bool v) { show_scene_viewport_ = v; }
     void set_inspector_panel_visible(bool v) { show_inspector_panel_ = v; }
-    void set_tf_tree_visible(bool v)        { show_tf_tree_ = v; }
-    void set_param_editor_visible(bool v)   { show_param_editor_ = v; }
+    void set_tf_tree_visible(bool v) { show_tf_tree_ = v; }
+    void set_param_editor_visible(bool v) { show_param_editor_ = v; }
     void set_service_caller_visible(bool v) { show_service_caller_ = v; }
 
-    bool nav_rail_visible() const { return show_nav_rail_; }
-    bool nav_rail_expanded() const { return nav_rail_expanded_; }
+    bool  nav_rail_visible() const { return show_nav_rail_; }
+    bool  nav_rail_expanded() const { return nav_rail_expanded_; }
     float nav_rail_width() const { return nav_rail_width_; }
-    void set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
-    void set_nav_rail_expanded(bool v) { nav_rail_expanded_ = v; }
-    void set_nav_rail_width(float px);
+    void  set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
+    void  set_nav_rail_expanded(bool v) { nav_rail_expanded_ = v; }
+    void  set_nav_rail_width(float px);
 
-    Ros2Bridge&          bridge()          { return *bridge_; }
-    TopicDiscovery&      discovery()       { return *discovery_; }
-    MessageIntrospector& introspector()    { return *intr_; }
-    RosPlotManager&      plot_manager()    { return *plot_mgr_; }
+    Ros2Bridge&          bridge() { return *bridge_; }
+    TopicDiscovery&      discovery() { return *discovery_; }
+    MessageIntrospector& introspector() { return *intr_; }
+    RosPlotManager&      plot_manager() { return *plot_mgr_; }
     SubplotManager&      subplot_manager() { return *subplot_mgr_; }
 
     // Automation / QA accessors. These expose non-owning pointers to shell-managed
     // components so external harnesses can verify end-to-end state without duplicating
     // the shell wiring. Callers must handle nullptr before init() / after shutdown().
-    TopicListPanel*       topic_list_panel()       const { return topic_list_.get(); }
-    TopicEchoPanel*       topic_echo_panel()       const { return topic_echo_.get(); }
-    TopicStatsOverlay*    topic_stats_panel()      const { return topic_stats_.get(); }
-    BagInfoPanel*         bag_info_panel()         const { return bag_info_.get(); }
-    BagPlayer*            bag_player()             const { return bag_player_.get(); }
-    RosLogViewer*         log_viewer()             const { return log_viewer_.get(); }
-    DiagnosticsPanel*     diagnostics_panel()      const { return diag_panel_.get(); }
-    DisplaysPanel*        displays_panel()         const { return displays_panel_.get(); }
-    NodeGraphPanel*       node_graph_panel()       const { return node_graph_panel_.get(); }
-    SceneViewport*        scene_viewport()         const { return scene_viewport_.get(); }
-    InspectorPanel*       inspector_panel()        const { return inspector_panel_.get(); }
-    TfTreePanel*          tf_tree_panel()          const { return tf_tree_panel_.get(); }
-    ParamEditorPanel*     param_editor_panel()     const { return param_editor_.get(); }
-    ServiceCaller*        service_caller()         const { return service_caller_.get(); }
-    ServiceCallerPanel*   service_caller_panel()   const { return service_caller_panel_.get(); }
-    RosScreenshotExport*  screenshot_export()      const { return screenshot_export_.get(); }
+    TopicListPanel*      topic_list_panel() const { return topic_list_.get(); }
+    TopicEchoPanel*      topic_echo_panel() const { return topic_echo_.get(); }
+    TopicStatsOverlay*   topic_stats_panel() const { return topic_stats_.get(); }
+    BagInfoPanel*        bag_info_panel() const { return bag_info_.get(); }
+    BagPlayer*           bag_player() const { return bag_player_.get(); }
+    RosLogViewer*        log_viewer() const { return log_viewer_.get(); }
+    DiagnosticsPanel*    diagnostics_panel() const { return diag_panel_.get(); }
+    DisplaysPanel*       displays_panel() const { return displays_panel_.get(); }
+    NodeGraphPanel*      node_graph_panel() const { return node_graph_panel_.get(); }
+    SceneViewport*       scene_viewport() const { return scene_viewport_.get(); }
+    InspectorPanel*      inspector_panel() const { return inspector_panel_.get(); }
+    TfTreePanel*         tf_tree_panel() const { return tf_tree_panel_.get(); }
+    ParamEditorPanel*    param_editor_panel() const { return param_editor_.get(); }
+    ServiceCaller*       service_caller() const { return service_caller_.get(); }
+    ServiceCallerPanel*  service_caller_panel() const { return service_caller_panel_.get(); }
+    RosScreenshotExport* screenshot_export() const { return screenshot_export_.get(); }
 
     const RosAppConfig& config() const { return cfg_; }
 
@@ -265,7 +265,7 @@ public:
     void clear_plots();
 
     RosSession capture_session() const;
-    void apply_session(const RosSession& session);
+    void       apply_session(const RosSession& session);
     SaveResult save_session(const std::string& path);
     LoadResult load_session(const std::string& path);
 
@@ -275,12 +275,12 @@ public:
 
     enum class LayoutPreset : uint8_t
     {
-        Default   = 0,  // Topic List + Echo + Subplots + Stats
-        Debug     = 1,  // Topic List + Echo + Log Viewer
-        Monitor   = 2,  // 4x1 subplots + Diagnostics + Stats
-        BagReview = 3,  // Bag Playback + Subplots
-        RViz      = 4,  // Scene viewport + displays + TF tools
-        RVizPlot  = 5,  // Scene viewport + displays + plots
+        Default   = 0,   // Topic List + Echo + Subplots + Stats
+        Debug     = 1,   // Topic List + Echo + Log Viewer
+        Monitor   = 2,   // 4x1 subplots + Diagnostics + Stats
+        BagReview = 3,   // Bag Playback + Subplots
+        RViz      = 4,   // Scene viewport + displays + TF tools
+        RVizPlot  = 5,   // Scene viewport + displays + plots
     };
 
     // Apply a preset: adjusts panel visibility and calls setup_layout_visibility().
@@ -291,13 +291,12 @@ public:
 
     static const char* layout_preset_name(LayoutPreset p);
 
-    RosSessionManager& session_manager() { return *session_mgr_; }
+    RosSessionManager&       session_manager() { return *session_mgr_; }
     const RosSessionManager& session_manager() const { return *session_mgr_; }
 
     // topic_hint allows callers (e.g. BagInfoPanel) to supply the ROS type
     // directly when discovery may not have it yet.  Empty = auto-discover.
-    void on_topic_selected(const std::string& topic,
-                           const std::string& type_hint = "");
+    void on_topic_selected(const std::string& topic, const std::string& type_hint = "");
     void on_topic_plot(const std::string& topic);
 
     // Read-only access to the shared workspace selection context.
@@ -307,7 +306,7 @@ public:
     void set_fixed_frame(const std::string& frame_id) { workspace_state_.fixed_frame = frame_id; }
     SceneManager& scene_manager() { return scene_manager_; }
 
-private:
+   private:
     void subscribe_initial_topics();
     void wire_panel_callbacks();
     void handle_plot_request(const FieldDragPayload& payload, PlotTarget target);
@@ -340,8 +339,7 @@ private:
     int hit_test_subplot_slot(float mx, float my, bool include_y_gutter = false) const;
 
     std::string detect_topic_type(const std::string& topic) const;
-    std::string default_numeric_field(const std::string& topic,
-                                      const std::string& type_hint) const;
+    std::string default_numeric_field(const std::string& topic, const std::string& type_hint) const;
 
     RosAppConfig cfg_;
 
@@ -349,28 +347,28 @@ private:
     std::unique_ptr<TopicDiscovery>      discovery_;
     std::unique_ptr<MessageIntrospector> intr_;
 
-    std::unique_ptr<RosPlotManager>  plot_mgr_;
-    std::unique_ptr<SubplotManager>  subplot_mgr_;
+    std::unique_ptr<RosPlotManager> plot_mgr_;
+    std::unique_ptr<SubplotManager> subplot_mgr_;
 
-    std::unique_ptr<TopicListPanel>      topic_list_;
-    std::unique_ptr<TopicEchoPanel>      topic_echo_;
-    std::unique_ptr<TopicStatsOverlay>   topic_stats_;
-    std::unique_ptr<BagInfoPanel>        bag_info_;
-    std::unique_ptr<BagPlayer>           bag_player_;
-    std::unique_ptr<BagPlaybackPanel>    bag_playback_panel_;
-    std::unique_ptr<RosLogViewer>        log_viewer_;
-    std::unique_ptr<LogViewerPanel>      log_viewer_panel_;
-    std::unique_ptr<DiagnosticsPanel>    diag_panel_;
-    std::unique_ptr<DisplaysPanel>       displays_panel_;
-    std::unique_ptr<NodeGraphPanel>      node_graph_panel_;
-    std::unique_ptr<SceneViewport>       scene_viewport_;
-    std::unique_ptr<InspectorPanel>      inspector_panel_;
-    std::unique_ptr<TfTreePanel>         tf_tree_panel_;
-    std::unique_ptr<ParamEditorPanel>    param_editor_;
-    std::unique_ptr<ServiceCaller>       service_caller_;
-    std::unique_ptr<ServiceCallerPanel>  service_caller_panel_;
+    std::unique_ptr<TopicListPanel>     topic_list_;
+    std::unique_ptr<TopicEchoPanel>     topic_echo_;
+    std::unique_ptr<TopicStatsOverlay>  topic_stats_;
+    std::unique_ptr<BagInfoPanel>       bag_info_;
+    std::unique_ptr<BagPlayer>          bag_player_;
+    std::unique_ptr<BagPlaybackPanel>   bag_playback_panel_;
+    std::unique_ptr<RosLogViewer>       log_viewer_;
+    std::unique_ptr<LogViewerPanel>     log_viewer_panel_;
+    std::unique_ptr<DiagnosticsPanel>   diag_panel_;
+    std::unique_ptr<DisplaysPanel>      displays_panel_;
+    std::unique_ptr<NodeGraphPanel>     node_graph_panel_;
+    std::unique_ptr<SceneViewport>      scene_viewport_;
+    std::unique_ptr<InspectorPanel>     inspector_panel_;
+    std::unique_ptr<TfTreePanel>        tf_tree_panel_;
+    std::unique_ptr<ParamEditorPanel>   param_editor_;
+    std::unique_ptr<ServiceCaller>      service_caller_;
+    std::unique_ptr<ServiceCallerPanel> service_caller_panel_;
 
-    std::unique_ptr<FieldDragDrop>       drag_drop_;
+    std::unique_ptr<FieldDragDrop> drag_drop_;
 
     std::unique_ptr<RosScreenshotExport> screenshot_export_;
     bool                                 show_record_dialog_ = false;
@@ -384,27 +382,27 @@ private:
 
     std::atomic<bool> shutdown_requested_{false};
 
-    bool show_topic_list_      = true;
-    bool show_topic_echo_      = false;
-    bool show_topic_stats_     = true;
-    bool show_plot_area_       = true;
-    bool plot_area_was_visible_= true;  // tracks previous frame for close detection
-    bool show_bag_info_        = false;
-    bool show_bag_playback_    = false;
-    bool show_log_viewer_      = false;
-    bool show_diagnostics_     = false;
-    bool show_displays_panel_  = false;
-    bool show_node_graph_      = false;
-    bool show_scene_viewport_  = false;
-    bool show_inspector_panel_ = false;
-    bool show_tf_tree_         = false;
-    bool show_param_editor_    = false;
-    bool show_service_caller_  = false;
+    bool show_topic_list_       = true;
+    bool show_topic_echo_       = false;
+    bool show_topic_stats_      = true;
+    bool show_plot_area_        = true;
+    bool plot_area_was_visible_ = true;   // tracks previous frame for close detection
+    bool show_bag_info_         = false;
+    bool show_bag_playback_     = false;
+    bool show_log_viewer_       = false;
+    bool show_diagnostics_      = false;
+    bool show_displays_panel_   = false;
+    bool show_node_graph_       = false;
+    bool show_scene_viewport_   = false;
+    bool show_inspector_panel_  = false;
+    bool show_tf_tree_          = false;
+    bool show_param_editor_     = false;
+    bool show_service_caller_   = false;
 
     // Shell nav rail (Spectra-ROS specific, independent from core Spectra rail).
-    bool  show_nav_rail_       = true;
-    bool  nav_rail_expanded_   = false;
-    float nav_rail_width_      = 220.0f;
+    bool  show_nav_rail_        = true;
+    bool  nav_rail_expanded_    = false;
+    float nav_rail_width_       = 220.0f;
     float nav_rail_collapsed_w_ = 52.0f;
 
     // Dockspace state.
@@ -419,20 +417,19 @@ private:
     // Lightweight per-topic subscriptions for Hz/BW monitoring.
     // Created automatically for every discovered topic so the Topic Monitor
     // shows Hz and bandwidth columns for all topics, not just plotted ones.
-    std::mutex monitor_subs_mutex_;
-    std::unordered_map<std::string,
-                       rclcpp::GenericSubscription::SharedPtr> monitor_subs_;
+    std::mutex                                                              monitor_subs_mutex_;
+    std::unordered_map<std::string, rclcpp::GenericSubscription::SharedPtr> monitor_subs_;
 
     std::atomic<uint64_t> total_messages_{0};
 
     // Centralised selection context — reset each frame in draw().
     RosWorkspaceState workspace_state_;
 
-    DisplayRegistry display_registry_;
-    SceneManager scene_manager_;
+    DisplayRegistry                             display_registry_;
+    SceneManager                                scene_manager_;
     std::vector<std::unique_ptr<DisplayPlugin>> displays_;
-    std::unordered_map<DisplayPlugin*, bool> display_activation_state_;
-    std::string last_display_context_fixed_frame_;
+    std::unordered_map<DisplayPlugin*, bool>    display_activation_state_;
+    std::string                                 last_display_context_fixed_frame_;
 
     int next_replace_slot_ = 1;
 
@@ -445,9 +442,9 @@ private:
 
     // Track drag-start Y limits so manual zoom/pan disables live auto-fit only
     // when the user actually changed Y.
-    int                tracked_manual_y_slot_ = -1;
+    int                 tracked_manual_y_slot_ = -1;
     spectra::AxisLimits tracked_manual_y_limits_{};
-    bool               tracked_manual_y_valid_ = false;
+    bool                tracked_manual_y_valid_ = false;
 
     // Active layout preset.
     LayoutPreset current_preset_ = LayoutPreset::Default;

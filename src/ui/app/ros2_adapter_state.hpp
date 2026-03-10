@@ -45,9 +45,12 @@ inline void ros2_adapter_clear_error()
 
 #else   // SPECTRA_USE_ROS2 not defined — no-op stubs
 
-inline void        ros2_adapter_set_error(const std::string&) {}
-inline bool        ros2_adapter_has_error() { return false; }
-inline void        ros2_adapter_clear_error() {}
+inline void ros2_adapter_set_error(const std::string&) {}
+inline bool ros2_adapter_has_error()
+{
+    return false;
+}
+inline void ros2_adapter_clear_error() {}
 
 #endif   // SPECTRA_USE_ROS2
 

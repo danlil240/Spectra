@@ -616,27 +616,30 @@ void App::init_runtime()
             auto* di       = rt.ui_ctx_ptr->data_interaction.get();
             auto* ih       = &rt.ui_ctx_ptr->input_handler;
             auto* imgui_ui = rt.ui_ctx_ptr->imgui_ui.get();
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
             auto* wm = rt.window_mgr.get();
-#endif
+    #endif
             fig_mgr.set_on_figure_closed(
-                [di, ih, imgui_ui, this
-#ifdef SPECTRA_USE_GLFW
+                [di,
+                 ih,
+                 imgui_ui,
+                 this
+    #ifdef SPECTRA_USE_GLFW
                  ,
                  wm
-#endif
-                ](FigureId id)
+    #endif
+            ](FigureId id)
                 {
                     auto* fig = registry_.get(id);
                     if (!fig)
                         return;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
                     if (wm)
                     {
                         wm->clear_figure_caches(fig);
                         return;
                     }
-#endif
+    #endif
                     if (di)
                         di->clear_figure_cache(fig);
                     ih->clear_figure_cache(fig);

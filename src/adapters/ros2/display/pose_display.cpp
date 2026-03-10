@@ -8,7 +8,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -16,12 +16,12 @@ namespace spectra::adapters::ros2
 
 namespace
 {
-spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
-                                           const std::string&  fixed_frame,
-                                           const std::string&  frame_id,
-                                           uint64_t            stamp_ns,
-                                           bool                use_message_stamp,
-                                           bool&               ok_out)
+spectra::Transform resolve_frame_transform(const TfBuffer*    tf_buffer,
+                                           const std::string& fixed_frame,
+                                           const std::string& frame_id,
+                                           uint64_t           stamp_ns,
+                                           bool               use_message_stamp,
+                                           bool&              ok_out)
 {
     ok_out = true;
     spectra::Transform transform{};
@@ -37,7 +37,7 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
     }
 
     transform.translation = {result.tx, result.ty, result.tz};
-    transform.rotation = {
+    transform.rotation    = {
         static_cast<float>(result.qx),
         static_cast<float>(result.qy),
         static_cast<float>(result.qz),
@@ -54,15 +54,15 @@ PoseDisplay::PoseDisplay()
 
 void PoseDisplay::on_enable(const DisplayContext& context)
 {
-    tf_buffer_ = context.tf_buffer;
+    tf_buffer_       = context.tf_buffer;
     topic_discovery_ = context.topic_discovery;
-    fixed_frame_ = context.fixed_frame;
+    fixed_frame_     = context.fixed_frame;
 #ifdef SPECTRA_USE_ROS2
     node_ = context.node;
 #endif
     resubscribe_requested_ = true;
-    status_ = DisplayStatus::Warn;
-    status_text_ = "Waiting for pose topic";
+    status_                = DisplayStatus::Warn;
+    status_text_           = "Waiting for pose topic";
 }
 
 void PoseDisplay::on_disable()
@@ -72,7 +72,7 @@ void PoseDisplay::on_disable()
     node_.reset();
 #endif
     subscribed_topic_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -94,13 +94,12 @@ void PoseDisplay::on_update(float)
     if (!frame.has_value())
     {
         status_ = DisplayStatus::Warn;
-        status_text_ = subscribed_topic_.empty()
-            ? "Waiting for pose topic"
-            : "Subscribed, no pose received";
+        status_text_ =
+            subscribed_topic_.empty() ? "Waiting for pose topic" : "Subscribed, no pose received";
         return;
     }
 
-    status_ = DisplayStatus::Ok;
+    status_      = DisplayStatus::Ok;
     status_text_ = "Pose received";
 }
 
@@ -113,33 +112,32 @@ void PoseDisplay::submit_renderables(SceneManager& scene)
     if (!frame.has_value())
         return;
 
-    bool tf_ok = true;
-    const spectra::Transform frame_transform = resolve_frame_transform(
-        tf_buffer_,
-        fixed_frame_,
-        frame->frame_id,
-        frame->stamp_ns,
-        use_message_stamp_,
-        tf_ok);
+    bool                     tf_ok           = true;
+    const spectra::Transform frame_transform = resolve_frame_transform(tf_buffer_,
+                                                                       fixed_frame_,
+                                                                       frame->frame_id,
+                                                                       frame->stamp_ns,
+                                                                       use_message_stamp_,
+                                                                       tf_ok);
     if (!tf_ok)
         return;
 
     SceneEntity entity;
-    entity.type = "pose";
-    entity.label = topic_.empty() ? display_name() : topic_;
+    entity.type         = "pose";
+    entity.label        = topic_.empty() ? display_name() : topic_;
     entity.display_name = display_name();
-    entity.topic = frame->topic;
-    entity.frame_id = frame->frame_id;
-    entity.transform = frame_transform.compose(frame->pose);
-    entity.scale = {shaft_length_, shaft_width_, head_length_};
-    entity.stamp_ns = frame->stamp_ns;
+    entity.topic        = frame->topic;
+    entity.frame_id     = frame->frame_id;
+    entity.transform    = frame_transform.compose(frame->pose);
+    entity.scale        = {shaft_length_, shaft_width_, head_length_};
+    entity.stamp_ns     = frame->stamp_ns;
     SceneArrow arrow;
-    arrow.origin = {0.0, 0.0, 0.0};
-    arrow.direction = {1.0, 0.0, 0.0};
+    arrow.origin       = {0.0, 0.0, 0.0};
+    arrow.direction    = {1.0, 0.0, 0.0};
     arrow.shaft_length = shaft_length_;
-    arrow.head_length = head_length_;
-    arrow.head_width = head_width_;
-    entity.arrow = arrow;
+    arrow.head_length  = head_length_;
+    arrow.head_width   = head_width_;
+    entity.arrow       = arrow;
     entity.properties.push_back({"shaft_length", std::to_string(shaft_length_)});
     entity.properties.push_back({"shaft_width", std::to_string(shaft_width_)});
     entity.properties.push_back({"head_length", std::to_string(head_length_)});
@@ -184,7 +182,8 @@ std::string PoseDisplay::serialize_config_blob() const
     char buffer[256];
     std::snprintf(buffer,
                   sizeof(buffer),
-                  "topic=%s;shaft_length=%.2f;shaft_width=%.2f;head_length=%.2f;head_width=%.2f;use_message_stamp=%d",
+                  "topic=%s;shaft_length=%.2f;shaft_width=%.2f;head_length=%.2f;head_width=%.2f;"
+                  "use_message_stamp=%d",
                   topic_.c_str(),
                   shaft_length_,
                   shaft_width_,
@@ -199,20 +198,22 @@ void PoseDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    char topic[256] = {};
-    float shaft_length = shaft_length_;
-    float shaft_width = shaft_width_;
-    float head_length = head_length_;
-    float head_width = head_width_;
-    int use_message_stamp = use_message_stamp_ ? 1 : 0;
+    char  topic[256]        = {};
+    float shaft_length      = shaft_length_;
+    float shaft_width       = shaft_width_;
+    float head_length       = head_length_;
+    float head_width        = head_width_;
+    int   use_message_stamp = use_message_stamp_ ? 1 : 0;
     if (std::sscanf(blob.c_str(),
-                    "topic=%255[^;];shaft_length=%f;shaft_width=%f;head_length=%f;head_width=%f;use_message_stamp=%d",
+                    "topic=%255[^;];shaft_length=%f;shaft_width=%f;head_length=%f;head_width=%f;"
+                    "use_message_stamp=%d",
                     topic,
                     &shaft_length,
                     &shaft_width,
                     &head_length,
                     &head_width,
-                    &use_message_stamp) >= 1)
+                    &use_message_stamp)
+        >= 1)
     {
         set_topic(topic);
         if (shaft_length > 0.0f)
@@ -255,13 +256,13 @@ void PoseDisplay::ensure_subscription()
     const TopicInfo info = topic_discovery_->topic(topic_);
     if (info.name.empty() || info.types.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Topic not discovered yet";
         return;
     }
     if (info.types.front() != "geometry_msgs/msg/PoseStamped")
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "Incompatible topic type: " + info.types.front();
         return;
     }
@@ -277,8 +278,8 @@ void PoseDisplay::ensure_subscription()
         });
 
     subscribed_topic_ = topic_;
-    status_ = DisplayStatus::Ok;
-    status_text_ = "Subscribed to " + topic_;
+    status_           = DisplayStatus::Ok;
+    status_text_      = "Subscribed to " + topic_;
 #endif
 }
 

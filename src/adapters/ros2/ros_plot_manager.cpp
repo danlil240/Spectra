@@ -56,17 +56,17 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     // Build the entry under the mutex so handles() / find_entry() stay consistent.
     std::lock_guard<std::mutex> lk(mutex_);
 
-    auto entry        = std::make_unique<PlotEntry>();
-    entry->id         = next_id_++;
-    entry->topic      = topic;
-    entry->field_path = field_path;
-    entry->type_name  = resolved_type;
+    auto entry         = std::make_unique<PlotEntry>();
+    entry->id          = next_id_++;
+    entry->topic       = topic;
+    entry->field_path  = field_path;
+    entry->type_name   = resolved_type;
     entry->color_index = color_cursor_;
 
     // ---------- Spectra Figure + Axes + LineSeries ----------------------
     spectra::FigureConfig cfg;
-    cfg.width  = figure_width_;
-    cfg.height = figure_height_;
+    cfg.width     = figure_width_;
+    cfg.height    = figure_height_;
     entry->figure = std::make_unique<spectra::Figure>(cfg);
 
     // Single subplot (1×1).
@@ -89,8 +89,11 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     // Only create the subscription if the bridge is running.
     if (bridge_.is_ok())
     {
-        auto sub = std::make_unique<GenericSubscriber>(
-            bridge_.node(), topic, resolved_type, intr_, buffer_depth);
+        auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
+                                                       topic,
+                                                       resolved_type,
+                                                       intr_,
+                                                       buffer_depth);
 
         int eid = sub->add_field(field_path);
         if (eid < 0)
@@ -132,7 +135,8 @@ bool RosPlotManager::remove_plot(int id)
 {
     std::lock_guard<std::mutex> lk(mutex_);
 
-    auto it = std::find_if(entries_.begin(), entries_.end(),
+    auto it = std::find_if(entries_.begin(),
+                           entries_.end(),
                            [id](const std::unique_ptr<PlotEntry>& e) { return e->id == id; });
     if (it == entries_.end())
         return false;
@@ -165,7 +169,7 @@ size_t RosPlotManager::plot_count() const
 PlotHandle RosPlotManager::handle(int id) const
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    const PlotEntry* e = find_entry(id);
+    const PlotEntry*            e = find_entry(id);
     if (!e)
     {
         PlotHandle bad;
@@ -186,7 +190,7 @@ PlotHandle RosPlotManager::handle(int id) const
 std::vector<PlotHandle> RosPlotManager::handles() const
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    std::vector<PlotHandle> result;
+    std::vector<PlotHandle>     result;
     result.reserve(entries_.size());
     for (const auto& e : entries_)
     {
@@ -214,8 +218,7 @@ void RosPlotManager::poll()
 
     // Wall-clock "now" for all plots this frame (seconds since epoch).
     const double wall_now =
-        std::chrono::duration<double>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+        std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     for (auto& entry : entries_)
     {
@@ -252,9 +255,7 @@ void RosPlotManager::poll()
 
         // Drain up to MAX_DRAIN_PER_POLL samples.
         const size_t n =
-            entry->subscriber->pop_bulk(eid,
-                                        entry->drain_buf.data(),
-                                        MAX_DRAIN_PER_POLL);
+            entry->subscriber->pop_bulk(eid, entry->drain_buf.data(), MAX_DRAIN_PER_POLL);
 
         if (n > 0)
         {
@@ -264,11 +265,10 @@ void RosPlotManager::poll()
             const double origin = entry->time_origin;
             for (size_t i = 0; i < n; ++i)
             {
-                const FieldSample& s = entry->drain_buf[i];
-                const double t_sec   = static_cast<double>(s.timestamp_ns) * 1e-9;
-                const double t_rel   = t_sec - origin;
-                entry->series->append(static_cast<float>(t_rel),
-                                      static_cast<float>(s.value));
+                const FieldSample& s     = entry->drain_buf[i];
+                const double       t_sec = static_cast<double>(s.timestamp_ns) * 1e-9;
+                const double       t_rel = t_sec - origin;
+                entry->series->append(static_cast<float>(t_rel), static_cast<float>(s.value));
 
                 if (on_data_cb_)
                     on_data_cb_(entry->id, t_sec, s.value);
@@ -326,11 +326,12 @@ bool RosPlotManager::pruning_enabled() const
     return pruning_enabled_;
 }
 
-
 void RosPlotManager::set_time_window(double seconds)
 {
-    if (seconds < MIN_WINDOW_S) seconds = MIN_WINDOW_S;
-    if (seconds > MAX_WINDOW_S) seconds = MAX_WINDOW_S;
+    if (seconds < MIN_WINDOW_S)
+        seconds = MIN_WINDOW_S;
+    if (seconds > MAX_WINDOW_S)
+        seconds = MAX_WINDOW_S;
     scroll_window_s_ = seconds;
     // Apply to all existing entries immediately.
     for (auto& e : entries_)

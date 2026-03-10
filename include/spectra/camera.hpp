@@ -21,9 +21,9 @@ class Camera
         Z
     };
 
-    vec3 position{0.0f, 0.0f, 5.0f};
-    vec3 target{0.0f, 0.0f, 0.0f};
-    vec3 up{0.0f, 1.0f, 0.0f};
+    vec3   position{0.0f, 0.0f, 5.0f};
+    vec3   target{0.0f, 0.0f, 0.0f};
+    vec3   up{0.0f, 1.0f, 0.0f};
     UpAxis up_axis = UpAxis::Y;
 
     ProjectionMode projection_mode = ProjectionMode::Perspective;
@@ -81,7 +81,7 @@ class Camera
     Camera& set_up_axis(UpAxis axis)
     {
         up_axis = axis;
-        up = (axis == UpAxis::Z) ? vec3{0.0f, 0.0f, 1.0f} : vec3{0.0f, 1.0f, 0.0f};
+        up      = (axis == UpAxis::Z) ? vec3{0.0f, 0.0f, 1.0f} : vec3{0.0f, 1.0f, 0.0f};
         update_position_from_orbit();
         return *this;
     }

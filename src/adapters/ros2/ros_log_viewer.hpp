@@ -68,15 +68,15 @@ char severity_char(LogSeverity s);
 
 struct LogEntry
 {
-    uint64_t    seq{0};               // monotonic receive index (0-based)
-    int64_t     stamp_ns{0};          // ROS2 message stamp in nanoseconds
-    double      wall_time_s{0.0};     // wall clock at receive (for display)
+    uint64_t    seq{0};             // monotonic receive index (0-based)
+    int64_t     stamp_ns{0};        // ROS2 message stamp in nanoseconds
+    double      wall_time_s{0.0};   // wall clock at receive (for display)
     LogSeverity severity{LogSeverity::Info};
-    std::string node;                 // publishing node name
-    std::string message;              // log message text
-    std::string file;                 // source file (may be empty)
-    std::string function;             // source function (may be empty)
-    uint32_t    line{0};             // source line (may be 0)
+    std::string node;       // publishing node name
+    std::string message;    // log message text
+    std::string file;       // source file (may be empty)
+    std::string function;   // source function (may be empty)
+    uint32_t    line{0};    // source line (may be 0)
 };
 
 // ---------------------------------------------------------------------------
@@ -107,8 +107,7 @@ struct LogFilter
 
     // Same as passes() but uses a pre-compiled regex (nullptr = skip regex
     // check).  Call compile_regex() once per filter change.
-    bool passes_compiled(const LogEntry& e,
-                         const std::regex* compiled_re) const;
+    bool passes_compiled(const LogEntry& e, const std::regex* compiled_re) const;
 
     // Compile message_regex_str into out_re.  Returns true on success.
     // On failure fills regex_error and leaves out_re unchanged.
@@ -124,9 +123,9 @@ bool ci_contains(const std::string& haystack, const std::string& needle);
 
 class RosLogViewer
 {
-public:
+   public:
     static constexpr size_t DEFAULT_CAPACITY = 10'000;
-    static constexpr size_t MIN_CAPACITY     =      1;
+    static constexpr size_t MIN_CAPACITY     = 1;
     static constexpr size_t MAX_CAPACITY     = 100'000;
 
     // node — ROS2 node used to create the /rosout subscription.
@@ -161,14 +160,14 @@ public:
 
     // Set ring buffer capacity (clamped to [MIN_CAPACITY, MAX_CAPACITY]).
     // Existing entries beyond new capacity are discarded (oldest first).
-    void set_capacity(size_t n);
+    void   set_capacity(size_t n);
     size_t capacity() const { return capacity_; }
 
     // Discard all buffered entries.
     void clear();
 
     // Pause / resume receiving new entries into the buffer.
-    void pause()  { paused_.store(true,  std::memory_order_relaxed); }
+    void pause() { paused_.store(true, std::memory_order_relaxed); }
     void resume() { paused_.store(false, std::memory_order_relaxed); }
     bool is_paused() const { return paused_.load(std::memory_order_relaxed); }
 
@@ -178,18 +177,30 @@ public:
     // -----------------------------------------------------------------------
 
     // Replace the entire filter (invalidates compiled regex cache).
-    void set_filter(const LogFilter& f);
+    void             set_filter(const LogFilter& f);
     const LogFilter& filter() const { return filter_; }
 
     // Convenience setters.
-    void set_min_severity(LogSeverity s) { filter_.min_severity = s; regex_dirty_ = true; }
-    void set_node_filter(const std::string& s) { filter_.node_filter = s; regex_dirty_ = true; }
-    void set_message_regex(const std::string& s) { filter_.message_regex_str = s; regex_dirty_ = true; }
+    void set_min_severity(LogSeverity s)
+    {
+        filter_.min_severity = s;
+        regex_dirty_         = true;
+    }
+    void set_node_filter(const std::string& s)
+    {
+        filter_.node_filter = s;
+        regex_dirty_        = true;
+    }
+    void set_message_regex(const std::string& s)
+    {
+        filter_.message_regex_str = s;
+        regex_dirty_              = true;
+    }
 
-    LogSeverity         min_severity()    const { return filter_.min_severity; }
-    const std::string&  node_filter()     const { return filter_.node_filter; }
-    const std::string&  message_regex()   const { return filter_.message_regex_str; }
-    const std::string&  regex_error()     const { return filter_.regex_error; }
+    LogSeverity        min_severity() const { return filter_.min_severity; }
+    const std::string& node_filter() const { return filter_.node_filter; }
+    const std::string& message_regex() const { return filter_.message_regex_str; }
+    const std::string& regex_error() const { return filter_.regex_error; }
 
     // -----------------------------------------------------------------------
     // Read API (render thread — uses internal mutex for thread safety)
@@ -228,11 +239,11 @@ public:
     void inject(LogEntry e);
 
     // Build a LogEntry from raw /rosout field values (public for testing).
-    static LogEntry make_entry(uint64_t   seq,
-                               uint8_t    level,
-                               int32_t    stamp_sec,
-                               uint32_t   stamp_nanosec,
-                               double     wall_time_s,
+    static LogEntry make_entry(uint64_t    seq,
+                               uint8_t     level,
+                               int32_t     stamp_sec,
+                               uint32_t    stamp_nanosec,
+                               double      wall_time_s,
                                std::string node,
                                std::string message,
                                std::string file     = {},
@@ -245,7 +256,7 @@ public:
     // Format wall_time_s as "HH:MM:SS.mmm".
     static std::string format_wall_time(double wall_time_s);
 
-private:
+   private:
     // Called from executor thread when a /rosout message arrives.
     void on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg);
 
@@ -264,24 +275,24 @@ private:
     rclcpp::GenericSubscription::SharedPtr subscription_;
 
     // Circular ring buffer (protected by ring_mutex_).
-    mutable std::mutex     ring_mutex_;
-    std::vector<LogEntry>  ring_;          // preallocated to capacity_
-    size_t                 ring_head_{0};  // next write index
-    size_t                 ring_size_{0};  // current fill (≤ capacity_)
-    size_t                 capacity_{DEFAULT_CAPACITY};
+    mutable std::mutex    ring_mutex_;
+    std::vector<LogEntry> ring_;           // preallocated to capacity_
+    size_t                ring_head_{0};   // next write index
+    size_t                ring_size_{0};   // current fill (≤ capacity_)
+    size_t                capacity_{DEFAULT_CAPACITY};
 
     // Counters.
     std::atomic<uint64_t> total_received_{0};
-    uint64_t              next_seq_{0};    // protected by ring_mutex_
+    uint64_t              next_seq_{0};   // protected by ring_mutex_
 
     // Pause flag.
     std::atomic<bool> paused_{false};
 
     // Filter (render thread only — no lock needed).
-    LogFilter    filter_;
-    std::regex   compiled_re_;
-    bool         regex_valid_{false};  // true if compiled_re_ matches filter_.message_regex_str
-    bool         regex_dirty_{true};   // true when recompile needed
+    LogFilter  filter_;
+    std::regex compiled_re_;
+    bool       regex_valid_{false};   // true if compiled_re_ matches filter_.message_regex_str
+    bool       regex_dirty_{true};    // true when recompile needed
 };
 
 }   // namespace spectra::adapters::ros2

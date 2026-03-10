@@ -26,15 +26,15 @@ class SceneManager;
 /// Renderer::begin_render_pass() and Renderer::end_render_pass().
 class SceneRenderer
 {
-public:
+   public:
     /// Render all entities in \p scene using the given camera and viewport.
     /// \p renderer provides the backend for pipeline and buffer operations.
-    void render(Renderer& renderer,
+    void render(Renderer&     renderer,
                 SceneManager& scene,
                 const Camera& camera,
-                const Rect& viewport);
+                const Rect&   viewport);
 
-private:
+   private:
     void ensure_pipelines(Backend& backend);
 
     struct GpuData

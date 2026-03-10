@@ -16,9 +16,12 @@ std::string qos_reliability_str(rmw_qos_reliability_policy_t p)
 {
     switch (p)
     {
-    case RMW_QOS_POLICY_RELIABILITY_RELIABLE:   return "reliable";
-    case RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT: return "best_effort";
-    default:                                     return "unknown";
+        case RMW_QOS_POLICY_RELIABILITY_RELIABLE:
+            return "reliable";
+        case RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT:
+            return "best_effort";
+        default:
+            return "unknown";
     }
 }
 
@@ -26,9 +29,12 @@ std::string qos_durability_str(rmw_qos_durability_policy_t p)
 {
     switch (p)
     {
-    case RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL: return "transient_local";
-    case RMW_QOS_POLICY_DURABILITY_VOLATILE:        return "volatile";
-    default:                                         return "unknown";
+        case RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL:
+            return "transient_local";
+        case RMW_QOS_POLICY_DURABILITY_VOLATILE:
+            return "volatile";
+        default:
+            return "unknown";
     }
 }
 
@@ -36,9 +42,12 @@ std::string qos_history_str(rmw_qos_history_policy_t p)
 {
     switch (p)
     {
-    case RMW_QOS_POLICY_HISTORY_KEEP_LAST: return "keep_last";
-    case RMW_QOS_POLICY_HISTORY_KEEP_ALL:  return "keep_all";
-    default:                                return "unknown";
+        case RMW_QOS_POLICY_HISTORY_KEEP_LAST:
+            return "keep_last";
+        case RMW_QOS_POLICY_HISTORY_KEEP_ALL:
+            return "keep_all";
+        default:
+            return "unknown";
     }
 }
 
@@ -77,8 +86,7 @@ std::vector<std::string> collect_endpoint_nodes(const std::vector<EndpointInfo>&
 }
 
 template <typename EndpointInfo>
-int count_local_endpoints(const std::vector<EndpointInfo>& infos,
-                          const std::string& local_node)
+int count_local_endpoints(const std::vector<EndpointInfo>& infos, const std::string& local_node)
 {
     int count = 0;
     for (const auto& info : infos)
@@ -97,10 +105,7 @@ int count_local_endpoints(const std::vector<EndpointInfo>& infos,
 // Construction / destruction
 // ---------------------------------------------------------------------------
 
-TopicDiscovery::TopicDiscovery(rclcpp::Node::SharedPtr node)
-    : node_(std::move(node))
-{
-}
+TopicDiscovery::TopicDiscovery(rclcpp::Node::SharedPtr node) : node_(std::move(node)) {}
 
 TopicDiscovery::~TopicDiscovery()
 {
@@ -132,34 +137,36 @@ void TopicDiscovery::start()
     // lock (no executor wait-set involvement), so the discovery thread
     // can signal the executor freely and then release the participant
     // lock, unblocking the query thread.  Simple contention, not deadlock.
-    refresh_thread_ = std::thread([this]() {
-        while (running_.load(std::memory_order_acquire))
+    refresh_thread_ = std::thread(
+        [this]()
         {
-            // Startup grace period: skip the first N cycles to let DDS
-            // discovery settle after the node joins the domain.
-            if (startup_grace_ > 0)
+            while (running_.load(std::memory_order_acquire))
             {
-                --startup_grace_;
-            }
-            // Full-query cooldown: skip ALL DDS graph queries when the
-            // topology recently changed, letting rmw_fastrtps finish
-            // processing new participants before we hit it with reads.
-            else if (query_cooldown_ > 0)
-            {
-                --query_cooldown_;
-            }
-            else
-            {
-                do_refresh(/*full_enrich=*/false);
-            }
+                // Startup grace period: skip the first N cycles to let DDS
+                // discovery settle after the node joins the domain.
+                if (startup_grace_ > 0)
+                {
+                    --startup_grace_;
+                }
+                // Full-query cooldown: skip ALL DDS graph queries when the
+                // topology recently changed, letting rmw_fastrtps finish
+                // processing new participants before we hit it with reads.
+                else if (query_cooldown_ > 0)
+                {
+                    --query_cooldown_;
+                }
+                else
+                {
+                    do_refresh(/*full_enrich=*/false);
+                }
 
-            // Sleep for interval_, but wake early on stop.
-            std::unique_lock<std::mutex> lk(stop_mutex_);
-            stop_cv_.wait_for(lk, interval_, [this]() {
-                return !running_.load(std::memory_order_acquire);
-            });
-        }
-    });
+                // Sleep for interval_, but wake early on stop.
+                std::unique_lock<std::mutex> lk(stop_mutex_);
+                stop_cv_.wait_for(lk,
+                                  interval_,
+                                  [this]() { return !running_.load(std::memory_order_acquire); });
+            }
+        });
 }
 
 void TopicDiscovery::stop()
@@ -204,7 +211,7 @@ std::chrono::milliseconds TopicDiscovery::refresh_interval() const
 std::vector<TopicInfo> TopicDiscovery::topics() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<TopicInfo> result;
+    std::vector<TopicInfo>      result;
     result.reserve(topic_map_.size());
     for (const auto& [_, v] : topic_map_)
         result.push_back(v);
@@ -214,7 +221,7 @@ std::vector<TopicInfo> TopicDiscovery::topics() const
 std::vector<ServiceInfo> TopicDiscovery::services() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<ServiceInfo> result;
+    std::vector<ServiceInfo>    result;
     result.reserve(service_map_.size());
     for (const auto& [_, v] : service_map_)
         result.push_back(v);
@@ -224,7 +231,7 @@ std::vector<ServiceInfo> TopicDiscovery::services() const
 std::vector<NodeInfo> TopicDiscovery::nodes() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<NodeInfo> result;
+    std::vector<NodeInfo>       result;
     result.reserve(node_map_.size());
     for (const auto& [_, v] : node_map_)
         result.push_back(v);
@@ -240,7 +247,7 @@ bool TopicDiscovery::has_topic(const std::string& name) const
 TopicInfo TopicDiscovery::topic(const std::string& name) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = topic_map_.find(name);
+    auto                        it = topic_map_.find(name);
     if (it == topic_map_.end())
         return {};
     return it->second;
@@ -299,8 +306,7 @@ void TopicDiscovery::set_refresh_done_callback(RefreshDoneCallback cb)
 void TopicDiscovery::do_refresh(bool full_enrich)
 {
     bool expected = false;
-    if (!refresh_in_progress_.compare_exchange_strong(expected, true,
-                                                       std::memory_order_acq_rel))
+    if (!refresh_in_progress_.compare_exchange_strong(expected, true, std::memory_order_acq_rel))
         return;
 
     auto fresh_topics   = query_topics();
@@ -316,21 +322,19 @@ void TopicDiscovery::do_refresh(bool full_enrich)
     std::vector<std::pair<TopicInfo, bool>>   topic_events;
     std::vector<std::pair<ServiceInfo, bool>> service_events;
     std::vector<std::pair<NodeInfo, bool>>    node_events;
-    bool prev_was_empty = false;
+    bool                                      prev_was_empty = false;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
         // Track whether the cache was previously empty (first-time
         // population vs. topology change from a populated cache).
-        prev_was_empty = topic_map_.empty() &&
-                         service_map_.empty() &&
-                         node_map_.empty();
+        prev_was_empty = topic_map_.empty() && service_map_.empty() && node_map_.empty();
 
         // Snapshot callbacks
-        topic_cb       = topic_cb_;
-        service_cb     = service_cb_;
-        node_cb        = node_cb_;
+        topic_cb        = topic_cb_;
+        service_cb      = service_cb_;
+        node_cb         = node_cb_;
         refresh_done_cb = refresh_done_cb_;
 
         // Diff topics — collect events instead of firing inline
@@ -433,7 +437,6 @@ void TopicDiscovery::do_refresh(bool full_enrich)
                 }
             }
         }
-
     }
     // Lock released — now fire callbacks safely
 
@@ -461,9 +464,8 @@ void TopicDiscovery::do_refresh(bool full_enrich)
     //
     // We do NOT set cooldowns on the very first population (from empty
     // cache) because that is normal startup, not a discovery burst.
-    const bool topology_changed = !topic_events.empty() ||
-                                  !service_events.empty() ||
-                                  !node_events.empty();
+    const bool topology_changed =
+        !topic_events.empty() || !service_events.empty() || !node_events.empty();
     if (topology_changed && !prev_was_empty)
     {
         // Skip ALL DDS queries (core + enrichment) for several cycles.
@@ -518,9 +520,9 @@ void TopicDiscovery::enrich_batch()
     // Sort for stable iteration order across refresh cycles.
     std::sort(names.begin(), names.end());
 
-    const size_t total = names.size();
-    const size_t batch = std::min(BATCH_SIZE, total);
-    const size_t start = enrich_index_ % total;
+    const size_t      total      = names.size();
+    const size_t      batch      = std::min(BATCH_SIZE, total);
+    const size_t      start      = enrich_index_ % total;
     const std::string local_node = node_ ? node_->get_fully_qualified_name() : std::string{};
 
     for (size_t i = 0; i < batch; ++i)
@@ -532,8 +534,8 @@ void TopicDiscovery::enrich_batch()
         const int sub_count = static_cast<int>(node_->count_subscribers(name));
 
         QosInfo qos;
-        auto pub_infos = node_->get_publishers_info_by_topic(name);
-        auto sub_infos = node_->get_subscriptions_info_by_topic(name);
+        auto    pub_infos = node_->get_publishers_info_by_topic(name);
+        auto    sub_infos = node_->get_subscriptions_info_by_topic(name);
         if (!pub_infos.empty())
         {
             const rmw_qos_profile_t& rmw_qos =
@@ -547,16 +549,16 @@ void TopicDiscovery::enrich_batch()
         // Write enriched data back under the lock.
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it = topic_map_.find(name);
+            auto                        it = topic_map_.find(name);
             if (it != topic_map_.end())
             {
-                it->second.publisher_count       = pub_count;
-                it->second.subscriber_count      = sub_count;
-                it->second.local_publisher_count = count_local_endpoints(pub_infos, local_node);
+                it->second.publisher_count        = pub_count;
+                it->second.subscriber_count       = sub_count;
+                it->second.local_publisher_count  = count_local_endpoints(pub_infos, local_node);
                 it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
-                it->second.qos                   = qos;
-                it->second.publisher_nodes       = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes      = collect_endpoint_nodes(sub_infos);
+                it->second.qos                    = qos;
+                it->second.publisher_nodes        = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes       = collect_endpoint_nodes(sub_infos);
             }
         }
     }
@@ -582,8 +584,8 @@ void TopicDiscovery::enrich_all()
         const int sub_count = static_cast<int>(node_->count_subscribers(name));
 
         QosInfo qos;
-        auto pub_infos = node_->get_publishers_info_by_topic(name);
-        auto sub_infos = node_->get_subscriptions_info_by_topic(name);
+        auto    pub_infos = node_->get_publishers_info_by_topic(name);
+        auto    sub_infos = node_->get_subscriptions_info_by_topic(name);
         if (!pub_infos.empty())
         {
             const rmw_qos_profile_t& rmw_qos =
@@ -596,16 +598,16 @@ void TopicDiscovery::enrich_all()
 
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it = topic_map_.find(name);
+            auto                        it = topic_map_.find(name);
             if (it != topic_map_.end())
             {
-                it->second.publisher_count       = pub_count;
-                it->second.subscriber_count      = sub_count;
-                it->second.local_publisher_count = count_local_endpoints(pub_infos, local_node);
+                it->second.publisher_count        = pub_count;
+                it->second.subscriber_count       = sub_count;
+                it->second.local_publisher_count  = count_local_endpoints(pub_infos, local_node);
                 it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
-                it->second.qos                   = qos;
-                it->second.publisher_nodes       = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes      = collect_endpoint_nodes(sub_infos);
+                it->second.qos                    = qos;
+                it->second.publisher_nodes        = collect_endpoint_nodes(pub_infos);
+                it->second.subscriber_nodes       = collect_endpoint_nodes(sub_infos);
             }
         }
     }

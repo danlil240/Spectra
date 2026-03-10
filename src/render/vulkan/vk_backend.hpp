@@ -171,12 +171,12 @@ class VulkanBackend : public Backend
 
     struct GpuMemoryStats
     {
-        uint64_t total_usage_bytes = 0;
-        uint64_t total_budget_bytes = 0;
-        uint64_t device_local_usage_bytes = 0;
+        uint64_t total_usage_bytes         = 0;
+        uint64_t total_budget_bytes        = 0;
+        uint64_t device_local_usage_bytes  = 0;
         uint64_t device_local_budget_bytes = 0;
-        uint32_t heap_count = 0;
-        bool     budget_extension_enabled = false;
+        uint32_t heap_count                = 0;
+        bool     budget_extension_enabled  = false;
     };
     bool query_gpu_memory_stats(GpuMemoryStats& stats) const;
 
@@ -213,9 +213,9 @@ class VulkanBackend : public Backend
     vk::OffscreenContext offscreen_;
     bool                 headless_    = false;
     bool                 device_lost_ = false;   // set on VK_ERROR_DEVICE_LOST — unrecoverable
-    const platform::SurfaceHost* surface_host_ = nullptr;
-    VmaAllocator         vma_allocator_ = nullptr;
-    bool                 memory_budget_extension_enabled_ = false;
+    const platform::SurfaceHost* surface_host_                    = nullptr;
+    VmaAllocator                 vma_allocator_                   = nullptr;
+    bool                         memory_budget_extension_enabled_ = false;
 
     // Initial window context (heap-allocated for uniform ownership).
     // All per-window resources (surface, swapchain, command buffers, sync

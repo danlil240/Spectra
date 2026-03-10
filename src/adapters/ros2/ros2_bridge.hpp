@@ -28,15 +28,15 @@ namespace spectra::adapters::ros2
 enum class BridgeState
 {
     Uninitialized,
-    Initialized,   // node created, executor ready, spin thread NOT yet running
-    Spinning,      // background spin thread active
-    ShuttingDown,  // shutdown() called, waiting for thread join
-    Stopped,       // fully stopped; object may be destroyed or re-init'd
+    Initialized,    // node created, executor ready, spin thread NOT yet running
+    Spinning,       // background spin thread active
+    ShuttingDown,   // shutdown() called, waiting for thread join
+    Stopped,        // fully stopped; object may be destroyed or re-init'd
 };
 
 class Ros2Bridge
 {
-public:
+   public:
     Ros2Bridge();
     ~Ros2Bridge();
 
@@ -52,10 +52,10 @@ public:
     // the internal node with the given name and namespace.
     // Safe to call multiple times with the same arguments (idempotent).
     // Returns false if already initialised with a different node name.
-    bool init(const std::string& node_name       = "spectra_ros",
-              const std::string& node_namespace   = "/",
-              int                argc             = 0,
-              char**             argv             = nullptr);
+    bool init(const std::string& node_name      = "spectra_ros",
+              const std::string& node_namespace = "/",
+              int                argc           = 0,
+              char**             argv           = nullptr);
 
     // Launch the background spin thread.  Must call init() first.
     // Returns false if already spinning or not yet initialised.
@@ -68,8 +68,8 @@ public:
 
     // ---------- accessors ------------------------------------------------
 
-    BridgeState state()    const { return state_.load(std::memory_order_acquire); }
-    bool        is_ok()    const { return state() == BridgeState::Spinning; }
+    BridgeState state() const { return state_.load(std::memory_order_acquire); }
+    bool        is_ok() const { return state() == BridgeState::Spinning; }
 
     // Returns the underlying node.  nullptr if not initialised.
     rclcpp::Node::SharedPtr node() const { return node_; }
@@ -77,7 +77,7 @@ public:
     // Returns the executor.  nullptr if not initialised.
     rclcpp::executors::SingleThreadedExecutor* executor() const { return executor_.get(); }
 
-    const std::string& node_name()      const { return node_name_; }
+    const std::string& node_name() const { return node_name_; }
     const std::string& node_namespace() const { return node_namespace_; }
 
     // ---------- callbacks ------------------------------------------------
@@ -86,19 +86,19 @@ public:
     using StateCallback = std::function<void(BridgeState)>;
     void set_state_callback(StateCallback cb) { state_cb_ = std::move(cb); }
 
-private:
+   private:
     void spin_thread_func();
     void set_state(BridgeState s);
 
     std::string node_name_{"spectra_ros"};
     std::string node_namespace_{"/"};
 
-    rclcpp::Node::SharedPtr                                        node_;
-    std::unique_ptr<rclcpp::executors::SingleThreadedExecutor>     executor_;
+    rclcpp::Node::SharedPtr                                    node_;
+    std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
 
-    std::thread            spin_thread_;
+    std::thread              spin_thread_;
     std::atomic<BridgeState> state_{BridgeState::Uninitialized};
-    std::atomic<bool>      stop_requested_{false};
+    std::atomic<bool>        stop_requested_{false};
 
     StateCallback state_cb_;
 };

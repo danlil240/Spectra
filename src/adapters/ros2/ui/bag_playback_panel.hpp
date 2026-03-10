@@ -57,7 +57,7 @@ namespace spectra::adapters::ros2
 
 class BagPlaybackPanel
 {
-public:
+   public:
     // Construct.
     // player — must outlive the panel; may be nullptr (panel shows empty state).
     explicit BagPlaybackPanel(BagPlayer* player = nullptr);
@@ -70,7 +70,7 @@ public:
     // Player wiring
     // ------------------------------------------------------------------
 
-    void      set_player(BagPlayer* p);
+    void       set_player(BagPlayer* p);
     BagPlayer* player() const { return player_; }
 
     // ------------------------------------------------------------------
@@ -79,15 +79,15 @@ public:
 
     // Panel title shown in ImGui::Begin().
     void               set_title(const std::string& t) { title_ = t; }
-    const std::string& title() const                   { return title_; }
+    const std::string& title() const { return title_; }
 
     // Height of the compact progress bar in pixels (used when no TimelineEditor).
     void  set_progress_bar_height(float h) { progress_bar_height_ = h; }
-    float progress_bar_height() const      { return progress_bar_height_; }
+    float progress_bar_height() const { return progress_bar_height_; }
 
     // Height of the TimelineEditor area in pixels (used when TimelineEditor present).
     void  set_timeline_height(float h) { timeline_height_ = h; }
-    float timeline_height() const      { return timeline_height_; }
+    float timeline_height() const { return timeline_height_; }
 
     // Show the loop toggle button.
     void set_show_loop_button(bool v) { show_loop_button_ = v; }
@@ -104,8 +104,8 @@ public:
     struct EventMarker
     {
         float                position{0.0f};
-        std::array<float, 4> color{0.4f, 0.8f, 1.0f, 0.7f};  // RGBA [0,1]
-        std::string          tooltip;   // optional — shown on hover
+        std::array<float, 4> color{0.4f, 0.8f, 1.0f, 0.7f};   // RGBA [0,1]
+        std::string          tooltip;                         // optional — shown on hover
     };
 
     // Replace the entire event marker list.
@@ -143,7 +143,7 @@ public:
     // Format rate as "0.5×", "1.0×", "2.0×".
     static std::string rate_label(double rate);
 
-private:
+   private:
 #ifdef SPECTRA_USE_IMGUI
     void draw_toolbar();
     void draw_progress_bar();

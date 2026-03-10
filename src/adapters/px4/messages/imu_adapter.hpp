@@ -18,13 +18,13 @@ namespace spectra::adapters::px4
 struct ImuFrame
 {
     double timestamp_sec{0.0};
-    float  accel_x{0.0f};    // m/s²
+    float  accel_x{0.0f};   // m/s²
     float  accel_y{0.0f};
     float  accel_z{0.0f};
-    float  gyro_x{0.0f};     // rad/s
+    float  gyro_x{0.0f};   // rad/s
     float  gyro_y{0.0f};
     float  gyro_z{0.0f};
-    float  mag_x{0.0f};      // Gauss
+    float  mag_x{0.0f};   // Gauss
     float  mag_y{0.0f};
     float  mag_z{0.0f};
 };
@@ -33,8 +33,7 @@ struct ImuFrame
 // Extract IMU time series from ULog sensor_combined data.
 // ---------------------------------------------------------------------------
 
-inline std::vector<ImuFrame>
-extract_imu(const ULogTimeSeries& ts)
+inline std::vector<ImuFrame> extract_imu(const ULogTimeSeries& ts)
 {
     if (!ts.format)
         return {};

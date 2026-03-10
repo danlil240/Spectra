@@ -657,7 +657,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
             {
                 grid_rows = r.read_i32();
                 grid_cols = r.read_i32();
-                (void)r.read_u32();   // axes_count (reserved for validation; consumed for alignment)
+                (void)
+                    r.read_u32();   // axes_count (reserved for validation; consumed for alignment)
                 figure.grid_rows_ = grid_rows;
                 figure.grid_cols_ = grid_cols;
                 break;

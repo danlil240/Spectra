@@ -25,7 +25,7 @@
 #include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include "ui/app/window_ui_context.hpp"
+    #include "ui/app/window_ui_context.hpp"
 #endif
 
 #include <algorithm>
@@ -60,11 +60,11 @@
 #include <tf2_msgs/msg/tf_message.hpp>
 
 #ifdef SPECTRA_ROS2_BAG
-#include <rcutils/allocator.h>
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/serialized_bag_message.hpp>
-#include <rosbag2_storage/storage_options.hpp>
-#include <rosbag2_storage/topic_metadata.hpp>
+    #include <rcutils/allocator.h>
+    #include <rosbag2_cpp/writer.hpp>
+    #include <rosbag2_storage/serialized_bag_message.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
+    #include <rosbag2_storage/topic_metadata.hpp>
 #endif
 
 using namespace spectra;
@@ -100,10 +100,8 @@ std::string sanitize_filename(std::string name)
 {
     for (char& c : name)
     {
-        const bool ok = (c >= 'a' && c <= 'z')
-                     || (c >= 'A' && c <= 'Z')
-                     || (c >= '0' && c <= '9')
-                     || c == '_' || c == '-' || c == '.';
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                        || c == '_' || c == '-' || c == '.';
         if (!ok)
             c = '_';
     }
@@ -182,19 +180,16 @@ const char* severity_str(IssueSeverity sev)
 struct QAIssue
 {
     IssueSeverity severity{IssueSeverity::Info};
-    std::string category;
-    std::string message;
-    uint64_t    frame{0};
+    std::string   category;
+    std::string   message;
+    uint64_t      frame{0};
 };
 
 struct FrameStats
 {
     std::vector<float> samples;
 
-    void record(float ms)
-    {
-        samples.push_back(ms);
-    }
+    void record(float ms) { samples.push_back(ms); }
 
     float average() const
     {
@@ -285,8 +280,7 @@ struct QAOptions
 QAOptions parse_args(int argc, char** argv)
 {
     QAOptions opts;
-    opts.seed =
-        static_cast<uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    opts.seed = static_cast<uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
 
     for (int i = 1; i < argc; ++i)
     {
@@ -322,7 +316,7 @@ QAOptions parse_args(int argc, char** argv)
 
 class RosQaFixture
 {
-public:
+   public:
     explicit RosQaFixture(const std::string& node_name)
     {
         node_ = std::make_shared<rclcpp::Node>(node_name);
@@ -334,27 +328,27 @@ public:
 
         float_pub_ = node_->create_publisher<std_msgs::msg::Float64>("/qa/float", 10);
         twist_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>("/qa/cmd_vel", 10);
-        diag_pub_ = node_->create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
-            "/diagnostics", 10);
-        tf_pub_ = node_->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
+        diag_pub_ =
+            node_->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 10);
+        tf_pub_        = node_->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 10);
         tf_static_pub_ = node_->create_publisher<tf2_msgs::msg::TFMessage>(
-            "/tf_static", rclcpp::QoS(1).reliable().transient_local());
+            "/tf_static",
+            rclcpp::QoS(1).reliable().transient_local());
 
         exec_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
         exec_->add_node(node_);
 
-        spin_thread_ = std::thread([this]() {
-            while (!stop_spin_.load(std::memory_order_acquire) && rclcpp::ok())
+        spin_thread_ = std::thread(
+            [this]()
             {
-                exec_->spin_once(10ms);
-            }
-        });
+                while (!stop_spin_.load(std::memory_order_acquire) && rclcpp::ok())
+                {
+                    exec_->spin_once(10ms);
+                }
+            });
     }
 
-    ~RosQaFixture()
-    {
-        stop();
-    }
+    ~RosQaFixture() { stop(); }
 
     void stop()
     {
@@ -370,10 +364,7 @@ public:
         node_.reset();
     }
 
-    rclcpp::Node::SharedPtr node() const
-    {
-        return node_;
-    }
+    rclcpp::Node::SharedPtr node() const { return node_; }
 
     std::string fully_qualified_name() const
     {
@@ -390,7 +381,7 @@ public:
     void publish_twist(double linear_x, double angular_z)
     {
         geometry_msgs::msg::Twist msg;
-        msg.linear.x = linear_x;
+        msg.linear.x  = linear_x;
         msg.angular.z = angular_z;
         twist_pub_->publish(msg);
     }
@@ -400,23 +391,23 @@ public:
         diagnostic_msgs::msg::DiagnosticArray msg;
 
         diagnostic_msgs::msg::DiagnosticStatus warn;
-        warn.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
-        warn.name = "qa_motor";
-        warn.message = "temperature rising";
+        warn.level       = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+        warn.name        = "qa_motor";
+        warn.message     = "temperature rising";
         warn.hardware_id = "motor_1";
         diagnostic_msgs::msg::KeyValue warn_temp;
-        warn_temp.key = "temp_c";
+        warn_temp.key   = "temp_c";
         warn_temp.value = "77.5";
         warn.values.push_back(warn_temp);
         msg.status.push_back(warn);
 
         diagnostic_msgs::msg::DiagnosticStatus error;
-        error.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
-        error.name = "qa_battery";
-        error.message = "voltage low";
+        error.level       = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+        error.name        = "qa_battery";
+        error.message     = "voltage low";
         error.hardware_id = "battery_pack";
         diagnostic_msgs::msg::KeyValue error_voltage;
-        error_voltage.key = "voltage";
+        error_voltage.key   = "voltage";
         error_voltage.value = "10.1";
         error.values.push_back(error_voltage);
         msg.status.push_back(error);
@@ -427,23 +418,23 @@ public:
     void publish_tf_chain()
     {
         geometry_msgs::msg::TransformStamped static_tf;
-        static_tf.header.stamp = node_->now();
-        static_tf.header.frame_id = "map";
-        static_tf.child_frame_id = "base_link";
+        static_tf.header.stamp            = node_->now();
+        static_tf.header.frame_id         = "map";
+        static_tf.child_frame_id          = "base_link";
         static_tf.transform.translation.x = 1.0;
-        static_tf.transform.rotation.w = 1.0;
+        static_tf.transform.rotation.w    = 1.0;
 
         tf2_msgs::msg::TFMessage static_msg;
         static_msg.transforms.push_back(static_tf);
         tf_static_pub_->publish(static_msg);
 
         geometry_msgs::msg::TransformStamped dynamic_tf;
-        dynamic_tf.header.stamp = node_->now();
-        dynamic_tf.header.frame_id = "base_link";
-        dynamic_tf.child_frame_id = "laser";
+        dynamic_tf.header.stamp            = node_->now();
+        dynamic_tf.header.frame_id         = "base_link";
+        dynamic_tf.child_frame_id          = "laser";
         dynamic_tf.transform.translation.x = 0.25;
         dynamic_tf.transform.translation.z = 0.5;
-        dynamic_tf.transform.rotation.w = 1.0;
+        dynamic_tf.transform.rotation.w    = 1.0;
 
         tf2_msgs::msg::TFMessage dynamic_msg;
         dynamic_msg.transforms.push_back(dynamic_tf);
@@ -469,46 +460,46 @@ public:
         return value;
     }
 
-private:
-    rclcpp::Node::SharedPtr                              node_;
+   private:
+    rclcpp::Node::SharedPtr                                    node_;
     std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> exec_;
-    std::thread                                          spin_thread_;
-    std::atomic<bool>                                    stop_spin_{false};
+    std::thread                                                spin_thread_;
+    std::atomic<bool>                                          stop_spin_{false};
 
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr float_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr                float_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr             twist_pub_;
     rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diag_pub_;
-    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr tf_pub_;
-    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr tf_static_pub_;
+    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr              tf_pub_;
+    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr              tf_static_pub_;
 };
 
 #ifdef SPECTRA_ROS2_BAG
 std::string write_float64_bag(const std::string& dir_name,
                               const std::string& topic,
-                              int                n_msgs = 12,
+                              int                n_msgs       = 12,
                               double             start_time_s = 1000.0,
-                              double             interval_s = 0.1)
+                              double             interval_s   = 0.1)
 {
     try
     {
         rosbag2_storage::StorageOptions opts;
-        opts.uri = dir_name;
+        opts.uri        = dir_name;
         opts.storage_id = "sqlite3";
 
         rosbag2_cpp::Writer writer;
         writer.open(opts);
 
         rosbag2_storage::TopicMetadata meta;
-        meta.name = topic;
-        meta.type = "std_msgs/msg/Float64";
+        meta.name                 = topic;
+        meta.type                 = "std_msgs/msg/Float64";
         meta.serialization_format = "cdr";
         writer.create_topic(meta);
 
         for (int i = 0; i < n_msgs; ++i)
         {
-            const double value = static_cast<double>(i) * 1.25;
-            const double t_s = start_time_s + static_cast<double>(i) * interval_s;
-            const int64_t t_ns = static_cast<int64_t>(t_s * 1e9);
+            const double  value = static_cast<double>(i) * 1.25;
+            const double  t_s   = start_time_s + static_cast<double>(i) * interval_s;
+            const int64_t t_ns  = static_cast<int64_t>(t_s * 1e9);
 
             std::vector<uint8_t> cdr(12, 0);
             cdr[0] = 0x00;
@@ -517,14 +508,14 @@ std::string write_float64_bag(const std::string& dir_name,
             cdr[3] = 0x00;
             std::memcpy(cdr.data() + 4, &value, sizeof(double));
 
-            auto msg = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-            msg->topic_name = topic;
-            msg->time_stamp = t_ns;
+            auto msg             = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+            msg->topic_name      = topic;
+            msg->time_stamp      = t_ns;
             msg->serialized_data = std::make_shared<rcutils_uint8_array_t>();
-            msg->serialized_data->allocator = rcutils_get_default_allocator();
-            msg->serialized_data->buffer_length = cdr.size();
+            msg->serialized_data->allocator       = rcutils_get_default_allocator();
+            msg->serialized_data->buffer_length   = cdr.size();
             msg->serialized_data->buffer_capacity = cdr.size();
-            msg->serialized_data->buffer = new uint8_t[cdr.size()];
+            msg->serialized_data->buffer          = new uint8_t[cdr.size()];
             std::memcpy(msg->serialized_data->buffer, cdr.data(), cdr.size());
             writer.write(msg);
         }
@@ -538,41 +529,37 @@ std::string write_float64_bag(const std::string& dir_name,
 }
 #endif
 
-} // namespace
+}   // namespace
 
 class RosQAAgent
 {
-public:
-    explicit RosQAAgent(QAOptions opts)
-        : opts_(std::move(opts))
+   public:
+    explicit RosQAAgent(QAOptions opts) : opts_(std::move(opts))
     {
         std::filesystem::create_directories(opts_.output_dir);
 
-        shell_cfg_.node_name = "spectra_ros_qa_" + std::to_string(opts_.seed);
-        shell_cfg_.layout = LayoutMode::Default;
-        shell_cfg_.subplot_rows = 1;
-        shell_cfg_.subplot_cols = 1;
+        shell_cfg_.node_name     = "spectra_ros_qa_" + std::to_string(opts_.seed);
+        shell_cfg_.layout        = LayoutMode::Default;
+        shell_cfg_.subplot_rows  = 1;
+        shell_cfg_.subplot_cols  = 1;
         shell_cfg_.time_window_s = 15.0;
-        shell_cfg_.window_width = 1600;
+        shell_cfg_.window_width  = 1600;
         shell_cfg_.window_height = 900;
 
         register_scenarios();
     }
 
-    ~RosQAAgent()
-    {
-        shutdown();
-    }
+    ~RosQAAgent() { shutdown(); }
 
     bool init()
     {
-        app_ = std::make_unique<App>(AppConfig{});
+        app_           = std::make_unique<App>(AppConfig{});
         canvas_figure_ = &app_->figure({shell_cfg_.window_width, shell_cfg_.window_height});
 
         shell_ = std::make_unique<RosAppShell>(shell_cfg_);
         shell_->set_canvas_figure(canvas_figure_);
 
-        int argc = 0;
+        int    argc = 0;
         char** argv = nullptr;
         if (!shell_->init(argc, argv))
         {
@@ -582,15 +569,17 @@ public:
             return false;
         }
 
-        fixture_ = std::make_unique<RosQaFixture>(
-            "spectra_ros_qa_fixture_" + std::to_string(opts_.seed));
+        fixture_ =
+            std::make_unique<RosQaFixture>("spectra_ros_qa_fixture_" + std::to_string(opts_.seed));
 
         canvas_figure_->animate()
             .fps(60.0f)
-            .on_frame([this](spectra::Frame&) {
-                if (shell_)
-                    shell_->poll();
-            })
+            .on_frame(
+                [this](spectra::Frame&)
+                {
+                    if (shell_)
+                        shell_->poll();
+                })
             .loop(true)
             .play();
 
@@ -615,16 +604,18 @@ public:
             ui_ctx->imgui_ui->set_command_bar_visible(false);
             ui_ctx->imgui_ui->set_status_bar_visible(false);
             shell_->set_layout_manager(&lm);
-            ui_ctx->imgui_ui->set_extra_draw_callback([this]() {
-                if (shell_)
-                    shell_->draw();
-            });
+            ui_ctx->imgui_ui->set_extra_draw_callback(
+                [this]()
+                {
+                    if (shell_)
+                        shell_->draw();
+                });
         }
 #endif
 
         initial_rss_ = get_rss_bytes();
-        peak_rss_ = initial_rss_;
-        start_time_ = std::chrono::steady_clock::now();
+        peak_rss_    = initial_rss_;
+        start_time_  = std::chrono::steady_clock::now();
 
         pump_frames(8);
         return true;
@@ -655,22 +646,22 @@ public:
             }
 
             std::fprintf(stderr, "[ROS-QA] Running scenario: %s\n", scenario.name.c_str());
-            const uint64_t frame_start = total_frames_;
-            const size_t rss_before = get_rss_bytes();
-            const ScenarioOutcome outcome = scenario.run();
-            const size_t rss_after = get_rss_bytes();
-            peak_rss_ = std::max(peak_rss_, rss_after);
+            const uint64_t        frame_start = total_frames_;
+            const size_t          rss_before  = get_rss_bytes();
+            const ScenarioOutcome outcome     = scenario.run();
+            const size_t          rss_after   = get_rss_bytes();
+            peak_rss_                         = std::max(peak_rss_, rss_after);
 
             ScenarioResult result;
-            result.name = scenario.name;
-            result.description = scenario.description;
-            result.status = outcome.status;
-            result.detail = outcome.detail;
-            result.frame_start = frame_start;
-            result.frame_end = total_frames_;
+            result.name             = scenario.name;
+            result.description      = scenario.description;
+            result.status           = outcome.status;
+            result.detail           = outcome.detail;
+            result.frame_start      = frame_start;
+            result.frame_end        = total_frames_;
             result.rss_before_bytes = rss_before;
-            result.rss_after_bytes = rss_after;
-            result.screenshot_path = capture_screenshot(scenario.name);
+            result.rss_after_bytes  = rss_after;
+            result.screenshot_path  = capture_screenshot(scenario.name);
             results_.push_back(result);
 
             std::fprintf(stderr,
@@ -684,23 +675,17 @@ public:
         return has_failures() ? 1 : 0;
     }
 
-    void print_scenarios() const
-    {
-        list_scenarios();
-    }
+    void print_scenarios() const { list_scenarios(); }
 
-private:
+   private:
     struct Scenario
     {
-        std::string name;
-        std::string description;
+        std::string                      name;
+        std::string                      description;
         std::function<ScenarioOutcome()> run;
     };
 
-    bool wall_clock_exceeded() const
-    {
-        return wall_clock_seconds() >= opts_.duration_sec;
-    }
+    bool wall_clock_exceeded() const { return wall_clock_seconds() >= opts_.duration_sec; }
 
     float wall_clock_seconds() const
     {
@@ -755,8 +740,7 @@ private:
         return true;
     }
 
-    bool wait_until(const std::function<bool()>& predicate,
-                    std::chrono::milliseconds     timeout)
+    bool wait_until(const std::function<bool()>& predicate, std::chrono::milliseconds timeout)
     {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline && !wall_clock_exceeded())
@@ -769,9 +753,7 @@ private:
         return predicate();
     }
 
-    void add_issue(IssueSeverity severity,
-                   const std::string& category,
-                   const std::string& message)
+    void add_issue(IssueSeverity severity, const std::string& category, const std::string& message)
     {
         issues_.push_back({severity, category, message, total_frames_});
         std::fprintf(stderr,
@@ -788,31 +770,24 @@ private:
         return {ScenarioStatus::Failed, message};
     }
 
-    ScenarioOutcome skip(const std::string& message)
-    {
-        return {ScenarioStatus::Skipped, message};
-    }
+    ScenarioOutcome skip(const std::string& message) { return {ScenarioStatus::Skipped, message}; }
 
-    ScenarioOutcome pass(const std::string& message)
-    {
-        return {ScenarioStatus::Passed, message};
-    }
+    ScenarioOutcome pass(const std::string& message) { return {ScenarioStatus::Passed, message}; }
 
     std::string capture_screenshot(const std::string& name)
     {
         if (!app_ || !app_->backend())
             return {};
 
-        const uint32_t width = shell_cfg_.window_width;
-        const uint32_t height = shell_cfg_.window_height;
+        const uint32_t       width  = shell_cfg_.window_width;
+        const uint32_t       height = shell_cfg_.window_height;
         std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4u);
 
         if (!app_->backend()->readback_framebuffer(rgba.data(), width, height))
             return {};
 
-        const std::string path = opts_.output_dir + "/"
-                               + sanitize_filename(name)
-                               + "_frame" + std::to_string(total_frames_) + ".png";
+        const std::string path = opts_.output_dir + "/" + sanitize_filename(name) + "_frame"
+                                 + std::to_string(total_frames_) + ".png";
         if (!RosScreenshotExport::write_png(path, rgba.data(), width, height))
             return {};
         return path;
@@ -827,8 +802,7 @@ private:
         }
         for (const auto& issue : issues_)
         {
-            if (issue.severity == IssueSeverity::Error
-                || issue.severity == IssueSeverity::Critical)
+            if (issue.severity == IssueSeverity::Error || issue.severity == IssueSeverity::Critical)
             {
                 return true;
             }
@@ -841,7 +815,8 @@ private:
         std::fprintf(stderr, "Available spectra-ros QA scenarios:\n");
         for (const auto& scenario : scenarios_)
         {
-            std::fprintf(stderr, "  %-28s %s\n",
+            std::fprintf(stderr,
+                         "  %-28s %s\n",
                          scenario.name.c_str(),
                          scenario.description.c_str());
         }
@@ -870,18 +845,20 @@ private:
         scenarios_.push_back({"bag_playback",
                               "Open a synthetic bag and validate playback injection when enabled",
                               [this]() { return scenario_bag_playback(); }});
-        scenarios_.push_back({"design_review",
-                              "Capture named ROS shell design states and verify theme/layout presentation",
-                              [this]() { return scenario_design_review(); }});
+        scenarios_.push_back(
+            {"design_review",
+             "Capture named ROS shell design states and verify theme/layout presentation",
+             [this]() { return scenario_design_review(); }});
     }
 
     bool ensure_ros_topics_ready(std::chrono::milliseconds timeout)
     {
         return wait_until(
-            [this]() {
+            [this]()
+            {
                 shell_->discovery().refresh();
                 return shell_->discovery().has_topic("/qa/float")
-                    && shell_->discovery().has_topic("/qa/cmd_vel");
+                       && shell_->discovery().has_topic("/qa/cmd_vel");
             },
             timeout);
     }
@@ -917,16 +894,17 @@ private:
         }
 
         const bool has_messages = wait_until(
-            [this]() {
+            [this]()
+            {
                 return shell_->total_messages() > 0 && shell_->active_plot_count() >= 2
-                    && !canvas_figure_->axes().empty();
+                       && !canvas_figure_->axes().empty();
             },
             2s);
         if (!has_messages)
             return false;
 
         canvas_figure_->legend().visible = true;
-        auto& axes = canvas_figure_->axes_mut();
+        auto& axes                       = canvas_figure_->axes_mut();
         for (size_t idx = 0; idx < axes.size(); ++idx)
         {
             auto& ax = axes[idx];
@@ -955,16 +933,16 @@ private:
                                std::string*       error_message)
     {
         ui::ThemeManager::instance().set_theme(theme_name);
-        const auto& colors = ui::ThemeManager::instance().colors();
+        const auto& colors       = ui::ThemeManager::instance().colors();
         const float canvas_ratio = colors.text_primary.contrast_ratio(colors.bg_primary);
-        const float panel_ratio = colors.text_primary.contrast_ratio(colors.bg_secondary);
+        const float panel_ratio  = colors.text_primary.contrast_ratio(colors.bg_secondary);
         if (canvas_ratio < min_ratio || panel_ratio < min_ratio)
         {
             if (error_message)
             {
                 std::ostringstream out;
-                out << "Theme '" << theme_name << "' contrast was too low (canvas="
-                    << canvas_ratio << ", panel=" << panel_ratio << ")";
+                out << "Theme '" << theme_name << "' contrast was too low (canvas=" << canvas_ratio
+                    << ", panel=" << panel_ratio << ")";
                 *error_message = out.str();
             }
             return false;
@@ -977,8 +955,8 @@ private:
         if (!app_ || !app_->backend())
             return {};
 
-        const uint32_t width = shell_cfg_.window_width;
-        const uint32_t height = shell_cfg_.window_height;
+        const uint32_t       width  = shell_cfg_.window_width;
+        const uint32_t       height = shell_cfg_.window_height;
         std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4u);
 
         if (!app_->backend()->readback_framebuffer(rgba.data(), width, height))
@@ -993,7 +971,8 @@ private:
 
     bool record_design_capture(const std::string& name, const std::string& description)
     {
-        const std::string path = capture_named_screenshot("design/" + sanitize_filename(name) + ".png");
+        const std::string path =
+            capture_named_screenshot("design/" + sanitize_filename(name) + ".png");
         if (path.empty())
             return false;
         design_captures_.push_back({name, description, path, total_frames_});
@@ -1006,7 +985,8 @@ private:
             return false;
 
         design_manifest_path_ = opts_.output_dir + "/design/manifest.txt";
-        std::filesystem::create_directories(std::filesystem::path(design_manifest_path_).parent_path());
+        std::filesystem::create_directories(
+            std::filesystem::path(design_manifest_path_).parent_path());
         std::ofstream out(design_manifest_path_);
         if (!out)
             return false;
@@ -1033,8 +1013,7 @@ private:
         if (!shell_->topic_list_panel() || !shell_->topic_echo_panel()
             || !shell_->topic_stats_panel() || !shell_->node_graph_panel()
             || !shell_->diagnostics_panel() || !shell_->tf_tree_panel()
-            || !shell_->param_editor_panel() || !shell_->service_caller()
-            || !shell_->log_viewer())
+            || !shell_->param_editor_panel() || !shell_->service_caller() || !shell_->log_viewer())
         {
             return fail("boot", "One or more shell panels/backends were not created");
         }
@@ -1078,17 +1057,18 @@ private:
 
     ScenarioOutcome scenario_live_topic_monitoring()
     {
-        auto* topic_list = shell_->topic_list_panel();
-        auto* topic_echo = shell_->topic_echo_panel();
+        auto* topic_list  = shell_->topic_list_panel();
+        auto* topic_echo  = shell_->topic_echo_panel();
         auto* topic_stats = shell_->topic_stats_panel();
         if (!topic_list || !topic_echo || !topic_stats)
             return fail("live", "Topic monitoring panels were unavailable");
 
         const bool discovered = wait_until(
-            [this]() {
+            [this]()
+            {
                 shell_->discovery().refresh();
                 return shell_->discovery().has_topic("/qa/float")
-                    && shell_->discovery().has_topic("/qa/cmd_vel");
+                       && shell_->discovery().has_topic("/qa/cmd_vel");
             },
             3s);
         if (!discovered)
@@ -1100,8 +1080,7 @@ private:
         for (int i = 0; i < 24; ++i)
         {
             fixture_->publish_float(static_cast<double>(i) * 0.5);
-            fixture_->publish_twist(static_cast<double>(i) * 0.25,
-                                    static_cast<double>(i) * 0.05);
+            fixture_->publish_twist(static_cast<double>(i) * 0.25, static_cast<double>(i) * 0.05);
             if (!pump_frames(2))
                 return fail("live", "Render loop stopped while publishing live samples");
         }
@@ -1152,7 +1131,7 @@ private:
         shell_->set_topic_list_visible(true);
         pump_frames(3);
 
-        const RosSession before = shell_->capture_session();
+        const RosSession  before = shell_->capture_session();
         const std::string session_path =
             opts_.output_dir + "/roundtrip." + RosSessionManager::SESSION_EXT;
         const SaveResult save = shell_->save_session(session_path);
@@ -1195,13 +1174,13 @@ private:
         fixture_->emit_info_log(log_text);
 
         const bool saw_log = wait_until(
-            [this, &log_text]() {
+            [this, &log_text]()
+            {
                 const auto entries = shell_->log_viewer()->snapshot();
                 return std::any_of(entries.begin(),
                                    entries.end(),
-                                   [&log_text](const LogEntry& entry) {
-                                       return entry.message.find(log_text) != std::string::npos;
-                                   });
+                                   [&log_text](const LogEntry& entry)
+                                   { return entry.message.find(log_text) != std::string::npos; });
             },
             3s);
         if (!saw_log)
@@ -1216,7 +1195,7 @@ private:
             return fail("graph", "Node graph did not build any nodes/edges");
 
         bool has_fixture_node = false;
-        bool has_float_topic = false;
+        bool has_float_topic  = false;
         for (const auto& node : graph.nodes)
         {
             if (node.id == fixture_->fully_qualified_name())
@@ -1235,7 +1214,8 @@ private:
     {
         fixture_->publish_diagnostics();
         const bool diagnostics_ready = wait_until(
-            [this]() {
+            [this]()
+            {
                 const auto& model = shell_->diagnostics_panel()->model();
                 return model.count_warn >= 1 && model.count_error >= 1;
             },
@@ -1250,9 +1230,10 @@ private:
         }
 
         const bool tf_ready = wait_until(
-            [this]() {
+            [this]()
+            {
                 return shell_->tf_tree_panel()->has_frame("base_link")
-                    && shell_->tf_tree_panel()->has_frame("laser");
+                       && shell_->tf_tree_panel()->has_frame("laser");
             },
             3s);
         if (!tf_ready)
@@ -1262,8 +1243,7 @@ private:
         if (tf_snapshot.static_frames < 1 || tf_snapshot.dynamic_frames < 1)
             return fail("tf", "TF snapshot did not include both static and dynamic frames");
 
-        const TransformResult lookup =
-            shell_->tf_tree_panel()->lookup_transform("laser", "map");
+        const TransformResult lookup = shell_->tf_tree_panel()->lookup_transform("laser", "map");
         if (!lookup.ok)
             return fail("tf", "TF lookup laser->map failed: " + lookup.error);
 
@@ -1293,8 +1273,7 @@ private:
         }
 
         const ParamEntry gain_entry = param_editor->param_entry("qa_gain");
-        if (gain_entry.name != "qa_gain"
-            || gain_entry.current.type != ParamType::Double
+        if (gain_entry.name != "qa_gain" || gain_entry.current.type != ParamType::Double
             || std::fabs(gain_entry.current.double_val - 1.5) > 1e-6)
         {
             return fail("params", "qa_gain did not load with the expected default value");
@@ -1307,11 +1286,11 @@ private:
             return fail("params", "Parameter preset file was not written to disk");
 
         ParamValue gain_value;
-        gain_value.type = ParamType::Double;
+        gain_value.type       = ParamType::Double;
         gain_value.double_val = 2.75;
 
         ParamValue mode_value;
-        mode_value.type = ParamType::String;
+        mode_value.type       = ParamType::String;
         mode_value.string_val = "record";
 
         std::unordered_map<std::string, ParamValue> desired;
@@ -1330,10 +1309,8 @@ private:
             return fail("params", "Failed to load the updated parameter preset");
 
         const bool params_applied = wait_until(
-            [this]() {
-                return std::fabs(fixture_->gain() - 2.75) < 1e-6
-                    && fixture_->mode() == "record";
-            },
+            [this]()
+            { return std::fabs(fixture_->gain() - 2.75) < 1e-6 && fixture_->mode() == "record"; },
             4s);
         if (!params_applied)
             return fail("params", "Preset application never updated the live helper-node params");
@@ -1342,9 +1319,10 @@ private:
         if (!service_caller)
             return fail("services", "Service caller backend was unavailable");
 
-        const std::string service_name = fixture_->fully_qualified_name() + "/get_parameters";
-        const bool services_ready = wait_until(
-            [this, service_caller, &service_name]() {
+        const std::string service_name   = fixture_->fully_qualified_name() + "/get_parameters";
+        const bool        services_ready = wait_until(
+            [this, service_caller, &service_name]()
+            {
                 shell_->discovery().refresh();
                 service_caller->refresh_services();
                 return service_caller->find_service(service_name).has_value();
@@ -1360,8 +1338,7 @@ private:
         if (!service_entry || !service_entry->request_schema)
             return fail("services", "Service schema was not cached after load_schema()");
 
-        auto request_fields =
-            ServiceCaller::fields_from_schema(*service_entry->request_schema);
+        auto request_fields = ServiceCaller::fields_from_schema(*service_entry->request_schema);
         if (request_fields.empty())
             return fail("services", "Request schema for service call had no editable fields");
 
@@ -1371,16 +1348,17 @@ private:
                 field.value_str = "[\"qa_gain\"]";
         }
 
-        const CallHandle call = service_caller->call(
-            service_name, ServiceCaller::fields_to_json(request_fields), 1.0);
+        const CallHandle call =
+            service_caller->call(service_name, ServiceCaller::fields_to_json(request_fields), 1.0);
         if (call == INVALID_CALL_HANDLE)
             return fail("services", "Service call dispatch returned INVALID_CALL_HANDLE");
 
         const bool finished = wait_until(
-            [service_caller, call]() {
+            [service_caller, call]()
+            {
                 const CallRecord* rec = service_caller->record(call);
                 return rec != nullptr
-                    && rec->state.load(std::memory_order_acquire) != CallState::Pending;
+                       && rec->state.load(std::memory_order_acquire) != CallState::Pending;
             },
             2s);
         if (!finished)
@@ -1427,7 +1405,7 @@ private:
         const bool injected = wait_until(
             [this]() {
                 return shell_->bag_player()->total_injected() > 0
-                    && shell_->plot_manager().plot_count() > 0;
+                       && shell_->plot_manager().plot_count() > 0;
             },
             4s);
         if (!injected)
@@ -1457,7 +1435,8 @@ private:
         design_manifest_path_.clear();
 
         if (!ensure_design_plot_state())
-            return fail("design", "Failed to prepare representative ROS plot state for design review");
+            return fail("design",
+                        "Failed to prepare representative ROS plot state for design review");
 
         std::string contrast_error;
         if (!verify_theme_contrast("dark", 4.5f, &contrast_error))
@@ -1470,8 +1449,10 @@ private:
         shell_->set_topic_echo_visible(true);
         shell_->set_topic_stats_visible(true);
         shell_->set_plot_area_visible(true);
-        if (!pump_frames(6) || !record_design_capture("01_dark_default_live",
-                                                       "Dark theme default layout with live plots, echo, stats, and expanded nav rail"))
+        if (!pump_frames(6)
+            || !record_design_capture(
+                "01_dark_default_live",
+                "Dark theme default layout with live plots, echo, stats, and expanded nav rail"))
         {
             return fail("design", "Failed to capture dark default design state");
         }
@@ -1479,8 +1460,9 @@ private:
         fixture_->emit_info_log("design-review-log-" + std::to_string(opts_.seed));
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Debug);
         shell_->set_nav_rail_visible(true);
-        if (!pump_frames(6) || !record_design_capture("02_debug_logs",
-                                                       "Debug layout with log viewer and topic monitoring chrome"))
+        if (!pump_frames(6)
+            || !record_design_capture("02_debug_logs",
+                                      "Debug layout with log viewer and topic monitoring chrome"))
         {
             return fail("design", "Failed to capture debug design state");
         }
@@ -1488,10 +1470,11 @@ private:
         fixture_->publish_diagnostics();
         fixture_->publish_tf_chain();
         const bool diagnostics_ready = wait_until(
-            [this]() {
+            [this]()
+            {
                 const auto& model = shell_->diagnostics_panel()->model();
                 return model.count_warn >= 1 && model.count_error >= 1
-                    && shell_->tf_tree_panel()->has_frame("laser");
+                       && shell_->tf_tree_panel()->has_frame("laser");
             },
             3s);
         if (!diagnostics_ready)
@@ -1499,8 +1482,10 @@ private:
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
         shell_->set_tf_tree_visible(true);
-        if (!pump_frames(6) || !record_design_capture("03_monitor_diagnostics_tf",
-                                                       "Monitor layout with diagnostics, TF tree, and active live plots"))
+        if (!pump_frames(6)
+            || !record_design_capture(
+                "03_monitor_diagnostics_tf",
+                "Monitor layout with diagnostics, TF tree, and active live plots"))
         {
             return fail("design", "Failed to capture monitor design state");
         }
@@ -1511,16 +1496,19 @@ private:
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
         shell_->set_nav_rail_visible(true);
         shell_->set_nav_rail_expanded(false);
-        if (!pump_frames(6) || !record_design_capture("04_light_default_compact",
-                                                       "Light theme default layout with compact nav rail and restored live plots"))
+        if (!pump_frames(6)
+            || !record_design_capture(
+                "04_light_default_compact",
+                "Light theme default layout with compact nav rail and restored live plots"))
         {
             return fail("design", "Failed to capture light-theme design state");
         }
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::BagReview);
         shell_->set_nav_rail_visible(true);
-        if (!pump_frames(6) || !record_design_capture("05_bag_review_empty_state",
-                                                       "Bag review layout empty state for playback-disabled builds"))
+        if (!pump_frames(6)
+            || !record_design_capture("05_bag_review_empty_state",
+                                      "Bag review layout empty state for playback-disabled builds"))
         {
             return fail("design", "Failed to capture bag-review design state");
         }
@@ -1540,8 +1528,8 @@ private:
         const std::string text_path = opts_.output_dir + "/qa_report.txt";
         const std::string json_path = opts_.output_dir + "/qa_report.json";
 
-        size_t passed = 0;
-        size_t failed = 0;
+        size_t passed  = 0;
+        size_t failed  = 0;
         size_t skipped = 0;
         for (const auto& result : results_)
         {
@@ -1562,13 +1550,13 @@ private:
                 out << "Seed: " << opts_.seed << "\n";
                 out << "Duration: " << wall_clock_seconds() << "s\n";
                 out << "Frames: " << total_frames_ << "\n";
-                out << "Scenarios: " << passed << " passed, "
-                    << failed << " failed, " << skipped << " skipped\n";
+                out << "Scenarios: " << passed << " passed, " << failed << " failed, " << skipped
+                    << " skipped\n";
                 out << "Frame time: avg=" << frame_stats_.average()
                     << "ms p95=" << frame_stats_.percentile(0.95f)
                     << "ms max=" << frame_stats_.max_value() << "ms\n";
-                out << "RSS: initial=" << to_mb(initial_rss_)
-                    << "MB peak=" << to_mb(peak_rss_) << "MB\n\n";
+                out << "RSS: initial=" << to_mb(initial_rss_) << "MB peak=" << to_mb(peak_rss_)
+                    << "MB\n\n";
 
                 if (opts_.design_review || !design_captures_.empty())
                 {
@@ -1580,8 +1568,8 @@ private:
                     for (const auto& capture : design_captures_)
                     {
                         out << "  - " << capture.name << " | frame=" << capture.frame
-                            << " | path=" << capture.path
-                            << " | detail=" << capture.description << "\n";
+                            << " | path=" << capture.path << " | detail=" << capture.description
+                            << "\n";
                     }
                     out << "\n";
                 }
@@ -1589,11 +1577,10 @@ private:
                 out << "Scenario Results:\n";
                 for (const auto& result : results_)
                 {
-                    out << "  - " << result.name << ": "
-                        << scenario_status_str(result.status)
+                    out << "  - " << result.name << ": " << scenario_status_str(result.status)
                         << " | frames=" << (result.frame_end - result.frame_start)
-                        << " | rss=" << to_mb(result.rss_before_bytes)
-                        << "->" << to_mb(result.rss_after_bytes) << "MB"
+                        << " | rss=" << to_mb(result.rss_before_bytes) << "->"
+                        << to_mb(result.rss_after_bytes) << "MB"
                         << " | detail=" << result.detail << "\n";
                     if (!result.screenshot_path.empty())
                         out << "    screenshot: " << result.screenshot_path << "\n";
@@ -1605,9 +1592,8 @@ private:
                     out << "Issues:\n";
                     for (const auto& issue : issues_)
                     {
-                        out << "  - [" << severity_str(issue.severity) << "] "
-                            << issue.category << ": " << issue.message
-                            << " (frame " << issue.frame << ")\n";
+                        out << "  - [" << severity_str(issue.severity) << "] " << issue.category
+                            << ": " << issue.message << " (frame " << issue.frame << ")\n";
                     }
                 }
                 else
@@ -1643,8 +1629,8 @@ private:
                     const auto& capture = design_captures_[i];
                     out << "      {\n";
                     out << "        \"name\": \"" << json_escape(capture.name) << "\",\n";
-                    out << "        \"description\": \""
-                        << json_escape(capture.description) << "\",\n";
+                    out << "        \"description\": \"" << json_escape(capture.description)
+                        << "\",\n";
                     out << "        \"path\": \"" << json_escape(capture.path) << "\",\n";
                     out << "        \"frame\": " << capture.frame << "\n";
                     out << "      }";
@@ -1660,15 +1646,16 @@ private:
                     const auto& result = results_[i];
                     out << "    {\n";
                     out << "      \"name\": \"" << json_escape(result.name) << "\",\n";
-                    out << "      \"description\": \"" << json_escape(result.description) << "\",\n";
+                    out << "      \"description\": \"" << json_escape(result.description)
+                        << "\",\n";
                     out << "      \"status\": \"" << scenario_status_str(result.status) << "\",\n";
                     out << "      \"detail\": \"" << json_escape(result.detail) << "\",\n";
                     out << "      \"frame_start\": " << result.frame_start << ",\n";
                     out << "      \"frame_end\": " << result.frame_end << ",\n";
                     out << "      \"rss_before_mb\": " << to_mb(result.rss_before_bytes) << ",\n";
                     out << "      \"rss_after_mb\": " << to_mb(result.rss_after_bytes) << ",\n";
-                    out << "      \"screenshot\": \""
-                        << json_escape(result.screenshot_path) << "\"\n";
+                    out << "      \"screenshot\": \"" << json_escape(result.screenshot_path)
+                        << "\"\n";
                     out << "    }";
                     if (i + 1 < results_.size())
                         out << ",";
@@ -1705,27 +1692,27 @@ private:
                      json_path.c_str());
     }
 
-    QAOptions                               opts_;
-    RosAppConfig                            shell_cfg_;
-    std::unique_ptr<App>                    app_;
-    Figure*                                 canvas_figure_{nullptr};
-    std::unique_ptr<RosAppShell>            shell_;
-    std::unique_ptr<RosQaFixture>           fixture_;
-    std::vector<Scenario>                   scenarios_;
-    std::vector<ScenarioResult>             results_;
-    std::vector<DesignCapture>              design_captures_;
-    std::vector<QAIssue>                    issues_;
-    FrameStats                              frame_stats_;
-    std::chrono::steady_clock::time_point   start_time_{std::chrono::steady_clock::now()};
-    uint64_t                                total_frames_{0};
-    size_t                                  initial_rss_{0};
-    size_t                                  peak_rss_{0};
-    std::string                             design_manifest_path_;
+    QAOptions                             opts_;
+    RosAppConfig                          shell_cfg_;
+    std::unique_ptr<App>                  app_;
+    Figure*                               canvas_figure_{nullptr};
+    std::unique_ptr<RosAppShell>          shell_;
+    std::unique_ptr<RosQaFixture>         fixture_;
+    std::vector<Scenario>                 scenarios_;
+    std::vector<ScenarioResult>           results_;
+    std::vector<DesignCapture>            design_captures_;
+    std::vector<QAIssue>                  issues_;
+    FrameStats                            frame_stats_;
+    std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};
+    uint64_t                              total_frames_{0};
+    size_t                                initial_rss_{0};
+    size_t                                peak_rss_{0};
+    std::string                           design_manifest_path_;
 };
 
 int main(int argc, char** argv)
 {
-    QAOptions opts = parse_args(argc, argv);
+    QAOptions  opts      = parse_args(argc, argv);
     const bool list_only = opts.list_scenarios;
 
     RosQAAgent agent(std::move(opts));

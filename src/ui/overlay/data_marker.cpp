@@ -239,10 +239,11 @@ void DataMarkerManager::draw(const Rect& viewport,
         }
 
         // ── Draw box border — hairline, matches tooltip_border ────────────
-        ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_border.r,
-                                                                 colors.tooltip_border.g,
-                                                                 colors.tooltip_border.b,
-                                                                 colors.tooltip_border.a * opacity));
+        ImU32 box_border =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_border.r,
+                                                  colors.tooltip_border.g,
+                                                  colors.tooltip_border.b,
+                                                  colors.tooltip_border.a * opacity));
         fg->AddRect(ImVec2(box_left, box_top),
                     ImVec2(box_right, box_bot),
                     box_border,
@@ -251,8 +252,8 @@ void DataMarkerManager::draw(const Rect& viewport,
                     0.5f);
 
         // ── Color accent bar on left edge ─────────────────────────────────
-        ImU32 accent_col =
-            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, 0.85f * opacity));
+        ImU32 accent_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(m.color.r, m.color.g, m.color.b, 0.85f * opacity));
         fg->AddRectFilled(ImVec2(box_left, box_top + corner_r),
                           ImVec2(box_left + 2.5f, box_bot - corner_r),
                           accent_col);

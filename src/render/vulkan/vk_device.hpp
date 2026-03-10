@@ -38,8 +38,8 @@ struct DeviceContext
 };
 
 // Instance creation
-VkInstance create_instance(bool                        enable_validation,
-                           bool                        headless = false,
+VkInstance create_instance(bool                         enable_validation,
+                           bool                         headless     = false,
                            const platform::SurfaceHost* surface_host = nullptr);
 
 // Debug messenger

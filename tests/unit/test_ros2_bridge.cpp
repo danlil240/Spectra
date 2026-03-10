@@ -26,7 +26,7 @@ using namespace std::chrono_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -48,7 +48,7 @@ public:
 
 class Ros2BridgeTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         // Ensure rclcpp is running for this test (it might have been shut down
@@ -119,7 +119,7 @@ TEST_F(Ros2BridgeTest, InitIdempotentSameName)
 TEST_F(Ros2BridgeTest, InitReturnsFalseOnDifferentName)
 {
     bridge_.init("name_a");
-    EXPECT_FALSE(bridge_.init("name_b"));   // different name → false
+    EXPECT_FALSE(bridge_.init("name_b"));                    // different name → false
     EXPECT_EQ(bridge_.node_name(), std::string("name_a"));   // unchanged
 }
 
@@ -145,8 +145,7 @@ TEST_F(Ros2BridgeTest, StartSpinTransitionsToSpinning)
 
     // Give the thread a moment to start and set state.
     const auto deadline = std::chrono::steady_clock::now() + 500ms;
-    while (bridge_.state() != BridgeState::Spinning &&
-           std::chrono::steady_clock::now() < deadline)
+    while (bridge_.state() != BridgeState::Spinning && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(5ms);
     }
@@ -162,8 +161,7 @@ TEST_F(Ros2BridgeTest, StartSpinReturnsFalseWhenAlreadySpinning)
 
     // Wait until spinning.
     const auto deadline = std::chrono::steady_clock::now() + 500ms;
-    while (bridge_.state() != BridgeState::Spinning &&
-           std::chrono::steady_clock::now() < deadline)
+    while (bridge_.state() != BridgeState::Spinning && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(5ms);
     }
@@ -196,8 +194,7 @@ TEST_F(Ros2BridgeTest, ShutdownFromSpinning)
     bridge_.start_spin();
 
     const auto deadline = std::chrono::steady_clock::now() + 500ms;
-    while (bridge_.state() != BridgeState::Spinning &&
-           std::chrono::steady_clock::now() < deadline)
+    while (bridge_.state() != BridgeState::Spinning && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(5ms);
     }
@@ -242,8 +239,7 @@ TEST_F(Ros2BridgeTest, FullInitShutdownCycle)
     EXPECT_TRUE(bridge_.start_spin());
 
     const auto deadline = std::chrono::steady_clock::now() + 500ms;
-    while (bridge_.state() != BridgeState::Spinning &&
-           std::chrono::steady_clock::now() < deadline)
+    while (bridge_.state() != BridgeState::Spinning && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(5ms);
     }
@@ -264,12 +260,14 @@ TEST_F(Ros2BridgeTest, FullInitShutdownCycle)
 
 TEST_F(Ros2BridgeTest, StateCallbackFiredOnInitialized)
 {
-    std::atomic<int>   count{0};
-    BridgeState        last{BridgeState::Uninitialized};
-    bridge_.set_state_callback([&](BridgeState s) {
-        last = s;
-        ++count;
-    });
+    std::atomic<int> count{0};
+    BridgeState      last{BridgeState::Uninitialized};
+    bridge_.set_state_callback(
+        [&](BridgeState s)
+        {
+            last = s;
+            ++count;
+        });
 
     bridge_.init("cb_init_node");
     EXPECT_GE(count.load(), 1);
@@ -278,11 +276,13 @@ TEST_F(Ros2BridgeTest, StateCallbackFiredOnInitialized)
 
 TEST_F(Ros2BridgeTest, StateCallbackFiredOnSpinning)
 {
-    std::atomic<bool>  got_spinning{false};
-    bridge_.set_state_callback([&](BridgeState s) {
-        if (s == BridgeState::Spinning)
-            got_spinning.store(true);
-    });
+    std::atomic<bool> got_spinning{false};
+    bridge_.set_state_callback(
+        [&](BridgeState s)
+        {
+            if (s == BridgeState::Spinning)
+                got_spinning.store(true);
+        });
 
     bridge_.init("cb_spin_node");
     bridge_.start_spin();
@@ -297,10 +297,12 @@ TEST_F(Ros2BridgeTest, StateCallbackFiredOnSpinning)
 TEST_F(Ros2BridgeTest, StateCallbackFiredOnStopped)
 {
     std::atomic<bool> got_stopped{false};
-    bridge_.set_state_callback([&](BridgeState s) {
-        if (s == BridgeState::Stopped)
-            got_stopped.store(true);
-    });
+    bridge_.set_state_callback(
+        [&](BridgeState s)
+        {
+            if (s == BridgeState::Stopped)
+                got_stopped.store(true);
+        });
 
     bridge_.init("cb_stop_node");
     bridge_.shutdown();
@@ -322,8 +324,7 @@ TEST_F(Ros2BridgeTest, DestructorShutsDownCleanly)
         b.start_spin();
 
         const auto deadline = std::chrono::steady_clock::now() + 500ms;
-        while (b.state() != BridgeState::Spinning &&
-               std::chrono::steady_clock::now() < deadline)
+        while (b.state() != BridgeState::Spinning && std::chrono::steady_clock::now() < deadline)
         {
             std::this_thread::sleep_for(5ms);
         }

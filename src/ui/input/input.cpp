@@ -620,9 +620,9 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         {
             if (data_interaction_)
             {
-                float dx_px              = static_cast<float>(x - select_start_x_);
-                float dy_px              = static_cast<float>(y - select_start_y_);
-                float move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                float           dx_px              = static_cast<float>(x - select_start_x_);
+                float           dy_px              = static_cast<float>(y - select_start_y_);
+                float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
                 constexpr float CLICK_THRESHOLD_PX = 5.0f;
 
                 if (move_dist < CLICK_THRESHOLD_PX)
@@ -1307,7 +1307,7 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         constexpr float SCROLL_SPEED = 40.0f;
         float new_offset = figure_->scroll_offset_y() - static_cast<float>(y_offset) * SCROLL_SPEED;
         float max_scroll = std::max(0.0f, figure_->content_height() - visible_height_);
-        new_offset        = std::clamp(new_offset, 0.0f, max_scroll);
+        new_offset       = std::clamp(new_offset, 0.0f, max_scroll);
         figure_->set_scroll_offset_y(new_offset);
         return;
     }
@@ -1403,8 +1403,8 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
     // Use double arithmetic to preserve precision at deep zoom levels.
-    double dx = static_cast<double>(data_x);
-    double dy = static_cast<double>(data_y);
+    double dx       = static_cast<double>(data_x);
+    double dy       = static_cast<double>(data_y);
     double new_xmin = dx + (xlim.min - dx) * factor;
     double new_xmax = dx + (xlim.max - dx) * factor;
     double new_ymin = dy + (ylim.min - dy) * factor;

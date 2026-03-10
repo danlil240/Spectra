@@ -47,7 +47,7 @@ namespace spectra::adapters::ros2
 
 class LogViewerPanel
 {
-public:
+   public:
     // viewer — must outlive this panel (non-owning reference).
     explicit LogViewerPanel(RosLogViewer& viewer);
     ~LogViewerPanel() = default;
@@ -69,25 +69,28 @@ public:
     // Configuration
     // -----------------------------------------------------------------------
 
-    void set_title(const std::string& t) { title_ = t; }
+    void               set_title(const std::string& t) { title_ = t; }
     const std::string& title() const { return title_; }
 
     // Maximum display refresh rate (default 20 Hz).
-    void set_display_hz(double hz) { display_interval_s_ = (hz > 0.0) ? 1.0 / hz : 0.0; }
-    double display_hz() const { return (display_interval_s_ > 0.0) ? 1.0 / display_interval_s_ : 0.0; }
+    void   set_display_hz(double hz) { display_interval_s_ = (hz > 0.0) ? 1.0 / hz : 0.0; }
+    double display_hz() const
+    {
+        return (display_interval_s_ > 0.0) ? 1.0 / display_interval_s_ : 0.0;
+    }
 
     // Maximum rows to render in the table (older ones hidden for performance).
     // Default 2000.
-    void set_max_display_rows(size_t n) { max_display_rows_ = (n > 0) ? n : 1; }
+    void   set_max_display_rows(size_t n) { max_display_rows_ = (n > 0) ? n : 1; }
     size_t max_display_rows() const { return max_display_rows_; }
 
     // -----------------------------------------------------------------------
     // State accessors (testing / inspection — no ImGui dependency)
     // -----------------------------------------------------------------------
 
-    bool is_paused()      const { return viewer_.is_paused(); }
-    bool auto_scroll()    const { return auto_scroll_; }
-    int  selected_row()   const { return selected_row_; }
+    bool is_paused() const { return viewer_.is_paused(); }
+    bool auto_scroll() const { return auto_scroll_; }
+    int  selected_row() const { return selected_row_; }
 
     // -----------------------------------------------------------------------
     // Seek callback
@@ -98,7 +101,7 @@ public:
     // Callers can seek subplot scroll controllers to this timestamp.
     using SeekCallback = std::function<void(int64_t timestamp_ns)>;
     void set_seek_callback(SeekCallback cb) { seek_cb_ = std::move(cb); }
-    void clear_seek_callback()              { seek_cb_ = {}; }
+    void clear_seek_callback() { seek_cb_ = {}; }
 
     // -----------------------------------------------------------------------
     // Severity pill toggles (testable without ImGui)
@@ -118,7 +121,7 @@ public:
     // Format a single row as a tab-separated line.
     static std::string format_row(const LogEntry& e);
 
-private:
+   private:
     // -----------------------------------------------------------------------
     // ImGui sub-components (SPECTRA_USE_IMGUI guard in .cpp)
     // -----------------------------------------------------------------------
@@ -142,8 +145,8 @@ private:
     // Members
     // -----------------------------------------------------------------------
 
-    RosLogViewer&  viewer_;
-    std::string    title_{"ROS2 Log"};
+    RosLogViewer& viewer_;
+    std::string   title_{"ROS2 Log"};
 
     // Display rate throttle (render thread only).
     double display_interval_s_{1.0 / 20.0};
@@ -168,9 +171,9 @@ private:
 
     // Filter UI state (mirrored from/to viewer filter).
     // We store local copies so we can edit them in text inputs.
-    char   node_filter_buf_[256]{};
-    char   regex_filter_buf_[256]{};
-    int    severity_combo_idx_{0};   // kept for backward compat; pills take precedence
+    char node_filter_buf_[256]{};
+    char regex_filter_buf_[256]{};
+    int  severity_combo_idx_{0};   // kept for backward compat; pills take precedence
 
     // Per-severity pill visibility (DEBUG/INFO/WARN/ERROR/FATAL + ALL toggle).
     // Index maps to LogSeverity enum value.

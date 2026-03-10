@@ -66,7 +66,7 @@ struct ServiceFieldValue
     std::string path;           // dot-separated path, e.g. "data" or "pose.position.x"
     std::string display_name;   // leaf name
     FieldType   type{FieldType::Unknown};
-    int         depth{0};       // nesting level for indentation
+    int         depth{0};   // nesting level for indentation
 
     // Editable value (all stored as string; converted on call).
     std::string value_str{"0"};
@@ -84,13 +84,13 @@ struct ServiceFieldValue
 
 struct CallRecord
 {
-    uint64_t    id{0};               // monotonic call ID
-    std::string service_name;        // e.g. "/set_bool"
-    std::string service_type;        // e.g. "std_srvs/srv/SetBool"
-    std::string request_json;        // JSON of request fields at call time
-    std::string response_json;       // JSON of response (filled on Done)
-    std::string error_message;       // human-readable error (Error/TimedOut)
-    double      timeout_s{5.0};      // configured timeout
+    uint64_t    id{0};            // monotonic call ID
+    std::string service_name;     // e.g. "/set_bool"
+    std::string service_type;     // e.g. "std_srvs/srv/SetBool"
+    std::string request_json;     // JSON of request fields at call time
+    std::string response_json;    // JSON of response (filled on Done)
+    std::string error_message;    // human-readable error (Error/TimedOut)
+    double      timeout_s{5.0};   // configured timeout
 
     std::atomic<CallState> state{CallState::Pending};
 
@@ -102,14 +102,14 @@ struct CallRecord
     double latency_ms{0.0};
 
     // Non-copyable, non-movable (std::atomic member).
-    CallRecord()                               = default;
-    CallRecord(const CallRecord&)              = delete;
-    CallRecord& operator=(const CallRecord&)   = delete;
-    CallRecord(CallRecord&&)                   = delete;
-    CallRecord& operator=(CallRecord&&)        = delete;
+    CallRecord()                             = default;
+    CallRecord(const CallRecord&)            = delete;
+    CallRecord& operator=(const CallRecord&) = delete;
+    CallRecord(CallRecord&&)                 = delete;
+    CallRecord& operator=(CallRecord&&)      = delete;
 };
 
-using CallHandle = uint64_t;
+using CallHandle                                = uint64_t;
 static constexpr CallHandle INVALID_CALL_HANDLE = 0;
 
 // ---------------------------------------------------------------------------
@@ -119,15 +119,15 @@ static constexpr CallHandle INVALID_CALL_HANDLE = 0;
 struct ServiceEntry
 {
     std::string              name;
-    std::string              type;       // first type string, or ""
+    std::string              type;   // first type string, or ""
     std::vector<std::string> all_types;
 
     // Introspected request schema (nullptr = not yet introspected or failed).
     std::shared_ptr<const MessageSchema> request_schema;
     std::shared_ptr<const MessageSchema> response_schema;
 
-    bool schema_loaded{false};  // true if introspection was attempted
-    bool schema_ok{false};      // true if introspection succeeded
+    bool schema_loaded{false};   // true if introspection was attempted
+    bool schema_ok{false};       // true if introspection succeeded
 };
 
 // ---------------------------------------------------------------------------
@@ -136,12 +136,12 @@ struct ServiceEntry
 
 class ServiceCaller
 {
-public:
+   public:
     // Construct with a ROS2 node pointer, optional introspector, and optional
     // TopicDiscovery for service list refresh.  All pointers must outlive this.
-    explicit ServiceCaller(rclcpp::Node::SharedPtr       node,
-                           MessageIntrospector*           introspector = nullptr,
-                           TopicDiscovery*                discovery    = nullptr);
+    explicit ServiceCaller(rclcpp::Node::SharedPtr node,
+                           MessageIntrospector*    introspector = nullptr,
+                           TopicDiscovery*         discovery    = nullptr);
     ~ServiceCaller();
 
     ServiceCaller(const ServiceCaller&)            = delete;
@@ -173,8 +173,7 @@ public:
 
     // Build an editable field list for a schema (for the request form).
     // Returns flat list of ServiceFieldValue ordered depth-first.
-    static std::vector<ServiceFieldValue> fields_from_schema(
-        const MessageSchema& schema);
+    static std::vector<ServiceFieldValue> fields_from_schema(const MessageSchema& schema);
 
     // ---------- call dispatch ----------------------------------------------
 
@@ -211,7 +210,7 @@ public:
     void prune_history(std::size_t max_history);
 
     // Maximum retained history entries (default 200).
-    void set_max_history(std::size_t n) { max_history_ = n; }
+    void        set_max_history(std::size_t n) { max_history_ = n; }
     std::size_t max_history() const { return max_history_; }
 
     // ---------- JSON import / export ---------------------------------------
@@ -236,12 +235,11 @@ public:
     static std::string fields_to_json(const std::vector<ServiceFieldValue>& fields);
 
     // Parse a JSON object string into a field list (for import→form path).
-    static bool json_to_fields(const std::string& json,
-                               std::vector<ServiceFieldValue>& fields);
+    static bool json_to_fields(const std::string& json, std::vector<ServiceFieldValue>& fields);
 
     // ---------- configuration ----------------------------------------------
 
-    void set_default_timeout(double s) { default_timeout_ = s; }
+    void   set_default_timeout(double s) { default_timeout_ = s; }
     double default_timeout() const { return default_timeout_; }
 
     // ---------- callbacks --------------------------------------------------
@@ -249,7 +247,7 @@ public:
     using CallDoneCallback = std::function<void(CallHandle, const CallRecord&)>;
     void set_call_done_callback(CallDoneCallback cb);
 
-private:
+   private:
     // Internal: actually dispatch a generic service call.
     // Runs on the calling thread; the response fires the done callback on
     // the executor thread.
@@ -267,26 +265,25 @@ private:
     // Wall-clock seconds.
     static double wall_time_s();
 
-    rclcpp::Node::SharedPtr  node_;
-    MessageIntrospector*     introspector_{nullptr};
-    TopicDiscovery*          discovery_{nullptr};
+    rclcpp::Node::SharedPtr node_;
+    MessageIntrospector*    introspector_{nullptr};
+    TopicDiscovery*         discovery_{nullptr};
 
     // Service list (protected by services_mutex_).
-    mutable std::mutex               services_mutex_;
-    std::vector<ServiceEntry>        services_;
+    mutable std::mutex        services_mutex_;
+    std::vector<ServiceEntry> services_;
 
     // Call history (protected by history_mutex_).
-    mutable std::mutex                               history_mutex_;
-    std::vector<std::shared_ptr<CallRecord>>         history_;
-    std::unordered_map<CallHandle,
-        std::shared_ptr<CallRecord>>                 handle_map_;
+    mutable std::mutex                                          history_mutex_;
+    std::vector<std::shared_ptr<CallRecord>>                    history_;
+    std::unordered_map<CallHandle, std::shared_ptr<CallRecord>> handle_map_;
 
-    std::atomic<CallHandle>  id_counter_{0};
-    std::size_t              max_history_{200};
-    double                   default_timeout_{5.0};
+    std::atomic<CallHandle> id_counter_{0};
+    std::size_t             max_history_{200};
+    double                  default_timeout_{5.0};
 
-    CallDoneCallback         done_cb_;
-    mutable std::mutex       cb_mutex_;
+    CallDoneCallback   done_cb_;
+    mutable std::mutex cb_mutex_;
 };
 
 }   // namespace spectra::adapters::ros2

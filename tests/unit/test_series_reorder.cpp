@@ -6,7 +6,7 @@ using namespace spectra;
 
 TEST(SeriesReorder, MoveForward)
 {
-    Axes ax;
+    Axes  ax;
     auto& s0 = ax.line();
     s0.label("A");
     auto& s1 = ax.line();
@@ -23,7 +23,7 @@ TEST(SeriesReorder, MoveForward)
 
 TEST(SeriesReorder, MoveBackward)
 {
-    Axes ax;
+    Axes  ax;
     auto& s0 = ax.line();
     s0.label("A");
     auto& s1 = ax.line();

@@ -11,7 +11,7 @@ namespace spectra::adapters::ros2
 /// Compatible with PipelineType::Mesh3D / Marker3D vertex format.
 struct PrimitiveMesh
 {
-    std::vector<float> vertices;   // interleaved {pos.x, pos.y, pos.z, norm.x, norm.y, norm.z}
+    std::vector<float>    vertices;   // interleaved {pos.x, pos.y, pos.z, norm.x, norm.y, norm.z}
     std::vector<uint32_t> indices;
 
     size_t vertex_count() const { return vertices.size() / 6; }

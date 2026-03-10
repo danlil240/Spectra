@@ -232,10 +232,8 @@ void ThemeManager::apply_to_imgui()
                                              colors.bg_secondary.b,
                                              current_theme_->opacity_panel);
     imgui_colors[ImGuiCol_ChildBg]  = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
-    imgui_colors[ImGuiCol_PopupBg]  = ImVec4(colors.tooltip_bg.r,
-                                             colors.tooltip_bg.g,
-                                             colors.tooltip_bg.b,
-                                             colors.tooltip_bg.a);
+    imgui_colors[ImGuiCol_PopupBg] =
+        ImVec4(colors.tooltip_bg.r, colors.tooltip_bg.g, colors.tooltip_bg.b, colors.tooltip_bg.a);
     imgui_colors[ImGuiCol_Border] =
         ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.3f);
     imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
@@ -249,10 +247,10 @@ void ThemeManager::apply_to_imgui()
     // Frame backgrounds — Surface-2 inputs with subtle hover lift
     imgui_colors[ImGuiCol_FrameBg] =
         ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f);
-    imgui_colors[ImGuiCol_FrameBgHovered] =
-        ImVec4(colors.bg_tertiary.r + 0.03f,
-               colors.bg_tertiary.g + 0.03f,
-               colors.bg_tertiary.b + 0.03f, 1.0f);   // Slight lift
+    imgui_colors[ImGuiCol_FrameBgHovered] = ImVec4(colors.bg_tertiary.r + 0.03f,
+                                                   colors.bg_tertiary.g + 0.03f,
+                                                   colors.bg_tertiary.b + 0.03f,
+                                                   1.0f);   // Slight lift
     imgui_colors[ImGuiCol_FrameBgActive] =
         ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.18f);   // Soft focus ring feel
 
@@ -265,11 +263,11 @@ void ThemeManager::apply_to_imgui()
         ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f);
 
     // Menu — slightly darker than panels to reduce visual weight
-    imgui_colors[ImGuiCol_MenuBarBg] = ImVec4(
-        colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
-        colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
-        colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f,
-        1.0f);
+    imgui_colors[ImGuiCol_MenuBarBg] =
+        ImVec4(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
+               colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
+               colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f,
+               1.0f);
 
     // Scrollbar — invisible track, visible thumb only
     imgui_colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
@@ -842,45 +840,46 @@ void ThemeManager::initialize_default_themes()
     // Dark theme (default)
     Theme dark;
     dark.name   = "dark";
-    dark.colors = {// Surfaces — 3-surface stack: base (darkest) → panels → inputs
-                   .bg_primary   = Color::from_hex(0x0A0E13),   // Base: window/canvas bg
-                   .bg_secondary = Color::from_hex(0x12161D),   // Surface-1: panels, inspector, rails
-                   .bg_tertiary  = Color::from_hex(0x1A1F27),   // Surface-2: inputs, chips, cards
-                   .bg_elevated  = Color::from_hex(0x222830),   // Floating: tooltips, popups
-                   .bg_overlay   = Color::from_hex(0x80000000),
+    dark.colors = {
+        // Surfaces — 3-surface stack: base (darkest) → panels → inputs
+        .bg_primary   = Color::from_hex(0x0A0E13),   // Base: window/canvas bg
+        .bg_secondary = Color::from_hex(0x12161D),   // Surface-1: panels, inspector, rails
+        .bg_tertiary  = Color::from_hex(0x1A1F27),   // Surface-2: inputs, chips, cards
+        .bg_elevated  = Color::from_hex(0x222830),   // Floating: tooltips, popups
+        .bg_overlay   = Color::from_hex(0x80000000),
 
-                   // Text
-                   .text_primary   = Color::from_hex(0xE2E8F0),
-                   .text_secondary = Color::from_hex(0x7B8794),   // Calmer labels
-                   .text_tertiary  = Color::from_hex(0x454D56),
-                   .text_inverse   = Color::from_hex(0x0A0E13),
+        // Text
+        .text_primary   = Color::from_hex(0xE2E8F0),
+        .text_secondary = Color::from_hex(0x7B8794),   // Calmer labels
+        .text_tertiary  = Color::from_hex(0x454D56),
+        .text_inverse   = Color::from_hex(0x0A0E13),
 
-                   // Borders
-                   .border_default = Color::from_hex(0x2A3038),   // Panel edges
-                   .border_subtle  = Color::from_hex(0x1E242C),   // Hairline dividers
-                   .border_strong  = Color::from_hex(0x6E7681),
+        // Borders
+        .border_default = Color::from_hex(0x2A3038),   // Panel edges
+        .border_subtle  = Color::from_hex(0x1E242C),   // Hairline dividers
+        .border_strong  = Color::from_hex(0x6E7681),
 
-                   // Interactive — muted UI accent; data stays vibrant
-                   .accent        = Color::from_hex(0x4D8FD6),   // Muted blue
-                   .accent_hover  = Color::from_hex(0x6AAAE8),   // Slightly brighter on hover
-                   .accent_muted  = Color(0.30f, 0.56f, 0.84f, 0.25f),
-                   .accent_subtle = Color(0.30f, 0.56f, 0.84f, 0.10f),
+        // Interactive — muted UI accent; data stays vibrant
+        .accent        = Color::from_hex(0x4D8FD6),   // Muted blue
+        .accent_hover  = Color::from_hex(0x6AAAE8),   // Slightly brighter on hover
+        .accent_muted  = Color(0.30f, 0.56f, 0.84f, 0.25f),
+        .accent_subtle = Color(0.30f, 0.56f, 0.84f, 0.10f),
 
-                   // Semantic
-                   .success = Color::from_hex(0x3FB950),
-                   .warning = Color::from_hex(0xD29922),
-                   .error   = Color::from_hex(0xF85149),
-                   .info    = Color::from_hex(0x4D8FD6),
+        // Semantic
+        .success = Color::from_hex(0x3FB950),
+        .warning = Color::from_hex(0xD29922),
+        .error   = Color::from_hex(0xF85149),
+        .info    = Color::from_hex(0x4D8FD6),
 
-                   // Plot-specific — grid recedes, data is hero
-                   .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.12f),   // Subtle but visible
-                   .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.60f),   // Visible spines
-                   .tick_label       = Color::from_hex(0x6B7582),   // Calm tick text
-                   .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
-                   .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),
-                   .selection_border = Color::from_hex(0x4D8FD6),
-                   .tooltip_bg       = Color(0.13f, 0.15f, 0.19f, 0.92f),   // Near-opaque glass
-                   .tooltip_border   = Color(0.22f, 0.25f, 0.30f, 0.35f)};
+        // Plot-specific — grid recedes, data is hero
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.12f),      // Subtle but visible
+        .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.60f),   // Visible spines
+        .tick_label       = Color::from_hex(0x6B7582),           // Calm tick text
+        .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
+        .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),
+        .selection_border = Color::from_hex(0x4D8FD6),
+        .tooltip_bg       = Color(0.13f, 0.15f, 0.19f, 0.92f),   // Near-opaque glass
+        .tooltip_border   = Color(0.22f, 0.25f, 0.30f, 0.35f)};
     register_theme("dark", dark);
 
     // Light theme

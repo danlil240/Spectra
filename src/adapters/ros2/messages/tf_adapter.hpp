@@ -5,7 +5,7 @@
 #include "tf/tf_buffer.hpp"
 
 #ifdef SPECTRA_USE_ROS2
-#include <geometry_msgs/msg/transform_stamped.hpp>
+    #include <geometry_msgs/msg/transform_stamped.hpp>
 #endif
 
 namespace spectra::adapters::ros2
@@ -13,7 +13,7 @@ namespace spectra::adapters::ros2
 
 #ifdef SPECTRA_USE_ROS2
 inline TransformStamp adapt_tf_transform(const geometry_msgs::msg::TransformStamped& transform,
-                                         bool is_static)
+                                         bool                                        is_static)
 {
     TransformStamp stamp;
     stamp.parent_frame = transform.header.frame_id;
@@ -26,8 +26,8 @@ inline TransformStamp adapt_tf_transform(const geometry_msgs::msg::TransformStam
     stamp.qz           = transform.transform.rotation.z;
     stamp.qw           = transform.transform.rotation.w;
     stamp.recv_ns      = static_cast<uint64_t>(transform.header.stamp.sec) * 1'000'000'000ULL
-                      + static_cast<uint64_t>(transform.header.stamp.nanosec);
-    stamp.is_static    = is_static;
+                    + static_cast<uint64_t>(transform.header.stamp.nanosec);
+    stamp.is_static = is_static;
     return stamp;
 }
 #endif

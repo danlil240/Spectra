@@ -10,7 +10,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -20,10 +20,8 @@ namespace
 {
 uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-    return static_cast<uint32_t>(r)
-         | (static_cast<uint32_t>(g) << 8)
-         | (static_cast<uint32_t>(b) << 16)
-         | (static_cast<uint32_t>(a) << 24);
+    return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
+           | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
 }
 
 std::array<float, 4> unpack_rgba(uint32_t rgba)
@@ -40,13 +38,9 @@ uint32_t gradient_color(float t, uint8_t alpha = 0xFFu)
 {
     t = std::clamp(t, 0.0f, 1.0f);
 
-    const auto lerp = [](float a, float b, float u)
-    {
-        return a + (b - a) * u;
-    };
-    const auto lerp_color = [&](const std::array<float, 3>& a,
-                                const std::array<float, 3>& b,
-                                float                       u)
+    const auto lerp = [](float a, float b, float u) { return a + (b - a) * u; };
+    const auto lerp_color =
+        [&](const std::array<float, 3>& a, const std::array<float, 3>& b, float u)
     {
         return std::array<uint8_t, 3>{
             static_cast<uint8_t>(std::clamp(lerp(a[0], b[0], u), 0.0f, 1.0f) * 255.0f),
@@ -55,11 +49,11 @@ uint32_t gradient_color(float t, uint8_t alpha = 0xFFu)
         };
     };
 
-    constexpr std::array<float, 3> kBlue   {0.15f, 0.35f, 0.95f};
-    constexpr std::array<float, 3> kCyan   {0.10f, 0.85f, 0.95f};
-    constexpr std::array<float, 3> kGreen  {0.20f, 0.82f, 0.28f};
-    constexpr std::array<float, 3> kYellow {0.96f, 0.86f, 0.22f};
-    constexpr std::array<float, 3> kRed    {0.95f, 0.26f, 0.16f};
+    constexpr std::array<float, 3> kBlue{0.15f, 0.35f, 0.95f};
+    constexpr std::array<float, 3> kCyan{0.10f, 0.85f, 0.95f};
+    constexpr std::array<float, 3> kGreen{0.20f, 0.82f, 0.28f};
+    constexpr std::array<float, 3> kYellow{0.96f, 0.86f, 0.22f};
+    constexpr std::array<float, 3> kRed{0.95f, 0.26f, 0.16f};
 
     std::array<uint8_t, 3> rgb{};
     if (t < 0.25f)
@@ -82,12 +76,12 @@ float normalize_range(float value, float min_value, float max_value)
     return std::clamp((value - min_value) / denom, 0.0f, 1.0f);
 }
 
-spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
-                                           const std::string&  fixed_frame,
-                                           const std::string&  frame_id,
-                                           uint64_t            stamp_ns,
-                                           bool                use_message_stamp,
-                                           bool&               ok_out)
+spectra::Transform resolve_frame_transform(const TfBuffer*    tf_buffer,
+                                           const std::string& fixed_frame,
+                                           const std::string& frame_id,
+                                           uint64_t           stamp_ns,
+                                           bool               use_message_stamp,
+                                           bool&              ok_out)
 {
     ok_out = true;
     spectra::Transform transform{};
@@ -103,7 +97,7 @@ spectra::Transform resolve_frame_transform(const TfBuffer*     tf_buffer,
     }
 
     transform.translation = {result.tx, result.ty, result.tz};
-    transform.rotation = {
+    transform.rotation    = {
         static_cast<float>(result.qx),
         static_cast<float>(result.qy),
         static_cast<float>(result.qz),
@@ -116,10 +110,14 @@ uint32_t pointcloud_default_color(PointCloudDisplay::ColorMode mode)
 {
     switch (mode)
     {
-        case PointCloudDisplay::ColorMode::Flat: return pack_rgba(132, 206, 255, 255);
-        case PointCloudDisplay::ColorMode::Intensity: return pack_rgba(255, 214, 92, 255);
-        case PointCloudDisplay::ColorMode::Height: return pack_rgba(170, 228, 130, 255);
-        case PointCloudDisplay::ColorMode::RGB: return pack_rgba(255, 255, 255, 255);
+        case PointCloudDisplay::ColorMode::Flat:
+            return pack_rgba(132, 206, 255, 255);
+        case PointCloudDisplay::ColorMode::Intensity:
+            return pack_rgba(255, 214, 92, 255);
+        case PointCloudDisplay::ColorMode::Height:
+            return pack_rgba(170, 228, 130, 255);
+        case PointCloudDisplay::ColorMode::RGB:
+            return pack_rgba(255, 255, 255, 255);
     }
     return pack_rgba(132, 206, 255, 255);
 }
@@ -132,15 +130,15 @@ PointCloudDisplay::PointCloudDisplay()
 
 void PointCloudDisplay::on_enable(const DisplayContext& context)
 {
-    tf_buffer_ = context.tf_buffer;
+    tf_buffer_       = context.tf_buffer;
     topic_discovery_ = context.topic_discovery;
-    fixed_frame_ = context.fixed_frame;
+    fixed_frame_     = context.fixed_frame;
 #ifdef SPECTRA_USE_ROS2
     node_ = context.node;
 #endif
     resubscribe_requested_ = true;
-    status_ = DisplayStatus::Warn;
-    status_text_ = "Waiting for point cloud topic";
+    status_                = DisplayStatus::Warn;
+    status_text_           = "Waiting for point cloud topic";
 }
 
 void PointCloudDisplay::on_disable()
@@ -150,7 +148,7 @@ void PointCloudDisplay::on_disable()
     node_.reset();
 #endif
     subscribed_topic_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -171,14 +169,13 @@ void PointCloudDisplay::on_update(float)
 
     if (!frame.has_value())
     {
-        status_ = subscribed_topic_.empty() ? DisplayStatus::Warn : DisplayStatus::Warn;
-        status_text_ = subscribed_topic_.empty()
-            ? "Waiting for point cloud topic"
-            : "Subscribed, no point cloud received";
+        status_      = subscribed_topic_.empty() ? DisplayStatus::Warn : DisplayStatus::Warn;
+        status_text_ = subscribed_topic_.empty() ? "Waiting for point cloud topic"
+                                                 : "Subscribed, no point cloud received";
         return;
     }
 
-    status_ = DisplayStatus::Ok;
+    status_      = DisplayStatus::Ok;
     status_text_ = std::to_string(frame->point_count) + " pts";
     if (frame->original_point_count > frame->point_count)
         status_text_ += " (decimated)";
@@ -193,36 +190,35 @@ void PointCloudDisplay::submit_renderables(SceneManager& scene)
     if (!frame.has_value())
         return;
 
-    bool tf_ok = true;
-    const spectra::Transform frame_transform = resolve_frame_transform(
-        tf_buffer_,
-        fixed_frame_,
-        frame->frame_id,
-        frame->stamp_ns,
-        use_message_stamp_,
-        tf_ok);
+    bool                     tf_ok           = true;
+    const spectra::Transform frame_transform = resolve_frame_transform(tf_buffer_,
+                                                                       fixed_frame_,
+                                                                       frame->frame_id,
+                                                                       frame->stamp_ns,
+                                                                       use_message_stamp_,
+                                                                       tf_ok);
     if (!tf_ok)
         return;
 
     SceneEntity entity;
-    entity.type = "pointcloud";
-    entity.label = topic_.empty() ? display_name() : topic_;
-    entity.display_name = display_name();
-    entity.topic = frame->topic;
-    entity.frame_id = frame->frame_id;
-    entity.transform = frame_transform;
+    entity.type                  = "pointcloud";
+    entity.label                 = topic_.empty() ? display_name() : topic_;
+    entity.display_name          = display_name();
+    entity.topic                 = frame->topic;
+    entity.frame_id              = frame->frame_id;
+    entity.transform             = frame_transform;
     entity.transform.translation = frame_transform.transform_point(frame->centroid);
-    entity.scale = frame->max_bounds - frame->min_bounds;
-    entity.stamp_ns = frame->stamp_ns;
+    entity.scale                 = frame->max_bounds - frame->min_bounds;
+    entity.stamp_ns              = frame->stamp_ns;
 
-    const bool want_intensity = color_mode_ == ColorMode::Intensity && frame->has_intensity;
-    const bool want_height = color_mode_ == ColorMode::Height;
-    const bool want_rgb = color_mode_ == ColorMode::RGB && frame->has_rgb;
+    const bool want_intensity      = color_mode_ == ColorMode::Intensity && frame->has_intensity;
+    const bool want_height         = color_mode_ == ColorMode::Height;
+    const bool want_rgb            = color_mode_ == ColorMode::RGB && frame->has_rgb;
     const bool use_per_point_color = want_intensity || want_height || want_rgb;
 
     ScenePointSet point_set;
-    point_set.point_size = point_size_;
-    point_set.default_rgba = pointcloud_default_color(color_mode_);
+    point_set.point_size          = point_size_;
+    point_set.default_rgba        = pointcloud_default_color(color_mode_);
     point_set.use_per_point_color = use_per_point_color;
     point_set.points.reserve(frame->points.size());
 
@@ -242,10 +238,10 @@ void PointCloudDisplay::submit_renderables(SceneManager& scene)
         }
         else if (want_height)
         {
-            scene_point.rgba = gradient_color(
-                normalize_range(static_cast<float>(point.position.z),
-                                static_cast<float>(frame->min_bounds.z),
-                                static_cast<float>(frame->max_bounds.z)));
+            scene_point.rgba =
+                gradient_color(normalize_range(static_cast<float>(point.position.z),
+                                               static_cast<float>(frame->min_bounds.z),
+                                               static_cast<float>(frame->max_bounds.z)));
         }
         else
         {
@@ -257,7 +253,7 @@ void PointCloudDisplay::submit_renderables(SceneManager& scene)
     entity.point_set = std::move(point_set);
 
     const std::array<float, 4> default_color = unpack_rgba(entity.point_set->default_rgba);
-    char color_buffer[96];
+    char                       color_buffer[96];
     std::snprintf(color_buffer,
                   sizeof(color_buffer),
                   "%.3f, %.3f, %.3f, %.3f",
@@ -284,8 +280,8 @@ void PointCloudDisplay::draw_inspector_ui()
     if (!ImGui::GetCurrentContext())
         return;
 
-    const char* modes[] = {"Flat", "Intensity", "Height", "RGB"};
-    int current_mode = static_cast<int>(color_mode_);
+    const char* modes[]      = {"Flat", "Intensity", "Height", "RGB"};
+    int         current_mode = static_cast<int>(color_mode_);
     if (ImGui::Combo("Color Mode", &current_mode, modes, 4))
         color_mode_ = static_cast<ColorMode>(current_mode);
 
@@ -296,9 +292,7 @@ void PointCloudDisplay::draw_inspector_ui()
     const auto frame = latest_frame();
     if (frame.has_value())
     {
-        ImGui::Text("Latest points: %zu / %zu",
-                    frame->point_count,
-                    frame->original_point_count);
+        ImGui::Text("Latest points: %zu / %zu", frame->point_count, frame->original_point_count);
         ImGui::Text("Frame: %s", frame->frame_id.empty() ? "(none)" : frame->frame_id.c_str());
     }
     ImGui::TextWrapped("Status: %s", status_text_.c_str());
@@ -331,18 +325,19 @@ void PointCloudDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    char topic[256] = {};
-    int color_mode = static_cast<int>(color_mode_);
-    float point_size = point_size_;
-    int max_points = max_points_;
-    int use_message_stamp = use_message_stamp_ ? 1 : 0;
+    char  topic[256]        = {};
+    int   color_mode        = static_cast<int>(color_mode_);
+    float point_size        = point_size_;
+    int   max_points        = max_points_;
+    int   use_message_stamp = use_message_stamp_ ? 1 : 0;
     if (std::sscanf(blob.c_str(),
                     "topic=%255[^;];color_mode=%d;point_size=%f;max_points=%d;use_message_stamp=%d",
                     topic,
                     &color_mode,
                     &point_size,
                     &max_points,
-                    &use_message_stamp) >= 1)
+                    &use_message_stamp)
+        >= 1)
     {
         set_topic(topic);
         color_mode_ = static_cast<ColorMode>(std::clamp(color_mode, 0, 3));
@@ -382,13 +377,13 @@ void PointCloudDisplay::ensure_subscription()
     const TopicInfo info = topic_discovery_->topic(topic_);
     if (info.name.empty() || info.types.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Topic not discovered yet";
         return;
     }
     if (info.types.front() != "sensor_msgs/msg/PointCloud2")
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "Incompatible topic type: " + info.types.front();
         return;
     }
@@ -398,16 +393,17 @@ void PointCloudDisplay::ensure_subscription()
         rclcpp::QoS(rclcpp::KeepLast(4)).best_effort(),
         [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg)
         {
-            const auto frame = adapt_pointcloud_message(*msg,
-                                                        topic_,
-                                                        static_cast<size_t>(std::max(1, max_points_)));
+            const auto frame =
+                adapt_pointcloud_message(*msg,
+                                         topic_,
+                                         static_cast<size_t>(std::max(1, max_points_)));
             if (frame.has_value())
                 ingest_pointcloud_frame(*frame);
         });
 
     subscribed_topic_ = topic_;
-    status_ = DisplayStatus::Ok;
-    status_text_ = "Subscribed to " + topic_;
+    status_           = DisplayStatus::Ok;
+    status_text_      = "Subscribed to " + topic_;
 #endif
 }
 
@@ -415,10 +411,14 @@ const char* PointCloudDisplay::color_mode_name(ColorMode mode)
 {
     switch (mode)
     {
-        case ColorMode::Flat: return "flat";
-        case ColorMode::Intensity: return "intensity";
-        case ColorMode::Height: return "height";
-        case ColorMode::RGB: return "rgb";
+        case ColorMode::Flat:
+            return "flat";
+        case ColorMode::Intensity:
+            return "intensity";
+        case ColorMode::Height:
+            return "height";
+        case ColorMode::RGB:
+            return "rgb";
     }
     return "flat";
 }

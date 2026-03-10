@@ -123,7 +123,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             {
                 scheduler.set_target_fps(active_figure->anim_fps_);
                 has_animation = static_cast<bool>(active_figure->anim_on_frame_);
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
                 input_handler.set_figure(active_figure);
                 if (!active_figure->axes().empty() && active_figure->axes()[0])
                 {
@@ -131,7 +131,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     const auto& vp = active_figure->axes()[0]->viewport();
                     input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
                 }
-#endif
+    #endif
             }
         }
     };
@@ -670,9 +670,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
                         pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
 
-                        float content_h  = 0.0f;
-                        float min_sub_h  = fs_style.min_subplot_height;
-                        float origin_y   = pinfo.bounds.y - fig->scroll_offset_y();
+                        float content_h = 0.0f;
+                        float min_sub_h = fs_style.min_subplot_height;
+                        float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
 
                         const auto rects = compute_subplot_layout(pinfo.bounds.w,
                                                                   pinfo.bounds.h,
@@ -686,8 +686,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         fig->set_content_height(content_h);
 
                         // Clamp scroll offset to valid range
-                        float max_scroll =
-                            std::max(0.0f, content_h - pinfo.bounds.h);
+                        float max_scroll = std::max(0.0f, content_h - pinfo.bounds.h);
                         if (fig->scroll_offset_y() > max_scroll)
                             fig->set_scroll_offset_y(max_scroll);
                         if (fig->scroll_offset_y() < 0.0f)
@@ -722,11 +721,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
 
-                float content_h  = 0.0f;
-                float min_sub_h  = af_style.min_subplot_height;
-                float origin_y   = cb.y - active_figure->scroll_offset_y();
+                float content_h = 0.0f;
+                float min_sub_h = af_style.min_subplot_height;
+                float origin_y  = cb.y - active_figure->scroll_offset_y();
 
-                const auto rects   = compute_subplot_layout(cb.w,
+                const auto rects = compute_subplot_layout(cb.w,
                                                           cb.h,
                                                           active_figure->grid_rows_,
                                                           active_figure->grid_cols_,
@@ -774,13 +773,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Update input handler with visible canvas height for page scroll
         if (active_figure)
         {
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
             if (imgui_ui)
             {
                 const Rect c = imgui_ui->get_layout_manager().canvas_rect();
                 ui_ctx.input_handler.set_visible_height(c.h);
             }
-#endif
+    #endif
         }
 #endif
         if (profiler)
@@ -901,9 +900,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // be rendered.  Adapter shells may suppress the ImGui canvas overlay
         // (set_canvas_visible(false)) while still enabling Vulkan rendering
         // via set_render_figure_enabled(true).
-        const bool render_canvas = !ui_ctx.imgui_ui
-            || ui_ctx.imgui_ui->is_canvas_visible()
-            || ui_ctx.imgui_ui->is_render_figure_enabled();
+        const bool render_canvas = !ui_ctx.imgui_ui || ui_ctx.imgui_ui->is_canvas_visible()
+                                   || ui_ctx.imgui_ui->is_render_figure_enabled();
         auto& dock_system = ui_ctx.dock_system;
         if (render_canvas && active_figure && dock_system.is_split())
         {
@@ -928,9 +926,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("cmd_record");
 
-        // Invoke scene render callback — allows adapter shells (spectra-ros)
-        // to issue GPU draw calls for 3D scene content during the active
-        // Vulkan render pass, before ImGui overlays.
+            // Invoke scene render callback — allows adapter shells (spectra-ros)
+            // to issue GPU draw calls for 3D scene content during the active
+            // Vulkan render pass, before ImGui overlays.
 #ifdef SPECTRA_USE_IMGUI
         if (ui_ctx.imgui_ui)
         {
@@ -971,8 +969,6 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         backend_.end_frame(profiler);
         if (profiler)
             profiler->end_stage("end_frame");
-
-
 
         // Post-present recovery: if vkQueuePresentKHR returned OUT_OF_DATE,
         // the swapchain is permanently invalidated (Vulkan spec). Recreate

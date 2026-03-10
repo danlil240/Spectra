@@ -69,8 +69,8 @@ bool check_validation_layer_support()
     return true;
 }
 
-VkInstance create_instance(bool                        enable_validation,
-                           bool                        headless,
+VkInstance create_instance(bool                         enable_validation,
+                           bool                         headless,
                            const platform::SurfaceHost* surface_host)
 {
     VkApplicationInfo app_info{};

@@ -47,7 +47,7 @@ TEST(BagSummaryDurationString, SecondsOnly)
 TEST(BagSummaryDurationString, MinutesAndSeconds)
 {
     BagSummary s;
-    s.duration_sec = 2.0 * 60.0 + 7.5;  // 2m 07s
+    s.duration_sec      = 2.0 * 60.0 + 7.5;   // 2m 07s
     const std::string r = s.duration_string();
     EXPECT_EQ(r, "2m 07s");
 }
@@ -143,7 +143,7 @@ TEST(BagSummaryFormatTime, Milliseconds)
     // We can't know the absolute hour/minute (epoch-dependent), but the
     // millisecond portion must be 500.
     const std::string r = BagSummary::format_time(1000.5);
-    EXPECT_TRUE(r.size() >= 11);  // "HH:MM:SS.mmm" = 12 chars
+    EXPECT_TRUE(r.size() >= 11);   // "HH:MM:SS.mmm" = 12 chars
     // Last 3 chars should be "500"
     EXPECT_EQ(r.substr(r.size() - 3), "500");
 }
@@ -237,7 +237,7 @@ TEST(BagInfoPanelConstruction, NonMovable)
 TEST(BagInfoPanelOpenBag, OpenNonExistentBagFails)
 {
     BagInfoPanel panel;
-    const bool ok = panel.open_bag("/nonexistent/path/bag.db3");
+    const bool   ok = panel.open_bag("/nonexistent/path/bag.db3");
 #ifdef SPECTRA_ROS2_BAG
     // With real BagReader this should fail gracefully.
     EXPECT_FALSE(ok);
@@ -269,7 +269,7 @@ TEST(BagInfoPanelOpenBag, FailedOpenKeepsClosed)
 TEST(BagInfoPanelOpenBag, OpenedCallbackNotFiredOnFailure)
 {
     BagInfoPanel panel;
-    int calls = 0;
+    int          calls = 0;
     panel.set_bag_opened_callback([&](const std::string&) { ++calls; });
     panel.open_bag("/nonexistent.db3");
     EXPECT_EQ(calls, 0);
@@ -322,14 +322,14 @@ TEST(BagInfoPanelTryOpenFile, Db3ExtensionAttempsOpen)
     // Returns false because file doesn't exist, but it DID attempt open
     // (stub returns false regardless).
     const bool result = panel.try_open_file("/nonexistent.db3");
-    EXPECT_FALSE(result);  // stub always fails
+    EXPECT_FALSE(result);   // stub always fails
 }
 
 TEST(BagInfoPanelTryOpenFile, McapExtensionAttemptsOpen)
 {
     BagInfoPanel panel;
-    const bool result = panel.try_open_file("/nonexistent.mcap");
-    EXPECT_FALSE(result);  // stub always fails
+    const bool   result = panel.try_open_file("/nonexistent.mcap");
+    EXPECT_FALSE(result);   // stub always fails
 }
 
 TEST(BagInfoPanelTryOpenFile, EmptyPathReturnsFalse)
@@ -367,7 +367,7 @@ TEST(BagInfoPanelSelectRow, SelectOutOfRangeNoOp)
 TEST(BagInfoPanelSelectRow, CallbackNotFiredOnEmptyTopics)
 {
     BagInfoPanel panel;
-    int calls = 0;
+    int          calls = 0;
     panel.set_topic_select_callback([&](const std::string&, const std::string&) { ++calls; });
     panel.select_row(0);
     EXPECT_EQ(calls, 0);
@@ -386,7 +386,7 @@ TEST(BagInfoPanelPlotRow, PlotOnEmptyTopicsNoOp)
 TEST(BagInfoPanelPlotRow, PlotCallbackNotFiredOnEmptyTopics)
 {
     BagInfoPanel panel;
-    int calls = 0;
+    int          calls = 0;
     panel.set_topic_plot_callback([&](const std::string&, const std::string&) { ++calls; });
     panel.plot_row(0);
     EXPECT_EQ(calls, 0);
@@ -399,7 +399,7 @@ TEST(BagInfoPanelPlotRow, PlotCallbackNotFiredOnEmptyTopics)
 TEST(BagInfoPanelCallbacks, SetAndGetSelectCallback)
 {
     BagInfoPanel panel;
-    bool fired = false;
+    bool         fired = false;
     panel.set_topic_select_callback([&](const std::string&, const std::string&) { fired = true; });
     EXPECT_TRUE(static_cast<bool>(panel.topic_select_callback()));
 }
@@ -459,7 +459,7 @@ TEST(BagInfoPanelDrawNoOp, DrawWithoutImGuiDoesNotCrash)
 TEST(BagInfoPanelDrawNoOp, DrawWithPOpenDoesNotCrash)
 {
     BagInfoPanel panel;
-    bool open = true;
+    bool         open = true;
     EXPECT_NO_THROW(panel.draw(&open));
 }
 

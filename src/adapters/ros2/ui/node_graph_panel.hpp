@@ -64,9 +64,9 @@ enum class GraphNodeKind : uint8_t
 
 struct GraphNode
 {
-    std::string   id;           // unique key: full node/topic name
-    std::string   display_name; // short name (last component after '/')
-    std::string   namespace_;   // leading namespace
+    std::string   id;             // unique key: full node/topic name
+    std::string   display_name;   // short name (last component after '/')
+    std::string   namespace_;     // leading namespace
     GraphNodeKind kind{GraphNodeKind::RosNode};
 
     // Layout position (2-D, arbitrary units — scaled at render time)
@@ -85,8 +85,8 @@ struct GraphNode
 
 struct GraphEdge
 {
-    std::string from_id;  // publisher node id  OR  topic id (for sub edges)
-    std::string to_id;    // topic id  OR  subscriber node id
+    std::string from_id;   // publisher node id  OR  topic id (for sub edges)
+    std::string to_id;     // topic id  OR  subscriber node id
     // true = node publishes to topic; false = topic delivers to node
     bool is_publish{true};
 };
@@ -103,7 +103,7 @@ struct GraphSnapshot
 
 class NodeGraphPanel
 {
-public:
+   public:
     NodeGraphPanel();
     ~NodeGraphPanel() = default;
 
@@ -149,11 +149,11 @@ public:
     // Force-directed layout parameters.
     void  set_repulsion(float k);   // repulsion constant (default 150)
     float repulsion() const;
-    void  set_attraction(float k);  // spring constant  (default 0.06)
+    void  set_attraction(float k);   // spring constant  (default 0.06)
     float attraction() const;
-    void  set_damping(float d);     // velocity damping per tick (default 0.85)
+    void  set_damping(float d);   // velocity damping per tick (default 0.85)
     float damping() const;
-    void  set_ideal_length(float l); // ideal edge length (default 200)
+    void  set_ideal_length(float l);   // ideal edge length (default 200)
     float ideal_length() const;
 
     // ---------- accessors (for testing, thread-safe) ---------------------
@@ -204,8 +204,7 @@ public:
 
     // Build the internal graph from a topics + nodes snapshot.
     // Existing node positions are preserved for nodes still present.
-    void build_graph(const std::vector<TopicInfo>& topics,
-                     const std::vector<NodeInfo>&  nodes);
+    void build_graph(const std::vector<TopicInfo>& topics, const std::vector<NodeInfo>& nodes);
 
     // Run N steps of the force-directed layout.
     void layout_steps(int n);
@@ -213,7 +212,7 @@ public:
     // Single layout step (exposed for unit tests — acquires lock).
     void layout_step();
 
-private:
+   private:
     // ---------- internal graph state (all protected by mutex_) ----------
 
     void rebuild_from_discovery();
@@ -262,9 +261,9 @@ private:
     std::atomic<bool> built_{false};
 
     // Auto-refresh
-    std::chrono::milliseconds          refresh_interval_{3000};
+    std::chrono::milliseconds             refresh_interval_{3000};
     std::chrono::steady_clock::time_point last_refresh_time_{};
-    bool                               first_refresh_{true};
+    bool                                  first_refresh_{true};
 
     // View state (pan + zoom, render thread only — no lock needed)
     float view_ox_{0.0f};
@@ -273,18 +272,18 @@ private:
     bool  dragging_canvas_{false};
 
     // Callbacks (protected by mutex_)
-    SelectCallback    select_cb_;
-    ActivateCallback  activate_cb_;
+    SelectCallback     select_cb_;
+    ActivateCallback   activate_cb_;
     NodeFilterCallback node_filter_cb_;
 
     // Random seed for initial scatter (not cryptographic)
     uint32_t rng_state_{12345};
     float    rng_next();   // simple xorshift → [0,1)
 
-    static constexpr int   MAX_STEPS_PER_FRAME = 6;
+    static constexpr int   MAX_STEPS_PER_FRAME   = 6;
     static constexpr float CONVERGENCE_THRESHOLD = 0.5f;
-    static constexpr float MIN_SCALE  = 0.05f;
-    static constexpr float MAX_SCALE  = 5.0f;
+    static constexpr float MIN_SCALE             = 0.05f;
+    static constexpr float MAX_SCALE             = 5.0f;
 };
 
 }   // namespace spectra::adapters::ros2

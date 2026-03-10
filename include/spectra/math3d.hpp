@@ -408,7 +408,7 @@ inline constexpr quat quat_mul(quat a, quat b)
 
 inline quat quat_from_axis_angle(vec3 axis, double angle_rad)
 {
-    vec3  n    = vec3_normalize(axis);
+    vec3   n    = vec3_normalize(axis);
     double half = angle_rad * 0.5;
     double s    = std::sin(half);
     return {n.x * s, n.y * s, n.z * s, std::cos(half)};
@@ -445,38 +445,38 @@ inline mat4 quat_to_mat4(quat q)
 inline quat quat_from_mat4(const mat4& m)
 {
     double trace = m.m[0] + m.m[5] + m.m[10];
-    quat  q;
+    quat   q;
     if (trace > 0.0)
     {
         double s = 0.5 / std::sqrt(trace + 1.0);
-        q.w     = 0.25 / s;
-        q.x     = (m.m[6] - m.m[9]) * s;
-        q.y     = (m.m[8] - m.m[2]) * s;
-        q.z     = (m.m[1] - m.m[4]) * s;
+        q.w      = 0.25 / s;
+        q.x      = (m.m[6] - m.m[9]) * s;
+        q.y      = (m.m[8] - m.m[2]) * s;
+        q.z      = (m.m[1] - m.m[4]) * s;
     }
     else if (m.m[0] > m.m[5] && m.m[0] > m.m[10])
     {
         double s = 2.0 * std::sqrt(1.0 + m.m[0] - m.m[5] - m.m[10]);
-        q.w     = (m.m[6] - m.m[9]) / s;
-        q.x     = 0.25 * s;
-        q.y     = (m.m[4] + m.m[1]) / s;
-        q.z     = (m.m[8] + m.m[2]) / s;
+        q.w      = (m.m[6] - m.m[9]) / s;
+        q.x      = 0.25 * s;
+        q.y      = (m.m[4] + m.m[1]) / s;
+        q.z      = (m.m[8] + m.m[2]) / s;
     }
     else if (m.m[5] > m.m[10])
     {
         double s = 2.0 * std::sqrt(1.0 + m.m[5] - m.m[0] - m.m[10]);
-        q.w     = (m.m[8] - m.m[2]) / s;
-        q.x     = (m.m[4] + m.m[1]) / s;
-        q.y     = 0.25 * s;
-        q.z     = (m.m[9] + m.m[6]) / s;
+        q.w      = (m.m[8] - m.m[2]) / s;
+        q.x      = (m.m[4] + m.m[1]) / s;
+        q.y      = 0.25 * s;
+        q.z      = (m.m[9] + m.m[6]) / s;
     }
     else
     {
         double s = 2.0 * std::sqrt(1.0 + m.m[10] - m.m[0] - m.m[5]);
-        q.w     = (m.m[1] - m.m[4]) / s;
-        q.x     = (m.m[8] + m.m[2]) / s;
-        q.y     = (m.m[9] + m.m[6]) / s;
-        q.z     = 0.25 * s;
+        q.w      = (m.m[1] - m.m[4]) / s;
+        q.x      = (m.m[8] + m.m[2]) / s;
+        q.y      = (m.m[9] + m.m[6]) / s;
+        q.z      = 0.25 * s;
     }
     return quat_normalize(q);
 }
@@ -524,22 +524,19 @@ struct Transform
     vec3 translation{0.0, 0.0, 0.0};
     quat rotation{0.0, 0.0, 0.0, 1.0};
 
-    mat4 to_mat4() const
-    {
-        return mat4_mul(mat4_translate(translation), quat_to_mat4(rotation));
-    }
+    mat4 to_mat4() const { return mat4_mul(mat4_translate(translation), quat_to_mat4(rotation)); }
 
     static Transform from_mat4(const mat4& m)
     {
         Transform result;
         result.translation = {m.m[12], m.m[13], m.m[14]};
 
-        mat4 rotation_only = m;
+        mat4 rotation_only  = m;
         rotation_only.m[12] = 0.0f;
         rotation_only.m[13] = 0.0f;
         rotation_only.m[14] = 0.0f;
         rotation_only.m[15] = 1.0f;
-        result.rotation = quat_from_mat4(rotation_only);
+        result.rotation     = quat_from_mat4(rotation_only);
         return result;
     }
 
@@ -560,15 +557,9 @@ struct Transform
         };
     }
 
-    vec3 transform_point(const vec3& p) const
-    {
-        return translation + quat_rotate(rotation, p);
-    }
+    vec3 transform_point(const vec3& p) const { return translation + quat_rotate(rotation, p); }
 
-    vec3 transform_vector(const vec3& v) const
-    {
-        return quat_rotate(rotation, v);
-    }
+    vec3 transform_vector(const vec3& v) const { return quat_rotate(rotation, v); }
 
     static Transform lerp(const Transform& a, const Transform& b, float t)
     {

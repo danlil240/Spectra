@@ -75,7 +75,6 @@ struct PlotHandle
     bool valid() const { return id >= 1 && figure != nullptr && series != nullptr; }
 };
 
-
 class TopicDiscovery;
 
 // ---------------------------------------------------------------------------
@@ -84,7 +83,7 @@ class TopicDiscovery;
 
 class RosPlotManager
 {
-public:
+   public:
     // Default auto-scroll time window (seconds).
     static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
     static constexpr double MIN_WINDOW_S            = 1.0;
@@ -121,7 +120,7 @@ public:
     // (e.g. field not found, type unknown, bridge not spinning).
     PlotHandle add_plot(const std::string& topic,
                         const std::string& field_path,
-                        const std::string& type_name   = "",
+                        const std::string& type_name    = "",
                         size_t             buffer_depth = 10000);
 
     // Remove a plot by its handle id.  Destroys the subscriber + Figure.
@@ -164,16 +163,16 @@ public:
     void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
 
     // Configure pruning of samples older than the current visible left edge.
-    void set_prune_buffer(double seconds);
+    void   set_prune_buffer(double seconds);
     double prune_buffer() const;
-    void set_pruning_enabled(bool enabled);
-    bool pruning_enabled() const;
+    void   set_pruning_enabled(bool enabled);
+    bool   pruning_enabled() const;
 
     // ---------- auto-scroll (C2) -----------------------------------------
 
     // Set the sliding time window width (seconds) applied to all plots.
     // Clamped to [MIN_WINDOW_S, MAX_WINDOW_S].
-    void set_time_window(double seconds);
+    void   set_time_window(double seconds);
     double time_window() const;
 
     // Pause / resume auto-scroll following for a specific plot.
@@ -199,7 +198,7 @@ public:
     using OnDataCallback = std::function<void(int plot_id, double t_sec, double value)>;
     void set_on_data(OnDataCallback cb) { on_data_cb_ = std::move(cb); }
 
-private:
+   private:
     // ---------------------------------------------------------------------------
     // PlotEntry — internal per-plot state.
     // ---------------------------------------------------------------------------
@@ -212,8 +211,8 @@ private:
 
         // Spectra objects (owned here).
         std::unique_ptr<spectra::Figure> figure;
-        spectra::Axes*                   axes{nullptr};    // non-owning, into figure->axes()
-        spectra::LineSeries*             series{nullptr};  // non-owning, into axes->series()
+        spectra::Axes*                   axes{nullptr};     // non-owning, into figure->axes()
+        spectra::LineSeries*             series{nullptr};   // non-owning, into axes->series()
 
         // ROS2 subscription.
         std::unique_ptr<GenericSubscriber> subscriber;
@@ -235,7 +234,7 @@ private:
     };
 
     // Find entry by id; returns nullptr if not found.
-    PlotEntry* find_entry(int id);
+    PlotEntry*       find_entry(int id);
     const PlotEntry* find_entry(int id) const;
 
     // Auto-detect type name from ROS2 graph for a topic.
@@ -250,9 +249,9 @@ private:
     Ros2Bridge&          bridge_;
     MessageIntrospector& intr_;
 
-    mutable std::mutex               mutex_;
+    mutable std::mutex                      mutex_;
     std::vector<std::unique_ptr<PlotEntry>> entries_;
-    int                              next_id_{1};
+    int                                     next_id_{1};
 
     // Color assignment.
     size_t color_cursor_{0};
@@ -268,7 +267,7 @@ private:
 
     OnDataCallback on_data_cb_;
 
-    TopicDiscovery*      discovery_{nullptr};
+    TopicDiscovery* discovery_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

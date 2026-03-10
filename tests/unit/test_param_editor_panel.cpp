@@ -27,16 +27,16 @@ using ros2::UndoEntry;
 
 TEST(ParamTypeName, AllTypes)
 {
-    EXPECT_STREQ(ros2::param_type_name(ParamType::NotSet),       "not_set");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::Bool),         "bool");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::Integer),      "int64");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::Double),       "double");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::String),       "string");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::ByteArray),    "byte[]");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::BoolArray),    "bool[]");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::NotSet), "not_set");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::Bool), "bool");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::Integer), "int64");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::Double), "double");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::String), "string");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::ByteArray), "byte[]");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::BoolArray), "bool[]");
     EXPECT_STREQ(ros2::param_type_name(ParamType::IntegerArray), "int64[]");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::DoubleArray),  "double[]");
-    EXPECT_STREQ(ros2::param_type_name(ParamType::StringArray),  "string[]");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::DoubleArray), "double[]");
+    EXPECT_STREQ(ros2::param_type_name(ParamType::StringArray), "string[]");
 }
 
 TEST(ParamTypeName, UnknownIntReturnsUnknown)
@@ -53,17 +53,18 @@ TEST(ParamTypeName, UnknownIntReturnsUnknown)
 TEST(FromRclType, AllMappings)
 {
     using PT = rcl_interfaces::msg::ParameterType;
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BOOL),          ParamType::Bool);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_INTEGER),       ParamType::Integer);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_DOUBLE),        ParamType::Double);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_STRING),        ParamType::String);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BYTE_ARRAY),    ParamType::ByteArray);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BOOL_ARRAY),    ParamType::BoolArray);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_INTEGER_ARRAY), ParamType::IntegerArray);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_DOUBLE_ARRAY),  ParamType::DoubleArray);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_STRING_ARRAY),  ParamType::StringArray);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_NOT_SET),       ParamType::NotSet);
-    EXPECT_EQ(ParamEditorPanel::from_rcl_type(255),                          ParamType::NotSet);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BOOL), ParamType::Bool);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_INTEGER), ParamType::Integer);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_DOUBLE), ParamType::Double);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_STRING), ParamType::String);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BYTE_ARRAY), ParamType::ByteArray);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_BOOL_ARRAY), ParamType::BoolArray);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_INTEGER_ARRAY),
+              ParamType::IntegerArray);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_DOUBLE_ARRAY), ParamType::DoubleArray);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_STRING_ARRAY), ParamType::StringArray);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(PT::PARAMETER_NOT_SET), ParamType::NotSet);
+    EXPECT_EQ(ParamEditorPanel::from_rcl_type(255), ParamType::NotSet);
 }
 
 // ===========================================================================
@@ -85,7 +86,7 @@ TEST(ParamValueConstruct, BoolFromMsg)
     rcl_interfaces::msg::ParameterValue msg;
     msg.type       = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
     msg.bool_value = true;
-    auto v = ParamValue::from_msg(msg);
+    auto v         = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::Bool);
     EXPECT_TRUE(v.bool_val);
 }
@@ -95,7 +96,7 @@ TEST(ParamValueConstruct, IntegerFromMsg)
     rcl_interfaces::msg::ParameterValue msg;
     msg.type          = rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER;
     msg.integer_value = 42;
-    auto v = ParamValue::from_msg(msg);
+    auto v            = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::Integer);
     EXPECT_EQ(v.int_val, 42);
 }
@@ -105,7 +106,7 @@ TEST(ParamValueConstruct, DoubleFromMsg)
     rcl_interfaces::msg::ParameterValue msg;
     msg.type         = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
     msg.double_value = 3.14;
-    auto v = ParamValue::from_msg(msg);
+    auto v           = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::Double);
     EXPECT_DOUBLE_EQ(v.double_val, 3.14);
 }
@@ -115,7 +116,7 @@ TEST(ParamValueConstruct, StringFromMsg)
     rcl_interfaces::msg::ParameterValue msg;
     msg.type         = rcl_interfaces::msg::ParameterType::PARAMETER_STRING;
     msg.string_value = "hello_ros";
-    auto v = ParamValue::from_msg(msg);
+    auto v           = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::String);
     EXPECT_EQ(v.string_val, "hello_ros");
 }
@@ -123,9 +124,9 @@ TEST(ParamValueConstruct, StringFromMsg)
 TEST(ParamValueConstruct, IntegerArrayFromMsg)
 {
     rcl_interfaces::msg::ParameterValue msg;
-    msg.type = rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY;
+    msg.type                = rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY;
     msg.integer_array_value = {1, 2, 3};
-    auto v = ParamValue::from_msg(msg);
+    auto v                  = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::IntegerArray);
     ASSERT_EQ(v.int_array.size(), 3u);
     EXPECT_EQ(v.int_array[0], 1);
@@ -135,9 +136,9 @@ TEST(ParamValueConstruct, IntegerArrayFromMsg)
 TEST(ParamValueConstruct, DoubleArrayFromMsg)
 {
     rcl_interfaces::msg::ParameterValue msg;
-    msg.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+    msg.type               = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
     msg.double_array_value = {1.0, 2.0, 3.0};
-    auto v = ParamValue::from_msg(msg);
+    auto v                 = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::DoubleArray);
     ASSERT_EQ(v.double_array.size(), 3u);
     EXPECT_DOUBLE_EQ(v.double_array[1], 2.0);
@@ -146,9 +147,9 @@ TEST(ParamValueConstruct, DoubleArrayFromMsg)
 TEST(ParamValueConstruct, StringArrayFromMsg)
 {
     rcl_interfaces::msg::ParameterValue msg;
-    msg.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY;
+    msg.type               = rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY;
     msg.string_array_value = {"a", "b", "c"};
-    auto v = ParamValue::from_msg(msg);
+    auto v                 = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::StringArray);
     ASSERT_EQ(v.string_array.size(), 3u);
     EXPECT_EQ(v.string_array[0], "a");
@@ -157,9 +158,9 @@ TEST(ParamValueConstruct, StringArrayFromMsg)
 TEST(ParamValueConstruct, BoolArrayFromMsg)
 {
     rcl_interfaces::msg::ParameterValue msg;
-    msg.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY;
+    msg.type             = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY;
     msg.bool_array_value = {true, false, true};
-    auto v = ParamValue::from_msg(msg);
+    auto v               = ParamValue::from_msg(msg);
     EXPECT_EQ(v.type, ParamType::BoolArray);
     ASSERT_EQ(v.bool_array.size(), 3u);
     EXPECT_TRUE(v.bool_array[0]);
@@ -175,7 +176,7 @@ TEST(ParamValueRoundTrip, Bool)
     ParamValue v;
     v.type     = ParamType::Bool;
     v.bool_val = true;
-    auto msg = v.to_msg();
+    auto msg   = v.to_msg();
     EXPECT_EQ(msg.type, rcl_interfaces::msg::ParameterType::PARAMETER_BOOL);
     EXPECT_TRUE(msg.bool_value);
     auto v2 = ParamValue::from_msg(msg);
@@ -187,7 +188,7 @@ TEST(ParamValueRoundTrip, Integer)
     ParamValue v;
     v.type    = ParamType::Integer;
     v.int_val = -12345;
-    auto msg = v.to_msg();
+    auto msg  = v.to_msg();
     EXPECT_EQ(msg.integer_value, -12345);
     EXPECT_EQ(ParamValue::from_msg(msg), v);
 }
@@ -197,7 +198,7 @@ TEST(ParamValueRoundTrip, Double)
     ParamValue v;
     v.type       = ParamType::Double;
     v.double_val = 2.718281828;
-    auto msg = v.to_msg();
+    auto msg     = v.to_msg();
     EXPECT_DOUBLE_EQ(msg.double_value, 2.718281828);
     EXPECT_EQ(ParamValue::from_msg(msg), v);
 }
@@ -207,7 +208,7 @@ TEST(ParamValueRoundTrip, String)
     ParamValue v;
     v.type       = ParamType::String;
     v.string_val = "robot_description";
-    auto msg = v.to_msg();
+    auto msg     = v.to_msg();
     EXPECT_EQ(msg.string_value, "robot_description");
     EXPECT_EQ(ParamValue::from_msg(msg), v);
 }
@@ -217,8 +218,8 @@ TEST(ParamValueRoundTrip, IntegerArray)
     ParamValue v;
     v.type      = ParamType::IntegerArray;
     v.int_array = {10, 20, 30};
-    auto msg = v.to_msg();
-    auto v2  = ParamValue::from_msg(msg);
+    auto msg    = v.to_msg();
+    auto v2     = ParamValue::from_msg(msg);
     EXPECT_EQ(v2, v);
 }
 
@@ -254,7 +255,8 @@ TEST(ParamValueEquality, DifferentBoolNotEqual)
 {
     ParamValue a, b;
     a.type = b.type = ParamType::Bool;
-    a.bool_val = true; b.bool_val = false;
+    a.bool_val      = true;
+    b.bool_val      = false;
     EXPECT_NE(a, b);
 }
 
@@ -305,7 +307,7 @@ TEST(ParamValueDisplay, NotSet)
 TEST(ParamValueDisplay, Bool)
 {
     ParamValue v;
-    v.type = ParamType::Bool;
+    v.type     = ParamType::Bool;
     v.bool_val = true;
     EXPECT_EQ(v.to_display_string(), "true");
     v.bool_val = false;
@@ -323,8 +325,8 @@ TEST(ParamValueDisplay, Integer)
 TEST(ParamValueDisplay, Double)
 {
     ParamValue v;
-    v.type       = ParamType::Double;
-    v.double_val = 3.14;
+    v.type        = ParamType::Double;
+    v.double_val  = 3.14;
     std::string s = v.to_display_string();
     EXPECT_FALSE(s.empty());
     EXPECT_NE(s.find("3.14"), std::string::npos);
@@ -342,7 +344,8 @@ TEST(ParamValueDisplay, IntegerArrayTruncated)
 {
     ParamValue v;
     v.type = ParamType::IntegerArray;
-    for (int i = 0; i < 50; ++i) v.int_array.push_back(i);
+    for (int i = 0; i < 50; ++i)
+        v.int_array.push_back(i);
     std::string s = v.to_display_string(16);
     EXPECT_FALSE(s.empty());
     EXPECT_EQ(s[0], '[');
@@ -370,9 +373,9 @@ TEST(ParamDescriptor, DefaultNoRange)
 TEST(ParamDescriptor, FromMsgReadOnly)
 {
     rcl_interfaces::msg::ParameterDescriptor msg;
-    msg.read_only = true;
+    msg.read_only   = true;
     msg.description = "test param";
-    auto d = ParamDescriptor::from_msg(msg);
+    auto d          = ParamDescriptor::from_msg(msg);
     EXPECT_TRUE(d.read_only);
     EXPECT_EQ(d.description, "test param");
 }
@@ -380,22 +383,22 @@ TEST(ParamDescriptor, FromMsgReadOnly)
 TEST(ParamDescriptor, FromMsgFloatRange)
 {
     rcl_interfaces::msg::ParameterDescriptor msg;
-    rcl_interfaces::msg::FloatingPointRange fr;
+    rcl_interfaces::msg::FloatingPointRange  fr;
     fr.from_value = -1.0;
-    fr.to_value   =  1.0;
-    fr.step       =  0.01;
+    fr.to_value   = 1.0;
+    fr.step       = 0.01;
     msg.floating_point_range.push_back(fr);
     auto d = ParamDescriptor::from_msg(msg);
     EXPECT_TRUE(d.has_float_range());
     EXPECT_DOUBLE_EQ(d.float_range_min, -1.0);
-    EXPECT_DOUBLE_EQ(d.float_range_max,  1.0);
+    EXPECT_DOUBLE_EQ(d.float_range_max, 1.0);
     EXPECT_DOUBLE_EQ(d.float_range_step, 0.01);
 }
 
 TEST(ParamDescriptor, FromMsgIntegerRange)
 {
     rcl_interfaces::msg::ParameterDescriptor msg;
-    rcl_interfaces::msg::IntegerRange ir;
+    rcl_interfaces::msg::IntegerRange        ir;
     ir.from_value = 0;
     ir.to_value   = 100;
     ir.step       = 1;
@@ -432,26 +435,32 @@ TEST(YamlSerialize, EmptyParams)
 TEST(YamlSerialize, BoolParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::Bool; v.bool_val = true;
+    ParamValue                                  v;
+    v.type                 = ParamType::Bool;
+    v.bool_val             = true;
     params["use_sim_time"] = v;
-    std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
+    std::string yaml       = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("use_sim_time: true"), std::string::npos);
 }
 
 TEST(YamlSerialize, IntegerParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::Integer; v.int_val = 42;
+    ParamValue                                  v;
+    v.type             = ParamType::Integer;
+    v.int_val          = 42;
     params["max_iter"] = v;
-    std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
+    std::string yaml   = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("max_iter: 42"), std::string::npos);
 }
 
 TEST(YamlSerialize, DoubleParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::Double; v.double_val = 0.5;
-    params["gain"] = v;
+    ParamValue                                  v;
+    v.type           = ParamType::Double;
+    v.double_val     = 0.5;
+    params["gain"]   = v;
     std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("gain:"), std::string::npos);
     EXPECT_NE(yaml.find("0.5"), std::string::npos);
@@ -460,18 +469,22 @@ TEST(YamlSerialize, DoubleParam)
 TEST(YamlSerialize, StringParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::String; v.string_val = "odom";
+    ParamValue                                  v;
+    v.type             = ParamType::String;
+    v.string_val       = "odom";
     params["frame_id"] = v;
-    std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
+    std::string yaml   = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("frame_id: odom"), std::string::npos);
 }
 
 TEST(YamlSerialize, IntegerArrayParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::IntegerArray; v.int_array = {1, 2, 3};
+    ParamValue                                  v;
+    v.type            = ParamType::IntegerArray;
+    v.int_array       = {1, 2, 3};
     params["indices"] = v;
-    std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
+    std::string yaml  = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("indices:"), std::string::npos);
     EXPECT_NE(yaml.find("["), std::string::npos);
 }
@@ -479,8 +492,9 @@ TEST(YamlSerialize, IntegerArrayParam)
 TEST(YamlSerialize, StringArrayParam)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::StringArray;
-    v.string_array = {"topic_a", "topic_b"};
+    ParamValue                                  v;
+    v.type           = ParamType::StringArray;
+    v.string_array   = {"topic_a", "topic_b"};
     params["topics"] = v;
     std::string yaml = ParamEditorPanel::serialize_yaml("/my_node", params);
     EXPECT_NE(yaml.find("topics:"), std::string::npos);
@@ -490,9 +504,11 @@ TEST(YamlSerialize, StringArrayParam)
 TEST(YamlSerialize, NodeNameStripsLeadingSlash)
 {
     std::unordered_map<std::string, ParamValue> params;
-    ParamValue v; v.type = ParamType::Bool; v.bool_val = false;
+    ParamValue                                  v;
+    v.type            = ParamType::Bool;
+    v.bool_val        = false;
     params["enabled"] = v;
-    std::string yaml = ParamEditorPanel::serialize_yaml("/robot/controller", params);
+    std::string yaml  = ParamEditorPanel::serialize_yaml("/robot/controller", params);
     // Leading slash stripped: "robot/controller:" should appear at line start
     EXPECT_NE(yaml.find("robot/controller:"), std::string::npos);
 }
@@ -513,7 +529,7 @@ my_node:
 TEST(YamlParse, BoolParam)
 {
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(kSimpleYaml, "my_node", out, err)) << err;
     ASSERT_TRUE(out.count("use_sim_time"));
     EXPECT_EQ(out["use_sim_time"].type, ParamType::Bool);
@@ -523,7 +539,7 @@ TEST(YamlParse, BoolParam)
 TEST(YamlParse, IntegerParam)
 {
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(kSimpleYaml, "my_node", out, err)) << err;
     ASSERT_TRUE(out.count("max_iterations"));
     EXPECT_EQ(out["max_iterations"].type, ParamType::Integer);
@@ -533,7 +549,7 @@ TEST(YamlParse, IntegerParam)
 TEST(YamlParse, DoubleParam)
 {
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(kSimpleYaml, "my_node", out, err)) << err;
     ASSERT_TRUE(out.count("gain"));
     EXPECT_EQ(out["gain"].type, ParamType::Double);
@@ -543,7 +559,7 @@ TEST(YamlParse, DoubleParam)
 TEST(YamlParse, StringParam)
 {
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(kSimpleYaml, "my_node", out, err)) << err;
     ASSERT_TRUE(out.count("frame_id"));
     EXPECT_EQ(out["frame_id"].type, ParamType::String);
@@ -552,13 +568,13 @@ TEST(YamlParse, StringParam)
 
 TEST(YamlParse, IntegerArrayFlowNotation)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     dims: [10, 20, 30]
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("dims"));
     EXPECT_EQ(out["dims"].type, ParamType::IntegerArray);
@@ -569,13 +585,13 @@ node:
 
 TEST(YamlParse, DoubleArrayFlowNotation)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     weights: [0.1, 0.2, 0.7]
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("weights"));
     EXPECT_EQ(out["weights"].type, ParamType::DoubleArray);
@@ -585,13 +601,13 @@ node:
 
 TEST(YamlParse, BoolArrayFlowNotation)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     flags: [true, false, true]
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("flags"));
     EXPECT_EQ(out["flags"].type, ParamType::BoolArray);
@@ -602,13 +618,13 @@ node:
 
 TEST(YamlParse, StringArrayFlowNotation)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     topics: ["scan", "odom"]
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("topics"));
     EXPECT_EQ(out["topics"].type, ParamType::StringArray);
@@ -618,13 +634,13 @@ node:
 
 TEST(YamlParse, QuotedStringParam)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     name: "my robot"
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("name"));
     EXPECT_EQ(out["name"].type, ParamType::String);
@@ -633,14 +649,14 @@ node:
 
 TEST(YamlParse, TrueVariants)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     a: true
     b: True
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     EXPECT_TRUE(out["a"].bool_val);
     EXPECT_TRUE(out["b"].bool_val);
@@ -648,13 +664,13 @@ node:
 
 TEST(YamlParse, CommentsStripped)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     gain: 1.0  # important gain value
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     ASSERT_TRUE(out.count("gain"));
     EXPECT_NEAR(out["gain"].double_val, 1.0, 1e-9);
@@ -663,7 +679,7 @@ node:
 TEST(YamlParse, EmptyYamlReturnsFalse)
 {
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     bool result = ParamEditorPanel::parse_yaml("", "node", out, err);
     EXPECT_FALSE(result);
     EXPECT_FALSE(err.empty());
@@ -676,12 +692,14 @@ TEST(YamlParse, EmptyYamlReturnsFalse)
 TEST(YamlRoundTrip, BoolRoundTrip)
 {
     std::unordered_map<std::string, ParamValue> orig;
-    ParamValue v; v.type = ParamType::Bool; v.bool_val = true;
+    ParamValue                                  v;
+    v.type       = ParamType::Bool;
+    v.bool_val   = true;
     orig["flag"] = v;
 
-    std::string yaml = ParamEditorPanel::serialize_yaml("/n", orig);
+    std::string                                 yaml = ParamEditorPanel::serialize_yaml("/n", orig);
     std::unordered_map<std::string, ParamValue> parsed;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "/n", parsed, err)) << err;
     ASSERT_TRUE(parsed.count("flag"));
     EXPECT_EQ(parsed["flag"].bool_val, true);
@@ -690,12 +708,14 @@ TEST(YamlRoundTrip, BoolRoundTrip)
 TEST(YamlRoundTrip, IntegerRoundTrip)
 {
     std::unordered_map<std::string, ParamValue> orig;
-    ParamValue v; v.type = ParamType::Integer; v.int_val = -9999;
+    ParamValue                                  v;
+    v.type        = ParamType::Integer;
+    v.int_val     = -9999;
     orig["count"] = v;
 
-    std::string yaml = ParamEditorPanel::serialize_yaml("/n", orig);
+    std::string                                 yaml = ParamEditorPanel::serialize_yaml("/n", orig);
     std::unordered_map<std::string, ParamValue> parsed;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "/n", parsed, err)) << err;
     EXPECT_EQ(parsed["count"].int_val, -9999);
 }
@@ -703,12 +723,14 @@ TEST(YamlRoundTrip, IntegerRoundTrip)
 TEST(YamlRoundTrip, DoubleRoundTrip)
 {
     std::unordered_map<std::string, ParamValue> orig;
-    ParamValue v; v.type = ParamType::Double; v.double_val = 1.23456789;
-    orig["tol"] = v;
+    ParamValue                                  v;
+    v.type       = ParamType::Double;
+    v.double_val = 1.23456789;
+    orig["tol"]  = v;
 
-    std::string yaml = ParamEditorPanel::serialize_yaml("/n", orig);
+    std::string                                 yaml = ParamEditorPanel::serialize_yaml("/n", orig);
     std::unordered_map<std::string, ParamValue> parsed;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "/n", parsed, err)) << err;
     EXPECT_NEAR(parsed["tol"].double_val, 1.23456789, 1e-6);
 }
@@ -716,12 +738,14 @@ TEST(YamlRoundTrip, DoubleRoundTrip)
 TEST(YamlRoundTrip, IntegerArrayRoundTrip)
 {
     std::unordered_map<std::string, ParamValue> orig;
-    ParamValue v; v.type = ParamType::IntegerArray; v.int_array = {5, 10, 15};
+    ParamValue                                  v;
+    v.type        = ParamType::IntegerArray;
+    v.int_array   = {5, 10, 15};
     orig["sizes"] = v;
 
-    std::string yaml = ParamEditorPanel::serialize_yaml("/n", orig);
+    std::string                                 yaml = ParamEditorPanel::serialize_yaml("/n", orig);
     std::unordered_map<std::string, ParamValue> parsed;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "/n", parsed, err)) << err;
     ASSERT_EQ(parsed["sizes"].int_array.size(), 3u);
     EXPECT_EQ(parsed["sizes"].int_array[1], 10);
@@ -768,12 +792,16 @@ TEST(UndoEntry, FieldsStored)
     u.valid      = true;
     u.node_name  = "/my_node";
     u.param_name = "gain";
-    ParamValue before; before.type = ParamType::Double; before.double_val = 0.5;
-    ParamValue after;  after.type  = ParamType::Double; after.double_val  = 1.0;
-    u.before = before;
-    u.after  = after;
+    ParamValue before;
+    before.type       = ParamType::Double;
+    before.double_val = 0.5;
+    ParamValue after;
+    after.type       = ParamType::Double;
+    after.double_val = 1.0;
+    u.before         = before;
+    u.after          = after;
     EXPECT_DOUBLE_EQ(u.before.double_val, 0.5);
-    EXPECT_DOUBLE_EQ(u.after.double_val,  1.0);
+    EXPECT_DOUBLE_EQ(u.after.double_val, 1.0);
     EXPECT_EQ(u.param_name, "gain");
 }
 
@@ -793,15 +821,15 @@ TEST(ParamEntry, DefaultConstruction)
 TEST(ParamEntry, StagedDirtyDetection)
 {
     ParamEntry e;
-    e.name = "gain";
-    e.type = ParamType::Double;
+    e.name               = "gain";
+    e.type               = ParamType::Double;
     e.current.type       = ParamType::Double;
     e.current.double_val = 1.0;
     e.staged             = e.current;
     EXPECT_FALSE(e.staged_dirty);
 
     e.staged.double_val = 2.0;
-    e.staged_dirty = (e.staged != e.current);
+    e.staged_dirty      = (e.staged != e.current);
     EXPECT_TRUE(e.staged_dirty);
 }
 
@@ -864,7 +892,7 @@ TEST(ParamEditorPanelNoRos, ParamNamesEmptyBeforeLoad)
 TEST(ParamEditorPanelNoRos, ParamEntryNotFoundReturnsEmpty)
 {
     ParamEditorPanel panel(nullptr);
-    auto e = panel.param_entry("nonexistent");
+    auto             e = panel.param_entry("nonexistent");
     EXPECT_TRUE(e.name.empty());
 }
 
@@ -903,7 +931,7 @@ TEST(ParamEditorPanelNoRos, DrawNoImguiContextNoCrash)
     //              non-crash contract here (nullptr p_open)
     ParamEditorPanel panel(nullptr);
 #ifndef SPECTRA_USE_IMGUI
-    panel.draw(nullptr);  // must not crash
+    panel.draw(nullptr);   // must not crash
 #endif
 }
 
@@ -913,7 +941,7 @@ TEST(ParamEditorPanelNoRos, DrawNoImguiContextNoCrash)
 
 TEST(PresetManagement, AddAndRetrieve)
 {
-    ParamEditorPanel panel(nullptr);
+    ParamEditorPanel  panel(nullptr);
     ros2::PresetEntry e;
     e.name      = "defaults";
     e.node_name = "/robot";
@@ -925,10 +953,12 @@ TEST(PresetManagement, AddAndRetrieve)
 
 TEST(PresetManagement, RemoveByIndex)
 {
-    ParamEditorPanel panel(nullptr);
+    ParamEditorPanel  panel(nullptr);
     ros2::PresetEntry e1, e2;
-    e1.name = "a"; e1.yaml_path = "/a.yaml";
-    e2.name = "b"; e2.yaml_path = "/b.yaml";
+    e1.name      = "a";
+    e1.yaml_path = "/a.yaml";
+    e2.name      = "b";
+    e2.yaml_path = "/b.yaml";
     panel.add_preset(e1);
     panel.add_preset(e2);
     EXPECT_EQ(panel.presets().size(), 2u);
@@ -940,7 +970,7 @@ TEST(PresetManagement, RemoveByIndex)
 TEST(PresetManagement, RemoveOutOfBoundsNoOp)
 {
     ParamEditorPanel panel(nullptr);
-    panel.remove_preset(99);  // no crash, no effect
+    panel.remove_preset(99);   // no crash, no effect
     EXPECT_EQ(panel.presets().size(), 0u);
 }
 
@@ -959,7 +989,7 @@ TEST(PresetManagement, SavePresetFailsWithNoNode)
 TEST(Callbacks, RefreshDoneCallbackStored)
 {
     ParamEditorPanel panel(nullptr);
-    bool called = false;
+    bool             called = false;
     panel.set_on_refresh_done([&](bool) { called = true; });
     // Callback not fired without a real refresh — just verify it was stored
     EXPECT_FALSE(called);
@@ -968,10 +998,8 @@ TEST(Callbacks, RefreshDoneCallbackStored)
 TEST(Callbacks, ParamSetCallbackStored)
 {
     ParamEditorPanel panel(nullptr);
-    bool called = false;
-    panel.set_on_param_set([&](const std::string&, const ParamValue&, bool) {
-        called = true;
-    });
+    bool             called = false;
+    panel.set_on_param_set([&](const std::string&, const ParamValue&, bool) { called = true; });
     EXPECT_FALSE(called);
 }
 
@@ -1002,7 +1030,8 @@ TEST(EdgeCases, SetTargetNodeEmptyStringClearsState)
 TEST(EdgeCases, MultipleSetTargetNodeCalls)
 {
     ParamEditorPanel panel(nullptr);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 5; ++i)
+    {
         panel.set_target_node("/node_" + std::to_string(i));
     }
     EXPECT_EQ(panel.target_node(), "/node_4");
@@ -1010,40 +1039,40 @@ TEST(EdgeCases, MultipleSetTargetNodeCalls)
 
 TEST(EdgeCases, ParseYamlNegativeInteger)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     offset: -255
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     EXPECT_EQ(out["offset"].int_val, -255);
 }
 
 TEST(EdgeCases, ParseYamlNegativeDouble)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     bias: -0.001
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     EXPECT_NEAR(out["bias"].double_val, -0.001, 1e-9);
 }
 
 TEST(EdgeCases, ParseYamlZeroValues)
 {
-    const std::string yaml = R"(
+    const std::string                           yaml = R"(
 node:
   ros__parameters:
     count: 0
     rate: 0.0
 )";
     std::unordered_map<std::string, ParamValue> out;
-    std::string err;
+    std::string                                 err;
     ASSERT_TRUE(ParamEditorPanel::parse_yaml(yaml, "node", out, err)) << err;
     EXPECT_EQ(out["count"].type, ParamType::Integer);
     EXPECT_EQ(out["count"].int_val, 0);

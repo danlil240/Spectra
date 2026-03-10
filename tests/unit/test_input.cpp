@@ -258,7 +258,7 @@ TEST_F(InputHandlerTest, RightDragSeventyDegreesIsMostlyY)
 
 TEST_F(InputHandlerTest, RightDragCanStartFromLeftGutterWhenAxesAreAlreadyActive)
 {
-    auto& vp = axes().viewport();
+    auto& vp      = axes().viewport();
     float press_x = vp.x - 24.0f;
     float press_y = vp.y + vp.h * 0.5f;
 

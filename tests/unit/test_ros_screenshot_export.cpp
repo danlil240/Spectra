@@ -33,12 +33,12 @@ static bool checker_grab(uint8_t* buf, uint32_t w, uint32_t h)
     {
         for (uint32_t x = 0; x < w; ++x)
         {
-            const bool on     = ((x / 8) + (y / 8)) % 2 == 0;
-            uint8_t*   p      = buf + (y * w + x) * 4u;
-            p[0] = on ? 0xFF : 0x20;
-            p[1] = on ? 0xFF : 0x20;
-            p[2] = on ? 0xFF : 0x20;
-            p[3] = 0xFF;
+            const bool on = ((x / 8) + (y / 8)) % 2 == 0;
+            uint8_t*   p  = buf + (y * w + x) * 4u;
+            p[0]          = on ? 0xFF : 0x20;
+            p[1]          = on ? 0xFF : 0x20;
+            p[2]          = on ? 0xFF : 0x20;
+            p[3]          = 0xFF;
         }
     }
     return true;
@@ -69,8 +69,8 @@ TEST(ScreenshotConfig, DefaultValues)
 {
     ScreenshotConfig cfg;
     EXPECT_TRUE(cfg.path.empty());
-    EXPECT_EQ(cfg.width,  1280u);
-    EXPECT_EQ(cfg.height,  720u);
+    EXPECT_EQ(cfg.width, 1280u);
+    EXPECT_EQ(cfg.height, 720u);
 }
 
 TEST(ScreenshotConfig, AssignFields)
@@ -79,9 +79,9 @@ TEST(ScreenshotConfig, AssignFields)
     cfg.path   = "/tmp/foo.png";
     cfg.width  = 800;
     cfg.height = 600;
-    EXPECT_EQ(cfg.path,   "/tmp/foo.png");
-    EXPECT_EQ(cfg.width,   800u);
-    EXPECT_EQ(cfg.height,  600u);
+    EXPECT_EQ(cfg.path, "/tmp/foo.png");
+    EXPECT_EQ(cfg.width, 800u);
+    EXPECT_EQ(cfg.height, 600u);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ TEST(RecordingDialogConfig, Defaults)
     EXPECT_FALSE(cfg.default_path.empty());
     EXPECT_GT(cfg.default_fps, 0.0f);
     EXPECT_GT(cfg.default_duration, 0.0f);
-    EXPECT_GT(cfg.default_width,  0u);
+    EXPECT_GT(cfg.default_width, 0u);
     EXPECT_GT(cfg.default_height, 0u);
 }
 
@@ -126,11 +126,11 @@ TEST(RecordingDialogConfig, CustomValues)
     cfg.default_width    = 1920;
     cfg.default_height   = 1080;
 
-    EXPECT_EQ(cfg.default_path,     "/data/rec.mp4");
-    EXPECT_FLOAT_EQ(cfg.default_fps,      60.0f);
-    EXPECT_FLOAT_EQ(cfg.default_duration,  5.0f);
-    EXPECT_EQ(cfg.default_width,     1920u);
-    EXPECT_EQ(cfg.default_height,    1080u);
+    EXPECT_EQ(cfg.default_path, "/data/rec.mp4");
+    EXPECT_FLOAT_EQ(cfg.default_fps, 60.0f);
+    EXPECT_FLOAT_EQ(cfg.default_duration, 5.0f);
+    EXPECT_EQ(cfg.default_width, 1920u);
+    EXPECT_EQ(cfg.default_height, 1080u);
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ TEST(RosScreenshotExport, NonCopyable)
 
 TEST(RosScreenshotExport, SetDialogConfig)
 {
-    RosScreenshotExport exporter;
+    RosScreenshotExport   exporter;
     RecordingDialogConfig cfg;
     cfg.default_fps = 24.0f;
     exporter.set_dialog_config(cfg);
@@ -185,7 +185,7 @@ TEST(RosScreenshotExport, CaptureSizeCallbackPreferredForAutoSizing)
         });
 
     const std::string path = tmp_png("capture_size_callback");
-    const auto r = exporter.take_screenshot(path, 0, 0);
+    const auto        r    = exporter.take_screenshot(path, 0, 0);
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.width, 1600u);
     EXPECT_EQ(r.height, 900u);
@@ -195,7 +195,7 @@ TEST(RosScreenshotExport, CaptureSizeCallbackPreferredForAutoSizing)
 TEST(RosScreenshotExport, CurrentCaptureSizeFallsBackToDefaults)
 {
     RecordingDialogConfig cfg;
-    cfg.default_width = 640;
+    cfg.default_width  = 640;
     cfg.default_height = 480;
     RosScreenshotExport exporter(cfg);
 
@@ -218,16 +218,15 @@ TEST(RosScreenshotExport, TickAdvancesFramesByWallTime)
         });
     exporter.set_frame_render_callback(
         [](uint32_t /*frame_index*/, float /*time*/, uint8_t* buf, uint32_t w, uint32_t h)
-        {
-            return solid_render(buf, w, h, 0x5A);
-        });
+        { return solid_render(buf, w, h, 0x5A); });
 
-    std::strncpy(exporter.dialog_path_buf_, "/tmp/test_ros_record_tick_frames",
+    std::strncpy(exporter.dialog_path_buf_,
+                 "/tmp/test_ros_record_tick_frames",
                  sizeof(exporter.dialog_path_buf_) - 1);
     exporter.dialog_path_buf_[sizeof(exporter.dialog_path_buf_) - 1] = '\0';
-    exporter.dialog_format_idx_ = 0;
-    exporter.dialog_fps_ = 60.0f;
-    exporter.dialog_duration_s_ = 10.0f;
+    exporter.dialog_format_idx_                                      = 0;
+    exporter.dialog_fps_                                             = 60.0f;
+    exporter.dialog_duration_s_                                      = 10.0f;
 
     exporter.begin_recording_from_dialog();
     ASSERT_NE(exporter.session_, nullptr);
@@ -253,18 +252,23 @@ TEST(RosScreenshotExport, TickReusesLatestCaptureWithinOnePoll)
 
     int render_calls = 0;
     exporter.set_frame_render_callback(
-        [&render_calls](uint32_t /*frame_index*/, float /*time*/, uint8_t* buf, uint32_t w, uint32_t h)
+        [&render_calls](uint32_t /*frame_index*/,
+                        float /*time*/,
+                        uint8_t* buf,
+                        uint32_t w,
+                        uint32_t h)
         {
             ++render_calls;
             return solid_render(buf, w, h, static_cast<uint8_t>(0x20 + render_calls));
         });
 
-    std::strncpy(exporter.dialog_path_buf_, "/tmp/test_ros_record_tick_cache",
+    std::strncpy(exporter.dialog_path_buf_,
+                 "/tmp/test_ros_record_tick_cache",
                  sizeof(exporter.dialog_path_buf_) - 1);
     exporter.dialog_path_buf_[sizeof(exporter.dialog_path_buf_) - 1] = '\0';
-    exporter.dialog_format_idx_ = 0;
-    exporter.dialog_fps_ = 60.0f;
-    exporter.dialog_duration_s_ = 10.0f;
+    exporter.dialog_format_idx_                                      = 0;
+    exporter.dialog_fps_                                             = 60.0f;
+    exporter.dialog_duration_s_                                      = 10.0f;
 
     exporter.begin_recording_from_dialog();
     ASSERT_NE(exporter.session_, nullptr);
@@ -328,9 +332,9 @@ TEST(StaticHelpers, WritePng_EmptyPath)
 
 TEST(StaticHelpers, WritePng_ValidSmall)
 {
-    const uint32_t w = 4, h = 4;
+    const uint32_t       w = 4, h = 4;
     std::vector<uint8_t> buf(w * h * 4u, 0xFF);
-    const std::string path = "/tmp/test_ros_ss_valid_small.png";
+    const std::string    path = "/tmp/test_ros_ss_valid_small.png";
     EXPECT_TRUE(RosScreenshotExport::write_png(path, buf.data(), w, h));
     EXPECT_TRUE(fs::exists(path));
     fs::remove(path);
@@ -390,11 +394,11 @@ TEST(TakeScreenshot, NoCallback_BlackImage)
 {
     // No grab callback — buffer stays zero (black). Should still write a PNG.
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("no_callback");
-    const auto r = exporter.take_screenshot(path, 8, 8);
+    const std::string   path = tmp_png("no_callback");
+    const auto          r    = exporter.take_screenshot(path, 8, 8);
     EXPECT_TRUE(r.ok);
-    EXPECT_EQ(r.path,   path);
-    EXPECT_EQ(r.width,  8u);
+    EXPECT_EQ(r.path, path);
+    EXPECT_EQ(r.width, 8u);
     EXPECT_EQ(r.height, 8u);
     EXPECT_TRUE(r.error.empty());
     EXPECT_TRUE(fs::exists(path));
@@ -406,10 +410,10 @@ TEST(TakeScreenshot, WithCheckerCallback)
     RosScreenshotExport exporter;
     exporter.set_frame_grab_callback(checker_grab);
     const std::string path = tmp_png("checker");
-    const auto r = exporter.take_screenshot(path, 64, 64);
+    const auto        r    = exporter.take_screenshot(path, 64, 64);
     EXPECT_TRUE(r.ok);
-    EXPECT_EQ(r.path,   path);
-    EXPECT_EQ(r.width,  64u);
+    EXPECT_EQ(r.path, path);
+    EXPECT_EQ(r.width, 64u);
     EXPECT_EQ(r.height, 64u);
     EXPECT_TRUE(fs::exists(path));
     // File must be non-empty.
@@ -423,11 +427,11 @@ TEST(TakeScreenshot, DefaultDimensionsFromConfig)
     cfg.default_width  = 320;
     cfg.default_height = 240;
     RosScreenshotExport exporter(cfg);
-    const std::string path = tmp_png("default_dims");
+    const std::string   path = tmp_png("default_dims");
     // Pass width=0, height=0 — should use config defaults.
     const auto r = exporter.take_screenshot(path, 0, 0);
     EXPECT_TRUE(r.ok);
-    EXPECT_EQ(r.width,  320u);
+    EXPECT_EQ(r.width, 320u);
     EXPECT_EQ(r.height, 240u);
     fs::remove(path);
 }
@@ -445,13 +449,13 @@ TEST(TakeScreenshot, LastScreenshotUpdated)
 TEST(TakeScreenshot, UsingScreenshotConfig)
 {
     RosScreenshotExport exporter;
-    ScreenshotConfig cfg;
-    cfg.path   = tmp_png("cfg_overload");
-    cfg.width  = 16;
-    cfg.height = 16;
+    ScreenshotConfig    cfg;
+    cfg.path     = tmp_png("cfg_overload");
+    cfg.width    = 16;
+    cfg.height   = 16;
     const auto r = exporter.take_screenshot(cfg);
     EXPECT_TRUE(r.ok);
-    EXPECT_EQ(r.width,  16u);
+    EXPECT_EQ(r.width, 16u);
     EXPECT_EQ(r.height, 16u);
     fs::remove(cfg.path);
 }
@@ -463,7 +467,7 @@ TEST(TakeScreenshot, MultipleScreenshots)
     for (int i = 0; i < 3; ++i)
     {
         const std::string path = tmp_png("multi_" + std::to_string(i));
-        const auto r = exporter.take_screenshot(path, 16, 16);
+        const auto        r    = exporter.take_screenshot(path, 16, 16);
         EXPECT_TRUE(r.ok) << "Screenshot " << i << " failed";
         EXPECT_TRUE(fs::exists(path));
         fs::remove(path);
@@ -483,7 +487,7 @@ TEST(ToastTimer, InactiveBeforeScreenshot)
 TEST(ToastTimer, ActiveAfterSuccessfulScreenshot)
 {
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("toast_active");
+    const std::string   path = tmp_png("toast_active");
     exporter.take_screenshot(path, 8, 8);
     EXPECT_TRUE(exporter.screenshot_toast_active());
     fs::remove(path);
@@ -500,7 +504,7 @@ TEST(ToastTimer, InactiveAfterFailedScreenshot)
 TEST(ToastTimer, TickDecreases)
 {
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("toast_tick");
+    const std::string   path = tmp_png("toast_tick");
     exporter.take_screenshot(path, 8, 8);
     EXPECT_TRUE(exporter.screenshot_toast_active());
     // Advance well past default 3 s duration.
@@ -512,7 +516,7 @@ TEST(ToastTimer, TickDecreases)
 TEST(ToastTimer, TickPartial)
 {
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("toast_partial");
+    const std::string   path = tmp_png("toast_partial");
     exporter.take_screenshot(path, 8, 8);
     // Advance 1 s — default duration is 3 s, still active.
     exporter.tick(1.0f);
@@ -554,8 +558,8 @@ TEST(Recording, DrawRecordDialogNoImGui)
 {
     // Without an ImGui context, draw_record_dialog returns false and doesn't crash.
     RosScreenshotExport exporter;
-    bool open = true;
-    const bool r = exporter.draw_record_dialog(&open);
+    bool                open = true;
+    const bool          r    = exporter.draw_record_dialog(&open);
     EXPECT_FALSE(r);
 }
 
@@ -573,19 +577,23 @@ TEST(Recording, DrawRecordDialogNullOpen)
 TEST(EdgeCases, ReplaceGrabCallback)
 {
     RosScreenshotExport exporter;
-    int call_count = 0;
-    exporter.set_frame_grab_callback([&](uint8_t* buf, uint32_t w, uint32_t h) {
-        ++call_count;
-        (void)buf; (void)w; (void)h;
-        return true;
-    });
+    int                 call_count = 0;
+    exporter.set_frame_grab_callback(
+        [&](uint8_t* buf, uint32_t w, uint32_t h)
+        {
+            ++call_count;
+            (void)buf;
+            (void)w;
+            (void)h;
+            return true;
+        });
     exporter.take_screenshot(tmp_png("edge_replace1"), 8, 8);
     EXPECT_EQ(call_count, 1);
 
     // Replace with checker.
     exporter.set_frame_grab_callback(checker_grab);
     const std::string path2 = tmp_png("edge_replace2");
-    const auto r = exporter.take_screenshot(path2, 8, 8);
+    const auto        r     = exporter.take_screenshot(path2, 8, 8);
     EXPECT_TRUE(r.ok);
     // Original callback not called again.
     EXPECT_EQ(call_count, 1);
@@ -598,7 +606,7 @@ TEST(EdgeCases, LargeScreenshot)
     RosScreenshotExport exporter;
     // 1920×1080 — no grab callback, black image.
     const std::string path = tmp_png("large");
-    const auto r = exporter.take_screenshot(path, 1920, 1080);
+    const auto        r    = exporter.take_screenshot(path, 1920, 1080);
     EXPECT_TRUE(r.ok);
     EXPECT_GT(fs::file_size(path), 0u);
     fs::remove(path);
@@ -607,7 +615,7 @@ TEST(EdgeCases, LargeScreenshot)
 TEST(EdgeCases, TickZeroDt)
 {
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("tick_zero");
+    const std::string   path = tmp_png("tick_zero");
     exporter.take_screenshot(path, 8, 8);
     EXPECT_TRUE(exporter.screenshot_toast_active());
     exporter.tick(0.0f);
@@ -618,8 +626,8 @@ TEST(EdgeCases, TickZeroDt)
 TEST(EdgeCases, ScreenshotPathPreservedInResult)
 {
     RosScreenshotExport exporter;
-    const std::string path = tmp_png("path_preserved");
-    const auto r = exporter.take_screenshot(path, 4, 4);
+    const std::string   path = tmp_png("path_preserved");
+    const auto          r    = exporter.take_screenshot(path, 4, 4);
     EXPECT_EQ(r.path, path);
     fs::remove(path);
 }
@@ -630,7 +638,7 @@ TEST(EdgeCases, CallbackSetAfterConstruction)
     // Callback installed after construction — should be picked up.
     exporter.set_frame_grab_callback(checker_grab);
     const std::string path = tmp_png("late_callback");
-    const auto r = exporter.take_screenshot(path, 16, 16);
+    const auto        r    = exporter.take_screenshot(path, 16, 16);
     EXPECT_TRUE(r.ok);
     fs::remove(path);
 }

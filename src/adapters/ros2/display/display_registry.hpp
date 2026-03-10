@@ -13,19 +13,19 @@ namespace spectra::adapters::ros2
 
 struct DisplayTypeInfo
 {
-    std::string type_id;
-    std::string display_name;
-    std::string icon;
+    std::string              type_id;
+    std::string              display_name;
+    std::string              icon;
     std::vector<std::string> compatible_types;
 };
 
 class DisplayRegistry
 {
-public:
+   public:
     template <typename T>
     bool register_display()
     {
-        auto probe = std::make_unique<T>();
+        auto            probe = std::make_unique<T>();
         DisplayTypeInfo info{
             probe->type_id(),
             probe->display_name(),
@@ -35,13 +35,13 @@ public:
         return register_factory(info, []() { return std::make_unique<T>(); });
     }
 
-    bool register_factory(const DisplayTypeInfo& info,
-                          std::function<std::unique_ptr<DisplayPlugin>()> factory);
+    bool                           register_factory(const DisplayTypeInfo&                          info,
+                                                    std::function<std::unique_ptr<DisplayPlugin>()> factory);
     std::unique_ptr<DisplayPlugin> create(const std::string& type_id) const;
-    std::vector<DisplayTypeInfo> list_types() const;
+    std::vector<DisplayTypeInfo>   list_types() const;
 
-private:
-    std::vector<DisplayTypeInfo> ordered_types_;
+   private:
+    std::vector<DisplayTypeInfo>                                                     ordered_types_;
     std::unordered_map<std::string, std::function<std::unique_ptr<DisplayPlugin>()>> factories_;
 };
 

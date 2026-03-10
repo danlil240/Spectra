@@ -19,15 +19,15 @@ namespace spectra::adapters::px4
 
 struct GpsFrame
 {
-    double timestamp_sec{0.0};
-    double lat{0.0};        // degrees
-    double lon{0.0};        // degrees
-    double alt{0.0};        // meters (MSL)
-    double alt_ellipsoid{0.0};
-    float  hdop{0.0f};
-    float  vdop{0.0f};
-    float  vel_m_s{0.0f};   // ground speed m/s
-    uint8_t fix_type{0};    // 0=none, 2=2D, 3=3D, 4=DGPS, 5=RTK
+    double  timestamp_sec{0.0};
+    double  lat{0.0};   // degrees
+    double  lon{0.0};   // degrees
+    double  alt{0.0};   // meters (MSL)
+    double  alt_ellipsoid{0.0};
+    float   hdop{0.0f};
+    float   vdop{0.0f};
+    float   vel_m_s{0.0f};   // ground speed m/s
+    uint8_t fix_type{0};     // 0=none, 2=2D, 3=3D, 4=DGPS, 5=RTK
     uint8_t satellites_used{0};
 };
 
@@ -35,8 +35,7 @@ struct GpsFrame
 // Extract GPS time series from ULog data.
 // ---------------------------------------------------------------------------
 
-inline std::vector<GpsFrame>
-extract_gps(const ULogTimeSeries& ts)
+inline std::vector<GpsFrame> extract_gps(const ULogTimeSeries& ts)
 {
     if (!ts.format)
         return {};
@@ -55,15 +54,15 @@ extract_gps(const ULogTimeSeries& ts)
         return nullptr;
     };
 
-    auto* f_lat  = find_field("lat");
-    auto* f_lon  = find_field("lon");
-    auto* f_alt  = find_field("alt");
+    auto* f_lat   = find_field("lat");
+    auto* f_lon   = find_field("lon");
+    auto* f_alt   = find_field("alt");
     auto* f_alt_e = find_field("alt_ellipsoid");
-    auto* f_hdop = find_field("hdop");
-    auto* f_vdop = find_field("vdop");
-    auto* f_vel  = find_field("vel_m_s");
-    auto* f_fix  = find_field("fix_type");
-    auto* f_sat  = find_field("satellites_used");
+    auto* f_hdop  = find_field("hdop");
+    auto* f_vdop  = find_field("vdop");
+    auto* f_vel   = find_field("vel_m_s");
+    auto* f_fix   = find_field("fix_type");
+    auto* f_sat   = find_field("satellites_used");
 
     for (auto& row : ts.rows)
     {

@@ -7,7 +7,7 @@
 #include "tf/tf_buffer.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -24,7 +24,7 @@ void TfDisplay::on_enable(const DisplayContext& context)
 void TfDisplay::on_disable()
 {
     frames_.clear();
-    status_ = DisplayStatus::Disabled;
+    status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
 
@@ -33,13 +33,13 @@ void TfDisplay::on_update(float)
     frames_.clear();
     if (!tf_buffer_)
     {
-        status_ = DisplayStatus::Error;
+        status_      = DisplayStatus::Error;
         status_text_ = "TF buffer unavailable";
         return;
     }
     if (fixed_frame_.empty())
     {
-        status_ = DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = "Waiting for fixed frame";
         return;
     }
@@ -61,18 +61,18 @@ void TfDisplay::on_update(float)
         else
         {
             const uint64_t lookup_time_ns = frame.last_transform.recv_ns != 0
-                ? frame.last_transform.recv_ns
-                : snapshot.snapshot_ns;
+                                                ? frame.last_transform.recv_ns
+                                                : snapshot.snapshot_ns;
             result = tf_buffer_->lookup_transform(fixed_frame_, frame.frame_id, lookup_time_ns);
         }
         if (!result.ok)
             continue;
 
         FrameVisual visual;
-        visual.frame_id         = frame.frame_id;
-        visual.parent_frame_id  = frame.parent_frame_id;
+        visual.frame_id              = frame.frame_id;
+        visual.parent_frame_id       = frame.parent_frame_id;
         visual.transform.translation = {result.tx, result.ty, result.tz};
-        visual.transform.rotation = {
+        visual.transform.rotation    = {
             static_cast<float>(result.qx),
             static_cast<float>(result.qy),
             static_cast<float>(result.qz),
@@ -86,9 +86,8 @@ void TfDisplay::on_update(float)
     }
 
     status_ = frames_.empty() ? DisplayStatus::Warn : DisplayStatus::Ok;
-    status_text_ = frames_.empty()
-        ? "No TF frames resolved"
-        : std::to_string(frames_.size()) + " frames";
+    status_text_ =
+        frames_.empty() ? "No TF frames resolved" : std::to_string(frames_.size()) + " frames";
 }
 
 void TfDisplay::submit_renderables(SceneManager& scene)
@@ -105,7 +104,8 @@ void TfDisplay::submit_renderables(SceneManager& scene)
         entity.frame_id     = frame.frame_id;
         entity.transform    = frame.transform;
         entity.scale        = {axis_scale_, axis_scale_, axis_scale_};
-        entity.properties.push_back({"parent", frame.parent_frame_id.empty() ? "(root)" : frame.parent_frame_id});
+        entity.properties.push_back(
+            {"parent", frame.parent_frame_id.empty() ? "(root)" : frame.parent_frame_id});
         entity.properties.push_back({"hz", frame.is_static ? "static" : std::to_string(frame.hz)});
         entity.properties.push_back({"age_ms", std::to_string(frame.age_ms)});
         entity.properties.push_back({"stale", frame.stale ? "true" : "false"});
@@ -146,14 +146,15 @@ void TfDisplay::deserialize_config_blob(const std::string& blob)
     if (blob.empty())
         return;
 
-    int labels = show_labels_ ? 1 : 0;
+    int   labels     = show_labels_ ? 1 : 0;
     float axis_scale = axis_scale_;
-    int max_frames = max_frames_;
+    int   max_frames = max_frames_;
     if (std::sscanf(blob.c_str(),
                     "labels=%d;axis_scale=%f;max_frames=%d",
                     &labels,
                     &axis_scale,
-                    &max_frames) >= 1)
+                    &max_frames)
+        >= 1)
     {
         show_labels_ = labels != 0;
         if (axis_scale > 0.0f)

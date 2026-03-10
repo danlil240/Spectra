@@ -35,7 +35,7 @@ using namespace std::chrono_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -54,14 +54,14 @@ public:
 
 class GenericSubscriberTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         if (!rclcpp::ok())
             rclcpp::init(0, nullptr);
 
         static std::atomic<int> counter{0};
-        const std::string name = "gs_test_" + std::to_string(counter.fetch_add(1));
+        const std::string       name = "gs_test_" + std::to_string(counter.fetch_add(1));
 
         bridge_ = std::make_unique<Ros2Bridge>();
         bridge_->init(name);
@@ -69,8 +69,8 @@ protected:
 
         // Separate publisher node.
         static std::atomic<int> pub_counter{0};
-        const std::string pub_name = "gs_pub_" + std::to_string(pub_counter.fetch_add(1));
-        pub_node_ = rclcpp::Node::make_shared(pub_name);
+        const std::string       pub_name = "gs_pub_" + std::to_string(pub_counter.fetch_add(1));
+        pub_node_                        = rclcpp::Node::make_shared(pub_name);
     }
 
     void TearDown() override
@@ -80,7 +80,7 @@ protected:
     }
 
     // Spin pub_node_ for up to timeout waiting for predicate to become true.
-    template<typename Pred>
+    template <typename Pred>
     bool spin_until(Pred pred, std::chrono::milliseconds timeout = 3000ms)
     {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -89,14 +89,15 @@ protected:
         while (std::chrono::steady_clock::now() < deadline)
         {
             exec.spin_once(10ms);
-            if (pred()) return true;
+            if (pred())
+                return true;
         }
         return pred();
     }
 
-    std::unique_ptr<Ros2Bridge>     bridge_;
-    rclcpp::Node::SharedPtr         pub_node_;
-    MessageIntrospector             intr_;
+    std::unique_ptr<Ros2Bridge> bridge_;
+    rclcpp::Node::SharedPtr     pub_node_;
+    MessageIntrospector         intr_;
 };
 
 // ===========================================================================
@@ -113,18 +114,18 @@ TEST(RingBuffer, ConstructDefault)
 TEST(RingBuffer, RoundsUpToPow2)
 {
     RingBuffer rb(10);
-    EXPECT_EQ(rb.capacity(), 16u);  // 10 → 16
+    EXPECT_EQ(rb.capacity(), 16u);   // 10 → 16
 }
 
 TEST(RingBuffer, RoundsUpLargeCapacity)
 {
     RingBuffer rb(10000);
-    EXPECT_EQ(rb.capacity(), 16384u);  // next pow2 after 10000
+    EXPECT_EQ(rb.capacity(), 16384u);   // next pow2 after 10000
 }
 
 TEST(RingBuffer, PushPop)
 {
-    RingBuffer rb(16);
+    RingBuffer  rb(16);
     FieldSample s{12345678LL, 3.14};
     rb.push(s);
     EXPECT_EQ(rb.size(), 1u);
@@ -138,7 +139,7 @@ TEST(RingBuffer, PushPop)
 
 TEST(RingBuffer, PopEmpty)
 {
-    RingBuffer rb(16);
+    RingBuffer  rb(16);
     FieldSample out;
     EXPECT_FALSE(rb.pop(out));
 }
@@ -159,7 +160,7 @@ TEST(RingBuffer, FIFOOrder)
 
 TEST(RingBuffer, DropOldestWhenFull)
 {
-    RingBuffer rb(4);  // capacity 4
+    RingBuffer rb(4);   // capacity 4
     for (int i = 0; i < 6; ++i)
         rb.push({static_cast<int64_t>(i), static_cast<double>(i)});
 
@@ -168,7 +169,7 @@ TEST(RingBuffer, DropOldestWhenFull)
     // After pushing 6 into a 4-slot buffer: indices 2,3,4,5 remain.
     FieldSample s;
     ASSERT_TRUE(rb.pop(s));
-    EXPECT_GE(s.timestamp_ns, 0LL);  // some valid entry survived
+    EXPECT_GE(s.timestamp_ns, 0LL);   // some valid entry survived
 }
 
 TEST(RingBuffer, Peek)
@@ -179,7 +180,7 @@ TEST(RingBuffer, Peek)
     rb.push({3LL, 3.0});
 
     FieldSample out[3];
-    size_t count = rb.peek(out, 3);
+    size_t      count = rb.peek(out, 3);
     EXPECT_EQ(count, 3u);
     EXPECT_EQ(out[0].timestamp_ns, 1LL);
     EXPECT_EQ(out[1].timestamp_ns, 2LL);
@@ -196,7 +197,7 @@ TEST(RingBuffer, PeekPartial)
     rb.push({2LL, 2.0});
 
     FieldSample out[5];
-    size_t count = rb.peek(out, 5);
+    size_t      count = rb.peek(out, 5);
     EXPECT_EQ(count, 2u);
 }
 
@@ -234,8 +235,7 @@ TEST(RingBuffer, MultipleRoundsNoDrop)
 
 TEST_F(GenericSubscriberTest, ConstructNotRunning)
 {
-    GenericSubscriber sub(bridge_->node(), "/test_topic",
-                          "std_msgs/msg/Float64", intr_);
+    GenericSubscriber sub(bridge_->node(), "/test_topic", "std_msgs/msg/Float64", intr_);
     EXPECT_FALSE(sub.is_running());
     EXPECT_EQ(sub.topic(), "/test_topic");
     EXPECT_EQ(sub.type_name(), "std_msgs/msg/Float64");
@@ -244,15 +244,13 @@ TEST_F(GenericSubscriberTest, ConstructNotRunning)
 
 TEST_F(GenericSubscriberTest, DefaultBufferDepthPow2)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_, 10000);
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_, 10000);
     EXPECT_EQ(sub.buffer_depth(), 16384u);
 }
 
 TEST_F(GenericSubscriberTest, CustomBufferDepth)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_, 128);
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_, 128);
     EXPECT_EQ(sub.buffer_depth(), 128u);
 }
 
@@ -268,48 +266,43 @@ TEST_F(GenericSubscriberTest, AddFieldByAccessor)
     auto acc = intr_.make_accessor(*schema, "data");
     ASSERT_TRUE(acc.valid());
 
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("data", acc);
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data", acc);
     EXPECT_GE(id, 0);
     EXPECT_EQ(sub.field_count(), 1u);
 }
 
 TEST_F(GenericSubscriberTest, AddFieldByPath)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     EXPECT_GE(id, 0);
     EXPECT_EQ(sub.field_count(), 1u);
 }
 
 TEST_F(GenericSubscriberTest, AddFieldInvalidPath)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("nonexistent_field");
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("nonexistent_field");
     EXPECT_EQ(id, -1);
     EXPECT_EQ(sub.field_count(), 0u);
 }
 
 TEST_F(GenericSubscriberTest, AddFieldInvalidAccessor)
 {
-    FieldAccessor bad;  // default-constructed = invalid
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("data", bad);
+    FieldAccessor     bad;   // default-constructed = invalid
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data", bad);
     EXPECT_EQ(id, -1);
 }
 
 TEST_F(GenericSubscriberTest, AddMultipleFields)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "geometry_msgs/msg/Twist",
-                          intr_);
-    int id0 = sub.add_field("linear.x");
-    int id1 = sub.add_field("linear.y");
-    int id2 = sub.add_field("linear.z");
-    int id3 = sub.add_field("angular.x");
+    GenericSubscriber sub(bridge_->node(), "/test", "geometry_msgs/msg/Twist", intr_);
+    int               id0 = sub.add_field("linear.x");
+    int               id1 = sub.add_field("linear.y");
+    int               id2 = sub.add_field("linear.z");
+    int               id3 = sub.add_field("angular.x");
     EXPECT_GE(id0, 0);
     EXPECT_GE(id1, 0);
     EXPECT_GE(id2, 0);
@@ -323,9 +316,8 @@ TEST_F(GenericSubscriberTest, AddMultipleFields)
 
 TEST_F(GenericSubscriberTest, RemoveField)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     EXPECT_EQ(sub.field_count(), 1u);
 
@@ -335,8 +327,7 @@ TEST_F(GenericSubscriberTest, RemoveField)
 
 TEST_F(GenericSubscriberTest, RemoveNonExistentField)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
     // Should not crash.
     sub.remove_field(9999);
     EXPECT_EQ(sub.field_count(), 0u);
@@ -348,8 +339,7 @@ TEST_F(GenericSubscriberTest, RemoveNonExistentField)
 
 TEST_F(GenericSubscriberTest, StartStop)
 {
-    GenericSubscriber sub(bridge_->node(), "/test_lifecycle",
-                          "std_msgs/msg/Float64", intr_);
+    GenericSubscriber sub(bridge_->node(), "/test_lifecycle", "std_msgs/msg/Float64", intr_);
     sub.add_field("data");
 
     EXPECT_TRUE(sub.start());
@@ -361,27 +351,24 @@ TEST_F(GenericSubscriberTest, StartStop)
 
 TEST_F(GenericSubscriberTest, StartIdempotent)
 {
-    GenericSubscriber sub(bridge_->node(), "/test_idem",
-                          "std_msgs/msg/Float64", intr_);
+    GenericSubscriber sub(bridge_->node(), "/test_idem", "std_msgs/msg/Float64", intr_);
     EXPECT_TRUE(sub.start());
-    EXPECT_TRUE(sub.start());  // second call is no-op
+    EXPECT_TRUE(sub.start());   // second call is no-op
     EXPECT_TRUE(sub.is_running());
     sub.stop();
 }
 
 TEST_F(GenericSubscriberTest, StopIdempotent)
 {
-    GenericSubscriber sub(bridge_->node(), "/test_stop_idem",
-                          "std_msgs/msg/Float64", intr_);
-    sub.stop();  // stop when not running — should not crash
+    GenericSubscriber sub(bridge_->node(), "/test_stop_idem", "std_msgs/msg/Float64", intr_);
+    sub.stop();   // stop when not running — should not crash
     EXPECT_FALSE(sub.is_running());
 }
 
 TEST_F(GenericSubscriberTest, DestructorStops)
 {
     {
-        GenericSubscriber sub(bridge_->node(), "/test_dtor",
-                              "std_msgs/msg/Float64", intr_);
+        GenericSubscriber sub(bridge_->node(), "/test_dtor", "std_msgs/msg/Float64", intr_);
         EXPECT_TRUE(sub.start());
     }
     // Destructor called — must not crash or hang.
@@ -395,9 +382,8 @@ TEST_F(GenericSubscriberTest, Float64SingleField)
 {
     const std::string topic = "/gs_test_float64_single";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
@@ -405,7 +391,7 @@ TEST_F(GenericSubscriberTest, Float64SingleField)
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     // Wait for discovery.
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     // Publish a known value.
     std_msgs::msg::Float64 msg;
@@ -413,7 +399,7 @@ TEST_F(GenericSubscriberTest, Float64SingleField)
     pub->publish(msg);
 
     // Wait for sample to arrive.
-    bool got = spin_until([&]{ return sub.pending(id) > 0; }, 2000ms);
+    bool got = spin_until([&] { return sub.pending(id) > 0; }, 2000ms);
     ASSERT_TRUE(got) << "No sample arrived within timeout";
 
     FieldSample s;
@@ -428,14 +414,13 @@ TEST_F(GenericSubscriberTest, Float64MultiplePublishedValues)
 {
     const std::string topic = "/gs_test_float64_multi";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 20);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     const int N = 10;
     for (int i = 0; i < N; ++i)
@@ -447,12 +432,12 @@ TEST_F(GenericSubscriberTest, Float64MultiplePublishedValues)
     }
 
     // Wait for all samples.
-    bool got = spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 3000ms);
+    bool got = spin_until([&] { return sub.pending(id) >= static_cast<size_t>(N); }, 3000ms);
     ASSERT_TRUE(got) << "Only " << sub.pending(id) << " of " << N << " samples arrived";
 
     // Pop and verify values (order preserved).
     std::vector<double> values;
-    FieldSample s;
+    FieldSample         s;
     while (sub.pop(id, s))
         values.push_back(s.value);
 
@@ -467,18 +452,17 @@ TEST_F(GenericSubscriberTest, TwistMultipleFields)
 {
     const std::string topic = "/gs_test_twist";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "geometry_msgs/msg/Twist", intr_);
-    int id_lx = sub.add_field("linear.x");
-    int id_ly = sub.add_field("linear.y");
-    int id_az = sub.add_field("angular.z");
+    GenericSubscriber sub(bridge_->node(), topic, "geometry_msgs/msg/Twist", intr_);
+    int               id_lx = sub.add_field("linear.x");
+    int               id_ly = sub.add_field("linear.y");
+    int               id_az = sub.add_field("angular.z");
     ASSERT_GE(id_lx, 0);
     ASSERT_GE(id_ly, 0);
     ASSERT_GE(id_az, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<geometry_msgs::msg::Twist>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     geometry_msgs::msg::Twist msg;
     msg.linear.x  = 1.1;
@@ -486,11 +470,9 @@ TEST_F(GenericSubscriberTest, TwistMultipleFields)
     msg.angular.z = 3.3;
     pub->publish(msg);
 
-    bool got = spin_until([&]{
-        return sub.pending(id_lx) > 0 &&
-               sub.pending(id_ly) > 0 &&
-               sub.pending(id_az) > 0;
-    }, 2000ms);
+    bool got = spin_until(
+        [&] { return sub.pending(id_lx) > 0 && sub.pending(id_ly) > 0 && sub.pending(id_az) > 0; },
+        2000ms);
     ASSERT_TRUE(got) << "Not all fields arrived";
 
     FieldSample s;
@@ -510,20 +492,19 @@ TEST_F(GenericSubscriberTest, Int32Field)
 {
     const std::string topic = "/gs_test_int32";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Int32", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Int32", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Int32>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     std_msgs::msg::Int32 msg;
     msg.data = -12345;
     pub->publish(msg);
 
-    bool got = spin_until([&]{ return sub.pending(id) > 0; }, 2000ms);
+    bool got = spin_until([&] { return sub.pending(id) > 0; }, 2000ms);
     ASSERT_TRUE(got);
 
     FieldSample s;
@@ -537,20 +518,19 @@ TEST_F(GenericSubscriberTest, BoolField)
 {
     const std::string topic = "/gs_test_bool";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Bool", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Bool", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Bool>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     std_msgs::msg::Bool msg;
     msg.data = true;
     pub->publish(msg);
 
-    bool got = spin_until([&]{ return sub.pending(id) > 0; }, 2000ms);
+    bool got = spin_until([&] { return sub.pending(id) > 0; }, 2000ms);
     ASSERT_TRUE(got);
 
     FieldSample s;
@@ -568,14 +548,13 @@ TEST_F(GenericSubscriberTest, PopBulk)
 {
     const std::string topic = "/gs_test_bulk";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 20);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     const int N = 5;
     for (int i = 0; i < N; ++i)
@@ -586,11 +565,11 @@ TEST_F(GenericSubscriberTest, PopBulk)
         std::this_thread::sleep_for(1ms);
     }
 
-    bool got = spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
+    bool got = spin_until([&] { return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
     ASSERT_TRUE(got);
 
     FieldSample buf[10];
-    size_t count = sub.pop_bulk(id, buf, 10);
+    size_t      count = sub.pop_bulk(id, buf, 10);
     EXPECT_EQ(count, static_cast<size_t>(N));
 
     for (size_t i = 0; i < count; ++i)
@@ -601,9 +580,8 @@ TEST_F(GenericSubscriberTest, PopBulk)
 
 TEST_F(GenericSubscriberTest, PopBulkInvalidId)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    FieldSample buf[10];
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    FieldSample       buf[10];
     EXPECT_EQ(sub.pop_bulk(9999, buf, 10), 0u);
 }
 
@@ -613,9 +591,8 @@ TEST_F(GenericSubscriberTest, PopBulkInvalidId)
 
 TEST_F(GenericSubscriberTest, StatsInitiallyZero)
 {
-    GenericSubscriber sub(bridge_->node(), "/test_stats",
-                          "std_msgs/msg/Float64", intr_);
-    auto s = sub.stats();
+    GenericSubscriber sub(bridge_->node(), "/test_stats", "std_msgs/msg/Float64", intr_);
+    auto              s = sub.stats();
     EXPECT_EQ(s.messages_received, 0u);
     EXPECT_EQ(s.messages_dropped, 0u);
     EXPECT_EQ(s.samples_written, 0u);
@@ -626,14 +603,13 @@ TEST_F(GenericSubscriberTest, StatsAfterMessages)
 {
     const std::string topic = "/gs_test_stats";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     const int N = 3;
     for (int i = 0; i < N; ++i)
@@ -644,7 +620,7 @@ TEST_F(GenericSubscriberTest, StatsAfterMessages)
         std::this_thread::sleep_for(1ms);
     }
 
-    spin_until([&]{ return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
+    spin_until([&] { return sub.pending(id) >= static_cast<size_t>(N); }, 2000ms);
 
     auto s = sub.stats();
     EXPECT_GE(s.messages_received, static_cast<uint64_t>(N));
@@ -662,22 +638,21 @@ TEST_F(GenericSubscriberTest, MessageCallbackInvoked)
 {
     const std::string topic = "/gs_test_callback";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
     sub.add_field("data");
     ASSERT_TRUE(sub.start());
 
     std::atomic<int> cb_count{0};
-    sub.set_message_callback([&](const SubscriberStats&){ cb_count.fetch_add(1); });
+    sub.set_message_callback([&](const SubscriberStats&) { cb_count.fetch_add(1); });
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     std_msgs::msg::Float64 msg;
     msg.data = 1.0;
     pub->publish(msg);
 
-    bool got = spin_until([&]{ return cb_count.load() >= 1; }, 2000ms);
+    bool got = spin_until([&] { return cb_count.load() >= 1; }, 2000ms);
     EXPECT_TRUE(got);
 
     sub.stop();
@@ -689,32 +664,28 @@ TEST_F(GenericSubscriberTest, MessageCallbackInvoked)
 
 TEST_F(GenericSubscriberTest, PendingInvalidId)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
     EXPECT_EQ(sub.pending(9999), 0u);
 }
 
 TEST_F(GenericSubscriberTest, PopInvalidId)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    FieldSample s;
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    FieldSample       s;
     EXPECT_FALSE(sub.pop(9999, s));
 }
 
 TEST_F(GenericSubscriberTest, PeekInvalidId)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    FieldSample buf[4];
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    FieldSample       buf[4];
     EXPECT_EQ(sub.peek(9999, buf, 4), 0u);
 }
 
 TEST_F(GenericSubscriberTest, PendingBeforeStart)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     EXPECT_EQ(sub.pending(id), 0u);
 }
@@ -726,16 +697,15 @@ TEST_F(GenericSubscriberTest, PendingBeforeStart)
 TEST_F(GenericSubscriberTest, RingBufferOverflowDropsOldest)
 {
     const std::string topic = "/gs_test_overflow";
-    const size_t depth = 16;   // tiny buffer
+    const size_t      depth = 16;   // tiny buffer
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_, depth);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_, depth);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 100);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     const int N = 100;   // >> buffer depth
     for (int i = 0; i < N; ++i)
@@ -747,7 +717,7 @@ TEST_F(GenericSubscriberTest, RingBufferOverflowDropsOldest)
     }
 
     // Give executor time to drain incoming queue.
-    spin_until([&]{ return sub.stats().messages_received >= static_cast<uint64_t>(N); }, 3000ms);
+    spin_until([&] { return sub.stats().messages_received >= static_cast<uint64_t>(N); }, 3000ms);
 
     // Buffer should be full but not exceed capacity.
     EXPECT_LE(sub.pending(id), depth);
@@ -766,14 +736,13 @@ TEST_F(GenericSubscriberTest, ImuAngularVelocityX)
 {
     const std::string topic = "/gs_test_imu";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "sensor_msgs/msg/Imu", intr_);
-    int id = sub.add_field("angular_velocity.x");
+    GenericSubscriber sub(bridge_->node(), topic, "sensor_msgs/msg/Imu", intr_);
+    int               id = sub.add_field("angular_velocity.x");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<sensor_msgs::msg::Imu>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     sensor_msgs::msg::Imu msg;
     msg.angular_velocity.x = 0.123;
@@ -781,7 +750,7 @@ TEST_F(GenericSubscriberTest, ImuAngularVelocityX)
     msg.angular_velocity.z = 0.789;
     pub->publish(msg);
 
-    bool got = spin_until([&]{ return sub.pending(id) > 0; }, 2000ms);
+    bool got = spin_until([&] { return sub.pending(id) > 0; }, 2000ms);
     ASSERT_TRUE(got);
 
     FieldSample s;
@@ -795,36 +764,36 @@ TEST_F(GenericSubscriberTest, ImuMultipleFields)
 {
     const std::string topic = "/gs_test_imu_multi";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "sensor_msgs/msg/Imu", intr_);
-    int id_ax = sub.add_field("linear_acceleration.x");
-    int id_ay = sub.add_field("linear_acceleration.y");
-    int id_az = sub.add_field("linear_acceleration.z");
+    GenericSubscriber sub(bridge_->node(), topic, "sensor_msgs/msg/Imu", intr_);
+    int               id_ax = sub.add_field("linear_acceleration.x");
+    int               id_ay = sub.add_field("linear_acceleration.y");
+    int               id_az = sub.add_field("linear_acceleration.z");
     ASSERT_GE(id_ax, 0);
     ASSERT_GE(id_ay, 0);
     ASSERT_GE(id_az, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<sensor_msgs::msg::Imu>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     sensor_msgs::msg::Imu msg;
-    msg.linear_acceleration.x =  9.81;
-    msg.linear_acceleration.y =  0.01;
+    msg.linear_acceleration.x = 9.81;
+    msg.linear_acceleration.y = 0.01;
     msg.linear_acceleration.z = -0.05;
     pub->publish(msg);
 
-    bool got = spin_until([&]{
-        return sub.pending(id_ax) > 0 &&
-               sub.pending(id_ay) > 0 &&
-               sub.pending(id_az) > 0;
-    }, 2000ms);
+    bool got = spin_until(
+        [&] { return sub.pending(id_ax) > 0 && sub.pending(id_ay) > 0 && sub.pending(id_az) > 0; },
+        2000ms);
     ASSERT_TRUE(got);
 
     FieldSample s;
-    sub.pop(id_ax, s); EXPECT_NEAR(s.value,  9.81, 1e-4);
-    sub.pop(id_ay, s); EXPECT_NEAR(s.value,  0.01, 1e-6);
-    sub.pop(id_az, s); EXPECT_NEAR(s.value, -0.05, 1e-6);
+    sub.pop(id_ax, s);
+    EXPECT_NEAR(s.value, 9.81, 1e-4);
+    sub.pop(id_ay, s);
+    EXPECT_NEAR(s.value, 0.01, 1e-6);
+    sub.pop(id_az, s);
+    EXPECT_NEAR(s.value, -0.05, 1e-6);
 
     sub.stop();
 }
@@ -837,21 +806,18 @@ TEST_F(GenericSubscriberTest, ZeroExtractorsStillReceivesMessages)
 {
     const std::string topic = "/gs_test_no_fields";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
     // No field extractors registered.
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     std_msgs::msg::Float64 msg;
     msg.data = 1.0;
     pub->publish(msg);
 
-    bool got = spin_until([&]{
-        return sub.stats().messages_received >= 1;
-    }, 2000ms);
+    bool got = spin_until([&] { return sub.stats().messages_received >= 1; }, 2000ms);
     EXPECT_TRUE(got);
 
     sub.stop();
@@ -859,9 +825,8 @@ TEST_F(GenericSubscriberTest, ZeroExtractorsStillReceivesMessages)
 
 TEST_F(GenericSubscriberTest, SameIdNotReused)
 {
-    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64",
-                          intr_);
-    int id0 = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), "/test", "std_msgs/msg/Float64", intr_);
+    int               id0 = sub.add_field("data");
     sub.remove_field(id0);
     int id1 = sub.add_field("data");
     // After removal and re-add, new ID must be different (monotone counter).
@@ -872,20 +837,19 @@ TEST_F(GenericSubscriberTest, StopClearsSubscriptionNotBuffer)
 {
     const std::string topic = "/gs_test_stop_buf";
 
-    GenericSubscriber sub(bridge_->node(), topic,
-                          "std_msgs/msg/Float64", intr_);
-    int id = sub.add_field("data");
+    GenericSubscriber sub(bridge_->node(), topic, "std_msgs/msg/Float64", intr_);
+    int               id = sub.add_field("data");
     ASSERT_GE(id, 0);
     ASSERT_TRUE(sub.start());
 
     auto pub = pub_node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    spin_until([&]{ return pub->get_subscription_count() >= 1; }, 2000ms);
+    spin_until([&] { return pub->get_subscription_count() >= 1; }, 2000ms);
 
     std_msgs::msg::Float64 msg;
     msg.data = 77.0;
     pub->publish(msg);
 
-    spin_until([&]{ return sub.pending(id) > 0; }, 2000ms);
+    spin_until([&] { return sub.pending(id) > 0; }, 2000ms);
 
     sub.stop();
     EXPECT_FALSE(sub.is_running());

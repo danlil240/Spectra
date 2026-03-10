@@ -80,7 +80,7 @@ TEST(GridDisplay, ConfigBlobRoundTrip)
 
 TEST(GridDisplay, SubmitRenderablesAddsSceneEntity)
 {
-    GridDisplay display;
+    GridDisplay  display;
     SceneManager scene;
 
     display.submit_renderables(scene);

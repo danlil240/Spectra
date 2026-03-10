@@ -60,10 +60,10 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
         return nullptr;
     }
 
-    wctx->id          = next_window_id_++;
+    wctx->id            = next_window_id_++;
     wctx->native_window = glfw_window;
-    wctx->glfw_window = glfw_window;
-    wctx->is_focused  = true;
+    wctx->glfw_window   = glfw_window;
+    wctx->is_focused    = true;
 
 #ifdef SPECTRA_USE_GLFW
     // Set user pointer so WindowManager callbacks can find the manager.
@@ -123,10 +123,10 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     }
 
     // Create WindowContext
-    auto wctx         = std::make_unique<WindowContext>();
-    wctx->id          = next_window_id_++;
+    auto wctx           = std::make_unique<WindowContext>();
+    wctx->id            = next_window_id_++;
     wctx->native_window = glfw_win;
-    wctx->glfw_window = glfw_win;
+    wctx->glfw_window   = glfw_win;
 
     // Initialize Vulkan resources (surface, swapchain, cmd buffers, sync)
     if (!backend_->init_window_context(*wctx, width, height))
@@ -241,7 +241,7 @@ void WindowManager::destroy_window(uint32_t window_id)
     {
         glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
         wctx.native_window = nullptr;
-        wctx.glfw_window = nullptr;
+        wctx.glfw_window   = nullptr;
     }
 #endif
 
@@ -387,7 +387,7 @@ void WindowManager::shutdown()
         {
             glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
             wctx.native_window = nullptr;
-            wctx.glfw_window = nullptr;
+            wctx.glfw_window   = nullptr;
         }
 #endif
 
@@ -635,7 +635,7 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
         return nullptr;
 
     set_window_position(*wctx, screen_x, screen_y);
-    wctx->title              = title;
+    wctx->title               = title;
     wctx->panel_draw_callback = std::move(draw_callback);
 
     // Install full input callbacks (cursor, mouse, key, scroll).
@@ -660,9 +660,9 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
 
     if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
     {
-        SPECTRA_LOG_ERROR("window_manager",
-                          "create_panel_window: ImGui init failed for window "
-                              + std::to_string(wctx->id));
+        SPECTRA_LOG_ERROR(
+            "window_manager",
+            "create_panel_window: ImGui init failed for window " + std::to_string(wctx->id));
         backend_->set_active_window(prev_active);
         ImGui::SetCurrentContext(prev_imgui_ctx);
         return nullptr;
@@ -676,8 +676,8 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
 
     SPECTRA_LOG_INFO("window_manager",
                      "Created panel window " + std::to_string(wctx->id) + ": "
-                         + std::to_string(width) + "x" + std::to_string(height)
-                         + " \"" + title + "\"");
+                         + std::to_string(width) + "x" + std::to_string(height) + " \"" + title
+                         + "\"");
     return wctx;
 #else
     (void)width;
@@ -746,11 +746,11 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
         return;
     }
 
-    auto wctx            = std::make_unique<WindowContext>();
-    wctx->id             = next_window_id_++;
-    wctx->native_window  = glfw_win;
-    wctx->glfw_window    = glfw_win;
-    wctx->is_preview     = true;
+    auto wctx           = std::make_unique<WindowContext>();
+    wctx->id            = next_window_id_++;
+    wctx->native_window = glfw_win;
+    wctx->glfw_window   = glfw_win;
+    wctx->is_preview    = true;
 
     if (!backend_->init_window_context(*wctx, width, height))
     {
@@ -785,7 +785,7 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
     backend_->set_active_window(prev_active);
     ImGui::SetCurrentContext(prev_imgui_ctx);
 
-    wctx->ui_ctx = std::move(ui);
+    wctx->ui_ctx    = std::move(ui);
     pooled_preview_ = std::move(wctx);
 
     SPECTRA_LOG_INFO("window_manager",
@@ -859,9 +859,9 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
 
         glfwShowWindow(glfw_win);
 
-        pooled_preview_->title       = figure_title;
+        pooled_preview_->title        = figure_title;
         pooled_preview_->should_close = false;
-        preview_window_id_ = pooled_preview_->id;
+        preview_window_id_            = pooled_preview_->id;
 
         WindowContext* ptr = pooled_preview_.get();
         windows_.push_back(std::move(pooled_preview_));
@@ -914,12 +914,12 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
                      screen_x - static_cast<int>(width) / 2,
                      screen_y - static_cast<int>(height) / 3);
 
-    auto wctx         = std::make_unique<WindowContext>();
-    wctx->id          = next_window_id_++;
+    auto wctx           = std::make_unique<WindowContext>();
+    wctx->id            = next_window_id_++;
     wctx->native_window = glfw_win;
-    wctx->glfw_window = glfw_win;
-    wctx->is_preview  = true;
-    wctx->title       = figure_title;
+    wctx->glfw_window   = glfw_win;
+    wctx->is_preview    = true;
+    wctx->title         = figure_title;
 
     // Initialize Vulkan resources
     if (!backend_->init_window_context(*wctx, width, height))
@@ -1011,9 +1011,8 @@ void WindowManager::destroy_preview_window_impl()
 #ifdef SPECTRA_USE_GLFW
     // Recycle the preview window back into the pool instead of destroying it.
     // Find it in windows_ and move it to pooled_preview_ after hiding.
-    auto it = std::find_if(windows_.begin(),
-                           windows_.end(),
-                           [id](const auto& w) { return w->id == id; });
+    auto it =
+        std::find_if(windows_.begin(), windows_.end(), [id](const auto& w) { return w->id == id; });
     if (it != windows_.end() && (*it)->is_preview && !pooled_preview_)
     {
         auto* glfw_win = static_cast<GLFWwindow*>((*it)->glfw_window);
@@ -1426,10 +1425,10 @@ WindowContext* WindowManager::create_first_window_with_ui(void*                 
         return nullptr;
     }
 
-    wctx_ptr->id          = next_window_id_++;
+    wctx_ptr->id            = next_window_id_++;
     wctx_ptr->native_window = glfw_window;
-    wctx_ptr->glfw_window = glfw_window;
-    wctx_ptr->is_focused  = true;
+    wctx_ptr->glfw_window   = glfw_window;
+    wctx_ptr->is_focused    = true;
 
     // Set figure assignments (all figures go to the first window)
     FigureId active_id              = figure_ids.empty() ? INVALID_FIGURE_ID : figure_ids[0];
@@ -1591,13 +1590,14 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     WindowManager* wm_self = this;
     ui->fig_mgr->set_on_window_close_request([wm_self, wctx_id]()
                                              { wm_self->request_close(wctx_id); });
-    ui->fig_mgr->set_on_figure_closed([wm_self, reg = registry_](FigureId id)
-                                      {
-                                          if (!wm_self || !reg)
-                                              return;
-                                          if (auto* fig = reg->get(id))
-                                              wm_self->clear_figure_caches(fig);
-                                      });
+    ui->fig_mgr->set_on_figure_closed(
+        [wm_self, reg = registry_](FigureId id)
+        {
+            if (!wm_self || !reg)
+                return;
+            if (auto* fig = reg->get(id))
+                wm_self->clear_figure_caches(fig);
+        });
 
     // Wire TabBar callbacks → FigureManager + DockSystem
     auto* fig_mgr_ptr = ui->fig_mgr;

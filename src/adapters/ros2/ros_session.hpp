@@ -126,12 +126,12 @@ struct DisplaySessionEntry
 
 struct SceneCameraPose
 {
-    double azimuth{45.0};
-    double elevation{30.0};
-    double distance{5.0};
+    double                azimuth{45.0};
+    double                elevation{30.0};
+    double                distance{5.0};
     std::array<double, 3> target{{0.0, 0.0, 0.0}};
-    std::string projection{"perspective"};
-    double fov{45.0};
+    std::string           projection{"perspective"};
+    double                fov{45.0};
 };
 
 // ---------------------------------------------------------------------------
@@ -140,22 +140,22 @@ struct SceneCameraPose
 
 struct PanelVisibility
 {
-    bool topic_list     = true;
-    bool topic_echo     = true;
-    bool topic_stats    = true;
-    bool plot_area      = true;
-    bool bag_info       = false;
-    bool bag_playback   = false;
-    bool log_viewer     = false;
-    bool diagnostics    = false;
-    bool node_graph     = false;
-    bool tf_tree        = false;
-    bool param_editor   = false;
-    bool service_caller = false;
-    bool displays_panel = false;
-    bool scene_viewport = false;
+    bool topic_list      = true;
+    bool topic_echo      = true;
+    bool topic_stats     = true;
+    bool plot_area       = true;
+    bool bag_info        = false;
+    bool bag_playback    = false;
+    bool log_viewer      = false;
+    bool diagnostics     = false;
+    bool node_graph      = false;
+    bool tf_tree         = false;
+    bool param_editor    = false;
+    bool service_caller  = false;
+    bool displays_panel  = false;
+    bool scene_viewport  = false;
     bool inspector_panel = false;
-    bool nav_rail       = true;
+    bool nav_rail        = true;
 };
 
 struct TopicMonitorState
@@ -243,9 +243,9 @@ struct RosSession
 
 struct RecentEntry
 {
-    std::string path;      // Absolute path to .spectra-ros-session file
-    std::string node;      // node_name stored in the session
-    std::string saved_at;  // ISO-8601 timestamp from the session file
+    std::string path;       // Absolute path to .spectra-ros-session file
+    std::string node;       // node_name stored in the session
+    std::string saved_at;   // ISO-8601 timestamp from the session file
 };
 
 // ---------------------------------------------------------------------------
@@ -255,8 +255,8 @@ struct RecentEntry
 struct SaveResult
 {
     bool        ok{false};
-    std::string error;      // empty when ok == true
-    std::string path;       // path written (same as input, resolved)
+    std::string error;   // empty when ok == true
+    std::string path;    // path written (same as input, resolved)
 
     explicit operator bool() const { return ok; }
 };
@@ -277,7 +277,7 @@ struct LoadResult
 
 class RosSessionManager
 {
-public:
+   public:
     // Maximum number of entries kept in the recent list.
     static constexpr int MAX_RECENT = 10;
 
@@ -325,8 +325,8 @@ public:
     SaveResult auto_save(const RosSession& session);
 
     // Set / get the path used for the next auto_save().
-    void        set_last_path(const std::string& path) { last_path_ = path; }
-    const std::string& last_path() const               { return last_path_; }
+    void               set_last_path(const std::string& path) { last_path_ = path; }
+    const std::string& last_path() const { return last_path_; }
 
     // ------------------------------------------------------------------
     // Recent sessions list
@@ -342,9 +342,7 @@ public:
 
     // Add or promote a path/node/saved_at entry to the front of the list.
     // Trims to MAX_RECENT. Saves to disk.
-    void push_recent(const std::string& path,
-                     const std::string& node,
-                     const std::string& saved_at);
+    void push_recent(const std::string& path, const std::string& node, const std::string& saved_at);
 
     // Remove an entry from the recent list by path.
     void remove_recent(const std::string& path);
@@ -377,7 +375,7 @@ public:
                             std::string&       error_out);
 
     // Serialize / deserialize the recent list.
-    static std::string  serialize_recent(const std::vector<RecentEntry>& entries);
+    static std::string              serialize_recent(const std::vector<RecentEntry>& entries);
     static std::vector<RecentEntry> deserialize_recent(const std::string& json);
 
     // Current UTC time as ISO-8601 string (e.g. "2026-03-05T20:30:00Z").
@@ -388,14 +386,11 @@ public:
 
     // Parse a string value from a flat JSON object for a given key.
     // Returns empty string if key not found.
-    static std::string json_get_string(const std::string& json,
-                                       const std::string& key);
+    static std::string json_get_string(const std::string& json, const std::string& key);
 
     // Parse an int value from a flat JSON object.
     // Returns default_val if key not found or not parseable.
-    static int json_get_int(const std::string& json,
-                            const std::string& key,
-                            int                default_val = 0);
+    static int json_get_int(const std::string& json, const std::string& key, int default_val = 0);
 
     // Parse a double value from a flat JSON object.
     static double json_get_double(const std::string& json,
@@ -407,7 +402,7 @@ public:
                               const std::string& key,
                               bool               default_val = false);
 
-private:
+   private:
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -424,8 +419,7 @@ private:
 
     // Build a JSON object string from key→value pairs.
     // Values already JSON-encoded (caller must quote strings).
-    static std::string build_object(
-        std::initializer_list<std::pair<std::string, std::string>> kv);
+    static std::string build_object(std::initializer_list<std::pair<std::string, std::string>> kv);
 
     // Serialize / deserialize individual nested structs.
     static std::string serialize_subscription(const SubscriptionEntry& e);
@@ -434,11 +428,11 @@ private:
     static std::string serialize_display(const DisplaySessionEntry& e);
     static std::string serialize_panels(const PanelVisibility& p);
 
-    static SubscriptionEntry    deserialize_subscription(const std::string& json);
-    static ExpressionEntry      deserialize_expression(const std::string& json);
+    static SubscriptionEntry     deserialize_subscription(const std::string& json);
+    static ExpressionEntry       deserialize_expression(const std::string& json);
     static ExpressionPresetEntry deserialize_preset(const std::string& json);
-    static DisplaySessionEntry  deserialize_display(const std::string& json);
-    static PanelVisibility      deserialize_panels(const std::string& json);
+    static DisplaySessionEntry   deserialize_display(const std::string& json);
+    static PanelVisibility       deserialize_panels(const std::string& json);
 
     // Extract a JSON array body (the content between the first '[' and last ']').
     // Returns empty string if not found.
@@ -454,4 +448,4 @@ private:
     std::string last_path_;   // last save() or load() path for auto_save()
 };
 
-}  // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2

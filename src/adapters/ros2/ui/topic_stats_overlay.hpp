@@ -47,9 +47,9 @@ namespace spectra::adapters::ros2
 
 struct MessageSample
 {
-    int64_t  arrival_ns{0};    // wall-clock arrival time (nanoseconds)
-    size_t   bytes{0};         // serialised message size
-    int64_t  latency_us{-1};   // latency in microseconds, -1 = unknown
+    int64_t arrival_ns{0};    // wall-clock arrival time (nanoseconds)
+    size_t  bytes{0};         // serialised message size
+    int64_t latency_us{-1};   // latency in microseconds, -1 = unknown
 };
 
 // ---------------------------------------------------------------------------
@@ -66,13 +66,13 @@ struct TopicDetailStats
 
     // --- computed values (updated by compute()) ---
 
-    double hz_avg{0.0};      // average Hz within window
-    double hz_min{0.0};      // minimum instantaneous Hz
-    double hz_max{0.0};      // maximum instantaneous Hz
+    double hz_avg{0.0};   // average Hz within window
+    double hz_min{0.0};   // minimum instantaneous Hz
+    double hz_max{0.0};   // maximum instantaneous Hz
 
-    double bw_bps{0.0};      // bandwidth in bytes/sec (window average)
+    double bw_bps{0.0};   // bandwidth in bytes/sec (window average)
 
-    double latency_avg_us{-1.0};  // average latency (µs); -1 = no data
+    double latency_avg_us{-1.0};   // average latency (µs); -1 = no data
     double latency_min_us{-1.0};
     double latency_max_us{-1.0};
 
@@ -81,8 +81,8 @@ struct TopicDetailStats
     uint64_t total_bytes{0};
 
     // Drop detection.
-    bool     drop_detected{false};   // true if last gap > 3× expected period
-    int64_t  last_gap_ns{0};         // last inter-message gap
+    bool    drop_detected{false};   // true if last gap > 3× expected period
+    int64_t last_gap_ns{0};         // last inter-message gap
 
     // Timestamp of the most recently received message.
     int64_t last_msg_ns{0};
@@ -104,7 +104,7 @@ struct TopicDetailStats
 
 class TopicStatsOverlay
 {
-public:
+   public:
     TopicStatsOverlay();
     ~TopicStatsOverlay() = default;
 
@@ -117,7 +117,7 @@ public:
 
     // Set the topic to display statistics for.  Thread-safe.
     // Pass an empty string to show the "no topic selected" placeholder.
-    void set_topic(const std::string& topic_name);
+    void               set_topic(const std::string& topic_name);
     const std::string& topic() const;
 
     // ---------- statistics injection -----------------------------------------
@@ -126,9 +126,7 @@ public:
     // and optional latency (µs, -1 = unknown).
     // Thread-safe — safe to call from the ROS2 executor thread.
     // Only samples for the currently selected topic are recorded.
-    void notify_message(const std::string& topic_name,
-                        size_t bytes,
-                        int64_t latency_us = -1);
+    void notify_message(const std::string& topic_name, size_t bytes, int64_t latency_us = -1);
 
     // Reset the rolling window for the current topic (clears history).
     // Cumulative counters are preserved.
@@ -147,7 +145,7 @@ public:
     // ---------- configuration ------------------------------------------------
 
     // Window title (default: "Topic Statistics").
-    void set_title(const std::string& title) { title_ = title; }
+    void               set_title(const std::string& title) { title_ = title; }
     const std::string& title() const { return title_; }
 
     // Rolling window length in milliseconds (default 1000 ms).
@@ -156,7 +154,7 @@ public:
 
     // Drop threshold: a drop warning is raised when the inter-message gap
     // exceeds `drop_factor` × expected period.  Default: 3.0.
-    void set_drop_factor(double factor);
+    void   set_drop_factor(double factor);
     double drop_factor() const { return drop_factor_; }
 
     // ---------- testing helpers (no ImGui dependency) ------------------------
@@ -166,17 +164,17 @@ public:
     struct StatsSnapshot
     {
         std::string topic;
-        double hz_avg{0.0};
-        double hz_min{0.0};
-        double hz_max{0.0};
-        double bw_bps{0.0};
-        double latency_avg_us{-1.0};
-        double latency_min_us{-1.0};
-        double latency_max_us{-1.0};
-        uint64_t total_messages{0};
-        uint64_t total_bytes{0};
-        bool     drop_detected{false};
-        int64_t  last_gap_ns{0};
+        double      hz_avg{0.0};
+        double      hz_min{0.0};
+        double      hz_max{0.0};
+        double      bw_bps{0.0};
+        double      latency_avg_us{-1.0};
+        double      latency_min_us{-1.0};
+        double      latency_max_us{-1.0};
+        uint64_t    total_messages{0};
+        uint64_t    total_bytes{0};
+        bool        drop_detected{false};
+        int64_t     last_gap_ns{0};
     };
 
     // Compute and return a fresh snapshot (acquires lock).
@@ -188,7 +186,7 @@ public:
     // Direct access to raw stats object (render-thread only, no lock).
     const TopicDetailStats& stats() const { return stats_; }
 
-private:
+   private:
     // ---- formatting helpers -------------------------------------------------
 
     // Format bandwidth in B/s, KB/s, or MB/s.
@@ -209,15 +207,14 @@ private:
     // ---- draw helpers -------------------------------------------------------
 
     // Draw one labelled stat row: Label | Value (uses ImGui columns).
-    static void draw_stat_row(const char* label, const std::string& value,
-                               bool highlight = false);
+    static void draw_stat_row(const char* label, const std::string& value, bool highlight = false);
 
     // ---- data ---------------------------------------------------------------
 
     mutable std::mutex mutex_;
 
-    std::string       current_topic_;   // topic we are tracking
-    TopicDetailStats  stats_;           // rolling stats for current topic
+    std::string      current_topic_;   // topic we are tracking
+    TopicDetailStats stats_;           // rolling stats for current topic
 
     std::string title_{"Topic Statistics"};
     int         window_ms_{1000};
@@ -225,9 +222,9 @@ private:
 
     // Display throttle — only recompute the snapshot at ~4 Hz to reduce
     // visual noise in Hz / BW values.
-    StatsSnapshot cached_snap_;
-    int64_t       last_snap_ns_{0};
-    static constexpr int64_t SNAP_INTERVAL_NS = 250'000'000LL;  // 250 ms
+    StatsSnapshot            cached_snap_;
+    int64_t                  last_snap_ns_{0};
+    static constexpr int64_t SNAP_INTERVAL_NS = 250'000'000LL;   // 250 ms
 };
 
 }   // namespace spectra::adapters::ros2

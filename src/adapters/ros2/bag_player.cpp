@@ -14,7 +14,7 @@
 #include "ros_plot_manager.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 // TimelineEditor lives in the core spectra library.
@@ -27,14 +27,9 @@ namespace spectra::adapters::ros2
 // Construction / Destruction
 // ---------------------------------------------------------------------------
 
-BagPlayer::BagPlayer(RosPlotManager& plot_mgr,
-                     MessageIntrospector& intr,
-                     BagPlayerConfig config)
-    : plot_mgr_(plot_mgr)
-    , intr_(intr)
-    , config_(config)
-    , rate_(std::clamp(config.rate, MIN_RATE, MAX_RATE))
-    , loop_(config.loop)
+BagPlayer::BagPlayer(RosPlotManager& plot_mgr, MessageIntrospector& intr, BagPlayerConfig config)
+    : plot_mgr_(plot_mgr), intr_(intr), config_(config),
+      rate_(std::clamp(config.rate, MIN_RATE, MAX_RATE)), loop_(config.loop)
 {
 }
 
@@ -47,8 +42,7 @@ BagPlayer::~BagPlayer()
 // Bag lifecycle
 // ---------------------------------------------------------------------------
 
-bool BagPlayer::open(const std::string& bag_path,
-                     const std::vector<std::string>& topics)
+bool BagPlayer::open(const std::string& bag_path, const std::vector<std::string>& topics)
 {
     std::lock_guard<std::mutex> lk(mutex_);
 
@@ -57,10 +51,10 @@ bool BagPlayer::open(const std::string& bag_path,
     {
         // (Internal close without locking again.)
         reader_.close();
-        open_       = false;
-        state_      = PlayerState::Stopped;
-        playhead_sec_ = 0.0;
-        bag_time_ns_  = 0;
+        open_           = false;
+        state_          = PlayerState::Stopped;
+        playhead_sec_   = 0.0;
+        bag_time_ns_    = 0;
         total_injected_ = 0;
         activity_bands_.clear();
         band_index_.clear();
@@ -78,9 +72,9 @@ bool BagPlayer::open(const std::string& bag_path,
     bag_time_ns_ = metadata_.start_time_ns;
     open_        = true;
     last_error_.clear();
-    playhead_sec_ = 0.0;
+    playhead_sec_   = 0.0;
     total_injected_ = 0;
-    topic_filter_ = topics;
+    topic_filter_   = topics;
 
     // Apply topic filter to reader.
     if (!topics.empty())
@@ -105,11 +99,11 @@ void BagPlayer::close()
         return;
 
     reader_.close();
-    open_             = false;
-    state_            = PlayerState::Stopped;
-    playhead_sec_     = 0.0;
-    bag_time_ns_      = 0;
-    total_injected_   = 0;
+    open_           = false;
+    state_          = PlayerState::Stopped;
+    playhead_sec_   = 0.0;
+    bag_time_ns_    = 0;
+    total_injected_ = 0;
     activity_bands_.clear();
     band_index_.clear();
     topic_fields_.clear();
@@ -247,8 +241,8 @@ bool BagPlayer::seek(double offset_sec)
         return false;
 
     const double clamped = clamp_offset(offset_sec);
-    playhead_sec_ = clamped;
-    bag_time_ns_  = offset_to_ns(clamped);
+    playhead_sec_        = clamped;
+    bag_time_ns_         = offset_to_ns(clamped);
 
     const bool ok = reader_.seek(bag_time_ns_);
     if (!ok)
@@ -333,7 +327,7 @@ double BagPlayer::playhead_sec() const noexcept
 double BagPlayer::progress() const noexcept
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    const double dur = duration_sec();
+    const double                dur = duration_sec();
     if (dur <= 0.0)
         return 0.0;
     return std::clamp(playhead_sec_ / dur, 0.0, 1.0);
@@ -352,7 +346,7 @@ std::vector<TopicActivityBand> BagPlayer::topic_activity_bands() const
 const TopicActivityBand* BagPlayer::activity_band(const std::string& topic) const
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    auto it = band_index_.find(topic);
+    auto                        it = band_index_.find(topic);
     if (it == band_index_.end())
         return nullptr;
     return &activity_bands_[it->second];
@@ -391,9 +385,9 @@ bool BagPlayer::advance(double dt)
     if (!open_ || state_ != PlayerState::Playing)
         return state_ != PlayerState::Stopped;
 
-    const double bag_dt    = dt * rate_;
-    const double new_ph    = playhead_sec_ + bag_dt;
-    const double dur       = duration_sec();
+    const double bag_dt = dt * rate_;
+    const double new_ph = playhead_sec_ + bag_dt;
+    const double dur    = duration_sec();
 
     // Check if we've reached (or passed) the end.
     if (new_ph >= dur)
@@ -478,7 +472,7 @@ uint64_t BagPlayer::total_injected() const noexcept
 uint32_t BagPlayer::inject_until(int64_t end_ns)
 {
     // Called with mutex_ already held.
-    uint32_t injected = 0;
+    uint32_t       injected   = 0;
     const uint32_t max_inject = config_.max_inject_per_frame;
 
     BagMessage msg;
@@ -555,17 +549,17 @@ void BagPlayer::inject_message(const BagMessage& msg)
     if (!schema)
         return;
 
-    // Allocate a temporary C++ message object on the stack is not possible for
-    // unknown types.  Instead, we use the CDR accessor pattern: work directly
-    // on the serialized bytes through the FieldAccessor byte-offset chain.
-    //
-    // However, FieldAccessor::extract_double() needs a *deserialized* in-memory
-    // struct, not raw CDR bytes.  For bag playback we use the same CDR
-    // deserialization path as TopicEchoPanel — allocate via the rosidl C API,
-    // deserialize into it, extract, then free.
-    //
-    // This is intentionally simple: correctness over speed.  For high-rate bags
-    // the user should reduce rate or increase max_inject_per_frame.
+        // Allocate a temporary C++ message object on the stack is not possible for
+        // unknown types.  Instead, we use the CDR accessor pattern: work directly
+        // on the serialized bytes through the FieldAccessor byte-offset chain.
+        //
+        // However, FieldAccessor::extract_double() needs a *deserialized* in-memory
+        // struct, not raw CDR bytes.  For bag playback we use the same CDR
+        // deserialization path as TopicEchoPanel — allocate via the rosidl C API,
+        // deserialize into it, extract, then free.
+        //
+        // This is intentionally simple: correctness over speed.  For high-rate bags
+        // the user should reduce rate or increase max_inject_per_frame.
 
 #ifdef SPECTRA_ROS2_BAG
     // Deserialize via rclcpp::Serialization machinery.
@@ -576,9 +570,8 @@ void BagPlayer::inject_message(const BagMessage& msg)
     // Strategy: load the type support dynamically and allocate via the
     // introspector's internal dlopen path (same as TopicEchoPanel).
 
-    const double bag_time_sec =
-        static_cast<double>(msg.timestamp_ns) * 1e-9
-        - static_cast<double>(metadata_.start_time_ns) * 1e-9;
+    const double bag_time_sec = static_cast<double>(msg.timestamp_ns) * 1e-9
+                                - static_cast<double>(metadata_.start_time_ns) * 1e-9;
 
     // Minimal CDR extraction: for each field path, build an accessor and
     // extract from the raw bytes using direct offset arithmetic.
@@ -602,7 +595,7 @@ void BagPlayer::inject_message(const BagMessage& msg)
     if (msg.serialized_data.size() < 4)
         return;
 
-    const uint8_t* cdr_body = msg.serialized_data.data() + 4;
+    const uint8_t* cdr_body      = msg.serialized_data.data() + 4;
     const size_t   cdr_body_size = msg.serialized_data.size() - 4;
 
     for (auto& [field_path, plot_id] : tf.field_plot_ids)
@@ -615,8 +608,7 @@ void BagPlayer::inject_message(const BagMessage& msg)
         // Use the CDR body as if it were an in-memory struct.
         // This works reliably for scalar numeric fields at the top level or
         // in simple nested structs without dynamic arrays before the field.
-        const double value = acc.extract_double(
-            static_cast<const void*>(cdr_body));
+        const double value = acc.extract_double(static_cast<const void*>(cdr_body));
 
         if (std::isnan(value))
             continue;
@@ -626,8 +618,7 @@ void BagPlayer::inject_message(const BagMessage& msg)
         if (!h.valid())
             continue;
 
-        h.series->append(static_cast<float>(bag_time_sec),
-                         static_cast<float>(value));
+        h.series->append(static_cast<float>(bag_time_sec), static_cast<float>(value));
 
         if (on_message_)
             on_message_(msg.topic, bag_time_sec, value);
@@ -649,9 +640,9 @@ void BagPlayer::scan_activity()
     if (!open_ || metadata_.duration_ns <= 0)
         return;
 
-    const double dur_sec     = metadata_.duration_sec();
-    const uint32_t n_buckets = config_.activity_buckets;
-    const double bucket_sec  = dur_sec / static_cast<double>(n_buckets);
+    const double   dur_sec    = metadata_.duration_sec();
+    const uint32_t n_buckets  = config_.activity_buckets;
+    const double   bucket_sec = dur_sec / static_cast<double>(n_buckets);
 
     // Build per-topic bucket bitsets using per-topic message counts from metadata.
     // For an approximate activity map we use the per-topic metadata if available,
@@ -687,8 +678,7 @@ void BagPlayer::scan_activity()
                 static_cast<double>(scan_msg.timestamp_ns - metadata_.start_time_ns) * 1e-9;
 
             const uint32_t bucket_idx = static_cast<uint32_t>(
-                std::min(static_cast<double>(n_buckets - 1),
-                         offset_sec / bucket_sec));
+                std::min(static_cast<double>(n_buckets - 1), offset_sec / bucket_sec));
 
             auto bit = buckets.find(scan_msg.topic);
             if (bit != buckets.end())
@@ -703,7 +693,7 @@ void BagPlayer::scan_activity()
         TopicActivityBand band;
         band.topic = topic;
 
-        bool in_run = false;
+        bool   in_run    = false;
         double run_start = 0.0;
 
         for (uint32_t i = 0; i < n_buckets; ++i)
@@ -756,8 +746,7 @@ void BagPlayer::register_timeline_tracks()
         {1.00f, 0.30f, 0.47f, 1.0f},   // red
         {0.55f, 0.90f, 0.20f, 1.0f},   // lime
     };
-    static constexpr size_t kPaletteSize =
-        sizeof(kPalette) / sizeof(kPalette[0]);
+    static constexpr size_t kPaletteSize = sizeof(kPalette) / sizeof(kPalette[0]);
 
     size_t color_idx = 0;
     for (auto& band : activity_bands_)
@@ -768,7 +757,7 @@ void BagPlayer::register_timeline_tracks()
         const spectra::Color c = kPalette[color_idx % kPaletteSize];
         ++color_idx;
 
-        const uint32_t tid = timeline_editor_->add_track(band.topic, c);
+        const uint32_t tid     = timeline_editor_->add_track(band.topic, c);
         band.timeline_track_id = tid;
 
         // Add a keyframe marker at the start of each activity interval.
@@ -780,22 +769,23 @@ void BagPlayer::register_timeline_tracks()
     }
 
     // Wire scrub callback so seeking in the editor seeks the player.
-    timeline_editor_->set_on_scrub([this](float t)
-    {
-        // NOTE: This callback is called from the render thread while the mutex
-        // is NOT held (TimelineEditor holds its own mutex during scrub).
-        // We set the scrub flag and handle it in the next advance() call.
-        // However, for responsiveness we update playhead_sec_ directly.
-        // The mutex is re-acquired here safely because TimelineEditor's scrub
-        // fires outside its lock scope.
-        std::lock_guard<std::mutex> lk2(mutex_);
-        if (!open_)
-            return;
-        const double clamped = clamp_offset(static_cast<double>(t));
-        playhead_sec_ = clamped;
-        bag_time_ns_  = offset_to_ns(clamped);
-        reader_.seek(bag_time_ns_);
-    });
+    timeline_editor_->set_on_scrub(
+        [this](float t)
+        {
+            // NOTE: This callback is called from the render thread while the mutex
+            // is NOT held (TimelineEditor holds its own mutex during scrub).
+            // We set the scrub flag and handle it in the next advance() call.
+            // However, for responsiveness we update playhead_sec_ directly.
+            // The mutex is re-acquired here safely because TimelineEditor's scrub
+            // fires outside its lock scope.
+            std::lock_guard<std::mutex> lk2(mutex_);
+            if (!open_)
+                return;
+            const double clamped = clamp_offset(static_cast<double>(t));
+            playhead_sec_        = clamped;
+            bag_time_ns_         = offset_to_ns(clamped);
+            reader_.seek(bag_time_ns_);
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -835,8 +825,7 @@ double BagPlayer::clamp_offset(double sec) const noexcept
 
 int64_t BagPlayer::offset_to_ns(double offset_sec) const noexcept
 {
-    return metadata_.start_time_ns +
-           static_cast<int64_t>(offset_sec * 1e9);
+    return metadata_.start_time_ns + static_cast<int64_t>(offset_sec * 1e9);
 }
 
 double BagPlayer::ns_to_offset(int64_t ns) const noexcept

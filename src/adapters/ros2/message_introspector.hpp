@@ -69,26 +69,23 @@ bool is_numeric(FieldType t);
 
 struct FieldDescriptor
 {
-    std::string name;           // field name (leaf)
-    std::string full_path;      // dot-separated path from root, e.g. "linear.x"
+    std::string name;        // field name (leaf)
+    std::string full_path;   // dot-separated path from root, e.g. "linear.x"
     FieldType   type{FieldType::Unknown};
 
-    bool        is_array{false};
-    bool        is_dynamic_array{false};  // true = std::vector<T>
-    uint32_t    array_size{0};            // 0 = dynamic; N = fixed N elements
-    uint32_t    type_id{0};               // raw rosidl type ID (for internal use)
+    bool     is_array{false};
+    bool     is_dynamic_array{false};   // true = std::vector<T>
+    uint32_t array_size{0};             // 0 = dynamic; N = fixed N elements
+    uint32_t type_id{0};                // raw rosidl type ID (for internal use)
 
     // Byte offset of this field within its parent message struct.
-    size_t      offset{0};
+    size_t offset{0};
 
     // For nested messages: children describe the sub-struct fields.
     std::vector<FieldDescriptor> children;
 
     // Convenience: true if this is a leaf numeric field.
-    bool is_numeric_leaf() const
-    {
-        return children.empty() && is_numeric(type);
-    }
+    bool is_numeric_leaf() const { return children.empty() && is_numeric(type); }
 };
 
 // ---------------------------------------------------------------------------
@@ -97,8 +94,8 @@ struct FieldDescriptor
 
 struct MessageSchema
 {
-    std::string              type_name;   // e.g. "geometry_msgs/msg/Twist"
-    std::vector<FieldDescriptor> fields;  // top-level fields
+    std::string                  type_name;   // e.g. "geometry_msgs/msg/Twist"
+    std::vector<FieldDescriptor> fields;      // top-level fields
 
     // Find a FieldDescriptor by dot-separated path.
     // Returns nullptr if the path does not exist.
@@ -118,7 +115,7 @@ struct MessageSchema
 
 class FieldAccessor
 {
-public:
+   public:
     // Default-constructed accessor is invalid; extract_* will return NaN.
     FieldAccessor() = default;
 
@@ -142,28 +139,28 @@ public:
     int64_t extract_int64(const void* msg_ptr, size_t array_index = 0) const;
 
     // Returns true if the leaf field is an array.
-    bool is_array() const { return is_array_; }
-    bool is_dynamic_array() const { return is_dynamic_array_; }
+    bool     is_array() const { return is_array_; }
+    bool     is_dynamic_array() const { return is_dynamic_array_; }
     uint32_t array_size() const { return array_size_; }
 
-private:
+   private:
     friend class MessageIntrospector;
 
     // One hop in the offset chain.
     struct Step
     {
-        size_t    offset{0};          // byte offset within parent struct
-        bool      is_dynamic{false};  // true = field is a std::vector<T>
+        size_t offset{0};           // byte offset within parent struct
+        bool   is_dynamic{false};   // true = field is a std::vector<T>
     };
 
-    std::string        path_;
-    std::vector<Step>  steps_;        // chain from root → parent of leaf
-    size_t             leaf_offset_{0};
-    FieldType          leaf_type_{FieldType::Unknown};
-    bool               is_array_{false};
-    bool               is_dynamic_array_{false};
-    uint32_t           array_size_{0};
-    uint32_t           element_size_{0};  // sizeof(T) for array elements
+    std::string       path_;
+    std::vector<Step> steps_;   // chain from root → parent of leaf
+    size_t            leaf_offset_{0};
+    FieldType         leaf_type_{FieldType::Unknown};
+    bool              is_array_{false};
+    bool              is_dynamic_array_{false};
+    uint32_t          array_size_{0};
+    uint32_t          element_size_{0};   // sizeof(T) for array elements
 };
 
 // ---------------------------------------------------------------------------
@@ -172,8 +169,8 @@ private:
 
 class MessageIntrospector
 {
-public:
-    MessageIntrospector() = default;
+   public:
+    MessageIntrospector()  = default;
     ~MessageIntrospector() = default;
 
     // Non-copyable, movable.
@@ -195,7 +192,7 @@ public:
     // Useful when you already have the type support (e.g. from a subscription).
     std::shared_ptr<const MessageSchema> introspect_type_support(
         const rosidl_message_type_support_t* ts,
-        const std::string& type_name = "");
+        const std::string&                   type_name = "");
 
     // ---------- accessor creation ---------------------------------------
 
@@ -204,8 +201,7 @@ public:
     //       For array element access use e.g. "data" and pass array_index to extract.
     // Returns an invalid accessor if the path is not found or the field is
     // not numeric.
-    FieldAccessor make_accessor(const MessageSchema& schema,
-                                const std::string& path) const;
+    FieldAccessor make_accessor(const MessageSchema& schema, const std::string& path) const;
 
     // ---------- cache management ----------------------------------------
 
@@ -215,29 +211,25 @@ public:
     // Number of cached schemas.
     std::size_t cache_size() const;
 
-private:
+   private:
     // Build a schema from a raw introspection type support pointer.
-    static std::shared_ptr<MessageSchema> build_schema(
-        const rosidl_message_type_support_t* ts,
-        const std::string& type_name);
+    static std::shared_ptr<MessageSchema> build_schema(const rosidl_message_type_support_t* ts,
+                                                       const std::string& type_name);
 
     // Recursively build FieldDescriptor children from the introspection members.
-    static void build_fields(
-        const rosidl_message_type_support_t* ts,
-        std::vector<FieldDescriptor>& out,
-        const std::string& path_prefix);
+    static void build_fields(const rosidl_message_type_support_t* ts,
+                             std::vector<FieldDescriptor>&        out,
+                             const std::string&                   path_prefix);
 
     // Build the accessor's step chain for a given path in the schema.
-    static bool build_accessor_steps(
-        const std::vector<FieldDescriptor>& fields,
-        const std::vector<std::string>& parts,
-        size_t part_idx,
-        std::vector<FieldAccessor::Step>& steps,
-        FieldAccessor& acc);
+    static bool build_accessor_steps(const std::vector<FieldDescriptor>& fields,
+                                     const std::vector<std::string>&     parts,
+                                     size_t                              part_idx,
+                                     std::vector<FieldAccessor::Step>&   steps,
+                                     FieldAccessor&                      acc);
 
-    mutable std::mutex                                          cache_mutex_;
-    std::unordered_map<std::string,
-        std::shared_ptr<const MessageSchema>>                   cache_;
+    mutable std::mutex                                                    cache_mutex_;
+    std::unordered_map<std::string, std::shared_ptr<const MessageSchema>> cache_;
 };
 
 }   // namespace spectra::adapters::ros2

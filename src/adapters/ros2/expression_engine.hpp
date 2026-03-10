@@ -48,8 +48,8 @@ namespace spectra::adapters::ros2
 struct CompileResult
 {
     bool        ok{false};
-    std::string error;     // empty when ok == true
-    int         error_col{-1};  // 0-based column in the expression string, -1 if unknown
+    std::string error;           // empty when ok == true
+    int         error_col{-1};   // 0-based column in the expression string, -1 if unknown
 };
 
 // ---------------------------------------------------------------------------
@@ -60,10 +60,10 @@ struct ExpressionPreset
 {
     std::string              name;
     std::string              expression;
-    std::vector<std::string> variables;  // extracted variable names (e.g. "$imu.acc.x")
+    std::vector<std::string> variables;   // extracted variable names (e.g. "$imu.acc.x")
 
     // Serialize to/from a compact JSON string.
-    std::string serialize() const;
+    std::string             serialize() const;
     static ExpressionPreset deserialize(const std::string& json);
 };
 
@@ -73,15 +73,15 @@ struct ExpressionPreset
 
 class ExpressionEngine
 {
-public:
+   public:
     ExpressionEngine();
     ~ExpressionEngine();
 
     // Non-copyable, movable.
     ExpressionEngine(const ExpressionEngine&)            = delete;
     ExpressionEngine& operator=(const ExpressionEngine&) = delete;
-    ExpressionEngine(ExpressionEngine&&)                 noexcept;
-    ExpressionEngine& operator=(ExpressionEngine&&)      noexcept;
+    ExpressionEngine(ExpressionEngine&&) noexcept;
+    ExpressionEngine& operator=(ExpressionEngine&&) noexcept;
 
     // ------------------------------------------------------------------
     // Compilation
@@ -171,7 +171,7 @@ public:
     // Human-readable description of the supported syntax.
     static const char* syntax_help();
 
-private:
+   private:
     // ------------------------------------------------------------------
     // AST node types (forward declarations)
     // ------------------------------------------------------------------

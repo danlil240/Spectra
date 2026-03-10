@@ -60,7 +60,10 @@
 
 // AxisLinkManager lives under src/ui/data/ — not a public include header.
 // We forward-declare here and include the .hpp from subplot_manager.cpp.
-namespace spectra { class AxisLinkManager; }
+namespace spectra
+{
+class AxisLinkManager;
+}
 
 namespace spectra::adapters::ros2
 {
@@ -75,12 +78,12 @@ struct SeriesEntry
     std::string field_path;
     std::string type_name;
 
-    spectra::LineSeries* series{nullptr};
+    spectra::LineSeries*               series{nullptr};
     std::unique_ptr<GenericSubscriber> subscriber;
-    int         extractor_id{-1};
-    size_t      samples_received{0};
-    bool        auto_fitted{false};
-    size_t      color_index{0};
+    int                                extractor_id{-1};
+    size_t                             samples_received{0};
+    bool                               auto_fitted{false};
+    size_t                             color_index{0};
 
     std::vector<FieldSample> drain_buf;
 
@@ -115,9 +118,9 @@ class TopicDiscovery;
 
 class SubplotManager
 {
-public:
+   public:
     // Minimum samples before live Y auto-fit starts.
-    static constexpr size_t AUTO_FIT_SAMPLES  = 1;
+    static constexpr size_t AUTO_FIT_SAMPLES = 1;
 
     // Maximum samples drained per slot per poll() call.
     static constexpr size_t MAX_DRAIN_PER_POLL = 4096;
@@ -130,8 +133,8 @@ public:
     // rows and cols must each be >= 1.
     SubplotManager(Ros2Bridge&          bridge,
                    MessageIntrospector& intr,
-                   int                  rows = 1,
-                   int                  cols = 1,
+                   int                  rows            = 1,
+                   int                  cols            = 1,
                    spectra::Figure*     external_figure = nullptr);
 
     ~SubplotManager();
@@ -179,7 +182,7 @@ public:
     SubplotHandle add_plot(int                slot,
                            const std::string& topic,
                            const std::string& field_path,
-                           const std::string& type_name   = "",
+                           const std::string& type_name    = "",
                            size_t             buffer_depth = 10000);
 
     // Convenience: add_plot(row, col, topic, field_path, ...).
@@ -187,7 +190,7 @@ public:
                            int                col,
                            const std::string& topic,
                            const std::string& field_path,
-                           const std::string& type_name   = "",
+                           const std::string& type_name    = "",
                            size_t             buffer_depth = 10000);
 
     // Remove the plot in a slot (removes all series).  Returns false if slot is empty.
@@ -195,8 +198,7 @@ public:
 
     // Remove a specific series from a slot by topic:field_path. Returns false
     // if not found.
-    bool remove_series_from_slot(int slot, const std::string& topic,
-                                 const std::string& field_path);
+    bool remove_series_from_slot(int slot, const std::string& topic, const std::string& field_path);
 
     // Clear all slots (removes all subscriptions, clears series data).
     void clear();
@@ -232,7 +234,7 @@ public:
     // Figure access
     // -----------------------------------------------------------------
 
-    spectra::Figure& figure() { return *figure_; }
+    spectra::Figure&       figure() { return *figure_; }
     const spectra::Figure& figure() const { return *figure_; }
 
     // -----------------------------------------------------------------
@@ -240,7 +242,7 @@ public:
     // -----------------------------------------------------------------
 
     // The AxisLinkManager shared across all subplot axes (X-axis linked).
-    spectra::AxisLinkManager& link_manager() { return *link_manager_; }
+    spectra::AxisLinkManager&       link_manager() { return *link_manager_; }
     const spectra::AxisLinkManager& link_manager() const { return *link_manager_; }
 
     // -----------------------------------------------------------------
@@ -250,8 +252,11 @@ public:
     // Notify the manager that the cursor is at (data_x, data_y) on
     // source_axes.  Broadcasts via AxisLinkManager::update_shared_cursor().
     // Pass nullptr to clear the cursor.
-    void notify_cursor(spectra::Axes* source_axes, float data_x, float data_y,
-                       double screen_x = 0.0, double screen_y = 0.0);
+    void notify_cursor(spectra::Axes* source_axes,
+                       float          data_x,
+                       float          data_y,
+                       double         screen_x = 0.0,
+                       double         screen_y = 0.0);
 
     // Clear the shared cursor (e.g. mouse left the window).
     void clear_cursor();
@@ -262,7 +267,7 @@ public:
 
     // Set a shared time origin for all slots.  New subplots inherit this
     // origin so their X-axis is synchronized with existing ones.
-    void set_shared_time_origin(double epoch_seconds);
+    void   set_shared_time_origin(double epoch_seconds);
     double shared_time_origin() const { return shared_time_origin_; }
     bool   has_shared_time_origin() const { return has_shared_origin_; }
 
@@ -271,14 +276,14 @@ public:
     // -----------------------------------------------------------------
 
     // Set the sliding time window (seconds) for all axes.
-    void set_time_window(double seconds);
+    void   set_time_window(double seconds);
     double time_window() const { return scroll_window_s_; }
 
     // Configure pruning of samples older than the current visible left edge.
-    void set_prune_buffer(double seconds);
+    void   set_prune_buffer(double seconds);
     double prune_buffer() const { return prune_buffer_s_; }
-    void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
-    bool pruning_enabled() const { return pruning_enabled_; }
+    void   set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
+    bool   pruning_enabled() const { return pruning_enabled_; }
 
     // Advance "now" for auto-scroll (call once per frame
     // before poll(), or let poll() call it automatically with wall clock).
@@ -351,17 +356,17 @@ public:
     // Configuration
     // -----------------------------------------------------------------
 
-    void set_figure_size(uint32_t w, uint32_t h);
-    void set_auto_fit_samples(size_t n) { auto_fit_samples_ = n; }
+    void   set_figure_size(uint32_t w, uint32_t h);
+    void   set_auto_fit_samples(size_t n) { auto_fit_samples_ = n; }
     size_t auto_fit_samples() const { return auto_fit_samples_; }
-    void set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
+    void   set_topic_discovery(TopicDiscovery* disc) { discovery_ = disc; }
 
     // ------------------------------------------------------------------
     // SlotEntry — per-slot state.  Now supports multiple series per slot.
     // ------------------------------------------------------------------
     struct SlotEntry
     {
-        int         slot{-1};   // 1-based
+        int slot{-1};   // 1-based
 
         // Legacy single-series fields (kept for backwards compat in handle()).
         std::string topic;
@@ -400,7 +405,8 @@ public:
         // Total number of series (1 if legacy, 1+extra otherwise)
         int series_count() const
         {
-            if (topic.empty() && extra_series.empty()) return 0;
+            if (topic.empty() && extra_series.empty())
+                return 0;
             int n = topic.empty() ? 0 : 1;
             return n + static_cast<int>(extra_series.size());
         }
@@ -408,7 +414,7 @@ public:
 
     // Public access to a SlotEntry (for UI controls).
     const SlotEntry* slot_entry_pub(int slot) const { return slot_entry(slot); }
-    SlotEntry* slot_entry_pub(int slot) { return slot_entry(slot); }
+    SlotEntry*       slot_entry_pub(int slot) { return slot_entry(slot); }
 
     // -----------------------------------------------------------------
     // Callbacks
@@ -418,10 +424,9 @@ public:
     using OnDataCallback = std::function<void(int slot, double t_sec, double value)>;
     void set_on_data(OnDataCallback cb) { on_data_cb_ = std::move(cb); }
 
-private:
-
+   private:
     // Retrieve entry by 1-based slot (creates if needed up to capacity).
-    SlotEntry* slot_entry(int slot);
+    SlotEntry*       slot_entry(int slot);
     const SlotEntry* slot_entry(int slot) const;
 
     // Auto-detect type name for topic.
@@ -460,19 +465,19 @@ private:
     // Configuration.
     static constexpr double DEFAULT_SCROLL_WINDOW_S = 30.0;
     static constexpr double DEFAULT_PRUNE_BUFFER_S  = 20.0;
-    double   scroll_window_s_    = DEFAULT_SCROLL_WINDOW_S;
-    double   prune_buffer_s_     = DEFAULT_PRUNE_BUFFER_S;
-    bool     pruning_enabled_    = true;
-    size_t   auto_fit_samples_   = AUTO_FIT_SAMPLES;
+    double                  scroll_window_s_        = DEFAULT_SCROLL_WINDOW_S;
+    double                  prune_buffer_s_         = DEFAULT_PRUNE_BUFFER_S;
+    bool                    pruning_enabled_        = true;
+    size_t                  auto_fit_samples_       = AUTO_FIT_SAMPLES;
 
     // Shared time origin across all slots.
-    double shared_time_origin_{0.0};
-    bool   has_shared_origin_{false};
+    double                shared_time_origin_{0.0};
+    bool                  has_shared_origin_{false};
     std::optional<double> explicit_now_s_;
 
     OnDataCallback on_data_cb_;
 
-    TopicDiscovery*      discovery_{nullptr};
+    TopicDiscovery* discovery_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

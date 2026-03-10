@@ -15,34 +15,34 @@
 
 #ifdef SPECTRA_HAS_QT6
 
-#include <QApplication>
-#include <QMainWindow>
-#include <QMouseEvent>
-#include <QPlatformSurfaceEvent>
-#include <QShortcut>
-#include <QSplitter>
-#include <QStatusBar>
-#include <QTimer>
-#include <QWidget>
-#include <QWindow>
+    #include <QApplication>
+    #include <QMainWindow>
+    #include <QMouseEvent>
+    #include <QPlatformSurfaceEvent>
+    #include <QShortcut>
+    #include <QSplitter>
+    #include <QStatusBar>
+    #include <QTimer>
+    #include <QWidget>
+    #include <QWindow>
 
-#include <spectra/axes.hpp>
-#include <spectra/axes3d.hpp>
-#include <spectra/embed.hpp>
-#include <spectra/figure.hpp>
-#include <spectra/series.hpp>
-#include <spectra/series_stats.hpp>
+    #include <spectra/axes.hpp>
+    #include <spectra/axes3d.hpp>
+    #include <spectra/embed.hpp>
+    #include <spectra/figure.hpp>
+    #include <spectra/series.hpp>
+    #include <spectra/series_stats.hpp>
 
-#include "adapters/qt/qt_runtime.hpp"
-#include "ui/input/input.hpp"
+    #include "adapters/qt/qt_runtime.hpp"
+    #include "ui/input/input.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <functional>
-#include <memory>
-#include <string>
-#include <vector>
+    #include <algorithm>
+    #include <chrono>
+    #include <cmath>
+    #include <functional>
+    #include <memory>
+    #include <string>
+    #include <vector>
 
 // ─── SpectraVulkanWindow ─────────────────────────────────────────────────────
 // A QWindow with VulkanSurface type that drives the Spectra render loop.
@@ -112,7 +112,7 @@ class SpectraVulkanWindow : public QWindow
     void startFrameTimer()
     {
         has_last_frame_time_ = false;
-        timer_ = new QTimer(this);
+        timer_               = new QTimer(this);
         connect(timer_, &QTimer::timeout, this, &SpectraVulkanWindow::renderFrame);
         timer_->start(16);   // ~60 FPS
     }
@@ -195,8 +195,11 @@ class SpectraVulkanWindow : public QWindow
         auto dpr = devicePixelRatio();
         int  btn = qtButtonToSpectra(event->button());
         int  mod = qtModsToSpectra(event->modifiers());
-        input_->on_mouse_button(btn, spectra::embed::ACTION_PRESS, mod,
-                                pos.x() * dpr, pos.y() * dpr);
+        input_->on_mouse_button(btn,
+                                spectra::embed::ACTION_PRESS,
+                                mod,
+                                pos.x() * dpr,
+                                pos.y() * dpr);
         requestUpdate();
     }
 
@@ -208,8 +211,11 @@ class SpectraVulkanWindow : public QWindow
         auto dpr = devicePixelRatio();
         int  btn = qtButtonToSpectra(event->button());
         int  mod = qtModsToSpectra(event->modifiers());
-        input_->on_mouse_button(btn, spectra::embed::ACTION_RELEASE, mod,
-                                pos.x() * dpr, pos.y() * dpr);
+        input_->on_mouse_button(btn,
+                                spectra::embed::ACTION_RELEASE,
+                                mod,
+                                pos.x() * dpr,
+                                pos.y() * dpr);
         requestUpdate();
     }
 
@@ -262,14 +268,14 @@ class SpectraVulkanWindow : public QWindow
         if (w == 0 || h == 0)
             return;
 
-        float dt = 1.0f / 60.0f;
+        float      dt  = 1.0f / 60.0f;
         const auto now = Clock::now();
         if (has_last_frame_time_)
         {
             dt = std::chrono::duration<float>(now - last_frame_time_).count();
             dt = std::clamp(dt, 1.0f / 240.0f, 0.1f);
         }
-        last_frame_time_  = now;
+        last_frame_time_     = now;
         has_last_frame_time_ = true;
 
         if (input_)
@@ -288,20 +294,28 @@ class SpectraVulkanWindow : public QWindow
     {
         switch (btn)
         {
-            case Qt::LeftButton: return spectra::embed::MOUSE_BUTTON_LEFT;
-            case Qt::RightButton: return spectra::embed::MOUSE_BUTTON_RIGHT;
-            case Qt::MiddleButton: return spectra::embed::MOUSE_BUTTON_MIDDLE;
-            default: return 0;
+            case Qt::LeftButton:
+                return spectra::embed::MOUSE_BUTTON_LEFT;
+            case Qt::RightButton:
+                return spectra::embed::MOUSE_BUTTON_RIGHT;
+            case Qt::MiddleButton:
+                return spectra::embed::MOUSE_BUTTON_MIDDLE;
+            default:
+                return 0;
         }
     }
 
     static int qtModsToSpectra(Qt::KeyboardModifiers mods)
     {
         int result = 0;
-        if (mods & Qt::ShiftModifier) result |= spectra::embed::MOD_SHIFT;
-        if (mods & Qt::ControlModifier) result |= spectra::embed::MOD_CONTROL;
-        if (mods & Qt::AltModifier) result |= spectra::embed::MOD_ALT;
-        if (mods & Qt::MetaModifier) result |= spectra::embed::MOD_SUPER;
+        if (mods & Qt::ShiftModifier)
+            result |= spectra::embed::MOD_SHIFT;
+        if (mods & Qt::ControlModifier)
+            result |= spectra::embed::MOD_CONTROL;
+        if (mods & Qt::AltModifier)
+            result |= spectra::embed::MOD_ALT;
+        if (mods & Qt::MetaModifier)
+            result |= spectra::embed::MOD_SUPER;
         return result;
     }
 
@@ -314,26 +328,39 @@ class SpectraVulkanWindow : public QWindow
 
         switch (qt_key)
         {
-            case Qt::Key_Escape: return spectra::embed::KEY_ESCAPE;
+            case Qt::Key_Escape:
+                return spectra::embed::KEY_ESCAPE;
             case Qt::Key_Return:
-            case Qt::Key_Enter: return spectra::embed::KEY_ENTER;
-            case Qt::Key_Tab: return spectra::embed::KEY_TAB;
-            case Qt::Key_Backspace: return spectra::embed::KEY_BACKSPACE;
-            case Qt::Key_Delete: return spectra::embed::KEY_DELETE;
-            case Qt::Key_Right: return spectra::embed::KEY_RIGHT;
-            case Qt::Key_Left: return spectra::embed::KEY_LEFT;
-            case Qt::Key_Down: return spectra::embed::KEY_DOWN;
-            case Qt::Key_Up: return spectra::embed::KEY_UP;
-            case Qt::Key_Home: return spectra::embed::KEY_HOME;
-            case Qt::Key_End: return spectra::embed::KEY_END;
-            case Qt::Key_Space: return spectra::embed::KEY_SPACE;
-            default: return 0;
+            case Qt::Key_Enter:
+                return spectra::embed::KEY_ENTER;
+            case Qt::Key_Tab:
+                return spectra::embed::KEY_TAB;
+            case Qt::Key_Backspace:
+                return spectra::embed::KEY_BACKSPACE;
+            case Qt::Key_Delete:
+                return spectra::embed::KEY_DELETE;
+            case Qt::Key_Right:
+                return spectra::embed::KEY_RIGHT;
+            case Qt::Key_Left:
+                return spectra::embed::KEY_LEFT;
+            case Qt::Key_Down:
+                return spectra::embed::KEY_DOWN;
+            case Qt::Key_Up:
+                return spectra::embed::KEY_UP;
+            case Qt::Key_Home:
+                return spectra::embed::KEY_HOME;
+            case Qt::Key_End:
+                return spectra::embed::KEY_END;
+            case Qt::Key_Space:
+                return spectra::embed::KEY_SPACE;
+            default:
+                return 0;
         }
     }
 
-    spectra::adapters::qt::QtRuntime* runtime_  = nullptr;
-    spectra::Figure*                  figure_   = nullptr;
-    spectra::InputHandler*            input_    = nullptr;
+    spectra::adapters::qt::QtRuntime* runtime_ = nullptr;
+    spectra::Figure*                  figure_  = nullptr;
+    spectra::InputHandler*            input_   = nullptr;
     AnimationTickCallback             animation_tick_;
     QTimer*                           timer_    = nullptr;
     bool                              attached_ = false;
@@ -346,11 +373,11 @@ class SpectraVulkanWindow : public QWindow
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
-#ifdef SPECTRA_QT_FORCE_MULTI_CANVAS
+    #ifdef SPECTRA_QT_FORCE_MULTI_CANVAS
 static constexpr bool k_default_multi_canvas = true;
-#else
+    #else
 static constexpr bool k_default_multi_canvas = false;
-#endif
+    #endif
 
 struct AllFeaturesScene
 {
@@ -386,7 +413,9 @@ static void reseed_scatter(AllFeaturesScene& scene, float seed)
     }
 }
 
-static void populate_all_features_figure(spectra::Figure& fig, AllFeaturesScene& scene, float phase_seed)
+static void populate_all_features_figure(spectra::Figure&  fig,
+                                         AllFeaturesScene& scene,
+                                         float             phase_seed)
 {
     auto& ax_signals = fig.subplot(2, 2, 1);
     auto& ax_phase   = fig.subplot(2, 2, 2);
@@ -441,9 +470,10 @@ static void populate_all_features_figure(spectra::Figure& fig, AllFeaturesScene&
     std::vector<float> trend_x(120), trend_y(120);
     for (int i = 0; i < static_cast<int>(trend_x.size()); ++i)
     {
-        const float x = -3.2f + 6.4f * static_cast<float>(i) / static_cast<float>(trend_x.size() - 1);
-        trend_x[i]    = x;
-        trend_y[i]    = 0.65f * x;
+        const float x =
+            -3.2f + 6.4f * static_cast<float>(i) / static_cast<float>(trend_x.size() - 1);
+        trend_x[i] = x;
+        trend_y[i] = 0.65f * x;
     }
     ax_phase.line(trend_x, trend_y)
         .label("trend")
@@ -530,9 +560,9 @@ static void populate_all_features_figure(spectra::Figure& fig, AllFeaturesScene&
     {
         for (int c = 0; c < static_cast<int>(gx.size()); ++c)
         {
-            const float x = gx[c];
-            const float y = gy[r];
-            const float d = std::sqrt(x * x + y * y);
+            const float x                           = gx[c];
+            const float y                           = gy[r];
+            const float d                           = std::sqrt(x * x + y * y);
             gz[r * static_cast<int>(gx.size()) + c] = 0.35f * std::sin(3.2f * d + phase_seed);
         }
     }
@@ -575,8 +605,8 @@ static void tick_all_features_scene(AllFeaturesScene& scene, float dt)
 
     for (size_t i = 0; i < scene.scatter_y.size(); ++i)
     {
-        const float x = scene.scatter_x[i];
-        const float k = static_cast<float>(i) * 0.031f;
+        const float x      = scene.scatter_x[i];
+        const float k      = static_cast<float>(i) * 0.031f;
         scene.scatter_y[i] = 2.0f * std::sin(0.95f * x + scene.phase + k)
                              + 0.3f * std::cos(2.1f * x - 0.65f * scene.phase);
     }
@@ -719,21 +749,28 @@ int main(int argc, char* argv[])
         // Ctrl+D toggles right canvas detach/reattach without restarting app.
         auto* toggle_right_attach =
             new QShortcut(QKeySequence(QStringLiteral("Ctrl+D")), &main_window);
-        QObject::connect(toggle_right_attach, &QShortcut::activated, &main_window, [&window_b]() {
-            if (window_b.isAttached())
-            {
-                window_b.forceDetach();
-            }
-            else
-            {
-                (void)window_b.ensureAttached();
-            }
-        });
+        QObject::connect(toggle_right_attach,
+                         &QShortcut::activated,
+                         &main_window,
+                         [&window_b]()
+                         {
+                             if (window_b.isAttached())
+                             {
+                                 window_b.forceDetach();
+                             }
+                             else
+                             {
+                                 (void)window_b.ensureAttached();
+                             }
+                         });
     }
 
     auto* pause_shortcut = new QShortcut(QKeySequence(QStringLiteral("Space")), &main_window);
-    QObject::connect(pause_shortcut, &QShortcut::activated, &main_window,
-                     [&scene_a, &scene_b, multi_canvas]() {
+    QObject::connect(pause_shortcut,
+                     &QShortcut::activated,
+                     &main_window,
+                     [&scene_a, &scene_b, multi_canvas]()
+                     {
                          scene_a.paused = !scene_a.paused;
                          if (multi_canvas)
                          {
@@ -741,10 +778,12 @@ int main(int argc, char* argv[])
                          }
                      });
 
-    auto* randomize_shortcut =
-        new QShortcut(QKeySequence(QStringLiteral("Ctrl+R")), &main_window);
-    QObject::connect(randomize_shortcut, &QShortcut::activated, &main_window,
-                     [&scene_a, &scene_b, multi_canvas]() {
+    auto* randomize_shortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+R")), &main_window);
+    QObject::connect(randomize_shortcut,
+                     &QShortcut::activated,
+                     &main_window,
+                     [&scene_a, &scene_b, multi_canvas]()
+                     {
                          reseed_scatter(scene_a, scene_a.phase + 1.7f);
                          if (multi_canvas)
                          {
@@ -753,8 +792,11 @@ int main(int argc, char* argv[])
                      });
 
     auto* grid_shortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+G")), &main_window);
-    QObject::connect(grid_shortcut, &QShortcut::activated, &main_window,
-                     [&figure_a, &figure_b, multi_canvas]() {
+    QObject::connect(grid_shortcut,
+                     &QShortcut::activated,
+                     &main_window,
+                     [&figure_a, &figure_b, multi_canvas]()
+                     {
                          const bool next_grid = !grid_enabled_any(figure_a);
                          set_grid_all_axes(figure_a, next_grid);
                          if (multi_canvas)
@@ -765,8 +807,11 @@ int main(int argc, char* argv[])
 
     auto* autofit_shortcut =
         new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+A")), &main_window);
-    QObject::connect(autofit_shortcut, &QShortcut::activated, &main_window,
-                     [&figure_a, &figure_b, multi_canvas]() {
+    QObject::connect(autofit_shortcut,
+                     &QShortcut::activated,
+                     &main_window,
+                     [&figure_a, &figure_b, multi_canvas]()
+                     {
                          auto_fit_all_axes(figure_a);
                          if (multi_canvas)
                          {
@@ -775,7 +820,7 @@ int main(int argc, char* argv[])
                      });
 
     QString status_text = QStringLiteral(
-                              "Space pause/resume  |  Ctrl+R reseed scatter  |  Ctrl+G grid  |  Ctrl+Shift+A auto-fit");
+        "Space pause/resume  |  Ctrl+R reseed scatter  |  Ctrl+G grid  |  Ctrl+Shift+A auto-fit");
     if (multi_canvas)
     {
         status_text += QStringLiteral("  |  Ctrl+D detach/reattach right canvas");
@@ -801,7 +846,7 @@ int main(int argc, char* argv[])
 
 #else
 
-#include <iostream>
+    #include <iostream>
 
 int main()
 {

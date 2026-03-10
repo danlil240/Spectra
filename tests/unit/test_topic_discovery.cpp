@@ -30,7 +30,7 @@ using namespace std::chrono_literals;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -49,7 +49,7 @@ public:
 
 class TopicDiscoveryTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -57,7 +57,7 @@ protected:
 
         // Unique node name per test to avoid ROS2 graph conflicts.
         static std::atomic<int> counter{0};
-        const std::string name = "td_test_" + std::to_string(counter.fetch_add(1));
+        const std::string       name = "td_test_" + std::to_string(counter.fetch_add(1));
 
         node_ = std::make_shared<rclcpp::Node>(name);
 
@@ -67,10 +67,12 @@ protected:
         // Spin the executor on a background thread so timers and subscriptions
         // are processed during the tests.
         stop_spin_.store(false);
-        spin_thread_ = std::thread([this]() {
-            while (rclcpp::ok() && !stop_spin_.load(std::memory_order_acquire))
-                executor_->spin_once(std::chrono::milliseconds(10));
-        });
+        spin_thread_ = std::thread(
+            [this]()
+            {
+                while (rclcpp::ok() && !stop_spin_.load(std::memory_order_acquire))
+                    executor_->spin_once(std::chrono::milliseconds(10));
+            });
 
         disc_ = std::make_unique<TopicDiscovery>(node_);
     }
@@ -90,13 +92,10 @@ protected:
     }
 
     // Helper: spin the executor for a duration so the graph can propagate.
-    void spin_for(std::chrono::milliseconds duration)
-    {
-        std::this_thread::sleep_for(duration);
-    }
+    void spin_for(std::chrono::milliseconds duration) { std::this_thread::sleep_for(duration); }
 
     // Helper: wait until condition becomes true, with a timeout.
-    template<typename Pred>
+    template <typename Pred>
     bool wait_for(Pred pred, std::chrono::milliseconds timeout = 2000ms)
     {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -124,9 +123,9 @@ TEST_F(TopicDiscoveryTest, ConstructsWithNode)
 TEST_F(TopicDiscoveryTest, InitiallyEmpty)
 {
     // Before any refresh, caches are empty.
-    EXPECT_EQ(disc_->topic_count(),   0u);
+    EXPECT_EQ(disc_->topic_count(), 0u);
     EXPECT_EQ(disc_->service_count(), 0u);
-    EXPECT_EQ(disc_->node_count(),    0u);
+    EXPECT_EQ(disc_->node_count(), 0u);
 }
 
 TEST_F(TopicDiscoveryTest, HasTopicReturnsFalseBeforeRefresh)
@@ -151,7 +150,7 @@ TEST_F(TopicDiscoveryTest, RefreshReturnsSelf)
     disc_->refresh();
 
     const auto nodes = disc_->nodes();
-    bool found = false;
+    bool       found = false;
     for (const auto& n : nodes)
         if (n.name == node_->get_name())
             found = true;
@@ -189,14 +188,13 @@ TEST_F(TopicDiscoveryTest, DiscoversMockPublisher)
     spin_for(200ms);
     disc_->refresh();
 
-    EXPECT_TRUE(disc_->has_topic(topic))
-        << "Expected to find topic " << topic << " after refresh";
+    EXPECT_TRUE(disc_->has_topic(topic)) << "Expected to find topic " << topic << " after refresh";
 }
 
 TEST_F(TopicDiscoveryTest, TopicInfoHasCorrectName)
 {
     const std::string topic = "/spectra_test_name";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -208,7 +206,7 @@ TEST_F(TopicDiscoveryTest, TopicInfoHasCorrectName)
 TEST_F(TopicDiscoveryTest, TopicInfoHasType)
 {
     const std::string topic = "/spectra_test_type";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -226,7 +224,7 @@ TEST_F(TopicDiscoveryTest, TopicInfoHasType)
 TEST_F(TopicDiscoveryTest, TopicInfoHasPublisherCount)
 {
     const std::string topic = "/spectra_test_pub_count";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -238,9 +236,11 @@ TEST_F(TopicDiscoveryTest, TopicInfoHasPublisherCount)
 TEST_F(TopicDiscoveryTest, TopicInfoHasSubscriberCount)
 {
     const std::string topic = "/spectra_test_sub_count";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
-    auto sub = node_->create_subscription<std_msgs::msg::Float64>(
-        topic, 10, [](const std_msgs::msg::Float64::SharedPtr) {});
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              sub   = node_->create_subscription<std_msgs::msg::Float64>(
+        topic,
+        10,
+        [](const std_msgs::msg::Float64::SharedPtr) {});
 
     spin_for(200ms);
     disc_->refresh();
@@ -252,7 +252,7 @@ TEST_F(TopicDiscoveryTest, TopicInfoHasSubscriberCount)
 TEST_F(TopicDiscoveryTest, TopicsReturnsVector)
 {
     const std::string topic = "/spectra_test_vec";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -265,7 +265,7 @@ TEST_F(TopicDiscoveryTest, MultipleTopicsDiscovered)
 {
     auto pub1 = node_->create_publisher<std_msgs::msg::Float64>("/spectra_t1", 10);
     auto pub2 = node_->create_publisher<std_msgs::msg::Float64>("/spectra_t2", 10);
-    auto pub3 = node_->create_publisher<std_msgs::msg::String>("/spectra_t3",  10);
+    auto pub3 = node_->create_publisher<std_msgs::msg::String>("/spectra_t3", 10);
 
     spin_for(200ms);
     disc_->refresh();
@@ -288,19 +288,21 @@ TEST_F(TopicDiscoveryTest, UnknownTopicReturnsEmptyInfo)
 
 TEST_F(TopicDiscoveryTest, AddCallbackFiredForNewTopic)
 {
-    std::atomic<int>  added_count{0};
-    bool              found_target{false};
+    std::atomic<int> added_count{0};
+    bool             found_target{false};
 
     const std::string topic = "/spectra_cb_add";
 
-    disc_->set_topic_callback([&](const TopicInfo& t, bool added) {
-        if (added)
+    disc_->set_topic_callback(
+        [&](const TopicInfo& t, bool added)
         {
-            if (t.name == topic)
-                found_target = true;
-            ++added_count;
-        }
-    });
+            if (added)
+            {
+                if (t.name == topic)
+                    found_target = true;
+                ++added_count;
+            }
+        });
 
     auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
@@ -314,15 +316,18 @@ TEST_F(TopicDiscoveryTest, AddCallbackFiredForNewTopic)
 TEST_F(TopicDiscoveryTest, AddCallbackNotFiredForAlreadyKnownTopic)
 {
     const std::string topic = "/spectra_cb_already";
-    auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
+    auto              pub   = node_->create_publisher<std_msgs::msg::Float64>(topic, 10);
 
     spin_for(200ms);
     disc_->refresh();   // first refresh — populates cache
 
     std::atomic<int> added_count{0};
-    disc_->set_topic_callback([&](const TopicInfo&, bool added) {
-        if (added) ++added_count;
-    });
+    disc_->set_topic_callback(
+        [&](const TopicInfo&, bool added)
+        {
+            if (added)
+                ++added_count;
+        });
 
     disc_->refresh();   // second refresh — topic already known, no callback
     EXPECT_EQ(added_count.load(), 0);
@@ -344,13 +349,15 @@ TEST_F(TopicDiscoveryTest, RemoveCallbackFiredWhenTopicDisappears)
     }
     // pub is now destroyed — topic should disappear from the graph.
 
-    disc_->set_topic_callback([&](const TopicInfo& t, bool added) {
-        if (!added)
+    disc_->set_topic_callback(
+        [&](const TopicInfo& t, bool added)
         {
-            removed.store(true);
-            removed_name = t.name;
-        }
-    });
+            if (!added)
+            {
+                removed.store(true);
+                removed_name = t.name;
+            }
+        });
 
     // Give the graph time to reflect the publisher destruction.
     spin_for(300ms);
@@ -367,9 +374,12 @@ TEST_F(TopicDiscoveryTest, RemoveCallbackFiredWhenTopicDisappears)
 TEST_F(TopicDiscoveryTest, NodeAddCallbackFiredOnRefresh)
 {
     std::atomic<int> added_count{0};
-    disc_->set_node_callback([&](const NodeInfo&, bool added) {
-        if (added) ++added_count;
-    });
+    disc_->set_node_callback(
+        [&](const NodeInfo&, bool added)
+        {
+            if (added)
+                ++added_count;
+        });
 
     disc_->refresh();
     EXPECT_GE(added_count.load(), 1);
@@ -380,9 +390,12 @@ TEST_F(TopicDiscoveryTest, NodeCallbackNotFiredTwiceForSameNode)
     disc_->refresh();   // populate cache
 
     std::atomic<int> added_count{0};
-    disc_->set_node_callback([&](const NodeInfo&, bool added) {
-        if (added) ++added_count;
-    });
+    disc_->set_node_callback(
+        [&](const NodeInfo&, bool added)
+        {
+            if (added)
+                ++added_count;
+        });
 
     disc_->refresh();   // already known — no new-node callbacks
     EXPECT_EQ(added_count.load(), 0);
@@ -431,9 +444,12 @@ TEST_F(TopicDiscoveryTest, ServiceCallbackFiredIfNewServiceAppears)
     const std::size_t before = disc_->service_count();
 
     std::atomic<int> added{0};
-    disc_->set_service_callback([&](const ServiceInfo&, bool a) {
-        if (a) ++added;
-    });
+    disc_->set_service_callback(
+        [&](const ServiceInfo&, bool a)
+        {
+            if (a)
+                ++added;
+        });
 
     disc_->refresh();
     // No new services should have been added — callback count stays 0.
@@ -512,7 +528,7 @@ TEST_F(TopicDiscoveryTest, PeriodicTimerFiresRefresh)
 TEST_F(TopicDiscoveryTest, QosReliabilityPopulated)
 {
     const std::string topic = "/spectra_qos_reliable";
-    rclcpp::QoS qos(10);
+    rclcpp::QoS       qos(10);
     qos.reliable();
     auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, qos);
 
@@ -526,7 +542,7 @@ TEST_F(TopicDiscoveryTest, QosReliabilityPopulated)
 TEST_F(TopicDiscoveryTest, QosBestEffortPopulated)
 {
     const std::string topic = "/spectra_qos_best_effort";
-    rclcpp::QoS qos(10);
+    rclcpp::QoS       qos(10);
     qos.best_effort();
     auto pub = node_->create_publisher<std_msgs::msg::Float64>(topic, qos);
 
@@ -545,8 +561,8 @@ TEST_F(TopicDiscoveryTest, TopicCountMatchesTopicsVectorSize)
 {
     const std::string t1 = "/spectra_edge_1";
     const std::string t2 = "/spectra_edge_2";
-    auto p1 = node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
-    auto p2 = node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
+    auto              p1 = node_->create_publisher<std_msgs::msg::Float64>(t1, 10);
+    auto              p2 = node_->create_publisher<std_msgs::msg::Float64>(t2, 10);
 
     spin_for(200ms);
     disc_->refresh();

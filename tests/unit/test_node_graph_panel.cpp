@@ -30,8 +30,7 @@ using namespace spectra::adapters::ros2;
 // Helpers
 // ---------------------------------------------------------------------------
 
-static TopicInfo make_topic(const std::string& name,
-                            int pubs = 1, int subs = 1)
+static TopicInfo make_topic(const std::string& name, int pubs = 1, int subs = 1)
 {
     TopicInfo t;
     t.name             = name;
@@ -105,10 +104,7 @@ TEST(NodeGraphPanel, BuildEmpty)
 TEST(NodeGraphPanel, BuildTopicsOnly)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/chatter"), make_topic("/odom")},
-        {}
-    );
+    p.build_graph({make_topic("/chatter"), make_topic("/odom")}, {});
     EXPECT_TRUE(p.is_built());
     EXPECT_EQ(p.node_count(), 2u);
 }
@@ -116,10 +112,7 @@ TEST(NodeGraphPanel, BuildTopicsOnly)
 TEST(NodeGraphPanel, BuildNodesOnly)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {},
-        {make_node("/", "talker"), make_node("/", "listener")}
-    );
+    p.build_graph({}, {make_node("/", "talker"), make_node("/", "listener")});
     EXPECT_TRUE(p.is_built());
     EXPECT_EQ(p.node_count(), 2u);
 }
@@ -129,8 +122,7 @@ TEST(NodeGraphPanel, BuildMixed)
     NodeGraphPanel p;
     p.build_graph(
         {make_topic("/chatter"), make_topic("/scan")},
-        {make_node("/", "talker"), make_node("/", "listener"), make_node("/robot", "base")}
-    );
+        {make_node("/", "talker"), make_node("/", "listener"), make_node("/robot", "base")});
     // 2 topics + 3 nodes = 5 graph nodes
     EXPECT_EQ(p.node_count(), 5u);
 }
@@ -139,14 +131,11 @@ TEST(NodeGraphPanel, BuildGraphAddsEdgesFromTopicEndpoints)
 {
     NodeGraphPanel p;
 
-    TopicInfo topic = make_topic("/chatter", 1, 1);
-    topic.publisher_nodes = {"/talker"};
+    TopicInfo topic        = make_topic("/chatter", 1, 1);
+    topic.publisher_nodes  = {"/talker"};
     topic.subscriber_nodes = {"/listener"};
 
-    p.build_graph(
-        {topic},
-        {make_node("", "talker"), make_node("", "listener")}
-    );
+    p.build_graph({topic}, {make_node("", "talker"), make_node("", "listener")});
 
     auto snap = p.snapshot();
     ASSERT_EQ(3u, snap.nodes.size());
@@ -162,16 +151,15 @@ TEST(NodeGraphPanel, BuildGraphAddsEdgesFromTopicEndpoints)
 TEST(NodeGraphPanel, NodeKinds)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/chatter")},
-        {make_node("/", "talker")}
-    );
-    auto snap = p.snapshot();
-    int ros_nodes = 0, topic_nodes = 0;
+    p.build_graph({make_topic("/chatter")}, {make_node("/", "talker")});
+    auto snap      = p.snapshot();
+    int  ros_nodes = 0, topic_nodes = 0;
     for (const auto& n : snap.nodes)
     {
-        if (n.kind == GraphNodeKind::RosNode) ++ros_nodes;
-        else ++topic_nodes;
+        if (n.kind == GraphNodeKind::RosNode)
+            ++ros_nodes;
+        else
+            ++topic_nodes;
     }
     EXPECT_EQ(ros_nodes, 1);
     EXPECT_EQ(topic_nodes, 1);
@@ -240,10 +228,8 @@ TEST(NodeGraphPanel, EmptyFilterShowsAll)
     NodeGraphPanel p;
     p.set_namespace_filter("");
     EXPECT_EQ(p.namespace_filter(), "");
-    p.build_graph(
-        {make_topic("/robot/imu"), make_topic("/chatter")},
-        {make_node("/robot", "controller")}
-    );
+    p.build_graph({make_topic("/robot/imu"), make_topic("/chatter")},
+                  {make_node("/robot", "controller")});
     // All 3 graph nodes exist
     EXPECT_EQ(p.node_count(), 3u);
 }
@@ -252,10 +238,8 @@ TEST(NodeGraphPanel, FilterByNamespace)
 {
     NodeGraphPanel p;
     p.set_namespace_filter("/robot");
-    p.build_graph(
-        {make_topic("/robot/imu"), make_topic("/chatter")},
-        {make_node("/robot", "controller"), make_node("/", "talker")}
-    );
+    p.build_graph({make_topic("/robot/imu"), make_topic("/chatter")},
+                  {make_node("/robot", "controller"), make_node("/", "talker")});
     // Graph still has all 4 nodes; filter is applied at draw time.
     // Verify filter string is preserved.
     EXPECT_EQ(p.namespace_filter(), "/robot");
@@ -274,10 +258,12 @@ TEST(NodeGraphPanel, FilterThreadSafe)
 {
     NodeGraphPanel p;
     // Set filter from a different thread while panel is being queried
-    std::thread t([&]() {
-        for (int i = 0; i < 100; ++i)
-            p.set_namespace_filter(i % 2 == 0 ? "/ns" : "");
-    });
+    std::thread t(
+        [&]()
+        {
+            for (int i = 0; i < 100; ++i)
+                p.set_namespace_filter(i % 2 == 0 ? "/ns" : "");
+        });
     for (int i = 0; i < 100; ++i)
         (void)p.namespace_filter();
     t.join();
@@ -305,10 +291,8 @@ TEST(NodeGraphPanel, LayoutSingleNode)
 TEST(NodeGraphPanel, LayoutMovesNodes)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/chatter"), make_topic("/scan")},
-        {make_node("/", "talker"), make_node("/", "listener")}
-    );
+    p.build_graph({make_topic("/chatter"), make_topic("/scan")},
+                  {make_node("/", "talker"), make_node("/", "listener")});
     auto before = p.snapshot();
     p.layout_steps(50);
     auto after = p.snapshot();
@@ -317,8 +301,7 @@ TEST(NodeGraphPanel, LayoutMovesNodes)
     bool any_moved = false;
     for (std::size_t i = 0; i < before.nodes.size(); ++i)
     {
-        if (before.nodes[i].px != after.nodes[i].px ||
-            before.nodes[i].py != after.nodes[i].py)
+        if (before.nodes[i].px != after.nodes[i].px || before.nodes[i].py != after.nodes[i].py)
         {
             any_moved = true;
             break;
@@ -331,10 +314,7 @@ TEST(NodeGraphPanel, LayoutConvergesForSmallGraph)
 {
     NodeGraphPanel p;
     // Tiny graph should converge quickly
-    p.build_graph(
-        {make_topic("/chatter")},
-        {make_node("/", "talker"), make_node("/", "listener")}
-    );
+    p.build_graph({make_topic("/chatter")}, {make_node("/", "talker"), make_node("/", "listener")});
     // Run many steps
     p.layout_steps(500);
     // After many steps, should be converged
@@ -344,10 +324,7 @@ TEST(NodeGraphPanel, LayoutConvergesForSmallGraph)
 TEST(NodeGraphPanel, ResetLayoutStartsAnimation)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/t")},
-        {make_node("/", "n")}
-    );
+    p.build_graph({make_topic("/t")}, {make_node("/", "n")});
     p.layout_steps(500);
     EXPECT_FALSE(p.is_animating());
 
@@ -372,10 +349,8 @@ TEST(NodeGraphPanel, LayoutParameters)
 TEST(NodeGraphPanel, LayoutNodesStayFinite)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/a"), make_topic("/b"), make_topic("/c")},
-        {make_node("/", "x"), make_node("/", "y"), make_node("/", "z")}
-    );
+    p.build_graph({make_topic("/a"), make_topic("/b"), make_topic("/c")},
+                  {make_node("/", "x"), make_node("/", "y"), make_node("/", "z")});
     p.layout_steps(200);
 
     auto snap = p.snapshot();
@@ -413,7 +388,7 @@ TEST(NodeGraphPanel, SelectCallbackFires)
 TEST(NodeGraphPanel, ActivateCallbackStored)
 {
     NodeGraphPanel p;
-    bool called = false;
+    bool           called = false;
     p.set_activate_callback([&](const GraphNode&) { called = true; });
     // Callback is registered; no crash
     EXPECT_FALSE(called);
@@ -426,10 +401,8 @@ TEST(NodeGraphPanel, ActivateCallbackStored)
 TEST(NodeGraphPanel, SnapshotIsConsistent)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/scan"), make_topic("/cmd_vel")},
-        {make_node("/", "navigation"), make_node("/", "controller")}
-    );
+    p.build_graph({make_topic("/scan"), make_topic("/cmd_vel")},
+                  {make_node("/", "navigation"), make_node("/", "controller")});
     auto snap = p.snapshot();
     EXPECT_EQ(snap.nodes.size(), 4u);
 }
@@ -451,13 +424,15 @@ TEST(NodeGraphPanel, SnapshotThreadSafe)
     NodeGraphPanel p;
     p.build_graph({make_topic("/t")}, {make_node("/", "n")});
 
-    std::thread t([&]() {
-        for (int i = 0; i < 50; ++i)
+    std::thread t(
+        [&]()
         {
-            p.build_graph({make_topic("/t" + std::to_string(i))}, {});
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-        }
-    });
+            for (int i = 0; i < 50; ++i)
+            {
+                p.build_graph({make_topic("/t" + std::to_string(i))}, {});
+                std::this_thread::sleep_for(std::chrono::microseconds(10));
+            }
+        });
 
     for (int i = 0; i < 50; ++i)
     {
@@ -481,7 +456,7 @@ TEST(NodeGraphPanel, DrawNoOpWithoutImGui)
 #ifndef SPECTRA_USE_IMGUI
     EXPECT_NO_THROW(p.draw(nullptr));
 #else
-    SUCCEED();  // with ImGui, draw requires a valid context — skip
+    SUCCEED();   // with ImGui, draw requires a valid context — skip
 #endif
 }
 
@@ -491,7 +466,7 @@ TEST(NodeGraphPanel, DrawNoOpWithoutImGui)
 
 TEST(NodeGraphPanel, ManyTopics)
 {
-    NodeGraphPanel p;
+    NodeGraphPanel         p;
     std::vector<TopicInfo> topics;
     for (int i = 0; i < 50; ++i)
         topics.push_back(make_topic("/topic_" + std::to_string(i)));
@@ -503,7 +478,7 @@ TEST(NodeGraphPanel, ManyTopics)
 
 TEST(NodeGraphPanel, ManyNodes)
 {
-    NodeGraphPanel p;
+    NodeGraphPanel        p;
     std::vector<NodeInfo> nodes;
     for (int i = 0; i < 30; ++i)
         nodes.push_back(make_node("/ns", "node_" + std::to_string(i)));
@@ -548,11 +523,8 @@ TEST(NodeGraphPanel, TickBeforeBuildIsNoOp)
 TEST(NodeGraphPanel, NodeCountAfterReset)
 {
     NodeGraphPanel p;
-    p.build_graph(
-        {make_topic("/a"), make_topic("/b")},
-        {make_node("/", "x")}
-    );
+    p.build_graph({make_topic("/a"), make_topic("/b")}, {make_node("/", "x")});
     p.reset_layout();
-    EXPECT_EQ(p.node_count(), 3u);  // nodes still there after reset
+    EXPECT_EQ(p.node_count(), 3u);   // nodes still there after reset
     EXPECT_TRUE(p.is_animating());
 }

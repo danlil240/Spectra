@@ -6,12 +6,12 @@
 #include <cstdio>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 #ifdef SPECTRA_USE_ROS2
-#include <diagnostic_msgs/msg/diagnostic_array.hpp>
-#include <rclcpp/serialized_message.hpp>
+    #include <diagnostic_msgs/msg/diagnostic_array.hpp>
+    #include <rclcpp/serialized_message.hpp>
 #endif
 
 namespace spectra::adapters::ros2
@@ -35,10 +35,14 @@ const char* diag_level_name(DiagLevel l)
 {
     switch (l)
     {
-        case DiagLevel::OK:    return "OK";
-        case DiagLevel::Warn:  return "WARN";
-        case DiagLevel::Error: return "ERROR";
-        case DiagLevel::Stale: return "STALE";
+        case DiagLevel::OK:
+            return "OK";
+        case DiagLevel::Warn:
+            return "WARN";
+        case DiagLevel::Error:
+            return "ERROR";
+        case DiagLevel::Stale:
+            return "STALE";
     }
     return "STALE";
 }
@@ -83,7 +87,7 @@ std::string DiagnosticsModel::apply(const DiagStatus& s)
     if (it == components.end())
     {
         DiagComponent comp;
-        comp.name = s.name;
+        comp.name          = s.name;
         components[s.name] = std::move(comp);
         order.push_back(s.name);
         it = components.find(s.name);
@@ -104,10 +108,18 @@ void DiagnosticsModel::recount()
     {
         switch (comp.level)
         {
-            case DiagLevel::OK:    ++count_ok;    break;
-            case DiagLevel::Warn:  ++count_warn;  break;
-            case DiagLevel::Error: ++count_error; break;
-            case DiagLevel::Stale: ++count_stale; break;
+            case DiagLevel::OK:
+                ++count_ok;
+                break;
+            case DiagLevel::Warn:
+                ++count_warn;
+                break;
+            case DiagLevel::Error:
+                ++count_error;
+                break;
+            case DiagLevel::Stale:
+                ++count_stale;
+                break;
         }
     }
 }
@@ -115,18 +127,18 @@ void DiagnosticsModel::recount()
 void DiagnosticsModel::prune_stale(int64_t now_ns, int64_t stale_ns)
 {
     bool changed = false;
-    for (auto it = components.begin(); it != components.end(); )
+    for (auto it = components.begin(); it != components.end();)
     {
-        if (it->second.last_update_ns > 0 &&
-            now_ns - it->second.last_update_ns > stale_ns)
+        if (it->second.last_update_ns > 0 && now_ns - it->second.last_update_ns > stale_ns)
         {
-            it->second.level = DiagLevel::Stale;
+            it->second.level   = DiagLevel::Stale;
             it->second.message = "(stale — no update)";
-            changed = true;
+            changed            = true;
         }
         ++it;
     }
-    if (changed) recount();
+    if (changed)
+        recount();
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +170,8 @@ bool DiagnosticsPanel::start()
 
     // Allocate ring buffer (power-of-two).
     size_t cap = 1;
-    while (cap < ring_depth_) cap <<= 1;
+    while (cap < ring_depth_)
+        cap <<= 1;
     ring_.resize(cap);
     ring_mask_ = cap - 1;
     ring_head_.store(0, std::memory_order_relaxed);
@@ -174,17 +187,17 @@ bool DiagnosticsPanel::start()
                 if (!msg)
                     return;
 
-                const int64_t arrival_ns = wall_ns();
+                const int64_t           arrival_ns = wall_ns();
                 std::vector<DiagStatus> statuses;
                 statuses.reserve(msg->status.size());
                 for (const auto& status : msg->status)
                 {
                     DiagStatus parsed;
-                    parsed.level = static_cast<DiagLevel>(status.level);
-                    parsed.name = status.name;
-                    parsed.message = status.message;
+                    parsed.level       = static_cast<DiagLevel>(status.level);
+                    parsed.name        = status.name;
+                    parsed.message     = status.message;
                     parsed.hardware_id = status.hardware_id;
-                    parsed.arrival_ns = arrival_ns;
+                    parsed.arrival_ns  = arrival_ns;
                     parsed.values.reserve(status.values.size());
                     for (const auto& value : status.values)
                         parsed.values.push_back({value.key, value.value});
@@ -205,7 +218,8 @@ bool DiagnosticsPanel::start()
 #else
     // Without ROS2, start() can still be used in inject_* test mode.
     size_t cap = 1;
-    while (cap < ring_depth_) cap <<= 1;
+    while (cap < ring_depth_)
+        cap <<= 1;
     ring_.resize(cap);
     ring_mask_ = cap - 1;
     ring_head_.store(0, std::memory_order_relaxed);
@@ -233,7 +247,8 @@ void DiagnosticsPanel::stop()
 
 void DiagnosticsPanel::ring_push(DiagRawMessage msg)
 {
-    if (ring_.empty()) return;
+    if (ring_.empty())
+        return;
 
     const size_t head = ring_head_.load(std::memory_order_relaxed);
     const size_t next = (head + 1) & ring_mask_;
@@ -251,7 +266,8 @@ void DiagnosticsPanel::ring_push(DiagRawMessage msg)
 
 bool DiagnosticsPanel::ring_pop(DiagRawMessage& out)
 {
-    if (ring_.empty()) return false;
+    if (ring_.empty())
+        return false;
 
     const size_t tail = ring_tail_.load(std::memory_order_relaxed);
     if (tail == ring_head_.load(std::memory_order_acquire))
@@ -264,10 +280,12 @@ bool DiagnosticsPanel::ring_pop(DiagRawMessage& out)
 
 size_t DiagnosticsPanel::pending_raw() const
 {
-    if (ring_.empty()) return 0;
+    if (ring_.empty())
+        return 0;
     const size_t h = ring_head_.load(std::memory_order_acquire);
     const size_t t = ring_tail_.load(std::memory_order_acquire);
-    if (h >= t) return h - t;
+    if (h >= t)
+        return h - t;
     return ring_.size() - t + h;
 }
 
@@ -292,9 +310,15 @@ uint32_t DiagnosticsPanel::read_u32(const uint8_t* buf, size_t len, size_t& offs
 std::string DiagnosticsPanel::read_string(const uint8_t* buf, size_t len, size_t& offset)
 {
     const uint32_t slen = read_u32(buf, len, offset);
-    if (offset > len) return {};
-    if (slen == 0)    return {};
-    if (offset + slen > len) { offset = len + 1; return {}; }
+    if (offset > len)
+        return {};
+    if (slen == 0)
+        return {};
+    if (offset + slen > len)
+    {
+        offset = len + 1;
+        return {};
+    }
 
     std::string s(reinterpret_cast<const char*>(buf + offset), slen);
     offset += slen;
@@ -302,44 +326,53 @@ std::string DiagnosticsPanel::read_string(const uint8_t* buf, size_t len, size_t
     if (!s.empty() && s.back() == '\0')
         s.pop_back();
     // CDR: pad to 4-byte alignment after string data.
-    while (offset % 4 != 0 && offset < len) ++offset;
+    while (offset % 4 != 0 && offset < len)
+        ++offset;
     return s;
 }
 
 bool DiagnosticsPanel::read_diag_status(const uint8_t* buf,
-                                         size_t         len,
-                                         size_t&        offset,
-                                         DiagStatus&    out,
-                                         int64_t        arrival_ns)
+                                        size_t         len,
+                                        size_t&        offset,
+                                        DiagStatus&    out,
+                                        int64_t        arrival_ns)
 {
     // byte level (but CDR pads to 4 bytes for the sequence element start)
-    if (offset + 1 > len) return false;
-    out.level      = static_cast<DiagLevel>(buf[offset]);
-    offset        += 1;
+    if (offset + 1 > len)
+        return false;
+    out.level = static_cast<DiagLevel>(buf[offset]);
+    offset += 1;
     // padding: skip 1 byte to align to 2, then name string starts (CDR 4-byte aligned)
     // CDR: level is byte[1] then name is string[4-aligned from message start].
     // Alignment within a sequence element is from the start of the element.
     // byte → 3 bytes pad → string (4-byte aligned from element start).
-    while (offset % 4 != 0 && offset < len) ++offset;
+    while (offset % 4 != 0 && offset < len)
+        ++offset;
 
-    out.name        = read_string(buf, len, offset);
-    if (offset > len) return false;
-    out.message     = read_string(buf, len, offset);
-    if (offset > len) return false;
+    out.name = read_string(buf, len, offset);
+    if (offset > len)
+        return false;
+    out.message = read_string(buf, len, offset);
+    if (offset > len)
+        return false;
     out.hardware_id = read_string(buf, len, offset);
-    if (offset > len) return false;
+    if (offset > len)
+        return false;
 
     // values[] sequence
     const uint32_t nkv = read_u32(buf, len, offset);
-    if (offset > len) return false;
+    if (offset > len)
+        return false;
     out.values.reserve(nkv);
     for (uint32_t i = 0; i < nkv; ++i)
     {
         DiagKeyValue kv;
-        kv.key   = read_string(buf, len, offset);
-        if (offset > len) return false;
+        kv.key = read_string(buf, len, offset);
+        if (offset > len)
+            return false;
         kv.value = read_string(buf, len, offset);
-        if (offset > len) return false;
+        if (offset > len)
+            return false;
         out.values.push_back(std::move(kv));
     }
 
@@ -352,11 +385,12 @@ bool DiagnosticsPanel::read_diag_status(const uint8_t* buf,
 // ---------------------------------------------------------------------------
 
 std::vector<DiagStatus> DiagnosticsPanel::parse_diag_array(const uint8_t* data,
-                                                             size_t         len,
-                                                             int64_t        arrival_ns)
+                                                           size_t         len,
+                                                           int64_t        arrival_ns)
 {
     std::vector<DiagStatus> result;
-    if (!data || len < 4) return result;
+    if (!data || len < 4)
+        return result;
 
     size_t offset = 0;
 
@@ -370,16 +404,19 @@ std::vector<DiagStatus> DiagnosticsPanel::parse_diag_array(const uint8_t* data,
     //   string frame_id
 
     // stamp: sec (4) + nanosec (4) = 8 bytes
-    if (offset + 8 > len) return result;
+    if (offset + 8 > len)
+        return result;
     offset += 8;   // skip stamp
 
     // frame_id string
     read_string(data, len, offset);
-    if (offset > len) return result;
+    if (offset > len)
+        return result;
 
     // status[] sequence count
     const uint32_t n = read_u32(data, len, offset);
-    if (offset > len) return result;
+    if (offset > len)
+        return result;
 
     result.reserve(n);
     for (uint32_t i = 0; i < n; ++i)
@@ -415,8 +452,7 @@ void DiagnosticsPanel::poll()
             if (!transitioned.empty() && alert_cb_)
             {
                 const auto& comp = model_.components.at(transitioned);
-                if (comp.level == DiagLevel::Warn ||
-                    comp.level == DiagLevel::Error)
+                if (comp.level == DiagLevel::Warn || comp.level == DiagLevel::Error)
                 {
                     alert_cb_(transitioned, comp.level);
                 }
@@ -428,17 +464,14 @@ void DiagnosticsPanel::poll()
     DiagRawMessage raw;
     while (ring_pop(raw))
     {
-        auto statuses = parse_diag_array(raw.data.data(),
-                                         raw.data.size(),
-                                         raw.arrival_ns);
+        auto statuses = parse_diag_array(raw.data.data(), raw.data.size(), raw.arrival_ns);
         for (auto& s : statuses)
         {
             const std::string transitioned = model_.apply(s);
             if (!transitioned.empty() && alert_cb_)
             {
                 const auto& comp = model_.components.at(transitioned);
-                if (comp.level == DiagLevel::Warn ||
-                    comp.level == DiagLevel::Error)
+                if (comp.level == DiagLevel::Warn || comp.level == DiagLevel::Error)
                 {
                     alert_cb_(transitioned, comp.level);
                 }
@@ -447,8 +480,7 @@ void DiagnosticsPanel::poll()
     }
 
     // Mark stale components.
-    const int64_t stale_ns =
-        static_cast<int64_t>(stale_threshold_s_ * 1'000'000'000LL);
+    const int64_t stale_ns = static_cast<int64_t>(stale_threshold_s_ * 1'000'000'000LL);
     model_.prune_stale(now, stale_ns);
 
     // Recount badges.
@@ -471,14 +503,14 @@ void DiagnosticsPanel::inject_status(const DiagStatus& s)
     model_.recount();
 }
 
-void DiagnosticsPanel::inject_array(const std::vector<DiagStatus>& statuses,
-                                     int64_t arrival_ns)
+void DiagnosticsPanel::inject_array(const std::vector<DiagStatus>& statuses, int64_t arrival_ns)
 {
     const int64_t ts = (arrival_ns != 0) ? arrival_ns : wall_ns();
     for (const auto& s : statuses)
     {
         DiagStatus s2 = s;
-        if (s2.arrival_ns == 0) s2.arrival_ns = ts;
+        if (s2.arrival_ns == 0)
+            s2.arrival_ns = ts;
         inject_status(s2);
     }
 }
@@ -493,14 +525,26 @@ void DiagnosticsPanel::level_color(DiagLevel l, float& r, float& g, float& b, fl
     switch (l)
     {
         case DiagLevel::OK:
-            r = 0.20f; g = 0.80f; b = 0.30f; break;
+            r = 0.20f;
+            g = 0.80f;
+            b = 0.30f;
+            break;
         case DiagLevel::Warn:
-            r = 0.95f; g = 0.75f; b = 0.10f; break;
+            r = 0.95f;
+            g = 0.75f;
+            b = 0.10f;
+            break;
         case DiagLevel::Error:
-            r = 0.90f; g = 0.20f; b = 0.20f; break;
+            r = 0.90f;
+            g = 0.20f;
+            b = 0.20f;
+            break;
         case DiagLevel::Stale:
         default:
-            r = 0.50f; g = 0.50f; b = 0.55f; break;
+            r = 0.50f;
+            g = 0.50f;
+            b = 0.55f;
+            break;
     }
 }
 
@@ -508,10 +552,14 @@ const char* DiagnosticsPanel::level_short(DiagLevel l)
 {
     switch (l)
     {
-        case DiagLevel::OK:    return "OK";
-        case DiagLevel::Warn:  return "WARN";
-        case DiagLevel::Error: return "ERR";
-        case DiagLevel::Stale: return "STALE";
+        case DiagLevel::OK:
+            return "OK";
+        case DiagLevel::Warn:
+            return "WARN";
+        case DiagLevel::Error:
+            return "ERR";
+        case DiagLevel::Stale:
+            return "STALE";
     }
     return "STALE";
 }
@@ -544,11 +592,16 @@ void DiagnosticsPanel::draw(bool* p_open)
 void DiagnosticsPanel::draw_summary_bar()
 {
     // Coloured badge: [OK: N] [WARN: N] [ERR: N] [STALE: N]
-    const struct { DiagLevel lvl; int count; bool* show; } badges[] = {
-        { DiagLevel::OK,    model_.count_ok,    &show_ok_    },
-        { DiagLevel::Warn,  model_.count_warn,  &show_warn_  },
-        { DiagLevel::Error, model_.count_error, &show_error_ },
-        { DiagLevel::Stale, model_.count_stale, &show_stale_ },
+    const struct
+    {
+        DiagLevel lvl;
+        int       count;
+        bool*     show;
+    } badges[] = {
+        {DiagLevel::OK, model_.count_ok, &show_ok_},
+        {DiagLevel::Warn, model_.count_warn, &show_warn_},
+        {DiagLevel::Error, model_.count_error, &show_error_},
+        {DiagLevel::Stale, model_.count_stale, &show_stale_},
     };
 
     for (const auto& b : badges)
@@ -557,19 +610,22 @@ void DiagnosticsPanel::draw_summary_bar()
         level_color(b.lvl, r, g, bl, a);
 
         // Dim the badge if the filter is off.
-        const float alpha = *b.show ? 1.0f : 0.35f;
+        const float  alpha = *b.show ? 1.0f : 0.35f;
         const ImVec4 col{r * alpha, g * alpha, bl * alpha, 1.0f};
         const ImVec4 col_hov{r, g, bl, 1.0f};
 
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "%s: %d##badge%d",
-                      level_short(b.lvl), b.count,
+        std::snprintf(buf,
+                      sizeof(buf),
+                      "%s: %d##badge%d",
+                      level_short(b.lvl),
+                      b.count,
                       static_cast<int>(b.lvl));
 
-        ImGui::PushStyleColor(ImGuiCol_Button,        col);
+        ImGui::PushStyleColor(ImGuiCol_Button, col);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, col_hov);
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  col);
-        ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, col);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
         if (ImGui::SmallButton(buf))
             *b.show = !(*b.show);
@@ -580,7 +636,9 @@ void DiagnosticsPanel::draw_summary_bar()
 
     // Total messages right-aligned.
     char totbuf[48];
-    std::snprintf(totbuf, sizeof(totbuf), "  msgs: %llu",
+    std::snprintf(totbuf,
+                  sizeof(totbuf),
+                  "  msgs: %llu",
                   static_cast<unsigned long long>(model_.total_messages));
     ImGui::TextDisabled("%s", totbuf);
 }
@@ -589,12 +647,15 @@ bool DiagnosticsPanel::draw_filter_bar()
 {
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
     bool changed = ImGui::InputText("##diagfilter", filter_buf_, sizeof(filter_buf_));
-    if (changed) filter_str_ = filter_buf_;
+    if (changed)
+        filter_str_ = filter_buf_;
 
     ImGui::SameLine();
-    if (ImGui::SmallButton("Expand All"))  show_kv_all_ = true;
+    if (ImGui::SmallButton("Expand All"))
+        show_kv_all_ = true;
     ImGui::SameLine();
-    if (ImGui::SmallButton("Collapse"))    show_kv_all_ = false;
+    if (ImGui::SmallButton("Collapse"))
+        show_kv_all_ = false;
 
     return changed;
 }
@@ -602,45 +663,55 @@ bool DiagnosticsPanel::draw_filter_bar()
 void DiagnosticsPanel::draw_component_table()
 {
     // 4 columns: [status badge] [name] [message] [sparkline]
-    constexpr ImGuiTableFlags flags =
-        ImGuiTableFlags_BordersInnerH |
-        ImGuiTableFlags_RowBg         |
-        ImGuiTableFlags_ScrollY       |
-        ImGuiTableFlags_SizingStretchProp;
+    constexpr ImGuiTableFlags flags = ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg
+                                      | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp;
 
     const float avail_h = ImGui::GetContentRegionAvail().y;
     if (!ImGui::BeginTable("##diagtable", 4, flags, ImVec2(0.0f, avail_h)))
         return;
 
     ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableSetupColumn("Level",    ImGuiTableColumnFlags_WidthFixed,   60.0f);
-    ImGui::TableSetupColumn("Name",     ImGuiTableColumnFlags_WidthStretch, 2.0f);
-    ImGui::TableSetupColumn("Message",  ImGuiTableColumnFlags_WidthStretch, 3.0f);
-    ImGui::TableSetupColumn("History",  ImGuiTableColumnFlags_WidthFixed,   80.0f);
+    ImGui::TableSetupColumn("Level", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 2.0f);
+    ImGui::TableSetupColumn("Message", ImGuiTableColumnFlags_WidthStretch, 3.0f);
+    ImGui::TableSetupColumn("History", ImGuiTableColumnFlags_WidthFixed, 80.0f);
     ImGui::TableHeadersRow();
 
     for (const auto& name : model_.order)
     {
         auto it = model_.components.find(name);
-        if (it == model_.components.end()) continue;
+        if (it == model_.components.end())
+            continue;
         DiagComponent& comp = it->second;
 
         // Level filter.
         switch (comp.level)
         {
-            case DiagLevel::OK:    if (!show_ok_)    continue; break;
-            case DiagLevel::Warn:  if (!show_warn_)  continue; break;
-            case DiagLevel::Error: if (!show_error_) continue; break;
-            case DiagLevel::Stale: if (!show_stale_) continue; break;
+            case DiagLevel::OK:
+                if (!show_ok_)
+                    continue;
+                break;
+            case DiagLevel::Warn:
+                if (!show_warn_)
+                    continue;
+                break;
+            case DiagLevel::Error:
+                if (!show_error_)
+                    continue;
+                break;
+            case DiagLevel::Stale:
+                if (!show_stale_)
+                    continue;
+                break;
         }
 
         // Text filter.
         if (!filter_str_.empty())
         {
-            const bool matches =
-                name.find(filter_str_) != std::string::npos ||
-                comp.message.find(filter_str_) != std::string::npos;
-            if (!matches) continue;
+            const bool matches = name.find(filter_str_) != std::string::npos
+                                 || comp.message.find(filter_str_) != std::string::npos;
+            if (!matches)
+                continue;
         }
 
         draw_component_row(comp);
@@ -657,9 +728,7 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
 
     ImGui::PushID(comp.name.c_str());
 
-    const bool is_expanded =
-        show_kv_all_ ||
-        (expanded_component_ == comp.name);
+    const bool is_expanded = show_kv_all_ || (expanded_component_ == comp.name);
 
     // ---- Row: level badge ----
     ImGui::TableNextRow();
@@ -668,10 +737,10 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
 
     // ---- Name column (selectable to expand) ----
     ImGui::TableSetColumnIndex(1);
-    const bool clicked = ImGui::Selectable(comp.name.c_str(),
-                                            is_expanded && !show_kv_all_,
-                                            ImGuiSelectableFlags_SpanAllColumns |
-                                            ImGuiSelectableFlags_AllowOverlap);
+    const bool clicked =
+        ImGui::Selectable(comp.name.c_str(),
+                          is_expanded && !show_kv_all_,
+                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap);
     if (clicked)
     {
         if (expanded_component_ == comp.name)
@@ -683,8 +752,8 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
     // ---- Message column ----
     ImGui::TableSetColumnIndex(2);
     {
-        const int64_t now = wall_ns();
-        const double since_s = comp.seconds_since_update(now);
+        const int64_t now     = wall_ns();
+        const double  since_s = comp.seconds_since_update(now);
         if (comp.level == DiagLevel::Stale && since_s > 0.5)
         {
             // Show "STALE (Xs)" badge in muted orange before the message.
@@ -710,8 +779,7 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
     // ---- Expanded key/value sub-rows ----
     if (is_expanded && !comp.values.empty())
     {
-        ImGui::PushStyleColor(ImGuiCol_TableRowBg,
-            ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+        ImGui::PushStyleColor(ImGuiCol_TableRowBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
 
         for (const auto& kv : comp.values)
         {
@@ -733,8 +801,7 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
     ImGui::PopID();
 }
 
-void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp,
-                                       float width, float height)
+void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp, float width, float height)
 {
     if (comp.history.empty())
     {
@@ -742,50 +809,65 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp,
         return;
     }
 
-    ImDrawList* dl  = ImGui::GetWindowDrawList();
+    ImDrawList*  dl = ImGui::GetWindowDrawList();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::Dummy(ImVec2(width, height));
 
-    const size_t n = comp.history.size();
+    const size_t n    = comp.history.size();
     const float  step = (n > 1) ? (width / static_cast<float>(n - 1)) : width;
 
     for (size_t i = 0; i < n; ++i)
     {
         const DiagSparkEntry& e = comp.history[i];
-        float cr, cg, cb, ca;
+        float                 cr, cg, cb, ca;
         level_color(e.level, cr, cg, cb, ca);
 
         // Map level to Y: OK=bottom, ERROR=top.
         float y_norm = 0.9f;
         switch (e.level)
         {
-            case DiagLevel::OK:    y_norm = 0.9f; break;
-            case DiagLevel::Warn:  y_norm = 0.55f; break;
-            case DiagLevel::Error: y_norm = 0.1f; break;
-            case DiagLevel::Stale: y_norm = 0.75f; break;
+            case DiagLevel::OK:
+                y_norm = 0.9f;
+                break;
+            case DiagLevel::Warn:
+                y_norm = 0.55f;
+                break;
+            case DiagLevel::Error:
+                y_norm = 0.1f;
+                break;
+            case DiagLevel::Stale:
+                y_norm = 0.75f;
+                break;
         }
 
-        const float x  = p0.x + static_cast<float>(i) * step;
-        const float y  = p0.y + height * y_norm;
-        const ImU32 col = IM_COL32(
-            static_cast<int>(cr * 255),
-            static_cast<int>(cg * 255),
-            static_cast<int>(cb * 255),
-            200);
+        const float x   = p0.x + static_cast<float>(i) * step;
+        const float y   = p0.y + height * y_norm;
+        const ImU32 col = IM_COL32(static_cast<int>(cr * 255),
+                                   static_cast<int>(cg * 255),
+                                   static_cast<int>(cb * 255),
+                                   200);
 
         // Draw line segment to next point.
         if (i + 1 < n)
         {
             const DiagSparkEntry& ne = comp.history[i + 1];
-            float nr, ng, nb, na2;
+            float                 nr, ng, nb, na2;
             level_color(ne.level, nr, ng, nb, na2);
             float ny_norm = 0.9f;
             switch (ne.level)
             {
-                case DiagLevel::OK:    ny_norm = 0.9f;  break;
-                case DiagLevel::Warn:  ny_norm = 0.55f; break;
-                case DiagLevel::Error: ny_norm = 0.1f;  break;
-                case DiagLevel::Stale: ny_norm = 0.75f; break;
+                case DiagLevel::OK:
+                    ny_norm = 0.9f;
+                    break;
+                case DiagLevel::Warn:
+                    ny_norm = 0.55f;
+                    break;
+                case DiagLevel::Error:
+                    ny_norm = 0.1f;
+                    break;
+                case DiagLevel::Stale:
+                    ny_norm = 0.75f;
+                    break;
             }
             const float nx = p0.x + static_cast<float>(i + 1) * step;
             const float ny = p0.y + height * ny_norm;
@@ -797,6 +879,6 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp,
     }
 }
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
 }   // namespace spectra::adapters::ros2

@@ -37,7 +37,7 @@ class QtSurfaceHost final : public platform::SurfaceHost
    private:
     bool ensure_window_instance(VkInstance instance, QWindow* window) const;
 
-    mutable QVulkanInstance*                  injected_vulkan_instance_ = nullptr;
+    mutable QVulkanInstance*                 injected_vulkan_instance_ = nullptr;
     mutable std::unique_ptr<QVulkanInstance> owned_vulkan_instance_;
 };
 

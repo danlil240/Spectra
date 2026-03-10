@@ -5,7 +5,7 @@
 #include "topic_discovery.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -14,8 +14,7 @@ namespace spectra::adapters::ros2
 namespace
 {
 
-std::vector<TopicInfo> matching_topics(const DisplayPlugin& display,
-                                       const DisplayContext& context)
+std::vector<TopicInfo> matching_topics(const DisplayPlugin& display, const DisplayContext& context)
 {
     if (!context.topic_discovery)
         return {};
@@ -24,7 +23,7 @@ std::vector<TopicInfo> matching_topics(const DisplayPlugin& display,
     if (compatible_types.empty())
         return {};
 
-    auto topics = context.topic_discovery->topics();
+    auto                   topics = context.topic_discovery->topics();
     std::vector<TopicInfo> matches;
     matches.reserve(topics.size());
     for (const auto& topic : topics)
@@ -39,9 +38,9 @@ std::vector<TopicInfo> matching_topics(const DisplayPlugin& display,
         }
     }
 
-    std::sort(matches.begin(), matches.end(), [](const TopicInfo& a, const TopicInfo& b) {
-        return a.name < b.name;
-    });
+    std::sort(matches.begin(),
+              matches.end(),
+              [](const TopicInfo& a, const TopicInfo& b) { return a.name < b.name; });
     return matches;
 }
 
@@ -78,8 +77,8 @@ bool draw_topic_selector(DisplayPlugin& display, const DisplayContext& context)
 
         for (const auto& topic : matches)
         {
-            const bool selected = display.topic() == topic.name;
-            std::string label = topic.name;
+            const bool  selected = display.topic() == topic.name;
+            std::string label    = topic.name;
             if (!topic.types.empty())
                 label += "  [" + std::string(type_leaf(topic.types.front())) + "]";
             if (ImGui::Selectable(label.c_str(), selected))
@@ -93,11 +92,11 @@ bool draw_topic_selector(DisplayPlugin& display, const DisplayContext& context)
     return true;
 }
 
-void add_display_instance(const DisplayRegistry& registry,
-                          const DisplayContext& context,
+void add_display_instance(const DisplayRegistry&                       registry,
+                          const DisplayContext&                        context,
                           std::vector<std::unique_ptr<DisplayPlugin>>& displays,
-                          int& selected_index,
-                          const std::string& type_id)
+                          int&                                         selected_index,
+                          const std::string&                           type_id)
 {
     if (auto display = registry.create(type_id))
     {
@@ -111,9 +110,9 @@ void add_display_instance(const DisplayRegistry& registry,
 
 }   // namespace
 
-void DisplaysPanel::draw(bool* p_open,
-                         const DisplayRegistry& registry,
-                         const DisplayContext& context,
+void DisplaysPanel::draw(bool*                                        p_open,
+                         const DisplayRegistry&                       registry,
+                         const DisplayContext&                        context,
                          std::vector<std::unique_ptr<DisplayPlugin>>& displays)
 {
 #ifdef SPECTRA_USE_IMGUI
@@ -128,8 +127,8 @@ void DisplaysPanel::draw(bool* p_open,
     if (ImGui::Button("Add Display"))
         ImGui::OpenPopup("##add_display_popup");
     ImGui::SameLine();
-    const bool can_remove = selected_index_ >= 0
-                         && selected_index_ < static_cast<int>(displays.size());
+    const bool can_remove =
+        selected_index_ >= 0 && selected_index_ < static_cast<int>(displays.size());
     if (ImGui::Button("Remove Selected") && can_remove)
     {
         displays[static_cast<size_t>(selected_index_)]->on_destroy();
@@ -140,7 +139,7 @@ void DisplaysPanel::draw(bool* p_open,
 
     if (ImGui::BeginPopup("##add_display_popup"))
     {
-        const auto display_types = registry.list_types();
+        const auto                          display_types = registry.list_types();
         std::vector<const DisplayTypeInfo*> suggested;
         std::vector<const DisplayTypeInfo*> other;
         suggested.reserve(display_types.size());
@@ -158,7 +157,8 @@ void DisplaysPanel::draw(bool* p_open,
                         continue;
                     if (std::find(type.compatible_types.begin(),
                                   type.compatible_types.end(),
-                                  topic.types.front()) != type.compatible_types.end())
+                                  topic.types.front())
+                        != type.compatible_types.end())
                     {
                         has_match = true;
                         break;
@@ -235,8 +235,8 @@ void DisplaysPanel::draw(bool* p_open,
         ImGui::PopID();
     }
 
-    const bool has_selection = selected_index_ >= 0
-                            && selected_index_ < static_cast<int>(displays.size());
+    const bool has_selection =
+        selected_index_ >= 0 && selected_index_ < static_cast<int>(displays.size());
     if (has_selection)
     {
         ImGui::Separator();

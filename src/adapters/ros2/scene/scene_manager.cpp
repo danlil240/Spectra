@@ -11,11 +11,8 @@ namespace
 {
 std::string entity_selection_key(const SceneEntity& entity)
 {
-    return entity.type + '\n'
-         + entity.display_name + '\n'
-         + entity.topic + '\n'
-         + entity.frame_id + '\n'
-         + entity.label;
+    return entity.type + '\n' + entity.display_name + '\n' + entity.topic + '\n' + entity.frame_id
+           + '\n' + entity.label;
 }
 
 struct SceneBounds
@@ -34,8 +31,8 @@ struct SceneBounds
 
     void include(const spectra::vec3& point)
     {
-        min = spectra::vec3_min(min, point);
-        max = spectra::vec3_max(max, point);
+        min   = spectra::vec3_min(min, point);
+        max   = spectra::vec3_max(max, point);
         valid = true;
     }
 
@@ -53,12 +50,10 @@ std::string property_as_string(const SceneEntity& entity,
                                const std::string& key,
                                const std::string& fallback = {})
 {
-    const auto it = std::find_if(entity.properties.begin(),
-                                 entity.properties.end(),
-                                 [&](const SceneProperty& property)
-                                 {
-                                     return property.key == key;
-                                 });
+    const auto it =
+        std::find_if(entity.properties.begin(),
+                     entity.properties.end(),
+                     [&](const SceneProperty& property) { return property.key == key; });
     return it == entity.properties.end() ? fallback : it->value;
 }
 
@@ -77,24 +72,30 @@ SceneBounds entity_bounds(const SceneEntity& entity)
 
     if (entity.type == "grid")
     {
-        const double cell_size = std::max(0.05, std::abs(entity.scale.x));
-        const double cell_count = std::max(1.0, std::abs(entity.scale.z));
-        const double half_extent = cell_size * cell_count * 0.5;
-        const std::string plane = property_as_string(entity, "plane", "xz");
+        const double      cell_size   = std::max(0.05, std::abs(entity.scale.x));
+        const double      cell_count  = std::max(1.0, std::abs(entity.scale.z));
+        const double      half_extent = cell_size * cell_count * 0.5;
+        const std::string plane       = property_as_string(entity, "plane", "xz");
         if (plane == "xy")
         {
-            bounds.include(entity.transform.translation + spectra::vec3{-half_extent, -half_extent, -0.05});
-            bounds.include(entity.transform.translation + spectra::vec3{half_extent, half_extent, 0.05});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{-half_extent, -half_extent, -0.05});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{half_extent, half_extent, 0.05});
         }
         else if (plane == "yz")
         {
-            bounds.include(entity.transform.translation + spectra::vec3{-0.05, -half_extent, -half_extent});
-            bounds.include(entity.transform.translation + spectra::vec3{0.05, half_extent, half_extent});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{-0.05, -half_extent, -half_extent});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{0.05, half_extent, half_extent});
         }
         else
         {
-            bounds.include(entity.transform.translation + spectra::vec3{-half_extent, -0.05, -half_extent});
-            bounds.include(entity.transform.translation + spectra::vec3{half_extent, 0.05, half_extent});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{-half_extent, -0.05, -half_extent});
+            bounds.include(entity.transform.translation
+                           + spectra::vec3{half_extent, 0.05, half_extent});
         }
     }
 
@@ -107,7 +108,7 @@ SceneBounds entity_bounds(const SceneEntity& entity)
 
     if (entity.arrow.has_value())
     {
-        const auto& arrow = *entity.arrow;
+        const auto&         arrow  = *entity.arrow;
         const spectra::vec3 origin = entity.transform.transform_point(arrow.origin);
         const spectra::vec3 direction =
             spectra::vec3_normalize(entity.transform.transform_vector(arrow.direction));
@@ -135,9 +136,7 @@ SceneBounds entity_bounds(const SceneEntity& entity)
     return bounds;
 }
 
-bool ray_intersects_aabb(const spectra::Ray&  ray,
-                         const SceneBounds&   bounds,
-                         double&              t_out)
+bool ray_intersects_aabb(const spectra::Ray& ray, const SceneBounds& bounds, double& t_out)
 {
     if (!bounds.valid)
         return false;
@@ -147,10 +146,10 @@ bool ray_intersects_aabb(const spectra::Ray&  ray,
 
     for (int axis = 0; axis < 3; ++axis)
     {
-        const double origin = ray.origin[axis];
+        const double origin    = ray.origin[axis];
         const double direction = ray.direction[axis];
-        const double slab_min = bounds.min[axis];
-        const double slab_max = bounds.max[axis];
+        const double slab_min  = bounds.min[axis];
+        const double slab_max  = bounds.max[axis];
 
         if (std::abs(direction) < 1e-12)
         {
@@ -203,17 +202,17 @@ const std::vector<SceneEntity>& SceneManager::entities() const
 std::optional<size_t> SceneManager::pick(const spectra::Ray& ray) const
 {
     std::optional<size_t> best_index;
-    double best_t = std::numeric_limits<double>::infinity();
+    double                best_t = std::numeric_limits<double>::infinity();
 
     for (size_t i = 0; i < entities_.size(); ++i)
     {
         const SceneBounds bounds = entity_bounds(entities_[i]);
-        double t = 0.0;
+        double            t      = 0.0;
         if (!ray_intersects_aabb(ray, bounds, t))
             continue;
         if (t < best_t)
         {
-            best_t = t;
+            best_t     = t;
             best_index = i;
         }
     }
@@ -232,7 +231,7 @@ void SceneManager::set_selected_index(std::optional<size_t> index)
     if (*index >= entities_.size())
         return;
     selected_index_ = index;
-    selected_key_ = entity_selection_key(entities_[*index]);
+    selected_key_   = entity_selection_key(entities_[*index]);
 }
 
 void SceneManager::clear_selection()

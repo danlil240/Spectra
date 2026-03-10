@@ -47,8 +47,8 @@ struct EmbedSurface::Impl
     std::unique_ptr<DataInteraction>  data_interaction;
 
     // Mouse state tracked from inject_* calls, fed to ImGui each frame
-    float mouse_x    = -FLT_MAX;
-    float mouse_y    = -FLT_MAX;
+    float mouse_x       = -FLT_MAX;
+    float mouse_y       = -FLT_MAX;
     bool  mouse_down[5] = {};
     float mouse_wheel   = 0.0f;
     float mouse_wheel_h = 0.0f;
@@ -161,7 +161,9 @@ struct EmbedSurface::Impl
         }
 
         // Set viewport for the full surface
-        input.set_viewport(0.0f, 0.0f, static_cast<float>(config.width),
+        input.set_viewport(0.0f,
+                           0.0f,
+                           static_cast<float>(config.width),
                            static_cast<float>(config.height));
     }
 
@@ -182,11 +184,11 @@ struct EmbedSurface::Impl
         {
             // Start ImGui frame with current input state
             ImGuiIntegration::HeadlessFrameInput fi{};
-            fi.display_w  = sw;
-            fi.display_h  = sh;
-            fi.dt         = 1.0f / 60.0f;
-            fi.mouse_x    = mouse_x;
-            fi.mouse_y    = mouse_y;
+            fi.display_w = sw;
+            fi.display_h = sh;
+            fi.dt        = 1.0f / 60.0f;
+            fi.mouse_x   = mouse_x;
+            fi.mouse_y   = mouse_y;
             for (int i = 0; i < 5; ++i)
                 fi.mouse_down[i] = mouse_down[i];
             fi.mouse_wheel   = mouse_wheel;
@@ -206,14 +208,14 @@ struct EmbedSurface::Impl
             imgui_ui->get_layout_manager().set_tab_bar_visible(false);
 
             // Compute subplot layout using LayoutManager canvas rect
-            const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+            const Rect  canvas   = imgui_ui->get_layout_manager().canvas_rect();
             const auto& af_style = active_fig->style();
-            Margins fig_margins;
+            Margins     fig_margins;
             fig_margins.left   = af_style.margin_left;
             fig_margins.right  = af_style.margin_right;
             fig_margins.top    = af_style.margin_top;
             fig_margins.bottom = af_style.margin_bottom;
-            const auto rects = compute_subplot_layout(canvas.w,
+            const auto rects   = compute_subplot_layout(canvas.w,
                                                       canvas.h,
                                                       active_fig->grid_rows_,
                                                       active_fig->grid_cols_,
@@ -286,16 +288,13 @@ struct EmbedSurface::Impl
         renderer->end_render_pass();
         backend->end_frame();
 
-
-
         return true;
     }
 };
 
 // ─── EmbedSurface public methods ────────────────────────────────────────────
 
-EmbedSurface::EmbedSurface(const EmbedConfig& config)
-    : impl_(std::make_unique<Impl>())
+EmbedSurface::EmbedSurface(const EmbedConfig& config) : impl_(std::make_unique<Impl>())
 {
     impl_->config = config;
     impl_->init();
@@ -321,7 +320,7 @@ bool EmbedSurface::is_valid() const
 
 Figure& EmbedSurface::figure(const FigureConfig& cfg)
 {
-    auto id = impl_->registry.register_figure(std::make_unique<Figure>(cfg));
+    auto  id  = impl_->registry.register_figure(std::make_unique<Figure>(cfg));
     auto* fig = impl_->registry.get(id);
 
     // Auto-activate first figure
@@ -409,7 +408,9 @@ bool EmbedSurface::render_to_buffer(uint8_t* out_rgba)
     if (!impl_->render_frame())
         return false;
 
-    return impl_->backend->readback_framebuffer(out_rgba, impl_->config.width, impl_->config.height);
+    return impl_->backend->readback_framebuffer(out_rgba,
+                                                impl_->config.width,
+                                                impl_->config.height);
 }
 
 bool EmbedSurface::render_to_image(const VulkanInteropInfo& /*target*/)
@@ -419,8 +420,7 @@ bool EmbedSurface::render_to_image(const VulkanInteropInfo& /*target*/)
 
     if (!impl_->config.enable_vulkan_interop)
     {
-        SPECTRA_LOG_ERROR("embed",
-                          "render_to_image() called but enable_vulkan_interop is false");
+        SPECTRA_LOG_ERROR("embed", "render_to_image() called but enable_vulkan_interop is false");
         return false;
     }
 
@@ -457,7 +457,10 @@ void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x
     if (button >= 0 && button < 5)
         impl_->mouse_down[button] = (action != 0);   // 0 = release
 #endif
-    impl_->input.on_mouse_button(button, action, mods, static_cast<double>(x),
+    impl_->input.on_mouse_button(button,
+                                 action,
+                                 mods,
+                                 static_cast<double>(x),
                                  static_cast<double>(y));
 }
 
@@ -466,11 +469,13 @@ void EmbedSurface::inject_scroll(float dx, float dy, float cursor_x, float curso
     if (!impl_ || !impl_->initialized)
         return;
 #ifdef SPECTRA_USE_IMGUI
-    impl_->mouse_wheel   += dy;
+    impl_->mouse_wheel += dy;
     impl_->mouse_wheel_h += dx;
 #endif
-    impl_->input.on_scroll(static_cast<double>(dx), static_cast<double>(dy),
-                           static_cast<double>(cursor_x), static_cast<double>(cursor_y));
+    impl_->input.on_scroll(static_cast<double>(dx),
+                           static_cast<double>(dy),
+                           static_cast<double>(cursor_x),
+                           static_cast<double>(cursor_y));
 }
 
 void EmbedSurface::inject_key(int key, int action, int mods)

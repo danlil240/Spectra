@@ -39,7 +39,7 @@ enum class BridgeState
     Disconnected,
     Connecting,
     Connected,
-    Receiving,      // actively receiving data
+    Receiving,   // actively receiving data
     ShuttingDown,
     Stopped,
 };
@@ -63,7 +63,7 @@ struct TelemetryField
 struct TelemetryMessage
 {
     uint32_t                    msg_id{0};
-    std::string                 name;      // e.g. "ATTITUDE", "GPS_RAW_INT"
+    std::string                 name;   // e.g. "ATTITUDE", "GPS_RAW_INT"
     uint64_t                    timestamp_us{0};
     std::vector<TelemetryField> fields;
 };
@@ -74,16 +74,16 @@ struct TelemetryMessage
 
 struct TelemetryChannel
 {
-    std::string                     name;
-    std::vector<TelemetryMessage>   buffer;   // circular buffer
-    size_t                          write_pos{0};
-    size_t                          capacity{1000};
-    size_t                          count{0};
-    mutable std::mutex              mutex;
+    std::string                   name;
+    std::vector<TelemetryMessage> buffer;   // circular buffer
+    size_t                        write_pos{0};
+    size_t                        capacity{1000};
+    size_t                        count{0};
+    mutable std::mutex            mutex;
 
-    void push(TelemetryMessage msg);
+    void                          push(TelemetryMessage msg);
     std::vector<TelemetryMessage> snapshot() const;
-    TelemetryMessage latest() const;
+    TelemetryMessage              latest() const;
 };
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ struct TelemetryChannel
 
 class Px4Bridge
 {
-public:
+   public:
     Px4Bridge();
     ~Px4Bridge();
 
@@ -121,15 +121,15 @@ public:
     // ------------------------------------------------------------------
 
     BridgeState state() const { return state_.load(std::memory_order_acquire); }
-    bool is_receiving() const { return state() == BridgeState::Receiving; }
-    bool is_connected() const
+    bool        is_receiving() const { return state() == BridgeState::Receiving; }
+    bool        is_connected() const
     {
         auto s = state();
         return s == BridgeState::Connected || s == BridgeState::Receiving;
     }
 
     const std::string& host() const { return host_; }
-    uint16_t port() const { return port_; }
+    uint16_t           port() const { return port_; }
 
     // ------------------------------------------------------------------
     // Data access (render thread)
@@ -163,7 +163,7 @@ public:
 
     const std::string& last_error() const noexcept { return last_error_; }
 
-private:
+   private:
     void receive_thread_func();
     void set_state(BridgeState s);
 
@@ -173,15 +173,15 @@ private:
     // Get or create a channel for a message name.
     TelemetryChannel& get_channel(const std::string& name);
 
-    std::string  host_{"127.0.0.1"};
-    uint16_t     port_{14540};
-    int          socket_fd_{-1};
+    std::string host_{"127.0.0.1"};
+    uint16_t    port_{14540};
+    int         socket_fd_{-1};
 
-    std::thread  recv_thread_;
+    std::thread              recv_thread_;
     std::atomic<BridgeState> state_{BridgeState::Disconnected};
     std::atomic<bool>        stop_requested_{false};
 
-    mutable std::mutex                                     channels_mutex_;
+    mutable std::mutex                                                 channels_mutex_;
     std::unordered_map<std::string, std::unique_ptr<TelemetryChannel>> channels_;
 
     std::atomic<uint64_t> total_msg_count_{0};

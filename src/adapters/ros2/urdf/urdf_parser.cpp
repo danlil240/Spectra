@@ -26,9 +26,9 @@ bool parse_vec3_attr(const char* text, spectra::vec3& out)
         return false;
 
     std::istringstream stream(text);
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
+    double             x = 0.0;
+    double             y = 0.0;
+    double             z = 0.0;
     if (!(stream >> x >> y >> z))
         return false;
 
@@ -53,8 +53,7 @@ spectra::quat quat_from_rpy(double roll, double pitch, double yaw)
     });
 }
 
-spectra::Transform parse_origin(const XMLElement* parent,
-                                std::vector<std::string>& warnings)
+spectra::Transform parse_origin(const XMLElement* parent, std::vector<std::string>& warnings)
 {
     spectra::Transform origin{};
     if (!parent)
@@ -85,8 +84,7 @@ spectra::Transform parse_origin(const XMLElement* parent,
     return origin;
 }
 
-UrdfGeometry parse_geometry(const XMLElement* geometry_element,
-                            std::vector<std::string>& warnings)
+UrdfGeometry parse_geometry(const XMLElement* geometry_element, std::vector<std::string>& warnings)
 {
     UrdfGeometry geometry;
     if (!geometry_element)
@@ -99,7 +97,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element,
             warnings.push_back("Ignoring <box> geometry with invalid size");
         else
         {
-            geometry.type = UrdfGeometryType::Box;
+            geometry.type     = UrdfGeometryType::Box;
             geometry.box_size = size;
         }
         return geometry;
@@ -116,7 +114,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element,
         }
         else
         {
-            geometry.type = UrdfGeometryType::Cylinder;
+            geometry.type   = UrdfGeometryType::Cylinder;
             geometry.radius = radius;
             geometry.length = length;
         }
@@ -132,7 +130,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element,
         }
         else
         {
-            geometry.type = UrdfGeometryType::Sphere;
+            geometry.type   = UrdfGeometryType::Sphere;
             geometry.radius = radius;
         }
         return geometry;
@@ -140,7 +138,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element,
 
     if (const XMLElement* mesh = geometry_element->FirstChildElement("mesh"))
     {
-        geometry.type = UrdfGeometryType::Unsupported;
+        geometry.type          = UrdfGeometryType::Unsupported;
         geometry.mesh_filename = mesh->Attribute("filename") ? mesh->Attribute("filename") : "";
         warnings.push_back("Ignoring unsupported <mesh> geometry");
         return geometry;
@@ -166,10 +164,10 @@ UrdfJointType parse_joint_type(const char* type_text)
     return UrdfJointType::Unknown;
 }
 
-bool parse_link(const XMLElement* link_element,
-                RobotDescription& robot,
+bool parse_link(const XMLElement*         link_element,
+                RobotDescription&         robot,
                 std::vector<std::string>& warnings,
-                std::string& error)
+                std::string&              error)
 {
     const char* name_attr = link_element->Attribute("name");
     if (!name_attr || name_attr[0] == '\0')
@@ -193,7 +191,8 @@ bool parse_link(const XMLElement* link_element,
         const XMLElement* geometry_element = collision->FirstChildElement("geometry");
         if (!geometry_element)
         {
-            warnings.push_back("Ignoring <collision> on link '" + link.name + "' with no <geometry>");
+            warnings.push_back("Ignoring <collision> on link '" + link.name
+                               + "' with no <geometry>");
             continue;
         }
 
@@ -208,10 +207,10 @@ bool parse_link(const XMLElement* link_element,
     return true;
 }
 
-bool parse_joint(const XMLElement* joint_element,
-                 RobotDescription& robot,
+bool parse_joint(const XMLElement*         joint_element,
+                 RobotDescription&         robot,
                  std::vector<std::string>& warnings,
-                 std::string& error)
+                 std::string&              error)
 {
     const char* name_attr = joint_element->Attribute("name");
     if (!name_attr || name_attr[0] == '\0')
@@ -221,15 +220,15 @@ bool parse_joint(const XMLElement* joint_element,
     }
 
     UrdfJoint joint;
-    joint.name = name_attr;
-    joint.type = parse_joint_type(joint_element->Attribute("type"));
+    joint.name   = name_attr;
+    joint.type   = parse_joint_type(joint_element->Attribute("type"));
     joint.origin = parse_origin(joint_element, warnings);
 
     if (joint.type == UrdfJointType::Unknown)
         warnings.push_back("Joint '" + joint.name + "' has unsupported type");
 
     const XMLElement* parent = joint_element->FirstChildElement("parent");
-    const XMLElement* child = joint_element->FirstChildElement("child");
+    const XMLElement* child  = joint_element->FirstChildElement("child");
     if (!parent || !child)
     {
         error = "Joint '" + joint.name + "' is missing <parent> or <child>";
@@ -237,14 +236,14 @@ bool parse_joint(const XMLElement* joint_element,
     }
 
     const char* parent_link = parent->Attribute("link");
-    const char* child_link = child->Attribute("link");
+    const char* child_link  = child->Attribute("link");
     if (!parent_link || !child_link || parent_link[0] == '\0' || child_link[0] == '\0')
     {
         error = "Joint '" + joint.name + "' has empty parent/child link";
         return false;
     }
     joint.parent_link = parent_link;
-    joint.child_link = child_link;
+    joint.child_link  = child_link;
 
     if (const XMLElement* axis = joint_element->FirstChildElement("axis"))
     {
@@ -289,9 +288,8 @@ UrdfParseResult parse_document(XMLDocument& document)
     }
     result.robot.name = robot_name;
 
-    for (const XMLElement* child = robot_element->FirstChildElement();
-         child != nullptr;
-         child = child->NextSiblingElement())
+    for (const XMLElement* child = robot_element->FirstChildElement(); child != nullptr;
+         child                   = child->NextSiblingElement())
     {
         const std::string tag = element_name(child);
         if (tag == "link")
@@ -333,13 +331,13 @@ const UrdfJoint* RobotDescription::find_joint(const std::string& joint_name) con
 
 UrdfParseResult UrdfParser::parse_string(const std::string& xml)
 {
-    XMLDocument document;
+    XMLDocument              document;
     const tinyxml2::XMLError err = document.Parse(xml.c_str(), xml.size());
     if (err != tinyxml2::XML_SUCCESS)
     {
         UrdfParseResult result;
         result.error = std::string("XML parse failed: ")
-            + (document.ErrorStr() ? document.ErrorStr() : "unknown error");
+                       + (document.ErrorStr() ? document.ErrorStr() : "unknown error");
         return result;
     }
 

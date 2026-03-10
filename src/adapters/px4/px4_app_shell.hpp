@@ -22,7 +22,7 @@ namespace spectra
 {
 class Figure;
 class WindowManager;
-}
+}   // namespace spectra
 
 namespace spectra::adapters::px4
 {
@@ -33,7 +33,7 @@ namespace spectra::adapters::px4
 
 struct Px4AppConfig
 {
-    std::string ulog_file;       // optional: open this ULog on launch
+    std::string ulog_file;   // optional: open this ULog on launch
     std::string host{"127.0.0.1"};
     uint16_t    port{14540};
     bool        auto_connect{false};
@@ -66,8 +66,8 @@ struct AutoPlotField
 
 struct AutoPlotGroup
 {
-    std::string               title;
-    std::string               ylabel;
+    std::string                title;
+    std::string                ylabel;
     std::vector<AutoPlotField> fields;
 };
 
@@ -77,7 +77,7 @@ struct AutoPlotGroup
 
 class Px4AppShell
 {
-public:
+   public:
     explicit Px4AppShell(const Px4AppConfig& cfg);
     ~Px4AppShell();
 
@@ -109,10 +109,7 @@ public:
 
     // Request graceful shutdown.
     void request_shutdown() { shutdown_requested_.store(true, std::memory_order_relaxed); }
-    bool shutdown_requested() const
-    {
-        return shutdown_requested_.load(std::memory_order_relaxed);
-    }
+    bool shutdown_requested() const { return shutdown_requested_.load(std::memory_order_relaxed); }
 
     // Open a ULog file (offline analysis).
     bool open_ulog(const std::string& path);
@@ -124,12 +121,12 @@ public:
     void close_all_plots();
 
     // Accessors.
-    ULogReader&         reader()      { return reader_; }
-    Px4Bridge&          bridge()      { return bridge_; }
+    ULogReader&         reader() { return reader_; }
+    Px4Bridge&          bridge() { return bridge_; }
     Px4PlotManager&     plot_manager() { return plot_mgr_; }
     const Px4AppConfig& config() const { return cfg_; }
 
-private:
+   private:
     bool open_ulog_with_dialog();
     void draw_menu_bar();
     void draw_status_bar();
@@ -140,9 +137,9 @@ private:
 
     Px4AppConfig cfg_;
 
-    ULogReader      reader_;
-    Px4Bridge       bridge_;
-    Px4PlotManager  plot_mgr_;
+    ULogReader     reader_;
+    Px4Bridge      bridge_;
+    Px4PlotManager plot_mgr_;
 
     std::unique_ptr<ULogFilePanel>       file_panel_;
     std::unique_ptr<LiveConnectionPanel> live_panel_;
@@ -156,9 +153,9 @@ private:
 
     std::atomic<bool> shutdown_requested_{false};
 
-    bool show_file_panel_{true};
-    bool show_live_panel_{false};
-    bool dock_layout_initialized_{false};
+    bool        show_file_panel_{true};
+    bool        show_live_panel_{false};
+    bool        dock_layout_initialized_{false};
     std::string last_open_error_;
 };
 

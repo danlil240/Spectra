@@ -17,12 +17,12 @@ namespace spectra::adapters::px4
 
 struct BatteryFrame
 {
-    double timestamp_sec{0.0};
-    float  voltage_v{0.0f};         // total battery voltage (V)
-    float  current_a{0.0f};         // battery current (A)
-    float  discharged_mah{0.0f};    // discharged capacity (mAh)
-    float  remaining{0.0f};         // remaining capacity [0..1]
-    float  temperature{0.0f};       // degrees Celsius
+    double  timestamp_sec{0.0};
+    float   voltage_v{0.0f};        // total battery voltage (V)
+    float   current_a{0.0f};        // battery current (A)
+    float   discharged_mah{0.0f};   // discharged capacity (mAh)
+    float   remaining{0.0f};        // remaining capacity [0..1]
+    float   temperature{0.0f};      // degrees Celsius
     uint8_t cell_count{0};
     bool    connected{false};
 };
@@ -31,8 +31,7 @@ struct BatteryFrame
 // Extract battery time series from ULog data.
 // ---------------------------------------------------------------------------
 
-inline std::vector<BatteryFrame>
-extract_battery(const ULogTimeSeries& ts)
+inline std::vector<BatteryFrame> extract_battery(const ULogTimeSeries& ts)
 {
     if (!ts.format)
         return {};

@@ -5,11 +5,11 @@
 #include <spectra/series.hpp>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
-#ifdef IMGUI_HAS_DOCK
-#include <imgui_internal.h>
-#endif
-#include "../../../third_party/tinyfiledialogs.h"
+    #include <imgui.h>
+    #ifdef IMGUI_HAS_DOCK
+        #include <imgui_internal.h>
+    #endif
+    #include "../../../third_party/tinyfiledialogs.h"
 #endif
 
 #include <algorithm>
@@ -27,10 +27,14 @@ namespace
 std::string choose_ulog_file_path()
 {
     char const* filter_patterns[] = {"*.ulg", "*.ulog"};
-    const char* home_env = std::getenv("HOME");
-    std::string default_path = home_env ? std::string(home_env) + "/" : "/";
-    const char* result = tinyfd_openFileDialog(
-        "Open ULog", default_path.c_str(), 2, filter_patterns, "PX4 ULog (*.ulg)", 0);
+    const char* home_env          = std::getenv("HOME");
+    std::string default_path      = home_env ? std::string(home_env) + "/" : "/";
+    const char* result            = tinyfd_openFileDialog("Open ULog",
+                                               default_path.c_str(),
+                                               2,
+                                               filter_patterns,
+                                               "PX4 ULog (*.ulg)",
+                                               0);
 
     return result ? std::string(result) : std::string();
 }
@@ -53,85 +57,69 @@ struct FieldDef
 
 struct GroupDef
 {
-    const char*             title;
-    const char*             ylabel;
-    std::vector<FieldDef>   fields;
+    const char*           title;
+    const char*           ylabel;
+    std::vector<FieldDef> fields;
 };
 
 static const GroupDef k_auto_plot_groups[] = {
-    {
-        "Attitude (deg)",
-        "deg",
-        {
-            {"vehicle_attitude_setpoint", "roll_body",  -1, 0, "roll sp"},
-            {"vehicle_attitude_setpoint", "pitch_body", -1, 0, "pitch sp"},
-            {"vehicle_attitude_setpoint", "yaw_body",   -1, 0, "yaw sp"},
-        }
-    },
-    {
-        "Angular Velocity (rad/s)",
-        "rad/s",
-        {
-            {"vehicle_angular_velocity", "xyz", 0, 0, "roll rate"},
-            {"vehicle_angular_velocity", "xyz", 1, 0, "pitch rate"},
-            {"vehicle_angular_velocity", "xyz", 2, 0, "yaw rate"},
-            {"vehicle_rates_setpoint",   "roll",  -1, 0, "roll rate sp"},
-            {"vehicle_rates_setpoint",   "pitch", -1, 0, "pitch rate sp"},
-            {"vehicle_rates_setpoint",   "yaw",   -1, 0, "yaw rate sp"},
-        }
-    },
-    {
-        "Altitude (m)",
-        "m",
-        {
-            {"vehicle_local_position",         "z",  -1, 0, "altitude (NED z)"},
-            {"vehicle_local_position_setpoint", "z", -1, 0, "altitude sp"},
-        }
-    },
-    {
-        "Velocity (m/s)",
-        "m/s",
-        {
-            {"vehicle_local_position", "vx", -1, 0, "vx"},
-            {"vehicle_local_position", "vy", -1, 0, "vy"},
-            {"vehicle_local_position", "vz", -1, 0, "vz"},
-        }
-    },
-    {
-        "Acceleration (m/s²)",
-        "m/s²",
-        {
-            {"sensor_combined", "accelerometer_m_s2", 0, 0, "ax"},
-            {"sensor_combined", "accelerometer_m_s2", 1, 0, "ay"},
-            {"sensor_combined", "accelerometer_m_s2", 2, 0, "az"},
-        }
-    },
-    {
-        "Battery",
-        "V / A",
-        {
-            {"battery_status", "voltage_v",  -1, 0, "voltage (V)"},
-            {"battery_status", "current_a",  -1, 0, "current (A)"},
-        }
-    },
-    {
-        "Actuator Outputs",
-        "norm",
-        {
-            {"actuator_outputs", "output", 0, 0, "motor 1"},
-            {"actuator_outputs", "output", 1, 0, "motor 2"},
-            {"actuator_outputs", "output", 2, 0, "motor 3"},
-            {"actuator_outputs", "output", 3, 0, "motor 4"},
-        }
-    },
-    {
-        "Airspeed (m/s)",
-        "m/s",
-        {
-            {"airspeed", "indicated_airspeed_m_s", -1, 0, "IAS"},
-            {"airspeed", "true_airspeed_m_s",      -1, 0, "TAS"},
-        }
-    },
+    {"Attitude (deg)",
+     "deg",
+     {
+         {"vehicle_attitude_setpoint", "roll_body", -1, 0, "roll sp"},
+         {"vehicle_attitude_setpoint", "pitch_body", -1, 0, "pitch sp"},
+         {"vehicle_attitude_setpoint", "yaw_body", -1, 0, "yaw sp"},
+     }},
+    {"Angular Velocity (rad/s)",
+     "rad/s",
+     {
+         {"vehicle_angular_velocity", "xyz", 0, 0, "roll rate"},
+         {"vehicle_angular_velocity", "xyz", 1, 0, "pitch rate"},
+         {"vehicle_angular_velocity", "xyz", 2, 0, "yaw rate"},
+         {"vehicle_rates_setpoint", "roll", -1, 0, "roll rate sp"},
+         {"vehicle_rates_setpoint", "pitch", -1, 0, "pitch rate sp"},
+         {"vehicle_rates_setpoint", "yaw", -1, 0, "yaw rate sp"},
+     }},
+    {"Altitude (m)",
+     "m",
+     {
+         {"vehicle_local_position", "z", -1, 0, "altitude (NED z)"},
+         {"vehicle_local_position_setpoint", "z", -1, 0, "altitude sp"},
+     }},
+    {"Velocity (m/s)",
+     "m/s",
+     {
+         {"vehicle_local_position", "vx", -1, 0, "vx"},
+         {"vehicle_local_position", "vy", -1, 0, "vy"},
+         {"vehicle_local_position", "vz", -1, 0, "vz"},
+     }},
+    {"Acceleration (m/s²)",
+     "m/s²",
+     {
+         {"sensor_combined", "accelerometer_m_s2", 0, 0, "ax"},
+         {"sensor_combined", "accelerometer_m_s2", 1, 0, "ay"},
+         {"sensor_combined", "accelerometer_m_s2", 2, 0, "az"},
+     }},
+    {"Battery",
+     "V / A",
+     {
+         {"battery_status", "voltage_v", -1, 0, "voltage (V)"},
+         {"battery_status", "current_a", -1, 0, "current (A)"},
+     }},
+    {"Actuator Outputs",
+     "norm",
+     {
+         {"actuator_outputs", "output", 0, 0, "motor 1"},
+         {"actuator_outputs", "output", 1, 0, "motor 2"},
+         {"actuator_outputs", "output", 2, 0, "motor 3"},
+         {"actuator_outputs", "output", 3, 0, "motor 4"},
+     }},
+    {"Airspeed (m/s)",
+     "m/s",
+     {
+         {"airspeed", "indicated_airspeed_m_s", -1, 0, "IAS"},
+         {"airspeed", "true_airspeed_m_s", -1, 0, "TAS"},
+     }},
 };
 
 }   // namespace
@@ -150,14 +138,13 @@ Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out)
 
         if (arg == "--help" || arg == "-h")
         {
-            error_out =
-                "Usage: spectra-px4 [options]\n"
-                "  --ulog FILE         Open ULog file on launch\n"
-                "  --host HOST         MAVLink UDP host (default 127.0.0.1)\n"
-                "  --port PORT         MAVLink UDP port (default 14540)\n"
-                "  --connect           Auto-connect to MAVLink on launch\n"
-                "  --window-s SEC      Time window for real-time plot (default 30)\n"
-                "  --help              Show this help\n";
+            error_out = "Usage: spectra-px4 [options]\n"
+                        "  --ulog FILE         Open ULog file on launch\n"
+                        "  --host HOST         MAVLink UDP host (default 127.0.0.1)\n"
+                        "  --port PORT         MAVLink UDP port (default 14540)\n"
+                        "  --connect           Auto-connect to MAVLink on launch\n"
+                        "  --window-s SEC      Time window for real-time plot (default 30)\n"
+                        "  --help              Show this help\n";
             return cfg;
         }
 
@@ -196,10 +183,7 @@ Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out)
 // Construction / destruction
 // ---------------------------------------------------------------------------
 
-Px4AppShell::Px4AppShell(const Px4AppConfig& cfg)
-    : cfg_(cfg)
-{
-}
+Px4AppShell::Px4AppShell(const Px4AppConfig& cfg) : cfg_(cfg) {}
 
 Px4AppShell::~Px4AppShell()
 {
@@ -216,16 +200,17 @@ bool Px4AppShell::init()
 
     file_panel_ = std::make_unique<ULogFilePanel>(reader_, plot_mgr_);
     live_panel_ = std::make_unique<LiveConnectionPanel>(bridge_, plot_mgr_);
-    file_panel_->set_file_callback([this](const std::string& path)
-    {
-        if (path.empty())
+    file_panel_->set_file_callback(
+        [this](const std::string& path)
         {
-            open_ulog_with_dialog();
-            return;
-        }
+            if (path.empty())
+            {
+                open_ulog_with_dialog();
+                return;
+            }
 
-        open_ulog(path);
-    });
+            open_ulog(path);
+        });
 
     // Wire field callback: add to plot on double-click.
     file_panel_->set_field_callback(
@@ -240,7 +225,8 @@ bool Px4AppShell::init()
     {
         if (!open_ulog(cfg_.ulog_file))
         {
-            std::fprintf(stderr, "spectra-px4: failed to open ULog: %s\n",
+            std::fprintf(stderr,
+                         "spectra-px4: failed to open ULog: %s\n",
                          reader_.last_error().c_str());
         }
     }
@@ -314,21 +300,19 @@ void Px4AppShell::draw()
     draw_menu_bar();
 
     // Create a dockspace over the main viewport so panels can dock/undock.
-#ifdef IMGUI_HAS_DOCK
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    float menu_bar_h = ImGui::GetFrameHeight();
-    float status_bar_h = ImGui::GetFrameHeight();
+    #ifdef IMGUI_HAS_DOCK
+    ImGuiViewport* viewport     = ImGui::GetMainViewport();
+    float          menu_bar_h   = ImGui::GetFrameHeight();
+    float          status_bar_h = ImGui::GetFrameHeight();
 
-    ImGui::SetNextWindowPos(
-        ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + menu_bar_h));
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + menu_bar_h));
     ImGui::SetNextWindowSize(
         ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - menu_bar_h - status_bar_h));
 
     ImGuiWindowFlags host_flags =
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
-        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -337,8 +321,7 @@ void Px4AppShell::draw()
     ImGui::PopStyleVar(3);
 
     ImGuiID dockspace_id = ImGui::GetID("Px4Dockspace");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
-                     ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
     // Apply default layout once — after DockSpace() has created the node.
     if (!dock_layout_initialized_)
@@ -353,8 +336,7 @@ void Px4AppShell::draw()
 
         // Split: left panel (30%) | main plot area (70%).
         ImGuiID dock_left, dock_main;
-        ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f,
-                                    &dock_left, &dock_main);
+        ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f, &dock_left, &dock_main);
 
         if (file_panel_)
             ImGui::DockBuilderDockWindow(file_panel_->title().c_str(), dock_left);
@@ -371,7 +353,7 @@ void Px4AppShell::draw()
         live_panel_->set_dock_id(dockspace_id);
 
     ImGui::End();
-#endif   // IMGUI_HAS_DOCK
+    #endif   // IMGUI_HAS_DOCK
 
     if (show_file_panel_ && file_panel_)
         file_panel_->draw(&show_file_panel_);
@@ -428,10 +410,9 @@ void Px4AppShell::auto_plot_ulog()
     plot_mgr_.clear();
     plot_mgr_.load_ulog(reader_);
 
-    const auto topics = plot_mgr_.available_topics();
-    auto topic_exists = [&](const char* t) {
-        return std::find(topics.begin(), topics.end(), std::string(t)) != topics.end();
-    };
+    const auto topics       = plot_mgr_.available_topics();
+    auto       topic_exists = [&](const char* t)
+    { return std::find(topics.begin(), topics.end(), std::string(t)) != topics.end(); };
 
     for (const auto& gdef : k_auto_plot_groups)
     {
@@ -445,11 +426,11 @@ void Px4AppShell::auto_plot_ulog()
                 continue;
 
             // Verify the field exists in this topic.
-            const auto fields = plot_mgr_.topic_fields(fdef.topic);
-            std::string field_key = fdef.array_idx >= 0
-                ? std::string(fdef.field) + "[" + std::to_string(fdef.array_idx) + "]"
-                : std::string(fdef.field);
-            bool found = std::find(fields.begin(), fields.end(), field_key) != fields.end();
+            const auto  fields    = plot_mgr_.topic_fields(fdef.topic);
+            std::string field_key = fdef.array_idx >= 0 ? std::string(fdef.field) + "["
+                                                              + std::to_string(fdef.array_idx) + "]"
+                                                        : std::string(fdef.field);
+            bool        found = std::find(fields.begin(), fields.end(), field_key) != fields.end();
             if (!found)
                 continue;
 
@@ -463,23 +444,24 @@ void Px4AppShell::auto_plot_ulog()
             apf.field     = fdef.field;
             apf.array_idx = fdef.array_idx;
             apf.multi_id  = fdef.multi_id;
-            apf.label     = fdef.label_override ? fdef.label_override
-                            : (fdef.array_idx >= 0
-                               ? std::string(fdef.topic) + "." + fdef.field
-                                     + "[" + std::to_string(fdef.array_idx) + "]"
-                               : std::string(fdef.topic) + "." + fdef.field);
+            apf.label =
+                fdef.label_override
+                    ? fdef.label_override
+                    : (fdef.array_idx >= 0 ? std::string(fdef.topic) + "." + fdef.field + "["
+                                                 + std::to_string(fdef.array_idx) + "]"
+                                           : std::string(fdef.topic) + "." + fdef.field);
 
             if (fdef.array_idx >= 0)
             {
                 auto [times, values] = ts->extract_array_element(fdef.field, fdef.array_idx);
-                apf.times  = std::move(times);
-                apf.values = std::move(values);
+                apf.times            = std::move(times);
+                apf.values           = std::move(values);
             }
             else
             {
                 auto [times, values] = ts->extract_field(fdef.field);
-                apf.times  = std::move(times);
-                apf.values = std::move(values);
+                apf.times            = std::move(times);
+                apf.values           = std::move(values);
             }
 
             if (!apf.times.empty())
@@ -531,7 +513,8 @@ void Px4AppShell::rebuild_figure_axes(int num_groups)
 {
     // Clear all existing series (GPU-safe deferred cleanup).
     for (auto& ax : canvas_figure_->axes_mut())
-        if (ax) ax->clear_series();
+        if (ax)
+            ax->clear_series();
 
     // Drop the axes vector and reset the grid.
     canvas_figure_->axes_mut().clear();
@@ -548,7 +531,7 @@ void Px4AppShell::sync_auto_plot_figure()
     if (!canvas_figure_)
         return;
 
-    const uint64_t revision = plot_mgr_.revision();
+    const uint64_t revision     = plot_mgr_.revision();
     const bool     data_changed = (revision != last_canvas_revision_);
 
     const int n = static_cast<int>(auto_plot_groups_.size());
@@ -559,7 +542,7 @@ void Px4AppShell::sync_auto_plot_figure()
         ax.title("PX4 ULog — no data");
         ax.xlabel("time (s)");
         canvas_figure_->legend().visible = false;
-        last_canvas_revision_ = revision;
+        last_canvas_revision_            = revision;
         return;
     }
 
@@ -571,7 +554,7 @@ void Px4AppShell::sync_auto_plot_figure()
     for (int i = 0; i < n; ++i)
     {
         const auto& group = auto_plot_groups_[static_cast<size_t>(i)];
-        auto& ax = canvas_figure_->subplot(n, 1, i + 1);
+        auto&       ax    = canvas_figure_->subplot(n, 1, i + 1);
 
         ax.title(group.title);
         ax.xlabel("time (s)");
@@ -580,8 +563,7 @@ void Px4AppShell::sync_auto_plot_figure()
         ax.show_border(true);
 
         // Rebuild series for this subplot if count changed.
-        const bool needs_rebuild =
-            ax.series().size() != group.fields.size();
+        const bool needs_rebuild = ax.series().size() != group.fields.size();
 
         if (needs_rebuild)
         {
@@ -597,8 +579,7 @@ void Px4AppShell::sync_auto_plot_figure()
             for (size_t j = 0; j < group.fields.size(); ++j)
             {
                 const auto& f    = group.fields[j];
-                auto*        line = dynamic_cast<spectra::LineSeries*>(
-                    ax.series_mut()[j].get());
+                auto*       line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[j].get());
                 if (!line)
                 {
                     ax.clear_series();
@@ -621,7 +602,7 @@ void Px4AppShell::sync_auto_plot_figure()
     }
 
     canvas_figure_->legend().visible = true;
-    last_canvas_revision_ = revision;
+    last_canvas_revision_            = revision;
 }
 
 // ---------------------------------------------------------------------------
@@ -674,7 +655,7 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         for (size_t i = 0; i < plot_mgr_.fields().size(); ++i)
         {
             const auto& field = plot_mgr_.fields()[i];
-            auto* line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[i].get());
+            auto*       line  = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[i].get());
             if (!line)
             {
                 ax.clear_series();
@@ -822,16 +803,14 @@ void Px4AppShell::draw_menu_bar()
 void Px4AppShell::draw_status_bar()
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar |
-                              ImGuiWindowFlags_NoSavedSettings |
-                              ImGuiWindowFlags_NoTitleBar |
-                              ImGuiWindowFlags_NoResize |
-                              ImGuiWindowFlags_NoMove;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+                             | ImGuiWindowFlags_NoMove;
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    float bar_h = ImGui::GetFrameHeight();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x,
-                                    viewport->WorkPos.y + viewport->WorkSize.y - bar_h));
+    float          bar_h    = ImGui::GetFrameHeight();
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - bar_h));
     ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, bar_h));
 
     if (ImGui::Begin("##StatusBar", nullptr, flags))
@@ -856,7 +835,8 @@ void Px4AppShell::draw_status_bar()
             if (reader_.is_open())
                 ImGui::SameLine();
             ImGui::Text("Live: %s:%d (%.0f msg/s)",
-                        bridge_.host().c_str(), bridge_.port(),
+                        bridge_.host().c_str(),
+                        bridge_.port(),
                         bridge_.message_rate());
         }
 

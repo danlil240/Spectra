@@ -96,13 +96,14 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
 
     // Soft shadow (drawn on foreground draw list before the window)
     {
-        ImDrawList* fg      = ImGui::GetForegroundDrawList();
-        float       sh_off  = 2.0f;
-        float       sh_r    = ui::tokens::RADIUS_MD + 2.0f;
-        ImU32       sh_col  = IM_COL32(0, 0, 0, static_cast<int>(30.0f * opacity_));
+        ImDrawList* fg     = ImGui::GetForegroundDrawList();
+        float       sh_off = 2.0f;
+        float       sh_r   = ui::tokens::RADIUS_MD + 2.0f;
+        ImU32       sh_col = IM_COL32(0, 0, 0, static_cast<int>(30.0f * opacity_));
         fg->AddRectFilled(ImVec2(tx + sh_off, ty + sh_off),
                           ImVec2(tx + tooltip_w + sh_off, ty + tooltip_h + sh_off),
-                          sh_col, sh_r);
+                          sh_col,
+                          sh_r);
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity_);

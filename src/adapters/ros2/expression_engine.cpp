@@ -20,18 +20,44 @@ namespace spectra::adapters::ros2
 
 enum class NodeKind
 {
-    Number,      // literal double
-    Variable,    // $topic.field
-    Constant,    // named constant: pi, e
-    BinOp,       // +, -, *, /, ^
-    UnaryMinus,  // -expr
-    Function1,   // f(arg)
-    Function2,   // f(arg, arg)
+    Number,       // literal double
+    Variable,     // $topic.field
+    Constant,     // named constant: pi, e
+    BinOp,        // +, -, *, /, ^
+    UnaryMinus,   // -expr
+    Function1,    // f(arg)
+    Function2,    // f(arg, arg)
 };
 
-enum class BinOpKind  { Add, Sub, Mul, Div, Pow };
-enum class Func1Kind  { Sqrt, Abs, Sin, Cos, Tan, Asin, Acos, Atan, Log, Log10, Exp, Floor, Ceil, Round };
-enum class Func2Kind  { Atan2 };
+enum class BinOpKind
+{
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Pow
+};
+enum class Func1Kind
+{
+    Sqrt,
+    Abs,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Log,
+    Log10,
+    Exp,
+    Floor,
+    Ceil,
+    Round
+};
+enum class Func2Kind
+{
+    Atan2
+};
 
 struct ExpressionEngine::AstNode
 {
@@ -44,11 +70,11 @@ struct ExpressionEngine::AstNode
     std::string name;
 
     // BinOp
-    BinOpKind  binop{BinOpKind::Add};
+    BinOpKind binop{BinOpKind::Add};
 
     // Function
-    Func1Kind  func1{Func1Kind::Sqrt};
-    Func2Kind  func2{Func2Kind::Atan2};
+    Func1Kind func1{Func1Kind::Sqrt};
+    Func2Kind func2{Func2Kind::Atan2};
 
     // Children
     std::unique_ptr<AstNode> left;
@@ -67,12 +93,18 @@ static std::string json_escape(const std::string& s)
     out.reserve(s.size() + 4);
     for (char c : s)
     {
-        if      (c == '"')  out += "\\\"";
-        else if (c == '\\') out += "\\\\";
-        else if (c == '\n') out += "\\n";
-        else if (c == '\r') out += "\\r";
-        else if (c == '\t') out += "\\t";
-        else                out += c;
+        if (c == '"')
+            out += "\\\"";
+        else if (c == '\\')
+            out += "\\\\";
+        else if (c == '\n')
+            out += "\\n";
+        else if (c == '\r')
+            out += "\\r";
+        else if (c == '\t')
+            out += "\\t";
+        else
+            out += c;
     }
     return out;
 }
@@ -88,12 +120,24 @@ static std::string json_unescape(const std::string& s)
             ++i;
             switch (s[i])
             {
-                case '"':  out += '"'; break;
-                case '\\': out += '\\'; break;
-                case 'n':  out += '\n'; break;
-                case 'r':  out += '\r'; break;
-                case 't':  out += '\t'; break;
-                default:   out += s[i]; break;
+                case '"':
+                    out += '"';
+                    break;
+                case '\\':
+                    out += '\\';
+                    break;
+                case 'n':
+                    out += '\n';
+                    break;
+                case 'r':
+                    out += '\r';
+                    break;
+                case 't':
+                    out += '\t';
+                    break;
+                default:
+                    out += s[i];
+                    break;
             }
         }
         else
@@ -108,7 +152,7 @@ static std::string json_unescape(const std::string& s)
 static std::string json_get_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    size_t pos = json.find(search);
+    size_t      pos    = json.find(search);
     if (pos == std::string::npos)
         return {};
     pos += search.size();
@@ -116,7 +160,7 @@ static std::string json_get_string(const std::string& json, const std::string& k
         ++pos;
     if (pos >= json.size() || json[pos] != '"')
         return {};
-    ++pos;  // skip opening quote
+    ++pos;   // skip opening quote
     std::string val;
     while (pos < json.size() && json[pos] != '"')
     {
@@ -135,11 +179,12 @@ static std::string json_get_string(const std::string& json, const std::string& k
 }
 
 // Extract a JSON array of strings for a field named `key`.
-static std::vector<std::string> json_get_string_array(const std::string& json, const std::string& key)
+static std::vector<std::string> json_get_string_array(const std::string& json,
+                                                      const std::string& key)
 {
     std::vector<std::string> out;
-    std::string search = "\"" + key + "\"";
-    size_t pos = json.find(search);
+    std::string              search = "\"" + key + "\"";
+    size_t                   pos    = json.find(search);
     if (pos == std::string::npos)
         return out;
     pos += search.size();
@@ -147,7 +192,7 @@ static std::vector<std::string> json_get_string_array(const std::string& json, c
         ++pos;
     if (pos >= json.size() || json[pos] != '[')
         return out;
-    ++pos;  // skip '['
+    ++pos;   // skip '['
     while (pos < json.size() && json[pos] != ']')
     {
         while (pos < json.size() && (json[pos] == ' ' || json[pos] == ','))
@@ -172,7 +217,7 @@ static std::vector<std::string> json_get_string_array(const std::string& json, c
                 }
             }
             if (pos < json.size())
-                ++pos;  // skip closing quote
+                ++pos;   // skip closing quote
             out.push_back(json_unescape(s));
         }
         else
@@ -185,12 +230,12 @@ static std::vector<std::string> json_get_string_array(const std::string& json, c
 
 std::string ExpressionPreset::serialize() const
 {
-    std::string j = "{\"name\":\"" + json_escape(name)
-                  + "\",\"expression\":\"" + json_escape(expression)
-                  + "\",\"variables\":[";
+    std::string j = "{\"name\":\"" + json_escape(name) + "\",\"expression\":\""
+                    + json_escape(expression) + "\",\"variables\":[";
     for (size_t i = 0; i < variables.size(); ++i)
     {
-        if (i) j += ',';
+        if (i)
+            j += ',';
         j += '"';
         j += json_escape(variables[i]);
         j += '"';
@@ -214,19 +259,22 @@ ExpressionPreset ExpressionPreset::deserialize(const std::string& json)
 
 char ExpressionEngine::ParseState::peek() const
 {
-    if (pos >= len) return '\0';
+    if (pos >= len)
+        return '\0';
     return src[pos];
 }
 
 char ExpressionEngine::ParseState::peek_at(size_t offset) const
 {
-    if (pos + offset >= len) return '\0';
+    if (pos + offset >= len)
+        return '\0';
     return src[pos + offset];
 }
 
 void ExpressionEngine::ParseState::advance()
 {
-    if (pos < len) ++pos;
+    if (pos < len)
+        ++pos;
 }
 
 void ExpressionEngine::ParseState::skip_whitespace()
@@ -364,7 +412,7 @@ double ExpressionEngine::evaluate(const std::unordered_map<std::string, double>&
     for (auto& kv : vars)
         var_values_[kv.first] = kv.second;
     double result = eval_node(*root_);
-    var_values_ = std::move(saved);
+    var_values_   = std::move(saved);
     return result;
 }
 
@@ -385,8 +433,10 @@ double ExpressionEngine::eval_node(const AstNode& n) const
 
         case NodeKind::Constant:
         {
-            if (n.name == "pi") return M_PI;
-            if (n.name == "e")  return M_E;
+            if (n.name == "pi")
+                return M_PI;
+            if (n.name == "e")
+                return M_E;
             return std::numeric_limits<double>::quiet_NaN();
         }
 
@@ -399,13 +449,18 @@ double ExpressionEngine::eval_node(const AstNode& n) const
             double rv = eval_node(*n.right);
             switch (n.binop)
             {
-                case BinOpKind::Add: return lv + rv;
-                case BinOpKind::Sub: return lv - rv;
-                case BinOpKind::Mul: return lv * rv;
+                case BinOpKind::Add:
+                    return lv + rv;
+                case BinOpKind::Sub:
+                    return lv - rv;
+                case BinOpKind::Mul:
+                    return lv * rv;
                 case BinOpKind::Div:
-                    if (rv == 0.0) return std::numeric_limits<double>::quiet_NaN();
+                    if (rv == 0.0)
+                        return std::numeric_limits<double>::quiet_NaN();
                     return lv / rv;
-                case BinOpKind::Pow: return std::pow(lv, rv);
+                case BinOpKind::Pow:
+                    return std::pow(lv, rv);
             }
             break;
         }
@@ -415,20 +470,34 @@ double ExpressionEngine::eval_node(const AstNode& n) const
             double a = eval_node(*n.left);
             switch (n.func1)
             {
-                case Func1Kind::Sqrt:  return std::sqrt(a);
-                case Func1Kind::Abs:   return std::fabs(a);
-                case Func1Kind::Sin:   return std::sin(a);
-                case Func1Kind::Cos:   return std::cos(a);
-                case Func1Kind::Tan:   return std::tan(a);
-                case Func1Kind::Asin:  return std::asin(a);
-                case Func1Kind::Acos:  return std::acos(a);
-                case Func1Kind::Atan:  return std::atan(a);
-                case Func1Kind::Log:   return std::log(a);
-                case Func1Kind::Log10: return std::log10(a);
-                case Func1Kind::Exp:   return std::exp(a);
-                case Func1Kind::Floor: return std::floor(a);
-                case Func1Kind::Ceil:  return std::ceil(a);
-                case Func1Kind::Round: return std::round(a);
+                case Func1Kind::Sqrt:
+                    return std::sqrt(a);
+                case Func1Kind::Abs:
+                    return std::fabs(a);
+                case Func1Kind::Sin:
+                    return std::sin(a);
+                case Func1Kind::Cos:
+                    return std::cos(a);
+                case Func1Kind::Tan:
+                    return std::tan(a);
+                case Func1Kind::Asin:
+                    return std::asin(a);
+                case Func1Kind::Acos:
+                    return std::acos(a);
+                case Func1Kind::Atan:
+                    return std::atan(a);
+                case Func1Kind::Log:
+                    return std::log(a);
+                case Func1Kind::Log10:
+                    return std::log10(a);
+                case Func1Kind::Exp:
+                    return std::exp(a);
+                case Func1Kind::Floor:
+                    return std::floor(a);
+                case Func1Kind::Ceil:
+                    return std::ceil(a);
+                case Func1Kind::Round:
+                    return std::round(a);
             }
             break;
         }
@@ -439,7 +508,8 @@ double ExpressionEngine::eval_node(const AstNode& n) const
             double b = eval_node(*n.right);
             switch (n.func2)
             {
-                case Func2Kind::Atan2: return std::atan2(a, b);
+                case Func2Kind::Atan2:
+                    return std::atan2(a, b);
             }
             break;
         }
@@ -451,16 +521,17 @@ double ExpressionEngine::eval_node(const AstNode& n) const
 // collect_variables()
 // ---------------------------------------------------------------------------
 
-void ExpressionEngine::collect_variables(const AstNode& n,
-                                         std::vector<std::string>& out) const
+void ExpressionEngine::collect_variables(const AstNode& n, std::vector<std::string>& out) const
 {
     if (n.kind == NodeKind::Variable)
     {
         out.push_back(n.name);
         return;
     }
-    if (n.left)  collect_variables(*n.left,  out);
-    if (n.right) collect_variables(*n.right, out);
+    if (n.left)
+        collect_variables(*n.left, out);
+    if (n.right)
+        collect_variables(*n.right, out);
 }
 
 // ---------------------------------------------------------------------------
@@ -500,8 +571,9 @@ bool ExpressionEngine::load_preset(const std::string& name)
 
 bool ExpressionEngine::remove_preset(const std::string& name)
 {
-    auto it = std::find_if(presets_.begin(), presets_.end(),
-                           [&name](const ExpressionPreset& p){ return p.name == name; });
+    auto it = std::find_if(presets_.begin(),
+                           presets_.end(),
+                           [&name](const ExpressionPreset& p) { return p.name == name; });
     if (it == presets_.end())
         return false;
     presets_.erase(it);
@@ -518,7 +590,8 @@ std::string ExpressionEngine::serialize_presets() const
     std::string j = "[";
     for (size_t i = 0; i < presets_.size(); ++i)
     {
-        if (i) j += ',';
+        if (i)
+            j += ',';
         j += presets_[i].serialize();
     }
     j += "]";
@@ -530,7 +603,8 @@ void ExpressionEngine::deserialize_presets(const std::string& json)
     presets_.clear();
     // Find array bounds.
     size_t start = json.find('[');
-    if (start == std::string::npos) return;
+    if (start == std::string::npos)
+        return;
     ++start;
 
     // Walk through top-level objects.
@@ -542,17 +616,27 @@ void ExpressionEngine::deserialize_presets(const std::string& json)
         if (pos >= json.size() || json[pos] == ']')
             break;
         // Find matching '}'
-        int depth = 0;
+        int    depth     = 0;
         size_t obj_start = pos;
         size_t obj_end   = pos;
         while (pos < json.size())
         {
-            if      (json[pos] == '{') ++depth;
-            else if (json[pos] == '}') { --depth; if (depth == 0) { obj_end = pos; ++pos; break; } }
+            if (json[pos] == '{')
+                ++depth;
+            else if (json[pos] == '}')
+            {
+                --depth;
+                if (depth == 0)
+                {
+                    obj_end = pos;
+                    ++pos;
+                    break;
+                }
+            }
             ++pos;
         }
-        std::string obj = json.substr(obj_start, obj_end - obj_start + 1);
-        ExpressionPreset p = ExpressionPreset::deserialize(obj);
+        std::string      obj = json.substr(obj_start, obj_end - obj_start + 1);
+        ExpressionPreset p   = ExpressionPreset::deserialize(obj);
         if (!p.name.empty())
             presets_.push_back(std::move(p));
     }
@@ -565,8 +649,8 @@ void ExpressionEngine::deserialize_presets(const std::string& json)
 std::vector<std::string> ExpressionEngine::extract_variables(const std::string& expression)
 {
     std::vector<std::string> out;
-    const size_t len = expression.size();
-    size_t i = 0;
+    const size_t             len = expression.size();
+    size_t                   i   = 0;
     while (i < len)
     {
         if (expression[i] == '$')
@@ -574,10 +658,9 @@ std::vector<std::string> ExpressionEngine::extract_variables(const std::string& 
             size_t start = i;
             ++i;
             // Variable: letters, digits, '_', '.', '/'
-            while (i < len && (std::isalnum(static_cast<unsigned char>(expression[i]))
-                                || expression[i] == '_'
-                                || expression[i] == '.'
-                                || expression[i] == '/'))
+            while (i < len
+                   && (std::isalnum(static_cast<unsigned char>(expression[i]))
+                       || expression[i] == '_' || expression[i] == '.' || expression[i] == '/'))
             {
                 ++i;
             }
@@ -598,13 +681,14 @@ std::vector<std::string> ExpressionEngine::extract_variables(const std::string& 
 
 bool ExpressionEngine::is_valid_variable(const std::string& name)
 {
-    if (name.empty() || name[0] != '$') return false;
-    if (name.size() < 2)               return false;
+    if (name.empty() || name[0] != '$')
+        return false;
+    if (name.size() < 2)
+        return false;
     for (size_t i = 1; i < name.size(); ++i)
     {
         char c = name[i];
-        if (!std::isalnum(static_cast<unsigned char>(c))
-            && c != '_' && c != '.' && c != '/')
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '.' && c != '/')
             return false;
     }
     return true;
@@ -612,15 +696,14 @@ bool ExpressionEngine::is_valid_variable(const std::string& name)
 
 const char* ExpressionEngine::syntax_help()
 {
-    return
-        "Operators:  + - * / ^ (power)\n"
-        "Variables:  $topic.field.path  (e.g. $imu.linear_acceleration.x)\n"
-        "Constants:  pi  e\n"
-        "Functions:  sqrt  abs  sin  cos  tan  asin  acos  atan\n"
-        "            atan2(y,x)  log  log10  exp  floor  ceil  round\n"
-        "Grouping:   ( expr )\n"
-        "\n"
-        "Example:  sqrt($imu.acc.x^2 + $imu.acc.y^2 + $imu.acc.z^2)";
+    return "Operators:  + - * / ^ (power)\n"
+           "Variables:  $topic.field.path  (e.g. $imu.linear_acceleration.x)\n"
+           "Constants:  pi  e\n"
+           "Functions:  sqrt  abs  sin  cos  tan  asin  acos  atan\n"
+           "            atan2(y,x)  log  log10  exp  floor  ceil  round\n"
+           "Grouping:   ( expr )\n"
+           "\n"
+           "Example:  sqrt($imu.acc.x^2 + $imu.acc.y^2 + $imu.acc.z^2)";
 }
 
 // ---------------------------------------------------------------------------
@@ -646,7 +729,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_expr(ParseState& ps)
 ExpressionEngine::AstNodePtr ExpressionEngine::parse_additive(ParseState& ps)
 {
     auto lhs = parse_multiplicative(ps);
-    if (!lhs) return nullptr;
+    if (!lhs)
+        return nullptr;
 
     ps.skip_whitespace();
     while (!ps.at_end() && (ps.peek() == '+' || ps.peek() == '-'))
@@ -655,14 +739,15 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_additive(ParseState& ps)
         ps.advance();
         ps.skip_whitespace();
         auto rhs = parse_multiplicative(ps);
-        if (!rhs) return nullptr;
+        if (!rhs)
+            return nullptr;
 
-        auto node      = std::make_unique<AstNode>();
-        node->kind     = NodeKind::BinOp;
-        node->binop    = (op == '+') ? BinOpKind::Add : BinOpKind::Sub;
-        node->left     = std::move(lhs);
-        node->right    = std::move(rhs);
-        lhs            = std::move(node);
+        auto node   = std::make_unique<AstNode>();
+        node->kind  = NodeKind::BinOp;
+        node->binop = (op == '+') ? BinOpKind::Add : BinOpKind::Sub;
+        node->left  = std::move(lhs);
+        node->right = std::move(rhs);
+        lhs         = std::move(node);
         ps.skip_whitespace();
     }
     return lhs;
@@ -671,7 +756,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_additive(ParseState& ps)
 ExpressionEngine::AstNodePtr ExpressionEngine::parse_multiplicative(ParseState& ps)
 {
     auto lhs = parse_power(ps);
-    if (!lhs) return nullptr;
+    if (!lhs)
+        return nullptr;
 
     ps.skip_whitespace();
     while (!ps.at_end() && (ps.peek() == '*' || ps.peek() == '/'))
@@ -680,7 +766,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_multiplicative(ParseState& 
         ps.advance();
         ps.skip_whitespace();
         auto rhs = parse_power(ps);
-        if (!rhs) return nullptr;
+        if (!rhs)
+            return nullptr;
 
         auto node   = std::make_unique<AstNode>();
         node->kind  = NodeKind::BinOp;
@@ -696,7 +783,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_multiplicative(ParseState& 
 ExpressionEngine::AstNodePtr ExpressionEngine::parse_power(ParseState& ps)
 {
     auto base = parse_unary(ps);
-    if (!base) return nullptr;
+    if (!base)
+        return nullptr;
 
     ps.skip_whitespace();
     if (!ps.at_end() && ps.peek() == '^')
@@ -705,7 +793,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_power(ParseState& ps)
         ps.skip_whitespace();
         // Right-associative: recurse into parse_power.
         auto exp = parse_power(ps);
-        if (!exp) return nullptr;
+        if (!exp)
+            return nullptr;
 
         auto node   = std::make_unique<AstNode>();
         node->kind  = NodeKind::BinOp;
@@ -725,7 +814,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_unary(ParseState& ps)
         ps.advance();
         ps.skip_whitespace();
         auto operand = parse_unary(ps);
-        if (!operand) return nullptr;
+        if (!operand)
+            return nullptr;
 
         auto node  = std::make_unique<AstNode>();
         node->kind = NodeKind::UnaryMinus;
@@ -752,7 +842,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_primary(ParseState& ps)
     {
         ps.advance();
         auto inner = parse_expr(ps);
-        if (!inner) return nullptr;
+        if (!inner)
+            return nullptr;
         ps.skip_whitespace();
         if (ps.at_end() || ps.peek() != ')')
         {
@@ -776,8 +867,8 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_primary(ParseState& ps)
     if (std::isalpha(static_cast<unsigned char>(c)) || c == '_')
     {
         size_t start = ps.pos;
-        while (!ps.at_end() && (std::isalnum(static_cast<unsigned char>(ps.peek()))
-                                 || ps.peek() == '_'))
+        while (!ps.at_end()
+               && (std::isalnum(static_cast<unsigned char>(ps.peek())) || ps.peek() == '_'))
         {
             ps.advance();
         }
@@ -848,15 +939,19 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_number(ParseState& ps)
     }
 
     double val = 0.0;
-    try { val = std::stod(num_str); }
-    catch (...) {
+    try
+    {
+        val = std::stod(num_str);
+    }
+    catch (...)
+    {
         ps.error     = "Number out of range: " + num_str;
         ps.error_col = static_cast<int>(start);
         return nullptr;
     }
 
-    auto node   = std::make_unique<AstNode>();
-    node->kind  = NodeKind::Number;
+    auto node    = std::make_unique<AstNode>();
+    node->kind   = NodeKind::Number;
     node->number = val;
     return node;
 }
@@ -864,14 +959,13 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_number(ParseState& ps)
 ExpressionEngine::AstNodePtr ExpressionEngine::parse_variable(ParseState& ps)
 {
     size_t start = ps.pos;
-    ps.advance();  // consume '$'
+    ps.advance();   // consume '$'
 
     // Variable body: alnum, '_', '.', '/'
     size_t body_start = ps.pos;
-    while (!ps.at_end() && (std::isalnum(static_cast<unsigned char>(ps.peek()))
-                             || ps.peek() == '_'
-                             || ps.peek() == '.'
-                             || ps.peek() == '/'))
+    while (!ps.at_end()
+           && (std::isalnum(static_cast<unsigned char>(ps.peek())) || ps.peek() == '_'
+               || ps.peek() == '.' || ps.peek() == '/'))
     {
         ps.advance();
     }
@@ -883,22 +977,23 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_variable(ParseState& ps)
         return nullptr;
     }
 
-    std::string var_name(ps.src + start, ps.pos - start);  // includes '$'
-    auto node  = std::make_unique<AstNode>();
-    node->kind = NodeKind::Variable;
-    node->name = std::move(var_name);
+    std::string var_name(ps.src + start, ps.pos - start);   // includes '$'
+    auto        node = std::make_unique<AstNode>();
+    node->kind       = NodeKind::Variable;
+    node->name       = std::move(var_name);
     return node;
 }
 
-ExpressionEngine::AstNodePtr ExpressionEngine::parse_function_call(ParseState& ps,
-                                                                    const std::string& name)
+ExpressionEngine::AstNodePtr ExpressionEngine::parse_function_call(ParseState&        ps,
+                                                                   const std::string& name)
 {
     // pos is at '('
-    ps.advance();  // consume '('
+    ps.advance();   // consume '('
     ps.skip_whitespace();
 
     auto arg1 = parse_expr(ps);
-    if (!arg1) return nullptr;
+    if (!arg1)
+        return nullptr;
     ps.skip_whitespace();
 
     // Two-argument functions.
@@ -910,10 +1005,11 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_function_call(ParseState& p
             ps.error_col = static_cast<int>(ps.pos);
             return nullptr;
         }
-        ps.advance();  // consume ','
+        ps.advance();   // consume ','
         ps.skip_whitespace();
         auto arg2 = parse_expr(ps);
-        if (!arg2) return nullptr;
+        if (!arg2)
+            return nullptr;
         ps.skip_whitespace();
         if (ps.at_end() || ps.peek() != ')')
         {
@@ -942,20 +1038,34 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_function_call(ParseState& p
 
     // Map name to Func1Kind.
     Func1Kind fk;
-    if      (name == "sqrt")  fk = Func1Kind::Sqrt;
-    else if (name == "abs")   fk = Func1Kind::Abs;
-    else if (name == "sin")   fk = Func1Kind::Sin;
-    else if (name == "cos")   fk = Func1Kind::Cos;
-    else if (name == "tan")   fk = Func1Kind::Tan;
-    else if (name == "asin")  fk = Func1Kind::Asin;
-    else if (name == "acos")  fk = Func1Kind::Acos;
-    else if (name == "atan")  fk = Func1Kind::Atan;
-    else if (name == "log")   fk = Func1Kind::Log;
-    else if (name == "log10") fk = Func1Kind::Log10;
-    else if (name == "exp")   fk = Func1Kind::Exp;
-    else if (name == "floor") fk = Func1Kind::Floor;
-    else if (name == "ceil")  fk = Func1Kind::Ceil;
-    else if (name == "round") fk = Func1Kind::Round;
+    if (name == "sqrt")
+        fk = Func1Kind::Sqrt;
+    else if (name == "abs")
+        fk = Func1Kind::Abs;
+    else if (name == "sin")
+        fk = Func1Kind::Sin;
+    else if (name == "cos")
+        fk = Func1Kind::Cos;
+    else if (name == "tan")
+        fk = Func1Kind::Tan;
+    else if (name == "asin")
+        fk = Func1Kind::Asin;
+    else if (name == "acos")
+        fk = Func1Kind::Acos;
+    else if (name == "atan")
+        fk = Func1Kind::Atan;
+    else if (name == "log")
+        fk = Func1Kind::Log;
+    else if (name == "log10")
+        fk = Func1Kind::Log10;
+    else if (name == "exp")
+        fk = Func1Kind::Exp;
+    else if (name == "floor")
+        fk = Func1Kind::Floor;
+    else if (name == "ceil")
+        fk = Func1Kind::Ceil;
+    else if (name == "round")
+        fk = Func1Kind::Round;
     else
     {
         ps.error = "Unknown function '" + name + "'";

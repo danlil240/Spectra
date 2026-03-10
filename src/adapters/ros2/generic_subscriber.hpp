@@ -56,8 +56,8 @@ namespace spectra::adapters::ros2
 
 struct FieldSample
 {
-    int64_t  timestamp_ns{0};  // ROS2 message header stamp, or wall clock if absent
-    double   value{0.0};
+    int64_t timestamp_ns{0};   // ROS2 message header stamp, or wall clock if absent
+    double  value{0.0};
 };
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ struct FieldSample
 
 class RingBuffer
 {
-public:
+   public:
     explicit RingBuffer(size_t capacity);
 
     // Push a sample (producer side).  If full, drops oldest entry (overwrites).
@@ -92,7 +92,7 @@ public:
     // Drain all samples, discarding them.
     void clear();
 
-private:
+   private:
     const size_t capacity_;   // must be power-of-two
     const size_t mask_;
 
@@ -111,14 +111,15 @@ private:
 
 struct FieldExtractor
 {
-    int             id{-1};
-    std::string     field_path;
-    FieldAccessor   accessor;
-    RingBuffer      ring;
+    int           id{-1};
+    std::string   field_path;
+    FieldAccessor accessor;
+    RingBuffer    ring;
 
     FieldExtractor(int id_, std::string path, FieldAccessor acc, size_t depth)
         : id(id_), field_path(std::move(path)), accessor(std::move(acc)), ring(depth)
-    {}
+    {
+    }
 
     // Non-copyable (owns ring buffer storage).
     FieldExtractor(const FieldExtractor&)            = delete;
@@ -145,7 +146,7 @@ struct SubscriberStats
 
 class GenericSubscriber
 {
-public:
+   public:
     // Construct but do not subscribe yet.
     // node       — ROS2 node to create the subscription on (must outlive this)
     // topic      — fully-qualified topic name, e.g. "/cmd_vel"
@@ -153,11 +154,11 @@ public:
     // intr       — MessageIntrospector (shared; must outlive this)
     // buffer_depth — ring buffer capacity per field (default 10000; rounded up
     //               to next power-of-two)
-    GenericSubscriber(rclcpp::Node::SharedPtr  node,
-                      std::string              topic,
-                      std::string              type_name,
-                      MessageIntrospector&     intr,
-                      size_t                   buffer_depth = 10000);
+    GenericSubscriber(rclcpp::Node::SharedPtr node,
+                      std::string             topic,
+                      std::string             type_name,
+                      MessageIntrospector&    intr,
+                      size_t                  buffer_depth = 10000);
 
     ~GenericSubscriber();
 
@@ -218,7 +219,7 @@ public:
 
     // ---------- accessors ------------------------------------------------
 
-    const std::string& topic()     const { return topic_; }
+    const std::string& topic() const { return topic_; }
     const std::string& type_name() const { return type_name_; }
     size_t             buffer_depth() const { return buffer_depth_; }
 
@@ -232,7 +233,7 @@ public:
     using MessageCallback = std::function<void(const SubscriberStats&)>;
     void set_message_callback(MessageCallback cb) { msg_cb_ = std::move(cb); }
 
-private:
+   private:
     // Called by rclcpp on each incoming message.
     void on_message(std::shared_ptr<rclcpp::SerializedMessage> msg);
 
@@ -240,7 +241,7 @@ private:
     static int64_t wall_clock_ns();
 
     // Find extractor by id; returns nullptr if not found.
-    FieldExtractor* find_extractor(int id);
+    FieldExtractor*       find_extractor(int id);
     const FieldExtractor* find_extractor(int id) const;
 
     // Round up to next power-of-two (minimum 16).
@@ -248,20 +249,20 @@ private:
 
     // ---------- members ---------------------------------------------------
 
-    rclcpp::Node::SharedPtr           node_;
-    std::string                       topic_;
-    std::string                       type_name_;
-    MessageIntrospector&              intr_;
-    size_t                            buffer_depth_;
+    rclcpp::Node::SharedPtr node_;
+    std::string             topic_;
+    std::string             type_name_;
+    MessageIntrospector&    intr_;
+    size_t                  buffer_depth_;
 
-    std::shared_ptr<const MessageSchema>         schema_;
+    std::shared_ptr<const MessageSchema> schema_;
 
     // Extractor list — built before start(), read-only during running.
     std::vector<std::unique_ptr<FieldExtractor>> extractors_;
     int                                          next_id_{0};
 
-    rclcpp::GenericSubscription::SharedPtr       subscription_;
-    std::atomic<bool>                            running_{false};
+    rclcpp::GenericSubscription::SharedPtr subscription_;
+    std::atomic<bool>                      running_{false};
 
     // Stats (updated atomically by executor thread, read by any thread).
     std::atomic<uint64_t> stat_received_{0};

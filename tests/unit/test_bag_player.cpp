@@ -27,12 +27,12 @@
 #include "ros2_bridge.hpp"
 
 #ifdef SPECTRA_ROS2_BAG
-#include <filesystem>
-#include <rclcpp/rclcpp.hpp>
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/serialized_bag_message.hpp>
-#include <rosbag2_storage/storage_options.hpp>
-#include <rosbag2_storage/topic_metadata.hpp>
+    #include <filesystem>
+    #include <rclcpp/rclcpp.hpp>
+    #include <rosbag2_cpp/writer.hpp>
+    #include <rosbag2_storage/serialized_bag_message.hpp>
+    #include <rosbag2_storage/storage_options.hpp>
+    #include <rosbag2_storage/topic_metadata.hpp>
 namespace fs = std::filesystem;
 #endif
 
@@ -46,7 +46,7 @@ using namespace spectra::adapters::ros2;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
+   public:
     void SetUp() override
     {
         if (!rclcpp::ok())
@@ -79,9 +79,9 @@ static std::string make_temp_bag_dir(const std::string& name)
 // Write a minimal bag with Float64 messages on /float_topic.
 // Returns the bag directory path on success, empty on failure.
 static std::string write_float64_bag(const std::string& name,
-                                     int n_msgs          = 10,
-                                     double start_time_s = 1000.0,
-                                     double interval_s   = 0.1)
+                                     int                n_msgs       = 10,
+                                     double             start_time_s = 1000.0,
+                                     double             interval_s   = 0.1)
 {
     const std::string dir = make_temp_bag_dir(name);
     try
@@ -93,27 +93,30 @@ static std::string write_float64_bag(const std::string& name,
         writer.open(opts);
 
         rosbag2_storage::TopicMetadata meta;
-        meta.name              = "/float_topic";
-        meta.type              = "std_msgs/msg/Float64";
+        meta.name                 = "/float_topic";
+        meta.type                 = "std_msgs/msg/Float64";
         meta.serialization_format = "cdr";
         writer.create_topic(meta);
 
         for (int i = 0; i < n_msgs; ++i)
         {
-            const double value = static_cast<double>(i) * 1.5;
-            const double t_s   = start_time_s + i * interval_s;
-            const int64_t t_ns = static_cast<int64_t>(t_s * 1e9);
+            const double  value = static_cast<double>(i) * 1.5;
+            const double  t_s   = start_time_s + i * interval_s;
+            const int64_t t_ns  = static_cast<int64_t>(t_s * 1e9);
 
             // Minimal CDR: 4-byte header + 8-byte double.
             std::vector<uint8_t> cdr(12, 0);
-            cdr[0] = 0x00; cdr[1] = 0x01; cdr[2] = 0x00; cdr[3] = 0x00;
+            cdr[0] = 0x00;
+            cdr[1] = 0x01;
+            cdr[2] = 0x00;
+            cdr[3] = 0x00;
             std::memcpy(cdr.data() + 4, &value, sizeof(double));
 
-            auto msg = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+            auto msg             = std::make_shared<rosbag2_storage::SerializedBagMessage>();
             msg->topic_name      = "/float_topic";
             msg->time_stamp      = t_ns;
             msg->serialized_data = std::make_shared<rcutils_uint8_array_t>();
-            msg->serialized_data->allocator = rcutils_get_default_allocator();
+            msg->serialized_data->allocator       = rcutils_get_default_allocator();
             msg->serialized_data->buffer_length   = cdr.size();
             msg->serialized_data->buffer_capacity = cdr.size();
             msg->serialized_data->buffer          = new uint8_t[cdr.size()];
@@ -140,7 +143,7 @@ static void remove_bag(const std::string& dir)
 
 }   // anonymous namespace
 
-#endif  // SPECTRA_ROS2_BAG
+#endif   // SPECTRA_ROS2_BAG
 
 // ---------------------------------------------------------------------------
 // Minimal stubs for RosPlotManager / MessageIntrospector / Ros2Bridge so
@@ -153,7 +156,7 @@ static void remove_bag(const std::string& dir)
 // Fixture used for pure-logic (no-bag) tests.
 class BagPlayerLogicTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         // bridge_ stays uninitialized — BagPlayer won't try to add subscriptions.
@@ -162,7 +165,7 @@ protected:
         player_ = std::make_unique<BagPlayer>(*mgr_, *intr_);
     }
 
-    Ros2Bridge                       bridge_;   // default-constructed, not spinning
+    Ros2Bridge                           bridge_;   // default-constructed, not spinning
     std::unique_ptr<MessageIntrospector> intr_;
     std::unique_ptr<RosPlotManager>      mgr_;
     std::unique_ptr<BagPlayer>           player_;
@@ -187,8 +190,8 @@ TEST_F(BagPlayerLogicTest, ConstructionDefaults)
 TEST_F(BagPlayerLogicTest, ConstructionWithConfig)
 {
     BagPlayerConfig cfg;
-    cfg.rate            = 2.0;
-    cfg.loop            = true;
+    cfg.rate                 = 2.0;
+    cfg.loop                 = true;
     cfg.max_inject_per_frame = 500;
     BagPlayer p2(*mgr_, *intr_, cfg);
     EXPECT_DOUBLE_EQ(p2.rate(), 2.0);
@@ -542,10 +545,10 @@ TEST(BagPlaybackPanelTest, ConstructionNullPlayer)
 
 TEST(BagPlaybackPanelTest, SetPlayer)
 {
-    Ros2Bridge bridge;
+    Ros2Bridge          bridge;
     MessageIntrospector intr;
-    RosPlotManager mgr(bridge, intr);
-    BagPlayer player(mgr, intr);
+    RosPlotManager      mgr(bridge, intr);
+    BagPlayer           player(mgr, intr);
 
     BagPlaybackPanel panel;
     panel.set_player(&player);
@@ -631,7 +634,7 @@ TEST(TopicActivityBandTest, AddInterval)
 // Fixture for full bag tests.
 class BagPlayerBagTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
         intr_   = std::make_unique<MessageIntrospector>();
@@ -914,7 +917,7 @@ TEST_F(BagPlayerBagTest, ActivityBandHasIntervals)
     EXPECT_FALSE(band->intervals.empty());
     // All intervals must be sorted.
     for (size_t i = 1; i < band->intervals.size(); ++i)
-        EXPECT_GE(band->intervals[i].start_sec, band->intervals[i-1].end_sec);
+        EXPECT_GE(band->intervals[i].start_sec, band->intervals[i - 1].end_sec);
 }
 
 TEST_F(BagPlayerBagTest, ActivityBandUnknownTopicNull)
@@ -1002,10 +1005,7 @@ TEST_F(BagPlayerBagTest, MessageCallbackFiredDuringAdvance)
     ASSERT_TRUE(player_->open(bag_dir_));
 
     std::vector<std::string> topics;
-    player_->set_on_message([&](const std::string& t, double, double)
-    {
-        topics.push_back(t);
-    });
+    player_->set_on_message([&](const std::string& t, double, double) { topics.push_back(t); });
 
     player_->play();
     player_->advance(player_->duration_sec() + 0.1);

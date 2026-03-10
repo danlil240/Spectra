@@ -9,13 +9,13 @@ class SceneManager;
 
 class InspectorPanel
 {
-public:
-    void set_title(const std::string& title) { title_ = title; }
+   public:
+    void               set_title(const std::string& title) { title_ = title; }
     const std::string& title() const { return title_; }
 
     void draw(bool* p_open, SceneManager& scene);
 
-private:
+   private:
     std::string title_{"Inspector"};
 };
 

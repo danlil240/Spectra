@@ -36,10 +36,7 @@ class DataEditor
     void set_highlighted_point(const Series* series, size_t point_index);
 
     // Callback fired when user selects/clicks a row in the table
-    void set_on_point_selected(PointSelectedCallback cb)
-    {
-        on_point_selected_ = std::move(cb);
-    }
+    void set_on_point_selected(PointSelectedCallback cb) { on_point_selected_ = std::move(cb); }
 
    private:
     void draw_axes_selector(Figure& figure);
@@ -51,15 +48,15 @@ class DataEditor
     int selected_series_ = -1;
 
     // Row highlight state synchronized with canvas point selection.
-    const Series* highlighted_series_ = nullptr;
-    size_t        highlighted_point_index_ = 0;
+    const Series*         highlighted_series_      = nullptr;
+    size_t                highlighted_point_index_ = 0;
     PointSelectedCallback on_point_selected_;
 
     // Edit state
-    bool editing_     = false;
-    int  edit_row_    = -1;
-    int  edit_col_    = -1;
-    int  edit_series_ = -1;
+    bool editing_      = false;
+    int  edit_row_     = -1;
+    int  edit_col_     = -1;
+    int  edit_series_  = -1;
     char edit_buf_[64] = {};
 
     // Scroll tracking for large datasets

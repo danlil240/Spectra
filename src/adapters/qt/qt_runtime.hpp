@@ -108,12 +108,12 @@ class QtRuntime
    private:
     struct WindowState
     {
-        std::unique_ptr<WindowContext>                window_ctx;
-        InputHandler*                                 input_handler = nullptr;
-        std::chrono::steady_clock::time_point         last_resize_request{};
-        bool                                          resize_pending = false;
-        uint32_t                                      swapchain_recreate_count = 0;
-        uint32_t                                      frame_skip_count         = 0;
+        std::unique_ptr<WindowContext>        window_ctx;
+        InputHandler*                         input_handler = nullptr;
+        std::chrono::steady_clock::time_point last_resize_request{};
+        bool                                  resize_pending           = false;
+        uint32_t                              swapchain_recreate_count = 0;
+        uint32_t                              frame_skip_count         = 0;
     };
 
     WindowState*       find_window_state(QWindow* window);
@@ -121,19 +121,19 @@ class QtRuntime
 
     bool initialized_ = false;
 
-    std::unique_ptr<QtSurfaceHost>  surface_host_;
-    std::unique_ptr<QVulkanInstance> vulkan_instance_;
-    std::unique_ptr<VulkanBackend>  backend_;
-    std::unique_ptr<Renderer>       renderer_;
+    std::unique_ptr<QtSurfaceHost>                             surface_host_;
+    std::unique_ptr<QVulkanInstance>                           vulkan_instance_;
+    std::unique_ptr<VulkanBackend>                             backend_;
+    std::unique_ptr<Renderer>                                  renderer_;
     std::unordered_map<QWindow*, std::unique_ptr<WindowState>> window_states_;
-    std::unordered_map<QWindow*, InputHandler*>              pending_input_handlers_;
-    QWindow*                                         primary_window_       = nullptr;
-    QWindow*                                         current_frame_window_ = nullptr;
-    uint32_t                                         next_window_id_       = 1;
+    std::unordered_map<QWindow*, InputHandler*>                pending_input_handlers_;
+    QWindow*                                                   primary_window_       = nullptr;
+    QWindow*                                                   current_frame_window_ = nullptr;
+    uint32_t                                                   next_window_id_       = 1;
 
 #ifdef SPECTRA_USE_IMGUI
-    std::unique_ptr<ImGuiIntegration> imgui_ui_;
-    std::unique_ptr<DataInteraction>  data_interaction_;
+    std::unique_ptr<ImGuiIntegration>     imgui_ui_;
+    std::unique_ptr<DataInteraction>      data_interaction_;
     std::chrono::steady_clock::time_point ui_last_frame_time_{};
     bool                                  ui_has_last_frame_time_ = false;
 #endif

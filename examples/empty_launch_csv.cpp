@@ -7,7 +7,7 @@ int main()
 {
     spectra::App app;
     auto&        fig = app.figure();
-    (void)fig;  // Empty axes — ready for CSV data
+    (void)fig;   // Empty axes — ready for CSV data
     app.run();
     return 0;
 }

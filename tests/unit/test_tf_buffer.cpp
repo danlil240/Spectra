@@ -10,15 +10,15 @@ namespace
 {
 TransformStamp make_ts(const std::string& parent,
                        const std::string& child,
-                       double tx = 0.0,
-                       double ty = 0.0,
-                       double tz = 0.0,
-                       double qx = 0.0,
-                       double qy = 0.0,
-                       double qz = 0.0,
-                       double qw = 1.0,
-                       bool is_static = false,
-                       uint64_t recv_ns = 0)
+                       double             tx        = 0.0,
+                       double             ty        = 0.0,
+                       double             tz        = 0.0,
+                       double             qx        = 0.0,
+                       double             qy        = 0.0,
+                       double             qz        = 0.0,
+                       double             qw        = 1.0,
+                       bool               is_static = false,
+                       uint64_t           recv_ns   = 0)
 {
     TransformStamp ts;
     ts.parent_frame = parent;
@@ -106,7 +106,8 @@ TEST(TfBuffer, SnapshotIncludesTreeStats)
     EXPECT_EQ(snapshot.total_frames, 3u);
     EXPECT_EQ(snapshot.static_frames, 1u);
     EXPECT_EQ(snapshot.dynamic_frames, 2u);
-    EXPECT_NE(std::find(snapshot.roots.begin(), snapshot.roots.end(), "world"), snapshot.roots.end());
+    EXPECT_NE(std::find(snapshot.roots.begin(), snapshot.roots.end(), "world"),
+              snapshot.roots.end());
 }
 
 TEST(TfBuffer, ClearDropsAllFrames)
@@ -135,8 +136,7 @@ TEST(TfBuffer, SelfTransformReturnsIdentity)
 TEST(TfBuffer, InverseLookupChildToParent)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 5.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 5.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
 
     const auto result = buffer.lookup_transform("base_link", "map", 100);
     ASSERT_TRUE(result.ok) << result.error;
@@ -149,10 +149,8 @@ TEST(TfBuffer, CrossTreeCommonAncestorLookup)
     //     world
     //    /      \
     //  arm    sensor
-    buffer.inject_transform(
-        make_ts("world", "arm", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("world", "sensor", 0.0, 3.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("world", "arm", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("world", "sensor", 0.0, 3.0, 0.0, 0, 0, 0, 1, false, 100));
 
     const auto result = buffer.lookup_transform("arm", "sensor", 100);
     ASSERT_TRUE(result.ok) << result.error;
@@ -225,10 +223,8 @@ TEST(TfBuffer, LeadingSlashNormalization)
 TEST(TfBuffer, StaticTransformOverwritesPreviousHistory)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("world", "static_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, true, 100));
-    buffer.inject_transform(
-        make_ts("world", "static_link", 5.0, 0.0, 0.0, 0, 0, 0, 1, true, 200));
+    buffer.inject_transform(make_ts("world", "static_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, true, 100));
+    buffer.inject_transform(make_ts("world", "static_link", 5.0, 0.0, 0.0, 0, 0, 0, 1, true, 200));
 
     const auto result = buffer.lookup_transform("world", "static_link");
     ASSERT_TRUE(result.ok) << result.error;
@@ -243,10 +239,8 @@ TEST(TfBuffer, StaticTransformOverwritesPreviousHistory)
 TEST(TfBuffer, InterpolatesAtQuarterWay)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base_link", 8.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 8.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
 
     const auto result = buffer.lookup_transform("map", "base_link", 125);
     ASSERT_TRUE(result.ok) << result.error;
@@ -256,10 +250,8 @@ TEST(TfBuffer, InterpolatesAtQuarterWay)
 TEST(TfBuffer, InterpolatesAtExactTimestamp)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base_link", 10.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 10.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
 
     const auto result = buffer.lookup_transform("map", "base_link", 200);
     ASSERT_TRUE(result.ok) << result.error;
@@ -269,10 +261,8 @@ TEST(TfBuffer, InterpolatesAtExactTimestamp)
 TEST(TfBuffer, InterpolatesThreeAxisTranslation)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base", 10.0, 20.0, 30.0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base", 10.0, 20.0, 30.0, 0, 0, 0, 1, false, 200));
 
     const auto r = buffer.lookup_transform("map", "base", 150);
     ASSERT_TRUE(r.ok) << r.error;
@@ -284,10 +274,8 @@ TEST(TfBuffer, InterpolatesThreeAxisTranslation)
 TEST(TfBuffer, LookupBeforeHistoryFails)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
 
     EXPECT_FALSE(buffer.can_transform("map", "base_link", 50));
     const auto result = buffer.lookup_transform("map", "base_link", 50);
@@ -297,10 +285,8 @@ TEST(TfBuffer, LookupBeforeHistoryFails)
 TEST(TfBuffer, LookupAfterHistoryFails)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 1.0, 0.0, 0.0, 0, 0, 0, 1, false, 200));
 
     EXPECT_FALSE(buffer.can_transform("map", "base_link", 300));
 }
@@ -367,8 +353,7 @@ TEST(TfBuffer, CacheDurationGetterSetter)
 TEST(TfBuffer, EulerAnglesIdentity)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 0.0, 0.0, 0.0, 0, 0, 0, 1, false, 100));
 
     const auto result = buffer.lookup_transform("map", "base_link");
     ASSERT_TRUE(result.ok) << result.error;
@@ -409,7 +394,6 @@ TEST(TfBuffer, SnapshotChildrenMap)
     TfBuffer buffer;
     buffer.inject_transform(make_ts("world", "odom", 0, 0, 0, 0, 0, 0, 1, false, 100));
     buffer.inject_transform(make_ts("odom", "base_link", 0, 0, 0, 0, 0, 0, 1, false, 100));
-
 
     const auto snapshot = buffer.snapshot();
     ASSERT_NE(snapshot.children.find("world"), snapshot.children.end());
@@ -490,10 +474,8 @@ TEST(TfBuffer, LongChainInverseLookup)
 TEST(TfBuffer, LookupWithZeroTimeUsesLatest)
 {
     TfBuffer buffer;
-    buffer.inject_transform(
-        make_ts("map", "base_link", 1.0, 0, 0, 0, 0, 0, 1, false, 100));
-    buffer.inject_transform(
-        make_ts("map", "base_link", 7.0, 0, 0, 0, 0, 0, 1, false, 200));
+    buffer.inject_transform(make_ts("map", "base_link", 1.0, 0, 0, 0, 0, 0, 1, false, 100));
+    buffer.inject_transform(make_ts("map", "base_link", 7.0, 0, 0, 0, 0, 0, 1, false, 200));
 
     const auto result = buffer.lookup_transform("map", "base_link", 0);
     ASSERT_TRUE(result.ok) << result.error;

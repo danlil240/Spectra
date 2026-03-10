@@ -12,7 +12,7 @@ namespace spectra::adapters::ros2
 
 class TfDisplay : public DisplayPlugin
 {
-public:
+   public:
     std::string type_id() const override { return "tf"; }
     std::string display_name() const override { return "TF"; }
     std::string icon() const override { return "TF"; }
@@ -29,28 +29,28 @@ public:
     }
 
     std::string serialize_config_blob() const override;
-    void deserialize_config_blob(const std::string& blob) override;
+    void        deserialize_config_blob(const std::string& blob) override;
 
     size_t frame_visual_count() const { return frames_.size(); }
 
-private:
+   private:
     struct FrameVisual
     {
-        std::string frame_id;
-        std::string parent_frame_id;
+        std::string        frame_id;
+        std::string        parent_frame_id;
         spectra::Transform transform{};
-        double hz{0.0};
-        uint64_t age_ms{0};
-        bool is_static{false};
-        bool stale{false};
+        double             hz{0.0};
+        uint64_t           age_ms{0};
+        bool               is_static{false};
+        bool               stale{false};
     };
 
-    const TfBuffer* tf_buffer_{nullptr};
-    std::string fixed_frame_;
+    const TfBuffer*          tf_buffer_{nullptr};
+    std::string              fixed_frame_;
     std::vector<FrameVisual> frames_;
-    bool show_labels_{true};
-    float axis_scale_{0.25f};
-    int max_frames_{256};
+    bool                     show_labels_{true};
+    float                    axis_scale_{0.25f};
+    int                      max_frames_{256};
 };
 
 }   // namespace spectra::adapters::ros2

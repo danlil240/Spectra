@@ -91,12 +91,12 @@ struct EmbedConfig
 // to skip synchronization when the host manages barriers manually).
 struct VulkanInteropInfo
 {
-    uint64_t target_image       = 0;   // VkImage (as uint64_t to avoid vulkan.h in public header)
-    uint32_t format             = 37;  // VK_FORMAT_R8G8B8A8_UNORM
-    uint64_t ready_semaphore    = 0;   // Host signals when image is available for writing
-    uint64_t finished_semaphore = 0;   // Spectra signals when render is complete
-    uint32_t width              = 0;   // Target image width  (0 = use surface width)
-    uint32_t height             = 0;   // Target image height (0 = use surface height)
+    uint64_t target_image       = 0;    // VkImage (as uint64_t to avoid vulkan.h in public header)
+    uint32_t format             = 37;   // VK_FORMAT_R8G8B8A8_UNORM
+    uint64_t ready_semaphore    = 0;    // Host signals when image is available for writing
+    uint64_t finished_semaphore = 0;    // Spectra signals when render is complete
+    uint32_t width              = 0;    // Target image width  (0 = use surface width)
+    uint32_t height             = 0;    // Target image height (0 = use surface height)
 };
 
 // ─── Callbacks ──────────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ class EmbedSurface
     Figure& figure(const FigureConfig& cfg = {});
 
     // Get the currently active figure (nullptr if none).
-    Figure* active_figure();
+    Figure*       active_figure();
     const Figure* active_figure() const;
 
     // Set the active figure by pointer.

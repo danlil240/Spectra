@@ -56,15 +56,15 @@ namespace spectra
 
 struct RenderedImage
 {
-    std::vector<uint8_t> data;       // RGBA pixels
+    std::vector<uint8_t> data;   // RGBA pixels
     uint32_t             width  = 0;
     uint32_t             height = 0;
 
     // Convenience accessors
-    size_t   stride() const { return width * 4; }
-    size_t   size_bytes() const { return data.size(); }
-    bool     empty() const { return data.empty(); }
-    uint8_t* pixels() { return data.data(); }
+    size_t         stride() const { return width * 4; }
+    size_t         size_bytes() const { return data.size(); }
+    bool           empty() const { return data.empty(); }
+    uint8_t*       pixels() { return data.data(); }
     const uint8_t* pixels() const { return data.data(); }
 };
 
@@ -72,13 +72,13 @@ struct RenderedImage
 
 struct RenderOptions
 {
-    uint32_t    width     = 800;
-    uint32_t    height    = 600;
-    std::string fmt       = "-";       // MATLAB-style format string
+    uint32_t    width  = 800;
+    uint32_t    height = 600;
+    std::string fmt    = "-";   // MATLAB-style format string
     std::string title;
     std::string xlabel;
     std::string ylabel;
-    std::string save_path;             // If non-empty, saves PNG to this path
+    std::string save_path;   // If non-empty, saves PNG to this path
     float       dpi_scale = 1.0f;
     bool        grid      = true;
 };
@@ -100,8 +100,8 @@ namespace detail
 
 inline RenderedImage render_to_image(EmbedSurface& surface)
 {
-    uint32_t w = surface.width();
-    uint32_t h = surface.height();
+    uint32_t      w = surface.width();
+    uint32_t      h = surface.height();
     RenderedImage img;
     img.width  = w;
     img.height = h;

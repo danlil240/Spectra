@@ -19,22 +19,22 @@ enum class UrdfGeometryType
 struct UrdfGeometry
 {
     UrdfGeometryType type{UrdfGeometryType::Unsupported};
-    spectra::vec3 box_size{0.0, 0.0, 0.0};
-    double radius{0.0};
-    double length{0.0};
-    std::string mesh_filename;
+    spectra::vec3    box_size{0.0, 0.0, 0.0};
+    double           radius{0.0};
+    double           length{0.0};
+    std::string      mesh_filename;
 };
 
 struct UrdfCollision
 {
-    std::string name;
+    std::string        name;
     spectra::Transform origin{};
-    UrdfGeometry geometry;
+    UrdfGeometry       geometry;
 };
 
 struct UrdfLink
 {
-    std::string name;
+    std::string                name;
     std::vector<UrdfCollision> collisions;
 };
 
@@ -49,7 +49,7 @@ enum class UrdfJointType
 
 struct UrdfJointLimit
 {
-    bool has_position_limits{false};
+    bool   has_position_limits{false};
     double lower{0.0};
     double upper{0.0};
     double effort{0.0};
@@ -58,30 +58,30 @@ struct UrdfJointLimit
 
 struct UrdfJoint
 {
-    std::string name;
-    UrdfJointType type{UrdfJointType::Unknown};
-    std::string parent_link;
-    std::string child_link;
+    std::string        name;
+    UrdfJointType      type{UrdfJointType::Unknown};
+    std::string        parent_link;
+    std::string        child_link;
     spectra::Transform origin{};
-    spectra::vec3 axis{1.0, 0.0, 0.0};
-    UrdfJointLimit limits;
+    spectra::vec3      axis{1.0, 0.0, 0.0};
+    UrdfJointLimit     limits;
 };
 
 struct RobotDescription
 {
-    std::string name;
-    std::vector<UrdfLink> links;
+    std::string            name;
+    std::vector<UrdfLink>  links;
     std::vector<UrdfJoint> joints;
 
-    const UrdfLink* find_link(const std::string& link_name) const;
+    const UrdfLink*  find_link(const std::string& link_name) const;
     const UrdfJoint* find_joint(const std::string& joint_name) const;
 };
 
 struct UrdfParseResult
 {
-    bool ok{false};
-    RobotDescription robot;
-    std::string error;
+    bool                     ok{false};
+    RobotDescription         robot;
+    std::string              error;
     std::vector<std::string> warnings;
 
     explicit operator bool() const { return ok; }
@@ -89,7 +89,7 @@ struct UrdfParseResult
 
 class UrdfParser
 {
-public:
+   public:
     static UrdfParseResult parse_string(const std::string& xml);
     static UrdfParseResult parse_file(const std::string& path);
 };

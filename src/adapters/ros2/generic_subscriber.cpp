@@ -32,7 +32,8 @@ namespace spectra::adapters::ros2
 // Round up to next power-of-two; minimum 16.
 static size_t ring_next_pow2(size_t n)
 {
-    if (n < 16) return 16;
+    if (n < 16)
+        return 16;
     n--;
     n |= n >> 1;
     n |= n >> 2;
@@ -44,10 +45,9 @@ static size_t ring_next_pow2(size_t n)
 }
 
 RingBuffer::RingBuffer(size_t capacity)
-    : capacity_(ring_next_pow2(capacity))
-    , mask_(capacity_ - 1)
-    , data_(capacity_)
-{}
+    : capacity_(ring_next_pow2(capacity)), mask_(capacity_ - 1), data_(capacity_)
+{
+}
 
 void RingBuffer::push(const FieldSample& s)
 {
@@ -79,8 +79,8 @@ bool RingBuffer::pop(FieldSample& out)
 
 size_t RingBuffer::peek(FieldSample* out, size_t max_count) const
 {
-    const size_t t = tail_.load(std::memory_order_acquire);
-    const size_t h = head_.load(std::memory_order_acquire);
+    const size_t t     = tail_.load(std::memory_order_acquire);
+    const size_t h     = head_.load(std::memory_order_acquire);
     const size_t avail = h - t;
     const size_t count = (avail < max_count) ? avail : max_count;
     for (size_t i = 0; i < count; ++i)
@@ -110,12 +110,10 @@ GenericSubscriber::GenericSubscriber(rclcpp::Node::SharedPtr node,
                                      std::string             type_name,
                                      MessageIntrospector&    intr,
                                      size_t                  buffer_depth)
-    : node_(std::move(node))
-    , topic_(std::move(topic))
-    , type_name_(std::move(type_name))
-    , intr_(intr)
-    , buffer_depth_(ring_next_pow2(buffer_depth))
-{}
+    : node_(std::move(node)), topic_(std::move(topic)), type_name_(std::move(type_name)),
+      intr_(intr), buffer_depth_(ring_next_pow2(buffer_depth))
+{
+}
 
 GenericSubscriber::~GenericSubscriber()
 {
@@ -126,8 +124,7 @@ GenericSubscriber::~GenericSubscriber()
 // Field management
 // ---------------------------------------------------------------------------
 
-int GenericSubscriber::add_field(const std::string& field_path,
-                                 const FieldAccessor& accessor)
+int GenericSubscriber::add_field(const std::string& field_path, const FieldAccessor& accessor)
 {
     if (!accessor.valid())
         return -1;
@@ -156,8 +153,9 @@ int GenericSubscriber::add_field(const std::string& field_path)
 
 void GenericSubscriber::remove_field(int extractor_id)
 {
-    auto it = std::find_if(extractors_.begin(), extractors_.end(),
-        [extractor_id](const auto& e){ return e->id == extractor_id; });
+    auto it = std::find_if(extractors_.begin(),
+                           extractors_.end(),
+                           [extractor_id](const auto& e) { return e->id == extractor_id; });
     if (it != extractors_.end())
         extractors_.erase(it);
 }
@@ -185,15 +183,12 @@ bool GenericSubscriber::start()
     // Use an explicit keep-last depth tied to the ring buffer so short
     // publisher bursts are queued for the executor instead of being dropped
     // by the middleware before we can deserialize them.
-    auto qos = rclcpp::QoS(rclcpp::KeepLast(buffer_depth_)).best_effort();
+    auto qos      = rclcpp::QoS(rclcpp::KeepLast(buffer_depth_)).best_effort();
     subscription_ = node_->create_generic_subscription(
         topic_,
         type_name_,
         qos,
-        [this](std::shared_ptr<rclcpp::SerializedMessage> msg)
-        {
-            on_message(std::move(msg));
-        });
+        [this](std::shared_ptr<rclcpp::SerializedMessage> msg) { on_message(std::move(msg)); });
 
     if (!subscription_)
         return false;
@@ -286,13 +281,14 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
 
     // Obtain the type support for introspection.
     std::shared_ptr<rcpputils::SharedLibrary> ts_lib;
-    const rosidl_message_type_support_t* ts_handle = nullptr;
+    const rosidl_message_type_support_t*      ts_handle = nullptr;
     try
     {
-        ts_lib = rclcpp::get_typesupport_library(
-            type_name_, "rosidl_typesupport_introspection_cpp");
-        ts_handle = rclcpp::get_typesupport_handle(
-            type_name_, "rosidl_typesupport_introspection_cpp", *ts_lib);
+        ts_lib =
+            rclcpp::get_typesupport_library(type_name_, "rosidl_typesupport_introspection_cpp");
+        ts_handle = rclcpp::get_typesupport_handle(type_name_,
+                                                   "rosidl_typesupport_introspection_cpp",
+                                                   *ts_lib);
     }
     catch (const std::exception&)
     {
@@ -308,8 +304,7 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
 
     // Cast to MessageMembers to read size_of_ and call init_function.
     using namespace rosidl_typesupport_introspection_cpp;
-    const auto* members =
-        static_cast<const MessageMembers*>(ts_handle->data);
+    const auto* members = static_cast<const MessageMembers*>(ts_handle->data);
 
     if (!members || members->size_of_ == 0)
     {
@@ -356,7 +351,7 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
         {
             const int64_t sec  = sec_acc.extract_int64(msg_buf.data());
             const int64_t nsec = nsec_acc.extract_int64(msg_buf.data());
-            ts_ns = sec * int64_t(1000000000) + nsec;
+            ts_ns              = sec * int64_t(1000000000) + nsec;
         }
     }
 
@@ -374,7 +369,7 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
 
         const size_t before = ex->ring.size();
         ex->ring.push(sample);
-        const size_t after  = ex->ring.size();
+        const size_t after = ex->ring.size();
 
         stat_written_.fetch_add(1, std::memory_order_relaxed);
         // If size did not grow the ring was full and a sample was silently
@@ -447,23 +442,24 @@ SubscriberStats GenericSubscriber::stats() const
 FieldExtractor* GenericSubscriber::find_extractor(int id)
 {
     for (auto& e : extractors_)
-        if (e->id == id) return e.get();
+        if (e->id == id)
+            return e.get();
     return nullptr;
 }
 
 const FieldExtractor* GenericSubscriber::find_extractor(int id) const
 {
     for (const auto& e : extractors_)
-        if (e->id == id) return e.get();
+        if (e->id == id)
+            return e.get();
     return nullptr;
 }
 
 int64_t GenericSubscriber::wall_clock_ns()
 {
-    return static_cast<int64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-        .count());
+    return static_cast<int64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count());
 }
 
 size_t GenericSubscriber::next_pow2(size_t n)

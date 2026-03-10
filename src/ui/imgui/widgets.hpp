@@ -94,10 +94,10 @@ bool icon_button_small(const char* icon, const char* tooltip = nullptr, bool act
 // tooltip: hover tooltip text (nullptr to disable)
 // active: whether this button shows the active/selected indicator
 // Returns true if clicked.
-bool icon_button(const char*    cmdId,
-                 ui::Icon       icon,
-                 const char*    tooltip = nullptr,
-                 bool           active  = false);
+bool icon_button(const char* cmdId,
+                 ui::Icon    icon,
+                 const char* tooltip = nullptr,
+                 bool        active  = false);
 
 // Indented group (pushes indent + draws subtle left border)
 void begin_group(const char* id);

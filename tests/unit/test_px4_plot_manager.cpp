@@ -22,7 +22,7 @@ using namespace spectra::adapters::px4;
 
 class ULogBuilder
 {
-public:
+   public:
     ULogBuilder()
     {
         static constexpr uint8_t magic[] = {0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35};
@@ -33,7 +33,8 @@ public:
 
     void add_format(const std::string& content)
     {
-        add_message('F', reinterpret_cast<const uint8_t*>(content.data()),
+        add_message('F',
+                    reinterpret_cast<const uint8_t*>(content.data()),
                     static_cast<uint16_t>(content.size()));
     }
 
@@ -51,7 +52,7 @@ public:
     void add_data(uint16_t msg_id, uint64_t timestamp, const uint8_t* fields, size_t field_len)
     {
         std::vector<uint8_t> payload;
-        uint8_t id_bytes[2];
+        uint8_t              id_bytes[2];
         std::memcpy(id_bytes, &msg_id, 2);
         payload.insert(payload.end(), id_bytes, id_bytes + 2);
         uint8_t ts_bytes[8];
@@ -69,7 +70,7 @@ public:
         return path;
     }
 
-private:
+   private:
     void add_message(uint8_t type, const uint8_t* payload, uint16_t len)
     {
         uint8_t hdr[3];
@@ -131,7 +132,7 @@ TEST(Px4PlotManagerTest, AddAndRemoveField)
 TEST(Px4PlotManagerTest, AddArrayField)
 {
     Px4PlotManager mgr;
-    size_t idx = mgr.add_field("quat_msg", "q", 2, 0);
+    size_t         idx = mgr.add_field("quat_msg", "q", 2, 0);
     EXPECT_EQ(mgr.fields()[idx].label, "quat_msg.q[2]");
     EXPECT_EQ(mgr.fields()[idx].array_idx, 2);
 }
@@ -139,14 +140,14 @@ TEST(Px4PlotManagerTest, AddArrayField)
 TEST(Px4PlotManagerTest, AddMultiInstanceField)
 {
     Px4PlotManager mgr;
-    size_t idx = mgr.add_field("sensor", "temp", -1, 1);
+    size_t         idx = mgr.add_field("sensor", "temp", -1, 1);
     EXPECT_EQ(mgr.fields()[idx].label, "sensor.temp (1)");
 }
 
 TEST(Px4PlotManagerTest, AddLiveField)
 {
     Px4PlotManager mgr;
-    size_t idx = mgr.add_live_field("ATTITUDE", "roll");
+    size_t         idx = mgr.add_live_field("ATTITUDE", "roll");
     EXPECT_EQ(mgr.fields()[idx].topic, "ATTITUDE");
     EXPECT_EQ(mgr.fields()[idx].field, "roll");
     EXPECT_EQ(mgr.fields()[idx].label, "ATTITUDE.roll");
@@ -178,11 +179,11 @@ TEST(Px4PlotManagerTest, LoadULogAndExtractData)
 
     // Available fields.
     auto fields = mgr.topic_fields("test_topic");
-    ASSERT_GE(fields.size(), 2u);  // timestamp + value
+    ASSERT_GE(fields.size(), 2u);   // timestamp + value
 
     // Add field and check data.
     size_t idx = mgr.add_field("test_topic", "value");
-    auto& pf = mgr.fields()[idx];
+    auto&  pf  = mgr.fields()[idx];
     ASSERT_EQ(pf.times.size(), 2u);
     ASSERT_EQ(pf.values.size(), 2u);
     EXPECT_FLOAT_EQ(pf.values[0], 42.0f);

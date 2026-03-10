@@ -27,7 +27,10 @@
 #include "../expression_engine.hpp"
 
 // Forward-declare ExpressionPlot to avoid pulling in heavy headers here.
-namespace spectra::adapters::ros2 { class ExpressionPlot; }
+namespace spectra::adapters::ros2
+{
+class ExpressionPlot;
+}
 
 namespace spectra::adapters::ros2
 {
@@ -52,7 +55,7 @@ struct VariableBindingRequest
 
 class ExpressionEditor
 {
-public:
+   public:
     // Construct with a pointer to the ExpressionPlot being edited.
     // `plot` must outlive the editor.
     explicit ExpressionEditor(ExpressionPlot* plot = nullptr);
@@ -65,7 +68,7 @@ public:
     ExpressionEditor& operator=(ExpressionEditor&&)      = delete;
 
     // Swap the active plot.
-    void set_plot(ExpressionPlot* plot) { plot_ = plot; }
+    void            set_plot(ExpressionPlot* plot) { plot_ = plot; }
     ExpressionPlot* plot() const { return plot_; }
 
     // ------------------------------------------------------------------
@@ -99,24 +102,20 @@ public:
     // One entry in the autocomplete list: "$topic/field.path"
     struct FieldEntry
     {
-        std::string topic;       // e.g. "/imu"
-        std::string field_path;  // e.g. "linear_acceleration.x"
-        std::string display;     // e.g. "$imu/linear_acceleration.x" — shown in popup
+        std::string topic;        // e.g. "/imu"
+        std::string field_path;   // e.g. "linear_acceleration.x"
+        std::string display;      // e.g. "$imu/linear_acceleration.x" — shown in popup
 
         // Convenience ctor.
         FieldEntry(std::string t, std::string f)
-            : topic(std::move(t))
-            , field_path(std::move(f))
-            , display("$" + topic + "/" + field_path)
-        {}
+            : topic(std::move(t)), field_path(std::move(f)), display("$" + topic + "/" + field_path)
+        {
+        }
     };
 
     // Replace the entire autocomplete list.  Call once after discovery changes.
     // Typically built by iterating TopicDiscovery + MessageIntrospector.
-    void set_field_entries(std::vector<FieldEntry> entries)
-    {
-        field_entries_ = std::move(entries);
-    }
+    void set_field_entries(std::vector<FieldEntry> entries) { field_entries_ = std::move(entries); }
 
     const std::vector<FieldEntry>& field_entries() const { return field_entries_; }
 
@@ -135,9 +134,9 @@ public:
 
     // The last error message from the most recent compile attempt (empty = ok).
     const std::string& last_error() const { return last_error_; }
-    int last_error_col() const { return last_error_col_; }
+    int                last_error_col() const { return last_error_col_; }
 
-private:
+   private:
     // ------------------------------------------------------------------
     // Private drawing helpers
     // ------------------------------------------------------------------
@@ -162,19 +161,19 @@ private:
 
     // Expression input buffer.
     static constexpr size_t EXPR_BUF_SIZE = 1024;
-    char   expr_buf_raw_[EXPR_BUF_SIZE]{};
-    std::string expr_buf_;          // mirrors expr_buf_raw_ after edits
+    char                    expr_buf_raw_[EXPR_BUF_SIZE]{};
+    std::string             expr_buf_;   // mirrors expr_buf_raw_ after edits
 
     // Variable-add form buffers.
     static constexpr size_t FIELD_BUF_SIZE = 256;
-    char new_var_buf_[FIELD_BUF_SIZE]{};
-    char new_topic_buf_[FIELD_BUF_SIZE]{};
-    char new_field_buf_[FIELD_BUF_SIZE]{};
-    char new_type_buf_[FIELD_BUF_SIZE]{};
+    char                    new_var_buf_[FIELD_BUF_SIZE]{};
+    char                    new_topic_buf_[FIELD_BUF_SIZE]{};
+    char                    new_field_buf_[FIELD_BUF_SIZE]{};
+    char                    new_type_buf_[FIELD_BUF_SIZE]{};
 
     // Preset save form.
     static constexpr size_t PRESET_NAME_SIZE = 128;
-    char preset_name_buf_[PRESET_NAME_SIZE]{};
+    char                    preset_name_buf_[PRESET_NAME_SIZE]{};
 
     // Last compile result.
     std::string last_error_;
@@ -190,8 +189,8 @@ private:
     // Autocomplete popup state (render-thread only).
     bool        autocomplete_open_{false};
     int         autocomplete_selected_{0};
-    std::string autocomplete_prefix_;      // text after the last '$' that triggered popup
-    int         autocomplete_trigger_pos_{-1}; // cursor position of '$' that opened popup
+    std::string autocomplete_prefix_;            // text after the last '$' that triggered popup
+    int         autocomplete_trigger_pos_{-1};   // cursor position of '$' that opened popup
 };
 
 }   // namespace spectra::adapters::ros2

@@ -238,7 +238,8 @@ void Axes3DRenderer::render(Axes3D& axes, Renderer& /*renderer*/)
         auto y_ticks_d = axes.compute_y_ticks().positions;
         auto z_ticks_d = axes.compute_z_ticks().positions;
         // 3D grid generators expect float vectors — convert from double
-        auto to_float_vec = [](const std::vector<double>& src) {
+        auto to_float_vec = [](const std::vector<double>& src)
+        {
             std::vector<float> dst(src.size());
             for (size_t i = 0; i < src.size(); ++i)
                 dst[i] = static_cast<float>(src[i]);

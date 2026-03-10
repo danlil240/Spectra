@@ -27,15 +27,9 @@ namespace ros2 = spectra::adapters::ros2;
 
 class RclcppEnvironment : public ::testing::Environment
 {
-public:
-    void SetUp() override
-    {
-        rclcpp::init(0, nullptr);
-    }
-    void TearDown() override
-    {
-        rclcpp::shutdown();
-    }
+   public:
+    void SetUp() override { rclcpp::init(0, nullptr); }
+    void TearDown() override { rclcpp::shutdown(); }
 };
 
 // ---------------------------------------------------------------------------
@@ -44,10 +38,10 @@ public:
 
 class TopicEchoPanelTest : public ::testing::Test
 {
-protected:
+   protected:
     void SetUp() override
     {
-        node_ = rclcpp::Node::make_shared("test_echo_panel_" + std::to_string(counter_++));
+        node_  = rclcpp::Node::make_shared("test_echo_panel_" + std::to_string(counter_++));
         panel_ = std::make_unique<ros2::TopicEchoPanel>(node_, intr_);
     }
 
@@ -58,8 +52,7 @@ protected:
     }
 
     // Build a synthetic EchoMessage with one numeric field.
-    static ros2::EchoMessage make_msg(uint64_t seq, double value,
-                                      const std::string& field = "x")
+    static ros2::EchoMessage make_msg(uint64_t seq, double value, const std::string& field = "x")
     {
         ros2::EchoMessage msg;
         msg.seq          = seq;
@@ -77,9 +70,9 @@ protected:
         return msg;
     }
 
-    rclcpp::Node::SharedPtr                   node_;
-    ros2::MessageIntrospector                 intr_;
-    std::unique_ptr<ros2::TopicEchoPanel>     panel_;
+    rclcpp::Node::SharedPtr               node_;
+    ros2::MessageIntrospector             intr_;
+    std::unique_ptr<ros2::TopicEchoPanel> panel_;
 
     static std::atomic<int> counter_;
 };
@@ -186,7 +179,8 @@ TEST_F(TopicEchoPanelTest, InjectSingleMessage)
 
 TEST_F(TopicEchoPanelTest, InjectMultipleMessages)
 {
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         panel_->inject_message(make_msg(static_cast<uint64_t>(i), static_cast<double>(i)));
     }
     EXPECT_EQ(panel_->message_count(), 10u);
@@ -196,7 +190,8 @@ TEST_F(TopicEchoPanelTest, InjectMultipleMessages)
 TEST_F(TopicEchoPanelTest, RingBufferPrunesOldest)
 {
     panel_->set_max_messages(5);
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < 8; ++i)
+    {
         panel_->inject_message(make_msg(static_cast<uint64_t>(i), static_cast<double>(i)));
     }
     EXPECT_EQ(panel_->message_count(), 5u);
@@ -204,12 +199,13 @@ TEST_F(TopicEchoPanelTest, RingBufferPrunesOldest)
     auto snap = panel_->messages_snapshot();
     // Oldest dropped: seq 0,1,2 gone; 3..7 remain.
     EXPECT_EQ(snap.front().seq, 3u);
-    EXPECT_EQ(snap.back().seq,  7u);
+    EXPECT_EQ(snap.back().seq, 7u);
 }
 
 TEST_F(TopicEchoPanelTest, SetMaxMessagesTruncatesExisting)
 {
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 20; ++i)
+    {
         panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
     }
     EXPECT_EQ(panel_->message_count(), 20u);
@@ -227,7 +223,8 @@ TEST_F(TopicEchoPanelTest, SetMaxMessagesZeroClampedToOne)
 TEST_F(TopicEchoPanelTest, TotalReceivedContinuesAfterPrune)
 {
     panel_->set_max_messages(3);
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i)
+    {
         panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
     }
     EXPECT_EQ(panel_->total_received(), 10u);
@@ -258,12 +255,14 @@ TEST_F(TopicEchoPanelTest, LatestMessageReturnsNewest)
 
 TEST_F(TopicEchoPanelTest, MessagesSnapshotOrder)
 {
-    for (uint64_t i = 0; i < 5; ++i) {
+    for (uint64_t i = 0; i < 5; ++i)
+    {
         panel_->inject_message(make_msg(i, static_cast<double>(i)));
     }
     auto snap = panel_->messages_snapshot();
     ASSERT_EQ(snap.size(), 5u);
-    for (size_t i = 0; i < snap.size(); ++i) {
+    for (size_t i = 0; i < snap.size(); ++i)
+    {
         EXPECT_EQ(snap[i].seq, static_cast<uint64_t>(i));
     }
 }
@@ -277,10 +276,10 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageEmptySchema)
     ros2::MessageSchema schema;
     schema.type_name = "test/msg/Empty";
 
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        nullptr, schema, 99, 1'000'000'000LL, 1.0);
+    const auto msg =
+        ros2::TopicEchoPanel::build_echo_message(nullptr, schema, 99, 1'000'000'000LL, 1.0);
 
-    EXPECT_EQ(msg.seq,          99u);
+    EXPECT_EQ(msg.seq, 99u);
     EXPECT_EQ(msg.timestamp_ns, 1'000'000'000LL);
     EXPECT_DOUBLE_EQ(msg.wall_time_s, 1.0);
     EXPECT_TRUE(msg.fields.empty());
@@ -301,9 +300,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageNumericField)
     schema.fields.push_back(fd);
 
     // Message buffer: one double = 1.5.
-    double value = 1.5;
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        &value, schema, 1, 0, 0.0);
+    double     value = 1.5;
+    const auto msg   = ros2::TopicEchoPanel::build_echo_message(&value, schema, 1, 0, 0.0);
 
     ASSERT_EQ(msg.fields.size(), 1u);
     EXPECT_EQ(msg.fields[0].display_name, "data");
@@ -324,9 +322,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageInt32Field)
     fd.is_array  = false;
     schema.fields.push_back(fd);
 
-    int32_t value = -42;
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        &value, schema, 2, 0, 0.0);
+    int32_t    value = -42;
+    const auto msg   = ros2::TopicEchoPanel::build_echo_message(&value, schema, 2, 0, 0.0);
 
     ASSERT_EQ(msg.fields.size(), 1u);
     EXPECT_EQ(msg.fields[0].kind, ros2::EchoFieldValue::Kind::Numeric);
@@ -346,9 +343,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageBoolField)
     fd.is_array  = false;
     schema.fields.push_back(fd);
 
-    uint8_t value = 1;
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        &value, schema, 3, 0, 0.0);
+    uint8_t    value = 1;
+    const auto msg   = ros2::TopicEchoPanel::build_echo_message(&value, schema, 3, 0, 0.0);
 
     ASSERT_EQ(msg.fields.size(), 1u);
     EXPECT_DOUBLE_EQ(msg.fields[0].numeric, 1.0);
@@ -367,9 +363,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageFloat32Field)
     fd.is_array  = false;
     schema.fields.push_back(fd);
 
-    float value = 2.5f;
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        &value, schema, 4, 0, 0.0);
+    float      value = 2.5f;
+    const auto msg   = ros2::TopicEchoPanel::build_echo_message(&value, schema, 4, 0, 0.0);
 
     ASSERT_EQ(msg.fields.size(), 1u);
     EXPECT_NEAR(msg.fields[0].numeric, 2.5, 1e-5);
@@ -379,8 +374,15 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageNestedStruct)
 {
     // Simulate a Twist-like schema: two nested structs (linear, angular)
     // each with one float field.
-    struct LinearStruct { double x; };
-    struct TwistLike { LinearStruct linear; double angular_z; };
+    struct LinearStruct
+    {
+        double x;
+    };
+    struct TwistLike
+    {
+        LinearStruct linear;
+        double       angular_z;
+    };
 
     ros2::MessageSchema schema;
     schema.type_name = "geometry_msgs/msg/TwistLike";
@@ -396,7 +398,7 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageNestedStruct)
     fd_x.name      = "x";
     fd_x.full_path = "linear.x";
     fd_x.type      = ros2::FieldType::Float64;
-    fd_x.offset    = 0;  // offset within LinearStruct
+    fd_x.offset    = 0;   // offset within LinearStruct
     fd_x.is_array  = false;
     fd_linear.children.push_back(fd_x);
 
@@ -410,9 +412,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageNestedStruct)
     schema.fields.push_back(fd_linear);
     schema.fields.push_back(fd_az);
 
-    TwistLike data{ {7.0}, 3.5 };
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        &data, schema, 5, 0, 0.0);
+    TwistLike  data{{7.0}, 3.5};
+    const auto msg = ros2::TopicEchoPanel::build_echo_message(&data, schema, 5, 0, 0.0);
 
     // Expect: NestedHead "linear", Numeric "x", Numeric "angular_z".
     ASSERT_EQ(msg.fields.size(), 3u);
@@ -442,9 +443,8 @@ TEST_F(TopicEchoPanelTest, BuildEchoMessageFixedArrayHead)
     fd.array_size       = 3;
     schema.fields.push_back(fd);
 
-    double arr[3] = {1.0, 2.0, 3.0};
-    const auto msg = ros2::TopicEchoPanel::build_echo_message(
-        arr, schema, 6, 0, 0.0);
+    double     arr[3] = {1.0, 2.0, 3.0};
+    const auto msg    = ros2::TopicEchoPanel::build_echo_message(arr, schema, 6, 0, 0.0);
 
     // Expect: ArrayHead + 3 ArrayElement entries.
     ASSERT_GE(msg.fields.size(), 4u);
@@ -509,13 +509,15 @@ TEST_F(TopicEchoPanelTest, FormatNumericFloat)
 
 TEST_F(TopicEchoPanelTest, FormatNumericNan)
 {
-    EXPECT_EQ(ros2::TopicEchoPanel::format_numeric(std::numeric_limits<double>::quiet_NaN()), "nan");
+    EXPECT_EQ(ros2::TopicEchoPanel::format_numeric(std::numeric_limits<double>::quiet_NaN()),
+              "nan");
 }
 
 TEST_F(TopicEchoPanelTest, FormatNumericInf)
 {
     EXPECT_EQ(ros2::TopicEchoPanel::format_numeric(std::numeric_limits<double>::infinity()), "inf");
-    EXPECT_EQ(ros2::TopicEchoPanel::format_numeric(-std::numeric_limits<double>::infinity()), "-inf");
+    EXPECT_EQ(ros2::TopicEchoPanel::format_numeric(-std::numeric_limits<double>::infinity()),
+              "-inf");
 }
 
 // ===========================================================================
@@ -588,20 +590,26 @@ TEST_F(TopicEchoPanelTest, ConcurrentInjectAndSnapshot)
 {
     panel_->set_max_messages(50);
 
-    std::thread writer([&] {
-        for (int i = 0; i < 200; ++i) {
-            panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
-            std::this_thread::yield();
-        }
-    });
+    std::thread writer(
+        [&]
+        {
+            for (int i = 0; i < 200; ++i)
+            {
+                panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
+                std::this_thread::yield();
+            }
+        });
 
-    std::thread reader([&] {
-        for (int i = 0; i < 100; ++i) {
-            auto snap = panel_->messages_snapshot();
-            (void)snap.size();
-            std::this_thread::yield();
-        }
-    });
+    std::thread reader(
+        [&]
+        {
+            for (int i = 0; i < 100; ++i)
+            {
+                auto snap = panel_->messages_snapshot();
+                (void)snap.size();
+                std::this_thread::yield();
+            }
+        });
 
     writer.join();
     reader.join();
@@ -612,21 +620,27 @@ TEST_F(TopicEchoPanelTest, ConcurrentInjectAndSnapshot)
 
 TEST_F(TopicEchoPanelTest, ConcurrentPauseResumeAndInject)
 {
-    std::thread controller([&] {
-        for (int i = 0; i < 20; ++i) {
-            panel_->pause();
-            std::this_thread::yield();
-            panel_->resume();
-            std::this_thread::yield();
-        }
-    });
+    std::thread controller(
+        [&]
+        {
+            for (int i = 0; i < 20; ++i)
+            {
+                panel_->pause();
+                std::this_thread::yield();
+                panel_->resume();
+                std::this_thread::yield();
+            }
+        });
 
-    std::thread writer([&] {
-        for (int i = 0; i < 50; ++i) {
-            panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
-            std::this_thread::yield();
-        }
-    });
+    std::thread writer(
+        [&]
+        {
+            for (int i = 0; i < 50; ++i)
+            {
+                panel_->inject_message(make_msg(static_cast<uint64_t>(i), 0.0));
+                std::this_thread::yield();
+            }
+        });
 
     controller.join();
     writer.join();
@@ -682,7 +696,7 @@ TEST_F(TopicEchoPanelTest, MaxMessagesOneKeepsOnly1)
 TEST_F(TopicEchoPanelTest, MessageFieldDepthPreserved)
 {
     ros2::EchoMessage msg;
-    msg.seq = 0;
+    msg.seq          = 0;
     msg.timestamp_ns = 0;
 
     ros2::EchoFieldValue nested;
@@ -714,7 +728,7 @@ TEST_F(TopicEchoPanelTest, EchoMessageKindVariants)
     msg.seq = 0;
 
     ros2::EchoFieldValue fv1;
-    fv1.kind = ros2::EchoFieldValue::Kind::Numeric;
+    fv1.kind    = ros2::EchoFieldValue::Kind::Numeric;
     fv1.numeric = 1.0;
     msg.fields.push_back(fv1);
 

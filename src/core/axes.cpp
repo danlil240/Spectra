@@ -524,8 +524,8 @@ AxisLimits Axes::y_limits() const
 
     if (presented_buffer_seconds_.has_value() && presented_buffer_seconds_.value() > 0.0f)
     {
-        float window_min = 0.0f;
-        float window_max = 0.0f;
+        float window_min  = 0.0f;
+        float window_max  = 0.0f;
         bool  have_window = false;
 
         if (presented_buffer_following_)

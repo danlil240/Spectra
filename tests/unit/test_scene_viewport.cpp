@@ -50,10 +50,6 @@ TEST(SceneViewportTest, SetCameraNormalizesRestoredCameraToZUp)
     EXPECT_FLOAT_EQ(camera.up.z, 1.0f);
 
     EXPECT_NEAR(camera.position.x, 1.0f, 1e-4f);
-    EXPECT_NEAR(camera.position.y,
-                2.0f + 12.0f * std::cos(spectra::deg_to_rad(30.0f)),
-                1e-4f);
-    EXPECT_NEAR(camera.position.z,
-                3.0f + 12.0f * std::sin(spectra::deg_to_rad(30.0f)),
-                1e-4f);
+    EXPECT_NEAR(camera.position.y, 2.0f + 12.0f * std::cos(spectra::deg_to_rad(30.0f)), 1e-4f);
+    EXPECT_NEAR(camera.position.z, 3.0f + 12.0f * std::sin(spectra::deg_to_rad(30.0f)), 1e-4f);
 }

@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifdef SPECTRA_USE_IMGUI
-#include "imgui.h"
+    #include "imgui.h"
 #endif
 
 namespace spectra::adapters::ros2
@@ -54,8 +54,7 @@ static float string_to_hue(const std::string& s)
 }
 
 // HSV → RGB  (s=0.55, v=0.82 for pastel namespace colors)
-static void hsv_to_rgb(float h, float s, float v,
-                       float& r, float& g, float& b)
+static void hsv_to_rgb(float h, float s, float v, float& r, float& g, float& b)
 {
     int   i = static_cast<int>(h * 6.0f);
     float f = h * 6.0f - static_cast<float>(i);
@@ -64,12 +63,36 @@ static void hsv_to_rgb(float h, float s, float v,
     float t = v * (1.0f - (1.0f - f) * s);
     switch (i % 6)
     {
-    case 0: r = v; g = t; b = p; break;
-    case 1: r = q; g = v; b = p; break;
-    case 2: r = p; g = v; b = t; break;
-    case 3: r = p; g = q; b = v; break;
-    case 4: r = t; g = p; b = v; break;
-    default: r = v; g = p; b = q; break;
+        case 0:
+            r = v;
+            g = t;
+            b = p;
+            break;
+        case 1:
+            r = q;
+            g = v;
+            b = p;
+            break;
+        case 2:
+            r = p;
+            g = v;
+            b = t;
+            break;
+        case 3:
+            r = p;
+            g = q;
+            b = v;
+            break;
+        case 4:
+            r = t;
+            g = p;
+            b = v;
+            break;
+        default:
+            r = v;
+            g = p;
+            b = q;
+            break;
     }
 }
 
@@ -79,8 +102,8 @@ static void hsv_to_rgb(float h, float s, float v,
 
 NodeGraphPanel::NodeGraphPanel()
 {
-    last_refresh_time_ = std::chrono::steady_clock::now() -
-                         std::chrono::milliseconds(refresh_interval_.count() + 1);
+    last_refresh_time_ =
+        std::chrono::steady_clock::now() - std::chrono::milliseconds(refresh_interval_.count() + 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,11 +126,9 @@ void NodeGraphPanel::tick(float dt)
         std::lock_guard<std::mutex> lock(mutex_);
         // Auto-refresh check
         auto now = std::chrono::steady_clock::now();
-        if (discovery_ &&
-            (first_refresh_ ||
-             now - last_refresh_time_ >= refresh_interval_))
+        if (discovery_ && (first_refresh_ || now - last_refresh_time_ >= refresh_interval_))
         {
-            first_refresh_   = false;
+            first_refresh_     = false;
             last_refresh_time_ = now;
             rebuild_from_discovery();
         }
@@ -299,9 +320,11 @@ std::string NodeGraphPanel::selected_ros_node() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     // Return only if the selected item is a ROS node (not a topic).
-    if (selected_id_.empty()) return {};
+    if (selected_id_.empty())
+        return {};
     auto it = node_index_.find(selected_id_);
-    if (it == node_index_.end()) return {};
+    if (it == node_index_.end())
+        return {};
     const GraphNode& n = nodes_[it->second];
     return (n.kind == GraphNodeKind::RosNode) ? n.id : std::string{};
 }
@@ -327,8 +350,7 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
     for (const auto& ni : nodes)
     {
         GraphNode gn;
-        gn.id           = ni.full_name.empty() ? (ni.namespace_ + "/" + ni.name)
-                                                : ni.full_name;
+        gn.id           = ni.full_name.empty() ? (ni.namespace_ + "/" + ni.name) : ni.full_name;
         gn.display_name = ni.name;
         gn.namespace_   = ni.namespace_;
         gn.kind         = GraphNodeKind::RosNode;
@@ -423,8 +445,8 @@ void NodeGraphPanel::scatter_new_nodes()
             // Uniformly scatter in a circle of radius spread
             float angle  = rng_next() * 6.2831853f;
             float radius = rng_next() * spread;
-            n.px = std::cos(angle) * radius;
-            n.py = std::sin(angle) * radius;
+            n.px         = std::cos(angle) * radius;
+            n.py         = std::sin(angle) * radius;
         }
         n.vx = 0.0f;
         n.vy = 0.0f;
@@ -450,8 +472,7 @@ bool NodeGraphPanel::passes_filter(const GraphNode& n) const
 {
     if (namespace_filter_.empty())
         return true;
-    return n.namespace_.rfind(namespace_filter_, 0) == 0 ||
-           n.id.rfind(namespace_filter_, 0) == 0;
+    return n.namespace_.rfind(namespace_filter_, 0) == 0 || n.id.rfind(namespace_filter_, 0) == 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -478,10 +499,11 @@ void NodeGraphPanel::layout_step_unlocked()
     {
         for (std::size_t j = i + 1; j < N; ++j)
         {
-            float dx = nodes_[i].px - nodes_[j].px;
-            float dy = nodes_[i].py - nodes_[j].py;
+            float dx    = nodes_[i].px - nodes_[j].px;
+            float dy    = nodes_[i].py - nodes_[j].py;
             float dist2 = dx * dx + dy * dy;
-            if (dist2 < 1.0f) dist2 = 1.0f;
+            if (dist2 < 1.0f)
+                dist2 = 1.0f;
             float force = k2 / dist2;
             float nx    = dx / std::sqrt(dist2);
             float ny    = dy / std::sqrt(dist2);
@@ -506,7 +528,8 @@ void NodeGraphPanel::layout_step_unlocked()
         float dx   = nodes_[j].px - nodes_[i].px;
         float dy   = nodes_[j].py - nodes_[i].py;
         float dist = std::sqrt(dx * dx + dy * dy);
-        if (dist < 1.0f) dist = 1.0f;
+        if (dist < 1.0f)
+            dist = 1.0f;
         float force = attraction_ * (dist - ideal_length_);
         float nx    = dx / dist;
         float ny    = dy / dist;
@@ -524,9 +547,9 @@ void NodeGraphPanel::layout_step_unlocked()
         nodes_[i].vy = (nodes_[i].vy + fy[i]) * damping_;
         nodes_[i].px += nodes_[i].vx;
         nodes_[i].py += nodes_[i].vy;
-        float v = std::sqrt(nodes_[i].vx * nodes_[i].vx +
-                             nodes_[i].vy * nodes_[i].vy);
-        if (v > max_v) max_v = v;
+        float v = std::sqrt(nodes_[i].vx * nodes_[i].vx + nodes_[i].vy * nodes_[i].vy);
+        if (v > max_v)
+            max_v = v;
     }
 
     max_velocity_     = max_v;
@@ -555,8 +578,7 @@ float NodeGraphPanel::rng_next()
     rng_state_ ^= rng_state_ << 13;
     rng_state_ ^= rng_state_ >> 17;
     rng_state_ ^= rng_state_ << 5;
-    return static_cast<float>(rng_state_ & 0x7FFFFFFFu) /
-           static_cast<float>(0x7FFFFFFFu);
+    return static_cast<float>(rng_state_ & 0x7FFFFFFFu) / static_cast<float>(0x7FFFFFFFu);
 }
 
 // ---------------------------------------------------------------------------
@@ -573,8 +595,7 @@ void NodeGraphPanel::draw(bool* p_open)
         win_title = title_ + "###NodeGraphPanel";
     }
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar |
-                             ImGuiWindowFlags_NoScrollWithMouse;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     if (!ImGui::Begin(win_title.c_str(), p_open, flags))
     {
         ImGui::End();
@@ -618,20 +639,19 @@ void NodeGraphPanel::draw_toolbar()
     std::size_t vis_nodes = 0;
     std::size_t vis_edges = 0;
     for (const auto& n : nodes_)
-        if (passes_filter(n)) ++vis_nodes;
+        if (passes_filter(n))
+            ++vis_nodes;
     for (const auto& e : edges_)
     {
         auto ia = node_index_.find(e.from_id);
         auto ib = node_index_.find(e.to_id);
-        if (ia != node_index_.end() && ib != node_index_.end() &&
-            passes_filter(nodes_[ia->second]) &&
-            passes_filter(nodes_[ib->second]))
+        if (ia != node_index_.end() && ib != node_index_.end() && passes_filter(nodes_[ia->second])
+            && passes_filter(nodes_[ib->second]))
             ++vis_edges;
     }
 
     char stats[64];
-    std::snprintf(stats, sizeof(stats), "%zu nodes  %zu edges",
-                  vis_nodes, vis_edges);
+    std::snprintf(stats, sizeof(stats), "%zu nodes  %zu edges", vis_nodes, vis_edges);
     ImGui::TextDisabled("%s", stats);
 
     if (!layout_converged_)
@@ -652,20 +672,17 @@ void NodeGraphPanel::draw_graph_canvas()
 
     // Background
     dl->AddRectFilled(canvas_pos,
-                      ImVec2(canvas_pos.x + canvas_size.x,
-                             canvas_pos.y + canvas_size.y),
+                      ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
                       IM_COL32(22, 27, 34, 255));
     dl->AddRect(canvas_pos,
-                ImVec2(canvas_pos.x + canvas_size.x,
-                       canvas_pos.y + canvas_size.y),
+                ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
                 IM_COL32(48, 54, 61, 255));
 
     // Invisible button for mouse interaction (pan + zoom)
     ImGui::SetCursorScreenPos(canvas_pos);
     ImGui::InvisibleButton("##canvas",
                            ImVec2(canvas_size.x, canvas_size.y),
-                           ImGuiButtonFlags_MouseButtonLeft |
-                           ImGuiButtonFlags_MouseButtonRight);
+                           ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 
     // Pan via left-drag on canvas background
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
@@ -684,18 +701,17 @@ void NodeGraphPanel::draw_graph_canvas()
             float factor = (wheel > 0) ? 1.1f : (1.0f / 1.1f);
             // Zoom toward mouse position
             ImVec2 mouse = ImGui::GetIO().MousePos;
-            float mx = (mouse.x - canvas_pos.x - view_ox_) / view_scale_;
-            float my = (mouse.y - canvas_pos.y - view_oy_) / view_scale_;
-            view_scale_ = std::clamp(view_scale_ * factor, MIN_SCALE, MAX_SCALE);
-            view_ox_    = mouse.x - canvas_pos.x - mx * view_scale_;
-            view_oy_    = mouse.y - canvas_pos.y - my * view_scale_;
+            float  mx    = (mouse.x - canvas_pos.x - view_ox_) / view_scale_;
+            float  my    = (mouse.y - canvas_pos.y - view_oy_) / view_scale_;
+            view_scale_  = std::clamp(view_scale_ * factor, MIN_SCALE, MAX_SCALE);
+            view_ox_     = mouse.x - canvas_pos.x - mx * view_scale_;
+            view_oy_     = mouse.y - canvas_pos.y - my * view_scale_;
         }
     }
 
     // Clip drawing to canvas
     dl->PushClipRect(canvas_pos,
-                     ImVec2(canvas_pos.x + canvas_size.x,
-                            canvas_pos.y + canvas_size.y),
+                     ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
                      true);
 
     {
@@ -732,11 +748,12 @@ void NodeGraphPanel::draw_graph_canvas()
         float  wy    = (mouse.y - canvas_pos.y - view_oy_) / view_scale_;
 
         std::lock_guard<std::mutex> lock(mutex_);
-        std::string hit;
-        float       best_dist2 = 50.0f * 50.0f;  // max click radius
+        std::string                 hit;
+        float                       best_dist2 = 50.0f * 50.0f;   // max click radius
         for (const auto& n : nodes_)
         {
-            if (!passes_filter(n)) continue;
+            if (!passes_filter(n))
+                continue;
             float dx    = wx - n.px;
             float dy    = wy - n.py;
             float dist2 = dx * dx + dy * dy;
@@ -762,7 +779,7 @@ void NodeGraphPanel::draw_graph_canvas()
                 auto it = node_index_.find(hit);
                 if (it != node_index_.end())
                 {
-                    const GraphNode& gn = nodes_[it->second];
+                    const GraphNode& gn         = nodes_[it->second];
                     nodes_[it->second].selected = true;
                     if (select_cb_)
                         select_cb_(gn);
@@ -781,15 +798,14 @@ void NodeGraphPanel::draw_graph_canvas()
     }
 }
 
-void NodeGraphPanel::draw_node(const GraphNode& n,
-                                float ox, float oy, float scale) const
+void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float scale) const
 {
     if (!passes_filter(n))
         return;
 
-    ImDrawList* dl   = ImGui::GetWindowDrawList();
-    float       cx   = ox + n.px * scale;
-    float       cy   = oy + n.py * scale;
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    float       cx = ox + n.px * scale;
+    float       cy = oy + n.py * scale;
 
     if (n.kind == GraphNodeKind::RosNode)
     {
@@ -800,19 +816,19 @@ void NodeGraphPanel::draw_node(const GraphNode& n,
         float hue = string_to_hue(n.namespace_);
         float r, g, b;
         hsv_to_rgb(hue, 0.45f, 0.60f, r, g, b);
-        ImU32 fill  = IM_COL32(static_cast<int>(r * 255),
-                               static_cast<int>(g * 255),
-                               static_cast<int>(b * 255), 200);
-        ImU32 border = n.selected
-                       ? IM_COL32(255, 200, 80, 255)
-                       : IM_COL32(120, 140, 160, 200);
+        ImU32 fill   = IM_COL32(static_cast<int>(r * 255),
+                              static_cast<int>(g * 255),
+                              static_cast<int>(b * 255),
+                              200);
+        ImU32 border = n.selected ? IM_COL32(255, 200, 80, 255) : IM_COL32(120, 140, 160, 200);
 
-        dl->AddRectFilled(ImVec2(cx - hw, cy - hh),
-                          ImVec2(cx + hw, cy + hh),
-                          fill, 4.0f * scale);
+        dl->AddRectFilled(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh), fill, 4.0f * scale);
         dl->AddRect(ImVec2(cx - hw, cy - hh),
                     ImVec2(cx + hw, cy + hh),
-                    border, 4.0f * scale, 0, n.selected ? 2.0f : 1.0f);
+                    border,
+                    4.0f * scale,
+                    0,
+                    n.selected ? 2.0f : 1.0f);
 
         // Label
         if (scale > 0.3f)
@@ -829,15 +845,12 @@ void NodeGraphPanel::draw_node(const GraphNode& n,
         float rx = 30.0f * scale;
         float ry = 12.0f * scale;
 
-        ImU32 fill  = IM_COL32(50, 70, 90, 180);
-        ImU32 border = n.selected
-                       ? IM_COL32(255, 200, 80, 255)
-                       : IM_COL32(100, 160, 200, 180);
+        ImU32 fill   = IM_COL32(50, 70, 90, 180);
+        ImU32 border = n.selected ? IM_COL32(255, 200, 80, 255) : IM_COL32(100, 160, 200, 180);
 
         // Approximate ellipse with 20-segment polygon
         dl->AddEllipseFilled(ImVec2(cx, cy), ImVec2(rx, ry), fill);
-        dl->AddEllipse(ImVec2(cx, cy), ImVec2(rx, ry), border,
-                       0.0f, 20, n.selected ? 2.0f : 1.0f);
+        dl->AddEllipse(ImVec2(cx, cy), ImVec2(rx, ry), border, 0.0f, 20, n.selected ? 2.0f : 1.0f);
 
         if (scale > 0.35f)
         {
@@ -849,8 +862,7 @@ void NodeGraphPanel::draw_node(const GraphNode& n,
     }
 }
 
-void NodeGraphPanel::draw_edge(const GraphEdge& e,
-                                float ox, float oy, float scale) const
+void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float scale) const
 {
     auto ia = node_index_.find(e.from_id);
     auto ib = node_index_.find(e.to_id);
@@ -864,39 +876,38 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e,
         return;
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    float ax = ox + A.px * scale;
-    float ay = oy + A.py * scale;
-    float bx = ox + B.px * scale;
-    float by = oy + B.py * scale;
+    float       ax = ox + A.px * scale;
+    float       ay = oy + A.py * scale;
+    float       bx = ox + B.px * scale;
+    float       by = oy + B.py * scale;
 
-    ImU32 col = e.is_publish
-                ? IM_COL32(100, 200, 120, 160)   // publish = green
-                : IM_COL32(200, 120, 100, 160);  // subscribe = red-orange
+    ImU32 col = e.is_publish ? IM_COL32(100, 200, 120, 160)    // publish = green
+                             : IM_COL32(200, 120, 100, 160);   // subscribe = red-orange
 
     dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), col, 1.2f);
 
     // Arrowhead at B
-    float dx   = bx - ax;
-    float dy   = by - ay;
-    float len  = std::sqrt(dx * dx + dy * dy);
-    if (len < 1.0f) return;
+    float dx  = bx - ax;
+    float dy  = by - ay;
+    float len = std::sqrt(dx * dx + dy * dy);
+    if (len < 1.0f)
+        return;
     dx /= len;
     dy /= len;
 
     float arrow_len  = 10.0f * scale;
-    float arrow_half = 4.5f  * scale;
+    float arrow_half = 4.5f * scale;
 
-    float tip_x = bx - dx * 3.0f * scale;  // slight inset
+    float tip_x = bx - dx * 3.0f * scale;   // slight inset
     float tip_y = by - dy * 3.0f * scale;
 
     float base_x = tip_x - dx * arrow_len;
     float base_y = tip_y - dy * arrow_len;
 
-    dl->AddTriangleFilled(
-        ImVec2(tip_x, tip_y),
-        ImVec2(base_x - dy * arrow_half, base_y + dx * arrow_half),
-        ImVec2(base_x + dy * arrow_half, base_y - dx * arrow_half),
-        col);
+    dl->AddTriangleFilled(ImVec2(tip_x, tip_y),
+                          ImVec2(base_x - dy * arrow_half, base_y + dx * arrow_half),
+                          ImVec2(base_x + dy * arrow_half, base_y - dx * arrow_half),
+                          col);
 }
 
 void NodeGraphPanel::draw_detail_popup(const GraphNode& n)
@@ -905,17 +916,14 @@ void NodeGraphPanel::draw_detail_popup(const GraphNode& n)
     ImGui::SetNextWindowSize(ImVec2(260, 0), ImGuiCond_Always);
 
     std::string popup_id = "##detail_" + n.id;
-    ImGui::SetNextWindowPos(
-        ImVec2(ImGui::GetIO().MousePos.x + 12,
-               ImGui::GetIO().MousePos.y + 12),
-        ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().MousePos.x + 12, ImGui::GetIO().MousePos.y + 12),
+                            ImGuiCond_Always);
 
     if (ImGui::BeginTooltip())
     {
         ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.4f, 1.0f),
                            "%s",
-                           n.kind == GraphNodeKind::RosNode ? "ROS2 Node"
-                                                            : "Topic");
+                           n.kind == GraphNodeKind::RosNode ? "ROS2 Node" : "Topic");
         ImGui::Separator();
         ImGui::TextWrapped("%s", n.id.c_str());
         ImGui::Spacing();
@@ -936,10 +944,10 @@ void NodeGraphPanel::draw_detail_popup(const GraphNode& n)
     }
 }
 
-#else  // !SPECTRA_USE_IMGUI
+#else   // !SPECTRA_USE_IMGUI
 
 void NodeGraphPanel::draw(bool*) {}
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
 }   // namespace spectra::adapters::ros2

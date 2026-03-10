@@ -42,9 +42,9 @@ namespace spectra::adapters::ros2
 
 struct BagTopicRow
 {
-    std::string name;           // fully qualified topic name
-    std::string type;           // message type string
-    uint64_t    message_count;  // total messages for this topic in the bag
+    std::string name;            // fully qualified topic name
+    std::string type;            // message type string
+    uint64_t    message_count;   // total messages for this topic in the bag
 };
 
 // ---------------------------------------------------------------------------
@@ -57,18 +57,18 @@ struct BagSummary
 {
     bool        is_open{false};
     std::string path;
-    std::string storage_id;       // "sqlite3" or "mcap"
+    std::string storage_id;   // "sqlite3" or "mcap"
     double      duration_sec{0.0};
     double      start_time_sec{0.0};
     double      end_time_sec{0.0};
     uint64_t    message_count{0};
-    uint64_t    compressed_size{0};  // bytes; 0 if not available
+    uint64_t    compressed_size{0};   // bytes; 0 if not available
     std::string last_error;
 
     std::vector<BagTopicRow> topics;
 
     // Helpers —————————————————————————————————————————————————————————————
-    bool        valid()     const noexcept { return is_open; }
+    bool        valid() const noexcept { return is_open; }
     std::size_t topic_count() const noexcept { return topics.size(); }
 
     // Human-readable duration string, e.g. "1h 23m 04s" / "45.3 s"
@@ -91,7 +91,7 @@ using BagTopicSelectCallback = std::function<void(const std::string&, const std:
 
 // Called when the user double-clicks (or explicitly "plots") a topic row.
 // Arguments: topic_name, type_string
-using BagTopicPlotCallback   = std::function<void(const std::string&, const std::string&)>;
+using BagTopicPlotCallback = std::function<void(const std::string&, const std::string&)>;
 
 // Called when a new bag is successfully opened (after open_bag / drag-drop).
 // Argument: bag path
@@ -103,7 +103,7 @@ using BagOpenedCallback = std::function<void(const std::string&)>;
 
 class BagInfoPanel
 {
-public:
+   public:
     BagInfoPanel();
     ~BagInfoPanel() = default;
 
@@ -153,18 +153,18 @@ public:
     // ------------------------------------------------------------------
 
     void set_topic_select_callback(BagTopicSelectCallback cb) { select_cb_ = std::move(cb); }
-    void set_topic_plot_callback(BagTopicPlotCallback cb)     { plot_cb_   = std::move(cb); }
-    void set_bag_opened_callback(BagOpenedCallback cb)        { opened_cb_ = std::move(cb); }
+    void set_topic_plot_callback(BagTopicPlotCallback cb) { plot_cb_ = std::move(cb); }
+    void set_bag_opened_callback(BagOpenedCallback cb) { opened_cb_ = std::move(cb); }
 
     const BagTopicSelectCallback& topic_select_callback() const { return select_cb_; }
-    const BagTopicPlotCallback&   topic_plot_callback()   const { return plot_cb_; }
-    const BagOpenedCallback&      bag_opened_callback()   const { return opened_cb_; }
+    const BagTopicPlotCallback&   topic_plot_callback() const { return plot_cb_; }
+    const BagOpenedCallback&      bag_opened_callback() const { return opened_cb_; }
 
     // ------------------------------------------------------------------
     // Configuration
     // ------------------------------------------------------------------
 
-    void set_title(const std::string& title) { title_ = title; }
+    void               set_title(const std::string& title) { title_ = title; }
     const std::string& title() const noexcept { return title_; }
 
     // ------------------------------------------------------------------
@@ -192,7 +192,7 @@ public:
     // Fire the plot callback for the row at `index` (bounds-checked).
     void plot_row(int index);
 
-private:
+   private:
     // ------------------------------------------------------------------
     // ImGui sub-sections (always declared, guarded internally)
     // ------------------------------------------------------------------
@@ -207,15 +207,15 @@ private:
     // Members
     // ------------------------------------------------------------------
 
-    BagReader    reader_;
-    BagSummary   summary_;
+    BagReader  reader_;
+    BagSummary summary_;
 
-    std::string  title_{"Bag Info"};
-    int          selected_index_{-1};
+    std::string title_{"Bag Info"};
+    int         selected_index_{-1};
 
     BagTopicSelectCallback select_cb_;
     BagTopicPlotCallback   plot_cb_;
     BagOpenedCallback      opened_cb_;
 };
 
-} // namespace spectra::adapters::ros2
+}   // namespace spectra::adapters::ros2

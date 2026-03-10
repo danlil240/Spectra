@@ -1,10 +1,10 @@
 #include "live_connection_panel.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
-#ifdef IMGUI_HAS_DOCK
-#include <imgui_internal.h>
-#endif
+    #include <imgui.h>
+    #ifdef IMGUI_HAS_DOCK
+        #include <imgui_internal.h>
+    #endif
 #endif
 
 #include <cstdio>
@@ -17,8 +17,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 LiveConnectionPanel::LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr)
-    : bridge_(bridge)
-    , plot_mgr_(plot_mgr)
+    : bridge_(bridge), plot_mgr_(plot_mgr)
 {
     detach_ctrl_.set_title("PX4 Live");
     detach_ctrl_.set_detached_size(450.0f, 350.0f);
@@ -47,15 +46,14 @@ void LiveConnectionPanel::draw(bool* p_open)
     if (state == spectra::PanelDetachController::State::DetachPending)
         return;
 
-    // After re-attach: force back into the target dockspace.
-#ifdef IMGUI_HAS_DOCK
+        // After re-attach: force back into the target dockspace.
+    #ifdef IMGUI_HAS_DOCK
     if (state == spectra::PanelDetachController::State::AttachPending
         && detach_ctrl_.dock_id() != 0)
     {
-        ImGui::SetNextWindowDockID(
-            static_cast<ImGuiID>(detach_ctrl_.dock_id()), ImGuiCond_Always);
+        ImGui::SetNextWindowDockID(static_cast<ImGuiID>(detach_ctrl_.dock_id()), ImGuiCond_Always);
     }
-#endif
+    #endif
 
     if (!ImGui::Begin(detach_ctrl_.title().c_str(), p_open))
     {
@@ -67,7 +65,7 @@ void LiveConnectionPanel::draw(bool* p_open)
     // Let ImGui handle the drag natively. When it undocks the window
     // (transition from docked → floating), intercept it immediately
     // and create a real OS window via PanelDetachController instead.
-#ifdef IMGUI_HAS_DOCK
+    #ifdef IMGUI_HAS_DOCK
     bool currently_docked = ImGui::IsWindowDocked();
     if (was_docked_ && !currently_docked && detach_ctrl_.is_docked())
     {
@@ -80,7 +78,7 @@ void LiveConnectionPanel::draw(bool* p_open)
         return;
     }
     was_docked_ = currently_docked;
-#endif
+    #endif
 
     draw_context_menu();
     draw_content();
@@ -178,8 +176,7 @@ void LiveConnectionPanel::draw_status()
     ImGui::Text("Rate: %.1f msg/s", bridge_.message_rate());
 
     if (!bridge_.last_error().empty())
-        ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "Error: %s",
-                           bridge_.last_error().c_str());
+        ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "Error: %s", bridge_.last_error().c_str());
 #endif
 }
 
@@ -201,19 +198,24 @@ void LiveConnectionPanel::draw_channel_list()
             continue;
 
         char label[128];
-        std::snprintf(label, sizeof(label), "%s (%zu fields)",
-                      ch_name.c_str(), latest->fields.size());
+        std::snprintf(label,
+                      sizeof(label),
+                      "%s (%zu fields)",
+                      ch_name.c_str(),
+                      latest->fields.size());
 
         if (ImGui::TreeNode(label))
         {
             for (auto& field : latest->fields)
             {
                 char field_label[256];
-                std::snprintf(field_label, sizeof(field_label),
-                              "%s = %.4f", field.name.c_str(), field.value);
+                std::snprintf(field_label,
+                              sizeof(field_label),
+                              "%s = %.4f",
+                              field.name.c_str(),
+                              field.value);
 
-                if (ImGui::Selectable(field_label, false,
-                                       ImGuiSelectableFlags_AllowDoubleClick))
+                if (ImGui::Selectable(field_label, false, ImGuiSelectableFlags_AllowDoubleClick))
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {

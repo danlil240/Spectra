@@ -22,20 +22,21 @@ using namespace spectra::adapters::px4;
 
 class ULogBuilder
 {
-public:
+   public:
     ULogBuilder()
     {
         // Write ULog header: magic (7 bytes) + version (1 byte) + timestamp (8 bytes).
         static constexpr uint8_t magic[] = {0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35};
         buf_.insert(buf_.end(), magic, magic + sizeof(magic));
-        buf_.push_back(1);  // version
-        write_u64(1000);    // timestamp_us = 1000
+        buf_.push_back(1);   // version
+        write_u64(1000);     // timestamp_us = 1000
     }
 
     // Add a FORMAT definition message.
     void add_format(const std::string& content)
     {
-        add_message('F', reinterpret_cast<const uint8_t*>(content.data()),
+        add_message('F',
+                    reinterpret_cast<const uint8_t*>(content.data()),
                     static_cast<uint16_t>(content.size()));
     }
 
@@ -53,14 +54,15 @@ public:
     void add_info_string(const std::string& key, const std::string& value)
     {
         std::string type_key = "char[" + std::to_string(value.size()) + "] " + key;
-        add_info(type_key, reinterpret_cast<const uint8_t*>(value.data()),
+        add_info(type_key,
+                 reinterpret_cast<const uint8_t*>(value.data()),
                  static_cast<uint16_t>(value.size()));
     }
 
     // Add a PARAMETER message.
     void add_param_float(const std::string& name, float value)
     {
-        std::string type_key = "float " + name;
+        std::string          type_key = "float " + name;
         std::vector<uint8_t> payload;
         payload.push_back(static_cast<uint8_t>(type_key.size()));
         payload.insert(payload.end(), type_key.begin(), type_key.end());
@@ -86,7 +88,7 @@ public:
     void add_data(uint16_t msg_id, uint64_t timestamp, const uint8_t* fields, size_t field_len)
     {
         std::vector<uint8_t> payload;
-        uint8_t id_bytes[2];
+        uint8_t              id_bytes[2];
         std::memcpy(id_bytes, &msg_id, 2);
         payload.insert(payload.end(), id_bytes, id_bytes + 2);
         uint8_t ts_bytes[8];
@@ -128,7 +130,7 @@ public:
 
     const std::vector<uint8_t>& buffer() const { return buf_; }
 
-private:
+   private:
     void add_message(uint8_t type, const uint8_t* payload, uint16_t len)
     {
         uint8_t hdr[3];
@@ -192,7 +194,7 @@ TEST(ULogReaderTest, OpenInvalidMagic)
 {
     std::string path = temp_ulog_path("bad_magic");
     {
-        std::ofstream ofs(path, std::ios::binary);
+        std::ofstream        ofs(path, std::ios::binary);
         std::vector<uint8_t> data(16, 0);
         ofs.write(reinterpret_cast<const char*>(data.data()),
                   static_cast<std::streamsize>(data.size()));
@@ -238,7 +240,7 @@ TEST(ULogReaderTest, ParseFormatDefinition)
 
     EXPECT_EQ(fmt->fields[1].name, "roll");
     EXPECT_EQ(fmt->fields[1].base_type, ULogFieldType::Float);
-    EXPECT_EQ(fmt->fields[1].offset, 8u);  // after uint64_t
+    EXPECT_EQ(fmt->fields[1].offset, 8u);   // after uint64_t
 
     EXPECT_EQ(fmt->fields[2].name, "pitch");
     EXPECT_EQ(fmt->fields[2].offset, 12u);
@@ -265,9 +267,9 @@ TEST(ULogReaderTest, ParseArrayField)
     EXPECT_EQ(fmt->fields[1].name, "q");
     EXPECT_EQ(fmt->fields[1].array_size, 4);
     EXPECT_EQ(fmt->fields[1].base_type, ULogFieldType::Float);
-    EXPECT_EQ(fmt->fields[1].offset, 8u);  // after timestamp
+    EXPECT_EQ(fmt->fields[1].offset, 8u);   // after timestamp
 
-    EXPECT_EQ(fmt->byte_size, 8u + 16u);  // uint64_t + float[4]
+    EXPECT_EQ(fmt->byte_size, 8u + 16u);   // uint64_t + float[4]
 
     std::remove(path.c_str());
 }
@@ -319,12 +321,9 @@ TEST(ULogReaderTest, ParseDataMessages)
 
     // Add three data points.
     float val1 = 1.5f, val2 = 2.5f, val3 = 3.5f;
-    builder.add_data(1, 100000,
-                     reinterpret_cast<const uint8_t*>(&val1), sizeof(float));
-    builder.add_data(1, 200000,
-                     reinterpret_cast<const uint8_t*>(&val2), sizeof(float));
-    builder.add_data(1, 300000,
-                     reinterpret_cast<const uint8_t*>(&val3), sizeof(float));
+    builder.add_data(1, 100000, reinterpret_cast<const uint8_t*>(&val1), sizeof(float));
+    builder.add_data(1, 200000, reinterpret_cast<const uint8_t*>(&val2), sizeof(float));
+    builder.add_data(1, 300000, reinterpret_cast<const uint8_t*>(&val3), sizeof(float));
 
     std::string path = builder.write_to_file(temp_ulog_path("data"));
 
@@ -366,8 +365,7 @@ TEST(ULogReaderTest, ExtractArrayElement)
 
     // One data point with xyz = [10.0, 20.0, 30.0].
     float xyz[] = {10.0f, 20.0f, 30.0f};
-    builder.add_data(1, 500000,
-                     reinterpret_cast<const uint8_t*>(xyz), sizeof(xyz));
+    builder.add_data(1, 500000, reinterpret_cast<const uint8_t*>(xyz), sizeof(xyz));
 
     std::string path = builder.write_to_file(temp_ulog_path("array_elem"));
 
@@ -404,10 +402,8 @@ TEST(ULogReaderTest, MultiInstanceSubscription)
     builder.add_subscription(1, 2, "sensor");
 
     float temp1 = 25.0f, temp2 = 30.0f;
-    builder.add_data(1, 100000,
-                     reinterpret_cast<const uint8_t*>(&temp1), sizeof(float));
-    builder.add_data(2, 100000,
-                     reinterpret_cast<const uint8_t*>(&temp2), sizeof(float));
+    builder.add_data(1, 100000, reinterpret_cast<const uint8_t*>(&temp1), sizeof(float));
+    builder.add_data(2, 100000, reinterpret_cast<const uint8_t*>(&temp2), sizeof(float));
 
     std::string path = builder.write_to_file(temp_ulog_path("multi_inst"));
 

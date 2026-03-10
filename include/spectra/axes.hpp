@@ -181,11 +181,11 @@ class Axes : public AxesBase
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
 
-    std::string          xlabel_;
-    std::string          ylabel_;
-    AutoscaleMode        autoscale_mode_ = AutoscaleMode::Padded;
-    std::optional<float> presented_buffer_seconds_;
-    bool                 presented_buffer_following_ = false;
+    std::string           xlabel_;
+    std::string           ylabel_;
+    AutoscaleMode         autoscale_mode_ = AutoscaleMode::Padded;
+    std::optional<float>  presented_buffer_seconds_;
+    bool                  presented_buffer_following_ = false;
     std::optional<double> presented_buffer_right_edge_;
 };
 

@@ -117,7 +117,7 @@ struct BagPlayerConfig
 // ---------------------------------------------------------------------------
 class BagPlayer
 {
-public:
+   public:
     // Minimum / maximum playback rate.
     static constexpr double MIN_RATE = 0.1;
     static constexpr double MAX_RATE = 10.0;
@@ -130,9 +130,9 @@ public:
     // plot_mgr — must outlive BagPlayer; used to inject bag samples.
     // intr     — must outlive BagPlayer; used to decode message fields.
     // config   — optional player configuration.
-    explicit BagPlayer(RosPlotManager& plot_mgr,
+    explicit BagPlayer(RosPlotManager&      plot_mgr,
                        MessageIntrospector& intr,
-                       BagPlayerConfig config = {});
+                       BagPlayerConfig      config = {});
 
     ~BagPlayer();
 
@@ -149,15 +149,14 @@ public:
     // Closes any previously open bag first.
     // Optionally restrict playback to the given topics (empty = all).
     // Returns true on success; false sets last_error().
-    bool open(const std::string& bag_path,
-              const std::vector<std::string>& topics = {});
+    bool open(const std::string& bag_path, const std::vector<std::string>& topics = {});
 
     // Close the bag and reset to Stopped state.
     void close();
 
-    bool        is_open()       const noexcept;
-    std::string bag_path()      const;
-    std::string last_error()    const;
+    bool        is_open() const noexcept;
+    std::string bag_path() const;
+    std::string last_error() const;
 
     // Bag metadata accessors (valid after open()).
     const BagMetadata& metadata() const noexcept;
@@ -173,9 +172,9 @@ public:
     void stop();
     void toggle_play();
 
-    PlayerState state()      const noexcept;
+    PlayerState state() const noexcept;
     bool        is_playing() const noexcept;
-    bool        is_paused()  const noexcept;
+    bool        is_paused() const noexcept;
     bool        is_stopped() const noexcept;
 
     // ------------------------------------------------------------------
@@ -221,8 +220,8 @@ public:
     // Playhead position (seconds from bag start)
     // ------------------------------------------------------------------
 
-    double playhead_sec()  const noexcept;
-    double progress()      const noexcept;   // [0.0, 1.0]
+    double playhead_sec() const noexcept;
+    double progress() const noexcept;   // [0.0, 1.0]
 
     // ------------------------------------------------------------------
     // Topic activity bands
@@ -246,7 +245,7 @@ public:
     //   - Keep the playhead in sync during advance()
     //   - React to scrub callbacks from the editor
     // Pass nullptr to detach.
-    void set_timeline_editor(spectra::TimelineEditor* editor);
+    void                     set_timeline_editor(spectra::TimelineEditor* editor);
     spectra::TimelineEditor* timeline_editor() const;
 
     // ------------------------------------------------------------------
@@ -264,13 +263,12 @@ public:
     // ------------------------------------------------------------------
 
     // Called when player state changes.
-    using StateCallback   = std::function<void(PlayerState)>;
+    using StateCallback = std::function<void(PlayerState)>;
     // Called when the playhead moves (seconds from bag start).
     using PlayheadCallback = std::function<void(double)>;
     // Called each time a message is injected (topic, bag_time_sec, value).
-    using MessageCallback  = std::function<void(const std::string& topic,
-                                                 double bag_time_sec,
-                                                 double value)>;
+    using MessageCallback =
+        std::function<void(const std::string& topic, double bag_time_sec, double value)>;
 
     void set_on_state_change(StateCallback cb);
     void set_on_playhead(PlayheadCallback cb);
@@ -286,7 +284,7 @@ public:
     // Total messages injected since the last open() or seek_begin().
     uint64_t total_injected() const noexcept;
 
-private:
+   private:
     // ------------------------------------------------------------------
     // Internal helpers
     // ------------------------------------------------------------------

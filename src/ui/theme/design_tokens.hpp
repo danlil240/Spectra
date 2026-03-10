@@ -34,13 +34,13 @@ constexpr float FONT_2XL  = 20.0f;   // Plot titles (via Vulkan text renderer)
 constexpr float FONT_MONO = 12.0f;   // Data readout, coordinates
 
 // Layout Rhythm (8px grid)
-constexpr float PANEL_PADDING       = 16.0f;   // Panel internal padding
-constexpr float SECTION_GAP         = 12.0f;   // Gap between inspector sections
-constexpr float ROW_PADDING_V       = 4.0f;    // Vertical padding inside rows
-constexpr float ROW_PADDING_H       = 8.0f;    // Horizontal padding inside rows
-constexpr float SERIES_ROW_HEIGHT   = 30.0f;   // Series list row height
-constexpr float ICON_BUTTON_HITBOX  = 32.0f;   // Standard icon button size
-constexpr float INSPECTOR_HEADER_H  = 36.0f;   // Inspector header strip height
+constexpr float PANEL_PADDING      = 16.0f;   // Panel internal padding
+constexpr float SECTION_GAP        = 12.0f;   // Gap between inspector sections
+constexpr float ROW_PADDING_V      = 4.0f;    // Vertical padding inside rows
+constexpr float ROW_PADDING_H      = 8.0f;    // Horizontal padding inside rows
+constexpr float SERIES_ROW_HEIGHT  = 30.0f;   // Series list row height
+constexpr float ICON_BUTTON_HITBOX = 32.0f;   // Standard icon button size
+constexpr float INSPECTOR_HEADER_H = 36.0f;   // Inspector header strip height
 
 // Layout Constants
 constexpr float COMMAND_BAR_HEIGHT      = 42.0f;   // Slimmer top bar

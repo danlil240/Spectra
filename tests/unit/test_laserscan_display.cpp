@@ -17,29 +17,29 @@ namespace
 sensor_msgs::msg::LaserScan make_scan()
 {
     sensor_msgs::msg::LaserScan msg;
-    msg.header.frame_id = "laser";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "laser";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 250;
-    msg.angle_min = 0.0f;
-    msg.angle_increment = static_cast<float>(M_PI_2);
-    msg.range_min = 0.0f;
-    msg.range_max = 100.0f;
-    msg.ranges = {1.0f, 2.0f};
-    msg.intensities = {5.0f, 9.0f};
+    msg.angle_min            = 0.0f;
+    msg.angle_increment      = static_cast<float>(M_PI_2);
+    msg.range_min            = 0.0f;
+    msg.range_max            = 100.0f;
+    msg.ranges               = {1.0f, 2.0f};
+    msg.intensities          = {5.0f, 9.0f};
     return msg;
 }
 
 TransformStamp make_tf(const std::string& parent,
                        const std::string& child,
-                       double tx,
-                       uint64_t recv_ns)
+                       double             tx,
+                       uint64_t           recv_ns)
 {
     TransformStamp stamp;
     stamp.parent_frame = parent;
-    stamp.child_frame = child;
-    stamp.tx = tx;
-    stamp.qw = 1.0;
-    stamp.recv_ns = recv_ns;
+    stamp.child_frame  = child;
+    stamp.tx           = tx;
+    stamp.qw           = 1.0;
+    stamp.recv_ns      = recv_ns;
     return stamp;
 }
 }   // namespace
@@ -65,12 +65,13 @@ TEST(LaserScanDisplay, KeepsTrailAndResolvesFrame)
     buffer.inject_transform(make_tf("world", "laser", 4.0, 250));
 
     LaserScanDisplay display;
-    DisplayContext context;
+    DisplayContext   context;
     context.fixed_frame = "world";
-    context.tf_buffer = &buffer;
+    context.tf_buffer   = &buffer;
     display.on_enable(context);
-    display.deserialize_config_blob(
-        "topic=/scan;render_style=0;color_mode=1;trail_size=2;min_range=0.000;max_range=100.000;use_message_stamp=1");
+    display.deserialize_config_blob("topic=/"
+                                    "scan;render_style=0;color_mode=1;trail_size=2;min_range=0.000;"
+                                    "max_range=100.000;use_message_stamp=1");
 
     auto scan = adapt_laserscan_message(make_scan(), "/scan");
     ASSERT_TRUE(scan.has_value());
@@ -95,13 +96,13 @@ TEST(LaserScanDisplay, KeepsTrailAndResolvesFrame)
 TEST(LaserScanAdapter, EmptyScanReturnsNullopt)
 {
     sensor_msgs::msg::LaserScan msg;
-    msg.header.frame_id = "laser";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "laser";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.angle_min = 0.0f;
-    msg.angle_increment = static_cast<float>(M_PI_2);
-    msg.range_min = 0.0f;
-    msg.range_max = 100.0f;
+    msg.angle_min            = 0.0f;
+    msg.angle_increment      = static_cast<float>(M_PI_2);
+    msg.range_min            = 0.0f;
+    msg.range_max            = 100.0f;
     // No ranges
     msg.ranges.clear();
 
@@ -112,13 +113,13 @@ TEST(LaserScanAdapter, EmptyScanReturnsNullopt)
 TEST(LaserScanAdapter, OutOfRangePointsFiltered)
 {
     sensor_msgs::msg::LaserScan msg;
-    msg.header.frame_id = "laser";
-    msg.header.stamp.sec = 0;
+    msg.header.frame_id      = "laser";
+    msg.header.stamp.sec     = 0;
     msg.header.stamp.nanosec = 100;
-    msg.angle_min = 0.0f;
-    msg.angle_increment = static_cast<float>(M_PI_2);
-    msg.range_min = 0.5f;
-    msg.range_max = 3.0f;
+    msg.angle_min            = 0.0f;
+    msg.angle_increment      = static_cast<float>(M_PI_2);
+    msg.range_min            = 0.5f;
+    msg.range_max            = 3.0f;
     // 0.1 is below range_min, 10.0 is above range_max
     msg.ranges = {0.1f, 1.0f, 10.0f, 2.0f};
 
@@ -129,7 +130,7 @@ TEST(LaserScanAdapter, OutOfRangePointsFiltered)
     // Valid points should have their ranges in bounds
     for (size_t i = 0; i < frame->points.size(); ++i)
     {
-        const auto& p = frame->points[i];
+        const auto& p     = frame->points[i];
         const float range = std::sqrt(p.position.x * p.position.x + p.position.y * p.position.y);
         EXPECT_GE(range, msg.range_min - 1e-3f);
         EXPECT_LE(range, msg.range_max + 1e-3f);
@@ -139,8 +140,9 @@ TEST(LaserScanAdapter, OutOfRangePointsFiltered)
 TEST(LaserScanDisplay, ConfigBlobRoundTrip)
 {
     LaserScanDisplay display;
-    display.deserialize_config_blob(
-        "topic=/laser_scan;render_style=1;color_mode=2;trail_size=5;min_range=0.500;max_range=50.000;use_message_stamp=0");
+    display.deserialize_config_blob("topic=/"
+                                    "laser_scan;render_style=1;color_mode=2;trail_size=5;min_range="
+                                    "0.500;max_range=50.000;use_message_stamp=0");
 
     const auto blob = display.serialize_config_blob();
     EXPECT_NE(blob.find("topic=/laser_scan"), std::string::npos);
@@ -161,7 +163,7 @@ TEST(LaserScanDisplay, ConfigBlobEmptyNoOp)
 TEST(LaserScanDisplay, ScanCountStartsAtZero)
 {
     LaserScanDisplay display;
-    DisplayContext context;
+    DisplayContext   context;
     context.fixed_frame = "world";
     display.on_enable(context);
 
@@ -174,11 +176,11 @@ TEST(LaserScanAdapter, InfiniteRangeSkipped)
 {
     sensor_msgs::msg::LaserScan msg;
     msg.header.frame_id = "laser";
-    msg.angle_min = 0.0f;
+    msg.angle_min       = 0.0f;
     msg.angle_increment = static_cast<float>(M_PI_2);
-    msg.range_min = 0.0f;
-    msg.range_max = 100.0f;
-    msg.ranges = {std::numeric_limits<float>::infinity(), 2.0f};
+    msg.range_min       = 0.0f;
+    msg.range_max       = 100.0f;
+    msg.ranges          = {std::numeric_limits<float>::infinity(), 2.0f};
 
     const auto frame = adapt_laserscan_message(msg, "/scan");
     ASSERT_TRUE(frame.has_value());
@@ -189,11 +191,11 @@ TEST(LaserScanAdapter, NanRangeSkipped)
 {
     sensor_msgs::msg::LaserScan msg;
     msg.header.frame_id = "laser";
-    msg.angle_min = 0.0f;
+    msg.angle_min       = 0.0f;
     msg.angle_increment = static_cast<float>(M_PI_2);
-    msg.range_min = 0.0f;
-    msg.range_max = 100.0f;
-    msg.ranges = {std::numeric_limits<float>::quiet_NaN(), 3.0f};
+    msg.range_min       = 0.0f;
+    msg.range_max       = 100.0f;
+    msg.ranges          = {std::numeric_limits<float>::quiet_NaN(), 3.0f};
 
     const auto frame = adapt_laserscan_message(msg, "/scan");
     ASSERT_TRUE(frame.has_value());
@@ -204,11 +206,11 @@ TEST(LaserScanAdapter, CustomRangeFilter)
 {
     sensor_msgs::msg::LaserScan msg;
     msg.header.frame_id = "laser";
-    msg.angle_min = 0.0f;
+    msg.angle_min       = 0.0f;
     msg.angle_increment = 0.1f;
-    msg.range_min = 0.0f;
-    msg.range_max = 50.0f;
-    msg.ranges = {0.5f, 1.0f, 2.0f, 5.0f, 10.0f};
+    msg.range_min       = 0.0f;
+    msg.range_max       = 50.0f;
+    msg.ranges          = {0.5f, 1.0f, 2.0f, 5.0f, 10.0f};
 
     // Filter: only keep ranges between 1.0 and 5.0
     const auto frame = adapt_laserscan_message(msg, "/scan", 1.0f, 5.0f);
@@ -222,11 +224,11 @@ TEST(LaserScanAdapter, NoIntensitiesStillWorks)
 {
     sensor_msgs::msg::LaserScan msg;
     msg.header.frame_id = "laser";
-    msg.angle_min = 0.0f;
+    msg.angle_min       = 0.0f;
     msg.angle_increment = 0.1f;
-    msg.range_min = 0.0f;
-    msg.range_max = 50.0f;
-    msg.ranges = {1.0f, 2.0f};
+    msg.range_min       = 0.0f;
+    msg.range_max       = 50.0f;
+    msg.ranges          = {1.0f, 2.0f};
     // No intensities array
 
     const auto frame = adapt_laserscan_message(msg, "/scan");
@@ -238,8 +240,8 @@ TEST(LaserScanAdapter, NoIntensitiesStillWorks)
 TEST(LaserScanAdapter, StampConversion)
 {
     sensor_msgs::msg::LaserScan msg = make_scan();
-    msg.header.stamp.sec = 3;
-    msg.header.stamp.nanosec = 456;
+    msg.header.stamp.sec            = 3;
+    msg.header.stamp.nanosec        = 456;
 
     const auto frame = adapt_laserscan_message(msg, "/scan");
     ASSERT_TRUE(frame.has_value());
@@ -248,9 +250,9 @@ TEST(LaserScanAdapter, StampConversion)
 
 TEST(LaserScanAdapter, FrameIdPreserved)
 {
-    auto msg = make_scan();
+    auto msg            = make_scan();
     msg.header.frame_id = "custom_laser";
-    const auto frame = adapt_laserscan_message(msg, "/scan2");
+    const auto frame    = adapt_laserscan_message(msg, "/scan2");
     ASSERT_TRUE(frame.has_value());
     EXPECT_EQ(frame->frame_id, "custom_laser");
     EXPECT_EQ(frame->topic, "/scan2");
@@ -258,7 +260,7 @@ TEST(LaserScanAdapter, FrameIdPreserved)
 
 TEST(LaserScanAdapter, AverageRangeComputed)
 {
-    auto msg = make_scan();
+    auto       msg   = make_scan();
     const auto frame = adapt_laserscan_message(msg, "/scan");
     ASSERT_TRUE(frame.has_value());
     EXPECT_FLOAT_EQ(frame->average_range, 1.5f);
@@ -268,11 +270,11 @@ TEST(LaserScanAdapter, PolarToCartesianFirstPoint)
 {
     sensor_msgs::msg::LaserScan msg;
     msg.header.frame_id = "laser";
-    msg.angle_min = 0.0f;     // angle = 0 -> cos=1, sin=0
+    msg.angle_min       = 0.0f;   // angle = 0 -> cos=1, sin=0
     msg.angle_increment = 1.0f;
-    msg.range_min = 0.0f;
-    msg.range_max = 100.0f;
-    msg.ranges = {5.0f};
+    msg.range_min       = 0.0f;
+    msg.range_max       = 100.0f;
+    msg.ranges          = {5.0f};
 
     const auto frame = adapt_laserscan_message(msg, "/scan");
     ASSERT_TRUE(frame.has_value());
@@ -284,7 +286,7 @@ TEST(LaserScanAdapter, PolarToCartesianFirstPoint)
 TEST(LaserScanDisplay, DisabledDisplayDoesNotSubmit)
 {
     LaserScanDisplay display;
-    DisplayContext context;
+    DisplayContext   context;
     context.fixed_frame = "world";
     display.on_enable(context);
     display.set_enabled(false);
@@ -302,6 +304,8 @@ TEST(LaserScanDisplay, DisabledDisplayDoesNotSubmit)
 TEST(LaserScanDisplay, TopicSetViaConfig)
 {
     LaserScanDisplay display;
-    display.deserialize_config_blob("topic=/lidar_scan;render_style=0;color_mode=0;trail_size=1;min_range=0.000;max_range=100.000;use_message_stamp=1");
+    display.deserialize_config_blob("topic=/"
+                                    "lidar_scan;render_style=0;color_mode=0;trail_size=1;min_range="
+                                    "0.000;max_range=100.000;use_message_stamp=1");
     EXPECT_EQ(display.topic(), "/lidar_scan");
 }

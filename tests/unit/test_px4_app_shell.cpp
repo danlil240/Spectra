@@ -22,7 +22,7 @@ namespace
 
 class ULogBuilder
 {
-public:
+   public:
     ULogBuilder()
     {
         static constexpr uint8_t magic[] = {0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35};
@@ -33,7 +33,8 @@ public:
 
     void add_format(const std::string& content)
     {
-        add_message('F', reinterpret_cast<const uint8_t*>(content.data()),
+        add_message('F',
+                    reinterpret_cast<const uint8_t*>(content.data()),
                     static_cast<uint16_t>(content.size()));
     }
 
@@ -51,7 +52,7 @@ public:
     void add_data(uint16_t msg_id, uint64_t timestamp, const uint8_t* fields, size_t field_len)
     {
         std::vector<uint8_t> payload;
-        uint8_t id_bytes[2];
+        uint8_t              id_bytes[2];
         std::memcpy(id_bytes, &msg_id, 2);
         payload.insert(payload.end(), id_bytes, id_bytes + 2);
         uint8_t ts_bytes[8];
@@ -69,7 +70,7 @@ public:
         return path;
     }
 
-private:
+   private:
     void add_message(uint8_t type, const uint8_t* payload, uint16_t len)
     {
         uint8_t hdr[3];
@@ -99,11 +100,19 @@ std::string temp_path(const std::string& name)
 TEST(Px4AppShellTest, ParseArgsAcceptsUlogAndConnectOptions)
 {
     std::string err;
-    const char* argv[] = {"spectra-px4", "--ulog", "/tmp/demo.ulg", "--host", "10.0.0.2",
-                          "--port", "14550", "--connect", "--window-s", "45.5"};
+    const char* argv[] = {"spectra-px4",
+                          "--ulog",
+                          "/tmp/demo.ulg",
+                          "--host",
+                          "10.0.0.2",
+                          "--port",
+                          "14550",
+                          "--connect",
+                          "--window-s",
+                          "45.5"};
 
-    Px4AppConfig cfg = parse_px4_args(static_cast<int>(std::size(argv)),
-                                      const_cast<char**>(argv), err);
+    Px4AppConfig cfg =
+        parse_px4_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), err);
 
     EXPECT_TRUE(err.empty());
     EXPECT_EQ(cfg.ulog_file, "/tmp/demo.ulg");
@@ -119,7 +128,7 @@ TEST(Px4AppShellTest, OpenUlogLoadsReaderAndPlotManager)
     builder.add_format("vehicle_attitude:uint64_t timestamp;float roll");
     builder.add_subscription(0, 1, "vehicle_attitude");
 
-    float roll = 1.25f;
+    float       roll = 1.25f;
     std::string path = builder.write_to_file(temp_path("open_success"));
     builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&roll), sizeof(roll));
 
@@ -174,7 +183,7 @@ TEST(Px4AppShellTest, PollSyncsSelectedUlogFieldToCanvasFigure)
 
     std::string path = builder.write_to_file(temp_path("canvas_sync"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 600});
     shell.set_canvas_figure(&fig);
 
@@ -208,7 +217,7 @@ TEST(Px4AppShellTest, FailedOpenClearsCanvasSeries)
     builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&x), sizeof(x));
     std::string path = builder.write_to_file(temp_path("canvas_clear"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 600});
     shell.set_canvas_figure(&fig);
 
@@ -242,20 +251,21 @@ TEST(Px4AppShellTest, AutoPlotUlogCreatesSubplotsForKnownTopics)
     builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
     builder.add_subscription(0, 1, "battery_status");
 
-    struct BatRow { float voltage_v; float current_a; };
+    struct BatRow
+    {
+        float voltage_v;
+        float current_a;
+    };
     BatRow row1{12.0f, 5.0f};
     BatRow row2{11.9f, 5.2f};
     BatRow row3{11.8f, 5.3f};
-    builder.add_data(1, 1000000,
-                     reinterpret_cast<const uint8_t*>(&row1), sizeof(row1));
-    builder.add_data(1, 2000000,
-                     reinterpret_cast<const uint8_t*>(&row2), sizeof(row2));
-    builder.add_data(1, 3000000,
-                     reinterpret_cast<const uint8_t*>(&row3), sizeof(row3));
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&row1), sizeof(row1));
+    builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(&row2), sizeof(row2));
+    builder.add_data(1, 3000000, reinterpret_cast<const uint8_t*>(&row3), sizeof(row3));
 
     std::string path = builder.write_to_file(temp_path("auto_plot_battery"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 1200});
     shell.set_canvas_figure(&fig);
 
@@ -296,7 +306,7 @@ TEST(Px4AppShellTest, AutoPlotUlogNoMatchingTopicsGivesEmptyPlot)
 
     std::string path = builder.write_to_file(temp_path("auto_plot_no_match"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 600});
     shell.set_canvas_figure(&fig);
 
@@ -321,14 +331,17 @@ TEST(Px4AppShellTest, CloseAllPlotsRevertsToSingleEmptySubplot)
     builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
     builder.add_subscription(0, 1, "battery_status");
 
-    struct BatRow { float voltage_v; float current_a; };
+    struct BatRow
+    {
+        float voltage_v;
+        float current_a;
+    };
     BatRow row{12.0f, 5.0f};
-    builder.add_data(1, 1000000,
-                     reinterpret_cast<const uint8_t*>(&row), sizeof(row));
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&row), sizeof(row));
 
     std::string path = builder.write_to_file(temp_path("close_all"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 1200});
     shell.set_canvas_figure(&fig);
 
@@ -364,7 +377,7 @@ TEST(Px4AppShellTest, CloseAllPlotsRemovesManuallyAddedFields)
 
     std::string path = builder.write_to_file(temp_path("close_all_manual"));
 
-    Px4AppShell shell(Px4AppConfig{});
+    Px4AppShell     shell(Px4AppConfig{});
     spectra::Figure fig({.width = 800, .height = 600});
     shell.set_canvas_figure(&fig);
 
@@ -376,7 +389,11 @@ TEST(Px4AppShellTest, CloseAllPlotsRemovesManuallyAddedFields)
     ASSERT_FALSE(fig.axes().empty());
     bool has_series = false;
     for (const auto& ax : fig.axes())
-        if (ax && !ax->series().empty()) { has_series = true; break; }
+        if (ax && !ax->series().empty())
+        {
+            has_series = true;
+            break;
+        }
     EXPECT_TRUE(has_series);
 
     shell.close_all_plots();

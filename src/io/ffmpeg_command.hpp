@@ -72,11 +72,9 @@ inline std::string build_ffmpeg_command(const FfmpegCommandConfig& config)
         << " -f rawvideo"
         << " -vcodec rawvideo"
         << " -pix_fmt rgba"
-        << " -s " << config.width << "x" << config.height
-        << " -r " << std::fixed << std::setprecision(6) << config.fps
-        << " -i -"
-        << " -c:v " << shell_quote(config.codec)
-        << " -pix_fmt " << shell_quote(config.pix_fmt);
+        << " -s " << config.width << "x" << config.height << " -r " << std::fixed
+        << std::setprecision(6) << config.fps << " -i -"
+        << " -c:v " << shell_quote(config.codec) << " -pix_fmt " << shell_quote(config.pix_fmt);
 
     if (config.crf >= 0)
     {

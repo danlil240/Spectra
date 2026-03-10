@@ -11,7 +11,7 @@
 #include <vector>
 
 #ifdef SPECTRA_USE_IMGUI
-#include <imgui.h>
+    #include <imgui.h>
 #endif
 
 namespace spectra::adapters::ros2
@@ -21,21 +21,20 @@ namespace spectra::adapters::ros2
 // Construction
 // ---------------------------------------------------------------------------
 
-ExpressionEditor::ExpressionEditor(ExpressionPlot* plot)
-    : plot_(plot)
+ExpressionEditor::ExpressionEditor(ExpressionPlot* plot) : plot_(plot)
 {
-    std::memset(expr_buf_raw_,    0, sizeof(expr_buf_raw_));
-    std::memset(new_var_buf_,     0, sizeof(new_var_buf_));
-    std::memset(new_topic_buf_,   0, sizeof(new_topic_buf_));
-    std::memset(new_field_buf_,   0, sizeof(new_field_buf_));
-    std::memset(new_type_buf_,    0, sizeof(new_type_buf_));
+    std::memset(expr_buf_raw_, 0, sizeof(expr_buf_raw_));
+    std::memset(new_var_buf_, 0, sizeof(new_var_buf_));
+    std::memset(new_topic_buf_, 0, sizeof(new_topic_buf_));
+    std::memset(new_field_buf_, 0, sizeof(new_field_buf_));
+    std::memset(new_type_buf_, 0, sizeof(new_type_buf_));
     std::memset(preset_name_buf_, 0, sizeof(preset_name_buf_));
 
     // Pre-populate from the attached plot.
     if (plot_ && plot_->is_compiled())
     {
-        const std::string& e = plot_->expression();
-        size_t copy_len = std::min(e.size(), EXPR_BUF_SIZE - 1);
+        const std::string& e        = plot_->expression();
+        size_t             copy_len = std::min(e.size(), EXPR_BUF_SIZE - 1);
         std::memcpy(expr_buf_raw_, e.c_str(), copy_len);
         expr_buf_ = e;
         last_ok_  = true;
@@ -56,7 +55,8 @@ void ExpressionEditor::set_pending_expression(const std::string& expr)
 
 bool ExpressionEditor::has_pending_changes() const
 {
-    if (!plot_) return !expr_buf_.empty();
+    if (!plot_)
+        return !expr_buf_.empty();
     return expr_buf_ != plot_->expression();
 }
 
@@ -80,14 +80,17 @@ bool ExpressionEditor::draw()
 
     // Apply button.
     const bool can_apply = !expr_buf_.empty();
-    if (!can_apply) ImGui::BeginDisabled();
-    if (ImGui::Button("Apply##expr") || (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter, false)))
+    if (!can_apply)
+        ImGui::BeginDisabled();
+    if (ImGui::Button("Apply##expr")
+        || (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter, false)))
     {
         recompiled = try_compile();
         if (recompiled && on_apply_cb_)
             on_apply_cb_(expr_buf_);
     }
-    if (!can_apply) ImGui::EndDisabled();
+    if (!can_apply)
+        ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::TextDisabled("(Ctrl+Enter to apply)");
@@ -154,20 +157,17 @@ void ExpressionEditor::draw_expression_input()
     ImGui::SetNextItemWidth(-1.0f);
 
     // Detect Ctrl+Enter to trigger apply.
-    bool ctrl_enter = ImGui::IsKeyDown(ImGuiKey_ModCtrl)
-                   && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
+    bool ctrl_enter =
+        ImGui::IsKeyDown(ImGuiKey_ModCtrl) && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
 
     const ImGuiInputTextFlags flags =
-        ImGuiInputTextFlags_EnterReturnsTrue
-        | ImGuiInputTextFlags_AllowTabInput;
+        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AllowTabInput;
 
-    bool edited = ImGui::InputTextMultiline(
-        "##expr_input",
-        expr_buf_raw_,
-        EXPR_BUF_SIZE,
-        ImVec2(-1.0f, 60.0f),
-        flags
-    );
+    bool edited = ImGui::InputTextMultiline("##expr_input",
+                                            expr_buf_raw_,
+                                            EXPR_BUF_SIZE,
+                                            ImVec2(-1.0f, 60.0f),
+                                            flags);
 
     if (edited || ctrl_enter)
         expr_buf_ = expr_buf_raw_;
@@ -177,22 +177,31 @@ void ExpressionEditor::draw_expression_input()
     if (edited && !field_entries_.empty())
     {
         // Find the last '$' before the cursor in expr_buf_.
-        const int cursor = static_cast<int>(std::strlen(expr_buf_raw_));
-        int dollar_pos = -1;
-        for (int i = cursor - 1; i >= 0; --i) {
-            if (expr_buf_raw_[i] == '$') { dollar_pos = i; break; }
+        const int cursor     = static_cast<int>(std::strlen(expr_buf_raw_));
+        int       dollar_pos = -1;
+        for (int i = cursor - 1; i >= 0; --i)
+        {
+            if (expr_buf_raw_[i] == '$')
+            {
+                dollar_pos = i;
+                break;
+            }
             // Stop if we hit whitespace or an operator (not a field-name char).
-            if (std::strchr(" \t\n+-*/()^,", expr_buf_raw_[i])) break;
+            if (std::strchr(" \t\n+-*/()^,", expr_buf_raw_[i]))
+                break;
         }
 
-        if (dollar_pos >= 0) {
+        if (dollar_pos >= 0)
+        {
             autocomplete_trigger_pos_ = dollar_pos;
             autocomplete_prefix_      = std::string(expr_buf_raw_ + dollar_pos + 1,
-                                                    static_cast<size_t>(cursor - dollar_pos - 1));
+                                               static_cast<size_t>(cursor - dollar_pos - 1));
             autocomplete_open_        = true;
             autocomplete_selected_    = 0;
             ImGui::OpenPopup("##field_ac");
-        } else {
+        }
+        else
+        {
             autocomplete_open_ = false;
         }
     }
@@ -202,60 +211,71 @@ void ExpressionEditor::draw_expression_input()
     {
         ImGui::SetNextWindowSizeConstraints(ImVec2(300, 0), ImVec2(480, 280));
         if (ImGui::BeginPopup("##field_ac",
-                ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+                              ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
         {
             // Build filtered list.
             std::vector<int> matches;
-            for (int i = 0; i < static_cast<int>(field_entries_.size()); ++i) {
+            for (int i = 0; i < static_cast<int>(field_entries_.size()); ++i)
+            {
                 const auto& e = field_entries_[static_cast<size_t>(i)];
                 if (autocomplete_prefix_.empty()
-                    || e.display.find(autocomplete_prefix_) != std::string::npos) {
+                    || e.display.find(autocomplete_prefix_) != std::string::npos)
+                {
                     matches.push_back(i);
                 }
             }
 
-            if (matches.empty()) {
+            if (matches.empty())
+            {
                 ImGui::TextDisabled("No matching fields");
-            } else {
+            }
+            else
+            {
                 // Clamp selection.
                 if (autocomplete_selected_ >= static_cast<int>(matches.size()))
                     autocomplete_selected_ = static_cast<int>(matches.size()) - 1;
 
-                for (int mi = 0; mi < static_cast<int>(matches.size()); ++mi) {
-                    const auto& e = field_entries_[static_cast<size_t>(matches[mi])];
-                    const bool sel = (mi == autocomplete_selected_);
-                    if (ImGui::Selectable(e.display.c_str(), sel)) {
+                for (int mi = 0; mi < static_cast<int>(matches.size()); ++mi)
+                {
+                    const auto& e   = field_entries_[static_cast<size_t>(matches[mi])];
+                    const bool  sel = (mi == autocomplete_selected_);
+                    if (ImGui::Selectable(e.display.c_str(), sel))
+                    {
                         // Insert the completion into the buffer.
                         // Replace from dollar_pos to current cursor.
-                        const std::string insert = e.display; // "$topic/field"
-                        const int before_dollar  = autocomplete_trigger_pos_;
-                        const int after_cursor   = static_cast<int>(std::strlen(expr_buf_raw_));
-                        std::string new_expr = std::string(expr_buf_raw_, static_cast<size_t>(before_dollar))
-                            + insert
+                        const std::string insert        = e.display;   // "$topic/field"
+                        const int         before_dollar = autocomplete_trigger_pos_;
+                        const int   after_cursor = static_cast<int>(std::strlen(expr_buf_raw_));
+                        std::string new_expr =
+                            std::string(expr_buf_raw_, static_cast<size_t>(before_dollar)) + insert
                             + std::string(expr_buf_raw_ + after_cursor);
                         const size_t copy_len = std::min(new_expr.size(), EXPR_BUF_SIZE - 1);
                         std::memcpy(expr_buf_raw_, new_expr.c_str(), copy_len);
                         expr_buf_raw_[copy_len] = '\0';
-                        expr_buf_         = expr_buf_raw_;
-                        autocomplete_open_ = false;
+                        expr_buf_               = expr_buf_raw_;
+                        autocomplete_open_      = false;
                         ImGui::CloseCurrentPopup();
                     }
-                    if (sel) ImGui::SetScrollHereY();
+                    if (sel)
+                        ImGui::SetScrollHereY();
                 }
 
                 // Keyboard navigation.
                 if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-                    autocomplete_selected_ = std::min(autocomplete_selected_ + 1,
-                                                      static_cast<int>(matches.size()) - 1);
+                    autocomplete_selected_ =
+                        std::min(autocomplete_selected_ + 1, static_cast<int>(matches.size()) - 1);
                 if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
                     autocomplete_selected_ = std::max(autocomplete_selected_ - 1, 0);
-                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+                {
                     autocomplete_open_ = false;
                     ImGui::CloseCurrentPopup();
                 }
             }
             ImGui::EndPopup();
-        } else {
+        }
+        else
+        {
             autocomplete_open_ = false;
         }
     }
@@ -264,10 +284,10 @@ void ExpressionEditor::draw_expression_input()
     if (edited)
     {
         ExpressionEngine tmp;
-        auto r = tmp.compile(expr_buf_);
-        last_ok_        = r.ok;
-        last_error_     = r.ok ? "" : r.error;
-        last_error_col_ = r.error_col;
+        auto             r = tmp.compile(expr_buf_);
+        last_ok_           = r.ok;
+        last_error_        = r.ok ? "" : r.error;
+        last_error_col_    = r.error_col;
     }
 
     if (ctrl_enter)
@@ -306,14 +326,15 @@ void ExpressionEditor::draw_variable_table()
         return;
     }
 
-    if (ImGui::BeginTable("##var_table", 4,
-            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-            | ImGuiTableFlags_SizingStretchProp))
+    if (ImGui::BeginTable(
+            "##var_table",
+            4,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp))
     {
-        ImGui::TableSetupColumn("Variable",   ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Topic",      ImGuiTableColumnFlags_WidthStretch, 1.0f);
-        ImGui::TableSetupColumn("Field",      ImGuiTableColumnFlags_WidthStretch, 1.0f);
-        ImGui::TableSetupColumn("Bound",      ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Variable", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+        ImGui::TableSetupColumn("Topic", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+        ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+        ImGui::TableSetupColumn("Bound", ImGuiTableColumnFlags_WidthFixed, 50.0f);
         ImGui::TableHeadersRow();
 
         for (const auto& v : vars)
@@ -325,8 +346,10 @@ void ExpressionEditor::draw_variable_table()
             bool bound = plot_->has_variable(v);
 
             ImGui::TableSetColumnIndex(1);
-            if (bound) ImGui::TextDisabled("—");
-            else       ImGui::TextColored(ImVec4(1,0.6f,0,1), "unbound");
+            if (bound)
+                ImGui::TextDisabled("—");
+            else
+                ImGui::TextColored(ImVec4(1, 0.6f, 0, 1), "unbound");
 
             ImGui::TableSetColumnIndex(2);
             ImGui::TextDisabled("—");
@@ -365,11 +388,11 @@ void ExpressionEditor::draw_variable_add_row()
     ImGui::InputText("Type##ty", new_type_buf_, FIELD_BUF_SIZE);
     ImGui::SameLine();
 
-    const bool can_add = new_var_buf_[0] != '\0'
-                      && new_topic_buf_[0] != '\0'
-                      && new_field_buf_[0] != '\0';
+    const bool can_add =
+        new_var_buf_[0] != '\0' && new_topic_buf_[0] != '\0' && new_field_buf_[0] != '\0';
 
-    if (!can_add) ImGui::BeginDisabled();
+    if (!can_add)
+        ImGui::BeginDisabled();
     if (ImGui::SmallButton("Add"))
     {
         VariableBindingRequest req;
@@ -381,12 +404,13 @@ void ExpressionEditor::draw_variable_add_row()
         if (on_binding_cb_)
             on_binding_cb_(req);
 
-        std::memset(new_var_buf_,   0, sizeof(new_var_buf_));
+        std::memset(new_var_buf_, 0, sizeof(new_var_buf_));
         std::memset(new_topic_buf_, 0, sizeof(new_topic_buf_));
         std::memset(new_field_buf_, 0, sizeof(new_field_buf_));
-        std::memset(new_type_buf_,  0, sizeof(new_type_buf_));
+        std::memset(new_type_buf_, 0, sizeof(new_type_buf_));
     }
-    if (!can_add) ImGui::EndDisabled();
+    if (!can_add)
+        ImGui::EndDisabled();
 
     ImGui::PopID();
 }
@@ -405,13 +429,15 @@ void ExpressionEditor::draw_preset_section()
     ImGui::SameLine();
 
     const bool can_save = preset_name_buf_[0] != '\0' && plot_->is_compiled();
-    if (!can_save) ImGui::BeginDisabled();
+    if (!can_save)
+        ImGui::BeginDisabled();
     if (ImGui::SmallButton("Save"))
     {
         plot_->save_preset(preset_name_buf_);
         std::memset(preset_name_buf_, 0, sizeof(preset_name_buf_));
     }
-    if (!can_save) ImGui::EndDisabled();
+    if (!can_save)
+        ImGui::EndDisabled();
 
     ImGui::Spacing();
 
@@ -429,9 +455,7 @@ void ExpressionEditor::draw_preset_section()
         ImGui::PushID(p.name.c_str());
 
         bool selected = false;
-        if (ImGui::Selectable(p.name.c_str(), &selected,
-                              ImGuiSelectableFlags_None,
-                              ImVec2(0, 0)))
+        if (ImGui::Selectable(p.name.c_str(), &selected, ImGuiSelectableFlags_None, ImVec2(0, 0)))
         {
             plot_->load_preset(p.name);
             set_pending_expression(plot_->expression());
@@ -465,7 +489,7 @@ void ExpressionEditor::draw_help_tooltip()
     }
 }
 
-#endif  // SPECTRA_USE_IMGUI
+#endif   // SPECTRA_USE_IMGUI
 
 // ---------------------------------------------------------------------------
 // try_compile() — compile expr_buf_ into the attached plot.
@@ -479,24 +503,24 @@ bool ExpressionEditor::try_compile()
     {
         // Standalone compile for validation.
         ExpressionEngine tmp;
-        auto r = tmp.compile(expr_buf_);
-        last_ok_        = r.ok;
-        last_error_     = r.ok ? "" : r.error;
-        last_error_col_ = r.error_col;
+        auto             r = tmp.compile(expr_buf_);
+        last_ok_           = r.ok;
+        last_error_        = r.ok ? "" : r.error;
+        last_error_col_    = r.error_col;
         return last_ok_;
     }
 
-    bool ok = plot_->set_expression(expr_buf_);
+    bool ok         = plot_->set_expression(expr_buf_);
     last_ok_        = ok;
     last_error_     = ok ? "" : plot_->compile_error();
-    last_error_col_ = -1;  // ExpressionPlot does not expose column yet
+    last_error_col_ = -1;   // ExpressionPlot does not expose column yet
 
     // Re-query error detail from engine for column info.
     if (!ok)
     {
         ExpressionEngine tmp;
-        auto r = tmp.compile(expr_buf_);
-        last_error_col_ = r.error_col;
+        auto             r = tmp.compile(expr_buf_);
+        last_error_col_    = r.error_col;
     }
 
     return ok;

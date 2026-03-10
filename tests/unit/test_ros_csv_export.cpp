@@ -63,14 +63,14 @@ using namespace spectra::adapters::ros2;
 // A RosPlotManager that lets tests register synthetic handles.
 class TestExportManager
 {
-public:
+   public:
     struct FakePlot
     {
-        int                             id;
-        std::string                     topic;
-        std::string                     field_path;
+        int                              id;
+        std::string                      topic;
+        std::string                      field_path;
         std::unique_ptr<spectra::Figure> figure;
-        spectra::LineSeries*            series{nullptr};
+        spectra::LineSeries*             series{nullptr};
     };
 
     PlotHandle handle(int id) const
@@ -99,15 +99,17 @@ public:
             std::vector<float> x_vals,
             std::vector<float> y_vals)
     {
-        auto entry       = std::make_unique<FakePlot>();
-        entry->id        = next_id_++;
-        entry->topic     = topic;
+        auto entry        = std::make_unique<FakePlot>();
+        entry->id         = next_id_++;
+        entry->topic      = topic;
         entry->field_path = field_path;
-        spectra::FigureConfig fig_cfg; fig_cfg.width = 800; fig_cfg.height = 600;
-        entry->figure    = std::make_unique<spectra::Figure>(fig_cfg);
+        spectra::FigureConfig fig_cfg;
+        fig_cfg.width  = 800;
+        fig_cfg.height = 600;
+        entry->figure  = std::make_unique<spectra::Figure>(fig_cfg);
 
-        auto& axes  = entry->figure->subplot(1, 1, 1);
-        auto& ls    = axes.line();
+        auto& axes = entry->figure->subplot(1, 1, 1);
+        auto& ls   = axes.line();
         ls.set_x(x_vals);
         ls.set_y(y_vals);
         entry->series = &ls;
@@ -117,9 +119,9 @@ public:
         return id;
     }
 
-private:
+   private:
     std::vector<std::unique_ptr<FakePlot>> plots_;
-    int next_id_{1};
+    int                                    next_id_{1};
 };
 
 // Thin wrapper that satisfies RosCsvExport's constructor constraint while
@@ -139,23 +141,26 @@ private:
 
 class CsvExportTestHarness
 {
-public:
+   public:
     CsvExportConfig config;
 
     explicit CsvExportTestHarness() = default;
 
     // Export all data from a TestExportManager plot.
-    CsvExportResult export_plot(TestExportManager& mgr, int id,
-                                RosCsvExport::RangeMode mode = RosCsvExport::RangeMode::Full,
-                                double x_min = 0.0, double x_max = 0.0) const
+    CsvExportResult export_plot(TestExportManager&      mgr,
+                                int                     id,
+                                RosCsvExport::RangeMode mode  = RosCsvExport::RangeMode::Full,
+                                double                  x_min = 0.0,
+                                double                  x_max = 0.0) const
     {
         return export_plots(mgr, {id}, mode, x_min, x_max);
     }
 
-    CsvExportResult export_plots(TestExportManager& mgr,
+    CsvExportResult export_plots(TestExportManager&      mgr,
                                  const std::vector<int>& ids,
-                                 RosCsvExport::RangeMode mode = RosCsvExport::RangeMode::Full,
-                                 double x_min = 0.0, double x_max = 0.0) const
+                                 RosCsvExport::RangeMode mode  = RosCsvExport::RangeMode::Full,
+                                 double                  x_min = 0.0,
+                                 double                  x_max = 0.0) const
     {
         CsvExportResult bad;
         bad.ok = false;
@@ -185,8 +190,8 @@ public:
             }
             SD sd;
             sd.column_name = RosCsvExport::make_column_name(h.topic, h.field_path);
-            auto xs = h.series->x_data();
-            auto ys = h.series->y_data();
+            auto xs        = h.series->x_data();
+            auto ys        = h.series->y_data();
             sd.x.assign(xs.begin(), xs.end());
             sd.y.assign(ys.begin(), ys.end());
             sds.push_back(std::move(sd));
@@ -199,8 +204,7 @@ public:
             for (float xf : sd.x)
             {
                 double xd = static_cast<double>(xf);
-                if (mode == RosCsvExport::RangeMode::Visible &&
-                    (xd < x_min || xd > x_max))
+                if (mode == RosCsvExport::RangeMode::Visible && (xd < x_min || xd > x_max))
                     continue;
                 all_x.push_back(xd);
             }
@@ -233,7 +237,7 @@ public:
             return result;
         }
 
-        constexpr double MATCH_EPS = 1e-9;
+        constexpr double    MATCH_EPS = 1e-9;
         std::vector<size_t> cursors(sds.size(), 0);
 
         for (double row_x : all_x)
@@ -251,14 +255,13 @@ public:
                 const auto& sd  = sds[si];
                 size_t&     cur = cursors[si];
 
-                while (cur < sd.x.size() &&
-                       static_cast<double>(sd.x[cur]) < row_x - MATCH_EPS)
+                while (cur < sd.x.size() && static_cast<double>(sd.x[cur]) < row_x - MATCH_EPS)
                     ++cur;
 
-                if (cur < sd.x.size() &&
-                    std::abs(static_cast<double>(sd.x[cur]) - row_x) <= MATCH_EPS)
-                    row.push_back(RosCsvExport::format_value(
-                        static_cast<double>(sd.y[cur]), config.precision));
+                if (cur < sd.x.size()
+                    && std::abs(static_cast<double>(sd.x[cur]) - row_x) <= MATCH_EPS)
+                    row.push_back(RosCsvExport::format_value(static_cast<double>(sd.y[cur]),
+                                                             config.precision));
                 else
                     row.push_back(config.missing_value);
             }
@@ -409,14 +412,12 @@ TEST(MakeColumnName, BasicSlash)
 
 TEST(MakeColumnName, TopicAlreadyHasTrailingSlash)
 {
-    EXPECT_EQ(RosCsvExport::make_column_name("/sensor/", "data"),
-              "/sensor/data");
+    EXPECT_EQ(RosCsvExport::make_column_name("/sensor/", "data"), "/sensor/data");
 }
 
 TEST(MakeColumnName, FieldAlreadyHasLeadingSlash)
 {
-    EXPECT_EQ(RosCsvExport::make_column_name("/sensor", "/data"),
-              "/sensor/data");
+    EXPECT_EQ(RosCsvExport::make_column_name("/sensor", "/data"), "/sensor/data");
 }
 
 TEST(MakeColumnName, EmptyTopic)
@@ -571,39 +572,39 @@ TEST(ConfigSetters, WriteHeaderFalse)
 TEST(ExportSingleSeries, EmptySeriesYieldsOkZeroRows)
 {
     TestExportManager mgr;
-    int id = mgr.add("/topic", "data", {}, {});
+    int               id = mgr.add("/topic", "data", {}, {});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.row_count, 0u);
     // Headers still built.
-    EXPECT_EQ(r.headers.size(), 4u);  // 3 ts + 1 value
+    EXPECT_EQ(r.headers.size(), 4u);   // 3 ts + 1 value
 }
 
 TEST(ExportSingleSeries, SinglePointRow)
 {
     TestExportManager mgr;
-    int id = mgr.add("/imu", "linear_acceleration.x", {1.0f}, {9.81f});
+    int               id = mgr.add("/imu", "linear_acceleration.x", {1.0f}, {9.81f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.row_count, 1u);
     ASSERT_EQ(r.row_data[0].size(), 4u);
-    EXPECT_EQ(r.row_data[0][0], "1");  // timestamp_sec
-    EXPECT_EQ(r.row_data[0][1], "0");  // timestamp_nsec
+    EXPECT_EQ(r.row_data[0][0], "1");   // timestamp_sec
+    EXPECT_EQ(r.row_data[0][1], "0");   // timestamp_nsec
 }
 
 TEST(ExportSingleSeries, ValueColumnIndex3)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "f", {2.0f}, {3.14f});
+    int               id = mgr.add("/t", "f", {2.0f}, {3.14f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     ASSERT_EQ(r.row_data[0].size(), 4u);
     double val = std::stod(r.row_data[0][3]);
@@ -613,12 +614,10 @@ TEST(ExportSingleSeries, ValueColumnIndex3)
 TEST(ExportSingleSeries, MultipleRows)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {0.0f, 1.0f, 2.0f},
-                     {10.0f, 20.0f, 30.0f});
+    int               id = mgr.add("/t", "v", {0.0f, 1.0f, 2.0f}, {10.0f, 20.0f, 30.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     EXPECT_EQ(r.row_count, 3u);
 }
@@ -627,12 +626,10 @@ TEST(ExportSingleSeries, RowsAreSortedByTimestamp)
 {
     TestExportManager mgr;
     // LineSeries is appended in order; x_data() preserves insertion order.
-    int id = mgr.add("/t", "v",
-                     {3.0f, 1.0f, 2.0f},
-                     {30.0f, 10.0f, 20.0f});
+    int id = mgr.add("/t", "v", {3.0f, 1.0f, 2.0f}, {30.0f, 10.0f, 20.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     ASSERT_EQ(r.row_count, 3u);
     // Rows sorted by timestamp.
@@ -646,10 +643,10 @@ TEST(ExportSingleSeries, RowsAreSortedByTimestamp)
 TEST(ExportSingleSeries, HeaderContainsColumnName)
 {
     TestExportManager mgr;
-    int id = mgr.add("/imu", "angular_velocity.z", {1.0f}, {0.5f});
+    int               id = mgr.add("/imu", "angular_velocity.z", {1.0f}, {0.5f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     ASSERT_GE(r.headers.size(), 4u);
     EXPECT_EQ(r.headers[3], "/imu/angular_velocity.z");
@@ -658,10 +655,10 @@ TEST(ExportSingleSeries, HeaderContainsColumnName)
 TEST(ExportSingleSeries, HeaderCountIs4)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "f", {1.0f}, {1.0f});
+    int               id = mgr.add("/t", "f", {1.0f}, {1.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     EXPECT_EQ(r.column_count, 4u);
     EXPECT_EQ(r.headers.size(), 4u);
@@ -669,9 +666,9 @@ TEST(ExportSingleSeries, HeaderCountIs4)
 
 TEST(ExportSingleSeries, InvalidIdReturnsError)
 {
-    TestExportManager mgr;
+    TestExportManager    mgr;
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, 9999);
+    auto                 r = h.export_plot(mgr, 9999);
     EXPECT_FALSE(r.ok);
     EXPECT_FALSE(r.error.empty());
 }
@@ -679,11 +676,11 @@ TEST(ExportSingleSeries, InvalidIdReturnsError)
 TEST(ExportSingleSeries, PrecisionApplied)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {3.141592653f});
+    int               id = mgr.add("/t", "v", {1.0f}, {3.141592653f});
 
     CsvExportTestHarness h;
     h.config.precision = 3;
-    auto r = h.export_plot(mgr, id);
+    auto r             = h.export_plot(mgr, id);
 
     ASSERT_EQ(r.row_count, 1u);
     std::string val = r.row_data[0][3];
@@ -693,11 +690,11 @@ TEST(ExportSingleSeries, PrecisionApplied)
 TEST(ExportSingleSeries, WallClockColumnMatchesTimestamp)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {5.0f}, {1.0f});
+    int               id = mgr.add("/t", "v", {5.0f}, {1.0f});
 
     CsvExportTestHarness h;
     h.config.wall_clock_precision = 1;
-    auto r = h.export_plot(mgr, id);
+    auto r                        = h.export_plot(mgr, id);
 
     ASSERT_EQ(r.row_count, 1u);
     // wall_clock column index = 2
@@ -711,60 +708,50 @@ TEST(ExportSingleSeries, WallClockColumnMatchesTimestamp)
 TEST(ExportRangeFilter, FullModeIncludesAll)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f, 4.0f, 5.0f},
-                     {1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
+    int id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Full, 0.0, 0.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Full, 0.0, 0.0);
     EXPECT_EQ(r.row_count, 5u);
 }
 
 TEST(ExportRangeFilter, VisibleModeFiltersBelow)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f, 4.0f, 5.0f},
-                     {1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
+    int id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f, 4.0f, 5.0f}, {1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 2.0, 5.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 2.0, 5.0);
     EXPECT_EQ(r.row_count, 4u);
 }
 
 TEST(ExportRangeFilter, VisibleModeFiltersAbove)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f},
-                     {1.0f, 2.0f, 3.0f});
+    int               id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f}, {1.0f, 2.0f, 3.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 0.0, 2.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 0.0, 2.0);
     EXPECT_EQ(r.row_count, 2u);
 }
 
 TEST(ExportRangeFilter, ExactBoundaryIncluded)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f},
-                     {1.0f, 2.0f, 3.0f});
+    int               id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f}, {1.0f, 2.0f, 3.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 1.0, 3.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 1.0, 3.0);
     EXPECT_EQ(r.row_count, 3u);
 }
 
 TEST(ExportRangeFilter, EmptyRangeYieldsZeroRows)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f},
-                     {1.0f, 2.0f});
+    int               id = mgr.add("/t", "v", {1.0f, 2.0f}, {1.0f, 2.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 5.0, 10.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 5.0, 10.0);
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.row_count, 0u);
 }
@@ -772,12 +759,10 @@ TEST(ExportRangeFilter, EmptyRangeYieldsZeroRows)
 TEST(ExportRangeFilter, RangeDataValuesCorrect)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f},
-                     {10.0f, 20.0f, 30.0f});
+    int               id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f}, {10.0f, 20.0f, 30.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 2.0, 3.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 2.0, 3.0);
 
     ASSERT_EQ(r.row_count, 2u);
     EXPECT_NEAR(std::stod(r.row_data[0][3]), 20.0, 1e-4);
@@ -787,12 +772,10 @@ TEST(ExportRangeFilter, RangeDataValuesCorrect)
 TEST(ExportRangeFilter, TimestampSecCorrectInRange)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {10.5f, 11.5f},
-                     {1.0f, 2.0f});
+    int               id = mgr.add("/t", "v", {10.5f, 11.5f}, {1.0f, 2.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 10.0, 11.0);
+    auto                 r = h.export_plot(mgr, id, RosCsvExport::RangeMode::Visible, 10.0, 11.0);
 
     ASSERT_EQ(r.row_count, 1u);
     // timestamp_sec of 10.5 → 10
@@ -806,24 +789,24 @@ TEST(ExportRangeFilter, TimestampSecCorrectInRange)
 TEST(ExportMultiSeries, TwoSeriesSameX)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/t1", "v1", {1.0f, 2.0f}, {10.0f, 20.0f});
-    int id2 = mgr.add("/t2", "v2", {1.0f, 2.0f}, {100.0f, 200.0f});
+    int               id1 = mgr.add("/t1", "v1", {1.0f, 2.0f}, {10.0f, 20.0f});
+    int               id2 = mgr.add("/t2", "v2", {1.0f, 2.0f}, {100.0f, 200.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto                 r = h.export_plots(mgr, {id1, id2});
 
     EXPECT_EQ(r.row_count, 2u);
-    EXPECT_EQ(r.column_count, 5u);  // 3 ts + 2 values
+    EXPECT_EQ(r.column_count, 5u);   // 3 ts + 2 values
 }
 
 TEST(ExportMultiSeries, HeaderContainsBothColumns)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/a", "x", {1.0f}, {1.0f});
-    int id2 = mgr.add("/b", "y", {1.0f}, {2.0f});
+    int               id1 = mgr.add("/a", "x", {1.0f}, {1.0f});
+    int               id2 = mgr.add("/b", "y", {1.0f}, {2.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto                 r = h.export_plots(mgr, {id1, id2});
 
     ASSERT_GE(r.headers.size(), 5u);
     EXPECT_EQ(r.headers[3], "/a/x");
@@ -833,12 +816,12 @@ TEST(ExportMultiSeries, HeaderContainsBothColumns)
 TEST(ExportMultiSeries, MissingValueOnMismatchedX)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/t1", "v1", {1.0f, 2.0f, 3.0f}, {1.0f, 2.0f, 3.0f});
-    int id2 = mgr.add("/t2", "v2", {2.0f}, {99.0f});  // only at t=2
+    int               id1 = mgr.add("/t1", "v1", {1.0f, 2.0f, 3.0f}, {1.0f, 2.0f, 3.0f});
+    int               id2 = mgr.add("/t2", "v2", {2.0f}, {99.0f});   // only at t=2
 
     CsvExportTestHarness h;
     h.config.missing_value = "N/A";
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto r                 = h.export_plots(mgr, {id1, id2});
 
     // 3 rows (union of all X)
     ASSERT_EQ(r.row_count, 3u);
@@ -854,31 +837,31 @@ TEST(ExportMultiSeries, MissingValueOnMismatchedX)
 TEST(ExportMultiSeries, UnionOfXCovers3Series)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/t1", "v1", {1.0f}, {1.0f});
-    int id2 = mgr.add("/t2", "v2", {2.0f}, {2.0f});
-    int id3 = mgr.add("/t3", "v3", {3.0f}, {3.0f});
+    int               id1 = mgr.add("/t1", "v1", {1.0f}, {1.0f});
+    int               id2 = mgr.add("/t2", "v2", {2.0f}, {2.0f});
+    int               id3 = mgr.add("/t3", "v3", {3.0f}, {3.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2, id3});
+    auto                 r = h.export_plots(mgr, {id1, id2, id3});
 
     EXPECT_EQ(r.row_count, 3u);
 }
 
 TEST(ExportMultiSeries, EmptyIdsReturnsError)
 {
-    TestExportManager mgr;
+    TestExportManager    mgr;
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {});
+    auto                 r = h.export_plots(mgr, {});
     EXPECT_FALSE(r.ok);
     EXPECT_FALSE(r.error.empty());
 }
 
 TEST(ExportMultiSeries, InvalidOneIdReturnsError)
 {
-    TestExportManager mgr;
-    int id1 = mgr.add("/t", "v", {1.0f}, {1.0f});
+    TestExportManager    mgr;
+    int                  id1 = mgr.add("/t", "v", {1.0f}, {1.0f});
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, 9999});
+    auto                 r = h.export_plots(mgr, {id1, 9999});
     EXPECT_FALSE(r.ok);
     EXPECT_FALSE(r.error.empty());
 }
@@ -886,11 +869,11 @@ TEST(ExportMultiSeries, InvalidOneIdReturnsError)
 TEST(ExportMultiSeries, ValuesCorrectForBothSeries)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/a", "x", {1.0f}, {42.0f});
-    int id2 = mgr.add("/b", "y", {1.0f}, {-7.5f});
+    int               id1 = mgr.add("/a", "x", {1.0f}, {42.0f});
+    int               id2 = mgr.add("/b", "y", {1.0f}, {-7.5f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto                 r = h.export_plots(mgr, {id1, id2});
 
     ASSERT_EQ(r.row_count, 1u);
     EXPECT_NEAR(std::stod(r.row_data[0][3]), 42.0, 1e-4);
@@ -905,7 +888,7 @@ TEST(ExportMultiSeries, DuplicateXDeduped)
     int id2 = mgr.add("/t2", "v2", {1.0f, 2.0f}, {100.0f, 200.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto                 r = h.export_plots(mgr, {id1, id2});
 
     EXPECT_EQ(r.row_count, 2u);
 }
@@ -923,10 +906,10 @@ TEST(CsvExportResultToString, EmptyResultReturnsEmpty)
 TEST(CsvExportResultToString, HeaderPresent)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {1.0f});
+    int               id = mgr.add("/t", "v", {1.0f}, {1.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     EXPECT_TRUE(csv.find("timestamp_sec") != std::string::npos);
@@ -937,11 +920,11 @@ TEST(CsvExportResultToString, HeaderPresent)
 TEST(CsvExportResultToString, SeparatorUsedBetweenColumns)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {1.0f});
+    int               id = mgr.add("/t", "v", {1.0f}, {1.0f});
 
     CsvExportTestHarness h;
     h.config.separator = ';';
-    auto r = h.export_plot(mgr, id);
+    auto r             = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     // Header row should have ';' separators.
@@ -951,11 +934,11 @@ TEST(CsvExportResultToString, SeparatorUsedBetweenColumns)
 TEST(CsvExportResultToString, TabSeparator)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {2.0f}, {5.0f});
+    int               id = mgr.add("/t", "v", {2.0f}, {5.0f});
 
     CsvExportTestHarness h;
     h.config.separator = '\t';
-    auto r = h.export_plot(mgr, id);
+    auto r             = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     EXPECT_TRUE(csv.find('\t') != std::string::npos);
@@ -964,11 +947,11 @@ TEST(CsvExportResultToString, TabSeparator)
 TEST(CsvExportResultToString, NoHeaderWhenDisabled)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {1.0f});
+    int               id = mgr.add("/t", "v", {1.0f}, {1.0f});
 
     CsvExportTestHarness h;
     h.config.write_header = false;
-    auto r = h.export_plot(mgr, id);
+    auto r                = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     EXPECT_EQ(csv.find("timestamp_sec"), std::string::npos);
@@ -977,12 +960,10 @@ TEST(CsvExportResultToString, NoHeaderWhenDisabled)
 TEST(CsvExportResultToString, RowCountMatchesNewlines)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v",
-                     {1.0f, 2.0f, 3.0f},
-                     {1.0f, 2.0f, 3.0f});
+    int               id = mgr.add("/t", "v", {1.0f, 2.0f, 3.0f}, {1.0f, 2.0f, 3.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     // header(1) + rows(3) = 4 newlines.
@@ -993,10 +974,10 @@ TEST(CsvExportResultToString, RowCountMatchesNewlines)
 TEST(CsvExportResultToString, ZeroRowsOnlyHeader)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {}, {});
+    int               id = mgr.add("/t", "v", {}, {});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
     // ok=true, row_count=0; to_string() returns empty because ok && row_data empty.
     std::string csv = r.to_string();
     // No rows → empty string.
@@ -1006,11 +987,11 @@ TEST(CsvExportResultToString, ZeroRowsOnlyHeader)
 TEST(CsvExportResultToString, CustomLineEnding)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {1.0f});
+    int               id = mgr.add("/t", "v", {1.0f}, {1.0f});
 
     CsvExportTestHarness h;
     h.config.line_ending = "\r\n";
-    auto r = h.export_plot(mgr, id);
+    auto r               = h.export_plot(mgr, id);
 
     std::string csv = r.to_string();
     EXPECT_TRUE(csv.find("\r\n") != std::string::npos);
@@ -1036,10 +1017,10 @@ TEST(SaveToFile, EmptyPathReturnsFalse)
 TEST(SaveToFile, WritesAndCanBeRead)
 {
     TestExportManager mgr;
-    int id = mgr.add("/sensor", "value", {1.0f, 2.0f}, {10.0f, 20.0f});
+    int               id = mgr.add("/sensor", "value", {1.0f, 2.0f}, {10.0f, 20.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     const std::string path = "/tmp/spectra_ros_csv_test_write.csv";
     ASSERT_TRUE(r.save_to_file(path));
@@ -1047,8 +1028,7 @@ TEST(SaveToFile, WritesAndCanBeRead)
     // Read back and verify.
     std::ifstream f(path);
     ASSERT_TRUE(f.is_open());
-    std::string contents((std::istreambuf_iterator<char>(f)),
-                          std::istreambuf_iterator<char>());
+    std::string contents((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT_TRUE(contents.find("timestamp_sec") != std::string::npos);
     EXPECT_TRUE(contents.find("/sensor/value") != std::string::npos);
 
@@ -1058,17 +1038,16 @@ TEST(SaveToFile, WritesAndCanBeRead)
 TEST(SaveToFile, ContentMatchesToString)
 {
     TestExportManager mgr;
-    int id = mgr.add("/t", "v", {5.0f}, {42.0f});
+    int               id = mgr.add("/t", "v", {5.0f}, {42.0f});
 
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
 
     const std::string path = "/tmp/spectra_ros_csv_test_match.csv";
     ASSERT_TRUE(r.save_to_file(path));
 
     std::ifstream f(path);
-    std::string contents((std::istreambuf_iterator<char>(f)),
-                          std::istreambuf_iterator<char>());
+    std::string   contents((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT_EQ(contents, r.to_string());
 
     std::remove(path.c_str());
@@ -1080,10 +1059,10 @@ TEST(SaveToFile, ContentMatchesToString)
 
 TEST(EdgeCases, SingleSeriesNoPoints)
 {
-    TestExportManager mgr;
-    int id = mgr.add("/t", "v", {}, {});
+    TestExportManager    mgr;
+    int                  id = mgr.add("/t", "v", {}, {});
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.row_count, 0u);
 }
@@ -1092,9 +1071,9 @@ TEST(EdgeCases, LargeTimestampSec)
 {
     TestExportManager mgr;
     // ~2024 epoch seconds ≈ 1.7e9
-    int id = mgr.add("/t", "v", {1720000000.0f}, {1.0f});
+    int                  id = mgr.add("/t", "v", {1720000000.0f}, {1.0f});
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
     ASSERT_EQ(r.row_count, 1u);
     // timestamp_sec should be ~1720000000
     int64_t sec_val = std::stoll(r.row_data[0][0]);
@@ -1104,32 +1083,32 @@ TEST(EdgeCases, LargeTimestampSec)
 
 TEST(EdgeCases, NegativeValue)
 {
-    TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {-999.5f});
+    TestExportManager    mgr;
+    int                  id = mgr.add("/t", "v", {1.0f}, {-999.5f});
     CsvExportTestHarness h;
-    auto r = h.export_plot(mgr, id);
+    auto                 r = h.export_plot(mgr, id);
     ASSERT_EQ(r.row_count, 1u);
     EXPECT_NEAR(std::stod(r.row_data[0][3]), -999.5, 1e-3);
 }
 
 TEST(EdgeCases, PrecisionZeroTruncates)
 {
-    TestExportManager mgr;
-    int id = mgr.add("/t", "v", {1.0f}, {3.7f});
+    TestExportManager    mgr;
+    int                  id = mgr.add("/t", "v", {1.0f}, {3.7f});
     CsvExportTestHarness h;
     h.config.precision = 0;
-    auto r = h.export_plot(mgr, id);
+    auto r             = h.export_plot(mgr, id);
     ASSERT_EQ(r.row_count, 1u);
     EXPECT_EQ(r.row_data[0][3], "4");
 }
 
 TEST(EdgeCases, MissingValueEmptyByDefault)
 {
-    TestExportManager mgr;
-    int id1 = mgr.add("/t1", "v1", {1.0f, 2.0f}, {1.0f, 2.0f});
-    int id2 = mgr.add("/t2", "v2", {3.0f}, {3.0f});  // no overlap with id1
+    TestExportManager    mgr;
+    int                  id1 = mgr.add("/t1", "v1", {1.0f, 2.0f}, {1.0f, 2.0f});
+    int                  id2 = mgr.add("/t2", "v2", {3.0f}, {3.0f});   // no overlap with id1
     CsvExportTestHarness h;
-    auto r = h.export_plots(mgr, {id1, id2});
+    auto                 r = h.export_plots(mgr, {id1, id2});
     // Row 0 (t=1): id2 should be missing_value (empty)
     ASSERT_GE(r.row_count, 1u);
     EXPECT_EQ(r.row_data[0][4], "");
@@ -1138,14 +1117,14 @@ TEST(EdgeCases, MissingValueEmptyByDefault)
 TEST(EdgeCases, ColumnCountAlwaysTimestampPlusN)
 {
     TestExportManager mgr;
-    int id1 = mgr.add("/a", "x", {1.0f}, {1.0f});
-    int id2 = mgr.add("/b", "y", {1.0f}, {2.0f});
-    int id3 = mgr.add("/c", "z", {1.0f}, {3.0f});
+    int               id1 = mgr.add("/a", "x", {1.0f}, {1.0f});
+    int               id2 = mgr.add("/b", "y", {1.0f}, {2.0f});
+    int               id3 = mgr.add("/c", "z", {1.0f}, {3.0f});
 
     CsvExportTestHarness h;
-    auto r1 = h.export_plots(mgr, {id1});
-    auto r2 = h.export_plots(mgr, {id1, id2});
-    auto r3 = h.export_plots(mgr, {id1, id2, id3});
+    auto                 r1 = h.export_plots(mgr, {id1});
+    auto                 r2 = h.export_plots(mgr, {id1, id2});
+    auto                 r3 = h.export_plots(mgr, {id1, id2, id3});
 
     EXPECT_EQ(r1.column_count, 4u);
     EXPECT_EQ(r2.column_count, 5u);

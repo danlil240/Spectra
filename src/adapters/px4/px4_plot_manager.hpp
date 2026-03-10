@@ -39,13 +39,13 @@ namespace spectra::adapters::px4
 
 struct PlotField
 {
-    std::string topic;      // ULog message name or MAVLink channel name
-    std::string field;      // field name within the message
+    std::string topic;           // ULog message name or MAVLink channel name
+    std::string field;           // field name within the message
     int         array_idx{-1};   // >=0 for array element, -1 for scalar
     uint8_t     multi_id{0};
 
     // Display config.
-    std::string label;      // series label (auto-generated if empty)
+    std::string label;   // series label (auto-generated if empty)
     bool        visible{true};
 
     // Data (filled by manager).
@@ -59,7 +59,7 @@ struct PlotField
 
 class Px4PlotManager
 {
-public:
+   public:
     Px4PlotManager();
     ~Px4PlotManager();
 
@@ -84,7 +84,7 @@ public:
     void poll();
 
     // Set the time window for real-time display (seconds).
-    void set_time_window(double seconds) { time_window_s_ = seconds; }
+    void   set_time_window(double seconds) { time_window_s_ = seconds; }
     double time_window() const { return time_window_s_; }
 
     // ------------------------------------------------------------------
@@ -93,8 +93,10 @@ public:
 
     // Add a field to plot.  For array fields, use array_idx >= 0.
     // Returns the index of the added field.
-    size_t add_field(const std::string& topic, const std::string& field,
-                     int array_idx = -1, uint8_t multi_id = 0);
+    size_t add_field(const std::string& topic,
+                     const std::string& field,
+                     int                array_idx = -1,
+                     uint8_t            multi_id  = 0);
 
     // Add a live field from MAVLink telemetry.
     size_t add_live_field(const std::string& channel, const std::string& field);
@@ -110,8 +112,8 @@ public:
     // ------------------------------------------------------------------
 
     const std::vector<PlotField>& fields() const { return fields_; }
-    size_t field_count() const { return fields_.size(); }
-    uint64_t revision() const { return revision_; }
+    size_t                        field_count() const { return fields_.size(); }
+    uint64_t                      revision() const { return revision_; }
 
     // Get all available topics from the loaded ULog or bridge.
     std::vector<std::string> available_topics() const;
@@ -122,13 +124,13 @@ public:
     bool is_live_mode() const { return bridge_ != nullptr; }
     bool has_ulog_data() const { return ulog_ != nullptr; }
 
-private:
+   private:
     void bump_revision() { ++revision_; }
     void refresh_ulog_field(PlotField& f);
     bool refresh_live_field(PlotField& f);
 
-    const ULogReader*     ulog_{nullptr};
-    Px4Bridge*            bridge_{nullptr};
+    const ULogReader* ulog_{nullptr};
+    Px4Bridge*        bridge_{nullptr};
 
     std::vector<PlotField> fields_;
     double                 time_window_s_{30.0};

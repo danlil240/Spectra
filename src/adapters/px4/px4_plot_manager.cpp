@@ -9,7 +9,7 @@ namespace spectra::adapters::px4
 // Construction / destruction
 // ---------------------------------------------------------------------------
 
-Px4PlotManager::Px4PlotManager() = default;
+Px4PlotManager::Px4PlotManager()  = default;
 Px4PlotManager::~Px4PlotManager() = default;
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ void Px4PlotManager::load_ulog(const ULogReader& reader)
 void Px4PlotManager::clear()
 {
     fields_.clear();
-    ulog_ = nullptr;
+    ulog_   = nullptr;
     bridge_ = nullptr;
     last_seen_ts_.clear();
     bump_revision();
@@ -59,14 +59,16 @@ void Px4PlotManager::poll()
 // add_field
 // ---------------------------------------------------------------------------
 
-size_t Px4PlotManager::add_field(const std::string& topic, const std::string& field,
-                                  int array_idx, uint8_t multi_id)
+size_t Px4PlotManager::add_field(const std::string& topic,
+                                 const std::string& field,
+                                 int                array_idx,
+                                 uint8_t            multi_id)
 {
     PlotField pf;
-    pf.topic = topic;
-    pf.field = field;
+    pf.topic     = topic;
+    pf.field     = field;
     pf.array_idx = array_idx;
-    pf.multi_id = multi_id;
+    pf.multi_id  = multi_id;
 
     // Generate label.
     pf.label = topic + "." + field;
@@ -120,10 +122,10 @@ void Px4PlotManager::remove_field(size_t index)
 void Px4PlotManager::remove_topic(const std::string& topic)
 {
     const size_t old_size = fields_.size();
-    fields_.erase(
-        std::remove_if(fields_.begin(), fields_.end(),
-                        [&](const PlotField& f) { return f.topic == topic; }),
-        fields_.end());
+    fields_.erase(std::remove_if(fields_.begin(),
+                                 fields_.end(),
+                                 [&](const PlotField& f) { return f.topic == topic; }),
+                  fields_.end());
     if (fields_.size() != old_size)
         bump_revision();
 }
@@ -205,14 +207,14 @@ void Px4PlotManager::refresh_ulog_field(PlotField& f)
     if (f.array_idx >= 0)
     {
         auto [times, values] = ts->extract_array_element(f.field, f.array_idx);
-        f.times = std::move(times);
-        f.values = std::move(values);
+        f.times              = std::move(times);
+        f.values             = std::move(values);
     }
     else
     {
         auto [times, values] = ts->extract_field(f.field);
-        f.times = std::move(times);
-        f.values = std::move(values);
+        f.times              = std::move(times);
+        f.values             = std::move(values);
     }
 }
 

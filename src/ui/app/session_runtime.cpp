@@ -169,7 +169,6 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         vk->end_render_pass();
                         vk->end_frame();
 
-
                         // Wait for GPU before the next window overwrites shared buffers.
                         if (window_mgr->windows().size() > 1)
                             vkQueueWaitIdle(vk->graphics_queue());
@@ -198,10 +197,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));
 
                     ImGuiWindowFlags panel_flags =
-                        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-                        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                        ImGuiWindowFlags_NoBringToFrontOnFocus |
-                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+                        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
+                        | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoSavedSettings
+                        | ImGuiWindowFlags_NoDocking;
 
                     if (ImGui::Begin("##PanelContent", nullptr, panel_flags))
                         wctx->panel_draw_callback();

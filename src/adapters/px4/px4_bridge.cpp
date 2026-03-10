@@ -46,42 +46,42 @@ static constexpr uint32_t MAVLINK_MSG_HIGHRES_IMU         = 105;
 
 static float read_f32_le(const uint8_t* p)
 {
-    float v;
+    float v = 0.0f;
     std::memcpy(&v, p, 4);
     return v;
 }
 
 static int32_t read_i32_le(const uint8_t* p)
 {
-    int32_t v;
+    int32_t v = 0;
     std::memcpy(&v, p, 4);
     return v;
 }
 
 static uint32_t read_u32_le(const uint8_t* p)
 {
-    uint32_t v;
+    uint32_t v = 0;
     std::memcpy(&v, p, 4);
     return v;
 }
 
 static uint64_t read_u64_le(const uint8_t* p)
 {
-    uint64_t v;
+    uint64_t v = 0;
     std::memcpy(&v, p, 8);
     return v;
 }
 
 static int16_t read_i16_le(const uint8_t* p)
 {
-    int16_t v;
+    int16_t v = 0;
     std::memcpy(&v, p, 2);
     return v;
 }
 
 static uint16_t read_u16_le(const uint8_t* p)
 {
-    uint16_t v;
+    uint16_t v = 0;
     std::memcpy(&v, p, 2);
     return v;
 }
@@ -210,7 +210,9 @@ bool Px4Bridge::start()
     }
 
     // Set receive timeout so the thread can check stop_requested_ periodically.
-    struct timeval tv;
+    struct timeval tv
+    {
+    };
     tv.tv_sec  = 0;
     tv.tv_usec = 100000;   // 100ms
     setsockopt(socket_fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
@@ -409,10 +411,10 @@ bool Px4Bridge::decode_mavlink_message(const uint8_t* data, size_t len, Telemetr
     if (len < 8)
         return false;
 
-    bool           v2 = (data[0] == MAVLINK_STX_V2);
-    uint8_t        payload_len;
-    uint32_t       msg_id;
-    const uint8_t* payload;
+    bool           v2          = (data[0] == MAVLINK_STX_V2);
+    uint8_t        payload_len = 0;
+    uint32_t       msg_id      = 0;
+    const uint8_t* payload     = nullptr;
 
     if (v2)
     {

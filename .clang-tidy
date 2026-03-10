@@ -1,0 +1,166 @@
+Checks: >
+  -*,
+
+  # High-value correctness
+  bugprone-argument-comment,
+  bugprone-assert-side-effect,
+  bugprone-assignment-in-if-condition,
+  bugprone-branch-clone,
+  bugprone-copy-constructor-init,
+  bugprone-dangling-handle,
+  bugprone-exception-escape,
+  bugprone-fold-init-type,
+  bugprone-forwarding-reference-overload,
+  bugprone-inaccurate-erase,
+  bugprone-infinite-loop,
+  bugprone-integer-division,
+  bugprone-macro-parentheses,
+  bugprone-macro-repeated-side-effects,
+  bugprone-misplaced-widening-cast,
+  bugprone-move-forwarding-reference,
+  bugprone-multiple-new-in-one-expression,
+  bugprone-narrowing-conversions,
+  bugprone-no-escape,
+  bugprone-parent-virtual-call,
+  bugprone-posix-return,
+  bugprone-redundant-branch-condition,
+  bugprone-sizeof-container,
+  bugprone-sizeof-expression,
+  bugprone-string-constructor,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-missing-comma,
+  bugprone-suspicious-semicolon,
+  bugprone-suspicious-string-compare,
+  bugprone-swapped-arguments,
+  bugprone-throw-keyword-missing,
+  bugprone-too-small-loop-variable,
+  bugprone-unchecked-optional-access,
+  bugprone-undelegated-constructor,
+  bugprone-unhandled-self-assignment,
+  bugprone-unused-raii,
+  bugprone-unused-return-value,
+  bugprone-use-after-move,
+  bugprone-virtual-near-miss,
+
+  # Static analyzer: keep to core C/C++ paths
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-nullability.*,
+  clang-analyzer-security.*,
+  clang-analyzer-unix.*,
+
+  # Performance
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-inefficient-algorithm,
+  performance-inefficient-string-concatenation,
+  performance-inefficient-vector-operation,
+  performance-move-const-arg,
+  performance-move-constructor-init,
+  performance-no-automatic-move,
+  performance-type-promotion-in-math-fn,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+
+  # Modernization with good signal/noise
+  modernize-avoid-bind,
+  modernize-concat-nested-namespaces,
+  modernize-deprecated-headers,
+  modernize-loop-convert,
+  modernize-make-shared,
+  modernize-make-unique,
+  modernize-raw-string-literal,
+  modernize-redundant-void-arg,
+  modernize-replace-auto-ptr,
+  modernize-replace-random-shuffle,
+  modernize-return-braced-init-list,
+  modernize-shrink-to-fit,
+  modernize-use-auto,
+  modernize-use-bool-literals,
+  modernize-use-default-member-init,
+  modernize-use-emplace,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nodiscard,
+  modernize-use-noexcept,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+
+  # Readability: selected only
+  readability-avoid-const-params-in-decls,
+  readability-const-return-type,
+  readability-container-contains,
+  readability-container-data-pointer,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-duplicate-include,
+  readability-else-after-return,
+  readability-function-cognitive-complexity,
+  readability-function-size,
+  readability-implicit-bool-conversion,
+  readability-inconsistent-declaration-parameter-name,
+  readability-isolate-declaration,
+  readability-make-member-function-const,
+  readability-misleading-indentation,
+  readability-misplaced-array-index,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-redundant-function-ptr-dereference,
+  readability-redundant-inline-specifier,
+  readability-redundant-member-init,
+  readability-redundant-preprocessor,
+  readability-redundant-smartptr-get,
+  readability-redundant-string-cstr,
+  readability-redundant-string-init,
+  readability-simplify-boolean-expr,
+  readability-simplify-subscript-expr,
+  readability-static-accessed-through-instance,
+  readability-string-compare,
+  readability-suspicious-call-argument,
+  readability-uniqueptr-delete-release,
+
+  # Core guidelines: selected only
+  cppcoreguidelines-explicit-virtual-functions,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-macro-usage,
+  cppcoreguidelines-misleading-capture-default-by-value,
+  cppcoreguidelines-missing-std-forward,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-noexcept-destructor,
+  cppcoreguidelines-noexcept-move-operations,
+  cppcoreguidelines-prefer-member-initializer,
+  cppcoreguidelines-pro-type-const-cast,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-type-reinterpret-cast,
+  cppcoreguidelines-rvalue-reference-param-not-moved,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-use-default-member-init,
+  cppcoreguidelines-virtual-class-destructor
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(src|include|apps|test|tests)/'
+FormatStyle: file
+
+CheckOptions:
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '35'
+  - key: readability-function-size.LineThreshold
+    value: '400'
+  - key: readability-function-size.StatementThreshold
+    value: '200'
+  - key: readability-function-size.BranchThreshold
+    value: '80'
+  - key: readability-function-size.ParameterThreshold
+    value: '8'
+  - key: bugprone-argument-comment.StrictMode
+    value: '0'
+  - key: cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
+    value: '1'
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: '1'
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: '1'

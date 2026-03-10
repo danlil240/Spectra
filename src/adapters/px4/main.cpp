@@ -39,7 +39,9 @@ static spectra::adapters::px4::Px4AppShell* g_shell = nullptr;
 static void sigint_handler(int /*sig*/)
 {
     if (g_shell)
+    {
         g_shell->request_shutdown();
+    }
 }
 
 // ---------------------------------------------------------------------------

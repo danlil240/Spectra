@@ -335,7 +335,8 @@ void Px4AppShell::draw()
         ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
 
         // Split: left panel (30%) | main plot area (70%).
-        ImGuiID dock_left, dock_main;
+        ImGuiID dock_left = 0;
+        ImGuiID dock_main = 0;
         ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f, &dock_left, &dock_main);
 
         if (file_panel_)

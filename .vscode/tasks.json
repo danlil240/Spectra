@@ -61,7 +61,7 @@
 		{
 			"label": "clang-tidy: Check All Files",
 			"type": "shell",
-			"command": "/usr/lib/llvm-17/bin/run-clang-tidy -clang-tidy-binary /usr/bin/clang-tidy-17 -p ${workspaceFolder}/build -j ${input:parallelJobs} '${workspaceFolder}/src/.*\\.cpp$'",
+			"command": "/usr/lib/llvm-18/bin/run-clang-tidy -clang-tidy-binary /usr/bin/clang-tidy-18 -p ${workspaceFolder}/build -j ${input:parallelJobs} '${workspaceFolder}/src/.*\\.cpp$'",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

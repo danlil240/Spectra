@@ -14,20 +14,8 @@ CompileFlags:
     - -Wno-error=maybe-uninitialized
 
 Diagnostics:
-  # Surface clang-tidy checks useful for a modern C++20 codebase.
-  ClangTidy:
-    Add:
-      - bugprone-*
-      - clang-analyzer-*
-      - modernize-use-nullptr
-      - modernize-use-override
-      - modernize-use-default-member-init
-      - modernize-loop-convert
-      - performance-unnecessary-copy-initialization
-      - performance-unnecessary-value-param
-      - readability-redundant-smartptr-get
-    Remove:
-      - bugprone-easily-swappable-parameters
+  # Checks are defined in .clang-tidy (single source of truth).
+  # clangd reads .clang-tidy automatically because --clang-tidy is in settings.json clangd.arguments.
   # Suppress diagnostics generated from third-party / system headers.
   Suppress:
     - pp_including_mainfile_in_preamble

@@ -14,6 +14,7 @@
 
     #include "ui/docking/dock_system.hpp"
     #include "ui/input/input.hpp"
+    #include "ui/overlay/custom_transform_dialog.hpp"
     #include "ui/overlay/data_editor.hpp"
     #include "ui/overlay/inspector.hpp"
     #include "ui/layout/layout_manager.hpp"
@@ -425,6 +426,7 @@ class ImGuiIntegration
     void draw_theme_settings();
     void draw_knobs_panel();
     void draw_csv_dialog();
+    void draw_custom_transform_dialog();
 
     void draw_plot_overlays(Figure& figure);
     void draw_toolbar_button(const char*           icon,
@@ -448,6 +450,9 @@ class ImGuiIntegration
 
     // Data editor (tabular series data view + inline editing)
     ui::DataEditor data_editor_;
+
+    // Custom transform dialog (user-defined formula transforms)
+    ui::CustomTransformDialog custom_transform_dialog_;
 
     // Deferred series removal queue (flushed after on_frame callback)
     std::vector<PendingSeriesRemoval> pending_series_removals_;

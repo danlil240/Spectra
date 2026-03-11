@@ -125,6 +125,7 @@ foreach(_ui_src
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp
+    src/ui/overlay/custom_transform_dialog.cpp
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
 )

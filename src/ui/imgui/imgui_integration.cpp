@@ -609,6 +609,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_csv_dialog();
     }
 
+    // Draw custom transform dialog if open
+    if (custom_transform_dialog_.is_open())
+    {
+        draw_custom_transform_dialog();
+    }
+
     // Draw theme settings window if open
     if (show_theme_settings_)
     {
@@ -1826,6 +1832,16 @@ void ImGuiIntegration::draw_command_bar()
                         SPECTRA_LOG_INFO("transform", "Applied transform: " + name);
                     });
             }
+
+            // Separator and custom formula option
+            xform_items.emplace_back("", nullptr);   // separator
+            xform_items.emplace_back(
+                "Custom Formula...",
+                [this]()
+                {
+                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+                    custom_transform_dialog_.open(current_figure_);
+                });
 
             draw_menubar_menu("Transforms", xform_items);
         }
@@ -4005,7 +4021,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PopStyleVar(3);
 
         ImGui::End();   // ##pane_tab_popup_host
-    }                   // Phase 5 scope
+    }   // Phase 5 scope
 }
 
 void ImGuiIntegration::draw_plot_overlays(Figure& figure)
@@ -4823,6 +4839,11 @@ void ImGuiIntegration::draw_csv_dialog()
 
     if (!open)
         csv_dialog_open_ = false;
+}
+
+void ImGuiIntegration::draw_custom_transform_dialog()
+{
+    custom_transform_dialog_.draw();
 }
 
 void ImGuiIntegration::draw_theme_settings()

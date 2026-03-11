@@ -241,7 +241,7 @@ std::vector<NodeInfo> TopicDiscovery::nodes() const
 bool TopicDiscovery::has_topic(const std::string& name) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return topic_map_.count(name) > 0;
+    return topic_map_.contains(name);
 }
 
 TopicInfo TopicDiscovery::topic(const std::string& name) const

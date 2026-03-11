@@ -305,7 +305,7 @@ inline vec3 to_vec3(const Eigen::Vector3f& v)
 // Convert spectra::vec3 to Eigen::Vector3f
 inline Eigen::Vector3f to_eigen(const vec3& v)
 {
-    return {v.x, v.y, v.z};
+    return {static_cast<float>(v.x), static_cast<float>(v.y), static_cast<float>(v.z)};
 }
 
 // Convert Eigen::Matrix4f (column-major) to spectra::mat4

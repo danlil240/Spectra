@@ -212,7 +212,7 @@ void info_row(const char* label, const char* value)
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.45f);
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleColor(
         ImGuiCol_Text,
@@ -230,7 +230,7 @@ void info_row_mono(const char* label, const char* value)
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.45f);
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleColor(
         ImGuiCol_Text,
@@ -279,20 +279,44 @@ bool slider_field(const char* label, float& value, float min, float max, const c
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    // Slider redesign: 4px track, 14px pill thumb, accent fill
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);        // pill-shaped track
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 14.0f);         // 14px thumb diameter
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_FrameBg,
         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+    ImGui::PushStyleColor(
+        ImGuiCol_FrameBgHovered,
+        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a * 1.2f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab,
                           ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive,
+                          ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 1.0f));
     ImGui::PushItemWidth(-1);
 
     bool changed = ImGui::SliderFloat("##slider", &value, min, max, fmt);
 
+    // Night theme: glow around thumb when active
+    if (ImGui::IsItemActive() && c.glow_intensity > 0.01f)
+    {
+        ImVec2 r_min = ImGui::GetItemRectMin();
+        ImVec2 r_max = ImGui::GetItemRectMax();
+        float  frac  = (max != min) ? (value - min) / (max - min) : 0.0f;
+        float  thumb_x = r_min.x + frac * (r_max.x - r_min.x);
+        float  thumb_y = (r_min.y + r_max.y) * 0.5f;
+
+        ImU32 glow_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(c.accent_glow.r, c.accent_glow.g, c.accent_glow.b,
+                   c.accent_glow.a * 0.4f));
+        ImGui::GetWindowDrawList()->AddCircleFilled(
+            ImVec2(thumb_x, thumb_y), 9.0f, glow_col);
+    }
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar(4);
     ImGui::PopID();
     return changed;
 }
@@ -940,15 +964,40 @@ void stat_row_colored(const char*           label,
 
 // ─── Focus Ring ─────────────────────────────────────────────────────────────
 
+static float s_focus_ring_alpha = 0.0f;   // Animated alpha for smooth focus ring appearance
+
 void draw_focus_ring_if_needed()
 {
-    // Only show on keyboard navigation, not mouse.
-    if (!ImGui::IsItemFocused() || ImGui::IsItemActive())
-        return;
+    bool should_show = false;
 
-    // Check that focus came from keyboard (Tab / arrow keys)
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.MouseDown[0] || io.MouseDown[1])
+    // Only show on keyboard navigation, not mouse.
+    if (ImGui::IsItemFocused() && !ImGui::IsItemActive())
+    {
+        // Check that focus came from keyboard (Tab / arrow keys)
+        ImGuiIO& io = ImGui::GetIO();
+        if (!io.MouseDown[0] && !io.MouseDown[1])
+        {
+            should_show = true;
+        }
+    }
+
+    // Animate focus ring alpha: 100ms ease-in on appear, 50ms ease-out on disappear
+    float dt     = ImGui::GetIO().DeltaTime;
+    float target = should_show ? 1.0f : 0.0f;
+    if (s_focus_ring_alpha < target)
+    {
+        // Ease-in: 100ms → speed = 10.0
+        s_focus_ring_alpha =
+            std::min(1.0f, s_focus_ring_alpha + dt / tokens::DURATION_FAST);
+    }
+    else if (s_focus_ring_alpha > target)
+    {
+        // Ease-out: 50ms → speed = 20.0
+        s_focus_ring_alpha =
+            std::max(0.0f, s_focus_ring_alpha - dt / tokens::DURATION_TOOLTIP_IN);
+    }
+
+    if (s_focus_ring_alpha < 0.01f)
         return;
 
     const auto& c      = theme();
@@ -958,7 +1007,8 @@ void draw_focus_ring_if_needed()
     float       radius = tokens::RADIUS_MD + offset;
 
     ImU32 ring_col = ImGui::ColorConvertFloat4ToU32(
-        ImVec4(c.focus_ring.r, c.focus_ring.g, c.focus_ring.b, c.focus_ring.a));
+        ImVec4(c.focus_ring.r, c.focus_ring.g, c.focus_ring.b,
+               c.focus_ring.a * s_focus_ring_alpha));
 
     ImGui::GetWindowDrawList()->AddRect(ImVec2(r_min.x - offset, r_min.y - offset),
                                         ImVec2(r_max.x + offset, r_max.y + offset),

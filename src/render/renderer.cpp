@@ -910,32 +910,72 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         // ── Minor grid lines (subdivisions between major ticks) ──
         // Generate 4 subdivision lines between each pair of adjacent major ticks.
-        constexpr int MINOR_SUBDIVISIONS = 5;   // 5 intervals → 4 interior lines
-        minor_grid_scratch_.clear();
-        // X-axis minor grid
-        for (size_t i = 0; i + 1 < num_x; ++i)
+        // Zoom-dependent alpha: minor grid fades out when spacing drops below 50px
+        // to prevent visual clutter at low zoom levels.
+        constexpr int   MINOR_SUBDIVISIONS   = 5;    // 5 intervals → 4 interior lines
+        constexpr float MINOR_FADE_THRESHOLD = 50.0f;   // px spacing below which minor fades
+        constexpr float MINOR_FADE_MIN       = 10.0f;   // px spacing at which minor is invisible
+
+        // Compute average minor spacing in pixels for X and Y
+        float avg_minor_spacing_x = 0.0f;
+        if (num_x >= 2)
         {
-            double step = (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
-            {
-                float px = data_to_px_x(x_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_top);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_bottom);
-            }
+            float first_px = data_to_px_x(x_ticks.positions[0]);
+            float last_px  = data_to_px_x(x_ticks.positions[num_x - 1]);
+            avg_minor_spacing_x =
+                std::abs(last_px - first_px)
+                / static_cast<float>((num_x - 1) * MINOR_SUBDIVISIONS);
         }
-        // Y-axis minor grid
-        for (size_t i = 0; i + 1 < num_y; ++i)
+        float avg_minor_spacing_y = 0.0f;
+        if (num_y >= 2)
         {
-            double step = (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            float first_py = data_to_px_y(y_ticks.positions[0]);
+            float last_py  = data_to_px_y(y_ticks.positions[num_y - 1]);
+            avg_minor_spacing_y =
+                std::abs(last_py - first_py)
+                / static_cast<float>((num_y - 1) * MINOR_SUBDIVISIONS);
+        }
+        float avg_minor_spacing = std::max(avg_minor_spacing_x, avg_minor_spacing_y);
+
+        // Compute fade factor: 1.0 when spacing >= threshold, 0.0 when <= min
+        float minor_alpha_factor = 1.0f;
+        if (avg_minor_spacing < MINOR_FADE_THRESHOLD)
+        {
+            minor_alpha_factor = std::max(
+                0.0f,
+                (avg_minor_spacing - MINOR_FADE_MIN) / (MINOR_FADE_THRESHOLD - MINOR_FADE_MIN));
+        }
+
+        minor_grid_scratch_.clear();
+        if (minor_alpha_factor > 0.01f)
+        {
+            // X-axis minor grid
+            for (size_t i = 0; i + 1 < num_x; ++i)
             {
-                float py = data_to_px_y(y_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(fx_left);
-                minor_grid_scratch_.push_back(py);
-                minor_grid_scratch_.push_back(fx_right);
-                minor_grid_scratch_.push_back(py);
+                double step =
+                    (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float px = data_to_px_x(x_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
+            }
+            // Y-axis minor grid
+            for (size_t i = 0; i + 1 < num_y; ++i)
+            {
+                double step =
+                    (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float py = data_to_px_y(y_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
             }
         }
 
@@ -957,7 +997,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             minor_pc.color[0]   = colors.grid_minor.r;
             minor_pc.color[1]   = colors.grid_minor.g;
             minor_pc.color[2]   = colors.grid_minor.b;
-            minor_pc.color[3]   = colors.grid_minor.a;
+            minor_pc.color[3]   = colors.grid_minor.a * minor_alpha_factor;
             minor_pc.line_width = std::max(1.0f, as.grid_width * 0.5f);
             backend_.push_constants(minor_pc);
 

@@ -90,6 +90,57 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     if (ty + tooltip_h > window_height - 4.0f)
         ty = window_height - tooltip_h - 4.0f;
 
+    // Determine the direction the arrow should point (toward the data point)
+    constexpr float arrow_size = 6.0f;
+    enum class ArrowDir
+    {
+        Down,
+        Up,
+        Left,
+        Right,
+        None
+    };
+    ArrowDir arrow_dir  = ArrowDir::None;
+    float    arrow_base = 0.0f;   // position along the edge for the arrow tip
+
+    if (nearest.found && nearest.distance_px <= snap_radius_px_)
+    {
+        float dx = nearest.screen_x - (tx + tooltip_w * 0.5f);
+        float dy = nearest.screen_y - (ty + tooltip_h * 0.5f);
+
+        // Arrow points toward data point — choose the closest edge
+        if (std::abs(dy) > std::abs(dx))
+        {
+            if (dy > 0)
+            {
+                arrow_dir  = ArrowDir::Down;   // data point below tooltip
+                arrow_base = std::clamp(nearest.screen_x, tx + arrow_size + 4.0f,
+                                        tx + tooltip_w - arrow_size - 4.0f);
+            }
+            else
+            {
+                arrow_dir  = ArrowDir::Up;   // data point above tooltip
+                arrow_base = std::clamp(nearest.screen_x, tx + arrow_size + 4.0f,
+                                        tx + tooltip_w - arrow_size - 4.0f);
+            }
+        }
+        else
+        {
+            if (dx > 0)
+            {
+                arrow_dir  = ArrowDir::Right;
+                arrow_base = std::clamp(nearest.screen_y, ty + arrow_size + 4.0f,
+                                        ty + tooltip_h - arrow_size - 4.0f);
+            }
+            else
+            {
+                arrow_dir  = ArrowDir::Left;
+                arrow_base = std::clamp(nearest.screen_y, ty + arrow_size + 4.0f,
+                                        ty + tooltip_h - arrow_size - 4.0f);
+            }
+        }
+    }
+
     // Draw tooltip window with soft drop shadow for depth
     ImGui::SetNextWindowPos(ImVec2(tx, ty));
     ImGui::SetNextWindowSize(ImVec2(tooltip_w, tooltip_h));
@@ -104,6 +155,41 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
                           ImVec2(tx + tooltip_w + sh_off, ty + tooltip_h + sh_off),
                           sh_col,
                           sh_r);
+    }
+
+    // Draw arrow triangle on the foreground draw list (before the ImGui window)
+    if (arrow_dir != ArrowDir::None)
+    {
+        ImDrawList* fg = ImGui::GetForegroundDrawList();
+        ImU32       arrow_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r, colors.tooltip_bg.g,
+                                                   colors.tooltip_bg.b, colors.tooltip_bg.a * opacity_));
+        ImVec2 p1, p2, p3;
+        switch (arrow_dir)
+        {
+            case ArrowDir::Down:
+                p1 = ImVec2(arrow_base, ty + tooltip_h + arrow_size);   // tip
+                p2 = ImVec2(arrow_base - arrow_size, ty + tooltip_h);
+                p3 = ImVec2(arrow_base + arrow_size, ty + tooltip_h);
+                break;
+            case ArrowDir::Up:
+                p1 = ImVec2(arrow_base, ty - arrow_size);   // tip
+                p2 = ImVec2(arrow_base - arrow_size, ty);
+                p3 = ImVec2(arrow_base + arrow_size, ty);
+                break;
+            case ArrowDir::Right:
+                p1 = ImVec2(tx + tooltip_w + arrow_size, arrow_base);
+                p2 = ImVec2(tx + tooltip_w, arrow_base - arrow_size);
+                p3 = ImVec2(tx + tooltip_w, arrow_base + arrow_size);
+                break;
+            case ArrowDir::Left:
+                p1 = ImVec2(tx - arrow_size, arrow_base);
+                p2 = ImVec2(tx, arrow_base - arrow_size);
+                p3 = ImVec2(tx, arrow_base + arrow_size);
+                break;
+            default: break;
+        }
+        fg->AddTriangleFilled(p1, p2, p3, arrow_col);
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity_);

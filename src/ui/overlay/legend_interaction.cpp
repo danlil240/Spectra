@@ -163,7 +163,10 @@ bool LegendInteraction::draw(Axes&               axes,
     float legend_w = pad_x * 2.0f + swatch_size + swatch_gap + max_label_w;
     if (toggleable_)
         legend_w += eye_width + 4.0f;
-    float legend_h = pad_y * 2.0f + static_cast<float>(labeled_count) * row_height;
+    // Cap visible rows to 8 for panel legend mode; excess rows become scrollable
+    constexpr int MAX_VISIBLE_ROWS = 8;
+    int           visible_rows     = std::min(labeled_count, MAX_VISIBLE_ROWS);
+    float         legend_h         = pad_y * 2.0f + static_cast<float>(visible_rows) * row_height;
 
     // Compute default position from LegendConfig::position
     constexpr float margin    = 12.0f;
@@ -243,8 +246,13 @@ bool LegendInteraction::draw(Axes&               axes,
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
-                             | ImGuiWindowFlags_NoScrollWithMouse;
+                             | ImGuiWindowFlags_NoFocusOnAppearing;
+
+    // Enable scrolling when series count exceeds max visible rows
+    if (labeled_count <= MAX_VISIBLE_ROWS)
+    {
+        flags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    }
 
     // Allow moving if draggable
     if (!draggable_)

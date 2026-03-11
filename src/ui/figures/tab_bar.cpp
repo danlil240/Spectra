@@ -354,6 +354,22 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
             ImVec2 dot_pos(layout.bounds.x + 8, layout.bounds.y + 10);
             draw_list->AddCircleFilled(dot_pos, 3.0f, to_imcol(colors.warning));
         }
+
+        // Tab separator hairline (1px border_subtle between tabs, skip after last)
+        if (i + 1 < layouts.size() && !is_active_styled)
+        {
+            // Don't draw separator next to the active tab
+            bool next_active = (i + 1 == active_tab_);
+            if (!next_active)
+            {
+                float sep_x = layout.bounds.x + layout.bounds.w;
+                draw_list->AddLine(
+                    ImVec2(sep_x, layout.bounds.y + 8),
+                    ImVec2(sep_x, layout.bounds.y + layout.bounds.h - 8),
+                    to_imcol(colors.border_subtle, 0.35f),
+                    1.0f);
+            }
+        }
     }
 #endif
 }

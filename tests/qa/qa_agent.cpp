@@ -2601,8 +2601,9 @@ class QAAgent
         inspect_screenshot_artifacts(name, pixels, w, h);
         check_validation_messages("design:" + name);
 
-        std::string dir = opts_.output_dir + "/design";
-        std::filesystem::create_directories(dir);
+        std::string           dir = opts_.output_dir + "/design";
+        std::filesystem::path dir_path(dir);
+        std::filesystem::create_directories(dir_path);
 
         std::string safe = name;
         for (auto& c : safe)

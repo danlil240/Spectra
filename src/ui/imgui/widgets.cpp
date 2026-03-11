@@ -29,14 +29,16 @@ SectionAnimState& get_section_anim(const char* id)
 
 void update_section_animations(float dt)
 {
-    constexpr float ANIM_SPEED = 8.0f;   // ~125ms to full open/close
+    // Asymmetric timing: collapse is faster than expand (per spec: 150ms open, 100ms close)
+    constexpr float EXPAND_SPEED   = 8.0f;    // ~125ms to full open
+    constexpr float COLLAPSE_SPEED = 10.0f;   // ~100ms to full close
     for (auto& [key, state] : section_anim_map())
     {
         float target = state.target_open ? 1.0f : 0.0f;
         if (std::abs(state.anim_t - target) > 0.001f)
         {
-            // Exponential ease toward target
-            state.anim_t += (target - state.anim_t) * std::min(1.0f, ANIM_SPEED * dt);
+            float speed = state.target_open ? EXPAND_SPEED : COLLAPSE_SPEED;
+            state.anim_t += (target - state.anim_t) * std::min(1.0f, speed * dt);
         }
         else
         {
@@ -57,12 +59,22 @@ bool section_header(const char* label, bool* open, ImFont* font)
     float  avail  = ImGui::GetContentRegionAvail().x;
     ImVec2 cursor = ImGui::GetCursorScreenPos();
 
-    // Hover highlight — calmer interaction
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+    // Section header background + hover highlight using theme tokens
+    ImGui::PushStyleColor(ImGuiCol_Header,
+                          ImVec4(c.section_header_bg.r,
+                                 c.section_header_bg.g,
+                                 c.section_header_bg.b,
+                                 c.section_header_bg.a));
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.5f));
+                          ImVec4(c.section_header_bg.r + 0.02f,
+                                 c.section_header_bg.g + 0.02f,
+                                 c.section_header_bg.b + 0.02f,
+                                 0.8f));
     ImGui::PushStyleColor(ImGuiCol_HeaderActive,
-                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.7f));
+                          ImVec4(c.section_header_bg.r + 0.04f,
+                                 c.section_header_bg.g + 0.04f,
+                                 c.section_header_bg.b + 0.04f,
+                                 0.9f));
 
     float hdr_h = tokens::INSPECTOR_HEADER_H;
     bool  clicked =
@@ -397,7 +409,7 @@ bool toggle_field(const char* label, bool& value)
         value
             ? ImGui::ColorConvertFloat4ToU32(ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a))
             : ImGui::ColorConvertFloat4ToU32(
-                ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
     draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), bg_col, radius);
 
     // Knob
@@ -924,6 +936,36 @@ void stat_row_colored(const char*           label,
     ImGui::SameLine();
 
     stat_row(label, value, unit);
+}
+
+// ─── Focus Ring ─────────────────────────────────────────────────────────────
+
+void draw_focus_ring_if_needed()
+{
+    // Only show on keyboard navigation, not mouse.
+    if (!ImGui::IsItemFocused() || ImGui::IsItemActive())
+        return;
+
+    // Check that focus came from keyboard (Tab / arrow keys)
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.MouseDown[0] || io.MouseDown[1])
+        return;
+
+    const auto& c      = theme();
+    ImVec2      r_min  = ImGui::GetItemRectMin();
+    ImVec2      r_max  = ImGui::GetItemRectMax();
+    float       offset = tokens::FOCUS_RING_OFFSET;
+    float       radius = tokens::RADIUS_MD + offset;
+
+    ImU32 ring_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(c.focus_ring.r, c.focus_ring.g, c.focus_ring.b, c.focus_ring.a));
+
+    ImGui::GetWindowDrawList()->AddRect(ImVec2(r_min.x - offset, r_min.y - offset),
+                                        ImVec2(r_max.x + offset, r_max.y + offset),
+                                        ring_col,
+                                        radius,
+                                        0,
+                                        tokens::FOCUS_RING_WIDTH);
 }
 
 }   // namespace spectra::ui::widgets

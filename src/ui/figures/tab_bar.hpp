@@ -147,7 +147,7 @@ class TabBar
     TabDragCancelCallback     on_tab_drag_cancel_;
 
     // Layout constants
-    static constexpr float TAB_HEIGHT        = 32.0f;
+    static constexpr float TAB_HEIGHT        = 36.0f;
     static constexpr float TAB_MIN_WIDTH     = 80.0f;
     static constexpr float TAB_MAX_WIDTH     = 200.0f;
     static constexpr float TAB_PADDING       = 12.0f;

@@ -188,10 +188,132 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 {
                     wctx->ui_ctx->imgui_ui->new_frame();
 
-                    // Fill the entire OS window with a single ImGui window.
                     ImGuiViewport* pvp = ImGui::GetMainViewport();
-                    ImGui::SetNextWindowPos(pvp->WorkPos);
-                    ImGui::SetNextWindowSize(pvp->WorkSize);
+
+                    // ── Custom title bar ──
+                    constexpr float kTitleBarH = 32.0f;
+                    constexpr float kBtnSize   = 28.0f;
+                    constexpr float kCornerR   = 8.0f;
+                    constexpr float kBorderW   = 1.0f;
+
+                    const ImU32 col_title_bg    = IM_COL32(30, 30, 34, 255);      // Dark surface
+                    const ImU32 col_title_text  = IM_COL32(210, 210, 215, 255);   // Soft white text
+                    const ImU32 col_close_hover = IM_COL32(220, 60, 60, 200);     // Red close hover
+                    const ImU32 col_close_icon =
+                        IM_COL32(180, 180, 185, 255);                      // Close icon normal
+                    const ImU32 col_border  = IM_COL32(55, 55, 62, 255);   // Subtle border
+                    const ImU32 col_body_bg = IM_COL32(22, 22, 26, 255);   // Body background
+
+                    ImVec2 wp = pvp->WorkPos;
+                    ImVec2 ws = pvp->WorkSize;
+
+                    // Draw full-window background with rounded top corners
+                    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+                    bg_dl->AddRectFilled(wp,
+                                         ImVec2(wp.x + ws.x, wp.y + ws.y),
+                                         col_body_bg,
+                                         kCornerR,
+                                         ImDrawFlags_RoundCornersTop);
+
+                    // Title bar background
+                    ImVec2 tb_min = wp;
+                    ImVec2 tb_max = ImVec2(wp.x + ws.x, wp.y + kTitleBarH);
+                    bg_dl->AddRectFilled(tb_min,
+                                         tb_max,
+                                         col_title_bg,
+                                         kCornerR,
+                                         ImDrawFlags_RoundCornersTop);
+
+                    // Subtle bottom border on title bar
+                    bg_dl->AddLine(ImVec2(tb_min.x, tb_max.y),
+                                   ImVec2(tb_max.x, tb_max.y),
+                                   col_border,
+                                   kBorderW);
+
+                    // Title text (centered vertically in title bar)
+                    {
+                        const char* title_str = wctx->title.c_str();
+                        ImVec2      text_size = ImGui::CalcTextSize(title_str);
+                        float       text_x    = wp.x + 12.0f;
+                        float       text_y    = wp.y + (kTitleBarH - text_size.y) * 0.5f;
+                        bg_dl->AddText(ImVec2(text_x, text_y), col_title_text, title_str);
+                    }
+
+                    // ── Close button ──
+                    float  close_x   = wp.x + ws.x - kBtnSize - 4.0f;
+                    float  close_y   = wp.y + (kTitleBarH - kBtnSize) * 0.5f;
+                    ImVec2 close_min = ImVec2(close_x, close_y);
+                    ImVec2 close_max = ImVec2(close_x + kBtnSize, close_y + kBtnSize);
+
+                    ImVec2 mouse_pos = ImGui::GetMousePos();
+                    bool   close_hovered =
+                        (mouse_pos.x >= close_min.x && mouse_pos.x <= close_max.x
+                         && mouse_pos.y >= close_min.y && mouse_pos.y <= close_max.y);
+
+                    if (close_hovered)
+                    {
+                        bg_dl->AddRectFilled(close_min, close_max, col_close_hover, 6.0f);
+                    }
+
+                    // Draw X icon
+                    {
+                        float cx    = close_x + kBtnSize * 0.5f;
+                        float cy    = close_y + kBtnSize * 0.5f;
+                        float half  = 5.0f;
+                        ImU32 x_col = close_hovered ? IM_COL32(255, 255, 255, 255) : col_close_icon;
+                        bg_dl->AddLine(ImVec2(cx - half, cy - half),
+                                       ImVec2(cx + half, cy + half),
+                                       x_col,
+                                       1.5f);
+                        bg_dl->AddLine(ImVec2(cx + half, cy - half),
+                                       ImVec2(cx - half, cy + half),
+                                       x_col,
+                                       1.5f);
+                    }
+
+                    // Handle close click
+                    if (close_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    {
+                        wctx->should_close = true;
+                    }
+
+                    // ── Title bar drag to move ──
+                    bool title_hovered =
+                        (mouse_pos.x >= tb_min.x && mouse_pos.x <= tb_max.x
+                         && mouse_pos.y >= tb_min.y && mouse_pos.y <= tb_max.y && !close_hovered);
+
+                    auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                    if (title_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    {
+                        wctx->titlebar_dragging = true;
+                        double cx_d, cy_d;
+                        glfwGetCursorPos(glfw_win, &cx_d, &cy_d);
+                        wctx->drag_offset_x = cx_d;
+                        wctx->drag_offset_y = cy_d;
+                    }
+                    if (wctx->titlebar_dragging)
+                    {
+                        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                        {
+                            double sx, sy;
+                            glfwGetCursorPos(glfw_win, &sx, &sy);
+                            int wx, wy;
+                            glfwGetWindowPos(glfw_win, &wx, &wy);
+                            int new_x = wx + static_cast<int>(sx - wctx->drag_offset_x);
+                            int new_y = wy + static_cast<int>(sy - wctx->drag_offset_y);
+                            glfwSetWindowPos(glfw_win, new_x, new_y);
+                        }
+                        else
+                        {
+                            wctx->titlebar_dragging = false;
+                        }
+                    }
+
+                    // ── Panel content area (below title bar) ──
+                    ImVec2 content_pos  = ImVec2(wp.x, wp.y + kTitleBarH);
+                    ImVec2 content_size = ImVec2(ws.x, ws.y - kTitleBarH);
+                    ImGui::SetNextWindowPos(content_pos);
+                    ImGui::SetNextWindowSize(content_size);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));

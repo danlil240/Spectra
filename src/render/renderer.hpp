@@ -161,6 +161,9 @@ class Renderer
         BufferHandle grid_buffer;
         size_t       grid_capacity     = 0;
         uint32_t     grid_vertex_count = 0;
+        BufferHandle minor_grid_buffer;
+        size_t       minor_grid_capacity     = 0;
+        uint32_t     minor_grid_vertex_count = 0;
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
         // 3D bounding box edges (12 lines = 24 vec3 vertices)
@@ -257,6 +260,7 @@ class Renderer
     // Reusable scratch buffers for per-frame vertex generation.
     // Avoids heap allocations in render_grid, render_bounding_box, render_tick_marks.
     std::vector<float> grid_scratch_;
+    std::vector<float> minor_grid_scratch_;
     std::vector<float> bbox_scratch_;
     std::vector<float> tick_scratch_;
     std::vector<float> arrow_line_scratch_;

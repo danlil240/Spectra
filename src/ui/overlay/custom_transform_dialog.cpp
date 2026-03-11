@@ -185,18 +185,18 @@ void CustomTransformDialog::draw_formula_input()
         "Quick insert:");
     ImGui::SameLine();
 
-    auto insert_text = [this](const char* text)
-    {
-        size_t len      = std::strlen(formula_buf_);
-        size_t text_len = std::strlen(text);
-        if (len + text_len < sizeof(formula_buf_) - 1)
-        {
-            std::strcat(formula_buf_, text);
-            formula_changed_ = true;
-        }
-    };
+    // auto insert_text = [this](const char* text)
+    // {
+    //     size_t len      = std::strlen(formula_buf_);
+    //     size_t text_len = std::strlen(text);
+    //     if (len + text_len < sizeof(formula_buf_) - 1)
+    //     {
+    //         std::strcat(formula_buf_, text);
+    //         formula_changed_ = true;
+    //     }
+    // };
 
-    float button_h = ImGui::GetFrameHeight() * 0.85f;
+    // float button_h = ImGui::GetFrameHeight() * 0.85f;
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f, 2.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Button,

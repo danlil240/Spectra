@@ -71,7 +71,13 @@ struct WindowContext
     // Window state
     bool     is_focused = false;
     bool     is_preview = false;   // Tearoff preview window (borderless, floating)
+    bool     is_panel   = false;   // Detached panel window (undecorated, custom title bar)
     uint64_t z_order    = 0;   // Monotonic counter — higher = more recently focused (frontmost)
+
+    // Custom title bar drag state (for undecorated panel windows)
+    bool   titlebar_dragging = false;
+    double drag_offset_x     = 0.0;
+    double drag_offset_y     = 0.0;
 
     // Figure assignment: FigureId from FigureRegistry that this window renders.
     // INVALID_FIGURE_ID means "use the primary window's active figure" (default).

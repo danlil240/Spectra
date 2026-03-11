@@ -456,7 +456,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
 
     data.theme_name = read_string_value(json, "theme_name");
     if (data.theme_name.empty())
-        data.theme_name = "dark";
+        data.theme_name = "night";
     data.active_figure_index =
         static_cast<size_t>(read_number_value(json, "active_figure_index", 0));
 

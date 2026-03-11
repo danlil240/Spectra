@@ -25,7 +25,7 @@ int main()
     spectra::EmbedConfig config;
     config.width  = 1280;
     config.height = 720;
-    config.theme  = "dark";
+    config.theme  = "night";
 
     // UI chrome options (effective when built with SPECTRA_USE_IMGUI)
     config.show_command_bar = true;

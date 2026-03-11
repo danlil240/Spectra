@@ -106,6 +106,30 @@ void Crosshair::draw(const CursorReadout& cursor,
                      gap_length_,
                      1.0f);
 
+    // Intersection dot — 4px filled circle at cursor position
+    {
+        constexpr float DOT_RADIUS = 4.0f;
+        ImU32           dot_fill   = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, opacity_));
+        fg->AddCircleFilled(ImVec2(sx, sy), DOT_RADIUS, dot_fill, 12);
+        // 1px outline for contrast against data
+        ImU32 dot_stroke = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.bg_canvas.r, colors.bg_canvas.g, colors.bg_canvas.b, opacity_));
+        fg->AddCircle(ImVec2(sx, sy), DOT_RADIUS, dot_stroke, 12, 1.0f);
+
+        // Night theme glow: soft accent bloom around the dot
+        if (colors.glow_intensity > 0.01f)
+        {
+            constexpr float GLOW_RADIUS = 8.0f;
+            ImU32           glow_col =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                      colors.accent_glow.g,
+                                                      colors.accent_glow.b,
+                                                      colors.accent_glow.a * opacity_ * 0.5f));
+            fg->AddCircleFilled(ImVec2(sx, sy), GLOW_RADIUS, glow_col, 16);
+        }
+    }
+
     // Axis-intersection labels
     ImU32 label_bg = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.9f * opacity_));

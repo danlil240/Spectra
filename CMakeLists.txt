@@ -279,6 +279,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     # When adding a new .cpp that depends on ImGui, add an if(EXISTS) block here.
     foreach(_imgui_src
         src/ui/theme/theme.cpp
+        src/ui/theme/theme_api.cpp
         src/ui/theme/icons.cpp
         src/ui/imgui/widgets.cpp
         src/ui/overlay/inspector.cpp

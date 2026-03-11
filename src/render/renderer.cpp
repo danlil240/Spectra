@@ -36,6 +36,8 @@ void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
 {
     if (gpu.grid_buffer)
         backend_.destroy_buffer(gpu.grid_buffer);
+    if (gpu.minor_grid_buffer)
+        backend_.destroy_buffer(gpu.minor_grid_buffer);
     if (gpu.border_buffer)
         backend_.destroy_buffer(gpu.border_buffer);
     if (gpu.bbox_buffer)
@@ -213,10 +215,10 @@ void Renderer::begin_render_pass()
     // completed before any GPU resources are freed.
 
     const auto& theme_colors = ui::ThemeManager::instance().colors();
-    Color       bg_color     = Color(theme_colors.bg_primary.r,
-                           theme_colors.bg_primary.g,
-                           theme_colors.bg_primary.b,
-                           theme_colors.bg_primary.a);
+    Color       bg_color     = Color(theme_colors.bg_canvas.r,
+                           theme_colors.bg_canvas.g,
+                           theme_colors.bg_canvas.b,
+                           theme_colors.bg_canvas.a);
     backend_.begin_render_pass(bg_color);
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
@@ -893,10 +895,10 @@ void Renderer::render_plot_geometry(Figure& figure)
         }
         else
         {
-            grid_pc.color[0] = colors.grid_line.r;
-            grid_pc.color[1] = colors.grid_line.g;
-            grid_pc.color[2] = colors.grid_line.b;
-            grid_pc.color[3] = colors.grid_line.a;
+            grid_pc.color[0] = colors.grid_major.r;
+            grid_pc.color[1] = colors.grid_major.g;
+            grid_pc.color[2] = colors.grid_major.b;
+            grid_pc.color[3] = colors.grid_major.a;
         }
         grid_pc.line_width = as.grid_width;
         backend_.push_constants(grid_pc);
@@ -905,6 +907,65 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.bind_buffer(gpu.grid_buffer, 0);
         backend_.draw(grid_vert_count);
         backend_.set_line_width(1.0f);
+
+        // ── Minor grid lines (subdivisions between major ticks) ──
+        // Generate 4 subdivision lines between each pair of adjacent major ticks.
+        constexpr int MINOR_SUBDIVISIONS = 5;   // 5 intervals → 4 interior lines
+        minor_grid_scratch_.clear();
+        // X-axis minor grid
+        for (size_t i = 0; i + 1 < num_x; ++i)
+        {
+            double step = (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            {
+                float px = data_to_px_x(x_ticks.positions[i] + step * s);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_top);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_bottom);
+            }
+        }
+        // Y-axis minor grid
+        for (size_t i = 0; i + 1 < num_y; ++i)
+        {
+            double step = (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            {
+                float py = data_to_px_y(y_ticks.positions[i] + step * s);
+                minor_grid_scratch_.push_back(fx_left);
+                minor_grid_scratch_.push_back(py);
+                minor_grid_scratch_.push_back(fx_right);
+                minor_grid_scratch_.push_back(py);
+            }
+        }
+
+        uint32_t minor_vert_count = static_cast<uint32_t>(minor_grid_scratch_.size() / 2);
+        if (minor_vert_count > 0)
+        {
+            size_t minor_bytes = minor_grid_scratch_.size() * sizeof(float);
+            if (!gpu.minor_grid_buffer || gpu.minor_grid_capacity < minor_bytes)
+            {
+                if (gpu.minor_grid_buffer)
+                    backend_.destroy_buffer(gpu.minor_grid_buffer);
+                gpu.minor_grid_buffer =
+                    backend_.create_buffer(BufferUsage::Vertex, minor_bytes * 2);
+                gpu.minor_grid_capacity = minor_bytes * 2;
+            }
+            backend_.upload_buffer(gpu.minor_grid_buffer, minor_grid_scratch_.data(), minor_bytes);
+
+            SeriesPushConstants minor_pc{};
+            minor_pc.color[0]   = colors.grid_minor.r;
+            minor_pc.color[1]   = colors.grid_minor.g;
+            minor_pc.color[2]   = colors.grid_minor.b;
+            minor_pc.color[3]   = colors.grid_minor.a;
+            minor_pc.line_width = std::max(1.0f, as.grid_width * 0.5f);
+            backend_.push_constants(minor_pc);
+
+            backend_.set_line_width(minor_pc.line_width);
+            backend_.bind_buffer(gpu.minor_grid_buffer, 0);
+            backend_.draw(minor_vert_count);
+            backend_.set_line_width(1.0f);
+        }
     }
 
     // Restore full-figure scissor for border + tick overlay
@@ -1749,9 +1810,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         SeriesPushConstants pc{};
         const auto&         theme_colors = ui::ThemeManager::instance().colors();
         float               blend        = 0.3f;
-        pc.color[0]                      = theme_colors.grid_line.r * (1.0f - blend) + blend;
-        pc.color[1]                      = theme_colors.grid_line.g * (1.0f - blend) + blend;
-        pc.color[2]                      = theme_colors.grid_line.b * (1.0f - blend) + blend;
+        pc.color[0]                      = theme_colors.grid_major.r * (1.0f - blend) + blend;
+        pc.color[1]                      = theme_colors.grid_major.g * (1.0f - blend) + blend;
+        pc.color[2]                      = theme_colors.grid_major.b * (1.0f - blend) + blend;
         pc.color[3]                      = 0.35f;
         pc.line_width                    = 1.0f;
         pc.data_offset_x                 = 0.0f;
@@ -1832,10 +1893,10 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.grid_line.r * 0.7f;
-    pc.color[1]                      = theme_colors.grid_line.g * 0.7f;
-    pc.color[2]                      = theme_colors.grid_line.b * 0.7f;
-    pc.color[3]                      = theme_colors.grid_line.a * 0.8f;
+    pc.color[0]                      = theme_colors.axis_line.r;
+    pc.color[1]                      = theme_colors.axis_line.g;
+    pc.color[2]                      = theme_colors.axis_line.b;
+    pc.color[3]                      = theme_colors.axis_line.a;
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
     pc.data_offset_y                 = 0.0f;
@@ -1943,10 +2004,10 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.grid_line.r * 0.6f;
-    pc.color[1]                      = theme_colors.grid_line.g * 0.6f;
-    pc.color[2]                      = theme_colors.grid_line.b * 0.6f;
-    pc.color[3]                      = theme_colors.grid_line.a;
+    pc.color[0]                      = theme_colors.grid_major.r * 0.8f;
+    pc.color[1]                      = theme_colors.grid_major.g * 0.8f;
+    pc.color[2]                      = theme_colors.grid_major.b * 0.8f;
+    pc.color[3]                      = theme_colors.grid_major.a;
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
     pc.data_offset_y                 = 0.0f;
@@ -2503,9 +2564,9 @@ void Renderer::render_series(Series& series,
             if (pc.marker_type == 0)
             {
                 const auto& theme_colors = ui::ThemeManager::instance().colors();
-                float       bg_luma      = 0.2126f * theme_colors.bg_primary.r
-                                + 0.7152f * theme_colors.bg_primary.g
-                                + 0.0722f * theme_colors.bg_primary.b;
+                float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
+                                + 0.7152f * theme_colors.bg_canvas.g
+                                + 0.0722f * theme_colors.bg_canvas.b;
                 pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
                                                                        : MarkerStyle::Circle);
             }

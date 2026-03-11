@@ -379,7 +379,9 @@ void ImGuiIntegration::build_ui(Figure& figure)
         panel_open_ = layout_manager_->is_inspector_visible();
 
     float target = panel_open_ ? 1.0f : 0.0f;
-    panel_anim_ += (target - panel_anim_) * std::min(1.0f, 10.0f * dt);
+    // Asymmetric timing: close is 20% faster than open (close feels snappier)
+    float anim_speed = panel_open_ ? 8.0f : 10.0f;
+    panel_anim_ += (target - panel_anim_) * std::min(1.0f, anim_speed * dt);
     if (std::abs(panel_anim_ - target) < 0.002f)
         panel_anim_ = target;
 
@@ -932,11 +934,12 @@ static bool icon_button(const char* label, bool active, ImFont* font, float size
     }
     else
     {
-        // Brighter default icons (text_primary at reduced alpha)
+        // Icon brightness via icon_alpha system
+        float ia = icon_alpha(false, ImGui::IsItemHovered(), false);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.55f));
+            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, ia));
     }
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
@@ -949,6 +952,32 @@ static bool icon_button(const char* label, bool active, ImFont* font, float size
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
     bool clicked = ImGui::Button(label, ImVec2(size, size));
+
+    // Active tool: draw 2px accent bar on left edge
+    if (active)
+    {
+        ImVec2 r_min      = ImGui::GetItemRectMin();
+        ImVec2 r_max      = ImGui::GetItemRectMax();
+        ImU32  accent_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+        ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(r_min.x - 2.0f, r_min.y + 4.0f),
+                                                  ImVec2(r_min.x, r_max.y - 4.0f),
+                                                  accent_col,
+                                                  1.0f);
+
+        // Night theme: soft glow behind the accent bar
+        if (colors.glow_intensity > 0.01f)
+        {
+            ImU32 glow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                                   colors.accent_glow.g,
+                                                                   colors.accent_glow.b,
+                                                                   colors.accent_glow.a * 0.3f));
+            ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(r_min.x - 4.0f, r_min.y + 2.0f),
+                                                      ImVec2(r_min.x + 2.0f, r_max.y - 2.0f),
+                                                      glow_col,
+                                                      2.0f);
+        }
+    }
 
     ImGui::PopStyleVar(3);
     ImGui::PopStyleColor(4);
@@ -4860,7 +4889,7 @@ void ImGuiIntegration::draw_theme_settings()
     ImGui::SetNextWindowPos(ImVec2(wx, wy), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
 
-    static std::vector<std::string> available_themes = {"dark", "light", "high_contrast"};
+    static std::vector<std::string> available_themes = {"night", "dark", "light", "high_contrast"};
 
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse;

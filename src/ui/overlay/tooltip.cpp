@@ -173,7 +173,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(4);
 
-    // Draw snap indicator dot at the data point
+    // Draw snap indicator dot at the data point and connection line
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
         ImDrawList* fg        = ImGui::GetForegroundDrawList();
@@ -181,6 +181,55 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
             ImVec4(series_color.r, series_color.g, series_color.b, opacity_));
         ImU32 ring_color = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, opacity_));
+
+        // Connection line from tooltip to data point (dashed, subtle)
+        {
+            ImVec2 tooltip_center(tx + tooltip_w * 0.5f, ty + tooltip_h);
+            ImVec2 data_point(nearest.screen_x, nearest.screen_y);
+
+            // Only draw if there's meaningful distance
+            float dx   = data_point.x - tooltip_center.x;
+            float dy   = data_point.y - tooltip_center.y;
+            float dist = std::sqrt(dx * dx + dy * dy);
+            if (dist > 20.0f)
+            {
+                ImU32 line_color =
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
+                                                          colors.crosshair.g,
+                                                          colors.crosshair.b,
+                                                          colors.crosshair.a * 0.4f * opacity_));
+                // Draw dashed connection line
+                constexpr float dash_len = 4.0f;
+                constexpr float gap_len  = 3.0f;
+                float           nx       = dx / dist;
+                float           ny       = dy / dist;
+                float           pos      = 0.0f;
+                while (pos < dist)
+                {
+                    float seg_start = pos;
+                    float seg_end   = std::min(pos + dash_len, dist);
+                    fg->AddLine(
+                        ImVec2(tooltip_center.x + nx * seg_start,
+                               tooltip_center.y + ny * seg_start),
+                        ImVec2(tooltip_center.x + nx * seg_end, tooltip_center.y + ny * seg_end),
+                        line_color,
+                        1.0f);
+                    pos = seg_end + gap_len;
+                }
+            }
+        }
+
+        // Night theme: subtle glow around snap dot
+        if (colors.glow_intensity > 0.01f)
+        {
+            ImU32 glow_color =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                      colors.accent_glow.g,
+                                                      colors.accent_glow.b,
+                                                      colors.accent_glow.a * 0.5f * opacity_));
+            fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 7.0f, glow_color);
+        }
+
         fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 4.5f, dot_color);
         fg->AddCircle(ImVec2(nearest.screen_x, nearest.screen_y), 4.5f, ring_color, 0, 1.0f);
     }

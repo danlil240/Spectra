@@ -31,7 +31,7 @@ void demo_shortcut_persistence()
     config.set_override("panel.toggle_inspector", "I");
     config.set_override("panel.toggle_timeline", "T");
     config.set_override("anim.toggle_play", "Space");
-    config.set_override("theme.dark", "Ctrl+Shift+D");
+    config.set_override("theme.night", "Ctrl+Shift+D");
     config.set_override("theme.light", "Ctrl+Shift+L");
 
     std::cout << "   - view.reset: Ctrl+R (was Home)\n";
@@ -40,7 +40,7 @@ void demo_shortcut_persistence()
     std::cout << "   - panel.toggle_inspector: I (was Ctrl+I)\n";
     std::cout << "   - panel.toggle_timeline: T (was T)\n";
     std::cout << "   - anim.toggle_play: Space (was Space)\n";
-    std::cout << "   - theme.dark: Ctrl+Shift+D (was Ctrl+Shift+D)\n";
+    std::cout << "   - theme.night: Ctrl+Shift+D (was Ctrl+Shift+D)\n";
     std::cout << "   - theme.light: Ctrl+Shift+L (was Ctrl+Shift+L)\n";
 
     std::cout << "\n2. Saving shortcuts to JSON file...\n";

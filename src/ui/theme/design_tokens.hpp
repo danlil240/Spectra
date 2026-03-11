@@ -53,11 +53,38 @@ constexpr float STATUS_BAR_HEIGHT       = 28.0f;
 constexpr float FLOATING_TOOLBAR_HEIGHT = 48.0f;
 
 // Animation Durations (in seconds)
-constexpr float DURATION_INSTANT = 0.0f;
-constexpr float DURATION_FAST    = 0.1f;
-constexpr float DURATION_NORMAL  = 0.15f;
-constexpr float DURATION_SLOW    = 0.2f;
-constexpr float DURATION_SLOWER  = 0.3f;
+constexpr float DURATION_INSTANT     = 0.0f;
+constexpr float DURATION_FAST        = 0.1f;
+constexpr float DURATION_NORMAL      = 0.15f;
+constexpr float DURATION_SLOW        = 0.2f;
+constexpr float DURATION_SLOWER      = 0.3f;
+constexpr float DURATION_HOVER       = 0.08f;   // Hover transitions
+constexpr float DURATION_TOOLTIP_IN  = 0.05f;   // Tooltip appear
+constexpr float DURATION_TOOLTIP_OUT = 0.10f;   // Tooltip disappear
+constexpr float DURATION_ZOOM        = 0.12f;   // Plot zoom animation
+
+// Glow / Accent Effect Tokens
+constexpr float GLOW_RADIUS_SM = 2.0f;   // Subtle inner glow
+constexpr float GLOW_RADIUS_MD = 4.0f;   // Standard glow (active elements)
+constexpr float GLOW_RADIUS_LG = 8.0f;   // Emphasis glow (selected items)
+
+// Grid Tokens — per-theme alpha (Night / Dark / Light)
+constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.08f;
+constexpr float GRID_MAJOR_ALPHA_DARK  = 0.10f;
+constexpr float GRID_MAJOR_ALPHA_LIGHT = 0.12f;
+constexpr float GRID_MINOR_ALPHA_NIGHT = 0.04f;
+constexpr float GRID_MINOR_ALPHA_DARK  = 0.05f;
+constexpr float GRID_MINOR_ALPHA_LIGHT = 0.06f;
+
+// Inspector Rhythm
+constexpr float SECTION_HEADER_HEIGHT  = 32.0f;
+constexpr float SECTION_CONTENT_INSET  = 12.0f;   // Left indent for section content
+constexpr float INSPECTOR_LABEL_WIDTH  = 80.0f;   // Fixed label column width
+constexpr float INSPECTOR_INPUT_HEIGHT = 28.0f;   // Compact input height
+
+// Focus Ring
+constexpr float FOCUS_RING_WIDTH  = 2.0f;
+constexpr float FOCUS_RING_OFFSET = 2.0f;   // Offset from element edge
 
 // Icon Sizes
 constexpr float ICON_XS = 12.0f;

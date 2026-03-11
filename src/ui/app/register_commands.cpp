@@ -1100,6 +1100,33 @@ void register_standard_commands(const CommandBindings& b)
 
     // ─── Theme commands ──────────────────────────────────────────────────
     cmd_registry.register_command(
+        "theme.night",
+        "Switch to Night Theme",
+        [&]()
+        {
+            auto&       tm        = ui::ThemeManager::instance();
+            std::string old_theme = tm.current_theme_name();
+            tm.set_theme("night");
+            tm.apply_to_imgui();
+            undo_mgr.push(UndoAction{"Switch to night theme",
+                                     [old_theme]()
+                                     {
+                                         auto& t = ui::ThemeManager::instance();
+                                         t.set_theme(old_theme);
+                                         t.apply_to_imgui();
+                                     },
+                                     []()
+                                     {
+                                         auto& t = ui::ThemeManager::instance();
+                                         t.set_theme("night");
+                                         t.apply_to_imgui();
+                                     }});
+        },
+        "",
+        "Theme",
+        static_cast<uint16_t>(ui::Icon::Moon));
+
+    cmd_registry.register_command(
         "theme.dark",
         "Switch to Dark Theme",
         [&]()

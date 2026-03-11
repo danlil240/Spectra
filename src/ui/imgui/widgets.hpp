@@ -145,6 +145,10 @@ void stat_row_colored(const char*           label,
                       const spectra::Color& dot_color,
                       const char*           unit = nullptr);
 
+// Draw a keyboard focus ring around the last item if it is keyboard-focused.
+// Call immediately after the widget you want to decorate.
+void draw_focus_ring_if_needed();
+
 }   // namespace spectra::ui::widgets
 
 #endif   // SPECTRA_USE_IMGUI

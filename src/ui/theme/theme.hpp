@@ -163,7 +163,8 @@ struct Color
 struct ThemeColors
 {
     // Surfaces
-    Color bg_primary;     // Main canvas background
+    Color bg_canvas;      // Plot area background (deepest layer)
+    Color bg_primary;     // Main window background
     Color bg_secondary;   // Panel backgrounds
     Color bg_tertiary;    // Card/section backgrounds
     Color bg_elevated;    // Floating elements (tooltips, popups)
@@ -193,7 +194,9 @@ struct ThemeColors
     Color info;
 
     // Plot-specific
-    Color grid_line;
+    Color grid_major;   // Major gridlines (labeled tick positions)
+    Color grid_minor;   // Minor gridlines (subdivisions, fainter)
+    Color grid_line;    // Compat: legacy single grid color
     Color axis_line;
     Color tick_label;
     Color crosshair;
@@ -201,6 +204,19 @@ struct ThemeColors
     Color selection_border;
     Color tooltip_bg;
     Color tooltip_border;
+
+    // Visual effects
+    Color accent_glow;             // Glow color for Night theme active elements
+    float glow_intensity = 0.0f;   // Glow strength multiplier
+    Color focus_ring;              // Keyboard focus ring color
+    Color scrollbar_thumb;         // Scrollbar thumb color
+    Color scrollbar_track;         // Scrollbar track color
+    Color section_header_bg;       // Inspector section header background
+    Color input_bg;                // Input field background
+    Color hover_highlight;         // Hover highlight tint
+    Color annotation_bg;           // Annotation background
+    Color roi_fill;                // Region-of-interest fill
+    Color roi_border;              // Region-of-interest border
 };
 
 // Color Vision Deficiency types
@@ -297,6 +313,10 @@ class ThemeManager
     void save_current_as_default();
     void load_default();
 
+    // Version counter — incremented on every theme color change.
+    // Renderers can compare against their cached version to skip redundant uploads.
+    uint32_t theme_version() const { return theme_version_; }
+
     // Utility
     Color get_color(const std::string& color_name) const;
     Color lerp_color(const std::string& color_name, const Color& target, float t) const;
@@ -305,7 +325,7 @@ class ThemeManager
     ThemeManager() = default;
 
     std::unordered_map<std::string, Theme> themes_;
-    std::string                            current_theme_name_ = "dark";
+    std::string                            current_theme_name_ = "night";
     Theme*                                 current_theme_      = nullptr;
 
     std::unordered_map<std::string, DataPalette> data_palettes_;
@@ -333,6 +353,9 @@ class ThemeManager
     DataPalette        display_palette_;   // Current palette for rendering
     bool               display_palette_valid_ = false;
 
+    // Theme version counter (monotonically increasing)
+    uint32_t theme_version_ = 0;
+
     // Default theme persistence
     std::string default_theme_path_;
 
@@ -349,6 +372,36 @@ inline const ThemeColors& theme()
 inline const DataPalette& data_palette()
 {
     return ThemeManager::instance().current_data_palette();
+}
+
+// ─── Icon Alpha System ──────────────────────────────────────────────────────
+// Returns the appropriate alpha for an icon given its interaction state.
+// Active icons use accent color at full alpha; this returns the alpha for
+// text_primary-colored icons only.
+inline float icon_alpha(bool active, bool hovered, bool disabled)
+{
+    if (disabled)
+        return 0.25f;
+    if (active)
+        return 1.0f;
+    if (hovered)
+        return 0.85f;
+    return 0.55f;
+}
+
+// ─── Hover Transition Helper ────────────────────────────────────────────────
+// Smoothly interpolates a hover state float (0..1) each frame.
+// Call once per widget per frame with dt and current is_hovered.
+inline float smooth_hover_state(float current_t, float dt, bool is_hovered)
+{
+    float target = is_hovered ? 1.0f : 0.0f;
+    float speed = is_hovered ? (1.0f / tokens::DURATION_HOVER) : (1.0f / 0.12f);   // 120ms fade-out
+    float step  = speed * dt;
+    if (current_t < target)
+        return std::min(current_t + step, target);
+    if (current_t > target)
+        return std::max(current_t - step, target);
+    return current_t;
 }
 
 }   // namespace spectra::ui

@@ -104,7 +104,7 @@ struct WorkspaceData
     };
 
     uint32_t                 version             = FORMAT_VERSION;
-    std::string              theme_name          = "dark";
+    std::string              theme_name          = "night";
     FigureId                 active_figure_index = 0;
     PanelState               panels;
     InteractionState         interaction;

@@ -629,13 +629,16 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
         return nullptr;
 
 #ifdef SPECTRA_USE_GLFW
-    // Create a normal decorated, resizable window.
+    // Create an undecorated, resizable window with custom title bar.
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     auto* wctx = create_window(width, height, title);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);   // Reset for future windows
     if (!wctx)
         return nullptr;
 
     set_window_position(*wctx, screen_x, screen_y);
     wctx->title               = title;
+    wctx->is_panel            = true;
     wctx->panel_draw_callback = std::move(draw_callback);
 
     // Install full input callbacks (cursor, mouse, key, scroll).

@@ -63,6 +63,20 @@ Items bridging Phase 1 and Phase 2: wiring new tokens into ImGui and UI componen
 | 1.5.12 | Hover transition system (80ms/120ms) | Pre-existing | `smooth_hover_state()` with `DURATION_HOVER=0.08f` fade-in, 120ms fade-out. [theme.hpp ~L392](../src/ui/theme/theme.hpp) |
 | 1.5.13 | Tab bar 2px bottom accent indicator | Pre-existing | Active tab has 2px accent underline. [tab_bar.cpp ~L303](../src/ui/figures/tab_bar.cpp) |
 
+### Phase 2 — Plot Surface + Inspector Modernization
+
+| # | Item | Date | Notes |
+|---|------|------|-------|
+| 2.1 | Zoom-dependent minor grid alpha (fade when spacing <50px) | 2026-03-11 | Minor grid alpha scales from 1.0→0.0 as pixel spacing drops from 50px→10px. Avoids visual clutter at low zoom. [renderer.cpp ~L911](../src/render/renderer.cpp) |
+| 2.2 | Tooltip arrow/pointer toward data point (6px triangle) | 2026-03-11 | 6px triangular arrow drawn on tooltip edge nearest to data point. Direction auto-detected (up/down/left/right). [tooltip.cpp ~L93](../src/ui/overlay/tooltip.cpp) |
+| 2.3 | Legend panel mode: max 8 visible rows, then scrollable | 2026-03-11 | `MAX_VISIBLE_ROWS=8` caps legend height. Scroll enabled when series count exceeds 8. [legend_interaction.cpp ~L166](../src/ui/overlay/legend_interaction.cpp) |
+| 2.6 | Inspector 80px fixed label column alignment | 2026-03-11 | `info_row` / `info_row_mono` now use `tokens::INSPECTOR_LABEL_WIDTH` (80px) for label column instead of 45% proportional. [widgets.cpp ~L215](../src/ui/imgui/widgets.cpp) |
+| 2.7 | Slider visual redesign (4px track, 14px thumb, accent fill) | 2026-03-11 | 2px pill-shaped track, 14px grab min size, accent fill+active colors, night-theme glow behind thumb on drag. [widgets.cpp ~L271](../src/ui/imgui/widgets.cpp) |
+| 2.9 | Focus ring animation (100ms ease-in, 50ms ease-out) | 2026-03-11 | Animated alpha on focus ring: ~100ms fade-in, ~50ms fade-out. Keyboard-only visibility preserved. [widgets.cpp ~L967](../src/ui/imgui/widgets.cpp) |
+| 2.10 | Dock tab bar separator hairlines between tabs | 2026-03-11 | 1px `border_subtle` at 35% alpha drawn between inactive adjacent tabs. Skipped next to active tab. [tab_bar.cpp ~L357](../src/ui/figures/tab_bar.cpp) |
+| 2.11 | Nav rail tool grouping with separator hairlines | Pre-existing | Hairline separators between inspector/tool/settings groups using `border_default` at 50 alpha. [imgui_integration.cpp ~L2142](../src/ui/imgui/imgui_integration.cpp) |
+| 2.12 | Icon brightness system (55%/85%/100%/25% alpha) | Pre-existing | `icon_alpha()` function returns context-appropriate alpha. Used in nav rail icon rendering. [theme.hpp ~L381](../src/ui/theme/theme.hpp) |
+
 ---
 
 ## In Progress
@@ -75,18 +89,9 @@ _Nothing currently in progress._
 
 | # | Item | Spec Section | Files to Modify | Priority |
 |---|------|-------------|-----------------|----------|
-| 2.1 | Zoom-dependent minor grid alpha (fade when spacing <50px) | §4.1 | `src/render/renderer.cpp` | High |
-| 2.2 | Tooltip arrow/pointer toward data point | §4.4 | `src/ui/overlay/tooltip.cpp` | Medium |
-| 2.3 | Legend panel mode (glass bg, compact series list, max 8 rows) | §4.3 | `src/ui/overlay/legend_interaction.cpp` | Medium |
 | 2.4 | Legend inline mode (labels next to traces) | §4.3 | `src/ui/overlay/legend_interaction.cpp` | Low |
 | 2.5 | Legend inspector mode (series list in inspector) | §4.3 | `src/ui/overlay/inspector.cpp` | Low |
-| 2.6 | Inspector 80px fixed label column alignment | §5.2 | `src/ui/overlay/inspector.cpp`, `src/ui/imgui/widgets.cpp` | High |
-| 2.7 | Slider visual redesign (4px track, 14px thumb, accent fill) | §5.4 | `src/ui/imgui/widgets.cpp` | Medium |
 | 2.8 | Color picker popover (hue ring, S/L square, hex input) | §5.5 | `src/ui/imgui/widgets.cpp` (new) | Low |
-| 2.9 | Focus ring system (keyboard-only visibility) | §5.3 | `src/ui/imgui/imgui_integration.cpp` | Medium |
-| 2.10 | Dock tab bar styling (36px, separator hairlines) | §6.4 | `src/ui/figures/tab_bar.cpp` | Low |
-| 2.11 | Nav rail tool grouping with separator hairlines | §6.1 | `src/ui/imgui/imgui_integration.cpp` | Low |
-| 2.12 | Icon brightness system (55%/85%/100%/25% alpha) | §6.3 | `src/ui/imgui/imgui_integration.cpp` | Medium |
 
 ---
 

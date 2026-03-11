@@ -279,8 +279,8 @@ bool slider_field(const char* label, float& value, float min, float max, const c
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    // Slider redesign: 4px track, 14px pill thumb, accent fill
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);        // pill-shaped track
+    // Slider redesign: pill-shaped track, 14px pill thumb, accent fill
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);        // pill-shaped track corners
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 14.0f);         // 14px thumb diameter
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -986,13 +986,13 @@ void draw_focus_ring_if_needed()
     float target = should_show ? 1.0f : 0.0f;
     if (s_focus_ring_alpha < target)
     {
-        // Ease-in: 100ms → speed = 10.0
+        // Ease-in over DURATION_FAST (0.1s = 100ms)
         s_focus_ring_alpha =
             std::min(1.0f, s_focus_ring_alpha + dt / tokens::DURATION_FAST);
     }
     else if (s_focus_ring_alpha > target)
     {
-        // Ease-out: 50ms → speed = 20.0
+        // Ease-out over DURATION_TOOLTIP_IN (0.05s = 50ms)
         s_focus_ring_alpha =
             std::max(0.0f, s_focus_ring_alpha - dt / tokens::DURATION_TOOLTIP_IN);
     }

@@ -305,9 +305,10 @@ void Renderer::render_plot_text(Figure& figure)
 
     auto color_to_rgba = [](const ui::Color& c) -> uint32_t
     {
-        uint8_t r = static_cast<uint8_t>(c.r * 255);
-        uint8_t g = static_cast<uint8_t>(c.g * 255);
-        uint8_t b = static_cast<uint8_t>(c.b * 255);
+        // Convert sRGB color to linear for correct display through the sRGB framebuffer
+        uint8_t r = static_cast<uint8_t>(srgb_to_linear(c.r) * 255);
+        uint8_t g = static_cast<uint8_t>(srgb_to_linear(c.g) * 255);
+        uint8_t b = static_cast<uint8_t>(srgb_to_linear(c.b) * 255);
         uint8_t a = static_cast<uint8_t>(c.a * 255);
         return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
                | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
@@ -618,8 +619,18 @@ void Renderer::render_plot_text(Figure& figure)
 
             auto pack_rgba = [](uint8_t r, uint8_t g, uint8_t b, uint8_t a) -> uint32_t
             {
-                return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
-                       | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
+                // Convert sRGB byte values to linear for correct display
+                auto to_lin = [](uint8_t v) -> uint8_t
+                {
+                    float s = v / 255.0f;
+                    float l = s <= 0.04045f ? s / 12.92f
+                                            : std::pow((s + 0.055f) / 1.055f, 2.4f);
+                    return static_cast<uint8_t>(l * 255.0f);
+                };
+                return static_cast<uint32_t>(to_lin(r))
+                       | (static_cast<uint32_t>(to_lin(g)) << 8)
+                       | (static_cast<uint32_t>(to_lin(b)) << 16)
+                       | (static_cast<uint32_t>(a) << 24);
             };
             uint32_t vk_x_arrow_col = pack_rgba(230, 70, 70, 220);
             uint32_t vk_y_arrow_col = pack_rgba(70, 200, 70, 220);
@@ -2368,9 +2379,9 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(arrow3d_pipeline_);
 
         float arrow_colors[][4] = {
-            {0.902f, 0.275f, 0.275f, 1.0f},   // X: red
-            {0.275f, 0.784f, 0.275f, 1.0f},   // Y: green
-            {0.314f, 0.510f, 1.000f, 1.0f},   // Z: blue
+            {srgb_to_linear(0.902f), srgb_to_linear(0.275f), srgb_to_linear(0.275f), 1.0f},
+            {srgb_to_linear(0.275f), srgb_to_linear(0.784f), srgb_to_linear(0.275f), 1.0f},
+            {srgb_to_linear(0.314f), srgb_to_linear(0.510f), srgb_to_linear(1.000f), 1.0f},
         };
 
         backend_.bind_buffer(gpu.arrow_tri_buffer, 0);
@@ -2512,9 +2523,9 @@ void Renderer::render_series(Series& series,
 
     SeriesPushConstants pc{};
     const auto&         c = series.color();
-    pc.color[0]           = c.r;
-    pc.color[1]           = c.g;
-    pc.color[2]           = c.b;
+    pc.color[0]           = srgb_to_linear(c.r);
+    pc.color[1]           = srgb_to_linear(c.g);
+    pc.color[2]           = srgb_to_linear(c.b);
     pc.color[3]           = c.a * series.opacity();
 
     const auto& style = series.plot_style();
@@ -2896,9 +2907,9 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
         auto& gpu = it->second;
 
         SeriesPushConstants pc{};
-        pc.color[0] = accent.r;
-        pc.color[1] = accent.g;
-        pc.color[2] = accent.b;
+        pc.color[0] = srgb_to_linear(accent.r);
+        pc.color[1] = srgb_to_linear(accent.g);
+        pc.color[2] = srgb_to_linear(accent.b);
         pc.color[3] = 0.85f;
         pc.opacity  = 1.0f;
 

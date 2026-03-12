@@ -124,8 +124,14 @@ Renderer::~Renderer()
         destroy_axes_buffers(data);
     axes_gpu_data_.clear();
 
-    if (overlay_line_buffer_)
-        backend_.destroy_buffer(overlay_line_buffer_);
+    // Clean up per-figure overlay buffers
+    for (auto& [ptr, data] : figure_gpu_data_)
+    {
+        if (data.overlay_line_buffer)
+            backend_.destroy_buffer(data.overlay_line_buffer);
+    }
+    figure_gpu_data_.clear();
+
     if (overlay_tri_buffer_)
         backend_.destroy_buffer(overlay_tri_buffer_);
 
@@ -476,11 +482,8 @@ void Renderer::render_plot_text(Figure& figure)
             sy = vp.y + (ndc_y + 1.0f) * 0.5f * vp.h;
 
             float margin = 200.0f;
-            if (sx < vp.x - margin || sx > vp.x + vp.w + margin || sy < vp.y - margin
-                || sy > vp.y + vp.h + margin)
-                return false;
-
-            return true;
+            return sx >= vp.x - margin && sx <= vp.x + vp.w + margin && sy >= vp.y - margin
+                   && sy <= vp.y + vp.h + margin;
         };
 
         auto xlim = axes3d->x_limits();
@@ -525,8 +528,10 @@ void Renderer::render_plot_text(Figure& figure)
             bool  has_last = false;
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
-                float sx, sy, depth;
-                vec3  pos = {static_cast<float>(x_ticks.positions[i]), y0 - x_tick_offset, z0};
+                float sx    = 0.0f;
+                float sy    = 0.0f;
+                float depth = 0.0f;
+                vec3  pos   = {static_cast<float>(x_ticks.positions[i]), y0 - x_tick_offset, z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -550,8 +555,10 @@ void Renderer::render_plot_text(Figure& figure)
             bool  has_last = false;
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
             {
-                float sx, sy, depth;
-                vec3  pos = {x0 - y_tick_offset, static_cast<float>(y_ticks.positions[i]), z0};
+                float sx    = 0.0f;
+                float sy    = 0.0f;
+                float depth = 0.0f;
+                vec3  pos   = {x0 - y_tick_offset, static_cast<float>(y_ticks.positions[i]), z0};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -575,8 +582,10 @@ void Renderer::render_plot_text(Figure& figure)
             bool  has_last = false;
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
             {
-                float sx, sy, depth;
-                vec3  pos = {x0 - z_tick_offset, y0, static_cast<float>(z_ticks.positions[i])};
+                float sx    = 0.0f;
+                float sy    = 0.0f;
+                float depth = 0.0f;
+                vec3  pos   = {x0 - z_tick_offset, y0, static_cast<float>(z_ticks.positions[i])};
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
@@ -617,7 +626,12 @@ void Renderer::render_plot_text(Figure& figure)
                                         const char*        default_lbl,
                                         const std::string& user_lbl)
             {
-                float sx0, sy0, d0, sx1, sy1, d1;
+                float sx0 = 0.0f;
+                float sy0 = 0.0f;
+                float d0  = 0.0f;
+                float sx1 = 0.0f;
+                float sy1 = 0.0f;
+                float d1  = 0.0f;
                 if (!world_to_screen(start, sx0, sy0, d0) || !world_to_screen(end, sx1, sy1, d1))
                     return;
                 const char* lbl          = user_lbl.empty() ? default_lbl : user_lbl.c_str();
@@ -909,10 +923,14 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.set_line_width(1.0f);
 
         // ── Minor grid lines (subdivisions between major ticks) ──
-        // Generate 4 subdivision lines between each pair of adjacent major ticks.
+        // Generate 4 subdivision lines between each pair of adjacent major ticks,
+        // and also extend into the margin regions before the first tick and after
+        // the last tick.  Without edge extension, auto-fitted axes (which add 5%
+        // padding beyond the data range) show minor grid only inside the rectangle
+        // bounded by the outermost ticks, creating a visible "closed square" artifact.
         constexpr int MINOR_SUBDIVISIONS = 5;   // 5 intervals → 4 interior lines
         minor_grid_scratch_.clear();
-        // X-axis minor grid
+        // X-axis minor grid (between adjacent tick pairs)
         for (size_t i = 0; i + 1 < num_x; ++i)
         {
             double step = (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
@@ -925,13 +943,80 @@ void Renderer::render_plot_geometry(Figure& figure)
                 minor_grid_scratch_.push_back(fy_bottom);
             }
         }
-        // Y-axis minor grid
+        // X-axis minor grid — extend into left margin (before first tick)
+        if (num_x >= 2)
+        {
+            double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+            for (int k = 1;; ++k)
+            {
+                double x = x_ticks.positions[0] - step * k;
+                if (x < xlim.min)
+                    break;
+                float px = data_to_px_x(x);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_top);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_bottom);
+            }
+        }
+        // X-axis minor grid — extend into right margin (after last tick)
+        if (num_x >= 2)
+        {
+            double step =
+                (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2]) / MINOR_SUBDIVISIONS;
+            for (int k = 1;; ++k)
+            {
+                double x = x_ticks.positions[num_x - 1] + step * k;
+                if (x > xlim.max)
+                    break;
+                float px = data_to_px_x(x);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_top);
+                minor_grid_scratch_.push_back(px);
+                minor_grid_scratch_.push_back(fy_bottom);
+            }
+        }
+        // Y-axis minor grid (between adjacent tick pairs)
         for (size_t i = 0; i + 1 < num_y; ++i)
         {
             double step = (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
             for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
             {
                 float py = data_to_px_y(y_ticks.positions[i] + step * s);
+                minor_grid_scratch_.push_back(fx_left);
+                minor_grid_scratch_.push_back(py);
+                minor_grid_scratch_.push_back(fx_right);
+                minor_grid_scratch_.push_back(py);
+            }
+        }
+        // Y-axis minor grid — extend into bottom margin (below first tick in data space,
+        // which is the top tick position in screen space since Y is flipped)
+        if (num_y >= 2)
+        {
+            double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+            for (int k = 1;; ++k)
+            {
+                double y = y_ticks.positions[0] - step * k;
+                if (y < ylim.min)
+                    break;
+                float py = data_to_px_y(y);
+                minor_grid_scratch_.push_back(fx_left);
+                minor_grid_scratch_.push_back(py);
+                minor_grid_scratch_.push_back(fx_right);
+                minor_grid_scratch_.push_back(py);
+            }
+        }
+        // Y-axis minor grid — extend into top margin (above last tick in data space)
+        if (num_y >= 2)
+        {
+            double step =
+                (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2]) / MINOR_SUBDIVISIONS;
+            for (int k = 1;; ++k)
+            {
+                double y = y_ticks.positions[num_y - 1] + step * k;
+                if (y > ylim.max)
+                    break;
+                float py = data_to_px_y(y);
                 minor_grid_scratch_.push_back(fx_left);
                 minor_grid_scratch_.push_back(py);
                 minor_grid_scratch_.push_back(fx_right);
@@ -972,18 +1057,26 @@ void Renderer::render_plot_geometry(Figure& figure)
     backend_.set_scissor(0, 0, fig_w, fig_h);
 
     // ── Draw 2D border + tick mark lines ──
+    // Use a per-figure buffer so that split-view figures each have independent
+    // GPU storage.  A single shared buffer is unsafe: all figures render inside
+    // ONE render pass / command buffer, so figure N's upload overwrites the
+    // data that figure N-1's draw command already recorded a reference to.
     uint32_t line_vert_count = static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
     if (line_vert_count > 0)
     {
-        size_t line_bytes = overlay_line_scratch_.size() * sizeof(float);
-        if (!overlay_line_buffer_ || overlay_line_capacity_ < line_bytes)
+        size_t         line_bytes = overlay_line_scratch_.size() * sizeof(float);
+        FigureGpuData& fig_gpu    = figure_gpu_data_[&figure];
+        if (!fig_gpu.overlay_line_buffer || fig_gpu.overlay_line_capacity < line_bytes)
         {
-            if (overlay_line_buffer_)
-                backend_.destroy_buffer(overlay_line_buffer_);
-            overlay_line_buffer_   = backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
-            overlay_line_capacity_ = line_bytes * 2;
+            if (fig_gpu.overlay_line_buffer)
+                backend_.destroy_buffer(fig_gpu.overlay_line_buffer);
+            fig_gpu.overlay_line_buffer =
+                backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
+            fig_gpu.overlay_line_capacity = line_bytes * 2;
         }
-        backend_.upload_buffer(overlay_line_buffer_, overlay_line_scratch_.data(), line_bytes);
+        backend_.upload_buffer(fig_gpu.overlay_line_buffer,
+                               overlay_line_scratch_.data(),
+                               line_bytes);
 
         backend_.bind_pipeline(grid_pipeline_);
 
@@ -995,7 +1088,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
 
-        backend_.bind_buffer(overlay_line_buffer_, 0);
+        backend_.bind_buffer(fig_gpu.overlay_line_buffer, 0);
         backend_.draw(line_vert_count);
     }
 }
@@ -1595,9 +1688,9 @@ void Renderer::render_axes(AxesBase&   axes,
                 centroid = mesh_s->compute_centroid();
 
             // Transform centroid to world space via model matrix
-            vec4  world_c   = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
-            vec3  world_pos = {world_c.x, world_c.y, world_c.z};
-            float dist      = vec3_length(world_pos - cam_pos);
+            vec4 world_c   = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
+            vec3 world_pos = {world_c.x, world_c.y, world_c.z};
+            auto dist      = static_cast<float>(vec3_length(world_pos - cam_pos));
 
             bool is_transparent = (series_ptr->color().a * series_ptr->opacity()) < 0.99f;
 
@@ -1640,8 +1733,10 @@ void Renderer::render_axes(AxesBase&   axes,
         // Camera-relative rendering: use the cached view center and limits
         // from projection setup for re-uploads and data_offset push constants.
         auto*  axes2d  = dynamic_cast<Axes*>(&axes);
-        double view_cx = 0.0, view_cy = 0.0;
-        double half_rx = 0.0, half_ry = 0.0;
+        double view_cx = 0.0;
+        double view_cy = 0.0;
+        double half_rx = 0.0;
+        double half_ry = 0.0;
         if (axes2d)
         {
             auto& agpu = axes_gpu_data_[&axes];

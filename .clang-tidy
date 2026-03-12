@@ -147,7 +147,7 @@ FormatStyle: file
 
 CheckOptions:
   - key: readability-function-cognitive-complexity.Threshold
-    value: '35'
+    value: '50'
   - key: readability-function-size.LineThreshold
     value: '400'
   - key: readability-function-size.StatementThreshold

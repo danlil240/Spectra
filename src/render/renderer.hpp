@@ -266,13 +266,25 @@ class Renderer
     std::vector<float> arrow_line_scratch_;
     std::vector<float> arrow_tri_scratch_;
 
-    // Screen-space overlay geometry buffers (tick marks, arrow lines, arrowheads)
-    BufferHandle       overlay_line_buffer_;   // Line-list vertices (tick marks + arrow shafts)
-    size_t             overlay_line_capacity_ = 0;
-    BufferHandle       overlay_tri_buffer_;   // Triangle-list vertices (arrowheads)
-    size_t             overlay_tri_capacity_ = 0;
+    // Per-figure GPU buffers for screen-space overlay (border + tick marks).
+    // A single shared buffer is unsafe in split view: all figures render inside
+    // ONE command buffer, so figure N's upload overwrites the data that figure
+    // N-1's draw command still references.
+    struct FigureGpuData
+    {
+        BufferHandle overlay_line_buffer;
+        size_t       overlay_line_capacity = 0;
+    };
+    std::unordered_map<const Figure*, FigureGpuData> figure_gpu_data_;
+
+    // Reusable scratch buffers for screen-space overlay vertex generation.
     std::vector<float> overlay_line_scratch_;
     std::vector<float> overlay_tri_scratch_;
+
+    // Legacy single-instance triangle overlay buffer (currently unused but kept
+    // to avoid touching unrelated destruction paths).
+    BufferHandle overlay_tri_buffer_;
+    size_t       overlay_tri_capacity_ = 0;
 
     // Legend GPU buffers
     BufferHandle       legend_line_buffer_;

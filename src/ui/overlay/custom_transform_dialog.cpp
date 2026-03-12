@@ -437,7 +437,8 @@ void CustomTransformDialog::draw_preview()
         }
     }
 
-    std::span<const float> x_data, y_data;
+    std::span<const float> x_data;
+    std::span<const float> y_data;
     if (ls_preview)
     {
         x_data = ls_preview->x_data();
@@ -709,12 +710,10 @@ void CustomTransformDialog::apply_transform()
             continue;
 
         auto& ax = figure_->axes_mut()[ai];
-        int   si = 0;
         for (auto& sp : ax->series_mut())
         {
             if (!sp)
             {
-                ++si;
                 ++global_si;
                 continue;
             }
@@ -722,7 +721,6 @@ void CustomTransformDialog::apply_transform()
             // Filter by target_series_ if set
             if (target_series_ >= 0 && global_si != target_series_)
             {
-                ++si;
                 ++global_si;
                 continue;
             }
@@ -730,12 +728,12 @@ void CustomTransformDialog::apply_transform()
             // Skip invisible series when applying to all
             if (target_series_ < 0 && !sp->visible())
             {
-                ++si;
                 ++global_si;
                 continue;
             }
 
-            std::span<const float> x_data, y_data;
+            std::span<const float> x_data;
+            std::span<const float> y_data;
             auto*                  ls = dynamic_cast<LineSeries*>(sp.get());
             auto*                  sc = dynamic_cast<ScatterSeries*>(sp.get());
 
@@ -751,7 +749,6 @@ void CustomTransformDialog::apply_transform()
             }
             else
             {
-                ++si;
                 ++global_si;
                 continue;
             }
@@ -792,7 +789,6 @@ void CustomTransformDialog::apply_transform()
                 sc->set_x(result_x).set_y(result_y);
 
             ++series_applied;
-            ++si;
             ++global_si;
         }
         ax->auto_fit();

@@ -32,14 +32,12 @@ struct Color
                          (hex & 0xFF) / 255.0f,
                          ((hex >> 24) & 0xFF) / 255.0f);
         }
-        else
-        {
-            // RGB format
-            return Color(((hex >> 16) & 0xFF) / 255.0f,
-                         ((hex >> 8) & 0xFF) / 255.0f,
-                         (hex & 0xFF) / 255.0f,
-                         1.0f);
-        }
+
+        // RGB format
+        return Color(((hex >> 16) & 0xFF) / 255.0f,
+                     ((hex >> 8) & 0xFF) / 255.0f,
+                     (hex & 0xFF) / 255.0f,
+                     1.0f);
     }
 
     constexpr uint32_t to_hex() const

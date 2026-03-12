@@ -936,9 +936,9 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x4D8FD6),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.10f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.10f),   // Compat
+        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.12f),
+        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.06f),
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.12f),   // Compat
         .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.50f),
         .tick_label       = Color::from_hex(0x6B7582),
         .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
@@ -997,11 +997,11 @@ void ThemeManager::initialize_default_themes()
                               .error   = Color::from_hex(0xF87171),
                               .info    = Color::from_hex(0x60A5FA),
 
-                    // Plot — ultra-receded grid, vivid data
-                              .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.08f),
-                              .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.04f),
-                              .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.08f),   // Compat
-                              .axis_line        = Color(0.60f, 0.65f, 0.72f, 0.35f),
+                    // Plot — receded but visible grid, vivid data
+                              .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.12f),
+                              .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.06f),
+                              .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.12f),   // Compat
+                              .axis_line        = Color(0.60f, 0.65f, 0.72f, 0.45f),
                               .tick_label       = Color::from_hex(0x5A6370),
                               .crosshair        = Color(0.23f, 0.70f, 0.96f, 0.60f),
                               .selection_fill   = Color(0.23f, 0.70f, 0.96f, 0.15f),

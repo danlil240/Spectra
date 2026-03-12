@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -17,6 +18,23 @@
 
 namespace spectra
 {
+
+// ─── sRGB → Linear Conversion ───────────────────────────────────────────────
+// Theme colors are defined as sRGB hex values (e.g. #070A0F), but the Vulkan
+// swapchain uses VK_FORMAT_B8G8R8A8_SRGB which applies automatic gamma
+// encoding on write.  Clear colors and push constant colors must be supplied
+// in linear space so the hardware sRGB transfer function produces the
+// intended on-screen colour.  Without this conversion dark backgrounds
+// appear dramatically brighter (~#373F4B instead of #070A0F).
+static float srgb_to_linear(float s)
+{
+    return s <= 0.04045f ? s / 12.92f : std::pow((s + 0.055f) / 1.055f, 2.4f);
+}
+
+static Color color_to_linear(const ui::Color& c)
+{
+    return Color{srgb_to_linear(c.r), srgb_to_linear(c.g), srgb_to_linear(c.b), c.a};
+}
 
 Renderer::Renderer(Backend& backend) : backend_(backend) {}
 
@@ -215,10 +233,7 @@ void Renderer::begin_render_pass()
     // completed before any GPU resources are freed.
 
     const auto& theme_colors = ui::ThemeManager::instance().colors();
-    Color       bg_color     = Color(theme_colors.bg_canvas.r,
-                           theme_colors.bg_canvas.g,
-                           theme_colors.bg_canvas.b,
-                           theme_colors.bg_canvas.a);
+    Color       bg_color     = color_to_linear(theme_colors.bg_canvas);
     backend_.begin_render_pass(bg_color);
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
@@ -888,16 +903,16 @@ void Renderer::render_plot_geometry(Figure& figure)
         const auto&         as = axes2d->axis_style();
         if (as.grid_color.a > 0.0f)
         {
-            grid_pc.color[0] = as.grid_color.r;
-            grid_pc.color[1] = as.grid_color.g;
-            grid_pc.color[2] = as.grid_color.b;
+            grid_pc.color[0] = srgb_to_linear(as.grid_color.r);
+            grid_pc.color[1] = srgb_to_linear(as.grid_color.g);
+            grid_pc.color[2] = srgb_to_linear(as.grid_color.b);
             grid_pc.color[3] = as.grid_color.a;
         }
         else
         {
-            grid_pc.color[0] = colors.grid_major.r;
-            grid_pc.color[1] = colors.grid_major.g;
-            grid_pc.color[2] = colors.grid_major.b;
+            grid_pc.color[0] = srgb_to_linear(colors.grid_major.r);
+            grid_pc.color[1] = srgb_to_linear(colors.grid_major.g);
+            grid_pc.color[2] = srgb_to_linear(colors.grid_major.b);
             grid_pc.color[3] = colors.grid_major.a;
         }
         grid_pc.line_width = as.grid_width;
@@ -994,9 +1009,9 @@ void Renderer::render_plot_geometry(Figure& figure)
             backend_.upload_buffer(gpu.minor_grid_buffer, minor_grid_scratch_.data(), minor_bytes);
 
             SeriesPushConstants minor_pc{};
-            minor_pc.color[0]   = colors.grid_minor.r;
-            minor_pc.color[1]   = colors.grid_minor.g;
-            minor_pc.color[2]   = colors.grid_minor.b;
+            minor_pc.color[0]   = srgb_to_linear(colors.grid_minor.r);
+            minor_pc.color[1]   = srgb_to_linear(colors.grid_minor.g);
+            minor_pc.color[2]   = srgb_to_linear(colors.grid_minor.b);
             minor_pc.color[3]   = colors.grid_minor.a * minor_alpha_factor;
             minor_pc.line_width = std::max(1.0f, as.grid_width * 0.5f);
             backend_.push_constants(minor_pc);
@@ -1028,9 +1043,9 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        pc.color[0]   = colors.axis_line.r;
-        pc.color[1]   = colors.axis_line.g;
-        pc.color[2]   = colors.axis_line.b;
+        pc.color[0]   = srgb_to_linear(colors.axis_line.r);
+        pc.color[1]   = srgb_to_linear(colors.axis_line.g);
+        pc.color[2]   = srgb_to_linear(colors.axis_line.b);
         pc.color[3]   = colors.axis_line.a;
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
@@ -1850,9 +1865,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         SeriesPushConstants pc{};
         const auto&         theme_colors = ui::ThemeManager::instance().colors();
         float               blend        = 0.3f;
-        pc.color[0]                      = theme_colors.grid_major.r * (1.0f - blend) + blend;
-        pc.color[1]                      = theme_colors.grid_major.g * (1.0f - blend) + blend;
-        pc.color[2]                      = theme_colors.grid_major.b * (1.0f - blend) + blend;
+        pc.color[0] = srgb_to_linear(theme_colors.grid_major.r * (1.0f - blend) + blend);
+        pc.color[1] = srgb_to_linear(theme_colors.grid_major.g * (1.0f - blend) + blend);
+        pc.color[2] = srgb_to_linear(theme_colors.grid_major.b * (1.0f - blend) + blend);
         pc.color[3]                      = 0.35f;
         pc.line_width                    = 1.0f;
         pc.data_offset_x                 = 0.0f;
@@ -1933,9 +1948,9 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.axis_line.r;
-    pc.color[1]                      = theme_colors.axis_line.g;
-    pc.color[2]                      = theme_colors.axis_line.b;
+    pc.color[0]                      = srgb_to_linear(theme_colors.axis_line.r);
+    pc.color[1]                      = srgb_to_linear(theme_colors.axis_line.g);
+    pc.color[2]                      = srgb_to_linear(theme_colors.axis_line.b);
     pc.color[3]                      = theme_colors.axis_line.a;
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
@@ -2044,9 +2059,9 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.grid_major.r * 0.8f;
-    pc.color[1]                      = theme_colors.grid_major.g * 0.8f;
-    pc.color[2]                      = theme_colors.grid_major.b * 0.8f;
+    pc.color[0]                      = srgb_to_linear(theme_colors.grid_major.r * 0.8f);
+    pc.color[1]                      = srgb_to_linear(theme_colors.grid_major.g * 0.8f);
+    pc.color[2]                      = srgb_to_linear(theme_colors.grid_major.b * 0.8f);
     pc.color[3]                      = theme_colors.grid_major.a;
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
@@ -2468,9 +2483,9 @@ void Renderer::render_axis_border(AxesBase& axes,
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.axis_line.r;
-    pc.color[1]                      = theme_colors.axis_line.g;
-    pc.color[2]                      = theme_colors.axis_line.b;
+    pc.color[0]                      = srgb_to_linear(theme_colors.axis_line.r);
+    pc.color[1]                      = srgb_to_linear(theme_colors.axis_line.g);
+    pc.color[2]                      = srgb_to_linear(theme_colors.axis_line.b);
     pc.color[3]                      = theme_colors.axis_line.a;
     pc.line_width                    = 1.0f;
     pc.data_offset_x                 = 0.0f;

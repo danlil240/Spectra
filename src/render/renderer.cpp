@@ -24,7 +24,7 @@ namespace spectra
 // swapchain uses VK_FORMAT_B8G8R8A8_SRGB which applies automatic gamma
 // encoding on write.  Clear colors and push constant colors must be supplied
 // in linear space so the hardware sRGB transfer function produces the
-// intended on-screen colour.  Without this conversion dark backgrounds
+// intended on-screen color.  Without this conversion dark backgrounds
 // appear dramatically brighter (~#373F4B instead of #070A0F).
 static float srgb_to_linear(float s)
 {
@@ -619,18 +619,11 @@ void Renderer::render_plot_text(Figure& figure)
 
             auto pack_rgba = [](uint8_t r, uint8_t g, uint8_t b, uint8_t a) -> uint32_t
             {
-                // Convert sRGB byte values to linear for correct display
-                auto to_lin = [](uint8_t v) -> uint8_t
-                {
-                    float s = v / 255.0f;
-                    float l = s <= 0.04045f ? s / 12.92f
-                                            : std::pow((s + 0.055f) / 1.055f, 2.4f);
-                    return static_cast<uint8_t>(l * 255.0f);
-                };
-                return static_cast<uint32_t>(to_lin(r))
-                       | (static_cast<uint32_t>(to_lin(g)) << 8)
-                       | (static_cast<uint32_t>(to_lin(b)) << 16)
-                       | (static_cast<uint32_t>(a) << 24);
+                uint8_t lr = static_cast<uint8_t>(srgb_to_linear(r / 255.0f) * 255.0f);
+                uint8_t lg = static_cast<uint8_t>(srgb_to_linear(g / 255.0f) * 255.0f);
+                uint8_t lb = static_cast<uint8_t>(srgb_to_linear(b / 255.0f) * 255.0f);
+                return static_cast<uint32_t>(lr) | (static_cast<uint32_t>(lg) << 8)
+                       | (static_cast<uint32_t>(lb) << 16) | (static_cast<uint32_t>(a) << 24);
             };
             uint32_t vk_x_arrow_col = pack_rgba(230, 70, 70, 220);
             uint32_t vk_y_arrow_col = pack_rgba(70, 200, 70, 220);

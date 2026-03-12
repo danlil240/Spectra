@@ -355,7 +355,9 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
             draw_list->AddCircleFilled(dot_pos, 3.0f, to_imcol(colors.warning));
         }
 
-        // Tab separator hairline (1px between tabs, skip after last)
+        // Tab separator hairline (1px between tabs, skip after last).
+        // Uses border_strong instead of border_subtle because on ultra-dark
+        // Night theme backgrounds the subtle border is nearly invisible.
         if (i + 1 < layouts.size() && !is_active_styled)
         {
             // Don't draw separator next to the active tab
